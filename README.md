@@ -26,7 +26,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-repo/education-advisor.git
+git clone https://github.com/232252/education-advisor.git
 cd education-advisor
 
 # 运行自动部署脚本
@@ -56,27 +56,31 @@ vim config/app_config.json
 python3 scripts/init_system.py
 ```
 
+### 方式三：直接交给 OpenClaw（最简）
+
+```
+将本项目地址交给 OpenClaw AI，AI 会自动创建文件并完成部署配置：
+https://github.com/232252/education-advisor
+```
+
 ## 📁 项目结构
 
 ```
 education-advisor/
 ├── README.md           # 项目说明
+├── PROJECT_INTRO.md   # 项目详细介绍（含未来发展方向）
 ├── install.sh          # 一键安装脚本
 ├── config/             # 配置文件
-│   ├── app_config.example.json  # 配置模板
-│   └── agents.yaml     # Agent定义
+│   └── agents.yaml     # Agent定义（10个完整配置）
 ├── scripts/            # 系统脚本
-│   ├── init_system.py  # 初始化脚本
-│   └── *.py            # 各种工具脚本
-├── agents/             # Agent定义
-│   ├── supervisor/     # 督导Agent
-│   ├── validator/      # 数据校验Agent
-│   └── ...
-├── skills/             # 技能定义
-├── docs/               # 文档
-├── examples/           # 示例数据
-│   └── students/       # 示例学生档案（脱敏）
-└── tests/              # 测试
+│   ├── save_inbox.py       # 消息保存
+│   ├── supervisor_quick_scan.py  # 快速风险扫描
+│   ├── validator_quick_check.py   # 数据核验
+│   └── init_system.py     # 初始化
+├── agents/             # Agent工作区（10个Agent）
+├── docs/               # 完整文档
+├── examples/           # 脱敏示例数据
+└── tests/             # 测试
 ```
 
 ## ⚙️ 配置说明
@@ -88,13 +92,6 @@ education-advisor/
 | APP_ID | 飞书应用ID | 飞书开放平台 |
 | APP_SECRET | 飞书应用密钥 | 飞书开放平台 |
 | USER_OPEN_ID | 您的飞书Open ID | 飞书个人资料 |
-
-### 可选配置
-
-| 配置项 | 说明 | 默认值 |
-|:-------|:-----|:-------|
-| CALENDAR_ID | 日历ID | 主日历 |
-| BITABLE_APP_TOKEN | 多维表格Token | 无 |
 
 ### Agent配置
 
@@ -113,6 +110,17 @@ education-advisor/
 | executor | 系统维护 | 可选 |
 | talk_planner | 谈话计划 | 可选 |
 
+## 🔮 未来发展方向
+
+详细说明请查看 [PROJECT_INTRO.md](./PROJECT_INTRO.md)
+
+| 方向 | 说明 |
+|:-----|:-----|
+| **系统底层升级** | 数据智能治理、多Agent实时互通架构 |
+| **交互模式革新** | 穿戴设备无感采集、端云协同处理 |
+| **教学智能化** | 作业自动批改、个性化分层作业生成 |
+| **开源生态建设** | 核心能力开源 → 插件市场 → 社区共建 |
+
 ## 📖 使用指南
 
 ### 基础命令
@@ -126,8 +134,6 @@ education-advisor/
 ```
 
 ### 定时任务
-
-系统自动执行以下任务：
 
 | 时间 | 任务 |
 |:-----|:-----|
@@ -159,4 +165,5 @@ MIT License
 
 ## 📧 联系
 
-如有问题，请提交 GitHub Issue。
+- **项目地址**: https://github.com/232252/education-advisor
+- **问题反馈**: https://github.com/232252/education-advisor/issues
