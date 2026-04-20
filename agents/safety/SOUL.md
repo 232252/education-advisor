@@ -70,3 +70,11 @@
 - 月检：每月1日
 - 使用前：每次实验课前
 - 专项：大型活动前
+
+## 数据铁律
+- **所有数据读写必须通过 `copaw` CLI**，禁止直接操作 JSON 文件
+- 操行分查询：`copaw score <姓名>`
+- 事件查询：`copaw history <姓名>`、`copaw search <关键词>`
+- 数据校验：`copaw validate`、`copaw stats`
+- 新增/撤销事件：`copaw add`、`copaw revert`
+- 详见 `docs/CLI_REFERENCE.md` 和 `docs/SECURITY.md`

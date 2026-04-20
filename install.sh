@@ -54,6 +54,15 @@ if [ $MISSING -eq 1 ]; then
     exit 1
 fi
 
+# 可选：检查 Rust（用于编译数据系统 CLI）
+if command -v cargo &> /dev/null; then
+    echo -e "  ✅ cargo (Rust)"
+    COMPILE_CLI=true
+else
+    echo -e "  ℹ️  cargo 未安装（可选，跳过 copaw CLI 编译）"
+    COMPILE_CLI=false
+fi
+
 echo -e "${GREEN}  环境检查完成${NC}"
 echo ""
 
@@ -185,9 +194,23 @@ echo -e "${GREEN}  示例数据初始化完成${NC}"
 echo ""
 
 #----------------------------------------------------------------
-# 5. 验证系统完整性
+# 5. 编译 copaw CLI（可选）
 #----------------------------------------------------------------
-echo -e "${BLUE}[5/6]${NC} 验证系统完整性..."
+if [ "$COMPILE_CLI" = true ]; then
+    echo -e "${BLUE}[5/7]${NC} 编译 copaw 事件溯源 CLI..."
+    cd "$PROJECT_ROOT/core/copaw-cli"
+    cargo build --release 2>&1 | tail -3
+    echo -e "  ✅ 编译完成: core/copaw-cli/target/release/copaw"
+    cd "$PROJECT_ROOT"
+else
+    echo -e "${BLUE}[5/7]${NC} 跳过 CLI 编译（未安装 Rust）"
+fi
+echo ""
+
+#----------------------------------------------------------------
+# 6. 验证系统完整性
+#----------------------------------------------------------------
+echo -e "${BLUE}[6/7]${NC} 验证系统完整性..."
 
 SCRIPTS_DIR="$PROJECT_ROOT/scripts"
 REQUIRED_SCRIPTS=(
@@ -216,9 +239,9 @@ echo -e "${GREEN}  系统验证完成${NC}"
 echo ""
 
 #----------------------------------------------------------------
-# 6. 启动服务
+# 7. 启动服务
 #----------------------------------------------------------------
-echo -e "${BLUE}[6/6]${NC} 启动服务..."
+echo -e "${BLUE}[7/7]${NC} 启动服务..."
 
 echo -e "${GREEN}=============================================="
 echo -e "   🎓 教育参谋系统安装完成！"

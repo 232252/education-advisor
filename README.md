@@ -6,7 +6,7 @@
 
 *为班主任和教师提供学生管理、教育督导、科研辅助的全场景智能服务*
 
-**[项目详细介绍](./PROJECT_INTRO.md)** · **[快速开始](./docs/QUICK_START.md)** · **[系统架构](./docs/SYSTEM_ARCHITECTURE.md)**
+**[项目详细介绍](./PROJECT_INTRO.md)** · **[快速开始](./docs/QUICK_START.md)** · **[系统架构](./docs/SYSTEM_ARCHITECTURE.md)** · **[安全限制](./docs/SECURITY.md)**
 
 </div>
 
@@ -19,6 +19,7 @@
 - 📅 **日历同步** - 与飞书日历同步课表和日程
 - 📈 **成绩分析** - 自动分析成绩分布，识别学业预警
 - 🔐 **数据校验** - 多Agent交叉校验，确保数据准确性
+- 🗄️ **事件溯源数据系统** - Rust 高性能 CLI，不可变事件流，完全可追溯
 
 ## 🚀 快速部署
 
@@ -44,14 +45,18 @@ npm install -g openclaw
 
 2. 配置飞书应用
 ```bash
-# 复制配置模板
 cp config/app_config.example.json config/app_config.json
-
-# 编辑配置，填入您的飞书应用参数
 vim config/app_config.json
 ```
 
-3. 初始化系统
+3. 编译数据系统 CLI（可选，需要本地数据管理）
+```bash
+cd core/copaw-cli
+cargo build --release
+# 二进制文件: target/release/copaw
+```
+
+4. 初始化系统
 ```bash
 python3 scripts/init_system.py
 ```
@@ -63,24 +68,61 @@ python3 scripts/init_system.py
 https://github.com/232252/education-advisor
 ```
 
+## 🗄️ 事件溯源数据系统
+
+系统内置基于 Rust 的事件溯源操行分管理 CLI（`copaw`），是**唯一的数据读写入口**。
+
+### 核心架构
+
+```
+用户/Agent → copaw CLI → 事件流(events.json) → 重放引擎 → 实时分数
+```
+
+- **不可变事件流**：所有分数变动以事件形式追加，不可删除/修改
+- **重放计算**：当前分数 = 100 + Σ(事件分值)，实时计算
+- **强制校验**：新增事件必须通过原因码和分值校验
+- **可撤销**：通过 REVERT 事件对冲，保留完整审计轨迹
+
+### 常用命令
+
+```bash
+copaw info                    # 系统信息
+copaw score <姓名>            # 查询分数
+copaw history <姓名>          # 事件时间线
+copaw ranking [数量]          # 排行榜
+copaw search <关键词>          # 搜索事件
+copaw add <姓名> <原因码>      # 新增事件
+copaw revert <事件ID>         # 撤销事件
+copaw stats                   # 统计摘要
+copaw codes                   # 原因码列表
+```
+
+详见 [CLI命令手册](./docs/CLI_REFERENCE.md) 和 [事件溯源架构说明](./docs/EVENT_SOURCING.md)。
+
 ## 📁 项目结构
 
 ```
 education-advisor/
-├── README.md           # 项目说明
-├── PROJECT_INTRO.md   # 项目详细介绍（含未来发展方向）
-├── install.sh          # 一键安装脚本
-├── config/             # 配置文件
-│   └── agents.yaml     # Agent定义（10个完整配置）
-├── scripts/            # 系统脚本
-│   ├── save_inbox.py       # 消息保存
-│   ├── supervisor_quick_scan.py  # 快速风险扫描
-│   ├── validator_quick_check.py   # 数据核验
-│   └── init_system.py     # 初始化
-├── agents/             # Agent工作区（10个Agent）
-├── docs/               # 完整文档
-├── examples/           # 脱敏示例数据
-└── tests/             # 测试
+├── README.md              # 项目说明
+├── PROJECT_INTRO.md       # 项目详细介绍
+├── install.sh             # 一键安装脚本
+├── config/                # 配置文件
+│   └── agents.yaml        # Agent定义（10个完整配置）
+├── core/                  # 核心组件
+│   └── copaw-cli/         # 事件溯源 CLI（Rust）
+│       ├── src/main.rs    # CLI 源代码
+│       ├── Cargo.toml     # Rust 项目配置
+│       ├── schema/        # 原因码定义
+│       ├── data/          # 示例数据（脱敏）
+│       └── scripts/       # 迁移脚本
+├── scripts/               # 系统脚本
+├── agents/                # Agent工作区（10个Agent）
+├── docs/                  # 完整文档
+│   ├── EVENT_SOURCING.md  # 事件溯源架构
+│   ├── CLI_REFERENCE.md   # CLI命令手册
+│   ├── SECURITY.md        # 安全限制（必读）
+│   └── VALIDATION_REPORT.md # 验证报告
+└── examples/              # 脱敏示例数据
 ```
 
 ## ⚙️ 配置说明
@@ -105,21 +147,19 @@ education-advisor/
 | academic | 学业分析 | 可选 |
 | psychology | 心理危机 | 可选 |
 | safety | 安全检查 | 可选 |
-| home_school | 家校通知 | 可选 |
+| home_school | 家校沟通 | 可选 |
 | research | 科研辅助 | 可选 |
 | executor | 系统维护 | 可选 |
 | talk_planner | 谈话计划 | 可选 |
 
-## 🔮 未来发展方向
+## 🔒 安全限制
 
-详细说明请查看 [PROJECT_INTRO.md](./PROJECT_INTRO.md)
+> ⚠️ **重要：所有部署者必须阅读 [SECURITY.md](./docs/SECURITY.md)**
 
-| 方向 | 说明 |
-|:-----|:-----|
-| **系统底层升级** | 数据智能治理、多Agent实时互通架构 |
-| **交互模式革新** | 穿戴设备无感采集、端云协同处理 |
-| **教学智能化** | 作业自动批改、个性化分层作业生成 |
-| **开源生态建设** | 核心能力开源 → 插件市场 → 社区共建 |
+- CLI 是唯一数据读写入口，禁止直接修改 JSON 文件
+- Agent 只能通过 CLI 读写数据，禁止绕过校验
+- 学生数据为敏感信息，禁止上传至公开仓库
+- 本系统不得用于操控宿主系统
 
 ## 📖 使用指南
 
@@ -141,19 +181,9 @@ education-advisor/
 | 22:00 | 督导复盘 |
 | 22:30 | 统一推送 |
 
-## 🔧 扩展开发
+## 🔮 未来发展方向
 
-### 创建新Agent
-
-1. 在 `agents/` 下创建Agent目录
-2. 编写 `SOUL.md` 定义角色
-3. 在 `config/agents.yaml` 注册
-
-### 创建新技能
-
-1. 在 `skills/` 下创建技能目录
-2. 编写 `SKILL.md` 定义接口
-3. 在Agent中引用
+详细说明请查看 [PROJECT_INTRO.md](./PROJECT_INTRO.md)
 
 ## 📄 许可证
 
