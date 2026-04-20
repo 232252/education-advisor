@@ -2,11 +2,13 @@
 
 <div align="center">
 
-**基于 OpenClaw 框架的智能教育管理助手**
+**智能教育管理助手**
 
 *为班主任和教师提供学生管理、教育督导、科研辅助的全场景智能服务*
 
-**[项目介绍与路线图](./PROJECT_INTRO.md)** · **[快速开始](./docs/QUICK_START.md)** · **[系统架构](./docs/SYSTEM_ARCHITECTURE.md)** · **[安全规范](./docs/SECURITY.md)**
+支持 **多Agent（OpenClaw）** 和 **单Agent（任何AI平台）** 两种部署模式
+
+**[项目介绍与路线图](./PROJECT_INTRO.md)** · **[快速开始](./docs/QUICK_START.md)** · **[单Agent部署](./single-agent/DEPLOY.md)** · **[安全规范](./docs/SECURITY.md)**
 
 </div>
 
@@ -25,7 +27,18 @@
 
 ## 🚀 快速部署
 
-### 方式一：一键部署（推荐）
+### 🌟 方式一：单Agent部署（推荐，适合所有AI平台）
+
+**不需要 OpenClaw，不需要 Rust，任何AI助手都能用！**
+
+1. 将 [`single-agent/SOUL.md`](./single-agent/SOUL.md) 的内容复制到您的AI助手的系统提示词中
+2. 开始对话，AI会自动引导您完成配置
+
+支持的平台：ChatGPT 自定义GPT / Claude Project / Gemini Gems / Kimi / 通义千问 / 智谱清言 / 讯飞星火 / **OpenClaw** 及任何支持系统提示词的AI
+
+📖 详细部署指南：[single-agent/DEPLOY.md](./single-agent/DEPLOY.md)
+
+### 方式二：一键部署（OpenClaw多Agent模式）
 
 ```bash
 git clone https://github.com/232252/education-advisor.git
@@ -33,37 +46,24 @@ cd education-advisor
 bash install.sh
 ```
 
-### 方式二：交给 AI 部署（最简）
+### 方式三：单Agent一键部署
 
-将本项目地址交给 OpenClaw 或任意 AI 助手，AI 会自动创建文件并完成部署配置：
-
+```bash
+git clone https://github.com/232252/education-advisor.git
+cd education-advisor
+bash install.sh --single-agent
 ```
-https://github.com/232252/education-advisor
-```
 
-> 🎯 **首次交互体验**：部署完成后，把系统提示词交给一个全新 AI，AI 会自动：
+### 方式四：交给 AI 部署
+
+将 [DEPLOY_TO_AI.md](./DEPLOY_TO_AI.md) 的内容复制给您的AI助手，它会自动帮您部署。
+
+> 🎯 **首次交互体验**：部署完成后，AI 会自动：
 > 1. 自我介绍
 > 2. 询问您的基本信息（姓名、学校、年级、班级人数等）
 > 3. 引导您选择需要启用的功能
 > 4. 支持一键全部配置
 > 5. 自动初始化数据
-
-### 方式三：手动部署
-
-```bash
-# 1. 安装 OpenClaw
-npm install -g openclaw
-
-# 2. 编译事件溯源 CLI（需要 Rust）
-cd core/eaa-cli && cargo build --release
-# 二进制文件: target/release/eaa
-
-# 3. 配置通信通道（飞书/QQ/Discord/Telegram 任选其一）
-# 编辑 OpenClaw 配置文件，选择您需要的通道
-
-# 4. 初始化
-python3 scripts/init_system.py
-```
 
 ## 🗄️ 事件溯源数据引擎
 
@@ -104,7 +104,14 @@ eaa range <开始> <结束>      # 日期范围查询
 education-advisor/
 ├── README.md                # 项目说明（本文件）
 ├── PROJECT_INTRO.md         # 项目介绍与发展路线图
-├── install.sh               # 一键安装脚本
+├── install.sh               # 增强版安装脚本（支持单Agent模式）
+├── DEPLOY_TO_AI.md          # AI自部署提示词
+├── single-agent/            # 单Agent部署方案
+│   ├── SOUL.md              # 单Agent完整提示词（核心文件）
+│   ├── DEPLOY.md            # 多平台部署指南
+│   └── USER.md              # 用户配置模板
+├── releases/                # 预编译二进制
+│   └── README.md            # 下载说明
 ├── config/
 │   └── agents.yaml          # Agent 配置（10个）
 ├── core/
