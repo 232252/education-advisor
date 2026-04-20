@@ -2,7 +2,7 @@
 
 ## 概述
 
-CoPaw 事件溯源系统是教育参谋系统的底层数据引擎，采用 **Event Sourcing（事件溯源）** 架构管理学生操行分数据。
+EAA 事件溯源系统是 Education Advisor AI 的**底层数据引擎**，采用 Event Sourcing（事件溯源）架构管理学生操行分数据。这不是一个独立模块，而是贯穿所有功能的基础架构——所有数据读写都通过 `eaa` CLI 完成。
 
 ## 核心理念
 
@@ -23,7 +23,7 @@ CoPaw 事件溯源系统是教育参谋系统的底层数据引擎，采用 **Ev
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌──────────────┐
-│  用户/Agent  │────▶│  copaw CLI   │────▶│  命令分发器    │
+│  用户/Agent  │────▶│   eaa CLI    │────▶│  命令分发器    │
 └─────────────┘     └──────────────┘     └──────┬───────┘
                                                 │
                     ┌───────────────────────────┤
@@ -75,12 +75,8 @@ CoPaw 事件溯源系统是教育参谋系统的底层数据引擎，采用 **Ev
 ```
 
 ### 原因码（Reason Codes）
-系统预定义 22 种标准原因码，每种有固定分值：
-- 扣分：`SPEAK_IN_CLASS`(-2)、`LATE`(-2)、`SMOKING`(-10) 等
-- 加分：`MONTHLY_ATTENDANCE`(+2)、`CIVILIZED_DORM`(+3) 等
-- 系统：`REVERT`(自动计算)
-
-完整列表通过 `copaw codes` 命令查看。
+系统预定义 22 种标准原因码，每种有固定分值。
+完整列表通过 `eaa codes` 命令查看。
 
 ## 分数计算
 
@@ -88,40 +84,24 @@ CoPaw 事件溯源系统是教育参谋系统的底层数据引擎，采用 **Ev
 当前分数 = 100 + Σ(该学生所有有效事件的 score_delta)
 ```
 
-- 每个学生初始分数为 100
-- 仅计算 `is_valid=true` 且 `reverted_by=null` 的事件
-- 分数通过重放全部事件实时计算，不存储快照
-
 ## 文件结构
 
 ```
-core/copaw-cli/
+core/eaa-cli/
 ├── src/main.rs         # Rust 源代码
 ├── Cargo.toml          # 项目配置
 ├── schema/
 │   └── reason_codes.json  # 原因码定义
-├── data/
-│   ├── entities/
-│   │   ├── entities.json  # 学生实体
-│   │   └── name_index.json # 姓名索引
-│   └── events/
-│       └── events.json    # 事件流
-└── scripts/
-    └── migrate.py         # 数据迁移工具
-```
-
-## 编译与部署
-
-```bash
-cd core/copaw-cli
-
-# 编译（需要 Rust 工具链）
-cargo build --release
-
-# 二进制文件位于 target/release/copaw
-# 使用时确保在 data/ 和 schema/ 同级目录下运行
+└── data/
+    ├── entities/
+    │   ├── entities.json  # 学生实体
+    │   └── name_index.json # 姓名索引
+    └── events/
+        └── events.json    # 事件流
 ```
 
 ## 与 Agent 的集成
 
-所有 Agent 必须通过 `copaw` CLI 读写数据，禁止直接操作 JSON 文件。详见 [SECURITY.md](./SECURITY.md)。
+**所有 Agent 必须通过 `eaa` CLI 读写数据**，禁止直接操作 JSON 文件。这是事件溯源架构的核心约束——无论数据来自飞书、QQ 还是其他通道，都统一通过 CLI 入口。
+
+详见 [SECURITY.md](./SECURITY.md)。

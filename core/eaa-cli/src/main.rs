@@ -170,7 +170,7 @@ fn build_id_to_name(index: &HashMap<String, String>) -> HashMap<String, String> 
 
 // --- CLI ---
 #[derive(Parser)]
-#[command(name = "copaw", about = "CoPaw conduct score event-sourced CLI")]
+#[command(name = "eaa", about = "EAA conduct score event-sourced CLI")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -315,7 +315,7 @@ fn cmd_stats(entities: &HashMap<String, Entity>, events: &[Event]) {
     }
 
     println!("╔══════════════════════════════════════╗");
-    println!("║       CoPaw 数据统计 v2.0            ║");
+    println!("║       EAA 数据统计 v2.0            ║");
     println!("╠══════════════════════════════════════╣");
     println!("║ 学生总数: {:>6}                     ║", total_students);
     println!("║ 事件总数: {:>6}                     ║", total_events);
@@ -405,11 +405,11 @@ fn main() -> Result<(), AppError> {
             let entities = load_entities()?;
             let events = load_events()?;
             println!("╔══════════════════════════════════════╗");
-            println!("║     CoPaw 事件溯源操行分系统 v2.0    ║");
+            println!("║     EAA 事件溯源操行分系统 v2.0    ║");
             println!("╠══════════════════════════════════════╣");
             println!("║ 学生总数: {:>4}                       ║", entities.entities.len());
             println!("║ 事件总数: {:>4}                       ║", events.len());
-            println!("║ 数据目录: /vol2/copaw-data           ║");
+            println!("║ 数据目录: /vol2/eaa-data           ║");
             println!("╚══════════════════════════════════════╝");
         }
         Commands::Validate => {
