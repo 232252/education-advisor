@@ -16,13 +16,13 @@ agents:
       - message_routing
       - task_dispatch
       - report_generation
-      - feishu_integration
+      - channel_integration
     
     rules:
       - "收到消息立即保存到inbox"
       - "学生数据必须从档案读取"
       - "禁止编造数据"
-      - "所有数据读写必须通过 copaw CLI，禁止直接操作JSON文件"
+      - "所有数据读写必须通过 eaa CLI，禁止直接操作JSON文件"
 
   #----------------------------------------------------------------
   # 督导Agent (必需)
