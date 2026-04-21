@@ -29,3 +29,30 @@
 - 原因码强类型校验
 - 多Agent架构（OpenClaw）
 - 单Agent模式（SOUL.md）
+
+## [2.0.0] - 2026-04-22
+
+### 新增
+- 18个CLI命令（info/validate/replay/history/ranking/score/add/revert/codes/search/stats/tag/range/list-students/add-student/import/export/doctor）
+- `--version` 版本号支持
+- `--limit` 分页（search/range）
+- `--dry-run` 预演模式（add/revert）
+- `--force` 强制执行（超出分数范围）
+- `doctor` 环境健康检查（含文件权限）
+- `export` CSV导出
+- 去重校验（同学生+同日+同原因码）
+- Revert保护（撤销事件不可再撤销）
+- 原子写入 + 文件锁（RAII）
+- UUID v4 事件ID
+- 操作日志（operations.jsonl）
+- 6个Rust单元测试
+
+### 修复
+- reason_code从枚举改为String，运行时校验（#11）
+- Revert二次撤销拦截（#15）
+- unwrap链改为安全匹配（#21）
+- 文件锁RAII Drop自动释放（#25）
+- 时区改为Local/Asia/Shanghai（#23）
+- 清除所有编译warnings
+- 删除未使用的ReasonCode枚举
+- 原因码列表按标准分排序

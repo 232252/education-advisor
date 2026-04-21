@@ -11,3 +11,8 @@ clap = { version = "4", features = ["derive"] }
 thiserror = "1"
 uuid = { version = "1", features = ["v4"] }
 fs2 = "0.4"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"

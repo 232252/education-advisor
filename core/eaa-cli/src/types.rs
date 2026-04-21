@@ -1,14 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt;
-use thiserror::Error;
 
 // === Constants ===
 pub const BASE_SCORE: f64 = 100.0;
 pub const MAX_DELTA: f64 = 10.0;
 pub const MIN_DELTA: f64 = -10.0;
 
-#[derive(Error, Debug)]
+// === Error types ===
+#[derive(thiserror::Error, Debug)]
 pub enum AppError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
@@ -22,46 +21,7 @@ pub enum AppError {
     Validation(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[allow(dead_code)]
-pub enum ReasonCode {
-    SpeakInClass,
-    SleepInClass,
-    Late,
-    SchoolCaught,
-    Makeup,
-    DeskUnaligned,
-    PhoneInClass,
-    Smoking,
-    DrinkingDorm,
-    OtherDeduct,
-    AppearanceViolation,
-    BonusVariable,
-    ActivityParticipation,
-    ClassMonitor,
-    ClassCommittee,
-    CivilizedDorm,
-    MonthlyAttendance,
-    Revert,
-    LabEquipmentDamage,
-    LabSafetyViolation,
-    LabUnsafeBehavior,
-    LabCleanUp,
-}
-
-impl fmt::Display for ReasonCode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match serde_json::to_value(self) {
-            Ok(v) => match v.as_str() {
-                Some(s) => write!(f, "{}", s),
-                None => write!(f, "UNKNOWN"),
-            },
-            Err(_) => write!(f, "UNKNOWN"),
-        }
-    }
-}
-
+// === Event types ===
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum EventType {
@@ -77,6 +37,7 @@ pub enum EntityStatus {
     Suspended,
 }
 
+// === Entity ===
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Entity {
     pub id: String,
@@ -89,6 +50,7 @@ pub struct Entity {
     pub metadata: HashMap<String, serde_json::Value>,
 }
 
+// === Event (core data unit) ===
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
     pub event_id: String,
@@ -108,12 +70,14 @@ pub struct Event {
     pub note: String,
 }
 
+// === Data file types ===
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EntitiesFile {
     pub entities: HashMap<String, Entity>,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ReasonCodeDef {
     #[serde(default)]
     pub score_delta: Option<f64>,
@@ -122,11 +86,13 @@ pub struct ReasonCodeDef {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ReasonCodesFile {
     pub version: String,
     pub codes: HashMap<String, ReasonCodeDef>,
 }
 
+/// Build reverse lookup: entity_id → name
 pub fn build_id_to_name(index: &HashMap<String, String>) -> HashMap<String, String> {
     index.iter().map(|(k, v)| (v.clone(), k.clone())).collect()
 }
