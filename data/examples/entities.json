@@ -1,0 +1,20 @@
+{
+  "entities": {
+    "STU_001": {
+      "id": "STU_001",
+      "name": "示例学生A",
+      "aliases": [],
+      "status": "ACTIVE",
+      "created_at": "2026-01-01T08:00:00Z",
+      "metadata": { "class": "高二X班" }
+    },
+    "STU_002": {
+      "id": "STU_002",
+      "name": "示例学生B",
+      "aliases": [],
+      "status": "ACTIVE",
+      "created_at": "2026-01-01T08:00:00Z",
+      "metadata": { "class": "高二X班" }
+    }
+  }
+}

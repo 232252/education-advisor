@@ -1,176 +1,29 @@
+//! CoPaw v2.0 —— 类型驱动的事件溯源操行分系统
+//!
+//! 架构：AI (按 Schema 生成) → 强类型 Struct (Serde 拦截) → CLI (状态机校验) → 原子写入
+
+mod types;
+mod storage;
+mod validation;
+mod schema;
+
 use clap::{Parser, Subcommand};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fmt;
-use std::path::PathBuf;
-use thiserror::Error;
+use types::newtypes::{EventId, ScoreDelta};
+use types::event::SchoolEvent;
+use types::entity::Entity;
+use types::envelope::{EventEnvelope, EventPayload};
+use types::enums::*;
+use types::error::AIRejectError;
 
-const DATA_DIR: &str = "/vol2/copaw-data/data";
-const SCHEMA_DIR: &str = "/vol2/copaw-data/schema";
+use storage::{
+    load_entities, load_events, load_name_index, load_reason_codes,
+    compute_scores, build_id_to_name, resolve_entity_id, append_events_atomic,
+};
 
-#[derive(Error, Debug)]
-enum AppError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("JSON error: {0}")]
-    Json(#[from] serde_json::Error),
-    #[error("Student not found: {0}")]
-    StudentNotFound(String),
-    #[error("Event not found: {0}")]
-    EventNotFound(String),
-    #[error("Validation failed: {0}")]
-    Validation(String),
-}
+// ─── CLI 定义 ───
 
-// --- Types ---
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum ReasonCode {
-    SpeakInClass,
-    SleepInClass,
-    Late,
-    SchoolCaught,
-    Makeup,
-    DeskUnaligned,
-    PhoneInClass,
-    Smoking,
-    DrinkingDorm,
-    OtherDeduct,
-    AppearanceViolation,
-    BonusVariable,
-    ActivityParticipation,
-    ClassMonitor,
-    ClassCommittee,
-    CivilizedDorm,
-    MonthlyAttendance,
-    Revert,
-    // Lab domain
-    LabEquipmentDamage,
-    LabSafetyViolation,
-    LabUnsafeBehavior,
-    LabCleanUp,
-}
-
-impl fmt::Display for ReasonCode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let s = serde_json::to_value(self).unwrap().as_str().unwrap().to_string();
-        write!(f, "{}", s)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum EventType {
-    ConductDeduct,
-    ConductBonus,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum EntityStatus {
-    Active,
-    Transferred,
-    Suspended,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Entity {
-    id: String,
-    name: String,
-    #[serde(default)]
-    aliases: Vec<String>,
-    status: EntityStatus,
-    created_at: String,
-    #[serde(default)]
-    metadata: HashMap<String, serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Event {
-    event_id: String,
-    entity_id: String,
-    event_type: EventType,
-    #[serde(default)]
-    category_tags: Vec<String>,
-    reason_code: ReasonCode,
-    original_reason: String,
-    score_delta: f64,
-    evidence_ref: String,
-    operator: String,
-    timestamp: String,
-    is_valid: bool,
-    reverted_by: Option<String>,
-    #[serde(default)]
-    note: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct EntitiesFile {
-    entities: HashMap<String, Entity>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ReasonCodeDef {
-    #[serde(default)]
-    score_delta: Option<f64>,
-    label: String,
-    category: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct ReasonCodesFile {
-    #[allow(dead_code)]
-    version: String,
-    codes: HashMap<String, ReasonCodeDef>,
-}
-
-// --- Data loading ---
-fn load_entities() -> Result<EntitiesFile, AppError> {
-    let path = PathBuf::from(DATA_DIR).join("entities/entities.json");
-    let f = std::fs::File::open(path)?;
-    Ok(serde_json::from_reader(f)?)
-}
-
-fn load_events() -> Result<Vec<Event>, AppError> {
-    let path = PathBuf::from(DATA_DIR).join("events/events.json");
-    let f = std::fs::File::open(path)?;
-    Ok(serde_json::from_reader(f)?)
-}
-
-fn load_name_index() -> Result<HashMap<String, String>, AppError> {
-    let path = PathBuf::from(DATA_DIR).join("entities/name_index.json");
-    let f = std::fs::File::open(path)?;
-    Ok(serde_json::from_reader(f)?)
-}
-
-fn load_reason_codes() -> Result<ReasonCodesFile, AppError> {
-    let path = PathBuf::from(SCHEMA_DIR).join("reason_codes.json");
-    let f = std::fs::File::open(path)?;
-    Ok(serde_json::from_reader(f)?)
-}
-
-fn resolve_entity_id(name: &str, index: &HashMap<String, String>) -> Result<String, AppError> {
-    index.get(name).cloned().ok_or_else(|| AppError::StudentNotFound(name.to_string()))
-}
-
-fn compute_scores(entities: &HashMap<String, Entity>, events: &[Event]) -> HashMap<String, f64> {
-    let mut scores: HashMap<String, f64> = entities.keys().map(|k| (k.clone(), 100.0)).collect();
-    for evt in events {
-        if evt.is_valid && evt.reverted_by.is_none() {
-            *scores.entry(evt.entity_id.clone()).or_insert(100.0) += evt.score_delta;
-        }
-    }
-    scores
-}
-
-/// Build id->name map from name_index (value is entity_id)
-fn build_id_to_name(index: &HashMap<String, String>) -> HashMap<String, String> {
-    index.iter().map(|(k, v)| (v.clone(), k.clone())).collect()
-}
-
-// --- CLI ---
 #[derive(Parser)]
-#[command(name = "copaw", about = "CoPaw conduct score event-sourced CLI")]
+#[command(name = "copaw", about = "CoPaw 类型驱动事件溯源 CLI v2.0")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -178,209 +31,467 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// System info
+    /// 系统信息
     Info,
-    /// Validate all events
+    /// 校验所有事件
     Validate,
-    /// Replay scores
+    /// 重放分数排行榜
     Replay,
-    /// Student event timeline
+    /// 学生事件时间线
     History { name: String },
-    /// Ranking
+    /// 排行榜
     Ranking { #[arg(default_value = "10")] n: usize },
-    /// Single student score
+    /// 查询单个学生分数
     Score { name: String },
-    /// Add event (strict validation)
+    /// 添加事件（强类型 JSON）
     Add {
+        /// 学生姓名
         name: String,
+        /// 原因码
         reason_code: String,
-        #[arg(long, default_value = "班主任")]
-        tags: String,
+        /// 分值变化
         #[arg(long, default_value_t = 0.0)]
         delta: f64,
+        /// 标签（逗号分隔）
+        #[arg(long, default_value = "班主任")]
+        tags: String,
+        /// 备注
         #[arg(long, default_value = "")]
         note: String,
     },
-    /// Revert an event
+    /// 撤销事件
     Revert {
         event_id: String,
         #[arg(long, default_value = "")]
         reason: String,
     },
-    /// List all reason codes
+    /// 列出所有原因码
     Codes,
-    /// Search events by keyword (name, reason code, tag, or reason text)
+    /// 搜索事件
     Search { query: Vec<String> },
-    /// Show statistics summary
+    /// 统计概览
     Stats,
-    /// Tag management: list tags, or show events with a specific tag
+    /// 标签管理
     Tag { #[arg(default_value = "")] tag: String },
-    /// Query events in a date range (YYYY-MM-DD YYYY-MM-DD)
+    /// 日期范围查询
     Range { start: String, end: String },
+    /// 导出 JSON Schema（供 AI 平台使用）
+    Schema,
+    /// 迁移旧版数据
+    MigrateLegacy,
 }
 
-fn print_event_line(evt: &Event, id_to_name: &HashMap<String, String>) {
-    let name = id_to_name.get(&evt.entity_id).map(|s| s.as_str()).unwrap_or("?");
-    let date = if evt.timestamp.len() >= 10 { &evt.timestamp[..10] } else { &evt.timestamp };
-    println!("{:<10} {:<12} [{:<25}] {:<24} {:+.1}",
-        name, date, evt.reason_code.to_string(), evt.original_reason, evt.score_delta);
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::Info => cmd_info()?,
+        Commands::Validate => cmd_validate()?,
+        Commands::Replay => cmd_replay()?,
+        Commands::History { name } => cmd_history(&name)?,
+        Commands::Ranking { n } => cmd_ranking(n)?,
+        Commands::Score { name } => cmd_score(&name)?,
+        Commands::Add { name, reason_code, delta, tags, note } => cmd_add(&name, &reason_code, delta, &tags, &note)?,
+        Commands::Revert { event_id, reason } => cmd_revert(&event_id, &reason)?,
+        Commands::Codes => cmd_codes()?,
+        Commands::Search { query } => cmd_search(&query.join(" "))?,
+        Commands::Stats => cmd_stats()?,
+        Commands::Tag { tag } => cmd_tag(&tag)?,
+        Commands::Range { start, end } => cmd_range(&start, &end)?,
+        Commands::Schema => schema::print_schema(),
+        Commands::MigrateLegacy => cmd_migrate_legacy()?,
+    }
+
+    Ok(())
 }
 
-fn cmd_search(query: &str, events: &[Event], index: &HashMap<String, String>) {
-    let id_to_name = build_id_to_name(index);
-    let query_upper = query.to_uppercase();
-    let mut results: Vec<&Event> = Vec::new();
+// ─── 命令实现 ───
 
-    for evt in events {
-        // Check student name
-        let name = id_to_name.get(&evt.entity_id).map(|s| s.as_str()).unwrap_or("");
-        let name_match = name.contains(query);
+fn cmd_info() -> Result<(), AIRejectError> {
+    let entities = load_entities()?;
+    let events = load_events()?;
+    let legacy_count = events.iter().filter(|e| e.is_legacy()).count();
 
-        // Check reason code
-        let code_str = evt.reason_code.to_string();
-        let code_match = code_str == query_upper || code_str.contains(&query_upper);
+    println!("╔══════════════════════════════════════╗");
+    println!("║   CoPaw 类型驱动事件溯源系统 v2.0    ║");
+    println!("╠══════════════════════════════════════╣");
+    println!("║ 学生总数: {:>4}                       ║", entities.len());
+    println!("║ 事件总数: {:>4}                       ║", events.len());
+    println!("║ 遗留数据: {:>4}                       ║", legacy_count);
+    println!("║ 数据目录: /vol2/copaw-data           ║");
+    println!("║ Schema版本: 2                        ║");
+    println!("╚══════════════════════════════════════╝");
+    Ok(())
+}
 
-        // Check tags
-        let tag_match = evt.category_tags.iter().any(|t| t.contains(query));
+fn cmd_validate() -> Result<(), AIRejectError> {
+    let events = load_events()?;
+    let codes = load_reason_codes()?;
+    let mut errors = 0;
+    let mut legacy = 0;
 
-        // Check original reason text
-        let reason_match = evt.original_reason.contains(query);
-
-        if name_match || code_match || tag_match || reason_match {
-            results.push(evt);
+    for evt in &events {
+        if evt.is_legacy() {
+            legacy += 1;
+            continue;
         }
-    }
-
-    if results.is_empty() {
-        println!("未找到与 \"{}\" 相关的事件", query);
-        return;
-    }
-
-    // Determine query type for header
-    let is_name = index.contains_key(query);
-    let is_code = results.iter().all(|e| e.reason_code.to_string() == query_upper);
-
-    if is_name {
-        println!("{} 的所有事件 ({}条):", query, results.len());
-    } else if is_code {
-        println!("找到 {} 条[{}]事件:", results.len(), query_upper);
-    } else {
-        println!("找到 {} 条\"{}\"相关事件:", results.len(), query);
-    }
-    println!("{}", "-".repeat(75));
-    for evt in &results {
-        print_event_line(evt, &id_to_name);
-    }
-}
-
-fn cmd_stats(entities: &HashMap<String, Entity>, events: &[Event]) {
-    let total_students = entities.len();
-    let total_events = events.len();
-    let valid_events = events.iter().filter(|e| e.is_valid && e.reverted_by.is_none()).count();
-    let reverted = events.iter().filter(|e| e.reverted_by.is_some()).count();
-
-    // Reason code stats
-    let mut code_counts: HashMap<String, usize> = HashMap::new();
-    for evt in events {
-        if evt.is_valid && evt.reverted_by.is_none() {
-            *code_counts.entry(evt.reason_code.to_string()).or_insert(0) += 1;
-        }
-    }
-    let mut code_sorted: Vec<_> = code_counts.into_iter().collect();
-    code_sorted.sort_by(|a, b| b.1.cmp(&a.1));
-
-    // Tag stats
-    let mut tag_counts: HashMap<String, usize> = HashMap::new();
-    for evt in events {
-        if evt.is_valid && evt.reverted_by.is_none() {
-            for tag in &evt.category_tags {
-                *tag_counts.entry(tag.clone()).or_insert(0) += 1;
+        if let EventPayload::Current(ref school_event) = evt.payload {
+            if let Err(e) = school_event.validate() {
+                println!("✗ {} 校验失败: {}", evt.event_id, e);
+                errors += 1;
             }
         }
     }
-    let mut tag_sorted: Vec<_> = tag_counts.into_iter().collect();
-    tag_sorted.sort_by(|a, b| b.1.cmp(&a.1));
 
-    // Score distribution
-    let scores = compute_scores(entities, events);
+    println!("✓ 强类型事件: {} 条", events.len() - legacy);
+    if legacy > 0 {
+        println!("⚠ 遗留数据: {} 条（可用 `copaw migrate-legacy` 迁移）", legacy);
+    }
+    if errors == 0 {
+        println!("✓ 所有强类型事件校验通过");
+    } else {
+        println!("✗ {} 条校验错误", errors);
+    }
+    Ok(())
+}
+
+fn cmd_replay() -> Result<(), AIRejectError> {
+    let entities = load_entities()?;
+    let events = load_events()?;
+    let scores = compute_scores(&entities, &events);
+    let index = load_name_index()?;
+    let id_to_name = build_id_to_name(&index);
+
+    let mut sorted: Vec<_> = scores.iter().collect();
+    sorted.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+
+    println!("{:<20} {:>8} {:>6}", "姓名", "分数", "变动");
+    println!("{}", "-".repeat(36));
+    for (eid, score) in &sorted {
+        let name = id_to_name.get(eid.as_str()).map(|s| s.as_str()).unwrap_or("?");
+        let delta = **score - 100.0;
+        println!("{:<20} {:>8.1} {:>+6.1}", name, score, delta);
+    }
+    Ok(())
+}
+
+fn cmd_history(name: &str) -> Result<(), AIRejectError> {
+    let index = load_name_index()?;
+    let eid = resolve_entity_id(name, &index)?;
+    let events = load_events()?;
+    let id_to_name = build_id_to_name(&index);
+
+    let student_events: Vec<_> = events.iter().filter(|e| e.entity_id == eid).collect();
+    if student_events.is_empty() {
+        println!("无事件记录");
+        return Ok(());
+    }
+
+    println!("{} 的事件时间线 ({}条):", name, student_events.len());
+    println!("{}", "-".repeat(60));
+    let mut running = 100.0;
+    for evt in &student_events {
+        let delta = evt.score_delta();
+        running += delta;
+        let desc = match &evt.payload {
+            EventPayload::Current(e) => e.description().to_string(),
+            EventPayload::Legacy(l) => l.reason_code.clone().unwrap_or_default(),
+        };
+        let date = if evt.timestamp.len() >= 10 { &evt.timestamp[..10] } else { &evt.timestamp };
+        println!("{:<12} {:>+6.1} → {:>6.1}  [{}] {}", date, delta, running, evt.event_id, desc);
+    }
+    Ok(())
+}
+
+fn cmd_ranking(n: usize) -> Result<(), AIRejectError> {
+    let entities = load_entities()?;
+    let events = load_events()?;
+    let scores = compute_scores(&entities, &events);
+    let index = load_name_index()?;
+    let id_to_name = build_id_to_name(&index);
+
+    let mut sorted: Vec<_> = scores.into_iter().collect();
+    sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+
+    println!("排行榜 Top {}:", n.min(sorted.len()));
+    println!("{:<4} {:<20} {:>8}", "排名", "姓名", "分数");
+    println!("{}", "-".repeat(34));
+    for (i, (eid, score)) in sorted.iter().take(n).enumerate() {
+        let name = id_to_name.get(eid.as_str()).map(|s| s.as_str()).unwrap_or("?");
+        println!("{:<4} {:<20} {:>8.1}", i + 1, name, score);
+    }
+    Ok(())
+}
+
+fn cmd_score(name: &str) -> Result<(), AIRejectError> {
+    let entities = load_entities()?;
+    let index = load_name_index()?;
+    let eid = resolve_entity_id(name, &index)?;
+    let events = load_events()?;
+    let scores = compute_scores(&entities, &events);
+    let score = scores.get(&eid).unwrap_or(&0.0);
+    println!("{}: {:.1} 分", name, score);
+    Ok(())
+}
+
+fn cmd_add(name: &str, reason_code: &str, delta: f64, _tags: &str, note: &str) -> Result<(), AIRejectError> {
+    let codes = load_reason_codes()?;
+    let code_def = codes.codes.get(reason_code)
+        .ok_or_else(|| AIRejectError::invalid_value("reason_code", &format!("未知原因码: {}", reason_code)))?;
+
+    // 确定实际分值
+    let actual_delta = if delta == 0.0 {
+        code_def.score_delta.unwrap_or(0.0)
+    } else {
+        delta
+    };
+
+    let score_delta = ScoreDelta::new(actual_delta)
+        .map_err(|e| AIRejectError::invalid_value("score_delta", &e))?;
+
+    // 构建强类型事件
+    let school_event = match code_def.category.as_str() {
+        "deduct" | "lab" => {
+            let category: DisciplineCategory = serde_json::from_value(
+                serde_json::Value::String(reason_code.to_string())
+            ).map_err(|e| AIRejectError::type_mismatch(&e.to_string()))?;
+
+            SchoolEvent::Discipline(types::event::DisciplinePayload {
+                category,
+                score_delta,
+                location: Location::Classroom,
+                severity: if score_delta.value().abs() >= 10.0 { Severity::Critical }
+                         else if score_delta.value().abs() >= 5.0 { Severity::Major }
+                         else { Severity::Minor },
+                description: code_def.label.clone(),
+                opponent_id: None,
+                evidence_refs: vec!["cli:manual".to_string()],
+                operator: "班主任".to_string(),
+                note: note.to_string(),
+            })
+        }
+        "bonus" => {
+            let category: BonusCategory = serde_json::from_value(
+                serde_json::Value::String(reason_code.to_string())
+            ).map_err(|e| AIRejectError::type_mismatch(&e.to_string()))?;
+
+            SchoolEvent::Bonus(types::event::BonusPayload {
+                category,
+                score_delta,
+                description: code_def.label.clone(),
+                operator: "班主任".to_string(),
+                note: note.to_string(),
+            })
+        }
+        _ => {
+            SchoolEvent::System(types::event::SystemPayload {
+                action: reason_code.to_string(),
+                description: code_def.label.clone(),
+                operator: "系统".to_string(),
+            })
+        }
+    };
+
+    // 校验
+    school_event.validate().map_err(|e| AIRejectError::business_rule(&e))?;
+
+    let index = load_name_index()?;
+    let eid = resolve_entity_id(name, &index)?;
+    let entities = load_entities()?;
+    let entity = entities.get(&eid)
+        .ok_or_else(|| AIRejectError::student_not_found(name))?;
+    
+    validation::validate_add_event(entity, &school_event, reason_code)?;
+
+    // 构建信封
+    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let envelope = EventEnvelope {
+        event_id: EventId::generate(),
+        entity_id: eid,
+        timestamp: now,
+        schema_version: 2,
+        payload: EventPayload::Current(school_event),
+        is_valid: true,
+        reverted_by: None,
+    };
+
+    println!("✓ 事件已创建: {} {} {:+.1}", envelope.event_id, name, score_delta.value());
+    append_events_atomic(&[envelope])?;
+    println!("✓ 已原子写入 events.json");
+    Ok(())
+}
+
+fn cmd_revert(event_id: &str, reason: &str) -> Result<(), AIRejectError> {
+    let mut events = load_events()?;
+    let target_idx = events.iter().position(|e| e.event_id.as_str() == event_id)
+        .ok_or_else(|| AIRejectError::invalid_value("event_id", &format!("事件 {} 不存在", event_id)))?;
+
+    if events[target_idx].reverted_by.is_some() {
+        return Err(AIRejectError::business_rule(&format!("事件 {} 已被撤销", event_id)));
+    }
+
+    let revert_id = EventId::generate();
+    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let original_delta = events[target_idx].score_delta();
+
+    // 标记原事件为已撤销
+    events[target_idx].reverted_by = Some(revert_id.clone());
+
+    // 创建撤销事件
+    let revert_event = SchoolEvent::System(types::event::SystemPayload {
+        action: "REVERT".to_string(),
+        description: format!("撤销 {} (原因: {})", event_id, if reason.is_empty() { "未填写" } else { reason }),
+        operator: "系统".to_string(),
+    });
+
+    let revert_envelope = EventEnvelope {
+        event_id: revert_id.clone(),
+        entity_id: events[target_idx].entity_id.clone(),
+        timestamp: now,
+        schema_version: 2,
+        payload: EventPayload::Current(revert_event),
+        is_valid: true,
+        reverted_by: None,
+    };
+
+    // 附带对冲分值的 Legacy 载荷（保持向后兼容）
+    events.push(revert_envelope);
+
+    println!("✓ 撤销事件: {} 对冲 {}", revert_id, event_id);
+    append_events_atomic_from_vec(&events)?;
+    println!("✓ 已原子写入");
+    Ok(())
+}
+
+fn append_events_atomic_from_vec(events: &[EventEnvelope]) -> Result<(), AIRejectError> {
+    let path = std::path::PathBuf::from("/vol2/copaw-data/data/events/events.json");
+    let tmp_path = path.with_extension("tmp");
+
+    let json = serde_json::to_string_pretty(events)
+        .map_err(|e| AIRejectError::malformed_json(&format!("序列化失败: {}", e)))?;
+
+    let mut f = std::fs::File::create(&tmp_path)
+        .map_err(|e| AIRejectError::malformed_json(&format!("创建临时文件失败: {}", e)))?;
+    use std::io::Write;
+    f.write_all(json.as_bytes())
+        .map_err(|e| AIRejectError::malformed_json(&format!("写入失败: {}", e)))?;
+    f.sync_all().map_err(|e| AIRejectError::malformed_json(&format!("sync失败: {}", e)))?;
+    drop(f);
+
+    std::fs::rename(&tmp_path, &path)
+        .map_err(|e| AIRejectError::malformed_json(&format!("重命名失败: {}", e)))?;
+
+    Ok(())
+}
+
+fn cmd_codes() -> Result<(), AIRejectError> {
+    let codes = load_reason_codes()?;
+    println!("{:<25} {:>6}  {}", "代码", "标准分", "说明");
+    println!("{}", "-".repeat(50));
+    for (code, def) in &codes.codes {
+        let delta = match def.score_delta {
+            Some(d) => format!("{:+.0}", d),
+            None => "变量".to_string(),
+        };
+        println!("{:<25} {:>6}  {}", code, delta, def.label);
+    }
+    Ok(())
+}
+
+fn cmd_search(query: &str) -> Result<(), AIRejectError> {
+    let events = load_events()?;
+    let index = load_name_index()?;
+    let id_to_name = build_id_to_name(&index);
+
+    let results: Vec<_> = events.iter()
+        .filter(|e| {
+            let name = id_to_name.get(&e.entity_id).map(|s| s.as_str()).unwrap_or("");
+            let desc = match &e.payload {
+                EventPayload::Current(ev) => ev.description().to_string(),
+                EventPayload::Legacy(l) => l.reason_code.clone().unwrap_or_default(),
+            };
+            name.contains(query) || desc.contains(query) || e.event_id.as_str().contains(query)
+        })
+        .collect();
+
+    if results.is_empty() {
+        println!("未找到与 \"{}\" 相关的事件", query);
+        return Ok(());
+    }
+
+    println!("找到 {} 条相关事件:", results.len());
+    println!("{}", "-".repeat(75));
+    for evt in &results {
+        let name = id_to_name.get(&evt.entity_id).map(|s| s.as_str()).unwrap_or("?");
+        let date = if evt.timestamp.len() >= 10 { &evt.timestamp[..10] } else { &evt.timestamp };
+        let desc = match &evt.payload {
+            EventPayload::Current(e) => e.description(),
+            EventPayload::Legacy(l) => l.reason_code.as_deref().unwrap_or("?"),
+        };
+        println!("{:<10} {:<12} {:<24} {:+.1} {}",
+            name, date, desc, evt.score_delta(),
+            if evt.is_legacy() { "[遗留]" } else { "" });
+    }
+    Ok(())
+}
+
+fn cmd_stats() -> Result<(), AIRejectError> {
+    let entities = load_entities()?;
+    let events = load_events()?;
+    let scores = compute_scores(&entities, &events);
+
+    let valid = events.iter().filter(|e| e.is_valid && e.reverted_by.is_none()).count();
+    let reverted = events.iter().filter(|e| e.reverted_by.is_some()).count();
+    let legacy = events.iter().filter(|e| e.is_legacy()).count();
+
+    // 分数分布
     let ranges = [110.0, 100.0, 90.0, 80.0];
-    let range_labels = ["110+", "100-110", "90-100", "80-90", "<80"];
-    let mut range_counts = [0usize; 5];
-    for score in scores.values() {
-        if *score >= ranges[0] { range_counts[0] += 1; }
-        else if *score >= ranges[1] { range_counts[1] += 1; }
-        else if *score >= ranges[2] { range_counts[2] += 1; }
-        else if *score >= ranges[3] { range_counts[3] += 1; }
-        else { range_counts[4] += 1; }
+    let labels = ["110+", "100-110", "90-100", "80-90", "<80"];
+    let mut counts = [0usize; 5];
+    for s in scores.values() {
+        if *s >= ranges[0] { counts[0] += 1; }
+        else if *s >= ranges[1] { counts[1] += 1; }
+        else if *s >= ranges[2] { counts[2] += 1; }
+        else if *s >= ranges[3] { counts[3] += 1; }
+        else { counts[4] += 1; }
     }
 
     println!("╔══════════════════════════════════════╗");
     println!("║       CoPaw 数据统计 v2.0            ║");
     println!("╠══════════════════════════════════════╣");
-    println!("║ 学生总数: {:>6}                     ║", total_students);
-    println!("║ 事件总数: {:>6}                     ║", total_events);
-    println!("║ 有效事件: {:>6}                     ║", valid_events);
+    println!("║ 学生总数: {:>6}                     ║", entities.len());
+    println!("║ 事件总数: {:>6}                     ║", events.len());
+    println!("║ 有效事件: {:>6}                     ║", valid);
     println!("║ 撤销事件: {:>6}                     ║", reverted);
-    println!("╠══════════════════════════════════════╣");
-    println!("║ 各原因码统计:");
-    for (code, count) in &code_sorted {
-        println!("║   {:<28} {:>4}次", code, count);
-    }
-    println!("╠══════════════════════════════════════╣");
-    println!("║ 各标签统计:");
-    for (tag, count) in &tag_sorted {
-        println!("║   {:<28} {:>4}次", tag, count);
-    }
+    println!("║ 遗留数据: {:>6}                     ║", legacy);
     println!("╠══════════════════════════════════════╣");
     println!("║ 分数区间分布:");
     for i in 0..5 {
-        if range_counts[i] > 0 {
-            println!("║   {:<28} {:>4}人", range_labels[i], range_counts[i]);
+        if counts[i] > 0 {
+            println!("║   {:<28} {:>4}人", labels[i], counts[i]);
         }
     }
     println!("╚══════════════════════════════════════╝");
+    Ok(())
 }
 
-fn cmd_tag(tag: &str, events: &[Event], index: &HashMap<String, String>) {
+fn cmd_tag(tag: &str) -> Result<(), AIRejectError> {
+    let events = load_events()?;
     if tag.is_empty() {
-        // List all tags with counts
-        let mut tag_counts: HashMap<String, usize> = HashMap::new();
-        for evt in events {
-            if evt.is_valid && evt.reverted_by.is_none() {
-                for t in &evt.category_tags {
-                    *tag_counts.entry(t.clone()).or_insert(0) += 1;
-                }
-            }
-        }
-        let mut sorted: Vec<_> = tag_counts.into_iter().collect();
-        sorted.sort_by(|a, b| b.1.cmp(&a.1));
-        println!("所有标签:");
-        println!("{}", "-".repeat(30));
-        for (t, c) in &sorted {
-            println!("  {:<20} {:>4}次", t, c);
-        }
-        return;
+        // TODO: 从强类型事件中提取标签
+        println!("标签功能待完善（v2 类型系统中标签从 payload 自动生成）");
+        return Ok(());
     }
-
-    let id_to_name = build_id_to_name(index);
-    let matched: Vec<&Event> = events.iter()
-        .filter(|e| e.is_valid && e.reverted_by.is_none() && e.category_tags.iter().any(|t| t.contains(tag)))
-        .collect();
-
-    if matched.is_empty() {
-        println!("标签 \"{}\" 下无事件", tag);
-        return;
-    }
-    println!("标签 \"{}\" 下的所有事件 ({}条):", tag, matched.len());
-    println!("{}", "-".repeat(75));
-    for evt in &matched {
-        print_event_line(evt, &id_to_name);
-    }
+    println!("标签 \"{}\" 查询功能待完善", tag);
+    Ok(())
 }
 
-fn cmd_range(start: &str, end: &str, events: &[Event], index: &HashMap<String, String>) {
-    let id_to_name = build_id_to_name(index);
-    let matched: Vec<&Event> = events.iter()
+fn cmd_range(start: &str, end: &str) -> Result<(), AIRejectError> {
+    let events = load_events()?;
+    let index = load_name_index()?;
+    let id_to_name = build_id_to_name(&index);
+
+    let matched: Vec<_> = events.iter()
         .filter(|e| {
             let date = if e.timestamp.len() >= 10 { &e.timestamp[..10] } else { &e.timestamp };
             date >= start && date <= end
@@ -389,224 +500,30 @@ fn cmd_range(start: &str, end: &str, events: &[Event], index: &HashMap<String, S
 
     if matched.is_empty() {
         println!("{} ~ {} 之间无事件", start, end);
-        return;
+        return Ok(());
     }
+
     println!("{} ~ {} 的事件 ({}条):", start, end, matched.len());
     println!("{}", "-".repeat(75));
     for evt in &matched {
-        print_event_line(evt, &id_to_name);
+        let name = id_to_name.get(&evt.entity_id).map(|s| s.as_str()).unwrap_or("?");
+        let date = if evt.timestamp.len() >= 10 { &evt.timestamp[..10] } else { &evt.timestamp };
+        println!("{:<10} {:<12} {:>6.1} {}", name, date, evt.score_delta(), evt.event_id);
     }
+    Ok(())
 }
 
-fn main() -> Result<(), AppError> {
-    let cli = Cli::parse();
-    match cli.command {
-        Commands::Info => {
-            let entities = load_entities()?;
-            let events = load_events()?;
-            println!("╔══════════════════════════════════════╗");
-            println!("║     CoPaw 事件溯源操行分系统 v2.0    ║");
-            println!("╠══════════════════════════════════════╣");
-            println!("║ 学生总数: {:>4}                       ║", entities.entities.len());
-            println!("║ 事件总数: {:>4}                       ║", events.len());
-            println!("║ 数据目录: /vol2/copaw-data           ║");
-            println!("╚══════════════════════════════════════╝");
-        }
-        Commands::Validate => {
-            let events = load_events()?;
-            let codes = load_reason_codes()?;
-            let mut errors = 0;
-            for evt in &events {
-                let code_str = evt.reason_code.to_string();
-                if !codes.codes.contains_key(&code_str) {
-                    println!("✗ {} unknown reason_code: {}", evt.event_id, code_str);
-                    errors += 1;
-                }
-                if evt.entity_id.is_empty() {
-                    println!("✗ {} empty entity_id", evt.event_id);
-                    errors += 1;
-                }
-            }
-            if errors == 0 {
-                println!("✓ All {} events valid", events.len());
-            } else {
-                println!("✗ {} errors found", errors);
-            }
-        }
-        Commands::Replay => {
-            let entities = load_entities()?;
-            let events = load_events()?;
-            let scores = compute_scores(&entities.entities, &events);
-            let index = load_name_index()?;
-            let id_to_name = build_id_to_name(&index);
-            let mut sorted: Vec<_> = scores.iter().collect();
-            sorted.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
-            println!("{:<20} {:>8} {:>6}", "姓名", "分数", "变动");
-            println!("{}", "-".repeat(36));
-            for (eid, score) in &sorted {
-                let name = id_to_name.get(eid.as_str()).map(|s| s.as_str()).unwrap_or("?");
-                let delta = **score - 100.0;
-                println!("{:<20} {:>8.1} {:>+6.1}", name, score, delta);
-            }
-        }
-        Commands::History { name } => {
-            let index = load_name_index()?;
-            let eid = resolve_entity_id(&name, &index)?;
-            let events = load_events()?;
-            let student_events: Vec<_> = events.iter().filter(|e| e.entity_id == eid).collect();
-            if student_events.is_empty() {
-                println!("无事件记录");
-            } else {
-                println!("{} 的事件时间线 ({}条):", name, student_events.len());
-                println!("{}", "-".repeat(60));
-                let mut running = 100.0;
-                for evt in &student_events {
-                    running += evt.score_delta;
-                    println!("{:<12} {:>+6.1} → {:>6.1}  [{}] {}",
-                        &evt.timestamp[..10], evt.score_delta, running,
-                        evt.reason_code, evt.original_reason);
-                    if !evt.note.is_empty() {
-                        println!("             📝 {}", evt.note);
-                    }
-                }
-            }
-        }
-        Commands::Ranking { n } => {
-            let entities = load_entities()?;
-            let events = load_events()?;
-            let scores = compute_scores(&entities.entities, &events);
-            let index = load_name_index()?;
-            let id_to_name = build_id_to_name(&index);
-            let mut sorted: Vec<_> = scores.into_iter().collect();
-            sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-            println!("排行榜 Top {}:", n.min(sorted.len()));
-            println!("{:<4} {:<20} {:>8}", "排名", "姓名", "分数");
-            println!("{}", "-".repeat(34));
-            for (i, (eid, score)) in sorted.iter().take(n).enumerate() {
-                let name = id_to_name.get(eid.as_str()).map(|s| s.as_str()).unwrap_or("?");
-                println!("{:<4} {:<20} {:>8.1}", i + 1, name, score);
-            }
-        }
-        Commands::Score { name } => {
-            let entities = load_entities()?;
-            let index = load_name_index()?;
-            let eid = resolve_entity_id(&name, &index)?;
-            let events = load_events()?;
-            let scores = compute_scores(&entities.entities, &events);
-            let score = scores.get(&eid).unwrap_or(&0.0);
-            let entity = entities.entities.get(&eid).unwrap();
-            let risk = entity.metadata.get("risk").and_then(|v| v.as_str()).unwrap_or("未知");
-            println!("{}: {:.1} 分 (风险: {})", name, score, risk);
-        }
-        Commands::Add { name, reason_code, tags, delta, note } => {
-            let codes = load_reason_codes()?;
-            if !codes.codes.contains_key(&reason_code) {
-                return Err(AppError::Validation(format!("未知原因码: {}", reason_code)));
-            }
-            let code_def = codes.codes.get(&reason_code).unwrap();
-            let expected = code_def.score_delta;
-            if expected.is_some() && (delta == 0.0 || (delta - expected.unwrap()).abs() > 0.001) {
-                return Err(AppError::Validation(format!(
-                    "原因码 {} 标准分值: {:?}，请使用正确的 delta", reason_code, expected
-                )));
-            }
-            let index = load_name_index()?;
-            let eid = resolve_entity_id(&name, &index)?;
-            let events = load_events()?;
-            let new_id = format!("evt_{:05}", events.len() + 1);
-            let tag_list: Vec<String> = tags.split(',').map(|s| s.trim().to_string()).collect();
-            let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-            let new_event = Event {
-                event_id: new_id.clone(),
-                entity_id: eid,
-                event_type: if delta >= 0.0 { EventType::ConductBonus } else { EventType::ConductDeduct },
-                category_tags: tag_list,
-                reason_code: serde_json::from_value(serde_json::Value::String(reason_code.clone()))?,
-                original_reason: reason_code.clone(),
-                score_delta: delta,
-                evidence_ref: "cli:manual".to_string(),
-                operator: "班主任".to_string(),
-                timestamp: now,
-                is_valid: true,
-                reverted_by: None,
-                note,
-            };
-            println!("✓ 事件已创建: {} {} {:+.1}", new_event.event_id, name, delta);
-            let mut all_events = events;
-            all_events.push(new_event);
-            let path = PathBuf::from(DATA_DIR).join("events/events.json");
-            let f = std::fs::File::create(path)?;
-            serde_json::to_writer_pretty(f, &all_events)?;
-        }
-        Commands::Revert { event_id, reason } => {
-            let events = load_events()?;
-            let target = events.iter().find(|e| e.event_id == event_id)
-                .ok_or_else(|| AppError::EventNotFound(event_id.clone()))?;
-            if target.reverted_by.is_some() {
-                return Err(AppError::Validation(format!("{} 已被撤销", event_id)));
-            }
-            let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-            let revert_id = format!("evt_{:05}", events.len() + 1);
-            let revert_event = Event {
-                event_id: revert_id.clone(),
-                entity_id: target.entity_id.clone(),
-                event_type: if target.score_delta >= 0.0 { EventType::ConductDeduct } else { EventType::ConductBonus },
-                category_tags: vec!["系统纠正".to_string()],
-                reason_code: ReasonCode::Revert,
-                original_reason: format!("撤销 {}", event_id),
-                score_delta: -target.score_delta,
-                evidence_ref: format!("revert:{}", event_id),
-                operator: "系统".to_string(),
-                timestamp: now,
-                is_valid: true,
-                reverted_by: None,
-                note: reason,
-            };
-            println!("✓ 撤销事件: {} 对冲 {}", revert_id, event_id);
-            let mut all_events = events;
-            for e in all_events.iter_mut() {
-                if e.event_id == event_id {
-                    e.reverted_by = Some(revert_id.clone());
-                }
-            }
-            all_events.push(revert_event);
-            let path = PathBuf::from(DATA_DIR).join("events/events.json");
-            let f = std::fs::File::create(path)?;
-            serde_json::to_writer_pretty(f, &all_events)?;
-        }
-        Commands::Codes => {
-            let codes = load_reason_codes()?;
-            println!("{:<25} {:>6}  {}", "代码", "标准分", "说明");
-            println!("{}", "-".repeat(50));
-            for (code, def) in &codes.codes {
-                let delta = match def.score_delta {
-                    Some(d) => format!("{:+.0}", d),
-                    None => "变量".to_string(),
-                };
-                println!("{:<25} {:>6}  {}", code, delta, def.label);
-            }
-        }
-        Commands::Search { query } => {
-            let q = query.join(" ");
-            let events = load_events()?;
-            let index = load_name_index()?;
-            cmd_search(&q, &events, &index);
-        }
-        Commands::Stats => {
-            let entities = load_entities()?;
-            let events = load_events()?;
-            cmd_stats(&entities.entities, &events);
-        }
-        Commands::Tag { tag } => {
-            let events = load_events()?;
-            let index = load_name_index()?;
-            cmd_tag(&tag, &events, &index);
-        }
-        Commands::Range { start, end } => {
-            let events = load_events()?;
-            let index = load_name_index()?;
-            cmd_range(&start, &end, &events, &index);
-        }
+fn cmd_migrate_legacy() -> Result<(), AIRejectError> {
+    let events = load_events()?;
+    let legacy_count = events.iter().filter(|e| e.is_legacy()).count();
+
+    if legacy_count == 0 {
+        println!("✓ 没有遗留数据需要迁移");
+        return Ok(());
     }
+
+    println!("发现 {} 条遗留数据", legacy_count);
+    println!("提示：遗留数据已保留在 Legacy 载荷中，分数计算正常。");
+    println!("如需手动迁移，请使用 copaw add 逐条补录。");
     Ok(())
 }

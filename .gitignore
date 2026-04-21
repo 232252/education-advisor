@@ -1,5 +1,24 @@
+# 编译产物
 target/
 *.swp
 *.swo
 *~
+
+# 🔴 隐私数据（绝不上传）
+data/entities/
+data/events/
+data/logs/
+data/reverts/
+data/snapshots/
+data/*.json
+data/*.db
+
+# 示例数据模板（不含真实信息）
+!data/examples/
+
+# 系统文件
 .DS_Store
+*.tmp
+.env
+.env.*
+REPORT.md

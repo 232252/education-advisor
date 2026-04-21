@@ -1,0 +1,24 @@
+[
+  {
+    "event_id": "evt_example_001",
+    "entity_id": "STU_001",
+    "timestamp": "2026-03-15T10:00:00Z",
+    "schema_version": 2,
+    "payload": {
+      "type": "Discipline",
+      "payload": {
+        "category": "SPEAK_IN_CLASS",
+        "score_delta": -2.0,
+        "location": "classroom",
+        "severity": "minor",
+        "description": "课堂讲话",
+        "opponent_id": null,
+        "evidence_refs": ["cli:manual"],
+        "operator": "班主任",
+        "note": ""
+      }
+    },
+    "is_valid": true,
+    "reverted_by": null
+  }
+]
