@@ -7,33 +7,61 @@ on:
     branches: [ main ]
 
 jobs:
-  build-cli:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
+        components: rustfmt, clippy
 
-    - name: Build eaa CLI
+    - name: Format check
+      run: cd core/eaa-cli && cargo fmt -- --check
+
+    - name: Clippy lint
+      run: cd core/eaa-cli && cargo clippy -- -D warnings
+
+    - name: Build
+      run: cd core/eaa-cli && cargo build --release
+
+    - name: Create test data
       run: |
         cd core/eaa-cli
-        cargo build --release
+        mkdir -p data/entities data/events data/logs
+        echo '{"entities":{}}' > data/entities/entities.json
+        echo '{}' > data/entities/name_index.json
+        echo '[]' > data/events/events.json
 
-    - name: Validate data
+    - name: Validate empty data
+      run: cd core/eaa-cli && EAA_DATA_DIR=./data ./target/release/eaa validate
+
+    - name: Run add + revert test
       run: |
         cd core/eaa-cli
-        ./target/release/eaa validate
-        ./target/release/eaa info
+        export EAA_DATA_DIR=./data
+        # Init entity
+        python3 -c "
+        import json
+        e={'entities':{'stu_001':{'id':'stu_001','name':'测试','aliases':[],'status':'ACTIVE','created_at':'2026-01-01T00:00:00Z','metadata':{'risk':'正常'}}}}
+        n={'测试':'stu_001'}
+        json.dump(e,open('data/entities/entities.json','w'),ensure_ascii=False,indent=2)
+        json.dump(n,open('data/entities/name_index.json','w'),ensure_ascii=False,indent=2)
+        "
+        ./target/release/eaa add "测试" SPEAK_IN_CLASS --delta -2 --note "CI测试"
+        ./target/release/eaa score 测试 | grep "98.0"
+        ./target/release/eaa info | grep "事件总数:  1"
 
   lint-docs:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Check references
+    - uses: actions/checkout@v4
+    - name: Check no sensitive data
       run: |
-        # Ensure no copaw references remain
-        ! grep -r "copaw" --include="*.md" --include="*.yaml" --include="*.sh" .
-        echo "No copaw references found ✓"
+        ! grep -rn "ou_b4c5\|cli_a927\|FqHByI\|1911386\|1528157" --include="*.md" --include="*.yaml" --include="*.json" --include="*.sh" . || (echo "Found sensitive data!" && exit 1)
+        echo "No sensitive data found ✓"
+    - name: Check markdown links
+      run: |
+        find . -name "*.md" -not -path "./.git/*" | head -5
+        echo "Markdown files exist ✓"

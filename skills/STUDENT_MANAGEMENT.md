@@ -1,73 +1,61 @@
-# 学生管理技能 (Student Management Skill)
+# 学生管理技能
 
-## 简介
-- **功能**：学生档案管理、风险评估、谈话记录
-- **使用场景**：收到学生信息、需要查询学生状态、更新学生档案
-- **依赖工具**：read, write, edit, feishu_bitable_app_table_record
+## 数据查询（通过 eaa CLI）
 
-## 使用方法
-
-### 1. 查询学生档案
 ```bash
-# 直接读取学生档案文件
-cat /data/students/张三.md
+export EAA_DATA_DIR=/vol2/copaw-data/data
+
+# 查询学生分数
+eaa score 张三
+
+# 查看事件时间线
+eaa history 张三
+
+# 搜索相关事件
+eaa search 讲话
+
+# 排行榜
+eaa ranking 10
 ```
 
-### 2. 更新学生档案
-```python
-# 使用 edit 工具更新档案
-edit(file="students/张三.md", 
-     old_string="旧内容",
-     new_string="新内容")
+## 数据写入（通过 eaa CLI）
+
+```bash
+# 记录扣分
+eaa add "张三" SPEAK_IN_CLASS --delta -2 --note "物理课讲话"
+
+# 记录加分
+eaa add "李四" CIVILIZED_DORM --delta +3 --note "文明寝室"
+
+# 预览（不写入）
+eaa add "张三" LATE --delta -2 --note "迟到" --dry-run
+
+# 撤销事件
+eaa revert evt_00001 --reason "误记"
 ```
 
-### 3. 记录谈话
-```python
-# 调用 save_talk_record 函数
-save_talk_record(
-    student_name="张三",
-    talk_type="纪律",
-    content="今天谈话了上课讲话的问题",
-    outcome="学生承诺改正"
-)
-```
+## 原因码参考
 
-## API 参数
+| 代码 | 标准分 | 说明 |
+|:-----|:-----:|:-----|
+| SPEAK_IN_CLASS | -2 | 课堂讲话 |
+| SLEEP_IN_CLASS | -2 | 课堂睡觉 |
+| LATE | -2 | 迟到 |
+| SMOKING | -10 | 抽烟 |
+| DRINKING_DORM | -5 | 寝室饮酒 |
+| PHONE_IN_CLASS | -5 | 手机违纪 |
+| SCHOOL_CAUGHT | -5 | 学校抓拍 |
+| APPEARANCE_VIOLATION | -2 | 仪容违纪 |
+| DESK_UNALIGNED | -1 | 桌椅不整齐 |
+| MONTHLY_ATTENDANCE | +2 | 月勤奖励 |
+| CLASS_MONITOR | +10 | 班长履职 |
+| CLASS_COMMITTEE | +5 | 班委履职 |
+| CIVILIZED_DORM | +3 | 文明寝室 |
 
-| 参数 | 类型 | 必需 | 说明 |
-|:-----|:-----|:----:|:-----|
-| student_name | string | ✅ | 学生姓名 |
-| talk_type | string | ✅ | 谈话类型：纪律/学业/心理/发展 |
-| content | string | ✅ | 谈话内容摘要 |
-| outcome | string | ❌ | 谈话结果 |
-
-## 数据存储
-
-学生档案位置：`/data/students/{姓名}.md`
-
-档案格式：
-```markdown
-# 学生档案：{姓名}
-
-## 基本信息
-- **姓名**：
-- **班级**：
-- **风险等级**：
-
-## 风险评估
-| 维度 | 得分 | 说明 |
-|:-----|:----:|:-----|
-| 学业 | XX | |
-| 纪律 | XX | |
-| 心理 | XX | |
-| 人际 | XX | |
-
-## 督导记录
-## 谈话记录
-## 成绩记录
-```
+运行 `eaa codes` 查看完整列表。
 
 ## 注意事项
-1. 档案更新后自动同步到数据库
-2. 风险评估由 supervisor Agent 自动计算
-3. 谈话记录会自动推送给相关Agent
+1. **所有数据操作必须通过 eaa CLI**
+2. 禁止直接编辑 events.json 或 entities.json
+3. delta 超出 [-10, +10] 需加 `--force`
+4. 事件不可删除，只能通过 `eaa revert` 对冲

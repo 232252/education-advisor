@@ -51,3 +51,16 @@ target/
 # 临时文件
 *.tmp
 *.lock
+
+# 环境变量
+.env
+.env.*
+!.env.example
+
+# Rust额外
+core/eaa-cli/data/entities_test/
+core/eaa-cli/data/events_test/
+core/eaa-cli/.cargo/
+
+# 临时
+operations.jsonl
