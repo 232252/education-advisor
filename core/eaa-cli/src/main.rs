@@ -72,6 +72,10 @@ enum Commands {
     AddStudent { name: String },
     /// Import students from JSON file (array of names)
     Import { file: String },
+    /// Export scores as CSV
+    Export,
+    /// Environment health check
+    Doctor,
 }
 
 fn main() -> Result<(), AppError> {
@@ -95,6 +99,8 @@ fn main() -> Result<(), AppError> {
         Commands::ListStudents => cmd_list_students()?,
         Commands::AddStudent { name } => cmd_add_student(&name)?,
         Commands::Import { file } => cmd_import(&file)?,
+        Commands::Export => cmd_export()?,
+        Commands::Doctor => cmd_doctor()?,
     }
     Ok(())
 }

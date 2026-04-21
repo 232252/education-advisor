@@ -24,6 +24,7 @@ pub enum AppError {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[allow(dead_code)]
 pub enum ReasonCode {
     SpeakInClass,
     SleepInClass,
