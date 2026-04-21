@@ -36,6 +36,18 @@ Thumbs.db
 *.swp
 *.swo
 
-# 数据文件（示例数据除外）
-data/students/*.md
-!examples/students/*.md
+# 数据文件（学生数据敏感，不提交）
+core/eaa-cli/data/
+**/data/entities/
+**/data/events/
+**/data/logs/
+**/name_index.json
+!examples/**/*.md
+
+# Rust编译
+target/
+.cargo/
+
+# 临时文件
+*.tmp
+*.lock
