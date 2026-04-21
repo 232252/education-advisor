@@ -1,0 +1,15 @@
+[Unit]
+Description=Education Advisor AI - OpenClaw Gateway
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Environment=EAA_DATA_DIR=/vol2/copaw-data/data
+WorkingDirectory=/root/.openclaw
+ExecStart=/usr/local/bin/openclaw gateway start --foreground
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

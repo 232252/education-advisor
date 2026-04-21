@@ -15,7 +15,6 @@ pub fn get_data_dir() -> PathBuf {
 }
 
 pub fn get_schema_dir() -> PathBuf {
-    // schema stays relative to data dir's parent, or ./schema
     let data_dir = get_data_dir();
     let candidate = data_dir.parent().map(|p| p.join("schema"));
     if let Some(ref s) = candidate {
@@ -30,6 +29,30 @@ fn get_lock_path() -> PathBuf {
     get_data_dir().join(".lock")
 }
 
+/// RAII file lock that auto-releases on Drop
+pub struct FileLock {
+    _file: fs::File,
+}
+
+impl FileLock {
+    pub fn acquire() -> Result<Self, AppError> {
+        let lock_path = get_lock_path();
+        if let Some(parent) = lock_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let f = fs::File::create(&lock_path)?;
+        f.lock_exclusive()?;
+        Ok(Self { _file: f })
+    }
+}
+
+impl Drop for FileLock {
+    fn drop(&mut self) {
+        let _ = self._file.unlock();
+    }
+}
+
+// Keep old functions for backward compat but delegate to FileLock
 pub fn acquire_lock() -> Result<fs::File, std::io::Error> {
     let lock_path = get_lock_path();
     if let Some(parent) = lock_path.parent() {
@@ -40,8 +63,8 @@ pub fn acquire_lock() -> Result<fs::File, std::io::Error> {
     Ok(f)
 }
 
-pub fn release_lock(f: &fs::File) {
-    let _ = f.unlock();
+pub fn release_lock(_f: &fs::File) {
+    // no-op: let Drop handle it, or caller uses FileLock
 }
 
 pub fn atomic_write_json<T: Serialize + ?Sized>(path: &PathBuf, data: &T) -> Result<(), AppError> {
@@ -83,10 +106,10 @@ pub fn resolve_entity_id(name: &str, index: &HashMap<String, String>) -> Result<
 }
 
 pub fn compute_scores(entities: &std::collections::HashMap<String, Entity>, events: &[Event]) -> HashMap<String, f64> {
-    let mut scores: HashMap<String, f64> = entities.keys().map(|k| (k.clone(), 100.0)).collect();
+    let mut scores: HashMap<String, f64> = entities.keys().map(|k| (k.clone(), BASE_SCORE)).collect();
     for evt in events {
         if evt.is_valid && evt.reverted_by.is_none() {
-            *scores.entry(evt.entity_id.clone()).or_insert(100.0) += evt.score_delta;
+            *scores.entry(evt.entity_id.clone()).or_insert(BASE_SCORE) += evt.score_delta;
         }
     }
     scores
@@ -95,6 +118,16 @@ pub fn compute_scores(entities: &std::collections::HashMap<String, Entity>, even
 pub fn save_events(events: &[Event]) -> Result<(), AppError> {
     let path = get_data_dir().join("events/events.json");
     atomic_write_json(&path, events)
+}
+
+pub fn save_entities(entities: &EntitiesFile) -> Result<(), AppError> {
+    let path = get_data_dir().join("entities/entities.json");
+    atomic_write_json(&path, entities)
+}
+
+pub fn save_name_index(index: &HashMap<String, String>) -> Result<(), AppError> {
+    let path = get_data_dir().join("entities/name_index.json");
+    atomic_write_json(&path, index)
 }
 
 pub fn append_operation_log(entry: &serde_json::Value) -> Result<(), AppError> {

@@ -95,8 +95,10 @@ case "$ARCH" in
     *)             ARCH_TAG="unknown" ;;
 esac
 
+PLATFORM_TAG="${PLATFORM}-${ARCH_TAG}"
 echo -e "  操作系统: ${CYAN}$OS${NC} ($PLATFORM)"
 echo -e "  系统架构: ${CYAN}$ARCH${NC} ($ARCH_TAG)"
+echo -e "  平台标签: ${CYAN}$PLATFORM_TAG${NC}"
 echo -e "  EAA数据目录: ${CYAN}$EAA_DATA_DIR${NC}"
 echo ""
 

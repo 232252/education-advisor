@@ -1,12 +1,13 @@
 use crate::storage::*;
 use crate::types::*;
 use crate::validation::*;
+use std::collections::HashMap;
 
 fn print_event_line(evt: &Event, id_to_name: &std::collections::HashMap<String, String>) {
     let name = id_to_name.get(&evt.entity_id).map(|s| s.as_str()).unwrap_or("?");
     let date = if evt.timestamp.len() >= 10 { &evt.timestamp[..10] } else { &evt.timestamp };
     println!("{:<10} {:<12} [{:<25}] {:<24} {:+.1}",
-        name, date, evt.reason_code.to_string(), evt.original_reason, evt.score_delta);
+        name, date, evt.reason_code, evt.original_reason, evt.score_delta);
 }
 
 pub fn cmd_info() -> Result<(), AppError> {
@@ -24,17 +25,22 @@ pub fn cmd_info() -> Result<(), AppError> {
 }
 
 pub fn cmd_validate() -> Result<(), AppError> {
+    let entities = load_entities()?;
     let events = load_events()?;
     let codes = load_reason_codes()?;
+    let entity_ids: std::collections::HashSet<&str> = entities.entities.keys().map(|k| k.as_str()).collect();
     let mut errors = 0;
     for evt in &events {
-        let code_str = evt.reason_code.to_string();
-        if !codes.codes.contains_key(&code_str) {
-            println!("✗ {} unknown reason_code: {}", evt.event_id, code_str);
+        if !codes.codes.contains_key(&evt.reason_code) {
+            println!("✗ {} unknown reason_code: {}", evt.event_id, evt.reason_code);
             errors += 1;
         }
         if evt.entity_id.is_empty() {
             println!("✗ {} empty entity_id", evt.event_id);
+            errors += 1;
+        }
+        if !entity_ids.contains(evt.entity_id.as_str()) {
+            println!("✗ {} unknown entity_id: {}", evt.event_id, evt.entity_id);
             errors += 1;
         }
     }
@@ -58,7 +64,7 @@ pub fn cmd_replay() -> Result<(), AppError> {
     println!("{}", "-".repeat(36));
     for (eid, score) in &sorted {
         let name = id_to_name.get(eid.as_str()).map(|s| s.as_str()).unwrap_or("?");
-        let delta = **score - 100.0;
+        let delta = **score - BASE_SCORE;
         println!("{:<20} {:>8.1} {:>+6.1}", name, score, delta);
     }
     Ok(())
@@ -74,7 +80,7 @@ pub fn cmd_history(name: &str) -> Result<(), AppError> {
     } else {
         println!("{} 的事件时间线 ({}条):", name, student_events.len());
         println!("{}", "-".repeat(60));
-        let mut running = 100.0;
+        let mut running = BASE_SCORE;
         for evt in &student_events {
             running += evt.score_delta;
             println!("{:<12} {:>+6.1} → {:>6.1}  [{}] {}",
@@ -140,16 +146,28 @@ pub fn cmd_add(name: &str, reason_code: &str, tags: &str, delta: f64, note: &str
     let index = load_name_index()?;
     let eid = resolve_entity_id(name, &index)?;
 
+    // Dedup check
+    let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+    let all_events = load_events()?;
+    let duplicate = all_events.iter().any(|e| {
+        e.entity_id == eid &&
+        e.reason_code == reason_code &&
+        e.timestamp == now &&
+        e.reverted_by.is_none()
+    });
+    if duplicate {
+        return Err(AppError::Validation("重复事件：同一学生同一时间同一原因码已存在".into()));
+    }
+
     let new_id = generate_event_id();
     let tag_list: Vec<String> = tags.split(',').map(|s| s.trim().to_string()).collect();
-    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let op = get_operator(operator);
     let new_event = Event {
         event_id: new_id.clone(),
         entity_id: eid,
         event_type: if delta >= 0.0 { EventType::ConductBonus } else { EventType::ConductDeduct },
         category_tags: tag_list,
-        reason_code: serde_json::from_value(serde_json::Value::String(reason_code.to_string()))?,
+        reason_code: reason_code.to_string(),
         original_reason: reason_code.to_string(),
         score_delta: delta,
         evidence_ref: "cli:manual".to_string(),
@@ -173,13 +191,11 @@ pub fn cmd_add(name: &str, reason_code: &str, tags: &str, delta: f64, note: &str
 
     println!("✓ 事件已创建: {} {} {:+.1}", new_event.event_id, name, delta);
 
-    let _lock = acquire_lock()?;
+    let _lock = FileLock::acquire()?;
     let mut all_events = load_events()?;
     all_events.push(new_event);
     save_events(&all_events)?;
-    release_lock(&_lock);
 
-    // Log operation
     let log_entry = serde_json::json!({
         "action": "add",
         "event_id": new_id,
@@ -189,20 +205,22 @@ pub fn cmd_add(name: &str, reason_code: &str, tags: &str, delta: f64, note: &str
         "operator": op,
         "timestamp": now,
     });
-    let _ = append_operation_log(&log_entry);
+    if let Err(e) = append_operation_log(&log_entry) {
+        eprintln!("⚠️ 操作日志写入失败: {}", e);
+    }
 
     Ok(())
 }
 
 pub fn cmd_revert(event_id: &str, reason: &str, operator: Option<&str>,
                   dry_run: bool) -> Result<(), AppError> {
-    let _lock = acquire_lock()?;
+    let _lock = FileLock::acquire()?;
     let mut all_events = load_events()?;
 
     let target_idx = all_events.iter().position(|e| e.event_id == event_id)
         .ok_or_else(|| AppError::EventNotFound(event_id.to_string()))?;
 
-    can_revert(&all_events[target_idx].reverted_by, event_id)?;
+    can_revert(&all_events[target_idx].reverted_by, event_id, &all_events[target_idx].reason_code)?;
 
     let target = &all_events[target_idx];
     let entity_id = target.entity_id.clone();
@@ -213,11 +231,10 @@ pub fn cmd_revert(event_id: &str, reason: &str, operator: Option<&str>,
         println!("  target:   {}", event_id);
         println!("  delta:    {:+.1} → {:+.1}", score_delta, -score_delta);
         println!("  reason:   {}", reason);
-        release_lock(&_lock);
         return Ok(());
     }
 
-    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z").to_string();
     let revert_id = generate_event_id();
     let op = get_operator(operator);
     let revert_event = Event {
@@ -225,7 +242,7 @@ pub fn cmd_revert(event_id: &str, reason: &str, operator: Option<&str>,
         entity_id,
         event_type: if score_delta >= 0.0 { EventType::ConductDeduct } else { EventType::ConductBonus },
         category_tags: vec!["系统纠正".to_string()],
-        reason_code: ReasonCode::Revert,
+        reason_code: "REVERT".to_string(),
         original_reason: format!("撤销 {}", event_id),
         score_delta: -score_delta,
         evidence_ref: format!("revert:{}", event_id),
@@ -239,7 +256,6 @@ pub fn cmd_revert(event_id: &str, reason: &str, operator: Option<&str>,
     all_events[target_idx].reverted_by = Some(revert_id.clone());
     all_events.push(revert_event);
     save_events(&all_events)?;
-    release_lock(&_lock);
 
     println!("✓ 撤销事件: {} 对冲 {}", revert_id, event_id);
 
@@ -250,7 +266,9 @@ pub fn cmd_revert(event_id: &str, reason: &str, operator: Option<&str>,
         "operator": op,
         "timestamp": now,
     });
-    let _ = append_operation_log(&log_entry);
+    if let Err(e) = append_operation_log(&log_entry) {
+        eprintln!("⚠️ 操作日志写入失败: {}", e);
+    }
 
     Ok(())
 }
@@ -279,8 +297,7 @@ pub fn cmd_search(query: &str) -> Result<(), AppError> {
     for evt in &events {
         let name = id_to_name.get(&evt.entity_id).map(|s| s.as_str()).unwrap_or("");
         let name_match = name.contains(query);
-        let code_str = evt.reason_code.to_string();
-        let code_match = code_str == query_upper || code_str.contains(&query_upper);
+        let code_match = evt.reason_code == query_upper || evt.reason_code.contains(&query_upper);
         let tag_match = evt.category_tags.iter().any(|t| t.contains(query));
         let reason_match = evt.original_reason.contains(query);
         if name_match || code_match || tag_match || reason_match {
@@ -294,7 +311,7 @@ pub fn cmd_search(query: &str) -> Result<(), AppError> {
     }
 
     let is_name = index.contains_key(query);
-    let is_code = results.iter().all(|e| e.reason_code.to_string() == query_upper);
+    let is_code = results.iter().all(|e| e.reason_code == query_upper);
 
     if is_name {
         println!("{} 的所有事件 ({}条):", query, results.len());
@@ -321,7 +338,7 @@ pub fn cmd_stats() -> Result<(), AppError> {
     let mut code_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for evt in &events {
         if evt.is_valid && evt.reverted_by.is_none() {
-            *code_counts.entry(evt.reason_code.to_string()).or_insert(0) += 1;
+            *code_counts.entry(evt.reason_code.clone()).or_insert(0) += 1;
         }
     }
     let mut code_sorted: Vec<_> = code_counts.into_iter().collect();
@@ -438,5 +455,102 @@ pub fn cmd_range(start: &str, end: &str) -> Result<(), AppError> {
     for evt in &matched {
         print_event_line(evt, &id_to_name);
     }
+    Ok(())
+}
+
+// === Entity management commands ===
+
+pub fn cmd_list_students() -> Result<(), AppError> {
+    let entities = load_entities()?;
+    let events = load_events()?;
+    let scores = compute_scores(&entities.entities, &events);
+    let index = load_name_index()?;
+    let id_to_name = build_id_to_name(&index);
+
+    let mut sorted: Vec<_> = entities.entities.iter().collect::<Vec<_>>();
+    sorted.sort_by(|a, b| a.1.name.cmp(&b.1.name));
+
+    println!("{:<20} {:>8} {:<10}", "姓名", "分数", "状态");
+    println!("{}", "-".repeat(40));
+    for (eid, ent) in &sorted {
+        let score = scores.get(*eid).unwrap_or(&BASE_SCORE);
+        let status = match ent.status {
+            EntityStatus::Active => "在读",
+            EntityStatus::Transferred => "转出",
+            EntityStatus::Suspended => "休学",
+        };
+        let name = id_to_name.get(*eid).map(|s| s.as_str()).unwrap_or(&ent.name);
+        println!("{:<20} {:>8.1} {:<10}", name, score, status);
+    }
+    println!("共 {} 名学生", entities.entities.len());
+    Ok(())
+}
+
+pub fn cmd_add_student(name: &str) -> Result<(), AppError> {
+    let _lock = FileLock::acquire()?;
+    let mut entities = load_entities()?;
+    let mut index = load_name_index()?;
+
+    // Check duplicate
+    if index.contains_key(name) {
+        return Err(AppError::Validation(format!("学生 {} 已存在", name)));
+    }
+
+    let entity_id = format!("ent_{}", generate_event_id().trim_start_matches("evt_"));
+    let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+
+    let entity = Entity {
+        id: entity_id.clone(),
+        name: name.to_string(),
+        aliases: vec![],
+        status: EntityStatus::Active,
+        created_at: now,
+        metadata: HashMap::new(),
+    };
+
+    entities.entities.insert(entity_id.clone(), entity);
+    index.insert(name.to_string(), entity_id.clone());
+
+    save_entities(&entities)?;
+    save_name_index(&index)?;
+
+    println!("✓ 学生已添加: {} ({})", name, entity_id);
+    Ok(())
+}
+
+pub fn cmd_import(file: &str) -> Result<(), AppError> {
+    let _lock = FileLock::acquire()?;
+    let mut entities = load_entities()?;
+    let mut index = load_name_index()?;
+
+    let content = std::fs::read_to_string(file)?;
+    let names: Vec<String> = serde_json::from_str(&content)?;
+    let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+    let mut added = 0;
+    let mut skipped = 0;
+
+    for name in &names {
+        if index.contains_key(name) {
+            skipped += 1;
+            continue;
+        }
+        let entity_id = format!("ent_{}", generate_event_id().trim_start_matches("evt_"));
+        let entity = Entity {
+            id: entity_id.clone(),
+            name: name.clone(),
+            aliases: vec![],
+            status: EntityStatus::Active,
+            created_at: now.clone(),
+            metadata: HashMap::new(),
+        };
+        entities.entities.insert(entity_id.clone(), entity);
+        index.insert(name.clone(), entity_id);
+        added += 1;
+    }
+
+    save_entities(&entities)?;
+    save_name_index(&index)?;
+
+    println!("✓ 导入完成: {} 名添加, {} 名跳过(已存在)", added, skipped);
     Ok(())
 }
