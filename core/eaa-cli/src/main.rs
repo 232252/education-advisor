@@ -66,6 +66,12 @@ enum Commands {
     Tag { #[arg(default_value = "")] tag: String },
     /// Query events in a date range
     Range { start: String, end: String },
+    /// List all students
+    ListStudents,
+    /// Add a new student
+    AddStudent { name: String },
+    /// Import students from JSON file (array of names)
+    Import { file: String },
 }
 
 fn main() -> Result<(), AppError> {
@@ -86,6 +92,9 @@ fn main() -> Result<(), AppError> {
         Commands::Stats => cmd_stats()?,
         Commands::Tag { tag } => cmd_tag(&tag)?,
         Commands::Range { start, end } => cmd_range(&start, &end)?,
+        Commands::ListStudents => cmd_list_students()?,
+        Commands::AddStudent { name } => cmd_add_student(&name)?,
+        Commands::Import { file } => cmd_import(&file)?,
     }
     Ok(())
 }

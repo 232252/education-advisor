@@ -3,6 +3,11 @@ use std::collections::HashMap;
 use std::fmt;
 use thiserror::Error;
 
+// === Constants ===
+pub const BASE_SCORE: f64 = 100.0;
+pub const MAX_DELTA: f64 = 10.0;
+pub const MIN_DELTA: f64 = -10.0;
+
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error("IO error: {0}")]
@@ -46,8 +51,13 @@ pub enum ReasonCode {
 
 impl fmt::Display for ReasonCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let s = serde_json::to_value(self).unwrap().as_str().unwrap().to_string();
-        write!(f, "{}", s)
+        match serde_json::to_value(self) {
+            Ok(v) => match v.as_str() {
+                Some(s) => write!(f, "{}", s),
+                None => write!(f, "UNKNOWN"),
+            },
+            Err(_) => write!(f, "UNKNOWN"),
+        }
     }
 }
 
@@ -85,7 +95,7 @@ pub struct Event {
     pub event_type: EventType,
     #[serde(default)]
     pub category_tags: Vec<String>,
-    pub reason_code: ReasonCode,
+    pub reason_code: String,
     pub original_reason: String,
     pub score_delta: f64,
     pub evidence_ref: String,
@@ -97,7 +107,7 @@ pub struct Event {
     pub note: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct EntitiesFile {
     pub entities: HashMap<String, Entity>,
 }

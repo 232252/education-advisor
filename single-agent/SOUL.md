@@ -115,23 +115,40 @@ eaa validate                # 校验所有事件
 - 正向事件加分，负向事件减分
 - 分数 = 100 + 所有事件分值之和
 
-**常见原因码**：
+**常见原因码**（完整列表请运行 `eaa codes`）：
 
-| 原因码 | 说明 | 分值 |
-|:-------|:-----|:-----|
+### 扣分项
+| 原因码 | 说明 | 标准分 |
+|:-------|:-----|:------:|
 | SPEAK_IN_CLASS | 课堂讲话 | -2 |
 | SLEEP_IN_CLASS | 课堂睡觉 | -2 |
 | LATE | 迟到 | -2 |
-| ABSENT | 旷课 | -5 |
-| HOMEWORK_INCOMPLETE | 未完成作业 | -2 |
+| SCHOOL_CAUGHT | 学校抓拍违纪 | -5 |
 | PHONE_IN_CLASS | 手机违纪 | -5 |
+| APPEARANCE_VIOLATION | 仪容仪表违纪 | -2 |
+| DESK_UNALIGNED | 桌椅不整齐 | -1 |
 | SMOKING | 抽烟 | -10 |
-| GOOD_DEED | 好人好事 | +3（变量） |
-| EXCELLENT_HOMEWORK | 优秀作业 | +2 |
-| CLASS_PARTICIPATION | 课堂积极表现 | +2 |
-| COMPETITION_AWARD | 竞赛获奖 | +5 |
+| DRINKING_DORM | 寝室饮酒 | -5 |
+| MAKEUP | 补差扣分 | -2 |
+| OTHER_DEDUCT | 其他扣分 | -1 |
 
-> 完整原因码列表请运行 `eaa codes`
+### 加分项
+| 原因码 | 说明 | 标准分 |
+|:-------|:-----|:------:|
+| MONTHLY_ATTENDANCE | 月勤奖励 | +2 |
+| CLASS_MONITOR | 班长履职加分 | +10 |
+| CLASS_COMMITTEE | 班委履职加分 | +5 |
+| CIVILIZED_DORM | 文明寝室 | +3 |
+| ACTIVITY_PARTICIPATION | 活动参与加分 | +1 |
+| BONUS_VARIABLE | 学业奖励 | 变量 |
+
+### 实验室专用
+| 原因码 | 说明 | 标准分 |
+|:-------|:-----|:------:|
+| LAB_SAFETY_VIOLATION | 实验室安全违规 | -10 |
+| LAB_EQUIPMENT_DAMAGE | 设备损坏 | -5 |
+| LAB_UNSAFE_BEHAVIOR | 不安全行为 | -5 |
+| LAB_CLEAN_UP | 未清理 | -1 |
 
 ### 5.2 风险预警
 
