@@ -8,7 +8,7 @@
 
 支持 **多Agent（OpenClaw）** 和 **单Agent（任何AI平台）** 两种部署模式
 
-**[项目介绍与路线图](./PROJECT_INTRO.md)** · **[快速开始](./docs/QUICK_START.md)** · **[单Agent部署](./single-agent/DEPLOY.md)** · **[安全规范](./docs/SECURITY.md)**
+**[项目介绍与路线图](./PROJECT_INTRO.md)** · **[单Agent部署](./single-agent/DEPLOY.md)** · **[安全规范](./docs/SECURITY.md)**
 
 </div>
 
@@ -20,7 +20,6 @@
 - 🔍 **智能风险预警** — 多维度评估学生风险等级，自动识别高风险学生
 - 📊 **督导复盘** — 每日自动生成督导报告，待办事项提醒
 - 💬 **谈话计划** — 智能推荐谈话学生，提供谈话话术建议
-- 📅 **日历同步** — 与外部日历同步课表和日程（飞书/Google等）
 - 📈 **成绩分析** — 自动分析成绩分布，识别学业预警
 - 🔐 **数据校验** — 多Agent交叉校验，确保数据准确性
 - 🗄️ **事件溯源引擎** — Rust 高性能 CLI（`eaa`），不可变事件流，完全可追溯
@@ -46,28 +45,13 @@ cd education-advisor
 bash install.sh
 ```
 
-### 方式三：单Agent一键部署
-
-```bash
-git clone https://github.com/232252/education-advisor.git
-cd education-advisor
-bash install.sh --single-agent
-```
-
-### 方式四：交给 AI 部署
+### 方式三：交给 AI 部署
 
 将 [DEPLOY_TO_AI.md](./DEPLOY_TO_AI.md) 的内容复制给您的AI助手，它会自动帮您部署。
 
-> 🎯 **首次交互体验**：部署完成后，AI 会自动：
-> 1. 自我介绍
-> 2. 询问您的基本信息（姓名、学校、年级、班级人数等）
-> 3. 引导您选择需要启用的功能
-> 4. 支持一键全部配置
-> 5. 自动初始化数据
+## 🗄️ 事件溯源数据引擎（v2.0）
 
-## 🗄️ 事件溯源数据引擎
-
-系统内置基于 Rust 的事件溯源 CLI（`eaa`），是**唯一的数据读写入口**。所有数据操作——无论来自哪个 Agent、哪个通道——都通过 `eaa` CLI 完成，确保数据一致性和可追溯性。
+系统内置基于 Rust 的事件溯源 CLI（`eaa`），是**唯一的数据读写入口**。
 
 ### 架构
 
@@ -75,10 +59,15 @@ bash install.sh --single-agent
 用户/Agent → eaa CLI → 事件流(events.json) → 重放引擎 → 实时分数
 ```
 
-- **不可变事件流**：所有分数变动以事件追加，不可删除/修改
-- **重放计算**：当前分数 = 100 + Σ(事件分值)
-- **强制校验**：新增事件必须通过原因码和分值校验
-- **可撤销**：通过 REVERT 事件对冲，保留完整审计轨迹
+### v2.0 特性
+
+- **原子写入**（tmp → fsync → rename）：断电不丢数据
+- **UUID 事件ID**：避免重复、跳号
+- **文件锁**（flock）：多Agent并发安全
+- **EAA_DATA_DIR 环境变量**：数据目录灵活配置
+- **dry-run 预览模式**：操作前可预览效果
+- **分数范围校验 + 防重复 Revert**：数据完整性保障
+- **模块化架构**：types / storage / commands / validation 分层解耦
 
 ### 常用命令
 
@@ -89,14 +78,16 @@ eaa history <姓名>          # 事件时间线
 eaa ranking [数量]          # 排行榜
 eaa search <关键词>          # 搜索事件
 eaa add <姓名> <原因码>      # 新增事件
-eaa revert <事件ID>         # 撤销事件
+eaa add <姓名> <原因码> --note "备注"  # 带备注
+eaa add <姓名> <原因码> --delta -3     # 自定义分值
+eaa revert <事件ID> --reason "误记"    # 撤销事件
 eaa stats                   # 统计摘要
 eaa codes                   # 原因码列表
 eaa tag [标签]              # 标签管理
 eaa range <开始> <结束>      # 日期范围查询
+eaa validate                # 校验所有事件
+eaa --dry-run add ...       # 预览模式（不实际写入）
 ```
-
-详见 [CLI 命令手册](./docs/CLI_REFERENCE.md) 和 [事件溯源架构](./docs/EVENT_SOURCING.md)。
 
 ## 📁 项目结构
 
@@ -104,36 +95,21 @@ eaa range <开始> <结束>      # 日期范围查询
 education-advisor/
 ├── README.md                # 项目说明（本文件）
 ├── PROJECT_INTRO.md         # 项目介绍与发展路线图
-├── install.sh               # 增强版安装脚本（支持单Agent模式）
+├── install.sh               # 安装脚本（支持 --data-dir --prefix --single-agent）
 ├── DEPLOY_TO_AI.md          # AI自部署提示词
 ├── single-agent/            # 单Agent部署方案
 │   ├── SOUL.md              # 单Agent完整提示词（核心文件）
 │   ├── DEPLOY.md            # 多平台部署指南
 │   └── USER.md              # 用户配置模板
-├── releases/                # 预编译二进制
-│   └── README.md            # 下载说明
-├── config/
-│   └── agents.yaml          # Agent 配置（10个）
 ├── core/
-│   └── eaa-cli/             # 事件溯源 CLI（Rust）
-│       ├── src/main.rs      # CLI 源代码
+│   └── eaa-cli/             # 事件溯源 CLI（Rust v2.0）
+│       ├── src/             # 源代码（main/types/storage/commands/validation）
 │       ├── Cargo.toml       # Rust 项目配置
 │       ├── schema/          # 原因码定义
-│       └── data/            # 示例数据（脱敏）
-├── agents/                  # 10个 Agent 角色定义
-│   ├── main/                # 主协调 Agent
-│   ├── supervisor/          # 督导复盘 Agent
-│   ├── validator/           # 数据校验 Agent
-│   ├── academic/            # 学业分析 Agent
-│   ├── psychology/          # 心理监测 Agent
-│   ├── safety/              # 安全检查 Agent
-│   ├── home_school/         # 家校沟通 Agent
-│   ├── research/            # 科研辅助 Agent
-│   ├── executor/            # 系统维护 Agent
-│   └── talk_planner/        # 谈话计划 Agent
+│       └── data/            # 数据目录（不提交到仓库）
+├── agents/                  # Agent 角色定义（10个）
 ├── docs/                    # 完整文档
-├── examples/                # 脱敏示例数据
-└── skills/                  # 技能定义
+└── examples/                # 脱敏示例数据
 ```
 
 ## 🔌 支持的通信通道
@@ -146,10 +122,7 @@ EAA 基于 OpenClaw 框架，天然支持所有 OpenClaw 通道：
 | QQ | 群聊、私聊、定时提醒 |
 | Discord | 服务器、频道、DM |
 | Telegram | 群组、私聊 |
-| 微信 | 通过桥接方案 |
 | Slack | 工作空间 |
-
-**不绑定任何单一通道**，您可以只使用其中一个，也可以同时使用多个。
 
 ## ⚙️ Agent 配置
 
