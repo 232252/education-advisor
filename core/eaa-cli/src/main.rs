@@ -9,7 +9,7 @@ mod commands;
 use types::AppError;
 
 #[derive(Parser)]
-#[command(name = "eaa", about = "EAA conduct score event-sourced CLI v2.0")]
+#[command(name = "eaa", about = "EAA 事件溯源操行分系统 - 教育顾问数据引擎", version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -17,19 +17,19 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// System info
+    /// 系统信息
     Info,
-    /// Validate all events
+    /// 校验所有事件
     Validate,
-    /// Replay scores
+    /// 重算并显示排行榜
     Replay,
-    /// Student event timeline
+    /// 学生事件时间线
     History { name: String },
-    /// Ranking
+    /// 排行榜
     Ranking { #[arg(default_value = "10")] n: usize },
-    /// Single student score
+    /// 查询单个学生分数
     Score { name: String },
-    /// Add event (strict validation)
+    /// 新增事件（严格校验）
     Add {
         name: String,
         reason_code: String,
@@ -46,7 +46,7 @@ enum Commands {
         #[arg(long)]
         force: bool,
     },
-    /// Revert an event
+    /// 撤销事件
     Revert {
         event_id: String,
         #[arg(long, default_value = "")]
@@ -56,25 +56,34 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
-    /// List all reason codes
+    /// 列出所有原因码
     Codes,
-    /// Search events by keyword
-    Search { query: Vec<String> },
-    /// Show statistics summary
+    /// 按关键词搜索事件
+    Search {
+        query: Vec<String>,
+        #[arg(long, default_value = "50")]
+        limit: usize,
+    },
+    /// 数据统计摘要
     Stats,
-    /// Tag management
+    /// 标签管理
     Tag { #[arg(default_value = "")] tag: String },
-    /// Query events in a date range
-    Range { start: String, end: String },
-    /// List all students
+    /// 按日期范围查询事件
+    Range {
+        start: String,
+        end: String,
+        #[arg(long, default_value = "100")]
+        limit: usize,
+    },
+    /// 列出所有学生
     ListStudents,
-    /// Add a new student
+    /// 添加新学生
     AddStudent { name: String },
-    /// Import students from JSON file (array of names)
+    /// 从JSON文件批量导入学生
     Import { file: String },
-    /// Export scores as CSV
+    /// 导出排行榜为CSV
     Export,
-    /// Environment health check
+    /// 环境健康检查
     Doctor,
 }
 
@@ -92,10 +101,10 @@ fn main() -> Result<(), AppError> {
         Commands::Revert { event_id, reason, operator, dry_run } =>
             cmd_revert(&event_id, &reason, operator.as_deref(), dry_run)?,
         Commands::Codes => cmd_codes()?,
-        Commands::Search { query } => cmd_search(&query.join(" "))?,
+        Commands::Search { query, limit } => cmd_search(&query.join(" "), limit)?,
         Commands::Stats => cmd_stats()?,
         Commands::Tag { tag } => cmd_tag(&tag)?,
-        Commands::Range { start, end } => cmd_range(&start, &end)?,
+        Commands::Range { start, end, limit } => cmd_range(&start, &end, limit)?,
         Commands::ListStudents => cmd_list_students()?,
         Commands::AddStudent { name } => cmd_add_student(&name)?,
         Commands::Import { file } => cmd_import(&file)?,

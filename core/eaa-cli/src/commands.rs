@@ -3,6 +3,7 @@ use crate::types::*;
 use crate::validation::*;
 use std::collections::HashMap;
 
+/// Format a single event for display
 fn print_event_line(evt: &Event, id_to_name: &std::collections::HashMap<String, String>) {
     let name = id_to_name.get(&evt.entity_id).map(|s| s.as_str()).unwrap_or("?");
     let date = if evt.timestamp.len() >= 10 { &evt.timestamp[..10] } else { &evt.timestamp };
@@ -10,6 +11,7 @@ fn print_event_line(evt: &Event, id_to_name: &std::collections::HashMap<String, 
         name, date, evt.reason_code, evt.original_reason, evt.score_delta);
 }
 
+/// Show system info
 pub fn cmd_info() -> Result<(), AppError> {
     let entities = load_entities()?;
     let events = load_events()?;
@@ -24,6 +26,7 @@ pub fn cmd_info() -> Result<(), AppError> {
     Ok(())
 }
 
+/// Validate all events against schema and entity references
 pub fn cmd_validate() -> Result<(), AppError> {
     let entities = load_entities()?;
     let events = load_events()?;
@@ -43,6 +46,9 @@ pub fn cmd_validate() -> Result<(), AppError> {
             println!("✗ {} unknown entity_id: {}", evt.event_id, evt.entity_id);
             errors += 1;
         }
+        if evt.reverted_by.is_none() && (evt.score_delta < -50.0 || evt.score_delta > 50.0) {
+            println!("⚠ {} extreme delta: {:+.1}", evt.event_id, evt.score_delta);
+        }
     }
     if errors == 0 {
         println!("✓ All {} events valid", events.len());
@@ -52,6 +58,7 @@ pub fn cmd_validate() -> Result<(), AppError> {
     Ok(())
 }
 
+/// Replay all events and display score ranking
 pub fn cmd_replay() -> Result<(), AppError> {
     let entities = load_entities()?;
     let events = load_events()?;
@@ -70,6 +77,7 @@ pub fn cmd_replay() -> Result<(), AppError> {
     Ok(())
 }
 
+/// Show event timeline for a student
 pub fn cmd_history(name: &str) -> Result<(), AppError> {
     let index = load_name_index()?;
     let eid = resolve_entity_id(name, &index)?;
@@ -94,6 +102,7 @@ pub fn cmd_history(name: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Show top-N ranking
 pub fn cmd_ranking(n: usize) -> Result<(), AppError> {
     let entities = load_entities()?;
     let events = load_events()?;
@@ -112,6 +121,7 @@ pub fn cmd_ranking(n: usize) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Query single student score
 pub fn cmd_score(name: &str) -> Result<(), AppError> {
     let entities = load_entities()?;
     let index = load_name_index()?;
@@ -125,12 +135,15 @@ pub fn cmd_score(name: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Add a new conduct event with strict validation
 pub fn cmd_add(name: &str, reason_code: &str, tags: &str, delta: f64, note: &str,
               operator: Option<&str>, dry_run: bool, force: bool) -> Result<(), AppError> {
+    // Validate reason_code exists in schema
     let codes = load_reason_codes()?;
     if !codes.codes.contains_key(reason_code) {
         return Err(AppError::Validation(format!("未知原因码: {}", reason_code)));
     }
+    // Check standard delta match
     let code_def = codes.codes.get(reason_code).unwrap();
     let expected = code_def.score_delta;
     if expected.is_some() && (delta - expected.unwrap()).abs() > 0.001 && !force {
@@ -141,27 +154,31 @@ pub fn cmd_add(name: &str, reason_code: &str, tags: &str, delta: f64, note: &str
         )));
     }
 
+    // Validate delta range
     validate_delta(delta, force)?;
 
+    // Resolve student
     let index = load_name_index()?;
     let eid = resolve_entity_id(name, &index)?;
 
-    // Dedup check
-    let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+    // Dedup check: same student + same reason_code + same date
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     let all_events = load_events()?;
     let duplicate = all_events.iter().any(|e| {
         e.entity_id == eid &&
         e.reason_code == reason_code &&
-        e.timestamp == now &&
+        e.timestamp.starts_with(&today) &&
         e.reverted_by.is_none()
     });
     if duplicate {
-        return Err(AppError::Validation("重复事件：同一学生同一时间同一原因码已存在".into()));
+        return Err(AppError::Validation("重复事件：同一学生今日同一原因码已存在".into()));
     }
 
     let new_id = generate_event_id();
-    let tag_list: Vec<String> = tags.split(',').map(|s| s.trim().to_string()).collect();
+    let tag_list: Vec<String> = if tags.is_empty() { vec![] } else { tags.split(',').map(|s| s.trim().to_string()).collect() };
     let op = get_operator(operator);
+    let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+
     let new_event = Event {
         event_id: new_id.clone(),
         entity_id: eid,
@@ -212,6 +229,7 @@ pub fn cmd_add(name: &str, reason_code: &str, tags: &str, delta: f64, note: &str
     Ok(())
 }
 
+/// Revert an existing event
 pub fn cmd_revert(event_id: &str, reason: &str, operator: Option<&str>,
                   dry_run: bool) -> Result<(), AppError> {
     let _lock = FileLock::acquire()?;
@@ -273,11 +291,18 @@ pub fn cmd_revert(event_id: &str, reason: &str, operator: Option<&str>,
     Ok(())
 }
 
+/// List all reason codes from schema
 pub fn cmd_codes() -> Result<(), AppError> {
     let codes = load_reason_codes()?;
+    let mut sorted: Vec<_> = codes.codes.iter().collect();
+    sorted.sort_by(|a, b| {
+        let da = a.1.score_delta.unwrap_or(0.0);
+        let db = b.1.score_delta.unwrap_or(0.0);
+        db.partial_cmp(&da).unwrap()
+    });
     println!("{:<25} {:>6}  {}", "代码", "标准分", "说明");
     println!("{}", "-".repeat(50));
-    for (code, def) in &codes.codes {
+    for (code, def) in &sorted {
         let delta = match def.score_delta {
             Some(d) => format!("{:+.0}", d),
             None => "变量".to_string(),
@@ -287,7 +312,8 @@ pub fn cmd_codes() -> Result<(), AppError> {
     Ok(())
 }
 
-pub fn cmd_search(query: &str) -> Result<(), AppError> {
+/// Search events by keyword with limit
+pub fn cmd_search(query: &str, limit: usize) -> Result<(), AppError> {
     let events = load_events()?;
     let index = load_name_index()?;
     let id_to_name = build_id_to_name(&index);
@@ -321,113 +347,82 @@ pub fn cmd_search(query: &str) -> Result<(), AppError> {
         println!("找到 {} 条\"{}\"相关事件:", results.len(), query);
     }
     println!("{}", "-".repeat(75));
-    for evt in &results {
+    let display_count = results.len().min(limit);
+    for evt in results.iter().take(display_count) {
         print_event_line(evt, &id_to_name);
+    }
+    if results.len() > limit {
+        println!("... (共{}条，显示前{}条，--limit 调整)", results.len(), limit);
     }
     Ok(())
 }
 
+/// Show statistics summary
 pub fn cmd_stats() -> Result<(), AppError> {
     let entities = load_entities()?;
     let events = load_events()?;
-    let total_students = entities.entities.len();
-    let total_events = events.len();
-    let valid_events = events.iter().filter(|e| e.is_valid && e.reverted_by.is_none()).count();
-    let reverted = events.iter().filter(|e| e.reverted_by.is_some()).count();
 
-    let mut code_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    for evt in &events {
-        if evt.is_valid && evt.reverted_by.is_none() {
-            *code_counts.entry(evt.reason_code.clone()).or_insert(0) += 1;
-        }
-    }
-    let mut code_sorted: Vec<_> = code_counts.into_iter().collect();
-    code_sorted.sort_by(|a, b| b.1.cmp(&a.1));
-
-    let mut tag_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    for evt in &events {
-        if evt.is_valid && evt.reverted_by.is_none() {
-            for tag in &evt.category_tags {
-                *tag_counts.entry(tag.clone()).or_insert(0) += 1;
-            }
-        }
-    }
-    let mut tag_sorted: Vec<_> = tag_counts.into_iter().collect();
-    tag_sorted.sort_by(|a, b| b.1.cmp(&a.1));
-
-    let scores = compute_scores(&entities.entities, &events);
-    let ranges = [110.0, 100.0, 90.0, 80.0];
-    let range_labels = ["110+", "100-110", "90-100", "80-90", "<80"];
-    let mut range_counts = [0usize; 5];
-    for score in scores.values() {
-        if *score >= ranges[0] { range_counts[0] += 1; }
-        else if *score >= ranges[1] { range_counts[1] += 1; }
-        else if *score >= ranges[2] { range_counts[2] += 1; }
-        else if *score >= ranges[3] { range_counts[3] += 1; }
-        else { range_counts[4] += 1; }
-    }
+    let valid: Vec<_> = events.iter().filter(|e| e.is_valid && e.reverted_by.is_none()).collect();
+    let reverted: Vec<_> = events.iter().filter(|e| e.reverted_by.is_some()).collect();
+    let total_delta: f64 = valid.iter().map(|e| e.score_delta).sum();
 
     println!("╔══════════════════════════════════════╗");
     println!("║       EAA 数据统计 v2.0            ║");
     println!("╠══════════════════════════════════════╣");
-    println!("║ 学生总数: {:>6}                     ║", total_students);
-    println!("║ 事件总数: {:>6}                     ║", total_events);
-    println!("║ 有效事件: {:>6}                     ║", valid_events);
-    println!("║ 撤销事件: {:>6}                     ║", reverted);
+    println!("║ 学生总数:     {:>4}                   ║", entities.entities.len());
+    println!("║ 事件总数:    {:>4}                   ║", events.len());
+    println!("║ 有效事件:    {:>4}                   ║", valid.len());
+    println!("║ 撤销事件:      {:>4}                   ║", reverted.len());
+    println!("║ 总变动:    {:>+6.1}                  ║", total_delta);
     println!("╠══════════════════════════════════════╣");
     println!("║ 各原因码统计:");
-    for (code, count) in &code_sorted {
-        println!("║   {:<28} {:>4}次", code, count);
+
+    let mut code_counts: HashMap<&str, usize> = HashMap::new();
+    for e in &valid {
+        *code_counts.entry(&e.reason_code).or_insert(0) += 1;
     }
-    println!("╠══════════════════════════════════════╣");
-    println!("║ 各标签统计:");
-    for (tag, count) in &tag_sorted {
-        println!("║   {:<28} {:>4}次", tag, count);
-    }
-    println!("╠══════════════════════════════════════╣");
-    println!("║ 分数区间分布:");
-    for i in 0..5 {
-        if range_counts[i] > 0 {
-            println!("║   {:<28} {:>4}人", range_labels[i], range_counts[i]);
-        }
+    let mut sorted_codes: Vec<_> = code_counts.iter().collect();
+    sorted_codes.sort_by(|a, b| b.1.cmp(a.1));
+    for (code, count) in sorted_codes.iter().take(8) {
+        println!("║   {:<28}{:>3}次", format!("{}", code), count);
     }
     println!("╚══════════════════════════════════════╝");
     Ok(())
 }
 
+/// Tag management
 pub fn cmd_tag(tag: &str) -> Result<(), AppError> {
     let events = load_events()?;
     let index = load_name_index()?;
+    let id_to_name = build_id_to_name(&index);
+
+    let mut tag_counts: HashMap<&str, usize> = HashMap::new();
+    for evt in &events {
+        for t in &evt.category_tags {
+            *tag_counts.entry(t).or_insert(0) += 1;
+        }
+    }
 
     if tag.is_empty() {
-        let mut tag_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-        for evt in &events {
-            if evt.is_valid && evt.reverted_by.is_none() {
-                for t in &evt.category_tags {
-                    *tag_counts.entry(t.clone()).or_insert(0) += 1;
-                }
-            }
-        }
-        let mut sorted: Vec<_> = tag_counts.into_iter().collect();
-        sorted.sort_by(|a, b| b.1.cmp(&a.1));
         println!("所有标签:");
         println!("{}", "-".repeat(30));
-        for (t, c) in &sorted {
-            println!("  {:<20} {:>4}次", t, c);
+        let mut sorted: Vec<_> = tag_counts.iter().collect();
+        sorted.sort_by(|a, b| b.1.cmp(a.1));
+        for (t, c) in sorted {
+            println!("  {:<20}{}次", t, c);
         }
         return Ok(());
     }
 
-    let id_to_name = build_id_to_name(&index);
     let matched: Vec<&Event> = events.iter()
-        .filter(|e| e.is_valid && e.reverted_by.is_none() && e.category_tags.iter().any(|t| t.contains(tag)))
+        .filter(|e| e.category_tags.iter().any(|t| t == tag))
         .collect();
 
     if matched.is_empty() {
-        println!("标签 \"{}\" 下无事件", tag);
+        println!("标签 [{}] 下无事件", tag);
         return Ok(());
     }
-    println!("标签 \"{}\" 下的所有事件 ({}条):", tag, matched.len());
+    println!("标签 [{}] 的事件 ({}条):", tag, matched.len());
     println!("{}", "-".repeat(75));
     for evt in &matched {
         print_event_line(evt, &id_to_name);
@@ -435,7 +430,8 @@ pub fn cmd_tag(tag: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-pub fn cmd_range(start: &str, end: &str) -> Result<(), AppError> {
+/// Query events in a date range with limit
+pub fn cmd_range(start: &str, end: &str, limit: usize) -> Result<(), AppError> {
     let events = load_events()?;
     let index = load_name_index()?;
     let id_to_name = build_id_to_name(&index);
@@ -452,15 +448,16 @@ pub fn cmd_range(start: &str, end: &str) -> Result<(), AppError> {
     }
     println!("{} ~ {} 的事件 ({}条):", start, end, matched.len());
     println!("{}", "-".repeat(75));
-    for evt in &matched {
+    for evt in matched.iter().take(limit) {
         print_event_line(evt, &id_to_name);
+    }
+    if matched.len() > limit {
+        println!("... (共{}条，显示前{}条，--limit 调整)", matched.len(), limit);
     }
     Ok(())
 }
 
-// === Entity management commands ===
-
-
+/// List all students with scores
 pub fn cmd_list_students() -> Result<(), AppError> {
     let entities = load_entities()?;
     let events = load_events()?;
@@ -485,6 +482,7 @@ pub fn cmd_list_students() -> Result<(), AppError> {
     Ok(())
 }
 
+/// Add a new student
 pub fn cmd_add_student(name: &str) -> Result<(), AppError> {
     let _lock = FileLock::acquire()?;
     let mut entities = load_entities()?;
@@ -510,6 +508,7 @@ pub fn cmd_add_student(name: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Import students from JSON file
 pub fn cmd_import(file: &str) -> Result<(), AppError> {
     let _lock = FileLock::acquire()?;
     let mut entities = load_entities()?;
@@ -540,6 +539,7 @@ pub fn cmd_import(file: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Export all scores as CSV
 pub fn cmd_export() -> Result<(), AppError> {
     let entities = load_entities()?;
     let events = load_events()?;
@@ -557,19 +557,34 @@ pub fn cmd_export() -> Result<(), AppError> {
     Ok(())
 }
 
+/// Doctor check - validate environment health
 pub fn cmd_doctor() -> Result<(), AppError> {
     let mut ok = 0;
     let mut warn = 0;
+
+    // Check data dir
     let data_dir = get_data_dir();
-    if data_dir.exists() { println!("✅ 数据目录: {}", data_dir.display()); ok += 1; }
-    else { println!("❌ 数据目录不存在: {}", data_dir.display()); warn += 1; }
+    if data_dir.exists() {
+        println!("✅ 数据目录: {}", data_dir.display()); ok += 1;
+    } else {
+        println!("❌ 数据目录不存在: {}", data_dir.display()); warn += 1;
+    }
+
+    // Check schema
     let schema_path = get_schema_dir().join("reason_codes.json");
-    if schema_path.exists() { println!("✅ 原因码Schema: {}", schema_path.display()); ok += 1; }
-    else { println!("❌ 原因码Schema缺失"); warn += 1; }
+    if schema_path.exists() {
+        println!("✅ 原因码Schema: {}", schema_path.display()); ok += 1;
+    } else {
+        println!("❌ 原因码Schema缺失"); warn += 1;
+    }
+
+    // Check data files
     for (name, path) in [("entities", "entities/entities.json"), ("events", "events/events.json"), ("name_index", "entities/name_index.json")] {
         let full = data_dir.join(path);
         if full.exists() { ok += 1; } else { println!("⚠️ {} 文件缺失", name); warn += 1; }
     }
+
+    // Check data integrity
     match load_entities() {
         Ok(e) => { println!("✅ 实体加载: {} 名学生", e.entities.len()); ok += 1; }
         Err(e) => { println!("❌ 实体加载失败: {}", e); warn += 1; }
@@ -578,6 +593,24 @@ pub fn cmd_doctor() -> Result<(), AppError> {
         Ok(ev) => { println!("✅ 事件加载: {} 条", ev.len()); ok += 1; }
         Err(e) => { println!("❌ 事件加载失败: {}", e); warn += 1; }
     }
+
+    // Check file permissions
+    let events_path = data_dir.join("events/events.json");
+    if events_path.exists() {
+        use std::os::unix::fs::PermissionsExt;
+        match std::fs::metadata(&events_path) {
+            Ok(meta) => {
+                let mode = meta.permissions().mode() & 0o777;
+                if mode & 0o200 != 0 {
+                    println!("✅ 事件文件可写"); ok += 1;
+                } else {
+                    println!("❌ 事件文件不可写 (mode: {:o})", mode); warn += 1;
+                }
+            }
+            Err(e) => { println!("⚠️ 无法检查文件权限: {}", e); warn += 1; }
+        }
+    }
+
     println!("\n诊断结果: {} 通过, {} 异常", ok, warn);
     if warn > 0 { return Err(AppError::Validation(format!("发现 {} 个异常", warn))); }
     Ok(())

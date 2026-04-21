@@ -1,114 +1,62 @@
-# EAA CLI 命令手册
-
-## 概述
-
-`eaa` 是事件溯源操行分系统的命令行工具，使用 Rust 编写，是**唯一的数据读写入口**。所有 Agent、所有通道的数据操作都通过 `eaa` CLI 完成。
-
-## 编译
-
-```bash
-cd core/eaa-cli
-cargo build --release
-# 编译后二进制: target/release/eaa
-```
-
-## 基础命令
-
-### `eaa info`
-显示系统信息（学生数、事件数）。
-
-### `eaa validate`
-验证所有事件数据的完整性。
-
-### `eaa stats`
-显示详细统计：原因码分布、标签分布、分数区间分布。
-
-### `eaa codes`
-列出所有原因码及对应标准分值。
-
-## 查询命令
-
-### `eaa score <姓名>`
-查询学生当前分数及风险等级。
-
-```bash
-eaa score 张三
-# 输出: 张三: 101.0 分 (风险: 正常)
-```
-
-### `eaa history <姓名>`
-查询学生完整事件时间线，含累计分数变化。
-
-```bash
-eaa history 张三
-```
-
-### `eaa ranking [数量]`
-排行榜，默认显示前10名。
-
-```bash
-eaa ranking        # 前10名
-eaa ranking 52     # 全部排名
-```
-
-### `eaa search <关键词>`
-搜索事件，支持学生姓名、原因码、标签、原因描述。
-
-```bash
-eaa search 睡觉
-eaa search SPEAK_IN_CLASS
-eaa search 王五
-```
-
-### `eaa tag [标签名]`
-不带参数列出所有标签及计数；带参数筛选该标签下的事件。
-
-```bash
-eaa tag            # 列出所有标签
-eaa tag 班主任      # 班主任记录的事件
-```
-
-### `eaa range <开始日期> <结束日期>`
-按日期范围查询事件（YYYY-MM-DD格式）。
-
-```bash
-eaa range 2026-03-01 2026-03-31
-```
+# EAA CLI v2.0 命令参考
 
 ## 系统命令
 
-### `eaa replay`
-重放全部事件，输出完整排行榜及各人分数变动。
+| 命令 | 说明 | 示例 |
+|:-----|:-----|:-----|
+| `eaa --version` | 版本号 | `eaa --version` → eaa 2.0.0 |
+| `eaa info` | 系统信息 | 学生数、事件数、数据目录 |
+| `eaa doctor` | 环境检查 | 数据目录、Schema、文件权限 |
+| `eaa validate` | 校验全部事件 | 原因码、实体ID、数据完整性 |
+
+## 查询命令
+
+| 命令 | 说明 | 示例 |
+|:-----|:-----|:-----|
+| `eaa score <姓名>` | 查询单人分数 | `eaa score 王勇` → 80.0 |
+| `eaa history <姓名>` | 事件时间线 | 含运行分数变化 |
+| `eaa ranking [N]` | 排行榜 | `eaa ranking 10` |
+| `eaa replay` | 重算全部分数 | 完整排行榜 |
+| `eaa stats` | 数据统计 | 原因码分布、总分变动 |
+| `eaa codes` | 原因码列表 | 按标准分排序 |
+
+## 搜索命令
+
+| 命令 | 说明 | 参数 |
+|:-----|:-----|:-----|
+| `eaa search <关键词>` | 搜索事件 | `--limit N` 限制条数 |
+| `eaa range <起始> <结束>` | 日期范围 | `--limit N` 限制条数 |
+| `eaa tag [标签]` | 标签查询 | 留空显示全部标签 |
 
 ## 写入命令
 
-### `eaa add <姓名> <原因码> [--tags 标签] [--delta 分值] [--note 备注]`
-新增事件。原因码必须是 `reason_codes.json` 中定义的标准码。
+| 命令 | 说明 | 关键参数 |
+|:-----|:-----|:---------|
+| `eaa add <姓名> <原因码>` | 新增事件 | `--delta`, `--note`, `--operator`, `--force`, `--dry-run` |
+| `eaa revert <事件ID>` | 撤销事件 | `--reason`, `--dry-run` |
 
-```bash
-eaa add 张三 SPEAK_IN_CLASS --tags 班主任 --delta -2 --note "物理课讲话"
-eaa add 李四 MONTHLY_ATTENDANCE --delta 2
-```
+## 实体管理
 
-### `eaa revert <事件ID> [--reason 原因]`
-撤销指定事件（生成对冲事件）。
-
-```bash
-eaa revert evt_00001 --reason "误录"
-```
-
-## 数据文件
-
-| 文件 | 说明 |
+| 命令 | 说明 |
 |:-----|:-----|
-| `data/entities/entities.json` | 学生实体数据 |
-| `data/entities/name_index.json` | 姓名→ID索引 |
-| `data/events/events.json` | 事件流（追加写入） |
-| `schema/reason_codes.json` | 原因码定义 |
+| `eaa list-students` | 列出所有学生 |
+| `eaa add-student <姓名>` | 添加学生 |
+| `eaa import <文件>` | 批量导入 |
+| `eaa export` | 导出CSV |
 
-## 注意事项
+## 安全特性
 
-- CLI 必须在 `data/` 和 `schema/` 同级目录下运行
-- 事件一旦写入不可删除，只能通过 `revert` 撤销
-- `add` 命令会强制校验原因码和分值
-- 所有 Agent 必须通过 CLI 操作数据，禁止直接修改 JSON
+- **原子写入**：tmp → fsync → rename
+- **文件锁**：flock 互斥，RAII 自动释放
+- **事件ID**：UUID v4
+- **去重校验**：同学生同日同原因码
+- **Revert保护**：撤销事件不可再撤销
+- **分数范围**：delta [-10, +10]，超出需 `--force`
+- **dry-run**：所有写入命令支持预演
+
+## 环境变量
+
+| 变量 | 说明 | 默认值 |
+|:-----|:-----|:-------|
+| `EAA_DATA_DIR` | 数据目录 | `./data` |
+| `EAA_OPERATOR` | 默认操作者 | `班主任` |
