@@ -52,21 +52,6 @@ impl Drop for FileLock {
     }
 }
 
-// Keep old functions for backward compat but delegate to FileLock
-pub fn acquire_lock() -> Result<fs::File, std::io::Error> {
-    let lock_path = get_lock_path();
-    if let Some(parent) = lock_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let f = fs::File::create(&lock_path)?;
-    f.lock_exclusive()?;
-    Ok(f)
-}
-
-pub fn release_lock(_f: &fs::File) {
-    // no-op: let Drop handle it, or caller uses FileLock
-}
-
 pub fn atomic_write_json<T: Serialize + ?Sized>(path: &PathBuf, data: &T) -> Result<(), AppError> {
     let tmp = path.with_extension("tmp");
     let mut f = fs::File::create(&tmp)?;

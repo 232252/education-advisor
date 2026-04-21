@@ -460,16 +460,15 @@ pub fn cmd_range(start: &str, end: &str) -> Result<(), AppError> {
 
 // === Entity management commands ===
 
+
 pub fn cmd_list_students() -> Result<(), AppError> {
     let entities = load_entities()?;
     let events = load_events()?;
     let scores = compute_scores(&entities.entities, &events);
     let index = load_name_index()?;
     let id_to_name = build_id_to_name(&index);
-
     let mut sorted: Vec<_> = entities.entities.iter().collect::<Vec<_>>();
     sorted.sort_by(|a, b| a.1.name.cmp(&b.1.name));
-
     println!("{:<20} {:>8} {:<10}", "姓名", "分数", "状态");
     println!("{}", "-".repeat(40));
     for (eid, ent) in &sorted {
@@ -490,15 +489,11 @@ pub fn cmd_add_student(name: &str) -> Result<(), AppError> {
     let _lock = FileLock::acquire()?;
     let mut entities = load_entities()?;
     let mut index = load_name_index()?;
-
-    // Check duplicate
     if index.contains_key(name) {
         return Err(AppError::Validation(format!("学生 {} 已存在", name)));
     }
-
     let entity_id = format!("ent_{}", generate_event_id().trim_start_matches("evt_"));
     let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z").to_string();
-
     let entity = Entity {
         id: entity_id.clone(),
         name: name.to_string(),
@@ -507,13 +502,10 @@ pub fn cmd_add_student(name: &str) -> Result<(), AppError> {
         created_at: now,
         metadata: HashMap::new(),
     };
-
     entities.entities.insert(entity_id.clone(), entity);
     index.insert(name.to_string(), entity_id.clone());
-
     save_entities(&entities)?;
     save_name_index(&index)?;
-
     println!("✓ 学生已添加: {} ({})", name, entity_id);
     Ok(())
 }
@@ -522,18 +514,13 @@ pub fn cmd_import(file: &str) -> Result<(), AppError> {
     let _lock = FileLock::acquire()?;
     let mut entities = load_entities()?;
     let mut index = load_name_index()?;
-
     let content = std::fs::read_to_string(file)?;
     let names: Vec<String> = serde_json::from_str(&content)?;
     let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z").to_string();
     let mut added = 0;
     let mut skipped = 0;
-
     for name in &names {
-        if index.contains_key(name) {
-            skipped += 1;
-            continue;
-        }
+        if index.contains_key(name) { skipped += 1; continue; }
         let entity_id = format!("ent_{}", generate_event_id().trim_start_matches("evt_"));
         let entity = Entity {
             id: entity_id.clone(),
@@ -547,10 +534,51 @@ pub fn cmd_import(file: &str) -> Result<(), AppError> {
         index.insert(name.clone(), entity_id);
         added += 1;
     }
-
     save_entities(&entities)?;
     save_name_index(&index)?;
-
     println!("✓ 导入完成: {} 名添加, {} 名跳过(已存在)", added, skipped);
+    Ok(())
+}
+
+pub fn cmd_export() -> Result<(), AppError> {
+    let entities = load_entities()?;
+    let events = load_events()?;
+    let scores = compute_scores(&entities.entities, &events);
+    let index = load_name_index()?;
+    let id_to_name = build_id_to_name(&index);
+    let mut sorted: Vec<_> = scores.into_iter().collect();
+    sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    println!("姓名,分数,变动");
+    for (eid, score) in &sorted {
+        let name = id_to_name.get(eid.as_str()).map(|s| s.as_str()).unwrap_or("?");
+        let delta = *score - BASE_SCORE;
+        println!("{},{:.1},{:+.1}", name, score, delta);
+    }
+    Ok(())
+}
+
+pub fn cmd_doctor() -> Result<(), AppError> {
+    let mut ok = 0;
+    let mut warn = 0;
+    let data_dir = get_data_dir();
+    if data_dir.exists() { println!("✅ 数据目录: {}", data_dir.display()); ok += 1; }
+    else { println!("❌ 数据目录不存在: {}", data_dir.display()); warn += 1; }
+    let schema_path = get_schema_dir().join("reason_codes.json");
+    if schema_path.exists() { println!("✅ 原因码Schema: {}", schema_path.display()); ok += 1; }
+    else { println!("❌ 原因码Schema缺失"); warn += 1; }
+    for (name, path) in [("entities", "entities/entities.json"), ("events", "events/events.json"), ("name_index", "entities/name_index.json")] {
+        let full = data_dir.join(path);
+        if full.exists() { ok += 1; } else { println!("⚠️ {} 文件缺失", name); warn += 1; }
+    }
+    match load_entities() {
+        Ok(e) => { println!("✅ 实体加载: {} 名学生", e.entities.len()); ok += 1; }
+        Err(e) => { println!("❌ 实体加载失败: {}", e); warn += 1; }
+    }
+    match load_events() {
+        Ok(ev) => { println!("✅ 事件加载: {} 条", ev.len()); ok += 1; }
+        Err(e) => { println!("❌ 事件加载失败: {}", e); warn += 1; }
+    }
+    println!("\n诊断结果: {} 通过, {} 异常", ok, warn);
+    if warn > 0 { return Err(AppError::Validation(format!("发现 {} 个异常", warn))); }
     Ok(())
 }
