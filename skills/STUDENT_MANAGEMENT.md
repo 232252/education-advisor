@@ -3,7 +3,7 @@
 ## 数据查询（通过 eaa CLI）
 
 ```bash
-export EAA_DATA_DIR=/vol2/copaw-data/data
+export EAA_DATA_DIR=./data
 
 # 查询学生分数
 eaa score 张三

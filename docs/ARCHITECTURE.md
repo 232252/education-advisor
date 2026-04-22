@@ -30,7 +30,7 @@
                   │ 读写
                   ▼
    ┌─────────────────────────────────────┐
-   │   /vol2/copaw-data/data/             │
+   │   ./data/             │
    │   events.json | entities.json        │
    │   name_index.json | schema/          │
    └─────────────────────────────────────┘
@@ -66,7 +66,7 @@
 4. 结果写回 agent_outputs/ → 统一推送
 
 ## 数据权威源（优先级从高到低）
-1. **EAA事件库**（`/vol2/copaw-data/data/events.json`）— 不可变事件流
+1. **EAA事件库**（`./data/events.json`）— 不可变事件流
 2. **飞书Bitable v2** — 可视化界面
 3. **copawctl**（shared_data.db）— 辅助查询
 

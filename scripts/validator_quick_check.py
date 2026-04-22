@@ -10,11 +10,11 @@ import os
 import json
 from datetime import datetime
 
-STUDENTS_DIR = "/root/.copaw/students"
-CONDUCT_DIR = "/root/.copaw/data/conduct_scores/students"
-INBOX_DIR = "/root/.openclaw/workspace/memory/queue/inbox"
-OUTPUT_FILE = "/root/.copaw/data_archive/agent_outputs/validator_quick_check.json"
-LOG_FILE = "/root/.copaw/logs/validator_quick_check.log"
+STUDENTS_DIR = "${EAA_WORKSPACE:-./workspace}/students"
+CONDUCT_DIR = "${EAA_WORKSPACE:-./workspace}/data/conduct_scores/students"
+INBOX_DIR = "${OPENCLAW_HOME:-./}/memory/queue/inbox"
+OUTPUT_FILE = "${EAA_WORKSPACE:-./workspace}/data_archive/agent_outputs/validator_quick_check.json"
+LOG_FILE = "${EAA_WORKSPACE:-./workspace}/logs/validator_quick_check.log"
 
 def log(msg):
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
