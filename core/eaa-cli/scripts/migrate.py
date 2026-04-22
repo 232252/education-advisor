@@ -2,8 +2,8 @@
 """Migrate data from Bitable exports to event-sourced format."""
 import json, os
 
-DATA_DIR = "/vol2/copaw-data/data"
-SCHEMA_DIR = "/vol2/copaw-data/schema"
+DATA_DIR = "${EAA_DATA_DIR:-./data}"
+SCHEMA_DIR = "${EAA_SCHEMA_DIR:-./schema}"
 
 # Load raw records
 with open("/tmp/bitable_records.json") as f:

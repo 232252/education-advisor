@@ -13,7 +13,7 @@
 
 | 命令 | 说明 | 示例 |
 |:-----|:-----|:-----|
-| `eaa score <姓名>` | 查询单人分数 | `eaa score 王勇` → 80.0 |
+| `eaa score <姓名>` | 查询单人分数 | `eaa score 张三` → 80.0 |
 | `eaa history <姓名>` | 事件时间线 | 含运行分数变化 |
 | `eaa ranking [N]` | 排行榜 | `eaa ranking 10` |
 | `eaa replay` | 重算全部分数 | 完整排行榜 |

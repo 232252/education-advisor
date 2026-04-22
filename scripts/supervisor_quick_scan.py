@@ -10,9 +10,9 @@ import os
 import json
 from datetime import datetime, timedelta
 
-STUDENTS_DIR = "/root/.copaw/students"
-OUTPUT_FILE = "/root/.copaw/data_archive/agent_outputs/supervisor_quick_scan.json"
-LOG_FILE = "/root/.copaw/logs/supervisor_quick_scan.log"
+STUDENTS_DIR = "${EAA_WORKSPACE:-./workspace}/students"
+OUTPUT_FILE = "${EAA_WORKSPACE:-./workspace}/data_archive/agent_outputs/supervisor_quick_scan.json"
+LOG_FILE = "${EAA_WORKSPACE:-./workspace}/logs/supervisor_quick_scan.log"
 
 def log(msg):
     """写日志"""

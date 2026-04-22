@@ -14,6 +14,6 @@ fi
 
 echo ""
 echo "⚠️ 数据目录保留（如需删除请手动操作）："
-echo "  rm -rf /vol2/copaw-data/data"
+echo "  rm -rf ./data"
 echo ""
 echo "卸载完成。"

@@ -8,7 +8,7 @@ checkpoint_before_response.py - 响应前检查点
 3. 验证关键数据是否已更新到档案
 
 用法:
-  python3 /root/.copaw/scripts/checkpoint_before_response.py --check-inbox --check-students
+  python3 ${EAA_WORKSPACE:-./workspace}/scripts/checkpoint_before_response.py --check-inbox --check-students
 
 此脚本确保：
 - 每次回复前都有数据保存检查
@@ -21,9 +21,9 @@ import sys
 import argparse
 from datetime import datetime, timedelta
 
-INBOX_DIR = "/root/.openclaw/workspace/memory/queue/inbox"
-STUDENTS_DIR = "/root/.copaw/students"
-MEMORY_FILE = "/root/.openclaw/workspace/MEMORY.md"
+INBOX_DIR = "${OPENCLAW_HOME:-./}/memory/queue/inbox"
+STUDENTS_DIR = "${EAA_WORKSPACE:-./workspace}/students"
+MEMORY_FILE = "${OPENCLAW_HOME:-./}/MEMORY.md"
 
 def check_inbox():
     """检查 inbox 是否有未处理的消息"""

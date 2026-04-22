@@ -1,66 +1,55 @@
-# 环境配置（不提交）
+# === 敏感数据（绝不提交）===
+.env
+.env.*
+!.env.example
 config/app_config.json
 
-# 日志
-*.log
-logs/
+# === 学生数据（隐私保护）===
+core/eaa-cli/data/
+releases/*/data/
+**/entities/entities.json
+**/entities/name_index.json
+**/events/events.json
 
-# Python缓存
+# === Rust编译产物 ===
+target/
+.cargo/
+
+# === Python缓存 ===
 __pycache__/
 *.pyc
 *.pyo
 
-# Node缓存
+# === Node缓存 ===
 node_modules/
 .npm/
 
-# OpenClaw运行时
+# === OpenClaw运行时 ===
 .workspace/
 *.jsonl
 
-# 系统文件
+# === 日志 ===
+*.log
+logs/
+
+# === 系统文件 ===
 .DS_Store
 Thumbs.db
 
-# 备份
+# === 备份 ===
 *.bak
 *.backup
 
-# 敏感信息
-*.env
-.env.local
-
-# IDE配置
+# === IDE ===
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# 数据文件（学生数据敏感，不提交）
-core/eaa-cli/data/
-**/data/entities/
-**/data/events/
-**/data/logs/
-**/name_index.json
-!examples/**/*.md
-
-# Rust编译
-target/
-.cargo/
-
-# 临时文件
+# === 临时文件 ===
 *.tmp
 *.lock
-
-# 环境变量
-.env
-.env.*
-!.env.example
-
-# Rust额外
-core/eaa-cli/data/entities_test/
-core/eaa-cli/data/events_test/
-core/eaa-cli/.cargo/
-
-# 临时
 operations.jsonl
+
+# === workspace数据 ===
+workspace/memory/
