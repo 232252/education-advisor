@@ -23,9 +23,62 @@ agents:
       - "学生数据必须从档案读取"
       - "禁止编造数据"
       - "所有数据读写必须通过 eaa CLI，禁止直接操作JSON文件"
+      - "写入文件必须使用S_XXX化名，禁止包含学生真名"
 
   #----------------------------------------------------------------
   # 督导Agent (必需)
+  #----------------------------------------------------------------
+  governor:
+    enabled: true
+    name: "督导"
+    role: "governor"
+    description: "负责督导复盘、数据质量校验、风险分析、数字孪生快照。6个定时任务覆盖晨/午/晚"
+    workspace: "workspace-governor"
+    
+    schedule:
+      morning_check: "0 6 * * *"      # 每日06:00晨间数据质量检查
+      noon_validation: "0 12 * * *"    # 每日12:00午间数据校验
+      evening_validation: "0 18 * * *" # 每日18:00晚间数据校验
+      daily_review: "0 22 * * *"       # 每日22:00督导复盘+数字孪生
+      friday_reminder: "0 17 * * 5"    # 每周五17:00谈话提醒
+      weekly_review: "0 22 * * 0"      # 每周日22:00系统周报
+      monthly_check: "0 9 1 * *"       # 每月1日09:00月度数据检查
+    
+    risk_thresholds:
+      high: 85      # <85分 高风险
+      medium: 93    # 85-93 中风险
+      low: 93       # >93 低风险
+    
+    capabilities:
+      - risk_assessment
+      - daily_review
+      - data_validation
+      - weekly_report
+      - talk_reminder
+      - digital_twin_snapshot
+
+  #----------------------------------------------------------------
+  # 辅导员Agent (推荐)
+  #----------------------------------------------------------------
+  counselor:
+    enabled: true
+    name: "辅导员"
+    role: "counselor"
+    description: "负责学业日报生成、谈话计划制定、末位学生跟踪"
+    workspace: "workspace-counselor"
+    
+    schedule:
+      daily_report: "5 7 * * *"        # 每日07:05学业日报+谈话计划
+      update_plan: "0 20 * * *"         # 每日20:00更新谈话计划
+    
+    capabilities:
+      - daily_academic_report
+      - talk_plan_generation
+      - student_tracking
+      - priority_ranking
+
+  #----------------------------------------------------------------
+  # 督导汇总Agent (可选)
   #----------------------------------------------------------------
   supervisor:
     enabled: true
