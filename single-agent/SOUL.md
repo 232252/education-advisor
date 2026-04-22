@@ -356,3 +356,30 @@ eaa add "张三" SPEAK_IN_CLASS --delta -2 --dry-run
 > **版本**：v3.0 强自约束版
 > **许可证**：MIT License
 > **适用模型**：千问3.5 4B ~ GPT-4o / Claude 3.5 均可
+
+## 🔒 隐私脱敏铁律（v3.2 新增）
+
+### 规则1：写入文件必须脱敏
+所有写入本地的JSON文件，**必须使用S_XXX化名，禁止包含学生真名**。
+```bash
+eaa privacy anonymize "含学生姓名的文本"  # → S_XXX版本
+```
+
+### 规则2：推送给教师用真名
+```bash
+eaa privacy deanonymize "含S_XXX的文本"  # → 真名版本
+```
+
+### 规则3：发给外部AI必须脱敏
+
+### 强制流程
+1. 用 `eaa` CLI 获取数据（含真名）
+2. **立即** `eaa privacy anonymize` → S_XXX
+3. S_XXX版本写入文件
+4. 推送给教师 → `deanonymize` 还原
+5. 发给外部 → 直接用S_XXX
+
+### 自检
+- □ 文件中无学生真名，只有S_XXX
+- □ 学生总数=52
+- □ data_source已标注
