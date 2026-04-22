@@ -92,8 +92,13 @@ curl -L https://raw.githubusercontent.com/232252/education-advisor/main/core/eaa
   -o ~/eaa-data/schema/reason_codes.json
 
 # 3. 设置环境变量
+# bash用户：
 echo 'export EAA_DATA_DIR=~/eaa-data' >> ~/.bashrc
-source ~/.bashrc
+# zsh用户：
+# echo 'export EAA_DATA_DIR=~/eaa-data' >> ~/.zshrc
+# 通用：
+echo 'export EAA_DATA_DIR=~/eaa-data' >> ~/.profile
+source ~/.bashrc 2>/dev/null || source ~/.zshrc 2>/dev/null || source ~/.profile
 
 # 4. 验证
 eaa doctor
@@ -116,7 +121,7 @@ eaa doctor
 创建学生数据文件。**请先告诉我：**
 
 1. 您的学生总人数？
-2. 您要不要我生成一个模板？
+2. 您要不要我批量生成学生数据？（提供学生名单，AI自动生成JSON）
 
 **模板格式**（以3个学生为例）：
 
@@ -200,6 +205,24 @@ eaa info
 ---
 
 ## 常见问题
+
+### 国内网络下载慢
+```bash
+# GitHub raw链接国内可能不稳定
+# 可先克隆仓库再本地复制
+git clone https://github.com/232252/education-advisor.git
+cp education-advisor/core/eaa-cli/schema/reason_codes.json ~/eaa-data/schema/
+cp education-advisor/releases/linux-x86_64/eaa /usr/local/bin/eaa
+```
+
+### 已有旧版本
+```bash
+# 检查当前版本
+eaa --version
+# 如果已安装，直接替换二进制文件即可
+cp /path/to/new/eaa /usr/local/bin/eaa
+# 数据目录不变，无需重新初始化
+```
 
 ### eaa: command not found
 ```bash
