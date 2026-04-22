@@ -48,6 +48,11 @@
 ```bash
 git clone https://github.com/232252/education-advisor.git
 cd education-advisor
+
+# Nushell（推荐）
+nu install.nu
+
+# 或 bash
 bash install.sh
 ```
 
@@ -98,7 +103,9 @@ education-advisor/
 ├── README.md              # 项目说明（本文件）
 ├── PROJECT_INTRO.md       # 项目详细介绍 + 未来发展路线图
 ├── DEPLOY_TO_AI.md        # AI自部署指南
-├── install.sh             # 一键安装脚本
+├── install.nu             # Nushell安装脚本（推荐）
+├── install.sh             # Bash安装脚本（兼容）
+├── uninstall.nu           # Nushell卸载脚本
 ├── LICENSE                # MIT许可证
 ├── CONTRIBUTING.md        # 贡献指南
 ├── CHANGELOG.md           # 更新日志
@@ -220,6 +227,20 @@ cd core/eaa-cli
 cargo build --release     # 编译
 cargo test                # 运行测试
 cargo clippy              # 代码检查
+```
+
+### 运行脚本
+
+本项目提供 Nushell (`.nu`) 和 Bash (`.sh`) 两种脚本：
+
+```bash
+# Nushell（推荐，更安全的数据处理）
+nu install.nu
+nu uninstall.nu
+
+# Bash（兼容所有系统）
+bash install.sh
+bash uninstall.sh
 ```
 
 ---
