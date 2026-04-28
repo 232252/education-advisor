@@ -80,6 +80,20 @@ enum Commands {
     ListStudents,
     /// 添加新学生
     AddStudent { name: String },
+    /// 删除学生（保留历史事件，标记归档）
+    DeleteStudent {
+        /// 学生姓名
+        name: String,
+        /// 确认删除（安全机制）
+        #[arg(long)]
+        confirm: bool,
+        /// 删除原因/备注
+        #[arg(long, default_value = "")]
+        reason: String,
+        /// 预览模式（不实际删除）
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// 从JSON文件批量导入学生
     Import { file: String },
     /// 导出排行榜为CSV
@@ -185,6 +199,9 @@ fn main() -> Result<(), AppError> {
         Commands::Range { start, end, limit } => cmd_range(start, end, *limit)?,
         Commands::ListStudents => cmd_list_students()?,
         Commands::AddStudent { name } => cmd_add_student(name)?,
+        Commands::DeleteStudent { name, confirm, reason, dry_run } => {
+            cmd_delete_student(name, *confirm, reason, *dry_run)?
+        }
         Commands::Import { file } => cmd_import(file)?,
         Commands::Export => cmd_export()?,
         Commands::Doctor => cmd_doctor()?,
