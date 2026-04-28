@@ -2,7 +2,30 @@
 
 所有版本的重要变更都记录在此文件中。
 
-## [3.2.0] - 2026-04-22
+## [3.2.0] - 2026-04-28
+
+### 新增
+- **delete-student 命令**：支持删除学生，安全机制完善
+  - `eaa delete-student <姓名>` — 预览学生信息+影响范围
+  - `eaa delete-student <姓名> --confirm --reason <原因>` — 执行删除
+  - 安全：必须 `--confirm` + `--reason`，操作留痕
+  - 审计：历史事件保留不删，仅移除学生实体和姓名索引
+  - 支持 `--dry-run` 预览模式
+
+### 二进制文件更新
+- 版本：3.1.0 → **3.2.0**
+- 二进制路径：`target/release/eaa`
+- 部署路径：`/usr/local/bin/eaa.bin.bak`
+- wrapper脚本：`/usr/local/bin/eaa`（无需更新，自动调用最新二进制）
+- 编译方式：`cargo build --release`
+- 旧版本备份：`/usr/local/bin/eaa.bin.bak.v3.1.0`
+
+### 变更文件
+- `Cargo.toml` — 版本号升级
+- `src/main.rs` — 新增 DeleteStudent 子命令
+- `src/commands.rs` — 新增 cmd_delete_student() 函数
+
+## [3.2.0] - 2026-04-22 (Agent配置版)
 
 ### 新增
 - **隐私脱敏铁律**：12个Agent配置文件全部写入强制性脱敏规则
