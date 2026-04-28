@@ -508,6 +508,97 @@ pub fn cmd_add_student(name: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Delete a student (archive entity, preserve events for audit trail)
+pub fn cmd_delete_student(name: &str, confirm: bool, reason: &str, dry_run: bool) -> Result<(), AppError> {
+    let _lock = FileLock::acquire()?;
+    let mut entities = load_entities()?;
+    let mut index = load_name_index()?;
+    let events = load_events()?;
+    let scores = compute_scores(&entities.entities, &events);
+    let _id_to_name = build_id_to_name(&index);
+
+    // Resolve student
+    let eid = resolve_entity_id(name, &index)?;
+    let entity = entities.entities.get(&eid).unwrap();
+    let score = scores.get(&eid).unwrap_or(&BASE_SCORE);
+    let student_events: Vec<_> = events.iter()
+        .filter(|e| e.entity_id == eid && e.reverted_by.is_none())
+        .collect();
+    let status = match entity.status {
+        EntityStatus::Active => "在读",
+        EntityStatus::Transferred => "转出",
+        EntityStatus::Suspended => "休学",
+    };
+
+    // Safety: require --confirm flag
+    if !confirm {
+        println!("⚠️ 删除学生是不可逆操作，请使用 --confirm 确认");
+        println!("\n📋 学生信息:");
+        println!("   姓名: {}", name);
+        println!("   ID:   {}", eid);
+        println!("   状态: {}", status);
+        println!("   分数: {:.1}", score);
+        println!("   有效事件: {} 条", student_events.len());
+        println!("\n🔍 影响范围:");
+        println!("   - 学生实体将从系统移除");
+        println!("   - 姓名索引将删除");
+        println!("   - 所有历史事件保留（审计追溯）");
+        if student_events.len() > 0 {
+            println!("   - 事件中的 entity_id 保留为 {}", eid);
+        }
+        println!("\n💡 执行命令: eaa delete-student {} --confirm --reason \"删除原因\"", name);
+        if dry_run {
+            println!("\n[DRY-RUN] 以上为预览，未执行任何操作");
+        }
+        return Ok(());
+    }
+
+    // Preview in dry_run mode
+    if dry_run {
+        println!("[DRY-RUN] 将删除学生:");
+        println!("   姓名: {}", name);
+        println!("   ID:   {}", eid);
+        println!("   分数: {:.1}", score);
+        println!("   事件: {} 条（保留）", student_events.len());
+        println!("   原因: {}", reason);
+        return Ok(());
+    }
+
+    // Execute deletion
+    let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+
+    // 1. Remove from entities
+    entities.entities.remove(&eid);
+
+    // 2. Remove from name index
+    index.remove(name);
+
+    // 3. Save
+    save_entities(&entities)?;
+    save_name_index(&index)?;
+
+    // 4. Log
+    let log_entry = serde_json::json!({
+        "action": "delete_student",
+        "entity_id": eid,
+        "name": name,
+        "score": score,
+        "event_count": student_events.len(),
+        "reason": reason,
+        "timestamp": now,
+    });
+    if let Err(e) = append_operation_log(&log_entry) {
+        eprintln!("⚠️ 操作日志写入失败: {}", e);
+    }
+
+    println!("✓ 学生已删除: {} ({})", name, eid);
+    println!("  保留历史事件: {} 条（审计追溯）", student_events.len());
+    if !reason.is_empty() {
+        println!("  删除原因: {}", reason);
+    }
+    Ok(())
+}
+
 /// Import students from JSON file
 pub fn cmd_import(file: &str) -> Result<(), AppError> {
     let _lock = FileLock::acquire()?;
