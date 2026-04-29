@@ -1,0 +1,32 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# EAA data (user-specific)
+/data/
+*.json
+!schema/*.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+*.tmp
+*.bak
+src.bak*/
+
+# Environment
+.env
+.env.local
+
+# SQLx offline cache (optional, can be committed)
+# .sqlx/
