@@ -1,0 +1,27 @@
+{
+  "version": "1.0.0",
+  "codes": {
+    "SPEAK_IN_CLASS": { "score_delta": -2, "label": "课堂讲话", "category": "deduct" },
+    "SLEEP_IN_CLASS": { "score_delta": -2, "label": "课堂睡觉", "category": "deduct" },
+    "LATE": { "score_delta": -2, "label": "迟到", "category": "deduct" },
+    "SCHOOL_CAUGHT": { "score_delta": -5, "label": "学校抓拍违纪", "category": "deduct" },
+    "MAKEUP": { "score_delta": -2, "label": "补差扣分", "category": "deduct" },
+    "DESK_UNALIGNED": { "score_delta": -1, "label": "桌椅不整齐", "category": "deduct" },
+    "PHONE_IN_CLASS": { "score_delta": -5, "label": "手机违纪", "category": "deduct" },
+    "SMOKING": { "score_delta": -10, "label": "抽烟", "category": "deduct" },
+    "DRINKING_DORM": { "score_delta": -5, "label": "寝室饮酒", "category": "deduct" },
+    "OTHER_DEDUCT": { "score_delta": -1, "label": "其他扣分", "category": "deduct" },
+    "APPEARANCE_VIOLATION": { "score_delta": -2, "label": "仪容仪表违纪", "category": "deduct" },
+    "BONUS_VARIABLE": { "score_delta": null, "label": "学业奖励(变量)", "category": "bonus" },
+    "ACTIVITY_PARTICIPATION": { "score_delta": 1, "label": "活动参与加分", "category": "bonus" },
+    "CLASS_MONITOR": { "score_delta": 10, "label": "班长履职加分", "category": "bonus" },
+    "CLASS_COMMITTEE": { "score_delta": 5, "label": "班委履职加分", "category": "bonus" },
+    "CIVILIZED_DORM": { "score_delta": 3, "label": "文明寝室", "category": "bonus" },
+    "MONTHLY_ATTENDANCE": { "score_delta": 2, "label": "月勤奖励", "category": "bonus" },
+    "REVERT": { "score_delta": null, "label": "撤销(自动计算)", "category": "system" },
+    "LAB_EQUIPMENT_DAMAGE": { "score_delta": -5, "label": "实验室设备损坏", "category": "lab" },
+    "LAB_SAFETY_VIOLATION": { "score_delta": -10, "label": "实验室安全违规", "category": "lab" },
+    "LAB_UNSAFE_BEHAVIOR": { "score_delta": -5, "label": "实验室不安全行为", "category": "lab" },
+    "LAB_CLEAN_UP": { "score_delta": -1, "label": "实验室未清理", "category": "lab" }
+  }
+}
