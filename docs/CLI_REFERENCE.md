@@ -180,3 +180,40 @@ eaa revert evt_00002 --dry-run    # 预览
 - 事件一旦写入不可删除，只能通过 `revert` 撤销
 - `add` 命令会强制校验原因码和分值范围
 - 所有 Agent 必须通过 CLI 操作数据，禁止直接修改 JSON 文件
+
+---
+
+## v3.1.1 新增环境变量
+
+| 变量 | 说明 | 默认值 |
+|:-----|:-----|:-------|
+| `EAA_BACKEND` | 存储后端：`filesystem` 或 `postgres` | `filesystem` |
+| `DATABASE_URL` | PostgreSQL 连接字符串（postgres 模式必需） | - |
+| `EAA_TENANT_ID` | 租户 UUID（RLS 隔离） | default |
+| `EAA_PRIVACY_PASSWORD` | 隐私加密密钥 | - |
+
+## v3.1.1 新增全局选项
+
+| 选项 | 默认值 | 说明 |
+|:-----|:--------|:------------|
+| `-O, --output <fmt>` | `text` | 输出格式：`text` 或 `json` |
+
+## v3.1.1 新增命令
+
+| 命令 | 说明 |
+|:-----|:-----|
+| `eaa summary [--since DATE] [--until DATE]` | 区间汇总视图 |
+| `eaa dashboard [--output-dir <dir>]` | 生成 HTML 仪表盘（ECharts） |
+| `eaa export --format csv\|jsonl\|html` | 多格式导出 |
+| `eaa set-student-meta <姓名> --group/role/class-id` | 设置学生元数据 |
+
+## v3.1.1 数据迁移
+
+```bash
+# 将文件系统数据迁移到 PostgreSQL
+python3 scripts/migrate_to_pg.py
+
+# 验证迁移完整性
+eaa validate
+eaa doctor
+```

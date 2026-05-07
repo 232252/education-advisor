@@ -2,6 +2,49 @@
 
 所有版本的重要变更都记录在此文件中。
 
+## [4.0.0] - 2026-05-07
+
+### 新增
+- **数据核心升级** — eaa CLI v4.0.0
+  - `--output/-O json|text` 全局结构化输出（所有命令支持）
+  - `eaa summary [--since] [--until]` 区间汇总视图
+  - `eaa dashboard [--output-dir] [--open]` 静态HTML仪表盘（ECharts）
+  - `eaa export --format csv|jsonl|html` 多格式导出
+  - `eaa set-student-meta <姓名> --group/role/class-id` 实体属性扩展
+  - `eaa delete-student` 学生归档（保留历史事件）
+  - `DataContext` 统一数据加载层，减少重复文件IO
+  - `doctor` 增强：实体引用完整性、事件分布异常、ID唯一性
+  - `stats` 增强：分数区间分布统计
+  - 所有命令 `--output json` 输出JSON格式
+- **飞书Bitable双向同步（D方案）** — 钩子+定时双重保障
+  - `scripts/eaa_bitable_sync.py` 全量同步脚本
+  - CLI钩子：`eaa add/revert` 完成后自动触发飞书同步
+  - 定时兜底：每天07:00/12:00/18:00/22:00全量检查
+  - 防循环机制：SHA256校验避免同步脚本触发自身
+- **PostgreSQL后端** — 可选替代文件系统存储
+  - `sqlx` 依赖，实现 `postgres` feature
+  - `scripts/migrate_to_pg.py` 迁移脚本
+  - 配置示例：`.env.example`
+- **Benchmark系统** — 安兔兔式标准化跑分
+  - `benchmark/` 目录，四维度评估（安全0.35/数据0.30/任务0.25/性能0.10）
+  - `eaa-benchmark` 命令行入口
+  - 14条基准测试用例
+  - run_A vs run_B 对比功能
+- **Docker Compose** — PostgreSQL + EAA 一键部署
+
+### 变更
+- 版本号 v3.2.0 → v4.0.0
+- CLI文档全面更新至v4.0
+- 事件溯源文档新增v4.0特性
+- wrapper脚本升级v5.0（双后端 + Python扩展命令）
+- 默认输出保持text兼容，`-O json` 启用JSON
+- releases/linux-x86_64/eaa 二进制更新至v4.0
+
+### 修复
+- 同步脚本防循环：SHA256校验文件变化后再执行
+- 总览表更新性能优化：仅在有新事件时触发（避免64秒全量跑）
+- 无事件时跳过分值更新（耗时从64秒降到1.4秒）
+
 ## [3.2.0] - 2026-04-22
 
 ### 新增

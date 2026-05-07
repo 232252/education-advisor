@@ -1,7 +1,15 @@
 [package]
 name = "eaa"
-version = "3.1.0"
+version = "4.0.0"
 edition = "2021"
+description = "EAA - Event-Sourced Conduct Score System for Education Advisor AI"
+license = "MIT"
+repository = "https://github.com/232252/education-advisor"
+
+[features]
+default = ["filesystem"]
+filesystem = []
+postgres = ["sqlx"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -16,7 +24,16 @@ aes-gcm = { version = "0.10", default-features = false, features = ["aes", "std"
 aho-corasick = "1.1"
 once_cell = "1.19"
 
+# PostgreSQL backend (optional)
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "json"], optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+async-trait = { version = "0.1", optional = true }
+
 [dev-dependencies]
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
+
+[[bin]]
+name = "eaa"
+path = "src/main.rs"

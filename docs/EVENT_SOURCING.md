@@ -105,3 +105,57 @@ core/eaa-cli/
 **所有 Agent 必须通过 `eaa` CLI 读写数据**，禁止直接操作 JSON 文件。这是事件溯源架构的核心约束——无论数据来自飞书、QQ 还是其他通道，都统一通过 CLI 入口。
 
 详见 [SECURITY.md](./SECURITY.md)。
+
+---
+
+## v3.1.1 新增：PostgreSQL 事件存储
+
+### 数据库 Schema
+
+| 表 | 用途 |
+|:---|:-----|
+| `tenants` | 租户（班级/学校） |
+| `entities` | 学生实体注册 |
+| `events` | 事件流（append-only，触发器强制不可变） |
+| `projections` | 物化投影（实时分数/排名缓存） |
+| `privacy_mappings` | 隐私映射（AES-256-GCM 加密） |
+| `event_streams` | 流序列号分配（乐观并发控制） |
+| `operation_log` | 操作审计日志 |
+
+### Append-Only 强制机制
+
+```sql
+-- 触发器：阻止 UPDATE 和 DELETE
+CREATE TRIGGER events_no_update
+    BEFORE UPDATE ON events
+    FOR EACH ROW EXECUTE FUNCTION prevent_event_mutation();
+
+CREATE TRIGGER events_no_delete
+    BEFORE DELETE ON events
+    FOR EACH ROW EXECUTE FUNCTION prevent_event_mutation();
+
+-- 尝试修改会报错：
+-- ERROR: append-only violation: UPDATE on events is not allowed
+```
+
+### RLS 多租户隔离
+
+```sql
+-- 每个表只能看到当前租户的数据
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE events FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON events
+    USING (tenant_id::text = current_setting('app.current_tenant', true));
+```
+
+### 双后端架构
+
+```
+         ┌─── StorageBackend trait ───┐
+         │                           │
+  FileSystemBackend          PostgresBackend
+  (默认，零依赖)              (多班级，RLS)
+```
+
+通过 `EAA_BACKEND=postgres` 环境变量切换，现有命令零变更。

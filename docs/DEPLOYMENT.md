@@ -164,3 +164,58 @@ agents:
 ### 定时任务不执行
 - 检查 `config/agents.yaml` 中的 cron 表达式
 - 查看 OpenClaw 日志
+
+---
+
+## v3.1.1 新增：PostgreSQL 部署模式
+
+### 一键启动（Docker Compose）
+
+```bash
+cd docker
+docker compose up -d
+
+# 运行迁移
+psql -U eaa -d eaa -f migrations/001_init.sql
+
+# 导入数据
+python3 scripts/migrate_to_pg.py
+```
+
+### 手动连接已有 PostgreSQL
+
+```bash
+# 1. 创建数据库和用户
+psql -U postgres -c "CREATE DATABASE eaa;"
+psql -U postgres -c "CREATE USER eaa WITH PASSWORD 'your_password';"
+
+# 2. 运行 Schema
+psql -U postgres -d eaa -f migrations/001_init.sql
+
+# 3. 创建租户
+psql -U eaa -d eaa -c "INSERT INTO tenants (slug, name) VALUES ('class_2026_1', '一年级一班');"
+
+# 4. 配置环境变量
+export EAA_BACKEND=postgres
+export DATABASE_URL=postgres://eaa:your_password@localhost:5432/eaa
+export EAA_TENANT_ID=<uuid-from-step-3>
+
+# 5. 运行
+eaa info
+```
+
+### 多班级部署
+
+每个班级创建独立租户，RLS 自动隔离：
+
+```sql
+INSERT INTO tenants (slug, name) VALUES ('class_2026_2', '一年级二班');
+```
+
+切换租户：`export EAA_TENANT_ID=<new-uuid>`
+
+### PostgreSQL 备份
+
+```bash
+pg_dump -U eaa eaa > eaa-backup-$(date +%Y%m%d).sql
+```

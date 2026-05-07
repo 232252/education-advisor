@@ -53,3 +53,6 @@ operations.jsonl
 
 # === workspace数据 ===
 workspace/memory/
+
+# Benchmark results (large generated files)
+/benchmark/results/
