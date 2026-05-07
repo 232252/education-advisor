@@ -100,6 +100,33 @@ pub fn compute_scores(entities: &std::collections::HashMap<String, Entity>, even
     scores
 }
 
+/// Compute cumulative scores at each event (for history JSON output)
+pub fn compute_cumulative_history(
+    entity_id: &str,
+    events: &[Event],
+    base_score: f64,
+) -> Vec<serde_json::Value> {
+    let mut cum = base_score;
+    let mut history = Vec::new();
+    for evt in events {
+        if evt.entity_id == entity_id {
+            cum += evt.score_delta;
+            history.push(serde_json::json!({
+                "event_id": evt.event_id,
+                "timestamp": evt.timestamp,
+                "event_type": format!("{:?}", evt.event_type),
+                "reason_code": evt.reason_code,
+                "score_delta": evt.score_delta,
+                "cumulative": cum,
+                "note": evt.note,
+                "tags": evt.category_tags,
+                "reverted": evt.reverted_by.is_some(),
+            }));
+        }
+    }
+    history
+}
+
 pub fn save_events(events: &[Event]) -> Result<(), AppError> {
     let path = get_data_dir().join("events/events.json");
     atomic_write_json(&path, events)
@@ -138,4 +165,12 @@ pub fn get_operator(cli_operator: Option<&str>) -> String {
         return op;
     }
     "班主任".to_string()
+}
+
+/// Determine risk level from score
+pub fn risk_level(score: f64) -> &'static str {
+    if score >= 100.0 { "低" }
+    else if score >= 80.0 { "中" }
+    else if score >= 60.0 { "高" }
+    else { "极高" }
 }

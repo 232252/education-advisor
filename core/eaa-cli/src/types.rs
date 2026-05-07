@@ -6,6 +6,25 @@ pub const BASE_SCORE: f64 = 100.0;
 pub const MAX_DELTA: f64 = 10.0;
 pub const MIN_DELTA: f64 = -10.0;
 
+// === Output mode (new in v4.0) ===
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub enum OutputMode {
+    #[default]
+    Text,
+    Json,
+}
+
+impl std::str::FromStr for OutputMode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "json" => Ok(OutputMode::Json),
+            "text" => Ok(OutputMode::Text),
+            _ => Err(format!("Unknown output mode: {}. Use 'text' or 'json'.", s)),
+        }
+    }
+}
+
 // === Error types ===
 #[derive(thiserror::Error, Debug)]
 pub enum AppError {
@@ -48,6 +67,13 @@ pub struct Entity {
     pub created_at: String,
     #[serde(default)]
     pub metadata: HashMap<String, serde_json::Value>,
+    // v4.0 extended fields (optional, backward compatible)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub roles: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub class_id: Option<String>,
 }
 
 // === Event (core data unit) ===
