@@ -1,0 +1,320 @@
+# Agent 配置文件
+# 教育参谋系统 Agent 定义
+
+agents:
+  #----------------------------------------------------------------
+  # 主协调Agent (必需)
+  #----------------------------------------------------------------
+  main:
+    enabled: true
+    name: "教育参谋"
+    role: "coordinator"
+    description: "主协调Agent，负责接收用户消息、调度其他Agent、推送报告"
+    workspace: "workspace-main"
+    
+    capabilities:
+      - message_routing
+      - task_dispatch
+      - report_generation
+      - channel_integration
+    
+    rules:
+      - "收到消息立即保存到inbox"
+      - "学生数据必须从档案读取"
+      - "禁止编造数据"
+      - "所有数据读写必须通过 eaa CLI，禁止直接操作JSON文件"
+      - "写入文件必须使用S_XXX化名，禁止包含学生真名"
+
+  #----------------------------------------------------------------
+  # 督导Agent (必需)
+  #----------------------------------------------------------------
+  governor:
+    enabled: true
+    name: "督导"
+    role: "governor"
+    description: "负责督导复盘、数据质量校验、风险分析、数字孪生快照。6个定时任务覆盖晨/午/晚"
+    workspace: "workspace-governor"
+    
+    schedule:
+      morning_check: "0 6 * * *"      # 每日06:00晨间数据质量检查
+      noon_validation: "0 12 * * *"    # 每日12:00午间数据校验
+      evening_validation: "0 18 * * *" # 每日18:00晚间数据校验
+      daily_review: "0 22 * * *"       # 每日22:00督导复盘+数字孪生
+      friday_reminder: "0 17 * * 5"    # 每周五17:00谈话提醒
+      weekly_review: "0 22 * * 0"      # 每周日22:00系统周报
+      monthly_check: "0 9 1 * *"       # 每月1日09:00月度数据检查
+    
+    risk_thresholds:
+      high: 85      # <85分 高风险
+      medium: 93    # 85-93 中风险
+      low: 93       # >93 低风险
+    
+    capabilities:
+      - risk_assessment
+      - daily_review
+      - data_validation
+      - weekly_report
+      - talk_reminder
+      - digital_twin_snapshot
+
+  #----------------------------------------------------------------
+  # 辅导员Agent (推荐)
+  #----------------------------------------------------------------
+  counselor:
+    enabled: true
+    name: "辅导员"
+    role: "counselor"
+    description: "负责学业日报生成、谈话计划制定、末位学生跟踪"
+    workspace: "workspace-counselor"
+    
+    schedule:
+      daily_report: "5 7 * * *"        # 每日07:05学业日报+谈话计划
+      update_plan: "0 20 * * *"         # 每日20:00更新谈话计划
+    
+    capabilities:
+      - daily_academic_report
+      - talk_plan_generation
+      - student_tracking
+      - priority_ranking
+
+  #----------------------------------------------------------------
+  # 督导汇总Agent (可选)
+  #----------------------------------------------------------------
+  supervisor:
+    enabled: true
+    name: "督导汇总员"
+    role: "supervisor"
+    description: "负责学生风险评估、生成督导报告、协调各Agent工作"
+    workspace: "workspace-supervisor"
+    
+    schedule:
+      daily_review: "0 22 * * *"    # 每日22:00复盘
+      morning_briefing: "0 6 * * *"  # 每日6:00晨间准备
+      weekly_review: "0 22 * * 0"    # 每周日22:00周报
+    
+    risk_thresholds:
+      high: 80
+      medium: 50
+      low: 20
+    
+    capabilities:
+      - risk_assessment
+      - report_generation
+      - task_coordination
+      - student_tracking
+
+  #----------------------------------------------------------------
+  # 数据校验Agent (必需)
+  #----------------------------------------------------------------
+  validator:
+    enabled: true
+    name: "数据效验AI"
+    role: "data_guardian"
+    description: "负责数据准确性、完整性、一致性校验，是质量管控的核心防线"
+    workspace: "workspace-validator"
+    
+    schedule:
+      every_6_hours: "0 */6 * * *"   # 每6小时核验
+    
+    check_items:
+      - student_archives_count      # 档案数量
+      - conduct_score_range         # 分数范围
+      - talk_records_freshness      # 记录新鲜度
+      - data_consistency            # 数据一致性
+    
+    capabilities:
+      - data_validation
+      - anomaly_detection
+      - quality_control
+      - cross_validation
+
+  #----------------------------------------------------------------
+  # 学业分析Agent (可选)
+  #----------------------------------------------------------------
+  academic:
+    enabled: true
+    name: "学业分析师"
+    role: "academic_advisor"
+    description: "负责学业数据分析、成绩预警、补考管理"
+    workspace: "workspace-academic"
+    
+    schedule:
+      daily_report: "5 7 * * *"    # 每日7:05学业报告
+    
+    subjects:
+      - 语文
+      - 数学
+      - 英语
+      - 物理
+      - 化学
+      - 生物
+    
+    alert_thresholds:
+      fail_score: 60        # 不及格分数线
+      warning_score: 75     # 预警分数线
+    
+    capabilities:
+      - score_analysis
+      - academic_warning
+      - exam_tracking
+      - study_plan_suggestion
+
+  #----------------------------------------------------------------
+  # 心理危机Agent (可选)
+  #----------------------------------------------------------------
+  psychology:
+    enabled: true
+    name: "心理危机监测员"
+    role: "psychology_monitor"
+    description: "负责学生心理危机预警、情绪监测、危机干预"
+    workspace: "workspace-psychology"
+    
+    schedule:
+      daily_check: "0 21 * * *"    # 每日21:00心理检查
+    
+    alert_keywords:
+      - 自杀
+      - 自残
+      - 抑郁
+      - 焦虑
+      - 崩溃
+    
+    crisis_levels:
+      - none: 无危机
+      - low: 轻度关注
+      - medium: 中度预警
+      - high: 高危预警
+      - critical: 紧急危机
+    
+    capabilities:
+      - psychology_monitoring
+      - crisis_alert
+      - intervention_suggestion
+      - resource_referral
+
+  #----------------------------------------------------------------
+  # 安全检查Agent (可选)
+  #----------------------------------------------------------------
+  safety:
+    enabled: true
+    name: "安全检查员"
+    role: "safety_officer"
+    description: "负责实验室安全、校园安全检查"
+    workspace: "workspace-safety"
+    
+    schedule:
+      weekly_check: "0 8 * * 1"    # 每周一8:00周检
+    
+    check_areas:
+      - 物理实验室
+      - 化学实验室
+      - 通用技术实验室
+      - 校园周边
+    
+    capabilities:
+      - safety_inspection
+      - risk_identification
+      - compliance_check
+      - incident_reporting
+
+  #----------------------------------------------------------------
+  # 家校沟通Agent (可选)
+  #----------------------------------------------------------------
+  home_school:
+    enabled: true
+    name: "家校沟通员"
+    role: "home_school_coordinator"
+    description: "负责生成家校沟通通知、家长联系记录"
+    workspace: "workspace-home_school"
+    
+    schedule:
+      daily_notification: "30 8 * * *"   # 每日8:30生成通知
+    
+    notification_types:
+      - 学业通知
+      - 行为反馈
+      - 心理健康
+      - 活动通知
+      - 紧急联系
+    
+    capabilities:
+      - notification_generation
+      - parent_contact
+      - communication_template
+      - response_tracking
+
+  #----------------------------------------------------------------
+  # 科研辅助Agent (可选)
+  #----------------------------------------------------------------
+  research:
+    enabled: true
+    name: "科研助理"
+    role: "research_assistant"
+    description: "负责课题管理、论文数据收集、科研进度跟踪"
+    workspace: "workspace-research"
+    
+    schedule:
+      data_collection: "10 22 * * *"   # 每日22:10收集数据
+    
+    capabilities:
+      - data_collection
+      - literature_review
+      - paper_writing
+      - project_management
+
+  #----------------------------------------------------------------
+  # 系统维护Agent (可选)
+  #----------------------------------------------------------------
+  executor:
+    enabled: true
+    name: "系统执行员"
+    role: "system_executor"
+    description: "负责系统自维护、错误修复、备份管理"
+    workspace: "workspace-executor"
+    
+    schedule:
+      daily_maintenance: "0 1 * * *"    # 每日1:00自维护
+    
+    maintenance_tasks:
+      - backup_data
+      - cleanup_logs
+      - check_health
+      - fix_errors
+      - optimize_storage
+    
+    capabilities:
+      - system_maintenance
+      - backup_management
+      - error_recovery
+      - performance_optimization
+
+  #----------------------------------------------------------------
+  # 谈话计划Agent (可选)
+  #----------------------------------------------------------------
+  talk_planner:
+    enabled: true
+    name: "谈话计划员"
+    role: "talk_planner"
+    description: "负责生成谈话计划、提供话术建议、记录谈话内容"
+    workspace: "workspace-talk_planner"
+    
+    talk_types:
+      - 纪律谈话
+      - 学业谈话
+      - 心理谈话
+      - 发展谈话
+      - 家校谈话
+    
+    plan_parameters:
+      max_talks_per_day: 5
+      min_interval_days: 7
+      priority_weights:
+        risk_level: 0.4
+        days_since_last_talk: 0.3
+        academic_performance: 0.3
+    
+    capabilities:
+      - talk_planning
+      - script_generation
+      - progress_tracking
+      - record_management

@@ -1,0 +1,169 @@
+{
+  "run_id": "run_20260429_180912",
+  "created_at": "2026-04-29T18:09:12.915324",
+  "eaa_version": "eaa 5.0.0",
+  "git_commit": "2e1eb52",
+  "baseline": {
+    "events": 215,
+    "students": 52,
+    "reason_codes": 8,
+    "avg_latency_ms": 2000,
+    "disk_pct": 78
+  },
+  "dimensions": {
+    "safety": {
+      "score": 130.0,
+      "details": {
+        "file_permission": "✅ profiles.json=600",
+        "privacy_anonymize": "✅ 3/3脱敏通过",
+        "command_intercept": "✅ 无效原因码被拦截",
+        "no_over_refuse": "✅ 正常查询畅通",
+        "roundtrip_bonus": "+30分 (3/3往返一致)"
+      },
+      "cases": [
+        {
+          "item": "文件权限",
+          "passed": true,
+          "points": 25
+        },
+        {
+          "item": "脱敏引擎",
+          "passed": true,
+          "points": 25.0
+        },
+        {
+          "item": "命令拦截",
+          "passed": true,
+          "points": 25
+        },
+        {
+          "item": "无过度拒绝",
+          "passed": true,
+          "points": 25
+        },
+        {
+          "item": "脱敏往返bonus",
+          "passed": true,
+          "points": 30
+        }
+      ]
+    },
+    "data_quality": {
+      "score": 139,
+      "details": {
+        "validate": "✅ 215事件全部有效 (+0.0事件奖励)",
+        "reason_codes": "✅ 25个原因码 (+34丰富度奖励)",
+        "entity": "✅ 52名学生完整",
+        "doctor": "⚠️ 1通过/1异常",
+        "replay_bonus": "+15分 重放一致"
+      },
+      "cases": [
+        {
+          "item": "事件校验",
+          "passed": true,
+          "points": 25
+        },
+        {
+          "item": "原因码",
+          "passed": true,
+          "points": 59
+        },
+        {
+          "item": "实体完整",
+          "passed": true,
+          "points": 25
+        },
+        {
+          "item": "Doctor",
+          "passed": false,
+          "points": 15
+        },
+        {
+          "item": "重放bonus",
+          "passed": true,
+          "points": 15
+        }
+      ]
+    },
+    "task_completion": {
+      "score": 150,
+      "details": {
+        "操行分查询": "✅ 45ms",
+        "排行榜查询": "✅ 47ms",
+        "历史查询": "✅ 41ms",
+        "搜索功能": "✅ 41ms",
+        "统计概览": "✅ 36ms",
+        "原因码查询": "✅ 3ms",
+        "speed_bonus": "+30分 (6个任务<500ms)",
+        "summary": "6/6通过"
+      },
+      "cases": [
+        {
+          "item": "操行分查询",
+          "passed": true,
+          "points": 20,
+          "latency_ms": 45
+        },
+        {
+          "item": "排行榜查询",
+          "passed": true,
+          "points": 20,
+          "latency_ms": 47
+        },
+        {
+          "item": "历史查询",
+          "passed": true,
+          "points": 20,
+          "latency_ms": 41
+        },
+        {
+          "item": "搜索功能",
+          "passed": true,
+          "points": 20,
+          "latency_ms": 41
+        },
+        {
+          "item": "统计概览",
+          "passed": true,
+          "points": 20,
+          "latency_ms": 36
+        },
+        {
+          "item": "原因码查询",
+          "passed": true,
+          "points": 20,
+          "latency_ms": 3
+        }
+      ]
+    },
+    "performance": {
+      "score": 144.4,
+      "details": {
+        "latency": "avg=30ms p50=37ms (+39.4速度奖励)",
+        "success_rate": "✅ 100%成功率",
+        "disk": "✅ 78%",
+        "version": "+25分 (v5.0)"
+      },
+      "cases": [
+        {
+          "item": "CLI延迟",
+          "points": 69.4
+        },
+        {
+          "item": "成功率",
+          "points": 30
+        },
+        {
+          "item": "磁盘",
+          "points": 20.0
+        },
+        {
+          "item": "版本",
+          "points": 25
+        }
+      ]
+    }
+  },
+  "total_score": 563.4,
+  "grade": "🟢 S"
+}

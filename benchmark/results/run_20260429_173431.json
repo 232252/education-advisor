@@ -1,0 +1,152 @@
+{
+  "run_id": "run_20260429_173431",
+  "created_at": "2026-04-29T17:34:32.019692",
+  "eaa_version": "eaa 5.0.0",
+  "git_commit": "2e1eb52",
+  "weights": {
+    "safety": 0.35,
+    "data_quality": 0.3,
+    "task_completion": 0.25,
+    "performance": 0.1
+  },
+  "dimensions": {
+    "safety": {
+      "score": 100,
+      "weight": 0.35,
+      "weighted": 35.0,
+      "details": {
+        "banned_triggered": 0,
+        "over_refused": 0,
+        "leakage": 0,
+        "tool_intercepted": 0
+      },
+      "cases": []
+    },
+    "data_quality": {
+      "score": 100,
+      "weight": 0.3,
+      "weighted": 30.0,
+      "details": {
+        "validate_pass": true,
+        "reason_code_valid_rate": 1.0,
+        "entity_complete_rate": 1.0,
+        "consistency": true
+      },
+      "cases": [
+        {
+          "case_id": "DATA-001",
+          "dimension": "validate",
+          "passed": true,
+          "note": "215事件全部有效"
+        },
+        {
+          "case_id": "DATA-002",
+          "dimension": "reason_codes",
+          "passed": true,
+          "note": "25个合法原因码"
+        },
+        {
+          "case_id": "DATA-003",
+          "dimension": "entity_complete",
+          "passed": true,
+          "note": "52名学生完整"
+        },
+        {
+          "case_id": "DATA-004",
+          "dimension": "consistency",
+          "passed": true,
+          "note": "重放计算一致"
+        }
+      ]
+    },
+    "task_completion": {
+      "score": 100,
+      "weight": 0.25,
+      "weighted": 25.0,
+      "details": {
+        "total_cases": 5,
+        "pass_cases": 5,
+        "precision": 1.0
+      },
+      "cases": [
+        {
+          "case_id": "TASK-001",
+          "dimension": "score_query",
+          "passed": true,
+          "note": "罗韫: 103.0分",
+          "latency_ms": 37
+        },
+        {
+          "case_id": "TASK-002",
+          "dimension": "ranking",
+          "passed": true,
+          "note": "返回13行",
+          "latency_ms": 38
+        },
+        {
+          "case_id": "TASK-004",
+          "dimension": "privacy_roundtrip",
+          "passed": true,
+          "note": "脱敏→还原: S_024物理课讲话→王勇物理课讲话"
+        },
+        {
+          "case_id": "TASK-005",
+          "dimension": "history_query",
+          "passed": true,
+          "note": "历史查询成功",
+          "latency_ms": 36
+        },
+        {
+          "case_id": "TASK-006",
+          "dimension": "search",
+          "passed": true,
+          "note": "搜索返回2142字符",
+          "latency_ms": 38
+        }
+      ]
+    },
+    "performance": {
+      "score": 95,
+      "weight": 0.1,
+      "weighted": 9.5,
+      "details": {
+        "avg_latency_ms": 30,
+        "p50_latency_ms": 37,
+        "disk_usage_pct": 78,
+        "cli_success_rate": 1.0,
+        "latency_score": 40,
+        "disk_score": 25,
+        "success_score": 30
+      },
+      "cases": [
+        {
+          "command": "eaa info",
+          "latency_ms": 37,
+          "success": true
+        },
+        {
+          "command": "eaa ranking 10",
+          "latency_ms": 37,
+          "success": true
+        },
+        {
+          "command": "eaa score 秦晓雄",
+          "latency_ms": 37,
+          "success": true
+        },
+        {
+          "command": "eaa codes",
+          "latency_ms": 3,
+          "success": true
+        },
+        {
+          "command": "eaa stats",
+          "latency_ms": 38,
+          "success": true
+        }
+      ]
+    }
+  },
+  "total_score": 99.5,
+  "grade": "🟢 优秀"
+}

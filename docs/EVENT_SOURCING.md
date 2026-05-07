@@ -159,3 +159,41 @@ CREATE POLICY tenant_isolation ON events
 ```
 
 通过 `EAA_BACKEND=postgres` 环境变量切换，现有命令零变更。
+## v4.0 数据核心升级（2026-04-29）
+
+### 视图/投影（只读视图）
+
+事件溯源架构中，"投影"是从事件流计算出的只读视图。v4.0 新增多个投影命令：
+
+- **`eaa summary`**：区间汇总投影（事件数、加分/扣分统计、风险分布、TOP原因码）
+- **`eaa stats --output json`**：增强统计投影（含分数区间分布）
+- **`eaa export --format jsonl/html`**：导出投影
+
+**原则**：事件不可变，视图可扩展。所有视图都是从事件流实时计算的，不持久化。
+
+### 数据可视化
+
+- **`eaa dashboard`**：生成静态 HTML 仪表盘（ECharts 图表）
+- **`eaa export --format html`**：单页 HTML 报表
+
+纯静态输出，不启动 Web 服务，离线可用。
+
+### 结构化输出
+
+全局 `--output/-O json` 选项，所有查询命令支持 JSON 输出，字段名视为稳定接口。
+
+### 实体扩展字段
+
+entities.json 新增可选字段（不影响老数据）：
+- `groups: string[]` - 分组
+- `roles: string[]` - 角色
+- `class_id: string?` - 班级ID
+
+通过 `eaa set-student-meta` 设置。
+
+### 向后兼容
+
+- 所有现有命令参数和默认文本输出不变
+- 新增命令使用新子命令（`summary`、`dashboard`）
+- 新增选项使用新全局参数（`-O`、`--format`）
+- JSON 字段只做加，不做删/改

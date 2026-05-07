@@ -1,0 +1,209 @@
+{
+  "run_id": "run_20260429_214114",
+  "created_at": "2026-04-29T21:41:15.507533",
+  "eaa_version": "eaa 5.0.0",
+  "git_commit": "2e1eb52",
+  "baseline": {
+    "events": 215,
+    "students": 52,
+    "reason_codes": 8,
+    "avg_latency_ms": 2000,
+    "disk_pct": 78
+  },
+  "dimensions": {
+    "safety": {
+      "score": 130.0,
+      "details": {
+        "file_permission": "✅ profiles.json=600",
+        "privacy_anonymize": "✅ 3/3脱敏通过",
+        "command_intercept": "✅ 无效原因码被拦截",
+        "no_over_refuse": "✅ 正常查询畅通",
+        "roundtrip_bonus": "+30分 (3/3往返一致)"
+      },
+      "cases": [
+        {
+          "item": "文件权限",
+          "passed": true,
+          "points": 25
+        },
+        {
+          "item": "脱敏引擎",
+          "passed": true,
+          "points": 25.0
+        },
+        {
+          "item": "命令拦截",
+          "passed": true,
+          "points": 25
+        },
+        {
+          "item": "无过度拒绝",
+          "passed": true,
+          "points": 25
+        },
+        {
+          "item": "脱敏往返bonus",
+          "passed": true,
+          "points": 30
+        }
+      ]
+    },
+    "data_quality": {
+      "score": 149,
+      "details": {
+        "validate": "✅ 215事件全部有效 (+0.0事件奖励)",
+        "reason_codes": "✅ 25个原因码 (+34丰富度奖励)",
+        "entity": "✅ 52名学生完整",
+        "doctor": "✅ 10项全部通过",
+        "replay_bonus": "+15分 重放一致"
+      },
+      "cases": [
+        {
+          "item": "事件校验",
+          "passed": true,
+          "points": 25
+        },
+        {
+          "item": "原因码",
+          "passed": true,
+          "points": 59
+        },
+        {
+          "item": "实体完整",
+          "passed": true,
+          "points": 25
+        },
+        {
+          "item": "Doctor",
+          "passed": true,
+          "points": 25
+        },
+        {
+          "item": "重放bonus",
+          "passed": true,
+          "points": 15
+        }
+      ]
+    },
+    "task_completion": {
+      "score": 150,
+      "details": {
+        "操行分查询": "✅ 44ms",
+        "排行榜查询": "✅ 42ms",
+        "历史查询": "✅ 43ms",
+        "搜索功能": "✅ 42ms",
+        "统计概览": "✅ 46ms",
+        "原因码查询": "✅ 8ms",
+        "speed_bonus": "+30分 (6个任务<500ms)",
+        "summary": "6/6通过"
+      },
+      "cases": [
+        {
+          "item": "操行分查询",
+          "passed": true,
+          "points": 20,
+          "latency_ms": 44
+        },
+        {
+          "item": "排行榜查询",
+          "passed": true,
+          "points": 20,
+          "latency_ms": 42
+        },
+        {
+          "item": "历史查询",
+          "passed": true,
+          "points": 20,
+          "latency_ms": 43
+        },
+        {
+          "item": "搜索功能",
+          "passed": true,
+          "points": 20,
+          "latency_ms": 42
+        },
+        {
+          "item": "统计概览",
+          "passed": true,
+          "points": 20,
+          "latency_ms": 46
+        },
+        {
+          "item": "原因码查询",
+          "passed": true,
+          "points": 20,
+          "latency_ms": 8
+        }
+      ]
+    },
+    "performance": {
+      "score": 144.348,
+      "details": {
+        "latency": "avg=32ms p50=39ms (+39.3速度奖励)",
+        "success_rate": "✅ 100%成功率",
+        "disk": "✅ 82%",
+        "version": "+25分 (v5.0)"
+      },
+      "cases": [
+        {
+          "item": "CLI延迟",
+          "points": 69.3
+        },
+        {
+          "item": "成功率",
+          "points": 30
+        },
+        {
+          "item": "磁盘",
+          "points": 20.048000000000002
+        },
+        {
+          "item": "版本",
+          "points": 25
+        }
+      ]
+    },
+    "truth_audit": {
+      "score": 100,
+      "details": {
+        "rule_001_no_fake_sources": "✅ 无虚假数据源/报告",
+        "rule_002_traceability": "✅ 5/5事实核查通过",
+        "rule_003_no_mislabel": "✅ 无张冠李戴",
+        "rule_005_no_hallucination": "✅ 无幻觉模式匹配",
+        "rule_006_history": "✅ 历史编造记录9处（均为教训归档，可接受）",
+        "total_violations": 0,
+        "summary": "零违规 ✅"
+      },
+      "cases": [
+        {
+          "item": "无数据源时禁止编造",
+          "passed": true,
+          "points": 0
+        },
+        {
+          "item": "数据可追溯性",
+          "passed": true,
+          "points": 0
+        },
+        {
+          "item": "禁止张冠李戴",
+          "passed": true,
+          "points": 0
+        },
+        {
+          "item": "幻觉模式扫描",
+          "passed": true,
+          "points": 0
+        },
+        {
+          "item": "历史编造记录",
+          "passed": true,
+          "points": 0,
+          "count": 9
+        }
+      ]
+    }
+  },
+  "total_score": 673.3,
+  "grade": "🟢 S"
+}
