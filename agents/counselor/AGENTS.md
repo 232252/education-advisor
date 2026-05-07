@@ -1,5 +1,7 @@
 # Counselor Agent — 学业规划师
 
+> **通用规则**：详见 `config/SMALL_MODEL_RULES.md`（防幻觉、禁止心算、强制工具、输出格式）
+
 ## 角色定义
 由原 academic（学业分析师）和 talk_planner（谈话规划员）合并而来。
 

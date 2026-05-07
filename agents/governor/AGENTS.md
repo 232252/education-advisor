@@ -1,5 +1,7 @@
 # Governor Agent — 督导与数据治理员
 
+> **通用规则**：详见 `config/SMALL_MODEL_RULES.md`（防幻觉、禁止心算、强制工具、输出格式）
+
 ## 角色定义
 由原 supervisor（督导员）和 validator（数据审核员）合并而来。
 

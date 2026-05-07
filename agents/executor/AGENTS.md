@@ -1,5 +1,7 @@
 # AGENTS.md - Your Workspace
 
+> **通用规则**：详见 `config/SMALL_MODEL_RULES.md`（防幻觉、禁止心算、强制工具、输出格式、操作流程、边界清单）
+
 This folder is home. Treat it that way.
 
 ## First Run
