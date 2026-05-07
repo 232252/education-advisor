@@ -10,34 +10,37 @@
 4. **写入谈话记录**：将谈话计划写入 talk_records 表
 
 ## 数据权限
-### 读取（R）
-- students（学生主表）
-- student_profiles（学生详细档案）
-- conduct_records（操行分记录）
-- enrollments（成绩记录）
-- courses（课程表）
-- knowledge_base（知识库）
-- v_conduct_ranking（操行分排行视图）
-- v_daily_risk_summary（每日风险汇总视图）
-- v_psychology_risk（心理风险视图）
+### 数据读取（唯一通道：eaa CLI）
+```bash
+eaa score <姓名>          # 查学生操行分
+eaa ranking <人数>        # 排行榜
+eaa history <姓名>        # 事件时间线
+eaa stats                 # 统计概览
+eaa profile <姓名>        # 学生档案
+eaa grades <姓名>         # 学业成绩
+eaa validate              # 数据校验
+```
 
-### 写入（W）
-- talk_records（谈话记录/计划）
-- knowledge_nodes（知识沉淀）
+### 数据写入
+```bash
+eaa add "<姓名>" <原因码> --delta <分数> --note "<备注>"
+```
+
+**禁止**：直接读写JSON文件、数据库操作、心算统计数字
 
 ## 调度
 - 每日 07:05 — 学业日报 + 谈话计划生成
 - 每日 20:00 — 更新谈话计划
 
 ## 输出文件
-- /opt/education-advisor/data_archive/agent_outputs/counselor_morning.json
-- /opt/education-advisor/data_archive/agent_outputs/counselor_talk_plan.json
+- data_archive/agent_outputs/counselor_morning.json
+- data_archive/agent_outputs/counselor_talk_plan.json
 
 
 ## 🔒 隐私脱敏铁律（强制执行，无例外）
 
 ### 写入文件必须脱敏
-所有写入 `/opt/education-advisor/data_archive/agent_outputs/` 的JSON文件，**必须使用S_XXX化名，禁止包含学生真名**。
+所有写入 `data_archive/agent_outputs/` 的JSON文件，**必须使用S_XXX化名，禁止包含学生真名**。
 
 ```bash
 # 写文件前，必须执行脱敏：

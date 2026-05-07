@@ -4,11 +4,11 @@
   
   "data_sources": {
     "exists": [
-      {"id": "conduct_events", "path": "/vol2/copaw-data/data/events/events.json", "description": "操行分事件库"},
-      {"id": "student_profiles", "path": "/vol2/copaw-data/data/profiles/profiles.json", "description": "学生档案"},
-      {"id": "privacy_mapping", "path": "/vol2/copaw-data/data/privacy/mapping.enc", "description": "隐私脱敏映射"},
+      {"id": "conduct_events", "path": "./data/events/events.json", "description": "操行分事件库"},
+      {"id": "student_profiles", "path": "./data/profiles/profiles.json", "description": "学生档案"},
+      {"id": "privacy_mapping", "path": "./data/privacy/mapping.enc", "description": "隐私脱敏映射"},
       {"id": "bitable_v2", "url": "https://my.feishu.cn/base/EvFfbRrzEaFO9Ds7z06cstZLnae", "description": "飞书Bitable v2操行分"},
-      {"id": "exam_midterm", "path": "/root/.copaw/data/exam_scores_midterm_2026.json", "description": "半期考试成绩"}
+      {"id": "exam_midterm", "path": "./data/exam_scores_midterm_2026.json", "description": "半期考试成绩"}
     ],
     "not_exists": [
       {"id": "lab_safety", "description": "实验室安全检查记录"},

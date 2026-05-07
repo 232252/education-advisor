@@ -6,7 +6,7 @@
 set -euo pipefail
 
 EAA="eaa"
-LOG_DIR="/vol2/education-advisor/benchmark/results/auto_10rounds"
+LOG_DIR="./benchmark/results/auto_10rounds"
 mkdir -p "$LOG_DIR"
 
 SUMMARY_FILE="$LOG_DIR/global_summary.md"

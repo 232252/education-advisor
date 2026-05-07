@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from datetime import datetime
 
-DATA_DIR = os.environ.get('EAA_DATA_DIR', '/vol2/copaw-data/data')
+DATA_DIR = os.environ.get('EAA_DATA_DIR', './data')
 PROFILES_PATH = os.path.join(DATA_DIR, 'profiles', 'profiles.json')
 
 # ========== 隐私脱敏规则 ==========

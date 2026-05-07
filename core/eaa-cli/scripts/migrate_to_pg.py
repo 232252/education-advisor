@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 TENANT_ID = "a0000000-0000-0000-0000-000000000001"
-DATA_DIR = "/vol2/copaw-data/data"
+DATA_DIR = os.environ.get("EAA_DATA_DIR", "./data")
 
 def psql(sql, params=None):
     """Execute SQL via psql."""

@@ -3,7 +3,7 @@
 # 安装: sudo cp eaa_wrapper.sh /usr/local/bin/eaa && sudo chmod +x /usr/local/bin/eaa
 # 注意: 部署前需设置 EAA_PRIVACY_PASSWORD 环境变量
 
-export EAA_DATA_DIR="${EAA_DATA_DIR:-/vol2/copaw-data/data}"
+export EAA_DATA_DIR="${EAA_DATA_DIR:-./data}"
 EAA_BIN="/usr/local/bin/eaa.v5"
 EAA_BIN_V4="/usr/local/bin/eaa.bin.bak"
 EAA_EXT="/opt/eaa/scripts/eaa_extended.py"

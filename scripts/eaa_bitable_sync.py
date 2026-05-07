@@ -7,7 +7,7 @@ EAA → 飞书Bitable v2 自动同步脚本 v1.0
 2. 更新学生操行分总览表（当前总分、加分/扣分统计、最后变动日期）
 3. 记录证据链接（evidence_ref），避免重复同步
 
-运行：python3 /root/.copaw/scripts/eaa_bitable_sync.py
+运行：python3 scripts/eaa_bitable_sync.py
 """
 
 import json
@@ -24,9 +24,9 @@ APP_SECRET = "FqHByIJjFlU7rtPXXwIq5ejV6JbaVi4Z"
 BITABLE_APP_TOKEN = "EvFfbRrzEaFO9Ds7z06cstZLnae"
 BITABLE_EVENTS_TABLE = "tbl7pU3vcwVPrzHn"   # 评分记录表
 BITABLE_SCORES_TABLE = "tblSIC0qf1zsMqIr"    # 学生操行分总览表
-EVENTS_JSON = "/vol2/copaw-data/data/events/events.json"
-ENTITIES_JSON = "/vol2/copaw-data/data/entities/entities.json"
-LOG_FILE = "/root/.copaw/logs/bitable_sync.log"
+EVENTS_JSON = os.path.join(os.environ.get("EAA_DATA_DIR", "./data"), "events", "events.json")
+ENTITIES_JSON = os.path.join(os.environ.get("EAA_DATA_DIR", "./data"), "entities", "entities.json")
+LOG_FILE = os.path.join(os.environ.get("EAA_DATA_DIR", "./data"), "logs", "bitable_sync.log")
 BATCH_SIZE = 50  # 飞书API单次写入上限
 
 # ===== 类别映射（EAA reason_code → Bitable 类别） =====
@@ -409,7 +409,7 @@ def sync_overview():
 def main():
     """主函数"""
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-    SYNC_STATE = "/root/.copaw/data/sync_state.json"
+    SYNC_STATE = os.path.join(os.environ.get("EAA_DATA_DIR", "./data"), "sync_state.json")
     
     start = time.time()
     log("=" * 60)

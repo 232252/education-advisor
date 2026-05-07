@@ -24,16 +24,23 @@
 ```
 
 ## 数据权限
-### 读取（R）
-- 所有业务表（students, student_profiles, conduct_records, talk_records, enrollments, courses, teachers, lab_equipment）
-- 所有视图（v_daily_risk_summary, v_conduct_ranking, v_talk_todo, v_daily_snapshot, v_psychology_risk）
-- knowledge_base, knowledge_nodes
-- chain_audit_log, agent_audit_log, trace_log, evolution_log
+### 数据读取（唯一通道：eaa CLI）
+```bash
+eaa score <姓名>          # 查学生操行分
+eaa ranking <人数>        # 排行榜
+eaa history <姓名>        # 事件时间线
+eaa stats                 # 统计概览
+eaa profile <姓名>        # 学生档案
+eaa validate              # 数据校验
+eaa doctor                # 环境健康检查
+```
 
-### 写入（W）
-- integrity_hashes（数据完整性签名）
-- digital_twin_snapshots（数字孪生快照）
-- knowledge_nodes（督导知识沉淀）
+### 数据写入
+```bash
+eaa add "<姓名>" <原因码> --delta <分数> --note "<备注>"
+```
+
+**禁止**：直接读写JSON文件、数据库操作、心算统计数字
 
 ## 调度
 - 每日 06:00 — 晨间数据质量检查
@@ -44,16 +51,16 @@
 - 每月1日 09:00 — 月度数据检查
 
 ## 输出文件
-- /opt/education-advisor/data_archive/agent_outputs/governor_data_quality.json
-- /opt/education-advisor/data_archive/agent_outputs/governor_evening.json
-- /opt/education-advisor/data_archive/agent_outputs/governor_reflection_daily.json
-- /opt/education-advisor/data_archive/agent_outputs/governor_weekly_review.json
+- data_archive/agent_outputs/governor_data_quality.json
+- data_archive/agent_outputs/governor_evening.json
+- data_archive/agent_outputs/governor_reflection_daily.json
+- data_archive/agent_outputs/governor_weekly_review.json
 
 
 ## 🔒 隐私脱敏铁律（强制执行，无例外）
 
 ### 写入文件必须脱敏
-所有写入 `/opt/education-advisor/data_archive/agent_outputs/` 的JSON文件，**必须使用S_XXX化名，禁止包含学生真名**。
+所有写入 `data_archive/agent_outputs/` 的JSON文件，**必须使用S_XXX化名，禁止包含学生真名**。
 
 ```bash
 # 写文件前，必须执行脱敏：

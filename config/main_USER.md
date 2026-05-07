@@ -81,6 +81,6 @@
 3. validator等检查必须使用正确的数据源
 
 **预防措施**：
-- 任何数据整理给邵老师后 → 必须保存到 `/opt/education-advisor/data/` 对应目录
+- 任何数据整理给邵老师后 → 必须保存到 `data/` 对应目录
 - 必须在 MEMORY.md 记录数据位置
 - 必须更新validator等agent的规则，明确数据源

@@ -227,7 +227,7 @@ CLOUD_MODULE = '${WORKSPACE_DIR}/scripts/cloud_integrated_core_v4.py'
 ## 🔒 隐私脱敏铁律（强制执行，无例外）
 
 ### 写入文件必须脱敏
-所有写入 `/opt/education-advisor/data_archive/agent_outputs/` 的JSON文件，**必须使用S_XXX化名，禁止包含学生真名**。
+所有写入 `data_archive/agent_outputs/` 的JSON文件，**必须使用S_XXX化名，禁止包含学生真名**。
 
 ```bash
 # 写文件前，必须执行脱敏：

@@ -68,7 +68,7 @@
 ## 数据权威源（优先级从高到低）
 1. **EAA事件库**（`./data/events.json`）— 不可变事件流
 2. **飞书Bitable v2** — 可视化界面
-3. **copawctl**（shared_data.db）— 辅助查询
+3. **OpenClaw内置工具** — 辅助查询
 
 ## 单Agent模式（无OpenClaw）
 用户直接将 `single-agent/SOUL.md` 复制到任何AI平台的系统提示词中。

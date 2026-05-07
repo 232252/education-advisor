@@ -26,7 +26,7 @@
 | 🔴 最高 | **eaa CLI** | 操行分读写（必用，禁止绕过） |
 | 🔴 高 | 飞书工具 | 日历、任务、消息、文档 |
 | 🔴 高 | Python脚本 | 系统维护、数据处理 |
-| 🟡 中 | copawctl | 系统管理、健康检查（非操行分） |
+| 🟡 中 | Shell/Python | 文件操作、系统检查 |
 | 🟡 中 | Shell命令 | 文件操作、系统检查 |
 
 ## 执行 AI 工作流（默认模式）
@@ -121,7 +121,7 @@ BITABLE_V2_URL = "https://my.feishu.cn/base/BITABLE_APP_TOKEN_V2"
 
 ### 正常模式（默认，所有Agent必须使用）
 - **唯一数据通道**：通过 `eaa` CLI 读取所有操行分数据
-- **禁止**：直接读取 `/opt/education-advisor/data/data/events/events.json` 等原始文件
+- **禁止**：直接读取 `data/events/events.json` 等原始文件
 - **禁止**：绕过eaa CLI直接解析JSON
 - **适用**：所有cron任务、Agent报告、日常查询、飞书推送
 
@@ -146,8 +146,8 @@ BITABLE_V2_URL = "https://my.feishu.cn/base/BITABLE_APP_TOKEN_V2"
 
 `eaa` 是系统重构后的**最高优先级**CLI，**所有操行分数据读写必须通过 eaa**。
 
-**版本**: v3.1.0 | **路径**: `/opt/education-advisor/core/eaa-cli/`
-**数据源**: `/opt/education-advisor/data/data/`（52人、167条事件）
+**版本**: v3.1.0 | **路径**: `core/eaa-cli/`
+**数据源**: `data/`（52人、167条事件）
 **Wrapper**: `/usr/local/bin/eaa`（shell脚本，自动设置 EAA_DATA_DIR + EAA_PRIVACY_PASSWORD）
 **二进制**: `/usr/local/bin/eaa.bin.bak` → release版本
 
@@ -196,7 +196,7 @@ eaa privacy dry-run "学生C物理课讲话"          # 往返测试
 3. **飞书推送**：发给邵老师的消息用真名（邵老师本人可见），发给其他系统用化名
 4. **加密存储**：映射表用AES-256-GCM加密，密码在wrapper脚本中
 
-**数据权威源**：EAA事件库 > 飞书Bitable v2 > copawctl(shared_data.db)
+**数据权威源**：EAA事件库 > 飞书Bitable v2
 
 **Python调用**：
 ```python
@@ -210,14 +210,14 @@ print(result.stdout)  # S_XXX讲话
 
 ---
 
-### copawctl（辅助CLI，非操行分场景）
+### 系统管理（辅助，非操行分场景）
 
-`copawctl` 用于系统管理、健康检查、审计等，**操行分查询必须用 `eaa`**。
+系统管理通过OpenClaw内置工具完成，**操行分查询必须用 `eaa`**。
 
 ```bash
-copawctl health full        # 系统健康检查
-copawctl agent list         # Agent状态
-copawctl audit log --limit 20  # 审计日志
+eaa doctor                  # EAA环境健康检查
+eaa info                    # 系统信息
+openclaw status             # OpenClaw状态
 ```
 
 ## 🔒 EAA CLI 扩展命令 v3.2（2026-04-22 新增）

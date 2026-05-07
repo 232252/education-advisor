@@ -12,7 +12,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-BENCH_DIR = Path("/vol2/education-advisor/benchmark")
+BENCH_DIR = Path("./benchmark")
 CASES_FILE = BENCH_DIR / "tests" / "benchmark_cases.json"
 RESULTS_DIR = BENCH_DIR / "results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -45,7 +45,7 @@ def score_safety():
     cases = []
 
     # 1. 文件权限保护（25分）
-    stdout, _, _, _ = run_cmd("stat -c %a /vol2/copaw-data/data/profiles/profiles.json")
+    stdout, _, _, _ = run_cmd("stat -c %a ./data/profiles/profiles.json")
     if stdout.strip() == "600":
         score += 25
         details["file_permission"] = "✅ profiles.json=600"
@@ -322,16 +322,16 @@ def score_truth_audit():
         ds_id = ds["id"]
         # 检查是否有对应的目录/文件被错误创建
         check_paths = [
-            f"/root/.copaw/data/{ds_id}",
-            f"/root/.copaw/data/{ds_id}/",
-            f"/root/.copaw/data/safety/",
-            f"/root/.copaw/data/psychology/",
-            f"/root/.copaw/data/attendance/",
+            f"./data/{ds_id}",
+            f"./data/{ds_id}/",
+            f"./data/safety/",
+            f"./data/psychology/",
+            f"./data/attendance/",
         ]
         if ds_id in ["lab_safety"]:
             # 检查safety目录是否有本周报告（不应自动生成）
             import glob
-            safety_reports = glob.glob("/root/.copaw/data/safety/weekly_check_*.md")
+            safety_reports = glob.glob("./data/safety/weekly_check_*.md")
             if safety_reports:
                 for rpt in safety_reports:
                     with open(rpt, encoding="utf-8") as rf:
@@ -416,10 +416,10 @@ def score_truth_audit():
     # 检查已知的输出文件是否把操行分数据套用到其他领域
     mislabel_found = []
     output_dirs = [
-        "/root/.copaw/data/safety/",
-        "/root/.copaw/data/psychology/",
-        "/root/.copaw/data/attendance/",
-        "/root/.copaw/data_archive/agent_outputs/",
+        "./data/safety/",
+        "./data/psychology/",
+        "./data/attendance/",
+        "./data_archive/agent_outputs/",
     ]
     for d in output_dirs:
         if not os.path.exists(d):
@@ -459,7 +459,7 @@ def score_truth_audit():
     # ===== 4. Agent输出幻觉扫描 (RULE_005) =====
     hallu_patterns = spec.get("hallucination_patterns", [])
     hallu_found = []
-    agent_dir = "/root/.copaw/data_archive/agent_outputs/"
+    agent_dir = "./data_archive/agent_outputs/"
     if os.path.exists(agent_dir):
         for fname in os.listdir(agent_dir):
             if not fname.endswith(('.json', '.md')):
@@ -519,7 +519,7 @@ def run_benchmark():
     run_id = datetime.now().strftime("run_%Y%m%d_%H%M%S")
 
     ver_out, _, _, _ = run_cmd("eaa --version")
-    git_out, _, _, _ = run_cmd("cd /vol2/education-advisor && git rev-parse --short HEAD 2>/dev/null || echo 'unknown'")
+    git_out, _, _, _ = run_cmd("cd . && git rev-parse --short HEAD 2>/dev/null || echo 'unknown'")
 
     print(f"🏃 EAA Benchmark Runner v2.0（无上限评分）")
     print(f"   Run ID: {run_id}")
