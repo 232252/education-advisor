@@ -6,7 +6,7 @@ pub const BASE_SCORE: f64 = 100.0;
 pub const MAX_DELTA: f64 = 10.0;
 pub const MIN_DELTA: f64 = -10.0;
 
-// === Output mode (new in v4.0) ===
+// === Output mode (new in v3.1.2) ===
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum OutputMode {
     #[default]
@@ -67,7 +67,7 @@ pub struct Entity {
     pub created_at: String,
     #[serde(default)]
     pub metadata: HashMap<String, serde_json::Value>,
-    // v4.0 extended fields (optional, backward compatible)
+    // v3.1.2 extended fields (optional, backward compatible)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub groups: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

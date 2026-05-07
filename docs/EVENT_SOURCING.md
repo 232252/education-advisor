@@ -108,7 +108,7 @@ core/eaa-cli/
 
 ---
 
-## v3.1.1 新增：PostgreSQL 事件存储
+## v3.1.2 新增：PostgreSQL 事件存储
 
 ### 数据库 Schema
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# EAA CLI Wrapper v5.0 - 统一入口（双后端 + Python扩展）
+# EAA CLI Wrapper v3.1 - 统一入口（双后端 + Python扩展）
 # 安装: sudo cp eaa_wrapper.sh /usr/local/bin/eaa && sudo chmod +x /usr/local/bin/eaa
 # 注意: 部署前需设置 EAA_PRIVACY_PASSWORD 环境变量
 
@@ -19,7 +19,7 @@ for ext_cmd in $EXTENDED_COMMANDS; do
     fi
 done
 
-# 优先使用 v5.0 二进制
+# 优先使用 v3.1 二进制
 if [ -x "$EAA_BIN" ]; then
     exec "$EAA_BIN" "$@"
 elif [ -x "$EAA_BIN_V4" ]; then

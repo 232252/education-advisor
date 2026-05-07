@@ -1,6 +1,6 @@
 [package]
 name = "eaa"
-version = "4.0.0"
+version = "3.1.2"
 edition = "2021"
 description = "EAA - Event-Sourced Conduct Score System for Education Advisor AI"
 license = "MIT"

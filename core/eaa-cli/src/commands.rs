@@ -60,7 +60,7 @@ pub fn cmd_info(output: OutputMode) -> Result<(), AppError> {
     match output {
         OutputMode::Json => {
             print_json(&serde_json::json!({
-                "version": "4.0.0",
+                "version": "3.1.2",
                 "students": entities.entities.len(),
                 "events": events.len(),
                 "data_dir": data_dir.display().to_string(),
@@ -68,7 +68,7 @@ pub fn cmd_info(output: OutputMode) -> Result<(), AppError> {
         }
         OutputMode::Text => {
             println!("╔══════════════════════════════════════╗");
-            println!("║     EAA 事件溯源操行分系统 v4.0    ║");
+            println!("║     EAA 事件溯源操行分系统 v3.1.2    ║");
             println!("╠══════════════════════════════════════╣");
             println!("║ 学生总数: {:>4}                       ║", entities.entities.len());
             println!("║ 事件总数: {:>4}                       ║", events.len());
@@ -401,7 +401,7 @@ pub fn cmd_stats(output: OutputMode) -> Result<(), AppError> {
         }
         OutputMode::Text => {
             println!("╔══════════════════════════════════════╗");
-            println!("║       EAA 数据统计 v4.0            ║");
+            println!("║       EAA 数据统计 v3.1.2            ║");
             println!("╠══════════════════════════════════════╣");
             println!("║ 学生总数:     {:>4}                   ║", ctx.entities.entities.len());
             println!("║ 事件总数:    {:>4}                   ║", ctx.events.len());
@@ -670,7 +670,7 @@ pub fn cmd_summary(since: Option<&str>, until: Option<&str>, output: OutputMode)
         }
         OutputMode::Text => {
             println!("╔══════════════════════════════════════╗");
-            println!("║       EAA 区间汇总 v4.0            ║");
+            println!("║       EAA 区间汇总 v3.1.2            ║");
             println!("╠══════════════════════════════════════╣");
             if let (Some(s), Some(u)) = (since, until) { println!("║ 区间: {} ~ {:<22}║", s, u); }
             println!("║ 事件数:     {:>4}                   ║", valid_events.len());
@@ -811,7 +811,7 @@ pub fn cmd_doctor(output: OutputMode) -> Result<(), AppError> {
     let ent_count = match &entities_result { Ok(e) => { ok += 1; e.entities.len() } Err(e) => { warn += 1; issues.push(format!("实体加载失败: {}", e)); 0 } };
     let evt_count = match &events_result { Ok(ev) => { ok += 1; ev.len() } Err(e) => { warn += 1; issues.push(format!("事件加载失败: {}", e)); 0 } };
 
-    // v4.0 enhanced checks
+    // v3.1.2 enhanced checks
     if let (Ok(entities), Ok(events)) = (&entities_result, &events_result) {
         // Check entity reference integrity
         let entity_ids: std::collections::HashSet<&str> = entities.entities.keys().map(|k| k.as_str()).collect();

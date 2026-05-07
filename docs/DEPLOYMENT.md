@@ -167,7 +167,7 @@ agents:
 
 ---
 
-## v3.1.1 新增：PostgreSQL 部署模式
+## v3.1.2 新增：PostgreSQL 部署模式
 
 ### 一键启动（Docker Compose）
 

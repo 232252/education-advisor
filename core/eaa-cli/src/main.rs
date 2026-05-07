@@ -10,7 +10,7 @@ mod types;
 mod validation;
 
 #[derive(Parser)]
-#[command(name = "eaa", about = "EAA 事件溯源操行分系统 v4.0 - 数据核心升级", version)]
+#[command(name = "eaa", about = "EAA 事件溯源操行分系统 v3.1.2", version)]
 struct Cli {
     /// 输出格式: text(默认) 或 json
     #[arg(short = 'O', long, global = true, default_value = "text")]
