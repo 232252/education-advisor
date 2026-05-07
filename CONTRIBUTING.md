@@ -33,7 +33,7 @@ cd education-advisor
 cd core/eaa-cli && cargo build --release && cd ../..
 ```
 
-### v5.0 开发：双后端测试
+### v3.1.1 开发：双后端测试
 
 ```bash
 # 文件系统后端（默认）

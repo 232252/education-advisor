@@ -341,7 +341,7 @@ bash uninstall.sh
 
 ---
 
-## 🆕 v5.0 新特性 — PostgreSQL 后端
+## 🆕 v3.1.1 新特性 — PostgreSQL 后端
 
 | 特性 | 说明 |
 |:-----|:-----|
