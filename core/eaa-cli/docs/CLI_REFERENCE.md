@@ -183,7 +183,7 @@ eaa revert evt_00002 --dry-run    # 预览
 
 ---
 
-## v5.0 新增环境变量
+## v3.1.1 新增环境变量
 
 | 变量 | 说明 | 默认值 |
 |:-----|:-----|:-------|
@@ -192,13 +192,13 @@ eaa revert evt_00002 --dry-run    # 预览
 | `EAA_TENANT_ID` | 租户 UUID（RLS 隔离） | default |
 | `EAA_PRIVACY_PASSWORD` | 隐私加密密钥 | - |
 
-## v5.0 新增全局选项
+## v3.1.1 新增全局选项
 
 | 选项 | 默认值 | 说明 |
 |:-----|:--------|:------------|
 | `-O, --output <fmt>` | `text` | 输出格式：`text` 或 `json` |
 
-## v5.0 新增命令
+## v3.1.1 新增命令
 
 | 命令 | 说明 |
 |:-----|:-----|
@@ -207,7 +207,7 @@ eaa revert evt_00002 --dry-run    # 预览
 | `eaa export --format csv\|jsonl\|html` | 多格式导出 |
 | `eaa set-student-meta <姓名> --group/role/class-id` | 设置学生元数据 |
 
-## v5.0 数据迁移
+## v3.1.1 数据迁移
 
 ```bash
 # 将文件系统数据迁移到 PostgreSQL
