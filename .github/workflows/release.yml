@@ -108,6 +108,14 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         shell: bash
         run: |
+          # electron-builder treats an EMPTY CSC_LINK as "set" and then
+          # path.resolve(currentDir, '') resolves to the project root,
+          # which is a directory not a file → "X not a file" error.
+          # Unset the code-signing env vars when they are empty so
+          # electron-builder skips code signing entirely.
+          for var in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!var}" ]; then unset "$var"; fi
+          done
           npx electron-builder \
             --${{ matrix.target }} \
             --${{ matrix.arch }} \
