@@ -1,0 +1,16 @@
+[package]
+name = "agent-isolation"
+version = "0.1.0"
+edition = "2021"
+description = "Agent data isolation module for education-advisor"
+
+[dependencies]
+thiserror = "1.0"
+log = "0.4"
+
+[dev-dependencies]
+tempfile = "3.8"
+
+[[test]]
+name = "security_tests"
+path = "src/lib.rs"
