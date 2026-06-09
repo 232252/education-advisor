@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS: UnifiedSettings = {
     autoStart: false,
     minimizeToTray: true,
     closeBehavior: 'ask',
+    remoteMaintenance: false,
   },
   models: {
     defaultProvider: '',
