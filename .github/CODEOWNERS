@@ -1,0 +1,50 @@
+# CODEOWNERS — automatic review assignment
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo.
+# Anything not matched by a more specific rule falls through to here.
+*                                     @education-advisor/maintainers
+
+# ----- Source code -----
+/src/main/                            @education-advisor/maintainers
+/src/renderer/                        @education-advisor/maintainers
+/src/shared/                          @education-advisor/maintainers
+/vite.config.main.ts                  @education-advisor/maintainers
+/vite.config.renderer.ts              @education-advisor/maintainers
+/tsconfig.json                        @education-advisor/maintainers
+/biome.json                           @education-advisor/maintainers
+/electron-builder.yml                 @education-advisor/maintainers
+
+# ----- Agents — prompt engineers are auto-assigned -----
+/agents/                              @education-advisor/prompt-engineers
+/config/agents.yaml                   @education-advisor/prompt-engineers
+/config/SMALL_MODEL_RULES.md          @education-advisor/prompt-engineers
+
+# ----- Privacy / security sensitive code -----
+/src/main/services/keystore-service.ts          @education-advisor/security
+/src/main/services/privacy-handlers.ts         @education-advisor/security
+/src/main/services/privacy*                    @education-advisor/security
+/src/main/services/eaa-bridge.ts               @education-advisor/security
+/src/main/services/eaa-tools.ts                @education-advisor/security
+/src/main/preload/                             @education-advisor/security
+/SECURITY.md                                   @education-advisor/security
+
+# ----- CI / build / release -----
+/.github/                             @education-advisor/devops
+/package.json                         @education-advisor/devops
+/package-lock.json                    @education-advisor/devops
+/scripts/                             @education-advisor/devops
+
+# ----- Documentation -----
+/docs/                                @education-advisor/docs
+/README.md                            @education-advisor/docs
+/PROJECT_INTRO.md                     @education-advisor/docs
+/CHANGELOG.md                         @education-advisor/docs
+/CONTRIBUTING.md                      @education-advisor/docs
+/CODE_OF_CONDUCT.md                   @education-advisor/docs
+/ROADMAP.md                           @education-advisor/docs
+/DEPLOY_TO_AI.md                      @education-advisor/docs
+
+# ----- Translations -----
+/src/renderer/i18n/zh.json            @education-advisor/i18n
+/src/renderer/i18n/en.json            @education-advisor/i18n

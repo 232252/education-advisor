@@ -1,0 +1,117 @@
+# ===== Build artifacts =====
+node_modules/
+dist/
+release/
+out/
+build/
+*.tsbuildinfo
+
+# ===== Logs (debug + runtime) =====
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ===== Local environment =====
+.env
+.env.*
+!.env.example
+*.local
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# ===== Test / coverage =====
+coverage/
+.nyc_output/
+*.lcov
+.cache/
+
+# ===== Temporary debug / verification artifacts =====
+# (These files were development-time verification scripts; they must not be committed.)
+verify-*.ps1
+verify-*.py
+verify-*.jpg.png
+verify-*.jpg
+verify-*.png
+test-cdp-*.js
+check-cdp*.js
+check-*.js
+e2e-test.mjs
+e2e-*.mjs
+check_db.js
+
+# Generated link-analysis reports (Python tooling outputs)
+scripts/link*.txt
+scripts/link*.json
+
+# Download scratch (used by scripts/download-eaa-binaries.mjs and matrix MCP helpers)
+.tmp-eaa-download/
+/.tmp-*
+/*.tmp.json
+/.tmp-ico-prompt.json
+/.tmp-upload.json
+
+# ===== AI / tool runtime state =====
+# (These directories are created by various AI coding tools and IDE helpers.
+#  They should not be tracked in the source tree.)
+.agent_history/
+.arts/
+.atomcode/
+.codeartsdoer/
+.mavis/
+.office-claw/
+.opencode/
+.team/
+.aider*
+.cursor*
+.continue*
+.files/
+files/
+
+# ===== OS / shell quirks =====
+nul
+# Windows reparse-point residues
+desktop.ini
+ehthumbs.db
+ehthumbs_vista.db
+$RECYCLE.BIN/
+
+# ===== Editor backups =====
+*~
+*.swp
+*.swo
+*.bak
+*.orig
+*.rej
+
+# ===== Secrets (should NEVER be committed) =====
+# Note: keystore-service encrypts API keys at runtime; this section is a
+# safety net in case someone mistakenly writes them to disk in plaintext.
+secrets/
+*.pem
+*.key
+*.pfx
+*.p12
+
+# ===== Workspace-level locks =====
+# Allow package-lock.json to be committed (npm convention) but ignore yarn/pnpm
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+
+# ===== Misc =====
+.history/
+.tmp/
+.tmp/*
