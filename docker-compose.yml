@@ -1,0 +1,20 @@
+version: '3.8'
+services:
+  eaa:
+    build: .
+    volumes:
+      - eaa-data:/app/data
+    environment:
+      - EAA_DATA_DIR=/app/data
+    command: ["info"]
+  
+  # OpenClaw (多Agent模式)
+  # openclaw:
+  #   image: openclaw/openclaw:latest
+  #   volumes:
+  #     - ./config:/root/.openclaw
+  #   ports:
+  #     - "3000:3000"
+
+volumes:
+  eaa-data:
