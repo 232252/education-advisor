@@ -29,10 +29,10 @@ win:
       arch: [x64]
   icon: resources/icon.ico
   # artifactName is set per target below to avoid name collisions.
-  artifactName: "${productName}-${version}-${arch}.${ext}"
+  artifactName: "Education.Advisor-${version}-${arch}.${ext}"
 
 nsis:
-  artifactName: "${productName}-${version}-Setup.${ext}"
+  artifactName: "Education.Advisor-${version}-Setup.${ext}"
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
@@ -41,7 +41,7 @@ nsis:
   createStartMenuShortcut: true
 
 portable:
-  artifactName: "${productName}-${version}-portable.${ext}"
+  artifactName: "Education.Advisor-${version}-portable.${ext}"
 
 asar: true
 asarUnpack:
