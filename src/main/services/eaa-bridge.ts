@@ -250,14 +250,59 @@ class EAABridge {
       ? path.join(process.resourcesPath, 'config', 'reason-codes.json')
       : path.join(__dirname, '..', '..', 'config', 'reason-codes.json')
 
+    // 修复 reason-codes 兼容性问题：
+    // EAA Rust CLI 期望 schema `{ version, codes: { CODE: { label, category, score_delta } } }`，
+    // 而 EA 源文件 `config/reason-codes.json` 长期使用扁平结构 + `delta` 字段名。
+    // 这里在复制时做 transform，源文件保持不变。
+    const transformReasonCodes = (raw: string): string => {
+      try {
+        const obj = JSON.parse(raw)
+        // 检测是否已是新 schema（含 "codes" key）
+        if (obj && typeof obj === 'object' && obj.codes && typeof obj.codes === 'object') {
+          // 已经是新结构；确保 version 字段 + 字段名一致
+          const out = { version: obj.version ?? '1.0', codes: {} as Record<string, unknown> }
+          for (const [k, v] of Object.entries(obj.codes)) {
+            const c = v as Record<string, unknown>
+            out.codes[k] = {
+              label: c.label,
+              category: c.category,
+              score_delta: c.score_delta ?? c.delta ?? null,
+            }
+          }
+          return JSON.stringify(out, null, 2) + '\n'
+        }
+        // 旧扁平结构：{ CODE: { label, category, delta } }
+        const out = { version: '1.0', codes: {} as Record<string, unknown> }
+        for (const [k, v] of Object.entries(obj)) {
+          if (k === 'version') {
+            out.version = String(v)
+            continue
+          }
+          const c = v as Record<string, unknown>
+          out.codes[k] = {
+            label: c.label,
+            category: c.category,
+            score_delta: c.delta ?? c.score_delta ?? null,
+          }
+        }
+        return JSON.stringify(out, null, 2) + '\n'
+      } catch (err) {
+        console.warn('[EAA] Failed to transform reason-codes.json, copying as-is:', err)
+        return raw
+      }
+    }
+
     // 复制到 schema 目录（Rust get_schema_dir 的首选路径）
     const schemaCodesDst = path.join(schemaDir, 'reason_codes.json')
-    if (fs.existsSync(codesSrc) && !fs.existsSync(schemaCodesDst)) {
+    // 总是刷新一份 transform 后的副本，修复 eaa.codes 报错
+    if (fs.existsSync(codesSrc)) {
       try {
-        fs.copyFileSync(codesSrc, schemaCodesDst)
-        console.log('[EAA] Copied reason-codes.json to schema dir')
+        const raw = fs.readFileSync(codesSrc, 'utf-8')
+        const transformed = transformReasonCodes(raw)
+        fs.writeFileSync(schemaCodesDst, transformed, 'utf-8')
+        console.log('[EAA] Wrote transformed reason-codes.json to schema dir')
       } catch (err) {
-        console.warn('[EAA] Failed to copy reason-codes.json to schema dir:', err)
+        console.warn('[EAA] Failed to write transformed reason-codes.json to schema dir:', err)
       }
     }
 
@@ -265,10 +310,12 @@ class EAABridge {
     const codesDst = path.join(this.dataDir, 'reason_codes.json')
     if (fs.existsSync(codesSrc) && !fs.existsSync(codesDst)) {
       try {
-        fs.copyFileSync(codesSrc, codesDst)
-        console.log('[EAA] Copied reason-codes.json to data dir')
+        const raw = fs.readFileSync(codesSrc, 'utf-8')
+        const transformed = transformReasonCodes(raw)
+        fs.writeFileSync(codesDst, transformed, 'utf-8')
+        console.log('[EAA] Wrote transformed reason-codes.json to data dir')
       } catch (err) {
-        console.warn('[EAA] Failed to copy reason-codes.json:', err)
+        console.warn('[EAA] Failed to write transformed reason-codes.json to data dir:', err)
       }
     }
 

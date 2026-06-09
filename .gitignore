@@ -57,6 +57,9 @@ check-*.js
 e2e-test.mjs
 e2e-*.mjs
 check_db.js
+__tmp_*.js
+__tmp_*.ps1
+__tmp_*.bat
 
 # Generated link-analysis reports (Python tooling outputs)
 scripts/link*.txt

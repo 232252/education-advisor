@@ -20,24 +20,33 @@ let isQuitting = false
 
 // 启用 CDP 远程调试 — 默认关闭,可由用户开启"远程维修模式"开关 (settings.general.remoteMaintenance=true) 或环境变量 EA_CDP=1 临时开启。
 // 安全护栏:
-//   - 仅监听 127.0.0.1,不开 0.0.0.0
-//   - remote-allow-origins=* 允许任意 DevTools 客户端连接(本地排查用)
+//   - Chromium 原生 CDP server 仅监听 127.0.0.1:9222 (本地安全)
+//   - 我们在主进程起一个透明 TCP 双栈代理,监听 0.0.0.0:9222 (IPv4) + [::]:9222 (IPv6),
+//     把外部流量字节级转发到 127.0.0.1:9222 的原生 CDP server。
+//   - remote-allow-origins=* 允许任意 DevTools 客户端连接
 //   - 设置 EA_CDP=0 可显式关闭(优先级最高,绕过 settings 开关)
 //   - 设置 EA_CDP=1 可临时开启(优先级最高,绕过 settings 开关)
+// 设计原因: Chromium 不支持 --remote-debugging-address (官方文档未列),且就算支持
+// 也只对单 family 生效。我们要双栈 (IPv4 + IPv6),所以用 Node.js net proxy 接管。
 const _eaCdpEnv = process.env.EA_CDP
 const _enableCdp =
   _eaCdpEnv === '1' ||
   (_eaCdpEnv !== '0' && settingsService.getSettings().general.remoteMaintenance === true)
 if (_enableCdp) {
+  // Chromium 原生只听本地 127.0.0.1:9222。Chromium 对 '127.0.0.1:9222' 这种
+  // HOST:PORT 格式解析有 bug (会静默忽略整个参数,导致 CDP server 不启动),
+  // 实测发现传纯端口号 '9222' 才会正确启动 CDP server (默认 bind 127.0.0.1)。
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
-  app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1')
   app.commandLine.appendSwitch('remote-allow-origins', '*')
   // 打开主进程 Node.js Inspector,挂在 9230 端口(主进程 console.log 可被外部抓取)
   // electron 本身已内置,只需要传 --inspect=9230
-  process.argv.push(`--inspect=9230`)
+  process.argv.push(`--inspect=0.0.0.0:9230`)
   const source = _eaCdpEnv === '1' ? 'env EA_CDP=1' : 'settings.general.remoteMaintenance=true'
   console.log(
     `[Main] CDP enabled (${source}): renderer @ http://127.0.0.1:9222  main @ ws://127.0.0.1:9230`,
+  )
+  console.log(
+    '[Main] External access via dual-stack proxy: IPv4 0.0.0.0:9222 / IPv6 [::]:9222',
   )
   console.log(
     '[Main] Inspect via Chrome DevTools: chrome://inspect → Configure → add localhost:9222',
@@ -46,6 +55,53 @@ if (_enableCdp) {
     '[Main] To disable: set EA_CDP=0 env var before launch, or toggle off in Settings → General → 远程维修模式',
   )
 }
+
+// =============================================================
+// 双栈 TCP 代理: 0.0.0.0:9222 (IPv4) + [::]:9222 (IPv6) → 127.0.0.1:9222 (Chromium 原生)
+// net.createServer 不解析 HTTP/WS,纯字节转发,天然兼容 /json、/json/version、WebSocket 等。
+// =============================================================
+function _startCdpProxy(): void {
+  if (!_enableCdp) return
+  app.whenReady().then(() => {
+    // 等 Chromium CDP server 起来 (一般 < 1s,保险起见 1.5s)
+    setTimeout(() => {
+      const net = require('node:net') as typeof import('node:net')
+      const handler = (): import('node:net').Server => net.createServer((client) => {
+        const upstream = net.connect(9222, '127.0.0.1', () => {
+          client.pipe(upstream)
+          upstream.pipe(client)
+        })
+        const cleanup = (): void => {
+          if (!client.destroyed) client.destroy()
+          if (!upstream.destroyed) upstream.destroy()
+        }
+        upstream.on('error', cleanup)
+        client.on('error', cleanup)
+        upstream.on('close', cleanup)
+        client.on('close', cleanup)
+      })
+
+      // IPv4 全接口 (内网 + 公网 IPv4 路由器转发场景)
+      const ipv4Proxy = handler()
+      ipv4Proxy.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code !== 'EADDRINUSE') console.error('[Main] CDP IPv4 proxy failed:', err.message)
+      })
+      ipv4Proxy.listen(9222, '0.0.0.0', () => {
+        console.log('[Main] CDP proxy [v4] 0.0.0.0:9222 → 127.0.0.1:9222 ready')
+      })
+
+      // IPv6 全接口 (移动宽带 IPv6 公网直连场景,无需路由器端口转发)
+      const ipv6Proxy = handler()
+      ipv6Proxy.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code !== 'EADDRINUSE') console.error('[Main] CDP IPv6 proxy failed:', err.message)
+      })
+      ipv6Proxy.listen(9222, '::', () => {
+        console.log('[Main] CDP proxy [v6] [::]:9222 → 127.0.0.1:9222 ready')
+      })
+    }, 1500)
+  })
+}
+_startCdpProxy()
 
 // =============================================================
 // 关闭行为处理
