@@ -68,9 +68,30 @@ jobs:
         shell: bash
         run: npm run test
 
-      - name: Fetch Rust EAA binary
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Rust EAA binary from source
+        # We build from source (core/eaa-cli/) rather than downloading a
+        # prebuilt release: the Rust source IS in this monorepo, so there
+        # is no need to keep a separate release pipeline in sync. The
+        # binary is then placed in the location electron-builder expects.
         shell: bash
-        run: npm run build:eaa
+        run: |
+          set -euo pipefail
+          cd core/eaa-cli
+          cargo build --release
+          cd ../..
+          PLATFORM_DIR="$(node -e 'const o=require("os"); console.log(o.platform()+"-"+o.arch())')"
+          TARGET="resources/eaa-binaries/${PLATFORM_DIR}"
+          mkdir -p "$TARGET"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp "core/eaa-cli/target/release/eaa.exe" "$TARGET/eaa.exe"
+          else
+            cp "core/eaa-cli/target/release/eaa" "$TARGET/eaa"
+            chmod +x "$TARGET/eaa"
+          fi
+          ls -la "$TARGET/"
 
       - name: Build
         shell: bash
