@@ -28,8 +28,7 @@
     "multi-agent",
     "llm",
     "privacy",
-    "rust",
-    "openclaw"
+    "rust"
   ],
   "engines": {
     "node": ">=22.0.0"
