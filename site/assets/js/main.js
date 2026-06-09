@@ -1,277 +1,312 @@
-/* ============================================================================
-   Education Advisor · 官网交互
-   滚动 · 渐入 · 数字滚动 · 18 agent 过滤 · 截图 lightbox · 移动菜单 · 告警滚动 · 回到顶部
-   ============================================================================ */
-
-(function () {
+/* ==========================================================================
+   Education Advisor · 官网主交互
+   轻量原生 JS，无依赖
+   ========================================================================== */
+(function(){
   'use strict';
 
-  // ---- 工具 ----
-  const $  = (s, c = document) => c.querySelector(s);
-  const $$ = (s, c = document) => Array.from(c.querySelectorAll(s));
+  /* ---------- 1. 导航：滚动压实 + 移动端菜单 + 章节高亮 ---------- */
+  const nav = document.getElementById('nav');
+  const navToggle = document.getElementById('navToggle');
+  const navMobile = document.getElementById('navMobile');
+  const navLinks = document.querySelectorAll('.nav-links a, .nav-mobile a');
 
-  // Mark the page as JS-ready: this enables reveal/hide rules in CSS.
-  // (No-JS users stay visible by default.)
-  document.documentElement.classList.add('js-ready');
-
-  // ---- 导航栏：滚动时增强背景 ----
-  const nav = $('#nav');
-  function updateNav() {
-    if (window.scrollY > 12) nav.classList.add('scrolled');
-    else nav.classList.remove('scrolled');
+  // 滚动压实
+  let lastY = 0, ticking = false;
+  function onScroll(){
+    const y = window.scrollY;
+    if (nav){
+      if (y > 16) nav.classList.add('is-stuck');
+      else nav.classList.remove('is-stuck');
+    }
+    // 回到顶部按钮
+    if (backTop){
+      if (y > 480) backTop.classList.add('is-visible');
+      else backTop.classList.remove('is-visible');
+    }
+    // 章节高亮
+    if (navLinks.length){
+      highlightSection(y);
+    }
+    lastY = y;
+    ticking = false;
   }
-  window.addEventListener('scroll', updateNav, { passive: true });
-  updateNav();
+  function requestTick(){
+    if (!ticking){
+      requestAnimationFrame(onScroll);
+      ticking = true;
+    }
+  }
+  window.addEventListener('scroll', requestTick, { passive: true });
 
-  // ---- 移动端菜单 ----
-  const navToggle = $('#navToggle');
-  if (navToggle) {
+  // 移动端菜单
+  if (navToggle && navMobile){
     navToggle.addEventListener('click', () => {
-      const open = nav.classList.toggle('open');
-      navToggle.setAttribute('aria-expanded', String(open));
+      const open = navMobile.classList.toggle('is-open');
+      navToggle.classList.toggle('is-open', open);
+      navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      document.body.style.overflow = open ? 'hidden' : '';
     });
-    $$('.nav-links a').forEach((a) => {
+    navMobile.querySelectorAll('a').forEach(a => {
       a.addEventListener('click', () => {
-        nav.classList.remove('open');
+        navMobile.classList.remove('is-open');
+        navToggle.classList.remove('is-open');
         navToggle.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
       });
     });
   }
 
-  // ---- 回到顶部 ----
-  const backTop = $('#backTop');
-  function updateBackTop() {
-    if (window.scrollY > 600) backTop.classList.add('show');
-    else backTop.classList.remove('show');
-  }
-  window.addEventListener('scroll', updateBackTop, { passive: true });
-  backTop.addEventListener('click', () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  // 章节高亮
+  const sectionMap = {};
+  navLinks.forEach(a => {
+    const id = (a.getAttribute('href') || '').replace('#','');
+    if (id) sectionMap[id] = sectionMap[id] || [];
+    if (id) sectionMap[id].push(a);
   });
-  updateBackTop();
-
-  // ---- 渐入动画：IntersectionObserver ----
-  const revealSelectors = [
-    '.feature-card',
-    '.agent-card',
-    '.metric',
-    '.arch-layer',
-    '.arch-arrow',
-    '.shot-card',
-    '.download-card',
-    '.download-extra-item',
-    '.faq-item',
-    '.section-head',
-    '.hero-content',
-    '.hero-visual',
-  ];
-  const revealEls = $$(revealSelectors.join(','));
-  revealEls.forEach((el) => el.setAttribute('data-reveal', ''));
-
-  // Safety net: if IO is not available OR the page is restored from bfcache,
-  // or JS is delayed, we still want everything to be visible.
-  const forceRevealAll = () => revealEls.forEach((el) => el.classList.add('is-visible'));
-
-  if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-visible');
-            io.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.0, rootMargin: '0px 0px -10% 0px' }
-    );
-    revealEls.forEach((el) => io.observe(el));
-    // If for any reason nothing has been observed-visible after 2s, force.
-    setTimeout(forceRevealAll, 2000);
-  } else {
-    forceRevealAll();
+  const sections = Object.keys(sectionMap)
+    .map(id => document.getElementById(id))
+    .filter(Boolean);
+  function highlightSection(y){
+    const offset = 120;
+    let current = sections[0]?.id;
+    for (const sec of sections){
+      if (sec.offsetTop - offset <= y) current = sec.id;
+    }
+    Object.entries(sectionMap).forEach(([id, links]) => {
+      links.forEach(l => l.classList.toggle('is-active', id === current));
+    });
   }
 
-  // ---- 平滑滚动锚点（覆盖浏览器默认） ----
-  $$('a[href^="#"]').forEach((a) => {
+  /* ---------- 2. 回到顶部 ---------- */
+  const backTop = document.getElementById('backTop');
+  if (backTop){
+    backTop.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  /* ---------- 3. 滚动揭示（IntersectionObserver） ---------- */
+  const revealEls = document.querySelectorAll('[data-reveal]');
+  if ('IntersectionObserver' in window && revealEls.length){
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting){
+          entry.target.classList.add('is-in');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    revealEls.forEach(el => io.observe(el));
+  } else {
+    revealEls.forEach(el => el.classList.add('is-in'));
+  }
+
+  /* ---------- 4. 数字滚动（统计区） ---------- */
+  const numEls = document.querySelectorAll('[data-num]');
+  if ('IntersectionObserver' in window && numEls.length){
+    const numIo = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        animateNum(entry.target);
+        numIo.unobserve(entry.target);
+      });
+    }, { threshold: 0.4 });
+    numEls.forEach(el => numIo.observe(el));
+  }
+  function animateNum(el){
+    const target = parseFloat(el.getAttribute('data-num')) || 0;
+    const dur = parseInt(el.getAttribute('data-num-dur')) || 1400;
+    const decimals = parseInt(el.getAttribute('data-num-dec')) || 0;
+    const suffix = el.getAttribute('data-num-suffix') || '';
+    const start = performance.now();
+    function frame(now){
+      const p = Math.min(1, (now - start) / dur);
+      // ease-out
+      const e = 1 - Math.pow(1 - p, 3);
+      const v = target * e;
+      el.textContent = (decimals ? v.toFixed(decimals) : Math.floor(v).toLocaleString()) + suffix;
+      if (p < 1) requestAnimationFrame(frame);
+      else el.textContent = (decimals ? target.toFixed(decimals) : target.toLocaleString()) + suffix;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- 5. Dashboard 实时警报插入（hero mockup） ---------- */
+  const feed = document.getElementById('dmFeed');
+  if (feed){
+    const items = [
+      { t: '00:00:12', text: 'class-monitor 写入：S_017 作业 +2', dot: 'ok' },
+      { t: '00:00:18', text: 'privacy engine：2 个 PII 已脱敏', dot: 'info' },
+      { t: '00:00:24', text: 'risk-alert 触发：S_032 14 日下降', dot: 'warn' },
+      { t: '00:00:31', text: 'governor 通过一致性审计 ✓', dot: 'ok' },
+      { t: '00:00:40', text: 'feishu 同步：bitable 已更新', dot: 'info' },
+      { t: '00:00:48', text: 'counselor 生成 3 份谈话草稿', dot: 'info' },
+    ];
+    let i = 0;
+    function push(){
+      const it = items[i % items.length];
+      const row = document.createElement('div');
+      row.className = 'dm-feed-item';
+      const colorMap = { ok: 'var(--c-success)', info: 'var(--c-accent)', warn: 'var(--c-warn)' };
+      row.innerHTML = `<span class="dm-feed-dot" style="background:${colorMap[it.dot]||'var(--c-accent)'}"></span>
+                       <span class="dm-feed-time">${it.t}</span>
+                       <span>${it.text}</span>`;
+      feed.insertBefore(row, feed.firstChild);
+      // 上限
+      while (feed.children.length > 4) feed.removeChild(feed.lastChild);
+      i++;
+    }
+    // 初始化几条
+    push(); push(); setTimeout(push, 600);
+    setInterval(push, 2200 + Math.random() * 800);
+  }
+
+  /* ---------- 6. Dashboard 数字滚动动画（hero） ---------- */
+  const dmCards = document.querySelectorAll('.dm-card-value');
+  if (dmCards.length){
+    const targets = [47, 23, 5];
+    dmCards.forEach((el, idx) => {
+      const target = targets[idx] || 0;
+      const start = performance.now() + idx * 200;
+      const dur = 1200;
+      function tick(now){
+        if (now < start) { requestAnimationFrame(tick); return; }
+        const p = Math.min(1, (now - start) / dur);
+        const e = 1 - Math.pow(1 - p, 3);
+        el.textContent = Math.floor(target * e);
+        if (p < 1) requestAnimationFrame(tick);
+        else el.textContent = target;
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  /* ---------- 7. 平台检测 + 下载按钮智能跳转 ---------- */
+  const platform = (function(){
+    const ua = navigator.userAgent;
+    if (/Windows/i.test(ua)) return 'windows';
+    if (/Mac/i.test(ua)) return 'mac';
+    if (/Linux/i.test(ua) && !/Android/i.test(ua)) return 'linux';
+    if (/Android/i.test(ua)) return 'android';
+    if (/iPhone|iPad|iPod/i.test(ua)) return 'ios';
+    return 'other';
+  })();
+  // 在所有 [data-platform] 按钮上做"当前平台优先"高亮
+  document.querySelectorAll('[data-platform]').forEach(btn => {
+    if (btn.getAttribute('data-platform') === platform){
+      btn.classList.add('is-current');
+      btn.setAttribute('data-current', 'true');
+    }
+  });
+
+  /* ---------- 8. 光标跟随光晕（仅支持 hover 的设备） ---------- */
+  if (window.matchMedia('(hover: hover) and (pointer: fine)').matches){
+    const glow = document.createElement('div');
+    glow.className = 'cursor-glow';
+    document.body.appendChild(glow);
+    let gx = 0, gy = 0, cx = 0, cy = 0;
+    document.addEventListener('mousemove', (e) => {
+      gx = e.clientX; gy = e.clientY;
+    });
+    function follow(){
+      cx += (gx - cx) * 0.12;
+      cy += (gy - cy) * 0.12;
+      glow.style.transform = `translate(${cx}px, ${cy}px) translate(-50%, -50%)`;
+      requestAnimationFrame(follow);
+    }
+    requestAnimationFrame(follow);
+  }
+
+  /* ---------- 9. 外部链接安全（noopener 已经在 HTML 里加） ---------- */
+
+  /* ---------- 10. 平滑滚动到锚点（带 sticky nav 偏移） ---------- */
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', (e) => {
       const id = a.getAttribute('href');
-      if (!id || id === '#') return;
+      if (id.length < 2) return;
       const target = document.querySelector(id);
       if (!target) return;
       e.preventDefault();
-      const top = target.getBoundingClientRect().top + window.scrollY - 64;
-      window.scrollTo({ top, behavior: 'smooth' });
+      const navH = nav ? nav.offsetHeight : 0;
+      const y = target.getBoundingClientRect().top + window.scrollY - navH - 12;
+      window.scrollTo({ top: y, behavior: 'smooth' });
     });
   });
 
-  // ---- 数字滚动动画（默认就显示目标值，IO 触发后只是从 0 滚到目标） ----
-  function animateNumber(el, target, duration = 1400) {
-    const start = 0;
-    const startTime = performance.now();
-    const isFloat = String(target).includes('.');
-    function tick(now) {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const value = start + (target - start) * eased;
-      el.textContent = isFloat ? value.toFixed(1) : Math.floor(value);
-      if (progress < 1) requestAnimationFrame(tick);
-      else el.textContent = String(target);
-    }
-    requestAnimationFrame(tick);
-  }
-  // Set final value immediately as a fallback (if IO never fires, or JS loads late).
-  const numberEls = $$('.metric-num, .mockup-card-value');
-  numberEls.forEach((el) => {
-    const t = Number(el.dataset.target);
-    if (!isNaN(t)) el.textContent = String(t);
-  });
-  // Then animate from 0 up to target when the element scrolls into view.
-  if (numberEls.length && 'IntersectionObserver' in window) {
-    const numIO = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const t = Number(entry.target.dataset.target);
-            if (!isNaN(t)) {
-              entry.target.textContent = '0';
-              animateNumber(entry.target, t, 1400);
-            }
-            numIO.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.0, rootMargin: '0px 0px -10% 0px' }
-    );
-    numberEls.forEach((el) => numIO.observe(el));
-  }
+  /* ---------- 11. 页面访问标记（用于下载页判定） ---------- */
+  try {
+    sessionStorage.setItem('eea_landed_from', document.referrer || 'direct');
+  } catch(_) {}
 
-  // ---- 18 Agent 过滤 ----
-  const filterBtns = $$('.agent-filter-btn');
-  const agentCards = $$('.agent-card');
-  filterBtns.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const f = btn.dataset.filter;
-      filterBtns.forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      agentCards.forEach((card) => {
-        if (f === 'all' || card.dataset.group === f) {
-          card.classList.remove('hidden');
-        } else {
-          card.classList.add('hidden');
+  /* ---------- 12. 初次触发一次滚动状态 ---------- */
+  onScroll();
+
+  /* ---------- 13. 主题切换（深色 / 浅色） ---------- */
+  const THEME_KEY = 'eea_theme';
+  const themeBtn = document.getElementById('themeToggle');
+  const mobileThemeBtn = document.getElementById('navMobileTheme');
+
+  function getInitialTheme(){
+    try {
+      const stored = localStorage.getItem(THEME_KEY);
+      if (stored === 'light' || stored === 'dark') return stored;
+    } catch(_){}
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches){
+      return 'light';
+    }
+    return 'dark';
+  }
+  function applyTheme(t, persist){
+    document.documentElement.setAttribute('data-theme', t);
+    // 同步 meta theme-color
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta){
+      meta.setAttribute('content', t === 'light' ? '#ffffff' : '#07060d');
+    }
+    // 同步移动端菜单按钮文案
+    if (mobileThemeBtn){
+      mobileThemeBtn.textContent = t === 'light' ? '☀️ 切换主题' : '🌙 切换主题';
+    }
+    if (persist){
+      try { localStorage.setItem(THEME_KEY, t); } catch(_){}
+    }
+  }
+  function toggleTheme(){
+    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+    applyTheme(cur === 'dark' ? 'light' : 'dark', true);
+  }
+  // 初始化（不持久化初次，避免覆盖用户偏好）
+  applyTheme(getInitialTheme(), false);
+
+  if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
+  if (mobileThemeBtn) mobileThemeBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    toggleTheme();
+    // 关闭移动菜单
+    const navMobile = document.getElementById('navMobile');
+    if (navMobile){
+      navMobile.classList.remove('is-open');
+      const navToggle = document.getElementById('navToggle');
+      if (navToggle){
+        navToggle.classList.remove('is-open');
+        navToggle.setAttribute('aria-expanded', 'false');
+      }
+      document.body.style.overflow = '';
+    }
+  });
+
+  // 跟随系统设置变化（仅当用户未明确选择过）
+  if (window.matchMedia){
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const handler = (e) => {
+      try {
+        if (!localStorage.getItem(THEME_KEY)){
+          applyTheme(e.matches ? 'light' : 'dark', false);
         }
-      });
-    });
-  });
-
-  // ---- Hero Dashboard "实时" 事件流 ----
-  const alertList = [
-    { dot: 'ok', msg: 'validator 已完成 6h 数据校验',         time: '刚刚' },
-    { dot: 'ok', msg: 'class-monitor 录入 +2 操行分',           time: '3 分钟前' },
-    { dot: '',    msg: 'risk-alert 提示某同学 14 天下降 28%', time: '8 分钟前' },
-    { dot: 'ok', msg: 'weekly-reporter 已生成本周班级报告',    time: '21 分钟前' },
-    { dot: '',    msg: 'home_school 起草 12 条家长消息',       time: '40 分钟前' },
-    { dot: 'ok', msg: 'privacy 引擎 5 次脱敏调用已审计',       time: '1 小时前' },
-  ];
-  const alertContainer = $('#mockupAlerts');
-  if (alertContainer) {
-    let idx = 0;
-    // 初始 2 条
-    function addAlert(item, prepend = true) {
-      const dot = document.createElement('span');
-      dot.className = 'mockup-alert-dot' + (item.dot ? ' ' + item.dot : '');
-      const msg = document.createElement('span');
-      msg.className = 'mockup-alert-msg';
-      msg.textContent = item.msg;
-      const time = document.createElement('span');
-      time.className = 'mockup-alert-time';
-      time.textContent = item.time;
-      const alert = document.createElement('div');
-      alert.className = 'mockup-alert';
-      alert.style.opacity = '0';
-      alert.style.transform = 'translateX(-8px)';
-      alert.style.transition = 'all 0.4s ease';
-      alert.appendChild(dot);
-      alert.appendChild(msg);
-      alert.appendChild(time);
-      if (prepend) alertContainer.insertBefore(alert, alertContainer.firstChild);
-      else alertContainer.appendChild(alert);
-      requestAnimationFrame(() => {
-        alert.style.opacity = '1';
-        alert.style.transform = 'translateX(0)';
-      });
-    }
-    addAlert(alertList[0]);
-    addAlert(alertList[1], false);
-
-    setInterval(() => {
-      const item = alertList[idx % alertList.length];
-      idx++;
-      addAlert(item);
-      while (alertContainer.children.length > 4) {
-        const last = alertContainer.lastElementChild;
-        last.style.transition = 'all 0.3s ease';
-        last.style.opacity = '0';
-        setTimeout(() => last.remove(), 300);
-      }
-    }, 5500);
+      } catch(_){}
+    };
+    if (mq.addEventListener) mq.addEventListener('change', handler);
+    else if (mq.addListener) mq.addListener(handler);
   }
-
-  // ---- 截图 lightbox ----
-  const lightbox = document.createElement('div');
-  lightbox.className = 'lightbox';
-  lightbox.innerHTML = '<img alt="截图预览" />';
-  document.body.appendChild(lightbox);
-  const lightboxImg = lightbox.querySelector('img');
-  $$('.shot-card').forEach((card) => {
-    card.addEventListener('click', () => {
-      const src = card.dataset.full;
-      if (!src) return;
-      lightboxImg.src = src;
-      lightbox.classList.add('open');
-    });
-  });
-  lightbox.addEventListener('click', () => {
-    lightbox.classList.remove('open');
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && lightbox.classList.contains('open')) {
-      lightbox.classList.remove('open');
-    }
-  });
-
-  // ---- 平台检测：自动高亮对应下载按钮 ----
-  function highlightDownload() {
-    const ua = navigator.userAgent.toLowerCase();
-    const isWin = ua.includes('win');
-    const isMac = ua.includes('mac');
-    const isLinux = ua.includes('linux');
-    $$('.download-card').forEach((card) => {
-      const os = (card.dataset.os || '').toLowerCase();
-      if ((isWin && os === 'win') || (isMac && os === 'mac') || (isLinux && os === 'linux')) {
-        card.classList.add('highlight');
-      }
-    });
-  }
-  highlightDownload();
-
-  // ---- 键盘 / 快捷：? 键聚焦 FAQ 第一个 ----
-  document.addEventListener('keydown', (e) => {
-    if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
-      e.preventDefault();
-      const firstFaq = $('.faq-item');
-      if (firstFaq) {
-        firstFaq.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        firstFaq.open = true;
-      }
-    }
-  });
-
-  // ---- 启动日志 ----
-  console.log(
-    '%c🎓 Education Advisor %cv0.1.0-rc.1',
-    'color:#7C3AED;font-weight:bold;font-size:14px;',
-    'color:#06B6D4;font-size:12px;'
-  );
-  console.log('%c让教育更智能，让教师更轻松。', 'color:#94A3B8;font-size:12px;');
 })();
