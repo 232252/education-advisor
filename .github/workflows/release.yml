@@ -162,7 +162,11 @@ jobs:
           cat SHA256SUMS
 
       - name: Sign checksums (cosign)
-        if: startsWith(github.ref, 'refs/tags/v')
+        # Cosign keyless OIDC signing requires a Fulcio server reachable
+        # from the runner AND OIDC token exchange. For pre-releases and
+        # local builds we just skip it. For GA releases, set the
+        # \`SIGN_CHECKSUMS\` repository variable to "true\" to enable.
+        if: startsWith(github.ref, 'refs/tags/v') && vars.SIGN_CHECKSUMS == 'true'
         env:
           COSIGN_EXPERIMENTAL: "1"
         run: |
@@ -170,6 +174,7 @@ jobs:
             --output-signature artifacts/SHA256SUMS.sig \
             --output-certificate artifacts/SHA256SUMS.pem \
             artifacts/SHA256SUMS
+        continue-on-error: true
 
       - name: Create release
         uses: softprops/action-gh-release@v2
