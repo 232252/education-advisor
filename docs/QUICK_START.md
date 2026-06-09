@@ -12,6 +12,7 @@
 | **npm** | 10 or later (bundled with Node 22) | `npm -v` should print `10.x.x` |
 | **Git** | any recent version | `git --version` |
 | **C++ toolchain** | platform-specific | see below |
+| **(Optional) Rust** | 1.78+ with `cargo` | only if you want to build the EAA CLI from source |
 | **Disk space** | ~1.5 GB free | for `node_modules/`, EAA binary, build artifacts |
 
 ### C++ toolchain by platform
@@ -32,6 +33,10 @@ git clone https://github.com/232252/education-advisor.git
 cd education-advisor
 ```
 
+That's it — the repo is now self-contained. Both the desktop (Electron
++ React + TypeScript) **and** the data engine (Rust `eaa-cli`) are in
+this one repository. No sibling monorepo checkouts are required.
+
 If you don't have Git, download the source as a ZIP from the GitHub UI
 and extract it. Skip the `cd` step and use the extracted directory instead.
 
@@ -46,16 +51,19 @@ This will:
 - Download ~700 MB of npm packages into `node_modules/`
 - Compile the `better-sqlite3` native binding (this is the longest step
   on a slow machine — about 1–5 minutes)
-- Run any `postinstall` scripts of our direct dependencies (none in this
-  project, by design)
+- Resolve the in-tree vendored packages under `vendor/`
+  (`@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`)
 
 If you see `better-sqlite3` errors, see
 [`TROUBLESHOOTING.md#better-sqlite3-fails-to-build`](./TROUBLESHOOTING.md#better-sqlite3-fails-to-build).
 
-## 4. Fetch the Rust EAA binary
+## 4. Fetch (or build) the Rust EAA binary
 
-The data engine (`eaa-cli`) is a separate Rust project. We don't bundle
-the source; we download a tagged release binary.
+The desktop spawns the Rust `eaa-cli` as a child process for all
+student-data operations. You need the binary at
+`resources/eaa-binaries/<platform>/eaa(.exe)`.
+
+### Option A — download the prebuilt binary (recommended)
 
 ```bash
 npm run build:eaa
@@ -64,15 +72,21 @@ npm run build:eaa
 The script (`scripts/download-eaa-binaries.mjs`) will:
 
 1. Detect your platform and architecture.
-2. Look up the latest release of the EAA CLI repository
-   ([`education-advisor`](https://github.com/232252/education-advisor/releases)).
+2. Look up the latest release of the EAA CLI for this project.
 3. Download the binary and place it in
    `resources/eaa-binaries/<platform>/<binary>`.
 4. Verify the SHA-256 against the manifest in the release notes.
 
-If you don't trust the release binary, see
-[`EAA_BRIDGE.md#building-from-source`](./EAA_BRIDGE.md#building-from-source)
-for instructions on building from source.
+### Option B — build from source (fully offline)
+
+```bash
+cd core/eaa-cli
+cargo build --release
+cd ../..
+# Copy the built binary into the resources directory
+mkdir -p "resources/eaa-binaries/$(node -e \"const o=require('os'); console.log(o.platform()+'-'+o.arch())\")"
+cp "core/eaa-cli/target/release/eaa$(node -e \"process.platform==='win32'?'\.exe':''\")" "resources/eaa-binaries/$(node -e \"const o=require('os'); console.log(o.platform()+'-'+o.arch())\")/"
+```
 
 ## 5. Run in dev mode
 
