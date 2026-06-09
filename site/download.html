@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="description" content="Education Advisor v0.1.0-rc.1 下载 · Windows / macOS / Linux 全平台 · GitHub 加速 · SHA256 校验" />
+<meta name="description" content="下载 Education Advisor · Windows / macOS / Linux 全平台 · GitHub 实时同步 · SHA256 校验" />
 <meta name="keywords" content="Education Advisor 下载, GitHub 加速, NSIS 安装包, 便携版, 跨平台桌面应用" />
 <meta name="theme-color" content="#07060d" />
-<meta property="og:title" content="下载 Education Advisor v0.1.0-rc.1" />
-<meta property="og:description" content="Windows / macOS / Linux 全平台 · GitHub 加速 · SHA256 校验" />
-<title>下载 Education Advisor v0.1.0-rc.1 · openJiuwen</title>
+<meta property="og:title" content="下载 Education Advisor" />
+<meta property="og:description" content="Windows / macOS / Linux 全平台 · GitHub 实时同步 · SHA256 校验" />
+<title>下载 Education Advisor · sq199</title>
 <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg" />
 <link rel="canonical" href="https://eea.qdzwwqd.top/download.html" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -26,7 +26,7 @@
 <!-- 顶部通知条 -->
 <div class="top-banner" role="region" aria-label="版本通知">
   <span class="top-banner-dot" aria-hidden="true"></span>
-  <span>当前最新：<strong style="color:#fff">v0.1.0-rc.1</strong> · 发布于 2026-06-09</span>
+  <span>当前最新：<strong id="bannerReleaseTag" style="color:#fff">加载中…</strong> · <span id="bannerReleaseDate">—</span></span>
   <a href="https://github.com/232252/education-advisor/releases" target="_blank" rel="noopener noreferrer">查看 GitHub Release <span aria-hidden="true">→</span></a>
 </div>
 
@@ -92,9 +92,9 @@
     <div class="dl-notice" data-reveal>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
       <div>
-        <strong>提示：</strong> v0.1.0-rc.1 是首个候选发布版，
+        <strong>提示：</strong> 下载页内容由 GitHub Releases 实时同步，<strong>无需手动更新</strong>。
         Windows 安装包<strong>未做代码签名</strong>，首次运行 SmartScreen 会显示"未知发布者"，选择"仍要运行"即可（详见 <a href="https://github.com/232252/education-advisor/blob/main/ROADMAP.md" target="_blank" rel="noopener noreferrer" style="color:var(--c-accent)">ROADMAP v0.2</a>）。
-        macOS / Linux 客户端 CI 暂未跑通，请先在 Windows 上验证，欢迎 PR。
+        macOS / Linux 资产以 GitHub Release 中实际发布的为准。
       </div>
     </div>
   </div>
@@ -108,7 +108,7 @@
     <div style="margin-bottom:24px" data-reveal>
       <div style="font-size:13px;color:var(--c-text-3);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">下载通道</div>
       <select name="channel-select" id="channelSelect" class="filter-select" style="max-width:320px">
-        <option value="stable" selected>稳定版 (v0.1.0-rc.1)</option>
+        <option value="stable" selected>稳定版 (<span id="channelStableTag">…</span>)</option>
         <option value="beta">预发布版 (v3.x CLI · 旧版)</option>
       </select>
     </div>
@@ -116,9 +116,9 @@
     <!-- 标题 + 加速 -->
     <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:16px" data-reveal>
       <h2 id="releaseTitle" style="font-size:clamp(22px, 3vw, 30px);font-weight:800;color:#fff;letter-spacing:-.01em;line-height:1.2;margin:0">
-        Education Advisor <span style="background:var(--grad-brand);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent">v0.1.0-rc.1</span>
+        Education Advisor <span style="background:var(--grad-brand);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent">…</span>
       </h2>
-      <a id="releaseLink" href="https://github.com/232252/education-advisor/releases/tag/v0.1.0-rc.1" target="_blank" rel="noopener noreferrer" class="nav-link-ghost" style="font-size:13px">
+      <a id="releaseLink" href="https://github.com/232252/education-advisor/releases" target="_blank" rel="noopener noreferrer" class="nav-link-ghost" style="font-size:13px">
         在 GitHub 查看 →
       </a>
     </div>
@@ -193,16 +193,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
           SHA-256 校验和
         </h4>
-        <pre><span class="com"># 8108aff557bcc9f06bd5a8dbfe317bb984e93a1603fc8cc6f020c20f77e2efcd</span>
-  Education.Advisor-0.1.0-rc.1-Setup.exe
-<span class="com"># ef962dd1807643cd95a1afcb696bb56a84ea77f9dfad5c398ea096cbea94f89d</span>
-  Education.Advisor-0.1.0-rc.1-portable.exe
-
-<span class="com"># Windows 验证（PowerShell）</span>
-Get-FileHash .\Education.Advisor-0.1.0-rc.1-Setup.exe
-
-<span class="com"># macOS / Linux 验证</span>
-shasum -a 256 Education.Advisor-0.1.0-rc.1-*</pre>
+        <pre id="shaBlock"><span class="com"># 正在从 GitHub 加载校验和…</span></pre>
       </div>
       <div class="dl-verify-card">
         <h4>
@@ -210,15 +201,19 @@ shasum -a 256 Education.Advisor-0.1.0-rc.1-*</pre>
           安装与首次运行
         </h4>
         <pre><span class="com"># Windows</span>
-<span class="com"># 双击 Setup.exe，跟随安装向导</span>
-<span class="com"># 或解压 portable.exe（绿色版）双击运行</span>
+<span class="com"># 双击 *-Setup-*.exe（NSIS 安装版）跟随向导</span>
+<span class="com"># 或 *-portable-*.exe（绿色版）双击运行</span>
 
-<span class="com"># macOS / Linux（待 CI 补齐）</span>
+<span class="com"># macOS</span>
 <span class="com"># DMG: 双击挂载 → 拖入 Applications</span>
-<span class="com"># 首次启动需 xattr -c /Applications/Education\ Advisor.app</span>
+<span class="com"># 首次启动需：xattr -c /Applications/Education\ Advisor.app</span>
 
-<span class="com"># 验证文件</span>
-ls -lh Education.Advisor-0.1.0-rc.1-*</pre>
+<span class="com"># Linux</span>
+<span class="com"># AppImage: chmod +x *.AppImage 后双击运行</span>
+<span class="com"># DEB: sudo dpkg -i *.deb</span>
+
+<span class="com"># 验证 SHA-256（任何平台）</span>
+shasum -a 256 &lt;下载的文件名&gt;</pre>
       </div>
     </div>
 
@@ -243,7 +238,7 @@ ls -lh Education.Advisor-0.1.0-rc.1-*</pre>
   <div class="footer-bar">
     <div class="container footer-bar-inner">
       <div class="footer-bar-legal">
-        <span>© 2025 <strong style="color:#fff">openJiuwen</strong>. All Rights Reserved.</span>
+        <span>© 2025 <strong style="color:#fff">sq199</strong>. All Rights Reserved.</span>
         <a href="legal.html">法律声明</a>
         <a href="legal.html#privacy">隐私政策</a>
         <a href="legal.html#license">MIT 协议</a>
@@ -260,7 +255,7 @@ ls -lh Education.Advisor-0.1.0-rc.1-*</pre>
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
 </button>
 
-<script src="assets/js/main.js?v=20260609-3"></script>
-<script src="assets/js/download.js?v=20260609-1"></script>
+<script src="assets/js/main.js?v=20260609-4"></script>
+<script src="assets/js/download.js?v=20260609-4"></script>
 </body>
 </html>

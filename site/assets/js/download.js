@@ -1,171 +1,334 @@
 /* ==========================================================================
-   Education Advisor · 下载页交互
-   通道切换 + GitHub 加速 + 操作系统/架构/类型筛选
+   Education Advisor · 下载页（v2）
+   从 GitHub Releases 实时同步：tag_name / published_at / assets / SHA256SUMS
    ========================================================================== */
 (function(){
   'use strict';
 
-  /* ---------- 1. 资产元数据 ---------- */
-  // 真实可下载的资产（v0.1.0-rc.1）
-  // 实际文件：release/Education.Advisor-0.1.0-rc.1-Setup.exe (88MB)
-  //          release/Education.Advisor-0.1.0-rc.1-portable.exe (78MB)
-  // macOS / Linux 等待 CI 补齐，先用占位条目（自动显示"待发布"标签）
-  const REPO = 'https://github.com/232252/education-advisor';
-  const STABLE_TAG = 'v0.1.0-rc.1';
-  const BETA_TAG = 'v3.1.2';   // CLI-only 旧版（归档在 core 子仓）
+  /* ---------- 1. 配置 ---------- */
+  const REPO_OWNER = '232252';
+  const REPO_NAME  = 'education-advisor';
+  const RELEASES_API = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases`;
+  const CACHE_KEY = 'eea_gh_releases_v2';
+  const CACHE_TTL_MS = 10 * 60 * 1000;        // 10 min 软过期
+  const CACHE_HARD_MS = 24 * 60 * 60 * 1000;  // 24h 硬上限（强制重新拉）
 
-  // 表格数据
-  const ROWS = [
-    // Windows
-    { os:'Windows', arch:'x86_64', type:'installer', file:'Education.Advisor-0.1.0-rc.1-Setup.exe',
-      size:'88 MB', note:'推荐 · 自动注册服务 · 关联文件类型 · 卸载干净',
-      stable:true, beta:false, sha:'8108aff557bcc9f06bd5a8dbfe317bb984e93a1603fc8cc6f020c20f77e2efcd' },
-    { os:'Windows', arch:'x86_64', type:'portable', file:'Education.Advisor-0.1.0-rc.1-portable.exe',
-      size:'78 MB', note:'无需安装 · 双击运行 · 适合 U 盘/无管理员权限',
-      stable:true, beta:false, sha:'ef962dd1807643cd95a1afcb696bb56a84ea77f9dfad5c398ea096cbea94f89d' },
-
-    // macOS（CI 待补 — 显示但标记"待发布"）
-    { os:'macOS', arch:'arm64', type:'dmg', file:'Education.Advisor-0.1.0-rc.1-arm64.dmg',
-      size:'≈ 113 MB', note:'Apple Silicon · 首次启动需 xattr -c /Applications/Education\\ Advisor.app',
-      stable:true, beta:false, pending:true },
-    { os:'macOS', arch:'x86_64', type:'dmg', file:'Education.Advisor-0.1.0-rc.1.dmg',
-      size:'≈ 117 MB', note:'Intel · 首次启动需 xattr -c /Applications/Education\\ Advisor.app',
-      stable:true, beta:false, pending:true },
-
-    // Linux（CI 待补 — 显示但标记"待发布"）
-    { os:'Linux', arch:'x86_64', type:'appimage', file:'Education.Advisor-0.1.0-rc.1.AppImage',
-      size:'≈ 123 MB', note:'可执行 · chmod +x 后双击运行',
-      stable:true, beta:false, pending:true },
-    { os:'Linux', arch:'arm64', type:'appimage', file:'Education.Advisor-0.1.0-rc.1-arm64.AppImage',
-      size:'≈ 120 MB', note:'ARM64 Linux · 树莓派 5 / 服务器',
-      stable:true, beta:false, pending:true },
-    { os:'Linux', arch:'x86_64', type:'deb', file:'education-advisor_0.1.0-rc.1_amd64.deb',
-      size:'≈ 88 MB', note:'Debian / Ubuntu · apt 安装',
-      stable:true, beta:false, pending:true },
-
-    // 历史归档：v3.x CLI（beta 通道显示）
-    { os:'Linux', arch:'x86_64', type:'tarball', file:'eaa-cli-x86_64-unknown-linux-gnu.tar.xz',
-      size:'≈ 19.5 MB', note:'v3.x CLI · Rust 引擎 · 仅命令行 · 归档保留',
-      stable:false, beta:true, pending:false },
-  ];
-
-  // 操作系统图标（用纯 inline SVG）
-  const OS_ICONS = {
-    'Windows': '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0M10.949 1.949L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>',
-    'macOS': '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09M12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25"/></svg>',
-    'Linux': '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 0 0-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68a1.36 1.36 0 0 0-.157.706c.014.226.075.435.097.658.014.286-.077.51-.413.822-.398.367-.55.762-.578 1.115a1.41 1.41 0 0 0 .165.838c.103.18.224.327.32.483.137.222.245.422.232.616-.024.305-.183.5-.42.692a2.122 2.122 0 0 1-.617.43c-.015.397-.078.796-.27 1.107-.157.254-.382.422-.654.543a2.486 2.486 0 0 1-.918.232 2.4 2.4 0 0 1-1.108-.226c.027.422-.143.864-.518 1.197-.222.198-.51.318-.78.395a2.984 2.984 0 0 1-1.22.045 1.65 1.65 0 0 1-.626-.305 1.07 1.07 0 0 1-.34-.585c-.058-.262-.04-.5.054-.714a1.12 1.12 0 0 1 .475-.51c.21-.13.464-.205.716-.27.103-.027.2-.054.298-.084a.554.554 0 0 1 .262-.041c.182.013.302.07.426.155.123.084.236.198.405.198a.587.587 0 0 0 .317-.083c.083-.057.135-.123.198-.198.054-.068.116-.13.198-.166.083-.034.184-.034.295-.014.112.014.232.041.345.014a.78.78 0 0 0 .328-.166c.087-.083.155-.18.205-.27.05-.097.085-.198.092-.295.014-.198-.04-.396-.143-.57a1.18 1.18 0 0 0-.317-.367 1.35 1.35 0 0 0-.555-.225c-.198-.04-.426-.04-.617.014a.95.95 0 0 0-.487.282c-.123.143-.198.32-.198.51 0 .184.075.353.198.495l.04.04a.43.43 0 0 1-.04.05c-.123.13-.295.198-.487.198a.96.96 0 0 1-.5-.143c-.155-.097-.262-.236-.328-.396a1.13 1.13 0 0 1-.097-.51c.014-.198.07-.396.198-.555a1.34 1.34 0 0 1 .426-.367c.166-.097.345-.166.543-.198a1.74 1.74 0 0 1 .598 0c.198.027.396.083.555.166.166.084.31.198.426.345.123.143.198.31.232.487a1.13 1.13 0 0 1-.04.51 1.18 1.18 0 0 1-.226.422c-.04.05-.087.097-.143.143a1.41 1.41 0 0 0 .295-.04c.198-.057.396-.143.555-.27a1.6 1.6 0 0 0 .426-.51c.123-.198.198-.426.198-.666 0-.184-.04-.367-.123-.543a1.4 1.4 0 0 0-.345-.482 1.62 1.62 0 0 0-.51-.328 1.84 1.84 0 0 0-.598-.123 1.7 1.7 0 0 0-.6.123 1.62 1.62 0 0 0-.51.328 1.4 1.4 0 0 0-.345.482c-.083.176-.123.36-.123.543v.04a1.74 1.74 0 0 0-.598-.04 1.84 1.84 0 0 0-.598.123 1.62 1.62 0 0 0-.51.328 1.4 1.4 0 0 0-.345.482 1.18 1.18 0 0 0-.123.51c0 .184.04.367.123.51.083.166.198.31.345.426.143.123.31.198.51.226.198.04.396.04.555-.014.166-.04.31-.123.426-.226.123-.123.198-.27.226-.426.04-.166.014-.328-.04-.482a.94.94 0 0 0-.226-.396.95.95 0 0 0-.396-.226 1.13 1.13 0 0 0-.482-.04 1.18 1.18 0 0 0-.422.143.95.95 0 0 1 .27-.04c.198-.014.396.04.555.155a.9.9 0 0 1 .328.426c.07.166.084.345.04.51a.94.94 0 0 1-.226.396.95.95 0 0 1-.396.226c-.166.057-.345.07-.51.027a1.13 1.13 0 0 1-.482-.198.94.94 0 0 1-.295-.396.95.95 0 0 1-.04-.482c.027-.166.097-.328.198-.482.123-.155.27-.27.426-.367.166-.097.345-.166.543-.198a1.74 1.74 0 0 1 .598 0c.198.027.396.083.555.166.166.084.31.198.426.345.123.143.198.31.232.487a1.13 1.13 0 0 1-.04.51 1.18 1.18 0 0 1-.226.422.95.95 0 0 1-.396.27 1.13 1.13 0 0 1-.482.04 1.18 1.18 0 0 1-.422-.143z"/></svg>',
-  };
-
-  /* ---------- 2. 状态 ---------- */
-  const state = {
-    channel: 'stable',   // 'stable' | 'beta'
-    accel: '',
-    os: '',
-    arch: '',
-    type: '',
-  };
-
-  /* ---------- 3. DOM ---------- */
+  /* ---------- 2. DOM ---------- */
   const $ = (id) => document.getElementById(id);
   const els = {
-    channel: $('channelSelect'),
-    accel: $('ghAccelSelect'),
-    os: $('osSelect'),
-    arch: $('archSelect'),
-    type: $('typeSelect'),
-    tbody: $('dlTableBody'),
-    releaseTitle: $('releaseTitle'),
-    releaseLink: $('releaseLink'),
+    bannerTag:       $('bannerReleaseTag'),
+    bannerDate:      $('bannerReleaseDate'),
+    channelStable:   $('channelStableTag'),
+    releaseTitle:    $('releaseTitle'),
+    releaseLink:     $('releaseLink'),
+    tbody:           $('dlTableBody'),
+    shaBlock:        $('shaBlock'),
+    channel:         $('channelSelect'),
+    accel:           $('ghAccelSelect'),
+    os:              $('osSelect'),
+    arch:            $('archSelect'),
+    type:            $('typeSelect'),
   };
 
-  if (!els.tbody) return;
+  if (!els.tbody) return; // 仅在下载页运行
 
-  /* ---------- 4. URL 拼接 ---------- */
-  function buildUrl(file) {
-    if (state.channel === 'stable'){
-      if (state.accel) return state.accel + REPO + '/releases/download/' + STABLE_TAG + '/' + file;
-      return REPO + '/releases/download/' + STABLE_TAG + '/' + file;
-    } else {
-      // beta：跳到子仓 core release
-      if (state.accel) return state.accel + 'https://github.com/232252/education-advisor/releases/tag/' + BETA_TAG;
-      return 'https://github.com/232252/education-advisor/releases/tag/' + BETA_TAG;
-    }
+  /* ---------- 3. 状态 ---------- */
+  const state = { channel:'stable', accel:'', os:'', arch:'', type:'' };
+
+  /* ---------- 4. 缓存层 ---------- */
+  function readCache(){
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (!obj || !Array.isArray(obj.data)) return null;
+      if (Date.now() - obj.ts > CACHE_HARD_MS) return null;
+      return obj;
+    } catch(_) { return null; }
+  }
+  function writeCache(data){
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); }
+    catch(_) {}
   }
 
-  /* ---------- 5. 渲染 ---------- */
-  function render(){
-    const tag = state.channel === 'stable' ? STABLE_TAG : BETA_TAG;
-    els.releaseTitle.innerHTML = state.channel === 'stable'
-      ? `Education Advisor <span style="background:var(--grad-brand);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent">${tag}</span>`
-      : `Education Advisor CLI <span style="color:var(--c-text-3)">${tag}</span> <small style="font-size:14px;color:var(--c-text-3);font-weight:500;margin-left:8px">· 旧版 CLI · 归档</small>`;
-    els.releaseLink.href = state.channel === 'stable'
-      ? `${REPO}/releases/tag/${tag}`
-      : `https://github.com/232252/education-advisor/releases/tag/${tag}`;
+  /* ---------- 5. 拉取 releases ---------- */
+  async function fetchReleases(){
+    const cached = readCache();
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      // 软新鲜：立即返回，后台静默刷新
+      backgroundRefresh();
+      return cached.data;
+    }
+    try {
+      const res = await fetch(RELEASES_API, {
+        headers: { 'Accept': 'application/vnd.github+json' }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      writeCache(data);
+      return data;
+    } catch (e) {
+      if (cached) {
+        console.warn('[eea-dl] API failed, serving stale cache:', e.message);
+        return cached.data;
+      }
+      throw e;
+    }
+  }
+  function backgroundRefresh(){
+    fetch(RELEASES_API, { headers: { 'Accept': 'application/vnd.github+json' }})
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(data => { writeCache(data); render(); })
+      .catch(() => {});
+  }
 
-    // 过滤
-    const list = ROWS.filter(r => {
-      if (state.channel === 'stable' && !r.stable) return false;
-      if (state.channel === 'beta'   && !r.beta)   return false;
+  /* ---------- 6. 选 desktop release ----------
+     优先匹配资产名包含 education.advisor 的最近 release（兼容 prerelease）。
+     找不到再退回到最近的非 draft release。*/
+  function pickDesktopRelease(releases){
+    if (!Array.isArray(releases) || releases.length === 0) return null;
+    const desktopPattern = /education[\s._-]?advisor/i;
+    const desktop = releases
+      .filter(r => !r.draft)
+      .filter(r => (r.assets || []).some(a => desktopPattern.test(a.name || '')))
+      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+    if (desktop.length) return desktop[0];
+    const fallback = releases
+      .filter(r => !r.draft)
+      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+    return fallback[0] || null;
+  }
+
+  /* ---------- 7. 资产名 → (os, arch, type) ---------- */
+  function classifyAsset(asset){
+    const name = asset.name || '';
+    // 跳过元数据 / 校验文件
+    if (/^(sha256|checksums?|signature|manifest|.*\.sig|.*\.asc|.*\.sha256)$/i.test(name)) return null;
+    if (/\.(sha256|sig|asc|pub)$/i.test(name)) return null;
+
+    let os = null, type = null;
+    if (/\.dmg$/i.test(name))       { os='macOS';  type='dmg'; }
+    else if (/\.pkg$/i.test(name))  { os='macOS';  type='pkg'; }
+    else if (/\.exe$/i.test(name))  { os='Windows'; type = /portable/i.test(name) ? 'portable' : 'installer'; }
+    else if (/\.appimage$/i.test(name)) { os='Linux'; type='appimage'; }
+    else if (/\.deb$/i.test(name))  { os='Linux';  type='deb'; }
+    else if (/\.rpm$/i.test(name))  { os='Linux';  type='rpm'; }
+    else { return null; }
+
+    let arch = 'x86_64'; // 桌面端默认 64-bit
+    if (/arm64|aarch64/i.test(name))      arch = 'arm64';
+    else if (/x86_64|amd64/i.test(name))  arch = 'x86_64';
+    else if (/(?:^|[^a-z])x86(?![0-9])|i[3-6]86/i.test(name)) arch = 'x86';
+
+    return { os, arch, type, asset };
+  }
+
+  /* ---------- 8. 解析 SHA-256 ----------
+     GitHub API 已经在每个 asset 上带 digest 字段（"sha256:<hex>"），免去
+     二次抓 SHA256SUMS。CORS / 重定向问题也消失。仅作为补强，回退去抓
+     SHA256SUMS / SHA256.txt 等旁挂文件。*/
+  function parseApiSha(release){
+    const map = {};
+    (release.assets || []).forEach(a => {
+      if (a.digest && /^sha256:/i.test(a.digest)) {
+        map[a.name] = a.digest.replace(/^sha256:/i, '').toLowerCase();
+      }
+    });
+    return map;
+  }
+  async function fetchSupplementarySha(release){
+    const meta = (release.assets || []).find(a => /^sha256/i.test(a.name) && !/\.(sig|asc)$/i.test(a.name));
+    if (!meta) return {};
+    try {
+      const res = await fetch(meta.browser_download_url, { cache: 'no-store' });
+      if (!res.ok) return {};
+      const text = await res.text();
+      const out = {};
+      text.split(/\r?\n/).forEach(line => {
+        const m = line.match(/^([a-f0-9]{64})\s+\*?(.+?)\s*$/i);
+        if (m) out[m[2].trim()] = m[1].toLowerCase();
+      });
+      return out;
+    } catch(_) { return {}; }
+  }
+
+  /* ---------- 9. 工具 ---------- */
+  function formatBytes(n){
+    if (typeof n !== 'number') return '';
+    if (n < 1024) return n + ' B';
+    if (n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+    if (n < 1024*1024*1024) return (n/1024/1024).toFixed(1) + ' MB';
+    return (n/1024/1024/1024).toFixed(2) + ' GB';
+  }
+  function formatDate(iso){
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function buildDownloadUrl(asset){
+    const raw = asset.browser_download_url;
+    if (state.accel && /^https?:\/\/(?:[^\/]+\.)?github\.com\//i.test(raw)) {
+      return state.accel.replace(/\/$/, '') + '/' + raw;
+    }
+    return raw;
+  }
+  const RELEASE_NOTE_BY_TYPE = (asset) => {
+    const n = (asset.name||'').toLowerCase();
+    if (/-setup/i.test(n))        return '推荐 · 安装版 · 卸载干净';
+    if (/portable/i.test(n))      return '便携版 · 无需安装';
+    if (/\.appimage$/i.test(n))   return '可执行 · chmod +x 后双击运行';
+    if (/\.dmg$/i.test(n))        return '挂载 DMG 后拖入 Applications';
+    if (/\.deb$/i.test(n))        return 'Debian / Ubuntu · apt 安装';
+    if (/\.rpm$/i.test(n))        return 'Fedora / RHEL · dnf/yum 安装';
+    return '—';
+  };
+
+  /* ---------- 10. 静态 Beta 通道（v3.x CLI 归档） ---------- */
+  const BETA_ROWS = [
+    { os:'Linux', arch:'x86_64', type:'tarball', _isBeta:true,
+      asset:{ name:'eaa-cli-x86_64-unknown-linux-gnu.tar.xz', size:19.5*1024*1024,
+              browser_download_url:'https://github.com/232252/education-advisor/releases/tag/v3.1.2' },
+      note:'v3.x CLI · Rust 引擎 · 仅命令行 · 归档保留' }
+  ];
+  const BETA_TAG = 'v3.1.2';
+
+  /* ---------- 11. 当前 release 引用 ---------- */
+  let currentRelease = null;
+  let currentShaMap  = {};
+  let currentShaUrl  = null;
+
+  /* ---------- 12. 渲染 ---------- */
+  function render(){
+    if (state.channel === 'beta') renderBeta();
+    else renderStable();
+  }
+
+  function renderBeta(){
+    if (els.releaseTitle) {
+      els.releaseTitle.innerHTML =
+        `Education Advisor CLI <span style="color:var(--c-text-3)">${BETA_TAG}</span>` +
+        ` <small style="font-size:14px;color:var(--c-text-3);font-weight:500;margin-left:8px">· 旧版 CLI · 归档</small>`;
+    }
+    if (els.releaseLink) els.releaseLink.href = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/tag/${BETA_TAG}`;
+    renderRows(BETA_ROWS);
+    renderShaBlock(null);
+  }
+
+  function renderStable(){
+    if (!currentRelease) return;
+    const tag = currentRelease.tag_name;
+    if (els.releaseTitle) {
+      els.releaseTitle.innerHTML =
+        `Education Advisor <span style="background:var(--grad-brand);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent">${tag}</span>`;
+    }
+    if (els.releaseLink) els.releaseLink.href = currentRelease.html_url;
+    if (els.bannerTag)   els.bannerTag.textContent = tag;
+    if (els.bannerDate)  els.bannerDate.textContent = `发布于 ${formatDate(currentRelease.published_at)}`;
+    if (els.channelStable) els.channelStable.textContent = tag;
+
+    const rows = (currentRelease.assets || []).map(classifyAsset).filter(Boolean);
+    renderRows(rows);
+    renderShaBlock(currentShaMap);
+  }
+
+  function renderRows(rows){
+    const list = rows.filter(r => {
       if (state.os   && r.os   !== state.os)   return false;
       if (state.arch && r.arch !== state.arch) return false;
       if (state.type && r.type !== state.type) return false;
       return true;
     });
-
     if (list.length === 0){
-      els.tbody.innerHTML = `<tr><td colspan="4"><div class="dl-table-empty">没有匹配的下载项 · 试试切换筛选条件或 <a href="${REPO}/releases" target="_blank" rel="noopener noreferrer" style="color:var(--c-accent)">去 GitHub Releases</a> 查看所有历史版本</div></td></tr>`;
+      els.tbody.innerHTML =
+        `<tr><td colspan="4"><div class="dl-table-empty">` +
+        `没有匹配的下载项 · 试试切换筛选条件或 ` +
+        `<a href="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases" target="_blank" rel="noopener noreferrer" style="color:var(--c-accent)">` +
+        `去 GitHub Releases 查看所有历史版本</a></div></td></tr>`;
       return;
     }
 
+    const OS_ICON = {
+      Windows: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-1.5L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>',
+      macOS:   '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09M12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25"/></svg>',
+      Linux:   '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489.024.155.097.29.21.4.103.103.232.166.4.21.157.04.31.04.46 0 .143-.04.27-.103.4-.21.103-.103.166-.232.21-.4.04-.157.04-.31 0-.46-.04-.143-.103-.27-.21-.4l-.05-.05c-.097-.103-.21-.166-.345-.21-.143-.04-.287-.04-.43 0-.143.04-.27.103-.4.21-.097.097-.166.21-.21.345-.04.143-.04.287 0 .43.024.123.07.232.143.345z"/></svg>',
+    };
+    const TYPE_LABEL = { installer:'安装版', portable:'便携版', dmg:'DMG', pkg:'PKG', appimage:'AppImage', deb:'DEB', rpm:'RPM', tarball:'tarball' };
+
     els.tbody.innerHTML = list.map(r => {
-      const icon = OS_ICONS[r.os] || '';
+      const icon = OS_ICON[r.os] || '';
       const archBadge = `<span class="dl-arch-tag">${r.arch}</span>`;
-      const typeMap = { installer:'安装版', portable:'便携版', dmg:'DMG', appimage:'AppImage', deb:'DEB', tarball:'tarball' };
-      const typeLabel = typeMap[r.type] || r.type;
-      const isPending = !!r.pending;
-      const fileCell = isPending
-        ? `<a class="dl-link alt" href="https://github.com/232252/education-advisor/issues" target="_blank" rel="noopener noreferrer" title="关注构建进度">
-             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-             等待发布
-             <span style="color:var(--c-text-3);font-weight:400">(${r.size})</span>
-           </a>`
-        : `<a class="dl-link" href="${buildUrl(r.file)}" rel="noopener noreferrer" data-file="${r.file}">${r.file} <span style="color:var(--c-text-3);font-weight:400">(${r.size})</span></a>`;
+      const typeLabel = TYPE_LABEL[r.type] || r.type;
+      const sizeStr = r.asset && typeof r.asset.size === 'number' ? formatBytes(r.asset.size) : '';
+      const fileName = r.asset ? r.asset.name : '';
+      const note = r.note || (r.asset ? RELEASE_NOTE_BY_TYPE(r.asset) : '—');
+      const fileCell = r._isBeta
+        ? `<a class="dl-link alt" href="${r.asset.browser_download_url}" target="_blank" rel="noopener noreferrer" data-file="${fileName}">${fileName || '查看版本页'} <span style="color:var(--c-text-3);font-weight:400">(${sizeStr})</span></a>`
+        : `<a class="dl-link" href="${buildDownloadUrl(r.asset)}" rel="noopener noreferrer" data-file="${fileName}" download>${fileName} <span style="color:var(--c-text-3);font-weight:400">(${sizeStr})</span></a>`;
       return `
         <tr>
-          <td>
-            <span class="dl-os-cell">${icon} ${r.os}</span>
-          </td>
+          <td><span class="dl-os-cell">${icon} ${r.os}</span></td>
           <td>${archBadge}</td>
           <td>${fileCell}</td>
-          <td style="color:var(--c-text-3);font-size:12.5px;white-space:normal;max-width:380px">${r.note || '—'}</td>
+          <td style="color:var(--c-text-3);font-size:12.5px;white-space:normal;max-width:380px">${note}</td>
         </tr>
       `;
     }).join('');
   }
 
-  /* ---------- 6. 事件 ---------- */
+  function renderShaBlock(shaMap){
+    if (!els.shaBlock) return;
+    if (!shaMap || Object.keys(shaMap).length === 0){
+      els.shaBlock.innerHTML =
+        `<span class="com"># 当前 release 未提供任何 SHA-256 摘要</span>\n` +
+        `<span class="com"># 或直接看：</span>\n` +
+        `<a href="${currentRelease ? currentRelease.html_url : `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases`}" target="_blank" rel="noopener noreferrer">GitHub Release 页面</a>`;
+      return;
+    }
+    // 只列出本 release 中实际有的资产
+    const realNames = new Set(
+      (currentRelease && currentRelease.assets ? currentRelease.assets : [])
+        .map(a => a.name)
+        .filter(n => /\.(exe|dmg|pkg|appimage|deb|rpm)$/i.test(n))
+    );
+    const lines = Object.entries(shaMap)
+      .filter(([name]) => realNames.has(name))
+      .map(([name, hash]) => `<span class="com"># ${hash}</span>\n  ${name}`)
+      .join('\n');
+    if (!lines) {
+      els.shaBlock.innerHTML =
+        `<span class="com"># 当前 release 中无桌面资产的 SHA-256 摘要</span>`;
+      return;
+    }
+    els.shaBlock.innerHTML =
+      `${lines}\n\n` +
+      `<span class="com"># Windows 验证（PowerShell）</span>\n` +
+      `Get-FileHash .\\&lt;文件名&gt;\n\n` +
+      `<span class="com"># macOS / Linux 验证</span>\n` +
+      `shasum -a 256 &lt;文件名&gt;` +
+      (currentShaUrl ? `\n\n<span class="com"># 完整校验集：</span> <a href="${currentShaUrl}" target="_blank" rel="noopener noreferrer" style="color:var(--c-accent)">${currentShaUrl.split('/').pop()}</a>` : '');
+  }
+
+  /* ---------- 13. 事件 ---------- */
   function bindSelect(el, key){
     if (!el) return;
-    el.addEventListener('change', (e) => {
-      state[key] = e.target.value;
-      render();
-    });
+    el.addEventListener('change', e => { state[key] = e.target.value; render(); });
   }
   bindSelect(els.channel, 'channel');
-  bindSelect(els.accel, 'accel');
-  bindSelect(els.os, 'os');
-  bindSelect(els.arch, 'arch');
-  bindSelect(els.type, 'type');
+  bindSelect(els.accel,   'accel');
+  bindSelect(els.os,      'os');
+  bindSelect(els.arch,    'arch');
+  bindSelect(els.type,    'type');
 
-  /* ---------- 7. 首次渲染 ---------- */
-  render();
-
-  /* ---------- 8. 处理 URL hash（如 #windows / #mac） ---------- */
+  /* ---------- 14. URL hash 跳转 ---------- */
   function applyHash(){
     const h = (location.hash || '').toLowerCase().replace('#','');
     if (!h) return;
     const map = { 'windows':'Windows', 'win':'Windows', 'mac':'macOS', 'macos':'macOS', 'linux':'Linux' };
-    if (map[h]){
+    if (map[h] && els.os){
       els.os.value = map[h];
       state.os = map[h];
       render();
@@ -173,5 +336,46 @@
   }
   applyHash();
   window.addEventListener('hashchange', applyHash);
+
+  /* ---------- 15. 启动 ---------- */
+  async function init(){
+    // 加载态
+    els.tbody.innerHTML =
+      `<tr><td colspan="4"><div class="dl-table-empty">正在从 GitHub 加载最新版本信息…</div></td></tr>`;
+    if (els.shaBlock) {
+      els.shaBlock.innerHTML = `<span class="com"># 正在加载…</span>`;
+    }
+
+    try {
+      const releases = await fetchReleases();
+      const desktop  = pickDesktopRelease(releases);
+      if (!desktop) throw new Error('未找到任何桌面端 release');
+
+      currentRelease = desktop;
+      // 1) 优先用 API 自带的 digest（无二次请求）
+      currentShaMap = parseApiSha(desktop);
+      // 2) 补强：拉 SHA256SUMS 旁挂文件，覆盖 API 没给 digest 的旧 release
+      fetchSupplementarySha(desktop).then(extra => {
+        Object.assign(currentShaMap, extra);
+        renderShaBlock(currentShaMap);
+      }).catch(() => {});
+
+      render();
+    } catch (e) {
+      console.error('[eea-dl] init failed:', e);
+      els.tbody.innerHTML =
+        `<tr><td colspan="4"><div class="dl-table-empty">` +
+        `无法从 GitHub 加载 release 信息（${e.message}）<br/><br/>` +
+        `<a href="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases" target="_blank" rel="noopener noreferrer" style="color:var(--c-accent)">` +
+        `直接前往 GitHub Releases 页面 →</a></div></td></tr>`;
+      if (els.releaseTitle) {
+        els.releaseTitle.innerHTML =
+          `Education Advisor <span style="color:var(--c-text-3)">加载失败</span>`;
+      }
+      if (els.releaseLink) els.releaseLink.href = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases`;
+    }
+  }
+
+  init();
 
 })();

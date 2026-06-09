@@ -54,4 +54,4 @@ Chrome / Edge ≥ 90 · Firefox ≥ 88 · Safari ≥ 14。
 
 ## License
 
-MIT，与主项目保持一致。Copyright © 2025 openJiuwen.
+MIT，与主项目保持一致。Copyright © 2025 sq199.

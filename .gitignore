@@ -8,6 +8,9 @@ build/
 # Un-ignore vendored package dist directories (they ARE the source
 # of those packages; not Electron build output).
 !vendor/**/dist/
+# Website bundle zips (rebuilt manually, not part of source)
+education-advisor-website-*.zip
+*.tmp.zip
 
 # ===== Logs (debug + runtime) =====
 *.log
