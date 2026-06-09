@@ -28,15 +28,20 @@ win:
     - target: portable
       arch: [x64]
   icon: resources/icon.ico
-  artifactName: "${productName}-${version}-Setup.${ext}"
+  # artifactName is set per target below to avoid name collisions.
+  artifactName: "${productName}-${version}-${arch}.${ext}"
 
 nsis:
+  artifactName: "${productName}-${version}-Setup.${ext}"
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
+
+portable:
+  artifactName: "${productName}-${version}-portable.${ext}"
 
 asar: true
 asarUnpack:
