@@ -440,6 +440,13 @@ export interface UnifiedSettings {
     autoStart: boolean
     minimizeToTray: boolean
     closeBehavior: 'ask' | 'tray' | 'exit'
+    /**
+     * 远程维修模式（p2-remote-maintenance）
+     * ON: 主进程启动 Chrome DevTools Protocol @ 127.0.0.1:9222 + Node Inspector @ 9230
+     * OFF (默认): 关闭所有远程调试端口（避免本地端口暴露）
+     * 注: 改动需重启应用生效（Chromium command line switch 只能在 app.whenReady 之前设置）
+     */
+    remoteMaintenance: boolean
   }
   models: {
     defaultProvider: string

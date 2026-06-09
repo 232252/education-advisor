@@ -392,6 +392,22 @@ export function SettingsPage() {
         </SettingRow>
 
         <SettingRow
+          label={t('settings.remote.maintenance')}
+          path="general.remoteMaintenance"
+          description={t('settings.remote.maintenance.desc')}
+        >
+          <ToggleSwitch
+            checked={settings.general.remoteMaintenance}
+            onChange={(v) => {
+              handleSave('general.remoteMaintenance', v)
+              if (v) {
+                toast.warning(t('settings.remote.warning'))
+              }
+            }}
+          />
+        </SettingRow>
+
+        <SettingRow
           label="开机启动"
           path="general.autoStart"
           description="操作系统启动时自动运行 Education Advisor"
