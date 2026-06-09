@@ -10,6 +10,10 @@
   const $  = (s, c = document) => c.querySelector(s);
   const $$ = (s, c = document) => Array.from(c.querySelectorAll(s));
 
+  // Mark the page as JS-ready: this enables reveal/hide rules in CSS.
+  // (No-JS users stay visible by default.)
+  document.documentElement.classList.add('js-ready');
+
   // ---- 导航栏：滚动时增强背景 ----
   const nav = $('#nav');
   function updateNav() {
@@ -64,6 +68,10 @@
   const revealEls = $$(revealSelectors.join(','));
   revealEls.forEach((el) => el.setAttribute('data-reveal', ''));
 
+  // Safety net: if IO is not available OR the page is restored from bfcache,
+  // or JS is delayed, we still want everything to be visible.
+  const forceRevealAll = () => revealEls.forEach((el) => el.classList.add('is-visible'));
+
   if ('IntersectionObserver' in window) {
     const io = new IntersectionObserver(
       (entries) => {
@@ -74,11 +82,13 @@
           }
         });
       },
-      { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
+      { threshold: 0.0, rootMargin: '0px 0px -10% 0px' }
     );
     revealEls.forEach((el) => io.observe(el));
+    // If for any reason nothing has been observed-visible after 2s, force.
+    setTimeout(forceRevealAll, 2000);
   } else {
-    revealEls.forEach((el) => el.classList.add('is-visible'));
+    forceRevealAll();
   }
 
   // ---- 平滑滚动锚点（覆盖浏览器默认） ----
@@ -94,8 +104,8 @@
     });
   });
 
-  // ---- 数字滚动动画 ----
-  function animateNumber(el, target, duration = 1500) {
+  // ---- 数字滚动动画（默认就显示目标值，IO 触发后只是从 0 滚到目标） ----
+  function animateNumber(el, target, duration = 1400) {
     const start = 0;
     const startTime = performance.now();
     const isFloat = String(target).includes('.');
@@ -110,19 +120,28 @@
     }
     requestAnimationFrame(tick);
   }
+  // Set final value immediately as a fallback (if IO never fires, or JS loads late).
   const numberEls = $$('.metric-num, .mockup-card-value');
+  numberEls.forEach((el) => {
+    const t = Number(el.dataset.target);
+    if (!isNaN(t)) el.textContent = String(t);
+  });
+  // Then animate from 0 up to target when the element scrolls into view.
   if (numberEls.length && 'IntersectionObserver' in window) {
     const numIO = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             const t = Number(entry.target.dataset.target);
-            if (!isNaN(t)) animateNumber(entry.target, t, 1400);
+            if (!isNaN(t)) {
+              entry.target.textContent = '0';
+              animateNumber(entry.target, t, 1400);
+            }
             numIO.unobserve(entry.target);
           }
         });
       },
-      { threshold: 0.3 }
+      { threshold: 0.0, rootMargin: '0px 0px -10% 0px' }
     );
     numberEls.forEach((el) => numIO.observe(el));
   }
