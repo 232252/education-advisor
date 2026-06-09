@@ -45,9 +45,7 @@ if (_enableCdp) {
   console.log(
     `[Main] CDP enabled (${source}): renderer @ http://127.0.0.1:9222  main @ ws://127.0.0.1:9230`,
   )
-  console.log(
-    '[Main] External access via dual-stack proxy: IPv4 0.0.0.0:9222 / IPv6 [::]:9222',
-  )
+  console.log('[Main] External access via dual-stack proxy: IPv4 0.0.0.0:9222 / IPv6 [::]:9222')
   console.log(
     '[Main] Inspect via Chrome DevTools: chrome://inspect → Configure → add localhost:9222',
   )
@@ -66,20 +64,21 @@ function _startCdpProxy(): void {
     // 等 Chromium CDP server 起来 (一般 < 1s,保险起见 1.5s)
     setTimeout(() => {
       const net = require('node:net') as typeof import('node:net')
-      const handler = (): import('node:net').Server => net.createServer((client) => {
-        const upstream = net.connect(9222, '127.0.0.1', () => {
-          client.pipe(upstream)
-          upstream.pipe(client)
+      const handler = (): import('node:net').Server =>
+        net.createServer((client) => {
+          const upstream = net.connect(9222, '127.0.0.1', () => {
+            client.pipe(upstream)
+            upstream.pipe(client)
+          })
+          const cleanup = (): void => {
+            if (!client.destroyed) client.destroy()
+            if (!upstream.destroyed) upstream.destroy()
+          }
+          upstream.on('error', cleanup)
+          client.on('error', cleanup)
+          upstream.on('close', cleanup)
+          client.on('close', cleanup)
         })
-        const cleanup = (): void => {
-          if (!client.destroyed) client.destroy()
-          if (!upstream.destroyed) upstream.destroy()
-        }
-        upstream.on('error', cleanup)
-        client.on('error', cleanup)
-        upstream.on('close', cleanup)
-        client.on('close', cleanup)
-      })
 
       // IPv4 全接口 (内网 + 公网 IPv4 路由器转发场景)
       const ipv4Proxy = handler()

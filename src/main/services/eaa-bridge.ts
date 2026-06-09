@@ -269,7 +269,7 @@ class EAABridge {
               score_delta: c.score_delta ?? c.delta ?? null,
             }
           }
-          return JSON.stringify(out, null, 2) + '\n'
+          return `${JSON.stringify(out, null, 2)}\n`
         }
         // 旧扁平结构：{ CODE: { label, category, delta } }
         const out = { version: '1.0', codes: {} as Record<string, unknown> }
@@ -285,7 +285,7 @@ class EAABridge {
             score_delta: c.delta ?? c.score_delta ?? null,
           }
         }
-        return JSON.stringify(out, null, 2) + '\n'
+        return `${JSON.stringify(out, null, 2)}\n`
       } catch (err) {
         console.warn('[EAA] Failed to transform reason-codes.json, copying as-is:', err)
         return raw
