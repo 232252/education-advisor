@@ -1,865 +1,730 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Education Advisor — 18 个 AI 智能代理驱动的智能教育管理桌面应用。本地优先、隐私保护、跨平台，专为班主任和教师打造。" />
-  <meta name="keywords" content="Education Advisor, 智能教育, AI 班主任, 班级管理, 教师工具, 多代理, LLM, 本地优先" />
-  <meta name="author" content="Education Advisor Team" />
-  <meta property="og:title" content="Education Advisor — 让教育更智能，让教师更轻松" />
-  <meta property="og:description" content="18 个 AI 智能代理 × 30+ LLM 提供商 × Rust 数据引擎 = 您的桌面教育指挥中心" />
-  <meta property="og:type" content="website" />
-  <title>Education Advisor — 让教育更智能，让教师更轻松</title>
-  <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="assets/css/style.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Education Advisor — 18 个 AI 智能代理驱动的桌面教育指挥中心。本地优先、隐私保护、跨平台，专为班主任和教师打造。" />
+<meta name="keywords" content="Education Advisor, 智能教育, AI 班主任, 班级管理, 教师工具, 多代理, LLM, 本地优先, 隐私脱敏" />
+<meta name="author" content="Education Advisor Team" />
+<meta name="theme-color" content="#0B0B12" />
+<meta property="og:title" content="Education Advisor — 让教育更智能，让教师更轻松" />
+<meta property="og:description" content="18 个 AI 智能代理 · 30+ LLM 提供商 · Rust 数据引擎 — 全部装进 88MB 的桌面端" />
+<meta property="og:type" content="website" />
+<title>Education Advisor — 让教育更智能，让教师更轻松</title>
+<link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="assets/css/style.css" />
 </head>
 <body>
-  <!-- ============ 顶部通知条 ============ -->
-  <div class="top-banner">
-    <span class="top-banner-dot"></span>
-    <span>v0.1.0-rc.1 候选发布 · 基于 OpenClaw 框架 · 跨平台桌面应用</span>
-    <a href="#download">立即下载 <span aria-hidden="true">→</span></a>
+
+<!-- ============== 顶部通知条 ============== -->
+<div class="top-banner">
+  <span class="top-banner-dot"></span>
+  <span>v0.1.0-rc.1 候选发布 · 完全自研 · 跨平台桌面应用</span>
+  <a href="#download">立即下载 <span aria-hidden="true">→</span></a>
+</div>
+
+<!-- ============== 导航 ============== -->
+<header class="nav" id="nav">
+  <div class="container nav-inner">
+    <a class="logo" href="#top" aria-label="Education Advisor">
+      <svg class="logo-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="logoGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#7C3AED" />
+            <stop offset="1" stop-color="#06B6D4" />
+          </linearGradient>
+        </defs>
+        <path d="M16 2 L29 9 L29 23 L16 30 L3 23 L3 9 Z" fill="url(#logoGrad)" />
+        <path d="M16 9 L23 12.5 L23 19.5 L16 23 L9 19.5 L9 12.5 Z" fill="#0A1628" />
+        <circle cx="16" cy="16" r="2.5" fill="url(#logoGrad)" />
+      </svg>
+      <span class="logo-text">Education <span class="logo-accent">Advisor</span></span>
+    </a>
+
+    <nav class="nav-links" aria-label="主导航">
+      <a href="#features">产品特性</a>
+      <a href="#agents">智能代理</a>
+      <a href="#architecture">架构</a>
+      <a href="#download">下载</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+
+    <div class="nav-actions">
+      <a class="nav-link-ghost" href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.16c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.18 1.18.92-.26 1.91-.39 2.89-.39.98 0 1.97.13 2.89.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.12 3.04.73.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.4-5.27 5.69.41.35.78 1.05.78 2.12v3.14c0 .31.21.67.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
+        <span>GitHub</span>
+      </a>
+      <a class="btn btn-primary btn-sm" href="#download">
+        <span>免费下载</span>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
+      <button class="nav-toggle" id="navToggle" aria-label="切换菜单" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ============== HERO ============== -->
+<section class="hero">
+  <div class="hero-bg" aria-hidden="true">
+    <div class="hero-grid"></div>
+    <div class="hero-glow hero-glow-1"></div>
+    <div class="hero-glow hero-glow-2"></div>
+    <div class="hero-noise"></div>
   </div>
 
-  <!-- ============ 导航栏 ============ -->
-  <header class="nav" id="nav">
-    <div class="container nav-inner">
+  <div class="container hero-inner">
+    <div class="hero-content">
+      <div class="eyebrow">
+        <span class="eyebrow-dot"></span>
+        <span>v0.1.0-rc.1 · 18 个 AI 智能代理就绪</span>
+      </div>
+      <h1 class="hero-title">
+        <span class="hero-title-gradient">让教育更智能</span><br />
+        <span>让教师更轻松</span>
+      </h1>
+      <p class="hero-sub">
+        18 个 AI 智能代理、30+ LLM 提供商、Rust 数据引擎 — 装进一个 88 MB 的桌面应用。
+        班主任终于可以告别加班填表、批量发送家长消息、追着风险学生跑。
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#download">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          <span>免费下载 Windows 版</span>
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.16c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.18 1.18.92-.26 1.91-.39 2.89-.39.98 0 1.97.13 2.89.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.12 3.04.73.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.4-5.27 5.69.41.35.78 1.05.78 2.12v3.14c0 .31.21.67.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
+          <span>查看源码</span>
+        </a>
+      </div>
+      <div class="hero-meta">
+        <span class="hero-meta-item">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+          MIT 协议
+        </span>
+        <span class="hero-meta-item">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+          Windows · macOS · Linux
+        </span>
+        <span class="hero-meta-item">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+          数据完全本地化
+        </span>
+      </div>
+    </div>
+
+    <!-- Hero 视觉：交互式 mockup -->
+    <div class="hero-visual" aria-hidden="true">
+      <div class="mockup-window" id="heroMockup">
+        <div class="mockup-titlebar">
+          <span class="mockup-dot red"></span>
+          <span class="mockup-dot yellow"></span>
+          <span class="mockup-dot green"></span>
+          <span class="mockup-title">Education Advisor · 班主任驾驶舱</span>
+        </div>
+        <div class="mockup-body">
+          <aside class="mockup-sidebar">
+            <div class="mockup-logo">
+              <div class="mockup-logo-mark"></div>
+              <span>EduAdvisor</span>
+            </div>
+            <ul class="mockup-menu">
+              <li class="active"><span class="ico">▦</span> 仪表盘</li>
+              <li><span class="ico">💬</span> 智能对话</li>
+              <li><span class="ico">👥</span> 学生管理</li>
+              <li><span class="ico">🤖</span> 智能代理</li>
+              <li><span class="ico">🧠</span> 模型配置</li>
+              <li><span class="ico">🔐</span> 隐私</li>
+              <li><span class="ico">⚙</span> 设置</li>
+            </ul>
+          </aside>
+          <section class="mockup-main">
+            <div class="mockup-row">
+              <div class="mockup-card">
+                <div class="mockup-card-label">在册学生</div>
+                <div class="mockup-card-value" data-target="47">0</div>
+                <div class="mockup-card-trend up">+2 本周</div>
+              </div>
+              <div class="mockup-card">
+                <div class="mockup-card-label">今日事件</div>
+                <div class="mockup-card-value" data-target="23">0</div>
+                <div class="mockup-card-trend up">+18%</div>
+              </div>
+              <div class="mockup-card">
+                <div class="mockup-card-label">关注学生</div>
+                <div class="mockup-card-value" data-target="5">0</div>
+                <div class="mockup-card-trend down">-2</div>
+              </div>
+            </div>
+            <div class="mockup-chart">
+              <div class="mockup-chart-title">本周班级趋势</div>
+              <svg viewBox="0 0 320 80" preserveAspectRatio="none" class="mockup-chart-svg">
+                <defs>
+                  <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="80" gradientUnits="userSpaceOnUse">
+                    <stop offset="0" stop-color="#7C3AED" stop-opacity="0.6"/>
+                    <stop offset="1" stop-color="#7C3AED" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,55 L40,40 L80,48 L120,30 L160,38 L200,20 L240,28 L280,15 L320,22 L320,80 L0,80 Z" fill="url(#chartFill)"/>
+                <path d="M0,55 L40,40 L80,48 L120,30 L160,38 L200,20 L240,28 L280,15 L320,22" fill="none" stroke="#7C3AED" stroke-width="2"/>
+                <circle cx="280" cy="15" r="3" fill="#06B6D4"/>
+              </svg>
+            </div>
+            <div class="mockup-alerts" id="mockupAlerts">
+              <!-- 由 JS 注入 -->
+            </div>
+          </section>
+        </div>
+      </div>
+      <div class="floating-card floating-card-1">
+        <div class="fc-icon">🤖</div>
+        <div class="fc-content">
+          <div class="fc-title">class-monitor</div>
+          <div class="fc-sub">已记录 +2 操行分</div>
+        </div>
+      </div>
+      <div class="floating-card floating-card-2">
+        <div class="fc-icon">🔐</div>
+        <div class="fc-content">
+          <div class="fc-title">PII 已脱敏</div>
+          <div class="fc-sub">AES-256-GCM</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logo 云：模型 / 平台 -->
+  <div class="container">
+    <div class="metric-strip">
+      <div class="metric"><div class="metric-num" data-target="18">0</div><div class="metric-label">AI 智能代理</div></div>
+      <div class="metric"><div class="metric-num" data-target="30">0</div><div class="metric-label">LLM 提供商</div></div>
+      <div class="metric"><div class="metric-num" data-target="90">0</div><div class="metric-label">IPC 通道</div></div>
+      <div class="metric"><div class="metric-num" data-target="96">0</div><div class="metric-label">自动化测试</div></div>
+      <div class="metric"><div class="metric-num" data-target="9">0</div><div class="metric-label">功能模块</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== 产品特性 ============== -->
+<section class="section section-features" id="features">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow"><span class="eyebrow-dot"></span><span>为什么是 Education Advisor</span></div>
+      <h2 class="section-title">把"班级管家"交给 AI，<br />把"判断"留给你</h2>
+      <p class="section-sub">市面上不缺教育类 AI，缺的是一个懂班主任一天工作流的桌面指挥中心。</p>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon icon-1">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 L4 6 L4 18 L12 22 L20 18 L20 6 Z"/><path d="M12 2 L12 22"/><path d="M4 6 L20 18"/><path d="M20 6 L4 18"/></svg>
+        </div>
+        <h3>完全自研的桌面应用</h3>
+        <p>Electron 33 + React 18 + TypeScript 5.7 + Rust 数据引擎。每一个字节都来自这个仓库，没有"基于谁"。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon icon-2">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12 H21 M12 3 a14 14 0 0 1 0 18 a14 14 0 0 1 0 -18"/></svg>
+        </div>
+        <h3>数据全部留在本地</h3>
+        <p>Rust 事件溯源存储、AES-256-GCM 隐私脱敏、append-only 审计日志。学生数据不出机器，只有脱敏后的文本才送到 LLM。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon icon-3">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3 L18 3 L18 21 L12 17 L6 21 Z"/></svg>
+        </div>
+        <h3>小模型也能跑</h3>
+        <p>每个 agent 的 prompt 都为 3–4B 模型设计。Qwen 4B 跑在 6GB 显卡上一样工作。Qwen、DeepSeek、Doubao、GLM、Kimi、Ollama、LM Studio 都接。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon icon-4">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 22 a8 8 0 0 1 16 0"/></svg>
+        </div>
+        <h3>18 个 Agent 协同</h3>
+        <p>class-monitor 录分、risk-alert 盯风险、weekly-reporter 写报告、psychology 观察情绪、validator 抓幻觉。不是聊天机器人，是教学团队操作系统。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon icon-5">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 L2 7 L12 12 L22 7 L12 2 Z"/><path d="M2 17 L12 22 L22 17"/><path d="M2 12 L12 17 L22 12"/></svg>
+        </div>
+        <h3>家长消息批量出</h3>
+        <p>home_school 起草、counselor 跟进、export 模板化。一键导出 52 个家长消息的 Word/PDF，去掉"复制粘贴到聊天框"的 1 小时。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon icon-6">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9 L21 9"/><path d="M9 3 L9 21"/></svg>
+        </div>
+        <h3>透明可审计</h3>
+        <p>每一次 LLM 调用都先写进审计日志，token 数、调用者、脱敏前后内容。家长来质疑？翻日志。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== 18 个 Agent 网格 ============== -->
+<section class="section section-agents" id="agents">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow"><span class="eyebrow-dot"></span><span>18 个 AI 智能代理</span></div>
+      <h2 class="section-title">不是"一个聊天机器人"，<br />是一支教学团队</h2>
+      <p class="section-sub">每个 agent 是一个有明确职责的 worker，按 cron 自动执行或人工触发。</p>
+    </div>
+
+    <div class="agent-filter">
+      <button class="agent-filter-btn active" data-filter="all">全部 <span class="count">18</span></button>
+      <button class="agent-filter-btn" data-filter="class">班级运营 <span class="count">6</span></button>
+      <button class="agent-filter-btn" data-filter="advisor">教学辅助 <span class="count">12</span></button>
+    </div>
+
+    <div class="agent-grid" id="agentGrid">
+      <div class="agent-card" data-group="class" data-tier="low">
+        <div class="agent-num">01</div>
+        <div class="agent-name">class-monitor</div>
+        <div class="agent-role">班级记录员</div>
+        <div class="agent-cap">读 · 加事件 · 列表</div>
+        <div class="agent-cad">on demand</div>
+      </div>
+      <div class="agent-card" data-group="class" data-tier="low">
+        <div class="agent-num">02</div>
+        <div class="agent-name">student-care</div>
+        <div class="agent-role">学生关怀员</div>
+        <div class="agent-cap">读 · 历史 · 搜索</div>
+        <div class="agent-cad">on demand</div>
+      </div>
+      <div class="agent-card" data-group="class" data-tier="low">
+        <div class="agent-num">03</div>
+        <div class="agent-name">discipline-officer</div>
+        <div class="agent-role">纪检委员</div>
+        <div class="agent-cap">读 · 加事件</div>
+        <div class="agent-cad">on demand</div>
+      </div>
+      <div class="agent-card" data-group="class" data-tier="low">
+        <div class="agent-num">04</div>
+        <div class="agent-name">risk-alert</div>
+        <div class="agent-role">风险预警员</div>
+        <div class="agent-cap">读 · 排行 · 区间</div>
+        <div class="agent-cad">2× daily + 周五</div>
+      </div>
+      <div class="agent-card" data-group="class" data-tier="high">
+        <div class="agent-num">05</div>
+        <div class="agent-name">data-analyst</div>
+        <div class="agent-role">数据分析师</div>
+        <div class="agent-cap">读 · 统计 · 排行</div>
+        <div class="agent-cad">周一 09:00</div>
+      </div>
+      <div class="agent-card" data-group="class" data-tier="high">
+        <div class="agent-num">06</div>
+        <div class="agent-name">weekly-reporter</div>
+        <div class="agent-role">周报撰写员</div>
+        <div class="agent-cap">读 · 摘要 · 区间</div>
+        <div class="agent-cad">周五 16:00</div>
+      </div>
+
+      <div class="agent-card" data-group="advisor" data-tier="high">
+        <div class="agent-num">07</div>
+        <div class="agent-name">main</div>
+        <div class="agent-role">协调中枢</div>
+        <div class="agent-cap">全部读写 · 调度</div>
+        <div class="agent-cad">on demand</div>
+      </div>
+      <div class="agent-card" data-group="advisor" data-tier="low">
+        <div class="agent-num">08</div>
+        <div class="agent-name">governor</div>
+        <div class="agent-role">总督察</div>
+        <div class="agent-cap">读 · 摘要 · 统计</div>
+        <div class="agent-cad">6× daily + 周报</div>
+      </div>
+      <div class="agent-card" data-group="advisor" data-tier="low">
+        <div class="agent-num">09</div>
+        <div class="agent-name">counselor</div>
+        <div class="agent-role">谈话规划员</div>
+        <div class="agent-cap">读 · 摘要 · 加事件</div>
+        <div class="agent-cad">2× daily</div>
+      </div>
+      <div class="agent-card" data-group="advisor" data-tier="low">
+        <div class="agent-num">10</div>
+        <div class="agent-name">supervisor</div>
+        <div class="agent-role">每日简报员</div>
+        <div class="agent-cap">读 · 摘要 · 排行</div>
+        <div class="agent-cad">3× daily</div>
+      </div>
+      <div class="agent-card" data-group="advisor" data-tier="low">
+        <div class="agent-num">11</div>
+        <div class="agent-name">validator</div>
+        <div class="agent-role">数据审计员</div>
+        <div class="agent-cap">读 · 统计 · 校验</div>
+        <div class="agent-cad">每 6 小时</div>
+      </div>
+      <div class="agent-card" data-group="advisor" data-tier="high">
+        <div class="agent-num">12</div>
+        <div class="agent-name">academic</div>
+        <div class="agent-role">学业分析师</div>
+        <div class="agent-cap">读 · 摘要 · 统计</div>
+        <div class="agent-cad">1× daily</div>
+      </div>
+      <div class="agent-card" data-group="advisor" data-tier="low">
+        <div class="agent-num">13</div>
+        <div class="agent-name">psychology</div>
+        <div class="agent-role">心理观察员</div>
+        <div class="agent-cap">读 · 搜索 · 历史</div>
+        <div class="agent-cad">1× daily</div>
+      </div>
+      <div class="agent-card" data-group="advisor" data-tier="low">
+        <div class="agent-num">14</div>
+        <div class="agent-name">safety</div>
+        <div class="agent-role">安全检察员</div>
+        <div class="agent-cap">读 · 加事件</div>
+        <div class="agent-cad">周一 08:00</div>
+      </div>
+      <div class="agent-card" data-group="advisor" data-tier="low">
+        <div class="agent-num">15</div>
+        <div class="agent-name">home_school</div>
+        <div class="agent-role">家校联络员</div>
+        <div class="agent-cap">读 · 摘要 · 排行</div>
+        <div class="agent-cad">1× daily</div>
+      </div>
+      <div class="agent-card" data-group="advisor" data-tier="low">
+        <div class="agent-num">16</div>
+        <div class="agent-name">research</div>
+        <div class="agent-role">科研助理</div>
+        <div class="agent-cap">读 · 摘要 · 统计</div>
+        <div class="agent-cad">每晚</div>
+      </div>
+      <div class="agent-card" data-group="advisor" data-tier="low">
+        <div class="agent-num">17</div>
+        <div class="agent-name">executor</div>
+        <div class="agent-role">系统维护员</div>
+        <div class="agent-cap">读 · 统计 · 校验</div>
+        <div class="agent-cad">每晚</div>
+      </div>
+      <div class="agent-card" data-group="advisor" data-tier="low">
+        <div class="agent-num">18</div>
+        <div class="agent-name">bug-hunter</div>
+        <div class="agent-role">自测 agent</div>
+        <div class="agent-cap">只读</div>
+        <div class="agent-cad">on demand</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== 架构 ============== -->
+<section class="section section-arch" id="architecture">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow"><span class="eyebrow-dot"></span><span>系统架构</span></div>
+      <h2 class="section-title">三层协同，<br />主进程才是数据唯一的写入者</h2>
+      <p class="section-sub">桌面端只发起调用，Rust 引擎只做"原子写 + 文件锁 + 加密"，UI 只展示与触发。每一个写入路径都可追溯。</p>
+    </div>
+
+    <div class="arch-diagram">
+      <div class="arch-layer arch-layer-renderer">
+        <div class="arch-layer-label">Renderer</div>
+        <div class="arch-layer-title">React 18 + Vite + Tailwind</div>
+        <div class="arch-layer-desc">9 个页面 · 12 个 hooks · 4 个 Zustand store · i18n (zh/en)</div>
+        <div class="arch-layer-tags">
+          <span>Dashboard</span><span>Chat</span><span>Students</span><span>Agents</span><span>Models</span><span>Skills</span><span>Scheduler</span><span>Privacy</span><span>Settings</span>
+        </div>
+      </div>
+      <div class="arch-arrow" aria-hidden="true">↕ contextBridge · 90+ IPC</div>
+      <div class="arch-layer arch-layer-main">
+        <div class="arch-layer-label">Main</div>
+        <div class="arch-layer-title">Electron 33 · Node 22</div>
+        <div class="arch-layer-desc">11 IPC handlers · 13 services · 18 agents (Markdown 驱动) · SQLite 持久化</div>
+        <div class="arch-layer-tags">
+          <span>agent-service</span><span>eaa-bridge</span><span>ai-service</span><span>privacy-service</span><span>cron-service</span><span>feishu-service</span>
+        </div>
+      </div>
+      <div class="arch-arrow" aria-hidden="true">↕ stdin/stdout JSON · 文件锁</div>
+      <div class="arch-layer arch-layer-engine">
+        <div class="arch-layer-label">Engine</div>
+        <div class="arch-layer-title">eaa-cli · Rust 19.5 MB</div>
+        <div class="arch-layer-desc">append-only 事件溯源 · AES-256-GCM 隐私映射 · 原子写（tmp→fsync→rename）</div>
+        <div class="arch-layer-tags">
+          <span>events</span><span>entities</span><span>privacy</span><span>export</span><span>dashboard</span><span>validate</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== 截图 ============== -->
+<section class="section section-shots">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow"><span class="eyebrow-dot"></span><span>真实截图</span></div>
+      <h2 class="section-title">看到的每一个数字，<br />都来自一次工具调用</h2>
+    </div>
+    <div class="shot-grid">
+      <button class="shot-card" data-full="assets/img/dashboard.png">
+        <img src="assets/img/dashboard.png" alt="Dashboard 仪表盘" loading="lazy" />
+        <span class="shot-caption">Dashboard — 一眼看全班级</span>
+      </button>
+      <button class="shot-card" data-full="assets/img/dashboard.png">
+        <img src="assets/img/dashboard.png" alt="Class 智能对话" loading="lazy" />
+        <span class="shot-caption">Chat — 流式对话 · 工具调用全程可见</span>
+      </button>
+      <button class="shot-card" data-full="assets/img/dashboard.png">
+        <img src="assets/img/dashboard.png" alt="Students 学生列表" loading="lazy" />
+        <span class="shot-caption">Students — 操行分 · 轨迹 · 一键导出</span>
+      </button>
+      <button class="shot-card" data-full="assets/img/dashboard.png">
+        <img src="assets/img/dashboard.png" alt="Agents 控制台" loading="lazy" />
+        <span class="shot-caption">Agents — 18 个智能代理的开关与排程</span>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ============== 下载 ============== -->
+<section class="section section-download" id="download">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow"><span class="eyebrow-dot"></span><span>下载</span></div>
+      <h2 class="section-title">现在就下载，<br />三步开始用</h2>
+      <p class="section-sub">Windows 安装版、便携版、macOS DMG、Linux AppImage，全平台齐活。</p>
+    </div>
+
+    <div class="download-grid">
+      <div class="download-card highlight" data-os="win">
+        <div class="download-badge">推荐</div>
+        <div class="download-os">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor" aria-hidden="true"><path d="M3 5.4v13.2L11 12 3 5.4m9 0v13.2L21 12 12 5.4"/></svg>
+          <h3>Windows · NSIS 安装版</h3>
+        </div>
+        <ul class="download-list">
+          <li>✓ 系统级安装 · 开始菜单 / 桌面快捷方式</li>
+          <li>✓ 自动更新通道支持</li>
+          <li>✓ 卸载干净，无残留</li>
+          <li>✓ 体积约 88 MB</li>
+        </ul>
+        <a class="btn btn-primary btn-block" href="https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education.Advisor-0.1.0-rc.1-Setup.exe" download>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          <span>下载 .exe (≈88 MB)</span>
+        </a>
+        <p class="download-hint">需要 Windows 10 1809+ / Windows 11</p>
+      </div>
+
+      <div class="download-card" data-os="win">
+        <div class="download-badge">便携</div>
+        <div class="download-os">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor" aria-hidden="true"><path d="M3 5.4v13.2L11 12 3 5.4m9 0v13.2L21 12 12 5.4"/></svg>
+          <h3>Windows · 绿色版</h3>
+        </div>
+        <ul class="download-list">
+          <li>✓ 单文件，双击即用</li>
+          <li>✓ 无需管理员权限</li>
+          <li>✓ 适合 U 盘 / 临时机器</li>
+          <li>✓ 体积约 78 MB</li>
+        </ul>
+        <a class="btn btn-ghost btn-block" href="https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education.Advisor-0.1.0-rc.1-portable.exe" download>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          <span>下载 .exe (≈78 MB)</span>
+        </a>
+        <p class="download-hint">无需安装 · 数据保存在同目录</p>
+      </div>
+
+      <div class="download-card" data-os="mac">
+        <div class="download-badge">跨平台</div>
+        <div class="download-os">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor" aria-hidden="true"><path d="M18.5 2.5c-.7 0-1.5.3-2.3.9-1.4 1-2.6 2.9-2.6 4.7 0 .2 0 .4.1.6 1.5.1 3-.4 4.2-1.4 1.2-1 2-2.5 2-3.9 0-.3 0-.5-.1-.7-.4-.1-.9-.2-1.3-.2M14 9.3c-1.5 0-2.8.9-3.7.9-.9 0-2.1-.8-3.5-.8-1.8 0-3.5 1-4.4 2.7-1.9 3.3-.5 8.1 1.4 10.7.9 1.3 2 2.7 3.4 2.6 1.4 0 1.9-.9 3.5-.9s2 .9 3.5.8c1.4 0 2.4-1.3 3.3-2.6 1-1.5 1.4-2.9 1.4-3 0 0-2.7-1-2.7-4.1 0-2.6 2.1-3.8 2.2-3.9-1.2-1.7-3-1.9-3.6-2"/></svg>
+          <h3>macOS</h3>
+        </div>
+        <ul class="download-list">
+          <li>✓ Intel (x64) + Apple Silicon (arm64)</li>
+          <li>✓ 与 Windows 完整功能一致</li>
+          <li>✓ 体积约 113–117 MB</li>
+        </ul>
+        <a class="btn btn-ghost btn-block" href="https://github.com/232252/education-advisor/releases/tag/v0.1.0-rc.1" target="_blank" rel="noopener noreferrer">
+          <span>下载 .dmg（Intel / Apple Silicon）</span>
+        </a>
+        <p class="download-hint">macOS 11+</p>
+      </div>
+
+      <div class="download-card" data-os="linux">
+        <div class="download-badge">跨平台</div>
+        <div class="download-os">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor" aria-hidden="true"><path d="M12 2c-2.5 0-4.5 2-4.5 4.5 0 1.3.5 2.4 1.3 3.3-1.4 1.4-2.6 3-3.4 4.9-.5 1.2-.9 2.5-.9 3.8 0 1.4.5 2.6 1.3 3.6.6.8 1.4 1.4 2.4 1.8.8.3 1.7.3 2.6.3h2.4c.9 0 1.8 0 2.6-.3 1-.4 1.8-1 2.4-1.8.8-1 1.3-2.2 1.3-3.6 0-1.3-.4-2.6-.9-3.8-.8-1.9-2-3.5-3.4-4.9.8-.9 1.3-2 1.3-3.3C16.5 4 14.5 2 12 2zM10 8c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm4 0c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1z"/></svg>
+          <h3>Linux</h3>
+        </div>
+        <ul class="download-list">
+          <li>✓ AppImage · 一次下载直接跑</li>
+          <li>✓ Ubuntu 20.04+ / Debian 11+</li>
+          <li>✓ 体积约 123 MB</li>
+        </ul>
+        <a class="btn btn-ghost btn-block" href="https://github.com/232252/education-advisor/releases/tag/v0.1.0-rc.1" target="_blank" rel="noopener noreferrer">
+          <span>下载 .AppImage</span>
+        </a>
+        <p class="download-hint">chmod +x 双击运行</p>
+      </div>
+    </div>
+
+    <div class="download-extra">
+      <div class="download-extra-item">
+        <div class="dee-icon">📦</div>
+        <div>
+          <h4>校验和</h4>
+          <p>SHA-256 在 <a href="https://github.com/232252/education-advisor/releases/tag/v0.1.0-rc.1" target="_blank" rel="noopener noreferrer">GitHub Releases</a> 资产中附带</p>
+        </div>
+      </div>
+      <div class="download-extra-item">
+        <div class="dee-icon">🛠</div>
+        <div>
+          <h4>从源码构建</h4>
+          <p>Node 22 + 一行 <code>npm ci && npm run build && npm run package</code> 即可</p>
+        </div>
+      </div>
+      <div class="download-extra-item">
+        <div class="dee-icon">🔐</div>
+        <div>
+          <h4>代码签名</h4>
+          <p>v0.2 将引入 Authenticode 签名（见 ROADMAP）</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== FAQ ============== -->
+<section class="section section-faq" id="faq">
+  <div class="container container-narrow">
+    <div class="section-head">
+      <div class="eyebrow"><span class="eyebrow-dot"></span><span>常见问题</span></div>
+      <h2 class="section-title">在下载之前，<br />你可能想知道</h2>
+    </div>
+
+    <div class="faq-list">
+      <details class="faq-item">
+        <summary>这个项目是"基于"某个上游框架吗？</summary>
+        <div class="faq-body">
+          <p><strong>不是。</strong>整个项目（桌面端、18 个 agent、Rust 数据引擎、隐私脱敏引擎、Electron 壳、React 渲染层）都是这个仓库自研的代码，MIT 协议开源。不依赖任何上游框架。</p>
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>学生数据会上云吗？</summary>
+        <div class="faq-body">
+          <p>默认<strong>不会</strong>。所有学生姓名、ID、电话、地址都用 AES-256-GCM 加密后存在本机。送到 LLM 的文本会先脱敏（Alice → <code>S_017</code>）。家长消息出库时由你手动决定"定向还原"。审计日志全程记录。</p>
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>小模型（4B）真的能跑得动吗？</summary>
+        <div class="faq-body">
+          <p>能。每个 agent 的 prompt 都按"3–4B 模型也能跑"为前提设计。规则是：所有数字必须来自工具调用，所有写入必须经过授权校验，所有输出必须符合 JSON schema。Qwen 4B 跑在 6GB 显卡上，整套系统可以完全离线运行。</p>
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>支持哪些 LLM？</summary>
+        <div class="faq-body">
+          <p>通过 <code>@earendil-works/pi-ai</code> SDK 统一接入 30+ 提供商：OpenAI、Anthropic、Google Gemini、Mistral、DeepSeek、Qwen（DashScope）、Doubao（Volcengine）、Zhipu GLM、Moonshot Kimi，以及任何 OpenAI 兼容端点（Ollama、LM Studio、vLLM、llama.cpp）。</p>
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>可以删除 Rust 引擎用别的数据存储吗？</summary>
+        <div class="faq-body">
+          <p>可以。桌面端对 Rust 引擎的调用集中在 <code>src/main/services/eaa-bridge.ts</code> 一个文件。换成 PostgreSQL / Firestore / 任何其他存储引擎只需重写这一个文件。Agent prompt 和 UI 不动。</p>
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>怎么自己加一个新的 agent？</summary>
+        <div class="faq-body">
+          <p>在 <code>agents/your-id/</code> 下放两个 Markdown 文件（<code>SOUL.md</code> + <code>AGENTS.md</code>），再到 <code>config/agents.yaml</code> 加一条注册项，重启应用。就这样。</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============== 行动召唤 ============== -->
+<section class="section section-cta">
+  <div class="container">
+    <div class="cta-card">
+      <div class="cta-content">
+        <h2>从今天起，把家校沟通的 1 小时还给自己</h2>
+        <p>免费下载，按部就班 5 分钟装好。第一次录入完成后，明天早晨你会看到 AI 替你跑出来的「班级日报」。</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary btn-lg" href="#download">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span>免费下载</span>
+          </a>
+          <a class="btn btn-ghost btn-lg" href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">
+            <span>查看源码</span>
+          </a>
+        </div>
+      </div>
+      <div class="cta-visual" aria-hidden="true">
+        <div class="cta-visual-glow"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ============== Footer ============== -->
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
       <a class="logo" href="#top" aria-label="Education Advisor">
         <svg class="logo-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <defs>
-            <linearGradient id="logoGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stop-color="#7C3AED" />
-              <stop offset="1" stop-color="#06B6D4" />
-            </linearGradient>
-          </defs>
-          <path d="M16 2 L29 9 L29 23 L16 30 L3 23 L3 9 Z" fill="url(#logoGrad)" />
-          <path d="M16 9 L23 12.5 L23 19.5 L16 23 L9 19.5 L9 12.5 Z" fill="#0A1628" />
-          <circle cx="16" cy="16" r="2.5" fill="url(#logoGrad)" />
+          <defs><linearGradient id="logoGrad2" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7C3AED"/><stop offset="1" stop-color="#06B6D4"/></linearGradient></defs>
+          <path d="M16 2 L29 9 L29 23 L16 30 L3 23 L3 9 Z" fill="url(#logoGrad2)"/>
+          <path d="M16 9 L23 12.5 L23 19.5 L16 23 L9 19.5 L9 12.5 Z" fill="#0A1628"/>
+          <circle cx="16" cy="16" r="2.5" fill="url(#logoGrad2)"/>
         </svg>
         <span class="logo-text">Education <span class="logo-accent">Advisor</span></span>
       </a>
-
-      <nav class="nav-links" aria-label="主导航">
+      <p class="footer-desc">完全自研的智能教育管理桌面应用。本地优先、隐私保护、跨平台，专为班主任和教师打造。</p>
+      <div class="footer-links-inline">
+        <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/232252/education-advisor/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/232252/education-advisor/blob/main/README.md" target="_blank" rel="noopener noreferrer">README</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/232252/education-advisor/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">CHANGELOG</a>
+      </div>
+    </div>
+    <div class="footer-cols">
+      <div class="footer-col">
+        <h5>产品</h5>
         <a href="#features">产品特性</a>
         <a href="#agents">智能代理</a>
-        <a href="#architecture">架构</a>
+        <a href="#architecture">系统架构</a>
         <a href="#download">下载</a>
-        <a href="#docs">文档</a>
-      </nav>
-
-      <div class="nav-actions">
-        <a class="nav-link-ghost" href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.16c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.18 1.18.92-.26 1.91-.39 2.89-.39.98 0 1.97.13 2.89.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.12 3.04.73.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.4-5.27 5.69.41.35.78 1.05.78 2.12v3.14c0 .31.21.67.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
-          <span>GitHub</span>
-        </a>
-        <a class="btn btn-primary btn-sm" href="#download">
-          <span>免费下载</span>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
-        </a>
-        <button class="nav-toggle" id="navToggle" aria-label="切换菜单" aria-expanded="false">
-          <span></span><span></span><span></span>
-        </button>
+      </div>
+      <div class="footer-col">
+        <h5>资源</h5>
+        <a href="https://github.com/232252/education-advisor/blob/main/README.md" target="_blank" rel="noopener noreferrer">README</a>
+        <a href="https://github.com/232252/education-advisor/blob/main/PROJECT_INTRO.md" target="_blank" rel="noopener noreferrer">PROJECT_INTRO</a>
+        <a href="https://github.com/232252/education-advisor/blob/main/ROADMAP.md" target="_blank" rel="noopener noreferrer">ROADMAP</a>
+        <a href="https://github.com/232252/education-advisor/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">CHANGELOG</a>
+      </div>
+      <div class="footer-col">
+        <h5>支持</h5>
+        <a href="https://github.com/232252/education-advisor/issues" target="_blank" rel="noopener noreferrer">Issues</a>
+        <a href="https://github.com/232252/education-advisor/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">Security</a>
+        <a href="https://github.com/232252/education-advisor/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contributing</a>
+        <a href="https://github.com/232252/education-advisor/blob/main/CODE_OF_CONDUCT.md" target="_blank" rel="noopener noreferrer">Code of Conduct</a>
       </div>
     </div>
-  </header>
-
-  <main id="top">
-    <!-- ============ Hero 区 ============ -->
-    <section class="hero">
-      <div class="hero-bg" aria-hidden="true">
-        <div class="hero-grid"></div>
-        <div class="hero-glow hero-glow-1"></div>
-        <div class="hero-glow hero-glow-2"></div>
-      </div>
-
-      <div class="container hero-inner">
-        <div class="hero-content">
-          <div class="eyebrow">
-            <span class="eyebrow-dot"></span>
-            <span>v0.1.0-rc.1 · 基于 OpenClaw 框架</span>
-          </div>
-          <h1 class="hero-title">
-            <span class="hero-title-gradient">让教育更智能</span><br />
-            <span>让教师更轻松</span>
-          </h1>
-          <p class="hero-sub">
-            18 个 AI 智能代理、本地优先的数据引擎、隐私保护的学生信息加密 —— 一个桌面端，
-            替代您工作中散落的电子表格、聊天群和零散工具。
-          </p>
-          <div class="hero-cta">
-            <a class="btn btn-primary" href="#download">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-              <span>免费下载 Windows 版</span>
-            </a>
-            <a class="btn btn-ghost" href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.16c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.18 1.18.92-.26 1.91-.39 2.89-.39.98 0 1.97.13 2.89.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.12 3.04.73.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.4-5.27 5.69.41.35.78 1.05.78 2.12v3.14c0 .31.21.67.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
-              <span>查看 GitHub 仓库</span>
-            </a>
-          </div>
-          <div class="hero-meta">
-            <span class="hero-meta-item"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg> MIT 开源</span>
-            <span class="hero-meta-item"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg> Windows / macOS / Linux</span>
-            <span class="hero-meta-item"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg> 数据本地化</span>
-          </div>
-        </div>
-
-        <!-- Hero 主视觉：Dashboard mockup -->
-        <div class="hero-visual" aria-hidden="true">
-          <div class="mockup-window">
-            <div class="mockup-titlebar">
-              <span class="mockup-dot red"></span>
-              <span class="mockup-dot yellow"></span>
-              <span class="mockup-dot green"></span>
-              <span class="mockup-title">Education Advisor — 班主任工作台</span>
-            </div>
-            <div class="mockup-body">
-              <aside class="mockup-sidebar">
-                <div class="mockup-logo">
-                  <div class="mockup-logo-mark"></div>
-                  <span>EduAdvisor</span>
-                </div>
-                <ul class="mockup-menu">
-                  <li class="active"><span class="ico">▦</span> 仪表盘</li>
-                  <li><span class="ico">💬</span> 智能对话</li>
-                  <li><span class="ico">👥</span> 学生管理</li>
-                  <li><span class="ico">🤖</span> 智能代理</li>
-                  <li><span class="ico">🧠</span> 模型配置</li>
-                  <li><span class="ico">🛡</span> 隐私</li>
-                  <li><span class="ico">⚙</span> 设置</li>
-                </ul>
-              </aside>
-              <section class="mockup-main">
-                <div class="mockup-row">
-                  <div class="mockup-card">
-                    <div class="mockup-card-label">在册学生</div>
-                    <div class="mockup-card-value">47</div>
-                    <div class="mockup-card-trend up">+2 本周</div>
-                  </div>
-                  <div class="mockup-card">
-                    <div class="mockup-card-label">今日事件</div>
-                    <div class="mockup-card-value">23</div>
-                    <div class="mockup-card-trend up">+18%</div>
-                  </div>
-                  <div class="mockup-card">
-                    <div class="mockup-card-label">关注学生</div>
-                    <div class="mockup-card-value">5</div>
-                    <div class="mockup-card-trend down">-2</div>
-                  </div>
-                </div>
-                <div class="mockup-chart">
-                  <div class="mockup-chart-title">本周班级趋势</div>
-                  <svg viewBox="0 0 320 80" preserveAspectRatio="none" class="mockup-chart-svg">
-                    <defs>
-                      <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="80" gradientUnits="userSpaceOnUse">
-                        <stop offset="0" stop-color="#7C3AED" stop-opacity="0.6"/>
-                        <stop offset="1" stop-color="#7C3AED" stop-opacity="0"/>
-                      </linearGradient>
-                    </defs>
-                    <path d="M0,55 L40,40 L80,48 L120,30 L160,38 L200,20 L240,28 L280,15 L320,22 L320,80 L0,80 Z" fill="url(#chartFill)"/>
-                    <path d="M0,55 L40,40 L80,48 L120,30 L160,38 L200,20 L240,28 L280,15 L320,22" fill="none" stroke="#7C3AED" stroke-width="2"/>
-                    <circle cx="280" cy="15" r="3" fill="#06B6D4"/>
-                  </svg>
-                </div>
-                <div class="mockup-alerts">
-                  <div class="mockup-alert">
-                    <span class="mockup-alert-dot"></span>
-                    <span class="mockup-alert-msg">risk-alert 提示：李同学 14 天出勤下降 28%</span>
-                    <span class="mockup-alert-time">2 分钟前</span>
-                  </div>
-                  <div class="mockup-alert">
-                    <span class="mockup-alert-dot ok"></span>
-                    <span class="mockup-alert-msg">weekly-reporter 已生成本周班级报告</span>
-                    <span class="mockup-alert-time">15 分钟前</span>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
-          <!-- 浮动小卡片 -->
-          <div class="floating-card floating-card-1">
-            <div class="fc-icon">🤖</div>
-            <div class="fc-content">
-              <div class="fc-title">class-monitor</div>
-              <div class="fc-sub">已记录 +2 操行分</div>
-            </div>
-          </div>
-          <div class="floating-card floating-card-2">
-            <div class="fc-icon">📊</div>
-            <div class="fc-content">
-              <div class="fc-title">数据已加密</div>
-              <div class="fc-sub">AES-256-GCM</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 数据指标条 -->
-      <div class="container">
-        <div class="metric-strip">
-          <div class="metric"><div class="metric-num">18</div><div class="metric-label">智能代理</div></div>
-          <div class="metric-divider" aria-hidden="true"></div>
-          <div class="metric"><div class="metric-num">30+</div><div class="metric-label">LLM 提供商</div></div>
-          <div class="metric-divider" aria-hidden="true"></div>
-          <div class="metric"><div class="metric-num">9</div><div class="metric-label">核心页面</div></div>
-          <div class="metric-divider" aria-hidden="true"></div>
-          <div class="metric"><div class="metric-num">AES-256</div><div class="metric-label">PII 加密</div></div>
-          <div class="metric-divider" aria-hidden="true"></div>
-          <div class="metric"><div class="metric-num">100%</div><div class="metric-label">本地优先</div></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ 核心特性 ============ -->
-    <section class="section section-features" id="features">
-      <div class="container">
-        <div class="section-head">
-          <div class="eyebrow"><span class="eyebrow-dot"></span><span>核心特性</span></div>
-          <h2 class="section-title">一个桌面端，<br />为班主任减负</h2>
-          <p class="section-sub">不是聊天机器人，不是 SaaS，而是一个本地优先的"教学团队操作系统"——18 个 AI 代理 7×24 协同工作，把您从重复劳动中解放出来。</p>
-        </div>
-
-        <div class="features-grid">
-          <article class="feature-card">
-            <div class="feature-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-            </div>
-            <h3>本地优先 + Rust 主干</h3>
-            <p>学生数据全部存储在本地 Rust 事件存储中，AI 层无状态可替换。LLM 是唯一接触网络的部分，且只拿到必要的数据切片。</p>
-            <a class="feature-link" href="#architecture">了解架构 →</a>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6M7 12H1m17.36-7.36l-4.24 4.24M9.88 14.12l-4.24 4.24m12.72 0l-4.24-4.24M9.88 9.88L5.64 5.64"/></svg>
-            </div>
-            <h3>18 个协作代理</h3>
-            <p>每个代理都有明确角色（班主任、风险预警、心理观察、周报官…）和最小权限——不是"人格"，而是按工具约束的"工人"。</p>
-            <a class="feature-link" href="#agents">查看全部代理 →</a>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            </div>
-            <h3>PII 可选可逆</h3>
-            <p>学生姓名、学号、电话在发送给 LLM 之前自动脱敏；最终报告发到家长时再"水合"成真名。映射表用 AES-256-GCM 加密存储。</p>
-            <a class="feature-link" href="#privacy">查看隐私引擎 →</a>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            </div>
-            <h3>30+ LLM 路由</h3>
-            <p>通过 <code>pi-ai</code> SDK 一键接入 OpenAI、Anthropic、DeepSeek、Qwen、Doubao、Ollama、LM Studio… 高中低三档模型按需调度。</p>
-            <a class="feature-link" href="#models">查看模型支持 →</a>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-            </div>
-            <h3>飞书多维表格同步</h3>
-            <p>所有事件自动同步到飞书 Bitable，整个教研组看到同一份数据。零手工搬运，零格式错乱。</p>
-            <a class="feature-link" href="#docs">查看集成文档 →</a>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            </div>
-            <h3>可复现构建</h3>
-            <p><code>npm ci</code> → <code>npm run build</code> → <code>npm run package</code>，在任何 Windows 机器上得到字节一致的安装包。无隐藏状态、无黑盒原生模块。</p>
-            <a class="feature-link" href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">查看源码 →</a>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ 五大差异点 ============ -->
-    <section class="section section-different">
-      <div class="container">
-        <div class="section-head">
-          <div class="eyebrow"><span class="eyebrow-dot"></span><span>为何不同</span></div>
-          <h2 class="section-title">"AI + 教育"产品很多，<br />但这一个是真的</h2>
-          <p class="section-sub">我们不是在聊天框外面套个壳，也不是把学生数据送到云端。下面五个差异，是工程上的硬承诺。</p>
-        </div>
-
-        <div class="diff-list">
-          <article class="diff-item">
-            <div class="diff-num">01</div>
-            <div class="diff-content">
-              <h3>真·本地优先，Rust 主干</h3>
-              <p>学生数据的每一个字节都存在本地 Rust 事件存储里。LLM 是唯一触网的部分，且只拿到必要的数据。Rust CLI 负责全部读写、校验、并发（文件锁）、原子持久化（tmp → fsync → rename）和 PII 加密。AI 层故意做成无状态可替换——换掉 GPT-4o 用 Qwen 4B 也能跑同一套代理、读同一份数据。</p>
-            </div>
-            <div class="diff-visual">
-              <div class="diff-layer">Rust CLI · eaa-cli</div>
-              <div class="diff-arrow" aria-hidden="true">↑↓</div>
-              <div class="diff-layer accent">Electron Main · Node 22</div>
-              <div class="diff-arrow" aria-hidden="true">↑↓</div>
-              <div class="diff-layer">React 18 · Vite · Tailwind</div>
-            </div>
-          </article>
-
-          <article class="diff-item">
-            <div class="diff-num">02</div>
-            <div class="diff-content">
-              <h3>18 个协作代理，不是一个聊天框</h3>
-              <p>class-monitor 记 +2/−3 操行分，risk-alert 关联 14 天趋势并预警，weekly-reporter 自动生成周五班级报告，validator 交叉核对数学是否对得上事件日志，psychology 只观察不写事件——这更像一套"教学团队操作系统"，而不是一个聊天机器人。</p>
-            </div>
-            <div class="diff-visual diff-visual-grid">
-              <span class="chip">main</span>
-              <span class="chip">governor</span>
-              <span class="chip">counselor</span>
-              <span class="chip">supervisor</span>
-              <span class="chip">validator</span>
-              <span class="chip">academic</span>
-              <span class="chip">psychology</span>
-              <span class="chip">safety</span>
-              <span class="chip">home_school</span>
-              <span class="chip">research</span>
-              <span class="chip">executor</span>
-              <span class="chip">bug-hunter</span>
-              <span class="chip">class-monitor</span>
-              <span class="chip">risk-alert</span>
-              <span class="chip">data-analyst</span>
-              <span class="chip">student-care</span>
-              <span class="chip">discipline-officer</span>
-              <span class="chip highlight">weekly-reporter</span>
-            </div>
-          </article>
-
-          <article class="diff-item">
-            <div class="diff-num">03</div>
-            <div class="diff-content">
-              <h3>"小模型规则书"——3B 也能跑得好</h3>
-              <p>我们故意把每个代理的提示词设计成 Qwen 3.5 4B 也能工作的形态——6GB 显卡、本地推理、零成本。每个数字必须来自工具调用，每次写入必须授权，每个输出都用 JSON Schema 校验。详见 <code>config/SMALL_MODEL_RULES.md</code> 的 5 条铁律。</p>
-            </div>
-            <div class="diff-visual diff-visual-rules">
-              <div class="rule"><span class="rule-num">1</span>数字必须来自工具调用</div>
-              <div class="rule"><span class="rule-num">2</span>每次写入必须授权</div>
-              <div class="rule"><span class="rule-num">3</span>输出必须符合 JSON Schema</div>
-              <div class="rule"><span class="rule-num">4</span>无工具，不输出</div>
-              <div class="rule"><span class="rule-num">5</span>所有决策可追溯</div>
-            </div>
-          </article>
-
-          <article class="diff-item">
-            <div class="diff-num">04</div>
-            <div class="diff-content">
-              <h3>PII：可选、可逆、可审计</h3>
-              <p>Rust 隐私引擎为每次安装构建一张加密映射表（"张小明" → <code>S_017</code>），暴露 11 个 IPC 操作：init、load、enable、disable、list、add、anonymize、deanonymize、<strong>filter（按收件人）</strong>、dryrun、backup。您可以把脱敏后的全班名单交给 LLM，输出报告时再"水合"回真名。</p>
-            </div>
-            <div class="diff-visual diff-visual-pii">
-              <div class="pii-row"><span class="pii-name">张小明</span><span class="pii-arrow" aria-hidden="true">→</span><span class="pii-code">S_017</span></div>
-              <div class="pii-row"><span class="pii-name">李雷</span><span class="pii-arrow" aria-hidden="true">→</span><span class="pii-code">S_023</span></div>
-              <div class="pii-row"><span class="pii-name">韩梅梅</span><span class="pii-arrow" aria-hidden="true">→</span><span class="pii-code">S_041</span></div>
-              <div class="pii-lock" aria-hidden="true">🔒 AES-256-GCM</div>
-            </div>
-          </article>
-
-          <article class="diff-item">
-            <div class="diff-num">05</div>
-            <div class="diff-content">
-              <h3>可复现构建，零惊喜</h3>
-              <p><code>npm ci &amp;&amp; npm run build &amp;&amp; npm run package</code> 在任何带 Node 22 的 Windows 机器上产出字节一致的安装包（除时间戳外）。没有隐藏的系统状态，没有不透明的原生模块——除了 <code>better-sqlite3</code> 和 Rust 编译的 EAA 二进制。完整供应链在这个仓库里。</p>
-            </div>
-            <div class="diff-visual diff-visual-build">
-              <div class="build-step">npm ci</div>
-              <div class="build-step">npm run build:eaa</div>
-              <div class="build-step">npm run build</div>
-              <div class="build-step highlight">npm run package</div>
-              <div class="build-step">→ Education Advisor-0.1.0-rc.1-Setup.exe</div>
-            </div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ 九大产品页面 ============ -->
-    <section class="section section-pages">
-      <div class="container">
-        <div class="section-head">
-          <div class="eyebrow"><span class="eyebrow-dot"></span><span>产品页面</span></div>
-          <h2 class="section-title">9 个核心页面，<br />覆盖班主任的一天</h2>
-          <p class="section-sub">从早自习到晚自习，从个人记录到团队协同——所有高频操作都在第一屏。</p>
-        </div>
-
-        <div class="pages-grid">
-          <a class="page-card" href="#dashboard">
-            <div class="page-icon">▦</div>
-            <h3>仪表盘</h3>
-            <p>今日事件、本周趋势、关注学生、代理活动一目了然。</p>
-            <span class="page-route">#/dashboard</span>
-          </a>
-          <a class="page-card" href="#chat">
-            <div class="page-icon">💬</div>
-            <h3>智能对话</h3>
-            <p>与任意代理对话，流式响应，工具调用完全可见。</p>
-            <span class="page-route">#/chat</span>
-          </a>
-          <a class="page-card" href="#students">
-            <div class="page-icon">👥</div>
-            <h3>学生管理</h3>
-            <p>花名册、操行分、历史轨迹、详情展开。</p>
-            <span class="page-route">#/students</span>
-          </a>
-          <a class="page-card" href="#agents-page">
-            <div class="page-icon">🤖</div>
-            <h3>代理控制台</h3>
-            <p>18 个代理的启停、调度、SOUL.md 编辑。</p>
-            <span class="page-route">#/agents</span>
-          </a>
-          <a class="page-card" href="#models">
-            <div class="page-icon">🧠</div>
-            <h3>模型配置</h3>
-            <p>多 LLM 提供商、API Key、模型分层、容灾路由。</p>
-            <span class="page-route">#/models</span>
-          </a>
-          <a class="page-card" href="#skills">
-            <div class="page-icon">✦</div>
-            <h3>技能库</h3>
-            <p>Markdown 定义的技能自动注入代理提示词。</p>
-            <span class="page-route">#/skills</span>
-          </a>
-          <a class="page-card" href="#scheduler">
-            <div class="page-icon">⏱</div>
-            <h3>调度器</h3>
-            <p>Cron 任务跨代理调度、日志、手动触发。</p>
-            <span class="page-route">#/scheduler</span>
-          </a>
-          <a class="page-card" href="#privacy">
-            <div class="page-icon">🛡</div>
-            <h3>隐私中心</h3>
-            <p>PII 映射表、匿名化、按收件人过滤。</p>
-            <span class="page-route">#/privacy</span>
-          </a>
-          <a class="page-card" href="#settings">
-            <div class="page-icon">⚙</div>
-            <h3>设置</h3>
-            <p>主题、语言、日志级别、升级通道、恢复出厂。</p>
-            <span class="page-route">#/settings</span>
-          </a>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ 18 智能代理 ============ -->
-    <section class="section section-agents" id="agents">
-      <div class="container">
-        <div class="section-head">
-          <div class="eyebrow"><span class="eyebrow-dot"></span><span>18 个智能代理</span></div>
-          <h2 class="section-title">每个代理一个角色，<br />每个角色一份最小权限</h2>
-          <p class="section-sub">所有代理都是 <code>SOUL.md</code> + <code>AGENTS.md</code> 描述的"工人"，由 <code>config/agents.yaml</code> 统一注册。main 进程启动时加载、装饰小模型规则书、注册到代理循环。</p>
-        </div>
-
-        <div class="agents-table-wrap">
-          <table class="agents-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>代理</th>
-                <th>角色</th>
-                <th>档位</th>
-                <th>调度</th>
-                <th>权限范围</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td>1</td><td><code>main</code></td><td>教育顾问协调器</td><td><span class="tier high">高质量</span></td><td>按需</td><td>全部读 + 推送 + 调度</td></tr>
-              <tr><td>2</td><td><code>governor</code></td><td>总督察（复盘 + 校验）</td><td><span class="tier low">低成本</span></td><td>每天 6 次 + 周</td><td>读 · 摘要 · 区间 · 统计 · 排行</td></tr>
-              <tr><td>3</td><td><code>counselor</code></td><td>辅导员（谈话 + 学业）</td><td><span class="tier low">低成本</span></td><td>每天 2 次</td><td>读 · 摘要 · 排行 · 添加事件</td></tr>
-              <tr><td>4</td><td><code>supervisor</code></td><td>班主任日报</td><td><span class="tier low">低成本</span></td><td>每天 3 次</td><td>读 · 摘要 · 排行 · 统计 · 区间</td></tr>
-              <tr><td>5</td><td><code>validator</code></td><td>数据审计员</td><td><span class="tier low">低成本</span></td><td>每 6 小时</td><td>读 · 统计 · 代码</td></tr>
-              <tr><td>6</td><td><code>academic</code></td><td>学业分析师</td><td><span class="tier high">高质量</span></td><td>每天 1 次</td><td>读 · 摘要 · 统计 · 排行</td></tr>
-              <tr><td>7</td><td><code>psychology</code></td><td>心理观察员</td><td><span class="tier low">低成本</span></td><td>每天 1 次</td><td>读 · 搜索 · 历史 · 摘要</td></tr>
-              <tr><td>8</td><td><code>safety</code></td><td>安全检查员</td><td><span class="tier low">低成本</span></td><td>周一 08:00</td><td>读 · 添加事件</td></tr>
-              <tr><td>9</td><td><code>home_school</code></td><td>家校联络员</td><td><span class="tier low">低成本</span></td><td>每天 1 次</td><td>读 · 摘要 · 排行</td></tr>
-              <tr><td>10</td><td><code>research</code></td><td>科研助手</td><td><span class="tier low">低成本</span></td><td>每晚 1 次</td><td>读 · 摘要 · 统计</td></tr>
-              <tr><td>11</td><td><code>executor</code></td><td>系统执行器</td><td><span class="tier low">低成本</span></td><td>每晚 1 次</td><td>读 · 统计 · 代码</td></tr>
-              <tr><td>12</td><td><code>bug-hunter</code></td><td>代理自检</td><td><span class="tier low">低成本</span></td><td>按需</td><td>只读</td></tr>
-              <tr><td>13</td><td><code>class-monitor</code></td><td>课代表</td><td><span class="tier low">低成本</span></td><td>按需</td><td>读 · 添加 · 列表 · 摘要</td></tr>
-              <tr><td>14</td><td><code>risk-alert</code></td><td>风险预警</td><td><span class="tier low">低成本</span></td><td>每天 2 次 + 周五</td><td>读 · 排行 · 统计 · 摘要 · 区间</td></tr>
-              <tr><td>15</td><td><code>data-analyst</code></td><td>数据分析师</td><td><span class="tier high">高质量</span></td><td>周一 09:00</td><td>读 · 统计 · 排行 · 摘要 · 区间</td></tr>
-              <tr><td>16</td><td><code>student-care</code></td><td>学生关怀</td><td><span class="tier low">低成本</span></td><td>按需</td><td>读 · 历史 · 搜索 · 列表 · 排行 · 摘要 · 添加</td></tr>
-              <tr><td>17</td><td><code>discipline-officer</code></td><td>纪律委员</td><td><span class="tier low">低成本</span></td><td>按需</td><td>读 · 添加 · 排行 · 历史</td></tr>
-              <tr><td>18</td><td><code>weekly-reporter</code></td><td>周报官</td><td><span class="tier high">高质量</span></td><td>周五 16:00</td><td>读 · 摘要 · 统计 · 排行 · 区间</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <p class="agents-note">想加新代理？读 <a href="https://github.com/232252/education-advisor/blob/main/docs/AGENT_AUTHORING.md" target="_blank" rel="noopener noreferrer">docs/AGENT_AUTHORING.md</a> —— 在 <code>agents/your-id/</code> 放一对 Markdown，在 <code>config/agents.yaml</code> 加一行，重启即可。</p>
-      </div>
-    </section>
-
-    <!-- ============ 架构 ============ -->
-    <section class="section section-arch" id="architecture">
-      <div class="container">
-        <div class="section-head">
-          <div class="eyebrow"><span class="eyebrow-dot"></span><span>系统架构</span></div>
-          <h2 class="section-title">三层架构，<br />职责清晰，可独立审计</h2>
-          <p class="section-sub">渲染层通过 <code>contextBridge</code> 暴露 90+ IPC 通道；主进程编排 18 个代理；Rust 子进程是数据引擎。</p>
-        </div>
-
-        <div class="arch-diagram">
-          <div class="arch-layer arch-renderer">
-            <div class="arch-layer-label">渲染层</div>
-            <div class="arch-layer-title">Renderer · React 18 + Vite + Tailwind</div>
-            <div class="arch-layer-desc">仪表盘 · 聊天 · 学生 · 代理 · 模型 · 技能 · 调度 · 隐私 · 设置</div>
-            <div class="arch-tags">
-              <span>Zustand stores</span><span>i18n (zh/en)</span><span>9 路由</span><span>12 hooks</span>
-            </div>
-          </div>
-          <div class="arch-connector" aria-hidden="true">
-            <div class="arch-arrow">contextBridge · window.api · 11 namespaces · 90+ IPC channels</div>
-          </div>
-          <div class="arch-layer arch-main">
-            <div class="arch-layer-label">主进程</div>
-            <div class="arch-layer-title">Main · Node 22 + Electron 33</div>
-            <div class="arch-services">
-              <div class="arch-svc">pi-ai SDK<br /><span>30+ LLM</span></div>
-              <div class="arch-svc">EAA bridge<br /><span>Rust 子进程</span></div>
-              <div class="arch-svc">SQLite (db)<br /><span>聊天/cron/日志</span></div>
-              <div class="arch-svc">Tray · Auto-update<br /><span>系统集成</span></div>
-            </div>
-            <div class="arch-tags">
-              <span>18 agents</span><span>config/agents.yaml</span><span>node-cron</span>
-            </div>
-          </div>
-          <div class="arch-connector" aria-hidden="true">
-            <div class="arch-arrow">stdin/stdout JSON + file lock</div>
-          </div>
-          <div class="arch-layer arch-rust">
-            <div class="arch-layer-label">数据引擎</div>
-            <div class="arch-layer-title">eaa-cli · Rust · events · privacy · dashboard</div>
-            <div class="arch-layer-desc">同一项目下的稳定数据层，独立编译单元，独立审计</div>
-            <div class="arch-tags">
-              <span>tokio</span><span>serde</span><span>clap</span><span>AES-256-GCM</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ 下载 ============ -->
-    <section class="section section-download" id="download">
-      <div class="container">
-        <div class="section-head">
-          <div class="eyebrow"><span class="eyebrow-dot"></span><span>下载</span></div>
-          <h2 class="section-title">现在就下载，<br />三步开始用</h2>
-          <p class="section-sub">Windows 安装版、绿色版、macOS / Linux 跨平台支持，开箱即用。</p>
-        </div>
-
-        <div class="download-grid">
-          <div class="download-card highlight">
-            <div class="download-badge">推荐</div>
-            <div class="download-os">
-              <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor" aria-hidden="true"><path d="M3 5.4 11 12 3 18.6V5.4M21 5v14L12 12l9-7M5 4l8 7-8 7V4M13 12l8 7V5l-8 7z" opacity="0"/><path d="M0 3.5L9.5 12 0 20.5v-17M10 3.5L19.5 12 10 20.5v-17M12 3.5L21.5 12 12 20.5v-17M14 3.5L23.5 12 14 20.5v-17z" opacity="0"/><path d="M3 5.5l8 6.5-8 6.5V5.5m9 0l8 6.5-8 6.5V5.5M12 5.5L21 12l-9 6.5V5.5z" opacity="0"/><path d="M3 5.4v13.2L11 12 3 5.4m9 0v13.2L21 12 12 5.4"/></svg>
-              <h3>Windows · NSIS 安装版</h3>
-            </div>
-            <ul class="download-list">
-              <li>✓ 系统级安装 · 开始菜单 / 桌面快捷方式</li>
-              <li>✓ 自动更新通道支持</li>
-              <li>✓ 卸载干净，无残留</li>
-              <li>✓ 体积约 85 MB</li>
-            </ul>
-            <a class="btn btn-primary btn-block" href="https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education.Advisor-0.1.0-rc.1-Setup.exe" download>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-              <span>下载 .exe (≈85 MB)</span>
-            </a>
-            <p class="download-hint">需要 Windows 10 1809+ / Windows 11</p>
-          </div>
-
-          <div class="download-card">
-            <div class="download-badge">便携</div>
-            <div class="download-os">
-              <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor" aria-hidden="true"><path d="M3 5.4v13.2L11 12 3 5.4m9 0v13.2L21 12 12 5.4"/></svg>
-              <h3>Windows · 绿色版</h3>
-            </div>
-            <ul class="download-list">
-              <li>✓ 单文件，双击即用</li>
-              <li>✓ 无需管理员权限</li>
-              <li>✓ 适合 U 盘 / 临时机器</li>
-              <li>✓ 体积约 75 MB</li>
-            </ul>
-            <a class="btn btn-ghost btn-block" href="https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education.Advisor-0.1.0-rc.1-portable.exe" download>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-              <span>下载 .exe (≈75 MB)</span>
-            </a>
-            <p class="download-hint">无需安装 · 数据保存在同目录</p>
-          </div>
-
-          <div class="download-card">
-            <div class="download-badge">跨平台</div>
-            <div class="download-os">
-              <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor" aria-hidden="true"><path d="M18.5 2.5c-.7 0-1.5.3-2.3.9-1.4 1-2.6 2.9-2.6 4.7 0 .2 0 .4.1.6 1.5.1 3-.4 4.2-1.4 1.2-1 2-2.5 2-3.9 0-.3 0-.5-.1-.7-.4-.1-.9-.2-1.3-.2M14 9.3c-1.5 0-2.8.9-3.7.9-.9 0-2.1-.8-3.5-.8-1.8 0-3.5 1-4.4 2.7-1.9 3.3-.5 8.1 1.4 10.7.9 1.3 2 2.7 3.4 2.6 1.4 0 1.9-.9 3.5-.9s2 .9 3.5.8c1.4 0 2.4-1.3 3.3-2.6 1-1.5 1.4-2.9 1.4-3 0 0-2.7-1-2.7-4.1 0-2.6 2.1-3.8 2.2-3.9-1.2-1.7-3-1.9-3.6-2"/></svg>
-              <h3>macOS / Linux</h3>
-            </div>
-            <ul class="download-list">
-              <li>✓ 一行配置即可构建</li>
-              <li>✓ 完整功能与 Windows 一致</li>
-              <li>✓ Apple Silicon 原生支持</li>
-              <li>✓ .dmg / .AppImage / .deb</li>
-            </ul>
-            <a class="btn btn-ghost btn-block" href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.16c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.18 1.18.92-.26 1.91-.39 2.89-.39.98 0 1.97.13 2.89.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.12 3.04.73.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.4-5.27 5.69.41.35.78 1.05.78 2.12v3.14c0 .31.21.67.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
-              <span>查看构建说明</span>
-            </a>
-            <p class="download-hint">修改 <code>electron-builder.yml</code> 即可产出对应安装包</p>
-          </div>
-        </div>
-
-        <div class="download-extra">
-          <div class="download-extra-item">
-            <div class="dee-icon">📦</div>
-            <div>
-              <h4>校验和</h4>
-              <p>SHA-256 在 <a href="https://github.com/232252/education-advisor/releases" target="_blank" rel="noopener noreferrer">GitHub Releases</a> 发布时附带</p>
-            </div>
-          </div>
-          <div class="download-extra-item">
-            <div class="dee-icon">🔐</div>
-            <div>
-              <h4>代码签名</h4>
-              <p>v0.2 将引入 Authenticode 签名（见 ROADMAP）</p>
-            </div>
-          </div>
-          <div class="download-extra-item">
-            <div class="dee-icon">🔄</div>
-            <div>
-              <h4>自动更新</h4>
-              <p>应用内一键检查更新，后台下载，下次启动生效</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ 快速开始 ============ -->
-    <section class="section section-quickstart" id="docs">
-      <div class="container">
-        <div class="section-head">
-          <div class="eyebrow"><span class="eyebrow-dot"></span><span>5 分钟上手</span></div>
-          <h2 class="section-title">开发者友好，<br />一行命令拉起来</h2>
-        </div>
-
-        <div class="qs-grid">
-          <div class="qs-steps">
-            <ol class="qs-list">
-              <li>
-                <span class="qs-num">1</span>
-                <div>
-                  <h3>克隆与安装</h3>
-                  <pre class="code"><code>git clone https://github.com/232252/education-advisor.git
-cd education-advisor
-npm ci</code></pre>
-                  <p>需要 Node.js ≥ 22、npm ≥ 10、能编译 <code>better-sqlite3</code> 的 C++ 工具链。</p>
-                </div>
-              </li>
-              <li>
-                <span class="qs-num">2</span>
-                <div>
-                  <h3>获取 Rust 后端</h3>
-                  <pre class="code"><code>npm run build:eaa</code></pre>
-                  <p>下载对应平台的 <code>eaa-cli</code> 预编译二进制到 <code>resources/eaa-binaries/</code>，或自行从 <code>core/eaa-cli/</code> 源码构建。</p>
-                </div>
-              </li>
-              <li>
-                <span class="qs-num">3</span>
-                <div>
-                  <h3>开发模式</h3>
-                  <pre class="code"><code>npm run dev</code></pre>
-                  <p>并行启动 Vite 主进程监听、Vite 渲染进程开发服务器（<code>http://localhost:5173</code>），新开一个终端跑 <code>npm run dev:electron</code> 启动 Electron 壳。</p>
-                </div>
-              </li>
-              <li>
-                <span class="qs-num">4</span>
-                <div>
-                  <h3>打 release 包</h3>
-                  <pre class="code"><code>npm run build           # vite build × 2 configs
-npm run package         # → release/Education Advisor-0.1.0-rc.1-Setup.exe
-npm run package:portable</code></pre>
-                  <p>Windows NSIS 安装包 / 单文件绿色版一键产出。macOS / Linux 改 <code>electron-builder.yml</code> 即可。</p>
-                </div>
-              </li>
-              <li>
-                <span class="qs-num">5</span>
-                <div>
-                  <h3>首次配置</h3>
-                  <p>打开应用进入 <code>#/settings</code>：选主题与语言 → 在 <code>#/models</code> 加至少一个 LLM API Key →（可选）配置飞书 / 初始化隐私引擎。然后到 <code>#/agents</code> 点 class-monitor 的"手动运行"，录入第一条操行事件。</p>
-                </div>
-              </li>
-            </ol>
-          </div>
-
-          <aside class="qs-side">
-            <div class="qs-side-card">
-              <h3>项目信息</h3>
-              <ul class="info-list">
-                <li><span>许可证</span><strong>MIT</strong></li>
-                <li><span>最新版本</span><strong>v0.1.0-rc.1</strong></li>
-                <li><span>主语言</span><strong>TypeScript 73.5%</strong></li>
-                <li><span>次语言</span><strong>Rust 11.9%</strong></li>
-                <li><span>代码体量</span><strong>~17k 行 TS</strong></li>
-                <li><span>文档</span><strong>完整中文 / English</strong></li>
-              </ul>
-            </div>
-            <div class="qs-side-card">
-              <h3>核心命令</h3>
-              <ul class="cmd-list">
-                <li><code>npm run dev</code><span>开发</span></li>
-                <li><code>npm run build</code><span>构建</span></li>
-                <li><code>npm run package</code><span>打安装包</span></li>
-                <li><code>npm run typecheck</code><span>类型检查</span></li>
-                <li><code>npm run lint</code><span>代码风格</span></li>
-                <li><code>npm run test</code><span>测试</span></li>
-              </ul>
-            </div>
-          </aside>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ FAQ ============ -->
-    <section class="section section-faq">
-      <div class="container container-narrow">
-        <div class="section-head">
-          <div class="eyebrow"><span class="eyebrow-dot"></span><span>常见问题</span></div>
-          <h2 class="section-title">答你所问</h2>
-        </div>
-        <div class="faq-list">
-          <details class="faq-item" open>
-            <summary>这是只支持中文的产品吗？</summary>
-            <p>UI 和数据（学生姓名、班级、学校）天然是中文。代码、提示词、开发者文档都是中英双语；代理提示词可编辑为任何语言。</p>
-          </details>
-          <details class="faq-item">
-            <summary>不联网能用吗？</summary>
-            <p>应用本身完全离线可用。只有 LLM 调用需要网络。如果您指向 <code>localhost</code> 上的 Ollama / LM Studio，整套系统可全离线运行。</p>
-          </details>
-          <details class="faq-item">
-            <summary>可以不用 Rust 的 eaa-cli 吗？</summary>
-            <p>可以。所有 EAA 调用都汇集在 <code>src/main/services/eaa-bridge.ts</code> 一个漏斗里。替换成 PostgreSQL / Firestore / 您自己的服务，代理提示词和 UI 完全不用改。</p>
-          </details>
-          <details class="faq-item">
-            <summary>为什么用 Electron 不用 Tauri？</summary>
-            <p>项目启动时，Windows 代码签名和自动更新在 Tauri 生态里还不成熟。我们在 ROADMAP 中长期跟踪 Tauri 生态。</p>
-          </details>
-          <details class="faq-item">
-            <summary>安装包有多大？</summary>
-            <p>Windows NSIS ≈ 85 MB / 绿色版 ≈ 75 MB。其中 Electron 运行时 ~50 MB、Rust EAA 二进制 ~20 MB，其余是您的代码、配置和 18 个代理。</p>
-          </details>
-          <details class="faq-item">
-            <summary>怎么加一个新代理？</summary>
-            <p>读 <a href="https://github.com/232252/education-advisor/blob/main/docs/AGENT_AUTHORING.md" target="_blank" rel="noopener noreferrer">docs/AGENT_AUTHORING.md</a>。TL;DR：在 <code>agents/your-id/</code> 放一对 <code>SOUL.md</code> + <code>AGENTS.md</code>，在 <code>config/agents.yaml</code> 加一行，重启应用。</p>
-          </details>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ 最后的 CTA ============ -->
-    <section class="section section-cta">
-      <div class="container">
-        <div class="cta-card">
-          <div class="cta-glow" aria-hidden="true"></div>
-          <div class="cta-content">
-            <h2>把繁琐留给 AI，<br />把教育留给您</h2>
-            <p>本地、隐私、开源、跨平台。下一个 +2 / -3 操行分，让 class-monitor 来记。</p>
-            <div class="cta-actions">
-              <a class="btn btn-primary btn-lg" href="#download">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-                <span>免费下载 v0.1.0-rc.1</span>
-              </a>
-              <a class="btn btn-ghost btn-lg" href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">
-                <span>Star 一下仓库</span>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- ============ 页脚 ============ -->
-  <footer class="footer">
-    <div class="container">
-      <div class="footer-grid">
-        <div class="footer-brand">
-          <a class="logo" href="#top" aria-label="Education Advisor">
-            <svg class="logo-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <use href="#logoGrad" />
-              <path d="M16 2 L29 9 L29 23 L16 30 L3 23 L3 9 Z" fill="url(#logoGrad)" />
-              <path d="M16 9 L23 12.5 L23 19.5 L16 23 L9 19.5 L9 12.5 Z" fill="#0A1628" />
-              <circle cx="16" cy="16" r="2.5" fill="url(#logoGrad)" />
-            </svg>
-            <span class="logo-text">Education <span class="logo-accent">Advisor</span></span>
-          </a>
-          <p class="footer-tag">让教育更智能，让教师更轻松。</p>
-          <p class="footer-desc">基于 OpenClaw 框架的智能教育管理助手，为班主任和教师提供学生管理、教育督导、科研辅助服务。</p>
-          <div class="footer-social">
-            <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.16c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.18 1.18.92-.26 1.91-.39 2.89-.39.98 0 1.97.13 2.89.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.12 3.04.73.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.4-5.27 5.69.41.35.78 1.05.78 2.12v3.14c0 .31.21.67.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
-            </a>
-            <a href="#" aria-label="Discord">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M20.32 4.92A19.79 19.79 0 0 0 16.36 3.7a.07.07 0 0 0-.08.04 13.7 13.7 0 0 0-.61 1.25 18.27 18.27 0 0 0-5.34 0 12.7 12.7 0 0 0-.62-1.25.08.08 0 0 0-.08-.04 19.74 19.74 0 0 0-3.96 1.22.07.07 0 0 0-.03.03A20.27 20.27 0 0 0 2.04 17.4a.08.08 0 0 0 .03.06 19.9 19.9 0 0 0 5.99 3.04.08.08 0 0 0 .08-.03 14.2 14.2 0 0 0 1.22-1.99.08.08 0 0 0-.04-.1 13.1 13.1 0 0 1-1.87-.89.08.08 0 0 1-.01-.13c.13-.1.25-.2.37-.3a.07.07 0 0 1 .08-.01 14.2 14.2 0 0 0 12.06 0 .07.07 0 0 1 .08.01c.12.1.24.21.37.31a.08.08 0 0 1-.01.13c-.6.35-1.22.65-1.87.89a.08.08 0 0 0-.04.1c.36.7.77 1.36 1.22 1.99a.08.08 0 0 0 .08.03 19.83 19.83 0 0 0 6-3.04.08.08 0 0 0 .03-.06 20.13 20.13 0 0 0-3.63-12.45.06.06 0 0 0-.03-.03zM8.68 15.04c-1.18 0-2.16-1.08-2.16-2.42 0-1.34.96-2.42 2.16-2.42 1.21 0 2.18 1.09 2.16 2.42 0 1.34-.96 2.42-2.16 2.42zm7.04 0c-1.18 0-2.16-1.08-2.16-2.42 0-1.34.96-2.42 2.16-2.42 1.21 0 2.18 1.09 2.16 2.42 0 1.34-.95 2.42-2.16 2.42z"/></svg>
-            </a>
-            <a href="#" aria-label="邮箱">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg>
-            </a>
-          </div>
-        </div>
-
-        <div class="footer-col">
-          <h4>产品</h4>
-          <ul>
-            <li><a href="#features">核心特性</a></li>
-            <li><a href="#agents">智能代理</a></li>
-            <li><a href="#architecture">系统架构</a></li>
-            <li><a href="#download">下载</a></li>
-            <li><a href="https://github.com/232252/education-advisor/releases" target="_blank" rel="noopener noreferrer">更新日志</a></li>
-          </ul>
-        </div>
-
-        <div class="footer-col">
-          <h4>开发者</h4>
-          <ul>
-            <li><a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub 仓库</a></li>
-            <li><a href="https://github.com/232252/education-advisor/blob/main/docs" target="_blank" rel="noopener noreferrer">技术文档</a></li>
-            <li><a href="https://github.com/232252/education-advisor/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">贡献指南</a></li>
-            <li><a href="https://github.com/232252/education-advisor/blob/main/ROADMAP.md" target="_blank" rel="noopener noreferrer">路线图</a></li>
-            <li><a href="https://github.com/232252/education-advisor/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">安全策略</a></li>
-          </ul>
-        </div>
-
-        <div class="footer-col">
-          <h4>社区</h4>
-          <ul>
-            <li><a href="https://github.com/232252/education-advisor/blob/main/CODE_OF_CONDUCT.md" target="_blank" rel="noopener noreferrer">行为准则</a></li>
-            <li><a href="https://github.com/232252/education-advisor/issues" target="_blank" rel="noopener noreferrer">问题反馈</a></li>
-            <li><a href="https://github.com/232252/education-advisor/blob/main/BUG_REPORT.md" target="_blank" rel="noopener noreferrer">报告 Bug</a></li>
-            <li><a href="https://github.com/232252/education-advisor/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT 许可证</a></li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="footer-bottom">
-        <div>© 2026 Education Advisor · 基于 OpenClaw 框架 · MIT License</div>
-        <div class="footer-bottom-right">
-          <span>让教育更智能</span>
-          <span class="dot-sep" aria-hidden="true">·</span>
-          <span>让教师更轻松</span>
-        </div>
-      </div>
+  </div>
+  <div class="footer-bar">
+    <div class="container footer-bar-inner">
+      <div>© 2026 Education Advisor · MIT License</div>
+      <div class="footer-bar-meta">v0.1.0-rc.1 · 完全自研 · 桌面优先</div>
     </div>
-  </footer>
+  </div>
+</footer>
 
-  <!-- 回到顶部 -->
-  <button class="back-top" id="backTop" aria-label="回到顶部">
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-  </button>
+<button class="back-top" id="backTop" aria-label="回到顶部">
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
 
-  <script src="assets/js/main.js"></script>
+<script src="assets/js/main.js"></script>
 </body>
 </html>

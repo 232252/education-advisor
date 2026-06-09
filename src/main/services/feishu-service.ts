@@ -5,7 +5,7 @@
 //   - 测连接(testConnection)
 //   - bitable 列表(listBitableTables)
 //   - 发文本消息(sendTextMessage)
-// 设计参考: OpenClaw 飞书插件的鉴权 + 直发模式
+// 设计参考: 飞书官方 OpenAPI 的鉴权 + 直发模式
 // =============================================================
 
 const FEISHU_API_BASE = 'https://open.feishu.cn/open-apis'
