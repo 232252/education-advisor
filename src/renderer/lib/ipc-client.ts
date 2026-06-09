@@ -1,0 +1,281 @@
+// =============================================================
+// IPC 客户端封装 — 类型安全的 window.api 调用
+// =============================================================
+
+import type {
+  AddEventParams,
+  AgentDetail,
+  AgentListItem,
+  CronLogEntry,
+  CronTask,
+  EAACodesData,
+  EAADoctorData,
+  EAAHistoryData,
+  EAAInfoData,
+  EAARangeData,
+  EAARankItem,
+  EAARankingData,
+  EAAResult,
+  EAASearchData,
+  EAAStatsData,
+  EAAStudentList,
+  EAAStudentScore,
+  EAASummaryData,
+  EAATagDetailData,
+  EAATagListData,
+  EAAValidateData,
+  ModelInfo,
+  PrivacyMapping,
+  ProviderInfo,
+  SetStudentMetaParams,
+  Skill,
+  StreamEvent,
+  StudentProfileData,
+  TestConnectionResult,
+  UnifiedSettings,
+} from '@shared/types'
+
+// window.api 的类型声明（与 preload 脚本对应）
+interface WindowAPI {
+  ai: {
+    listProviders: () => Promise<ProviderInfo[]>
+    listModels: (providerId: string) => Promise<ModelInfo[]>
+    testConnection: (
+      providerId: string,
+      apiKey: string,
+      baseUrl?: string,
+    ) => Promise<TestConnectionResult>
+    setApiKey: (providerId: string, apiKey: string) => Promise<{ success: boolean }>
+    deleteApiKey: (providerId: string) => Promise<{ success: boolean }>
+    oauthLogin: (
+      providerId: string,
+    ) => Promise<{ success: boolean; error?: string; authUrl?: string }>
+    chat: (params: {
+      providerId: string
+      modelId: string
+      messages: Array<{ role: string; content: string }>
+      systemPrompt?: string
+      thinking?: string
+      maxTokens?: number
+    }) => Promise<{ success: boolean; message: string }>
+    abortChat: () => Promise<{ success: boolean }>
+    addCustomModel: (params: {
+      providerId: string
+      modelId: string
+      name?: string
+      contextWindow?: number
+      maxOutputTokens?: number
+      supportsReasoning?: boolean
+    }) => Promise<ModelInfo>
+    deleteCustomModel: (providerId: string, modelId: string) => Promise<{ success: boolean }>
+    updateCustomModel: (params: {
+      providerId: string
+      modelId: string
+      name?: string
+      contextWindow?: number
+      maxOutputTokens?: number
+      supportsReasoning?: boolean
+      costPerInputToken?: number
+      costPerOutputToken?: number
+      api?: string
+      baseUrl?: string
+    }) => Promise<{ success: boolean }>
+    onStream: (callback: (event: StreamEvent) => void) => () => void
+  }
+  agent: {
+    list: () => Promise<AgentListItem[]>
+    get: (id: string) => Promise<AgentDetail | null>
+    toggle: (id: string, enabled: boolean) => Promise<{ success: boolean }>
+    update: (
+      id: string,
+      patch: Partial<{
+        name: string
+        description: string
+        modelTier: 'high_quality' | 'low_cost'
+        capabilities: string[]
+      }>,
+    ) => Promise<{ success: boolean; error?: string }>
+    getSoul: (id: string) => Promise<string>
+    setSoul: (id: string, content: string) => Promise<{ success: boolean }>
+    getRules: (id: string) => Promise<string>
+    setRules: (id: string, content: string) => Promise<{ success: boolean }>
+    runManual: (
+      id: string,
+      prompt: string,
+      history?: Array<{ role: string; content: string }>,
+    ) => Promise<{ success: boolean; message?: string; id?: string }>
+    getHistory: (id: string) => Promise<unknown[]>
+    abort: (id: string) => Promise<{ success: boolean }>
+    onStatusUpdate: (callback: (data: unknown) => void) => () => void
+  }
+  eaa: {
+    info: () => Promise<EAAResult<EAAInfoData>>
+    score: (name: string) => Promise<EAAResult<EAAStudentScore>>
+    ranking: (n?: number) => Promise<EAAResult<EAARankingData>>
+    replay: () => Promise<EAAResult<{ ranking: EAARankItem[] }>>
+    addEvent: (params: AddEventParams) => Promise<EAAResult<string>>
+    revertEvent: (eventId: string, reason: string) => Promise<EAAResult<string>>
+    history: (name: string) => Promise<EAAResult<EAAHistoryData>>
+    search: (query: string, limit?: number) => Promise<EAAResult<EAASearchData>>
+    range: (start: string, end: string, limit?: number) => Promise<EAAResult<EAARangeData>>
+    tag: (tag?: string) => Promise<EAAResult<EAATagListData | EAATagDetailData>>
+    stats: () => Promise<EAAResult<EAAStatsData>>
+    validate: () => Promise<EAAResult<EAAValidateData>>
+    export: (format: string, outputFile?: string) => Promise<EAAResult<string>>
+    listStudents: () => Promise<EAAResult<EAAStudentList>>
+    addStudent: (name: string) => Promise<EAAResult<string>>
+    deleteStudent: (name: string, reason?: string) => Promise<EAAResult<string>>
+    setStudentMeta: (params: SetStudentMetaParams) => Promise<EAAResult<string>>
+    import: (filePath: string) => Promise<EAAResult<string>>
+    codes: () => Promise<EAAResult<EAACodesData>>
+    doctor: () => Promise<EAAResult<EAADoctorData>>
+    summary: (since?: string, until?: string) => Promise<EAAResult<EAASummaryData>>
+    dashboard: (outputDir?: string) => Promise<EAAResult<string>>
+  }
+  privacy: {
+    init: (password: string, autoScan?: boolean) => Promise<EAAResult>
+    load: (password: string) => Promise<EAAResult>
+    enable: () => Promise<EAAResult>
+    disable: (password: string) => Promise<EAAResult>
+    list: (password: string) => Promise<EAAResult<PrivacyMapping[]>>
+    add: (entityType: string, text: string) => Promise<EAAResult>
+    anonymize: (text: string) => Promise<EAAResult>
+    deanonymize: (text: string) => Promise<EAAResult>
+    filter: (receiver: string, text: string) => Promise<EAAResult>
+    dryrun: (text: string) => Promise<EAAResult>
+    backup: (destPath: string) => Promise<EAAResult>
+  }
+  cron: {
+    list: () => Promise<CronTask[]>
+    add: (task: unknown) => Promise<string>
+    update: (id: string, patch: unknown) => Promise<{ success: boolean }>
+    remove: (id: string) => Promise<{ success: boolean }>
+    toggle: (id: string, enabled: boolean) => Promise<{ success: boolean }>
+    runNow: (id: string) => Promise<{ success: boolean }>
+    getLogs: (taskId?: string) => Promise<CronLogEntry[]>
+    onStatusUpdate: (callback: (data: unknown) => void) => () => void
+  }
+  skill: {
+    list: () => Promise<Skill[]>
+    get: (name: string) => Promise<Skill | null>
+    save: (name: string, content: string) => Promise<{ success: boolean }>
+    delete: (name: string) => Promise<{ success: boolean; error?: string }>
+  }
+  settings: {
+    get: () => Promise<UnifiedSettings>
+    set: (path: string, value: unknown) => Promise<{ success: boolean }>
+    reset: () => Promise<{ success: boolean }>
+  }
+  profile: {
+    get: (name: string) => Promise<{ success: boolean; data: StudentProfileData }>
+    set: (
+      name: string,
+      data: Partial<StudentProfileData>,
+    ) => Promise<{ success: boolean; error?: string }>
+  }
+  chat: {
+    saveMessage: (msg: {
+      sessionId?: string
+      role: string
+      content: string
+      thinking?: string
+      toolCalls?: string
+      timestamp: number
+      provider?: string
+      model?: string
+      tokenInput?: number
+      tokenOutput?: number
+      cost?: number
+    }) => Promise<{ success: boolean; id?: number }>
+    loadMessages: (
+      sessionId?: string,
+    ) => Promise<{ success: boolean; messages: Array<Record<string, unknown>> }>
+    deleteSession: (sessionId: string) => Promise<{ success: boolean }>
+    listSessions: () => Promise<{
+      success: boolean
+      sessions: Array<{ id: string; title: string; createdAt: number; messageCount: number }>
+    }>
+  }
+  // T5: 日志系统 API
+  log: {
+    list: () => Promise<Array<{ stream: string; date: string; name: string; sizeBytes: number }>>
+    read: (name: string, lines?: number) => Promise<string>
+    clear: () => Promise<number>
+    filter: (name: string, levels: string[], lines?: number) => Promise<string>
+    search: (name: string, query: string, lines?: number) => Promise<string>
+    export: (name: string, targetPath: string) => Promise<number>
+    exportWithDialog: (name: string) => Promise<{ canceled: boolean; bytes: number; path?: string }>
+    forward: (level: 'debug' | 'info' | 'warn' | 'error', msg: string) => void
+  }
+  // T7: 飞书集成 API (appSecret 从 keystore 读取，不再通过参数传递)
+  feishu: {
+    test: (
+      appId: string,
+    ) => Promise<{ success: boolean; token?: string; expireSec?: number; error?: string }>
+    listBitable: (
+      appId: string,
+      appToken: string,
+    ) => Promise<{
+      success: boolean
+      tables?: Array<{ table_id: string; name: string }>
+      error?: string
+    }>
+    send: (
+      appId: string,
+      userOpenId: string,
+      text: string,
+    ) => Promise<{ success: boolean; messageId?: string; error?: string }>
+    status: () => Promise<string>
+    syncNow: (
+      appId: string,
+      appToken: string,
+      tableId: string,
+      fields: Record<string, unknown>,
+    ) => Promise<{ success: boolean; skipped?: string; recordId?: string; error?: string }>
+  }
+  sys: {
+    openDialog: (options: unknown) => Promise<unknown>
+    saveDialog: (options: unknown) => Promise<unknown>
+    openExternal: (url: string) => Promise<{ success: boolean }>
+    getPath: (name: string) => Promise<string>
+    checkUpdate: () => Promise<{
+      hasUpdate: boolean
+      currentVersion: string
+      latestVersion: string
+      releaseUrl: string
+      releaseNotes: string
+      message: string
+    }>
+    showUpdateDialog: () => Promise<{ success: boolean }>
+    notify: (title: string, body: string) => Promise<{ success: boolean }>
+  }
+}
+
+// 全局类型扩展
+declare global {
+  interface Window {
+    api: WindowAPI
+  }
+}
+
+/** 获取 API 客户端（带安全检查） */
+export function getAPI(): WindowAPI {
+  if (!window.api) {
+    throw new Error('window.api is not available. Are you running inside Electron?')
+  }
+  return window.api
+}
+
+/**
+ * 从 EAAResult 中提取最有用的错误信息。
+ * TEXT_OUTPUT_COMMANDS 失败时 CLI 详细错误在 data（字符串），
+ * JSON 命令失败时在 stderr。按优先级选取。
+ */
+export function getErrorMessage(
+  result: { data?: unknown; stderr?: string },
+  fallback = '未知错误',
+): string {
+  if (typeof result.data === 'string' && result.data.length > 0) return result.data
+  if (result.stderr && result.stderr.length > 0) return result.stderr
+  return fallback
+}

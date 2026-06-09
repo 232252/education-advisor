@@ -1,0 +1,91 @@
+name: Agent request
+description: Propose a new agent or a change to an existing agent's prompt / behavior.
+title: "[agent] "
+labels: ["type: agent", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New agents are most often the highest-leverage contributions.
+        Before you file this issue, please read
+        [`docs/AGENT_AUTHORING.md`](https://github.com/232252/education-advisor/blob/main/docs/AGENT_AUTHORING.md)
+        and [`config/SMALL_MODEL_RULES.md`](https://github.com/232252/education-advisor/blob/main/config/SMALL_MODEL_RULES.md).
+  - type: input
+    id: id
+    attributes:
+      label: Proposed agent id
+      description: Lowercase, kebab-case, unique across the 18 existing agents.
+      placeholder: "lab-supervisor"
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Proposed agent name (Chinese + English)
+      placeholder: "实验监督员 / Lab Supervisor"
+    validations:
+      required: true
+  - type: dropdown
+    id: model-tier
+    attributes:
+      label: Model tier
+      description: "high-quality" = use the high-quality model (slower, pricier). "low-cost" = use the small model.
+      options:
+        - "high-quality"
+        - "low-cost"
+    validations:
+      required: true
+  - type: textarea
+    id: role
+    attributes:
+      label: Role & responsibilities
+      description: 2–4 sentences. What does this agent do? When does it run? What's its scope?
+      placeholder: |
+        - **Role**: Watch the chemistry lab's equipment and consumables.
+        - **Trigger**: Every Monday at 08:00 + on demand.
+        - **Scope**: Read-only on the event log; can write "lab_incident" events.
+        - **Output**: A daily Slack message summarizing what needs restocking.
+    validations:
+      required: true
+  - type: textarea
+    id: capabilities
+    attributes:
+      label: Required capabilities
+      description: List the eaa / privacy / chat / settings / feishu operations the agent will use.
+      placeholder: |
+        - `eaa.read` (events for the past 7 days)
+        - `eaa.add_event` (for incident reports)
+        - `feishu.send` (to the lab supervisor's open_id)
+    validations:
+      required: true
+  - type: textarea
+    id: schedule
+    attributes:
+      label: Proposed schedule
+      description: Cron expressions, or "on demand" if no schedule.
+      placeholder: |
+        - `0 8 * * 1` — Monday 08:00 (equipment check)
+        - `0 8 * * 5` — Friday 08:00 (weekend pre-check)
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example output
+      description: A short, realistic example of the agent's output. Helps the maintainer team evaluate.
+      placeholder: |
+        ```
+        [lab-supervisor] 周一设备检查报告
+        - 试管架 #3 缺 5 支试管
+        - 化学试剂 A 库存 < 20%，需要补货
+        - 通风橱 #2 滤网已过期（2026-05-30）
+        ```
+  - type: dropdown
+    id: willingness
+    attributes:
+      label: Willingness to implement
+      options:
+        - I'd like to implement this myself and would value a design review
+        - I'd like to implement this with co-maintainer support
+        - I'd like someone from the maintainer team to take it
+        - I just want to record the idea

@@ -1,0 +1,441 @@
+# =============================================================
+# Education Advisor Agent 配置
+# 整合 education-advisor 全部 Agent + 原有 Agent
+# capabilities 映射: score, add_event, history, search, list,
+#   ranking, stats, codes, summary, add_student, range,
+#   read (= 只读工具集), write (= 写入工具集), all / *
+# =============================================================
+
+agents:
+
+  # ═══════════════════════════════════════════════════
+  # 教育参谋体系 (来自 education-advisor)
+  # ═══════════════════════════════════════════════════
+
+  # ─── 主协调 Agent：接收用户消息、调度其他 Agent ───
+  - id: main
+    name: 教育参谋
+    role: coordinator
+    description: |
+      主协调Agent，负责接收用户消息、调度其他Agent、推送报告。
+      首次使用时自动引导配置流程。
+    enabled: true
+    model_tier: high_quality
+    # P2-2 修复:从 capabilities: [all] 改为显式列表,遵循最小权限原则
+    # 注:工具实际执行时仍由工具内部校验权限,这里只是声明意图
+    capabilities:
+      - read
+      - summary
+      - add_event
+      - add_student
+      - history
+      - search
+      - list
+      - ranking
+      - stats
+      - codes
+      - range
+    schedule:
+      cron: []
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 督导 Agent：数据治理与督导复盘 ───
+  - id: governor
+    name: 督导
+    role: governor
+    description: |
+      负责督导复盘、数据质量校验、风险分析、数字孪生快照。
+      7 个定时任务覆盖晨/午/晚全时段。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - read
+      - summary
+      - range
+      - stats
+      - ranking
+    schedule:
+      cron:
+        - "0 6 * * *"      # 每日06:00 晨间数据质量检查
+        - "0 12 * * *"     # 每日12:00 午间数据校验
+        - "0 18 * * *"     # 每日18:00 晚间数据校验
+        - "0 22 * * *"     # 每日22:00 督导复盘+数字孪生
+        - "0 17 * * 5"     # 每周五17:00 谈话提醒
+        - "0 22 * * 0"     # 每周日22:00 系统周报
+        - "0 9 1 * *"      # 每月1日09:00 月度数据检查
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 辅导员 Agent：学业日报 + 谈话计划 ───
+  - id: counselor
+    name: 辅导员
+    role: counselor
+    description: |
+      负责学业日报生成、谈话计划制定、末位学生跟踪。
+      由原 academic 和 talk_planner 合并而来。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - read
+      - summary
+      - ranking
+      - add_event
+    schedule:
+      cron:
+        - "5 7 * * *"      # 每日07:05 学业日报+谈话计划
+        - "0 20 * * *"     # 每日20:00 更新谈话计划
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 督导汇总 Agent：风险评估与综合报告 ───
+  - id: supervisor
+    name: 督导汇总员
+    role: supervisor
+    description: |
+      负责学生风险评估、生成综合督导报告、协调各 Agent 工作。
+      多维度评估学生风险：学业、纪律、心理、人际。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - read
+      - summary
+      - ranking
+      - stats
+      - range
+    schedule:
+      cron:
+        - "0 22 * * *"     # 每日22:00 复盘
+        - "0 6 * * *"      # 每日06:00 晨间准备
+        - "0 22 * * 0"     # 每周日22:00 周报
+    # P2-12 修复:统一阈值 85/93/93(原 80/50/20 颠倒不合理)
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 数据校验 Agent：数据准确性守护者 ───
+  - id: validator
+    name: 数据效验AI
+    role: data_guardian
+    description: |
+      负责数据准确性、完整性、一致性校验，是质量管控的核心防线。
+      每6小时自动核验一轮。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - read
+      - stats
+      - codes
+    schedule:
+      cron:
+        - "0 */6 * * *"    # 每6小时核验
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 学业分析 Agent：成绩分析与学业预警 ───
+  - id: academic
+    name: 学业分析师
+    role: academic_advisor
+    description: |
+      负责学业数据分析、成绩预警、补考管理。
+      支持六科成绩分析（语数英物化生），含加权计算。
+    enabled: true
+    model_tier: high_quality
+    capabilities:
+      - read
+      - summary
+      - stats
+      - ranking
+    schedule:
+      cron:
+        - "5 7 * * *"      # 每日07:05 学业报告
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 心理危机监测 Agent：学生心理安全防线 ───
+  - id: psychology
+    name: 心理危机监测员
+    role: psychology_monitor
+    description: |
+      负责学生心理危机预警、情绪监测、危机干预建议。
+      是学生心理安全的最后防线。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - read
+      - search
+      - history
+      - summary
+    schedule:
+      cron:
+        - "0 21 * * *"     # 每日21:00 心理检查
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 安全检查 Agent：实验室与校园安全 ───
+  - id: safety
+    name: 安全检查员
+    role: safety_officer
+    description: |
+      负责实验室安全、校园安全检查。
+      覆盖物理/化学/通用技术实验室及校园周边。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - read
+      - add_event
+    schedule:
+      cron:
+        - "0 8 * * 1"      # 每周一08:00 周检
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 家校沟通 Agent：通知生成与家长联系 ───
+  - id: home_school
+    name: 家校沟通员
+    role: home_school_coordinator
+    description: |
+      负责生成家校沟通通知、家长联系记录。
+      支持学业通知、行为反馈、紧急联系等多种类型。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - read
+      - summary
+      - ranking
+    schedule:
+      cron:
+        - "30 8 * * *"     # 每日08:30 生成通知
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 科研辅助 Agent：课题管理与论文数据 ───
+  - id: research
+    name: 科研助理
+    role: research_assistant
+    description: |
+      负责课题管理、论文数据收集、科研进度跟踪。
+      支持实证研究、案例研究、综述研究多种类型。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - read
+      - summary
+      - stats
+    schedule:
+      cron:
+        - "10 22 * * *"    # 每日22:10 收集数据
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 系统维护 Agent：自维护与备份 ───
+  - id: executor
+    name: 系统执行员
+    role: system_executor
+    description: |
+      负责系统自维护、错误修复、备份管理。
+      日/周/月三级维护策略，确保系统稳定运行。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - read
+      - stats
+      - codes
+    schedule:
+      cron:
+        - "0 1 * * *"      # 每日01:00 自维护
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 谈话计划 Agent（功能已整合到 counselor，保留配置备用）───
+  # P2-13 修复:已删除 agents/talk_planner/ 目录并从 yaml 移除条目(避免误导)
+
+  # ═══════════════════════════════════════════════════
+  # 原有班务 Agent (保留独立功能)
+  # ═══════════════════════════════════════════════════
+
+  # ─── 班务助理：日常操行管理的一线操作者 ───
+  - id: class-monitor
+    name: 班务助理
+    role: 班级日常操行管理
+    description: |
+      负责日常操行事件录入、学生分数查询和班级概况汇总。
+      适合班主任或班长使用，快速完成扣分/加分操作。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - read
+      - add_event
+      - list
+      - summary
+    schedule:
+      cron: []
+    # P2-12 修复:统一阈值 85/93/93(原 60/80/100 与新 agent 不一致)
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 风险预警员：定时扫描高风险学生 ───
+  - id: risk-alert
+    name: 风险预警员
+    role: 学生风险监测与预警
+    description: |
+      定时扫描所有学生的操行分数，识别高风险和极高风险学生，
+      生成预警报告，帮助教师及时介入。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - read
+      - ranking
+      - stats
+      - summary
+      - range
+    schedule:
+      cron:
+        - "0 8 * * 1-5"    # 工作日早8点
+        - "0 17 * * 5"     # 每周五下午5点（周末前汇总）
+    # P2-12 修复:统一阈值 85/93/93
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 数据分析师：深度分析操行数据 ───
+  - id: data-analyst
+    name: 数据分析师
+    role: 操行数据统计分析
+    description: |
+      擅长对操行数据进行多维度统计分析，包括扣分原因分布、
+      时间段趋势、班级对比等，生成结构化的数据洞察报告。
+    enabled: true
+    model_tier: high_quality
+    capabilities:
+      - read
+      - stats
+      - ranking
+      - summary
+      - range
+    schedule:
+      cron:
+        - "0 9 * * 1"      # 每周一上午9点（周报）
+    # P2-12 修复:统一阈值 85/93/93
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 学生关怀员：关注正向激励 ───
+  - id: student-care
+    name: 学生关怀员
+    role: 学生正向激励与关怀
+    description: |
+      专注于发现和表扬学生的正面行为，追踪加分情况，
+      帮助教师及时给予鼓励和奖励，营造积极的班级氛围。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - score
+      - history
+      - search
+      - list
+      - ranking
+      - summary
+      - add_event
+    schedule:
+      cron: []
+    # P2-12 修复:统一阈值 85/93/93
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 纪律管理员：严肃纪律处分 ───
+  - id: discipline-officer
+    name: 纪律管理员
+    role: 违纪行为管理与处分
+    description: |
+      负责处理严重违纪行为（如抽烟、饮酒、实验室安全违规等），
+      确保扣分操作规范执行，跟踪违纪学生的后续表现。
+    enabled: true
+    model_tier: low_cost
+    # P2-2 修复:从 capabilities: [all] 改为显式列表
+    capabilities:
+      - read
+      - add_event
+      - search
+      - list
+      - ranking
+      - summary
+      - history
+    schedule:
+      cron: []
+    # P2-12 修复:统一阈值 85/93/93
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── 周报撰写员：自动生成周报 ───
+  - id: weekly-reporter
+    name: 周报撰写员
+    role: 自动生成班级操行周报
+    description: |
+      每周五自动汇总本周操行数据，生成包含分数变动、
+      风险预警、典型事件和改进建议的班级周报。
+    enabled: true
+    model_tier: high_quality
+    capabilities:
+      - read
+      - summary
+      - stats
+      - ranking
+      - range
+    schedule:
+      cron:
+        - "0 16 * * 5"     # 每周五下午4点
+    # P2-12 修复:统一阈值 85/93/93
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93
+
+  # ─── Bug Hunter：编程 Bug 复现 + 回归测试 ───
+  - id: bug-hunter
+    name: Bug Hunter
+    role: bug-hunter
+    description: |
+      代码质量守门员。复现 bug、定位根因、写回归测试、生成报告、边界 fuzz。
+      不生产代码,只审判代码;不直接改业务代码,修复决定权交人类。
+      无需 EAA 学生数据,手动触发,不挂定时。
+    enabled: true
+    model_tier: low_cost
+    capabilities:
+      - read
+    schedule:
+      cron: []
+    risk_thresholds:
+      high: 85
+      medium: 93
+      low: 93

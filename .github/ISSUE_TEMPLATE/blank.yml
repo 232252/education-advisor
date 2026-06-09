@@ -1,0 +1,79 @@
+# These are the default issue templates for the project.
+# Pick the one that best matches your request, or use the blank template
+# if none of them fit.
+
+# Choose one of:
+# - Bug report (.github/ISSUE_TEMPLATE/bug_report.md)
+# - Feature request (.github/ISSUE_TEMPLATE/feature_request.md)
+# - Question (.github/ISSUE_TEMPLATE/question.md)
+# - Agent request (.github/ISSUE_TEMPLATE/agent_request.md)
+# - Blank (issues/blank.md)
+
+# If none of these fit, please open a
+# [GitHub Discussion](https://github.com/232252/education-advisor/discussions)
+# instead — the issue tracker is for actionable, scoped work.
+
+name: Issue / question / blank
+description: Open a new issue, ask a question, or file a blank report.
+title: "[type] "
+labels: ["triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for opening an issue! Please take a moment to read the
+        guidance below — it helps us help you faster.
+
+        - **Bug?** Use the [Bug report](https://github.com/232252/education-advisor/issues/new?template=bug_report.md) template.
+        - **Feature request?** Use the [Feature request](https://github.com/232252/education-advisor/issues/new?template=feature_request.md) template.
+        - **Question?** Use the [Question](https://github.com/232252/education-advisor/issues/new?template=question.md) template.
+        - **New agent?** Use the [Agent request](https://github.com/232252/education-advisor/issues/new?template=agent_request.md) template.
+        - **None of the above?** Fill in this template.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of issue is this?
+      description: Pick the closest match. You can change it later.
+      options:
+        - Bug
+        - Feature request
+        - Question
+        - Documentation issue
+        - Translation issue
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the issue
+      description: One or two paragraphs. Paste any error logs, screenshots, etc.
+      placeholder: |
+        What happened? What did you expect to happen? What version of the
+        app are you running? What LLM provider / model are you using?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Settings → About. Or `git describe --tags` in the repo.
+      placeholder: "0.1.0"
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: Windows 11 / macOS 14 / Ubuntu 22.04 / etc.
+      placeholder: "Windows 11 23H2"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight checks
+      description: Please confirm each of the following.
+      options:
+        - label: I have searched the existing issues and this is not a duplicate
+          required: true
+        - label: I have read the [README](https://github.com/232252/education-advisor#readme) and the relevant doc in `docs/`
+          required: true
+        - label: I am not including any real student data in this report
+          required: true

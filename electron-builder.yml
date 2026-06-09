@@ -1,0 +1,45 @@
+appId: com.education-advisor.app
+productName: Education Advisor
+copyright: Copyright 2026
+
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - dist/**/*
+  - node_modules/**/*
+
+extraResources:
+  - from: resources/eaa-binaries/
+    to: eaa-binaries/
+    filter: ["**/*"]
+  - from: config/
+    to: config/
+    filter: ["**/*"]
+  - from: agents/
+    to: agents/
+    filter: ["**/*"]
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: resources/icon.ico
+  artifactName: "${productName}-${version}-Setup.${ext}"
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+asar: true
+asarUnpack:
+  - "**/*.exe"
+  - "**/*.node"
+  - "**/*.dll"

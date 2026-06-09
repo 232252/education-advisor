@@ -1,0 +1,23 @@
+name: Labeler
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    name: Apply labels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply labels based on changed paths
+        uses: actions/labeler@v5
+        with:
+          configuration-path: .github/labeler.yml
+          fail-on-error: false
