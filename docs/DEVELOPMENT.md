@@ -7,13 +7,14 @@
 ## Table of contents
 
 - [Prerequisites](#prerequisites)
-- [The two repositories](#the-two-repositories)
+- [The repository layout](#the-repository-layout)
 - [Initial setup](#initial-setup)
 - [Daily development loop](#daily-development-loop)
 - [Project structure](#project-structure)
 - [Coding standards](#coding-standards)
 - [TypeScript aliases](#typescript-aliases)
-- [The local Pi monorepo](#the-local-pi-monorepo)
+- [The EAA data engine (Rust)](#the-eaa-data-engine-rust)
+- [The in-tree vendored pi packages](#the-in-tree-vendored-pi-packages)
 - [Running tests](#running-tests)
 - [Linting and formatting](#linting-and-formatting)
 - [Debugging tips](#debugging-tips)
@@ -45,23 +46,23 @@ For full-stack work that also touches the Rust CLI:
 
 ---
 
-## The two repositories
+## The repository layout
 
-This project is **half** of a two-repo system:
+This is a **single monorepo** containing all the source code needed
+to build and run the project end-to-end:
 
-1. **This repo** (`education-advisor`, the desktop client) — Electron
-   + React + TypeScript. What you're reading.
-2. **The EAA CLI repository** (`education-advisor`, the Rust CLI) —
-   Rust, the data engine. See
-   <https://github.com/232252/education-advisor>.
+| Sub-tree | What it is |
+| --- | --- |
+| `src/main/`, `src/renderer/`, `src/shared/` | Electron + React + TypeScript desktop client |
+| `core/eaa-cli/` | Rust data engine — the EAA CLI (4 sub-crates: `eaa`, `eaa-core`, `eaa-crypto`, `eaa-sqlite`) |
+| `vendor/pi-agent-core/`, `vendor/pi-ai/` | The LLM SDK + agent core, vendored in-tree (no sibling monorepo required) |
+| `resources/` | Bundled assets (icon, eaa binary, locale data) |
+| `docs/` | All documentation (architecture, agent authoring, EAA bridge, etc.) |
+| `.github/` | CI workflows, issue templates, CODEOWNERS |
+| `config/`, `agents/`, `policies/` | Shipped agent manifests and example configs |
 
-For day-to-day UI work, you only need the desktop repo. For
-work that touches the data engine (adding a new EAA subcommand,
-fixing a bug in the privacy engine, etc.), you need both.
-
-The two repos are **kept in sync** via a versioned, downloaded
-binary: the `npm run build:eaa` script fetches the matching
-Rust binary for your platform.
+A single `git clone` of this repo gives you everything you need.
+There are **no sibling checkouts** to fetch.
 
 ---
 
@@ -85,14 +86,21 @@ npm ci
 This is the same as `npm install` but uses the committed
 `package-lock.json` for reproducible installs.
 
-### 3. Fetch the EAA binary
+### 3. Fetch (or build) the EAA binary
 
 ```bash
+# Option A — download the prebuilt binary for your platform
 npm run build:eaa
+
+# Option B — build it from source (requires Rust 1.78+)
+cd core/eaa-cli
+cargo build --release
+# then copy target/release/eaa(.exe) into resources/eaa-binaries/<platform>/
+cd ../..
 ```
 
 See [`EAA_BRIDGE.md`](./EAA_BRIDGE.md#manual-install) for the
-manual install if this fails.
+manual install if both of these fail.
 
 ### 4. Verify
 
@@ -290,60 +298,36 @@ the relevant Vite config.
 
 ---
 
-## The local Pi monorepo
+## The in-tree vendored pi packages
 
 The two `@earendil-works/*` packages (the LLM SDK and the agent
 core) are referenced via `file:` paths in `package.json`:
 
 ```json
 "dependencies": {
-  "@earendil-works/pi-agent-core": "file:../pi/packages/agent",
-  "@earendil-works/pi-ai": "file:../pi/packages/ai"
+  "@earendil-works/pi-agent-core": "file:./vendor/pi-agent-core",
+  "@earendil-works/pi-ai": "file:./vendor/pi-ai"
 }
 ```
 
-This means the project expects a sibling `pi` directory
-containing the monorepo source:
+Both are **vendored in-tree** under `vendor/`. They were copied
+from the upstream monorepo and stripped of `.map` source-map
+files (to keep the repo small and pass electron-builder asar
+integrity checks). The package metadata (`package.json`,
+`dist/`, `README.md`, `LICENSE`) is intact.
 
-```
-parent-dir/
-├── education-advisor/        # this repo
-└── pi/                    # the Pi monorepo
-    └── packages/
-        ├── agent/
-        └── ai/
-```
+This means:
 
-If you don't have the Pi monorepo locally, `npm ci` will fail
-with a "file not found" error. To work around this:
+- `git clone && npm ci` works without any sibling checkouts.
+- Patches you make to `vendor/pi-agent-core/` or `vendor/pi-ai/`
+  are committed to this repo (no separate PR dance).
+- To update the vendored copy, run the vendoring script
+  (see `scripts/vendor-pi.mjs`, if present) or copy the new
+  `dist/` manually and re-commit.
 
-### Option A: Clone the Pi monorepo
-
-```bash
-cd ..  # go to the parent of this repo
-git clone https://github.com/earendil-works/pi.git
-cd education-advisor
-npm ci
-```
-
-### Option B: Use the published versions
-
-If you have the `pi` packages on npm, edit `package.json` to use
-the published versions:
-
-```json
-"dependencies": {
-  "@earendil-works/pi-agent-core": "^0.5.0",
-  "@earendil-works/pi-ai": "^0.5.0"
-}
-```
-
-Then `npm ci` will work without the local monorepo.
-
-> **Note**: Option A is recommended for development. The
-> `vite.config.main.ts` and `tsconfig.json` are tuned to the
-> monorepo layout; published versions may need a Vite config
-> adjustment.
+> **Why not published npm versions?** The pi packages are not yet
+> published to the public registry. Vendoring them is the only
+> way to ship a self-contained build.
 
 ---
 
@@ -489,23 +473,35 @@ See [`AGENT_AUTHORING.md`](./AGENT_AUTHORING.md) — it's a
 
 ### Update the bundled EAA binary
 
-1. Update the version in `package.json`'s `eaa-pin` comment (or
-   the `EAA_RELEASE_TAG` env var).
+1. Bump the version in `core/eaa-cli/Cargo.toml`.
+2. Bump the version in `core/eaa-cli/VERSION_HISTORY.md` (if it
+   exists).
+3. Build a release: `cd core/eaa-cli && cargo build --release`.
+4. Commit the new binary in
+   `resources/eaa-binaries/<platform>/`.
+5. Update the root `CHANGELOG.md`.
+
+Or, to use the auto-downloaded prebuilt:
+
+1. Update the `EAA_RELEASE_TAG` env var (or hardcoded value in
+   `scripts/download-eaa-binaries.mjs`).
 2. Run `npm run build:eaa`.
-3. Commit the new binary in `resources/eaa-binaries/<platform>/`.
-4. Update `docs/CHANGELOG.md` (well, the root `CHANGELOG.md`).
+3. Commit the new binary.
 
 ### Add a new LLM provider
 
-The provider list lives in the `@earendil-works/pi-ai` package,
-**not** in this repository. To add a provider:
+The provider list lives in the **vendored** `@earendil-works/pi-ai`
+package, under `vendor/pi-ai/src/providers/`. To add a provider:
 
-1. Open an issue here describing the use case.
-2. File a PR against
-   [`earendil-works/pi-ai`](https://github.com/earendil-works/pi-ai)
-   with the new provider file.
-3. Once the provider is merged upstream, open a PR here to pin
-   the new version in `package.json`.
+1. Add a new file under `vendor/pi-ai/src/providers/`.
+2. Register it in the provider index in the same directory.
+3. Re-run `npm run build` to pick it up.
+4. Commit the change to `vendor/pi-ai/` and to the desktop code
+   that uses the new provider.
+
+If the upstream monorepo has your provider in a later release,
+just re-vendor: copy `vendor/pi-ai/` from the latest source and
+re-commit.
 
 ---
 
