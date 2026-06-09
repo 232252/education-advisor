@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Education Advisor v0.1.0-rc.1 下载 · Windows / macOS / Linux 全平台 · GitHub 加速 · SHA256 校验" />
+<meta name="keywords" content="Education Advisor 下载, GitHub 加速, NSIS 安装包, 便携版, 跨平台桌面应用" />
+<meta name="theme-color" content="#07060d" />
+<meta property="og:title" content="下载 Education Advisor v0.1.0-rc.1" />
+<meta property="og:description" content="Windows / macOS / Linux 全平台 · GitHub 加速 · SHA256 校验" />
+<title>下载 Education Advisor v0.1.0-rc.1 · openJiuwen</title>
+<link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg" />
+<link rel="canonical" href="https://eea.qdzwwqd.top/download.html" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://github.com" />
+<link rel="preconnect" href="https://ghfast.top" />
+<link rel="preconnect" href="https://v6.gh-proxy.org" />
+<link rel="stylesheet" href="assets/css/style.css" />
+<noscript><style>[data-reveal]{opacity:1!important;transform:none!important;}</style></noscript>
+</head>
+<body>
+
+<div class="cursor-glow" aria-hidden="true"></div>
+
+<!-- 顶部通知条 -->
+<div class="top-banner" role="region" aria-label="版本通知">
+  <span class="top-banner-dot" aria-hidden="true"></span>
+  <span>当前最新：<strong style="color:#fff">v0.1.0-rc.1</strong> · 发布于 2026-06-09</span>
+  <a href="https://github.com/232252/education-advisor/releases" target="_blank" rel="noopener noreferrer">查看 GitHub Release <span aria-hidden="true">→</span></a>
+</div>
+
+<!-- 导航 -->
+<header class="nav" id="nav">
+  <div class="container nav-inner">
+    <a class="logo" href="index.html" aria-label="Education Advisor">
+      <svg class="logo-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="logoGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#7C3AED" /><stop offset="1" stop-color="#06B6D4" />
+          </linearGradient>
+        </defs>
+        <path d="M16 2 L29 9 L29 23 L16 30 L3 23 L3 9 Z" fill="url(#logoGrad)" />
+        <path d="M16 9 L23 12.5 L23 19.5 L16 23 L9 19.5 L9 12.5 Z" fill="#0A1628" />
+        <circle cx="16" cy="16" r="2.5" fill="url(#logoGrad)" />
+      </svg>
+      <span class="logo-text">Education <span class="logo-accent">Advisor</span></span>
+    </a>
+    <nav class="nav-links" aria-label="主导航">
+      <a href="index.html#features">产品特性</a>
+      <a href="index.html#agents">智能代理</a>
+      <a href="index.html#architecture">架构</a>
+      <a href="download.html" class="is-active">下载</a>
+      <a href="index.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="nav-link-ghost" href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.16c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.18 1.18.92-.26 1.91-.39 2.89-.39.98 0 1.97.13 2.89.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.12 3.04.73.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.4-5.27 5.69.41.35.78 1.05.78 2.12v3.14c0 .31.21.67.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
+        <span>GitHub</span>
+      </a>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换主题">
+        <span class="theme-toggle-label">切换主题</span>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+      <a class="nav-link-ghost" href="index.html">← 返回首页</a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- 页面 hero -->
+<section class="dl-page-hero" data-reveal>
+  <div class="container">
+    <a class="dl-page-back" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      返回首页
+    </a>
+    <h1>下载 Education Advisor</h1>
+    <p>
+      您可以直接前往 <a class="inline" href="https://github.com/232252/education-advisor/releases" target="_blank" rel="noopener noreferrer">GitHub Release 页面</a>
+      查看所有历史版本，或使用下面的下载表查找适合您的版本。<br />
+      国内用户可使用 <strong style="color:#fff">GitHub 加速</strong> 解决下载慢的问题。
+    </p>
+  </div>
+</section>
+
+<!-- 公告 -->
+<section style="padding-top:0">
+  <div class="container">
+    <div class="dl-notice" data-reveal>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+      <div>
+        <strong>提示：</strong> v0.1.0-rc.1 是首个候选发布版，
+        Windows 安装包<strong>未做代码签名</strong>，首次运行 SmartScreen 会显示"未知发布者"，选择"仍要运行"即可（详见 <a href="https://github.com/232252/education-advisor/blob/main/ROADMAP.md" target="_blank" rel="noopener noreferrer" style="color:var(--c-accent)">ROADMAP v0.2</a>）。
+        macOS / Linux 客户端 CI 暂未跑通，请先在 Windows 上验证，欢迎 PR。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 工具栏 + 表格 -->
+<section style="padding-top:0">
+  <div class="container">
+
+    <!-- 通道选择 -->
+    <div style="margin-bottom:24px" data-reveal>
+      <div style="font-size:13px;color:var(--c-text-3);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">下载通道</div>
+      <select name="channel-select" id="channelSelect" class="filter-select" style="max-width:320px">
+        <option value="stable" selected>稳定版 (v0.1.0-rc.1)</option>
+        <option value="beta">预发布版 (v3.x CLI · 旧版)</option>
+      </select>
+    </div>
+
+    <!-- 标题 + 加速 -->
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:16px" data-reveal>
+      <h2 id="releaseTitle" style="font-size:clamp(22px, 3vw, 30px);font-weight:800;color:#fff;letter-spacing:-.01em;line-height:1.2;margin:0">
+        Education Advisor <span style="background:var(--grad-brand);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent">v0.1.0-rc.1</span>
+      </h2>
+      <a id="releaseLink" href="https://github.com/232252/education-advisor/releases/tag/v0.1.0-rc.1" target="_blank" rel="noopener noreferrer" class="nav-link-ghost" style="font-size:13px">
+        在 GitHub 查看 →
+      </a>
+    </div>
+
+    <!-- 筛选工具栏 -->
+    <div class="dl-toolbar" data-reveal>
+      <div class="dl-toolbar-item">
+        <label class="dl-toolbar-label" for="ghAccelSelect">GitHub 加速</label>
+        <select name="gh-accel-select" id="ghAccelSelect" class="filter-select">
+          <option value="" selected>直连（默认）</option>
+          <option value="https://ghfast.top/">https://ghfast.top/</option>
+          <option value="https://v6.gh-proxy.org/">https://v6.gh-proxy.org/</option>
+          <option value="https://hk.gh-proxy.org/">https://hk.gh-proxy.org/</option>
+          <option value="https://cdn.gh-proxy.org/">https://cdn.gh-proxy.org/</option>
+          <option value="https://edgeone.gh-proxy.org/">https://edgeone.gh-proxy.org/</option>
+        </select>
+      </div>
+      <div class="dl-toolbar-item">
+        <label class="dl-toolbar-label" for="osSelect">操作系统</label>
+        <select name="os-select" id="osSelect" class="filter-select">
+          <option value="" selected>全部</option>
+          <option value="Windows">Windows</option>
+          <option value="macOS">macOS</option>
+          <option value="Linux">Linux</option>
+        </select>
+      </div>
+      <div class="dl-toolbar-item">
+        <label class="dl-toolbar-label" for="archSelect">架构</label>
+        <select name="arch-select" id="archSelect" class="filter-select">
+          <option value="" selected>全部</option>
+          <option value="x86_64">x86_64 (Intel/AMD 64-bit)</option>
+          <option value="arm64">arm64 / aarch64 (Apple Silicon, ARM)</option>
+          <option value="x86">x86 (32-bit)</option>
+        </select>
+      </div>
+      <div class="dl-toolbar-item">
+        <label class="dl-toolbar-label" for="typeSelect">安装包类型</label>
+        <select name="type-select" id="typeSelect" class="filter-select">
+          <option value="" selected>全部</option>
+          <option value="installer">NSIS 安装版 (推荐)</option>
+          <option value="portable">便携版 (单文件)</option>
+          <option value="dmg">DMG</option>
+          <option value="appimage">AppImage</option>
+          <option value="deb">DEB</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 表格 -->
+    <div class="dl-table-wrap" data-reveal>
+      <div class="dl-table-scroll">
+        <table class="dl-table" id="dlTable">
+          <thead>
+            <tr>
+              <th>操作系统</th>
+              <th>架构</th>
+              <th>桌面端程序</th>
+              <th>备注</th>
+            </tr>
+          </thead>
+          <tbody id="dlTableBody">
+            <!-- JS 注入 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 校验和 -->
+    <div class="dl-verify" data-reveal>
+      <div class="dl-verify-card">
+        <h4>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+          SHA-256 校验和
+        </h4>
+        <pre><span class="com"># 8108aff557bcc9f06bd5a8dbfe317bb984e93a1603fc8cc6f020c20f77e2efcd</span>
+  Education.Advisor-0.1.0-rc.1-Setup.exe
+<span class="com"># ef962dd1807643cd95a1afcb696bb56a84ea77f9dfad5c398ea096cbea94f89d</span>
+  Education.Advisor-0.1.0-rc.1-portable.exe
+
+<span class="com"># Windows 验证（PowerShell）</span>
+Get-FileHash .\Education.Advisor-0.1.0-rc.1-Setup.exe
+
+<span class="com"># macOS / Linux 验证</span>
+shasum -a 256 Education.Advisor-0.1.0-rc.1-*</pre>
+      </div>
+      <div class="dl-verify-card">
+        <h4>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+          安装与首次运行
+        </h4>
+        <pre><span class="com"># Windows</span>
+<span class="com"># 双击 Setup.exe，跟随安装向导</span>
+<span class="com"># 或解压 portable.exe（绿色版）双击运行</span>
+
+<span class="com"># macOS / Linux（待 CI 补齐）</span>
+<span class="com"># DMG: 双击挂载 → 拖入 Applications</span>
+<span class="com"># 首次启动需 xattr -c /Applications/Education\ Advisor.app</span>
+
+<span class="com"># 验证文件</span>
+ls -lh Education.Advisor-0.1.0-rc.1-*</pre>
+      </div>
+    </div>
+
+    <!-- 项目信息卡 -->
+    <div class="qs-side" style="margin-top:24px" data-reveal>
+      <h4>项目入口</h4>
+      <div class="qs-cmds">
+        <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><code><span class="com"># GitHub 仓库</span><br/>https://github.com/232252/education-advisor</code></a>
+        <a href="https://github.com/232252/education-advisor/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><code><span class="com"># 更新日志</span><br/>CHANGELOG.md</code></a>
+        <a href="https://github.com/232252/education-advisor/blob/main/PROJECT_INTRO.md" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><code><span class="com"># 项目深度介绍</span><br/>PROJECT_INTRO.md</code></a>
+        <a href="https://github.com/232252/education-advisor/blob/main/ROADMAP.md" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><code><span class="com"># 路线图</span><br/>ROADMAP.md (v0.2 代码签名 / 跨平台)</code></a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+</main>
+
+<!-- Footer -->
+<footer class="footer" role="contentinfo">
+  <div class="footer-bar">
+    <div class="container footer-bar-inner">
+      <div class="footer-bar-legal">
+        <span>© 2025 <strong style="color:#fff">openJiuwen</strong>. All Rights Reserved.</span>
+        <a href="legal.html">法律声明</a>
+        <a href="legal.html#privacy">隐私政策</a>
+        <a href="legal.html#license">MIT 协议</a>
+        <a href="legal.html#contact">联系我们</a>
+      </div>
+      <div class="footer-bar-meta">
+        <a href="index.html">← 返回首页</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<button class="back-top" id="backTop" aria-label="回到顶部" type="button">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<script src="assets/js/main.js?v=20260609-3"></script>
+<script src="assets/js/download.js?v=20260609-1"></script>
+</body>
+</html>
