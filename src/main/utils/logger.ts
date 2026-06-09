@@ -153,8 +153,15 @@ function safeSize(p: string): number {
 /** 读文件 tail */
 export async function readLogTail(name: string, lines = 100): Promise<string> {
   try {
-    const file = path.join(logsDir, name)
-    if (!file.startsWith(logsDir)) return ''
+    // Use path.resolve + path.relative for the path-traversal check
+    // rather than `file.startsWith(logsDir)`. The startsWith check is
+    // fragile on macOS where /var/folders/.../T/ is a symlink to
+    // /private/var/folders/.../T/: the write goes through one path
+    // and the read through another, and they don't string-compare
+    // equal even though they refer to the same directory.
+    const file = path.resolve(logsDir, name)
+    const rel = path.relative(logsDir, file)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) return ''
     const content = await fsp.readFile(file, 'utf-8')
     const all = content.split('\n')
     return all.slice(-lines).join('\n')
@@ -193,8 +200,10 @@ export async function searchLog(name: string, query: string, lines = 200): Promi
 /** T3: 导出日志到指定路径(返回写出字节数) */
 export async function exportLog(name: string, targetPath: string): Promise<number> {
   try {
-    const file = path.join(logsDir, name)
-    if (!file.startsWith(logsDir)) return 0
+    // See readLogTail for why we use path.relative rather than startsWith.
+    const file = path.resolve(logsDir, name)
+    const rel = path.relative(logsDir, file)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) return 0
     const content = await fsp.readFile(file, 'utf-8')
     await fsp.writeFile(targetPath, content, 'utf-8')
     return Buffer.byteLength(content, 'utf-8')
