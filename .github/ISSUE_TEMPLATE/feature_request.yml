@@ -1,0 +1,80 @@
+name: Feature request
+description: Propose a new feature, an enhancement, or a workflow improvement.
+title: "[feat] "
+labels: ["type: feature", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests that follow this template get triaged within
+        a week. Vague "wouldn't it be cool if …" requests are likely
+        to be closed as "needs more detail".
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user need does this address? Frame it as a user story.
+      placeholder: |
+        **As a** class teacher
+        **I want** to filter the Students page by conduct-score band
+        **So that** I can quickly find the 5 students who are below the
+        class median for a parent meeting.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: High-level sketch. Add code samples, wireframes, or links to similar features in other tools.
+      placeholder: |
+        Add a band-filter dropdown to the Students page header with options:
+        "Top 10%", "Above median", "Below median", "Bottom 10%".
+        Persist the choice in `settingsStore`. Re-uses the existing
+        `StudentTable` component.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What else did you consider, and why did you reject it?
+      placeholder: |
+        - **Multi-select individual students**: too much clicking, doesn't scale.
+        - **A separate "at-risk" page**: would fragment the workflow.
+  - type: textarea
+    id: breaking
+    attributes:
+      label: Breaking changes
+      description: Does this require any schema migration, settings change, or settings page update? If so, describe it.
+      placeholder: |
+        Adds a single setting key `students.defaultBandFilter` (default: null).
+        No migration required.
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Estimated scope
+      description: Rough size, in lines-of-code changed.
+      options:
+        - "Small (< 100 lines)"
+        - "Medium (100–500 lines)"
+        - "Large (500–2000 lines)"
+        - "XL (> 2000 lines)"
+        - "I don't know"
+  - type: dropdown
+    id: willingness
+    attributes:
+      label: Willingness to implement
+      options:
+        - I'd like to implement this myself and would value a design review
+        - I'd like to implement this with co-maintainer support
+        - I'd like someone from the maintainer team to take it
+        - I just want to record the idea; not committing to implement
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I have searched [existing issues](https://github.com/232252/education-advisor/issues) for a similar request
+          required: true
+        - label: I have read the [ROADMAP](./ROADMAP.md) to see if this is already planned
+          required: true

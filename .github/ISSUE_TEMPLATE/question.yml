@@ -1,0 +1,38 @@
+name: Question
+description: Ask a "how do I …" question about installation, configuration, or usage.
+title: "[question] "
+labels: ["type: question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For "how do I do X" questions, please first check the docs:
+
+        - [README.md](https://github.com/232252/education-advisor#readme) — 5-minute tour
+        - [PROJECT_INTRO.md](https://github.com/232252/education-advisor/blob/main/PROJECT_INTRO.md) — 1-hour deep-dive
+        - [docs/QUICK_START.md](https://github.com/232252/education-advisor/blob/main/docs/QUICK_START.md)
+        - [docs/FAQ.md](https://github.com/232252/education-advisor/blob/main/docs/FAQ.md)
+
+        If your question is still unanswered, open a
+        [GitHub Discussion](https://github.com/232252/education-advisor/discussions)
+        instead — the issue tracker is for actionable, scoped work.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      placeholder: |
+        I want to use the home_school agent to send a parent message in
+        WeChat instead of Feishu. Is that possible today? If not, what
+        would it take to add it?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: What have you already tried?
+      description: Link to docs you've read, PRs you've looked at, etc.
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      placeholder: "0.1.0"

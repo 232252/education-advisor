@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    Education Advisor — app icon
+    Style: flat vector, no gradients, no shadows.
+    Designed to be clear at 16/32/64 px.
+    Color palette:
+      Primary   #1E3A8A  deep indigo blue
+      Accent A  #06B6D4  cyan (multi-agent network)
+      Accent B  #F59E0B  amber (single highlight)
+      Paper     #FFFFFF  pure white
+      Paper-2   #E0E7FF  very light indigo (page shadow)
+  -->
+
+  <!-- Rounded-square background -->
+  <rect x="0" y="0" width="1024" height="1024" rx="200" ry="200" fill="#1E3A8A"/>
+
+  <!--
+    Composition (top → bottom):
+      Top half  : 3 connected cyan dots (the multi-agent swarm)
+      Bottom    : open book (the education symbol)
+    Centered around (512, 512).
+  -->
+
+  <!-- ===== Multi-agent network (top half) ===== -->
+  <g stroke="#06B6D4" stroke-width="22" stroke-linecap="round" fill="none">
+    <!-- Three connections between 4 nodes (triangle + tail) -->
+    <line x1="340" y1="320" x2="684" y2="320"/>
+    <line x1="340" y1="320" x2="512" y2="220"/>
+    <line x1="684" y1="320" x2="512" y2="220"/>
+    <line x1="512" y1="220" x2="512" y2="416"/>
+  </g>
+
+  <!-- 3 cyan agent nodes + 1 amber accent node -->
+  <g>
+    <circle cx="340"  cy="320" r="58" fill="#06B6D4"/>
+    <circle cx="684"  cy="320" r="58" fill="#06B6D4"/>
+    <circle cx="512"  cy="220" r="58" fill="#06B6D4"/>
+    <!-- amber accent dot at bottom of network (the "core" agent) -->
+    <circle cx="512"  cy="416" r="40" fill="#F59E0B"/>
+  </g>
+
+  <!-- ===== Open book (bottom half) ===== -->
+  <g>
+    <!-- Left page (pure white) -->
+    <path d="M 200 620
+             L 512 580
+             L 512 820
+             L 200 860
+             Z"
+          fill="#FFFFFF"/>
+    <!-- Right page (slight shadow for depth, no gradient) -->
+    <path d="M 824 620
+             L 512 580
+             L 512 820
+             L 824 860
+             Z"
+          fill="#E0E7FF"/>
+
+    <!-- Page lines (subtle, indigo) -->
+    <g stroke="#1E3A8A" stroke-width="8" stroke-linecap="round" opacity="0.35">
+      <line x1="248" y1="680" x2="464" y2="652"/>
+      <line x1="248" y1="720" x2="464" y2="692"/>
+      <line x1="248" y1="760" x2="464" y2="732"/>
+      <line x1="560" y1="652" x2="776" y2="680"/>
+      <line x1="560" y1="692" x2="776" y2="720"/>
+      <line x1="560" y1="732" x2="776" y2="760"/>
+    </g>
+
+    <!-- Book spine (the center fold) -->
+    <line x1="512" y1="580" x2="512" y2="820"
+          stroke="#1E3A8A" stroke-width="6"/>
+  </g>
+</svg>

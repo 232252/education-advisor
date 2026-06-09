@@ -1,0 +1,107 @@
+name: Bug report
+description: File a bug — something doesn't work the way the docs say it should.
+title: "[bug] "
+labels: ["type: bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Please answer the questions below — the
+        more concrete you are, the faster we can reproduce and fix.
+        **Do not** include real student data, real teacher names, or any
+        other PII. Use the `examples/students/` data set instead.
+  - type: input
+    id: summary
+    attributes:
+      label: One-line summary
+      description: What broke, in one sentence.
+      placeholder: "Dashboard chart freezes on first load after install"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      description: Describe the desired behavior.
+      placeholder: |
+        The dashboard should render the top-10 movers chart within 2 seconds
+        of opening the app for the first time.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened?
+      description: Describe the actual behavior. Paste error messages verbatim.
+      placeholder: |
+        The window freezes for ~30 seconds on first dashboard render.
+        The renderer console shows: `TypeError: Cannot read properties of undefined (reading 'map')`
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Numbered, minimal, copy-paste-able.
+      placeholder: |
+        1. `git clone ... && cd ... && npm ci`
+        2. `npm run build:eaa && npm run dev`
+        3. Open the Dashboard page
+        4. Wait 5 seconds
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: Settings → About. Or `git describe --tags` in the repo checkout.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: Windows 11 23H2, macOS 14.4, Ubuntu 22.04 LTS, etc.
+      placeholder: "Windows 11 23H2"
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      description: Output of `node -v`
+      placeholder: "v22.3.0"
+  - type: input
+    id: llm
+    attributes:
+      label: LLM provider / model
+      description: Which provider and model is the app talking to? Skip if not relevant.
+      placeholder: "OpenAI gpt-4o, Qwen 3.5-4b (local), etc."
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste the relevant lines from the Logs page (Settings → Logs → Copy). Truncate sensitive payloads.
+      placeholder: |
+        ```
+        [2026-06-09 08:14:23.117] [error] [agent-service] Failed to parse tool call: TypeError: ...
+        ```
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / recordings
+      description: Drag images here. **Make sure there is no PII in the screenshots.**
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I have searched [existing issues](https://github.com/232252/education-advisor/issues) and this is not a duplicate
+          required: true
+        - label: I have tried the latest `main` branch
+          required: true
+        - label: I have disabled any custom agents / skills / settings and the bug still reproduces
+          required: true
+        - label: I am NOT including any real student data, real teacher names, or any other PII
+          required: true

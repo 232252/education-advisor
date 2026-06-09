@@ -1,0 +1,11 @@
+# Funding — sponsorship and support channels
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+
+github: [education-advisor]
+open_collective: education-advisor-ai
+patreon: education-advisor-ai
+ko_fi: education-advisor-ai
+tidelift: "npm:@education-advisor/desktop"
+custom:
+  - "https://opencollective.com/education-advisor-ai"
+  - "https://github.com/sponsors/education-advisor"

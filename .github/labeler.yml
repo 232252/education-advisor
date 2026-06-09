@@ -1,0 +1,56 @@
+# Labels applied automatically by .github/workflows/labeler.yml
+# https://github.com/actions/labeler
+
+# ----- Area labels (one or more applied to every PR) -----
+"area: agents":
+  - agents/**/SOUL.md
+  - agents/**/AGENTS.md
+  - config/agents.yaml
+"area: renderer":
+  - src/renderer/**/*
+"area: main":
+  - src/main/**/*
+"area: shared":
+  - src/shared/**/*
+"area: docs":
+  - docs/**/*
+  - "*.md"
+  - "!**/CHANGELOG.md"
+"area: build":
+  - package.json
+  - package-lock.json
+  - electron-builder.yml
+  - vite.config.*.ts
+  - tsconfig.json
+  - biome.json
+"area: ci":
+  - .github/**/*
+"area: i18n":
+  - src/renderer/i18n/**/*
+"area: eaa":
+  - scripts/download-eaa-binaries.mjs
+  - "docs/EAA_BRIDGE.md"
+"area: privacy":
+  - "**/privacy*"
+  - "**/keystore*"
+"area: cron":
+  - "**/cron*"
+"area: feishu":
+  - "**/feishu*"
+
+# ----- Type labels -----
+"type: bug":
+  - baseBranches: [main]
+"type: feature":
+  - baseBranches: [main]
+"type: refactor":
+  - baseBranches: [main]
+"type: docs":
+  - baseBranches: [main]
+"type: test":
+  - baseBranches: [main]
+"type: agent":
+  - baseBranches: [main]
+
+# ----- Size labels (set by the size-bot, not by labeler) -----
+# "size: XS", "size: S", "size: M", "size: L", "size: XL"
