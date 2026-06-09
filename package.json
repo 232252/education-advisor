@@ -55,8 +55,8 @@
     "clean": "rimraf dist release"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "file:../pi/packages/agent",
-    "@earendil-works/pi-ai": "file:../pi/packages/ai",
+    "@earendil-works/pi-agent-core": "file:./vendor/pi-agent-core",
+    "@earendil-works/pi-ai": "file:./vendor/pi-ai",
     "better-sqlite3": "^11.7.0",
     "chokidar": "^4.0.3",
     "cross-spawn": "^7.0.6",
