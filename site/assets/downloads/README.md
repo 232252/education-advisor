@@ -10,8 +10,8 @@
 
 | 平台 | 类型 | 链接 |
 | --- | --- | --- |
-| Windows | NSIS 安装版（推荐） | <https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education%20Advisor-0.1.0-rc.1-Setup.exe> |
-| Windows | 单文件便携版 | <https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education%20Advisor-0.1.0-rc.1-portable.exe> |
+| Windows | NSIS 安装版（推荐） | <https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education.Advisor-0.1.0-rc.1-Setup.exe> |
+| Windows | 单文件便携版 | <https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education.Advisor-0.1.0-rc.1-portable.exe> |
 | macOS / Linux | 跨平台 | 见 [Releases 页面](https://github.com/232252/education-advisor/releases)，后续 tag 由 CI 自动构建 |
 
 ## 如何获取 v0.1.0-rc.1
