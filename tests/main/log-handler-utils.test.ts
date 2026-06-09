@@ -17,10 +17,13 @@ import path from 'node:path'
 
 // hoisted mock: 必须在 import logger 之前生效
 // 不能在这里调 fs.mkdtempSync(hoisted 阶段对 fs 的可访问性视环境而定),
-// 先把 userData 桩指向一个固定路径,在 beforeAll 里再 mkdtempSync 创建。
+// 也不能用 os.tmpdir()(hoisted 阶段 os 模块还在 TDZ,引用会抛
+// "Cannot access __vi_import_X__ before initialization")。
+// 改用 process.env 兜底,这些变量在 hoist 阶段已经可用。
 const tmp = vi.hoisted(() => {
   const sep = process.platform === 'win32' ? '\\' : '/'
-  const tmpBase = process.env.TEMP || process.env.TMP || os.tmpdir()
+  const tmpBase =
+    process.env.TEMP || process.env.TMP || process.env.TMPDIR || '/tmp'
   const dir =
     tmpBase + sep + `logger-utils-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   return {
