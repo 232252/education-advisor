@@ -1,7 +1,7 @@
 {
   "name": "education-advisor",
   "productName": "Education Advisor",
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "description": "Education Advisor — desktop upgrade of the multi-agent education management system. 18 specialized agents, privacy-preserving PII engine, and cross-platform LLM orchestration, all wrapped in a native-feeling Electron app.",
   "private": false,
   "main": "dist/main/index.js",
