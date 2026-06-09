@@ -18,12 +18,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // hoisted mock：必须在 import eaa-tools之前生效
+// 同时 mock getErrorMessage:eaa-tools 在 safeExecute 里会调它把
+// success=false 的 result 转成 throw 出去的 Error.message
 const bridge = vi.hoisted(() => ({
  execute: vi.fn(),
 }))
 
 vi.mock('../../src/main/services/eaa-bridge', () => ({
  eaaBridge: bridge,
+ // 简化版 getErrorMessage:失败时优先取 result.error,再取 stderr,最后 fallback
+ getErrorMessage: (result: { success: boolean; error?: string; stderr?: string }, fallback: string) =>
+  !result?.success ? (result?.error || result?.stderr || fallback) : fallback,
 }))
 
 //重要：import 必须发生在 vi.mock之后
