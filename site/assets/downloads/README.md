@@ -12,7 +12,9 @@
 | --- | --- | --- |
 | Windows | NSIS 安装版（推荐） | <https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education.Advisor-0.1.0-rc.1-Setup.exe> |
 | Windows | 单文件便携版 | <https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education.Advisor-0.1.0-rc.1-portable.exe> |
-| macOS / Linux | 跨平台 | 见 [Releases 页面](https://github.com/232252/education-advisor/releases)，后续 tag 由 CI 自动构建 |
+| macOS Intel | DMG | <https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education.Advisor-0.1.0-rc.1.dmg> |
+| macOS Apple Silicon | DMG | <https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education.Advisor-0.1.0-rc.1-arm64.dmg> |
+| Linux x64 | AppImage | <https://github.com/232252/education-advisor/releases/download/v0.1.0-rc.1/Education.Advisor-0.1.0-rc.1.AppImage> |
 
 ## 如何获取 v0.1.0-rc.1
 
@@ -32,8 +34,8 @@ npm run package      # 产出 Windows NSIS 安装包到 release/
 ```
 
 构建产物路径：
-- `release/Education Advisor-0.1.0-rc.1-Setup.exe`（NSIS 安装版，~85 MB）
-- `release/Education Advisor-0.1.0-rc.1-portable.exe`（单文件绿色版，~75 MB）
+- `release/Education.Advisor-0.1.0-rc.1-Setup.exe`（NSIS 安装版，~88 MB）
+- `release/Education.Advisor-0.1.0-rc.1-portable.exe`（单文件绿色版，~78 MB）
 
 ### 方式 3：等待自动发布
 
