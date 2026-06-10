@@ -523,14 +523,14 @@ export interface UnifiedSettings {
  * 单次考试/测验的成绩记录
  * examType: 考试类型（月考/周考/期中/期末/模拟考/平时测试/随堂测验/自定义）
  * examName: 考试名称（如"月考1"、"2026-03-14周考"、"物理单元测"）
- * subjects: 科目名 → 分数（如 {"语文":95, "数学":88}），科目可任意扩展
+ * subjects: 科目名 → 分数（如 {"语文":95, "数学":88}），允许 null 表示缺考/未参加
  * date: 考试日期（可选）
  * notes: 备注（可选）
  */
 export interface AcademicExamRecord {
   examType: string
   examName: string
-  subjects: Record<string, number>
+  subjects: Record<string, number | null>
   date?: string
   notes?: string
 }

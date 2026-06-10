@@ -54,14 +54,19 @@ export function StudentsPage() {
     loadStudents()
   }, [loadStudents])
 
-  // 添加新学生
+  // 添加新学生 — B-31 修复: 添加前检查重名
   const handleAddStudent = async () => {
-    if (!newStudentName.trim()) return
+    const name = newStudentName.trim()
+    if (!name) return
+    if (students.some((s) => s.name === name)) {
+      setActionMessageAuto(t('page.students.add.exists', name))
+      return
+    }
     try {
-      const result = await getAPI().eaa.addStudent(newStudentName.trim())
+      const result = await getAPI().eaa.addStudent(name)
       setActionMessageAuto(
         result.success
-          ? `${t('status.success')}: ${newStudentName}`
+          ? `${t('status.success')}: ${name}`
           : `${t('status.failed')}: ${getErrorMessage(result)}`,
       )
       setNewStudentName('')
@@ -72,14 +77,24 @@ export function StudentsPage() {
     }
   }
 
-  // 删除学生（UI 二次确认）
+  // 删除学生 — B-06 修复: 双重确认 (UI confirm + EAA requiresConfirmation)
   const handleDeleteStudent = async (name: string) => {
-    if (!window.confirm(`${t('common.delete')}: "${name}"?`)) return
+    if (!window.confirm(t('page.students.delete.confirm2'))) return
+    const reason =
+      window.prompt(
+        t('page.students.delete.reasonPrompt', name),
+        t('page.students.delete.defaultReason'),
+      ) ?? ''
+    if (!reason) return
     try {
-      const result = await getAPI().eaa.deleteStudent(name, { confirm: true, reason: '管理员操作' })
+      // 第一步: 预览(不传 confirm), 让 EAA 返回 requiresConfirmation
+      const preview = await getAPI().eaa.deleteStudent(name, { confirm: false, reason })
+      if (preview.requiresConfirmation && !window.confirm(t('page.students.delete.confirm'))) return
+      // 第二步: 真正执行删除
+      const result = await getAPI().eaa.deleteStudent(name, { confirm: true, reason })
       setActionMessageAuto(
         result.success
-          ? `${t('common.delete')}: ${name}`
+          ? t('page.students.delete.success', name)
           : `${t('status.failed')}: ${getErrorMessage(result)}`,
       )
       if (result.success && selectedStudent?.name === name) setSelectedStudent(null)

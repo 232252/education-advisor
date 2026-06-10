@@ -334,9 +334,10 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
     if (eventFilter === 'bonus') events = events.filter((e) => e.score_delta > 0)
     if (eventFilter === 'deduct') events = events.filter((e) => e.score_delta < 0)
     if (eventTimeRange !== 'all') {
+      const now2 = new Date()
       const ranges: Record<string, number> = {
-        week: 7 * 24 * 60 * 60 * 1000,
-        month: 30 * 24 * 60 * 60 * 1000,
+        week: now2.getTime() - new Date(now2.getFullYear(), now2.getMonth(), now2.getDate() - now2.getDay() + 1).getTime(),
+        month: now2.getTime() - new Date(now2.getFullYear(), now2.getMonth(), 1).getTime(),
         semester: 120 * 24 * 60 * 60 * 1000,
       }
       const cutoff = now - ranges[eventTimeRange]
@@ -494,7 +495,11 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
             onRunSelected={runSelectedAgents}
             onRunAll={runAllAgents}
             running={aiRunning}
-            output={aiOutput}
+            agentOutputs={agentOutputs}
+            agentRunOrder={agentRunOrder}
+            activeAiTab={activeAiTab}
+            onSelectAgent={setActiveAiTab}
+            onAbortAgent={abortAgent}
             message={aiMessage}
             aiSaved={aiSaved}
             onSaveResult={saveAiResult}
@@ -664,6 +669,7 @@ function ProfileTab({
   profileData: StudentProfileData
   onUpdate: () => void
 }) {
+  const { t } = useT()
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<StudentProfileData>(profileData)
   const [saving, setSaving] = useState(false)
@@ -700,28 +706,34 @@ function ProfileTab({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">学生档案</h4>
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {t('page.student.tab.profile')}
+        </h4>
         <button
           type="button"
           onClick={() => (editing ? handleSave() : setEditing(true))}
           disabled={saving}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-xs transition-colors disabled:opacity-50 shadow-sm"
         >
-          {saving ? '保存中...' : editing ? '💾 保存' : '✏️ 编辑'}
+          {saving
+            ? t('page.student.saving')
+            : editing
+              ? t('page.student.save')
+              : t('page.student.edit')}
         </button>
       </div>
       {msg && (
-        <div className={`text-xs ${msg.includes('失败') ? 'text-red-500' : 'text-green-500'}`}>
+        <div className={`text-xs ${msg.includes('失败') || msg.includes('failed') ? 'text-red-500' : 'text-green-500'}`}>
           {msg}
         </div>
       )}
 
       {/* 基础信息 */}
-      <ProfileSection title="基础信息" icon="👤">
+      <ProfileSection title={t('page.student.profile.basic')} icon="👤">
         <div className="grid grid-cols-2 gap-3">
-          <ProfileField label="姓名" value={student.name} editing={false} />
+          <ProfileField label={t('page.students.col.name')} value={student.name} editing={false} />
           <ProfileField
-            label="性别"
+            label={t('page.student.profile.gender')}
             value={form.gender ?? ''}
             editing={editing}
             type="select"
@@ -729,26 +741,26 @@ function ProfileTab({
             onChange={(v) => updateForm('gender', v)}
           />
           <ProfileField
-            label="出生日期"
+            label={t('page.student.profile.birthDate')}
             value={form.birthDate ?? ''}
             editing={editing}
             type="date"
             onChange={(v) => updateForm('birthDate', v)}
           />
           <ProfileField
-            label="身份证号"
+            label={t('page.student.profile.idCard')}
             value={form.idCard ?? ''}
             editing={editing}
             onChange={(v) => updateForm('idCard', v)}
           />
           <ProfileField
-            label="班级"
+            label={t('page.student.profile.classId')}
             value={(form.classId as string) ?? student.class_id ?? ''}
             editing={editing}
             onChange={(v) => updateForm('classId', v)}
           />
           <ProfileField
-            label="入学日期"
+            label={t('page.student.profile.enrollmentDate')}
             value={form.enrollmentDate ?? ''}
             editing={editing}
             type="date"
@@ -758,22 +770,22 @@ function ProfileTab({
       </ProfileSection>
 
       {/* 联系方式 */}
-      <ProfileSection title="联系方式" icon="📞">
+      <ProfileSection title={t('page.student.profile.contact')} icon="📞">
         <div className="grid grid-cols-2 gap-3">
           <ProfileField
-            label="电话"
+            label={t('page.student.profile.phone')}
             value={form.phone ?? ''}
             editing={editing}
             onChange={(v) => updateForm('phone', v)}
           />
           <ProfileField
-            label="邮箱"
+            label={t('page.student.profile.email')}
             value={(form.email as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('email', v)}
           />
           <ProfileField
-            label="家庭住址"
+            label={t('page.student.profile.address')}
             value={form.address ?? ''}
             editing={editing}
             onChange={(v) => updateForm('address', v)}
@@ -783,28 +795,28 @@ function ProfileTab({
       </ProfileSection>
 
       {/* 家庭信息 */}
-      <ProfileSection title="家庭信息" icon="🏠">
+      <ProfileSection title={t('page.student.profile.family')} icon="🏠">
         <div className="grid grid-cols-2 gap-3">
           <ProfileField
-            label="父亲姓名"
+            label={t('page.student.profile.fatherName')}
             value={(form.fatherName as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('fatherName', v)}
           />
           <ProfileField
-            label="父亲电话"
+            label={t('page.student.profile.fatherPhone')}
             value={(form.fatherPhone as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('fatherPhone', v)}
           />
           <ProfileField
-            label="母亲姓名"
+            label={t('page.student.profile.motherName')}
             value={(form.motherName as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('motherName', v)}
           />
           <ProfileField
-            label="母亲电话"
+            label={t('page.student.profile.motherPhone')}
             value={(form.motherPhone as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('motherPhone', v)}
@@ -813,10 +825,10 @@ function ProfileTab({
       </ProfileSection>
 
       {/* 健康信息 */}
-      <ProfileSection title="健康信息" icon="🏥">
+      <ProfileSection title={t('page.student.profile.health')} icon="🏥">
         <div className="grid grid-cols-2 gap-3">
           <ProfileField
-            label="血型"
+            label={t('page.student.profile.bloodType')}
             value={(form.bloodType as string) ?? ''}
             editing={editing}
             type="select"
@@ -824,13 +836,13 @@ function ProfileTab({
             onChange={(v) => updateForm('bloodType', v)}
           />
           <ProfileField
-            label="过敏史"
+            label={t('page.student.profile.allergy')}
             value={(form.allergy as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('allergy', v)}
           />
           <ProfileField
-            label="特殊需求"
+            label={t('page.student.profile.specialNeeds')}
             value={(form.specialNeeds as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('specialNeeds', v)}
@@ -840,28 +852,28 @@ function ProfileTab({
       </ProfileSection>
 
       {/* 在校信息 */}
-      <ProfileSection title="在校信息" icon="🏫">
+      <ProfileSection title={t('page.student.profile.school')} icon="🏫">
         <div className="grid grid-cols-2 gap-3">
           <ProfileField
-            label="学号"
+            label={t('page.student.profile.studentNumber')}
             value={(form.studentNumber as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('studentNumber', v)}
           />
           <ProfileField
-            label="宿舍号"
+            label={t('page.student.profile.dormNumber')}
             value={(form.dormNumber as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('dormNumber', v)}
           />
           <ProfileField
-            label="床号"
+            label={t('page.student.profile.bedNumber')}
             value={(form.bedNumber as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('bedNumber', v)}
           />
           <ProfileField
-            label="出勤率(%)"
+            label={t('page.student.profile.attendanceRate')}
             value={form.attendanceRate?.toString() ?? ''}
             editing={editing}
             type="number"
@@ -871,10 +883,10 @@ function ProfileTab({
       </ProfileSection>
 
       {/* 奖惩记录 */}
-      <ProfileSection title="奖惩记录" icon="🏆">
+      <ProfileSection title={t('page.student.profile.awards')} icon="🏆">
         <div className="grid grid-cols-1 gap-3">
           <ProfileField
-            label="荣誉称号"
+            label={t('page.student.profile.honors')}
             value={(form.honors as string) ?? ''}
             editing={editing}
             multiline
@@ -882,7 +894,7 @@ function ProfileTab({
             spanFull
           />
           <ProfileField
-            label="处分记录"
+            label={t('page.student.profile.punishments')}
             value={(form.punishments as string) ?? ''}
             editing={editing}
             multiline
@@ -893,7 +905,7 @@ function ProfileTab({
       </ProfileSection>
 
       {/* 备注 */}
-      <ProfileSection title="备注" icon="📝">
+      <ProfileSection title={t('page.student.profile.comments')} icon="📝">
         <ProfileField
           label=""
           value={form.comments ?? ''}
@@ -905,11 +917,11 @@ function ProfileTab({
       </ProfileSection>
 
       {/* EAA 元数据 */}
-      <ProfileSection title="EAA 系统数据" icon="⚙️">
+      <ProfileSection title={t('page.student.profile.eaaMeta')} icon="⚙️">
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <InfoRow label="分组" value={student.groups.join(', ') || '无'} />
-          <InfoRow label="角色" value={student.roles.join(', ') || '无'} />
-          <InfoRow label="状态" value={student.status} />
+          <InfoRow label={t('page.student.info.groups')} value={student.groups.join(', ') || t('common.none')} />
+          <InfoRow label={t('page.student.info.roles')} value={student.roles.join(', ') || t('common.none')} />
+          <InfoRow label={t('page.student.info.status')} value={student.status} />
         </div>
       </ProfileSection>
     </div>
@@ -1173,18 +1185,23 @@ function AcademicsTab({
   profileData: StudentProfileData
   isDark: boolean
 }) {
+  const { t } = useT()
   // 从 academicRecords 加载，或从旧格式迁移
   const [records, setRecords] = useState<AcademicExamRecord[]>(
     () => profileData.academicRecords ?? migrateLegacyRecords(profileData),
   )
-  // 可配置的科目列表（默认常用科目）
-  const [allSubjects, setAllSubjects] = useState<string[]>([
-    '语文', '数学', '英语',
-    '物理', '化学', '生物',
-    '政治', '历史', '地理',
-    '通用技术', '信息技术',
-    '体育', '音乐', '美术',
-  ])
+  // B-33 修复: 科目列表持久化到 profileData.customSubjects, 关闭再打开不丢失
+  // 优先从 profileData 读取, 否则使用默认
+  const [allSubjects, setAllSubjects] = useState<string[]>(
+    () =>
+      (profileData as unknown as { customSubjects?: string[] }).customSubjects ?? [
+        '语文', '数学', '英语',
+        '物理', '化学', '生物',
+        '政治', '历史', '地理',
+        '通用技术', '信息技术',
+        '体育', '音乐', '美术',
+      ],
+  )
   const [newSubject, setNewSubject] = useState('')
 
   const [classRank, setClassRank] = useState<number | undefined>(
@@ -1207,25 +1224,25 @@ function AcademicsTab({
   function migrateLegacyRecords(data: StudentProfileData): AcademicExamRecord[] {
     const result: AcademicExamRecord[] = []
     // 检查是否有 deprecated 旧字段
-    const midterm = (data as unknown as Record<string, unknown>).midtermGrades as Record<string, number> | undefined
-    const final = (data as unknown as Record<string, unknown>).finalGrades as Record<string, number> | undefined
-    const monthly1 = (data as unknown as Record<string, unknown>).monthlyExam1Grades as Record<string, number> | undefined
-    const monthly2 = (data as unknown as Record<string, unknown>).monthlyExam2Grades as Record<string, number> | undefined
+    const midterm = (data as unknown as Record<string, unknown>).midtermGrades as Record<string, number | null> | undefined
+    const final = (data as unknown as Record<string, unknown>).finalGrades as Record<string, number | null> | undefined
+    const monthly1 = (data as unknown as Record<string, unknown>).monthlyExam1Grades as Record<string, number | null> | undefined
+    const monthly2 = (data as unknown as Record<string, unknown>).monthlyExam2Grades as Record<string, number | null> | undefined
 
-    if (monthly1 && Object.keys(monthly1).length > 0)
-      result.push({ examType: '月考', examName: '月考1', subjects: { ...monthly1 } })
-    if (monthly2 && Object.keys(monthly2).length > 0)
-      result.push({ examType: '月考', examName: '月考2', subjects: { ...monthly2 } })
     if (midterm && Object.keys(midterm).length > 0)
       result.push({ examType: '期中', examName: '期中', subjects: { ...midterm } })
     if (final && Object.keys(final).length > 0)
       result.push({ examType: '期末', examName: '期末', subjects: { ...final } })
+    if (monthly1 && Object.keys(monthly1).length > 0)
+      result.push({ examType: '月考', examName: '月考1', subjects: { ...monthly1 } })
+    if (monthly2 && Object.keys(monthly2).length > 0)
+      result.push({ examType: '月考', examName: '月考2', subjects: { ...monthly2 } })
 
     return result
   }
 
-  const calcAvg = (grades: Record<string, number>) => {
-    const vals = Object.values(grades).filter((v) => v != null && !Number.isNaN(v))
+  const calcAvg = (grades: Record<string, number | null>) => {
+    const vals = Object.values(grades).filter((v): v is number => v != null && !Number.isNaN(v))
     return vals.length === 0 ? 0 : vals.reduce((a, b) => a + b, 0) / vals.length
   }
 
@@ -1332,13 +1349,16 @@ function AcademicsTab({
   }
 
   // 更新某考试某科目分数
+  // B-34 修复: 清空时不再 delete 整个键, 而是设为 null 占位, 保持表格列对齐
+  // 后端 validateAcademicRecords 已支持 null (空成绩)
   const updateScore = (idx: number, subject: string, value: string) => {
     const newRecords = [...records]
     const newSubjects = { ...newRecords[idx].subjects }
     if (value === '') {
-      delete newSubjects[subject]
+      newSubjects[subject] = null
     } else {
-      newSubjects[subject] = parseFloat(value) || 0
+      const parsed = parseFloat(value)
+      newSubjects[subject] = Number.isNaN(parsed) ? null : parsed
     }
     newRecords[idx] = { ...newRecords[idx], subjects: newSubjects }
     setRecords(newRecords)
@@ -1349,12 +1369,12 @@ function AcademicsTab({
     for (let i = 0; i < records.length; i++) {
       const rec = records[i]
       if (!rec.examType || !rec.examName) {
-        setValidationMsg(`第 ${i + 1} 条记录缺少考试类型或名称`)
+        setValidationMsg(t('page.student.academics.validation.missingExamInfo', String(i + 1)))
         return
       }
       for (const [sub, score] of Object.entries(rec.subjects)) {
         if (typeof score !== 'number' || Number.isNaN(score) || score < 0 || score > 300) {
-          setValidationMsg(`${rec.examName} - ${sub}: 分数无效 (0-300)`)
+          setValidationMsg(t('page.student.academics.validation.invalidScore', rec.examName, sub))
           return
         }
       }
@@ -1363,18 +1383,22 @@ function AcademicsTab({
     setSaving(true)
     try {
       // 保存时 profile.set 内部会自动校验，无需前端重复校验
+      // B-33 修复: 同时保存 customSubjects, 让用户自定义科目持久化
       await getAPI().profile.set(studentName, {
         ...profileData,
         academicRecords: records,
         classRank,
         gradeRank,
+        customSubjects: allSubjects,
       })
-      toast.success('成绩已保存')
+      toast.success(t('page.student.academics.saved'))
       setSaving(false)
       setEditing(false)
       setEditingRank(false)
     } catch (err) {
-      toast.error(`保存失败: ${err instanceof Error ? err.message : String(err)}`)
+      toast.error(
+        `${t('page.student.academics.saveFailed')}: ${err instanceof Error ? err.message : String(err)}`,
+      )
       setSaving(false)
     }
   }
@@ -1388,11 +1412,13 @@ function AcademicsTab({
         classRank,
         gradeRank,
       })
-      toast.success('排名已保存')
+      toast.success(t('page.student.academics.rankSaved'))
       setSaving(false)
       setEditingRank(false)
     } catch (err) {
-      toast.error(`保存排名失败: ${err instanceof Error ? err.message : String(err)}`)
+      toast.error(
+        `${t('page.student.academics.rankSaveFailed')}: ${err instanceof Error ? err.message : String(err)}`,
+      )
       setSaving(false)
     }
   }
@@ -1601,7 +1627,7 @@ function AcademicsTab({
               <input
                 type="number"
                 value={classRank ?? ''}
-                onChange={(e) => setClassRank(parseInt(e.target.value, 10) || undefined)}
+                onChange={(e) => { const v = parseInt(e.target.value, 10); setClassRank(Number.isNaN(v) ? undefined : v) }}
                 className="w-20 mx-auto mt-1 bg-white dark:bg-gray-900 border rounded px-2 py-1 text-center font-mono text-lg"
               />
             ) : (
@@ -1616,7 +1642,7 @@ function AcademicsTab({
               <input
                 type="number"
                 value={gradeRank ?? ''}
-                onChange={(e) => setGradeRank(parseInt(e.target.value, 10) || undefined)}
+                onChange={(e) => { const v = parseInt(e.target.value, 10); setGradeRank(Number.isNaN(v) ? undefined : v) }}
                 className="w-20 mx-auto mt-1 bg-white dark:bg-gray-900 border rounded px-2 py-1 text-center font-mono text-lg"
               />
             ) : (
@@ -1747,7 +1773,11 @@ function AIAnalysisTab({
   onRunSelected,
   onRunAll,
   running,
-  output,
+  agentOutputs,
+  agentRunOrder,
+  activeAiTab,
+  onSelectAgent,
+  onAbortAgent,
   message,
   aiSaved,
   onSaveResult,
@@ -1758,12 +1788,22 @@ function AIAnalysisTab({
   onRunSelected: () => void
   onRunAll: () => void
   running: boolean
-  output: string
+  agentOutputs: Record<string, { agentId: string; status: string; output: string; error?: string; durationMs?: number }>
+  agentRunOrder: string[]
+  activeAiTab: string
+  onSelectAgent: (id: string) => void
+  onAbortAgent: (id: string) => void
   message: string
   aiSaved: boolean
   onSaveResult: () => void
 }) {
+  const { t } = useT()
   const enabledAgents = agents.filter((a) => a.enabled)
+  // B-05: 按 activeAiTab 选当前 agent 的分桶输出
+  const activeOutput = activeAiTab === '__overview' ? null : agentOutputs[activeAiTab]
+  const output = activeOutput?.output ?? ''
+  const isAnyRunning = running || Object.values(agentOutputs).some((o) => o.status === 'running')
+  const hasOutput = Object.keys(agentOutputs).length > 0
 
   const sections = useMemo(() => {
     if (!output) return []
@@ -1773,7 +1813,7 @@ function AIAnalysisTab({
     let currentContent = ''
     for (const line of lines) {
       if (
-        line.match(/^(===\s*|##\s*|【.+】)/) ||
+        (line.match(/^(===\s*|##\s*|【.+】)/) && !line.includes('🤖')) ||
         line.includes('操行总结') ||
         line.includes('风险预警') ||
         line.includes('行为模式') ||
@@ -1971,6 +2011,7 @@ function AddEventInline({
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const deltaManuallyEdited = useRef(false)
+  const { t } = useT()
 
   const handleSubmit = async () => {
     if (!reasonCode) return
@@ -1985,10 +2026,12 @@ function AddEventInline({
       if (result.success) {
         onDone()
       } else {
-        toast.error(`添加失败: ${getErrorMessage(result)}`)
+        toast.error(t('page.student.addEvent.addFailed', getErrorMessage(result)))
       }
     } catch (err) {
-      toast.error(`提交失败: ${err instanceof Error ? err.message : String(err)}`)
+      toast.error(
+        t('page.student.addEvent.submitFailed', err instanceof Error ? err.message : String(err)),
+      )
     }
     setSubmitting(false)
   }
@@ -2007,7 +2050,7 @@ function AddEventInline({
           }}
           className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm col-span-2 focus:outline-none focus:border-blue-500"
         >
-          <option value="">选择原因码...</option>
+          <option value="">{t('page.student.addEvent.placeholder.reasonCode')}</option>
           {reasonCodes.map((c) => (
             <option key={c.code} value={c.code}>
               {c.label} ({c.code}){' '}
@@ -2022,7 +2065,7 @@ function AddEventInline({
             deltaManuallyEdited.current = true
             setDelta(e.target.value)
           }}
-          placeholder="分数"
+          placeholder={t('page.student.addEvent.placeholder.delta')}
           step="0.5"
           className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-blue-500"
         />
@@ -2031,7 +2074,7 @@ function AddEventInline({
         type="text"
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        placeholder="备注（可选）"
+        placeholder={t('page.student.addEvent.placeholder.note')}
         className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm mb-2 focus:outline-none focus:border-blue-500"
       />
       <div className="flex gap-2">
@@ -2041,14 +2084,16 @@ function AddEventInline({
           disabled={submitting || !reasonCode}
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-lg text-xs transition-colors disabled:opacity-50 shadow-sm"
         >
-          {submitting ? '提交中...' : '确认添加'}
+          {submitting
+            ? t('page.student.addEvent.submitting')
+            : t('page.student.addEvent.submit')}
         </button>
         <button
           type="button"
           onClick={onDone}
           className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 text-xs px-2"
         >
-          取消
+          {t('page.student.cancel')}
         </button>
       </div>
     </div>
