@@ -42,20 +42,7 @@ function eventRecordToHistory(rec: EAAEventRecord): EAAHistoryEvent {
   }
 }
 
-function riskColor(risk: string): string {
-  switch (risk) {
-    case '低':
-      return 'text-green-500 dark:text-green-400'
-    case '中':
-      return 'text-yellow-500 dark:text-yellow-400'
-    case '高':
-      return 'text-orange-500 dark:text-orange-400'
-    case '极高':
-      return 'text-red-500 dark:text-red-400 font-bold'
-    default:
-      return 'text-gray-500'
-  }
-}
+import { riskColor } from '../../lib/risk'
 
 interface StudentProfileProps {
   student: EAAStudent
@@ -1206,7 +1193,14 @@ function AcademicsTab({
 
   // 添加考试
   const addExam = () => {
-    const name = newExamName.trim() || `${newExamType}${records.filter((r) => r.examType === newExamType).length + 1}`
+    const existingIndexes = records
+      .filter((r) => r.examType === newExamType)
+      .map((r) => {
+        const match = r.examName.match(new RegExp(`^${newExamType}(\\d+)$`))
+        return match ? parseInt(match[1], 10) : 0
+      })
+    const nextIndex = existingIndexes.length > 0 ? Math.max(...existingIndexes) + 1 : 1
+    const name = newExamName.trim() || `${newExamType}${nextIndex}`
     const newRec: AcademicExamRecord = {
       examType: newExamType,
       examName: name,
@@ -1231,7 +1225,7 @@ function AcademicsTab({
     const newRecords = [...records]
     newRecords[idx] = {
       ...newRecords[idx],
-      subjects: { ...newRecords[idx].subjects, [subject]: parseFloat(value) || 0 },
+      subjects: { ...newRecords[idx].subjects, [subject]: value === '' ? (undefined as unknown as number) : parseFloat(value) || 0 },
     }
     setRecords(newRecords)
   }

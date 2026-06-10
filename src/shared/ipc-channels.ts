@@ -98,6 +98,9 @@ export const IPC_SYS_NOTIFICATION = 'sys:notification'
 // ===== 学生档案 =====
 export const IPC_PROFILE_GET = 'profile:get'
 export const IPC_PROFILE_SET = 'profile:set'
+export const IPC_PROFILE_ADD_ACADEMIC = 'profile:add-academic-record'
+export const IPC_PROFILE_GET_ACADEMIC = 'profile:get-academic-records'
+export const IPC_PROFILE_VALIDATE_ACADEMIC = 'profile:validate-academic'
 
 // ===== 对话持久化 =====
 export const IPC_CHAT_SAVE_MESSAGE = 'chat:save-message'

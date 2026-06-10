@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useT } from '../../i18n'
 import { getAPI, getErrorMessage } from '../../lib/ipc-client'
+import { riskColor, riskOrder, riskSortValue } from '../../lib/risk'
 import { toast } from '../../stores/toastStore'
 import { StudentProfile } from './StudentProfile'
 
@@ -19,20 +20,6 @@ interface OpenDialogResult {
 interface SaveDialogResult {
   canceled: boolean
   filePath: string
-}
-
-// 风险等级颜色
-function riskColor(risk: EAARiskLevel): string {
-  switch (risk) {
-    case '低':
-      return 'text-green-500 dark:text-green-400'
-    case '中':
-      return 'text-yellow-500 dark:text-yellow-400'
-    case '高':
-      return 'text-orange-500 dark:text-orange-400'
-    case '极高':
-      return 'text-red-500 dark:text-red-400 font-bold'
-  }
 }
 
 export function StudentsPage() {

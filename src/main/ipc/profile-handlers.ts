@@ -39,7 +39,7 @@ export function registerProfileHandlers() {
     return { success: true, data }
   })
 
-  // 写入学生扩展档案
+  // 写入学生扩展档案（全量覆盖）
   ipcMain.handle(IPC.IPC_PROFILE_SET, async (_e, name: string, data: StudentProfileData) => {
     const safeName = sanitizeName(name)
     if (!data || typeof data !== 'object') {
@@ -48,24 +48,8 @@ export function registerProfileHandlers() {
     return profileService.set(safeName, data)
   })
 
-  // 添加一条学业成绩记录
-  ipcMain.handle('profile:add-academic-record', async (_e, name: string, record: AcademicExamRecord) => {
-    const safeName = sanitizeName(name)
-    if (!record || typeof record !== 'object') {
-      throw new Error('record must be a non-null object')
-    }
-    return profileService.addAcademicRecord(safeName, record)
-  })
-
-  // 获取学业成绩记录列表
-  ipcMain.handle('profile:get-academic-records', async (_e, name: string) => {
-    const safeName = sanitizeName(name)
-    const records = await profileService.getAcademicRecords(safeName)
-    return { success: true, data: records }
-  })
-
   // 校验学业成绩数据（不保存，仅校验）
-  ipcMain.handle('profile:validate-academic', async (_e, records: AcademicExamRecord[]) => {
+  ipcMain.handle(IPC.IPC_PROFILE_VALIDATE_ACADEMIC, async (_e, records: AcademicExamRecord[]) => {
     if (!Array.isArray(records)) {
       return { success: false, errors: ['records must be an array'] }
     }
