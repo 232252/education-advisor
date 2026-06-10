@@ -281,6 +281,12 @@ export function ModelsPage() {
       ).filter((p) => !p.hidden),
     [providers, searchTerm],
   )
+  // 修复：之前 enabledModels 白名单命中数为 0 的 provider 被错误地标 hidden，
+  // 现在 hidden 仅由 blacklist 控制；这里统计"白名单无命中"的数量，仅作顶部提示
+  const whitelistDisabledCount = useMemo(
+    () => visibleProviders.filter((p) => p.disabledByWhitelist).length,
+    [visibleProviders],
+  )
 
   const hiddenProviders = useMemo(() => providers.filter((p) => p.hidden), [providers])
 
@@ -321,6 +327,22 @@ export function ModelsPage() {
         <div className="text-center text-gray-400 dark:text-gray-500 py-12">加载中...</div>
       ) : (
         <div className="space-y-6">
+          {/* 白名单屏蔽提示：仅当存在被白名单挡住的 provider 时显示。
+              不影响可见性 —— 这些 provider 仍然正常展示、可配置、可隐藏。 */}
+          {whitelistDisabledCount > 0 && (
+            <div className="bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2">
+              <span>⚠️</span>
+              <span>
+                {whitelistDisabledCount} 个 provider 的模型未在
+                <code className="mx-1 px-1.5 py-0.5 rounded bg-amber-500/20 font-mono text-xs">
+                  models.enabledModels
+                </code>
+                白名单中，因此当前 0 个模型可见。这些 provider 仍可正常配置 API Key，只是默认
+                Provider 选中后下拉里看不到任何 model。
+              </span>
+            </div>
+          )}
+
           {/* 默认模型配置面板 */}
           <DefaultModelConfig
             providers={providers}
@@ -499,6 +521,14 @@ function ProviderCard({
           {p.hasApiKey && (
             <span className="text-xs bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full">
               已配置
+            </span>
+          )}
+          {p.disabledByWhitelist && (
+            <span
+              className="text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full"
+              title="此 provider 的模型不在 models.enabledModels 白名单中，模型下拉里将看不到任何 model"
+            >
+              白名单无命中
             </span>
           )}
         </div>

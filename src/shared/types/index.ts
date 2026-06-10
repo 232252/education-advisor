@@ -11,7 +11,13 @@ export interface ProviderInfo {
   hasApiKey: boolean
   modelCount: number
   customBaseUrl?: string
+  /** 用户主动隐藏（加入黑名单）；渲染端把它归到"已隐藏"分组 */
   hidden?: boolean
+  /** enabledModels 白名单没有命中（但 provider 自身有模型）；
+   *  仅作为视觉提示，不归到"已隐藏"分组。修复：原本这一状态被错误地
+   *  标记为 hidden，导致所有 30+ provider 在白名单非空时全部被丢到
+   *  "已隐藏"区域，无法看到也无法取消隐藏。 */
+  disabledByWhitelist?: boolean
 }
 
 export interface ModelInfo {
