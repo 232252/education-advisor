@@ -89,7 +89,7 @@ export function StudentsPage() {
   const handleDeleteStudent = async (name: string) => {
     if (!window.confirm(`${t('common.delete')}: "${name}"?`)) return
     try {
-      const result = await getAPI().eaa.deleteStudent(name, '管理员操作')
+      const result = await getAPI().eaa.deleteStudent(name, { confirm: true, reason: '管理员操作' })
       setActionMessageAuto(
         result.success
           ? `${t('common.delete')}: ${name}`

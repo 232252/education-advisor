@@ -1,0 +1,49 @@
+{
+  "task": "晚间督导复盘",
+  "timestamp": "2026-06-09T22:00:05+08:00",
+  "agent": "Governor",
+  "data_source": "eaa CLI",
+  "privacy_compliance": {
+    "method": "S_XXX化名",
+    "verified": true,
+    "students_anonymized": true
+  },
+  "data_validation": {
+    "status": "⚠️ 警告",
+    "total_students": 0,
+    "expected_students": 52,
+    "discrepancy": "学生数为0，未达到预期52人规模",
+    "events_today": 0,
+    "checks_passed": false
+  },
+  "risk_summary": {
+    "high_risk": 0,
+    "medium_risk": 0,
+    "low_risk": 0,
+    "total": 0
+  },
+  "integrity_check": {
+    "bitable_consistent": false,
+    "sqlite_consistent": false,
+    "missing_data": true,
+    "recommendation": "请检查数据导入流程，确认52名学生数据已正确导入系统"
+  },
+  "digital_twin_snapshot": {
+    "generated_at": "2026-06-09T22:00:05+08:00",
+    "system_status": "空系统",
+    "students_registered": 0,
+    "active_events": 0,
+    "risk_distribution": {
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    },
+    "flags": ["数据未初始化"]
+  },
+  "next_actions": [
+    "1. 确认学生数据导入状态",
+    "2. 检查Bitable与SQLite连接",
+    "3. 如数据正常，忽略此警告"
+  ],
+  "report_status": "完成但数据异常"
+}

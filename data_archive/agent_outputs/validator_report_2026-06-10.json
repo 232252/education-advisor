@@ -1,0 +1,87 @@
+{
+ "timestamp": "2026-06-1004:00:04",
+ "agent": "Validator Agent (数据效验AI)",
+ "trigger": "定时任务 (每6小时)",
+ "status": "FAIL",
+ "summary": {
+ "total_students":2,
+ "expected_students":52,
+ "deviation": -50,
+ "total_events":6,
+ "valid_events":6,
+ "reverted_events":0
+ },
+ "checks": {
+ "student_archives": {
+ "status": "FAIL",
+ "rule": "学生总数应为52人（可配置）",
+ "expected":52,
+ "actual":2,
+ "deviation": -50,
+ "threshold":3,
+ "anomalies": [
+ "学生总数严重不足：当前仅2人，预期52人，偏差50人远超±3阈值"
+ ]
+ },
+ "conduct_scores": {
+ "status": "PASS",
+ "score_range": {
+ "status": "PASS",
+ "min":101,
+ "max":105,
+ "anomalies": []
+ },
+ "daily_volatility": {
+ "status": "PASS",
+ "max_single_day_delta":5,
+ "threshold":10,
+ "anomalies": []
+ },
+ "coverage": {
+ "status": "PASS",
+ "rate": "100%",
+ "anomalies": []
+ },
+ "data_type": {
+ "status": "PASS",
+ "anomalies": []
+ }
+ },
+ "talk_records": {
+ "status": "WARN",
+ "note": "谈话记录数据源 /data_collection/raw/talk_records.json 未通过本次 eaa CLI 查询获取",
+ "anomalies": [
+ "谈话记录校验需要单独数据源，本次未覆盖"
+ ]
+ },
+ "risk_consistency": {
+ "status": "PASS",
+ "checks": [
+ {"name": "S_001 (1)", "score":105, "risk": "低", "consistent": true},
+ {"name": "S_002 (录入1)", "score":101, "risk": "低", "consistent": true}
+ ],
+ "anomalies": []
+ },
+ "event_consistency": {
+ "status": "PASS",
+ "stats_total":6,
+ "summary_total":6,
+ "reverted":0,
+ "anomalies": []
+ }
+ },
+ "alerts": [
+ {
+ "level": "CRITICAL",
+ "type": "DATA_MISSING",
+ "message": "学生档案缺失严重：仅2/52人，数据可能未完整录入或数据源连接异常"
+ }
+ ],
+ "recommendations": [
+ "立即检查学生档案数据源 /data/students/ 是否正常",
+ "确认数据采集流程是否中断",
+ "核查是否有新学期/班级调整导致学生数据重置"
+ ],
+ "data_source": "eaa CLI",
+ "next_check": "2026-06-1010:00:00"
+}

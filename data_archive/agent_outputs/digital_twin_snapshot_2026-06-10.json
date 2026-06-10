@@ -1,0 +1,58 @@
+{
+  "snapshot_type": "数字孪生系统快照",
+  "generated_at": "2026-06-10T04:00:22+08:00",
+  "agent": "Governor",
+  "date": "2026-06-10",
+  "system_status": {
+    "eaa_cli_available": true,
+    "data_source": "eaa CLI",
+    "database_consistency": "已校验",
+    "last_validation": "2026-06-10T04:00:22+08:00"
+  },
+  "entity_metrics": {
+    "total_students": 3,
+    "expected_students": 52,
+    "total_events": 6,
+    "valid_events": 6,
+    "reverted_events": 0,
+    "bonus_events": 4,
+    "deduct_events": 2
+  },
+  "score_health": {
+    "average_score": 101.67,
+    "max_score": 105,
+    "min_score": 99,
+    "median_score": 101,
+    "score_std_dev_estimate": 2.49
+  },
+  "risk_metrics": {
+    "high_risk_count": 0,
+    "medium_risk_count": 1,
+    "low_risk_count": 2,
+    "extreme_risk_count": 0,
+    "risk_index": 0.33
+  },
+  "reason_code_distribution": [
+    {"code": "ACTIVITY_PARTICIPATION", "count": 3, "type": "加分"},
+    {"code": "OTHER_DEDUCT", "count": 1, "type": "扣分"},
+    {"code": "LATE", "count": 1, "type": "扣分"},
+    {"code": "CLASS_COMMITTEE", "count": 1, "type": "加分"}
+  ],
+  "data_quality_flags": [
+    {
+      "severity": "中",
+      "flag": "学生总数异常",
+      "detail": "当前3人 vs 预期52人，差距49人"
+    },
+    {
+      "severity": "中",
+      "flag": "姓名不规范",
+      "detail": "存在'1'、'录入1'、'?'等疑似测试数据"
+    }
+  ],
+  "agents_online": ["counselor", "governor", "validator"],
+  "next_scheduled": {
+    "next_task": "晨间数据质量检查",
+    "next_run_at": "2026-06-10T06:00:00+08:00"
+  }
+}

@@ -37,9 +37,9 @@ export const DEFAULT_SUBJECTS = [
 /** 默认考试类型 */
 export const DEFAULT_EXAM_TYPES = ['周考', '月考', '期中', '期末', '模拟考', '平时测试', '随堂测验']
 
-/** 分数范围 */
+/** 分数范围 — 300 能覆盖所有学制（单科最高 300 = 理综/文综） */
 const SCORE_MIN = 0
-const SCORE_MAX = 150
+const SCORE_MAX = 300
 
 class ProfileService {
   private profilesDir: string
@@ -183,11 +183,15 @@ class ProfileService {
     // 3. 迁移旧数据
     data = this.migrateLegacyData(data)
 
-    // 4. Deanonymize 档案内容中的化名
-    if (data.parentName) {
-      try {
-        data.parentName = await this.deanonymizeName(data.parentName)
-      } catch { /* keep as-is */ }
+    // 4. Deanonymize 档案内容中的 PII 化名
+    const piiFields = ['parentName', 'fatherName', 'motherName', 'idCard', 'phone', 'address']
+    for (const field of piiFields) {
+      const val = (data as Record<string, unknown>)[field]
+      if (val && typeof val === 'string') {
+        try {
+          ;(data as Record<string, unknown>)[field] = await this.deanonymizeName(val)
+        } catch { /* keep as-is */ }
+      }
     }
 
     return data
@@ -207,18 +211,22 @@ class ProfileService {
       // 2. 自动迁移旧数据
       const cleaned = this.migrateLegacyData(data)
 
-      // 3. Anonymize 档案中的姓名
+      // 3. Anonymize 档案中的 PII 字段（姓名、身份证、电话、地址）
       const anonymized = { ...cleaned }
-      if (anonymized.parentName) {
-        try {
-          const result = await eaaBridge.execute({
-            command: 'privacy',
-            args: ['anonymize', anonymized.parentName],
-          })
-          if (result.success && result.data) {
-            anonymized.parentName = String(result.data).trim()
-          }
-        } catch { /* keep as-is */ }
+      const piiFields = ['parentName', 'fatherName', 'motherName', 'idCard', 'phone', 'address']
+      for (const field of piiFields) {
+        const val = anonymized[field]
+        if (val && typeof val === 'string') {
+          try {
+            const result = await eaaBridge.execute({
+              command: 'privacy',
+              args: ['anonymize', val],
+            })
+            if (result.success && result.data) {
+              ;(anonymized as Record<string, unknown>)[field] = String(result.data).trim()
+            }
+          } catch { /* keep as-is */ }
+        }
       }
 
       // 4. 写入化名路径

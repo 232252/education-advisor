@@ -1194,8 +1194,9 @@ function AcademicsTab({
     }
   }
   const removeSubject = (sub: string) => {
+    const count = records.filter((r) => r.subjects[sub] != null && r.subjects[sub] > 0).length
+    if (!confirm(`将删除"${sub}"科目，同时从 ${count} 条考试记录中移除该科目成绩。确定继续？`)) return
     setAllSubjects(allSubjects.filter((s) => s !== sub))
-    // 同时从所有考试记录中移除该科目
     setRecords(records.map((r) => {
       const newSubjects = { ...r.subjects }
       delete newSubjects[sub]
@@ -1209,7 +1210,7 @@ function AcademicsTab({
     const newRec: AcademicExamRecord = {
       examType: newExamType,
       examName: name,
-      subjects: Object.fromEntries(allSubjects.map((s) => [s, 0])),
+      subjects: {},
       date: newExamDate || undefined,
     }
     setRecords([...records, newRec])
@@ -1220,6 +1221,8 @@ function AcademicsTab({
 
   // 删除考试
   const removeExam = (idx: number) => {
+    const rec = records[idx]
+    if (!confirm(`将删除考试"${rec.examName}"（${rec.examType}），共 ${Object.keys(rec.subjects).length} 个科目成绩。确定继续？`)) return
     setRecords(records.filter((_, i) => i !== idx))
   }
 
@@ -1282,14 +1285,33 @@ function AcademicsTab({
           {validationMsg && (
             <span className="text-xs text-red-500 self-center">{validationMsg}</span>
           )}
-          <button
-            type="button"
-            onClick={() => (editing ? handleSave() : setEditing(true))}
-            disabled={saving}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-xs transition-colors disabled:opacity-50 shadow-sm"
-          >
-            {saving ? '保存中...' : editing ? '💾 保存' : '✏️ 编辑'}
-          </button>
+          {editing ? (
+            <>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-xs transition-colors disabled:opacity-50 shadow-sm"
+              >
+                {saving ? '保存中...' : '💾 保存'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1 rounded-lg text-xs transition-colors"
+              >
+                ✕ 取消
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-xs transition-colors shadow-sm"
+            >
+              ✏️ 编辑
+            </button>
+          )}
         </div>
       </div>
 
@@ -1416,7 +1438,7 @@ function AcademicsTab({
                           onChange={(e) => updateScore(idx, sub, e.target.value)}
                           className="w-16 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-center text-xs"
                           min="0"
-                          max="150"
+                          max="300"
                         />
                       ) : (
                         <span className={`font-mono ${rec.subjects[sub] != null && rec.subjects[sub] > 0 ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
@@ -1512,7 +1534,6 @@ function AcademicsTab({
               yAxis: {
                 type: 'value',
                 min: 0,
-                max: 100,
                 axisLabel: { color: axisColor },
                 splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
               },
@@ -1576,7 +1597,6 @@ function AcademicsTab({
               yAxis: {
                 type: 'value',
                 min: 0,
-                max: 100,
                 axisLabel: { color: axisColor },
                 splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
               },
@@ -1830,6 +1850,7 @@ function AddEventInline({
   const [delta, setDelta] = useState('')
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const deltaManuallyEdited = useRef(false)
 
   const handleSubmit = async () => {
     if (!reasonCode) return
@@ -1859,8 +1880,10 @@ function AddEventInline({
           value={reasonCode}
           onChange={(e) => {
             setReasonCode(e.target.value)
-            const code = reasonCodes.find((c) => c.code === e.target.value)
-            if (code?.score_delta != null) setDelta(String(code.score_delta))
+            if (!deltaManuallyEdited.current) {
+              const code = reasonCodes.find((c) => c.code === e.target.value)
+              if (code?.score_delta != null) setDelta(String(code.score_delta))
+            }
           }}
           className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm col-span-2 focus:outline-none focus:border-blue-500"
         >
@@ -1875,7 +1898,10 @@ function AddEventInline({
         <input
           type="number"
           value={delta}
-          onChange={(e) => setDelta(e.target.value)}
+          onChange={(e) => {
+            deltaManuallyEdited.current = true
+            setDelta(e.target.value)
+          }}
           placeholder="分数"
           step="0.5"
           className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-blue-500"
@@ -2126,9 +2152,11 @@ function EventCard({
         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 text-xs space-y-1.5">
           {event.note && <div className="text-gray-600 dark:text-gray-300">📝 {event.note}</div>}
           <div className="flex gap-4 text-gray-500 dark:text-gray-400">
-            <span>
-              累计: <span className="font-mono">{event.cumulative.toFixed(1)}</span>
-            </span>
+            {event.cumulative !== 0 && (
+              <span>
+                累计: <span className="font-mono">{event.cumulative.toFixed(1)}</span>
+              </span>
+            )}
             <span>标签: {event.tags.join(', ') || '无'}</span>
           </div>
           {/* 撤销按钮：仅未撤销事件显示 */}

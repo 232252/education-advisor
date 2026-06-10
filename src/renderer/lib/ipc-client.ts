@@ -125,7 +125,7 @@ interface WindowAPI {
     export: (format: string, outputFile?: string) => Promise<EAAResult<string>>
     listStudents: () => Promise<EAAResult<EAAStudentList>>
     addStudent: (name: string) => Promise<EAAResult<string>>
-    deleteStudent: (name: string, reason?: string) => Promise<EAAResult<string>>
+    deleteStudent: (name: string, options?: { confirm?: boolean; reason?: string }) => Promise<EAAResult<string>>
     setStudentMeta: (params: SetStudentMetaParams) => Promise<EAAResult<string>>
     import: (filePath: string) => Promise<EAAResult<string>>
     codes: () => Promise<EAAResult<EAACodesData>>

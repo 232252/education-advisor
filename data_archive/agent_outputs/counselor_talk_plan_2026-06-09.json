@@ -1,0 +1,62 @@
+{
+  "report_type": "辅导员每日谈话计划更新",
+  "timestamp": "2026-06-09T20:05:00+08:00",
+  "agent": "counselor",
+  "role": "辅导员",
+  "date": "2026-06-09",
+  "day_of_week": "三",
+  "data_source": "eaa CLI",
+  "privacy_compliance": {
+    "method": "S_XXX化名",
+    "verified": true,
+    "students_anonymized": true
+  },
+  "system_status": {
+    "total_students": 0,
+    "expected_students": 52,
+    "events_this_week": 0,
+    "status": "⚠️ 数据未初始化"
+  },
+  "risk_distribution": {
+    "high_risk": 0,
+    "medium_risk": 0,
+    "low_risk": 0,
+    "total": 0
+  },
+  "thresholds": {
+    "high_risk_max_score": 85,
+    "medium_risk_max_score": 93,
+    "low_risk_min_score": 93
+  },
+  "talk_plan": {
+    "generated_at": "2026-06-09T20:05:00+08:00",
+    "students_requiring_talk": [],
+    "high_priority": [],
+    "medium_priority": [],
+    "summary": "当前系统无学生数据，无法生成谈话计划。请先初始化学生数据（52人）。"
+  },
+  "issues_identified": [
+    {
+      "severity": "critical",
+      "issue": "学生数据库为空",
+      "possible_causes": [
+        "EAA数据库未初始化",
+        "Bitable数据导入未执行",
+        "环境变量配置错误"
+      ],
+      "action_required": "执行数据初始化流程，导入52名学生数据"
+    }
+  ],
+  "recommendations": [
+    "1. 检查 EAA 数据库连接状态",
+    "2. 执行 Bitable 数据导入脚本",
+    "3. 验证环境变量 EAA_DATA_DIR 配置",
+    "4. 数据就绪后重新生成谈话计划"
+  ],
+  "next_scheduled_task": {
+    "time": "2026-06-10T07:05",
+    "task": "学业日报生成 + 谈话计划"
+  },
+  "report_status": "完成但数据异常",
+  "next_update": "2026-06-10T07:05"
+}

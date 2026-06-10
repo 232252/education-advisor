@@ -1,0 +1,31 @@
+{
+  "report_type": "每日督导复盘报告",
+  "generated_at": "2026-06-09T22:00:05+08:00",
+  "agent": "Governor",
+  "date": "2026-06-09",
+  "day_of_week": "三",
+  "data_source": "eaa CLI",
+  "privacy_compliance": "S_XXX化名已应用",
+  "summary": {
+    "total_students": 0,
+    "expected": 52,
+    "events_today": 0,
+    "valid_events": 0,
+    "reverted_events": 0
+  },
+  "risk_distribution": {
+    "high_risk": 0,
+    "medium_risk": 0,
+    "low_risk": 0
+  },
+  "concerns": [
+    "⚠️ 系统中学生数为0，未达到预期52人规模",
+    "⚠️ 可能存在数据未初始化问题"
+  ],
+  "recommendations": [
+    "1. 检查eaa数据库是否正确初始化",
+    "2. 确认Bitable数据导入流程",
+    "3. 如数据正常但仅在内存中，请忽略此警告"
+  ],
+  "next_scheduled_task": "次日晨间数据检查 (06:00)"
+}
