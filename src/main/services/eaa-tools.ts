@@ -360,8 +360,11 @@ export const getAcademicScoresTool: AgentTool<typeof academicScoreParams> = {
   description: '获取指定学生的全部学业考试成绩记录（支持任意科目和考试类型）',
   parameters: academicScoreParams,
   execute: async (_toolCallId, params) => {
-    const records = await profileService.getAcademicRecords(params.name)
-    return jsonResult(records, `${params.name} 的学业成绩`)
+    // sanitize: 防止路径遍历 / prompt injection
+    const safeName = params.name.replace(/[^\u4e00-\u9fff_a-zA-Z0-9-]/g, '_').slice(0, 64)
+    if (!safeName.trim()) throw new Error('invalid student name')
+    const records = await profileService.getAcademicRecords(safeName)
+    return jsonResult(records, `${safeName} 的学业成绩`)
   },
 }
 
@@ -385,7 +388,10 @@ export const addAcademicExamTool: AgentTool<typeof addExamParams> = {
   description: '为指定学生添加一条学业考试成绩记录，支持任意科目和考试类型',
   parameters: addExamParams,
   execute: async (_toolCallId, params) => {
-    const result = await profileService.addAcademicRecord(params.name, {
+    // sanitize: 防止路径遍历 / prompt injection
+    const safeName = params.name.replace(/[^\u4e00-\u9fff_a-zA-Z0-9-]/g, '_').slice(0, 64)
+    if (!safeName.trim()) throw new Error('invalid student name')
+    const result = await profileService.addAcademicRecord(safeName, {
       examType: params.examType,
       examName: params.examName,
       subjects: params.subjects,

@@ -173,13 +173,6 @@ interface WindowAPI {
       name: string,
       data: Partial<StudentProfileData>,
     ) => Promise<{ success: boolean; error?: string }>
-    addAcademicRecord: (
-      name: string,
-      record: AcademicExamRecord,
-    ) => Promise<{ success: boolean; error?: string }>
-    getAcademicRecords: (
-      name: string,
-    ) => Promise<{ success: boolean; data: AcademicExamRecord[] }>
     validateAcademic: (
       records: AcademicExamRecord[],
     ) => Promise<{ success: boolean; errors?: string[] }>
