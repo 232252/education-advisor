@@ -28,6 +28,11 @@ export interface EAAResult<T = unknown> {
   data: T | null
   stderr: string
   exitCode: number
+  /**
+   * B-06: 服务端标记当前操作需要二次确认(例如 delete-student)
+   * 仅部分 handler 返回; 渲染层可据此弹窗后再次调用
+   */
+  requiresConfirmation?: boolean
 }
 
 /**

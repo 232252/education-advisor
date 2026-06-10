@@ -68,8 +68,8 @@ class ProfileService {
   private async withLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
     const prev = this.locks.get(name) ?? Promise.resolve()
     // 前一个失败时 catch 吞掉，确保 chain 不断；错误由调用方 set() 自行处理
-    const next = prev.catch(() => {}).then(fn)
-    this.locks.set(name, next)
+    const next: Promise<T> = prev.catch(() => undefined).then(() => fn())
+    this.locks.set(name, next as unknown as Promise<void>)
     // 清理已完成的任务
     next.finally(() => { if (this.locks.get(name) === next) this.locks.delete(name) })
     return next
@@ -92,7 +92,7 @@ class ProfileService {
         return this.profilePath(anoName)
       }
     } catch {
-      // 隐私引擎不可用则回退
+      console.warn('[ProfileService] Privacy engine unavailable, falling back to plaintext storage for', realName)
     }
     return this.profilePath(realName)
   }
@@ -108,7 +108,7 @@ class ProfileService {
         return String(result.data).trim()
       }
     } catch {
-      // 隐私引擎不可用则回退
+      console.warn('[ProfileService] Deanonymize failed (privacy engine may be unavailable)')
     }
     return anonymizedName
   }
@@ -159,7 +159,9 @@ class ProfileService {
     ]
 
     for (const mapping of legacyMappings) {
-      const grades = (data as unknown as Record<string, unknown>)[mapping.key] as Record<string, number> | undefined
+      const grades = (data as unknown as Record<string, unknown>)[mapping.key] as
+        | Record<string, number | null>
+        | undefined
       if (grades && Object.keys(grades).length > 0) {
         if (!records.some((r) => r.examName === mapping.examName)) {
           records.push({ examType: mapping.examType, examName: mapping.examName, subjects: { ...grades } })
@@ -205,15 +207,17 @@ class ProfileService {
 
     data = this.migrateLegacyData(data)
 
-    // Deanonymize 所有 PII 字段
-    for (const field of PII_FIELDS) {
-      const val = (data as Record<string, unknown>)[field]
-      if (val && typeof val === 'string') {
-        try {
-          ;(data as Record<string, unknown>)[field] = await this.deanonymizeName(val)
-        } catch { /* keep as-is */ }
-      }
-    }
+    // Deanonymize 所有 PII 字段（并行加速）
+    await Promise.all(
+      PII_FIELDS.map(async (field) => {
+        const val = (data as Record<string, unknown>)[field]
+        if (val && typeof val === 'string') {
+          try {
+            ;(data as Record<string, unknown>)[field] = await this.deanonymizeName(val)
+          } catch { /* keep as-is */ }
+        }
+      }),
+    )
 
     return data
   }
@@ -233,22 +237,24 @@ class ProfileService {
         // 2. 迁移旧数据
         const cleaned = this.migrateLegacyData(data)
 
-        // 3. Anonymize 所有 PII 字段
+        // 3. Anonymize 所有 PII 字段（并行加速）
         const anonymized = { ...cleaned } as Record<string, unknown>
-        for (const field of PII_FIELDS) {
-          const val = anonymized[field]
-          if (val && typeof val === 'string') {
-            try {
-              const result = await eaaBridge.execute({
-                command: 'privacy',
-                args: ['anonymize', val],
-              })
-              if (result.success && result.data) {
-                anonymized[field] = String(result.data).trim()
-              }
-            } catch { /* keep as-is */ }
-          }
-        }
+        await Promise.all(
+          PII_FIELDS.map(async (field) => {
+            const val = anonymized[field]
+            if (val && typeof val === 'string') {
+              try {
+                const result = await eaaBridge.execute({
+                  command: 'privacy',
+                  args: ['anonymize', val],
+                })
+                if (result.success && result.data) {
+                  anonymized[field] = String(result.data).trim()
+                }
+              } catch { /* keep as-is */ }
+            }
+          }),
+        )
 
         // 4. 序列化后直接写入（逐字段 PII 脱敏已在步骤 3 完成，无需全文过隐私引擎）
         const anoPath = await this.anonymizedPath(name)
