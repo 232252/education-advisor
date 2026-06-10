@@ -53,6 +53,21 @@ interface StudentProfileProps {
 
 type TabId = 'overview' | 'profile' | 'events' | 'academics' | 'ai'
 
+/**
+ * AI 分析输出结构 — 每个 agent 独立
+ * B-05 修复: 避免多 agent 串行时输出混在一起
+ * B-40 修复: 支持按 agent 单独中止
+ */
+type AgentRunStatus = 'idle' | 'running' | 'success' | 'error' | 'aborted'
+interface AgentOutput {
+  agentId: string
+  status: AgentRunStatus
+  output: string
+  error?: string
+  durationMs?: number
+  startedAt?: number
+}
+
 export function StudentProfile({ student, onClose, onRefresh }: StudentProfileProps) {
   const { t } = useT()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
@@ -64,7 +79,11 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
   const [agents, setAgents] = useState<AgentListItem[]>([])
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set())
   const [aiRunning, setAiRunning] = useState(false)
-  const [aiOutput, setAiOutput] = useState('')
+  // B-05/B-40 修复: 每个 agent 独立 output 桶,避免串行执行时多 agent 输出相互污染;
+  //                支持按 agent 单独中止
+  const [agentOutputs, setAgentOutputs] = useState<Record<string, AgentOutput>>({})
+  const [agentRunOrder, setAgentRunOrder] = useState<string[]>([])
+  const [activeAiTab, setActiveAiTab] = useState<string>('__overview')
   const [aiMessage, setAiMessage] = useState('')
   const setAiMessageAuto = useAutoDismiss<string>(setAiMessage, '')
   const [eventFilter, setEventFilter] = useState<'all' | 'bonus' | 'deduct'>('all')
@@ -83,7 +102,10 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
   // P2-7 修复: loadProfileData 原本在 useCallback(loadAllData) 之后声明,
   // 但 loadAllData 内部又调用 loadProfileData,产生 TDZ,跑起来 ReferenceError。
   // 提前并用 useCallback 包裹。
-  // P2-1: 加 currentNameRef 守卫,旧请求完成时若已切换则不更新
+  // P2-1 修复: 加 currentNameRef 守卫, 旧请求完成时若已切换则不更新
+  // B-04/B-08 修复: loadAllData 内所有 setScore/setHistory/setReasonCodes/setAgents 都要按 name guard
+  //                否则慢请求会覆盖快请求,导致切换学生后旧数据污染新学生视图
+  // B-38 修复: loadAllData 接受一个"最新学生"参数, 内部使用该参数而不是闭包中的 student
   const currentNameRef = useRef<string>(student.name)
   useEffect(() => {
     currentNameRef.current = student.name
@@ -102,21 +124,27 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
     if (currentNameRef.current === name) setProfileLoaded(true)
   }, [])
 
-  const loadAllData = useCallback(async () => {
+  const loadAllData = useCallback(async (nameOverride?: string) => {
+    const name = nameOverride ?? student.name
     try {
       const [scoreRes, historyRes, codesRes, agentsRes] = await Promise.all([
-        getAPI().eaa.score(student.name),
-        getAPI().eaa.history(student.name),
+        getAPI().eaa.score(name),
+        getAPI().eaa.history(name),
         getAPI().eaa.codes(),
         getAPI().agent.list(),
       ])
-      if (scoreRes.success) setScore(scoreRes.data)
-      if (historyRes.success) setHistory(historyRes.data)
-      if (codesRes.success && codesRes.data?.codes) setReasonCodes(codesRes.data.codes)
+      // 每个 set 都要 guard,避免旧请求污染
+      if (currentNameRef.current === name && scoreRes.success) setScore(scoreRes.data)
+      if (currentNameRef.current === name && historyRes.success) setHistory(historyRes.data)
+      if (currentNameRef.current === name && codesRes.success && codesRes.data?.codes)
+        setReasonCodes(codesRes.data.codes)
+      // agents 是全局的,不需要 guard
       if (agentsRes) setAgents(agentsRes)
-      loadProfileData(student.name)
+      loadProfileData(name)
     } catch (err) {
-      console.error('[Profile] Load error:', err)
+      if (currentNameRef.current === name) {
+        console.error('[Profile] Load error:', err)
+      }
     }
   }, [student.name, loadProfileData])
 
@@ -136,101 +164,167 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
     })
   }
 
-  const runSelectedAgents = async () => {
-    if (selectedAgents.size === 0) {
-      setAiMessageAuto('请至少选择一个Agent')
+  /**
+   * 统一的 agent 运行入口 — 串行执行,但每个 agent 独立 output 桶
+   * B-05 修复: onStatusUpdate 内按 agentId 分桶写, 避免多 agent 串行时输出相互污染
+   * B-40 修复: 提供 abortAgent, 用户可随时中止任意 agent
+   * B-17 修复: runSelectedAgents 和 runAllAgents 共用 prompt 模板
+   */
+  const runAgents = async (agentIds: string[]) => {
+    if (agentIds.length === 0) {
+      setAiMessageAuto(t('page.student.ai.noAgent'))
       return
     }
     setAiRunning(true)
-    setAiOutput('')
     setAiSaved(false)
+    // 初始化每个 agent 的 output 桶
+    const initial: Record<string, AgentOutput> = {}
+    for (const id of agentIds) {
+      initial[id] = { agentId: id, status: 'idle', output: '' }
+    }
+    setAgentOutputs(initial)
+    setAgentRunOrder(agentIds)
+    setActiveAiTab(agentIds[0] ?? '__overview')
 
-    // 订阅状态更新以获取实时输出
+    // 按 agentId 分桶的订阅
     const unsub = getAPI().agent.onStatusUpdate((rawData) => {
-      const data = rawData as { output?: string; result?: { durationMs?: number }; error?: string }
-      if (data.output) {
-        setAiOutput((prev) => prev + data.output)
+      const data = rawData as {
+        agentId?: string
+        output?: string
+        result?: { durationMs?: number }
+        error?: string
+        status?: AgentRunStatus
       }
-      if (data.result) {
-        setAiOutput((prev) => `${prev}\n\n--- 执行完成 (${data.result?.durationMs}ms) ---\n`)
-      }
-      if (data.error) {
-        setAiOutput((prev) => `${prev}\n[错误] ${data.error}\n`)
-      }
+      const aid = data.agentId
+      if (!aid) return // 没有 agentId 的事件忽略
+      setAgentOutputs((prev) => {
+        const cur = prev[aid] ?? { agentId: aid, status: 'idle', output: '' }
+        const next: AgentOutput = { ...cur }
+        if (data.status) next.status = data.status
+        if (data.output) next.output += data.output
+        if (data.error) {
+          next.error = data.error
+          next.status = 'error'
+        }
+        if (data.result) {
+          next.durationMs = data.result.durationMs
+          if (next.status === 'running') next.status = 'success'
+        }
+        return { ...prev, [aid]: next }
+      })
     })
 
     try {
-      for (const agentId of selectedAgents) {
-        setAiOutput((prev) => `${prev}\n=== 🤖 ${agentId} ===\n`)
-        const prompt = `请分析学生"${student.name}"的操行情况。基本信息：- 分数：${student.score}\n- 风险等级：${student.risk}\n- 事件数：${student.events_count}\n\n请从以下维度进行分析：\n1. 操行总结\n2. 风险预警\n3. 行为模式\n4. 教育建议`
-        // 用 Promise 包装 runManual，等待 agent 实际完成而非固定等待
-        await getAPI().agent.runManual(agentId, prompt)
+      const prompt = t(
+        'page.student.ai.prompt',
+        student.name,
+        String(student.score),
+        student.risk,
+        String(student.events_count),
+      )
+      for (const agentId of agentIds) {
+        // 标记 running
+        setAgentOutputs((prev) => ({
+          ...prev,
+          [agentId]: { ...prev[agentId], status: 'running', startedAt: Date.now() },
+        }))
+        try {
+          await getAPI().agent.runManual(agentId, prompt)
+        } catch (err) {
+          // 单个 agent 失败不阻断后续
+          setAgentOutputs((prev) => ({
+            ...prev,
+            [agentId]: {
+              ...prev[agentId],
+              status: 'error',
+              error: err instanceof Error ? err.message : String(err),
+            },
+          }))
+        }
         // 给流式输出一个短暂刷新窗口
         await new Promise((r) => setTimeout(r, 300))
       }
-      setAiMessageAuto('AI 分析完成')
-    } catch (err) {
-      setAiMessageAuto(`分析失败: ${err instanceof Error ? err.message : String(err)}`)
+      setAiMessageAuto(t('page.student.ai.analysisSuccess'))
     } finally {
       unsub()
       setAiRunning(false)
     }
   }
 
-  const runAllAgents = async () => {
+  const runSelectedAgents = () => {
+    if (selectedAgents.size === 0) {
+      setAiMessageAuto(t('page.student.ai.selectHint'))
+      return
+    }
+    return runAgents(Array.from(selectedAgents))
+  }
+
+  const runAllAgents = () => {
     const allIds = agents.filter((a) => a.enabled).map((a) => a.id)
     if (allIds.length === 0) {
-      setAiMessageAuto('没有可用的Agent')
+      setAiMessageAuto(t('page.student.ai.noAgent'))
       return
     }
     setSelectedAgents(new Set(allIds))
-    setAiRunning(true)
-    setAiOutput('')
-    setAiSaved(false)
+    return runAgents(allIds)
+  }
 
-    // 订阅状态更新以获取实时输出
-    const unsub = getAPI().agent.onStatusUpdate((rawData) => {
-      const data = rawData as { output?: string; result?: { durationMs?: number }; error?: string }
-      if (data.output) {
-        setAiOutput((prev) => prev + data.output)
-      }
-      if (data.result) {
-        setAiOutput((prev) => `${prev}\n\n--- 执行完成 (${data.result?.durationMs}ms) ---\n`)
-      }
-      if (data.error) {
-        setAiOutput((prev) => `${prev}\n[错误] ${data.error}\n`)
-      }
-    })
-
+  /**
+   * 中止指定的 agent — B-40 修复
+   * 通过 IPC 调到主进程 agent.abort
+   */
+  const abortAgent = async (agentId: string) => {
     try {
-      for (const agentId of allIds) {
-        setAiOutput((prev) => `${prev}\n=== 🤖 ${agentId} ===\n`)
-        const prompt = `请分析学生"${student.name}"的操行情况。基本信息：- 分数：${student.score}\n- 风险等级：${student.risk}\n- 事件数：${student.events_count}\n\n请从以下维度进行分析：\n1. 操行总结\n2. 风险预警\n3. 行为模式\n4. 教育建议`
-        await getAPI().agent.runManual(agentId, prompt)
-        await new Promise((r) => setTimeout(r, 300))
+      const res = await getAPI().agent.abort(agentId)
+      setAgentOutputs((prev) => {
+        const cur = prev[agentId]
+        if (!cur) return prev
+        return { ...prev, [agentId]: { ...cur, status: 'aborted' } }
+      })
+      if (!res.success) {
+        toast.error(t('page.student.ai.abort'))
       }
-      setAiMessageAuto('AI 分析完成')
     } catch (err) {
-      setAiMessageAuto(`分析失败: ${err instanceof Error ? err.message : String(err)}`)
-    } finally {
-      unsub()
-      setAiRunning(false)
+      toast.error(
+        `${t('page.student.ai.abort')}: ${err instanceof Error ? err.message : String(err)}`,
+      )
     }
   }
 
+  /** 拼装 AI 输出 — 按 agent 拼接成 markdown 格式,用于保存到 profile */
+  const buildAiSaveText = (): string => {
+    const lines: string[] = []
+    for (const id of agentRunOrder) {
+      const out = agentOutputs[id]
+      if (!out) continue
+      lines.push(`### ${id}`)
+      if (out.error) lines.push(`[ERROR] ${out.error}`)
+      if (out.output) lines.push(out.output)
+      if (out.durationMs != null) lines.push(`(${out.durationMs}ms)`)
+    }
+    return lines.join('\n\n')
+  }
+
   const saveAiResult = async () => {
+    const text = buildAiSaveText()
+    if (!text) {
+      toast.error(t('page.student.ai.saveFailedToast'))
+      return
+    }
     try {
       const result = await getAPI().profile.set(student.name, {
         ...profileData,
-        aiAnalysis: aiOutput,
+        aiAnalysis: text,
         aiAnalyzedAt: Date.now(),
       })
       if (result.success) {
         setAiSaved(true)
-        toast.success('分析结果已保存')
+        toast.success(t('page.student.ai.savedToast'))
+      } else {
+        toast.error(result.error ?? t('page.student.ai.saveFailedToast'))
       }
     } catch (_err) {
-      toast.error('保存失败')
+      toast.error(t('page.student.ai.saveFailedToast'))
     }
   }
 
@@ -910,7 +1004,9 @@ function EventsTab({
     setSearchLoading(true)
     try {
       // 优先级：日期范围 > 关键词搜索
-      if (start && end) {
+      const effectiveStart = start || ''
+      const effectiveEnd = end || (start ? new Date().toISOString().split('T')[0] : '')
+      if (effectiveStart && effectiveEnd) {
         const result = await getAPI().eaa.range(start, end, 100)
         if (result.success && result.data?.events) {
           // 按当前学生过滤范围查询结果
@@ -1129,7 +1225,7 @@ function AcademicsTab({
   }
 
   const calcAvg = (grades: Record<string, number>) => {
-    const vals = Object.values(grades).filter((v) => !Number.isNaN(v) && v > 0)
+    const vals = Object.values(grades).filter((v) => v != null && !Number.isNaN(v))
     return vals.length === 0 ? 0 : vals.reduce((a, b) => a + b, 0) / vals.length
   }
 
@@ -1139,7 +1235,7 @@ function AcademicsTab({
     const activeSubjects = new Set<string>()
     for (const rec of records) {
       for (const [sub, score] of Object.entries(rec.subjects)) {
-        if (score != null && !Number.isNaN(score) && score > 0) {
+        if (score != null && !Number.isNaN(score)) {
           activeSubjects.add(sub)
           if (!allGrades[sub]) allGrades[sub] = []
           allGrades[sub].push(score)

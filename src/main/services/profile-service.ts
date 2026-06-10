@@ -42,9 +42,12 @@ const SCORE_MAX = 300
 /** PII 字段列表 — 写入时逐一过隐私引擎 */
 const PII_FIELDS = [
   'parentName', 'fatherName', 'motherName',
-  'idCard', 'phone', 'address',
+  'fatherPhone', 'motherPhone',
+  'idCard', 'phone', 'email', 'address',
   'comments', 'honors', 'punishments',
-  'allergy', 'specialNeeds', 'dormNumber', 'bedNumber',
+  'allergy', 'specialNeeds',
+  'studentNumber', 'dormNumber', 'bedNumber',
+  'bloodType',
 ]
 
 class ProfileService {
@@ -168,20 +171,36 @@ class ProfileService {
     return result
   }
 
-  /** 读取学生扩展档案（自动 Deanonymize + 迁移旧数据） */
+  /** 读取学生扩展档案（自动 Deanonymize + 迁移旧数据 + 双路径合并） */
   async get(name: string): Promise<StudentProfileData> {
     const filePath = this.profilePath(name)
     const anoPath = await this.anonymizedPath(name)
 
     let data: StudentProfileData = {}
-    if (fs.existsSync(anoPath)) {
+    // 优先读化名版，再读真名版旧数据，合并后统一迁移
+    const anoExists = fs.existsSync(anoPath)
+    const fileExists = fs.existsSync(filePath)
+
+    if (anoExists) {
       try {
         data = JSON.parse(fs.readFileSync(anoPath, 'utf-8')) as StudentProfileData
       } catch { data = {} }
-    } else if (fs.existsSync(filePath)) {
+    }
+    if (fileExists) {
       try {
-        data = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as StudentProfileData
-      } catch { data = {} }
+        const legacyData = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as StudentProfileData
+        // 合并：旧数据中的字段如果新数据没有则补充
+        data = { ...legacyData, ...data }
+        // 特别：academicRecords 要合并而非覆盖
+        const newRecords = data.academicRecords ?? []
+        const legacyRecords = legacyData.academicRecords ?? []
+        for (const lr of legacyRecords) {
+          if (!newRecords.some((r) => r.examName === lr.examName)) {
+            newRecords.push(lr)
+          }
+        }
+        data.academicRecords = newRecords.length > 0 ? newRecords : data.academicRecords
+      } catch { /* old file may be corrupt, ignore */ }
     }
 
     data = this.migrateLegacyData(data)
