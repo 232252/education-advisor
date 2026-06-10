@@ -110,6 +110,13 @@ class PiAIService {
       const keystoreKey = keystoreService.getApiKey(id)
       const envKey = getEnvApiKey(id)
       const hasApiKey = !!(keystoreKey || envKey)
+      // enabledModels 白名单对该 provider 没有任何命中、但 provider 自身是有模型的
+      // — 这是"被白名单屏蔽"的状态，应通过 disabledByWhitelist 视觉提示，
+      //   而不是 hidden（hidden 应当只来自用户主动加入 blacklist）。
+      //   修复：原本这里把 hidden = true，导致所有 30+ provider 在白名单非空时
+      //   全部被丢到 "已隐藏" 分组，"取消隐藏" 自然无效。
+      const disabledByWhitelist =
+        enabledModels.length > 0 && filteredModels.length === 0 && models.length > 0
 
       return {
         id,
@@ -117,10 +124,8 @@ class PiAIService {
         supportsOAuth: OAUTH_PROVIDERS.has(id),
         hasApiKey,
         modelCount: filteredModels.length,
-        // 若 enabledModels 把所有 model 都过滤掉了,标 disabled 提示用户
-        hidden:
-          blacklist.includes(id) ||
-          (enabledModels.length > 0 && filteredModels.length === 0 && models.length > 0),
+        hidden: blacklist.includes(id),
+        disabledByWhitelist,
       }
     })
 
