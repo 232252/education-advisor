@@ -406,6 +406,31 @@ export const addAcademicExamTool: AgentTool<typeof addExamParams> = {
 }
 
 // =============================================================
+// 14. 撤销事件
+// =============================================================
+const revertEventParams = Type.Object({
+  event_id: Type.String({ description: '事件 ID' }),
+  reason: Type.Optional(Type.String({ description: '撤销原因' })),
+})
+
+export const revertEventTool: AgentTool<typeof revertEventParams> = {
+  name: 'eaa_revert_event',
+  label: '撤销事件',
+  description: '撤销指定学生的操行事件（扣分或加分），分数将回退',
+  parameters: revertEventParams,
+  execute: async (_toolCallId, params) => {
+    const safeId = params.event_id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64)
+    if (!safeId) throw new Error('invalid event_id')
+    const flags = ['--reason', params.reason?.replace(/[^\u4e00-\u9fff_a-zA-Z0-9-]/g, '_').slice(0, 128) || 'agent revert']
+    const result = await eaaBridge.execute({ command: 'revert', args: [safeId, ...flags] })
+    if (!result.success) {
+      throw new Error(`撤销事件失败: ${result.stderr || 'unknown error'}`)
+    }
+    return textResult(`事件 ${safeId} 已撤销`)
+  },
+}
+
+// =============================================================
 // 导出：按能力分组的工具集
 // =============================================================
 
@@ -424,6 +449,7 @@ export const allEAATools: AnyAgentTool[] = [
   rangeTool,
   getAcademicScoresTool,
   addAcademicExamTool,
+  revertEventTool,
 ]
 
 // biome-ignore lint/suspicious/noExplicitAny: 异构工具集合，TSchema 约束不兼容 unknown
@@ -446,6 +472,7 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
     summary: [summaryTool],
     add_student: [addStudentTool],
     range: [rangeTool],
+    revert: [revertEventTool],
     academic: [getAcademicScoresTool, addAcademicExamTool],
     read: [
       queryScoreTool,
@@ -459,7 +486,7 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
       rangeTool,
       getAcademicScoresTool,
     ],
-    write: [addEventTool, addStudentTool, addAcademicExamTool],
+    write: [addEventTool, addStudentTool, addAcademicExamTool, revertEventTool],
   }
 
   const tools = new Set<AnyAgentTool>()

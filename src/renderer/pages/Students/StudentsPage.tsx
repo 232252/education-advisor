@@ -163,9 +163,8 @@ export function StudentsPage() {
       s.roles.some((r) => r.includes(search)),
   )
 
-  // 排序: 高风险优先
-  const riskOrder: Record<EAARiskLevel, number> = { 极高: 0, 高: 1, 中: 2, 低: 3 }
-  const sorted = [...filtered].sort((a, b) => riskOrder[a.risk] - riskOrder[b.risk])
+  // 排序: 高风险优先（使用 lib/risk 共享模块，含未知等级兜底）
+  const sorted = [...filtered].sort((a, b) => riskSortValue(a.risk) - riskSortValue(b.risk))
 
   return (
     <div className="h-full flex">
