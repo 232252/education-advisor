@@ -33,6 +33,9 @@ export function StudentsPage() {
   const [actionMessage, setActionMessage] = useState('')
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const exportMenuRef = useRef<HTMLDivElement>(null)
+  // O-05 修复: 批量选择 + 批量操作
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [batchMenuOpen, setBatchMenuOpen] = useState(false)
   const setActionMessageAuto = useAutoDismiss<string>(setActionMessage, '')
 
   // 加载学生列表
@@ -103,6 +106,99 @@ export function StudentsPage() {
       console.error('[Students] Delete failed:', err)
       setActionMessageAuto(t('status.failed'))
     }
+  }
+
+  // O-05: 批量操作 — 改分组 / 改角色 / 转班 / 批量删除
+  const toggleSelect = (entityId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(entityId)) next.delete(entityId)
+      else next.add(entityId)
+      return next
+    })
+  }
+  const toggleSelectAll = () => {
+    if (selectedIds.size === sorted.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(sorted.map((s) => s.entity_id)))
+    }
+  }
+  const batchAddGroup = async (group: string) => {
+    if (!group) return
+    const ids = Array.from(selectedIds)
+    let ok = 0
+    let fail = 0
+    for (const id of ids) {
+      const s = students.find((x) => x.entity_id === id)
+      if (!s) continue
+      if (s.groups.includes(group)) continue
+      const res = await getAPI().eaa.setStudentMeta({ name: s.name, group })
+      if (res.success) ok++
+      else fail++
+    }
+    setActionMessageAuto(
+      fail > 0 ? t('page.students.batch.failed', `${ok} ok, ${fail} fail`) : t('page.students.batch.done', String(ok)),
+    )
+    loadStudents()
+    setBatchMenuOpen(false)
+  }
+  const batchSetRole = async (role: string) => {
+    if (!role) return
+    const ids = Array.from(selectedIds)
+    let ok = 0
+    let fail = 0
+    for (const id of ids) {
+      const s = students.find((x) => x.entity_id === id)
+      if (!s) continue
+      const res = await getAPI().eaa.setStudentMeta({ name: s.name, role })
+      if (res.success) ok++
+      else fail++
+    }
+    setActionMessageAuto(
+      fail > 0 ? t('page.students.batch.failed', `${ok} ok, ${fail} fail`) : t('page.students.batch.done', String(ok)),
+    )
+    loadStudents()
+    setBatchMenuOpen(false)
+  }
+  const batchSetClass = async (classId: string) => {
+    if (!classId) return
+    const ids = Array.from(selectedIds)
+    let ok = 0
+    let fail = 0
+    for (const id of ids) {
+      const s = students.find((x) => x.entity_id === id)
+      if (!s) continue
+      const res = await getAPI().eaa.setStudentMeta({ name: s.name, classId })
+      if (res.success) ok++
+      else fail++
+    }
+    setActionMessageAuto(
+      fail > 0 ? t('page.students.batch.failed', `${ok} ok, ${fail} fail`) : t('page.students.batch.done', String(ok)),
+    )
+    loadStudents()
+    setBatchMenuOpen(false)
+  }
+  const batchDelete = async () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    if (!window.confirm(t('page.students.batch.confirmDelete', String(ids.length)))) return
+    const reason = window.prompt(t('page.students.delete.reasonPrompt', `${ids.length} students`), t('page.students.delete.defaultReason'))
+    if (!reason) return
+    let ok = 0
+    let fail = 0
+    for (const id of ids) {
+      const s = students.find((x) => x.entity_id === id)
+      if (!s) continue
+      const res = await getAPI().eaa.deleteStudent(s.name, { confirm: true, reason })
+      if (res.success) ok++
+      else fail++
+    }
+    setActionMessageAuto(
+      fail > 0 ? t('page.students.batch.failed', `${ok} ok, ${fail} fail`) : t('page.students.batch.done', String(ok)),
+    )
+    setSelectedIds(new Set())
+    loadStudents()
   }
 
   // 批量导入学生
@@ -180,7 +276,10 @@ export function StudentsPage() {
   )
 
   // 排序: 高风险优先（使用 lib/risk 共享模块，含未知等级兜底）
-  const sorted = [...filtered].sort((a, b) => riskSortValue(a.risk) - riskSortValue(b.risk))
+  const sorted = [...filtered].sort((a, b) => {
+    const r = riskSortValue(a.risk) - riskSortValue(b.risk)
+    return r !== 0 ? r : a.name.localeCompare(b.name)
+  })
 
   return (
     <div className="h-full flex">
@@ -256,6 +355,60 @@ export function StudentsPage() {
           </div>
         )}
 
+        {/* O-05 批量操作浮动栏 */}
+        {selectedIds.size > 0 && (
+          <div className="sticky bottom-0 z-10 px-3 py-2 bg-indigo-50 dark:bg-indigo-900/30 border-t border-indigo-200 dark:border-indigo-800 flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">
+              {t('page.students.batch.selected', String(selectedIds.size))}
+            </span>
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={() => {
+                const g = window.prompt(t('page.students.group.placeholder'), '')
+                if (g) batchAddGroup(g)
+              }}
+              className="text-xs bg-white dark:bg-gray-800 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+            >
+              {t('page.students.batch.addGroup')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const r = window.prompt(t('page.students.role.placeholder'), '')
+                if (r) batchSetRole(r)
+              }}
+              className="text-xs bg-white dark:bg-gray-800 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+            >
+              {t('page.students.batch.addRole')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const c = window.prompt(t('page.students.class.placeholder'), '')
+                if (c) batchSetClass(c)
+              }}
+              className="text-xs bg-white dark:bg-gray-800 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+            >
+              {t('page.students.batch.setClass')}
+            </button>
+            <button
+              type="button"
+              onClick={batchDelete}
+              className="text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-2 py-1 rounded hover:bg-red-200 dark:hover:bg-red-900/50"
+            >
+              {t('page.students.batch.delete')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2"
+            >
+              {t('page.students.batch.deselectAll')}
+            </button>
+          </div>
+        )}
+
         {/* 添加学生表单 */}
         {addingStudent && (
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex gap-2 items-center">
@@ -300,6 +453,19 @@ export function StudentsPage() {
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white dark:bg-gray-900">
                 <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 text-xs">
+                  <th className="text-center py-2 px-2 w-8">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size > 0 && selectedIds.size === sorted.length}
+                      ref={(el) => {
+                        if (el)
+                          el.indeterminate =
+                            selectedIds.size > 0 && selectedIds.size < sorted.length
+                      }}
+                      onChange={toggleSelectAll}
+                      className="rounded"
+                    />
+                  </th>
                   <th className="text-left py-2 px-4">{t('page.students.col.name')}</th>
                   <th className="text-right py-2 px-4">{t('page.students.col.score')}</th>
                   <th className="text-right py-2 px-4">{t('page.students.col.change')}</th>
@@ -321,6 +487,17 @@ export function StudentsPage() {
                           : 'hover:bg-gray-100 dark:hover:bg-gray-800/50'
                       }`}
                   >
+                    <td
+                      className="py-2.5 px-2 text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(s.entity_id)}
+                        onChange={() => toggleSelect(s.entity_id)}
+                        className="rounded"
+                      />
+                    </td>
                     <td className="py-2.5 px-4 font-medium">{s.name}</td>
                     <td className="py-2.5 px-4 text-right font-mono">{s.score.toFixed(1)}</td>
                     <td

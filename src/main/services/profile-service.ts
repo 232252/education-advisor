@@ -54,6 +54,23 @@ class ProfileService {
   private profilesDir: string
   /** 每学生文件锁（Promise 队列，串行化写入） */
   private locks = new Map<string, Promise<void>>()
+  /**
+   * B-07: 隐私引擎健康标志。首次成功调用 privacy 命令后置 true。
+   * 在此之前 set() 拒绝写入 PII 字段, 防止 PII 明文落盘。
+   */
+  private privacyReady = false
+  /**
+   * PII 字段名集合, 隐私未就绪时禁止写入
+   */
+  private static readonly PII_FIELDS = new Set([
+    'parentName', 'fatherName', 'motherName',
+    'fatherPhone', 'motherPhone',
+    'idCard', 'phone', 'email', 'address',
+    'comments', 'honors', 'punishments',
+    'allergy', 'specialNeeds',
+    'studentNumber', 'dormNumber', 'bedNumber',
+    'bloodType',
+  ])
 
   constructor() {
     this.profilesDir = path.join(app.getPath('userData'), 'eaa-data', 'profiles')
@@ -80,8 +97,8 @@ class ProfileService {
     return path.join(this.profilesDir, `${safeName}.json`)
   }
 
-  /** 获取经过隐私脱敏的化名路径（用于存储） */
-  private async anonymizedPath(realName: string): Promise<string> {
+  /** 获取经过隐私脱敏的化名路径（用于存储）。B-07: 同时返回隐私是否就绪 */
+  private async anonymizedPath(realName: string): Promise<{ path: string; privacyReady: boolean }> {
     try {
       const result = await eaaBridge.execute({
         command: 'privacy',
@@ -89,12 +106,15 @@ class ProfileService {
       })
       if (result.success && result.data) {
         const anoName = String(result.data).trim()
-        return this.profilePath(anoName)
+        if (anoName && anoName !== realName) {
+          this.privacyReady = true
+          return { path: this.profilePath(anoName), privacyReady: true }
+        }
       }
     } catch {
       console.warn('[ProfileService] Privacy engine unavailable, falling back to plaintext storage for', realName)
     }
-    return this.profilePath(realName)
+    return { path: this.profilePath(realName), privacyReady: false }
   }
 
   /** 从化名还原真名 */
@@ -176,7 +196,7 @@ class ProfileService {
   /** 读取学生扩展档案（自动 Deanonymize + 迁移旧数据 + 双路径合并） */
   async get(name: string): Promise<StudentProfileData> {
     const filePath = this.profilePath(name)
-    const anoPath = await this.anonymizedPath(name)
+    const { path: anoPath } = await this.anonymizedPath(name)
 
     let data: StudentProfileData = {}
     // 优先读化名版，再读真名版旧数据，合并后统一迁移
@@ -237,7 +257,21 @@ class ProfileService {
         // 2. 迁移旧数据
         const cleaned = this.migrateLegacyData(data)
 
-        // 3. Anonymize 所有 PII 字段（并行加速）
+        // 3. B-07: 隐私未就绪时, 拒绝写入含 PII 字段的数据 (防止明文落盘)
+        const incomingPii = PII_FIELDS.filter((f) => {
+          const v = (cleaned as unknown as Record<string, unknown>)[f]
+          return typeof v === 'string' && v.length > 0
+        })
+        if (!this.privacyReady && incomingPii.length > 0) {
+          return {
+            success: false,
+            error:
+              '隐私引擎未初始化, PII 字段禁止写入。请先在"隐私控制中心"初始化隐私密码。' +
+              `涉及字段: ${incomingPii.join(', ')}`,
+          }
+        }
+
+        // 4. Anonymize 所有 PII 字段（并行加速）
         const anonymized = { ...cleaned } as Record<string, unknown>
         await Promise.all(
           PII_FIELDS.map(async (field) => {
@@ -256,11 +290,11 @@ class ProfileService {
           }),
         )
 
-        // 4. 序列化后直接写入（逐字段 PII 脱敏已在步骤 3 完成，无需全文过隐私引擎）
-        const anoPath = await this.anonymizedPath(name)
+        // 5. 序列化后直接写入（逐字段 PII 脱敏已在步骤 4 完成，无需全文过隐私引擎）
+        const { path: anoPath } = await this.anonymizedPath(name)
         const json = JSON.stringify(anonymized, null, 2)
 
-        // 5. 原子写入（tmp → fsync → rename）
+        // 6. 原子写入（tmp → fsync → rename）
         const tmpPath = `${anoPath}.tmp`
         fs.writeFileSync(tmpPath, json, 'utf-8')
         // 强制刷盘（防止断电/崩溃时数据丢失）

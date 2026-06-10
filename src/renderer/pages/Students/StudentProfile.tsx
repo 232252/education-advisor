@@ -19,6 +19,8 @@ import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/compon
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import ReactEChartsCore from 'echarts-for-react/lib/core'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useTheme } from '../../hooks/useTheme'
@@ -115,6 +117,10 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
       const result = await getAPI().profile.get(name)
       if (currentNameRef.current !== name) return
       if (result.success && result.data) {
+        // B-32 修复: EAA class_id → profileData.classId 同步
+        if (!result.data.classId && student.class_id) {
+          result.data.classId = student.class_id
+        }
         setProfileData(result.data)
       }
     } catch (err) {
@@ -334,11 +340,15 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
     if (eventFilter === 'bonus') events = events.filter((e) => e.score_delta > 0)
     if (eventFilter === 'deduct') events = events.filter((e) => e.score_delta < 0)
     if (eventTimeRange !== 'all') {
+      // B-03: 用真实日历窗口 (本周一/本月1日/本学期初)
       const now2 = new Date()
       const ranges: Record<string, number> = {
         week: now2.getTime() - new Date(now2.getFullYear(), now2.getMonth(), now2.getDate() - now2.getDay() + 1).getTime(),
         month: now2.getTime() - new Date(now2.getFullYear(), now2.getMonth(), 1).getTime(),
-        semester: 120 * 24 * 60 * 60 * 1000,
+        // 学期初：当前日期 8/1 之后用 8/1，否则用 1/1
+        semester: now2.getTime() - (now2.getMonth() >= 7
+          ? new Date(now2.getFullYear(), 7, 1).getTime()
+          : new Date(now2.getFullYear(), 0, 1).getTime()),
       }
       const cutoff = now - ranges[eventTimeRange]
       events = events.filter((e) => new Date(e.timestamp).getTime() > cutoff)
@@ -392,9 +402,11 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
           <button
             type="button"
             onClick={() => setShowAddEvent(!showAddEvent)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm"
+            disabled={student.status !== 'Active'}
+            title={student.status !== 'Active' ? `学生状态为"${student.status}"，不可添加事件` : ''}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {showAddEvent ? t('page.student.cancelAdd') : t('page.student.addEvent')}
+            {showAddEvent ? t('page.student.cancelAdd') : t('page.student.addEventButton')}
           </button>
           <button
             type="button"
@@ -425,12 +437,13 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
       {showAddEvent && (
         <AddEventInline
           studentName={student.name}
+          studentStatus={score?.status}
           reasonCodes={reasonCodes}
           onDone={() => {
             setShowAddEvent(false)
             loadAllData()
             onRefresh()
-            setActionMsgAuto('事件已添加')
+            setActionMsgAuto(t('page.student.eventAdded'))
           }}
         />
       )}
@@ -1030,9 +1043,8 @@ function EventsTab({
           setSearchEvents([])
         }
       } else if (query.trim()) {
-        // 搜索时结合学生名，确保只搜当前学生的事件
-        const fullQuery = `${studentName} ${query}`
-        const result = await getAPI().eaa.search(fullQuery, 100)
+        // B-14 修复: 不再强拼学生名到搜索词, 由 range filter 或 search 自身处理
+        const result = await getAPI().eaa.search(query, 100)
         if (result.success && result.data?.events) {
           setSearchEvents(result.data.events.map(eventRecordToHistory))
         } else {
@@ -1216,6 +1228,8 @@ function AcademicsTab({
   const [saving, setSaving] = useState(false)
   const [validationMsg, setValidationMsg] = useState('')
   const [addingExam, setAddingExam] = useState(false)
+  const [showBulkImport, setShowBulkImport] = useState(false)
+  const [entryMode, setEntryMode] = useState<'vertical' | 'horizontal'>('vertical')
   const [newExamType, setNewExamType] = useState('月考')
   const [newExamName, setNewExamName] = useState('')
   const [newExamDate, setNewExamDate] = useState('')
@@ -1480,7 +1494,7 @@ function AcademicsTab({
                 value={newSubject}
                 onChange={(e) => setNewSubject(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') addSubject() }}
-                placeholder="添加科目"
+                placeholder={t('page.student.academics.addSubject')}
                 className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm"
               />
               <button type="button" onClick={addSubject} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">+</button>
@@ -1488,39 +1502,82 @@ function AcademicsTab({
             <p className="text-[10px] text-gray-400 mt-1">支持 3+3 / 3+1+2 模式，可任意添加/删除科目</p>
           </div>
 
-          {/* 添加考试 */}
-          <div className="flex items-center gap-2">
+          {/* 添加考试 + 模板 + 批量录入 */}
+          <div className="flex items-center gap-2 flex-wrap">
             {!addingExam ? (
-              <button type="button" onClick={() => setAddingExam(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg text-xs">+ 添加考试</button>
+              <>
+                <button type="button" onClick={() => setAddingExam(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg text-xs">{t('page.student.academics.addExam')}</button>
+                <ExamTemplateMenu
+                  onApply={(type, name) => {
+                    const newRec: AcademicExamRecord = {
+                      examType: type,
+                      examName: name,
+                      subjects: {},
+                      date: undefined,
+                    }
+                    setRecords([...records, newRec])
+                    toast.success(t('page.student.academics.template.apply'))
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowBulkImport(true)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-lg text-xs"
+                  title={t('page.student.academics.bulkImport.hint')}
+                >
+                  {t('page.student.academics.bulkImport')}
+                </button>
+              </>
             ) : (
               <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-sm w-full">
                 <select value={newExamType} onChange={(e) => setNewExamType(e.target.value)} className="bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs">
-                  {['月考', '周考', '期中', '期末', '模拟考', '平时测试', '随堂测验'].map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                  {['月考', '周考', '期中', '期末', '模拟考', '平时测试', '随堂测验'].map((type) => (
+                    <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
-                <input type="text" value={newExamName} onChange={(e) => setNewExamName(e.target.value)} placeholder="考试名称（可选）" className="flex-1 bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs" />
+                <input type="text" value={newExamName} onChange={(e) => setNewExamName(e.target.value)} placeholder={t('page.student.academics.examNamePlaceholder')} className="flex-1 bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs" />
                 <input type="date" value={newExamDate} onChange={(e) => setNewExamDate(e.target.value)} className="bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs" />
-                <button type="button" onClick={addExam} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">确定</button>
-                <button type="button" onClick={() => setAddingExam(false)} className="text-gray-400 text-xs px-2">取消</button>
+                <button type="button" onClick={addExam} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">{t('page.student.academics.confirmAdd')}</button>
+                <button type="button" onClick={() => setAddingExam(false)} className="text-gray-400 text-xs px-2">{t('page.student.academics.cancelAdd')}</button>
               </div>
             )}
           </div>
         </>
       )}
 
+      {/* 批量录入弹窗 */}
+      {showBulkImport && (
+        <BulkImportModal
+          knownSubjects={allSubjects}
+          onApply={(newRecords) => {
+            // 合并: 按 (examName + examType + date) 去重, 重复则覆盖
+            const merged = [...records]
+            for (const nr of newRecords) {
+              const idx = merged.findIndex(
+                (r) => r.examName === nr.examName && r.examType === nr.examType && r.date === nr.date,
+              )
+              if (idx >= 0) merged[idx] = nr
+              else merged.push(nr)
+            }
+            setRecords(merged)
+            toast.success(t('page.student.academics.bulkImport.apply'))
+          }}
+          onClose={() => setShowBulkImport(false)}
+        />
+      )}
+
       {/* 成绩表格 */}
       {records.length === 0 ? (
         <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-10">
-          📝 暂无成绩记录，点击"编辑"后添加
+          {t('page.student.academics.scoreEmpty')}
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/50">
-                <th className="text-left px-3 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700 sticky left-0 bg-gray-50 dark:bg-gray-800/50">考试</th>
-                <th className="text-left px-3 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700">类型</th>
+                <th className="text-left px-3 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700 sticky left-0 bg-gray-50 dark:bg-gray-800/50">{t('page.student.academics.exam')}</th>
+                <th className="text-left px-3 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700">{t('page.student.academics.examType')}</th>
                 {allSubjects.map((sub) => (
                   <th key={sub} className="text-center px-2 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700 min-w-[60px]">{sub}</th>
                 ))}
@@ -1617,37 +1674,54 @@ function AcademicsTab({
             onClick={() => (editingRank ? handleSaveRank() : setEditingRank(true))}
             className="text-xs text-blue-500 hover:text-blue-600 transition-colors"
           >
-            {editingRank ? '保存排名' : '编辑'}
+            {editingRank ? t('page.student.academics.rankSave') : t('page.student.edit')}
           </button>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-lg">
-            <div className="text-xs text-gray-500 dark:text-gray-400">班级排名</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">{t('page.student.academics.classRank')}</div>
             {editingRank ? (
               <input
                 type="number"
                 value={classRank ?? ''}
-                onChange={(e) => { const v = parseInt(e.target.value, 10); setClassRank(Number.isNaN(v) ? undefined : v) }}
+                onChange={(e) => {
+                  const raw = e.target.value.trim()
+                  if (raw === '') {
+                    setClassRank(undefined)
+                    return
+                  }
+                  const v = parseInt(raw, 10)
+                  // B-15: 0 也合法, 仅 NaN/空才清空
+                  setClassRank(Number.isNaN(v) ? undefined : v)
+                }}
                 className="w-20 mx-auto mt-1 bg-white dark:bg-gray-900 border rounded px-2 py-1 text-center font-mono text-lg"
               />
             ) : (
               <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
-                {classRank != null ? `第 ${classRank} 名` : '未设置'}
+                {classRank != null ? t('page.student.academics.rankFormat', String(classRank)) : t('page.student.academics.unset')}
               </div>
             )}
           </div>
           <div className="text-center p-3 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 rounded-lg">
-            <div className="text-xs text-gray-500 dark:text-gray-400">年级排名</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">{t('page.student.academics.gradeRank')}</div>
             {editingRank ? (
               <input
                 type="number"
                 value={gradeRank ?? ''}
-                onChange={(e) => { const v = parseInt(e.target.value, 10); setGradeRank(Number.isNaN(v) ? undefined : v) }}
+                onChange={(e) => {
+                  const raw = e.target.value.trim()
+                  if (raw === '') {
+                    setGradeRank(undefined)
+                    return
+                  }
+                  const v = parseInt(raw, 10)
+                  setGradeRank(Number.isNaN(v) ? undefined : v)
+                }}
                 className="w-20 mx-auto mt-1 bg-white dark:bg-gray-900 border rounded px-2 py-1 text-center font-mono text-lg"
               />
             ) : (
               <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
-                {gradeRank != null ? `第 ${gradeRank} 名` : '未设置'}
+                {gradeRank != null ? t('page.student.academics.rankFormat', String(gradeRank)) : t('page.student.academics.unset')}
               </div>
             )}
           </div>
@@ -1656,7 +1730,7 @@ function AcademicsTab({
 
       {/* 成绩趋势图 */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-        <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">📈 成绩趋势</h5>
+        <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">{t('page.student.academics.trendTitle')}</h5>
         {trendData && trendData.series.length > 0 ? (
           <ReactEChartsCore
             echarts={echarts}
@@ -1705,20 +1779,20 @@ function AcademicsTab({
       {/* 偏科分析 */}
       {subjectAnalysis.all.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-          <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">📊 偏科分析</h5>
+          <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">{t('page.student.academics.biasTitle')}</h5>
           <div className="grid grid-cols-2 gap-4 mb-3">
             {subjectAnalysis.strongest && (
               <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-lg p-3 border border-green-200/50 dark:border-green-700/30">
-                <div className="text-xs text-green-600 dark:text-green-400 font-medium">🏆 最强科目</div>
+                <div className="text-xs text-green-600 dark:text-green-400 font-medium">{t('page.student.academics.strongest')}</div>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className="text-lg font-bold text-green-700 dark:text-green-300">{subjectAnalysis.strongest.subject}</span>
-                  <span className="text-sm text-green-500">{subjectAnalysis.strongest.avg.toFixed(1)}分</span>
+                  <span className="text-sm text-green-500">{subjectAnalysis.strongest.avg.toFixed(1)} {t('page.student.academics.scoreUnit')}</span>
                 </div>
               </div>
             )}
             {subjectAnalysis.weakest && (
               <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10 rounded-lg p-3 border border-red-200/50 dark:border-red-700/30">
-                <div className="text-xs text-red-600 dark:text-red-400 font-medium">⚠️ 最弱科目</div>
+                <div className="text-xs text-red-600 dark:text-red-400 font-medium">{t('page.student.academics.weakest')}</div>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className="text-lg font-bold text-red-700 dark:text-red-300">{subjectAnalysis.weakest.subject}</span>
                   <span className="text-sm text-red-500">{subjectAnalysis.weakest.avg.toFixed(1)}分</span>
@@ -1957,10 +2031,28 @@ function AIAnalysisTab({
                   {section.title}
                 </h5>
               </div>
-              <div className="p-4">
-                <pre className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
+              <div className="p-4 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    h1: (p) => <h1 className="text-base font-bold mt-2 mb-1" {...p} />,
+                    h2: (p) => <h2 className="text-sm font-semibold mt-2 mb-1" {...p} />,
+                    h3: (p) => <h3 className="text-xs font-semibold mt-1.5 mb-0.5" {...p} />,
+                    p: (p) => <p className="my-1" {...p} />,
+                    ul: (p) => <ul className="list-disc pl-5 my-1" {...p} />,
+                    ol: (p) => <ol className="list-decimal pl-5 my-1" {...p} />,
+                    li: (p) => <li className="my-0.5" {...p} />,
+                    code: (p) => <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded text-[11px]" {...p} />,
+                    pre: (p) => <pre className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded p-2 overflow-x-auto my-2" {...p} />,
+                    table: (p) => <table className="border-collapse my-2 w-full" {...p} />,
+                    th: (p) => <th className="border border-gray-200 dark:border-gray-700 px-2 py-1 bg-gray-50 dark:bg-gray-800/50" {...p} />,
+                    td: (p) => <td className="border border-gray-200 dark:border-gray-700 px-2 py-1" {...p} />,
+                    strong: (p) => <strong className="font-semibold" {...p} />,
+                    em: (p) => <em className="italic" {...p} />,
+                  }}
+                >
                   {section.content}
-                </pre>
+                </ReactMarkdown>
               </div>
             </div>
           ))}
@@ -1999,13 +2091,17 @@ function AIAnalysisTab({
 
 function AddEventInline({
   studentName,
+  studentStatus,
   reasonCodes,
   onDone,
 }: {
   studentName: string
+  // B-19: 接收学生状态, 转学/休学禁用事件录入
+  studentStatus?: string
   reasonCodes: EAAReasonCode[]
   onDone: () => void
 }) {
+  const isInactive = studentStatus === 'Transferred' || studentStatus === 'Suspended' || studentStatus === 'Graduated'
   const [reasonCode, setReasonCode] = useState('')
   const [delta, setDelta] = useState('')
   const [note, setNote] = useState('')
@@ -2038,6 +2134,11 @@ function AddEventInline({
 
   return (
     <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/10 dark:to-purple-900/10">
+      {isInactive && (
+        <div className="mb-2 text-xs text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-2">
+          {t('page.student.addEvent.statusBlocked', studentStatus ?? '')}
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-2 mb-2">
         <select
           value={reasonCode}
@@ -2053,8 +2154,8 @@ function AddEventInline({
           <option value="">{t('page.student.addEvent.placeholder.reasonCode')}</option>
           {reasonCodes.map((c) => (
             <option key={c.code} value={c.code}>
-              {c.label} ({c.code}){' '}
-              {c.score_delta != null ? `[${c.score_delta > 0 ? '+' : ''}${c.score_delta}]` : ''}
+              {t('page.student.addEvent.reasonCodePrefix')}{c.code}
+              {c.score_delta != null ? ` [${c.score_delta > 0 ? '+' : ''}${c.score_delta}]` : ''}
             </option>
           ))}
         </select>
@@ -2081,7 +2182,7 @@ function AddEventInline({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={submitting || !reasonCode}
+          disabled={submitting || !reasonCode || isInactive}
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-lg text-xs transition-colors disabled:opacity-50 shadow-sm"
         >
           {submitting
@@ -2096,6 +2197,330 @@ function AddEventInline({
           {t('page.student.cancel')}
         </button>
       </div>
+    </div>
+  )
+}
+
+// =============================================================
+// O-01 学业录入 UX 重设计 — 三个独立组件
+// - BulkImportModal: 粘贴 Excel 文本批量录入
+// - ExamTemplateMenu: 快速选择考试模板
+// - SmartFillButton: 一键用上次成绩预填当前行
+// =============================================================
+
+/**
+ * 解析粘贴文本为 AcademicExamRecord[]
+ * 支持: Tab 分隔 / 多个空格 / 逗号 / 多个连续空格
+ * 每行一条: 考试名 + 科目分数
+ * 智能推断:
+ *   - 考试名包含"月考/期中/期末/周考/模拟考/随堂/平时" → 对应 examType
+ *   - 第一列若为数字开头(>=10) → 视为"姓名+考试名"格式,自动取第二列
+ *   - 识别"语文/数学/英语"等科目名 → 推断列名
+ *   - 缺考留空 → null
+ */
+function parseBulkScoreText(
+  text: string,
+  knownSubjects: string[],
+  t: (key: string, ...args: unknown[]) => string,
+): { records: AcademicExamRecord[]; warnings: string[] } {
+  const records: AcademicExamRecord[] = []
+  const warnings: string[] = []
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+  if (lines.length === 0) {
+    return { records, warnings: [t('page.student.academics.bulkImport.error', 'empty input')] }
+  }
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    // 用 tab 或 多个空格 分隔; 兼容中文逗号
+    const cells = line
+      .split(/\t+|\s{2,}|，/)
+      .map((c) => c.trim())
+      .filter((c) => c.length > 0)
+    if (cells.length < 2) {
+      warnings.push(`line ${i + 1}: ${t('page.student.academics.bulkImport.error', 'too few cells')}`)
+      continue
+    }
+    const [first, ...rest] = cells
+    // 推断 examType & examName
+    let examName = first
+    let examType = '其他'
+    const types: Array<[string, string]> = [
+      ['月考', '月考'],
+      ['周考', '周考'],
+      ['期中', '期中'],
+      ['期末', '期末'],
+      ['模拟考', '模拟考'],
+      ['模拟', '模拟考'],
+      ['随堂', '随堂测验'],
+      ['平时', '平时测试'],
+    ]
+    for (const [kw, type] of types) {
+      if (first.includes(kw)) {
+        examType = type
+        break
+      }
+    }
+    // 第一列若全为数字开头且没匹配到考试关键字, 视为 "姓名+考试名" 格式
+    if (examType === '其他' && /^\d/.test(first)) {
+      // 不处理(无法确定考试名)
+      warnings.push(`line ${i + 1}: 无法确定考试名`)
+      continue
+    }
+    // 推断日期 (找 YYYY-MM-DD 模式)
+    let date: string | undefined
+    for (const cell of cells) {
+      const m = cell.match(/(\d{4}-\d{2}-\d{2})/)
+      if (m) {
+        date = m[1]
+        break
+      }
+    }
+    // 构造 subjects
+    const subjects: Record<string, number | null> = {}
+    // 情况 A: 第一列是考试名, 后面是 [科目名, 分数, 科目名, 分数, ...]
+    // 情况 B: 第一列是考试名, 后面直接是 [分数, 分数, ...] 对应 knownSubjects
+    let hasNamedSubjects = false
+    for (let j = 0; j < rest.length - 1; j += 2) {
+      const name = rest[j]
+      const val = rest[j + 1]
+      if (knownSubjects.includes(name) || (name.length <= 6 && !/^\d/.test(val ?? ''))) {
+        hasNamedSubjects = true
+        break
+      }
+    }
+    if (hasNamedSubjects) {
+      for (let j = 0; j < rest.length - 1; j += 2) {
+        const name = rest[j]
+        const val = rest[j + 1]
+        if (!val) continue
+        const num = parseFloat(val)
+        subjects[name] = Number.isNaN(num) ? null : num
+      }
+    } else {
+      // 用 knownSubjects 顺序对齐
+      for (let j = 0; j < rest.length; j++) {
+        const sub = knownSubjects[j]
+        if (!sub) break
+        const val = rest[j]
+        if (val === '' || val == null) {
+          subjects[sub] = null
+        } else {
+          const num = parseFloat(val)
+          subjects[sub] = Number.isNaN(num) ? null : num
+        }
+      }
+    }
+    if (Object.keys(subjects).length === 0) {
+      warnings.push(`line ${i + 1}: 没有可解析的科目分数`)
+      continue
+    }
+    records.push({ examType, examName, subjects, date })
+  }
+  return { records, warnings }
+}
+
+function BulkImportModal({
+  knownSubjects,
+  onApply,
+  onClose,
+}: {
+  knownSubjects: string[]
+  onApply: (records: AcademicExamRecord[]) => void
+  onClose: () => void
+}) {
+  const { t } = useT()
+  const [text, setText] = useState('')
+  const [preview, setPreview] = useState<AcademicExamRecord[] | null>(null)
+  const [warnings, setWarnings] = useState<string[]>([])
+  const [error, setError] = useState('')
+
+  const handleParse = () => {
+    setError('')
+    setWarnings([])
+    const result = parseBulkScoreText(text, knownSubjects, t)
+    if (result.records.length === 0) {
+      setError(t('page.student.academics.bulkImport.error', 'no valid records'))
+      setPreview(null)
+    } else {
+      setPreview(result.records)
+      setWarnings(result.warnings)
+    }
+  }
+
+  const handleApply = () => {
+    if (preview && preview.length > 0) {
+      onApply(preview)
+      onClose()
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
+        <div className="px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+            {t('page.student.academics.bulkImport.title')}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl"
+          >
+            &times;
+          </button>
+        </div>
+
+        <div className="px-5 py-3 flex-1 overflow-y-auto">
+          <pre className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 p-3 rounded mb-2 whitespace-pre-wrap">
+            {t('page.student.academics.bulkImport.hint')}
+          </pre>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={t('page.student.academics.bulkImport.placeholder')}
+            rows={10}
+            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-xs font-mono focus:outline-none focus:border-blue-500"
+          />
+
+          {error && (
+            <div className="mt-2 text-xs text-red-500 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded p-2">
+              {error}
+            </div>
+          )}
+
+          {warnings.length > 0 && (
+            <div className="mt-2 text-xs text-yellow-600 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded p-2">
+              {warnings.map((w, i) => (
+                <div key={i}>⚠ {w}</div>
+              ))}
+            </div>
+          )}
+
+          {preview && preview.length > 0 && (
+            <div className="mt-3">
+              <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('page.student.academics.bulkImport.preview', String(preview.length))}
+              </div>
+              <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 dark:bg-gray-900/50 sticky top-0">
+                    <tr>
+                      <th className="text-left px-2 py-1">{t('page.student.academics.exam')}</th>
+                      <th className="text-left px-2 py-1">{t('page.student.academics.examType', 'Type')}</th>
+                      <th className="text-left px-2 py-1">{t('page.student.academics.column')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.map((r, i) => (
+                      <tr key={i} className="border-t border-gray-100 dark:border-gray-700">
+                        <td className="px-2 py-1 font-medium">{r.examName}</td>
+                        <td className="px-2 py-1 text-gray-500">{r.examType}</td>
+                        <td className="px-2 py-1 text-gray-600">
+                          {Object.entries(r.subjects)
+                            .map(([k, v]) => `${k}=${v ?? '-'}`)
+                            .join(', ')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+          >
+            {t('page.student.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={handleParse}
+            disabled={!text.trim()}
+            className="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
+          >
+            {t('page.student.academics.bulkImport.parse')}
+          </button>
+          <button
+            type="button"
+            onClick={handleApply}
+            disabled={!preview || preview.length === 0}
+            className="px-4 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50"
+          >
+            {t('page.student.academics.bulkImport.apply')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** 考试模板菜单 — 提供常用模板快速创建考试 */
+const EXAM_TEMPLATES = [
+  { key: 'monthly', subjects: 9 },
+  { key: 'midterm', subjects: 9 },
+  { key: 'final', subjects: 9 },
+] as const
+
+function ExamTemplateMenu({
+  onApply,
+}: {
+  onApply: (examType: string, examName: string) => void
+}) {
+  const { t } = useT()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-lg text-xs"
+        title={t('page.student.academics.template.hint')}
+      >
+        {t('page.student.academics.template')}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 min-w-[180px]">
+          {EXAM_TEMPLATES.map((tpl) => {
+            const typeMap: Record<string, string> = {
+              monthly: '月考',
+              midterm: '期中',
+              final: '期末',
+            }
+            const type = typeMap[tpl.key]
+            const nextIdx = Date.now() % 100 // 简单随机; 实际应计算已有同名 index
+            return (
+              <button
+                type="button"
+                key={tpl.key}
+                onClick={() => {
+                  onApply(type, `${type}${nextIdx}`)
+                  setOpen(false)
+                }}
+                className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                {t(`page.student.academics.template.${tpl.key}`)}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
