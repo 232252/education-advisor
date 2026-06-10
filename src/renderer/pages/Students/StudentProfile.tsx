@@ -22,6 +22,7 @@ import ReactEChartsCore from 'echarts-for-react/lib/core'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useTheme } from '../../hooks/useTheme'
+import { useT } from '../../i18n'
 import { getAPI, getErrorMessage } from '../../lib/ipc-client'
 import { toast } from '../../stores/toastStore'
 
@@ -53,6 +54,7 @@ interface StudentProfileProps {
 type TabId = 'overview' | 'profile' | 'events' | 'academics' | 'ai'
 
 export function StudentProfile({ student, onClose, onRefresh }: StudentProfileProps) {
+  const { t } = useT()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   const [score, setScore] = useState<EAAStudentScore | null>(null)
   const [history, setHistory] = useState<EAAHistoryData | null>(null)
@@ -249,11 +251,11 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
   }, [history, eventFilter, eventTimeRange, now])
 
   const tabs = [
-    { id: 'overview' as TabId, label: '概览', icon: '📊' },
-    { id: 'profile' as TabId, label: '档案', icon: '📋' },
-    { id: 'events' as TabId, label: '事件', icon: '📝' },
-    { id: 'academics' as TabId, label: '学业', icon: '📚' },
-    { id: 'ai' as TabId, label: 'AI分析', icon: '🤖' },
+    { id: 'overview' as TabId, label: t('page.student.tab.overview'), icon: '📊' },
+    { id: 'profile' as TabId, label: t('page.student.tab.profile'), icon: '📋' },
+    { id: 'events' as TabId, label: t('page.student.tab.events'), icon: '📝' },
+    { id: 'academics' as TabId, label: t('page.student.tab.academics'), icon: '📚' },
+    { id: 'ai' as TabId, label: t('page.student.tab.ai'), icon: '🤖' },
   ]
 
   return (
@@ -268,16 +270,16 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
             <div>
               <h2 className="text-xl font-bold">{student.name}</h2>
               <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                <span className={riskColor(student.risk)}>风险: {student.risk}</span>
+                <span className={riskColor(student.risk)}>{t('page.student.riskLabel')}: {student.risk}</span>
                 <span className="text-gray-300 dark:text-gray-600">|</span>
                 <span>
-                  分数:{' '}
+                  {t('page.student.scoreLabel')}:{' '}
                   <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
                     {student.score.toFixed(1)}
                   </span>
                 </span>
                 <span className="text-gray-300 dark:text-gray-600">|</span>
-                <span>{student.events_count} 事件</span>
+                <span>{t('page.student.eventsCount', String(student.events_count))}</span>
               </div>
             </div>
           </div>
@@ -296,7 +298,7 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
             onClick={() => setShowAddEvent(!showAddEvent)}
             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm"
           >
-            {showAddEvent ? '取消添加' : '+ 添加事件'}
+            {showAddEvent ? t('page.student.cancelAdd') : t('page.student.addEvent')}
           </button>
           <button
             type="button"
@@ -306,7 +308,7 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
             }}
             className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm"
           >
-            🔄 刷新
+            {t('page.student.refresh')}
           </button>
           <button
             type="button"
@@ -1289,7 +1291,7 @@ function AcademicsTab({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">学业成绩</h4>
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('page.student.academics.title')}</h4>
         <div className="flex gap-2">
           {validationMsg && (
             <span className="text-xs text-red-500 self-center">{validationMsg}</span>
@@ -1474,7 +1476,7 @@ function AcademicsTab({
       {/* 排名信息 */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
-          <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400">排名信息</h5>
+          <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('page.student.academics.rank')}</h5>
           <button
             type="button"
             onClick={() => (editingRank ? handleSaveRank() : setEditingRank(true))}
