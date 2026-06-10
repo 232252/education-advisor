@@ -129,3 +129,9 @@ export const IPC_LOG_WRITE_RENDERER = 'log:write-renderer'
 // ===== 系统（更新对话框扩展） =====
 // 此前已被 sys-handlers.ts 引用但未在常量表中，补齐
 export const IPC_SYS_SHOW_UPDATE_DIALOG = 'sys:show-update-dialog'
+
+// ===== 系统维护 =====
+export const IPC_SYS_RESET_FACTORY = 'sys:reset-factory'
+export const IPC_SYS_DELETE_BY_CLASS = 'sys:delete-by-class'
+export const IPC_SYS_DELETE_STUDENT_BY_NAME = 'sys:delete-student-by-name'
+export const IPC_SYS_RESET_EVENTS_ONLY = 'sys:reset-events-only'

@@ -255,6 +255,12 @@ interface WindowAPI {
     }>
     showUpdateDialog: () => Promise<{ success: boolean }>
     notify: (title: string, body: string) => Promise<{ success: boolean }>
+    resetFactory: () => Promise<{ success: boolean; message: string }>
+    deleteByClass: (
+      classId: string,
+    ) => Promise<{ success: boolean; message: string; deleted?: number }>
+    deleteStudentByName: (name: string) => Promise<{ success: boolean; message: string }>
+    resetEventsOnly: () => Promise<{ success: boolean; message: string }>
   }
 }
 

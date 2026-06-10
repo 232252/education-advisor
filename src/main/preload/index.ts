@@ -284,6 +284,12 @@ contextBridge.exposeInMainWorld('api', {
     // [r] 系统通知
     notify: (title: string, body: string) =>
       ipcRenderer.invoke(IPC.IPC_SYS_NOTIFICATION, title, body),
+    // [c] 系统维护 — 数据重置
+    resetFactory: () => ipcRenderer.invoke(IPC.IPC_SYS_RESET_FACTORY),
+    deleteByClass: (classId: string) => ipcRenderer.invoke(IPC.IPC_SYS_DELETE_BY_CLASS, classId),
+    deleteStudentByName: (name: string) =>
+      ipcRenderer.invoke(IPC.IPC_SYS_DELETE_STUDENT_BY_NAME, name),
+    resetEventsOnly: () => ipcRenderer.invoke(IPC.IPC_SYS_RESET_EVENTS_ONLY),
   },
 
   // ----- 学生档案 -----
