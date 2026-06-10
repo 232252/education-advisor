@@ -538,6 +538,7 @@ function OverviewTab({
   history: EAAHistoryData | null
   isDark: boolean
 }) {
+  const { t } = useT()
   const recentEvents = history?.events?.slice(0, 5) ?? []
   const bonusCount = history?.events?.filter((e) => e.score_delta > 0).length ?? 0
   const deductCount = history?.events?.filter((e) => e.score_delta < 0).length ?? 0
@@ -563,20 +564,20 @@ function OverviewTab({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricCard label="当前分数" value={student.score.toFixed(1)} color="blue" />
+        <MetricCard label={t('page.student.overview.currentScore')} value={student.score.toFixed(1)} color="blue" />
         <MetricCard
-          label="分数变动"
+          label={t('page.student.overview.scoreChange')}
           value={(student.delta >= 0 ? '+' : '') + student.delta.toFixed(1)}
           color={student.delta >= 0 ? 'green' : 'red'}
         />
-        <MetricCard label="加分事件" value={bonusCount} color="green" />
-        <MetricCard label="扣分事件" value={deductCount} color="red" />
+        <MetricCard label={t('page.student.overview.bonusEvents')} value={bonusCount} color="green" />
+        <MetricCard label={t('page.student.overview.deductEvents')} value={deductCount} color="red" />
       </div>
 
       {scoreTimeline.dates.length > 1 && (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
           <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-            📈 分数变化趋势
+            {t('page.student.overview.scoreTrend')}
           </h4>
           <ReactEChartsCore
             echarts={echarts}
@@ -620,24 +621,24 @@ function OverviewTab({
       )}
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">基本信息</h4>
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('page.student.info.basicInfo')}</h4>
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <InfoRow label="状态" value={score?.status ?? 'Active'} />
-          <InfoRow label="风险等级" value={student.risk} highlight={riskColor(student.risk)} />
-          <InfoRow label="班级" value={score?.class_id ?? '未设置'} />
-          <InfoRow label="分组" value={student.groups.join(', ') || '无'} />
-          <InfoRow label="角色" value={student.roles.join(', ') || '无'} />
-          <InfoRow label="事件总数" value={student.events_count} />
+          <InfoRow label={t('page.student.info.status')} value={score?.status ?? 'Active'} />
+          <InfoRow label={t('page.student.riskLabel')} value={student.risk} highlight={riskColor(student.risk)} />
+          <InfoRow label={t('page.student.info.className')} value={score?.class_id ?? t('page.student.academics.unset')} />
+          <InfoRow label={t('page.student.info.groups')} value={student.groups.join(', ') || t('common.none')} />
+          <InfoRow label={t('page.student.info.roles')} value={student.roles.join(', ') || t('common.none')} />
+          <InfoRow label={t('page.student.info.eventsCount')} value={student.events_count} />
           {score?.last_event_at && (
-            <InfoRow label="最近事件" value={new Date(score.last_event_at).toLocaleDateString()} />
+            <InfoRow label={t('page.student.info.recentEvents')} value={new Date(score.last_event_at).toLocaleDateString()} />
           )}
         </div>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">📋 最近事件</h4>
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('page.student.info.recentEvents')}</h4>
         {recentEvents.length === 0 ? (
-          <div className="text-gray-400 dark:text-gray-500 text-sm py-4 text-center">暂无事件</div>
+          <div className="text-gray-400 dark:text-gray-500 text-sm py-4 text-center">{t('common.noEvents')}</div>
         ) : (
           <div className="space-y-0">
             {recentEvents.map((evt, idx) => (
@@ -689,27 +690,32 @@ function ProfileTab({
   const [msg, setMsg] = useState('')
   const setMsgAuto = useAutoDismiss<string>(setMsg, '')
 
+  // B-32: 加载时若 profileData 没有 classId, 从 EAA score 拉回
   useEffect(() => {
-    setForm(profileData)
-  }, [profileData])
+    const next = { ...profileData }
+    if (!next.classId && student.class_id) {
+      next.classId = student.class_id
+    }
+    setForm(next)
+  }, [profileData, student.class_id])
 
   const handleSave = async () => {
     setSaving(true)
     try {
       const result = await getAPI().profile.set(student.name, form)
       if (!result.success) {
-        setMsgAuto(`保存失败: ${result.error ?? '未知错误'}`)
+        setMsgAuto(`${t('status.failed')}: ${result.error ?? t('error.unknown')}`)
         return
       }
       if (form.classId) {
         await getAPI().eaa.setStudentMeta({ name: student.name, classId: form.classId as string })
       }
-      setMsgAuto('档案已保存')
+      setMsgAuto(t('page.student.profile.saved'))
       setSaving(false)
       setEditing(false)
       onUpdate()
     } catch (err) {
-      setMsgAuto(`保存失败: ${err instanceof Error ? err.message : String(err)}`)
+      setMsgAuto(`${t('status.failed')}: ${err instanceof Error ? err.message : String(err)}`)
       setSaving(false)
     }
   }
@@ -976,6 +982,7 @@ function EventsTab({
   onDateEndChange: (d: string) => void
   onRefresh: () => void
 }) {
+  const { t } = useT()
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null)
   // 搜索/范围结果（替换 history 事件）
   const [searchEvents, setSearchEvents] = useState<EAAHistoryEvent[] | null>(null)
@@ -984,8 +991,31 @@ function EventsTab({
   // 实际展示的事件列表：有搜索/范围结果时用结果，否则用 props.events
   const displayEvents = searchEvents ?? events
 
+  // B-13: 搜索/日期结果保留, 但叠加 eventFilter/eventTimeRange 在显示层
+  const filteredDisplayEvents = useMemo(() => {
+    let result = displayEvents
+    if (eventFilter === 'bonus') result = result.filter((e) => e.score_delta > 0)
+    if (eventFilter === 'deduct') result = result.filter((e) => e.score_delta < 0)
+    if (timeRange !== 'all') {
+      const ranges: Record<string, number> = {
+        week: 7 * 24 * 60 * 60 * 1000,
+        month: 30 * 24 * 60 * 60 * 1000,
+        semester: 120 * 24 * 60 * 60 * 1000,
+      }
+      const cutoff = Date.now() - ranges[timeRange]
+      result = result.filter((e) => new Date(e.timestamp).getTime() > cutoff)
+    }
+    return result
+  }, [displayEvents, eventFilter, timeRange])
+
   // 搜索防抖
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // B-29: 组件卸载时清理 timer
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    }
+  }, [])
 
   // 用 ref 持有 performSearch 引用，避免回调依赖变化时频繁重建
   const performSearchRef = useRef<((q: string, s: string, e: string) => Promise<void>) | null>(null)
@@ -993,7 +1023,7 @@ function EventsTab({
   const handleSearchChange = useCallback(
     (value: string) => {
       onSearchQueryChange(value)
-      // 清空搜索词时恢复 history 事件
+      // B-42: 清空搜索词时, 仅清搜索结果; 日期范围仍生效
       if (!value.trim() && !dateStart && !dateEnd) {
         setSearchEvents(null)
         return
@@ -1011,7 +1041,7 @@ function EventsTab({
     (start: string, end: string) => {
       onDateStartChange(start)
       onDateEndChange(end)
-      // 无日期范围且无搜索词时恢复 history 事件
+      // B-42: 短路线修复 — 清空日期时, 只要 search 词/日期 任一非空就保持现状
       if (!start && !end && !searchQuery.trim()) {
         setSearchEvents(null)
         return
@@ -1055,7 +1085,7 @@ function EventsTab({
       }
     } catch (err) {
       console.warn('[EventsTab] search/range error:', err)
-      toast.error('查询事件失败')
+      toast.error(t('page.student.events.searchFailed'))
       setSearchEvents([])
     }
     setSearchLoading(false)
@@ -1065,18 +1095,22 @@ function EventsTab({
   performSearchRef.current = performSearch
 
   const handleRevert = async (eventId: string) => {
-    if (!confirm('确定要撤销此事件吗？撤销后分数将回退。')) return
+    if (!confirm(t('page.student.events.confirmRevert'))) return
     try {
-      const result = await getAPI().eaa.revertEvent(eventId, `由 ${studentName} 档案页撤销`)
+      // B-16: i18n 撤销理由
+      const result = await getAPI().eaa.revertEvent(
+        eventId,
+        t('page.student.events.revertReason', studentName),
+      )
       if (result.success) {
-        toast.success('事件已撤销')
+        toast.success(t('page.student.events.reverted'))
         onRefresh()
       } else {
         toast.error(getErrorMessage(result, '撤销失败'))
       }
     } catch (err) {
       console.warn('[EventsTab] revert error:', err)
-      toast.error('撤销事件失败')
+      toast.error(t('page.student.events.revertFailed'))
     }
   }
 
@@ -1156,17 +1190,17 @@ function EventsTab({
           onTimeRangeChange('semester'),
         )}
         <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-          {isSearchMode ? `搜索结果 ${displayEvents.length} 条` : `共 ${displayEvents.length} 条`}
+          {isSearchMode ? `搜索结果 ${filteredDisplayEvents.length} 条` : `共 ${filteredDisplayEvents.length} 条`}
         </span>
       </div>
 
-      {displayEvents.length === 0 ? (
+      {filteredDisplayEvents.length === 0 ? (
         <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-12">
           {searchLoading ? '查询中...' : isSearchMode ? '未找到匹配的事件' : '暂无事件记录'}
         </div>
       ) : (
         <div className="space-y-2">
-          {displayEvents.map((evt) => (
+          {filteredDisplayEvents.map((evt) => (
             <EventCard
               key={evt.event_id}
               event={evt}
@@ -1334,15 +1368,24 @@ function AcademicsTab({
   }
 
   // 添加考试
+  // B-35 鲁棒化: 同时识别 "<type><N>" 和 "<type> <N>" 等命名, 且检查重名
   const addExam = () => {
-    const existingIndexes = records
-      .filter((r) => r.examType === newExamType)
+    const sameType = records.filter((r) => r.examType === newExamType)
+    const escapedType = newExamType.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const indexPattern = new RegExp(`^${escapedType}\\s*[（(]?\\s*(\\d+)\\s*[)）]?$`)
+    const existingIndexes = sameType
       .map((r) => {
-        const match = r.examName.match(new RegExp(`^${newExamType}(\\d+)$`))
+        const match = r.examName.match(indexPattern)
         return match ? parseInt(match[1], 10) : 0
       })
     const nextIndex = existingIndexes.length > 0 ? Math.max(...existingIndexes) + 1 : 1
-    const name = newExamName.trim() || `${newExamType}${nextIndex}`
+    const generatedName = `${newExamType}${nextIndex}`
+    const name = newExamName.trim() || generatedName
+    // 检查重名 (含 user 提供的)
+    if (records.some((r) => r.examName === name && r.examType === newExamType)) {
+      toast.error(t('page.student.academics.examExists', name))
+      return
+    }
     const newRec: AcademicExamRecord = {
       examType: newExamType,
       examName: name,
@@ -1795,7 +1838,7 @@ function AcademicsTab({
                 <div className="text-xs text-red-600 dark:text-red-400 font-medium">{t('page.student.academics.weakest')}</div>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className="text-lg font-bold text-red-700 dark:text-red-300">{subjectAnalysis.weakest.subject}</span>
-                  <span className="text-sm text-red-500">{subjectAnalysis.weakest.avg.toFixed(1)}分</span>
+                  <span className="text-sm text-red-500">{subjectAnalysis.weakest.avg.toFixed(1)} {t('page.student.academics.scoreUnit')}</span>
                 </div>
               </div>
             )}

@@ -328,7 +328,7 @@ export function DashboardPage() {
                 animationEasing: 'elasticOut',
                 tooltip: {
                   trigger: 'item',
-                  formatter: '{b}: {c} 人 ({d}%)',
+                  formatter: t('page.dashboard.pieFormatter').replace('{name}', '{b}').replace('{count}', '{c}').replace('{percent}', '{d}'),
                   backgroundColor: isDark ? '#1f2937' : '#fff',
                   borderColor: isDark ? '#374151' : '#e5e7eb',
                   textStyle: { color: isDark ? '#d1d5db' : '#374151' },
@@ -371,7 +371,7 @@ export function DashboardPage() {
             />
           ) : (
             <div className="flex items-center justify-center h-[260px] text-gray-400 dark:text-gray-500 text-sm">
-              暂无数据
+              {t('page.dashboard.empty')}
             </div>
           )}
         </div>
@@ -392,7 +392,7 @@ export function DashboardPage() {
                   className="text-gray-600 dark:text-gray-300 min-w-[5rem] truncate"
                   title={item.code || ''}
                 >
-                  {(REASON_CODE_LABELS[item.code || ''] ?? item.code) || '未知'}
+                  {(REASON_CODE_LABELS[item.code || ''] ?? item.code) || t('page.dashboard.unknown')}
                 </span>
                 <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                   <div
@@ -409,7 +409,7 @@ export function DashboardPage() {
               </div>
             )) ?? (
               <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-6">
-                暂无数据
+                {t('page.dashboard.empty')}
               </div>
             )}
           </div>
@@ -456,10 +456,10 @@ export function DashboardPage() {
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg hover:shadow-xl transition-shadow duration-300">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-pink-500"></span>
-            周期摘要
+            {t('page.dashboard.chart.weeklySummary')}
             {summary?.period?.since && (
               <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal ml-1">
-                {summary.period.since} ~ {summary.period.until ?? '至今'}
+                {summary.period.since} ~ {summary.period.until ?? t('page.dashboard.periodUntil')}
               </span>
             )}
           </h3>
@@ -492,7 +492,7 @@ export function DashboardPage() {
               {summary.top_gainers.length > 0 && (
                 <div>
                   <div className="text-gray-500 dark:text-gray-400 mb-2 font-medium">
-                    🏆 进步最快
+                    🏆 {t('page.dashboard.summary.fastest')}
                   </div>
                   {summary.top_gainers.slice(0, 3).map((g) => (
                     <div
@@ -510,7 +510,7 @@ export function DashboardPage() {
               {summary.top_losers.length > 0 && (
                 <div>
                   <div className="text-gray-500 dark:text-gray-400 mb-2 font-medium">
-                    ⚠️ 退步最快
+                    ⚠️ {t('page.dashboard.summary.fastestLoser')}
                   </div>
                   {summary.top_losers.slice(0, 3).map((l) => (
                     <div
@@ -528,7 +528,7 @@ export function DashboardPage() {
             </div>
           ) : (
             <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-6">
-              暂无数据
+              {t('page.dashboard.empty')}
             </div>
           )}
         </div>
@@ -811,7 +811,7 @@ export function DashboardPage() {
                     if (res.success)
                       toast.success(
                         res.data
-                          ? `HTML 仪表盘已生成: ${res.data}`
+                          ? t('page.dashboard.systemMgmt.dashboardSuccess', String(res.data))
                           : t('page.dashboard.sysmgmt.dashboard.success'),
                       )
                     else toast.error(res.stderr || t('error.unknown'))
@@ -821,7 +821,7 @@ export function DashboardPage() {
                 }}
                 className="text-xs px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 text-white transition-colors"
               >
-                📊 导出 HTML 仪表盘
+                {t('page.dashboard.systemMgmt.exportHtml')}
               </button>
             </div>
           </div>

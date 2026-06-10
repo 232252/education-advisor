@@ -35,16 +35,8 @@ export interface EAAResult<T = unknown> {
   requiresConfirmation?: boolean
 }
 
-/**
- * 从 EAAResult 中提取最有用的错误信息。
- * TEXT_OUTPUT_COMMANDS 失败时 CLI 的详细错误在 data（字符串）里，
- * JSON 命令失败时在 stderr 里。此函数按优先级选取。
- */
-export function getErrorMessage(result: EAAResult, fallback = '未知错误'): string {
-  if (typeof result.data === 'string' && result.data.length > 0) return result.data
-  if (result.stderr && result.stderr.length > 0) return result.stderr
-  return fallback
-}
+/** B-22: getErrorMessage 统一在 shared/utils.ts, 这里 re-export 保持兼容 */
+export { getErrorMessage } from '../../shared/utils'
 
 /** 已知会产生 JSON 输出的命令（其余命令如 add/revert/export/dashboard 等为文本输出） */
 const JSON_COMPATIBLE_COMMANDS = new Set<string>([

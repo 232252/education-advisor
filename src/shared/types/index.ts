@@ -541,6 +541,28 @@ export interface StudentProfileData {
   idCard?: string
   gender?: '男' | '女'
   birthDate?: string
+  /** F-03 新增: 政治面貌 (团员/党员/群众) */
+  politicalStatus?: '群众' | '共青团员' | '中共党员' | '其他' | string
+  /** F-03 新增: 民族 */
+  ethnicity?: string
+  /** F-03 新增: 籍贯/户籍地 */
+  householdRegister?: string
+  /** F-03 新增: 现住址 (区别于户籍) */
+  currentAddress?: string
+  /** F-03 新增: 是否寄宿 */
+  isBoarding?: boolean
+  /** F-03 新增: 是否独生子女 */
+  isOnlyChild?: boolean
+  /** F-03 新增: 紧急联系人姓名 */
+  emergencyContactName?: string
+  /** F-03 新增: 紧急联系人电话 */
+  emergencyContactPhone?: string
+  /** F-03 新增: 紧急联系人关系 */
+  emergencyContactRelation?: string
+  /** F-03 新增: 既往病史 */
+  medicalHistory?: string
+  /** F-03 新增: 家庭经济情况 (困难/一般/良好) */
+  economicStatus?: '困难' | '一般' | '良好' | string
   phone?: string
   address?: string
   parentName?: string
@@ -562,6 +584,8 @@ export interface StudentProfileData {
   gradeRank?: number
   attendanceRate?: number
   awards?: string[]
+  /** F-03 新增: 用户自定义科目列表 (持久化) */
+  customSubjects?: string[]
   [key: string]: unknown
 }
 

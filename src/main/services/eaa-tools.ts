@@ -7,6 +7,7 @@ import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 import { eaaBridge, getErrorMessage } from './eaa-bridge'
 import { profileService } from './profile-service'
+import { tokenizeQuery } from '../../shared/utils'
 
 // 辅助函数：构造 TextContent 结果
 function textResult(text: string): AgentToolResult<unknown> {
@@ -77,31 +78,7 @@ async function safeExecute(
   return eaaBridge.execute({ command, args: [...values, ...flags] })
 }
 
-/** 支持双引号包裹复合词的 tokenize 实现，与 eaa-handlers.ts 一致 */
-export function tokenizeQuery(query: string): string[] {
-  const tokens: string[] = []
-  let current = ''
-  let inQuotes = false
-  for (let i = 0; i < query.length; i++) {
-    const ch = query[i]
-    if (ch === '"') {
-      inQuotes = !inQuotes
-      continue
-    }
-    if (ch === ' ' && !inQuotes) {
-      if (current.length > 0) {
-        tokens.push(current)
-        current = ''
-      }
-      continue
-    }
-    current += ch
-  }
-  if (current.length > 0) {
-    tokens.push(current)
-  }
-  return tokens
-}
+/** B-24: tokenizeQuery 改在 shared/utils.ts 实现 (本地删除) */
 
 // =============================================================
 // Schema 定义

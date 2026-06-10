@@ -203,9 +203,14 @@ export function StudentsPage() {
 
   // 批量导入学生
   const handleImport = async () => {
+    // B-26: 先弹格式说明, 再让用户选文件
+    const proceed = window.confirm(
+      t('page.students.importFormatHint'),
+    )
+    if (!proceed) return
     try {
       const result = (await getAPI().sys.openDialog({
-        title: '选择导入文件',
+        title: t('page.students.importDialogTitle'),
         filters: [
           { name: 'CSV', extensions: ['csv'] },
           { name: 'JSON', extensions: ['json'] },
@@ -216,24 +221,24 @@ export function StudentsPage() {
       const filePath = result.filePaths[0]
       const importResult = await getAPI().eaa.import(filePath)
       if (importResult.success) {
-        toast.success('导入成功')
+        toast.success(t('page.students.importSuccess'))
         loadStudents()
       } else {
-        toast.error(`导入失败: ${getErrorMessage(importResult)}`)
+        toast.error(`${t('page.students.importFailed')}: ${getErrorMessage(importResult)}`)
       }
     } catch (err) {
       console.error('[Students] Import failed:', err)
-      toast.error('导入失败')
+      toast.error(t('page.students.importFailed'))
     }
   }
 
-  // 导出排名
+  // B-27: 实际导出的是排行榜, UI 文案与实际行为对齐
   const handleExport = async (format: string) => {
     setExportMenuOpen(false)
     try {
       const ext = format === 'markdown' ? 'md' : format
       const result = (await getAPI().sys.saveDialog({
-        title: '导出排名',
+        title: t('page.students.exportDialogTitle'),
         defaultPath: `ranking.${ext}`,
         filters: [{ name: format.toUpperCase(), extensions: [ext] }],
       })) as SaveDialogResult
@@ -241,13 +246,13 @@ export function StudentsPage() {
       const filePath = result.filePath
       const exportResult = await getAPI().eaa.export(format, filePath)
       if (exportResult.success) {
-        toast.success('导出成功')
+        toast.success(t('page.students.exportSuccess'))
       } else {
-        toast.error(`导出失败: ${getErrorMessage(exportResult)}`)
+        toast.error(`${t('page.students.exportFailed')}: ${getErrorMessage(exportResult)}`)
       }
     } catch (err) {
       console.error('[Students] Export failed:', err)
-      toast.error('导出失败')
+      toast.error(t('page.students.exportFailed'))
     }
   }
 
@@ -308,7 +313,7 @@ export function StudentsPage() {
               onClick={handleImport}
               className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1.5 rounded-lg text-sm transition-colors"
             >
-              📥 导入
+              {t('page.students.import')}
             </button>
             <div className="relative" ref={exportMenuRef}>
               <button
@@ -316,7 +321,7 @@ export function StudentsPage() {
                 onClick={() => setExportMenuOpen(!exportMenuOpen)}
                 className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1.5 rounded-lg text-sm transition-colors"
               >
-                📤 导出
+                {t('page.students.export')}
               </button>
               {exportMenuOpen && (
                 <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 min-w-[120px]">
@@ -561,8 +566,12 @@ export function StudentsPage() {
       {selectedStudent && (
         <div className="w-[55%] border-l border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
           <StudentProfile
+            // B-38: 强制 key 跟随 entity_id, 切换学生时彻底重建组件
             key={selectedStudent.entity_id}
-            student={selectedStudent}
+            // 优先用最新列表中的对象, 保证 selectedStudent 引用是最新数据
+            student={
+              students.find((s) => s.entity_id === selectedStudent.entity_id) ?? selectedStudent
+            }
             onClose={() => setSelectedStudent(null)}
             onRefresh={loadStudents}
           />

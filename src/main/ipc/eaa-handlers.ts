@@ -8,6 +8,7 @@
 
 import { type BrowserWindow, ipcMain } from 'electron'
 import * as IPC from '../../shared/ipc-channels'
+import { tokenizeQuery } from '../../shared/utils'
 import type { AddEventParams, SetStudentMetaParams } from '../../shared/types'
 import { eaaBridge } from '../services/eaa-bridge'
 
@@ -70,32 +71,8 @@ function sanitizeClassId(classId: string): string {
   return trimmed
 }
 
-/**
- * 简单 shell-style tokenizer：支持双引号包裹含空格的复合参数。
- * 不支持转义引号（够用即可，避免与 Rust 端行为不一致）。
- */
-function tokenizeQuery(query: string): string[] {
-  const tokens: string[] = []
-  let current = ''
-  let inQuote = false
-  for (let i = 0; i < query.length; i++) {
-    const ch = query[i]
-    if (ch === '"') {
-      inQuote = !inQuote
-      continue
-    }
-    if (!inQuote && /\s/.test(ch)) {
-      if (current.length > 0) {
-        tokens.push(current)
-        current = ''
-      }
-      continue
-    }
-    current += ch
-  }
-  if (current.length > 0) tokens.push(current)
-  return tokens
-}
+/** B-24: tokenizeQuery 统一在 shared/utils.ts (本地删除) */
+
 
 export function registerEAAHandlers(_win: BrowserWindow) {
   // ----- info: 系统信息 -----

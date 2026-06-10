@@ -271,15 +271,7 @@ export function getAPI(): WindowAPI {
 }
 
 /**
- * 从 EAAResult 中提取最有用的错误信息。
- * TEXT_OUTPUT_COMMANDS 失败时 CLI 详细错误在 data（字符串），
- * JSON 命令失败时在 stderr。按优先级选取。
+ * B-22: getErrorMessage 统一在 shared/utils.ts, 这里 re-export 保持兼容
+ * @see ../../shared/utils
  */
-export function getErrorMessage(
-  result: { data?: unknown; stderr?: string },
-  fallback = '未知错误',
-): string {
-  if (typeof result.data === 'string' && result.data.length > 0) return result.data
-  if (result.stderr && result.stderr.length > 0) return result.stderr
-  return fallback
-}
+export { getErrorMessage } from '../../shared/utils'
