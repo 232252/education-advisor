@@ -64,7 +64,7 @@ export function MainLayout() {
             {t('page.agents.title')} <span className="normal-case">· {t('common.refresh')}</span>
           </div>
           <div className="space-y-1 max-h-32 overflow-y-auto">
-            {agents.slice(0, 6).map((agent) => (
+            {agents.map((agent) => (
               <div key={agent.id} className="flex items-center gap-2 text-xs">
                 <span
                   className={`w-2 h-2 rounded-full

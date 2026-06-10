@@ -156,11 +156,12 @@ export function StudentsPage() {
   }, [exportMenuOpen])
 
   // 过滤
+  const searchLower = search.toLowerCase()
   const filtered = students.filter(
     (s) =>
-      s.name.includes(search) ||
-      s.groups.some((g) => g.includes(search)) ||
-      s.roles.some((r) => r.includes(search)),
+      s.name.toLowerCase().includes(searchLower) ||
+      s.groups.some((g) => g.toLowerCase().includes(searchLower)) ||
+      s.roles.some((r) => r.toLowerCase().includes(searchLower)),
   )
 
   // 排序: 高风险优先（使用 lib/risk 共享模块，含未知等级兜底）
