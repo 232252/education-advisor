@@ -122,16 +122,29 @@ function handleWindowClose(win: BrowserWindow, event: Electron.Event): void {
       break
     default: {
       // 同步阻止关闭，然后异步弹对话框
+      // 读取语言设置（默认中文）
+      let lang = 'zh-CN'
+      try {
+        const fs = require('node:fs')
+        const settingsPath = path.join(app.getPath('userData'), 'settings.json')
+        if (fs.existsSync(settingsPath)) {
+          const s = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+          lang = s.general?.language || 'zh-CN'
+        }
+      } catch { /* use default */ }
+      const isZh = lang === 'zh-CN'
       event.preventDefault()
       dialog
         .showMessageBox(win, {
           type: 'question',
-          title: 'Close Window',
-          message: 'What would you like to do?',
-          buttons: ['Minimize to Tray', 'Exit', 'Cancel'],
+          title: isZh ? '关闭窗口' : 'Close Window',
+          message: isZh ? '您希望如何处理？' : 'What would you like to do?',
+          buttons: isZh
+            ? ['最小化到托盘', '直接退出', '取消']
+            : ['Minimize to tray', 'Exit', 'Cancel'],
           defaultId: 0,
           cancelId: 2,
-          checkboxLabel: 'Remember my choice',
+          checkboxLabel: isZh ? '记住选择' : 'Remember my choice',
           checkboxChecked: false,
         })
         .then((result) => {
