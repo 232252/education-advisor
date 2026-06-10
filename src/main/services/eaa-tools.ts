@@ -6,6 +6,7 @@
 import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 import { eaaBridge, getErrorMessage } from './eaa-bridge'
+import { profileService } from './profile-service'
 
 // 辅助函数：构造 TextContent 结果
 function textResult(text: string): AgentToolResult<unknown> {
@@ -347,6 +348,58 @@ export const rangeTool: AgentTool<typeof rangeParams> = {
 }
 
 // =============================================================
+// 12. 获取学业成绩
+// =============================================================
+const academicScoreParams = Type.Object({
+  name: Type.String({ description: '学生姓名' }),
+})
+
+export const getAcademicScoresTool: AgentTool<typeof academicScoreParams> = {
+  name: 'eaa_academic_get',
+  label: '获取学业成绩',
+  description: '获取指定学生的全部学业考试成绩记录（支持任意科目和考试类型）',
+  parameters: academicScoreParams,
+  execute: async (_toolCallId, params) => {
+    const records = await profileService.getAcademicRecords(params.name)
+    return jsonResult(records, `${params.name} 的学业成绩`)
+  },
+}
+
+// =============================================================
+// 13. 添加学业考试记录
+// =============================================================
+const addExamParams = Type.Object({
+  name: Type.String({ description: '学生姓名' }),
+  examType: Type.String({ description: '考试类型（月考/周考/期中/期末/模拟考/平时测试/自定义）' }),
+  examName: Type.String({ description: '考试名称（如"月考1"、"2026-03-14周考"）' }),
+  subjects: Type.Record(Type.String(), Type.Number(), {
+    description: '科目及成绩，如 {"语文":95, "数学":88}',
+  }),
+  date: Type.Optional(Type.String({ description: '考试日期 YYYY-MM-DD（可选）' })),
+  notes: Type.Optional(Type.String({ description: '备注（可选）' })),
+})
+
+export const addAcademicExamTool: AgentTool<typeof addExamParams> = {
+  name: 'eaa_academic_add',
+  label: '添加考试成绩',
+  description: '为指定学生添加一条学业考试成绩记录，支持任意科目和考试类型',
+  parameters: addExamParams,
+  execute: async (_toolCallId, params) => {
+    const result = await profileService.addAcademicRecord(params.name, {
+      examType: params.examType,
+      examName: params.examName,
+      subjects: params.subjects,
+      date: params.date,
+      notes: params.notes,
+    })
+    if (!result.success) {
+      throw new Error(`添加成绩失败: ${result.error}`)
+    }
+    return textResult(`已为 ${params.name} 添加 ${params.examName} 成绩`)
+  },
+}
+
+// =============================================================
 // 导出：按能力分组的工具集
 // =============================================================
 
@@ -363,6 +416,8 @@ export const allEAATools: AnyAgentTool[] = [
   summaryTool,
   addStudentTool,
   rangeTool,
+  getAcademicScoresTool,
+  addAcademicExamTool,
 ]
 
 // biome-ignore lint/suspicious/noExplicitAny: 异构工具集合，TSchema 约束不兼容 unknown
@@ -385,6 +440,7 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
     summary: [summaryTool],
     add_student: [addStudentTool],
     range: [rangeTool],
+    academic: [getAcademicScoresTool, addAcademicExamTool],
     read: [
       queryScoreTool,
       historyTool,
@@ -395,8 +451,9 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
       codesTool,
       summaryTool,
       rangeTool,
+      getAcademicScoresTool,
     ],
-    write: [addEventTool, addStudentTool],
+    write: [addEventTool, addStudentTool, addAcademicExamTool],
   }
 
   const tools = new Set<AnyAgentTool>()

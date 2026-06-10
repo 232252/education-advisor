@@ -517,6 +517,24 @@ export interface UnifiedSettings {
   shortcuts: Record<string, string>
 }
 
+// ===== 学业成绩记录 =====
+
+/**
+ * 单次考试/测验的成绩记录
+ * examType: 考试类型（月考/周考/期中/期末/模拟考/平时测试/随堂测验/自定义）
+ * examName: 考试名称（如"月考1"、"2026-03-14周考"、"物理单元测"）
+ * subjects: 科目名 → 分数（如 {"语文":95, "数学":88}），科目可任意扩展
+ * date: 考试日期（可选）
+ * notes: 备注（可选）
+ */
+export interface AcademicExamRecord {
+  examType: string
+  examName: string
+  subjects: Record<string, number>
+  date?: string
+  notes?: string
+}
+
 // ===== 学生扩展档案 =====
 
 export interface StudentProfileData {
@@ -529,8 +547,14 @@ export interface StudentProfileData {
   parentPhone?: string
   enrollmentDate?: string
   comments?: string
+  /** @deprecated 改用 academicRecords */
   midtermGrades?: Record<string, number>
+  /** @deprecated 改用 academicRecords */
   finalGrades?: Record<string, number>
+  /** 学业成绩记录列表，支持任意考试类型和科目 */
+  academicRecords?: AcademicExamRecord[]
+  classRank?: number
+  gradeRank?: number
   attendanceRate?: number
   awards?: string[]
   [key: string]: unknown

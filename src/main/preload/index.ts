@@ -292,6 +292,15 @@ contextBridge.exposeInMainWorld('api', {
     get: (name: string) => ipcRenderer.invoke(IPC.IPC_PROFILE_GET, name),
     // [w] 写入学生扩展档案
     set: (name: string, data: unknown) => ipcRenderer.invoke(IPC.IPC_PROFILE_SET, name, data),
+    // [w] 添加学业成绩记录
+    addAcademicRecord: (name: string, record: unknown) =>
+      ipcRenderer.invoke('profile:add-academic-record', name, record),
+    // [r] 获取学业成绩记录
+    getAcademicRecords: (name: string) =>
+      ipcRenderer.invoke('profile:get-academic-records', name),
+    // [r] 校验学业成绩
+    validateAcademic: (records: unknown) =>
+      ipcRenderer.invoke('profile:validate-academic', records),
   },
 
   // ----- 对话持久化 -----
