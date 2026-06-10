@@ -165,7 +165,16 @@ export function DashboardPage() {
   const scoreIntervals = stats?.score_intervals ?? {}
   // 按风险等级排序：极高 → 高 → 中 → 低
   const SCORE_ORDER = ['极高(<60)', '高(60-80)', '中(80-100)', '低(>=100)']
+  // 后端返回中文键名，用 i18n 映射翻译（仅对英文模式生效）
   const sortedScoreKeys = SCORE_ORDER.filter((k) => k in scoreIntervals)
+  // 后端返回中文键名，用 i18n 映射翻译（仅对英文模式生效）
+  const LABEL_MAP: Record<string, string> = {
+    '极高(<60)': t('page.dashboard.riskLabel.extreme'),
+    '高(60-80)': t('page.dashboard.riskLabel.high'),
+    '中(80-100)': t('page.dashboard.riskLabel.mid'),
+    '低(>=100)': t('page.dashboard.riskLabel.low'),
+  }
+  const scoreIntervalLabels = sortedScoreKeys.map((k) => LABEL_MAP[k] || k)
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
@@ -246,7 +255,7 @@ export function DashboardPage() {
               grid: { left: 8, right: 8, top: 8, bottom: 28, containLabel: true },
               xAxis: {
                 type: 'category',
-                data: sortedScoreKeys,
+                data: scoreIntervalLabels,
                 axisLabel: { color: axisColor, fontSize: 11, rotate: 0 },
                 axisLine: { lineStyle: { color: gridColor } },
                 axisTick: { show: false },

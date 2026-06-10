@@ -142,22 +142,27 @@ class ProfileService {
     return errors
   }
 
-  /** 合并迁移旧数据：将 midtermGrades/finalGrades 转入 academicRecords */
+  /** 合并迁移旧数据：将 midtermGrades/finalGrades/monthlyExamGrades 转入 academicRecords */
   migrateLegacyData(data: StudentProfileData): StudentProfileData {
     const result = { ...data }
     const records: AcademicExamRecord[] = [...(data.academicRecords ?? [])]
 
-    if (data.midtermGrades && Object.keys(data.midtermGrades).length > 0) {
-      if (!records.some((r) => r.examName === '期中')) {
-        records.push({ examType: '期中', examName: '期中', subjects: { ...data.midtermGrades } })
+    // 迁移旧字段（前端与后端同步）
+    const legacyMappings: Array<{ key: string; examType: string; examName: string }> = [
+      { key: 'midtermGrades', examType: '期中', examName: '期中' },
+      { key: 'finalGrades', examType: '期末', examName: '期末' },
+      { key: 'monthlyExam1Grades', examType: '月考', examName: '月考1' },
+      { key: 'monthlyExam2Grades', examType: '月考', examName: '月考2' },
+    ]
+
+    for (const mapping of legacyMappings) {
+      const grades = (data as unknown as Record<string, unknown>)[mapping.key] as Record<string, number> | undefined
+      if (grades && Object.keys(grades).length > 0) {
+        if (!records.some((r) => r.examName === mapping.examName)) {
+          records.push({ examType: mapping.examType, examName: mapping.examName, subjects: { ...grades } })
+        }
+        delete (result as unknown as Record<string, unknown>)[mapping.key]
       }
-      delete result.midtermGrades
-    }
-    if (data.finalGrades && Object.keys(data.finalGrades).length > 0) {
-      if (!records.some((r) => r.examName === '期末')) {
-        records.push({ examType: '期末', examName: '期末', subjects: { ...data.finalGrades } })
-      }
-      delete result.finalGrades
     }
     result.academicRecords = records
     return result

@@ -433,7 +433,7 @@ function OverviewTab({
   const scoreTimeline = useMemo(() => {
     if (!history?.events || history.events.length === 0)
       return { dates: [] as string[], scores: [] as number[] }
-    let cumulative = 0
+    let cumulative = student.score - (student.delta || 0)  // 反推初始基准分
     const dates: string[] = []
     const scores: number[] = []
     const events = history.events.slice(-20)

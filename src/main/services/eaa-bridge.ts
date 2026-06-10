@@ -415,7 +415,13 @@ class EAABridge {
         stderr += chunk.toString()
       })
 
+      let resolved = false
+
       proc.on('close', (code) => {
+        if (resolved) return
+        resolved = true
+        // 清理超时兜底 timer
+        clearTimeout(timer)
         const exitCode = code ?? -1
         const success = exitCode === 0
 
@@ -442,6 +448,9 @@ class EAABridge {
       })
 
       proc.on('error', (err) => {
+        if (resolved) return
+        resolved = true
+        clearTimeout(timer)
         // ENOENT 触发时更新 unavailable 状态
         if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
           this.unavailableReason = `EAA binary disappeared: ${err.message}`
