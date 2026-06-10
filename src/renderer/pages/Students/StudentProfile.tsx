@@ -4,6 +4,7 @@
 // =============================================================
 
 import type {
+  AcademicExamRecord,
   AgentListItem,
   EAAEventRecord,
   EAAHistoryData,
@@ -1079,45 +1080,78 @@ function AcademicsTab({
   profileData: StudentProfileData
   isDark: boolean
 }) {
-  const subjects = ['语文', '数学', '英语', '物理', '化学', '生物']
-  const examNames = ['月考1', '月考2', '期中', '期末']
+  // 从 academicRecords 加载，或从旧格式迁移
+  const [records, setRecords] = useState<AcademicExamRecord[]>(
+    () => profileData.academicRecords ?? migrateLegacyRecords(profileData),
+  )
+  // 可配置的科目列表（默认常用科目）
+  const [allSubjects, setAllSubjects] = useState<string[]>([
+    '语文', '数学', '英语',
+    '物理', '化学', '生物',
+    '政治', '历史', '地理',
+    '通用技术', '信息技术',
+    '体育', '音乐', '美术',
+  ])
+  const [newSubject, setNewSubject] = useState('')
 
-  const [exam1, setExam1] = useState<Record<string, number>>(
-    (profileData.monthlyExam1Grades as Record<string, number>) ?? {},
-  )
-  const [exam2, setExam2] = useState<Record<string, number>>(
-    (profileData.monthlyExam2Grades as Record<string, number>) ?? {},
-  )
-  const [midterm, setMidterm] = useState<Record<string, number>>(profileData.midtermGrades ?? {})
-  const [final, setFinal] = useState<Record<string, number>>(profileData.finalGrades ?? {})
   const [classRank, setClassRank] = useState<number | undefined>(
     profileData.classRank as number | undefined,
   )
   const [gradeRank, setGradeRank] = useState<number | undefined>(
     profileData.gradeRank as number | undefined,
   )
+
   const [editing, setEditing] = useState(false)
   const [editingRank, setEditingRank] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [validationMsg, setValidationMsg] = useState('')
+  const [addingExam, setAddingExam] = useState(false)
+  const [newExamType, setNewExamType] = useState('月考')
+  const [newExamName, setNewExamName] = useState('')
+  const [newExamDate, setNewExamDate] = useState('')
+
+  // 从旧格式迁移
+  function migrateLegacyRecords(data: StudentProfileData): AcademicExamRecord[] {
+    const result: AcademicExamRecord[] = []
+    // 检查是否有 deprecated 旧字段
+    const midterm = (data as unknown as Record<string, unknown>).midtermGrades as Record<string, number> | undefined
+    const final = (data as unknown as Record<string, unknown>).finalGrades as Record<string, number> | undefined
+    const monthly1 = (data as unknown as Record<string, unknown>).monthlyExam1Grades as Record<string, number> | undefined
+    const monthly2 = (data as unknown as Record<string, unknown>).monthlyExam2Grades as Record<string, number> | undefined
+
+    if (monthly1 && Object.keys(monthly1).length > 0)
+      result.push({ examType: '月考', examName: '月考1', subjects: { ...monthly1 } })
+    if (monthly2 && Object.keys(monthly2).length > 0)
+      result.push({ examType: '月考', examName: '月考2', subjects: { ...monthly2 } })
+    if (midterm && Object.keys(midterm).length > 0)
+      result.push({ examType: '期中', examName: '期中', subjects: { ...midterm } })
+    if (final && Object.keys(final).length > 0)
+      result.push({ examType: '期末', examName: '期末', subjects: { ...final } })
+
+    return result
+  }
 
   const calcAvg = (grades: Record<string, number>) => {
     const vals = Object.values(grades).filter((v) => !Number.isNaN(v) && v > 0)
     return vals.length === 0 ? 0 : vals.reduce((a, b) => a + b, 0) / vals.length
   }
 
-  // subjects 是 props（每渲染都是新引用），故意省略以避免 useMemo 失效
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 父组件保证 subjects 在稳定时不会频繁变化
+  // 偏科分析：使用活跃科目（有数据的）
   const subjectAnalysis = useMemo(() => {
     const allGrades: Record<string, number[]> = {}
-    for (const sub of subjects) {
-      const grades = [exam1[sub], exam2[sub], midterm[sub], final[sub]].filter(
-        (v) => v != null && !Number.isNaN(v) && v > 0,
-      )
-      if (grades.length > 0) allGrades[sub] = grades
+    const activeSubjects = new Set<string>()
+    for (const rec of records) {
+      for (const [sub, score] of Object.entries(rec.subjects)) {
+        if (score != null && !Number.isNaN(score) && score > 0) {
+          activeSubjects.add(sub)
+          if (!allGrades[sub]) allGrades[sub] = []
+          allGrades[sub].push(score)
+        }
+      }
     }
-    const avgs = Object.entries(allGrades).map(([sub, grades]) => ({
+    const avgs = Array.from(activeSubjects).map((sub) => ({
       subject: sub,
-      avg: grades.reduce((a, b) => a + b, 0) / grades.length,
+      avg: allGrades[sub].reduce((a, b) => a + b, 0) / allGrades[sub].length,
     }))
     avgs.sort((a, b) => b.avg - a.avg)
     return {
@@ -1125,119 +1159,286 @@ function AcademicsTab({
       weakest: avgs[avgs.length - 1] ?? null,
       all: avgs,
     }
-  }, [exam1, exam2, midterm, final])
+  }, [records])
 
+  // 趋势数据
   const trendData = useMemo(() => {
-    const allExams = [exam1, exam2, midterm, final]
-    const labels = examNames.filter((_, i) => {
-      const grades = allExams[i]
-      return Object.values(grades).some((v) => v != null && !Number.isNaN(v))
-    })
-    if (labels.length === 0) return null
+    if (records.length === 0) return null
+    const sorted = [...records].sort((a, b) => (a.date || a.examName).localeCompare(b.date || b.examName))
+    const labels = sorted.map((r) => r.examName)
+    const activeSubjects = new Set<string>()
+    for (const rec of records) {
+      for (const sub of Object.keys(rec.subjects)) activeSubjects.add(sub)
+    }
     return {
       labels,
-      series: subjects
+      series: Array.from(activeSubjects)
         .map((sub) => ({
           name: sub,
-          data: allExams
-            .filter((exam) => Object.values(exam).some((v) => v != null && !Number.isNaN(v)))
-            .map((exam) => exam[sub] ?? null),
+          data: sorted.map((r) => r.subjects[sub] ?? null),
         }))
         .filter((s) => s.data.some((v) => v != null)),
     }
-  }, [exam1, exam2, midterm, final, subjects.map, examNames.filter])
+  }, [records])
 
   const gridColor = isDark ? '#1f2937' : '#e5e7eb'
   const axisColor = isDark ? '#9ca3af' : '#6b7280'
-  const colors = ['#3b82f6', '#ef4444', '#22c55e', '#a855f7', '#f97316', '#06b6d4']
+  const colors = ['#3b82f6', '#ef4444', '#22c55e', '#a855f7', '#f97316', '#06b6d4', '#ec4899', '#14b8a6']
+
+  // 添加科目
+  const addSubject = () => {
+    const trimmed = newSubject.trim()
+    if (trimmed && !allSubjects.includes(trimmed)) {
+      setAllSubjects([...allSubjects, trimmed])
+      setNewSubject('')
+    }
+  }
+  const removeSubject = (sub: string) => {
+    setAllSubjects(allSubjects.filter((s) => s !== sub))
+    // 同时从所有考试记录中移除该科目
+    setRecords(records.map((r) => {
+      const newSubjects = { ...r.subjects }
+      delete newSubjects[sub]
+      return { ...r, subjects: newSubjects }
+    }))
+  }
+
+  // 添加考试
+  const addExam = () => {
+    const name = newExamName.trim() || `${newExamType}${records.filter((r) => r.examType === newExamType).length + 1}`
+    const newRec: AcademicExamRecord = {
+      examType: newExamType,
+      examName: name,
+      subjects: Object.fromEntries(allSubjects.map((s) => [s, 0])),
+      date: newExamDate || undefined,
+    }
+    setRecords([...records, newRec])
+    setNewExamName('')
+    setNewExamDate('')
+    setAddingExam(false)
+  }
+
+  // 删除考试
+  const removeExam = (idx: number) => {
+    setRecords(records.filter((_, i) => i !== idx))
+  }
+
+  // 更新某考试某科目分数
+  const updateScore = (idx: number, subject: string, value: string) => {
+    const newRecords = [...records]
+    newRecords[idx] = {
+      ...newRecords[idx],
+      subjects: { ...newRecords[idx].subjects, [subject]: parseFloat(value) || 0 },
+    }
+    setRecords(newRecords)
+  }
 
   const handleSave = async () => {
+    // 前端校验
+    for (let i = 0; i < records.length; i++) {
+      const rec = records[i]
+      if (!rec.examType || !rec.examName) {
+        setValidationMsg(`第 ${i + 1} 条记录缺少考试类型或名称`)
+        return
+      }
+      for (const [sub, score] of Object.entries(rec.subjects)) {
+        if (typeof score !== 'number' || Number.isNaN(score) || score < 0 || score > 150) {
+          setValidationMsg(`${rec.examName} - ${sub}: 分数无效 (0-150)`)
+          return
+        }
+      }
+    }
+    setValidationMsg('')
     setSaving(true)
     try {
+      // 先校验
+      const validateResult = await getAPI().profile.validateAcademic(records)
+      if (!validateResult.success) {
+        setValidationMsg(`校验失败: ${validateResult.errors?.join('; ')}`)
+        setSaving(false)
+        return
+      }
+      // 保存
       await getAPI().profile.set(studentName, {
         ...profileData,
-        monthlyExam1Grades: exam1,
-        monthlyExam2Grades: exam2,
-        midtermGrades: midterm,
-        finalGrades: final,
+        academicRecords: records,
         classRank,
         gradeRank,
       })
       toast.success('成绩已保存')
-    } catch (_err) {
-      toast.error('保存失败')
+    } catch (err) {
+      toast.error(`保存失败: ${err instanceof Error ? err.message : String(err)}`)
     }
     setSaving(false)
     setEditing(false)
     setEditingRank(false)
   }
 
-  const allExamConfigs: Array<{
-    name: string
-    data: Record<string, number>
-    setter: (v: Record<string, number>) => void
-  }> = [
-    { name: '月考1', data: exam1, setter: setExam1 },
-    { name: '月考2', data: exam2, setter: setExam2 },
-    { name: '期中', data: midterm, setter: setMidterm },
-    { name: '期末', data: final, setter: setFinal },
-  ]
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">学业成绩</h4>
-        <button
-          type="button"
-          onClick={() => (editing ? handleSave() : setEditing(true))}
-          disabled={saving}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-xs transition-colors disabled:opacity-50 shadow-sm"
-        >
-          {saving ? '保存中...' : editing ? '💾 保存成绩' : '✏️ 编辑'}
-        </button>
+        <div className="flex gap-2">
+          {validationMsg && (
+            <span className="text-xs text-red-500 self-center">{validationMsg}</span>
+          )}
+          <button
+            type="button"
+            onClick={() => (editing ? handleSave() : setEditing(true))}
+            disabled={saving}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-xs transition-colors disabled:opacity-50 shadow-sm"
+          >
+            {saving ? '保存中...' : editing ? '💾 保存' : '✏️ 编辑'}
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {allExamConfigs.map(({ name, data, setter }) => (
-          <div
-            key={name}
-            className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm"
-          >
-            <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">
-              {name}成绩
-            </h5>
-            <div className="space-y-2">
-              {subjects.map((sub) => (
-                <div key={sub} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-300 w-10">{sub}</span>
-                  {editing ? (
-                    <input
-                      type="number"
-                      value={data[sub] ?? ''}
-                      onChange={(e) => setter({ ...data, [sub]: parseFloat(e.target.value) || 0 })}
-                      className="w-20 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm text-right focus:outline-none focus:border-blue-500"
-                      min="0"
-                      max="150"
-                    />
-                  ) : (
-                    <span className="font-mono text-gray-700 dark:text-gray-200">
-                      {data[sub] != null && !Number.isNaN(data[sub]) ? data[sub] : '-'}
-                    </span>
-                  )}
-                </div>
+      {editing && (
+        <>
+          {/* 科目管理 */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+            <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">📚 科目管理</h5>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {allSubjects.map((sub) => (
+                <span key={sub} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs">
+                  {sub}
+                  <button type="button" onClick={() => removeSubject(sub)} className="text-blue-400 hover:text-red-500">&times;</button>
+                </span>
               ))}
             </div>
-            {Object.values(data).some((v) => v != null && !Number.isNaN(v)) && (
-              <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 flex justify-between">
-                <span>平均分</span>
-                <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
-                  {calcAvg(data).toFixed(1)}
-                </span>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newSubject}
+                onChange={(e) => setNewSubject(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addSubject() }}
+                placeholder="添加科目"
+                className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm"
+              />
+              <button type="button" onClick={addSubject} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">+</button>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">支持 3+3 / 3+1+2 模式，可任意添加/删除科目</p>
+          </div>
+
+          {/* 添加考试 */}
+          <div className="flex items-center gap-2">
+            {!addingExam ? (
+              <button type="button" onClick={() => setAddingExam(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg text-xs">+ 添加考试</button>
+            ) : (
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-sm w-full">
+                <select value={newExamType} onChange={(e) => setNewExamType(e.target.value)} className="bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs">
+                  {['月考', '周考', '期中', '期末', '模拟考', '平时测试', '随堂测验'].map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <input type="text" value={newExamName} onChange={(e) => setNewExamName(e.target.value)} placeholder="考试名称（可选）" className="flex-1 bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs" />
+                <input type="date" value={newExamDate} onChange={(e) => setNewExamDate(e.target.value)} className="bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs" />
+                <button type="button" onClick={addExam} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">确定</button>
+                <button type="button" onClick={() => setAddingExam(false)} className="text-gray-400 text-xs px-2">取消</button>
               </div>
             )}
           </div>
-        ))}
-      </div>
+        </>
+      )}
+
+      {/* 成绩表格 */}
+      {records.length === 0 ? (
+        <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-10">
+          📝 暂无成绩记录，点击"编辑"后添加
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-800/50">
+                <th className="text-left px-3 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700 sticky left-0 bg-gray-50 dark:bg-gray-800/50">考试</th>
+                <th className="text-left px-3 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700">类型</th>
+                {allSubjects.map((sub) => (
+                  <th key={sub} className="text-center px-2 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700 min-w-[60px]">{sub}</th>
+                ))}
+                <th className="text-center px-2 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700">平均</th>
+                {editing && <th className="text-center px-2 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700 w-10"></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((rec, idx) => (
+                <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
+                  <td className="px-3 py-2 font-medium border-b dark:border-gray-700 sticky left-0 bg-white dark:bg-gray-900">
+                    {editing ? (
+                      <div className="flex flex-col gap-1">
+                        <input
+                          type="text"
+                          value={rec.examName}
+                          onChange={(e) => {
+                            const newRecords = [...records]
+                            newRecords[idx] = { ...newRecords[idx], examName: e.target.value }
+                            setRecords(newRecords)
+                          }}
+                          className="w-24 bg-gray-50 dark:bg-gray-900 border rounded px-1 py-0.5 text-xs"
+                        />
+                        <input
+                          type="date"
+                          value={rec.date || ''}
+                          onChange={(e) => {
+                            const newRecords = [...records]
+                            newRecords[idx] = { ...newRecords[idx], date: e.target.value || undefined }
+                            setRecords(newRecords)
+                          }}
+                          className="w-24 bg-gray-50 dark:bg-gray-900 border rounded px-1 py-0.5 text-[10px]"
+                        />
+                        <input
+                          type="text"
+                          value={rec.examType}
+                          onChange={(e) => {
+                            const newRecords = [...records]
+                            newRecords[idx] = { ...newRecords[idx], examType: e.target.value }
+                            setRecords(newRecords)
+                          }}
+                          className="w-24 bg-gray-50 dark:bg-gray-900 border rounded px-1 py-0.5 text-[10px]"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="text-sm">{rec.examName}</div>
+                        <div className="text-[10px] text-gray-400">{rec.date || rec.examType}</div>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-gray-500 border-b dark:border-gray-700">
+                    {rec.examType}
+                  </td>
+                  {allSubjects.map((sub) => (
+                    <td key={sub} className="text-center px-2 py-2 border-b dark:border-gray-700">
+                      {editing ? (
+                        <input
+                          type="number"
+                          value={rec.subjects[sub] ?? ''}
+                          onChange={(e) => updateScore(idx, sub, e.target.value)}
+                          className="w-16 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-center text-xs"
+                          min="0"
+                          max="150"
+                        />
+                      ) : (
+                        <span className={`font-mono ${rec.subjects[sub] != null && rec.subjects[sub] > 0 ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
+                          {rec.subjects[sub] != null && rec.subjects[sub] > 0 ? rec.subjects[sub] : '-'}
+                        </span>
+                      )}
+                    </td>
+                  ))}
+                  <td className="text-center px-2 py-2 border-b dark:border-gray-700 font-mono text-xs text-blue-600 dark:text-blue-400">
+                    {calcAvg(rec.subjects).toFixed(1)}
+                  </td>
+                  {editing && (
+                    <td className="text-center border-b dark:border-gray-700">
+                      <button type="button" onClick={() => removeExam(idx)} className="text-red-400 hover:text-red-600 text-xs">&times;</button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* 排名信息 */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
@@ -1288,7 +1489,7 @@ function AcademicsTab({
       {/* 成绩趋势图 */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
         <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">📈 成绩趋势</h5>
-        {trendData ? (
+        {trendData && trendData.series.length > 0 ? (
           <ReactEChartsCore
             echarts={echarts}
             style={{ height: 280 }}
@@ -1305,7 +1506,7 @@ function AcademicsTab({
               xAxis: {
                 type: 'category',
                 data: trendData.labels,
-                axisLabel: { color: axisColor, fontSize: 11 },
+                axisLabel: { color: axisColor, fontSize: 11, rotate: trendData.labels.length > 6 ? 30 : 0 },
                 axisLine: { lineStyle: { color: gridColor } },
               },
               yAxis: {
@@ -1341,16 +1542,10 @@ function AcademicsTab({
           <div className="grid grid-cols-2 gap-4 mb-3">
             {subjectAnalysis.strongest && (
               <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-lg p-3 border border-green-200/50 dark:border-green-700/30">
-                <div className="text-xs text-green-600 dark:text-green-400 font-medium">
-                  🏆 最强科目
-                </div>
+                <div className="text-xs text-green-600 dark:text-green-400 font-medium">🏆 最强科目</div>
                 <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-lg font-bold text-green-700 dark:text-green-300">
-                    {subjectAnalysis.strongest.subject}
-                  </span>
-                  <span className="text-sm text-green-500">
-                    {subjectAnalysis.strongest.avg.toFixed(1)}分
-                  </span>
+                  <span className="text-lg font-bold text-green-700 dark:text-green-300">{subjectAnalysis.strongest.subject}</span>
+                  <span className="text-sm text-green-500">{subjectAnalysis.strongest.avg.toFixed(1)}分</span>
                 </div>
               </div>
             )}
@@ -1358,12 +1553,8 @@ function AcademicsTab({
               <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10 rounded-lg p-3 border border-red-200/50 dark:border-red-700/30">
                 <div className="text-xs text-red-600 dark:text-red-400 font-medium">⚠️ 最弱科目</div>
                 <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-lg font-bold text-red-700 dark:text-red-300">
-                    {subjectAnalysis.weakest.subject}
-                  </span>
-                  <span className="text-sm text-red-500">
-                    {subjectAnalysis.weakest.avg.toFixed(1)}分
-                  </span>
+                  <span className="text-lg font-bold text-red-700 dark:text-red-300">{subjectAnalysis.weakest.subject}</span>
+                  <span className="text-sm text-red-500">{subjectAnalysis.weakest.avg.toFixed(1)}分</span>
                 </div>
               </div>
             )}
@@ -1389,19 +1580,14 @@ function AcademicsTab({
                 axisLabel: { color: axisColor },
                 splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
               },
-              series: [
-                {
-                  type: 'bar',
-                  data: subjectAnalysis.all.map((a, i) => ({
-                    value: a.avg.toFixed(1),
-                    itemStyle: {
-                      borderRadius: [4, 4, 0, 0],
-                      color: colors[i % colors.length],
-                    },
-                  })),
-                  barWidth: '40%',
-                },
-              ],
+              series: [{
+                type: 'bar',
+                data: subjectAnalysis.all.map((a, i) => ({
+                  value: a.avg.toFixed(1),
+                  itemStyle: { borderRadius: [4, 4, 0, 0], color: colors[i % colors.length] },
+                })),
+                barWidth: '40%',
+              }],
             }}
           />
         </div>
