@@ -163,15 +163,17 @@ export function DashboardPage() {
 
   const s = stats?.summary
   const scoreIntervals = stats?.score_intervals ?? {}
+  // B-02/B-18 修复: 之前硬编码 '高(60-80)' / '中(80-100)' 与 EAA 真实输出键名
+  // '中(60-80)' / '高(80-100)' 不一致,导致 LABEL_MAP 永远不命中,i18n 翻译失效
+  // 正确键名(与 EAA Rust 端 score_intervals 一致): 极高(<60) / 中(60-80) / 高(80-100) / 低(>=100)
   // 按风险等级排序：极高 → 高 → 中 → 低
-  const SCORE_ORDER = ['极高(<60)', '高(60-80)', '中(80-100)', '低(>=100)']
-  // 后端返回中文键名，用 i18n 映射翻译（仅对英文模式生效）
+  const SCORE_ORDER = ['极高(<60)', '中(60-80)', '高(80-100)', '低(>=100)']
   const sortedScoreKeys = SCORE_ORDER.filter((k) => k in scoreIntervals)
-  // 后端返回中文键名，用 i18n 映射翻译（仅对英文模式生效）
+  // 后端返回中文键名, 用 i18n 映射翻译 (对中英模式都生效)
   const LABEL_MAP: Record<string, string> = {
     '极高(<60)': t('page.dashboard.riskLabel.extreme'),
-    '高(60-80)': t('page.dashboard.riskLabel.high'),
-    '中(80-100)': t('page.dashboard.riskLabel.mid'),
+    '中(60-80)': t('page.dashboard.riskLabel.mid'),
+    '高(80-100)': t('page.dashboard.riskLabel.high'),
     '低(>=100)': t('page.dashboard.riskLabel.low'),
   }
   const scoreIntervalLabels = sortedScoreKeys.map((k) => LABEL_MAP[k] || k)
@@ -225,7 +227,7 @@ export function DashboardPage() {
         />
         <StatCard
           title={t('page.dashboard.stat.highRisk')}
-          value={(scoreIntervals['极高(<60)'] ?? 0) + (scoreIntervals['高(60-80)'] ?? 0)}
+          value={(scoreIntervals['极高(<60)'] ?? 0) + (scoreIntervals['高(80-100)'] ?? 0)}
           color="red"
           icon="⚠️"
         />
@@ -782,7 +784,7 @@ export function DashboardPage() {
         <div className="col-span-2 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
-            {t('common.action', '维护工具')}
+            {t('common.action')}
           </h3>
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">

@@ -32,9 +32,21 @@ function getDict(lang: Lang): Dict {
   return DICTS[lang] ?? DICTS.zh
 }
 
-export function t(key: string, fallback?: string): string {
+/**
+ * 翻译函数 — 支持 {0} {1} 占位符
+ * @example t('page.student.eventsCount', String(5)) → "5 事件"
+ * @example t('page.feishu.testSuccess', token, String(7200)) → "连接成功 · token=xxx · 过期 7200s"
+ */
+export function t(key: string, ...args: unknown[]): string {
   const dict = getDict(currentLang)
-  return dict[key] ?? fallback ?? key
+  let template = dict[key] ?? key
+  if (args.length > 0) {
+    template = template.replace(/\{(\d+)\}/g, (_, idx) => {
+      const v = args[Number(idx)]
+      return v == null ? '' : String(v)
+    })
+  }
+  return template
 }
 
 export function setLang(lang: Lang): void {
@@ -54,7 +66,7 @@ export function getLang(): Lang {
 }
 
 /** React hook: 返回 t 函数 + 当前 lang, lang 变化时自动 rerender */
-export function useT(): { t: (key: string, fallback?: string) => string; lang: Lang } {
+export function useT(): { t: (key: string, ...args: unknown[]) => string; lang: Lang } {
   const [lang, setLangState] = useState<Lang>(currentLang)
   useEffect(() => {
     const handler = (e: Event) => {
