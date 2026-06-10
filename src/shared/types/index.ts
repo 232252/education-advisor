@@ -545,6 +545,11 @@ export interface StudentProfileData {
   address?: string
   parentName?: string
   parentPhone?: string
+  fatherName?: string
+  fatherPhone?: string
+  motherName?: string
+  motherPhone?: string
+  classId?: string
   enrollmentDate?: string
   comments?: string
   /** @deprecated 改用 academicRecords */
