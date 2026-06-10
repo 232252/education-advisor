@@ -64,7 +64,8 @@ class ProfileService {
    */
   private async withLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
     const prev = this.locks.get(name) ?? Promise.resolve()
-    const next = prev.then(fn, fn)
+    // 前一个失败时 catch 吞掉，确保 chain 不断；错误由调用方 set() 自行处理
+    const next = prev.catch(() => {}).then(fn)
     this.locks.set(name, next)
     // 清理已完成的任务
     next.finally(() => { if (this.locks.get(name) === next) this.locks.delete(name) })
@@ -225,18 +226,9 @@ class ProfileService {
           }
         }
 
-        // 4. 序列化后全文过隐私引擎（捕获备注/自定义字段中的真名）
+        // 4. 序列化后直接写入（逐字段 PII 脱敏已在步骤 3 完成，无需全文过隐私引擎）
         const anoPath = await this.anonymizedPath(name)
-        let json = JSON.stringify(anonymized, null, 2)
-        try {
-          const fullTextResult = await eaaBridge.execute({
-            command: 'privacy',
-            args: ['anonymize', json],
-          })
-          if (fullTextResult.success && fullTextResult.data) {
-            json = String(fullTextResult.data)
-          }
-        } catch { /* keep as-is */ }
+        const json = JSON.stringify(anonymized, null, 2)
 
         // 5. 原子写入（tmp → fsync → rename）
         const tmpPath = `${anoPath}.tmp`
@@ -273,9 +265,13 @@ class ProfileService {
     }
     const existing = await this.get(name)
     const records = existing.academicRecords ?? []
-    const idx = records.findIndex((r) => r.examName === record.examName)
-    if (idx >= 0) {
-      records[idx] = record
+    // 用 (examType + examName + date) 三元组判重，降低误覆盖风险
+    const duplicateIdx = records.findIndex(
+      (r) => r.examName === record.examName && r.examType === record.examType && r.date === record.date,
+    )
+    if (duplicateIdx >= 0) {
+      console.warn(`[ProfileService] Overwriting duplicate academic record: ${record.examName} (${record.examType})`)
+      records[duplicateIdx] = record
     } else {
       records.push(record)
     }
