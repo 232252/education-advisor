@@ -163,9 +163,10 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
       for (const agentId of selectedAgents) {
         setAiOutput((prev) => `${prev}\n=== 🤖 ${agentId} ===\n`)
         const prompt = `请分析学生"${student.name}"的操行情况。基本信息：- 分数：${student.score}\n- 风险等级：${student.risk}\n- 事件数：${student.events_count}\n\n请从以下维度进行分析：\n1. 操行总结\n2. 风险预警\n3. 行为模式\n4. 教育建议`
+        // 用 Promise 包装 runManual，等待 agent 实际完成而非固定等待
         await getAPI().agent.runManual(agentId, prompt)
-        // 等待一段时间让流式输出到达
-        await new Promise((r) => setTimeout(r, 1500))
+        // 给流式输出一个短暂刷新窗口
+        await new Promise((r) => setTimeout(r, 300))
       }
       setAiMessageAuto('AI 分析完成')
     } catch (err) {
@@ -206,7 +207,7 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
         setAiOutput((prev) => `${prev}\n=== 🤖 ${agentId} ===\n`)
         const prompt = `请分析学生"${student.name}"的操行情况。基本信息：- 分数：${student.score}\n- 风险等级：${student.risk}\n- 事件数：${student.events_count}\n\n请从以下维度进行分析：\n1. 操行总结\n2. 风险预警\n3. 行为模式\n4. 教育建议`
         await getAPI().agent.runManual(agentId, prompt)
-        await new Promise((r) => setTimeout(r, 1500))
+        await new Promise((r) => setTimeout(r, 300))
       }
       setAiMessageAuto('AI 分析完成')
     } catch (err) {
@@ -591,12 +592,13 @@ function ProfileTab({
         await getAPI().eaa.setStudentMeta({ name: student.name, classId: form.classId as string })
       }
       setMsgAuto('档案已保存')
+      setSaving(false)
+      setEditing(false)
       onUpdate()
     } catch (err) {
       setMsgAuto(`保存失败: ${err instanceof Error ? err.message : String(err)}`)
+      setSaving(false)
     }
-    setSaving(false)
-    setEditing(false)
   }
 
   const updateForm = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }))
@@ -911,12 +913,18 @@ function EventsTab({
       if (start && end) {
         const result = await getAPI().eaa.range(start, end, 100)
         if (result.success && result.data?.events) {
-          setSearchEvents(result.data.events.map(eventRecordToHistory))
+          // 按当前学生过滤范围查询结果
+          const filtered = result.data.events.filter(
+            (e) => e.name === studentName || e.entity_id === studentName,
+          )
+          setSearchEvents(filtered.map(eventRecordToHistory))
         } else {
           setSearchEvents([])
         }
       } else if (query.trim()) {
-        const result = await getAPI().eaa.search(query, 100)
+        // 搜索时结合学生名，确保只搜当前学生的事件
+        const fullQuery = `${studentName} ${query}`
+        const result = await getAPI().eaa.search(fullQuery, 100)
         if (result.success && result.data?.events) {
           setSearchEvents(result.data.events.map(eventRecordToHistory))
         } else {
@@ -1230,10 +1238,13 @@ function AcademicsTab({
   // 更新某考试某科目分数
   const updateScore = (idx: number, subject: string, value: string) => {
     const newRecords = [...records]
-    newRecords[idx] = {
-      ...newRecords[idx],
-      subjects: { ...newRecords[idx].subjects, [subject]: value === '' ? (undefined as unknown as number) : parseFloat(value) || 0 },
+    const newSubjects = { ...newRecords[idx].subjects }
+    if (value === '') {
+      delete newSubjects[subject]
+    } else {
+      newSubjects[subject] = parseFloat(value) || 0
     }
+    newRecords[idx] = { ...newRecords[idx], subjects: newSubjects }
     setRecords(newRecords)
   }
 
@@ -1263,12 +1274,13 @@ function AcademicsTab({
         gradeRank,
       })
       toast.success('成绩已保存')
+      setSaving(false)
+      setEditing(false)
+      setEditingRank(false)
     } catch (err) {
       toast.error(`保存失败: ${err instanceof Error ? err.message : String(err)}`)
+      setSaving(false)
     }
-    setSaving(false)
-    setEditing(false)
-    setEditingRank(false)
   }
 
   const handleSaveRank = async () => {
@@ -1281,11 +1293,12 @@ function AcademicsTab({
         gradeRank,
       })
       toast.success('排名已保存')
+      setSaving(false)
+      setEditingRank(false)
     } catch (err) {
       toast.error(`保存排名失败: ${err instanceof Error ? err.message : String(err)}`)
+      setSaving(false)
     }
-    setSaving(false)
-    setEditingRank(false)
   }
 
   return (
@@ -1765,7 +1778,7 @@ function AIAnalysisTab({
                 <input
                   type="checkbox"
                   checked={selectedAgents.has(agent.id)}
-                  onChange={() => {}}
+                  onChange={() => onToggleAgent(agent.id)}
                   className="rounded accent-blue-500"
                 />
                 <div className="flex-1 min-w-0">
