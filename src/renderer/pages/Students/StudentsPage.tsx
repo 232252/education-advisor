@@ -3,12 +3,12 @@
 // 右侧使用 StudentProfile 多选项卡组件
 // =============================================================
 
-import type { EAARiskLevel, EAAStudent } from '@shared/types'
+import type { EAAStudent } from '@shared/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useT } from '../../i18n'
 import { getAPI, getErrorMessage } from '../../lib/ipc-client'
-import { riskColor, riskOrder, riskSortValue } from '../../lib/risk'
+import { riskColor, riskSortValue } from '../../lib/risk'
 import { toast } from '../../stores/toastStore'
 import { StudentProfile } from './StudentProfile'
 
@@ -35,7 +35,7 @@ export function StudentsPage() {
   const exportMenuRef = useRef<HTMLDivElement>(null)
   // O-05 修复: 批量选择 + 批量操作
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [batchMenuOpen, setBatchMenuOpen] = useState(false)
+  const [_batchMenuOpen, setBatchMenuOpen] = useState(false)
   const setActionMessageAuto = useAutoDismiss<string>(setActionMessage, '')
 
   // 加载学生列表
@@ -138,7 +138,9 @@ export function StudentsPage() {
       else fail++
     }
     setActionMessageAuto(
-      fail > 0 ? t('page.students.batch.failed', `${ok} ok, ${fail} fail`) : t('page.students.batch.done', String(ok)),
+      fail > 0
+        ? t('page.students.batch.failed', `${ok} ok, ${fail} fail`)
+        : t('page.students.batch.done', String(ok)),
     )
     loadStudents()
     setBatchMenuOpen(false)
@@ -156,7 +158,9 @@ export function StudentsPage() {
       else fail++
     }
     setActionMessageAuto(
-      fail > 0 ? t('page.students.batch.failed', `${ok} ok, ${fail} fail`) : t('page.students.batch.done', String(ok)),
+      fail > 0
+        ? t('page.students.batch.failed', `${ok} ok, ${fail} fail`)
+        : t('page.students.batch.done', String(ok)),
     )
     loadStudents()
     setBatchMenuOpen(false)
@@ -174,7 +178,9 @@ export function StudentsPage() {
       else fail++
     }
     setActionMessageAuto(
-      fail > 0 ? t('page.students.batch.failed', `${ok} ok, ${fail} fail`) : t('page.students.batch.done', String(ok)),
+      fail > 0
+        ? t('page.students.batch.failed', `${ok} ok, ${fail} fail`)
+        : t('page.students.batch.done', String(ok)),
     )
     loadStudents()
     setBatchMenuOpen(false)
@@ -183,7 +189,10 @@ export function StudentsPage() {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
     if (!window.confirm(t('page.students.batch.confirmDelete', String(ids.length)))) return
-    const reason = window.prompt(t('page.students.delete.reasonPrompt', `${ids.length} students`), t('page.students.delete.defaultReason'))
+    const reason = window.prompt(
+      t('page.students.delete.reasonPrompt', `${ids.length} students`),
+      t('page.students.delete.defaultReason'),
+    )
     if (!reason) return
     let ok = 0
     let fail = 0
@@ -195,7 +204,9 @@ export function StudentsPage() {
       else fail++
     }
     setActionMessageAuto(
-      fail > 0 ? t('page.students.batch.failed', `${ok} ok, ${fail} fail`) : t('page.students.batch.done', String(ok)),
+      fail > 0
+        ? t('page.students.batch.failed', `${ok} ok, ${fail} fail`)
+        : t('page.students.batch.done', String(ok)),
     )
     setSelectedIds(new Set())
     loadStudents()
@@ -204,9 +215,7 @@ export function StudentsPage() {
   // 批量导入学生
   const handleImport = async () => {
     // B-26: 先弹格式说明, 再让用户选文件
-    const proceed = window.confirm(
-      t('page.students.importFormatHint'),
-    )
+    const proceed = window.confirm(t('page.students.importFormatHint'))
     if (!proceed) return
     try {
       const result = (await getAPI().sys.openDialog({
@@ -495,6 +504,9 @@ export function StudentsPage() {
                     <td
                       className="py-2.5 px-2 text-center"
                       onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
+                      }}
                     >
                       <input
                         type="checkbox"

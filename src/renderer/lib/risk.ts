@@ -22,10 +22,10 @@ export function riskColor(risk: string): string {
 
 /** 风险等级排序权重（用于列表排序） */
 export const riskOrder: Record<string, number> = {
-  '低': 0,
-  '中': 1,
-  '高': 2,
-  '极高': 3,
+  低: 0,
+  中: 1,
+  高: 2,
+  极高: 3,
 }
 
 /** 获取排序值（含未知兜底） */

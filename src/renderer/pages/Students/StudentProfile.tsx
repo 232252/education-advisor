@@ -19,9 +19,9 @@ import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/compon
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import ReactEChartsCore from 'echarts-for-react/lib/core'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useTheme } from '../../hooks/useTheme'
 import { useT } from '../../i18n'
@@ -112,47 +112,53 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
   useEffect(() => {
     currentNameRef.current = student.name
   }, [student.name])
-  const loadProfileData = useCallback(async (name: string) => {
-    try {
-      const result = await getAPI().profile.get(name)
-      if (currentNameRef.current !== name) return
-      if (result.success && result.data) {
-        // B-32 修复: EAA class_id → profileData.classId 同步
-        if (!result.data.classId && student.class_id) {
-          result.data.classId = student.class_id
+  const loadProfileData = useCallback(
+    async (name: string) => {
+      try {
+        const result = await getAPI().profile.get(name)
+        if (currentNameRef.current !== name) return
+        if (result.success && result.data) {
+          // B-32 修复: EAA class_id → profileData.classId 同步
+          if (!result.data.classId && student.class_id) {
+            result.data.classId = student.class_id
+          }
+          setProfileData(result.data)
         }
-        setProfileData(result.data)
+      } catch (err) {
+        if (currentNameRef.current !== name) return
+        console.warn('[Profile] Load profile data error:', err)
       }
-    } catch (err) {
-      if (currentNameRef.current !== name) return
-      console.warn('[Profile] Load profile data error:', err)
-    }
-    if (currentNameRef.current === name) setProfileLoaded(true)
-  }, [])
+      if (currentNameRef.current === name) setProfileLoaded(true)
+    },
+    [student.class_id],
+  )
 
-  const loadAllData = useCallback(async (nameOverride?: string) => {
-    const name = nameOverride ?? student.name
-    try {
-      const [scoreRes, historyRes, codesRes, agentsRes] = await Promise.all([
-        getAPI().eaa.score(name),
-        getAPI().eaa.history(name),
-        getAPI().eaa.codes(),
-        getAPI().agent.list(),
-      ])
-      // 每个 set 都要 guard,避免旧请求污染
-      if (currentNameRef.current === name && scoreRes.success) setScore(scoreRes.data)
-      if (currentNameRef.current === name && historyRes.success) setHistory(historyRes.data)
-      if (currentNameRef.current === name && codesRes.success && codesRes.data?.codes)
-        setReasonCodes(codesRes.data.codes)
-      // agents 是全局的,不需要 guard
-      if (agentsRes) setAgents(agentsRes)
-      loadProfileData(name)
-    } catch (err) {
-      if (currentNameRef.current === name) {
-        console.error('[Profile] Load error:', err)
+  const loadAllData = useCallback(
+    async (nameOverride?: string) => {
+      const name = nameOverride ?? student.name
+      try {
+        const [scoreRes, historyRes, codesRes, agentsRes] = await Promise.all([
+          getAPI().eaa.score(name),
+          getAPI().eaa.history(name),
+          getAPI().eaa.codes(),
+          getAPI().agent.list(),
+        ])
+        // 每个 set 都要 guard,避免旧请求污染
+        if (currentNameRef.current === name && scoreRes.success) setScore(scoreRes.data)
+        if (currentNameRef.current === name && historyRes.success) setHistory(historyRes.data)
+        if (currentNameRef.current === name && codesRes.success && codesRes.data?.codes)
+          setReasonCodes(codesRes.data.codes)
+        // agents 是全局的,不需要 guard
+        if (agentsRes) setAgents(agentsRes)
+        loadProfileData(name)
+      } catch (err) {
+        if (currentNameRef.current === name) {
+          console.error('[Profile] Load error:', err)
+        }
       }
-    }
-  }, [student.name, loadProfileData])
+    },
+    [student.name, loadProfileData],
+  )
 
   useEffect(() => {
     loadAllData()
@@ -343,12 +349,20 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
       // B-03: 用真实日历窗口 (本周一/本月1日/本学期初)
       const now2 = new Date()
       const ranges: Record<string, number> = {
-        week: now2.getTime() - new Date(now2.getFullYear(), now2.getMonth(), now2.getDate() - now2.getDay() + 1).getTime(),
+        week:
+          now2.getTime() -
+          new Date(
+            now2.getFullYear(),
+            now2.getMonth(),
+            now2.getDate() - now2.getDay() + 1,
+          ).getTime(),
         month: now2.getTime() - new Date(now2.getFullYear(), now2.getMonth(), 1).getTime(),
         // 学期初：当前日期 8/1 之后用 8/1，否则用 1/1
-        semester: now2.getTime() - (now2.getMonth() >= 7
-          ? new Date(now2.getFullYear(), 7, 1).getTime()
-          : new Date(now2.getFullYear(), 0, 1).getTime()),
+        semester:
+          now2.getTime() -
+          (now2.getMonth() >= 7
+            ? new Date(now2.getFullYear(), 7, 1).getTime()
+            : new Date(now2.getFullYear(), 0, 1).getTime()),
       }
       const cutoff = now - ranges[eventTimeRange]
       events = events.filter((e) => new Date(e.timestamp).getTime() > cutoff)
@@ -376,7 +390,9 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
             <div>
               <h2 className="text-xl font-bold">{student.name}</h2>
               <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                <span className={riskColor(student.risk)}>{t('page.student.riskLabel')}: {student.risk}</span>
+                <span className={riskColor(student.risk)}>
+                  {t('page.student.riskLabel')}: {student.risk}
+                </span>
                 <span className="text-gray-300 dark:text-gray-600">|</span>
                 <span>
                   {t('page.student.scoreLabel')}:{' '}
@@ -546,7 +562,7 @@ function OverviewTab({
   const scoreTimeline = useMemo(() => {
     if (!history?.events || history.events.length === 0)
       return { dates: [] as string[], scores: [] as number[] }
-    let cumulative = student.score - (student.delta || 0)  // 反推初始基准分
+    let cumulative = student.score - (student.delta || 0) // 反推初始基准分
     const dates: string[] = []
     const scores: number[] = []
     const events = history.events.slice(-20)
@@ -556,7 +572,7 @@ function OverviewTab({
       scores.push(cumulative)
     }
     return { dates, scores }
-  }, [history])
+  }, [history, student.score, student.delta])
 
   const axisColor = isDark ? '#9ca3af' : '#6b7280'
   const gridColor = isDark ? '#1f2937' : '#e5e7eb'
@@ -564,14 +580,26 @@ function OverviewTab({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricCard label={t('page.student.overview.currentScore')} value={student.score.toFixed(1)} color="blue" />
+        <MetricCard
+          label={t('page.student.overview.currentScore')}
+          value={student.score.toFixed(1)}
+          color="blue"
+        />
         <MetricCard
           label={t('page.student.overview.scoreChange')}
           value={(student.delta >= 0 ? '+' : '') + student.delta.toFixed(1)}
           color={student.delta >= 0 ? 'green' : 'red'}
         />
-        <MetricCard label={t('page.student.overview.bonusEvents')} value={bonusCount} color="green" />
-        <MetricCard label={t('page.student.overview.deductEvents')} value={deductCount} color="red" />
+        <MetricCard
+          label={t('page.student.overview.bonusEvents')}
+          value={bonusCount}
+          color="green"
+        />
+        <MetricCard
+          label={t('page.student.overview.deductEvents')}
+          value={deductCount}
+          color="red"
+        />
       </div>
 
       {scoreTimeline.dates.length > 1 && (
@@ -621,24 +649,46 @@ function OverviewTab({
       )}
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('page.student.info.basicInfo')}</h4>
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          {t('page.student.info.basicInfo')}
+        </h4>
         <div className="grid grid-cols-2 gap-2 text-sm">
           <InfoRow label={t('page.student.info.status')} value={score?.status ?? 'Active'} />
-          <InfoRow label={t('page.student.riskLabel')} value={student.risk} highlight={riskColor(student.risk)} />
-          <InfoRow label={t('page.student.info.className')} value={score?.class_id ?? t('page.student.academics.unset')} />
-          <InfoRow label={t('page.student.info.groups')} value={student.groups.join(', ') || t('common.none')} />
-          <InfoRow label={t('page.student.info.roles')} value={student.roles.join(', ') || t('common.none')} />
+          <InfoRow
+            label={t('page.student.riskLabel')}
+            value={student.risk}
+            highlight={riskColor(student.risk)}
+          />
+          <InfoRow
+            label={t('page.student.info.className')}
+            value={score?.class_id ?? t('page.student.academics.unset')}
+          />
+          <InfoRow
+            label={t('page.student.info.groups')}
+            value={student.groups.join(', ') || t('common.none')}
+          />
+          <InfoRow
+            label={t('page.student.info.roles')}
+            value={student.roles.join(', ') || t('common.none')}
+          />
           <InfoRow label={t('page.student.info.eventsCount')} value={student.events_count} />
           {score?.last_event_at && (
-            <InfoRow label={t('page.student.info.recentEvents')} value={new Date(score.last_event_at).toLocaleDateString()} />
+            <InfoRow
+              label={t('page.student.info.recentEvents')}
+              value={new Date(score.last_event_at).toLocaleDateString()}
+            />
           )}
         </div>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('page.student.info.recentEvents')}</h4>
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          {t('page.student.info.recentEvents')}
+        </h4>
         {recentEvents.length === 0 ? (
-          <div className="text-gray-400 dark:text-gray-500 text-sm py-4 text-center">{t('common.noEvents')}</div>
+          <div className="text-gray-400 dark:text-gray-500 text-sm py-4 text-center">
+            {t('common.noEvents')}
+          </div>
         ) : (
           <div className="space-y-0">
             {recentEvents.map((evt, idx) => (
@@ -742,7 +792,9 @@ function ProfileTab({
         </button>
       </div>
       {msg && (
-        <div className={`text-xs ${msg.includes('失败') || msg.includes('failed') ? 'text-red-500' : 'text-green-500'}`}>
+        <div
+          className={`text-xs ${msg.includes('失败') || msg.includes('failed') ? 'text-red-500' : 'text-green-500'}`}
+        >
           {msg}
         </div>
       )}
@@ -938,8 +990,14 @@ function ProfileTab({
       {/* EAA 元数据 */}
       <ProfileSection title={t('page.student.profile.eaaMeta')} icon="⚙️">
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <InfoRow label={t('page.student.info.groups')} value={student.groups.join(', ') || t('common.none')} />
-          <InfoRow label={t('page.student.info.roles')} value={student.roles.join(', ') || t('common.none')} />
+          <InfoRow
+            label={t('page.student.info.groups')}
+            value={student.groups.join(', ') || t('common.none')}
+          />
+          <InfoRow
+            label={t('page.student.info.roles')}
+            value={student.roles.join(', ') || t('common.none')}
+          />
           <InfoRow label={t('page.student.info.status')} value={student.status} />
         </div>
       </ProfileSection>
@@ -1190,7 +1248,9 @@ function EventsTab({
           onTimeRangeChange('semester'),
         )}
         <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-          {isSearchMode ? `搜索结果 ${filteredDisplayEvents.length} 条` : `共 ${filteredDisplayEvents.length} 条`}
+          {isSearchMode
+            ? `搜索结果 ${filteredDisplayEvents.length} 条`
+            : `共 ${filteredDisplayEvents.length} 条`}
         </span>
       </div>
 
@@ -1241,11 +1301,20 @@ function AcademicsTab({
   const [allSubjects, setAllSubjects] = useState<string[]>(
     () =>
       (profileData as unknown as { customSubjects?: string[] }).customSubjects ?? [
-        '语文', '数学', '英语',
-        '物理', '化学', '生物',
-        '政治', '历史', '地理',
-        '通用技术', '信息技术',
-        '体育', '音乐', '美术',
+        '语文',
+        '数学',
+        '英语',
+        '物理',
+        '化学',
+        '生物',
+        '政治',
+        '历史',
+        '地理',
+        '通用技术',
+        '信息技术',
+        '体育',
+        '音乐',
+        '美术',
       ],
   )
   const [newSubject, setNewSubject] = useState('')
@@ -1263,7 +1332,7 @@ function AcademicsTab({
   const [validationMsg, setValidationMsg] = useState('')
   const [addingExam, setAddingExam] = useState(false)
   const [showBulkImport, setShowBulkImport] = useState(false)
-  const [entryMode, setEntryMode] = useState<'vertical' | 'horizontal'>('vertical')
+  const [_entryMode, _setEntryMode] = useState<'vertical' | 'horizontal'>('vertical')
   const [newExamType, setNewExamType] = useState('月考')
   const [newExamName, setNewExamName] = useState('')
   const [newExamDate, setNewExamDate] = useState('')
@@ -1272,10 +1341,18 @@ function AcademicsTab({
   function migrateLegacyRecords(data: StudentProfileData): AcademicExamRecord[] {
     const result: AcademicExamRecord[] = []
     // 检查是否有 deprecated 旧字段
-    const midterm = (data as unknown as Record<string, unknown>).midtermGrades as Record<string, number | null> | undefined
-    const final = (data as unknown as Record<string, unknown>).finalGrades as Record<string, number | null> | undefined
-    const monthly1 = (data as unknown as Record<string, unknown>).monthlyExam1Grades as Record<string, number | null> | undefined
-    const monthly2 = (data as unknown as Record<string, unknown>).monthlyExam2Grades as Record<string, number | null> | undefined
+    const midterm = (data as unknown as Record<string, unknown>).midtermGrades as
+      | Record<string, number | null>
+      | undefined
+    const final = (data as unknown as Record<string, unknown>).finalGrades as
+      | Record<string, number | null>
+      | undefined
+    const monthly1 = (data as unknown as Record<string, unknown>).monthlyExam1Grades as
+      | Record<string, number | null>
+      | undefined
+    const monthly2 = (data as unknown as Record<string, unknown>).monthlyExam2Grades as
+      | Record<string, number | null>
+      | undefined
 
     if (midterm && Object.keys(midterm).length > 0)
       result.push({ examType: '期中', examName: '期中', subjects: { ...midterm } })
@@ -1346,7 +1423,16 @@ function AcademicsTab({
 
   const gridColor = isDark ? '#1f2937' : '#e5e7eb'
   const axisColor = isDark ? '#9ca3af' : '#6b7280'
-  const colors = ['#3b82f6', '#ef4444', '#22c55e', '#a855f7', '#f97316', '#06b6d4', '#ec4899', '#14b8a6']
+  const colors = [
+    '#3b82f6',
+    '#ef4444',
+    '#22c55e',
+    '#a855f7',
+    '#f97316',
+    '#06b6d4',
+    '#ec4899',
+    '#14b8a6',
+  ]
 
   // 添加科目
   const addSubject = () => {
@@ -1358,13 +1444,16 @@ function AcademicsTab({
   }
   const removeSubject = (sub: string) => {
     const count = records.filter((r) => r.subjects[sub] != null && r.subjects[sub] > 0).length
-    if (!confirm(`将删除"${sub}"科目，同时从 ${count} 条考试记录中移除该科目成绩。确定继续？`)) return
+    if (!confirm(`将删除"${sub}"科目，同时从 ${count} 条考试记录中移除该科目成绩。确定继续？`))
+      return
     setAllSubjects(allSubjects.filter((s) => s !== sub))
-    setRecords(records.map((r) => {
-      const newSubjects = { ...r.subjects }
-      delete newSubjects[sub]
-      return { ...r, subjects: newSubjects }
-    }))
+    setRecords(
+      records.map((r) => {
+        const newSubjects = { ...r.subjects }
+        delete newSubjects[sub]
+        return { ...r, subjects: newSubjects }
+      }),
+    )
   }
 
   // 添加考试
@@ -1373,11 +1462,10 @@ function AcademicsTab({
     const sameType = records.filter((r) => r.examType === newExamType)
     const escapedType = newExamType.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const indexPattern = new RegExp(`^${escapedType}\\s*[（(]?\\s*(\\d+)\\s*[)）]?$`)
-    const existingIndexes = sameType
-      .map((r) => {
-        const match = r.examName.match(indexPattern)
-        return match ? parseInt(match[1], 10) : 0
-      })
+    const existingIndexes = sameType.map((r) => {
+      const match = r.examName.match(indexPattern)
+      return match ? parseInt(match[1], 10) : 0
+    })
     const nextIndex = existingIndexes.length > 0 ? Math.max(...existingIndexes) + 1 : 1
     const generatedName = `${newExamType}${nextIndex}`
     const name = newExamName.trim() || generatedName
@@ -1401,7 +1489,12 @@ function AcademicsTab({
   // 删除考试
   const removeExam = (idx: number) => {
     const rec = records[idx]
-    if (!confirm(`将删除考试"${rec.examName}"（${rec.examType}），共 ${Object.keys(rec.subjects).length} 个科目成绩。确定继续？`)) return
+    if (
+      !confirm(
+        `将删除考试"${rec.examName}"（${rec.examType}），共 ${Object.keys(rec.subjects).length} 个科目成绩。确定继续？`,
+      )
+    )
+      return
     setRecords(records.filter((_, i) => i !== idx))
   }
 
@@ -1483,7 +1576,9 @@ function AcademicsTab({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('page.student.academics.title')}</h4>
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {t('page.student.academics.title')}
+        </h4>
         <div className="flex gap-2">
           {validationMsg && (
             <span className="text-xs text-red-500 self-center">{validationMsg}</span>
@@ -1522,12 +1617,23 @@ function AcademicsTab({
         <>
           {/* 科目管理 */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-            <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">📚 科目管理</h5>
+            <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+              📚 科目管理
+            </h5>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {allSubjects.map((sub) => (
-                <span key={sub} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs">
+                <span
+                  key={sub}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs"
+                >
                   {sub}
-                  <button type="button" onClick={() => removeSubject(sub)} className="text-blue-400 hover:text-red-500">&times;</button>
+                  <button
+                    type="button"
+                    onClick={() => removeSubject(sub)}
+                    className="text-blue-400 hover:text-red-500"
+                  >
+                    &times;
+                  </button>
                 </span>
               ))}
             </div>
@@ -1536,20 +1642,36 @@ function AcademicsTab({
                 type="text"
                 value={newSubject}
                 onChange={(e) => setNewSubject(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addSubject() }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addSubject()
+                }}
                 placeholder={t('page.student.academics.addSubject')}
                 className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm"
               />
-              <button type="button" onClick={addSubject} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">+</button>
+              <button
+                type="button"
+                onClick={addSubject}
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs"
+              >
+                +
+              </button>
             </div>
-            <p className="text-[10px] text-gray-400 mt-1">支持 3+3 / 3+1+2 模式，可任意添加/删除科目</p>
+            <p className="text-[10px] text-gray-400 mt-1">
+              支持 3+3 / 3+1+2 模式，可任意添加/删除科目
+            </p>
           </div>
 
           {/* 添加考试 + 模板 + 批量录入 */}
           <div className="flex items-center gap-2 flex-wrap">
             {!addingExam ? (
               <>
-                <button type="button" onClick={() => setAddingExam(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg text-xs">{t('page.student.academics.addExam')}</button>
+                <button
+                  type="button"
+                  onClick={() => setAddingExam(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg text-xs"
+                >
+                  {t('page.student.academics.addExam')}
+                </button>
                 <ExamTemplateMenu
                   onApply={(type, name) => {
                     const newRec: AcademicExamRecord = {
@@ -1573,15 +1695,46 @@ function AcademicsTab({
               </>
             ) : (
               <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-sm w-full">
-                <select value={newExamType} onChange={(e) => setNewExamType(e.target.value)} className="bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs">
-                  {['月考', '周考', '期中', '期末', '模拟考', '平时测试', '随堂测验'].map((type) => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
+                <select
+                  value={newExamType}
+                  onChange={(e) => setNewExamType(e.target.value)}
+                  className="bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs"
+                >
+                  {['月考', '周考', '期中', '期末', '模拟考', '平时测试', '随堂测验'].map(
+                    (type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ),
+                  )}
                 </select>
-                <input type="text" value={newExamName} onChange={(e) => setNewExamName(e.target.value)} placeholder={t('page.student.academics.examNamePlaceholder')} className="flex-1 bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs" />
-                <input type="date" value={newExamDate} onChange={(e) => setNewExamDate(e.target.value)} className="bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs" />
-                <button type="button" onClick={addExam} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">{t('page.student.academics.confirmAdd')}</button>
-                <button type="button" onClick={() => setAddingExam(false)} className="text-gray-400 text-xs px-2">{t('page.student.academics.cancelAdd')}</button>
+                <input
+                  type="text"
+                  value={newExamName}
+                  onChange={(e) => setNewExamName(e.target.value)}
+                  placeholder={t('page.student.academics.examNamePlaceholder')}
+                  className="flex-1 bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs"
+                />
+                <input
+                  type="date"
+                  value={newExamDate}
+                  onChange={(e) => setNewExamDate(e.target.value)}
+                  className="bg-gray-50 dark:bg-gray-900 border rounded px-2 py-1 text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={addExam}
+                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs"
+                >
+                  {t('page.student.academics.confirmAdd')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddingExam(false)}
+                  className="text-gray-400 text-xs px-2"
+                >
+                  {t('page.student.academics.cancelAdd')}
+                </button>
               </div>
             )}
           </div>
@@ -1597,7 +1750,8 @@ function AcademicsTab({
             const merged = [...records]
             for (const nr of newRecords) {
               const idx = merged.findIndex(
-                (r) => r.examName === nr.examName && r.examType === nr.examType && r.date === nr.date,
+                (r) =>
+                  r.examName === nr.examName && r.examType === nr.examType && r.date === nr.date,
               )
               if (idx >= 0) merged[idx] = nr
               else merged.push(nr)
@@ -1619,17 +1773,31 @@ function AcademicsTab({
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/50">
-                <th className="text-left px-3 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700 sticky left-0 bg-gray-50 dark:bg-gray-800/50">{t('page.student.academics.exam')}</th>
-                <th className="text-left px-3 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700">{t('page.student.academics.examType')}</th>
+                <th className="text-left px-3 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700 sticky left-0 bg-gray-50 dark:bg-gray-800/50">
+                  {t('page.student.academics.exam')}
+                </th>
+                <th className="text-left px-3 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700">
+                  {t('page.student.academics.examType')}
+                </th>
                 {allSubjects.map((sub) => (
-                  <th key={sub} className="text-center px-2 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700 min-w-[60px]">{sub}</th>
+                  <th
+                    key={sub}
+                    className="text-center px-2 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700 min-w-[60px]"
+                  >
+                    {sub}
+                  </th>
                 ))}
-                <th className="text-center px-2 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700">平均</th>
-                {editing && <th className="text-center px-2 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700 w-10"></th>}
+                <th className="text-center px-2 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700">
+                  平均
+                </th>
+                {editing && (
+                  <th className="text-center px-2 py-2 text-xs text-gray-500 font-medium border-b dark:border-gray-700 w-10"></th>
+                )}
               </tr>
             </thead>
             <tbody>
               {records.map((rec, idx) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: records have no stable unique ID, examName may not be unique
                 <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
                   <td className="px-3 py-2 font-medium border-b dark:border-gray-700 sticky left-0 bg-white dark:bg-gray-900">
                     {editing ? (
@@ -1649,7 +1817,10 @@ function AcademicsTab({
                           value={rec.date || ''}
                           onChange={(e) => {
                             const newRecords = [...records]
-                            newRecords[idx] = { ...newRecords[idx], date: e.target.value || undefined }
+                            newRecords[idx] = {
+                              ...newRecords[idx],
+                              date: e.target.value || undefined,
+                            }
                             setRecords(newRecords)
                           }}
                           className="w-24 bg-gray-50 dark:bg-gray-900 border rounded px-1 py-0.5 text-[10px]"
@@ -1687,8 +1858,12 @@ function AcademicsTab({
                           max="300"
                         />
                       ) : (
-                        <span className={`font-mono ${rec.subjects[sub] != null && rec.subjects[sub] > 0 ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
-                          {rec.subjects[sub] != null && rec.subjects[sub] > 0 ? rec.subjects[sub] : '-'}
+                        <span
+                          className={`font-mono ${rec.subjects[sub] != null && rec.subjects[sub] > 0 ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}
+                        >
+                          {rec.subjects[sub] != null && rec.subjects[sub] > 0
+                            ? rec.subjects[sub]
+                            : '-'}
                         </span>
                       )}
                     </td>
@@ -1698,7 +1873,13 @@ function AcademicsTab({
                   </td>
                   {editing && (
                     <td className="text-center border-b dark:border-gray-700">
-                      <button type="button" onClick={() => removeExam(idx)} className="text-red-400 hover:text-red-600 text-xs">&times;</button>
+                      <button
+                        type="button"
+                        onClick={() => removeExam(idx)}
+                        className="text-red-400 hover:text-red-600 text-xs"
+                      >
+                        &times;
+                      </button>
                     </td>
                   )}
                 </tr>
@@ -1711,7 +1892,9 @@ function AcademicsTab({
       {/* 排名信息 */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
-          <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('page.student.academics.rank')}</h5>
+          <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            {t('page.student.academics.rank')}
+          </h5>
           <button
             type="button"
             onClick={() => (editingRank ? handleSaveRank() : setEditingRank(true))}
@@ -1722,7 +1905,9 @@ function AcademicsTab({
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-lg">
-            <div className="text-xs text-gray-500 dark:text-gray-400">{t('page.student.academics.classRank')}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {t('page.student.academics.classRank')}
+            </div>
             {editingRank ? (
               <input
                 type="number"
@@ -1741,12 +1926,16 @@ function AcademicsTab({
               />
             ) : (
               <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
-                {classRank != null ? t('page.student.academics.rankFormat', String(classRank)) : t('page.student.academics.unset')}
+                {classRank != null
+                  ? t('page.student.academics.rankFormat', String(classRank))
+                  : t('page.student.academics.unset')}
               </div>
             )}
           </div>
           <div className="text-center p-3 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 rounded-lg">
-            <div className="text-xs text-gray-500 dark:text-gray-400">{t('page.student.academics.gradeRank')}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {t('page.student.academics.gradeRank')}
+            </div>
             {editingRank ? (
               <input
                 type="number"
@@ -1764,7 +1953,9 @@ function AcademicsTab({
               />
             ) : (
               <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
-                {gradeRank != null ? t('page.student.academics.rankFormat', String(gradeRank)) : t('page.student.academics.unset')}
+                {gradeRank != null
+                  ? t('page.student.academics.rankFormat', String(gradeRank))
+                  : t('page.student.academics.unset')}
               </div>
             )}
           </div>
@@ -1773,7 +1964,9 @@ function AcademicsTab({
 
       {/* 成绩趋势图 */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-        <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">{t('page.student.academics.trendTitle')}</h5>
+        <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">
+          {t('page.student.academics.trendTitle')}
+        </h5>
         {trendData && trendData.series.length > 0 ? (
           <ReactEChartsCore
             echarts={echarts}
@@ -1791,7 +1984,11 @@ function AcademicsTab({
               xAxis: {
                 type: 'category',
                 data: trendData.labels,
-                axisLabel: { color: axisColor, fontSize: 11, rotate: trendData.labels.length > 6 ? 30 : 0 },
+                axisLabel: {
+                  color: axisColor,
+                  fontSize: 11,
+                  rotate: trendData.labels.length > 6 ? 30 : 0,
+                },
                 axisLine: { lineStyle: { color: gridColor } },
               },
               yAxis: {
@@ -1822,23 +2019,38 @@ function AcademicsTab({
       {/* 偏科分析 */}
       {subjectAnalysis.all.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-          <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">{t('page.student.academics.biasTitle')}</h5>
+          <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">
+            {t('page.student.academics.biasTitle')}
+          </h5>
           <div className="grid grid-cols-2 gap-4 mb-3">
             {subjectAnalysis.strongest && (
               <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-lg p-3 border border-green-200/50 dark:border-green-700/30">
-                <div className="text-xs text-green-600 dark:text-green-400 font-medium">{t('page.student.academics.strongest')}</div>
+                <div className="text-xs text-green-600 dark:text-green-400 font-medium">
+                  {t('page.student.academics.strongest')}
+                </div>
                 <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-lg font-bold text-green-700 dark:text-green-300">{subjectAnalysis.strongest.subject}</span>
-                  <span className="text-sm text-green-500">{subjectAnalysis.strongest.avg.toFixed(1)} {t('page.student.academics.scoreUnit')}</span>
+                  <span className="text-lg font-bold text-green-700 dark:text-green-300">
+                    {subjectAnalysis.strongest.subject}
+                  </span>
+                  <span className="text-sm text-green-500">
+                    {subjectAnalysis.strongest.avg.toFixed(1)}{' '}
+                    {t('page.student.academics.scoreUnit')}
+                  </span>
                 </div>
               </div>
             )}
             {subjectAnalysis.weakest && (
               <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10 rounded-lg p-3 border border-red-200/50 dark:border-red-700/30">
-                <div className="text-xs text-red-600 dark:text-red-400 font-medium">{t('page.student.academics.weakest')}</div>
+                <div className="text-xs text-red-600 dark:text-red-400 font-medium">
+                  {t('page.student.academics.weakest')}
+                </div>
                 <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-lg font-bold text-red-700 dark:text-red-300">{subjectAnalysis.weakest.subject}</span>
-                  <span className="text-sm text-red-500">{subjectAnalysis.weakest.avg.toFixed(1)} {t('page.student.academics.scoreUnit')}</span>
+                  <span className="text-lg font-bold text-red-700 dark:text-red-300">
+                    {subjectAnalysis.weakest.subject}
+                  </span>
+                  <span className="text-sm text-red-500">
+                    {subjectAnalysis.weakest.avg.toFixed(1)} {t('page.student.academics.scoreUnit')}
+                  </span>
                 </div>
               </div>
             )}
@@ -1863,14 +2075,16 @@ function AcademicsTab({
                 axisLabel: { color: axisColor },
                 splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
               },
-              series: [{
-                type: 'bar',
-                data: subjectAnalysis.all.map((a, i) => ({
-                  value: a.avg.toFixed(1),
-                  itemStyle: { borderRadius: [4, 4, 0, 0], color: colors[i % colors.length] },
-                })),
-                barWidth: '40%',
-              }],
+              series: [
+                {
+                  type: 'bar',
+                  data: subjectAnalysis.all.map((a, i) => ({
+                    value: a.avg.toFixed(1),
+                    itemStyle: { borderRadius: [4, 4, 0, 0], color: colors[i % colors.length] },
+                  })),
+                  barWidth: '40%',
+                },
+              ],
             }}
           />
         </div>
@@ -1891,10 +2105,10 @@ function AIAnalysisTab({
   onRunAll,
   running,
   agentOutputs,
-  agentRunOrder,
-  activeAiTab,
-  onSelectAgent,
-  onAbortAgent,
+  _agentRunOrder,
+  _activeAiTab,
+  _onSelectAgent,
+  _onAbortAgent,
   message,
   aiSaved,
   onSaveResult,
@@ -1905,11 +2119,14 @@ function AIAnalysisTab({
   onRunSelected: () => void
   onRunAll: () => void
   running: boolean
-  agentOutputs: Record<string, { agentId: string; status: string; output: string; error?: string; durationMs?: number }>
+  agentOutputs: Record<
+    string,
+    { agentId: string; status: string; output: string; error?: string; durationMs?: number }
+  >
   agentRunOrder: string[]
   activeAiTab: string
-  onSelectAgent: (id: string) => void
-  onAbortAgent: (id: string) => void
+  _onSelectAgent: (id: string) => void
+  _onAbortAgent: (id: string) => void
   message: string
   aiSaved: boolean
   onSaveResult: () => void
@@ -1919,8 +2136,8 @@ function AIAnalysisTab({
   // B-05: 按 activeAiTab 选当前 agent 的分桶输出
   const activeOutput = activeAiTab === '__overview' ? null : agentOutputs[activeAiTab]
   const output = activeOutput?.output ?? ''
-  const isAnyRunning = running || Object.values(agentOutputs).some((o) => o.status === 'running')
-  const hasOutput = Object.keys(agentOutputs).length > 0
+  const _isAnyRunning = running || Object.values(agentOutputs).some((o) => o.status === 'running')
+  const _hasOutput = Object.keys(agentOutputs).length > 0
 
   const sections = useMemo(() => {
     if (!output) return []
@@ -2085,11 +2302,31 @@ function AIAnalysisTab({
                     ul: (p) => <ul className="list-disc pl-5 my-1" {...p} />,
                     ol: (p) => <ol className="list-decimal pl-5 my-1" {...p} />,
                     li: (p) => <li className="my-0.5" {...p} />,
-                    code: (p) => <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded text-[11px]" {...p} />,
-                    pre: (p) => <pre className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded p-2 overflow-x-auto my-2" {...p} />,
+                    code: (p) => (
+                      <code
+                        className="bg-gray-100 dark:bg-gray-800 px-1 rounded text-[11px]"
+                        {...p}
+                      />
+                    ),
+                    pre: (p) => (
+                      <pre
+                        className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded p-2 overflow-x-auto my-2"
+                        {...p}
+                      />
+                    ),
                     table: (p) => <table className="border-collapse my-2 w-full" {...p} />,
-                    th: (p) => <th className="border border-gray-200 dark:border-gray-700 px-2 py-1 bg-gray-50 dark:bg-gray-800/50" {...p} />,
-                    td: (p) => <td className="border border-gray-200 dark:border-gray-700 px-2 py-1" {...p} />,
+                    th: (p) => (
+                      <th
+                        className="border border-gray-200 dark:border-gray-700 px-2 py-1 bg-gray-50 dark:bg-gray-800/50"
+                        {...p}
+                      />
+                    ),
+                    td: (p) => (
+                      <td
+                        className="border border-gray-200 dark:border-gray-700 px-2 py-1"
+                        {...p}
+                      />
+                    ),
                     strong: (p) => <strong className="font-semibold" {...p} />,
                     em: (p) => <em className="italic" {...p} />,
                   }}
@@ -2144,7 +2381,10 @@ function AddEventInline({
   reasonCodes: EAAReasonCode[]
   onDone: () => void
 }) {
-  const isInactive = studentStatus === 'Transferred' || studentStatus === 'Suspended' || studentStatus === 'Graduated'
+  const isInactive =
+    studentStatus === 'Transferred' ||
+    studentStatus === 'Suspended' ||
+    studentStatus === 'Graduated'
   const [reasonCode, setReasonCode] = useState('')
   const [delta, setDelta] = useState('')
   const [note, setNote] = useState('')
@@ -2197,7 +2437,8 @@ function AddEventInline({
           <option value="">{t('page.student.addEvent.placeholder.reasonCode')}</option>
           {reasonCodes.map((c) => (
             <option key={c.code} value={c.code}>
-              {t('page.student.addEvent.reasonCodePrefix')}{c.code}
+              {t('page.student.addEvent.reasonCodePrefix')}
+              {c.code}
               {c.score_delta != null ? ` [${c.score_delta > 0 ? '+' : ''}${c.score_delta}]` : ''}
             </option>
           ))}
@@ -2228,9 +2469,7 @@ function AddEventInline({
           disabled={submitting || !reasonCode || isInactive}
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-lg text-xs transition-colors disabled:opacity-50 shadow-sm"
         >
-          {submitting
-            ? t('page.student.addEvent.submitting')
-            : t('page.student.addEvent.submit')}
+          {submitting ? t('page.student.addEvent.submitting') : t('page.student.addEvent.submit')}
         </button>
         <button
           type="button"
@@ -2283,12 +2522,14 @@ function parseBulkScoreText(
       .map((c) => c.trim())
       .filter((c) => c.length > 0)
     if (cells.length < 2) {
-      warnings.push(`line ${i + 1}: ${t('page.student.academics.bulkImport.error', 'too few cells')}`)
+      warnings.push(
+        `line ${i + 1}: ${t('page.student.academics.bulkImport.error', 'too few cells')}`,
+      )
       continue
     }
     const [first, ...rest] = cells
     // 推断 examType & examName
-    let examName = first
+    const examName = first
     let examType = '其他'
     const types: Array<[string, string]> = [
       ['月考', '月考'],
@@ -2437,6 +2678,7 @@ function BulkImportModal({
           {warnings.length > 0 && (
             <div className="mt-2 text-xs text-yellow-600 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded p-2">
               {warnings.map((w, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: static list, no stable ID
                 <div key={i}>⚠ {w}</div>
               ))}
             </div>
@@ -2452,12 +2694,15 @@ function BulkImportModal({
                   <thead className="bg-gray-50 dark:bg-gray-900/50 sticky top-0">
                     <tr>
                       <th className="text-left px-2 py-1">{t('page.student.academics.exam')}</th>
-                      <th className="text-left px-2 py-1">{t('page.student.academics.examType', 'Type')}</th>
+                      <th className="text-left px-2 py-1">
+                        {t('page.student.academics.examType', 'Type')}
+                      </th>
                       <th className="text-left px-2 py-1">{t('page.student.academics.column')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {preview.map((r, i) => (
+                      // biome-ignore lint/suspicious/noArrayIndexKey: preview data, no stable ID
                       <tr key={i} className="border-t border-gray-100 dark:border-gray-700">
                         <td className="px-2 py-1 font-medium">{r.examName}</td>
                         <td className="px-2 py-1 text-gray-500">{r.examType}</td>
@@ -2512,11 +2757,7 @@ const EXAM_TEMPLATES = [
   { key: 'final', subjects: 9 },
 ] as const
 
-function ExamTemplateMenu({
-  onApply,
-}: {
-  onApply: (examType: string, examName: string) => void
-}) {
+function ExamTemplateMenu({ onApply }: { onApply: (examType: string, examName: string) => void }) {
   const { t } = useT()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)

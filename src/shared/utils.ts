@@ -15,10 +15,7 @@ export interface EAAResultLike<T = unknown> {
  * 从 EAAResult 提取最有用的错误信息
  * B-22: 主进程 + 渲染进程统一从 shared 引入
  */
-export function getErrorMessage(
-  result: EAAResultLike,
-  fallback = 'Unknown error',
-): string {
+export function getErrorMessage(result: EAAResultLike, fallback = 'Unknown error'): string {
   if (typeof result.data === 'string' && result.data.length > 0) return result.data
   if (result.stderr && result.stderr.length > 0) return result.stderr
   return fallback

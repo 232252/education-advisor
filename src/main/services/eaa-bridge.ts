@@ -398,9 +398,17 @@ class EAABridge {
       })
 
       // 超时安全兜底：cross-spawn 有时不杀子进程（尤其 Windows）
-      const timer = setTimeout(() => {
-        try { proc.kill('SIGKILL'); proc.kill() } catch { /* already dead */ }
-      }, (cmd.timeout ?? 30_000) + 5_000)
+      const timer = setTimeout(
+        () => {
+          try {
+            proc.kill('SIGKILL')
+            proc.kill()
+          } catch {
+            /* already dead */
+          }
+        },
+        (cmd.timeout ?? 30_000) + 5_000,
+      )
 
       let stdout = ''
       let stderr = ''

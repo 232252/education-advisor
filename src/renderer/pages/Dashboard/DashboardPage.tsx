@@ -328,7 +328,10 @@ export function DashboardPage() {
                 animationEasing: 'elasticOut',
                 tooltip: {
                   trigger: 'item',
-                  formatter: t('page.dashboard.pieFormatter').replace('{name}', '{b}').replace('{count}', '{c}').replace('{percent}', '{d}'),
+                  formatter: t('page.dashboard.pieFormatter')
+                    .replace('{name}', '{b}')
+                    .replace('{count}', '{c}')
+                    .replace('{percent}', '{d}'),
                   backgroundColor: isDark ? '#1f2937' : '#fff',
                   borderColor: isDark ? '#374151' : '#e5e7eb',
                   textStyle: { color: isDark ? '#d1d5db' : '#374151' },
@@ -392,7 +395,8 @@ export function DashboardPage() {
                   className="text-gray-600 dark:text-gray-300 min-w-[5rem] truncate"
                   title={item.code || ''}
                 >
-                  {(REASON_CODE_LABELS[item.code || ''] ?? item.code) || t('page.dashboard.unknown')}
+                  {(REASON_CODE_LABELS[item.code || ''] ?? item.code) ||
+                    t('page.dashboard.unknown')}
                 </span>
                 <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                   <div

@@ -5,9 +5,9 @@
 
 import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
+import { tokenizeQuery } from '../../shared/utils'
 import { eaaBridge, getErrorMessage } from './eaa-bridge'
 import { profileService } from './profile-service'
-import { tokenizeQuery } from '../../shared/utils'
 
 // 辅助函数：构造 TextContent 结果
 function textResult(text: string): AgentToolResult<unknown> {
@@ -398,7 +398,10 @@ export const revertEventTool: AgentTool<typeof revertEventParams> = {
   execute: async (_toolCallId, params) => {
     const safeId = params.event_id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64)
     if (!safeId) throw new Error('invalid event_id')
-    const flags = ['--reason', params.reason?.replace(/[^\u4e00-\u9fff_a-zA-Z0-9-]/g, '_').slice(0, 128) || 'agent revert']
+    const flags = [
+      '--reason',
+      params.reason?.replace(/[^\u4e00-\u9fff_a-zA-Z0-9-]/g, '_').slice(0, 128) || 'agent revert',
+    ]
     const result = await eaaBridge.execute({ command: 'revert', args: [safeId, ...flags] })
     if (!result.success) {
       throw new Error(`撤销事件失败: ${result.stderr || 'unknown error'}`)
