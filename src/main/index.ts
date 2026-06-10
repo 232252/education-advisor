@@ -200,7 +200,7 @@ app.whenReady().then(async () => {
     height: 900,
     minWidth: 1024,
     minHeight: 640,
-    title: 'Education Advisor',
+    title: 'Education Advisor · 教育参谋',
     ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       // P0-2 修复: 启动期断言 preload.js 存在，避免 vite build 产物改名（.mjs/.cjs）后静默失效
