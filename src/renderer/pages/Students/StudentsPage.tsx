@@ -86,7 +86,7 @@ export function StudentsPage() {
       if (result.success) loadStudents()
     } catch (err) {
       console.error('[Students] Delete failed:', err)
-      setActionMessageAuto('删除失败')
+      setActionMessageAuto(t('status.failed'))
     }
   }
 

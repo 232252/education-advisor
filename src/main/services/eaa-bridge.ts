@@ -396,21 +396,17 @@ class EAABridge {
       const proc = spawn(this.binaryPath as string, args, {
         cwd: this.dataDir,
         env,
+        timeout: cmd.timeout ?? 30_000,
         windowsHide: true,
       })
 
+      // 超时安全兜底：cross-spawn 有时不杀子进程（尤其 Windows）
+      const timer = setTimeout(() => {
+        try { proc.kill('SIGKILL'); proc.kill() } catch { /* already dead */ }
+      }, (cmd.timeout ?? 30_000) + 5_000)
+
       let stdout = ''
       let stderr = ''
-      let timedOut = false
-
-      // 超时自动杀进程（spawn 不支持 timeout 参数）
-      const timeoutMs = cmd.timeout ?? 30_000
-      const killTimer = setTimeout(() => {
-        timedOut = true
-        proc.kill('SIGKILL')
-        // SIGKILL on Windows is handled as process.destroy()
-        if (!proc.killed) proc.kill(9)
-      }, timeoutMs)
 
       proc.stdout?.on('data', (chunk: Buffer) => {
         stdout += chunk.toString()
@@ -420,16 +416,6 @@ class EAABridge {
       })
 
       proc.on('close', (code) => {
-        clearTimeout(killTimer)
-        if (timedOut) {
-          resolve({
-            success: false,
-            data: null,
-            stderr: `Process timed out after ${timeoutMs}ms`,
-            exitCode: -1,
-          })
-          return
-        }
         const exitCode = code ?? -1
         const success = exitCode === 0
 

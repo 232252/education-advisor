@@ -549,8 +549,8 @@ export interface StudentProfileData {
   fatherPhone?: string
   motherName?: string
   motherPhone?: string
-  classId?: string
   enrollmentDate?: string
+  classId?: string
   comments?: string
   /** @deprecated 改用 academicRecords */
   midtermGrades?: Record<string, number>
