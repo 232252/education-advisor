@@ -1151,7 +1151,12 @@ function AcademicsTab({
   // 趋势数据
   const trendData = useMemo(() => {
     if (records.length === 0) return null
-    const sorted = [...records].sort((a, b) => (a.date || a.examName).localeCompare(b.date || b.examName))
+    const sorted = [...records].sort((a, b) => {
+      if (a.date && b.date) return a.date.localeCompare(b.date)
+      if (a.date) return -1
+      if (b.date) return 1
+      return a.examName.localeCompare(b.examName, undefined, { numeric: true })
+    })
     const labels = sorted.map((r) => r.examName)
     const activeSubjects = new Set<string>()
     for (const rec of records) {
@@ -1239,8 +1244,8 @@ function AcademicsTab({
         return
       }
       for (const [sub, score] of Object.entries(rec.subjects)) {
-        if (typeof score !== 'number' || Number.isNaN(score) || score < 0 || score > 150) {
-          setValidationMsg(`${rec.examName} - ${sub}: 分数无效 (0-150)`)
+        if (typeof score !== 'number' || Number.isNaN(score) || score < 0 || score > 300) {
+          setValidationMsg(`${rec.examName} - ${sub}: 分数无效 (0-300)`)
           return
         }
       }
@@ -1248,14 +1253,7 @@ function AcademicsTab({
     setValidationMsg('')
     setSaving(true)
     try {
-      // 先校验
-      const validateResult = await getAPI().profile.validateAcademic(records)
-      if (!validateResult.success) {
-        setValidationMsg(`校验失败: ${validateResult.errors?.join('; ')}`)
-        setSaving(false)
-        return
-      }
-      // 保存
+      // 保存时 profile.set 内部会自动校验，无需前端重复校验
       await getAPI().profile.set(studentName, {
         ...profileData,
         academicRecords: records,
@@ -1268,6 +1266,23 @@ function AcademicsTab({
     }
     setSaving(false)
     setEditing(false)
+    setEditingRank(false)
+  }
+
+  const handleSaveRank = async () => {
+    setSaving(true)
+    try {
+      // 仅保存排名，不涉及学业记录校验
+      await getAPI().profile.set(studentName, {
+        ...profileData,
+        classRank,
+        gradeRank,
+      })
+      toast.success('排名已保存')
+    } catch (err) {
+      toast.error(`保存排名失败: ${err instanceof Error ? err.message : String(err)}`)
+    }
+    setSaving(false)
     setEditingRank(false)
   }
 
@@ -1462,7 +1477,7 @@ function AcademicsTab({
           <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400">排名信息</h5>
           <button
             type="button"
-            onClick={() => (editingRank ? handleSave() : setEditingRank(true))}
+            onClick={() => (editingRank ? handleSaveRank() : setEditingRank(true))}
             className="text-xs text-blue-500 hover:text-blue-600 transition-colors"
           >
             {editingRank ? '保存排名' : '编辑'}
