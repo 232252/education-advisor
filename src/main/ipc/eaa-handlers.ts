@@ -45,7 +45,8 @@ function sanitizeName(name: string, field: string): string {
 }
 
 /**
- * classId sanitize：只允许字母数字、连字符、点（用于班级编号如 "G7-3"）
+ * classId sanitize：允许中文、字母数字、常见符号（班级名如"高三（1）班"）
+ * 拒绝控制字符和 shell 危险字符
  */
 function sanitizeClassId(classId: string): string {
   if (typeof classId !== 'string') {
@@ -58,8 +59,13 @@ function sanitizeClassId(classId: string): string {
   if (trimmed.length > 32) {
     throw new Error('classId too long (max 32 chars)')
   }
-  if (!/^[A-Za-z0-9.-]+$/.test(trimmed)) {
-    throw new Error('classId must be alphanumeric, dot or hyphen only')
+  // 只拒绝控制字符和 shell 危险字符，允许中文/括号/空格
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: NUL-byte guard
+  if (/\x00/.test(trimmed)) {
+    throw new Error('classId contains null bytes')
+  }
+  if (/[`$;|&<>{}]/.test(trimmed)) {
+    throw new Error('classId contains illegal characters')
   }
   return trimmed
 }

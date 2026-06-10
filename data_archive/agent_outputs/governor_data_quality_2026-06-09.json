@@ -1,0 +1,30 @@
+{
+  "report_type": "数据质量报告",
+  "generated_at": "2026-06-09T22:00:05+08:00",
+  "agent": "Governor",
+  "data_source": "eaa CLI",
+  "validation_summary": {
+    "total_students": 0,
+    "expected_students": 52,
+    "data_complete": false,
+    "consistency_check": "未通过"
+  },
+  "integrity_hash": {
+    "students": "N/A（无数据）",
+    "events": "N/A（无数据）",
+    "timestamp": "2026-06-09T22:00:05+08:00"
+  },
+  "issues": [
+    {
+      "severity": "高",
+      "type": "数据缺失",
+      "description": "系统中学生数为0，与预期52人不符"
+    }
+  ],
+  "data_freshness": {
+    "last_update": "未知",
+    "stale_data": true
+  },
+  "recommendation": "请检查数据导入状态，确保52名学生数据已正确导入",
+  "privacy_compliance_check": "已应用S_XXX脱敏"
+}

@@ -1,0 +1,64 @@
+{
+  "report_type": "辅导员学业日报",
+  "timestamp": "2026-06-09T20:05:00+08:00",
+  "agent": "counselor",
+  "role": "辅导员",
+  "date": "2026-06-09",
+  "day_of_week": "三",
+  "data_source": "eaa CLI",
+  "privacy_compliance": {
+    "method": "S_XXX化名",
+    "verified": true,
+    "students_anonymized": true
+  },
+  "academic_summary": {
+    "total_students": 0,
+    "expected_students": 52,
+    "data_status": "⚠️ 无数据",
+    "students_needing_attention": 0,
+    "at_risk_students": 0
+  },
+  "behavior_summary": {
+    "total_events_this_week": 0,
+    "bonus_events": 0,
+    "deduct_events": 0,
+    "top_concerns": []
+  },
+  "talk_plan_status": {
+    "generated_today": false,
+    "students_on_talk_list": 0,
+    "high_priority_talks": 0,
+    "reason": "学生数据未初始化，无法生成谈话计划"
+  },
+  "risk_distribution": {
+    "high_risk": 0,
+    "medium_risk": 0,
+    "low_risk": 0
+  },
+  "issues_identified": [
+    {
+      "severity": "critical",
+      "issue": "学生操行数据为空",
+      "impact": "无法生成学业日报和谈话计划",
+      "action": "初始化 EAA 数据库"
+    }
+  ],
+  "recommendations": [
+    "1. 立即执行数据初始化",
+    "2. 检查 EAA CLI 配置",
+    "3. 导入或同步学生数据",
+    "4. 重新运行辅导员定时任务"
+  ],
+  "next_scheduled_tasks": [
+    {
+      "time": "2026-06-10T07:05",
+      "task": "学业日报 + 谈话计划生成"
+    },
+    {
+      "time": "2026-06-10T20:00",
+      "task": "更新谈话计划"
+    }
+  ],
+  "report_status": "完成但数据异常",
+  "next_update": "2026-06-10T07:05"
+}

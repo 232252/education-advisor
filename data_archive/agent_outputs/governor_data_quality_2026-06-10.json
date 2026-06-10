@@ -1,0 +1,54 @@
+{
+  "report_type": "数据质量校验报告",
+  "generated_at": "2026-06-10T04:00:22+08:00",
+  "agent": "Governor",
+  "date": "2026-06-10",
+  "validation_status": "通过 (含警告)",
+  "data_source": "eaa CLI",
+  "checks": {
+    "entity_count_check": {
+      "status": "警告",
+      "expected": 52,
+      "actual": 3,
+      "gap": 49,
+      "action": "需补录真实班级数据"
+    },
+    "event_integrity_check": {
+      "status": "通过",
+      "total_events": 6,
+      "valid_events": 6,
+      "invalid_events": 0,
+      "reverted_events": 0
+    },
+    "score_consistency_check": {
+      "status": "通过",
+      "all_scores_in_range": true,
+      "min_score": 99,
+      "max_score": 105
+    },
+    "reason_code_validation": {
+      "status": "通过",
+      "codes_used": ["ACTIVITY_PARTICIPATION", "OTHER_DEDUCT", "LATE", "CLASS_COMMITTEE"],
+      "all_codes_valid": true
+    },
+    "name_format_check": {
+      "status": "警告",
+      "issues_found": 3,
+      "details": [
+        "S_001: 姓名='1'（疑似占位符）",
+        "S_002: 姓名='录入1'（疑似测试名）",
+        "S_003: 姓名='?'（无效字符）"
+      ]
+    }
+  },
+  "warnings": [
+    "学生总数仅3人，远低于预期的52人",
+    "3个学生姓名均疑似测试数据，需要规范化"
+  ],
+  "recommendations": [
+    "1. 完成正式学生花名册导入（缺口49人）",
+    "2. 删除或修正测试录入的姓名",
+    "3. 数据初始化后再生成标准督导报告"
+  ],
+  "next_scheduled_task": "午间数据校验 (12:00)"
+}
