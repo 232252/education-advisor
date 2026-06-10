@@ -2105,10 +2105,10 @@ function AIAnalysisTab({
   onRunAll,
   running,
   agentOutputs,
-  _agentRunOrder,
-  _activeAiTab,
-  _onSelectAgent,
-  _onAbortAgent,
+  agentRunOrder: _agentRunOrder,
+  activeAiTab: _activeAiTab,
+  onSelectAgent: _onSelectAgent,
+  onAbortAgent: _onAbortAgent,
   message,
   aiSaved,
   onSaveResult,
@@ -2125,8 +2125,8 @@ function AIAnalysisTab({
   >
   agentRunOrder: string[]
   activeAiTab: string
-  _onSelectAgent: (id: string) => void
-  _onAbortAgent: (id: string) => void
+  onSelectAgent: (id: string) => void
+  onAbortAgent: (id: string) => void
   message: string
   aiSaved: boolean
   onSaveResult: () => void
@@ -2134,7 +2134,7 @@ function AIAnalysisTab({
   const { t } = useT()
   const enabledAgents = agents.filter((a) => a.enabled)
   // B-05: 按 activeAiTab 选当前 agent 的分桶输出
-  const activeOutput = activeAiTab === '__overview' ? null : agentOutputs[activeAiTab]
+  const activeOutput = _activeAiTab === '__overview' ? null : agentOutputs[_activeAiTab]
   const output = activeOutput?.output ?? ''
   const _isAnyRunning = running || Object.values(agentOutputs).some((o) => o.status === 'running')
   const _hasOutput = Object.keys(agentOutputs).length > 0
