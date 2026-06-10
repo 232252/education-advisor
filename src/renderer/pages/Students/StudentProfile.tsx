@@ -60,7 +60,7 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
   const [history, setHistory] = useState<EAAHistoryData | null>(null)
   const [reasonCodes, setReasonCodes] = useState<EAAReasonCode[]>([])
   const [profileData, setProfileData] = useState<StudentProfileData>({})
-  const [_profileLoaded, setProfileLoaded] = useState(false)
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [agents, setAgents] = useState<AgentListItem[]>([])
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set())
   const [aiRunning, setAiRunning] = useState(false)
@@ -1798,10 +1798,12 @@ function AIAnalysisTab({
                   }
                 >
                   {agent.status === 'idle'
-                    ? '待机'
+                    ? t('page.agents.status.idle')
                     : agent.status === 'running'
-                      ? '运行中'
-                      : '错误'}
+                      ? t('page.agents.status.running')
+                      : agent.status === 'error'
+                        ? t('page.agents.status.error')
+                        : t('page.agents.status.idle')}
                 </span>
               </div>
             ))

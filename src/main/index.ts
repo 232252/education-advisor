@@ -126,12 +126,12 @@ function handleWindowClose(win: BrowserWindow, event: Electron.Event): void {
       dialog
         .showMessageBox(win, {
           type: 'question',
-          title: '关闭窗口',
-          message: '您希望如何处理？',
-          buttons: ['最小化到托盘', '直接退出', '取消'],
+          title: 'Close Window',
+          message: 'What would you like to do?',
+          buttons: ['Minimize to Tray', 'Exit', 'Cancel'],
           defaultId: 0,
           cancelId: 2,
-          checkboxLabel: '记住选择',
+          checkboxLabel: 'Remember my choice',
           checkboxChecked: false,
         })
         .then((result) => {
