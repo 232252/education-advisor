@@ -8,8 +8,8 @@
 
 import { type BrowserWindow, ipcMain } from 'electron'
 import * as IPC from '../../shared/ipc-channels'
-import { tokenizeQuery } from '../../shared/utils'
 import type { AddEventParams, SetStudentMetaParams } from '../../shared/types'
+import { tokenizeQuery } from '../../shared/utils'
 import { eaaBridge } from '../services/eaa-bridge'
 
 /**
@@ -72,7 +72,6 @@ function sanitizeClassId(classId: string): string {
 }
 
 /** B-24: tokenizeQuery 统一在 shared/utils.ts (本地删除) */
-
 
 export function registerEAAHandlers(_win: BrowserWindow) {
   // ----- info: 系统信息 -----

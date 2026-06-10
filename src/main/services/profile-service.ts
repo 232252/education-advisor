@@ -26,10 +26,20 @@ import { eaaBridge } from './eaa-bridge'
 
 /** 默认科目列表 */
 export const DEFAULT_SUBJECTS = [
-  '语文', '数学', '英语', '物理', '化学', '生物',
-  '政治', '历史', '地理',
-  '通用技术', '信息技术',
-  '体育', '音乐', '美术',
+  '语文',
+  '数学',
+  '英语',
+  '物理',
+  '化学',
+  '生物',
+  '政治',
+  '历史',
+  '地理',
+  '通用技术',
+  '信息技术',
+  '体育',
+  '音乐',
+  '美术',
 ]
 
 /** 默认考试类型 */
@@ -41,12 +51,23 @@ const SCORE_MAX = 300
 
 /** PII 字段列表 — 写入时逐一过隐私引擎 */
 const PII_FIELDS = [
-  'parentName', 'fatherName', 'motherName',
-  'fatherPhone', 'motherPhone',
-  'idCard', 'phone', 'email', 'address',
-  'comments', 'honors', 'punishments',
-  'allergy', 'specialNeeds',
-  'studentNumber', 'dormNumber', 'bedNumber',
+  'parentName',
+  'fatherName',
+  'motherName',
+  'fatherPhone',
+  'motherPhone',
+  'idCard',
+  'phone',
+  'email',
+  'address',
+  'comments',
+  'honors',
+  'punishments',
+  'allergy',
+  'specialNeeds',
+  'studentNumber',
+  'dormNumber',
+  'bedNumber',
   'bloodType',
 ]
 
@@ -59,18 +80,6 @@ class ProfileService {
    * 在此之前 set() 拒绝写入 PII 字段, 防止 PII 明文落盘。
    */
   private privacyReady = false
-  /**
-   * PII 字段名集合, 隐私未就绪时禁止写入
-   */
-  private static readonly PII_FIELDS = new Set([
-    'parentName', 'fatherName', 'motherName',
-    'fatherPhone', 'motherPhone',
-    'idCard', 'phone', 'email', 'address',
-    'comments', 'honors', 'punishments',
-    'allergy', 'specialNeeds',
-    'studentNumber', 'dormNumber', 'bedNumber',
-    'bloodType',
-  ])
 
   constructor() {
     this.profilesDir = path.join(app.getPath('userData'), 'eaa-data', 'profiles')
@@ -88,7 +97,9 @@ class ProfileService {
     const next: Promise<T> = prev.catch(() => undefined).then(() => fn())
     this.locks.set(name, next as unknown as Promise<void>)
     // 清理已完成的任务
-    next.finally(() => { if (this.locks.get(name) === next) this.locks.delete(name) })
+    next.finally(() => {
+      if (this.locks.get(name) === next) this.locks.delete(name)
+    })
     return next
   }
 
@@ -112,7 +123,10 @@ class ProfileService {
         }
       }
     } catch {
-      console.warn('[ProfileService] Privacy engine unavailable, falling back to plaintext storage for', realName)
+      console.warn(
+        '[ProfileService] Privacy engine unavailable, falling back to plaintext storage for',
+        realName,
+      )
     }
     return { path: this.profilePath(realName), privacyReady: false }
   }
@@ -144,7 +158,11 @@ class ProfileService {
       if (!rec.examName || typeof rec.examName !== 'string') {
         errors.push(`[${i}] 考试名称不能为空`)
       }
-      if (!rec.subjects || typeof rec.subjects !== 'object' || Object.keys(rec.subjects).length === 0) {
+      if (
+        !rec.subjects ||
+        typeof rec.subjects !== 'object' ||
+        Object.keys(rec.subjects).length === 0
+      ) {
         errors.push(`[${i}] 至少需要一个科目的成绩`)
       } else {
         for (const [subject, score] of Object.entries(rec.subjects)) {
@@ -184,7 +202,11 @@ class ProfileService {
         | undefined
       if (grades && Object.keys(grades).length > 0) {
         if (!records.some((r) => r.examName === mapping.examName)) {
-          records.push({ examType: mapping.examType, examName: mapping.examName, subjects: { ...grades } })
+          records.push({
+            examType: mapping.examType,
+            examName: mapping.examName,
+            subjects: { ...grades },
+          })
         }
         delete (result as unknown as Record<string, unknown>)[mapping.key]
       }
@@ -206,7 +228,9 @@ class ProfileService {
     if (anoExists) {
       try {
         data = JSON.parse(fs.readFileSync(anoPath, 'utf-8')) as StudentProfileData
-      } catch { data = {} }
+      } catch {
+        data = {}
+      }
     }
     if (fileExists) {
       try {
@@ -222,7 +246,9 @@ class ProfileService {
           }
         }
         data.academicRecords = newRecords.length > 0 ? newRecords : data.academicRecords
-      } catch { /* old file may be corrupt, ignore */ }
+      } catch {
+        /* old file may be corrupt, ignore */
+      }
     }
 
     data = this.migrateLegacyData(data)
@@ -234,7 +260,9 @@ class ProfileService {
         if (val && typeof val === 'string') {
           try {
             ;(data as Record<string, unknown>)[field] = await this.deanonymizeName(val)
-          } catch { /* keep as-is */ }
+          } catch {
+            /* keep as-is */
+          }
         }
       }),
     )
@@ -285,7 +313,9 @@ class ProfileService {
                 if (result.success && result.data) {
                   anonymized[field] = String(result.data).trim()
                 }
-              } catch { /* keep as-is */ }
+              } catch {
+                /* keep as-is */
+              }
             }
           }),
         )
@@ -312,7 +342,10 @@ class ProfileService {
   }
 
   /** 部分更新学生扩展档案（合并） */
-  async update(name: string, patch: Partial<StudentProfileData>): Promise<{ success: boolean; error?: string }> {
+  async update(
+    name: string,
+    patch: Partial<StudentProfileData>,
+  ): Promise<{ success: boolean; error?: string }> {
     const existing = await this.get(name)
     const merged = { ...existing, ...patch }
     return this.set(name, merged)
@@ -331,10 +364,13 @@ class ProfileService {
     const records = existing.academicRecords ?? []
     // 用 (examType + examName + date) 三元组判重，降低误覆盖风险
     const duplicateIdx = records.findIndex(
-      (r) => r.examName === record.examName && r.examType === record.examType && r.date === record.date,
+      (r) =>
+        r.examName === record.examName && r.examType === record.examType && r.date === record.date,
     )
     if (duplicateIdx >= 0) {
-      console.warn(`[ProfileService] Overwriting duplicate academic record: ${record.examName} (${record.examType})`)
+      console.warn(
+        `[ProfileService] Overwriting duplicate academic record: ${record.examName} (${record.examType})`,
+      )
       records[duplicateIdx] = record
     } else {
       records.push(record)

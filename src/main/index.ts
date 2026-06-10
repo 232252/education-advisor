@@ -131,7 +131,9 @@ function handleWindowClose(win: BrowserWindow, event: Electron.Event): void {
           const s = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
           lang = s.general?.language || 'zh-CN'
         }
-      } catch { /* use default */ }
+      } catch {
+        /* use default */
+      }
       const isZh = lang === 'zh-CN'
       event.preventDefault()
       dialog
