@@ -411,6 +411,203 @@ export const revertEventTool: AgentTool<typeof revertEventParams> = {
 }
 
 // =============================================================
+// 15. 读取学生扩展档案
+// =============================================================
+const profileGetParams = Type.Object({
+  name: Type.String({ description: '学生姓名' }),
+  fields: Type.Optional(
+    Type.Array(Type.String(), {
+      description: '可选：仅返回指定字段（如 ["phone","fatherName"]），不传则返回全部档案字段',
+    }),
+  ),
+})
+
+export const getProfileTool: AgentTool<typeof profileGetParams> = {
+  name: 'eaa_profile_get',
+  label: '读取学生档案',
+  description:
+    '读取学生扩展档案（联系方式、家庭信息、健康信息、在校信息、奖惩记录、备注等），可指定字段',
+  parameters: profileGetParams,
+  execute: async (_toolCallId, params) => {
+    const safeName = params.name.replace(/[^一-鿿_a-zA-Z0-9-]/g, '_').slice(0, 64)
+    if (!safeName.trim()) throw new Error('invalid student name')
+    const data = await profileService.get(safeName)
+    if (!data || Object.keys(data).length === 0) {
+      return textResult(`学生 ${safeName} 暂无扩展档案`)
+    }
+    let result: Record<string, unknown> = data
+    if (params.fields && params.fields.length > 0) {
+      result = {}
+      for (const f of params.fields) {
+        if (f in data) result[f] = data[f]
+      }
+    }
+    return jsonResult(result, `${safeName} 的扩展档案`)
+  },
+}
+
+// =============================================================
+// 16. 写入/更新学生扩展档案
+// =============================================================
+/**
+ * 允许的字段白名单 — 与 StudentProfileData 保持一致。
+ * 数组字段自动转换；非白名单字段直接忽略。
+ */
+const PROFILE_WRITABLE_FIELDS = new Set([
+  'idCard',
+  'gender',
+  'birthDate',
+  'politicalStatus',
+  'ethnicity',
+  'householdRegister',
+  'currentAddress',
+  'isBoarding',
+  'isOnlyChild',
+  'emergencyContactName',
+  'emergencyContactPhone',
+  'emergencyContactRelation',
+  'medicalHistory',
+  'economicStatus',
+  'phone',
+  'email',
+  'address',
+  'parentName',
+  'parentPhone',
+  'fatherName',
+  'fatherPhone',
+  'motherName',
+  'motherPhone',
+  'enrollmentDate',
+  'classId',
+  'comments',
+  'classRank',
+  'gradeRank',
+  'attendanceRate',
+  'awards',
+  'customSubjects',
+])
+
+const PROFILE_STRING_FIELDS = new Set([
+  'idCard',
+  'gender',
+  'birthDate',
+  'politicalStatus',
+  'ethnicity',
+  'householdRegister',
+  'currentAddress',
+  'emergencyContactName',
+  'emergencyContactPhone',
+  'emergencyContactRelation',
+  'medicalHistory',
+  'economicStatus',
+  'phone',
+  'email',
+  'address',
+  'parentName',
+  'parentPhone',
+  'fatherName',
+  'fatherPhone',
+  'motherName',
+  'motherPhone',
+  'enrollmentDate',
+  'classId',
+  'comments',
+])
+
+const PROFILE_NUMBER_FIELDS = new Set(['classRank', 'gradeRank', 'attendanceRate'])
+const PROFILE_BOOLEAN_FIELDS = new Set(['isBoarding', 'isOnlyChild'])
+const PROFILE_STRING_ARRAY_FIELDS = new Set(['awards', 'customSubjects'])
+
+const profileSetParams = Type.Object({
+  name: Type.String({ description: '学生姓名' }),
+  fields: Type.Record(Type.String(), Type.Union([Type.String(), Type.Number(), Type.Boolean()]), {
+    description:
+      '要写入的字段及值。字符串字段传 string；数字字段（classRank/gradeRank/attendanceRate）传 number；布尔字段（isBoarding/isOnlyChild）传 boolean。',
+  }),
+})
+
+export const setProfileTool: AgentTool<typeof profileSetParams> = {
+  name: 'eaa_profile_set',
+  label: '更新学生档案',
+  description:
+    '更新学生扩展档案的任意字段（联系方式、家庭信息、健康信息、在校信息、奖惩、备注等）。已存在的字段会被覆盖，未列出的字段保持不变。',
+  parameters: profileSetParams,
+  execute: async (_toolCallId, params) => {
+    const safeName = params.name.replace(/[^一-鿿_a-zA-Z0-9-]/g, '_').slice(0, 64)
+    if (!safeName.trim()) throw new Error('invalid student name')
+
+    // 字段白名单 + 类型校验
+    const patch: Record<string, unknown> = {}
+    const rejected: string[] = []
+    for (const [k, v] of Object.entries(params.fields)) {
+      if (!PROFILE_WRITABLE_FIELDS.has(k)) {
+        rejected.push(k)
+        continue
+      }
+      if (PROFILE_STRING_FIELDS.has(k)) {
+        if (typeof v !== 'string') {
+          throw new Error(`字段 ${k} 应为字符串, 收到 ${typeof v}`)
+        }
+        patch[k] = v
+      } else if (PROFILE_NUMBER_FIELDS.has(k)) {
+        if (typeof v !== 'number' || !Number.isFinite(v)) {
+          throw new Error(`字段 ${k} 应为有限数字, 收到 ${typeof v}`)
+        }
+        patch[k] = v
+      } else if (PROFILE_BOOLEAN_FIELDS.has(k)) {
+        if (typeof v !== 'boolean') {
+          throw new Error(`字段 ${k} 应为布尔值, 收到 ${typeof v}`)
+        }
+        patch[k] = v
+      } else if (PROFILE_STRING_ARRAY_FIELDS.has(k)) {
+        if (typeof v !== 'string') {
+          throw new Error(`字段 ${k} 应为字符串(JSON 数组或换行分隔), 收到 ${typeof v}`)
+        }
+        // 接受 JSON 数组 或 换行/逗号分隔
+        const trimmed = v.trim()
+        let arr: string[] = []
+        if (trimmed.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(trimmed)
+            if (Array.isArray(parsed)) arr = parsed.map(String)
+            else
+              arr = v
+                .split(/[\n,]/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+          } catch {
+            arr = v
+              .split(/[\n,]/)
+              .map((s) => s.trim())
+              .filter(Boolean)
+          }
+        } else {
+          arr = v
+            .split(/[\n,]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+        }
+        patch[k] = arr
+      }
+    }
+    if (rejected.length > 0) {
+      console.warn(`[setProfileTool] ignored non-writable fields: ${rejected.join(', ')}`)
+    }
+    if (Object.keys(patch).length === 0) {
+      return textResult('无可写入字段（均不在白名单内）')
+    }
+
+    const result = await profileService.update(safeName, patch)
+    if (!result.success) {
+      throw new Error(`档案更新失败: ${result.error ?? 'unknown error'}`)
+    }
+    return textResult(
+      `已更新 ${safeName} 的 ${Object.keys(patch).length} 个档案字段: ${Object.keys(patch).join(', ')}`,
+    )
+  },
+}
+
+// =============================================================
 // 导出：按能力分组的工具集
 // =============================================================
 
@@ -430,6 +627,8 @@ export const allEAATools: AnyAgentTool[] = [
   getAcademicScoresTool,
   addAcademicExamTool,
   revertEventTool,
+  getProfileTool,
+  setProfileTool,
 ]
 
 // biome-ignore lint/suspicious/noExplicitAny: 异构工具集合，TSchema 约束不兼容 unknown
@@ -454,6 +653,7 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
     range: [rangeTool],
     revert: [revertEventTool],
     academic: [getAcademicScoresTool, addAcademicExamTool],
+    profile: [getProfileTool, setProfileTool],
     read: [
       queryScoreTool,
       historyTool,
@@ -465,8 +665,9 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
       summaryTool,
       rangeTool,
       getAcademicScoresTool,
+      getProfileTool,
     ],
-    write: [addEventTool, addStudentTool, addAcademicExamTool, revertEventTool],
+    write: [addEventTool, addStudentTool, addAcademicExamTool, revertEventTool, setProfileTool],
   }
 
   const tools = new Set<AnyAgentTool>()

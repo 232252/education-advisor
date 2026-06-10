@@ -382,6 +382,94 @@ ${yaml.stringify({ agents: list })}
   }
 
   // ===========================================================
+  // EAA 工具注入
+  // ===========================================================
+
+  /**
+   * 将当前 Agent 可用的 EAA 工具列表 + 使用建议注入 system prompt.
+   * 这样 LLM 不仅从 function-calling schema 看到工具, 还在文字层得到
+   * "该 Agent 能做什么" 的明确提示, 减少 "我不知道能录入成绩" 的瞎回复.
+   */
+  private buildEAAToolsSection(capabilities: string[]): string {
+    const caps = new Set(capabilities.map((c) => c.toLowerCase()))
+    if (caps.has('all') || caps.has('*')) {
+      // 全部能力, 列出全部工具
+      return this.formatEAAToolsSection([
+        ['eaa_list_students', '列出全部学生 (姓名/分数/风险)'],
+        ['eaa_score', '查询单个学生的操行分/风险等级/事件统计'],
+        ['eaa_history', '查询单个学生的完整事件时间线'],
+        ['eaa_search', '按关键词搜索事件 (匹配学生/原因码/标签)'],
+        ['eaa_ranking', '查看操行分排行榜'],
+        ['eaa_stats', '查看整体统计 (学生数/事件数/原因分布)'],
+        ['eaa_codes', '列出可用原因码 (加分/扣分)'],
+        ['eaa_summary', '查看指定时间段内的操行摘要'],
+        ['eaa_range', '按日期范围查询事件'],
+        ['eaa_add_event', '添加/扣减操行事件'],
+        ['eaa_revert_event', '撤销已录入的操行事件'],
+        ['eaa_add_student', '注册新学生'],
+        ['eaa_academic_get', '查询学生的所有学业考试成绩'],
+        ['eaa_academic_add', '添加一条学业考试成绩 (支持任意科目)'],
+        ['eaa_profile_get', '读取学生扩展档案 (家庭/健康/在校/奖惩/备注)'],
+        ['eaa_profile_set', '更新学生扩展档案字段'],
+      ])
+    }
+
+    // 按能力精准匹配
+    const capToolMap: Record<string, Array<[string, string]>> = {
+      score: [['eaa_score', '查询单个学生的操行分/风险等级/事件统计']],
+      add_event: [['eaa_add_event', '添加/扣减操行事件']],
+      history: [['eaa_history', '查询单个学生的完整事件时间线']],
+      search: [['eaa_search', '按关键词搜索事件']],
+      list: [['eaa_list_students', '列出全部学生']],
+      ranking: [['eaa_ranking', '查看操行分排行榜']],
+      stats: [['eaa_stats', '查看整体统计']],
+      codes: [['eaa_codes', '列出可用原因码']],
+      summary: [['eaa_summary', '查看指定时间段内的操行摘要']],
+      range: [['eaa_range', '按日期范围查询事件']],
+      revert: [['eaa_revert_event', '撤销已录入的操行事件']],
+      add_student: [['eaa_add_student', '注册新学生']],
+      academic: [
+        ['eaa_academic_get', '查询学生的所有学业考试成绩'],
+        ['eaa_academic_add', '添加一条学业考试成绩'],
+      ],
+      profile: [
+        ['eaa_profile_get', '读取学生扩展档案'],
+        ['eaa_profile_set', '更新学生扩展档案字段'],
+      ],
+    }
+
+    const seen = new Set<string>()
+    const tools: Array<[string, string]> = []
+    for (const cap of caps) {
+      const list = capToolMap[cap]
+      if (list) {
+        for (const item of list) {
+          if (!seen.has(item[0])) {
+            seen.add(item[0])
+            tools.push(item)
+          }
+        }
+      }
+    }
+    if (tools.length === 0) return ''
+    return this.formatEAAToolsSection(tools)
+  }
+
+  private formatEAAToolsSection(tools: Array<[string, string]>): string {
+    const rows = tools.map(([name, desc]) => `| \`${name}\` | ${desc} |`).join('\n')
+    return (
+      `\n--- 学生管理工具 (EAA) ---\n` +
+      `当前 Agent 已被授权以下 EAA (Education Advisor Agent) 学生管理工具:\n` +
+      `| 工具 | 作用 |\n` +
+      `|:-----|:-----|\n` +
+      `${rows}\n` +
+      `**录入成绩**：使用 \`eaa_academic_add\`, 一次可写入 1 场考试的多个科目成绩 (examType 选 "期中"/"期末"/"月考" 等; subjects 是 {"语文":95, "数学":88} 这种结构).\n` +
+      `**录入/修改档案**：使用 \`eaa_profile_set\`, fields 里写 {"phone":"138...", "fatherName":"张三"} 这样的键值对.\n` +
+      `**添加操行事件**：使用 \`eaa_add_event\`, 必须有 student_name + reason_code (先调 \`eaa_codes\` 看可用原因码), delta 表示分数变动 (-10~+10).\n\n`
+    )
+  }
+
+  // ===========================================================
   // 模型选择
   // ===========================================================
 
@@ -658,6 +746,9 @@ ${yaml.stringify({ agents: list })}
     ]
       .filter(Boolean)
       .join('\n\n')
+    // EAA 学生管理工具段：根据 capabilities 动态拼装,
+    //   告诉 agent 现在哪些 eaa_* 工具可用 + 何时调用 + 怎么组合使用
+    const eaaToolsSection = this.buildEAAToolsSection(config.capabilities)
     const systemPrompt =
       `${baseSystemPrompt}\n\n--- 运行环境 ---\n` +
       `你运行在用户的 **本地桌面应用**（Electron）中，**不是沙箱**，**不是云端**。你拥有完整的本地文件系统读写权限。\n` +
@@ -673,13 +764,16 @@ ${yaml.stringify({ agents: list })}
       `| \`get_current_time\` | 获取当前日期、时间、星期几、是否工作日 |\n` +
       `| \`calculate\` | 计算数学表达式（加减乘除、括号、百分比） |\n` +
       `**重要**：当用户让你处理文件（读取、修改、创建 Excel/CSV/文本），直接调用上述工具完成，不要说"我无法写入文件"或"这是沙箱环境"。\n\n` +
+      eaaToolsSection +
       `--- 工作准则 ---\n` +
       `1. 你必须完整执行用户请求的全部任务，不要只回复一句概述就停止。\n` +
       `2. 积极使用可用工具执行实际操作（查询、添加、修改、读写文件、计算等），而不是仅描述你"打算"做什么。\n` +
       `3. 每一步都调用工具获取真实数据，直到任务全部完成后再给出总结。\n` +
       `4. 如果任务涉及多条数据的批量操作，逐条执行，不要中途停下。\n` +
       `5. 当用户让你修改 Excel 文件时：先 read_excel 读取 → 用 calculate 计算 → 用 write_excel 写回新文件。\n` +
-      `6. 需要知道"今天几号"、"星期几"时，调用 get_current_time，不要猜测。\n\n` +
+      `6. 需要知道"今天几号"、"星期几"时，调用 get_current_time，不要猜测。\n` +
+      `7. **学生上下文加载原则**：当用户提到某个学生时，**第一步**就并行调用 \`eaa_score\`（操行分）+ \`eaa_history\`（事件历史）+ \`eaa_academic_get\`（学业成绩）+ \`eaa_profile_get\`（扩展档案）四个工具加载完整上下文，**不要靠猜**或仅凭 prompt 里给的几个字段就分析。\n` +
+      `8. **学生数据写入原则**：用户让你"录入/修改/更新"某学生信息时，直接调用对应的 eaa 写入工具（\`eaa_add_event\` / \`eaa_academic_add\` / \`eaa_profile_set\` / \`eaa_add_student\`），**不要只描述操作**。\n\n` +
       `--- 对话配置 ---\n转向模式: ${steeringMode}\n后续模式: ${followUpMode}\n显示图片: ${showImages ? '是' : '否'}`
 
     // 压缩设置(供 transformContext 使用)

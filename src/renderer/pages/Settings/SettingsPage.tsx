@@ -1185,6 +1185,136 @@ export function SettingsPage() {
           </div>
         </div>
       </Section>
+
+      {/* ===== 数据管理 ===== */}
+      <Section title="🛠️ 数据管理">
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            班级更替或学期结束时，可使用下方功能清理数据。操作不可撤销，请谨慎使用。
+          </p>
+
+          {/* 重置事件 */}
+          <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/10 rounded-lg border border-orange-200/50 dark:border-orange-700/30">
+            <div>
+              <div className="text-sm font-medium text-orange-700 dark:text-orange-300">
+                清空所有事件
+              </div>
+              <div className="text-xs text-orange-500">保留学生名单，仅清除加分/扣分事件记录</div>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!window.confirm('确定要清空所有事件记录吗？此操作不可撤销。')) return
+                const r = await getAPI().sys.resetEventsOnly()
+                toast.success(r.message)
+              }}
+              className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded-lg text-xs transition-colors"
+            >
+              清空事件
+            </button>
+          </div>
+
+          {/* 按班级删除 */}
+          <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200/50 dark:border-red-700/30">
+            <div>
+              <div className="text-sm font-medium text-red-700 dark:text-red-300">
+                按班级删除学生
+              </div>
+              <div className="text-xs text-red-500">删除指定班级的所有学生及事件记录</div>
+            </div>
+            <div className="flex gap-2 items-center">
+              <input
+                id="classId-input"
+                type="text"
+                placeholder="如：2024级5班"
+                className="w-32 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const input = document.getElementById('classId-input') as HTMLInputElement
+                  const classId = input?.value?.trim()
+                  if (!classId) {
+                    toast.error('请输入班级名称')
+                    return
+                  }
+                  if (!window.confirm(`确定要删除班级"${classId}"的所有学生吗？此操作不可撤销。`))
+                    return
+                  getAPI()
+                    .sys.deleteByClass(classId)
+                    .then((r) => toast.success(r.message))
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs transition-colors"
+              >
+                删除班级
+              </button>
+            </div>
+          </div>
+
+          {/* 删除单个学生 */}
+          <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200/50 dark:border-red-700/30">
+            <div>
+              <div className="text-sm font-medium text-red-700 dark:text-red-300">删除单个学生</div>
+              <div className="text-xs text-red-500">从系统中彻底移除该学生及其事件</div>
+            </div>
+            <div className="flex gap-2 items-center">
+              <input
+                id="student-name-input"
+                type="text"
+                placeholder="学生姓名"
+                className="w-28 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const input = document.getElementById('student-name-input') as HTMLInputElement
+                  const name = input?.value?.trim()
+                  if (!name) {
+                    toast.error('请输入学生姓名')
+                    return
+                  }
+                  if (!window.confirm(`确定要删除学生"${name}"吗？此操作不可撤销。`)) return
+                  getAPI()
+                    .sys.deleteStudentByName(name)
+                    .then((r) => toast.success(r.message))
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs transition-colors"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+
+          {/* 出厂重置 */}
+          <div className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600">
+            <div>
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                🏭 恢复出厂设置
+              </div>
+              <div className="text-xs text-gray-500">
+                清空所有学生、事件、档案。需重启应用生效。
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                if (
+                  !window.confirm(
+                    '⚠️ 确定要恢复出厂设置吗？\n\n此操作将清空：\n• 所有学生名单\n• 所有事件记录\n• 所有学业成绩\n• 所有隐私映射\n\n需重启应用后生效。',
+                  )
+                )
+                  return
+                if (!window.confirm('再次确认：此操作不可撤销！确定继续？')) return
+                const r = await getAPI().sys.resetFactory()
+                toast.success(r.message)
+              }}
+              className="bg-gray-700 hover:bg-gray-800 text-white px-3 py-1.5 rounded-lg text-xs transition-colors"
+            >
+              重置
+            </button>
+          </div>
+        </div>
+      </Section>
     </div>
   )
 }

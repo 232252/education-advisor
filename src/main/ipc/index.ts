@@ -16,6 +16,7 @@ import { registerProfileHandlers } from './profile-handlers'
 import { registerSettingsHandlers } from './settings-handlers'
 import { registerSkillHandlers } from './skill-handlers'
 import { registerSysHandlers } from './sys-handlers'
+import { registerSystemMaintenanceHandlers } from './system-maintenance-handlers'
 
 export async function registerAllHandlers(win: BrowserWindow) {
   registerAIHandlers(win)
@@ -29,6 +30,7 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerProfileHandlers()
   registerLogHandlers()
   registerFeishuHandlers()
+  registerSystemMaintenanceHandlers()
 
   // 初始化 EAA Bridge（创建数据目录、复制 reason-codes、doctor 健康检查）
   const eaaStatus = await eaaBridge.initialize()
