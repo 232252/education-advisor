@@ -18,7 +18,9 @@ vi.mock('../../src/main/services/eaa-bridge', () => ({
 }))
 
 // 必须在 vi.mock 之后 import
-const { tokenizeQuery } = await import('../../src/main/services/eaa-tools')
+// tokenizeQuery 实际定义在 shared/utils.ts（P1-16 移动），从 eaa-tools re-export
+// 以便既能用 sanitize 路径也能直接调用
+const { tokenizeQuery } = await import('../../src/shared/utils')
 
 describe('tokenizeQuery', () => {
   // ----- 任务强制 5 个 case -----
