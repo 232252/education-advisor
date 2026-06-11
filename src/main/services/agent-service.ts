@@ -40,12 +40,14 @@ import type {
 import { compactAgentMessages } from './compaction-helper'
 import { cronService } from './cron-service'
 import { dbService } from './db-service'
-import { getToolsByCapability } from './eaa-tools'
-import { allFileTools } from './file-tools'
+import {
+  getFileUtilityToolsByCapability,
+  getToolsByCapability,
+  setCurrentAgentId,
+} from './eaa-tools'
 import { keystoreService } from './keystore-service'
 import { settingsService } from './settings-service'
 import { skillService } from './skill-service'
-import { allUtilityTools } from './utility-tools'
 
 // =============================================================
 // Agent 运行时实例（每次执行创建一个）
@@ -464,8 +466,44 @@ ${yaml.stringify({ agents: list })}
       `|:-----|:-----|\n` +
       `${rows}\n` +
       `**录入成绩**：使用 \`eaa_academic_add\`, 一次可写入 1 场考试的多个科目成绩 (examType 选 "期中"/"期末"/"月考" 等; subjects 是 {"语文":95, "数学":88} 这种结构).\n` +
-      `**录入/修改档案**：使用 \`eaa_profile_set\`, fields 里写 {"phone":"138...", "fatherName":"张三"} 这样的键值对.\n` +
+      `**批量录入成绩**：使用 \`eaa_bulk_add_academics\`, 一次最多 200 名学生 (常用于从 Excel 一次性导入全班成绩).\n` +
+      `**批量添加学生**：使用 \`eaa_bulk_add_students\`, 一次最多 200 个姓名.\n` +
+      `**批量添加事件**：使用 \`eaa_bulk_add_events\`, 一次最多 200 条.\n` +
+      `**录入/修改档案**：使用 \`eaa_profile_set\`, fields 里写 {"phone":"138...", "fatherName":"张三"} 这样的键值对 (仅 30 个白名单字段被接受).\n` +
       `**添加操行事件**：使用 \`eaa_add_event\`, 必须有 student_name + reason_code (先调 \`eaa_codes\` 看可用原因码), delta 表示分数变动 (-10~+10).\n\n`
+    )
+  }
+
+  // ===========================================================
+  // P3-2 自省段 — 让 Agent 知道"我是谁、用什么模型、有哪些 skills/同事"
+  // ===========================================================
+
+  /**
+   * 注入当前模型 + 自己的 capabilities + 可用 skills + 同事 agents.
+   * 解决"Agent 不知道自己是谁/能做什么"问题.
+   */
+  private buildSelfAwareSection(agentId: string, model: Model<Api>, config: AgentConfig): string {
+    const skills = skillService.listSkills()
+    const skillsList = skills.length
+      ? skills
+          .map((s) => `- \`${s.name}\`: ${s.description?.slice(0, 80) ?? '(无描述)'}`)
+          .join('\n')
+      : '(暂无可用 skill)'
+
+    // 列同事 (排除自己, 只列 enabled 的)
+    const colleagues = Array.from(this.agents.values())
+      .filter((a) => a.id !== agentId && a.enabled)
+      .map((a) => `- \`${a.id}\` (${a.name}): ${a.role}`)
+      .join('\n')
+
+    return (
+      `--- 运行时自省 ---\n` +
+      `**当前 Agent**: \`${agentId}\` (${config.name})\n` +
+      `**当前模型**: ${model.provider}/${model.id} (context=${model.contextWindow})\n` +
+      `**我的 capabilities**: ${config.capabilities.join(', ')}\n` +
+      `**可用 skills** (${skills.length} 个):\n${skillsList}\n` +
+      `**可用同事 agents** (${this.agents.size - 1} 个, 仅启用):\n${colleagues || '(无)'}\n` +
+      `**自省工具**: \`eaa_get_own_config\` 查自己 / \`eaa_list_agents\` 查全部 / \`eaa_list_skills\` 查全部 skill / \`eaa_list_models\` 查模型 / \`eaa_get_own_history\` 查执行历史 / \`eaa_get_own_soul\` 读 SOUL.md / \`eaa_list_cron_tasks\` 查定时任务。\n\n`
     )
   }
 
@@ -712,12 +750,19 @@ ${yaml.stringify({ agents: list })}
       `[AgentService] runAgent(${id}) model selected: ${model.provider}/${model.id} (api: ${model.api}, baseUrl: ${model.baseUrl}, apiKey: ${apiKeyResolved ? '***present***' : 'MISSING'})`,
     )
 
+    // P1-3: 按 capability 过滤 file/utility 工具, 不再硬塞
+    const { files: fileTools, utils: utilityTools } = getFileUtilityToolsByCapability(
+      config.capabilities,
+    )
+    // P3-2 准备: 注入当前 agent id, 让 self-aware 工具知道"我"是谁
+    setCurrentAgentId(id)
+
     // 选择工具
     // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
     const tools: AgentTool<any>[] = [
       ...getToolsByCapability(config.capabilities),
-      ...allFileTools, // 文件工具（read_file, read_excel, write_excel, write_csv, list_dir）
-      ...allUtilityTools, // 实用工具（get_current_time, calculate）
+      ...fileTools,
+      ...utilityTools,
     ]
 
     // ✅ [Settings wiring] 读取 chat.* 设置
@@ -749,8 +794,10 @@ ${yaml.stringify({ agents: list })}
     // EAA 学生管理工具段：根据 capabilities 动态拼装,
     //   告诉 agent 现在哪些 eaa_* 工具可用 + 何时调用 + 怎么组合使用
     const eaaToolsSection = this.buildEAAToolsSection(config.capabilities)
+    // P3-2: 自省段 — 让 agent 知道"我是谁、用什么模型、能调哪些 skills、能调哪些同事"
+    const selfAwareSection = this.buildSelfAwareSection(id, model, config)
     const systemPrompt =
-      `${baseSystemPrompt}\n\n--- 运行环境 ---\n` +
+      `${baseSystemPrompt}\n\n${selfAwareSection}--- 运行环境 ---\n` +
       `你运行在用户的 **本地桌面应用**（Electron）中，**不是沙箱**，**不是云端**。你拥有完整的本地文件系统读写权限。\n` +
       `你可以用以下工具直接操作本地文件和系统：\n` +
       `| 工具 | 作用 |\n` +
@@ -773,7 +820,9 @@ ${yaml.stringify({ agents: list })}
       `5. 当用户让你修改 Excel 文件时：先 read_excel 读取 → 用 calculate 计算 → 用 write_excel 写回新文件。\n` +
       `6. 需要知道"今天几号"、"星期几"时，调用 get_current_time，不要猜测。\n` +
       `7. **学生上下文加载原则**：当用户提到某个学生时，**第一步**就并行调用 \`eaa_score\`（操行分）+ \`eaa_history\`（事件历史）+ \`eaa_academic_get\`（学业成绩）+ \`eaa_profile_get\`（扩展档案）四个工具加载完整上下文，**不要靠猜**或仅凭 prompt 里给的几个字段就分析。\n` +
-      `8. **学生数据写入原则**：用户让你"录入/修改/更新"某学生信息时，直接调用对应的 eaa 写入工具（\`eaa_add_event\` / \`eaa_academic_add\` / \`eaa_profile_set\` / \`eaa_add_student\`），**不要只描述操作**。\n\n` +
+      `8. **学生数据写入原则**：用户让你"录入/修改/更新"某学生信息时，直接调用对应的 eaa 写入工具（\`eaa_add_event\` / \`eaa_academic_add\` / \`eaa_profile_set\` / \`eaa_add_student\`），**不要只描述操作**。\n` +
+      `9. **批量操作原则**：当任务涉及 ≥ 3 名学生/事件时，**优先使用 bulk_* 工具**（\`eaa_bulk_add_students\` / \`eaa_bulk_add_academics\` / \`eaa_bulk_add_events\`），而不是循环单条调用，避免 context 爆炸。\n` +
+      `10. **自省原则**：当你不确定"我能不能做 X"时，调用 \`eaa_get_own_config\` 查自己，或 \`eaa_list_agents\` 查同事。\n\n` +
       `--- 对话配置 ---\n转向模式: ${steeringMode}\n后续模式: ${followUpMode}\n显示图片: ${showImages ? '是' : '否'}`
 
     // 压缩设置(供 transformContext 使用)
