@@ -10,6 +10,7 @@ import { app } from 'electron'
 import { Type } from 'typebox'
 import { tokenizeQuery } from '../../shared/utils'
 import { eaaBridge, getErrorMessage } from './eaa-bridge'
+
 // Lazy-loaded to avoid pulling in electron's `app` module during test imports.
 // ProfileService's constructor calls `app.getPath('userData')`, which crashes
 // in unit-test envs that mock `./eaa-bridge` but not `electron`. Loading it
@@ -353,7 +354,7 @@ export const getAcademicScoresTool: AgentTool<typeof academicScoreParams> = {
     // sanitize: 防止路径遍历 / prompt injection
     const safeName = params.name.replace(/[^\u4e00-\u9fff_a-zA-Z0-9-]/g, '_').slice(0, 64)
     if (!safeName.trim()) throw new Error('invalid student name')
-    const records = await profileService.getAcademicRecords(safeName)
+    const records = await (await getProfileService()).getAcademicRecords(safeName)
     return jsonResult(records, `${safeName} 的学业成绩`)
   },
 }
@@ -381,7 +382,7 @@ export const addAcademicExamTool: AgentTool<typeof addExamParams> = {
     // sanitize: 防止路径遍历 / prompt injection
     const safeName = params.name.replace(/[^\u4e00-\u9fff_a-zA-Z0-9-]/g, '_').slice(0, 64)
     if (!safeName.trim()) throw new Error('invalid student name')
-    const result = await profileService.addAcademicRecord(safeName, {
+    const result = await (await getProfileService()).addAcademicRecord(safeName, {
       examType: params.examType,
       examName: params.examName,
       subjects: params.subjects,
@@ -444,7 +445,7 @@ export const getProfileTool: AgentTool<typeof profileGetParams> = {
   execute: async (_toolCallId, params) => {
     const safeName = params.name.replace(/[^一-鿿_a-zA-Z0-9-]/g, '_').slice(0, 64)
     if (!safeName.trim()) throw new Error('invalid student name')
-    const data = await profileService.get(safeName)
+    const data = await (await getProfileService()).get(safeName)
     if (!data || Object.keys(data).length === 0) {
       return textResult(`学生 ${safeName} 暂无扩展档案`)
     }
@@ -614,7 +615,7 @@ export const setProfileTool: AgentTool<typeof profileSetParams> = {
       return textResult('无可写入字段（均不在白名单内）')
     }
 
-    const result = await profileService.update(safeName, patch)
+    const result = await (await getProfileService()).update(safeName, patch)
     if (!result.success) {
       throw new Error(`档案更新失败: ${result.error ?? 'unknown error'}`)
     }
@@ -801,7 +802,7 @@ export const bulkAddAcademicsTool: AgentTool<typeof bulkAddAcademicsParams> = {
     const failed: string[] = []
     for (const rec of params.records) {
       const safeName = rec.name.replace(/[^一-鿿_a-zA-Z0-9-]/g, '_').slice(0, 64)
-      const r = await profileService.addAcademicRecord(safeName, {
+      const r = await (await getProfileService()).addAcademicRecord(safeName, {
         examType: params.examType,
         examName: params.examName,
         subjects: rec.subjects,
