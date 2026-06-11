@@ -171,6 +171,12 @@ class CronService {
     skipped?: string
     recordId?: string
     error?: string
+    // U-12: bitable 写入可能含 PII — 透传 addBitableRecord 的预检报告
+    piiReport?: {
+      hasPII: boolean
+      entities: Array<{ kind: string; count: number }>
+      privacyEnabled: boolean
+    }
   }> {
     try {
       const s = settingsService.getSettings()

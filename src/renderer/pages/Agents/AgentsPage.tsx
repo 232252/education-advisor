@@ -4,10 +4,14 @@
 
 import type { AgentDetail, AgentExecution } from '@shared/types'
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { ROUTES } from '../../hooks/useNavigation'
 import { useT } from '../../i18n'
+// P6: 跳转到全局历史页面(集中管理路由路径)
+import { getAPI } from '../../lib/ipc-client'
 import { useAgentStore } from '../../stores/agentStore'
 
-type TabKey = 'config' | 'run' | 'soul' | 'rules' | 'history'
+type TabKey = 'config' | 'run' | 'soul' | 'rules' | 'skills' | 'history'
 
 export function AgentsPage() {
   const { t } = useT()
@@ -47,13 +51,23 @@ export function AgentsPage() {
       <div className="w-80 border-r border-gray-200 dark:border-gray-700 flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h1 className="text-lg font-bold">{t('page.agents.title')}</h1>
-          <button
-            type="button"
-            onClick={fetchAgents}
-            className="text-xs bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1.5 rounded transition-colors"
-          >
-            {t('page.agents.refresh')}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* P6: 跳转到全局历史页面 */}
+            <Link
+              to={ROUTES.agentHistory}
+              title="查看所有 Agent 的执行历史"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              历史
+            </Link>
+            <button
+              type="button"
+              onClick={fetchAgents}
+              className="text-xs bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1.5 rounded transition-colors"
+            >
+              {t('page.agents.refresh')}
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -205,6 +219,7 @@ function AgentDetailPanel({
     { key: 'run', label: '执行' },
     { key: 'soul', label: 'SOUL.md' },
     { key: 'rules', label: 'AGENTS.md' },
+    { key: 'skills', label: '绑定技能' },
     { key: 'history', label: `历史 (${detail.executionHistory.length})` },
   ]
 
@@ -296,6 +311,7 @@ function AgentDetailPanel({
             onSave={(c) => onSaveRules(detail.id, c)}
           />
         )}
+        {tab === 'skills' && <SkillsTab detail={detail} onUpdate={onUpdate} />}
         {tab === 'history' && <HistoryTab executions={detail.executionHistory} />}
       </div>
     </>
@@ -586,6 +602,7 @@ interface ConfigTabProps {
       description: string
       modelTier: 'high_quality' | 'low_cost'
       capabilities: string[]
+      skillIds: string[]
     }>,
   ) => Promise<void>
 }
@@ -738,6 +755,186 @@ function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// =============================================================
+// 绑定技能 Tab — P3: 列出全部 skills, 勾选要绑定的项,保存后生效
+// =============================================================
+
+interface SkillsTabProps {
+  detail: AgentDetail
+  onUpdate: (
+    id: string,
+    patch: Partial<{
+      name: string
+      description: string
+      modelTier: 'high_quality' | 'low_cost'
+      capabilities: string[]
+      skillIds: string[]
+    }>,
+  ) => Promise<void>
+}
+
+interface SkillView {
+  name: string
+  description: string
+  source: 'user' | 'project'
+}
+
+function SkillsTab({ detail, onUpdate }: SkillsTabProps) {
+  const [allSkills, setAllSkills] = useState<SkillView[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  // 加载全部 skills
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const list = (await getAPI().skill.list()) as SkillView[]
+        if (cancelled) return
+        setAllSkills(
+          list.map((s) => ({ name: s.name, description: s.description, source: s.source })),
+        )
+        setLoading(false)
+      } catch (err) {
+        console.error('[SkillsTab] load skills failed:', err)
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // 切换 agent 时,根据 detail.skillIds 同步 selected
+  const prevDetailRef = useRef<AgentDetail>(detail)
+  useEffect(() => {
+    if (prevDetailRef.current !== detail) {
+      prevDetailRef.current = detail
+      if (detail.skillIds === undefined) {
+        // 向后兼容:未配置时显示空勾选(代表"全部")
+        setSelected(new Set())
+      } else {
+        setSelected(new Set(detail.skillIds))
+      }
+      setDirty(false)
+    }
+  }, [detail])
+
+  const toggleSkill = (name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+    setDirty(true)
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      // P3: 必须显式传数组(空数组表示"绑定 0 个")
+      // 如果用户没改过 detail.skillIds(原来是 undefined,代表"全部"),保持原语义
+      const detailIds = detail.skillIds
+      let payload: string[]
+      if (detailIds === undefined && selected.size === 0) {
+        // 全部未勾选 + 原本是"全部" → 视为空数组(不绑定任何)
+        payload = []
+      } else {
+        payload = Array.from(selected)
+      }
+      await onUpdate(detail.id, { skillIds: payload })
+      setDirty(false)
+    } catch {
+      // onUpdate 内部已 toast
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm">
+        加载技能列表中...
+      </div>
+    )
+  }
+
+  if (allSkills.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm">
+        暂无可用技能。可在 Skill 管理页面创建。
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+        <span className="text-xs text-gray-400 dark:text-gray-500">
+          {dirty ? '未保存' : '已保存'} · 已选 {selected.size} / {allSkills.length}
+          {detail.skillIds === undefined && !dirty && (
+            <span className="ml-2 text-yellow-600 dark:text-yellow-500">(默认:全部)</span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!dirty || saving}
+          className="text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-40
+            px-3 py-1 rounded transition-colors"
+        >
+          {saving ? '保存中...' : '保存'}
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        {allSkills.map((s) => {
+          const checked = selected.has(s.name)
+          return (
+            <label
+              key={s.name}
+              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors
+                ${
+                  checked
+                    ? 'bg-blue-50 border-blue-400 dark:bg-blue-900/20 dark:border-blue-500'
+                    : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggleSkill(s.name)}
+                className="mt-1 w-4 h-4"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm text-gray-700 dark:text-gray-200 font-mono">
+                    {s.name}
+                  </span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      s.source === 'user'
+                        ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                    }`}
+                  >
+                    {s.source === 'user' ? '用户' : '项目'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                  {s.description}
+                </p>
+              </div>
+            </label>
+          )
+        })}
       </div>
     </div>
   )

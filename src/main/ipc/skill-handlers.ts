@@ -23,5 +23,10 @@ export function registerSkillHandlers(_win: BrowserWindow) {
     return skillService.deleteSkill(name)
   })
 
+  // P7: 启用/禁用 skill(用户级覆盖,持久化到 skills-state.json)
+  ipcMain.handle(IPC.IPC_SKILL_SET_ENABLED, async (_e, name: string, enabled: boolean) => {
+    return skillService.setSkillEnabled(name, enabled)
+  })
+
   console.log('[IPC] Skill handlers registered')
 }

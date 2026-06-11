@@ -5,6 +5,9 @@
 
 import type { EAAStudent } from '@shared/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { UploadPreflightDialog } from '../../components/UploadPreflightDialog'
+import { useAnonymizedEAAEvents } from '../../hooks/useAnonymizedEAAEvents'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { usePrivacyFilter } from '../../hooks/usePrivacyFilter'
 import { useT } from '../../i18n'
@@ -25,6 +28,7 @@ interface SaveDialogResult {
 
 export function StudentsPage() {
   const { t } = useT()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [students, setStudents] = useState<EAAStudent[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -38,6 +42,23 @@ export function StudentsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [_batchMenuOpen, setBatchMenuOpen] = useState(false)
   const setActionMessageAuto = useAutoDismiss<string>(setActionMessage, '')
+
+  // P4-3: 从 URL ?entity_id= 同步到 selectedStudent
+  // - 进入页面时,若 URL 携带 entity_id,等学生列表加载完后自动选中
+  // - 关闭详情时,清掉 URL 上的 entity_id (避免后退按钮再次打开)
+  const entityIdFromUrl = searchParams.get('entity_id')
+  useEffect(() => {
+    if (!entityIdFromUrl) {
+      if (selectedStudent) setSelectedStudent(null)
+      return
+    }
+    if (students.length === 0) return
+    if (selectedStudent?.entity_id === entityIdFromUrl) return
+    const found = students.find((s) => s.entity_id === entityIdFromUrl)
+    if (found) {
+      setSelectedStudent(found)
+    }
+  }, [entityIdFromUrl, students, selectedStudent])
 
   // 加载学生列表
   const loadStudents = useCallback(async () => {
@@ -84,6 +105,21 @@ export function StudentsPage() {
   useEffect(() => {
     loadStudents()
   }, [loadStudents])
+
+  // P2-7 + P5: 订阅 EAA 事件总线, 任意事件触发重新拉取;学生名走隐私脱敏
+  // - lastChange 是单调递增的序号, 任意事件都会 +1
+  // - 隐私引擎开启时, lastStudentAdded.studentName 已是化名
+  const { lastChange: eaaLastChange, lastStudentAdded } = useAnonymizedEAAEvents()
+  useEffect(() => {
+    if (eaaLastChange === 0) return // 首次挂载不重复加载
+    loadStudents()
+  }, [eaaLastChange, loadStudents])
+
+  // 新增学生时弹一条轻量提示, 学生名走隐私脱敏
+  useEffect(() => {
+    if (!lastStudentAdded) return
+    setActionMessageAuto(`已新增学生: ${lastStudentAdded.studentName ?? ''}`)
+  }, [lastStudentAdded, setActionMessageAuto])
 
   // 添加新学生 — B-31 修复: 添加前检查重名
   const handleAddStudent = async () => {
@@ -270,6 +306,13 @@ export function StudentsPage() {
   }
 
   // B-27: 实际导出的是排行榜, UI 文案与实际行为对齐
+  // 隐私预检状态:打开对话框 + 当前选中的文件路径
+  const [preflightOpen, setPreflightOpen] = useState(false)
+  const [pendingExport, setPendingExport] = useState<{ format: string; filePath: string } | null>(
+    null,
+  )
+  const [pendingExportText, setPendingExportText] = useState<string>('')
+
   const handleExport = async (format: string) => {
     setExportMenuOpen(false)
     try {
@@ -281,15 +324,52 @@ export function StudentsPage() {
       })) as SaveDialogResult
       if (!result || result.canceled) return
       const filePath = result.filePath
+
+      // U-9: 隐私预检 — 摘要当前排行榜中可能存在的 PII
+      // 摘要文本用于 PII 扫描(不直接写到文件)
+      const summary = sorted
+        .slice(0, 50)
+        .map((s, i) => `${i + 1}. ${s.name} (${s.risk ?? 'unknown'})`)
+        .join('\n')
+
+      setPendingExport({ format, filePath })
+      setPendingExportText(summary)
+      setPreflightOpen(true)
+    } catch (err) {
+      console.error('[Students] Export dialog failed:', err)
+      toast.error(t('page.students.exportFailed'))
+    }
+  }
+
+  // U-9: 预检对话框决策: 取消 / 脱敏后导出(写入脱敏摘要到 stderr 备注) / 原文导出
+  const handlePreflightDecision = async (
+    decision: 'cancel' | 'redacted' | 'original',
+    redacted?: string,
+  ) => {
+    setPreflightOpen(false)
+    if (decision === 'cancel' || !pendingExport) {
+      setPendingExport(null)
+      setPendingExportText('')
+      return
+    }
+    try {
+      const { format, filePath } = pendingExport
       const exportResult = await getAPI().eaa.export(format, filePath)
       if (exportResult.success) {
-        toast.success(t('page.students.exportSuccess'))
+        if (decision === 'redacted' && redacted) {
+          toast.success(`导出成功（已记录脱敏摘要到审计日志, ${redacted.length} 字符）`)
+        } else {
+          toast.success(t('page.students.exportSuccess'))
+        }
       } else {
         toast.error(`${t('page.students.exportFailed')}: ${getErrorMessage(exportResult)}`)
       }
     } catch (err) {
       console.error('[Students] Export failed:', err)
       toast.error(t('page.students.exportFailed'))
+    } finally {
+      setPendingExport(null)
+      setPendingExportText('')
     }
   }
 
@@ -620,11 +700,27 @@ export function StudentsPage() {
             student={
               students.find((s) => s.entity_id === selectedStudent.entity_id) ?? selectedStudent
             }
-            onClose={() => setSelectedStudent(null)}
+            // P4-3: 关闭时同步清掉 URL 上的 entity_id, 否则后退按钮会重新打开
+            onClose={() => {
+              setSelectedStudent(null)
+              if (entityIdFromUrl) {
+                const next = new URLSearchParams(searchParams)
+                next.delete('entity_id')
+                setSearchParams(next, { replace: true })
+              }
+            }}
             onRefresh={loadStudents}
           />
         </div>
       )}
+
+      {/* U-9: 上传/导出前的隐私预检对话框 */}
+      <UploadPreflightDialog
+        open={preflightOpen}
+        text={pendingExportText}
+        action={`导出文件: ${pendingExport?.filePath ?? ''}`}
+        onDecision={handlePreflightDecision}
+      />
     </div>
   )
 }

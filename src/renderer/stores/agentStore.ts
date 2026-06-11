@@ -39,6 +39,7 @@ interface AgentState {
       description: string
       modelTier: 'high_quality' | 'low_cost'
       capabilities: string[]
+      skillIds: string[]
     }>,
   ) => Promise<void>
   selectAgent: (id: string | null) => Promise<void>

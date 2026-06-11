@@ -94,8 +94,10 @@ interface WindowAPI {
         description: string
         modelTier: 'high_quality' | 'low_cost'
         capabilities: string[]
+        skillIds: string[]
       }>,
     ) => Promise<{ success: boolean; error?: string }>
+    // P3: 已绑定 skills 通过 getAgent() 返回的 skillIds 配合 skill.list() 自行组合, 不再单独暴露
     getSoul: (id: string) => Promise<string>
     setSoul: (id: string, content: string) => Promise<{ success: boolean }>
     getRules: (id: string) => Promise<string>
@@ -107,6 +109,36 @@ interface WindowAPI {
     ) => Promise<{ success: boolean; message?: string; id?: string }>
     getHistory: (id: string) => Promise<unknown[]>
     abort: (id: string) => Promise<{ success: boolean }>
+    // P6: 跨 agent 查询所有执行历史 + 统计
+    getAllExecutions: (options?: {
+      status?: 'success' | 'error' | 'timeout'
+      agentId?: string
+      sinceMs?: number
+      limit?: number
+    }) => Promise<{
+      executions: Array<{
+        id: string
+        agentId: string
+        prompt: string
+        output: string
+        startedAt: number
+        durationMs: number
+        tokenUsage: { inputTokens: number; outputTokens: number; totalTokens: number }
+        cost: number
+        status: 'success' | 'error' | 'timeout'
+      }>
+      stats: {
+        totalRuns: number
+        successCount: number
+        errorCount: number
+        timeoutCount: number
+        successRate: number
+        totalCost: number
+        totalTokens: number
+        totalDurationMs: number
+      }
+      agentNameMap: Record<string, string>
+    }>
     onStatusUpdate: (callback: (data: unknown) => void) => () => void
   }
   eaa: {
@@ -138,7 +170,12 @@ interface WindowAPI {
 
     // P2-5: EAA 数据变更广播监听 — 让页面在事件写入后实时刷新
     onEventAdded: (
-      callback: (data: { studentName: string; reasonCode: string; delta?: number; at: number }) => void,
+      callback: (data: {
+        studentName: string
+        reasonCode: string
+        delta?: number
+        at: number
+      }) => void,
     ) => () => void
     onEventReverted: (callback: (data: { eventId: string; at: number }) => void) => () => void
     onStudentAdded: (callback: (data: { name: string; at: number }) => void) => () => void
@@ -174,6 +211,8 @@ interface WindowAPI {
     get: (name: string) => Promise<Skill | null>
     save: (name: string, content: string) => Promise<{ success: boolean }>
     delete: (name: string) => Promise<{ success: boolean; error?: string }>
+    // P7: 启用/禁用 skill
+    setEnabled: (name: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>
   }
   settings: {
     get: () => Promise<UnifiedSettings>
@@ -242,13 +281,55 @@ interface WindowAPI {
       userOpenId: string,
       text: string,
     ) => Promise<{ success: boolean; messageId?: string; error?: string }>
+    // U-10: 飞书发送(带隐私预检)
+    sendPreflight: (
+      appId: string,
+      userOpenId: string,
+      text: string,
+    ) => Promise<{
+      hasPII: boolean
+      entities: Array<{ kind: string; count: number }>
+      redacted: string
+      original: string
+      originalLength: number
+      privacyEnabled: boolean
+      error?: string
+    }>
+    sendConfirm: (
+      appId: string,
+      userOpenId: string,
+      text: string,
+      decision: 'cancel' | 'redacted' | 'original',
+    ) => Promise<{
+      success: boolean
+      messageId?: string
+      error?: string
+      blocked?: boolean
+      report?: {
+        hasPII: boolean
+        entities: Array<{ kind: string; count: number }>
+        privacyEnabled: boolean
+      }
+      sentTextLength?: number
+    }>
     status: () => Promise<string>
     syncNow: (
       appId: string,
       appToken: string,
       tableId: string,
       fields: Record<string, unknown>,
-    ) => Promise<{ success: boolean; skipped?: string; recordId?: string; error?: string }>
+    ) => Promise<{
+      success: boolean
+      skipped?: string
+      recordId?: string
+      error?: string
+      // U-12: bitable 写入的隐私预检报告
+      piiReport?: {
+        hasPII: boolean
+        entities: Array<{ kind: string; count: number }>
+        privacyEnabled: boolean
+      }
+    }>
   }
   sys: {
     openDialog: (options: unknown) => Promise<unknown>

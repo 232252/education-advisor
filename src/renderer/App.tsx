@@ -7,6 +7,8 @@ import { ToastContainer } from './components/ToastContainer'
 import { useForwardConsole } from './hooks/useForwardConsole'
 import { useTheme } from './hooks/useTheme'
 import { MainLayout } from './layouts/MainLayout'
+// P6: 跨 Agent 执行历史全局页面
+import { AgentHistoryPage } from './pages/Agents/AgentHistoryPage'
 import { AgentsPage } from './pages/Agents/AgentsPage'
 import { ChatPage } from './pages/Chat/ChatPage'
 import { DashboardPage } from './pages/Dashboard/DashboardPage'
@@ -34,6 +36,7 @@ export function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/students" element={<StudentsPage />} />
           <Route path="/agents" element={<AgentsPage />} />
+          <Route path="/agents/history" element={<AgentHistoryPage />} />
           <Route path="/models" element={<ModelsPage />} />
           <Route path="/skills" element={<SkillsPage />} />
           <Route path="/scheduler" element={<SchedulerPage />} />

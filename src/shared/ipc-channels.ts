@@ -27,6 +27,8 @@ export const IPC_AGENT_GET_RULES = 'agent:get-rules'
 export const IPC_AGENT_SET_RULES = 'agent:set-rules'
 export const IPC_AGENT_RUN_MANUAL = 'agent:run-manual'
 export const IPC_AGENT_GET_HISTORY = 'agent:get-history'
+// P6: 跨 agent 查询所有执行历史(供全局历史页面)
+export const IPC_AGENT_GET_ALL_EXECUTIONS = 'agent:get-all-executions'
 export const IPC_AGENT_STATUS_UPDATE = 'agent:status-update'
 export const IPC_AGENT_ABORT = 'agent:abort'
 
@@ -94,6 +96,8 @@ export const IPC_SKILL_LIST = 'skill:list'
 export const IPC_SKILL_GET = 'skill:get'
 export const IPC_SKILL_SAVE = 'skill:save'
 export const IPC_SKILL_DELETE = 'skill:delete'
+// P7: 启用/禁用 skill(覆盖 frontmatter)
+export const IPC_SKILL_SET_ENABLED = 'skill:set-enabled'
 
 // ===== 设置 =====
 export const IPC_SETTINGS_GET = 'settings:get'
@@ -124,6 +128,9 @@ export const IPC_CHAT_LIST_SESSIONS = 'chat:list-sessions'
 export const IPC_FEISHU_TEST = 'feishu:test'
 export const IPC_FEISHU_BITABLE = 'feishu:bitable'
 export const IPC_FEISHU_SEND = 'feishu:send'
+// U-10: feishu send 前的隐私预检
+export const IPC_FEISHU_SEND_PREFLIGHT = 'feishu:send-preflight'
+export const IPC_FEISHU_SEND_CONFIRM = 'feishu:send-confirm'
 export const IPC_FEISHU_STATUS = 'feishu:status'
 export const IPC_FEISHU_SYNC_NOW = 'feishu:sync-now'
 

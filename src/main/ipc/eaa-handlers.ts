@@ -133,7 +133,10 @@ export function registerEAAHandlers(win: BrowserWindow) {
   ipcMain.handle(IPC.IPC_EAA_REVERT_EVENT, async (_e, eventId: string, reason: string) => {
     const safeId = sanitizeName(eventId, 'eventId')
     const safeReason = sanitizeName(reason, 'reason')
-    const result = await eaaBridge.execute({ command: 'revert', args: [safeId, '--reason', safeReason] })
+    const result = await eaaBridge.execute({
+      command: 'revert',
+      args: [safeId, '--reason', safeReason],
+    })
     if (result.success) {
       win.webContents.send(IPC.IPC_EAA_EVENT_REVERTED, {
         eventId: safeId,

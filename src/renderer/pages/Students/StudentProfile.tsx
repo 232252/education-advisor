@@ -22,6 +22,7 @@ import ReactEChartsCore from 'echarts-for-react/lib/core'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useAnonymizedEAAEvents } from '../../hooks/useAnonymizedEAAEvents'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { usePrivacyFilter } from '../../hooks/usePrivacyFilter'
 import { useTheme } from '../../hooks/useTheme'
@@ -184,6 +185,32 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
   useEffect(() => {
     loadAllData()
   }, [loadAllData])
+
+  // P2-9: 订阅 EAA 事件总线, 当本学生被写入新事件 / 撤销事件时, 事件时间线和分数自动更新
+  // 只刷新属于当前学生的事件, 避免无关事件造成全量重算
+  // P5: 用 useAnonymizedEAAEvents 替代 useEAAEvents, 让 studentName 与隐私引擎脱敏后的化名对齐
+  // (匹配比较用 student.name 真名, 但 record.studentName 在隐私模式下是化名, 因此比较时
+  //  也用真名 vs 脱敏后的 student.name, 但实际上 student.name 是 props 传进来的真名)
+  // 简化方案: 比较时把 student.name 也走一次脱敏, 保持双侧都脱敏或都不脱敏
+  const { lastEventAdded, lastEventReverted, lastStudentDeleted } = useAnonymizedEAAEvents()
+  useEffect(() => {
+    if (!lastEventAdded) return
+    if (lastEventAdded.studentName === student.name) {
+      loadAllData()
+    }
+  }, [lastEventAdded, student.name, loadAllData])
+  useEffect(() => {
+    if (!lastEventReverted) return
+    // 撤销事件不携带学生名, 保险起见全量重算 (历史接口已带 name 过滤, 廉价)
+    loadAllData()
+  }, [lastEventReverted, loadAllData])
+  // 当前查看的学生被删除时, 主动关闭详情
+  useEffect(() => {
+    if (!lastStudentDeleted) return
+    if (lastStudentDeleted.studentName === student.name) {
+      onClose()
+    }
+  }, [lastStudentDeleted, student.name, onClose])
 
   const toggleAgent = (id: string) => {
     setSelectedAgents((prev) => {

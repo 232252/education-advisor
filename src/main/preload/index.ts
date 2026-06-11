@@ -125,6 +125,38 @@ contextBridge.exposeInMainWorld('api', {
     // [r] 读取 agent 执行历史
     getHistory: (id: string) => ipcRenderer.invoke(IPC.IPC_AGENT_GET_HISTORY, id),
 
+    // P6: 跨 agent 查询所有执行历史 + 统计 + 名称映射
+    getAllExecutions: (options?: {
+      status?: 'success' | 'error' | 'timeout'
+      agentId?: string
+      sinceMs?: number
+      limit?: number
+    }) =>
+      ipcRenderer.invoke(IPC.IPC_AGENT_GET_ALL_EXECUTIONS, options) as Promise<{
+        executions: Array<{
+          id: string
+          agentId: string
+          prompt: string
+          output: string
+          startedAt: number
+          durationMs: number
+          tokenUsage: { inputTokens: number; outputTokens: number; totalTokens: number }
+          cost: number
+          status: 'success' | 'error' | 'timeout'
+        }>
+        stats: {
+          totalRuns: number
+          successCount: number
+          errorCount: number
+          timeoutCount: number
+          successRate: number
+          totalCost: number
+          totalTokens: number
+          totalDurationMs: number
+        }
+        agentNameMap: Record<string, string>
+      }>,
+
     // [c] 中断 agent 执行
     abort: (id: string) => ipcRenderer.invoke(IPC.IPC_AGENT_ABORT, id),
 
@@ -192,8 +224,18 @@ contextBridge.exposeInMainWorld('api', {
 
     // P2-4: 订阅 EAA 数据变更事件, 用于多页面/多窗口实时刷新
     // 每个监听器返回取消订阅函数, 避免泄漏
-    onEventAdded: (callback: (data: { studentName: string; reasonCode: string; delta?: number; at: number }) => void) => {
-      const handler = (_e: unknown, data: { studentName: string; reasonCode: string; delta?: number; at: number }) => callback(data)
+    onEventAdded: (
+      callback: (data: {
+        studentName: string
+        reasonCode: string
+        delta?: number
+        at: number
+      }) => void,
+    ) => {
+      const handler = (
+        _e: unknown,
+        data: { studentName: string; reasonCode: string; delta?: number; at: number },
+      ) => callback(data)
       ipcRenderer.on(IPC.IPC_EAA_EVENT_ADDED, handler)
       return () => ipcRenderer.removeListener(IPC.IPC_EAA_EVENT_ADDED, handler)
     },
@@ -289,6 +331,12 @@ contextBridge.exposeInMainWorld('api', {
     save: (name: string, content: string) => ipcRenderer.invoke(IPC.IPC_SKILL_SAVE, name, content),
     // [c] 删除技能 — UI 层应二次确认
     delete: (name: string) => ipcRenderer.invoke(IPC.IPC_SKILL_DELETE, name),
+    // P7: 启用/禁用 skill
+    setEnabled: (name: string, enabled: boolean) =>
+      ipcRenderer.invoke(IPC.IPC_SKILL_SET_ENABLED, name, enabled) as Promise<{
+        success: boolean
+        error?: string
+      }>,
   },
 
   // ----- 设置 -----
@@ -392,13 +440,59 @@ contextBridge.exposeInMainWorld('api', {
     // [r] 列 bitable 表
     listBitable: (appId: string, appToken: string) =>
       ipcRenderer.invoke(IPC.IPC_FEISHU_BITABLE, appId, appToken),
-    // [c] 发文本消息
+    // [c] 发文本消息(旧入口,无预检,仅向后兼容)
     send: (appId: string, userOpenId: string, text: string) =>
       ipcRenderer.invoke(IPC.IPC_FEISHU_SEND, appId, userOpenId, text),
+    // U-10: 发文本消息(带隐私预检)
+    sendPreflight: (appId: string, userOpenId: string, text: string) =>
+      ipcRenderer.invoke(IPC.IPC_FEISHU_SEND_PREFLIGHT, appId, userOpenId, text) as Promise<{
+        hasPII: boolean
+        entities: Array<{ kind: string; count: number }>
+        redacted: string
+        original: string
+        originalLength: number
+        privacyEnabled: boolean
+        error?: string
+      }>,
+    sendConfirm: (
+      appId: string,
+      userOpenId: string,
+      text: string,
+      decision: 'cancel' | 'redacted' | 'original',
+    ) =>
+      ipcRenderer.invoke(
+        IPC.IPC_FEISHU_SEND_CONFIRM,
+        appId,
+        userOpenId,
+        text,
+        decision,
+      ) as Promise<{
+        success: boolean
+        messageId?: string
+        error?: string
+        blocked?: boolean
+        report?: {
+          hasPII: boolean
+          entities: Array<{ kind: string; count: number }>
+          privacyEnabled: boolean
+        }
+        sentTextLength?: number
+      }>,
     // [r] 查 token 缓存状态
     status: () => ipcRenderer.invoke(IPC.IPC_FEISHU_STATUS),
     // [w] T4: 手动触发一次 bitable 同步(graceful 降级)
+    // U-12: 同步返回 piiReport — 渲染层可展示
     syncNow: (appId: string, appToken: string, tableId: string, fields: Record<string, unknown>) =>
-      ipcRenderer.invoke(IPC.IPC_FEISHU_SYNC_NOW, appId, appToken, tableId, fields),
+      ipcRenderer.invoke(IPC.IPC_FEISHU_SYNC_NOW, appId, appToken, tableId, fields) as Promise<{
+        success: boolean
+        skipped?: string
+        recordId?: string
+        error?: string
+        piiReport?: {
+          hasPII: boolean
+          entities: Array<{ kind: string; count: number }>
+          privacyEnabled: boolean
+        }
+      }>,
   },
 })

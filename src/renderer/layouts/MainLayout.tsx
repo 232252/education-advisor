@@ -4,20 +4,23 @@
 
 import { useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { ROUTES } from '../hooks/useNavigation'
 import { usePrivacyFilter } from '../hooks/usePrivacyFilter'
 import { useT } from '../i18n'
 import { useAgentStore } from '../stores/agentStore'
 
 const NAV_ITEMS = [
-  { path: '/dashboard', icon: '\u{1F4CA}', labelKey: 'nav.dashboard' },
-  { path: '/chat', icon: '\u{1F4AC}', labelKey: 'nav.chat' },
-  { path: '/students', icon: '\u{1F465}', labelKey: 'nav.students' },
-  { path: '/agents', icon: '\u{1F916}', labelKey: 'nav.agents' },
-  { path: '/models', icon: '\u{1F9E0}', labelKey: 'nav.models' },
-  { path: '/skills', icon: '\u{1F4DD}', labelKey: 'nav.skills' },
-  { path: '/scheduler', icon: '\u{23F0}', labelKey: 'nav.scheduler' },
-  { path: '/privacy', icon: '\u{1F512}', labelKey: 'nav.privacy' },
-  { path: '/settings', icon: '\u{2699}\u{FE0F}', labelKey: 'nav.settings' },
+  { path: ROUTES.dashboard, icon: '\u{1F4CA}', labelKey: 'nav.dashboard' },
+  { path: ROUTES.chat, icon: '\u{1F4AC}', labelKey: 'nav.chat' },
+  { path: ROUTES.students, icon: '\u{1F465}', labelKey: 'nav.students' },
+  { path: ROUTES.agents, icon: '\u{1F916}', labelKey: 'nav.agents' },
+  // P6: 跨 Agent 执行历史全局页面
+  { path: ROUTES.agentHistory, icon: '\u{1F4CB}', labelKey: 'nav.agentHistory' },
+  { path: ROUTES.models, icon: '\u{1F9E0}', labelKey: 'nav.models' },
+  { path: ROUTES.skills, icon: '\u{1F4DD}', labelKey: 'nav.skills' },
+  { path: ROUTES.scheduler, icon: '\u{23F0}', labelKey: 'nav.scheduler' },
+  { path: ROUTES.privacy, icon: '\u{1F512}', labelKey: 'nav.privacy' },
+  { path: ROUTES.settings, icon: '\u{2699}\u{FE0F}', labelKey: 'nav.settings' },
 ] as const
 
 export function MainLayout() {

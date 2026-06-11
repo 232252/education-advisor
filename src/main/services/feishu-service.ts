@@ -8,6 +8,9 @@
 // 设计参考: 飞书官方 OpenAPI 的鉴权 + 直发模式
 // =============================================================
 
+// U-12: bitable record 写前隐私预检(warn 策略)
+import { preflightCheck } from './privacy-preflight'
+
 const FEISHU_API_BASE = 'https://open.feishu.cn/open-apis'
 
 interface TenantTokenResponse {
@@ -144,7 +147,47 @@ export async function addBitableRecord(
   appToken: string,
   tableId: string,
   fields: Record<string, unknown>,
-): Promise<{ success: boolean; recordId?: string; error?: string }> {
+): Promise<{
+  success: boolean
+  recordId?: string
+  error?: string
+  piiReport?: {
+    hasPII: boolean
+    entities: Array<{ kind: string; count: number }>
+    privacyEnabled: boolean
+  }
+}> {
+  // U-12: 写前隐私预检 — 把全部字符串字段拼起来扫描
+  // warn 策略:不阻止(cron 同步不能因 PII 中断),但记到返回里 + 控制台
+  let piiReport:
+    | {
+        hasPII: boolean
+        entities: Array<{ kind: string; count: number }>
+        privacyEnabled: boolean
+      }
+    | undefined
+  try {
+    const flatText = Object.values(fields)
+      .filter((v): v is string => typeof v === 'string')
+      .join('\n')
+    if (flatText.length > 0) {
+      const report = await preflightCheck(flatText)
+      piiReport = {
+        hasPII: report.hasPII,
+        entities: report.entities,
+        privacyEnabled: report.privacyEnabled,
+      }
+      if (report.hasPII) {
+        const types = report.entities.map((e) => `${e.kind}×${e.count}`).join(', ')
+        console.warn(
+          `[feishu] addBitableRecord → bitable ${appToken}/${tableId}: PII detected (${types})`,
+        )
+      }
+    }
+  } catch (_err) {
+    // 引擎未加载等异常 — 静默继续(warn 策略不阻断)
+  }
+
   try {
     const { token } = await getTenantToken(appId, appSecret)
     const res = await fetch(
@@ -164,11 +207,15 @@ export async function addBitableRecord(
       data?: { record?: { record_id?: string } }
     }
     if (data.code !== 0) {
-      return { success: false, error: `code=${data.code} msg=${data.msg}` }
+      return { success: false, error: `code=${data.code} msg=${data.msg}`, piiReport }
     }
-    return { success: true, recordId: data.data?.record?.record_id }
+    return { success: true, recordId: data.data?.record?.record_id, piiReport }
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+      piiReport,
+    }
   }
 }
 
@@ -179,7 +226,17 @@ export async function syncBitableNow(
   appToken: string,
   tableId: string,
   fields: Record<string, unknown>,
-): Promise<{ success: boolean; skipped?: string; recordId?: string; error?: string }> {
+): Promise<{
+  success: boolean
+  skipped?: string
+  recordId?: string
+  error?: string
+  piiReport?: {
+    hasPII: boolean
+    entities: Array<{ kind: string; count: number }>
+    privacyEnabled: boolean
+  }
+}> {
   if (!appId || !appSecret) {
     return { success: false, skipped: 'feishu credentials not configured' }
   }
