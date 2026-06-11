@@ -81,6 +81,12 @@ export const IPC_PRIVACY_BACKUP = 'privacy:backup'
 // P1-9: 新增隐私引擎状态变化广播通道（enable/disable 切换时推送）
 export const IPC_PRIVACY_STATE_CHANGED = 'privacy:state-changed'
 
+// ===== 合规报告（Pillar 6）=====
+// 生成 / 列出 / 保存到文件
+export const IPC_COMPLIANCE_GENERATE = 'compliance:generate'
+export const IPC_COMPLIANCE_LIST = 'compliance:list'
+export const IPC_COMPLIANCE_SAVE = 'compliance:save'
+
 // ===== 定时任务 =====
 export const IPC_CRON_LIST = 'cron:list'
 export const IPC_CRON_ADD = 'cron:add'
