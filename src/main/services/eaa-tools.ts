@@ -10,7 +10,17 @@ import { app } from 'electron'
 import { Type } from 'typebox'
 import { tokenizeQuery } from '../../shared/utils'
 import { eaaBridge, getErrorMessage } from './eaa-bridge'
-import { profileService } from './profile-service'
+// Lazy-loaded to avoid pulling in electron's `app` module during test imports.
+// ProfileService's constructor calls `app.getPath('userData')`, which crashes
+// in unit-test envs that mock `./eaa-bridge` but not `electron`. Loading it
+// inside `getProfileService()` defers the side effect to first call.
+let _profileService: typeof import('./profile-service').profileService | null = null
+async function getProfileService() {
+  if (!_profileService) {
+    _profileService = (await import('./profile-service')).profileService
+  }
+  return _profileService
+}
 
 // 辅助函数：构造 TextContent 结果
 function textResult(text: string): AgentToolResult<unknown> {
