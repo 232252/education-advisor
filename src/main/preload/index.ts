@@ -295,6 +295,81 @@ contextBridge.exposeInMainWorld('api', {
     },
   },
 
+  // ----- Pillar 6: 合规报告 -----
+  compliance: {
+    // [c] 生成报告(start/end ms, 可选 label)
+    generate: (startMs: number, endMs: number, label?: string) =>
+      ipcRenderer.invoke(IPC.IPC_COMPLIANCE_GENERATE, startMs, endMs, label) as Promise<{
+        success: boolean
+        report?: {
+          schemaVersion: number
+          reportId: string
+          generatedAt: number
+          period: { start: number; end: number; label: string }
+          summary: {
+            totalCalls: number
+            successCalls: number
+            failedCalls: number
+            anonymizeCalls: number
+            deanonymizeCalls: number
+            filterCalls: number
+            dryRunCalls: number
+            configCalls: number
+            avgDurationMs: number
+          }
+          byOp: Record<string, number>
+          byRecipient: Record<string, number>
+          byEntityType: Record<string, number>
+          piiStats: {
+            totalPIIHits: number
+            callsWithPII: number
+            byKind: Record<string, number>
+          }
+          manifest: {
+            auditLogSha256: string
+            reportSha256: string
+            auditLogLineCount: number
+            generatedAt: number
+          }
+        }
+        error?: string
+      }>,
+    // [r] 列季度范围 + 审计行数
+    list: () =>
+      ipcRenderer.invoke(IPC.IPC_COMPLIANCE_LIST) as Promise<{
+        success: boolean
+        auditLogLineCount: number
+        previousQuarter: { start: number; end: number; label: string }
+        currentQuarter: { start: number; end: number; label: string }
+      }>,
+    // [c] 把报告 JSON 写盘
+    save: (reportJson: string, destPath: string) =>
+      ipcRenderer.invoke(IPC.IPC_COMPLIANCE_SAVE, reportJson, destPath) as Promise<{
+        success: boolean
+        filePath?: string
+        bytes?: number
+        error?: string
+      }>,
+    // [r] 拉审计条目预览
+    readAudit: (opts?: { limit?: number }) =>
+      ipcRenderer.invoke('compliance:read-audit', opts) as Promise<{
+        success: boolean
+        entries: Array<{
+          ts: number
+          op: string
+          inputLen: number
+          outputLen: number
+          hasPII: boolean
+          piiCount: number
+          receiver?: string
+          entityType?: string
+          durationMs: number
+          success: boolean
+          error?: string
+        }>
+      }>,
+  },
+
   // ----- 定时任务 -----
   cron: {
     // [r] 列出任务

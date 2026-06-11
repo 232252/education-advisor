@@ -196,6 +196,74 @@ interface WindowAPI {
     // P1-11: 订阅隐私引擎状态变化（enable/disable 切换），用于全局 UI 同步
     onStateChanged: (callback: (data: { enabled: boolean; at: number }) => void) => () => void
   }
+  // Pillar 6: 合规报告
+  compliance: {
+    generate: (
+      startMs: number,
+      endMs: number,
+      label?: string,
+    ) => Promise<{
+      success: boolean
+      report?: {
+        schemaVersion: number
+        reportId: string
+        generatedAt: number
+        period: { start: number; end: number; label: string }
+        summary: {
+          totalCalls: number
+          successCalls: number
+          failedCalls: number
+          anonymizeCalls: number
+          deanonymizeCalls: number
+          filterCalls: number
+          dryRunCalls: number
+          configCalls: number
+          avgDurationMs: number
+        }
+        byOp: Record<string, number>
+        byRecipient: Record<string, number>
+        byEntityType: Record<string, number>
+        piiStats: {
+          totalPIIHits: number
+          callsWithPII: number
+          byKind: Record<string, number>
+        }
+        manifest: {
+          auditLogSha256: string
+          reportSha256: string
+          auditLogLineCount: number
+          generatedAt: number
+        }
+      }
+      error?: string
+    }>
+    list: () => Promise<{
+      success: boolean
+      auditLogLineCount: number
+      previousQuarter: { start: number; end: number; label: string }
+      currentQuarter: { start: number; end: number; label: string }
+    }>
+    save: (
+      reportJson: string,
+      destPath: string,
+    ) => Promise<{ success: boolean; filePath?: string; bytes?: number; error?: string }>
+    readAudit: (opts?: { limit?: number }) => Promise<{
+      success: boolean
+      entries: Array<{
+        ts: number
+        op: string
+        inputLen: number
+        outputLen: number
+        hasPII: boolean
+        piiCount: number
+        receiver?: string
+        entityType?: string
+        durationMs: number
+        success: boolean
+        error?: string
+      }>
+    }>
+  }
   cron: {
     list: () => Promise<CronTask[]>
     add: (task: unknown) => Promise<string>

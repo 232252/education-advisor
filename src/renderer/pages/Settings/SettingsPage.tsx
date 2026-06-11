@@ -8,6 +8,7 @@
 
 import type { UnifiedSettings } from '@shared/types'
 import { useCallback, useEffect, useReducer, useState } from 'react'
+import { ComplianceReportPanel } from '../../components/ComplianceReportPanel'
 import { setLang, useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../../stores/toastStore'
@@ -1314,6 +1315,11 @@ export function SettingsPage() {
             </button>
           </div>
         </div>
+      </Section>
+
+      {/* Pillar 6: 合规报告 */}
+      <Section title="📋 隐私合规报告">
+        <ComplianceReportPanel />
       </Section>
     </div>
   )
