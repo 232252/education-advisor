@@ -98,6 +98,8 @@ export interface AgentConfig {
   modelTier: 'high_quality' | 'low_cost'
   schedule: string[]
   capabilities: string[]
+  // P3: 绑定的 skill 名(id 列表) — 留空时该 agent 可访问全部 skills
+  skillIds?: string[]
   riskThresholds?: RiskThresholds
 }
 
@@ -429,6 +431,10 @@ export interface Skill {
   content: string
   source: 'user' | 'project'
   filePath: string
+  // P7: 用户在 UI 上启用的 skill — 与 frontmatter enabled 同名,支持热重载
+  enabled?: boolean
+  // P7: frontmatter 里的 triggers(用于按需加载)
+  triggers?: string[]
 }
 
 // ===== 设置 =====

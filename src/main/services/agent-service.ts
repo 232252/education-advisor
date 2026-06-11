@@ -63,13 +63,14 @@ interface RunningAgent {
 /** agent → cron task id 列表的映射（用于聚合 nextRunAt） */
 type AgentScheduleMap = Map<string, string[]>
 
-/** 用户对 agents.yaml 的覆盖（enabled/name/description/modelTier/capabilities 均可被覆盖） */
+/** 用户对 agents.yaml 的覆盖（enabled/name/description/modelTier/capabilities/skillIds 均可被覆盖） */
 interface UserAgentOverride {
   enabled?: boolean
   name?: string
   description?: string
   modelTier?: 'high_quality' | 'low_cost'
   capabilities?: string[]
+  skillIds?: string[]
 }
 
 const WAIT_FOR_IDLE_TIMEOUT_MS = 5 * 60_000 // 5 分钟
@@ -179,6 +180,11 @@ class AgentService {
           if (a.modelTier === 'high_quality' || a.modelTier === 'low_cost')
             override.modelTier = a.modelTier
           if (Array.isArray(a.capabilities)) override.capabilities = a.capabilities
+          // P3: skillIds 覆盖解析
+          if (Array.isArray(a.skillIds))
+            override.skillIds = a.skillIds.filter(
+              (x: unknown): x is string => typeof x === 'string' && x.length > 0,
+            )
           this.userOverrides.set(a.id, override)
         }
       }
@@ -200,6 +206,7 @@ class AgentService {
           description?: string
           modelTier?: 'high_quality' | 'low_cost'
           capabilities?: string[]
+          skillIds?: string[]
         } = { id }
         if (typeof v.enabled === 'boolean') entry.enabled = v.enabled
         if (typeof v.name === 'string') entry.name = v.name
@@ -207,6 +214,8 @@ class AgentService {
         if (v.modelTier === 'high_quality' || v.modelTier === 'low_cost')
           entry.modelTier = v.modelTier
         if (Array.isArray(v.capabilities)) entry.capabilities = v.capabilities
+        // P3: 持久化 skillIds 覆盖
+        if (Array.isArray(v.skillIds)) entry.skillIds = v.skillIds
         return entry
       })
     const payload = `\
@@ -240,6 +249,10 @@ ${yaml.stringify({ agents: list })}
 
     for (const a of agentList) {
       const override = this.userOverrides.get(a.id)
+      // P3: 解析 yaml 中的 skill_ids (snake_case) 数组
+      const yamlSkillIds: string[] | undefined = Array.isArray(a.skill_ids)
+        ? a.skill_ids.filter((x: unknown): x is string => typeof x === 'string' && x.length > 0)
+        : undefined
       const config: AgentConfig = {
         id: a.id,
         name: override?.name ?? a.name ?? a.id,
@@ -249,6 +262,8 @@ ${yaml.stringify({ agents: list })}
         modelTier: override?.modelTier ?? a.model_tier ?? 'low_cost',
         schedule: a.schedule?.cron ?? [],
         capabilities: override?.capabilities ?? a.capabilities ?? [],
+        // P3: skillIds 优先级: user override > yaml > undefined(全部)
+        skillIds: override?.skillIds ?? yamlSkillIds,
         riskThresholds: a.risk_thresholds,
       }
       this.agents.set(config.id, config)
@@ -319,10 +334,12 @@ ${yaml.stringify({ agents: list })}
     return { success: true }
   }
 
-  /** 更新 Agent 配置（name, description, modelTier, capabilities 等） */
+  /** 更新 Agent 配置（name, description, modelTier, capabilities, skillIds 等） */
   updateAgent(
     id: string,
-    patch: Partial<Pick<AgentConfig, 'name' | 'description' | 'modelTier' | 'capabilities'>>,
+    patch: Partial<
+      Pick<AgentConfig, 'name' | 'description' | 'modelTier' | 'capabilities' | 'skillIds'>
+    >,
   ): { success: boolean; error?: string } {
     const config = this.agents.get(id)
     if (!config) return { success: false, error: 'Agent not found' }
@@ -330,6 +347,10 @@ ${yaml.stringify({ agents: list })}
     if (patch.description !== undefined) config.description = patch.description
     if (patch.modelTier !== undefined) config.modelTier = patch.modelTier
     if (patch.capabilities !== undefined) config.capabilities = patch.capabilities
+    // P3: skillIds 也可被 UI 覆盖
+    if (patch.skillIds !== undefined) {
+      config.skillIds = Array.isArray(patch.skillIds) ? [...patch.skillIds] : undefined
+    }
     // 持久化到 user overrides
     this.userOverrides.set(id, { ...(this.userOverrides.get(id) ?? {}), ...patch })
     void this.persistUserOverrides()
@@ -366,12 +387,93 @@ ${yaml.stringify({ agents: list })}
   }
 
   // ===========================================================
-  // Skill 注入
+  // Skill 注入 — P3: 按 agent 绑定的 skillIds 过滤
   // ===========================================================
 
-  /** 将所有可用 skill 格式化为 system prompt 段落 */
-  private buildSkillsSection(): string {
-    const skills = skillService.listSkills()
+  /**
+   * P6: 跨 agent 查询所有执行历史(供全局历史页面)
+   *
+   * @param options.status 仅返回该状态的记录
+   * @param options.agentId 仅返回该 agent 的记录
+   * @param options.sinceMs 起始时间(毫秒),默认 0
+   * @param options.limit 最多返回多少条,默认 200
+   * @returns 跨所有 agent 的执行记录(按时间倒序)
+   */
+  getAllExecutions(options?: {
+    status?: AgentExecution['status']
+    agentId?: string
+    sinceMs?: number
+    limit?: number
+  }): AgentExecution[] {
+    const sinceMs = options?.sinceMs ?? 0
+    const limit = options?.limit ?? 200
+    const status = options?.status
+    const agentFilter = options?.agentId
+
+    const out: AgentExecution[] = []
+    for (const [agentId, history] of this.executionHistory.entries()) {
+      if (agentFilter && agentId !== agentFilter) continue
+      for (const exec of history) {
+        if (exec.startedAt < sinceMs) continue
+        if (status && exec.status !== status) continue
+        out.push(exec)
+      }
+    }
+    // 按时间倒序
+    out.sort((a, b) => b.startedAt - a.startedAt)
+    return out.length > limit ? out.slice(0, limit) : out
+  }
+
+  /**
+   * P6: 跨 agent 执行历史统计(供全局历史页面顶部卡片)
+   * 一次性返回总量/成功率/总 token/总费用,避免 UI 多轮汇总
+   */
+  getExecutionStats(): {
+    totalRuns: number
+    successCount: number
+    errorCount: number
+    timeoutCount: number
+    successRate: number
+    totalCost: number
+    totalTokens: number
+    totalDurationMs: number
+  } {
+    let totalRuns = 0
+    let successCount = 0
+    let errorCount = 0
+    let timeoutCount = 0
+    let totalCost = 0
+    let totalTokens = 0
+    let totalDurationMs = 0
+    for (const history of this.executionHistory.values()) {
+      for (const e of history) {
+        totalRuns++
+        if (e.status === 'success') successCount++
+        else if (e.status === 'error') errorCount++
+        else if (e.status === 'timeout') timeoutCount++
+        totalCost += e.cost
+        totalTokens += e.tokenUsage.inputTokens + e.tokenUsage.outputTokens
+        totalDurationMs += e.durationMs
+      }
+    }
+    return {
+      totalRuns,
+      successCount,
+      errorCount,
+      timeoutCount,
+      successRate: totalRuns > 0 ? successCount / totalRuns : 0,
+      totalCost,
+      totalTokens,
+      totalDurationMs,
+    }
+  }
+
+  /**
+   * P3: 将绑定的 skills 格式化为 system prompt 段落
+   * 不再硬塞全部 skills — 只注入该 agent 配置中明确列出的 skills
+   */
+  private buildSkillsSection(skillIds: string[] | undefined): string {
+    const skills = skillService.getSkillsForAgent(skillIds)
     if (skills.length === 0) return ''
 
     const entries = skills.map((s) => {
@@ -483,7 +585,8 @@ ${yaml.stringify({ agents: list })}
    * 解决"Agent 不知道自己是谁/能做什么"问题.
    */
   private buildSelfAwareSection(agentId: string, model: Model<Api>, config: AgentConfig): string {
-    const skills = skillService.listSkills()
+    // P3: 用该 agent 绑定的 skills(不再列全部,避免污染上下文)
+    const skills = skillService.getSkillsForAgent(config.skillIds)
     const skillsList = skills.length
       ? skills
           .map((s) => `- \`${s.name}\`: ${s.description?.slice(0, 80) ?? '(无描述)'}`)
@@ -783,7 +886,8 @@ ${yaml.stringify({ agents: list })}
     // 注意:此处先拼好,后面会被 systemPrompt setter 覆盖
     const soulContent = this.getSoul(id)
     const rulesContent = this.getRules(id)
-    const skillsSection = this.buildSkillsSection()
+    // P3: 用该 agent 绑定的 skills(传入 config.skillIds)
+    const skillsSection = this.buildSkillsSection(config.skillIds)
     const baseSystemPrompt = [
       soulContent || `你是 ${config.name}，角色: ${config.role}。${config.description}`,
       skillsSection,

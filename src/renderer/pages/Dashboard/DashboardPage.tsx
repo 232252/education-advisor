@@ -22,6 +22,9 @@ import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import ReactEChartsCore from 'echarts-for-react/lib/core'
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useEAAEvents } from '../../hooks/useEAAEvents'
+import { useNavigation } from '../../hooks/useNavigation'
 import { usePrivacyFilter } from '../../hooks/usePrivacyFilter'
 import { useTheme } from '../../hooks/useTheme'
 import { useT } from '../../i18n'
@@ -110,6 +113,8 @@ const GRADIENT_COLORS = {
 
 export function DashboardPage() {
   const { t } = useT()
+  // P4-4: 跨页面导航 — 排行榜可点击跳转到学生详情
+  const nav = useNavigation()
   const [stats, setStats] = useState<EAAStatsData | null>(null)
   const [summary, setSummary] = useState<EAASummaryData | null>(null)
   const [ranking, setRanking] = useState<EAARankItem[]>([])
@@ -177,6 +182,13 @@ export function DashboardPage() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // P2-8: 订阅 EAA 事件总线, 任意事件(添加/撤销/新增学生/删除学生)都触发 dashboard 重算
+  const { lastChange: eaaLastChange } = useEAAEvents()
+  useEffect(() => {
+    if (eaaLastChange === 0) return
+    loadData()
+  }, [eaaLastChange, loadData])
 
   if (loading) {
     return (
@@ -452,9 +464,11 @@ export function DashboardPage() {
           </h3>
           <div className="space-y-2">
             {ranking.slice(0, 10).map((r) => (
-              <div
+              <Link
                 key={r.entity_id}
-                className="flex items-center justify-between text-xs p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                to={nav.buildStudentHref(r.entity_id)}
+                title="查看该学生详情"
+                className="flex items-center justify-between text-xs p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group"
               >
                 <div className="flex items-center gap-3">
                   <span
@@ -471,7 +485,7 @@ export function DashboardPage() {
                   >
                     {r.rank}
                   </span>
-                  <span className="text-gray-700 dark:text-gray-200 font-medium">
+                  <span className="text-gray-700 dark:text-gray-200 font-medium group-hover:text-blue-600 dark:group-hover:text-blue-400">
                     {/* P1-5: 隐私开启时显示化名 */}
                     {rankingDisplay[r.entity_id] ?? r.name}
                   </span>
@@ -479,7 +493,7 @@ export function DashboardPage() {
                 <span className="font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
                   {r.score.toFixed(1)}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

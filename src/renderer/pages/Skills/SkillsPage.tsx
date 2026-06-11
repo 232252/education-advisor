@@ -84,6 +84,27 @@ export function SkillsPage() {
     loadSkills()
   }
 
+  // P7: 切换启用/禁用,乐观更新,失败时回滚
+  const handleToggleEnabled = async (name: string, enabled: boolean) => {
+    // 乐观更新
+    const prev = skills
+    setSkills((s) => s.map((x) => (x.name === name ? { ...x, enabled } : x)))
+    if (selected?.name === name) setSelected((s) => (s ? { ...s, enabled } : s))
+    try {
+      const result = await getAPI().skill.setEnabled(name, enabled)
+      if (!result.success) {
+        throw new Error(result.error ?? '未知错误')
+      }
+      toast.success(enabled ? `已启用 "${name}"` : `已禁用 "${name}"`)
+    } catch (err) {
+      // 回滚
+      setSkills(prev)
+      if (selected?.name === name) setSelected((s) => (s ? { ...s, enabled: !enabled } : s))
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(`状态更新失败: ${msg}`)
+    }
+  }
+
   const handleCreate = async () => {
     const name = newName.trim()
     if (!name) {
@@ -291,6 +312,23 @@ export function SkillsPage() {
                   </div>
                 </button>
 
+                {/* P7: 启用/禁用开关 */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void handleToggleEnabled(s.name, !s.enabled)
+                  }}
+                  className={`absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] transition-all ${
+                    s.enabled
+                      ? 'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 hover:bg-green-200'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-300'
+                  }`}
+                  title={s.enabled ? '点击禁用此技能' : '点击启用此技能'}
+                >
+                  {s.enabled ? '✓ 启用' : '○ 禁用'}
+                </button>
+
                 {/* 删除按钮（仅用户级技能） */}
                 {s.source === 'user' && (
                   <button
@@ -299,7 +337,7 @@ export function SkillsPage() {
                       e.stopPropagation()
                       handleDelete(s.name)
                     }}
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100
+                    className="absolute top-2 right-16 opacity-0 group-hover:opacity-100
                       text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-all text-xs
                       w-5 h-5 flex items-center justify-center rounded hover:bg-red-50 dark:hover:bg-red-900/20"
                     title="删除技能"

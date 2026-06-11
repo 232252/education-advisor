@@ -33,7 +33,9 @@ export function registerAgentHandlers(win: BrowserWindow) {
     }
     return agentService.updateAgent(
       id,
-      patch as Partial<Pick<AgentConfig, 'name' | 'description' | 'modelTier' | 'capabilities'>>,
+      patch as Partial<
+        Pick<AgentConfig, 'name' | 'description' | 'modelTier' | 'capabilities' | 'skillIds'>
+      >,
     )
   })
 
@@ -56,6 +58,29 @@ export function registerAgentHandlers(win: BrowserWindow) {
   ipcMain.handle(IPC.IPC_AGENT_SET_RULES, async (_e, id: string, content: string) => {
     return agentService.setRules(id, content)
   })
+
+  // P6: 跨 agent 查询所有执行历史(供全局历史页面)
+  ipcMain.handle(
+    IPC.IPC_AGENT_GET_ALL_EXECUTIONS,
+    async (
+      _e,
+      options?: {
+        status?: 'success' | 'error' | 'timeout'
+        agentId?: string
+        sinceMs?: number
+        limit?: number
+      },
+    ) => {
+      const all = agentService.getAllExecutions(options ?? undefined)
+      const stats = agentService.getExecutionStats()
+      // 同时返回 agent 名称映射,前端无需再次拉取列表
+      const agentNameMap: Record<string, string> = {}
+      for (const a of agentService.listAgents()) {
+        agentNameMap[a.id] = a.name
+      }
+      return { executions: all, stats, agentNameMap }
+    },
+  )
 
   // 手动触发 Agent — 异步执行，通过 AGENT_STATUS_UPDATE 推送进度
   // P1-39 修复:捕获 IIFE 异常并 await runAgent,错误也返回前端

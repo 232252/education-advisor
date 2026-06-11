@@ -9,6 +9,8 @@ import path from 'node:path'
 import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 import * as XLSX from 'xlsx'
+// U-11: 文件写工具的隐私预检(warn 策略 — 不阻止 agent,但记录 PII 命中)
+import { preflightCheck } from './privacy-preflight'
 
 // 辅助函数
 function textResult(text: string): AgentToolResult<unknown> {
@@ -246,6 +248,9 @@ export const writeFileTool: AgentTool<typeof writeFileParams> = {
   execute: async (_toolCallId, params) => {
     const resolvedPath = path.resolve(params.path)
 
+    // U-11: 写前隐私预检(warn 策略:不阻止,仅在 PII 命中时附加警告)
+    const piiWarning = await scanForPII(`write_file → ${resolvedPath}`, params.content)
+
     // 确保父目录存在
     const dir = path.dirname(resolvedPath)
     await fsp.mkdir(dir, { recursive: true })
@@ -253,7 +258,7 @@ export const writeFileTool: AgentTool<typeof writeFileParams> = {
     await fsp.writeFile(resolvedPath, params.content, 'utf-8')
 
     const stat = await fsp.stat(resolvedPath)
-    return textResult(`✅ 文件已写入: ${resolvedPath}\n大小: ${stat.size} bytes`)
+    return textResult(`✅ 文件已写入: ${resolvedPath}\n大小: ${stat.size} bytes${piiWarning ?? ''}`)
   },
 }
 
@@ -284,6 +289,12 @@ export const writeExcelTool: AgentTool<typeof writeExcelParams> = {
   execute: async (_toolCallId, params) => {
     const resolvedPath = path.resolve(params.path)
 
+    // U-11: 写前隐私预检(把全部 sheet 文本拼起来扫描)
+    const flatText = params.sheets
+      .flatMap((s) => [s.headers.join('\t'), ...s.rows.map((r) => r.join('\t'))])
+      .join('\n')
+    const piiWarning = await scanForPII(`write_excel → ${resolvedPath}`, flatText)
+
     // 确保父目录存在
     const dir = path.dirname(resolvedPath)
     await fsp.mkdir(dir, { recursive: true })
@@ -303,7 +314,7 @@ export const writeExcelTool: AgentTool<typeof writeExcelParams> = {
       `✅ Excel 已写入: ${resolvedPath}\n` +
         `工作表: ${params.sheets.map((s) => s.name).join(', ')}\n` +
         `大小: ${stat.size} bytes\n` +
-        `总行数: ${params.sheets.reduce((sum, s) => sum + s.rows.length, 0)}`,
+        `总行数: ${params.sheets.reduce((sum, s) => sum + s.rows.length, 0)}${piiWarning ?? ''}`,
     )
   },
 }
@@ -331,6 +342,11 @@ export const writeCsvTool: AgentTool<typeof writeCsvParams> = {
   parameters: writeCsvParams,
   execute: async (_toolCallId, params) => {
     const resolvedPath = path.resolve(params.path)
+
+    // U-13: 写前隐私预检(把表头 + 全部数据行拼成 TSV 文本扫描)
+    const flatText = [params.headers.join('\t'), ...params.rows.map((r) => r.join('\t'))].join('\n')
+    const piiWarning = await scanForPII(`write_csv → ${resolvedPath}`, flatText)
+
     const dir = path.dirname(resolvedPath)
     await fsp.mkdir(dir, { recursive: true })
 
@@ -369,7 +385,7 @@ export const writeCsvTool: AgentTool<typeof writeCsvParams> = {
         `列: ${params.headers.join(', ')}\n` +
         `数据行: ${params.rows.length}\n` +
         `编码: ${encoding}\n` +
-        `大小: ${stat.size} bytes`,
+        `大小: ${stat.size} bytes${piiWarning ?? ''}`,
     )
   },
 }
@@ -377,6 +393,27 @@ export const writeCsvTool: AgentTool<typeof writeCsvParams> = {
 // =============================================================
 // 导出：所有文件工具
 // =============================================================
+
+/**
+ * U-11: 文件写工具的 PII 预检 — warn 策略
+ * - 不阻止 agent 写入(agent 工具被 block 会破坏业务流程)
+ * - 在 tool 返回值里附加警告文本 + 控制台日志
+ * - 让 agent / 用户感知到"刚写的文件可能含 PII"
+ */
+async function scanForPII(context: string, text: string): Promise<string | null> {
+  if (!text || text.length === 0) return null
+  try {
+    const report = await preflightCheck(text)
+    if (!report.hasPII) return null
+    const types = report.entities.map((e) => `${e.kind}×${e.count}`).join(', ')
+    const msg = `\n⚠️ 隐私预检: 检测到 PII (${types})。文件已写入,但请确认是否需要脱敏后重新保存。`
+    console.warn(`[file-tools] ${context}: PII detected → ${types}`)
+    return msg
+  } catch (_err) {
+    // 引擎未加载等异常 — 静默继续(warn 策略不阻断)
+    return null
+  }
+}
 
 // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
 export const allFileTools: AgentTool<any>[] = [
