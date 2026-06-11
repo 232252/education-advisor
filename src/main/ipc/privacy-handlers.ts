@@ -61,7 +61,7 @@ function sanitizeEnum<T extends string>(input: unknown, allowed: readonly T[], f
 const ENTITY_TYPES = ['person', 'place', 'org', 'phone', 'email', 'id_card', 'student_id'] as const
 const RECEIVER_TYPES = ['student', 'parent', 'teacher', 'school', 'public'] as const
 
-export function registerPrivacyHandlers(_win: BrowserWindow) {
+export function registerPrivacyHandlers(win: BrowserWindow) {
   // ----- init: 初始化隐私引擎（Rust CLI 要求 password 作为位置参数） -----
   ipcMain.handle(IPC.IPC_PRIVACY_INIT, async (_e, password: string, autoScan?: boolean) => {
     const pwd = validatePassword(password)
@@ -79,15 +79,25 @@ export function registerPrivacyHandlers(_win: BrowserWindow) {
   })
 
   // ----- enable: 启用脱敏 -----
+  // P1-7/1.8: 成功后向渲染端广播状态变化（用于全局徽章 + usePrivacyFilter 自动刷新）
   ipcMain.handle(IPC.IPC_PRIVACY_ENABLE, async () => {
-    return eaaBridge.execute({ command: 'privacy', args: ['enable'] })
+    const result = await eaaBridge.execute({ command: 'privacy', args: ['enable'] })
+    if (result.success) {
+      win.webContents.send(IPC.IPC_PRIVACY_STATE_CHANGED, { enabled: true, at: Date.now() })
+    }
+    return result
   })
 
   // ----- disable: 禁用脱敏（Rust CLI 要求 password 作为位置参数） -----
+  // P1-7/1.8: 成功后向渲染端广播状态变化
   ipcMain.handle(IPC.IPC_PRIVACY_DISABLE, async (_e, password: string) => {
     const pwd = validatePassword(password)
     eaaBridge.setPrivacyPassword(pwd)
-    return eaaBridge.execute({ command: 'privacy', args: ['disable', pwd] })
+    const result = await eaaBridge.execute({ command: 'privacy', args: ['disable', pwd] })
+    if (result.success) {
+      win.webContents.send(IPC.IPC_PRIVACY_STATE_CHANGED, { enabled: false, at: Date.now() })
+    }
+    return result
   })
 
   // ----- list: 列出已注册实体（密码走 EAA_PRIVACY_PASSWORD 环境变量） -----

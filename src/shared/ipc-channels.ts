@@ -65,6 +65,8 @@ export const IPC_PRIVACY_DEANONYMIZE = 'privacy:deanonymize'
 export const IPC_PRIVACY_FILTER = 'privacy:filter'
 export const IPC_PRIVACY_DRYRUN = 'privacy:dryrun'
 export const IPC_PRIVACY_BACKUP = 'privacy:backup'
+// P1-9: 新增隐私引擎状态变化广播通道（enable/disable 切换时推送）
+export const IPC_PRIVACY_STATE_CHANGED = 'privacy:state-changed'
 
 // ===== 定时任务 =====
 export const IPC_CRON_LIST = 'cron:list'

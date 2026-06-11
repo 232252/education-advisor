@@ -6,6 +6,7 @@
 import type { EAAStudent } from '@shared/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
+import { usePrivacyFilter } from '../../hooks/usePrivacyFilter'
 import { useT } from '../../i18n'
 import { getAPI, getErrorMessage } from '../../lib/ipc-client'
 import { riskColor, riskSortValue } from '../../lib/risk'
@@ -52,6 +53,33 @@ export function StudentsPage() {
       setLoading(false)
     }
   }, [t])
+
+  // P1-3: 全局隐私脱敏 hook — 学生在列表/操作时统一走这里
+  const { enabled: privacyEnabled, anonymizeBatch } = usePrivacyFilter()
+  // 学生 entity_id → 显示名（隐私开启时为化名；否则为真名）
+  const [displayNames, setDisplayNames] = useState<Record<string, string>>({})
+
+  // 学生列表/隐私状态变化时刷新 displayNames
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!privacyEnabled || students.length === 0) {
+        // 隐私未启用 → 直接用真名
+        const m: Record<string, string> = {}
+        for (const s of students) m[s.entity_id] = s.name
+        if (!cancelled) setDisplayNames(m)
+        return
+      }
+      const map = await anonymizeBatch(students.map((s) => s.name))
+      if (cancelled) return
+      const next: Record<string, string> = {}
+      for (const s of students) next[s.entity_id] = map[s.name] ?? s.name
+      setDisplayNames(next)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [students, privacyEnabled, anonymizeBatch])
 
   useEffect(() => {
     loadStudents()
@@ -282,12 +310,17 @@ export function StudentsPage() {
 
   // 过滤
   const searchLower = search.toLowerCase()
-  const filtered = students.filter(
-    (s) =>
-      s.name.toLowerCase().includes(searchLower) ||
+  const filtered = students.filter((s) => {
+    // P1-3: 隐私开启时，搜索关键字应匹配**显示名**（化名）而非真名，避免泄漏
+    const matchName = privacyEnabled
+      ? (displayNames[s.entity_id] ?? s.name).toLowerCase()
+      : s.name.toLowerCase()
+    return (
+      matchName.includes(searchLower) ||
       s.groups.some((g) => g.toLowerCase().includes(searchLower)) ||
-      s.roles.some((r) => r.toLowerCase().includes(searchLower)),
-  )
+      s.roles.some((r) => r.toLowerCase().includes(searchLower))
+    )
+  })
 
   // 排序: 高风险优先（使用 lib/risk 共享模块，含未知等级兜底）
   const sorted = [...filtered].sort((a, b) => {
@@ -515,7 +548,10 @@ export function StudentsPage() {
                         className="rounded"
                       />
                     </td>
-                    <td className="py-2.5 px-4 font-medium">{s.name}</td>
+                    <td className="py-2.5 px-4 font-medium">
+                      {/* P1-3: 隐私开启时显示 S_XXX 化名 */}
+                      {displayNames[s.entity_id] ?? s.name}
+                    </td>
                     <td className="py-2.5 px-4 text-right font-mono">{s.score.toFixed(1)}</td>
                     <td
                       className={`py-2.5 px-4 text-right font-mono text-xs ${
