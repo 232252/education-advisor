@@ -60,6 +60,17 @@ check_db.js
 __tmp_*.js
 __tmp_*.ps1
 __tmp_*.bat
+# P8-2: e2e stress-test scripts that hardcode Windows user paths / $APPDATA
+# (root cause: previous AI session did `git add -A` and leaked these to remote)
+# Keep them locally for re-runs but NEVER commit. They are *test fixtures*,
+# not source. If you need to re-create them, copy from /tmp/eaa-private-scripts/.
+scripts/e2e-*.ps1
+scripts/e2e-*.cjs
+scripts/start-with-cdp.ps1
+# Generic guard: any PowerShell / Node script that touches $APPDATA or
+# $env:USERPROFILE almost certainly contains a user-specific local path.
+**/$APPDATA*
+**/%APPDATA%
 
 # Generated link-analysis reports (Python tooling outputs)
 scripts/link*.txt
