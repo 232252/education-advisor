@@ -40,6 +40,28 @@ ipcMain.handle(IPC.IPC_LOG_EXPORT_DIALOG, async () => { throw new Error(STUB_ERR
 - `logger.ts` 已存在日志写入逻辑，各日志文件路径已知
 - `IPC_LOG_WRITE_RENDERER` 已正确实现（仅这一个通道不是 stub）
 
+> **✅ 状态：已修复（2026-06-11 复核）**
+>
+> 本节描述的 stub 实现**已在扫描日期之后被重写**。当前 `src/main/ipc/log-handlers.ts`（100 行，文件头注释明确为「真实业务实现」+「real implementation」）已完整实现 7 个 IPC handler，全部委托到 `src/main/utils/logger.ts` 中已存在的函数：
+>
+> | IPC 通道 | 当前实现 |
+> |:---|:---|
+> | `IPC_LOG_LIST` | `listLogFiles()` — 读 `userData/logs/`，返回 `{stream,date,name,sizeBytes}[]` |
+> | `IPC_LOG_READ` | `readLogTail(name, lines=100)` — 读 tail，含 `path.relative` 路径遍历防护 |
+> | `IPC_LOG_CLEAR` | `clearAllLogs()` — 删 `*.log` 文件，返回数量 |
+> | `IPC_LOG_FILTER` | `readLogTailByLevel(name, levels[], lines=200)` — 先读 1000 行再按 `[LEVEL]` 过滤 |
+> | `IPC_LOG_SEARCH` | `searchLog(name, query, lines=200)` — 子串匹配（大小写不敏感），先读 2000 行 |
+> | `IPC_LOG_EXPORT` | `exportLog(name, destPath)` — 复制到目标路径，返回字节数 |
+> | `IPC_LOG_EXPORT_DIALOG` | `dialog.showSaveDialog()` + `exportLog()` |
+>
+> 验证：
+> - `grep -E "STUB_ERROR|rebuild pending" log-handlers.ts` → 无匹配
+> - `npx tsc --noEmit` → exit 0，无类型错误
+> - `ipc-client.ts:215-225` 的 `log.*` 类型签名与 handler 返回值一致
+> - SettingsPage 的 11 处调用（行 955-1059）路径全部能命中
+>
+> 报告中"修复方案"段提到的两件事**已完成**：`logger.ts` 的 `listLogFiles`/`readLogTail`/`clearAllLogs`/`exportLog` 4 个函数现已是 handler 唯一依赖；`IPC_LOG_WRITE_RENDERER` 仍正常工作（渲染端 `console.log` 经 `log.forward` 转发）。
+
 ---
 
 ## 🔴 P0 — 系统崩溃级

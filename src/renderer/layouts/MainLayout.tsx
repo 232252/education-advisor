@@ -4,6 +4,7 @@
 
 import { useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { usePrivacyFilter } from '../hooks/usePrivacyFilter'
 import { useT } from '../i18n'
 import { useAgentStore } from '../stores/agentStore'
 
@@ -25,6 +26,9 @@ export function MainLayout() {
   const fetchAgents = useAgentStore((s) => s.fetchAgents)
   const initStatusListener = useAgentStore((s) => s.initStatusListener)
 
+  // P1-6: 隐私引擎状态徽章 — 实时反映当前是否脱敏
+  const { enabled: privacyEnabled, initialized: privacyInitialized } = usePrivacyFilter()
+
   useEffect(() => {
     fetchAgents()
     // 初始化 Agent 状态推送监听器（修复:原代码未调用导致实时状态不更新）
@@ -34,8 +38,43 @@ export function MainLayout() {
   return (
     <div className="flex h-screen bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100">
       <aside className="w-52 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-        <div className="h-14 flex items-center px-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="h-14 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
           <span className="text-lg font-bold tracking-tight">Education Advisor</span>
+          {/* P1-6: 隐私状态徽章 — 点击跳转 PrivacyPage */}
+          <NavLink
+            to="/privacy"
+            title={
+              privacyInitialized
+                ? privacyEnabled
+                  ? '隐私已启用（点击管理）'
+                  : '隐私未启用（点击启用）'
+                : '加载中…'
+            }
+            className="flex items-center"
+          >
+            <span
+              data-testid="privacy-badge"
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors
+                ${
+                  !privacyInitialized
+                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                    : privacyEnabled
+                      ? 'bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  !privacyInitialized
+                    ? 'bg-gray-400'
+                    : privacyEnabled
+                      ? 'bg-green-500 animate-pulse'
+                      : 'bg-gray-400'
+                }`}
+              />
+              🛡️ {privacyEnabled ? 'ON' : 'OFF'}
+            </span>
+          </NavLink>
         </div>
 
         <nav className="flex-1 py-2 overflow-y-auto">

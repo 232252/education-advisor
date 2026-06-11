@@ -218,6 +218,16 @@ contextBridge.exposeInMainWorld('api', {
     dryrun: (text: string) => ipcRenderer.invoke(IPC.IPC_PRIVACY_DRYRUN, text),
     // [c] 备份映射(写文件到 destPath) — UI 层应二次确认
     backup: (destPath: string) => ipcRenderer.invoke(IPC.IPC_PRIVACY_BACKUP, destPath),
+
+    // P1-10: 订阅隐私引擎状态变化（enable/disable 切换）
+    // 返回取消订阅函数，组件 unmount 时调用
+    onStateChanged: (callback: (data: { enabled: boolean; at: number }) => void) => {
+      const handler = (_e: unknown, data: { enabled: boolean; at: number }) => callback(data)
+      ipcRenderer.on(IPC.IPC_PRIVACY_STATE_CHANGED, handler)
+      return () => {
+        ipcRenderer.removeListener(IPC.IPC_PRIVACY_STATE_CHANGED, handler)
+      }
+    },
   },
 
   // ----- 定时任务 -----

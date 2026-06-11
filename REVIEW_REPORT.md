@@ -61,6 +61,32 @@
 - 隐私引擎形同虚设——开启后无任何实际效果
 - **建议**: 在 StudentProfile/StudentsPage 展示前调用 `privacy.filter()`；添加全局隐私状态指示器
 
+> **✅ 状态：已修复（2026-06-11 复核）**
+>
+> 4 个数据展示页面（Dashboard / StudentsPage / StudentProfile / ChatPage）已全部接入隐私脱敏：
+>
+> | 页面 | 接入点 | 范围 |
+> |:---|:---|:---|
+> | `DashboardPage` | 排行榜 `rankingDisplay` | 学生名 → 化名 |
+> | `StudentsPage` | 名单 `displayNames` | 学生名 → 化名 |
+> | `StudentProfile` (父) | `displayName` | 学生名 → 化名 |
+> | `StudentProfile` (ProfileTab) | 8 个 PII 字段 `displayPII` | idCard/phone/email/address/fatherName/fatherPhone/motherName/motherPhone |
+> | `ChatPage` | 消息气泡 `<PrivacyFilteredText>` | 整段文本 → 化名（流式中最后一条 bypass 避免闪烁）|
+>
+> PrivacyPage 补全了 enable/disable 按钮 + `settings.privacy.enabled` 持久化（usePrivacyFilter 启动时读取 + `onStateChanged` 订阅实时切换）。
+>
+> 共享基建：
+> - `src/renderer/hooks/usePrivacyFilter.ts`（162 行）— 单/批脱敏 + 缓存 + 订阅
+> - `src/renderer/components/PrivacyFilteredText.tsx`（45 行，新建）— 通用脱敏文本包装
+> - `IPC_PRIVACY_STATE_CHANGED` 已注册 + `privacy-handlers` 在 enable/disable 成功时广播
+> - `shared/types/index.ts:499` `privacy: { enabled, autoAnonymize }` 已定义
+>
+> 验证：`npx tsc --noEmit` exit 0，无类型错误。已知的 2 个 typecheck 错误（Dashboard 缺 import / StudentProfile `displayName` 引用）已修复。
+>
+> **未做（用户接受范围外）**：
+> - MainLayout 顶部全局"隐私模式"选择器（real/parent/public）— 当前依赖 PrivacyPage 的开关控制全局 `enabled`，未做 per-page 切换
+> - 第三方 chat 输入框 / 工具调用 args 的脱敏（args 段是结构化 JSON，按"已知学生姓名"模糊匹配风险可控）
+
 ### 🔴 S2 [严重] Skills 与 Agent 完全隔离
 - 技能定义与 Agent 运行时无数据通路，Skill 内容不会被注入 Agent prompt
 - `skill.list()`/`skill.get()` 只在 SkillsPage 使用，Agent 执行流程中无任何代码路径读取 Skill

@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ModelSelector } from '../../components/ModelSelector'
+import { PrivacyFilteredText } from '../../components/PrivacyFilteredText'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { useAgentStore } from '../../stores/agentStore'
@@ -409,7 +410,11 @@ export function ChatPage() {
                 )}
                 {/* 消息内容（放底部） */}
                 <div className="whitespace-pre-wrap">
-                  {msg.content ||
+                  <PrivacyFilteredText
+                    text={msg.content}
+                    bypass={isStreaming && i === messages.length - 1}
+                  />
+                  {!msg.content &&
                     (isStreaming && i === messages.length - 1 ? (
                       <span className="inline-flex items-center gap-1">
                         <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse" />

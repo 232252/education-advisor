@@ -2,7 +2,7 @@
 // 隐私控制中心页面
 // =============================================================
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useT } from '../../i18n'
 import { getAPI, getErrorMessage } from '../../lib/ipc-client'
 import { toast } from '../../stores/toastStore'
@@ -109,6 +109,60 @@ export function PrivacyPage() {
     }
   }
 
+  // P0-2: 启用/停用脱敏（持久化 settings.privacy.enabled, usePrivacyFilter 会订阅）
+  const [privacyEnabled, setPrivacyEnabled] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const s = await getAPI().settings.get()
+        const enabled = (s as { privacy?: { enabled?: boolean } })?.privacy?.enabled === true
+        if (!cancelled) setPrivacyEnabled(enabled)
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const handleEnable = async () => {
+    try {
+      const result = await getAPI().privacy.enable()
+      if (result.success) {
+        await getAPI().settings.set('privacy.enabled', true)
+        setPrivacyEnabled(true)
+        toast.success('已启用隐私脱敏')
+      } else {
+        toast.error(`启用失败: ${getErrorMessage(result)}`)
+      }
+    } catch (err) {
+      console.error('[Privacy] Enable failed:', err)
+      toast.error('启用失败')
+    }
+  }
+
+  const handleDisable = async () => {
+    if (!password) {
+      toast.warning('请先输入隐私密码')
+      return
+    }
+    try {
+      const result = await getAPI().privacy.disable(password)
+      if (result.success) {
+        await getAPI().settings.set('privacy.enabled', false)
+        setPrivacyEnabled(false)
+        toast.success('已停用隐私脱敏')
+      } else {
+        toast.error(`停用失败: ${getErrorMessage(result)}`)
+      }
+    } catch (err) {
+      console.error('[Privacy] Disable failed:', err)
+      toast.error('停用失败')
+    }
+  }
+
   return (
     <div className="h-full overflow-y-auto p-6 space-y-6">
       <h1 className="text-2xl font-bold">{t('page.privacy.title')}</h1>
@@ -178,6 +232,47 @@ export function PrivacyPage() {
           </div>
         )}
       </div>
+
+      {/* P0-2: 启用/停用脱敏 */}
+      {isInitialized && isLoaded && (
+        <div className="bg-gray-50 border border-gray-200 dark:bg-gray-800 dark:border-gray-700 rounded-xl p-5">
+          <h2 className="font-semibold mb-3">脱敏状态</h2>
+          <div className="flex items-center gap-3">
+            <span
+              className={`text-xs px-2 py-0.5 rounded-full border ${
+                privacyEnabled
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-gray-200 border-gray-300 text-gray-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400'
+              }`}
+            >
+              {privacyEnabled ? '● 已启用' : '○ 未启用'}
+            </span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {privacyEnabled
+                ? 'Dashboard / Students / StudentProfile / Chat 中学生名与 PII 已自动脱敏为化名'
+                : '当前为教师真实视图，所有信息明文显示'}
+            </span>
+            <div className="flex-1" />
+            {privacyEnabled ? (
+              <button
+                type="button"
+                onClick={handleDisable}
+                className="text-xs px-3 py-1.5 rounded-lg bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+              >
+                停用脱敏
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleEnable}
+                className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+              >
+                启用脱敏
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 映射表 */}
       {isLoaded && mappings.length > 0 && (

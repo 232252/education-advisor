@@ -366,8 +366,9 @@ const addExamParams = Type.Object({
   name: Type.String({ description: '学生姓名' }),
   examType: Type.String({ description: '考试类型（月考/周考/期中/期末/模拟考/平时测试/自定义）' }),
   examName: Type.String({ description: '考试名称（如"月考1"、"2026-03-14周考"）' }),
-  subjects: Type.Record(Type.String(), Type.Number(), {
-    description: '科目及成绩，如 {"语文":95, "数学":88}',
+  subjects: Type.Record(Type.String(), Type.Union([Type.Number(), Type.Null()]), {
+    description:
+      '科目及成绩, 数字 0-300 或 null (缺考). 例: {"语文":95, "数学":88, "英语":null} 表示英语缺考',
   }),
   date: Type.Optional(Type.String({ description: '考试日期 YYYY-MM-DD（可选）' })),
   notes: Type.Optional(Type.String({ description: '备注（可选）' })),
@@ -376,7 +377,8 @@ const addExamParams = Type.Object({
 export const addAcademicExamTool: AgentTool<typeof addExamParams> = {
   name: 'eaa_academic_add',
   label: '添加考试成绩',
-  description: '为指定学生添加一条学业考试成绩记录，支持任意科目和考试类型',
+  description:
+    '为指定学生添加一条学业考试成绩记录, 支持任意科目和考试类型. 缺考科目传 null (不是 0, 0 表示 0 分)',
   parameters: addExamParams,
   execute: async (_toolCallId, params) => {
     // sanitize: 防止路径遍历 / prompt injection
@@ -738,6 +740,8 @@ export const bulkAddStudentsTool: AgentTool<typeof bulkAddStudentsParams> = {
     let added = 0
     let existed = 0
     const failed: string[] = []
+    // 记录"刚被新增的学生名", 只给这些设置 classId, 避免覆盖已存在学生的原班级
+    const newlyAdded: string[] = []
     for (const rawName of params.names) {
       const safeName = rawName.replace(/[^一-鿿_a-zA-Z0-9-]/g, '_').slice(0, 64)
       if (!safeName.trim()) {
@@ -745,14 +749,17 @@ export const bulkAddStudentsTool: AgentTool<typeof bulkAddStudentsParams> = {
         continue
       }
       const r = await eaaBridge.execute({ command: 'add-student', args: [safeName] })
-      if (r.success) added++
-      else if (r.stderr?.includes('已存在') || r.stderr?.toLowerCase().includes('exists')) existed++
+      if (r.success) {
+        added++
+        newlyAdded.push(safeName)
+      } else if (r.stderr?.includes('已存在') || r.stderr?.toLowerCase().includes('exists'))
+        existed++
       else failed.push(`${safeName}: ${r.stderr || 'unknown'}`)
     }
-    if (params.classId && added > 0) {
+    // 只对"本次新增"的学生设 classId, 避免覆盖已存在学生的原班级
+    if (params.classId && newlyAdded.length > 0) {
       const safeClass = params.classId.replace(/[^一-鿿_a-zA-Z0-9_-]/g, '_').slice(0, 32)
-      for (const rawName of params.names) {
-        const safeName = rawName.replace(/[^一-鿿_a-zA-Z0-9-]/g, '_').slice(0, 64)
+      for (const safeName of newlyAdded) {
         await eaaBridge.execute({
           command: 'set-student-meta',
           args: [safeName, '--class-id', safeClass],
@@ -778,8 +785,9 @@ const bulkAddAcademicsParams = Type.Object({
   records: Type.Array(
     Type.Object({
       name: Type.String({ description: '学生姓名' }),
-      subjects: Type.Record(Type.String(), Type.Number(), {
-        description: '科目→分数, 如 {"语文":94,"数学":88.5}',
+      subjects: Type.Record(Type.String(), Type.Union([Type.Number(), Type.Null()]), {
+        description:
+          '科目→分数, 数字 0-300 或 null (缺考). 例: {"语文":94,"数学":88.5,"英语":null}',
       }),
     }),
     { description: '学生-成绩数组, 一次最多 200 条', minItems: 1, maxItems: 200 },
@@ -791,7 +799,7 @@ export const bulkAddAcademicsTool: AgentTool<typeof bulkAddAcademicsParams> = {
   name: 'eaa_bulk_add_academics',
   label: '批量添加考试成绩',
   description:
-    '一次录入多名学生的同一场考试成绩 (最多 200 人)。每名学生可包含任意多科目。常用于一次性录入全班 1 场考试。',
+    '一次录入多名学生的同一场考试成绩 (最多 200 人)。每名学生可包含任意多科目。缺考科目传 null。常用于一次性录入全班 1 场考试。',
   parameters: bulkAddAcademicsParams,
   execute: async (_toolCallId, params) => {
     if (params.records.length === 0) return textResult('成绩记录为空，未执行')

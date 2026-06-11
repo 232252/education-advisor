@@ -148,6 +148,8 @@ interface WindowAPI {
     filter: (receiver: string, text: string) => Promise<EAAResult>
     dryrun: (text: string) => Promise<EAAResult>
     backup: (destPath: string) => Promise<EAAResult>
+    // P1-11: 订阅隐私引擎状态变化（enable/disable 切换），用于全局 UI 同步
+    onStateChanged: (callback: (data: { enabled: boolean; at: number }) => void) => () => void
   }
   cron: {
     list: () => Promise<CronTask[]>

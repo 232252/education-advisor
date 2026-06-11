@@ -22,6 +22,7 @@ import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import ReactEChartsCore from 'echarts-for-react/lib/core'
 import { useCallback, useEffect, useState } from 'react'
+import { usePrivacyFilter } from '../../hooks/usePrivacyFilter'
 import { useTheme } from '../../hooks/useTheme'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
@@ -112,6 +113,30 @@ export function DashboardPage() {
   const [stats, setStats] = useState<EAAStatsData | null>(null)
   const [summary, setSummary] = useState<EAASummaryData | null>(null)
   const [ranking, setRanking] = useState<EAARankItem[]>([])
+
+  // P1-5: 排行榜姓名脱敏
+  const { enabled: privacyEnabled, anonymizeBatch } = usePrivacyFilter()
+  const [rankingDisplay, setRankingDisplay] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!privacyEnabled || ranking.length === 0) {
+        const m: Record<string, string> = {}
+        for (const r of ranking) m[r.entity_id] = r.name
+        if (!cancelled) setRankingDisplay(m)
+        return
+      }
+      const map = await anonymizeBatch(ranking.map((r) => r.name))
+      if (cancelled) return
+      const next: Record<string, string> = {}
+      for (const r of ranking) next[r.entity_id] = map[r.name] ?? r.name
+      setRankingDisplay(next)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [ranking, privacyEnabled, anonymizeBatch])
   const [loading, setLoading] = useState(true)
   // 系统管理 & 诊断
   const [eaaInfo, setEaaInfo] = useState<EAAInfoData | null>(null)
@@ -446,7 +471,10 @@ export function DashboardPage() {
                   >
                     {r.rank}
                   </span>
-                  <span className="text-gray-700 dark:text-gray-200 font-medium">{r.name}</span>
+                  <span className="text-gray-700 dark:text-gray-200 font-medium">
+                    {/* P1-5: 隐私开启时显示化名 */}
+                    {rankingDisplay[r.entity_id] ?? r.name}
+                  </span>
                 </div>
                 <span className="font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
                   {r.score.toFixed(1)}

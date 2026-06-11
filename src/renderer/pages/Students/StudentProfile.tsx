@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
+import { usePrivacyFilter } from '../../hooks/usePrivacyFilter'
 import { useTheme } from '../../hooks/useTheme'
 import { useT } from '../../i18n'
 import { getAPI, getErrorMessage } from '../../lib/ipc-client'
@@ -100,6 +101,26 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
   const [dateEnd, setDateEnd] = useState('')
   const theme = useTheme()
   const isDark = theme === 'dark'
+
+  // P1-4: 隐私脱敏 — 当前学生的显示名
+  const { enabled: privacyEnabled, anonymize } = usePrivacyFilter()
+  const [displayName, setDisplayName] = useState<string>(student.name)
+
+  // 切换学生/隐私状态变化时刷新显示名
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!privacyEnabled) {
+        if (!cancelled) setDisplayName(student.name)
+        return
+      }
+      const mapped = await anonymize(student.name)
+      if (!cancelled) setDisplayName(mapped)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [student.name, privacyEnabled, anonymize])
 
   // P2-7 修复: loadProfileData 原本在 useCallback(loadAllData) 之后声明,
   // 但 loadAllData 内部又调用 loadProfileData,产生 TDZ,跑起来 ReferenceError。
@@ -385,7 +406,10 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <div>
-              <h2 className="text-xl font-bold">{student.name}</h2>
+              <h2 className="text-xl font-bold">
+                {/* P1-4: 化名/真名 */}
+                {displayName}
+              </h2>
               <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 <span className={riskColor(student.risk)}>
                   {t('page.student.riskLabel')}: {student.risk}
@@ -737,6 +761,74 @@ function ProfileTab({
   const [msg, setMsg] = useState('')
   const setMsgAuto = useAutoDismiss<string>(setMsg, '')
 
+  // P1-4: 隐私脱敏 — 在 ProfileTab 内独立获取显示名
+  const { enabled: privacyEnabled, anonymize, anonymizeBatch } = usePrivacyFilter()
+  const [displayName, setDisplayName] = useState<string>(student.name)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!privacyEnabled) {
+        if (!cancelled) setDisplayName(student.name)
+        return
+      }
+      const mapped = await anonymize(student.name)
+      if (!cancelled) setDisplayName(mapped)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [student.name, privacyEnabled, anonymize])
+
+  // P0-2: 8 个 PII 字段批量脱敏（idCard/phone/email/address/fatherName/fatherPhone/motherName/motherPhone）
+  // 仅在非编辑模式下脱敏（编辑时用户应看到真名以修改）
+  // 用 useMemo 稳定引用，避免 eslint exhaustive-deps 警告
+  const PII_FIELDS = useMemo(
+    () =>
+      [
+        'idCard',
+        'phone',
+        'email',
+        'address',
+        'fatherName',
+        'fatherPhone',
+        'motherName',
+        'motherPhone',
+      ] as const,
+    [],
+  )
+  const [displayPII, setDisplayPII] = useState<Record<string, string>>({})
+  useEffect(() => {
+    let cancelled = false
+    if (editing || !privacyEnabled) {
+      // 编辑模式 / 未启用 → 不脱敏（直接显示真名）
+      const next: Record<string, string> = {}
+      for (const k of PII_FIELDS) {
+        const v = form[k]
+        next[k] = typeof v === 'string' ? v : ''
+      }
+      if (!cancelled) setDisplayPII(next)
+      return
+    }
+    ;(async () => {
+      const values = PII_FIELDS.map((k) => {
+        const v = form[k]
+        return typeof v === 'string' && v.length > 0 ? v : ' '
+      })
+      const map = await anonymizeBatch(values)
+      if (cancelled) return
+      const next: Record<string, string> = {}
+      for (const k of PII_FIELDS) {
+        const v = form[k]
+        const key = typeof v === 'string' && v.length > 0 ? v : ' '
+        next[k] = map[key] ?? (typeof v === 'string' ? v : '')
+      }
+      if (!cancelled) setDisplayPII(next)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [form, privacyEnabled, editing, anonymizeBatch, PII_FIELDS])
+
   // B-32: 加载时若 profileData 没有 classId, 从 EAA score 拉回
   useEffect(() => {
     const next = { ...profileData }
@@ -799,7 +891,7 @@ function ProfileTab({
       {/* 基础信息 */}
       <ProfileSection title={t('page.student.profile.basic')} icon="👤">
         <div className="grid grid-cols-2 gap-3">
-          <ProfileField label={t('page.students.col.name')} value={student.name} editing={false} />
+          <ProfileField label={t('page.students.col.name')} value={displayName} editing={false} />
           <ProfileField
             label={t('page.student.profile.gender')}
             value={form.gender ?? ''}
@@ -817,7 +909,7 @@ function ProfileTab({
           />
           <ProfileField
             label={t('page.student.profile.idCard')}
-            value={form.idCard ?? ''}
+            value={displayPII.idCard ?? form.idCard ?? ''}
             editing={editing}
             onChange={(v) => updateForm('idCard', v)}
           />
@@ -842,19 +934,19 @@ function ProfileTab({
         <div className="grid grid-cols-2 gap-3">
           <ProfileField
             label={t('page.student.profile.phone')}
-            value={form.phone ?? ''}
+            value={displayPII.phone ?? form.phone ?? ''}
             editing={editing}
             onChange={(v) => updateForm('phone', v)}
           />
           <ProfileField
             label={t('page.student.profile.email')}
-            value={(form.email as string) ?? ''}
+            value={displayPII.email ?? (form.email as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('email', v)}
           />
           <ProfileField
             label={t('page.student.profile.address')}
-            value={form.address ?? ''}
+            value={displayPII.address ?? form.address ?? ''}
             editing={editing}
             onChange={(v) => updateForm('address', v)}
             spanFull
@@ -867,25 +959,25 @@ function ProfileTab({
         <div className="grid grid-cols-2 gap-3">
           <ProfileField
             label={t('page.student.profile.fatherName')}
-            value={(form.fatherName as string) ?? ''}
+            value={displayPII.fatherName ?? (form.fatherName as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('fatherName', v)}
           />
           <ProfileField
             label={t('page.student.profile.fatherPhone')}
-            value={(form.fatherPhone as string) ?? ''}
+            value={displayPII.fatherPhone ?? (form.fatherPhone as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('fatherPhone', v)}
           />
           <ProfileField
             label={t('page.student.profile.motherName')}
-            value={(form.motherName as string) ?? ''}
+            value={displayPII.motherName ?? (form.motherName as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('motherName', v)}
           />
           <ProfileField
             label={t('page.student.profile.motherPhone')}
-            value={(form.motherPhone as string) ?? ''}
+            value={displayPII.motherPhone ?? (form.motherPhone as string) ?? ''}
             editing={editing}
             onChange={(v) => updateForm('motherPhone', v)}
           />
