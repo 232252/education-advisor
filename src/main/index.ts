@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app, BrowserWindow, dialog, shell } from 'electron'
 import { registerAllHandlers } from './ipc/index'
+import { mainBroadcaster } from './services/broadcaster'
 import { cronService } from './services/cron-service'
 import { dbService } from './services/db-service'
 import { settingsService } from './services/settings-service'
@@ -225,6 +226,8 @@ app.whenReady().then(async () => {
 
   // 启用远程调试(在 app.whenReady 顶部已 appendSwitch,这里只是占位日志)
   mainWindow = win
+  // P2-3: 注册主窗口到广播器, 让 Agent 工具 / cron 任务也能向渲染端推送事件
+  mainBroadcaster.setMainWindow(win)
 
   // 注册所有 IPC 处理器（同步注册 + 异步初始化）
   await registerAllHandlers(win)
@@ -270,6 +273,8 @@ app.whenReady().then(async () => {
 
   win.on('closed', () => {
     mainWindow = null
+    // P2-3: 窗口销毁时清理广播器, 防止后续 webContents.send 报错
+    mainBroadcaster.clearMainWindow()
   })
 
   // 加载渲染进程

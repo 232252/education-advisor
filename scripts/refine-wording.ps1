@@ -5,7 +5,7 @@
 # project (not a sibling).
 # =============================================================
 
-$root = 'C:\Users\sq199\.qwenpaw\workspaces\default\coding_projects\1\ai-workstation'
+$root = (Get-Item $PSScriptRoot).Parent.FullName
 
 # Order matters: longer phrases first.
 $replacements = @(

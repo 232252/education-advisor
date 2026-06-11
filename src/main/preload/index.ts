@@ -189,6 +189,29 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke(IPC.IPC_EAA_SUMMARY, since, until),
     // [w] 生成 dashboard(写文件)
     dashboard: (outputDir?: string) => ipcRenderer.invoke(IPC.IPC_EAA_DASHBOARD, outputDir),
+
+    // P2-4: 订阅 EAA 数据变更事件, 用于多页面/多窗口实时刷新
+    // 每个监听器返回取消订阅函数, 避免泄漏
+    onEventAdded: (callback: (data: { studentName: string; reasonCode: string; delta?: number; at: number }) => void) => {
+      const handler = (_e: unknown, data: { studentName: string; reasonCode: string; delta?: number; at: number }) => callback(data)
+      ipcRenderer.on(IPC.IPC_EAA_EVENT_ADDED, handler)
+      return () => ipcRenderer.removeListener(IPC.IPC_EAA_EVENT_ADDED, handler)
+    },
+    onEventReverted: (callback: (data: { eventId: string; at: number }) => void) => {
+      const handler = (_e: unknown, data: { eventId: string; at: number }) => callback(data)
+      ipcRenderer.on(IPC.IPC_EAA_EVENT_REVERTED, handler)
+      return () => ipcRenderer.removeListener(IPC.IPC_EAA_EVENT_REVERTED, handler)
+    },
+    onStudentAdded: (callback: (data: { name: string; at: number }) => void) => {
+      const handler = (_e: unknown, data: { name: string; at: number }) => callback(data)
+      ipcRenderer.on(IPC.IPC_EAA_STUDENT_ADDED, handler)
+      return () => ipcRenderer.removeListener(IPC.IPC_EAA_STUDENT_ADDED, handler)
+    },
+    onStudentDeleted: (callback: (data: { name: string; at: number }) => void) => {
+      const handler = (_e: unknown, data: { name: string; at: number }) => callback(data)
+      ipcRenderer.on(IPC.IPC_EAA_STUDENT_DELETED, handler)
+      return () => ipcRenderer.removeListener(IPC.IPC_EAA_STUDENT_DELETED, handler)
+    },
   },
 
   // ----- 隐私引擎 -----

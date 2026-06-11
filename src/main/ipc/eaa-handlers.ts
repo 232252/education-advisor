@@ -73,7 +73,7 @@ function sanitizeClassId(classId: string): string {
 
 /** B-24: tokenizeQuery 统一在 shared/utils.ts (本地删除) */
 
-export function registerEAAHandlers(_win: BrowserWindow) {
+export function registerEAAHandlers(win: BrowserWindow) {
   // ----- info: 系统信息 -----
   ipcMain.handle(IPC.IPC_EAA_INFO, async () => {
     return eaaBridge.execute({ command: 'info', args: [] })
@@ -100,6 +100,7 @@ export function registerEAAHandlers(_win: BrowserWindow) {
 
   // ----- add: 添加操行事件 -----
   // 注意: EAA CLI 的 add 命令不产生 JSON 输出，返回文本
+  // P2-2: 成功后广播 IPC_EAA_EVENT_ADDED，让 StudentsPage / Dashboard / StudentProfile 实时刷新
   ipcMain.handle(IPC.IPC_EAA_ADD_EVENT, async (_e, params: AddEventParams) => {
     const safeName = sanitizeName(params.studentName, 'studentName')
     const safeCode = sanitizeName(params.reasonCode, 'reasonCode')
@@ -111,15 +112,35 @@ export function registerEAAHandlers(_win: BrowserWindow) {
     if (params.force) args.push('--force')
     if (params.tags?.length)
       args.push('--tags', params.tags.map((t) => sanitizeName(t, 'tag')).join(','))
-    return eaaBridge.execute({ command: 'add', args })
+    const result = await eaaBridge.execute({ command: 'add', args })
+    if (result.success) {
+      // dry-run 不算真实事件，避免污染前端
+      if (!params.dryRun) {
+        win.webContents.send(IPC.IPC_EAA_EVENT_ADDED, {
+          studentName: safeName,
+          reasonCode: safeCode,
+          delta: params.delta,
+          at: Date.now(),
+        })
+      }
+    }
+    return result
   })
 
   // ----- revert: 撤销事件 -----
   // 注意: revert 不产生 JSON 输出
+  // P2-2: 成功后广播 IPC_EAA_EVENT_REVERTED
   ipcMain.handle(IPC.IPC_EAA_REVERT_EVENT, async (_e, eventId: string, reason: string) => {
     const safeId = sanitizeName(eventId, 'eventId')
     const safeReason = sanitizeName(reason, 'reason')
-    return eaaBridge.execute({ command: 'revert', args: [safeId, '--reason', safeReason] })
+    const result = await eaaBridge.execute({ command: 'revert', args: [safeId, '--reason', safeReason] })
+    if (result.success) {
+      win.webContents.send(IPC.IPC_EAA_EVENT_REVERTED, {
+        eventId: safeId,
+        at: Date.now(),
+      })
+    }
+    return result
   })
 
   // ----- history: 学生事件时间线 -----
@@ -187,14 +208,23 @@ export function registerEAAHandlers(_win: BrowserWindow) {
 
   // ----- add-student: 添加学生 -----
   // 注意: 不产生 JSON 输出
+  // P2-2: 成功后广播 IPC_EAA_STUDENT_ADDED
   ipcMain.handle(IPC.IPC_EAA_ADD_STUDENT, async (_e, name: string) => {
     const safeName = sanitizeName(name, 'name')
-    return eaaBridge.execute({ command: 'add-student', args: [safeName] })
+    const result = await eaaBridge.execute({ command: 'add-student', args: [safeName] })
+    if (result.success) {
+      win.webContents.send(IPC.IPC_EAA_STUDENT_ADDED, {
+        name: safeName,
+        at: Date.now(),
+      })
+    }
+    return result
   })
 
   // ----- delete-student: 删除学生（P1-15 二次确认） -----
   // 注意: 不产生 JSON 输出
   // 必须显式传 confirm=true 才会真正执行删除；否则返回预览
+  // P2-2: 真正删除成功后广播 IPC_EAA_STUDENT_DELETED
   ipcMain.handle(
     IPC.IPC_EAA_DELETE_STUDENT,
     async (_e, name: string, options?: { confirm?: boolean; reason?: string }) => {
@@ -214,7 +244,14 @@ export function registerEAAHandlers(_win: BrowserWindow) {
       if (options.reason) {
         args.push('--reason', sanitizeName(options.reason, 'reason'))
       }
-      return eaaBridge.execute({ command: 'delete-student', args })
+      const result = await eaaBridge.execute({ command: 'delete-student', args })
+      if (result.success) {
+        win.webContents.send(IPC.IPC_EAA_STUDENT_DELETED, {
+          name: safeName,
+          at: Date.now(),
+        })
+      }
+      return result
     },
   )
 
