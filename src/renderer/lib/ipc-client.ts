@@ -135,6 +135,14 @@ interface WindowAPI {
     doctor: () => Promise<EAAResult<EAADoctorData>>
     summary: (since?: string, until?: string) => Promise<EAAResult<EAASummaryData>>
     dashboard: (outputDir?: string) => Promise<EAAResult<string>>
+
+    // P2-5: EAA 数据变更广播监听 — 让页面在事件写入后实时刷新
+    onEventAdded: (
+      callback: (data: { studentName: string; reasonCode: string; delta?: number; at: number }) => void,
+    ) => () => void
+    onEventReverted: (callback: (data: { eventId: string; at: number }) => void) => () => void
+    onStudentAdded: (callback: (data: { name: string; at: number }) => void) => () => void
+    onStudentDeleted: (callback: (data: { name: string; at: number }) => void) => () => void
   }
   privacy: {
     init: (password: string, autoScan?: boolean) => Promise<EAAResult>

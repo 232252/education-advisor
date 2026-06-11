@@ -53,6 +53,17 @@ export const IPC_EAA_CODES = 'eaa:codes'
 export const IPC_EAA_DOCTOR = 'eaa:doctor'
 export const IPC_EAA_SUMMARY = 'eaa:summary'
 export const IPC_EAA_DASHBOARD = 'eaa:dashboard'
+
+// P2: EAA 数据变更广播通道（main → renderer），让所有打开的页面实时刷新
+// payload 含义:
+//   - EVENT_ADDED    事件已添加（前端应刷新排行/时间线/学分明细）
+//   - EVENT_REVERTED 事件已撤销（前端应刷新排行/时间线）
+//   - STUDENT_ADDED  新增学生（前端应刷新学生列表/排行）
+//   - STUDENT_DELETED 删除学生（前端应刷新学生列表/排行）
+export const IPC_EAA_EVENT_ADDED = 'eaa:event-added'
+export const IPC_EAA_EVENT_REVERTED = 'eaa:event-reverted'
+export const IPC_EAA_STUDENT_ADDED = 'eaa:student-added'
+export const IPC_EAA_STUDENT_DELETED = 'eaa:student-deleted'
 // ===== 隐私引擎 =====
 export const IPC_PRIVACY_INIT = 'privacy:init'
 export const IPC_PRIVACY_LOAD = 'privacy:load'

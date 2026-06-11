@@ -9,7 +9,7 @@ from pathlib import Path
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
-ROOT = Path(r"C:\Users\sq199\.qwenpaw\workspaces\default\coding_projects\1\ai-workstation")
+ROOT = Path(__file__).resolve().parent.parent
 
 # =============================================================
 # 1) 收集已定义的 IPC 通道

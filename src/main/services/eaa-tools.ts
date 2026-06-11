@@ -9,6 +9,7 @@ import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
 import { app } from 'electron'
 import { Type } from 'typebox'
 import { tokenizeQuery } from '../../shared/utils'
+import { mainBroadcaster } from './broadcaster'
 import { eaaBridge, getErrorMessage } from './eaa-bridge'
 
 // Lazy-loaded to avoid pulling in electron's `app` module during test imports.
@@ -171,6 +172,13 @@ export const addEventTool: AgentTool<typeof addEventParams> = {
     if (!result.success) {
       throw new Error(`添加事件失败: ${getErrorMessage(result)}`)
     }
+    // P2-3: Agent 写入事件后广播, 让 StudentsPage / Dashboard 实时刷新
+    mainBroadcaster.broadcastEventAdded({
+      studentName: params.student_name,
+      reasonCode: params.reason_code,
+      delta: params.delta,
+      at: Date.now(),
+    })
     return textResult(`事件已添加: ${extractData(result.data)}`)
   },
 }
@@ -314,6 +322,8 @@ export const addStudentTool: AgentTool<typeof nameParam> = {
     if (!result.success) {
       throw new Error(`添加学生失败: ${getErrorMessage(result)}`)
     }
+    // P2-3: Agent 添加学生后广播
+    mainBroadcaster.broadcastStudentAdded({ name: params.name, at: Date.now() })
     return textResult(`学生已添加: ${params.name}`)
   },
 }
@@ -422,6 +432,8 @@ export const revertEventTool: AgentTool<typeof revertEventParams> = {
     if (!result.success) {
       throw new Error(`撤销事件失败: ${result.stderr || 'unknown error'}`)
     }
+    // P2-3: Agent 撤销事件后广播
+    mainBroadcaster.broadcastEventReverted({ eventId: safeId, at: Date.now() })
     return textResult(`事件 ${safeId} 已撤销`)
   },
 }
@@ -647,6 +659,8 @@ export const deleteStudentTool: AgentTool<typeof deleteStudentParams> = {
       args: [safeName, '--confirm'],
     })
     if (!result.success) throw new Error(`删除学生失败: ${result.stderr || 'unknown'}`)
+    // P2-3: Agent 删除学生后广播
+    mainBroadcaster.broadcastStudentDeleted({ name: safeName, at: Date.now() })
     return textResult(`学生"${safeName}"已删除`)
   },
 }
