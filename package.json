@@ -65,7 +65,7 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.5",
+    "@biomejs/biome": "^2.5.0",
     "@tanstack/react-table": "^8.20.0",
     "@types/better-sqlite3": "^7.6.12",
     "@types/cross-spawn": "^6.0.6",
@@ -90,7 +90,7 @@
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
     "rimraf": "^6.0.1",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.1",
     "shiki": "^1.24.0",
     "tailwindcss": "^3.4.16",
     "to-ico": "^1.1.5",
