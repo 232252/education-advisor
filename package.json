@@ -51,7 +51,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "clean": "rimraf dist release"
+    "clean": "rimraf dist release",
+    "build:renderer": "vite build --config vite.config.renderer.ts"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "file:./vendor/pi-agent-core",
