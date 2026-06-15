@@ -157,6 +157,7 @@ jobs:
       # ---- 上传产物 (调试用, 正式发布会直接进 Release) ----
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: tauri-${{ matrix.label }}
           path: |
