@@ -1,0 +1,22 @@
+{
+  "name": "education-advisor-website",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Education Advisor 官方网站 — Astro + Starlight 文档中心, 部署在 Cloudflare Pages",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && pagefind --site dist",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.2.1",
+    "@astrojs/starlight": "^0.34.0",
+    "@astrojs/tailwind": "^5.1.5",
+    "astro": "^5.0.0",
+    "pagefind": "^1.3.0",
+    "sharp": "^0.33.5",
+    "tailwindcss": "^3.4.17"
+  }
+}

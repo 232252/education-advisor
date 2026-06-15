@@ -97,7 +97,7 @@ pub struct Event {
 }
 
 // === Data file types ===
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct EntitiesFile {
     pub entities: HashMap<String, Entity>,
 }

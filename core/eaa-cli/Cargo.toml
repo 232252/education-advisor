@@ -16,6 +16,16 @@ description = "EAA - Event-Sourced Conduct Score System for Education Advisor AI
 license = "MIT"
 repository = "https://github.com/232252/education-advisor"
 
+# =============================================================
+# [lib] 目标 (Tauri 重构新增, 见 src-tauri/docs/02-RUST-CORE-REUSE.md)
+# 让本 crate 既可作为 CLI 二进制 (eaa) 也可作为库 (eaa_core) 被消费。
+# Tauri 侧通过 path 依赖以 `eaa_core::storage / privacy / ...` 调用核心逻辑,
+# 避免 spawn 子进程的开销。
+# =============================================================
+[lib]
+name = "eaa_core"
+path = "src/lib.rs"
+
 [features]
 default = ["filesystem"]
 filesystem = []

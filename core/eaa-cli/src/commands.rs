@@ -2,7 +2,6 @@ use crate::storage::*;
 use crate::types::*;
 use crate::validation::*;
 use std::collections::HashMap;
-use std::io::Write;
 
 fn print_json(value: &serde_json::Value) {
     println!("{}", serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string()));

@@ -488,22 +488,26 @@ export function SettingsPage() {
         <SettingRow
           label="检查更新"
           path="general.checkUpdate"
-          description="手动检查是否有新版本可用"
+          description="手动检查是否有新版本可用, 下载时显示进度条"
         >
-          <button
-            type="button"
-            onClick={async () => {
-              const result = await getAPI().sys.checkUpdate()
-              if (result.hasUpdate) {
-                await getAPI().sys.showUpdateDialog()
-              } else {
-                toast.success(result.message || `已是最新版本 v${result.currentVersion}`)
-              }
-            }}
-            className="text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors"
-          >
-            检查更新
-          </button>
+          <div className="flex flex-col gap-2 items-end">
+            <button
+              type="button"
+              onClick={async () => {
+                const result = await getAPI().sys.checkUpdate()
+                if (result.hasUpdate) {
+                  toast.info(`发现新版本 v${result.latestVersion}, 开始下载...`)
+                  await getAPI().sys.showUpdateDialog()
+                } else {
+                  toast.success(result.message || `已是最新版本 v${result.currentVersion}`)
+                }
+              }}
+              className="text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors"
+            >
+              检查更新
+            </button>
+            <UpdaterProgress />
+          </div>
         </SettingRow>
       </Section>
 
@@ -1338,4 +1342,77 @@ function deepSet(obj: object, path: string, value: unknown): object {
   }
   current[keys[keys.length - 1]] = value
   return result
+}
+
+/**
+ * UpdaterProgress — 监听 `sys:update-progress` 事件, 显示下载进度条。
+ * 仅 Tauri 模式下生效 (Electron 走 electron-updater 不发此事件)。
+ */
+function UpdaterProgress() {
+  const [progress, setProgress] = useState<{
+    version?: string
+    downloaded?: number
+    total?: number
+    percent?: number
+    phase?: string
+    message?: string
+    error?: string
+  } | null>(null)
+
+  useEffect(() => {
+    // 动态 require 避免 Electron 构建拉 @tauri-apps/api
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, global-require
+    const { listen } = require('@tauri-apps/api/event') as typeof import('@tauri-apps/api/event')
+    let unlisten: (() => void) | null = null
+    let cancelled = false
+    listen('sys:update-progress', (e) => {
+      setProgress(e.payload as typeof progress)
+    }).then((fn) => {
+      if (cancelled) fn()
+      else unlisten = fn
+    })
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [])
+
+  // 完成后 3s 自动隐藏 (无条件 useEffect, 避免 Rules of Hooks 违规)
+  useEffect(() => {
+    if (progress?.phase === 'restarting' || progress?.phase === 'error') {
+      const t = setTimeout(() => setProgress(null), 5000)
+      return () => clearTimeout(t)
+    }
+    return undefined
+  }, [progress?.phase])
+
+  if (!progress) return null
+
+  const pct = progress.percent ?? 0
+  return (
+    <div className="w-48 flex flex-col gap-1">
+      {progress.phase === 'downloading' && (
+        <>
+          <div className="text-xs text-gray-500">
+            下载 {progress.version} {pct}%
+          </div>
+          <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 transition-all"
+              style={{ width: `${Math.min(pct, 100)}%` }}
+            />
+          </div>
+        </>
+      )}
+      {progress.phase === 'verifying' && (
+        <div className="text-xs text-gray-500">{progress.message}</div>
+      )}
+      {progress.phase === 'restarting' && (
+        <div className="text-xs text-green-600">{progress.message}</div>
+      )}
+      {progress.phase === 'error' && (
+        <div className="text-xs text-red-600">更新失败: {progress.error}</div>
+      )}
+    </div>
+  )
 }

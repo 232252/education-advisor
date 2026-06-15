@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capability",
+  "identifier": "default",
+  "description": "渲染进程默认权限白名单 — 最小权限原则, 对齐原 Electron preload",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-emit",
+    "core:event:allow-listen",
+    "core:window:default",
+    "core:window:allow-minimize",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-close",
+    "core:window:allow-set-title",
+    "core:tray:default",
+    "core:app:default",
+
+    "shell:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "opener:default",
+    "opener:allow-open-url",
+    "notification:default",
+    "notification:allow-notify",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "os:default",
+    "os:allow-platform",
+    "os:allow-version",
+    "log:default",
+    "log:allow-log",
+
+    "updater:default",
+    "updater:allow-check",
+    "updater:allow-download",
+    "deep-link:default"
+  ]
+}

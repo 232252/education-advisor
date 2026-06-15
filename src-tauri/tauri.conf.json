@@ -1,0 +1,81 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Education Advisor",
+  "version": "0.1.0",
+  "identifier": "com.educationadvisor.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev:renderer",
+    "beforeBuildCommand": "npm run build:renderer",
+    "devUrl": "http://localhost:5190",
+    "frontendDist": "../dist/renderer"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Education Advisor",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 1024,
+        "minHeight": 680,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost https: http://localhost:* ws://localhost:*",
+      "devCsp": null
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "educationadvisor"
+        ]
+      }
+    },
+    "updater": {
+      "pubkey": "REPLACE_WITH_TAURI_SIGNER_PUBKEY_RUN_npm_run_signer:gen",
+      "endpoints": [
+        "https://github.com/232252/education-advisor/releases/latest/download/latest.json"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "deb",
+      "appimage",
+      "msi",
+      "nsis",
+      "app",
+      "dmg"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "../config/agents.yaml",
+      "../config/default-settings.json",
+      "../config/reason-codes.json",
+      "../config/SMALL_MODEL_RULES.md",
+      "../agents/**/SOUL.md",
+      "../agents/**/AGENTS.md"
+    ],
+    "copyright": "© 2026 Education Advisor AI Contributors (MIT)",
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": null,
+      "entitlements": null,
+      "exceptionDomain": null
+    }
+  }
+}

@@ -1,0 +1,15 @@
+# =============================================================
+# robots.txt — Education Advisor 官网
+#
+# 允许所有搜索引擎爬虫抓取全部页面。
+# sitemap 指向 Astro @astrojs/sitemap 自动生成的 sitemap-index.xml。
+# =============================================================
+
+User-agent: *
+Allow: /
+
+# 不索引的内容 (Pagefind 搜索索引是内部数据, 无需 SEO)
+Disallow: /pagefind/
+
+# Sitemap (Astro 构建后自动生成在 dist/sitemap-index.xml)
+Sitemap: https://eea.qdzwwqd.top/sitemap-index.xml

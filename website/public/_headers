@@ -1,0 +1,67 @@
+# =============================================================
+# Cloudflare Pages — _headers
+#
+# 规则格式:
+#   <URL 模式>
+#     <Header名>: <值>
+#
+# 设计原则:
+#   1. 安全: HSTS + X-Frame-Options + CSP (防 XSS/点击劫持)
+#   2. 缓存: 静态资源长缓存 (hash 文件名 → immutable),
+#            HTML 短缓存 (内容变化频繁)
+#   3. 性能: Brotli/Gzip 压缩, Font 预加载
+# 详见: https://developers.cloudflare.com/pages/configuration/headers/
+# =============================================================
+
+# --- 全局安全头 (所有页面) ---
+/*
+  # HTTPS 强制 (HSTS): 1年 + 预加载 + 子域名
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  # 防点击劫持
+  X-Frame-Options: SAMEORIGIN
+  # 防 MIME 嗅探
+  X-Content-Type-Options: nosniff
+  # CSP (内容安全策略): 只允许同源 + GitHub + 数据 URI
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://rsms.me; font-src 'self' https://rsms.me; img-src 'self' data: https:; connect-src 'self' https://github.com; frame-ancestors 'self'
+  # 引用者策略: 同源时发完整 URL, 跨源只发 origin
+  Referrer-Policy: strict-origin-when-cross-origin
+  # 权限策略: 禁用不需要的浏览器能力
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# --- HTML: 短缓存 (5分钟, 过期后回源) ---
+/*.html
+  Cache-Control: public, max-age=300, must-revalidate
+  # Cloudflare 自动压缩 (无需手动配 gzip)
+
+# --- 带 hash 的静态资源: 永久缓存 (immutable) ---
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# --- 字体: 长缓存 (1年) ---
+/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+  # 字体不应用 CORS 限制 (同源加载)
+  Access-Control-Allow-Origin: *
+
+# --- 图片: 中等缓存 ---
+/*.png
+  Cache-Control: public, max-age=86400
+/*.jpg
+  Cache-Control: public, max-age=86400
+/*.webp
+  Cache-Control: public, max-age=86400
+/*.svg
+  Cache-Control: public, max-age=86400
+
+# --- Pagefind 搜索索引: 短缓存 (文档更新后索引也变) ---
+/pagefind/*
+  Cache-Control: public, max-age=600, must-revalidate
+
+# --- sitemap.xml + robots.txt: 短缓存 ---
+/sitemap-index.xml
+  Cache-Control: public, max-age=3600
+/robots.txt
+  Cache-Control: public, max-age=3600

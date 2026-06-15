@@ -1,0 +1,21 @@
+# =============================================================
+# Cloudflare Pages — _redirects
+#
+# 规则格式: <源路径> <目标URL> [状态码]
+# 详见: https://developers.cloudflare.com/pages/configuration/redirects/
+# =============================================================
+
+# /download → Worker 智能分发 (根据 User-Agent 跳转对应平台 Release)
+# Worker 绑定在 /download 路由, 这里不重定向 (Worker 优先)
+# /download/*          /download/index.html       200
+
+# /download/<platform> 显式指定平台 (DownloadButtons 用)
+# 这些也由 Worker 处理 (见 workers/download.js)
+
+# 文档: /docs/* → Starlight 生成的静态页 (无需重定向)
+
+# 旧链接兼容 (如果有)
+# /getting-started     /docs/quick-start          301
+
+# 404 回退 (SPA 模式不需要, 纯静态站点用 Cloudflare 默认 404)
+# /*                    /404.html                  404

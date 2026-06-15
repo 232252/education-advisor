@@ -567,7 +567,7 @@ export function StudentsPage() {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="scroll-container flex-1 overflow-y-auto">
           {loading ? (
             <div className="text-center text-gray-400 dark:text-gray-500 py-12">
               {t('common.loading')}

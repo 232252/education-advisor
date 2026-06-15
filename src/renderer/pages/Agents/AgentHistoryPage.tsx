@@ -11,7 +11,7 @@
 //   - 行点击 → 右侧抽屉显示完整 prompt / output / 错误信息
 // =============================================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 
@@ -324,7 +324,7 @@ export function AgentHistoryPage() {
 
       {/* Table + Drawer */}
       <div className="flex-1 flex overflow-hidden">
-        <div className={`overflow-y-auto ${selected ? 'w-2/3' : 'w-full'}`}>
+        <div className={`scroll-container overflow-y-auto ${selected ? 'w-2/3' : 'w-full'}`}>
           {loading && rows.length === 0 ? (
             <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500 text-sm">
               加载中...
@@ -389,7 +389,9 @@ function StatCard({
   )
 }
 
-function HistoryRow({
+// React.memo: 父组件状态变化 (如选中某行) 时, 只有 props 变化的行才重渲。
+// 未 memo 前, 选中任意一行会让全部行重渲 (100+ 行 × 7 列 = 大量虚拟 DOM diff)。
+const HistoryRow = memo(function HistoryRow({
   exec,
   agentName,
   onClick,
@@ -431,7 +433,7 @@ function HistoryRow({
       </td>
     </tr>
   )
-}
+})
 
 function HistoryDetailPanel({ exec, onClose }: { exec: ExecutionRow; onClose: () => void }) {
   const d = new Date(exec.startedAt)
