@@ -1,0 +1,99 @@
+---
+// =============================================================
+// LandingLayout — 首页布局
+//
+// 与 Starlight 的文档布局隔离 (Landing 不需要侧边栏)。
+// 全局 <head> 统一在此管理: SEO meta + OG 标签 + 字体 + 主题色。
+// =============================================================
+
+export interface Props {
+  title: string
+  description?: string
+}
+
+const { title, description = '18-Agent 班主任操行分管理系统' } = Astro.props
+const canonicalURL = new URL(Astro.url.pathname, Astro.site)
+
+// Open Graph 标签 (社交分享卡片)
+const ogImage = new URL('/og-image.png', Astro.site)
+---
+
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- SEO: title + description + canonical -->
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalURL} />
+
+    <!-- Open Graph (社交分享卡片) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:site_name" content="Education Advisor" />
+    <meta property="og:locale" content="zh_CN" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <!-- Theme color (浏览器地址栏配色) -->
+    <meta name="theme-color" content="#0f172a" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- RSS feed (可选, 后续 Blog 用) -->
+    <!-- <link rel="alternate" type="application/rss+xml" href="/rss.xml" /> -->
+  </head>
+  <body>
+    <!-- 顶部导航 (极简: Logo + GitHub) -->
+    <nav class="fixed top-0 w-full z-50 backdrop-blur-md bg-white/80 dark:bg-slab-900/80 border-b border-slate-200 dark:border-slab-700">
+      <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-2 font-bold font-mono">
+          <span class="text-rust text-xl">🦀</span>
+          <span>Education Advisor</span>
+        </a>
+        <div class="flex items-center gap-6 text-sm">
+          <a href="/docs/intro" class="hover:text-rust">文档</a>
+          <a href="https://github.com/232252/education-advisor" class="hover:text-rust">
+            GitHub
+          </a>
+          <a
+            href="/download"
+            class="px-3 py-1.5 bg-rust text-white rounded font-semibold hover:bg-rust-700"
+          >
+            下载
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- 主内容 (导航栏高度偏移) -->
+    <main class="pt-14">
+      <slot />
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="border-t border-slate-200 dark:border-slab-700 py-8 px-4">
+      <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-500">
+        <div class="flex items-center gap-2">
+          <span class="text-rust">🦀</span>
+          <span>Education Advisor · MIT/Apache-2.0</span>
+        </div>
+        <div class="flex gap-4">
+          <a href="/docs/intro">文档</a>
+          <a href="https://github.com/232252/education-advisor">GitHub</a>
+          <a href="https://github.com/232252/education-advisor/issues">Issues</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

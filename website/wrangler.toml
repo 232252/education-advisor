@@ -1,0 +1,27 @@
+# =============================================================
+# wrangler.toml — Cloudflare Worker 部署配置
+#
+# 用途: 部署 workers/download.js (下载智能分发)
+#
+# 部署命令:
+#   npx wrangler deploy
+#
+# 部署后在 Cloudflare Dashboard 绑定路由:
+#   Route: eea.qdzwwqd.top/download* → ea-download
+#   或 Pages Functions 模式 (推荐): 把 workers/download.js 放到
+#   website/functions/download/[[path]].js, Pages 自动识别
+# =============================================================
+
+name = "ea-download"
+main = "public/workers/download.js"
+compatibility_date = "2024-12-01"
+
+# 自定义域名 (在 Cloudflare DNS 绑定后启用)
+# routes = [
+#   { pattern = "eea.qdzwwqd.top/download*", custom_domain = false }
+# ]
+
+# 环境变量 (版本号改了只改这里, 不用改 Worker 代码)
+[vars]
+VERSION = "v0.1.0"
+RELEASE_BASE = "https://github.com/232252/education-advisor/releases/download"

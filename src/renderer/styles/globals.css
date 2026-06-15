@@ -69,3 +69,96 @@ body {
   font-family: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
   font-size: 0.875rem;
 }
+
+/* =============================================================
+   性能优化: GPU 合成层 + 渲染降负
+   =============================================================
+
+   为什么需要这些:
+   - transform/opacity 走 GPU 合成层 (compositor), 不触发 layout/paint。
+     改 top/left 会触发 layout (重排) → 极慢。
+   - contain: layout style paint 让浏览器知道该子树独立, 外部变化不波及内部。
+   - will-change 提示浏览器提前创建合成层 (但不可滥用, 否则内存爆炸)。
+   - 内容滚动容器用 contain + overscroll-behavior 隔离, 避免 scroll 事件
+     冒泡到 body 触发全窗口重绘。
+*/
+
+/* 1. 路由页面容器: 隔离布局/绘制, 页面内部变化不影响外层 */
+[data-page-root] {
+  contain: layout style;
+}
+
+/* 2. 长滚动列表容器: 隔离滚动 + 防止滚动链 */
+.scroll-container {
+  contain: layout style;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; /* iOS 平滑滚动 */
+}
+
+/* 3. 动画元素默认走 GPU (transform/opacity), 避免 layout thrashing */
+.animate-spin,
+.animate-pulse,
+.animate-fade-in,
+.transition-all,
+.transition-colors,
+.transition-opacity,
+.transition-transform {
+  /* translateZ(0) 强制创建合成层, 动画在 GPU 完成 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* 4. ECharts 容器: 提升为合成层, Canvas 重绘不触发外部 layout */
+.echarts-for-react {
+  contain: layout style paint;
+  transform: translateZ(0);
+}
+
+/* 5. Toast 通知: GPU 合成 + 独立绘制 */
+.toast-container {
+  contain: layout style paint;
+  will-change: transform, opacity;
+}
+
+/* =============================================================
+   动画关键帧 — 全部用 transform/opacity (GPU 合成属性)
+   ============================================================= */
+
+@keyframes ea-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ea-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ea-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 用户偏好「减少动画」时, 尊重系统设置 (无障碍 + 省电) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

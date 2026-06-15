@@ -1,0 +1,101 @@
+---
+// =============================================================
+// DownloadButtons — 智能下载按钮组
+//
+// 设计 (Islands 架构):
+//   1. 首次渲染 (SSG): 三个平台按钮全部显示 (Linux/Win/Mac)
+//   2. 客户端水合后 (唯一的 <script>): 读 navigator.userAgent 检测 OS
+//   3. 对应平台的按钮加 .ea-recommended 高亮, 其余降透明度
+//
+// 下载链接指向 /download (由 Cloudflare Worker 处理, 302 到对应 Release)
+// 这样不用在此硬编码 Release URL (版本号变了不用改前端)。
+// =============================================================
+---
+
+<div id="ea-download" class="flex flex-wrap gap-3 justify-center">
+  <!-- Linux (默认显示) -->
+  <a
+    href="/download/linux"
+    data-os="linux"
+    class="ea-btn inline-flex items-center gap-2 px-5 py-3 border-2 rounded-lg font-semibold transition-all"
+  >
+    <span class="text-xl">🐧</span>
+    <div class="text-left">
+      <div class="text-sm">Linux</div>
+      <div class="text-xs opacity-60">.deb / .AppImage</div>
+    </div>
+  </a>
+
+  <!-- Windows -->
+  <a
+    href="/download/windows"
+    data-os="windows"
+    class="ea-btn inline-flex items-center gap-2 px-5 py-3 border-2 rounded-lg font-semibold transition-all"
+  >
+    <span class="text-xl">🪟</span>
+    <div class="text-left">
+      <div class="text-sm">Windows</div>
+      <div class="text-xs opacity-60">.exe (NSIS)</div>
+    </div>
+  </a>
+
+  <!-- macOS -->
+  <a
+    href="/download/macos"
+    data-os="macos"
+    class="ea-btn inline-flex items-center gap-2 px-5 py-3 border-2 rounded-lg font-semibold transition-all"
+  >
+    <span class="text-xl">🍎</span>
+    <div class="text-left">
+      <div class="text-sm">macOS</div>
+      <div class="text-xs opacity-60">.dmg (Intel + ARM)</div>
+    </div>
+  </a>
+</div>
+
+<style>
+  /* 默认样式: 全部按钮 */
+  .ea-btn {
+    border-color: rgb(203 213 225); /* slate-300 */
+    color: rgb(51 65 85); /* slate-700 */
+  }
+  :global([data-theme='dark']) .ea-btn {
+    border-color: rgb(51 65 85); /* slate-700 */
+    color: rgb(226 232 240); /* slate-200 */
+  }
+
+  /* 推荐状态 (JS 检测到 OS 后添加) */
+  .ea-btn.ea-recommended {
+    border-color: #ce412b; /* Rust 红 */
+    background: rgba(206, 65, 43, 0.1);
+    color: #ce412b;
+    transform: scale(1.05);
+  }
+
+  /* 非推荐按钮降透明度 */
+  .ea-download-has-detected .ea-btn:not(.ea-recommended) {
+    opacity: 0.5;
+  }
+</style>
+
+<script>
+  // OS 检测 (唯一的客户端 JS)
+  // 检测后给容器加 class, 用 CSS 控制样式 (避免直接操作 DOM)
+  function detectOS(): string {
+    const ua = navigator.userAgent.toLowerCase()
+    if (ua.includes('win')) return 'windows'
+    if (ua.includes('mac')) return 'macos'
+    if (ua.includes('linux')) return 'linux'
+    return ''
+  }
+
+  const detected = detectOS()
+  if (detected) {
+    const container = document.getElementById('ea-download')
+    if (container) {
+      container.classList.add('ea-download-has-detected')
+      const btn = container.querySelector(`[data-os="${detected}"]`)
+      if (btn) btn.classList.add('ea-recommended')
+    }
+  }
+</script>

@@ -1,0 +1,64 @@
+---
+// =============================================================
+// FeatureGrid — 核心特性网格
+//
+// 纯静态 HTML+CSS (零 JS)。每个卡片用 Rust 红 accent + 等宽字体标题。
+// 卡片用 CSS Grid, 移动端单列, 桌面端三列。
+// =============================================================
+
+const features = [
+  {
+    icon: '🧠',
+    title: '18 个 AI Agent',
+    desc: '每个 Agent 有独立 SOUL.md + AGENTS.md，least-privilege capability 系统。手动触发 + Cron 定时调度。',
+  },
+  {
+    icon: '🔒',
+    title: 'PII 隐私引擎',
+    desc: 'AES-256-GCM 加密的姓名↔别名映射。发 LLM 前自动脱敏，收件人维度过滤，全量审计日志。',
+  },
+  {
+    icon: '🤖',
+    title: '12 个 LLM Provider',
+    desc: 'OpenAI / Anthropic / Gemini / DeepSeek / Qwen / Ollama 等。统一 SSE 流式 + CancellationToken 干净中止。',
+  },
+  {
+    icon: '📊',
+    title: '事件溯源引擎',
+    desc: 'EAA 操行分系统。30 个 Agent 工具。DataCache 快照实现 95x 性能提升。',
+  },
+  {
+    icon: '🖥️',
+    title: '三平台原生',
+    desc: 'Linux (WebKitGTK) / Windows (WebView2) / macOS (WKWebView)。17MB 安装包，0.3s 冷启动。',
+  },
+  {
+    icon: '⚡',
+    title: '极致性能',
+    desc: 'LTO=fat + opt-level=3 + target-cpu=native。DataCache 缓存让 10 工具循环从 30ms → 0.3ms。',
+  },
+]
+---
+
+<section class="py-20 px-4">
+  <div class="max-w-5xl mx-auto">
+    <h2 class="text-3xl font-bold text-center mb-12 text-slab-900 dark:text-slab-100">
+      核心特性
+    </h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {features.map((f) => (
+        <div
+          class="group p-6 rounded-xl border border-slate-200 dark:border-slab-700 hover:border-rust transition-all hover:shadow-lg"
+          style="contain: layout style;"
+        >
+          <div class="text-4xl mb-4">{f.icon}</div>
+          <h3 class="text-lg font-bold mb-2 font-mono text-slab-900 dark:text-slab-100">
+            {f.title}
+          </h3>
+          <p class="text-sm text-slate-500 leading-relaxed">{f.desc}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

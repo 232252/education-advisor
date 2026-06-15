@@ -1,13 +1,8 @@
 use clap::{Parser, Subcommand};
-use commands::*;
-use privacy::PrivacyEngine;
-use types::AppError;
-
-mod commands;
-mod privacy;
-mod storage;
-mod types;
-mod validation;
+// Tauri 重构: 改为从库 crate 引入模块, 不再重复声明 mod (见 lib.rs)。
+use eaa_core::commands::*;
+use eaa_core::privacy::PrivacyEngine;
+use eaa_core::types::AppError;
 
 #[derive(Parser)]
 #[command(name = "eaa", about = "EAA 事件溯源操行分系统 v3.1.2", version)]
@@ -157,8 +152,8 @@ enum PrivacyCmd {
     Backup { path: String },
 }
 
-fn parse_output(s: &str) -> types::OutputMode {
-    s.parse().unwrap_or(types::OutputMode::Text)
+fn parse_output(s: &str) -> eaa_core::types::OutputMode {
+    s.parse().unwrap_or(eaa_core::types::OutputMode::Text)
 }
 
 fn get_data_dir() -> std::path::PathBuf {
@@ -249,7 +244,7 @@ fn handle_privacy(cmd: &PrivacyCmd) -> Result<(), AppError> {
             let pwd = std::env::var("EAA_PRIVACY_PASSWORD").unwrap_or_default();
             if pwd.is_empty() { println!("❌ 请设置 EAA_PRIVACY_PASSWORD"); return Ok(()); }
             match load_engine(&data_dir, &pwd) {
-                Ok(mut engine) => match engine.add_entity(&privacy::EntityType::from_str(entity), text) {
+                Ok(mut engine) => match engine.add_entity(&eaa_core::privacy::EntityType::from_str(entity), text) {
                     Ok(alias) => println!("✅ {} → {}", text, alias),
                     Err(e) => println!("❌ {}", e),
                 },

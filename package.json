@@ -39,6 +39,7 @@
     "dev:renderer": "vite --config vite.config.renderer.ts",
     "dev:electron": "electron .",
     "build": "vite build --config vite.config.main.ts && vite build --config vite.config.renderer.ts",
+    "build:renderer": "vite build --config vite.config.renderer.ts",
     "build:icon": "node scripts/build-icon.mjs",
     "build:eaa": "node scripts/download-eaa-binaries.mjs",
     "self-check": "node scripts/self-check.cjs",
@@ -51,7 +52,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "clean": "rimraf dist release"
+    "clean": "rimraf dist release",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:debug": "tauri build --debug",
+    "cargo:check": "cargo check --manifest-path src-tauri/Cargo.toml --lib",
+    "cargo:check:1.95": "cargo +1.95.0 check --manifest-path src-tauri/Cargo.toml --lib",
+    "cargo:test": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "signer:gen": "node scripts/gen-signer.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "file:./vendor/pi-agent-core",
@@ -98,6 +106,14 @@
     "vite": "^6.0.3",
     "vite-plugin-electron": "^0.28.8",
     "vitest": "^3.2.4",
-    "zustand": "^5.0.2"
+    "zustand": "^5.0.2",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/cli": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-notification": "^2",
+    "@tauri-apps/plugin-fs": "^2",
+    "@tauri-apps/plugin-os": "^2",
+    "@tauri-apps/plugin-log": "^2"
   }
 }

@@ -1,0 +1,106 @@
+---
+// =============================================================
+// Landing Page — Education Advisor 官网首页
+//
+// 设计理念 (Rust 生态审美):
+//   - 深色模式优先 (硬核、工程感)
+//   - Hero 区: 大标题 + Rust 红发光动效 + 一句话电梯演讲
+//   - 零 JS: 除下载按钮的 OS 检测外, 全部是静态 HTML+CSS
+//   - GPU 合成: 动画全用 transform/opacity (translateZ(0))
+//
+// OS 检测逻辑 (客户端):
+//   首次渲染显示三个下载按钮 (Linux/Win/Mac), 然后用 <script> 检测
+//   navigator.userAgent, 把对应平台的按钮高亮。
+//   这是唯一的客户端 JS (Islands 架构: 按需水合)。
+// =============================================================
+
+import Layout from '../layouts/LandingLayout.astro'
+import DownloadButtons from '../components/DownloadButtons.astro'
+import FeatureGrid from '../components/FeatureGrid.astro'
+import Hero from '../components/Hero.astro'
+---
+
+<Layout
+  title="Education Advisor — 18-Agent 班主任操行分管理系统"
+  description="用 Rust 写后端，系统 WebView 渲染——17MB 的安装包，媲美原生的流畅度。"
+>
+  <!-- ===== Hero 区 ===== -->
+  <Hero />
+
+  <!-- ===== 下载按钮组 (OS 自动识别) ===== -->
+  <section class="py-16 px-4 max-w-4xl mx-auto">
+    <div class="text-center">
+      <h2 class="text-2xl font-bold mb-2 text-slab-900 dark:text-slab-100">
+        ⬇️ 立即下载
+      </h2>
+      <p class="text-slate-500 mb-8">自动检测你的操作系统，推荐对应安装包</p>
+      <DownloadButtons />
+      <p class="mt-4 text-sm text-slate-400">
+        v0.1.0 · MIT/Apache-2.0 ·
+        <a href="/docs/intro" class="text-rust hover:underline">查看文档 →</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- ===== 核心特性网格 ===== -->
+  <FeatureGrid />
+
+  <!-- ===== 数据对比 (Electron vs Tauri) ===== -->
+  <section class="py-16 px-4 bg-slate-50 dark:bg-slab-900">
+    <div class="max-w-4xl mx-auto">
+      <h2 class="text-3xl font-bold text-center mb-12 text-slab-900 dark:text-slab-100">
+        为什么不用 Electron？
+      </h2>
+      <div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-slab-700">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-100 dark:bg-slab-800">
+            <tr>
+              <th class="text-left p-3 font-semibold">维度</th>
+              <th class="text-left p-3 font-semibold text-slate-500">Electron 版</th>
+              <th class="text-left p-3 font-semibold text-rust">Tauri 版 ✨</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slab-700">
+            <tr><td class="p-3 font-medium">安装包</td><td class="p-3">~90 MB</td><td class="p-3 font-bold text-rust">17 MB (↓81%)</td></tr>
+            <tr><td class="p-3 font-medium">内存</td><td class="p-3">~150-200 MB</td><td class="p-3 font-bold text-rust">40-80 MB</td></tr>
+            <tr><td class="p-3 font-medium">冷启动</td><td class="p-3">1.5-2 s</td><td class="p-3 font-bold text-rust">0.3-0.6 s</td></tr>
+            <tr><td class="p-3 font-medium">后端</td><td class="p-3">TypeScript (Node)</td><td class="p-3 font-bold text-rust">Rust 🦀</td></tr>
+            <tr><td class="p-3 font-medium">数据引擎</td><td class="p-3">子进程 (~50ms)</td><td class="p-3 font-bold text-rust">库内调用 (<1ms)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== CTA 区 ===== -->
+  <section class="py-20 px-4 text-center">
+    <div class="max-w-2xl mx-auto">
+      <h2 class="text-3xl font-bold mb-4 text-slab-900 dark:text-slab-100">
+        准备好把班主任工作装进 17MB 了吗？
+      </h2>
+      <p class="text-slate-500 mb-8">
+        完全开源，社区驱动。欢迎 Star ⭐、提 Issue、贡献代码。
+      </p>
+      <div class="flex flex-wrap gap-4 justify-center">
+        <a
+          href="/download"
+          class="inline-flex items-center gap-2 px-6 py-3 bg-rust text-white rounded-lg font-semibold hover:bg-rust-700 transition-colors"
+        >
+          ⬇️ 下载
+        </a>
+        <a
+          href="https://github.com/232252/education-advisor"
+          class="inline-flex items-center gap-2 px-6 py-3 border border-slate-300 dark:border-slab-600 rounded-lg font-semibold hover:bg-slate-100 dark:hover:bg-slab-800 transition-colors"
+        >
+          🐙 GitHub
+        </a>
+        <a
+          href="/docs/quick-start"
+          class="inline-flex items-center gap-2 px-6 py-3 border border-slate-300 dark:border-slab-600 rounded-lg font-semibold hover:bg-slate-100 dark:hover:bg-slab-800 transition-colors"
+        >
+          📖 快速开始
+        </a>
+      </div>
+    </div>
+  </section>
+</Layout>

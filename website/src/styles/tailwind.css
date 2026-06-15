@@ -1,0 +1,93 @@
+/* =============================================================
+   全局样式 — Education Advisor 官网
+   Tailwind base + Rust 主题变量 + 字体优化
+   ============================================================= */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- 字体策略 (CLS 优化) ---
+ * 只加载 Inter (英文 + 数字), 用 font-display: swap 避免 FOIT。
+ * 不加载中文字体 (系统字体足够好, 避免巨大的 woff2 文件)。
+ */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('https://rsms.me/inter/font-files/Inter-var.woff2') format('woff2');
+  /* rsms.me 提供 Inter 的 subset 版本, 只含 Latin, ~30KB */
+}
+
+/* --- CSS 变量: Rust 主题 --- */
+:root {
+  --ea-rust: #ce412b;
+  --ea-rust-dim: rgba(206, 65, 43, 0.15);
+  --ea-bg: #ffffff;
+  --ea-fg: #0f172a;
+}
+
+:root[data-theme='dark'] {
+  --ea-bg: #0f172a;
+  --ea-fg: #f1f5f9;
+}
+
+/* --- 全局基础 --- */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+  /* 消除默认 margin (Tailwind base 已处理, 这里兜底) */
+  margin: 0;
+}
+
+/* --- 链接 --- */
+a {
+  color: var(--ea-rust);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+a:hover {
+  color: #e85a44;
+}
+
+/* --- 代码块 (Rust 高亮) ---
+ * Shiki 已生成行内高亮 span, 这里只控制容器样式。
+ */
+pre {
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+/* --- 滚动条 (Webkit) --- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ea-rust-dim);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ea-rust);
+}
+
+/* --- 减少动画 (无障碍 + 省电) --- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

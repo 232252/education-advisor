@@ -1,0 +1,156 @@
+# =============================================================
+# Education Advisor — Tauri 桌面端 (Rust 后端)
+#
+# 这是 Tauri 重构的 Rust 侧 crate。设计目标:
+#   1. 复用 core/eaa-cli 作为库 (eaa_core), 数据/隐私/校验零重写。
+#   2. 业务层 (agent/llm/cron/db/feishu/skills/...) 全部用 Rust 重写,
+#      消除原 Electron 主进程的 Node.js 运行时。
+#   3. 通过 #[tauri::command] 暴露 90+ IPC 通道, 保持与原 preload 契约一致。
+#
+# 详见 docs/00-OVERVIEW.md, docs/01-ARCHITECTURE.md
+# =============================================================
+[package]
+name = "education-advisor-tauri"
+version = "0.1.0"
+description = "Education Advisor — Tauri 桌面端 (Rust 重写)"
+authors = ["Education Advisor AI Contributors"]
+license = "MIT"
+repository = "https://github.com/232252/education-advisor"
+edition = "2021"
+rust-version = "1.77"
+
+# 默认 lib + bin 双目标:
+#   - lib: 便于单元测试 commands/services 不依赖 Tauri 运行时
+#   - bin: Tauri 主进程入口
+[lib]
+name = "ea_tauri"
+path = "src/lib.rs"
+
+[[bin]]
+name = "education-advisor-tauri"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# --- Tauri 核心 ---
+tauri = { version = "2", features = ["tray-icon", "image-png", "image-ico"] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-os = "2"
+tauri-plugin-log = "2"
+tauri-plugin-updater = "2"          # 自动更新 (GitHub Releases)
+tauri-plugin-process = "2"          # updater install 后需要 relaunch
+tauri-plugin-deep-link = "2"        # OAuth 自定义 scheme 回调
+tauri-plugin-single-instance = "2"  # deep-link 单实例 (回调发给已有窗口)
+url = "2"                           # OAuth 回调 URL 解析
+
+# --- 复用项目自有 Rust 核心 (事件溯源数据引擎 + PII 隐私引擎) ---
+# core/eaa-cli 的 package name 是 "eaa", lib name 是 "eaa_core" (见 core/eaa-cli/Cargo.toml)。
+# 这里用 `package = "eaa"` 把它以本地名 `eaa_core` 引入, 这样源码里 `use eaa_core::...` 即可。
+# 详见 docs/02-RUST-CORE-REUSE.md
+eaa_core = { package = "eaa", path = "../core/eaa-cli", default-features = false, features = ["filesystem"] }
+
+# ===== 4 个子 crate 直接引用 (阶段 B1 接线) =====
+# 这些是 core/eaa-cli workspace 的成员, 在 src-tauri 里直接 use, 不通过 eaa_core 中转。
+# - callback-signature: 飞书 webhook HMAC-SHA256 + nonce 防重放
+# - log-redact:        日志敏感字段脱敏 (password/token/secret/api_key/...)
+# - data-validation:   SQL/XSS/长度校验 (Permissive 模式, 避免误报)
+# - agent-isolation:   每个 agent 独立数据目录, 防止跨 agent 数据泄漏
+callback-signature = { path = "../core/eaa-cli/crates/callback-signature" }
+log-redact        = { path = "../core/eaa-cli/crates/log-redact" }
+data-validation   = { path = "../core/eaa-cli/crates/data-validation" }
+agent-isolation   = { path = "../core/eaa-cli/crates/agent-isolation" }
+
+# --- 序列化 / 工具 ---
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+thiserror = "1"
+anyhow = "1"
+once_cell = "1"
+parking_lot = "0.12"   # RwLock (state.rs, 比 std 更快)
+
+# 注: brotli 8.x + alloc-no-stdlib v2/v3 版本冲突, 已通过下方 [patch.crates-io]
+# 重定向到 vendor/ 本地副本彻底解决。rustc 1.95 与 1.96 均可正常编译。
+# 详见 docs/05-BUILD-RUN.md "已知依赖问题"。
+
+# --- 异步运行时 ---
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+
+# --- 持久化 ---
+rusqlite = { version = "0.32", features = ["bundled"] }   # 替代 better-sqlite3
+keyring = { version = "3", features = ["linux-native-sync-persistent"] }  # 替代 win-dpapi keystore
+
+# --- LLM / HTTP (替代 pi-ai-service.ts) ---
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+futures-util = "0.3"
+tokio-stream = "0.1"
+bytes = "1"
+
+# --- 调度器 (替代 cron-service.ts + node-cron) ---
+tokio-cron-scheduler = "0.13"
+
+# --- 日志 / 加密 ---
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.8"
+
+# --- 文件锁 / 原子写 (与 eaa_core 一致) ---
+fs2 = "0.4"
+
+[features]
+# 默认构建: 完整 Tauri 桌面端 (需 webkit2gtk 等系统依赖)
+default = ["desktop"]
+desktop = []
+# headless: 仅编译 lib 逻辑, 不链接 Tauri/GTK (用于 CI/无 GUI 环境跑单测)
+headless = []
+
+[profile.release]
+panic = "abort"
+codegen-units = 1          # 单编译单元 → 全局内联优化
+lto = "fat"                # 最激进 LTO (跨 crate 内联)
+opt-level = 3              # 速度优先 (原 "s" 是体积优先, 牺牲速度)
+strip = true
+# target-cpu=native: 让 rustc 用当前 CPU 的 SIMD/AVX 指令, 加速 JSON/HashMap。
+# 注: 产物不可在比构建机更老的 CPU 上运行 (桌面端可接受)。
+# 通过 RUSTFLAGS="-C target-cpu=native" 或 .cargo/config.toml 设置。
+
+[dev-dependencies]
+tempfile = "3"   # 集成测试用临时 EAA_DATA_DIR 隔离
+futures = "0.3"  # 测试里 block_on 异步 db 操作 (不需 tokio runtime)
+criterion = { version = "0.5", features = ["html_reports"] }  # 基准测试
+hmac = "0.12"    # callback-signature 测试需要手动算 HMAC-SHA256
+hex = "0.4"      # 同上, hex 编码签名
+
+# criterion 需要 release 级优化才有意义
+[[bench]]
+name = "tool_dispatch"
+harness = false
+
+# =============================================================
+# [patch.crates-io] — 修复 brotli 8.x 的 alloc-no-stdlib v2/v3 分裂 (E0277)
+# (详见 docs/05-BUILD-RUN.md "已知依赖问题")
+#
+# 根因: tauri-codegen 硬要 brotli="8"。brotli 8 直接依赖 alloc-no-stdlib="2.0"(v2),
+# 但 brotli-decompressor 5.0.1/5.0.2 与 alloc-stdlib 0.2.3 都接受 v3 → 全图 v2/v3 共存。
+#
+# 解法: 把 brotli 与 brotli-decompressor 重定向到 vendor/ 下的本地副本。
+#   - vendor/brotli (8.0.3 源码) 的 alloc-stdlib 依赖改指向 vendor/alloc-stdlib 本地 shim
+#     (该 shim 硬绑 alloc-no-stdlib =2.0.4, 阻断 v3)。
+#   - vendor/brotli-decompressor 用 5.0.0 (硬绑 alloc-no-stdlib ~2.0)。
+# 全图最终只剩 alloc-no-stdlib v2, trait 求解一致, 编译通过。
+# =============================================================
+[patch.crates-io]
+brotli = { path = "vendor/brotli" }
+brotli-decompressor = { path = "vendor/brotli-decompressor" }
+alloc-stdlib = { path = "vendor/alloc-stdlib" }

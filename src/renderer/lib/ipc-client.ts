@@ -35,6 +35,10 @@ import type {
   TestConnectionResult,
   UnifiedSettings,
 } from '@shared/types'
+// Tauri 版 IPC 客户端 — 仅在 __TAURI_INTERNALS__ 存在时由 getAPI() 委托调用。
+// 顶层静态 import (非 require): Vite/WebView 是 ESM 环境, require 未定义会白屏。
+// Electron 构建会引入 @tauri-apps/api, 但运行时不执行 (条件不满足就不调用)。
+import { getAPI as getTauriAPI } from './ipc-client.tauri'
 
 // window.api 的类型声明（与 preload 脚本对应）
 interface WindowAPI {
@@ -430,8 +434,23 @@ declare global {
   }
 }
 
-/** 获取 API 客户端（带安全检查） */
+/**
+ * 获取 API 客户端（带安全检查）。
+ *
+ * Tauri 重构: 若运行在 Tauri 环境 (window.__TAURI_INTERNALS__ 由 Tauri 2.x 注入),
+ * 透明委托给 Tauri 版实现 (ipc-client.tauri.ts), 业务代码零改动。
+ * 否则回退到 Electron 的 window.api。详见 src-tauri/docs/04-FRONTEND-SHIM.md。
+ *
+ * 注: 必须用顶层静态 import, 不能用 require() — Vite/WebView 是 ESM 环境,
+ * require 未定义会导致 Tauri 模式白屏。@tauri-apps/api 在 Electron 构建里
+ * 虽被引入但不会执行 (getAPI 只在 __TAURI_INTERNALS__ 存在时才委托)。
+ */
 export function getAPI(): WindowAPI {
+  // Tauri 优先: __TAURI_INTERNALS__ 由 Tauri 2.x 注入到 window
+  // @ts-expect-error 运行时探测, 编译期不存在该字段
+  if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__ !== undefined) {
+    return getTauriAPI() as WindowAPI
+  }
   if (!window.api) {
     throw new Error('window.api is not available. Are you running inside Electron?')
   }

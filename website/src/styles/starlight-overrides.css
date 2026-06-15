@@ -1,0 +1,39 @@
+/* =============================================================
+   Starlight 主题覆盖 — 让文档中心与 Landing Page 风格统一
+   ============================================================= */
+
+/* 覆盖 Starlight 的强调色为 Rust 红 */
+:root {
+  --sl-color-accent: #ce412b;
+  --sl-color-accent-low: #7a271a;
+  --sl-color-accent-high: #fda29b;
+  --sl-color-bg: #ffffff;
+  --sl-color-bg-2: #f8fafc;
+  --sl-color-bg-3: #f1f5f9;
+}
+
+:root[data-theme='dark'] {
+  --sl-color-accent: #f97066;
+  --sl-color-accent-low: #ce412b;
+  --sl-color-accent-high: #fee4e2;
+  --sl-color-bg: #0f172a;
+  --sl-color-bg-2: #1e293b;
+  --sl-color-bg-3: #334155;
+}
+
+/* Logo 区域: 字体改为等宽 (工程美学) */
+.site-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+}
+
+/* 代码块圆角 + 行号 */
+pre {
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* 搜索框聚焦时用 Rust 红边框 */
+#starlight__search input:focus {
+  border-color: var(--sl-color-accent);
+}

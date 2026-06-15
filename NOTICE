@@ -1,0 +1,47 @@
+# NOTICE — Education Advisor
+
+Copyright © 2026 Education Advisor AI Contributors. All rights reserved.
+
+## 双协议说明 (Dual License)
+
+本项目同时基于以下两个协议开源 (您可任选其一):
+
+- **MIT License** — 见 [`LICENSE-MIT`](./LICENSE-MIT)
+- **Apache License 2.0** — 见 [`LICENSE-APACHE`](./LICENSE-APACHE)
+
+> Rust 生态惯例采用 MIT + Apache-2.0 双协议:
+> - MIT 提供最宽松的使用条件 (几乎所有 Rust crate 都用);
+> - Apache-2.0 提供显式的**专利授权条款**, 避免潜在的专利纠纷,
+>   更受企业用户青睐 (如 tokio / serde / clap 都用双协议)。
+
+## 商标声明
+
+"Education Advisor"、项目 Logo 及相关标识是本项目的商标。
+本协议不授予使用上述商标的权利, 除非为描述项目来源所必需。
+
+## 免责声明 (Disclaimer)
+
+本软件及源代码按"原样"提供 (AS IS), 不附带任何明示或暗示的担保。
+在任何法律理论下, 作者或版权持有人均不对因使用本软件而产生的任何
+直接、间接、特殊、 incidental 或后果性损害承担责任。
+
+**教育数据特别提示**: 本软件处理学生操行分、学业成绩等敏感信息。
+虽然内置了 AES-256-GCM 加密的 PII 脱敏引擎, 但使用者仍需自行评估
+当地教育数据保护法规 (如 GDPR / PIPL / FERPA) 的合规性。
+
+## 第三方依赖致谢
+
+本项目依赖以下核心开源库 (完整清单见 `cargo license`):
+
+| 库 | 协议 | 用途 |
+|----|------|------|
+| [Tauri](https://tauri.app) | MIT/Apache-2.0 | 跨平台桌面框架 (Rust 后端 + 系统 WebView) |
+| [React](https://react.dev) | MIT | 渲染端 UI 框架 |
+| [rusqlite](https://github.com/rusqlite/rusqlite) | MIT | SQLite 绑定 (bundled) |
+| [reqwest](https://github.com/seanmonstar/reqwest) | MIT/Apache-2.0 | HTTP 客户端 (LLM 调用) |
+| [tokio](https://tokio.rs) | MIT | 异步运行时 |
+| [serde](https://serde.rs) | MIT/Apache-2.0 | 序列化框架 |
+| [ECharts](https://echarts.apache.org) | Apache-2.0 | 数据可视化图表 |
+| [Tailwind CSS](https://tailwindcss.com) | MIT | CSS 工具类框架 |
+
+所有第三方库的协议均与本项目 (MIT/Apache-2.0) **兼容**, 无协议污染。
