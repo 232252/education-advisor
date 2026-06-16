@@ -17,11 +17,8 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
-      "@main/*": ["src/main/*"],
       "@renderer/*": ["src/renderer/*"],
       "@shared/*": ["src/shared/*"],
-      "@earendil-works/pi-ai": ["../pi/packages/ai/dist/index.d.ts"],
-      "@earendil-works/pi-agent-core": ["../pi/packages/agent/dist/index.d.ts"],
       "typebox": ["node_modules/typebox/build/index.d.mts"]
     }
   },

@@ -3,11 +3,11 @@
 // Verification standard: 100% pass rate, 100% nonce replay detection
 
 use hmac::{Hmac, Mac};
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use serde::{Deserialize, Serialize};
 use ttl_cache::TtlCache;
 
 type HmacSha256 = Hmac<Sha256>;
@@ -28,7 +28,7 @@ impl Default for CallbackConfig {
         Self {
             secret: std::env::var("FEISHU_CALLBACK_SECRET")
                 .expect("FEISHU_CALLBACK_SECRET must be set"),
-            nonce_ttl_secs: 300, // 5 minutes
+            nonce_ttl_secs: 300,           // 5 minutes
             timestamp_tolerance_secs: 300, // 5 minutes
         }
     }
@@ -50,9 +50,9 @@ impl CallbackVerifier {
             nonce_cache: Arc::new(RwLock::new(cache)),
         }
     }
-    
+
     /// Verify callback signature
-    /// 
+    ///
     /// Parameters:
     /// - timestamp: Unix timestamp
     /// - nonce: Random string
@@ -67,37 +67,40 @@ impl CallbackVerifier {
     ) -> Result<VerificationResult, VerificationError> {
         // 1. Verify timestamp freshness
         self.verify_timestamp(timestamp)?;
-        
+
         // 2. Check nonce for replay attack
         self.check_nonce(nonce).await?;
-        
+
         // 3. Verify signature
-        self.verify_signature(timestamp, nonce, data, signature).await?;
-        
+        self.verify_signature(timestamp, nonce, data, signature)
+            .await?;
+
         // 4. Mark nonce as used
         self.mark_nonce_used(nonce).await;
-        
+
         Ok(VerificationResult {
             passed: true,
             trace_id: format!("cb-{}-{}", timestamp, nonce),
         })
     }
-    
+
     /// Verify timestamp
     fn verify_timestamp(&self, timestamp: i64) -> Result<(), VerificationError> {
         let now = chrono::Utc::now().timestamp();
         let drift = now - timestamp;
-        
-        if drift > self.config.timestamp_tolerance_secs || drift < -self.config.timestamp_tolerance_secs {
+
+        if drift > self.config.timestamp_tolerance_secs
+            || drift < -self.config.timestamp_tolerance_secs
+        {
             return Err(VerificationError::TimestampExpired {
                 expected: format!("within {} seconds", self.config.timestamp_tolerance_secs),
                 actual: format!("{} seconds ago", drift),
             });
         }
-        
+
         Ok(())
     }
-    
+
     /// Check if nonce has been used
     async fn check_nonce(&self, nonce: &str) -> Result<(), VerificationError> {
         let cache = self.nonce_cache.read().await;
@@ -106,17 +109,17 @@ impl CallbackVerifier {
         }
         Ok(())
     }
-    
+
     /// Mark nonce as used
     async fn mark_nonce_used(&self, nonce: &str) {
         let mut cache = self.nonce_cache.write().await;
         cache.insert(
-            nonce.to_string(), 
-            Instant::now(), 
-            Duration::from_secs(self.config.nonce_ttl_secs)
+            nonce.to_string(),
+            Instant::now(),
+            Duration::from_secs(self.config.nonce_ttl_secs),
         );
     }
-    
+
     /// Verify signature
     async fn verify_signature(
         &self,
@@ -127,10 +130,10 @@ impl CallbackVerifier {
     ) -> Result<(), VerificationError> {
         // Build message: timestamp + "\n" + nonce + "\n" + data
         let message = format!("{}\n{}\n{}", timestamp, nonce, data);
-        
+
         // Compute expected signature
         let expected = self.compute_signature(&message)?;
-        
+
         // Constant-time comparison
         if !constant_time_compare(&expected, signature) {
             return Err(VerificationError::SignatureMismatch {
@@ -138,16 +141,16 @@ impl CallbackVerifier {
                 actual: signature.to_string(),
             });
         }
-        
+
         Ok(())
     }
-    
+
     /// Compute HMAC-SHA256 signature
     fn compute_signature(&self, message: &str) -> Result<String, VerificationError> {
         let mut mac = HmacSha256::new_from_slice(self.config.secret.as_bytes())
             .map_err(|e| VerificationError::MacError(e.to_string()))?;
         mac.update(message.as_bytes());
-        
+
         let result = mac.finalize();
         Ok(hex::encode(result.into_bytes()))
     }
@@ -165,13 +168,13 @@ pub struct VerificationResult {
 pub enum VerificationError {
     #[error("Timestamp expired: expected {expected}, actual {actual}")]
     TimestampExpired { expected: String, actual: String },
-    
+
     #[error("Nonce already used: {0}")]
     NonceReused(String),
-    
+
     #[error("Signature mismatch")]
     SignatureMismatch { expected: String, actual: String },
-    
+
     #[error("MAC error: {0}")]
     MacError(String),
 }
@@ -181,15 +184,15 @@ fn constant_time_compare(a: &str, b: &str) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    
+
     let a_bytes = a.as_bytes();
     let b_bytes = b.as_bytes();
-    
+
     let mut result = 0u8;
     for i in 0..a_bytes.len() {
         result |= a_bytes[i] ^ b_bytes[i];
     }
-    
+
     result == 0
 }
 
@@ -214,13 +217,13 @@ mod tests {
         let timestamp = chrono::Utc::now().timestamp();
         let nonce = "test-nonce-123";
         let data = r#"{"event_type": "test"}"#;
-        
+
         // Compute correct signature
         let message = format!("{}\n{}\n{}", timestamp, nonce, data);
         let mut mac = HmacSha256::new_from_slice(b"test-secret-key").unwrap();
         mac.update(message.as_bytes());
         let signature = hex::encode(mac.finalize().into_bytes());
-        
+
         let result = verifier.verify(timestamp, nonce, data, &signature).await;
         assert!(result.is_ok());
         assert!(result.unwrap().passed);
@@ -233,10 +236,15 @@ mod tests {
         let nonce = "test-nonce-456";
         let data = r#"{"event_type": "test"}"#;
         let wrong_signature = "invalid-signature";
-        
-        let result = verifier.verify(timestamp, nonce, data, wrong_signature).await;
+
+        let result = verifier
+            .verify(timestamp, nonce, data, wrong_signature)
+            .await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), VerificationError::SignatureMismatch { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            VerificationError::SignatureMismatch { .. }
+        ));
     }
 
     #[tokio::test]
@@ -245,21 +253,24 @@ mod tests {
         let timestamp = chrono::Utc::now().timestamp();
         let nonce = "unique-nonce-789";
         let data = r#"{"event_type": "test"}"#;
-        
+
         // Compute correct signature
         let message = format!("{}\n{}\n{}", timestamp, nonce, data);
         let mut mac = HmacSha256::new_from_slice(b"test-secret-key").unwrap();
         mac.update(message.as_bytes());
         let signature = hex::encode(mac.finalize().into_bytes());
-        
+
         // First verification should succeed
         let result1 = verifier.verify(timestamp, nonce, data, &signature).await;
         assert!(result1.is_ok());
-        
+
         // Second use of same nonce should fail
         let result2 = verifier.verify(timestamp, nonce, data, &signature).await;
         assert!(result2.is_err());
-        assert!(matches!(result2.unwrap_err(), VerificationError::NonceReused(_)));
+        assert!(matches!(
+            result2.unwrap_err(),
+            VerificationError::NonceReused(_)
+        ));
     }
 
     #[tokio::test]
@@ -269,9 +280,12 @@ mod tests {
         let nonce = "test-nonce";
         let data = r#"{"event_type": "test"}"#;
         let signature = "dummy";
-        
+
         let result = verifier.verify(old_timestamp, nonce, data, signature).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), VerificationError::TimestampExpired { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            VerificationError::TimestampExpired { .. }
+        ));
     }
 }

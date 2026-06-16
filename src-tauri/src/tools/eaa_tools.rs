@@ -248,8 +248,18 @@ fn tool_ranking_snap(args: &Value, snap: &DataSnapshot) -> Result<Value> {
 }
 
 fn tool_stats_snap(snap: &DataSnapshot) -> Result<Value> {
-    let active = snap.entities.entities.values().filter(|e| matches!(e.status, eaa_core::EntityStatus::Active)).count();
-    let total_delta: f64 = snap.events.iter().filter(|e| e.is_valid).map(|e| e.score_delta).sum();
+    let active = snap
+        .entities
+        .entities
+        .values()
+        .filter(|e| matches!(e.status, eaa_core::EntityStatus::Active))
+        .count();
+    let total_delta: f64 = snap
+        .events
+        .iter()
+        .filter(|e| e.is_valid)
+        .map(|e| e.score_delta)
+        .sum();
     Ok(json!({
         "studentCount": active,
         "eventCount": snap.events.len(),
@@ -272,11 +282,13 @@ fn tool_search_snap(args: &Value, snap: &DataSnapshot) -> Result<Value> {
                 || e.original_reason.to_lowercase().contains(&q)
         })
         .take(limit)
-        .map(|e| json!({
-            "eventId": e.event_id, "name": id2name.get(&e.entity_id),
-            "reasonCode": e.reason_code, "delta": e.score_delta,
-            "timestamp": e.timestamp, "note": e.note,
-        }))
+        .map(|e| {
+            json!({
+                "eventId": e.event_id, "name": id2name.get(&e.entity_id),
+                "reasonCode": e.reason_code, "delta": e.score_delta,
+                "timestamp": e.timestamp, "note": e.note,
+            })
+        })
         .collect();
     Ok(json!({ "query": q, "count": hits.len(), "events": hits }))
 }
@@ -304,14 +316,21 @@ fn tool_summary_snap(args: &Value, snap: &DataSnapshot) -> Result<Value> {
             ok_since && ok_until
         })
         .collect();
-    let total: f64 = filtered.iter().filter(|e| e.is_valid).map(|e| e.score_delta).sum();
-    let by_code: std::collections::HashMap<String, i64> = filtered
+    let total: f64 = filtered
         .iter()
-        .fold(std::collections::HashMap::new(), |mut acc, e| {
-            *acc.entry(e.reason_code.clone()).or_insert(0) += 1;
-            acc
-        });
-    Ok(json!({ "since": since, "until": until, "eventCount": filtered.len(), "totalDelta": total, "byCode": by_code }))
+        .filter(|e| e.is_valid)
+        .map(|e| e.score_delta)
+        .sum();
+    let by_code: std::collections::HashMap<String, i64> =
+        filtered
+            .iter()
+            .fold(std::collections::HashMap::new(), |mut acc, e| {
+                *acc.entry(e.reason_code.clone()).or_insert(0) += 1;
+                acc
+            });
+    Ok(
+        json!({ "since": since, "until": until, "eventCount": filtered.len(), "totalDelta": total, "byCode": by_code }),
+    )
 }
 
 fn tool_range_snap(args: &Value, snap: &DataSnapshot) -> Result<Value> {
@@ -324,10 +343,12 @@ fn tool_range_snap(args: &Value, snap: &DataSnapshot) -> Result<Value> {
         .iter()
         .filter(|e| e.timestamp.as_str() >= start.as_str() && e.timestamp.as_str() <= end.as_str())
         .take(limit)
-        .map(|e| json!({
-            "eventId": e.event_id, "name": id2name.get(&e.entity_id),
-            "reasonCode": e.reason_code, "delta": e.score_delta, "timestamp": e.timestamp,
-        }))
+        .map(|e| {
+            json!({
+                "eventId": e.event_id, "name": id2name.get(&e.entity_id),
+                "reasonCode": e.reason_code, "delta": e.score_delta, "timestamp": e.timestamp,
+            })
+        })
         .collect();
     Ok(json!({ "events": hits, "count": hits.len() }))
 }
@@ -381,8 +402,16 @@ fn tool_ranking(args: &Value) -> Result<Value> {
 pub(crate) fn tool_stats(_args: &Value) -> Result<Value> {
     let entities = storage::load_entities()?;
     let events = storage::load_events()?;
-    let active = entities.entities.values().filter(|e| matches!(e.status, eaa_core::EntityStatus::Active)).count();
-    let total_delta: f64 = events.iter().filter(|e| e.is_valid).map(|e| e.score_delta).sum();
+    let active = entities
+        .entities
+        .values()
+        .filter(|e| matches!(e.status, eaa_core::EntityStatus::Active))
+        .count();
+    let total_delta: f64 = events
+        .iter()
+        .filter(|e| e.is_valid)
+        .map(|e| e.score_delta)
+        .sum();
     Ok(json!({
         "studentCount": active,
         "eventCount": events.len(),
@@ -396,7 +425,10 @@ pub(crate) fn tool_codes(_args: &Value) -> Result<Value> {
     let codes = storage::load_reason_codes()?;
     let mut obj = serde_json::Map::new();
     for (code, def) in &codes.codes {
-        obj.insert(code.clone(), json!({ "label": def.label, "category": def.category, "delta": def.score_delta }));
+        obj.insert(
+            code.clone(),
+            json!({ "label": def.label, "category": def.category, "delta": def.score_delta }),
+        );
     }
     Ok(json!({ "version": codes.version, "codes": obj }))
 }
@@ -416,11 +448,13 @@ pub(crate) fn tool_search(args: &Value) -> Result<Value> {
                 || e.original_reason.to_lowercase().contains(&q)
         })
         .take(limit)
-        .map(|e| json!({
-            "eventId": e.event_id, "name": id2name.get(&e.entity_id),
-            "reasonCode": e.reason_code, "delta": e.score_delta,
-            "timestamp": e.timestamp, "note": e.note,
-        }))
+        .map(|e| {
+            json!({
+                "eventId": e.event_id, "name": id2name.get(&e.entity_id),
+                "reasonCode": e.reason_code, "delta": e.score_delta,
+                "timestamp": e.timestamp, "note": e.note,
+            })
+        })
         .collect();
     Ok(json!({ "query": q, "count": hits.len(), "events": hits }))
 }
@@ -448,14 +482,21 @@ pub(crate) fn tool_summary(args: &Value) -> Result<Value> {
             ok_since && ok_until
         })
         .collect();
-    let total: f64 = filtered.iter().filter(|e| e.is_valid).map(|e| e.score_delta).sum();
-    let by_code: std::collections::HashMap<String, i64> = filtered
+    let total: f64 = filtered
         .iter()
-        .fold(std::collections::HashMap::new(), |mut acc, e| {
-            *acc.entry(e.reason_code.clone()).or_insert(0) += 1;
-            acc
-        });
-    Ok(json!({ "since": since, "until": until, "eventCount": filtered.len(), "totalDelta": total, "byCode": by_code }))
+        .filter(|e| e.is_valid)
+        .map(|e| e.score_delta)
+        .sum();
+    let by_code: std::collections::HashMap<String, i64> =
+        filtered
+            .iter()
+            .fold(std::collections::HashMap::new(), |mut acc, e| {
+                *acc.entry(e.reason_code.clone()).or_insert(0) += 1;
+                acc
+            });
+    Ok(
+        json!({ "since": since, "until": until, "eventCount": filtered.len(), "totalDelta": total, "byCode": by_code }),
+    )
 }
 
 pub(crate) fn tool_range(args: &Value) -> Result<Value> {
@@ -468,10 +509,12 @@ pub(crate) fn tool_range(args: &Value) -> Result<Value> {
         .iter()
         .filter(|e| e.timestamp.as_str() >= start.as_str() && e.timestamp.as_str() <= end.as_str())
         .take(limit)
-        .map(|e| json!({
-            "eventId": e.event_id, "name": id2name.get(&e.entity_id),
-            "reasonCode": e.reason_code, "delta": e.score_delta, "timestamp": e.timestamp,
-        }))
+        .map(|e| {
+            json!({
+                "eventId": e.event_id, "name": id2name.get(&e.entity_id),
+                "reasonCode": e.reason_code, "delta": e.score_delta, "timestamp": e.timestamp,
+            })
+        })
         .collect();
     Ok(json!({ "events": hits, "count": hits.len() }))
 }
@@ -479,18 +522,24 @@ pub(crate) fn tool_range(args: &Value) -> Result<Value> {
 pub(crate) fn tool_academic_get(args: &Value) -> Result<Value> {
     // 学业记录存在学生 profile 的 academicRecords 字段 (复数! 与 shared/types.ts 一致)。
     let name = get_str(args, "name")?;
-    let path = storage::get_data_dir().join("profiles").join(format!("{}.json", sanitize(&name)));
+    let path = storage::get_data_dir()
+        .join("profiles")
+        .join(format!("{}.json", sanitize(&name)));
     if !path.exists() {
         return Ok(json!({ "name": name, "academicRecords": [] }));
     }
     let raw = std::fs::read_to_string(&path)?;
     let v: Value = serde_json::from_str(&raw).unwrap_or_default();
-    Ok(json!({ "name": name, "academicRecords": v.get("academicRecords").cloned().unwrap_or(json!([])) }))
+    Ok(
+        json!({ "name": name, "academicRecords": v.get("academicRecords").cloned().unwrap_or(json!([])) }),
+    )
 }
 
 pub(crate) fn tool_profile_get(args: &Value) -> Result<Value> {
     let name = get_str(args, "name")?;
-    let path = storage::get_data_dir().join("profiles").join(format!("{}.json", sanitize(&name)));
+    let path = storage::get_data_dir()
+        .join("profiles")
+        .join(format!("{}.json", sanitize(&name)));
     if !path.exists() {
         return Ok(json!({ "name": name, "profile": {} }));
     }
@@ -508,8 +557,13 @@ pub(crate) fn tool_add_event(args: &Value) -> Result<Value> {
     let delta = args.get("delta").and_then(|v| v.as_f64()).unwrap_or(0.0);
     let note = args.get("note").and_then(|v| v.as_str()).unwrap_or("");
     // reason_code 白名单 (仅大写字母+下划线)
-    if !reason_code.chars().all(|c| c.is_ascii_uppercase() || c == '_') {
-        return Err(AppError::Validation(format!("非法 reason_code: {reason_code}")));
+    if !reason_code
+        .chars()
+        .all(|c| c.is_ascii_uppercase() || c == '_')
+    {
+        return Err(AppError::Validation(format!(
+            "非法 reason_code: {reason_code}"
+        )));
     }
     eaa_core::validation::validate_delta(delta, false)?;
 
@@ -544,13 +598,21 @@ pub(crate) fn tool_add_event(args: &Value) -> Result<Value> {
     let event = eaa_core::Event {
         event_id: storage::generate_event_id(),
         entity_id: id.clone(),
-        event_type: if delta >= 0.0 { eaa_core::EventType::ConductBonus } else { eaa_core::EventType::ConductDeduct },
+        event_type: if delta >= 0.0 {
+            eaa_core::EventType::ConductBonus
+        } else {
+            eaa_core::EventType::ConductDeduct
+        },
         category_tags: vec![],
         reason_code: reason_code.clone(),
         original_reason: note.to_string(),
         score_delta: delta,
         evidence_ref: String::new(),
-        operator: args.get("operator").and_then(|v| v.as_str()).unwrap_or("agent").to_string(),
+        operator: args
+            .get("operator")
+            .and_then(|v| v.as_str())
+            .unwrap_or("agent")
+            .to_string(),
         timestamp: chrono::Utc::now().to_rfc3339(),
         is_valid: true,
         reverted_by: None,
@@ -566,7 +628,9 @@ pub(crate) fn tool_add_event(args: &Value) -> Result<Value> {
 pub(crate) fn tool_add_student(args: &Value) -> Result<Value> {
     let name = get_str(args, "name")?;
     // 班级 ID 可选 (与 commands/eaa.rs::eaa_set_student_meta 一致)
-    let class_id = args.get("classId").or_else(|| args.get("class_id"))
+    let class_id = args
+        .get("classId")
+        .or_else(|| args.get("class_id"))
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .map(String::from);
@@ -619,7 +683,9 @@ pub(crate) fn tool_academic_add(args: &Value) -> Result<Value> {
     //   A) 单科目: { name, examType, examName, subject, score } → 新建/追加到该次考试
     //   B) 完整记录: { name, record: { examType, examName, subjects:{...}, date?, notes? } }
     let name = get_str(args, "name")?;
-    let path = storage::get_data_dir().join("profiles").join(format!("{}.json", sanitize(&name)));
+    let path = storage::get_data_dir()
+        .join("profiles")
+        .join(format!("{}.json", sanitize(&name)));
     let mut profile: Value = if path.exists() {
         serde_json::from_str(&std::fs::read_to_string(&path)?).unwrap_or(json!({}))
     } else {
@@ -631,7 +697,10 @@ pub(crate) fn tool_academic_add(args: &Value) -> Result<Value> {
 
     if let Some(record) = args.get("record") {
         // 模式 B: 整条记录
-        if let Some(arr) = profile.get_mut("academicRecords").and_then(|v| v.as_array_mut()) {
+        if let Some(arr) = profile
+            .get_mut("academicRecords")
+            .and_then(|v| v.as_array_mut())
+        {
             arr.push(record.clone());
         }
     } else {
@@ -651,7 +720,9 @@ pub(crate) fn tool_academic_add(args: &Value) -> Result<Value> {
             .and_then(|v| v.as_array_mut())
             .ok_or_else(|| AppError::Other("academicRecords 不是数组".into()))?;
         // 找同 examName 的记录
-        let idx = arr.iter().position(|r| r.get("examName").and_then(|v| v.as_str()) == Some(&exam_name));
+        let idx = arr
+            .iter()
+            .position(|r| r.get("examName").and_then(|v| v.as_str()) == Some(&exam_name));
         match idx {
             Some(i) => {
                 // 追加科目到已有考试
@@ -694,7 +765,9 @@ pub(crate) fn tool_academic_add(args: &Value) -> Result<Value> {
 pub(crate) fn tool_profile_set(args: &Value) -> Result<Value> {
     let name = get_str(args, "name")?;
     let data = args.get("data").cloned().unwrap_or(json!({}));
-    let path = storage::get_data_dir().join("profiles").join(format!("{}.json", sanitize(&name)));
+    let path = storage::get_data_dir()
+        .join("profiles")
+        .join(format!("{}.json", sanitize(&name)));
     let mut profile: Value = if path.exists() {
         serde_json::from_str(&std::fs::read_to_string(&path)?).unwrap_or(json!({}))
     } else {
@@ -728,7 +801,9 @@ pub(crate) fn tool_delete_by_class(args: &Value) -> Result<Value> {
     let _lock = storage::FileLock::acquire()?;
     let mut entities = storage::load_entities()?;
     let before = entities.entities.len();
-    entities.entities.retain(|_, e| e.class_id.as_deref() != Some(&class_id));
+    entities
+        .entities
+        .retain(|_, e| e.class_id.as_deref() != Some(&class_id));
     let after = entities.entities.len();
     storage::save_entities(&entities)?;
     Ok(json!({ "classId": class_id, "deleted": before - after }))
@@ -749,7 +824,10 @@ pub(crate) fn tool_reset_factory(_args: &Value) -> Result<Value> {
     for sub in ["entities", "events", "profiles", "logs", "privacy"] {
         let _ = std::fs::create_dir_all(data_dir.join(sub));
     }
-    let _ = std::fs::write(data_dir.join("entities/entities.json"), r#"{"entities":{}}"#);
+    let _ = std::fs::write(
+        data_dir.join("entities/entities.json"),
+        r#"{"entities":{}}"#,
+    );
     let _ = std::fs::write(data_dir.join("entities/name_index.json"), "{}");
     let _ = std::fs::write(data_dir.join("events/events.json"), "[]");
     Ok(json!({ "reset": "factory", "message": format!("已清空 {}", data_dir.display()) }))
@@ -760,7 +838,10 @@ pub(crate) fn tool_reset_factory(_args: &Value) -> Result<Value> {
 // =============================================================
 
 pub(crate) fn tool_bulk_add_students(args: &Value) -> Result<Value> {
-    let names = args.get("names").and_then(|v| v.as_array()).ok_or_else(|| AppError::Validation("缺少 names 数组".into()))?;
+    let names = args
+        .get("names")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| AppError::Validation("缺少 names 数组".into()))?;
     let _lock = storage::FileLock::acquire()?;
     let mut entities = storage::load_entities()?;
     let mut index = storage::load_name_index()?;
@@ -794,17 +875,25 @@ pub(crate) fn tool_bulk_add_students(args: &Value) -> Result<Value> {
 }
 
 pub(crate) fn tool_bulk_add_academics(args: &Value) -> Result<Value> {
-    let records = args.get("records").and_then(|v| v.as_array()).ok_or_else(|| AppError::Validation("缺少 records 数组".into()))?;
+    let records = args
+        .get("records")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| AppError::Validation("缺少 records 数组".into()))?;
     let mut added = 0u64;
     for r in records {
-        let name = r.get("name").and_then(|v| v.as_str()).ok_or_else(|| AppError::Validation("record 缺少 name".into()))?;
+        let name = r
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::Validation("record 缺少 name".into()))?;
         // 兼容两种命名: examType/examName(标准) / exam_type/exam_name / exam(legacy)
-        let exam = r.get("examType")
+        let exam = r
+            .get("examType")
             .or_else(|| r.get("exam_type"))
             .or_else(|| r.get("exam"))
             .cloned()
             .unwrap_or(json!(""));
-        let exam_name = r.get("examName")
+        let exam_name = r
+            .get("examName")
             .or_else(|| r.get("exam_name"))
             .cloned()
             .unwrap_or(exam.clone());
@@ -823,7 +912,10 @@ pub(crate) fn tool_bulk_add_academics(args: &Value) -> Result<Value> {
 }
 
 pub(crate) fn tool_bulk_add_events(args: &Value) -> Result<Value> {
-    let events = args.get("events").and_then(|v| v.as_array()).ok_or_else(|| AppError::Validation("缺少 events 数组".into()))?;
+    let events = args
+        .get("events")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| AppError::Validation("缺少 events 数组".into()))?;
     let mut added = 0u64;
     for e in events {
         let _ = tool_add_event(e)?;
@@ -846,23 +938,48 @@ pub(crate) fn is_allowed(tool: &str, caps: &[String]) -> bool {
     }
     let in_group = |group_tools: &[&str]| group_tools.contains(&tool);
     // read 组
-    if lower.iter().any(|c| c == "read") && in_group(&[
-        "score", "history", "search", "list_students", "list", "ranking", "stats", "codes",
-        "summary", "range", "academic_get", "profile_get",
-        "bulk_add_students", "bulk_add_academics", "bulk_add_events",
-    ]) {
+    if lower.iter().any(|c| c == "read")
+        && in_group(&[
+            "score",
+            "history",
+            "search",
+            "list_students",
+            "list",
+            "ranking",
+            "stats",
+            "codes",
+            "summary",
+            "range",
+            "academic_get",
+            "profile_get",
+            "bulk_add_students",
+            "bulk_add_academics",
+            "bulk_add_events",
+        ])
+    {
         return true;
     }
     // write 组
-    if lower.iter().any(|c| c == "write") && in_group(&[
-        "add_event", "add_student", "revert_event", "revert",
-        "academic_add", "profile_set",
-        "delete_student", "delete_by_class", "reset_events", "reset_factory",
-    ]) {
+    if lower.iter().any(|c| c == "write")
+        && in_group(&[
+            "add_event",
+            "add_student",
+            "revert_event",
+            "revert",
+            "academic_add",
+            "profile_set",
+            "delete_student",
+            "delete_by_class",
+            "reset_events",
+            "reset_factory",
+        ])
+    {
         return true;
     }
     // academic 组 (get + add + bulk)
-    if lower.iter().any(|c| c == "academic") && in_group(&["academic_get", "academic_add", "bulk_add_academics"]) {
+    if lower.iter().any(|c| c == "academic")
+        && in_group(&["academic_get", "academic_add", "bulk_add_academics"])
+    {
         return true;
     }
     // profile 组
@@ -870,7 +987,9 @@ pub(crate) fn is_allowed(tool: &str, caps: &[String]) -> bool {
         return true;
     }
     // bulk 组
-    if lower.iter().any(|c| c == "bulk") && in_group(&["bulk_add_students", "bulk_add_academics", "bulk_add_events"]) {
+    if lower.iter().any(|c| c == "bulk")
+        && in_group(&["bulk_add_students", "bulk_add_academics", "bulk_add_events"])
+    {
         return true;
     }
     // revert 单独
@@ -878,13 +997,17 @@ pub(crate) fn is_allowed(tool: &str, caps: &[String]) -> bool {
         return true;
     }
     // 文件/实用工具组
-    if lower.iter().any(|c| c == "file_read" || c == "read_file") && in_group(&["read_file", "list_dir"]) {
+    if lower.iter().any(|c| c == "file_read" || c == "read_file")
+        && in_group(&["read_file", "list_dir"])
+    {
         return true;
     }
     if lower.iter().any(|c| c == "file_write" || c == "write_file") && in_group(&["write_file"]) {
         return true;
     }
-    if lower.iter().any(|c| c == "utility" || c == "util") && in_group(&["get_current_time", "calculate"]) {
+    if lower.iter().any(|c| c == "utility" || c == "util")
+        && in_group(&["get_current_time", "calculate"])
+    {
         return true;
     }
     false
@@ -899,7 +1022,13 @@ fn get_str(args: &Value, key: &str) -> Result<String> {
 
 fn sanitize(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 

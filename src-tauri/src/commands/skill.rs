@@ -18,7 +18,11 @@ pub async fn skill_get(state: State<'_, AppState>, name: String) -> Result<Optio
 }
 
 #[tauri::command]
-pub async fn skill_save(state: State<'_, AppState>, name: String, content: String) -> Result<Value> {
+pub async fn skill_save(
+    state: State<'_, AppState>,
+    name: String,
+    content: String,
+) -> Result<Value> {
     state.skills.write().save(&name, &content)?;
     Ok(serde_json::json!({ "success": true }))
 }
@@ -32,7 +36,11 @@ pub async fn skill_delete(state: State<'_, AppState>, name: String) -> Result<Va
 }
 
 #[tauri::command]
-pub async fn skill_set_enabled(state: State<'_, AppState>, name: String, enabled: bool) -> Result<Value> {
+pub async fn skill_set_enabled(
+    state: State<'_, AppState>,
+    name: String,
+    enabled: bool,
+) -> Result<Value> {
     match state.skills.write().set_enabled(&name, enabled) {
         Ok(_) => Ok(serde_json::json!({ "success": true })),
         Err(e) => Ok(serde_json::json!({ "success": false, "error": e.to_string() })),

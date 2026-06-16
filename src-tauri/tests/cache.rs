@@ -21,13 +21,7 @@ fn test_cache_consistency_within_round() {
     let caps = vec!["write".to_string(), "read".to_string()];
 
     // 初始写入一个学生
-    dispatch_cached(
-        "add_student",
-        &json!({"name": "CacheAlice"}),
-        &caps,
-        &cache,
-    )
-    .unwrap();
+    dispatch_cached("add_student", &json!({"name": "CacheAlice"}), &caps, &cache).unwrap();
 
     // 连续 3 次只读: list_students → score → ranking
     let r1 = dispatch_cached("list_students", &json!({}), &caps, &cache).unwrap();
@@ -93,13 +87,7 @@ fn test_cache_full_read_write_read_roundtrip() {
 
     // 阶段 1: 写入 3 个学生 (每次都 invalidate)
     for name in ["S1", "S2", "S3"] {
-        dispatch_cached(
-            "add_student",
-            &json!({"name": name}),
-            &caps,
-            &cache,
-        )
-        .unwrap();
+        dispatch_cached("add_student", &json!({"name": name}), &caps, &cache).unwrap();
     }
 
     // 阶段 2: 连续 5 个只读工具 (验证缓存复用, 内容稳定)
@@ -109,19 +97,16 @@ fn test_cache_full_read_write_read_roundtrip() {
     }
 
     // 阶段 3: 删除一个学生
-    dispatch_cached(
-        "delete_student",
-        &json!({"name": "S2"}),
-        &caps,
-        &cache,
-    )
-    .unwrap();
+    dispatch_cached("delete_student", &json!({"name": "S2"}), &caps, &cache).unwrap();
 
     // 阶段 4: 再次读 — 应只剩 2 个
     let r = dispatch_cached("list_students", &json!({}), &caps, &cache).unwrap();
     let students = r["students"].as_array().unwrap();
     assert_eq!(students.len(), 2, "delete 后 invalidate 必须生效");
-    let names: Vec<&str> = students.iter().map(|s| s["name"].as_str().unwrap()).collect();
+    let names: Vec<&str> = students
+        .iter()
+        .map(|s| s["name"].as_str().unwrap())
+        .collect();
     assert!(names.contains(&"S1"));
     assert!(names.contains(&"S3"));
     assert!(!names.contains(&"S2"));

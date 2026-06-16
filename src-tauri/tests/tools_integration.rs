@@ -58,7 +58,12 @@ fn test_student_add_then_score_history_ranking() {
     let _dir = setup_temp_data_dir("student_roundtrip");
 
     // 1. 添加学生
-    let r = dispatch("add_student", &json!({ "name": "张三" }), &["write".to_string()]).unwrap();
+    let r = dispatch(
+        "add_student",
+        &json!({ "name": "张三" }),
+        &["write".to_string()],
+    )
+    .unwrap();
     assert_eq!(r["name"], "张三");
     assert!(r["id"].as_str().unwrap().starts_with("S_"));
 
@@ -93,7 +98,12 @@ fn test_add_event_search_revert() {
     let _g = lock(); // 串行化 (EAA_DATA_DIR 全局变量)
     let _dir = setup_temp_data_dir("event_chain");
 
-    dispatch("add_student", &json!({ "name": "李四" }), &["write".to_string()]).unwrap();
+    dispatch(
+        "add_student",
+        &json!({ "name": "李四" }),
+        &["write".to_string()],
+    )
+    .unwrap();
     let added = dispatch(
         "add_event",
         &json!({ "name": "李四", "reasonCode": "LATE", "delta": -2.0 }),
@@ -107,7 +117,12 @@ fn test_add_event_search_revert() {
     assert!(r["count"].as_u64().unwrap() >= 1);
 
     // revert
-    let r = dispatch("revert_event", &json!({ "eventId": event_id }), &["write".to_string()]).unwrap();
+    let r = dispatch(
+        "revert_event",
+        &json!({ "eventId": event_id }),
+        &["write".to_string()],
+    )
+    .unwrap();
     assert_eq!(r["reverted"], true);
 }
 
@@ -116,7 +131,12 @@ fn test_capability_least_privilege() {
     let _g = lock(); // 串行化 (EAA_DATA_DIR 全局变量)
     let _dir = setup_temp_data_dir("capability");
 
-    dispatch("add_student", &json!({ "name": "王五" }), &["write".to_string()]).unwrap();
+    dispatch(
+        "add_student",
+        &json!({ "name": "王五" }),
+        &["write".to_string()],
+    )
+    .unwrap();
 
     // read agent 不能调 add_event (capability 校验)
     let r = dispatch(
@@ -126,7 +146,10 @@ fn test_capability_least_privilege() {
     );
     assert!(r.is_err(), "read agent 不应能调 add_event");
     let err = r.unwrap_err().to_string();
-    assert!(err.contains("缺少") || err.contains("能力"), "错误信息应提示权限: {err}");
+    assert!(
+        err.contains("缺少") || err.contains("能力"),
+        "错误信息应提示权限: {err}"
+    );
 
     // read agent 能调 score
     let r = dispatch("score", &json!({ "name": "王五" }), &["read".to_string()]).unwrap();
@@ -138,8 +161,18 @@ fn test_capability_all_wildcard() {
     let _g = lock(); // 串行化 (EAA_DATA_DIR 全局变量)
     let _dir = setup_temp_data_dir("capability_all");
 
-    dispatch("add_student", &json!({ "name": "赵六" }), &["*".to_string()]).unwrap();
-    dispatch("add_event", &json!({ "name": "赵六", "reasonCode": "BONUS_VARIABLE", "delta": 3.0 }), &["all".to_string()]).unwrap();
+    dispatch(
+        "add_student",
+        &json!({ "name": "赵六" }),
+        &["*".to_string()],
+    )
+    .unwrap();
+    dispatch(
+        "add_event",
+        &json!({ "name": "赵六", "reasonCode": "BONUS_VARIABLE", "delta": 3.0 }),
+        &["all".to_string()],
+    )
+    .unwrap();
     let r = dispatch("score", &json!({ "name": "赵六" }), &["*".to_string()]).unwrap();
     assert!((r["score"].as_f64().unwrap() - 103.0).abs() < 0.01);
 }
@@ -150,8 +183,18 @@ fn test_eaa_prefix_compatibility() {
     let _dir = setup_temp_data_dir("prefix");
 
     // eaa_ 前缀和无前缀都应工作
-    dispatch("eaa_add_student", &json!({ "name": "孙七" }), &["write".to_string()]).unwrap();
-    let r = dispatch("eaa_score", &json!({ "name": "孙七" }), &["read".to_string()]).unwrap();
+    dispatch(
+        "eaa_add_student",
+        &json!({ "name": "孙七" }),
+        &["write".to_string()],
+    )
+    .unwrap();
+    let r = dispatch(
+        "eaa_score",
+        &json!({ "name": "孙七" }),
+        &["read".to_string()],
+    )
+    .unwrap();
     assert_eq!(r["name"], "孙七");
 }
 
@@ -160,7 +203,12 @@ fn test_reason_code_whitelist() {
     let _g = lock(); // 串行化 (EAA_DATA_DIR 全局变量)
     let _dir = setup_temp_data_dir("reason_code");
 
-    dispatch("add_student", &json!({ "name": "周八" }), &["write".to_string()]).unwrap();
+    dispatch(
+        "add_student",
+        &json!({ "name": "周八" }),
+        &["write".to_string()],
+    )
+    .unwrap();
 
     // 合法 reason_code (大写字母+下划线)
     let r = dispatch(
@@ -184,7 +232,12 @@ fn test_academic_add_get_academicrecords_schema() {
     let _g = lock(); // 串行化 (EAA_DATA_DIR 全局变量)
     let _dir = setup_temp_data_dir("academic");
 
-    dispatch("add_student", &json!({ "name": "吴九" }), &["write".to_string()]).unwrap();
+    dispatch(
+        "add_student",
+        &json!({ "name": "吴九" }),
+        &["write".to_string()],
+    )
+    .unwrap();
 
     // 模式 A: 单科目追加
     let r = dispatch(
@@ -202,8 +255,16 @@ fn test_academic_add_get_academicrecords_schema() {
     assert_eq!(r["name"], "吴九");
 
     // 读回 — 必须是 academicRecords 字段 (不是 academic!), subjects 是 map
-    let r = dispatch("academic_get", &json!({ "name": "吴九" }), &["academic".to_string()]).unwrap();
-    assert!(r["academicRecords"].is_array(), "必须返回 academicRecords 字段");
+    let r = dispatch(
+        "academic_get",
+        &json!({ "name": "吴九" }),
+        &["academic".to_string()],
+    )
+    .unwrap();
+    assert!(
+        r["academicRecords"].is_array(),
+        "必须返回 academicRecords 字段"
+    );
     let rec = &r["academicRecords"][0];
     assert_eq!(rec["examName"], "2025秋期中");
     assert_eq!(rec["examType"], "期中");
@@ -215,8 +276,18 @@ fn test_stats_codes_summary() {
     let _g = lock(); // 串行化 (EAA_DATA_DIR 全局变量)
     let _dir = setup_temp_data_dir("aggregate");
 
-    dispatch("add_student", &json!({ "name": "A" }), &["write".to_string()]).unwrap();
-    dispatch("add_event", &json!({ "name": "A", "reasonCode": "BONUS_VARIABLE", "delta": 2.0 }), &["write".to_string()]).unwrap();
+    dispatch(
+        "add_student",
+        &json!({ "name": "A" }),
+        &["write".to_string()],
+    )
+    .unwrap();
+    dispatch(
+        "add_event",
+        &json!({ "name": "A", "reasonCode": "BONUS_VARIABLE", "delta": 2.0 }),
+        &["write".to_string()],
+    )
+    .unwrap();
 
     let r = dispatch("stats", &json!({}), &["read".to_string()]).unwrap();
     assert!(r["studentCount"].as_u64().unwrap() >= 1);
@@ -264,12 +335,27 @@ fn test_delete_student() {
     let _g = lock(); // 串行化 (EAA_DATA_DIR 全局变量)
     let _dir = setup_temp_data_dir("delete");
 
-    dispatch("add_student", &json!({ "name": "郑十" }), &["write".to_string()]).unwrap();
-    let r = dispatch("delete_student", &json!({ "name": "郑十" }), &["delete_student".to_string()]).unwrap();
+    dispatch(
+        "add_student",
+        &json!({ "name": "郑十" }),
+        &["write".to_string()],
+    )
+    .unwrap();
+    let r = dispatch(
+        "delete_student",
+        &json!({ "name": "郑十" }),
+        &["delete_student".to_string()],
+    )
+    .unwrap();
     assert_eq!(r["deleted"], true);
 
     // 再删 → existed=false
-    let r = dispatch("delete_student", &json!({ "name": "郑十" }), &["delete_student".to_string()]).unwrap();
+    let r = dispatch(
+        "delete_student",
+        &json!({ "name": "郑十" }),
+        &["delete_student".to_string()],
+    )
+    .unwrap();
     assert_eq!(r["deleted"], false);
 }
 
@@ -289,17 +375,27 @@ fn test_delete_by_class() {
 
     let write = vec!["write".to_string()];
     // 加 3 个学生, classId 不同
-    dispatch("add_student", &json!({"name": "A1", "classId": "三年级一班"}), &write).unwrap();
-    dispatch("add_student", &json!({"name": "A2", "classId": "三年级一班"}), &write).unwrap();
-    dispatch("add_student", &json!({"name": "B1", "classId": "三年级二班"}), &write).unwrap();
-
-    // 删 "三年级一班" 全部
-    let r = dispatch(
-        "delete_by_class",
-        &json!({"classId": "三年级一班"}),
+    dispatch(
+        "add_student",
+        &json!({"name": "A1", "classId": "三年级一班"}),
         &write,
     )
     .unwrap();
+    dispatch(
+        "add_student",
+        &json!({"name": "A2", "classId": "三年级一班"}),
+        &write,
+    )
+    .unwrap();
+    dispatch(
+        "add_student",
+        &json!({"name": "B1", "classId": "三年级二班"}),
+        &write,
+    )
+    .unwrap();
+
+    // 删 "三年级一班" 全部
+    let r = dispatch("delete_by_class", &json!({"classId": "三年级一班"}), &write).unwrap();
     assert_eq!(r["deleted"].as_u64().unwrap(), 2);
 
     // 验证: 仅 B1 留下
@@ -336,7 +432,12 @@ fn test_bulk_add_academics() {
 
     let bulk = vec!["bulk".to_string()];
     let academic = vec!["academic".to_string()];
-    dispatch("add_student", &json!({"name": "小测"}), &vec!["write".to_string()]).unwrap();
+    dispatch(
+        "add_student",
+        &json!({"name": "小测"}),
+        &vec!["write".to_string()],
+    )
+    .unwrap();
 
     let r = dispatch(
         "bulk_add_academics",
@@ -351,12 +452,7 @@ fn test_bulk_add_academics() {
     assert_eq!(r["added"], 3);
 
     // 读回: 同一 examName 合并到 1 条记录, 含 3 个 subject
-    let r = dispatch(
-        "academic_get",
-        &json!({"name": "小测"}),
-        &academic,
-    )
-    .unwrap();
+    let r = dispatch("academic_get", &json!({"name": "小测"}), &academic).unwrap();
     let records = r["academicRecords"].as_array().unwrap();
     assert_eq!(records.len(), 1, "同 examName 合并为 1 条");
     let subjects = records[0]["subjects"].as_object().unwrap();
@@ -421,7 +517,11 @@ fn test_range_query() {
     )
     .unwrap();
     let events = r["events"].as_array().unwrap();
-    assert!(events.len() >= 3, "区间内应至少 3 条事件, got {}", events.len());
+    assert!(
+        events.len() >= 3,
+        "区间内应至少 3 条事件, got {}",
+        events.len()
+    );
 
     // 取一个未来区间, 应为空
     let r = dispatch(
@@ -443,7 +543,11 @@ fn test_codes_lists_all_reason_codes() {
 
     // 至少应包含仓库 reason-codes.json 里的常见 codes
     // (实际 schema 来自 config/reason-codes.json, 包含 LATE/BONUS_VARIABLE 等 22 项)
-    assert!(codes.contains_key("LATE"), "codes 应含 LATE: {:?}", codes.keys().collect::<Vec<_>>());
+    assert!(
+        codes.contains_key("LATE"),
+        "codes 应含 LATE: {:?}",
+        codes.keys().collect::<Vec<_>>()
+    );
     assert!(codes.contains_key("BONUS_VARIABLE"));
 
     // 取一条检查 schema 字段
@@ -451,5 +555,4 @@ fn test_codes_lists_all_reason_codes() {
     assert!(sample["label"].is_string());
     assert!(sample["category"].is_string());
     assert!(sample["delta"].is_number());
-    
 }

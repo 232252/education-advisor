@@ -25,7 +25,8 @@ pub fn emit_to<T: Serialize + Clone>(
     channel: &str,
     payload: T,
 ) -> Result<()> {
-    app.emit_to(label, channel, payload).map_err(crate::error::other)?;
+    app.emit_to(label, channel, payload)
+        .map_err(crate::error::other)?;
     Ok(())
 }
 

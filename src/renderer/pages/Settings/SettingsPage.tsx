@@ -41,7 +41,7 @@ const FIELD_META: Record<string, FieldMeta> = {
   'chat.steeringMode': { status: 'live', hint: 'Agent 运行时已读取并注入 system prompt' },
   'chat.followUpMode': { status: 'live', hint: 'Agent 运行时已读取并注入 system prompt' },
   'chat.showImages': { status: 'live', hint: 'ChatPage 已接入，设置后立即生效' },
-  'chat.maxTokens': { status: 'live', hint: 'pi-ai-service L502-517 已读取并传入 streamSimple' },
+  'chat.maxTokens': { status: 'live', hint: 'LLM Service 已读取并传入 chat 请求' },
   // 飞书
   'feishu.appId': { status: 'live', hint: '飞书开放平台应用 ID' },
   'feishu.appSecret': { status: 'live', hint: '已加密保存(keystore)' },
@@ -1096,10 +1096,10 @@ export function SettingsPage() {
           <div>
             <div className="text-base text-gray-800 dark:text-gray-100 font-semibold">
               Education Advisor{' '}
-              <span className="text-sm font-normal text-gray-500 dark:text-gray-400">v0.1.0</span>
+              <span className="text-sm font-normal text-gray-500 dark:text-gray-400">v0.2.0</span>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
-              Education Advisor — Pi Agent + Education Advisor AI
+              Education Advisor — Tauri 2.0 + Rust + React
             </p>
           </div>
 
@@ -1127,30 +1127,30 @@ export function SettingsPage() {
                 </div>
                 <div>
                   <a
-                    href="https://github.com/earendil-works/pi"
+                    href="https://github.com/232252/education-advisor"
                     target="_blank"
                     rel="noreferrer"
                     className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 font-medium"
                   >
-                    Pi Agent
+                    EAA Core
                   </a>
                   <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                     {' '}
-                    — Agent 运行时 (packages/agent)
+                    — Rust 数据引擎 (events/privacy/entities/export)
                   </span>
                 </div>
                 <div>
                   <a
-                    href="https://github.com/earendil-works/pi"
+                    href="https://github.com/232252/education-advisor"
                     target="_blank"
                     rel="noreferrer"
                     className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 font-medium"
                   >
-                    Pi-AI
+                    LLM Service
                   </a>
                   <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                     {' '}
-                    — LLM 通信层 (packages/ai)
+                    — Rust SSE 多 provider 调度层 (12+ 平台)
                   </span>
                 </div>
                 <div>
@@ -1168,17 +1168,17 @@ export function SettingsPage() {
                 关键依赖
               </div>
               <div className="grid grid-cols-1 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-                <span>Electron 33.2 + React 18.3</span>
+                <span>Tauri 2.0 + React 18.3</span>
                 <span>TypeScript 5.7 + Vite 6</span>
                 <span>Tailwind 3 + Zustand 5</span>
-                <span>better-sqlite3 + TypeBox</span>
+                <span>rusqlite + TypeBox</span>
               </div>
             </div>
           </div>
 
           <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-            Education Advisor 内置 EAA Core (Rust) + Pi Agent 运行时 + Pi-AI 通信层 + 17 个教育 AI
-            Agent，遵循 MIT 协议发布。
+            Education Advisor 内置 EAA Core (Rust) + Tauri 2.0 运行时 + LLM Service 调度层 + 18
+            个教育 AI Agent，遵循 MIT 协议发布。
           </p>
 
           <div className="pt-3 border-t border-gray-200 dark:border-gray-700/60">
@@ -1346,7 +1346,6 @@ function deepSet(obj: object, path: string, value: unknown): object {
 
 /**
  * UpdaterProgress — 监听 `sys:update-progress` 事件, 显示下载进度条。
- * 仅 Tauri 模式下生效 (Electron 走 electron-updater 不发此事件)。
  */
 function UpdaterProgress() {
   const [progress, setProgress] = useState<{
@@ -1360,7 +1359,7 @@ function UpdaterProgress() {
   } | null>(null)
 
   useEffect(() => {
-    // 动态 require 避免 Electron 构建拉 @tauri-apps/api
+    // 动态 import 避免 SSR/测试环境拉 @tauri-apps/api
     // eslint-disable-next-line @typescript-eslint/no-require-imports, global-require
     const { listen } = require('@tauri-apps/api/event') as typeof import('@tauri-apps/api/event')
     let unlisten: (() => void) | null = null

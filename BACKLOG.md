@@ -45,7 +45,8 @@
 | macOS release tier (signed + notarized) | ⚪ Planned | — | v0.4.0 (Q3 2026) |
 | Linux release tier (.deb + AppImage) | ⚪ Planned | — | v0.5.0 (Q4 2026) |
 | Windows ARM64 installer | ⚪ Planned | — | v0.5.0 (Q4 2026) |
-| Tauri parity build v0 | ⚪ Planned | — | v0.7.0 (Q2 2027) |
+| ~~Tauri parity build v0~~ | ✅ Shipped in v0.2.0 | — | 2026-06-15 |
+| Code signing (Windows Authenticode / macOS Notarization) | ⚪ Planned | — | v0.4.0 |
 
 ## Pillar 4: Voice + on-device intelligence
 

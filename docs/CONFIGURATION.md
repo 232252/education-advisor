@@ -1,3 +1,10 @@
+---
+title: Configuration
+description: "所有可配置项"
+sidebar:
+  label: "配置项"
+---
+
 # Configuration
 
 > **All the knobs you can turn, where to find them, and which one

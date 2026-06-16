@@ -1336,10 +1336,11 @@ dependencies = [
 
 [[package]]
 name = "education-advisor-tauri"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agent-isolation",
  "anyhow",
+ "async-trait",
  "base64 0.22.1",
  "bytes",
  "callback-signature",

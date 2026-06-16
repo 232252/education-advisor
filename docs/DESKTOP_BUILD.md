@@ -1,17 +1,24 @@
+---
+title: Desktop build
+description: "Tauri 2.0 桌面端构建"
+sidebar:
+  label: "桌面端构建"
+---
+
 # Desktop build
 
-> **How to build the desktop application from source.** This document
-> covers the local dev build, the production build, the platform
-> packaging, the auto-update flow, and the troubleshooting for the
-> most common build issues.
+> **How to build the Tauri 2.0 desktop application from source.**
+> v0.2.0 起, 仓库已切换到 Tauri 单一架构, 本文档记录新流程。
+> 旧的 Electron 构建 (NSIS/portable via electron-builder) 已被软删除
+> 到 `archive/legacy/electron-builder.yml`, 不再维护。
 
 ## Table of contents
 
-- [The two Vite configs](#the-two-vite-configs)
+- [Prerequisites](#prerequisites)
 - [Local dev build](#local-dev-build)
 - [Production build](#production-build)
-- [Windows packaging (NSIS + portable)](#windows-packaging-nsis--portable)
-- [macOS packaging (DMG)](#macos-packaging-dmg)
+- [Windows packaging (NSIS + MSI)](#windows-packaging-nsis--msi)
+- [macOS packaging (DMG + .app)](#macos-packaging-dmg--app)
 - [Linux packaging (deb + AppImage)](#linux-packaging-deb--appimage)
 - [The auto-update flow](#the-auto-update-flow)
 - [Code signing](#code-signing)
@@ -20,48 +27,62 @@
 
 ---
 
-## The two Vite configs
+## Prerequisites
 
-The project has two Vite configs because Electron runs two
-distinct processes:
+| Tool | Version | Notes |
+|---|---|---|
+| **Rust** | 1.95+ (1.96 stable) | `rustup` + `cargo`. Required by `src-tauri/`. |
+| **Node.js** | 22 LTS | Required by the React renderer. |
+| **npm** | 10+ | Bundled with Node 22. |
+| **WebKitGTK** (Linux) | 4.1 | `sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev pkg-config build-essential` |
+| **Xcode CLT** (macOS) | latest | `xcode-select --install` (WebKit system-installed) |
+| **WebView2** (Windows) | runtime | Windows 11 built-in; Windows 10 needs [manual install](https://developer.microsoft.com/microsoft-edge/webview2/) |
 
-| Config | Purpose | Output |
-| --- | --- | --- |
-| `vite.config.main.ts` | The main process (Node 22) | `dist/main/index.js` + `dist/main/preload.js` |
-| `vite.config.renderer.ts` | The renderer (Chromium) | `dist/renderer/index.html` + assets |
-
-The main-process config:
-
-- Uses `ssr: true` and `lib.entry` to produce a CommonJS library.
-- Has `format: 'cjs'` because the main process is a Node process.
-- Externalizes native deps (electron, better-sqlite3, node-cron,
-  chokidar, cross-spawn).
-- Aliases `@earendil-works/pi-ai` and `@earendil-works/pi-agent-core`
-  to the local monorepo paths (see [DEVELOPMENT.md](./DEVELOPMENT.md)).
-
-The renderer config:
-
-- Uses the standard `react()` plugin.
-- Has `base: './'` because Electron loads from `file://`.
-- Targets `chrome130` (Electron 33's Chromium version).
-- Has HMR enabled by default.
-
----
+> Behind a corporate proxy: see [src-tauri/docs/05-BUILD-RUN.md §1.2](../src-tauri/docs/05-BUILD-RUN.md#12-cargo-走代理--git-走-cli).
 
 ## Local dev build
 
 ```bash
-# Terminal 1: dev servers
-npm run dev
-
-# Terminal 2: Electron shell
-npm run dev:electron
+# From the repo root
+npm install
+npm run tauri:dev
 ```
 
-The dev servers watch the source and rebuild on change. The
-Electron shell loads the renderer from `http://localhost:5173`
-(with HMR) and the main process from the freshly-built
-`dist/main/index.js`.
+This single command:
+
+1. Starts Vite dev server for the React renderer on `http://localhost:5190`
+2. Compiles the Rust backend (Tauri main process) in dev mode
+3. Opens the native window
+4. Hot-reloads on Rust and React file changes
+
+First run downloads ~400 Rust crates (≈ 5-10 min via proxy); subsequent
+runs are < 10s incremental.
+
+> Architecture overview: [src-tauri/docs/01-ARCHITECTURE.md](../src-tauri/docs/01-ARCHITECTURE.md).
+
+---
+
+## Production build
+
+```bash
+# Local production build (current OS only)
+npm run tauri:build
+
+# Or debug-mode build (no LTO, no strip) for faster iteration
+npm run tauri:build:debug
+```
+
+The Tauri bundler auto-detects your OS and produces:
+
+| OS | Targets | Output |
+|---|---|---|
+| Windows | NSIS installer + MSI | `src-tauri/target/release/bundle/{nsis,msi}/` |
+| macOS | DMG + .app + .app.tar.gz (updater) | `src-tauri/target/release/bundle/{dmg,macos}/` |
+| Linux | deb + AppImage | `src-tauri/target/release/bundle/{deb,appimage}/` |
+
+For cross-platform builds (e.g. macOS bundle on a Linux machine), use
+the CI workflow on a tag push — see the [Release](#release-process) section
+below.
 
 If you only want to rebuild without launching Electron:
 

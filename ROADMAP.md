@@ -129,7 +129,7 @@ Linux ARM) is also configured but unbuilt.
 - Signed `.dmg` and `.zip` (universal: x64 + arm64)
 - `dmg-license` for the EULA
 - Notarization for Gatekeeper
-- Auto-update via Sparkle-equivalent (we use `electron-updater`)
+- Auto-update via `tauri-plugin-updater`
 
 ### 🎯 Linux release tier
 
@@ -147,14 +147,24 @@ Windows. The next 4 schools will be on macOS. After that, the Linux
 deployments will come. The "Windows-only" label is becoming a
 liability.
 
-### 🎯 Tauri parity build (v2.0 of the desktop client)
+### ✅ Tauri parity build (v2.0 of the desktop client) — shipped in v0.2.0
 
-- Re-implement the renderer in Tauri 2.0
-- Reduce the installer size from 85 MB to ~15 MB
-- Keep the Rust CLI as the data engine (no changes there)
+- Re-implemented the renderer in Tauri 2.0 (entirely in `src-tauri/`)
+- Reduced installer size from 85 MB to **~17 MB** (↓ 80%)
+- Reduced cold-start from 1.5 s to **0.4 s** (↓ 73%)
+- Reduced memory footprint from 150-200 MB to **40-80 MB** (↓ 60%)
+- Promoted `eaa-cli` from a spawned subprocess to a statically linked library
+  (95x faster data engine access: 50ms → <1ms)
+- Wrote Rust-side LLM layer, scheduler, settings, profile, skill, profile, log,
+  chat, and tray services — 13 services / 30 tools / 90+ commands total
+- 108 Rust unit + integration tests, all green
 
-**Why it matters**: the install size and the cold-start time are the
-two biggest user-experience complaints. Tauri fixes both.
+See [`MIGRATION_REPORT.md`](./MIGRATION_REPORT.md) for the full migration log
+and [`src-tauri/docs/00-OVERVIEW.md`](./src-tauri/docs/00-OVERVIEW.md) for the
+Tauri architecture details.
+
+**Why it matters** (originally): the install size and the cold-start time
+were the two biggest user-experience complaints. Tauri fixed both.
 
 ---
 
@@ -287,7 +297,7 @@ With evidence, it can be a reference for the whole field.
 
 - Always-on capture v2 (Pillar 5)
 - On-device LLM (Pillar 5)
-- Tauri parity build v0 (Pillar 4)
+- ~~Tauri parity build v0 (Pillar 4)~~ — shipped in v0.2.0
 - End-to-end encryption for EAA channel (Pillar 6)
 
 ### Q3 2027 (Jul–Sep) — Outcomes

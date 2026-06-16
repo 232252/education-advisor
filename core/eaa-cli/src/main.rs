@@ -26,7 +26,10 @@ enum Commands {
     /// 学生事件时间线
     History { name: String },
     /// 排行榜
-    Ranking { #[arg(default_value = "10")] n: usize },
+    Ranking {
+        #[arg(default_value = "10")]
+        n: usize,
+    },
     /// 查询单个学生分数
     Score { name: String },
     /// 新增事件（严格校验）
@@ -67,7 +70,10 @@ enum Commands {
     /// 数据统计摘要
     Stats,
     /// 标签管理
-    Tag { #[arg(default_value = "")] tag: String },
+    Tag {
+        #[arg(default_value = "")]
+        tag: String,
+    },
     /// 按日期范围查询事件
     Range {
         start: String,
@@ -139,17 +145,42 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum PrivacyCmd {
-    Init { password: String, #[arg(long)] auto_scan: bool },
-    Load { password: String },
+    Init {
+        password: String,
+        #[arg(long)]
+        auto_scan: bool,
+    },
+    Load {
+        password: String,
+    },
     Enable,
-    Disable { password: String },
-    Add { #[arg(long)] entity: String, #[arg(long)] text: String },
+    Disable {
+        password: String,
+    },
+    Add {
+        #[arg(long)]
+        entity: String,
+        #[arg(long)]
+        text: String,
+    },
     List,
-    Anonymize { text: String },
-    Deanonymize { text: String },
-    Filter { #[arg(long)] receiver: String, text: String },
-    DryRun { text: String },
-    Backup { path: String },
+    Anonymize {
+        text: String,
+    },
+    Deanonymize {
+        text: String,
+    },
+    Filter {
+        #[arg(long)]
+        receiver: String,
+        text: String,
+    },
+    DryRun {
+        text: String,
+    },
+    Backup {
+        path: String,
+    },
 }
 
 fn parse_output(s: &str) -> eaa_core::types::OutputMode {
@@ -174,10 +205,31 @@ fn main() -> Result<(), AppError> {
         Commands::Replay => cmd_replay(output)?,
         Commands::History { name } => cmd_history(name, output)?,
         Commands::Ranking { n } => cmd_ranking(*n, output)?,
-        Commands::Add { name, reason_code, tags, delta, note, operator, dry_run, force } =>
-            cmd_add(name, reason_code, tags, *delta, note, operator.as_deref(), *dry_run, *force)?,
-        Commands::Revert { event_id, reason, operator, dry_run } =>
-            cmd_revert(event_id, reason, operator.as_deref(), *dry_run)?,
+        Commands::Add {
+            name,
+            reason_code,
+            tags,
+            delta,
+            note,
+            operator,
+            dry_run,
+            force,
+        } => cmd_add(
+            name,
+            reason_code,
+            tags,
+            *delta,
+            note,
+            operator.as_deref(),
+            *dry_run,
+            *force,
+        )?,
+        Commands::Revert {
+            event_id,
+            reason,
+            operator,
+            dry_run,
+        } => cmd_revert(event_id, reason, operator.as_deref(), *dry_run)?,
         Commands::Codes => cmd_codes(output)?,
         Commands::Search { query, limit } => cmd_search(&query.join(" "), *limit, output)?,
         Commands::Stats => cmd_stats(output)?,
@@ -185,18 +237,28 @@ fn main() -> Result<(), AppError> {
         Commands::Range { start, end, limit } => cmd_range(start, end, *limit, output)?,
         Commands::ListStudents => cmd_list_students(output)?,
         Commands::AddStudent { name } => cmd_add_student(name)?,
-        Commands::DeleteStudent { name, confirm, reason, dry_run } =>
-            cmd_delete_student(name, *confirm, reason, *dry_run)?,
+        Commands::DeleteStudent {
+            name,
+            confirm,
+            reason,
+            dry_run,
+        } => cmd_delete_student(name, *confirm, reason, *dry_run)?,
         Commands::Import { file } => cmd_import(file)?,
-        Commands::Export { format, output_file } =>
-            cmd_export(format, output_file.as_deref())?,
+        Commands::Export {
+            format,
+            output_file,
+        } => cmd_export(format, output_file.as_deref())?,
         Commands::Doctor => cmd_doctor(output)?,
-        Commands::Summary { since, until } =>
-            cmd_summary(since.as_deref(), until.as_deref(), output)?,
-        Commands::SetStudentMeta { name, group, role, class_id } =>
-            cmd_set_student_meta(name, group.as_deref(), role.as_deref(), class_id.as_deref())?,
-        Commands::Dashboard { output_dir, open } =>
-            cmd_dashboard(output_dir.as_deref(), *open)?,
+        Commands::Summary { since, until } => {
+            cmd_summary(since.as_deref(), until.as_deref(), output)?
+        }
+        Commands::SetStudentMeta {
+            name,
+            group,
+            role,
+            class_id,
+        } => cmd_set_student_meta(name, group.as_deref(), role.as_deref(), class_id.as_deref())?,
+        Commands::Dashboard { output_dir, open } => cmd_dashboard(output_dir.as_deref(), *open)?,
     }
     Ok(())
 }
@@ -210,9 +272,14 @@ fn load_engine(data_dir: &std::path::PathBuf, password: &str) -> Result<PrivacyE
 fn handle_privacy(cmd: &PrivacyCmd) -> Result<(), AppError> {
     let data_dir = get_data_dir();
     match cmd {
-        PrivacyCmd::Init { password, auto_scan } => {
+        PrivacyCmd::Init {
+            password,
+            auto_scan,
+        } => {
             let mut engine = PrivacyEngine::default();
-            engine.init(&data_dir, password).map_err(|e| AppError::Validation(e.to_string()))?;
+            engine
+                .init(&data_dir, password)
+                .map_err(|e| AppError::Validation(e.to_string()))?;
             println!("✅ 隐私脱敏引擎初始化成功");
             if *auto_scan {
                 match engine.auto_scan_students(&data_dir) {
@@ -224,27 +291,37 @@ fn handle_privacy(cmd: &PrivacyCmd) -> Result<(), AppError> {
             println!("📊 映射: {} 个实体", engine.mapping_count());
             Ok(())
         }
-        PrivacyCmd::Load { password } => {
-            match load_engine(&data_dir, password) {
-                Ok(engine) => {
-                    println!("✅ 引擎加载成功，映射: {} 个实体", engine.mapping_count());
-                    Ok(())
-                }
-                Err(e) => { println!("❌ {}", e); Ok(()) }
+        PrivacyCmd::Load { password } => match load_engine(&data_dir, password) {
+            Ok(engine) => {
+                println!("✅ 引擎加载成功，映射: {} 个实体", engine.mapping_count());
+                Ok(())
             }
+            Err(e) => {
+                println!("❌ {}", e);
+                Ok(())
+            }
+        },
+        PrivacyCmd::Enable => {
+            println!("✅ 脱敏已启用");
+            Ok(())
         }
-        PrivacyCmd::Enable => { println!("✅ 脱敏已启用"); Ok(()) }
         PrivacyCmd::Disable { password } => {
             match load_engine(&data_dir, password) {
-                Ok(_) => println!("⚠️ 脱敏已关闭"), Err(e) => println!("❌ {}", e),
+                Ok(_) => println!("⚠️ 脱敏已关闭"),
+                Err(e) => println!("❌ {}", e),
             }
             Ok(())
         }
         PrivacyCmd::Add { entity, text } => {
             let pwd = std::env::var("EAA_PRIVACY_PASSWORD").unwrap_or_default();
-            if pwd.is_empty() { println!("❌ 请设置 EAA_PRIVACY_PASSWORD"); return Ok(()); }
+            if pwd.is_empty() {
+                println!("❌ 请设置 EAA_PRIVACY_PASSWORD");
+                return Ok(());
+            }
             match load_engine(&data_dir, &pwd) {
-                Ok(mut engine) => match engine.add_entity(&eaa_core::privacy::EntityType::from_str(entity), text) {
+                Ok(mut engine) => match engine
+                    .add_entity(&eaa_core::privacy::EntityType::from_str(entity), text)
+                {
                     Ok(alias) => println!("✅ {} → {}", text, alias),
                     Err(e) => println!("❌ {}", e),
                 },
@@ -254,15 +331,21 @@ fn handle_privacy(cmd: &PrivacyCmd) -> Result<(), AppError> {
         }
         PrivacyCmd::List => {
             let pwd = std::env::var("EAA_PRIVACY_PASSWORD").unwrap_or_default();
-            if pwd.is_empty() { println!("（需要 EAA_PRIVACY_PASSWORD）"); return Ok(()); }
+            if pwd.is_empty() {
+                println!("（需要 EAA_PRIVACY_PASSWORD）");
+                return Ok(());
+            }
             match load_engine(&data_dir, &pwd) {
                 Ok(engine) => {
                     let entries = engine.list_mappings();
-                    if entries.is_empty() { println!("（无映射）"); }
-                    else {
+                    if entries.is_empty() {
+                        println!("（无映射）");
+                    } else {
                         println!("{:<6} {:<12} {}", "类型", "化名", "真名");
                         println!("{}", "-".repeat(40));
-                        for e in &entries { println!("{:<6} {:<12} {}", e.entity_type, e.alias, e.real_name); }
+                        for e in &entries {
+                            println!("{:<6} {:<12} {}", e.entity_type, e.alias, e.real_name);
+                        }
                         println!("共 {} 个", entries.len());
                     }
                 }
@@ -272,7 +355,10 @@ fn handle_privacy(cmd: &PrivacyCmd) -> Result<(), AppError> {
         }
         PrivacyCmd::Anonymize { text } => {
             let pwd = std::env::var("EAA_PRIVACY_PASSWORD").unwrap_or_default();
-            if pwd.is_empty() { println!("{}", text); return Ok(()); }
+            if pwd.is_empty() {
+                println!("{}", text);
+                return Ok(());
+            }
             match load_engine(&data_dir, &pwd) {
                 Ok(engine) => println!("{}", engine.anonymize(text)),
                 Err(_) => println!("{}", text),
@@ -281,7 +367,10 @@ fn handle_privacy(cmd: &PrivacyCmd) -> Result<(), AppError> {
         }
         PrivacyCmd::Deanonymize { text } => {
             let pwd = std::env::var("EAA_PRIVACY_PASSWORD").unwrap_or_default();
-            if pwd.is_empty() { println!("{}", text); return Ok(()); }
+            if pwd.is_empty() {
+                println!("{}", text);
+                return Ok(());
+            }
             match load_engine(&data_dir, &pwd) {
                 Ok(engine) => println!("{}", engine.deanonymize(text)),
                 Err(_) => println!("{}", text),
@@ -290,7 +379,10 @@ fn handle_privacy(cmd: &PrivacyCmd) -> Result<(), AppError> {
         }
         PrivacyCmd::Filter { receiver, text } => {
             let pwd = std::env::var("EAA_PRIVACY_PASSWORD").unwrap_or_default();
-            if pwd.is_empty() { println!("{}", text); return Ok(()); }
+            if pwd.is_empty() {
+                println!("{}", text);
+                return Ok(());
+            }
             match load_engine(&data_dir, &pwd) {
                 Ok(engine) => println!("{}", engine.filter_for_receiver(text, receiver)),
                 Err(e) => println!("❌ {}", e),
@@ -299,7 +391,10 @@ fn handle_privacy(cmd: &PrivacyCmd) -> Result<(), AppError> {
         }
         PrivacyCmd::DryRun { text } => {
             let pwd = std::env::var("EAA_PRIVACY_PASSWORD").unwrap_or_default();
-            if pwd.is_empty() { println!("⚠️ 需要设置 EAA_PRIVACY_PASSWORD"); return Ok(()); }
+            if pwd.is_empty() {
+                println!("⚠️ 需要设置 EAA_PRIVACY_PASSWORD");
+                return Ok(());
+            }
             match load_engine(&data_dir, &pwd) {
                 Ok(engine) => {
                     let anon = engine.anonymize(text);
@@ -307,8 +402,11 @@ fn handle_privacy(cmd: &PrivacyCmd) -> Result<(), AppError> {
                     println!("原文:   {}", text);
                     println!("脱敏:   {}", anon);
                     println!("还原:   {}", restored);
-                    if restored == *text { println!("✅ 往返通过"); }
-                    else { println!("⚠️ 不匹配"); }
+                    if restored == *text {
+                        println!("✅ 往返通过");
+                    } else {
+                        println!("⚠️ 不匹配");
+                    }
                 }
                 Err(e) => println!("❌ {}", e),
             }
@@ -316,7 +414,10 @@ fn handle_privacy(cmd: &PrivacyCmd) -> Result<(), AppError> {
         }
         PrivacyCmd::Backup { path } => {
             let pwd = std::env::var("EAA_PRIVACY_PASSWORD").unwrap_or_default();
-            if pwd.is_empty() { println!("❌ 需要 EAA_PRIVACY_PASSWORD"); return Ok(()); }
+            if pwd.is_empty() {
+                println!("❌ 需要 EAA_PRIVACY_PASSWORD");
+                return Ok(());
+            }
             match load_engine(&data_dir, &pwd) {
                 Ok(engine) => match engine.backup(&std::path::PathBuf::from(path)) {
                     Ok(_) => println!("✅ 已备份: {}", path),

@@ -24,9 +24,11 @@ pub fn setup(app: &AppHandle) -> Result<()> {
     let menu = Menu::with_items(app, &[&show, &hide, &quit]).map_err(crate::error::other)?;
 
     let _tray = TrayIconBuilder::with_id("main-tray")
-        .icon(app.default_window_icon().cloned().ok_or_else(|| {
-            AppError::Other("缺少默认窗口图标".into())
-        })?)
+        .icon(
+            app.default_window_icon()
+                .cloned()
+                .ok_or_else(|| AppError::Other("缺少默认窗口图标".into()))?,
+        )
         .tooltip("Education Advisor")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id().as_ref() {

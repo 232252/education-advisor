@@ -1,8 +1,19 @@
+---
+title: Architecture
+description: "整体架构与数据流"
+sidebar:
+  label: "架构说明"
+---
+
 # Architecture
 
 > **The big picture.** This document is the canonical reference for how
 > the three processes (main, renderer, EAA CLI) fit together, how the
 > state flows, and why each decision was made.
+>
+> ⚠️ **v0.2.0 更新提示**: 仓库已于 2026-06-15 从 Electron 迁移到 Tauri 2.0 + 纯 Rust 后端。
+> 本文档描述的是 v0.1.0 (Electron + Node.js 主进程) 架构。当前架构详见
+> [`README.md`](./README.md) 和 [`MIGRATION_REPORT.md`](./MIGRATION_REPORT.md)。
 >
 > If you only have 10 minutes, read the [Overview](#overview) and the
 > [Data flow](#data-flow) sections. If you have an hour, read the whole

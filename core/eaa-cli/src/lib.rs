@@ -28,8 +28,8 @@ pub use privacy::{EntityType, MappingEntry, MappingTable, PrivacyEngine, Privacy
 pub use storage::{
     append_operation_log, atomic_write_json, compute_cumulative_history, compute_scores,
     generate_event_id, get_data_dir, get_operator, get_schema_dir, load_entities, load_events,
-    load_name_index, load_reason_codes, resolve_entity_id, risk_level, save_entities,
-    save_events, save_name_index, FileLock,
+    load_name_index, load_reason_codes, resolve_entity_id, risk_level, save_entities, save_events,
+    save_name_index, FileLock,
 };
 pub use types::{
     AppError, EntitiesFile, Entity, EntityStatus, Event, EventType, OutputMode, ReasonCodeDef,

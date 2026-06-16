@@ -50,11 +50,20 @@ pub enum StreamEvent {
     /// 工具调用开始 (前端新建 toolCalls 条目)。
     ToolcallStart { id: String, name: String },
     /// 工具调用参数增量。
-    ToolcallDelta { id: String, #[serde(rename = "argsDelta")] args_delta: String },
+    ToolcallDelta {
+        id: String,
+        #[serde(rename = "argsDelta")]
+        args_delta: String,
+    },
     /// 工具调用结束。
     ToolcallEnd { id: String },
     /// 工具执行结果 (前端补全 toolCalls.result)。
-    ToolResult { id: String, result: String, #[serde(rename = "isError")] is_error: bool },
+    ToolResult {
+        id: String,
+        result: String,
+        #[serde(rename = "isError")]
+        is_error: bool,
+    },
     /// 本轮结束 (前端读 usage/cost)。
     Done { usage: TokenUsage, cost: f64 },
     /// 错误 (前端读 message/retryable)。
@@ -64,15 +73,24 @@ pub enum StreamEvent {
 /// Token 用量 (与 shared/types.ts TokenUsage 同构, camelCase)。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenUsage {
-    #[serde(rename = "inputTokens")] pub input_tokens: u64,
-    #[serde(rename = "outputTokens")] pub output_tokens: u64,
-    #[serde(rename = "cacheReadTokens", default)] pub cache_read_tokens: u64,
-    #[serde(rename = "cacheWriteTokens", default)] pub cache_write_tokens: u64,
+    #[serde(rename = "inputTokens")]
+    pub input_tokens: u64,
+    #[serde(rename = "outputTokens")]
+    pub output_tokens: u64,
+    #[serde(rename = "cacheReadTokens", default)]
+    pub cache_read_tokens: u64,
+    #[serde(rename = "cacheWriteTokens", default)]
+    pub cache_write_tokens: u64,
 }
 
 /// 全零 TokenUsage (用于 Done 事件无 usage 信息时的占位)。
 fn zero_usage() -> TokenUsage {
-    TokenUsage { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 }
+    TokenUsage {
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,20 +156,132 @@ pub struct ChatMessage {
 
 fn builtin_providers() -> Vec<ProviderInfo> {
     vec![
-        ProviderInfo { id: "openai".into(), name: "OpenAI".into(), auth_type: "api_key".into(), vision: true, supports_oauth: false, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "anthropic".into(), name: "Anthropic".into(), auth_type: "api_key".into(), vision: true, supports_oauth: false, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "gemini".into(), name: "Google Gemini".into(), auth_type: "api_key".into(), vision: true, supports_oauth: false, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "mistral".into(), name: "Mistral".into(), auth_type: "api_key".into(), vision: false, supports_oauth: false, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "deepseek".into(), name: "DeepSeek".into(), auth_type: "api_key".into(), vision: false, supports_oauth: false, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "qwen".into(), name: "Qwen (DashScope)".into(), auth_type: "api_key".into(), vision: true, supports_oauth: false, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "doubao".into(), name: "Doubao (Volcengine)".into(), auth_type: "api_key".into(), vision: false, supports_oauth: false, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "zhipu".into(), name: "Zhipu (GLM)".into(), auth_type: "api_key".into(), vision: true, supports_oauth: false, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "moonshot".into(), name: "Moonshot Kimi".into(), auth_type: "api_key".into(), vision: false, supports_oauth: false, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "ollama".into(), name: "Ollama (local)".into(), auth_type: "local".into(), vision: false, supports_oauth: false, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "lmstudio".into(), name: "LM Studio (local)".into(), auth_type: "local".into(), vision: false, supports_oauth: false, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "openai-compatible".into(), name: "OpenAI-Compatible (custom)".into(), auth_type: "api_key".into(), vision: false, supports_oauth: false, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "notion".into(), name: "Notion".into(), auth_type: "oauth".into(), vision: false, supports_oauth: true, has_api_key: false, model_count: 0 },
-        ProviderInfo { id: "discord".into(), name: "Discord Bot".into(), auth_type: "oauth".into(), vision: false, supports_oauth: true, has_api_key: false, model_count: 0 },
+        ProviderInfo {
+            id: "openai".into(),
+            name: "OpenAI".into(),
+            auth_type: "api_key".into(),
+            vision: true,
+            supports_oauth: false,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "anthropic".into(),
+            name: "Anthropic".into(),
+            auth_type: "api_key".into(),
+            vision: true,
+            supports_oauth: false,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "gemini".into(),
+            name: "Google Gemini".into(),
+            auth_type: "api_key".into(),
+            vision: true,
+            supports_oauth: false,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "mistral".into(),
+            name: "Mistral".into(),
+            auth_type: "api_key".into(),
+            vision: false,
+            supports_oauth: false,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "deepseek".into(),
+            name: "DeepSeek".into(),
+            auth_type: "api_key".into(),
+            vision: false,
+            supports_oauth: false,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "qwen".into(),
+            name: "Qwen (DashScope)".into(),
+            auth_type: "api_key".into(),
+            vision: true,
+            supports_oauth: false,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "doubao".into(),
+            name: "Doubao (Volcengine)".into(),
+            auth_type: "api_key".into(),
+            vision: false,
+            supports_oauth: false,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "zhipu".into(),
+            name: "Zhipu (GLM)".into(),
+            auth_type: "api_key".into(),
+            vision: true,
+            supports_oauth: false,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "moonshot".into(),
+            name: "Moonshot Kimi".into(),
+            auth_type: "api_key".into(),
+            vision: false,
+            supports_oauth: false,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "ollama".into(),
+            name: "Ollama (local)".into(),
+            auth_type: "local".into(),
+            vision: false,
+            supports_oauth: false,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "lmstudio".into(),
+            name: "LM Studio (local)".into(),
+            auth_type: "local".into(),
+            vision: false,
+            supports_oauth: false,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "openai-compatible".into(),
+            name: "OpenAI-Compatible (custom)".into(),
+            auth_type: "api_key".into(),
+            vision: false,
+            supports_oauth: false,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "notion".into(),
+            name: "Notion".into(),
+            auth_type: "oauth".into(),
+            vision: false,
+            supports_oauth: true,
+            has_api_key: false,
+            model_count: 0,
+        },
+        ProviderInfo {
+            id: "discord".into(),
+            name: "Discord Bot".into(),
+            auth_type: "oauth".into(),
+            vision: false,
+            supports_oauth: true,
+            has_api_key: false,
+            model_count: 0,
+        },
     ]
 }
 
@@ -246,18 +376,21 @@ impl LlmService {
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| provider_base_url(provider_id));
         let url = format!("{base}/models");
-        let resp = self
-            .http
-            .get(&url)
-            .bearer_auth(api_key)
-            .send()
-            .await?;
+        let resp = self.http.get(&url).bearer_auth(api_key).send().await?;
         if resp.status().is_success() {
-            Ok(TestResult { success: true, message: format!("连接成功 ({})", resp.status()), latency_ms: 0 })
+            Ok(TestResult {
+                success: true,
+                message: format!("连接成功 ({})", resp.status()),
+                latency_ms: 0,
+            })
         } else {
             Ok(TestResult {
                 success: false,
-                message: format!("HTTP {}: {}", resp.status(), resp.text().await.unwrap_or_default()),
+                message: format!(
+                    "HTTP {}: {}",
+                    resp.status(),
+                    resp.text().await.unwrap_or_default()
+                ),
                 latency_ms: 0,
             })
         }
@@ -275,12 +408,74 @@ impl LlmService {
     ) -> Result<()> {
         // 路由到对应协议 adapter。先实现 OpenAI-compatible (覆盖面最广)。
         match params.provider_id.as_str() {
-            "anthropic" => self.stream_anthropic(params, api_key, on_event, cancel).await,
+            "anthropic" => {
+                self.stream_anthropic(params, api_key, on_event, cancel)
+                    .await
+            }
             "gemini" => self.stream_gemini(params, api_key, on_event, cancel).await,
             // openai / deepseek / moonshot / zhipu / doubao / qwen / mistral / ollama /
             // lmstudio / openai-compatible 全部走 /chat/completions
-            _ => self.stream_openai(params, api_key, base_url, on_event, cancel).await,
+            _ => {
+                self.stream_openai(params, api_key, base_url, on_event, cancel)
+                    .await
+            }
         }
+    }
+
+    /// 一次性非流式 chat, 用于 LLM-as-a-Judge 等单轮调用场景。
+    ///
+    /// 内部用 `stream_chat` 收集 `TextDelta`, 在 `Done` 或 `Error` 时返回。
+    /// 不支持工具调用 (Judge 不需要 tool loop)。
+    ///
+    /// - `params.max_tokens` 应设小 (e.g. 1024) 避免 Judge 啰嗦
+    /// - 失败时返回 `Err(String)`
+    pub async fn complete_chat(
+        &self,
+        params: &ChatParams,
+        api_key: &str,
+        base_url: Option<&str>,
+    ) -> Result<(String, TokenUsage)> {
+        use std::sync::Mutex;
+        let collected: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+        let last_usage: Arc<Mutex<TokenUsage>> = Arc::new(Mutex::new(zero_usage()));
+        let error_msg: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+
+        let collected_cb = collected.clone();
+        let usage_cb = last_usage.clone();
+        let err_cb = error_msg.clone();
+
+        let cancel = CancellationToken::new();
+        let on_event = move |event: StreamEvent| {
+            match event {
+                StreamEvent::TextDelta { delta } => {
+                    if let Ok(mut s) = collected_cb.lock() {
+                        s.push_str(&delta);
+                    }
+                }
+                StreamEvent::Done { usage, .. } => {
+                    if let Ok(mut u) = usage_cb.lock() {
+                        *u = usage;
+                    }
+                }
+                StreamEvent::Error { message, .. } => {
+                    if let Ok(mut e) = err_cb.lock() {
+                        *e = Some(message);
+                    }
+                }
+                _ => {}
+            }
+        };
+
+        self.stream_chat(params, api_key, base_url, on_event, cancel).await?;
+
+        if let Ok(e) = error_msg.lock() {
+            if let Some(msg) = e.as_ref() {
+                return Err(crate::error::AppError::Llm(msg.clone()));
+            }
+        }
+        let text = collected.lock().map(|s| s.clone()).unwrap_or_default();
+        let usage = last_usage.lock().map(|u| u.clone()).unwrap_or_else(|_| zero_usage());
+        Ok((text, usage))
     }
 
     /// 带"工具调用循环"的流式聊天: LLM 返回 ToolCall → 执行 → 结果回喂 → 直到 LLM
@@ -304,11 +499,15 @@ impl LlmService {
         loop {
             round += 1;
             if round > max_rounds {
-                on_event(StreamEvent::Error { message: format!("超过最大工具调用轮次 {max_rounds}"), retryable: false });
+                on_event(StreamEvent::Error {
+                    message: format!("超过最大工具调用轮次 {max_rounds}"),
+                    retryable: false,
+                });
                 return Ok(());
             }
             // 收集本轮的 tool calls + 累积 assistant 文本
-            let tool_calls: tokio::sync::Mutex<Vec<(String, serde_json::Value)>> = tokio::sync::Mutex::new(vec![]);
+            let tool_calls: tokio::sync::Mutex<Vec<(String, serde_json::Value)>> =
+                tokio::sync::Mutex::new(vec![]);
             let assistant_text: tokio::sync::Mutex<String> = tokio::sync::Mutex::new(String::new());
             let tc_ref = &tool_calls;
             let at_ref = &assistant_text;
@@ -327,7 +526,9 @@ impl LlmService {
                                     if last.1.is_null() {
                                         last.1 = serde_json::Value::String(args_delta.clone());
                                     } else if let Some(prev) = last.1.as_str() {
-                                        last.1 = serde_json::Value::String(format!("{prev}{args_delta}"));
+                                        last.1 = serde_json::Value::String(format!(
+                                            "{prev}{args_delta}"
+                                        ));
                                     }
                                 }
                             }
@@ -352,17 +553,30 @@ impl LlmService {
                 thinking: params.thinking.clone(),
                 max_tokens: params.max_tokens,
             };
-            self.stream_chat(&round_params, api_key, base_url, on_event_round, cancel.clone()).await?;
+            self.stream_chat(
+                &round_params,
+                api_key,
+                base_url,
+                on_event_round,
+                cancel.clone(),
+            )
+            .await?;
 
             // 把本轮 assistant 回复加入历史
             let text = assistant_text.lock().await.clone();
             let calls = tool_calls.lock().await.clone();
             if !text.is_empty() {
-                messages.push(ChatMessage { role: "assistant".into(), content: text });
+                messages.push(ChatMessage {
+                    role: "assistant".into(),
+                    content: text,
+                });
             }
             // 无工具调用 → 终止循环 (LLM 已给出最终答复)
             if calls.is_empty() {
-                on_event(StreamEvent::Done { usage: zero_usage(), cost: 0.0 });
+                on_event(StreamEvent::Done {
+                    usage: zero_usage(),
+                    cost: 0.0,
+                });
                 return Ok(());
             }
             // 执行每个工具, 结果以 tool 角色回喂
@@ -424,7 +638,10 @@ impl LlmService {
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
-            on_event(StreamEvent::Error { message: format!("HTTP {status}: {text}"), retryable: false });
+            on_event(StreamEvent::Error {
+                message: format!("HTTP {status}: {text}"),
+                retryable: false,
+            });
             return Err(AppError::Llm(format!("HTTP {status}: {text}")));
         }
         let mut stream = resp.bytes_stream();
@@ -618,7 +835,9 @@ pub struct OpenAIChunkState {
 
 impl OpenAIChunkState {
     pub fn new() -> Self {
-        Self { tool_calls: std::collections::HashMap::new() }
+        Self {
+            tool_calls: std::collections::HashMap::new(),
+        }
     }
 }
 
@@ -631,10 +850,14 @@ pub fn parse_openai_chunk(
         for ch in choices {
             if let Some(delta) = ch.get("delta") {
                 if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
-                    on_event(StreamEvent::TextDelta { delta: content.to_string() });
+                    on_event(StreamEvent::TextDelta {
+                        delta: content.to_string(),
+                    });
                 }
                 if let Some(reasoning) = delta.get("reasoning_content").and_then(|c| c.as_str()) {
-                    on_event(StreamEvent::ThinkingDelta { delta: reasoning.to_string() });
+                    on_event(StreamEvent::ThinkingDelta {
+                        delta: reasoning.to_string(),
+                    });
                 }
                 if let Some(tcs) = delta.get("tool_calls").and_then(|c| c.as_array()) {
                     for tc in tcs {
@@ -681,22 +904,36 @@ pub fn parse_openai_chunk(
                 }
             }
             // finish_reason = tool_calls → 对所有未结束的 tool_call emit ToolcallEnd
-            let fr = ch.get("finish_reason").and_then(|f| f.as_str()).unwrap_or("");
+            let fr = ch
+                .get("finish_reason")
+                .and_then(|f| f.as_str())
+                .unwrap_or("");
             if !fr.is_empty() {
                 for entry in state.tool_calls.values() {
                     if entry.started && !entry.ended {
-                        on_event(StreamEvent::ToolcallEnd { id: entry.id.clone() });
+                        on_event(StreamEvent::ToolcallEnd {
+                            id: entry.id.clone(),
+                        });
                     }
                 }
-                on_event(StreamEvent::Done { usage: zero_usage(), cost: 0.0 });
+                on_event(StreamEvent::Done {
+                    usage: zero_usage(),
+                    cost: 0.0,
+                });
             }
         }
     }
     if let Some(usage) = v.get("usage") {
         on_event(StreamEvent::Done {
             usage: TokenUsage {
-                input_tokens: usage.get("prompt_tokens").and_then(|t| t.as_u64()).unwrap_or(0),
-                output_tokens: usage.get("completion_tokens").and_then(|t| t.as_u64()).unwrap_or(0),
+                input_tokens: usage
+                    .get("prompt_tokens")
+                    .and_then(|t| t.as_u64())
+                    .unwrap_or(0),
+                output_tokens: usage
+                    .get("completion_tokens")
+                    .and_then(|t| t.as_u64())
+                    .unwrap_or(0),
                 cache_read_tokens: 0,
                 cache_write_tokens: 0,
             },
@@ -708,11 +945,7 @@ pub fn parse_openai_chunk(
 /// 工具: emit ToolcallDelta 事件, 携带 args_buf 累计内容。
 /// 注: 当前实现发整个累计 buf, 不做 diff。前端 chatStore 按 id 覆盖 args 字段,
 /// 多次 ToolcallDelta 等效于"用最新值替换", 不会出现重复内容。
-fn args_token_emit(
-    args_buf: &str,
-    id: &str,
-    on_event: &impl Fn(StreamEvent),
-) {
+fn args_token_emit(args_buf: &str, id: &str, on_event: &impl Fn(StreamEvent)) {
     let _ = args_buf; // 字段被 on_event 闭包捕获
     on_event(StreamEvent::ToolcallDelta {
         id: id.to_string(),
@@ -737,7 +970,9 @@ pub struct AnthropicChunkState {
 
 impl AnthropicChunkState {
     pub fn new() -> Self {
-        Self { tool_uses: std::collections::HashMap::new() }
+        Self {
+            tool_uses: std::collections::HashMap::new(),
+        }
     }
 }
 
@@ -749,15 +984,23 @@ pub fn parse_anthropic_chunk(
     match v.get("type").and_then(|t| t.as_str()) {
         Some("content_block_start") => {
             // 检测 tool_use 块开始
-            if v.get("content_block")
-                .and_then(|cb| cb.get("type"))
-                .and_then(|t| t.as_str())
-                == Some("tool_use")
-            {
+            // 注: 这里用 let-else 取 content_block, 避免 unwrap (虽然外层 if 已确认
+            // content_block.type 存在, 但防御性写法应对畸形 SSE 更稳)。
+            let Some(cb) = v.get("content_block") else {
+                return;
+            };
+            if cb.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
                 let idx = v.get("index").and_then(|i| i.as_u64()).unwrap_or(0);
-                let cb = v.get("content_block").unwrap();
-                let id = cb.get("id").and_then(|s| s.as_str()).unwrap_or("").to_string();
-                let name = cb.get("name").and_then(|s| s.as_str()).unwrap_or("").to_string();
+                let id = cb
+                    .get("id")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let name = cb
+                    .get("name")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 if !id.is_empty() && !name.is_empty() {
                     let entry = state.tool_uses.entry(idx).or_default();
                     entry.id = id.clone();
@@ -775,13 +1018,25 @@ pub fn parse_anthropic_chunk(
                 .unwrap_or("");
             match block_type {
                 "text_delta" => {
-                    if let Some(text) = v.get("delta").and_then(|d| d.get("text")).and_then(|t| t.as_str()) {
-                        on_event(StreamEvent::TextDelta { delta: text.to_string() });
+                    if let Some(text) = v
+                        .get("delta")
+                        .and_then(|d| d.get("text"))
+                        .and_then(|t| t.as_str())
+                    {
+                        on_event(StreamEvent::TextDelta {
+                            delta: text.to_string(),
+                        });
                     }
                 }
                 "thinking_delta" => {
-                    if let Some(text) = v.get("delta").and_then(|d| d.get("thinking")).and_then(|t| t.as_str()) {
-                        on_event(StreamEvent::ThinkingDelta { delta: text.to_string() });
+                    if let Some(text) = v
+                        .get("delta")
+                        .and_then(|d| d.get("thinking"))
+                        .and_then(|t| t.as_str())
+                    {
+                        on_event(StreamEvent::ThinkingDelta {
+                            delta: text.to_string(),
+                        });
                     }
                 }
                 "input_json_delta" => {
@@ -809,7 +1064,9 @@ pub fn parse_anthropic_chunk(
             if let Some(entry) = state.tool_uses.get_mut(&idx) {
                 if entry.started && !entry.ended {
                     entry.ended = true;
-                    on_event(StreamEvent::ToolcallEnd { id: entry.id.clone() });
+                    on_event(StreamEvent::ToolcallEnd {
+                        id: entry.id.clone(),
+                    });
                 }
             }
         }
@@ -817,15 +1074,24 @@ pub fn parse_anthropic_chunk(
             if let Some(usage) = v.get("usage") {
                 on_event(StreamEvent::Done {
                     usage: TokenUsage {
-                        input_tokens: usage.get("input_tokens").and_then(|t| t.as_u64()).unwrap_or(0),
-                        output_tokens: usage.get("output_tokens").and_then(|t| t.as_u64()).unwrap_or(0),
+                        input_tokens: usage
+                            .get("input_tokens")
+                            .and_then(|t| t.as_u64())
+                            .unwrap_or(0),
+                        output_tokens: usage
+                            .get("output_tokens")
+                            .and_then(|t| t.as_u64())
+                            .unwrap_or(0),
                         cache_read_tokens: 0,
                         cache_write_tokens: 0,
                     },
                     cost: 0.0,
                 });
             }
-            on_event(StreamEvent::Done { usage: zero_usage(), cost: 0.0 });
+            on_event(StreamEvent::Done {
+                usage: zero_usage(),
+                cost: 0.0,
+            });
         }
         _ => {}
     }
@@ -838,11 +1104,17 @@ fn parse_gemini_chunk(v: &serde_json::Value, on_event: &impl Fn(StreamEvent)) {
                 for p in parts {
                     // 文本
                     if let Some(text) = p.get("text").and_then(|t| t.as_str()) {
-                        on_event(StreamEvent::TextDelta { delta: text.to_string() });
+                        on_event(StreamEvent::TextDelta {
+                            delta: text.to_string(),
+                        });
                     }
                     // 工具调用 (Gemini 一次性返回, 不增量)
                     if let Some(fc) = p.get("functionCall") {
-                        let name = fc.get("name").and_then(|s| s.as_str()).unwrap_or("").to_string();
+                        let name = fc
+                            .get("name")
+                            .and_then(|s| s.as_str())
+                            .unwrap_or("")
+                            .to_string();
                         let args = fc.get("args").cloned().unwrap_or(serde_json::Value::Null);
                         let id = format!("gemini_call_{}", uuid::Uuid::new_v4().simple());
                         on_event(StreamEvent::ToolcallStart {
@@ -858,14 +1130,75 @@ fn parse_gemini_chunk(v: &serde_json::Value, on_event: &impl Fn(StreamEvent)) {
                 }
             }
             if c.get("finishReason").is_some() {
-                on_event(StreamEvent::Done { usage: zero_usage(), cost: 0.0 });
+                on_event(StreamEvent::Done {
+                    usage: zero_usage(),
+                    cost: 0.0,
+                });
             }
         }
     }
     if let Some(usage) = v.get("usageMetadata") {
-        on_event(StreamEvent::Done { usage: TokenUsage { input_tokens: usage.get("promptTokenCount").and_then(|t| t.as_u64()).unwrap_or(0), output_tokens: usage.get("candidatesTokenCount").and_then(|t| t.as_u64()).unwrap_or(0), cache_read_tokens: 0, cache_write_tokens: 0 }, cost: 0.0 });
+        on_event(StreamEvent::Done {
+            usage: TokenUsage {
+                input_tokens: usage
+                    .get("promptTokenCount")
+                    .and_then(|t| t.as_u64())
+                    .unwrap_or(0),
+                output_tokens: usage
+                    .get("candidatesTokenCount")
+                    .and_then(|t| t.as_u64())
+                    .unwrap_or(0),
+                cache_read_tokens: 0,
+                cache_write_tokens: 0,
+            },
+            cost: 0.0,
+        });
     }
 }
 
 /// 一个共享的 LlmService 单例句柄别名, 便于 command 引用。
 pub type SharedLlm = Arc<LlmService>;
+
+// =============================================================
+// complete_chat 单元测试 — 仅测试纯逻辑分支, 不发真 HTTP 请求
+// =============================================================
+#[cfg(test)]
+mod complete_chat_tests {
+    use super::*;
+
+    #[test]
+    fn zero_usage_is_all_zeros() {
+        let u = zero_usage();
+        assert_eq!(u.input_tokens, 0);
+        assert_eq!(u.output_tokens, 0);
+        assert_eq!(u.cache_read_tokens, 0);
+        assert_eq!(u.cache_write_tokens, 0);
+    }
+
+    #[test]
+    fn chat_params_clone_is_independent() {
+        let p = ChatParams {
+            provider_id: "openai".into(),
+            model_id: "gpt-4o-mini".into(),
+            messages: vec![ChatMessage {
+                role: "user".into(),
+                content: "hi".into(),
+            }],
+            system_prompt: Some("you are a judge".into()),
+            thinking: None,
+            max_tokens: Some(512),
+        };
+        let p2 = p.clone();
+        assert_eq!(p.provider_id, p2.provider_id);
+        assert_eq!(p.messages.len(), p2.messages.len());
+        assert_eq!(p.max_tokens, p2.max_tokens);
+    }
+
+    #[test]
+    fn llm_service_new_has_client() {
+        // LlmService::new 仅初始化 reqwest::Client, 不发请求
+        let svc = LlmService::new();
+        let _ = svc; // 防止 unused 警告
+        // 验证 LlmService 字段: 编译期保证, 这里主要确认 new 不 panic
+    }
+}

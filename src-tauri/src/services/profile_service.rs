@@ -49,7 +49,10 @@ pub struct ProfileService {
 
 impl ProfileService {
     pub fn new(dir: PathBuf) -> Self {
-        Self { dir, cache: HashMap::new() }
+        Self {
+            dir,
+            cache: HashMap::new(),
+        }
     }
 
     /// 读学生完整档案 (Value 透传)。不存在则返回空对象。
@@ -101,7 +104,9 @@ impl ProfileService {
                         if s.is_nan() {
                             errs.push(format!("[{i}] {subject} 的成绩必须是数字或 null"));
                         } else if *s < SCORE_MIN || *s > SCORE_MAX {
-                            errs.push(format!("[{i}] {subject} 的成绩 {s} 超出范围 ({SCORE_MIN}-{SCORE_MAX})"));
+                            errs.push(format!(
+                                "[{i}] {subject} 的成绩 {s} 超出范围 ({SCORE_MIN}-{SCORE_MAX})"
+                            ));
                         }
                     }
                 }
@@ -148,7 +153,13 @@ fn merge_values(a: &mut Value, b: &Value) {
 
 fn sanitize(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 

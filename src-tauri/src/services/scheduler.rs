@@ -27,7 +27,7 @@ pub struct CronTask {
     pub id: String,
     pub name: String,
     pub agent_id: String,
-    pub cron: String,           // 5 字段 cron 表达式
+    pub cron: String, // 5 字段 cron 表达式
     #[serde(default)]
     pub enabled: bool,
     #[serde(default)]
@@ -55,7 +55,12 @@ pub struct SchedulerService {
 
 impl SchedulerService {
     pub fn new() -> Self {
-        Self { tasks: HashMap::new(), scheduler: None, job_map: HashMap::new(), runner: None }
+        Self {
+            tasks: HashMap::new(),
+            scheduler: None,
+            job_map: HashMap::new(),
+            runner: None,
+        }
     }
 
     /// 注入执行回调。main.rs setup 时调用, 把 agent_run_manual 接进来。
@@ -65,8 +70,13 @@ impl SchedulerService {
 
     /// 启动 scheduler。在 setup 时调用一次。
     pub async fn start(&mut self) -> Result<()> {
-        let sched = JobScheduler::new().await.map_err(|e| AppError::Scheduler(e.to_string()))?;
-        sched.start().await.map_err(|e| AppError::Scheduler(e.to_string()))?;
+        let sched = JobScheduler::new()
+            .await
+            .map_err(|e| AppError::Scheduler(e.to_string()))?;
+        sched
+            .start()
+            .await
+            .map_err(|e| AppError::Scheduler(e.to_string()))?;
         self.scheduler = Some(sched);
         tracing::info!(target: "scheduler", "started");
         Ok(())
@@ -141,15 +151,17 @@ impl SchedulerService {
             .get(id)
             .ok_or_else(|| AppError::NotFound(format!("cron task {id}")))?;
         let now = chrono::Utc::now().timestamp_millis();
-        db.lock().await.insert_cron_log(&CronLogRecord {
-            id: None,
-            task_id: id.to_string(),
-            level: "info".into(),
-            message: format!("手动触发 agent={}", task.agent_id),
-            timestamp: now,
-            metadata: Some(task.payload.to_string()),
-        })
-        .await?;
+        db.lock()
+            .await
+            .insert_cron_log(&CronLogRecord {
+                id: None,
+                task_id: id.to_string(),
+                level: "info".into(),
+                message: format!("手动触发 agent={}", task.agent_id),
+                timestamp: now,
+                metadata: Some(task.payload.to_string()),
+            })
+            .await?;
         // 真正触发 agent 执行 (runner 已注入)
         if let Some(runner) = &self.runner {
             runner(task.id.clone(), task.agent_id.clone(), task.payload.clone());
@@ -180,7 +192,10 @@ impl SchedulerService {
             })
         })
         .map_err(|e| AppError::Scheduler(format!("cron 表达式无效: {e}")))?;
-        let uuid = sched.add(job).await.map_err(|e| AppError::Scheduler(e.to_string()))?;
+        let uuid = sched
+            .add(job)
+            .await
+            .map_err(|e| AppError::Scheduler(e.to_string()))?;
         self.job_map.insert(task.id.clone(), uuid);
         Ok(())
     }

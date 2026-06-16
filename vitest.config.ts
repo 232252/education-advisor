@@ -1,8 +1,9 @@
 // =============================================================
-// Vitest 配置（P2-5）
-// - 渲染进程 hook 测试：jsdom 环境
-// - 主进程 service 测试：node 环境（tests/main/**）
-// - 共享 setup: 静默 console / stub electron
+// Vitest 配置
+// - 渲染进程 hook/store 测试：jsdom 环境
+// - 共享 setup: 静默 console / stub @tauri-apps/api
+//
+// v0.2.0: 仓库已无 Electron 主进程 (src/main/ 已封存), 只剩渲染端单测。
 // =============================================================
 import { defineConfig } from 'vitest/config'
 import path from 'node:path'
@@ -10,7 +11,6 @@ import path from 'node:path'
 export default defineConfig({
   resolve: {
     alias: {
-      '@main': path.resolve(__dirname, 'src/main'),
       '@renderer': path.resolve(__dirname, 'src/renderer'),
       '@shared': path.resolve(__dirname, 'src/shared'),
     },
@@ -21,36 +21,10 @@ export default defineConfig({
       'src/**/*.{test,spec}.{ts,tsx}',
       'tests/**/*.{test,spec}.{ts,tsx}',
     ],
-    exclude: ['node_modules', 'dist', 'release', '**/*.d.ts'],
-    // 用 projects 区分 renderer (jsdom) 和 main (node)
-    projects: [
-      {
-        // 渲染进程 hook 测试
-        test: {
-          name: 'renderer',
-          globals: true,
-          include: [
-            'src/renderer/**/*.{test,spec}.{ts,tsx}',
-          ],
-          environment: 'jsdom',
-          setupFiles: ['./tests/setup.ts'],
-        },
-      },
-      {
-        // 主进程 service 测试
-        test: {
-          name: 'main',
-          globals: true,
-          include: [
-            'src/main/**/*.{test,spec}.{ts,tsx}',
-            'tests/main/**/*.{test,spec}.{ts,tsx}',
-            'tests/e2e/**/*.{test,spec}.{ts,tsx}',
-          ],
-          environment: 'node',
-          setupFiles: ['./tests/setup.ts'],
-        },
-      },
-    ],
+    exclude: ['node_modules', 'dist', 'release', 'archive', '**/*.d.ts'],
+    // 渲染进程测试统一在 jsdom 环境
+    environment: 'jsdom',
+    setupFiles: ['./tests/setup.ts'],
     // 30s 默认超时（CI 友好）
     testTimeout: 30_000,
     // 不在 CI 中跑并发时强制串行,避免端口/资源冲突
@@ -70,3 +44,4 @@ export default defineConfig({
     },
   },
 })
+

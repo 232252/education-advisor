@@ -109,10 +109,8 @@ impl PrivacyEngine {
     /// 初始化新引擎
     pub fn init(&mut self, data_dir: &PathBuf, password: &str) -> Result<(), PrivacyError> {
         let key = derive_key(password);
-        self.cipher = Some(
-            Aes256Gcm::new_from_slice(&key)
-                .map_err(|e| PrivacyError::Crypto(e.to_string()))?,
-        );
+        self.cipher =
+            Some(Aes256Gcm::new_from_slice(&key).map_err(|e| PrivacyError::Crypto(e.to_string()))?);
         self.mapping_path = data_dir.join("privacy").join("mapping.enc");
         std::fs::create_dir_all(self.mapping_path.parent().unwrap())?;
         self.nonce = generate_nonce();
@@ -135,8 +133,8 @@ impl PrivacyEngine {
             return Err(PrivacyError::MappingNotFound);
         }
         let key = derive_key(password);
-        let cipher = Aes256Gcm::new_from_slice(&key)
-            .map_err(|e| PrivacyError::Crypto(e.to_string()))?;
+        let cipher =
+            Aes256Gcm::new_from_slice(&key).map_err(|e| PrivacyError::Crypto(e.to_string()))?;
         let encrypted = std::fs::read(&path)?;
         if encrypted.len() < 12 {
             return Err(PrivacyError::Crypto("加密文件损坏".to_string()));
@@ -186,8 +184,8 @@ impl PrivacyEngine {
             version: "1.0.0".to_string(),
             last_updated: chrono::Utc::now().to_rfc3339(),
         };
-        let json = serde_json::to_string(&table)
-            .map_err(|e| PrivacyError::Serialize(e.to_string()))?;
+        let json =
+            serde_json::to_string(&table).map_err(|e| PrivacyError::Serialize(e.to_string()))?;
         let encrypted = cipher
             .encrypt(Nonce::from_slice(&self.nonce), json.as_bytes())
             .map_err(|e| PrivacyError::Crypto(e.to_string()))?;
@@ -199,7 +197,11 @@ impl PrivacyEngine {
     }
 
     /// 添加实体映射
-    pub fn add_entity(&mut self, entity_type: &EntityType, plain: &str) -> Result<String, PrivacyError> {
+    pub fn add_entity(
+        &mut self,
+        entity_type: &EntityType,
+        plain: &str,
+    ) -> Result<String, PrivacyError> {
         let key = entity_type.prefix().to_string();
         // 已存在 → 返回已有化名
         if let Some(rev) = self.reverse.get(&key) {
@@ -227,10 +229,10 @@ impl PrivacyEngine {
         if !entities_path.exists() {
             return Ok(0);
         }
-        let data = std::fs::read_to_string(&entities_path)
-            .map_err(|e| PrivacyError::Io(e.to_string()))?;
-        let root: serde_json::Value = serde_json::from_str(&data)
-            .map_err(|e| PrivacyError::Deserialize(e.to_string()))?;
+        let data =
+            std::fs::read_to_string(&entities_path).map_err(|e| PrivacyError::Io(e.to_string()))?;
+        let root: serde_json::Value =
+            serde_json::from_str(&data).map_err(|e| PrivacyError::Deserialize(e.to_string()))?;
         let mut count = 0;
 
         // 支持 HashMap 格式: {"entities": {"id": {"name": "xxx", ...}, ...}}
@@ -298,7 +300,10 @@ impl PrivacyEngine {
         for (_k, reverse_map) in &self.reverse {
             for (plain, _alias) in reverse_map {
                 // 跳过接收者及其关联人（如"张三妈妈"包含"张三"）
-                if plain == receiver_name || receiver_name.contains(plain) || plain.contains(receiver_name) {
+                if plain == receiver_name
+                    || receiver_name.contains(plain)
+                    || plain.contains(receiver_name)
+                {
                     continue;
                 }
                 if result.contains(plain) {
@@ -358,11 +363,14 @@ fn generate_nonce() -> [u8; 12] {
     let mut h = Sha256::new();
     Digest::update(&mut h, chrono::Utc::now().to_rfc3339().as_bytes());
     Digest::update(&mut h, std::process::id().to_le_bytes());
-    Digest::update(&mut h, &std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos()
-        .to_le_bytes());
+    Digest::update(
+        &mut h,
+        &std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            .to_le_bytes(),
+    );
     let hash: [u8; 32] = Digest::finalize(h).into();
     let mut nonce = [0u8; 12];
     nonce.copy_from_slice(&hash[..12]);

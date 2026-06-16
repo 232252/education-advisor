@@ -61,7 +61,11 @@ pub struct RiskThresholds {
 
 impl Default for RiskThresholds {
     fn default() -> Self {
-        Self { high: 85.0, medium: 93.0, low: 93.0 }
+        Self {
+            high: 85.0,
+            medium: 93.0,
+            low: 93.0,
+        }
     }
 }
 
@@ -119,7 +123,12 @@ impl AgentService {
             .map(|(i, a)| (a.id.clone(), i))
             .collect();
         tracing::info!(target: "agent_service", "loaded {} agents", file.agents.len());
-        Ok(Self { agents: file.agents, index, resources: resources.to_path_buf(), last_run: HashMap::new() })
+        Ok(Self {
+            agents: file.agents,
+            index,
+            resources: resources.to_path_buf(),
+            last_run: HashMap::new(),
+        })
     }
 
     pub fn list(&self) -> Vec<AgentListItem> {
@@ -151,14 +160,20 @@ impl AgentService {
     }
 
     pub fn toggle(&mut self, id: &str, enabled: bool) -> Result<()> {
-        let idx = *self.index.get(id).ok_or_else(|| AppError::NotFound(format!("agent {id}")))?;
+        let idx = *self
+            .index
+            .get(id)
+            .ok_or_else(|| AppError::NotFound(format!("agent {id}")))?;
         self.agents[idx].enabled = enabled;
         self.persist()?;
         Ok(())
     }
 
     pub fn update(&mut self, id: &str, patch: &serde_json::Value) -> Result<()> {
-        let idx = *self.index.get(id).ok_or_else(|| AppError::NotFound(format!("agent {id}")))?;
+        let idx = *self
+            .index
+            .get(id)
+            .ok_or_else(|| AppError::NotFound(format!("agent {id}")))?;
         let entry = &mut self.agents[idx];
         if let Some(n) = patch.get("name").and_then(|v| v.as_str()) {
             entry.name = n.to_string();
@@ -174,10 +189,16 @@ impl AgentService {
             };
         }
         if let Some(c) = patch.get("capabilities").and_then(|v| v.as_array()) {
-            entry.capabilities = c.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+            entry.capabilities = c
+                .iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect();
         }
         if let Some(s) = patch.get("skillIds").and_then(|v| v.as_array()) {
-            entry.skill_ids = s.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+            entry.skill_ids = s
+                .iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect();
         }
         self.persist()?;
         Ok(())
@@ -203,7 +224,10 @@ impl AgentService {
     /// 校验 agent 是否拥有指定 capability (least-privilege)。
     pub fn has_capability(&self, id: &str, cap: &str) -> bool {
         match self.agents.get(*self.index.get(id).unwrap_or(&usize::MAX)) {
-            Some(e) => e.capabilities.iter().any(|c| c == cap || c == "all" || c == "*"),
+            Some(e) => e
+                .capabilities
+                .iter()
+                .any(|c| c == cap || c == "all" || c == "*"),
             None => false,
         }
     }
@@ -237,7 +261,9 @@ impl AgentService {
 
     fn persist(&self) -> Result<()> {
         let yaml_path = self.resources.join("config").join("agents.yaml");
-        let file = AgentsFile { agents: self.agents.clone() };
+        let file = AgentsFile {
+            agents: self.agents.clone(),
+        };
         let data = serde_yaml::to_string(&file)
             .map_err(|e| AppError::Config(format!("序列化 agents.yaml: {e}")))?;
         let tmp = yaml_path.with_extension("yaml.tmp");

@@ -17,7 +17,9 @@ pub struct KeystoreService {
 
 impl KeystoreService {
     pub fn new(service_name: &str) -> Self {
-        Self { service_name: service_name.to_string() }
+        Self {
+            service_name: service_name.to_string(),
+        }
     }
 
     fn entry(&self, account: &str) -> Result<keyring::Entry> {
@@ -27,7 +29,9 @@ impl KeystoreService {
 
     /// 保存 API key (加密存入 OS keychain)。
     pub fn set(&self, account: &str, secret: &str) -> Result<()> {
-        self.entry(account)?.set_password(secret).map_err(|e| AppError::Other(format!("keyring set: {e}")))
+        self.entry(account)?
+            .set_password(secret)
+            .map_err(|e| AppError::Other(format!("keyring set: {e}")))
     }
 
     pub fn get(&self, account: &str) -> Result<Option<String>> {

@@ -1,7 +1,7 @@
 // PR-D02: Data Flow Validation Module
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ValidationLevel {
@@ -62,17 +62,20 @@ impl DataValidator {
             xss_patterns: Self::default_xss_patterns(),
         }
     }
-    
+
     fn default_sql_patterns() -> Vec<Regex> {
         vec![
-            Regex::new(r"(?i)\b(SELECT|UNION|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b").unwrap(),
+            Regex::new(
+                r"(?i)\b(SELECT|UNION|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b",
+            )
+            .unwrap(),
             Regex::new(r"(?i)\bOR\b").unwrap(),
             Regex::new(r"(?i)\bAND\b").unwrap(),
             Regex::new(r";").unwrap(),
             Regex::new(r"(--|#)").unwrap(),
         ]
     }
-    
+
     fn default_xss_patterns() -> Vec<Regex> {
         vec![
             Regex::new(r"<script").unwrap(),
@@ -83,43 +86,46 @@ impl DataValidator {
             Regex::new(r"<embed").unwrap(),
         ]
     }
-    
+
     pub fn validate(&self, input: &str, trace_id: &str) -> ValidationResult {
         let now = Utc::now();
-        
+
         if input.len() > self.config.max_length {
             return ValidationResult {
                 passed: false,
                 error_code: Some(ERR_SIZE_EXCEEDED.to_string()),
-                error_message: Some(format!("Input length exceeds maximum {}", self.config.max_length)),
+                error_message: Some(format!(
+                    "Input length exceeds maximum {}",
+                    self.config.max_length
+                )),
                 trace_id: trace_id.to_string(),
                 validated_at: now,
                 validation_level: self.config.level,
             };
         }
-        
+
         if self.config.check_sql_injection {
             if let Some(result) = self.check_sql_injection(input, trace_id) {
                 return result;
             }
         }
-        
+
         if self.config.check_xss {
             if let Some(result) = self.check_xss(input, trace_id) {
                 return result;
             }
         }
-        
+
         if let Some(result) = self.validate_format(input, trace_id) {
             return result;
         }
-        
+
         if self.config.use_eaa_gate {
             if let Some(result) = self.validate_with_eaa(input, trace_id) {
                 return result;
             }
         }
-        
+
         ValidationResult {
             passed: true,
             error_code: None,
@@ -129,7 +135,7 @@ impl DataValidator {
             validation_level: self.config.level,
         }
     }
-    
+
     fn check_sql_injection(&self, input: &str, trace_id: &str) -> Option<ValidationResult> {
         for pattern in &self.sql_patterns {
             if pattern.is_match(input) {
@@ -148,7 +154,7 @@ impl DataValidator {
         }
         None
     }
-    
+
     fn check_xss(&self, input: &str, trace_id: &str) -> Option<ValidationResult> {
         for pattern in &self.xss_patterns {
             if pattern.is_match(input) {
@@ -167,7 +173,7 @@ impl DataValidator {
         }
         None
     }
-    
+
     fn validate_format(&self, input: &str, trace_id: &str) -> Option<ValidationResult> {
         if input.contains('\0') {
             return Some(ValidationResult {
@@ -181,7 +187,7 @@ impl DataValidator {
         }
         None
     }
-    
+
     fn validate_with_eaa(&self, _input: &str, trace_id: &str) -> Option<ValidationResult> {
         log::debug!("eaa-cli validation for trace_id: {}", trace_id);
         None
@@ -198,7 +204,7 @@ impl Default for DataValidator {
 pub enum ValidationError {
     #[error("Validation failed: {0}")]
     ValidationFailed(String),
-    
+
     #[error("eaa-cli call failed: {0}")]
     EaaGateFailed(String),
 }
@@ -214,7 +220,7 @@ mod tests {
         let result = validator.validate(malicious, "test-trace");
         assert!(!result.passed || result.error_code.is_some());
     }
-    
+
     #[test]
     fn test_xss_detection() {
         let validator = DataValidator::default();
@@ -222,7 +228,7 @@ mod tests {
         let result = validator.validate(malicious, "test-trace");
         assert!(!result.passed || result.error_code.is_some());
     }
-    
+
     #[test]
     fn test_valid_input() {
         let validator = DataValidator::default();
@@ -230,7 +236,7 @@ mod tests {
         let result = validator.validate(valid_input, "test-trace");
         assert!(result.passed);
     }
-    
+
     #[test]
     fn test_max_length() {
         let config = ValidatorConfig {

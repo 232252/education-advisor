@@ -124,3 +124,81 @@ pub type Result<T> = std::result::Result<T, AppError>;
 pub fn other<E: fmt::Display>(e: E) -> AppError {
     AppError::Other(e.to_string())
 }
+
+// =============================================================
+// 单元测试 — 纯逻辑, 不依赖 Tauri 运行时, headless CI 可跑。
+// 覆盖点: thiserror Display 输出 / From 转换链 / Serialize 给前端。
+// =============================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_includes_chinese_prefix() {
+        // 前端拿到的 message 来自 Display impl (thiserror #[error(...)])。
+        // 锁定中文前缀格式, 改动文案会立刻被测试抓到。
+        assert_eq!(
+            AppError::NotFound("学生张三".into()).to_string(),
+            "未找到: 学生张三"
+        );
+        assert_eq!(
+            AppError::Validation("x<0".into()).to_string(),
+            "数据校验失败: x<0"
+        );
+        assert_eq!(AppError::Cancelled.to_string(), "用户取消操作");
+    }
+
+    #[test]
+    fn from_io_error_maps_to_io_variant() {
+        // ? 传播 std::io::Error 时自动转 AppError::Io。
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing");
+        let app: AppError = io_err.into();
+        assert!(matches!(app, AppError::Io(_)));
+        assert!(app.to_string().contains("IO 错误"));
+    }
+
+    #[test]
+    fn from_serde_json_error_maps_to_json_variant() {
+        let json_err = serde_json::from_str::<serde_json::Value>("{bad}").unwrap_err();
+        let app: AppError = json_err.into();
+        assert!(matches!(app, AppError::Json(_)));
+    }
+
+    #[test]
+    fn from_rusqlite_error_maps_to_db_variant() {
+        // rusqlite::Error 种类繁多, 这里用一个真实错误验证转换不丢信息。
+        let db_err = rusqlite::Error::InvalidColumnIndex(99);
+        let app: AppError = db_err.into();
+        assert!(matches!(app, AppError::Db(_)));
+    }
+
+    #[test]
+    fn serialize_produces_message_field() {
+        // Tauri command Err → 前端 invoke().catch(e => e.message)。
+        // 锁定序列化结构为 {"message": String}, 改成其他字段会破坏前端契约。
+        let err = AppError::PermissionDenied("匿名调用".into());
+        let json = serde_json::to_value(&err).unwrap();
+        assert_eq!(json["message"], "权限不足: 匿名调用");
+        // 不应泄漏 Rust Debug 结构 (如 variant 名)。
+        assert!(json.get("PermissionDenied").is_none());
+    }
+
+    #[test]
+    fn other_helper_wraps_display() {
+        let app = other(42); // i32: Display
+        assert_eq!(app.to_string(), "42");
+        assert!(matches!(app, AppError::Other(_)));
+    }
+
+    #[test]
+    fn eaa_core_error_maps_back() {
+        // eaa_core::types::AppError → 本 crate AppError, 保持语义类别。
+        use eaa_core::types::AppError as E;
+        let io_e = E::Io(std::io::Error::other("x"));
+        assert!(matches!(AppError::from(io_e), AppError::Io(_)));
+        let nf = E::StudentNotFound("S001".into());
+        assert!(matches!(AppError::from(nf), AppError::NotFound(_)));
+        let ve = E::Validation("长度".into());
+        assert!(matches!(AppError::from(ve), AppError::Validation(_)));
+    }
+}

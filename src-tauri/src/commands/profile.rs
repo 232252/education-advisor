@@ -20,7 +20,10 @@ pub async fn profile_set(state: State<'_, AppState>, name: String, data: Value) 
 }
 
 #[tauri::command]
-pub async fn profile_validate_academic(_state: State<'_, AppState>, records: Vec<Value>) -> Result<Value> {
+pub async fn profile_validate_academic(
+    _state: State<'_, AppState>,
+    records: Vec<Value>,
+) -> Result<Value> {
     let recs: Vec<AcademicExamRecord> = records
         .into_iter()
         .filter_map(|v| serde_json::from_value(v).ok())

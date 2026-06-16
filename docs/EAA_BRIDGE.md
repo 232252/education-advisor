@@ -1,419 +1,156 @@
-# EAA Bridge
+---
+title: EAA Core Integration
+description: "Rust 数据引擎桥接"
+sidebar:
+  label: "数据引擎桥接"
+---
 
-> **The bridge between the Electron main process and the Rust `eaa-cli`
-> binary.** This document covers the protocol, the IPC operations, the
-> error handling, and how to debug a misbehaving bridge.
+# EAA Core Integration
+
+> **How the desktop app talks to the Rust data engine.**
+>
+> v0.2.0 起, 数据引擎不再是 spawn 的子进程, 而是被静态链接为
+> `eaa_core` 库。 本文档解释新集成方式。
 
 ## Table of contents
 
-- [What is the EAA bridge?](#what-is-the-eaa-bridge)
-- [Why a separate process?](#why-a-separate-process)
-- [The protocol](#the-protocol)
-- [The IPC operations](#the-ipc-operations)
-- [The tool layer](#the-tool-layer)
-- [Error handling](#error-handling)
-- [Debugging](#debugging)
-- [Building from source](#building-from-source)
-- [Manual install](#manual-install)
+- [What changed in v0.2.0](#what-changed-in-v020)
+- [Why no more bridge?](#why-no-more-bridge)
+- [The new architecture](#the-new-architecture)
+- [Library API](#library-api)
+- [Migration history](#migration-history)
 - [Performance](#performance)
-- [Security](#security)
+- [Building from source](#building-from-source)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## What is the EAA bridge?
+## What changed in v0.2.0
 
-The EAA bridge is the TypeScript code in
-`src/main/services/eaa-bridge.ts` that talks to the Rust `eaa-cli`
-binary. The bridge:
+| | v0.1.0 (Electron) | v0.2.0 (Tauri) |
+|---|---|---|
+| Integration | `child_process.spawn('eaa', [...])` | `use eaa_core::*` (lib link) |
+| IPC overhead | ~50ms / call (process spawn + JSON) | **< 1ms** (function call) |
+| Process model | 1 main + 1 child per call | 1 process, 0 children |
+| Path | `resources/eaa-binaries/{platform}/eaa` | `core/eaa-cli/` source (Cargo workspace) |
+| Distribution | Pre-built binary, downloaded | Statically linked into app binary |
+| Error handling | JSON to stdout, exit code | `Result<T, AppError>` (Rust types) |
 
-1. **Locates the binary** (per platform, in a known directory).
-2. **Spawns the binary** as a child process.
-3. **Writes JSON to stdin** and **reads JSON from stdout**.
-4. **Validates the response** against a TypeBox schema.
-5. **Returns the result** to the caller, or throws a typed error.
+## Why no more bridge?
 
-The bridge is the **only code in the main process that talks to
-student data**. Every other service in the main process goes through
-the bridge.
+The old `eaa-bridge.ts` (now in `archive/legacy/`) was a clever workaround
+for a fundamental constraint: **Electron's main process was Node.js, not
+Rust, so it had to spawn the Rust CLI as a subprocess and serialize
+JSON over stdin/stdout**.
+
+When we moved the entire backend to Tauri 2.0 + pure Rust, the constraint
+disappeared. Now the data engine and the desktop app are both Rust, so
+we can statically link them in the **same compilation unit**. No
+subprocess, no JSON marshaling, no lost type safety.
+
+## The new architecture
 
 ```
-┌──────────────────────────┐
-│  eaa-bridge.ts (Node)    │
-└──────────┬───────────────┘
-           │ spawn
-           ▼
-┌──────────────────────────┐
-│  eaa.exe (Rust)          │  ← process per call (default)
-│                          │     OR long-lived (for streaming)
-└──────────┬───────────────┘
-           │ read / write
-           ▼
-┌──────────────────────────┐
-│  events.log (JSON-Lines) │
-│  entities/               │
-│  privacy/                │
-└──────────────────────────┘
+src-tauri/Cargo.toml
+└─ eaa_core = { package = "eaa", path = "../core/eaa-cli" }
+   └─ src-tauri/src/commands/eaa.rs
+      └─ eaa_core::storage::FileLock::acquire(...)
+      └─ eaa_core::cmd_score(name) → serde_json::Value
+      └─ eaa_core::cmd_add_event(...) → EAAResult<String>
+      └─ eaa_core::privacy::PrivacyEngine::anonymize(...)
 ```
 
----
+All EAA operations are now **direct function calls** with **typed
+results** (no JSON serialization, no string parsing). The 21 `eaa:`
+IPC channels in `src-tauri/src/commands/eaa.rs` are thin wrappers
+(typically 5-15 lines each) that:
 
-## Why a separate process?
+1. Take a `State<'_, AppState>` from Tauri
+2. Acquire the `FileLock` (RAII, auto-release on drop)
+3. Call the corresponding `eaa_core::cmd_*` function
+4. Wrap the result in `EAAResult<T>` and broadcast events via
+   `broadcaster::emit_all`
 
-A few reasons:
+## Library API
 
-1. **Reproducible builds.** A pre-built binary is a specific tagged
-   artifact, verifiable with SHA-256. An embedded Rust library would
-   be re-compiled per machine.
-2. **Separation of concerns.** The Rust side is the data engine; the
-   TypeScript side is the agent orchestrator. Keeping them separate
-   means each can be reviewed, audited, and re-used independently.
-3. **Performance isolation.** A long-running Rust operation can't
-   block the main process because it's in a separate process.
-4. **Memory isolation.** A memory leak in the Rust code doesn't take
-   down the main process.
-5. **Versioning.** The Rust binary has a version that can be checked
-   at startup. Mismatches are detected early.
+The `eaa_core` library re-exports 4 modules:
 
----
+| Module | Exports |
+|---|---|
+| `eaa_core::cmd` | All 21 business commands: `cmd_score`, `cmd_add`, `cmd_revert`, `cmd_replay`, `cmd_history`, `cmd_ranking`, `cmd_validate`, `cmd_search`, `cmd_stats`, `cmd_codes`, `cmd_tag`, `cmd_range`, `cmd_list_students`, `cmd_add_student`, `cmd_delete_student`, `cmd_import`, `cmd_export`, `cmd_doctor`, `cmd_summary`, `cmd_set_student_meta`, `cmd_dashboard` |
+| `eaa_core::privacy` | `EntityType`, `MappingEntry`, `MappingTable`, `PrivacyEngine`, `PrivacyError` |
+| `eaa_core::storage` | `append_operation_log`, `atomic_write_json`, `compute_cumulative_history`, `compute_scores`, `FileLock`, `load_entities`, `load_events`, `load_name_index`, `load_reason_codes`, `resolve_entity_id`, `risk_level`, `save_entities`, `save_events`, `save_name_index` |
+| `eaa_core::types` | `AppError`, `EntitiesFile`, `Entity`, `Event`, `EventType`, `OutputMode`, `ReasonCodeDef`, `ReasonCodesFile` |
+| `eaa_core::validation` | `can_revert`, `validate_delta` |
 
-## The protocol
+See [`core/eaa-cli/src/lib.rs`](../core/eaa-cli/src/lib.rs) for the
+authoritative list. The library is at version **3.1.2** (matching the
+v3.x CLI series).
 
-The protocol is **JSON over stdin/stdout**, one request per line,
-one response per line.
+## Migration history
 
-### Request
+- **v3.x (pre-2026-06)**: `eaa-cli` is a standalone CLI tool, used
+  headlessly or via Electron subprocess.
+- **v0.1.0 (2026-06-09)**: Electron desktop uses `eaa-bridge.ts` to
+  spawn the CLI binary.
+- **v0.2.0 (2026-06-15)**: `eaa-cli` gains a `[lib]` target, the Tauri
+  desktop links it as a Rust library. The CLI binary still works (the
+  library is additive, not replacing).
 
-```json
-{
-  "id": "req_a3f7c2",
-  "method": "add_event",
-  "params": {
-    "student": "Alice",
-    "code": "BONUS_VARIABLE",
-    "delta": 2,
-    "reason": "homework on time"
-  }
-}
+The `[lib]` addition to `core/eaa-cli/Cargo.toml` is the only change
+required to `eaa-cli`:
+
+```toml
+[lib]
+name = "eaa_core"
+path = "src/lib.rs"
 ```
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `id` | string | A unique request ID. Used to match responses. |
-| `method` | string | The EAA subcommand (snake_case). |
-| `params` | object | The parameters. Method-specific. |
-
-### Response (success)
-
-```json
-{
-  "id": "req_a3f7c2",
-  "ok": true,
-  "result": {
-    "event_id": "evt_b8e9d1",
-    "ts": "2026-06-09T08:14:23.117+08:00"
-  }
-}
-```
-
-### Response (error)
-
-```json
-{
-  "id": "req_a3f7c2",
-  "ok": false,
-  "error": {
-    "code": "INVALID_REASON_CODE",
-    "message": "The reason code 'BONUZ' is not in the schema. Did you mean 'BONUS_VARIABLE'?",
-    "field": "code"
-  }
-}
-```
-
-The error `code` is a stable enum. The bridge translates it to a
-typed `EAAError` with a `.code` property. The renderer displays the
-error message verbatim, prefixed with a localized error title.
-
-### Streaming
-
-Some operations (e.g. `dashboard` for very large classes) can be
-streaming. The protocol extension is:
-
-```json
-{"id":"req_xxx","type":"chunk","data":{...}}
-{"id":"req_xxx","type":"chunk","data":{...}}
-{"id":"req_xxx","type":"done","result":{...}}
-```
-
-The bridge implements this with a long-lived child process per
-streaming operation.
-
----
-
-## The IPC operations
-
-The bridge exposes 21 IPC operations. They map 1-to-1 to the EAA
-subcommands:
-
-| IPC channel | EAA subcommand | Type | Description |
-| --- | --- | --- | --- |
-| `eaa:info` | `info` | read | System info: EAA version, data dir, schema version. |
-| `eaa:score` | `score` | read | A student's current conduct score. |
-| `eaa:ranking` | `ranking` | read | The class ranking (top N or all). |
-| `eaa:replay` | `replay` | read | Replay all events to recompute scores. |
-| `eaa:add-event` | `add_event` | write | Append a new event to the log. |
-| `eaa:revert-event` | `revert_event` | write | Append a `REVERT` event. |
-| `eaa:history` | `history` | read | A student's event history. |
-| `eaa:search` | `search` | read | Full-text search over events. |
-| `eaa:range` | `range` | read | Events in a date range. |
-| `eaa:tag` | `tag` | read | Events with a specific tag. |
-| `eaa:stats` | `stats` | read | Aggregate statistics. |
-| `eaa:validate` | `validate` | read | Validate the event log for consistency. |
-| `eaa:export` | `export` | write | Export to CSV / Excel / JSON. |
-| `eaa:list-students` | `list_students` | read | List all students. |
-| `eaa:add-student` | `add_student` | write | Add a new student. |
-| `eaa:delete-student` | `delete_student` | write | Soft-delete a student. |
-| `eaa:set-student-meta` | `set_student_meta` | write | Update a student's metadata. |
-| `eaa:import` | `import` | write | Import from a file. |
-| `eaa:codes` | `codes` | read | List valid reason codes. |
-| `eaa:doctor` | `doctor` | read | Health check. |
-| `eaa:summary` | `summary` | read | Generate a summary for a date range. |
-| `eaa:dashboard` | `dashboard` | write | Generate an HTML dashboard report. |
-
-The full schema for each operation is in
-`src/shared/types/index.ts` (539 lines) and mirrored in the EAA CLI
-documentation.
-
----
-
-## The tool layer
-
-The agents don't call the bridge directly. They call the **tool
-layer** in `src/main/services/eaa-tools.ts`. The tool layer:
-
-1. **Validates** the agent's `capabilities` list against the
-   requested operation. If the capability is missing, the tool call
-   is rejected before the bridge is invoked.
-2. **Sanitizes** the parameters. This is the security-critical
-   layer:
-   - String fields are checked for shell metacharacters
-     (`;`, `|`, `&`, `` ` ``, `$()`, `>`, `<`, `\\n`).
-   - Path fields are resolved against the working directory and
-     checked for `..` traversal.
-   - Numeric fields are bounded to their expected range.
-   - Student names are matched against the entity store.
-3. **Maps** the agent's "natural" operation names to the bridge's
-   method names. E.g. the agent says "addEvent" but the bridge
-   expects "add_event".
-4. **Calls** the bridge.
-5. **Returns** the result to the agent.
-
-The tool layer is the **single point of trust** for what the LLM
-can do. The agent's `capabilities` list is a **whitelist**, and the
-tool layer enforces it.
-
----
-
-## Error handling
-
-The bridge distinguishes four kinds of errors:
-
-### 1. Transport errors
-
-The binary failed to spawn, the child process died, the JSON
-response is malformed, etc. The bridge logs the error and throws
-`EAAError('TRANSPORT_ERROR', message)`. The renderer displays a
-generic "could not reach the data engine" message.
-
-### 2. Validation errors
-
-The EAA CLI rejected the request (e.g. unknown reason code, invalid
-student name). The bridge throws `EAAError(code, message)` with the
-EAA error code. The renderer displays the message verbatim with
-localized context.
-
-### 3. Capability errors
-
-The agent's `capabilities` list does not include the operation. The
-tool layer throws `EAAError('CAPABILITY_DENIED', ...)` **before** the
-bridge is even called. The renderer logs this to the audit log
-because it usually indicates a prompt-injection attempt.
-
-### 4. Sanitization errors
-
-A parameter contained a shell metacharacter, a path traversal, or
-another suspicious pattern. The tool layer throws
-`EAAError('INVALID_PARAMETER', ...)` **before** the bridge is called.
-The renderer displays a "your input was rejected as potentially
-unsafe" message.
-
-All errors are logged with:
-- The request ID
-- The agent ID
-- The method
-- The (sanitized) parameters
-- The stack trace (if any)
-
----
-
-## Debugging
-
-### View bridge traffic
-
-The bridge logs every request and response at `debug` level. To
-enable:
-
-1. Open Settings → Logs.
-2. Set log level to `debug`.
-3. Run an agent or trigger an EAA operation.
-4. The Logs page will show the JSON request and response.
-
-### Run EAA directly
-
-You can run the EAA CLI directly to debug:
-
-```bash
-# Linux / macOS
-./resources/eaa-binaries/linux-x64/eaa info
-
-# Windows
-.\resources\eaa-binaries\win32-x64\eaa.exe info
-```
-
-The CLI is fully usable on its own; the desktop app is a GUI on
-top of it.
-
-### Validate the event log
-
-If the event log gets corrupted (e.g. a power outage during a
-write), you can run the validator:
-
-```bash
-eaa validate --deep
-```
-
-This will:
-- Replay all events from the beginning
-- Compare the recomputed scores with the cached scores
-- Report any discrepancies
-
-If the log is broken, the EAA CLI will refuse to start; you can
-manually repair the last event with `eaa repair`.
-
-### Reset the data dir
-
-If everything is broken, you can reset the data dir. **This is
-destructive** — it deletes all events, all entities, all privacy
-state.
-
-1. Quit the app.
-2. Move `userData/eaa-data/` to a backup.
-3. Restart the app; it will recreate the data dir.
-
----
-
-## Building from source
-
-If you don't trust the pre-built release binary, you can build
-`eaa-cli` from source. The EAA CLI source is in the
-[`core/eaa-cli/`](https://github.com/232252/education-advisor/tree/main/core/eaa-cli)
-directory of the main `education-advisor` repository:
-
-```bash
-# 1. Clone the main repository (this same project)
-git clone https://github.com/232252/education-advisor.git ../education-advisor
-cd ../education-advisor
-
-# 2. Install Rust (if you don't have it)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-
-# 3. Build the CLI
-cd core/eaa-cli
-cargo build --release
-
-# 4. The binary is at target/release/eaa (Linux/macOS) or
-#    target/release/eaa.exe (Windows)
-ls target/release/eaa*
-
-# 5. Copy it to the resources directory of this repo
-mkdir -p ../../../education-advisor/resources/eaa-binaries/$(rustc -vV | sed -n 's|host: ||p')
-cp target/release/eaa$([ "$OS" = "Windows_NT" ] && echo .exe) \
-   ../../../education-advisor/resources/eaa-binaries/$(rustc -vV | sed -n 's|host: ||p')/
-```
-
-The desktop app will pick up the locally-built binary on the next
-startup.
-
----
-
-## Manual install
-
-If the `npm run build:eaa` script doesn't work for your environment
-(proxy, firewall, etc.), you can install the binary manually:
-
-1. Visit <https://github.com/232252/education-advisor/releases>.
-2. Find the latest release that has the EAA binaries.
-3. Download the binary for your platform.
-4. Verify the SHA-256 against the manifest in the release notes.
-5. Place it in `resources/eaa-binaries/<platform>/<binary>` where
-   `<platform>` is one of:
-   - `darwin-arm64` (Apple Silicon)
-   - `darwin-x64` (Intel Mac)
-   - `linux-arm64` (ARM Linux)
-   - `linux-x64` (x86_64 Linux)
-   - `win32-arm64` (Windows ARM)
-   - `win32-x64` (Windows x86_64)
-6. Make it executable: `chmod +x resources/eaa-binaries/<platform>/eaa`
-   (Linux / macOS only).
-7. Restart the app.
-
-The directory name is the value of `process.platform` + `process.arch`
-(see `src/main/services/eaa-bridge.ts`).
-
----
+See [`src-tauri/docs/02-RUST-CORE-REUSE.md`](../src-tauri/docs/02-RUST-CORE-REUSE.md)
+for the full diff.
 
 ## Performance
 
-The bridge is fast. On a typical 2023 laptop:
+| Operation | v0.1.0 (Electron) | v0.2.0 (Tauri) | Speedup |
+|---|---|---|---|
+| `eaa_add_event` | 52ms | 0.8ms | **65x** |
+| `eaa_score(name)` | 48ms | 0.4ms | **120x** |
+| `eaa_ranking(n=20)` | 61ms | 1.2ms | **50x** |
+| 10-tool agent loop (10 read calls) | 580ms | 0.3ms (cached) | **1933x** |
 
-- `eaa info` — ~20 ms
-- `eaa score Alice` — ~30 ms
-- `eaa ranking` — ~80 ms (for 50 students)
-- `eaa history Alice --limit 100` — ~120 ms
-- `eaa add_event` — ~50 ms (incl. fsync)
-- `eaa dashboard` — ~2–5 s (for 1 year of data, 50 students)
+The agent tool loop speedup is from `src-tauri/src/tools/data_cache.rs`
+— a one-time `DataSnapshot` (entities + events + index) is loaded into
+memory and reused for read-only tools, with `invalidate()` on write.
 
-The bottleneck is the **fsync** on the event log. We deliberately
-do not batch writes — every event is durably persisted before the
-tool call returns. This is the project's most important performance
-trade-off.
+## Building from source
 
-If you need higher write throughput (you don't — a class teacher
-records at most a few events per minute), see the
-[ROADMAP](../ROADMAP.md#pillar-6-privacy-compliance-audit) for the
-plan to add a write-coalescing buffer.
+The `eaa_core` library is built as part of the Tauri build:
 
----
+```bash
+# From the repo root
+npm run tauri:dev   # dev mode (auto-builds eaa_core)
+npm run tauri:build # release installer (auto-builds eaa_core)
+```
 
-## Security
+To build `eaa-cli` standalone (e.g. for cron jobs on a server):
 
-The bridge implements several layers of security:
+```bash
+cd core/eaa-cli
+cargo build --release --bin eaa
+# binary at target/release/eaa
+```
 
-1. **No shell.** The child process is spawned with
-   `shell: false` and with explicit argv. The OS is not involved in
-   parsing the command.
-2. **No relative paths in argv.** All paths passed to EAA are
-   absolute.
-3. **No env passthrough.** The child process only inherits the env
-   vars it needs (`EAA_DATA_DIR`, etc.).
-4. **Input validation.** The tool layer validates every parameter
-   before the bridge is called.
-5. **Output validation.** The bridge validates the EAA response
-   against a TypeBox schema before returning to the agent.
-6. **Timeout.** Each call has a 30-second timeout (configurable).
-   The child process is killed on timeout.
-7. **Audit log.** Every call is logged with the agent ID, the
-   method, and the (sanitized) parameters.
+## Troubleshooting
 
-The bridge is the **last line of defense** between the LLM and
-the file system. It is designed to fail closed.
+| Symptom | Cause | Fix |
+|---|---|---|
+| `cargo: command not found` | Rust not installed | Install via [rustup](https://rustup.rs) |
+| `linking with \`link.exe\` failed: not found` (Windows) | MSVC not installed | Install [VS Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) |
+| `javascriptcoregtk-4.1 not found` (Linux) | WebKitGTK dev headers missing | `apt install libwebkit2gtk-4.1-dev` |
+| `brotli E0277` | Vendor patch missing | Confirm `src-tauri/vendor/` and `[patch.crates-io]` are present in `src-tauri/Cargo.toml` |
+| `FileLock contention` | Another process holds the lock | Check no other `eaa` instance is running; lock auto-releases on process exit |
+| `Permission denied (os error 13)` on `eaa-data/` | userData perms wrong | `chmod -R u+rwX ~/.local/share/education-advisor` |
+
+For deeper debugging, see
+[`src-tauri/docs/05-BUILD-RUN.md`](../src-tauri/docs/05-BUILD-RUN.md)
+and [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md).

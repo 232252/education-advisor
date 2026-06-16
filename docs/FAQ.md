@@ -1,9 +1,20 @@
+---
+title: FAQ
+description: "常见问题解答"
+sidebar:
+  label: "常见问题"
+---
+
 # FAQ
 
 > **Frequently Asked Questions.** If you have a question that's not
 > here, open a
 > [GitHub Discussion](https://github.com/232252/education-advisor/discussions)
 > and we'll add it.
+>
+> ⚠️ **v0.2.0 更新提示**: 仓库已于 2026-06-15 从 Electron 迁移到 Tauri 2.0 + 纯 Rust 后端。
+> 本文档中仍保留部分 v0.1.0 历史对比内容; 当前构建方式、命令映射和技术栈以
+> [`README.md`](./README.md) 和 [`MIGRATION_REPORT.md`](./MIGRATION_REPORT.md) 为准。
 
 ## General
 
@@ -83,12 +94,15 @@ your code, configs, and 18 agents.
 
 ## Architecture
 
-**Q: Why Electron and not Tauri / native?**
+**Q: Why Tauri 2.0 and not Electron or native?**
 
-A: When we started, Tauri's Windows code-signing and auto-update
-story was still rough. We're tracking the Tauri ecosystem — see
-[`ROADMAP.md`](../ROADMAP.md#pillar-4-cross-platform-parity) for
-the long-term plan.
+A: v0.2.0 (Jun 2026) marked the full transition to Tauri 2.0. The
+trilogy of size (~17 MB vs Electron ~90 MB), startup (~0.4 s vs ~1.5 s),
+and memory footprint (~60 MB vs ~175 MB) were the deciding factors.
+Tauri's `cargo` ecosystem also lets us statically link the entire
+data engine — see [`EAA_BRIDGE.md`](./EAA_BRIDGE.md) for the 50-100x
+performance gain on data operations. v0.1.0 was Electron; that code
+is preserved in [`archive/legacy/`](../archive/legacy/) for reference.
 
 **Q: Why React and not Vue / Svelte?**
 

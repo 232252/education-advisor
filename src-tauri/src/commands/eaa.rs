@@ -8,7 +8,7 @@ use tauri::{AppHandle, State};
 use crate::error::Result;
 use crate::services::broadcaster;
 use crate::state::AppState;
-use crate::{EAAResult, events};
+use crate::{events, EAAResult};
 
 /// eaa:info — 系统概览。
 #[tauri::command]
@@ -35,7 +35,11 @@ pub async fn eaa_score(state: State<'_, AppState>, name: String) -> Result<EAARe
 
 #[tauri::command]
 pub async fn eaa_ranking(_state: State<'_, AppState>, n: Option<u64>) -> Result<EAAResult<Value>> {
-    let res = crate::tools::eaa_tools::dispatch("ranking", &json!({ "n": n.unwrap_or(10) }), &["*".into()]);
+    let res = crate::tools::eaa_tools::dispatch(
+        "ranking",
+        &json!({ "n": n.unwrap_or(10) }),
+        &["*".into()],
+    );
     match res {
         Ok(v) => Ok(EAAResult::ok(v)),
         Err(e) => Ok(EAAResult::fail(e.to_string())),
@@ -115,9 +119,13 @@ pub async fn eaa_revert_event(
     let res = crate::tools::eaa_tools::dispatch("revert", &args, &["*".into()]);
     match res {
         Ok(v) => {
-            let _ = broadcaster::emit_all(&app, events::EAA_EVENT_REVERTED, json!({
-                "eventId": event_id, "at": chrono::Utc::now().timestamp_millis()
-            }));
+            let _ = broadcaster::emit_all(
+                &app,
+                events::EAA_EVENT_REVERTED,
+                json!({
+                    "eventId": event_id, "at": chrono::Utc::now().timestamp_millis()
+                }),
+            );
             Ok(EAAResult::ok(v))
         }
         Err(e) => Ok(EAAResult::fail(e.to_string())),
@@ -139,7 +147,11 @@ pub async fn eaa_search(
     query: String,
     limit: Option<u64>,
 ) -> Result<EAAResult<Value>> {
-    let res = crate::tools::eaa_tools::dispatch("search", &json!({ "query": query, "limit": limit.unwrap_or(50) }), &["*".into()]);
+    let res = crate::tools::eaa_tools::dispatch(
+        "search",
+        &json!({ "query": query, "limit": limit.unwrap_or(50) }),
+        &["*".into()],
+    );
     match res {
         Ok(v) => Ok(EAAResult::ok(v)),
         Err(e) => Ok(EAAResult::fail(e.to_string())),
@@ -155,20 +167,26 @@ pub async fn eaa_range(
 ) -> Result<EAAResult<Value>> {
     // 直接 filter events by timestamp range
     let events = eaa_core::storage::load_events().map_err(crate::error::other)?;
-    let id2name = eaa_core::types::build_id_to_name(&eaa_core::storage::load_name_index().map_err(crate::error::other)?);
+    let id2name = eaa_core::types::build_id_to_name(
+        &eaa_core::storage::load_name_index().map_err(crate::error::other)?,
+    );
     let hits: Vec<Value> = events
         .iter()
         .filter(|e| e.timestamp >= start && e.timestamp <= end)
         .take(limit.unwrap_or(100) as usize)
-        .map(|e| json!({
-            "eventId": e.event_id,
-            "name": id2name.get(&e.entity_id),
-            "reasonCode": e.reason_code,
-            "delta": e.score_delta,
-            "timestamp": e.timestamp,
-        }))
+        .map(|e| {
+            json!({
+                "eventId": e.event_id,
+                "name": id2name.get(&e.entity_id),
+                "reasonCode": e.reason_code,
+                "delta": e.score_delta,
+                "timestamp": e.timestamp,
+            })
+        })
         .collect();
-    Ok(EAAResult::ok(json!({ "events": hits, "count": hits.len() })))
+    Ok(EAAResult::ok(
+        json!({ "events": hits, "count": hits.len() }),
+    ))
 }
 
 #[tauri::command]
@@ -229,23 +247,38 @@ pub async fn eaa_export(
     output_file: Option<String>,
 ) -> Result<EAAResult<Value>> {
     let events = eaa_core::storage::load_events().map_err(crate::error::other)?;
-    let id2name = eaa_core::types::build_id_to_name(&eaa_core::storage::load_name_index().map_err(crate::error::other)?);
+    let id2name = eaa_core::types::build_id_to_name(
+        &eaa_core::storage::load_name_index().map_err(crate::error::other)?,
+    );
     let content = match format.as_str() {
         "json" => serde_json::to_string_pretty(&events).unwrap_or_default(),
         "csv" => {
             let mut s = String::from("event_id,name,reason_code,delta,timestamp,note\n");
             for e in &events {
                 let name = id2name.get(&e.entity_id).cloned().unwrap_or_default();
-                s.push_str(&format!("{},{},{},{},{},{}\n", e.event_id, name, e.reason_code, e.score_delta, e.timestamp, e.note.replace(',', "，")));
+                s.push_str(&format!(
+                    "{},{},{},{},{},{}\n",
+                    e.event_id,
+                    name,
+                    e.reason_code,
+                    e.score_delta,
+                    e.timestamp,
+                    e.note.replace(',', "，")
+                ));
             }
             s
         }
         "markdown" => {
             // markdown 表格 (对齐原版 export 的 markdown 格式)
-            let mut s = String::from("# 事件导出\n\n| 事件ID | 学生 | 原因码 | 分值 | 时间 |\n|---|---|---|---|---|\n");
+            let mut s = String::from(
+                "# 事件导出\n\n| 事件ID | 学生 | 原因码 | 分值 | 时间 |\n|---|---|---|---|---|\n",
+            );
             for e in &events {
                 let name = id2name.get(&e.entity_id).cloned().unwrap_or_default();
-                s.push_str(&format!("| {} | {} | {} | {} | {} |\n", e.event_id, name, e.reason_code, e.score_delta, e.timestamp));
+                s.push_str(&format!(
+                    "| {} | {} | {} | {} | {} |\n",
+                    e.event_id, name, e.reason_code, e.score_delta, e.timestamp
+                ));
             }
             s
         }
@@ -254,17 +287,26 @@ pub async fn eaa_export(
             let mut rows = String::new();
             for e in &events {
                 let name = id2name.get(&e.entity_id).cloned().unwrap_or_default();
-                rows.push_str(&format!("<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>", e.event_id, name, e.reason_code, e.score_delta, e.timestamp));
+                rows.push_str(&format!(
+                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                    e.event_id, name, e.reason_code, e.score_delta, e.timestamp
+                ));
             }
             format!("<!DOCTYPE html><html><head><meta charset='utf-8'><title>事件导出</title><style>body{{font-family:sans-serif}}table{{border-collapse:collapse}}td,th{{border:1px solid #ccc;padding:4px 8px}}</style></head><body><h1>事件导出</h1><table><thead><tr><th>事件ID</th><th>学生</th><th>原因码</th><th>分值</th><th>时间</th></tr></thead><tbody>{rows}</tbody></table></body></html>")
         }
-        _ => return Ok(EAAResult::fail(format!("不支持的格式: {format} (支持 csv/json/markdown/html)"))),
+        _ => {
+            return Ok(EAAResult::fail(format!(
+                "不支持的格式: {format} (支持 csv/json/markdown/html)"
+            )))
+        }
     };
     if let Some(p) = output_file {
         std::fs::write(&p, &content).map_err(crate::error::other)?;
         Ok(EAAResult::ok(json!({ "path": p, "bytes": content.len() })))
     } else {
-        Ok(EAAResult::ok(json!({ "content": content, "bytes": content.len() })))
+        Ok(EAAResult::ok(
+            json!({ "content": content, "bytes": content.len() }),
+        ))
     }
 }
 
@@ -307,7 +349,11 @@ pub async fn eaa_add_student(
     index.insert(name.clone(), id.clone());
     eaa_core::storage::save_entities(&entities).map_err(crate::error::other)?;
     eaa_core::storage::save_name_index(&index).map_err(crate::error::other)?;
-    let _ = broadcaster::emit_all(&app, events::EAA_STUDENT_ADDED, json!({ "name": name, "at": chrono::Utc::now().timestamp_millis() }));
+    let _ = broadcaster::emit_all(
+        &app,
+        events::EAA_STUDENT_ADDED,
+        json!({ "name": name, "at": chrono::Utc::now().timestamp_millis() }),
+    );
     Ok(EAAResult::ok(json!({ "id": id, "name": name })))
 }
 
@@ -326,7 +372,10 @@ pub async fn eaa_delete_student(
     name: String,
     args: Option<DeleteStudentArgs>,
 ) -> Result<EAAResult<Value>> {
-    let args = args.unwrap_or(DeleteStudentArgs { confirm: Some(true), reason: None });
+    let args = args.unwrap_or(DeleteStudentArgs {
+        confirm: Some(true),
+        reason: None,
+    });
     if !args.confirm.unwrap_or(false) {
         return Ok(EAAResult::fail("删除需 confirm=true"));
     }
@@ -339,7 +388,11 @@ pub async fn eaa_delete_student(
     entities.entities.remove(&name);
     eaa_core::storage::save_entities(&entities).map_err(crate::error::other)?;
     eaa_core::storage::save_name_index(&index).map_err(crate::error::other)?;
-    let _ = broadcaster::emit_all(&app, events::EAA_STUDENT_DELETED, json!({ "name": name, "at": chrono::Utc::now().timestamp_millis() }));
+    let _ = broadcaster::emit_all(
+        &app,
+        events::EAA_STUDENT_DELETED,
+        json!({ "name": name, "at": chrono::Utc::now().timestamp_millis() }),
+    );
     Ok(EAAResult::ok(json!({ "deleted": name })))
 }
 
@@ -350,8 +403,14 @@ pub async fn eaa_set_student_meta(
 ) -> Result<EAAResult<Value>> {
     let _lock = eaa_core::storage::FileLock::acquire().map_err(crate::error::other)?;
     let mut entities = eaa_core::storage::load_entities().map_err(crate::error::other)?;
-    let name = params.get("name").and_then(|v| v.as_str()).ok_or_else(|| crate::error::AppError::Validation("缺少 name".into()))?;
-    let entry = entities.entities.get_mut(name).ok_or_else(|| crate::error::AppError::NotFound(format!("学生 {name}")))?;
+    let name = params
+        .get("name")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| crate::error::AppError::Validation("缺少 name".into()))?;
+    let entry = entities
+        .entities
+        .get_mut(name)
+        .ok_or_else(|| crate::error::AppError::NotFound(format!("学生 {name}")))?;
     if let Some(g) = params.get("group").and_then(|v| v.as_str()) {
         entry.groups = vec![g.to_string()];
     }
@@ -366,11 +425,15 @@ pub async fn eaa_set_student_meta(
 }
 
 #[tauri::command]
-pub async fn eaa_import(_state: State<'_, AppState>, file_path: String) -> Result<EAAResult<Value>> {
+pub async fn eaa_import(
+    _state: State<'_, AppState>,
+    file_path: String,
+) -> Result<EAAResult<Value>> {
     // 简化: 读 CSV/JSON 批量插入事件
     let content = std::fs::read_to_string(&file_path).map_err(crate::error::other)?;
     let imported = if file_path.ends_with(".json") {
-        let events: Vec<eaa_core::Event> = serde_json::from_str(&content).map_err(crate::error::other)?;
+        let events: Vec<eaa_core::Event> =
+            serde_json::from_str(&content).map_err(crate::error::other)?;
         let len = events.len();
         eaa_core::storage::save_events(&events).map_err(crate::error::other)?;
         len
@@ -426,7 +489,11 @@ pub async fn eaa_summary(
             ok_since && ok_until
         })
         .collect();
-    let total: f64 = filtered.iter().filter(|e| e.is_valid).map(|e| e.score_delta).sum();
+    let total: f64 = filtered
+        .iter()
+        .filter(|e| e.is_valid)
+        .map(|e| e.score_delta)
+        .sum();
     Ok(EAAResult::ok(json!({
         "since": since,
         "until": until,
@@ -436,9 +503,14 @@ pub async fn eaa_summary(
 }
 
 #[tauri::command]
-pub async fn eaa_dashboard(_state: State<'_, AppState>, output_dir: Option<String>) -> Result<EAAResult<Value>> {
+pub async fn eaa_dashboard(
+    _state: State<'_, AppState>,
+    output_dir: Option<String>,
+) -> Result<EAAResult<Value>> {
     // 简化: 返回排行 + 统计数据 (前端用 ECharts 渲染, 不生成静态 HTML)
     let ranking = crate::tools::eaa_tools::dispatch("ranking", &json!({ "n": 50 }), &["*".into()])?;
     let stats = crate::tools::eaa_tools::dispatch("stats", &json!({}), &["*".into()])?;
-    Ok(EAAResult::ok(json!({ "ranking": ranking, "stats": stats, "outputDir": output_dir })))
+    Ok(EAAResult::ok(
+        json!({ "ranking": ranking, "stats": stats, "outputDir": output_dir }),
+    ))
 }

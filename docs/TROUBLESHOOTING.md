@@ -1,3 +1,10 @@
+---
+title: Troubleshooting
+description: "问题排查清单"
+sidebar:
+  label: "问题排查"
+---
+
 # Troubleshooting
 
 > **The big list of common issues and their fixes.** If you have

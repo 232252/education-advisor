@@ -16,10 +16,11 @@ permissions:
 
 jobs:
   # ----------------------------------------------------------------
-  # Quality gates — must pass before any merge.
+  # Frontend quality gates — must pass before any merge.
+  # v0.2.0: 仓库已无 Electron, 渲染端由 src/renderer/ 单项目维护。
   # ----------------------------------------------------------------
-  quality-gates:
-    name: Quality gates (typecheck + lint + test)
+  frontend-quality:
+    name: Frontend (typecheck + lint + test + build)
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -59,19 +60,68 @@ jobs:
         shell: bash
         run: npm run test
 
-      - name: Build (renderer + main)
+      - name: Build renderer
         shell: bash
-        run: npm run build
+        run: npm run build:renderer
 
       - name: Upload build artifacts
         if: matrix.os == 'ubuntu-latest' && github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.os }}
+          name: dist-renderer-${{ matrix.os }}
           path: |
-            dist/
+            dist/renderer/**
             !dist/**/*.map
           retention-days: 7
+
+  # ----------------------------------------------------------------
+  # Backend (Rust) quality gates — must pass before any merge.
+  # v0.2.0: src-tauri/ 是仓库主程序, 强约束。
+  # ----------------------------------------------------------------
+  rust-quality:
+    name: Rust (check + test, headless)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable + 1.95.0, with fmt+clippy)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchains: stable, 1.95.0
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Show rustc versions
+        shell: bash
+        run: |
+          rustc +stable --version
+          rustc +1.95.0 --version
+
+      - name: cargo fmt (format check)
+        # 非协商项: PR 没 fmt 直接打回。--check 只报 diff 不改文件。
+        shell: bash
+        run: cargo +1.95.0 fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: cargo clippy (lint, report only)
+        # 输出 clippy 警告供评审参考。
+        # 注: 不用 -D warnings, 因为既有代码有 ~20 个历史 warning (见 CODE_STYLES.md
+        # "已知豁免")。新代码应在本地清零 clippy 后再提交。
+        # 后续待历史 warning 清零后, 再升级为 -- -D warnings 阻断。
+        shell: bash
+        run: cargo +1.95.0 clippy --manifest-path src-tauri/Cargo.toml --all-targets || true
+
+      - name: cargo check (lib + bin)
+        shell: bash
+        run: cargo +1.95.0 check --manifest-path src-tauri/Cargo.toml --all-targets
+
+      - name: cargo test (lib)
+        shell: bash
+        run: cargo +1.95.0 test --manifest-path src-tauri/Cargo.toml --lib
 
   # ----------------------------------------------------------------
   # CodeQL — security static analysis.
@@ -101,35 +151,3 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: /language:${{ matrix.language }}
-
-  # ----------------------------------------------------------------
-  # Auto-update manifest — runs on tagged releases.
-  # ----------------------------------------------------------------
-  auto-update-manifest:
-    name: Generate auto-update manifest
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: quality-gates
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Generate manifest
-        shell: bash
-        run: |
-          # Build the latest.yml / latest-mac.yml / latest-linux.yml
-          # that electron-builder's auto-update expects.
-          node scripts/generate-update-manifest.mjs "${{ github.ref_name }}"
-
-      - name: Upload manifests
-        uses: actions/upload-artifact@v4
-        with:
-          name: update-manifests
-          path: |
-            latest.yml
-            latest-mac.yml
-            latest-linux.yml
-            release-notes.md
-          retention-days: 30

@@ -34,7 +34,11 @@ pub async fn log_list(state: State<'_, AppState>) -> Result<Vec<Value>> {
 }
 
 #[tauri::command]
-pub async fn log_read(state: State<'_, AppState>, name: String, lines: Option<usize>) -> Result<String> {
+pub async fn log_read(
+    state: State<'_, AppState>,
+    name: String,
+    lines: Option<usize>,
+) -> Result<String> {
     let path = log_dir(&state).join(&name);
     let content = std::fs::read_to_string(&path).unwrap_or_default();
     if let Some(n) = lines {
@@ -62,7 +66,12 @@ pub async fn log_clear(state: State<'_, AppState>) -> Result<u64> {
 }
 
 #[tauri::command]
-pub async fn log_filter(state: State<'_, AppState>, name: String, levels: Vec<String>, lines: Option<usize>) -> Result<String> {
+pub async fn log_filter(
+    state: State<'_, AppState>,
+    name: String,
+    levels: Vec<String>,
+    lines: Option<usize>,
+) -> Result<String> {
     let path = log_dir(&state).join(&name);
     let content = std::fs::read_to_string(&path).unwrap_or_default();
     let filtered: Vec<&str> = content
@@ -79,7 +88,12 @@ pub async fn log_filter(state: State<'_, AppState>, name: String, levels: Vec<St
 }
 
 #[tauri::command]
-pub async fn log_search(state: State<'_, AppState>, name: String, query: String, lines: Option<usize>) -> Result<String> {
+pub async fn log_search(
+    state: State<'_, AppState>,
+    name: String,
+    query: String,
+    lines: Option<usize>,
+) -> Result<String> {
     let path = log_dir(&state).join(&name);
     let content = std::fs::read_to_string(&path).unwrap_or_default();
     let hits: Vec<&str> = content.lines().filter(|l| l.contains(&query)).collect();
@@ -93,13 +107,21 @@ pub async fn log_search(state: State<'_, AppState>, name: String, query: String,
 }
 
 #[tauri::command]
-pub async fn log_export(state: State<'_, AppState>, name: String, target_path: String) -> Result<u64> {
+pub async fn log_export(
+    state: State<'_, AppState>,
+    name: String,
+    target_path: String,
+) -> Result<u64> {
     let src = log_dir(&state).join(&name);
     std::fs::copy(&src, &target_path).map_err(crate::error::other)
 }
 
 #[tauri::command]
-pub async fn log_export_dialog(app: AppHandle, state: State<'_, AppState>, name: String) -> Result<Value> {
+pub async fn log_export_dialog(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<Value> {
     use tauri_plugin_dialog::DialogExt;
     let src = log_dir(&state).join(&name);
     let path = app
@@ -118,7 +140,11 @@ pub async fn log_export_dialog(app: AppHandle, state: State<'_, AppState>, name:
 }
 
 #[tauri::command]
-pub async fn log_write_renderer(_state: State<'_, AppState>, level: String, msg: String) -> Result<()> {
+pub async fn log_write_renderer(
+    _state: State<'_, AppState>,
+    level: String,
+    msg: String,
+) -> Result<()> {
     // tracing::event! 宏要求 level 是编译期常量, 这里按级别分发。
     match level.as_str() {
         "error" => tracing::error!(target: "renderer", "{msg}"),

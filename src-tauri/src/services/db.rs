@@ -75,7 +75,7 @@ pub struct ChatSessionRecord {
 // =============================================================
 
 pub struct DbService {
-    conn: Mutex<Connection>,
+    pub(crate) conn: Mutex<Connection>,
 }
 
 impl DbService {
@@ -93,7 +93,9 @@ impl DbService {
              PRAGMA foreign_keys = ON;",
         )?;
         Self::migrate(&conn)?;
-        Ok(Self { conn: Mutex::new(conn) })
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
     }
 
     /// 建表 (idempotent)。schema 与 db-service.ts 一一对应。
@@ -154,9 +156,61 @@ impl DbService {
             );
             CREATE INDEX IF NOT EXISTS idx_cron_logs_task_id ON cron_logs(task_id);
             CREATE INDEX IF NOT EXISTS idx_cron_logs_timestamp ON cron_logs(timestamp);
+
+            -- ===== Harness 三表 (阶段二新增, 与 eaa/electron 旧版无 schema 冲突) =====
+            -- 顶层 run 记录 (替代原 agent_executions 中 run_id 维度的功能,
+            -- 旧 agent_executions 保留向后兼容)。
+            CREATE TABLE IF NOT EXISTS agent_runs (
+                id TEXT PRIMARY KEY,
+                agent_id TEXT NOT NULL,
+                prompt TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('running','success','failure','aborted')),
+                started_at INTEGER NOT NULL,
+                finished_at INTEGER,
+                rounds INTEGER NOT NULL DEFAULT 0,
+                input_tokens INTEGER NOT NULL DEFAULT 0,
+                output_tokens INTEGER NOT NULL DEFAULT 0,
+                cost_usd_micros INTEGER NOT NULL DEFAULT 0,
+                final_text TEXT,
+                error TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_agent_runs_agent_id ON agent_runs(agent_id);
+            CREATE INDEX IF NOT EXISTS idx_agent_runs_started_at ON agent_runs(started_at);
+            CREATE INDEX IF NOT EXISTS idx_agent_runs_status ON agent_runs(status);
+
+            -- ReAct 步骤
+            CREATE TABLE IF NOT EXISTS agent_run_steps (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                seq INTEGER NOT NULL,
+                kind TEXT NOT NULL CHECK(kind IN ('plan','act','observe','reflect','final_answer')),
+                state_json TEXT NOT NULL DEFAULT '{}',
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (run_id) REFERENCES agent_runs(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_agent_run_steps_run_id ON agent_run_steps(run_id);
+
+            -- 工具调用 (含 HITL 状态)
+            CREATE TABLE IF NOT EXISTS agent_run_tool_calls (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                step_id TEXT NOT NULL,
+                tool_name TEXT NOT NULL,
+                args_json TEXT NOT NULL,
+                result_json TEXT,
+                status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected','executed','failed')),
+                approved_by TEXT,
+                started_at INTEGER NOT NULL,
+                finished_at INTEGER,
+                FOREIGN KEY (run_id) REFERENCES agent_runs(id) ON DELETE CASCADE,
+                FOREIGN KEY (step_id) REFERENCES agent_run_steps(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_agent_run_tool_calls_run_id ON agent_run_tool_calls(run_id);
+            CREATE INDEX IF NOT EXISTS idx_agent_run_tool_calls_step_id ON agent_run_tool_calls(step_id);
+            CREATE INDEX IF NOT EXISTS idx_agent_run_tool_calls_status ON agent_run_tool_calls(status);
             ",
         )?;
-        tracing::info!("db migrated: 4 tables ready");
+        tracing::info!("db migrated: 7 tables ready");
         Ok(())
     }
 
@@ -170,9 +224,16 @@ impl DbService {
               tokens_input, tokens_output, cost_total)
              VALUES (?,?,?,?,?,?,?,?,?,?)",
             params![
-                rec.agent_id, rec.started_at, rec.finished_at, rec.status,
-                rec.prompt, rec.output, rec.error,
-                rec.tokens_input, rec.tokens_output, rec.cost_total,
+                rec.agent_id,
+                rec.started_at,
+                rec.finished_at,
+                rec.status,
+                rec.prompt,
+                rec.output,
+                rec.error,
+                rec.tokens_input,
+                rec.tokens_output,
+                rec.cost_total,
             ],
         )?;
         Ok(conn.last_insert_rowid())
@@ -186,8 +247,14 @@ impl DbService {
                 tokens_input=?, tokens_output=?, cost_total=?
              WHERE id=?",
             params![
-                rec.finished_at, rec.status, rec.output, rec.error,
-                rec.tokens_input, rec.tokens_output, rec.cost_total, id,
+                rec.finished_at,
+                rec.status,
+                rec.output,
+                rec.error,
+                rec.tokens_input,
+                rec.tokens_output,
+                rec.cost_total,
+                id,
             ],
         )?;
         Ok(())
@@ -288,8 +355,17 @@ impl DbService {
               provider, model, token_input, token_output, cost)
              VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             params![
-                msg.session_id, msg.role, msg.content, msg.thinking, msg.tool_calls,
-                msg.timestamp, msg.provider, msg.model, msg.token_input, msg.token_output, msg.cost,
+                msg.session_id,
+                msg.role,
+                msg.content,
+                msg.thinking,
+                msg.tool_calls,
+                msg.timestamp,
+                msg.provider,
+                msg.model,
+                msg.token_input,
+                msg.token_output,
+                msg.cost,
             ],
         )?;
         let id = conn.last_insert_rowid();
@@ -307,10 +383,7 @@ impl DbService {
         Ok(id)
     }
 
-    pub async fn load_messages(
-        &self,
-        session_id: Option<&str>,
-    ) -> Result<Vec<serde_json::Value>> {
+    pub async fn load_messages(&self, session_id: Option<&str>) -> Result<Vec<serde_json::Value>> {
         let conn = self.conn.lock().await;
         let (sql, sid): (&str, String) = match session_id {
             Some(s) => ("WHERE session_id=? ORDER BY timestamp ASC", s.to_string()),
@@ -323,7 +396,8 @@ impl DbService {
         );
         let mut stmt = conn.prepare(&sql)?;
         let rows = if session_id.is_some() {
-            stmt.query_map(params![sid], row_to_json)?.collect::<Vec<_>>()
+            stmt.query_map(params![sid], row_to_json)?
+                .collect::<Vec<_>>()
         } else {
             stmt.query_map([], row_to_json)?.collect::<Vec<_>>()
         };
@@ -336,7 +410,10 @@ impl DbService {
 
     pub async fn delete_session(&self, session_id: &str) -> Result<()> {
         let conn = self.conn.lock().await;
-        conn.execute("DELETE FROM chat_messages WHERE session_id=?", params![session_id])?;
+        conn.execute(
+            "DELETE FROM chat_messages WHERE session_id=?",
+            params![session_id],
+        )?;
         conn.execute("DELETE FROM chat_sessions WHERE id=?", params![session_id])?;
         Ok(())
     }
@@ -372,7 +449,13 @@ impl DbService {
         conn.execute(
             "INSERT INTO cron_logs (task_id, level, message, timestamp, metadata)
              VALUES (?,?,?,?,?)",
-            params![rec.task_id, rec.level, rec.message, rec.timestamp, rec.metadata],
+            params![
+                rec.task_id,
+                rec.level,
+                rec.message,
+                rec.timestamp,
+                rec.metadata
+            ],
         )?;
         Ok(())
     }
