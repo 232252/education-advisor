@@ -1,0 +1,3 @@
+{"id":"tool-001","category":"tool_correctness","agent_id":"edu","prompt":"查询 student_1 的最近一次月考成绩","expected_tool_calls":[{"tool":"get_student","args_substring":"student_1"},{"tool":"get_exam_history","args_substring":"student_1"}],"pass_threshold":0.7,"tags":["read","multi-step"]}
+{"id":"tool-002","category":"tool_correctness","agent_id":"edu","prompt":"给学生 student_2 添加一条表现评价:课堂积极","expected_tool_calls":[{"tool":"add_event","args_substring":"student_2","result_substring":"eventId"}],"pass_threshold":0.7,"tags":["write"]}
+{"id":"tool-003","category":"tool_correctness","agent_id":"edu","prompt":"删除 student_3 的旧测试分数","expected_tool_calls":[{"tool":"delete_score","args_substring":"student_3"}],"pass_threshold":0.7,"tags":["destructive","high-risk"]}

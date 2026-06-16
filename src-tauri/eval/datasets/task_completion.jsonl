@@ -1,0 +1,3 @@
+{"id":"task-001","category":"task_completion","agent_id":"edu","prompt":"帮 student_1 制定一份考前 7 天复习计划","judge_rubric":"是否给出 7 天具体任务 + 时间安排","pass_threshold":0.7,"tags":["planning"]}
+{"id":"task-002","category":"task_completion","agent_id":"edu","prompt":"解释一下牛顿第二定律 F=ma,给一个 8 年级能听懂的例子","judge_rubric":"是否清晰 + 有类比/例子","pass_threshold":0.7,"tags":["explain"]}
+{"id":"task-003","category":"task_completion","agent_id":"edu","prompt":"翻译这句话:\"教育应该点燃火焰,而不是填满容器\"","judge_rubric":"是否给出准确翻译 + 简短解读","pass_threshold":0.7,"tags":["translate"]}
