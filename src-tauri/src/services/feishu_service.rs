@@ -15,7 +15,9 @@ use crate::error::{AppError, Result};
 /// - 从 keystore 读取 (key = "feishu_webhook_secret"), 运行时配置优先于环境变量
 /// - 回退到 env FEISHU_CALLBACK_SECRET
 /// - 都没有 → 回调校验 disabled (verify_webhook 返回 Config 错误, 不 panic)
-fn resolve_webhook_secret(keystore: Option<&crate::services::keystore::KeystoreService>) -> Option<String> {
+fn resolve_webhook_secret(
+    keystore: Option<&crate::services::keystore::KeystoreService>,
+) -> Option<String> {
     if let Some(ks) = keystore {
         if let Ok(Some(s)) = ks.get("feishu_webhook_secret") {
             if !s.is_empty() {
@@ -23,7 +25,9 @@ fn resolve_webhook_secret(keystore: Option<&crate::services::keystore::KeystoreS
             }
         }
     }
-    std::env::var("FEISHU_CALLBACK_SECRET").ok().filter(|s| !s.is_empty())
+    std::env::var("FEISHU_CALLBACK_SECRET")
+        .ok()
+        .filter(|s| !s.is_empty())
 }
 
 pub struct FeishuService {
@@ -61,7 +65,10 @@ impl FeishuService {
         let body = serde_json::json!({"app_id": app_id, "app_secret": app_secret});
         let resp: TokenResp = self.http.post(url).json(&body).send().await?.json().await?;
         if resp.code != 0 {
-            return Err(AppError::Feishu(format!("{} (code {})", resp.msg, resp.code)));
+            return Err(AppError::Feishu(format!(
+                "{} (code {})",
+                resp.msg, resp.code
+            )));
         }
         Ok(resp)
     }
@@ -111,11 +118,7 @@ impl FeishuService {
     }
 
     /// 列出多维表格的表。
-    pub async fn list_bitable(
-        &self,
-        token: &str,
-        app_token: &str,
-    ) -> Result<Vec<BitableTable>> {
+    pub async fn list_bitable(&self, token: &str, app_token: &str) -> Result<Vec<BitableTable>> {
         let url = format!(
             "https://open.feishu.cn/open-apis/bitable/v1/apps/{app_token}/tables?page_size=100"
         );
@@ -131,7 +134,9 @@ impl FeishuService {
         if code != 0 {
             return Err(AppError::Feishu(format!(
                 "{}",
-                resp.get("msg").and_then(|m| m.as_str()).unwrap_or("unknown")
+                resp.get("msg")
+                    .and_then(|m| m.as_str())
+                    .unwrap_or("unknown")
             )));
         }
         let tables = resp
@@ -140,8 +145,16 @@ impl FeishuService {
             .map(|arr| {
                 arr.iter()
                     .map(|t| BitableTable {
-                        table_id: t.get("table_id").and_then(|s| s.as_str()).unwrap_or_default().to_string(),
-                        name: t.get("name").and_then(|s| s.as_str()).unwrap_or_default().to_string(),
+                        table_id: t
+                            .get("table_id")
+                            .and_then(|s| s.as_str())
+                            .unwrap_or_default()
+                            .to_string(),
+                        name: t
+                            .get("name")
+                            .and_then(|s| s.as_str())
+                            .unwrap_or_default()
+                            .to_string(),
                     })
                     .collect::<Vec<_>>()
             })
@@ -164,13 +177,22 @@ impl FeishuService {
             "msg_type": "text",
             "content": serde_json::to_string(&serde_json::json!({"text": text}))?,
         });
-        let resp: serde_json::Value =
-            self.http.post(&url).bearer_auth(token).json(&body).send().await?.json().await?;
+        let resp: serde_json::Value = self
+            .http
+            .post(&url)
+            .bearer_auth(token)
+            .json(&body)
+            .send()
+            .await?
+            .json()
+            .await?;
         let code = resp.get("code").and_then(|c| c.as_i64()).unwrap_or(-1);
         if code != 0 {
             return Err(AppError::Feishu(format!(
                 "{}",
-                resp.get("msg").and_then(|m| m.as_str()).unwrap_or("unknown")
+                resp.get("msg")
+                    .and_then(|m| m.as_str())
+                    .unwrap_or("unknown")
             )));
         }
         let msg_id = resp
@@ -193,13 +215,22 @@ impl FeishuService {
             "https://open.feishu.cn/open-apis/bitable/v1/apps/{app_token}/tables/{table_id}/records"
         );
         let body = serde_json::json!({"fields": fields});
-        let resp: serde_json::Value =
-            self.http.post(&url).bearer_auth(token).json(&body).send().await?.json().await?;
+        let resp: serde_json::Value = self
+            .http
+            .post(&url)
+            .bearer_auth(token)
+            .json(&body)
+            .send()
+            .await?
+            .json()
+            .await?;
         let code = resp.get("code").and_then(|c| c.as_i64()).unwrap_or(-1);
         if code != 0 {
             return Err(AppError::Feishu(format!(
                 "{}",
-                resp.get("msg").and_then(|m| m.as_str()).unwrap_or("unknown")
+                resp.get("msg")
+                    .and_then(|m| m.as_str())
+                    .unwrap_or("unknown")
             )));
         }
         Ok(resp

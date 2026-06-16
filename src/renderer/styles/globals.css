@@ -54,7 +54,7 @@
 body {
   font-family: "Inter", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden; /* Electron 窗口不需要 body 滚动 */
+  overflow: hidden; /* 桌面窗口不需要 body 滚动 */
 }
 
 /* Markdown 代码块 */

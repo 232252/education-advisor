@@ -1,20 +1,22 @@
 # 🎓 Education Advisor
 
-> **Education Advisor — the desktop upgrade of the open-source multi-agent education management system.**
-> Same project, new platform. 18 specialized agents, privacy-preserving PII engine, cross-platform LLM orchestration, and full local-first data ownership.
+> **Education Advisor — the Tauri-powered desktop of the open-source multi-agent education management system.**
+> 18 specialized agents, privacy-preserving PII engine, cross-platform LLM orchestration, all wrapped in a 17MB native-feeling Rust+WebView app.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Node](https://img.shields.io/badge/node-%E2%89%A522-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![Electron](https://img.shields.io/badge/electron-33-47848F?logo=electron&logoColor=white)](https://www.electronjs.org)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](./LICENSE-MIT)
+[![Rust](https://img.shields.io/badge/rustc-1.95%2B-orange.svg)](https://www.rust-lang.org)
+[![Tauri](https://img.shields.io/badge/Tauri-2.0-FFC131?logo=tauri)](https://tauri.app)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/typescript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![React](https://img.shields.io/badge/react-18-61DAFB?logo=react&logoColor=black)](https://react.dev)
-[![Rust backend](https://img.shields.io/badge/backend-Rust%20%2B%20eaa--cli-DEA584?logo=rust&logoColor=black)](https://github.com/232252/education-advisor)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
-[![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](./CODE_OF_CONDUCT.md)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg)](#-极速上手)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
+
+**Linux x86_64** · **Windows x86_64** · **macOS x86_64 + Apple Silicon ARM64**
 
 > 📖 **Read the full project introduction**: [`PROJECT_INTRO.md`](./PROJECT_INTRO.md)
 > 🚀 **Just want to run it?** Jump to [Quick start](#-quick-start).
 > 🤖 **Why is this open-source interesting?** Jump to [What makes it different](#-what-makes-it-different).
+> 🦀 **v0.2.0 仓库转正**: 仓库已从 Electron 全面切换到 Tauri 2.0,详见 [`MIGRATION_REPORT.md`](./MIGRATION_REPORT.md)
 
 ---
 
@@ -40,7 +42,7 @@
 
 ## 🧭 What is this?
 
-**Education Advisor** is a **cross-platform desktop application** (Electron 33 + React 18 + TypeScript 5.7) — the **desktop upgrade** of [`education-advisor`](https://github.com/232252/education-advisor), the same open-source multi-agent system, now wrapped in a native-feeling UI. The previous v3.x release was a CLI-only Rust project; this v0.1.0 release is the same system, ported to a desktop GUI. The Rust `eaa-cli` is the data engine that powers it under the hood.
+**Education Advisor** is a **cross-platform desktop application** (Tauri 2.0 + Rust + React 18 + TypeScript 5.7) — the **desktop upgrade** of [`education-advisor`](https://github.com/232252/education-advisor), the same open-source multi-agent system, now wrapped in a native-feeling UI. The previous v3.x release was a CLI-only Rust project; the v0.1.0 release ported it to a desktop GUI (Electron 33). From v0.2.0, the entire backend is a single Rust binary (no Node.js main process). The Rust `eaa-cli` (the data engine) is statically linked as `eaa_core` — no subprocess spawn, no IPC overhead.
 
 In plain English:
 
@@ -51,7 +53,7 @@ It is **not a chat bot**. It is **not a SaaS**. It is a **local-first desktop to
 - Reads & writes a **Rust event-sourced event store** (the EAA CLI) — every action is auditable, every event is append-only, the data is yours.
 - Runs **18 specialized agents** on schedule (cron) or on demand — each one has a clear role (academic, psychology, safety, weekly report, …) and a tight set of permissions.
 - Encrypts **all PII** (student names, IDs, phone numbers, addresses) with **AES-256-GCM** before anything leaves the machine.
-- Speaks to **30+ LLM providers** through the bundled [`@earendil-works/pi-ai`](https://www.npmjs.com/) SDK — including OpenAI, Anthropic, Google, Mistral, DeepSeek, Qwen, Doubao, Zhipu, Ollama, LM Studio, and any OpenAI-compatible endpoint.
+- Speaks to **30+ LLM providers** through the in-tree Rust LLM service (`src-tauri/src/services/llm_service.rs`) — including OpenAI, Anthropic, Google, Mistral, DeepSeek, Qwen, Doubao, Zhipu, Ollama, LM Studio, and any OpenAI-compatible endpoint.
 - Syncs to **Feishu Bitable** so the whole teaching team can see the same numbers in the same spreadsheet.
 - Ships as a **Windows installer (NSIS) and a portable .exe** out of the box, with macOS / Linux targets one config flip away.
 
@@ -82,7 +84,7 @@ We deliberately designed every agent's prompt to work with **3–4B parameter mo
 Privacy is not a checkbox. The Rust PII engine builds a per-install **encrypted mapping table** (AES-256-GCM) from "Alice" to `S_017`, and exposes 11 IPC operations: `init`, `load`, `enable`, `disable`, `list`, `add`, `anonymize`, `deanonymize`, `filter` (per recipient!), `dryrun`, `backup`. You can hand an LLM your entire class list anonymized, then re-hydrate names only in the final report that goes to a parent.
 
 ### 5. **Reproducible builds, no surprises**
-`npm ci` → `npm run build` → `npm run package` produces a byte-identical Windows installer (modulo timestamps) on any Windows machine with Node 22. No hidden system state, no opaque installers, no "magic" native modules beyond `better-sqlite3` and the Rust EAA binary. The whole supply chain is in this repo.
+`npm ci` → `npm run build:renderer` → `npm run tauri:build` produces a byte-identical Windows installer (modulo timestamps) on any Windows machine with Node 22 + Rust 1.95+. No hidden system state, no opaque installers, no "magic" native modules beyond `rusqlite` and the Rust EAA core. The whole supply chain is in this repo.
 
 ---
 
@@ -112,24 +114,19 @@ Privacy is not a checkbox. The Rust PII engine builds a per-install **encrypted 
 │  Dashboard · Chat · Students · Agents · Models · Skills · ...    │
 │  Zustand stores · i18n (zh/en) · 9 routes · 12 hooks             │
 └────────────────────────┬─────────────────────────────────────────┘
-                         │  contextBridge  (window.api, 11 namespaces)
+                         │  invoke / listen  (Tauri command/event)
                          │  90+ IPC channels · 1 type-safe surface
 ┌────────────────────────▼─────────────────────────────────────────┐
-│                  Main (Node 22 + Electron 33)                    │
+│                  Tauri 2.0  (Rust main process)                  │
 │                                                                  │
-│  11 IPC handlers ── 13 services ── 4 Zustand-like stores         │
+│  13 commands ── 13 services ── SQLite (rusqlite)                 │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────┐  │
-│  │ pi-ai SDK   │  │  EAA bridge │  │ SQLite (db) │  │ Tray /  │  │
-│  │ 30+ LLM     │  │  Rust child │  │ chat / cron │  │ Auto-   │  │
-│  │ providers   │  │  process    │  │ logs /agent │  │ update  │  │
+│  │ llm_service │  │  eaa_core   │  │   SQLite    │  │ Tray /  │  │
+│  │ 30+ LLM     │  │  Rust lib   │  │ chat / cron │  │ Auto-   │  │
+│  │ providers   │  │  in-process │  │ logs /agent │  │ update  │  │
 │  └─────────────┘  └──────┬──────┘  └─────────────┘  └─────────┘  │
 │         18 agents ────────┘                                      │
-│  governed by config/agents.yaml · triggered by node-cron         │
-└────────────────────────┬─────────────────────────────────────────┘
-                         │  stdin/stdout JSON  +  file lock
-┌────────────────────────▼─────────────────────────────────────────┐
-│         eaa-cli  (Rust · events · privacy · dashboard)           │
-│   https://github.com/232252/education-advisor  (same project)   │
+│  governed by config/agents.yaml · triggered by tokio-cron-scheduler
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -139,7 +136,7 @@ Read the full architecture breakdown in [`docs/ARCHITECTURE.md`](./docs/ARCHITEC
 
 ## 🚀 Quick start
 
-> **Prerequisites**: Node.js ≥ 22, npm ≥ 10, a working C++ toolchain on your platform (so `better-sqlite3` can build its native binding).
+> **Prerequisites**: Node.js ≥ 22, npm ≥ 10, Rust ≥ 1.95.0.
 
 ### 1. Clone & install
 
@@ -149,38 +146,46 @@ cd education-advisor
 npm ci
 ```
 
-### 2. Fetch the Rust backend
+### 2. The Rust backend
 
-The Rust `eaa-cli` binary is the data engine of this same `education-advisor`
-project — it is the same Rust code that powered the v3.x CLI-only release,
-shipped to this desktop app as a pre-built binary per platform.
+The Rust `eaa-cli` data engine lives in `core/eaa-cli/` of this same
+`education-advisor` project. It is statically linked into the Tauri binary
+as `eaa_core`; you do not need to download or build it separately.
+
+The first `npm run tauri:dev` will compile the workspace automatically.
+If you want to compile only the Rust side:
 
 ```bash
-npm run build:eaa
+cargo build --manifest-path src-tauri/Cargo.toml
 ```
 
-This downloads the latest release of `eaa-cli` for your platform into `resources/eaa-binaries/`.
-You can also build it yourself from source — see [`docs/EAA_BRIDGE.md`](./docs/EAA_BRIDGE.md).
+See [`docs/EAA_BRIDGE.md`](./docs/EAA_BRIDGE.md) for the command mapping.
 
 ### 3. Run in development mode
 
 ```bash
-npm run dev
+npm run tauri:dev
 ```
 
-This starts three processes in parallel:
+This single command (run from the repo root):
 
-- `vite --config vite.config.main.ts --watch` — building the main process bundle
-- `vite --config vite.config.renderer.ts` — the renderer dev server on `http://localhost:5173`
-- (you can then run `npm run dev:electron` in a second terminal to launch the Electron shell)
+- Starts `vite --config vite.config.renderer.ts` (HMR for the React renderer) on `http://localhost:5190`
+- Compiles the Rust backend (Tauri main process) and launches the native window
+- Auto-refreshes on Rust / React file changes
+
+> **First run** downloads ~400 Rust crates (≈ 5-10 min via proxy); subsequent runs are < 10s incremental.
 
 ### 4. Build a release
 
 ```bash
-npm run build           # vite build × 2 configs
-npm run package         # electron-builder → release/Education Advisor-Setup-0.1.0.exe (NSIS)
-npm run package:portable # single-file .exe (no installer)
+npm run tauri:build
+# Linux:   src-tauri/target/release/bundle/{deb,appimage}/
+# Windows: src-tauri/target/release/bundle/{nsis,msi}/
+# macOS:   src-tauri/target/release/bundle/{dmg,app}/
 ```
+
+> macOS bundles need Apple Developer credentials to be code-signed & notarized
+> (otherwise Gatekeeper blocks first launch). See [`src-tauri/docs/05-BUILD-RUN.md`](./src-tauri/docs/05-BUILD-RUN.md) §6.
 
 ### 5. First-run checklist
 
@@ -226,11 +231,11 @@ Writing a new agent? Read [`docs/AGENT_AUTHORING.md`](./docs/AGENT_AUTHORING.md)
 
 ## 🛠️ Built-in tools & features
 
-- **Multi-LLM orchestration** — 30+ providers through `pi-ai`, model-tier routing (high-quality vs low-cost), per-agent cost caps, custom-model registration, OAuth login, automatic failover, retry with backoff.
+- **Multi-LLM orchestration** — 30+ providers through the Rust `llm_service`, model-tier routing (high-quality vs low-cost), per-agent cost caps, custom-model registration, OAuth login, automatic failover, retry with backoff.
 - **Streaming chat** — full Server-Sent-Event-style streaming from the LLM to the renderer, with abort, follow-up, and steering modes.
 - **Compaction** — automatic context compaction when the conversation window fills up, with a configurable threshold.
-- **Cron scheduler** — `node-cron` with hot-reload, manual `run now`, per-task log, and Feishu Bitable sync hooks.
-- **SQLite persistence** — `better-sqlite3` for chat history, cron logs, agent execution history, session metadata. Schema is auto-migrated on first run.
+- **Cron scheduler** — `tokio-cron-scheduler` with hot-reload, manual `run now`, per-task log, and Feishu Bitable sync hooks.
+- **SQLite persistence** — `rusqlite` for chat history, cron logs, agent execution history, session metadata. Schema is auto-migrated on first run.
 - **System tray** — show / hide / quit, balloon notifications, "minimize to tray on close" option.
 - **Auto-update** — checks the GitHub Releases endpoint on a configurable interval, prompts the user, downloads in the background, applies on next launch.
 - **Logging** — 5-level logger (`debug` / `info` / `warn` / `error` / `fatal`), 3 rotating files, console hijack for the renderer, level filtering, full-text search, export to file.
@@ -260,17 +265,21 @@ For a deep dive, see [`docs/CONFIGURATION.md`](./docs/CONFIGURATION.md).
 
 | Command | Output | Purpose |
 | --- | --- | --- |
-| `npm run dev` | dev server on `:5173` | Day-to-day development with HMR |
-| `npm run build` | `dist/main/*` + `dist/renderer/*` | Production bundle, no installer |
-| `npm run package` | `release/Education Advisor-Setup-0.1.0.exe` | Windows NSIS installer |
-| `npm run package:portable` | `release/Education Advisor-0.1.0-Portable.exe` | Single-file Windows portable |
-| `npm run package:installer` | same as `package` | Explicit target name |
+| `npm run tauri:dev` | dev server on `:5190` + native window | Day-to-day development with HMR |
+| `npm run tauri:build` | `src-tauri/target/release/bundle/**` | Production installer for current OS |
+| `npm run tauri:build:debug` | debug build, no LTO/strip | Faster iteration on installer packaging |
+| `npm run build:renderer` | `dist/renderer/*` | Renderer-only build (used by tauri:build) |
 | `npm run typecheck` | exit code | `tsc --noEmit` |
 | `npm run lint` | exit code | `biome check src/` |
 | `npm run test` | test report | `vitest run` |
-| `npm run clean` | — | `rimraf dist release` |
+| `npm run cargo:check` | exit code | `cargo check --lib` on `src-tauri/` |
+| `npm run cargo:test` | test report | `cargo test` on `src-tauri/` (108 tests) |
+| `npm run clean` | — | `rimraf dist release src-tauri/target src-tauri/gen` |
 
-For macOS / Linux targets, edit [`electron-builder.yml`](./electron-builder.yml) and add the `mac` / `linux` blocks — we kept the configuration Windows-first because that's where the maintainer-team runs it. See [`docs/DISTRIBUTION.md`](./docs/DISTRIBUTION.md) for the full guide.
+For cross-platform packaging (e.g. building macOS bundle on Linux), use the CI workflow
+[`.github/workflows/release.yml`](./.github/workflows/release-tauri.yml) — it builds 3
+platforms in parallel on tag push. See [`src-tauri/docs/05-BUILD-RUN.md`](./src-tauri/docs/05-BUILD-RUN.md)
+for the full guide.
 
 ---
 
@@ -279,36 +288,37 @@ For macOS / Linux targets, edit [`electron-builder.yml`](./electron-builder.yml)
 ```
 education-advisor/
 ├── src/
-│   ├── main/                # Electron main process (33 files)
-│   │   ├── ipc/             #   11 IPC handler modules
-│   │   ├── services/        #   13 service modules (agent, EAA, cron, ...)
-│   │   ├── preload/         #   contextBridge bridge
-│   │   ├── utils/           #   logger, etc.
-│   │   └── index.ts         #   main entry
-│   ├── renderer/            # React 18 renderer (23 files)
+│   ├── renderer/            # React 18 renderer
 │   │   ├── pages/           #   9 page modules
 │   │   ├── components/      #   shared UI
 │   │   ├── hooks/           #   12 custom hooks
 │   │   ├── stores/          #   4 Zustand stores
 │   │   ├── i18n/            #   zh + en
-│   │   ├── lib/             #   typed IPC client
+│   │   ├── lib/             #   typed Tauri IPC client
 │   │   └── main.tsx         #   renderer entry
-│   └── shared/              # Code shared by main + renderer
+│   └── shared/              # Code shared by renderer + Rust backend
 │       ├── ipc-channels.ts  #   90+ channel constants
-│       └── types/           #   539 lines of shared TypeScript types
+│       └── types/           #   shared TypeScript types
+├── src-tauri/               # Rust backend (Tauri 2.0)
+│   ├── src/commands/        #   #[tauri::command] handlers
+│   ├── src/services/        #   13 service modules (agent, EAA, cron, ...)
+│   ├── src/tools/           #   agent tool implementations
+│   ├── src/lib.rs           #   crate library root
+│   ├── src/main.rs          #   Tauri builder entry
+│   └── Cargo.toml           #   workspace manifest
 ├── agents/                  # 18 agents × (SOUL.md + AGENTS.md)
 ├── config/                  # agents.yaml, reason-codes.json, default-settings.json
+├── core/eaa-cli/            # Rust data engine (linked as eaa_core)
 ├── docs/                    # Full documentation (see /docs)
-├── resources/               # Icons, Rust binaries per platform
-├── scripts/                 # Dev-time link-analysis tools
+├── resources/               # Icons
+├── scripts/                 # Dev-time helper scripts
 ├── skills/                  # User-injected Markdown skills
 ├── single-agent/            # "Single-agent mode" fallback prompt
 ├── examples/                # Example student records (anonymized)
-├── tests/                   # Vitest suites (main + e2e)
-├── electron-builder.yml     # Windows installer config
-├── vite.config.main.ts      # Main-process Vite config
+├── tests/                   # Vitest suites (renderer only)
+├── archive/legacy/          # Electron-era source code archive
 ├── vite.config.renderer.ts  # Renderer Vite config
-├── vitest.config.ts         # Two-project test config
+├── vitest.config.ts         # Vitest config
 ├── biome.json               # Linter + formatter config
 ├── tsconfig.json            # TS config with path aliases
 ├── .env.example             # Environment-variable template
@@ -329,18 +339,16 @@ education-advisor/
 
 ## 🛡️ Privacy, security, and the Rust bridge
 
-The Rust EAA CLI is a **separate compilation unit** that this app spawns as a child process.
-We deliberately did **not** ship the Rust source in this repo's `dist/` (it lives in
-[`core/eaa-cli/`](https://github.com/232252/education-advisor/tree/main/core/eaa-cli)
-of the same `education-advisor` repository), for two reasons:
+The Rust EAA CLI is the data engine of this app. In v0.2.0 it is no longer spawned as a
+child process — it is statically linked as `eaa_core` inside the Tauri binary. The source
+lives in [`core/eaa-cli/`](https://github.com/232252/education-advisor/tree/main/core/eaa-cli)
+of the same `education-advisor` repository.
 
 1. **Separation of concerns.** The Rust side is a stable, audited data engine. The TS side
-   is where the agents, the UI, and the LLM integration live. Keeping them in separate
-   repos lets the data engine be reviewed and re-used independently.
-2. **Reproducible builds.** When you `npm run build:eaa`, you download a **specific tagged
-   binary** from the official release. You can verify its SHA-256 against the manifest. If
-   you don't trust the binary, see [`docs/EAA_BRIDGE.md`](./docs/EAA_BRIDGE.md) for
-   instructions on building it from source.
+   is the renderer. Keeping the engine as a separate crate lets it be reviewed and re-used
+   independently.
+2. **Reproducible builds.** `cargo build` compiles the workspace from source, including
+   `eaa_core`. See [`docs/EAA_BRIDGE.md`](./docs/EAA_BRIDGE.md) for the command mapping.
 
 For the full security policy — including the PII engine's threat model, our CVE reporting
 process, and supported versions — see [`SECURITY.md`](./SECURITY.md).
@@ -379,13 +387,10 @@ A: The UI and the data (student names, classes, schools) are inherently Chinese.
 A: The app works fully offline. Only the LLM calls need network. If you point it at Ollama / LM Studio on `localhost`, the whole stack runs offline.
 
 **Q: Can I delete the Rust EAA dependency?**
-A: Yes — every IPC call to EAA is a single funnel (`src/main/services/eaa-bridge.ts`). You can swap it for any other data engine (PostgreSQL, Firestore, your own service) by replacing that file. The agent prompts and the UI are decoupled.
-
-**Q: Why Electron and not Tauri?**
-A: When we started, Tauri's ecosystem for Windows code-signing and auto-update was still rough. We're tracking the Tauri ecosystem — see ROADMAP for the long-term plan.
+A: Yes — every EAA call goes through `src-tauri/src/commands/eaa.rs`, which is a thin wrapper around `eaa_core` (the `core/eaa-cli/` library). You can swap it for any other data engine (PostgreSQL, Firestore, your own service) by replacing those wrappers. The agent prompts and the UI are decoupled. The `eaa_core` library is statically linked — no subprocess, no IPC overhead.
 
 **Q: How big is the bundled installer?**
-A: ~85 MB (NSIS) / ~75 MB (portable) on Windows x64, dominated by the Chromium runtime and the Rust EAA binary. The Electron shell itself is ~50 MB; the EAA binary is ~20 MB; the rest is your code, configs, and 18 agents.
+A: ~17 MB (Tauri installer with LTO + strip) — vs Electron's ~85 MB. The Rust binary is statically linked with the WebView pulled from the OS, so there's no Chromium runtime shipped. See [comparison table](#-why-not-electron).
 
 **Q: How do I add a new agent?**
 A: Read [`docs/AGENT_AUTHORING.md`](./docs/AGENT_AUTHORING.md). The TL;DR: drop a `SOUL.md` and an `AGENTS.md` into `agents/your-id/`, add an entry to `config/agents.yaml`, restart the app. That's it.
@@ -399,14 +404,10 @@ commercial products, in schools, in research, and to fork it.
 
 **Acknowledgments**
 
-- The [`pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai) and
-  [`pi-agent-core`](https://www.npmjs.com/package/@earendil-works/pi-agent-core) packages
-  from `earendil-works` — the LLM SDK and the agent loop that power this app.
-- The [`@electron`](https://www.electronjs.org/) team for the runtime.
-- The [`better-sqlite3`](https://github.com/WiseLibs/better-sqlite3) maintainers — the
-  fastest synchronous SQLite binding in the Node ecosystem.
+- The [Tauri](https://tauri.app/) project — the Rust-based desktop framework used in v0.2.0.
+- The [React](https://react.dev/) / [Vite](https://vitejs.dev/) / [Tailwind CSS](https://tailwindcss.com/) ecosystems — the renderer stack.
 - The Rust [`tokio`](https://tokio.rs/) / [`serde`](https://serde.rs/) / [`clap`](https://clap.rs/)
-  crates that the EAA CLI is built on.
+  / [`rusqlite`](https://github.com/rusqlite/rusqlite) crates that the EAA CLI and Tauri backend are built on.
 - Every teacher who has ever lost sleep over a "+2 conduct point that should have been +3"
   — this app is for you.
 

@@ -32,7 +32,11 @@ fn setup_tmp_data_dir() -> tempfile::TempDir {
     // eaa_core::get_schema_dir() = data_dir.parent()/schema/reason_codes.json
     let schema_dir = dir.path().join("schema");
     std::fs::create_dir_all(&schema_dir).unwrap();
-    let repo_root = std::env::current_dir().unwrap().parent().unwrap().to_path_buf();
+    let repo_root = std::env::current_dir()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf();
     let src = repo_root.join("config").join("reason-codes.json");
     let dst = schema_dir.join("reason_codes.json");
     if src.exists() {
@@ -50,7 +54,11 @@ fn setup_tmp_data_dir() -> tempfile::TempDir {
     // 路径与 eaa_core::storage 一致: entities/entities.json, events/events.json, entities/name_index.json
     std::fs::create_dir_all(data_dir.join("entities")).unwrap();
     std::fs::create_dir_all(data_dir.join("events")).unwrap();
-    std::fs::write(data_dir.join("entities").join("entities.json"), r#"{"entities":{}}"#).unwrap();
+    std::fs::write(
+        data_dir.join("entities").join("entities.json"),
+        r#"{"entities":{}}"#,
+    )
+    .unwrap();
     std::fs::write(data_dir.join("events").join("events.json"), "[]").unwrap();
     std::fs::write(data_dir.join("entities").join("name_index.json"), "{}").unwrap();
     dir
@@ -67,10 +75,17 @@ fn test_full_agent_tool_loop() {
     assert_eq!(res["students"].as_array().unwrap().len(), 0);
 
     // 2. add_event (学生不存在 → 自动建)
-    let res = eaa_tools::dispatch("add_event", &json!({
-        "name": "Alice", "reasonCode": "HOMEWORK", "delta": 2.0, "note": "作业按时"
-    }), &caps).unwrap();
-    assert!(res["eventId"].as_str().unwrap().starts_with("evt_") || res["eventId"].as_str().is_some());
+    let res = eaa_tools::dispatch(
+        "add_event",
+        &json!({
+            "name": "Alice", "reasonCode": "HOMEWORK", "delta": 2.0, "note": "作业按时"
+        }),
+        &caps,
+    )
+    .unwrap();
+    assert!(
+        res["eventId"].as_str().unwrap().starts_with("evt_") || res["eventId"].as_str().is_some()
+    );
 
     // 3. score 反映 +2
     let res = eaa_tools::dispatch("score", &json!({"name":"Alice"}), &caps).unwrap();
@@ -98,14 +113,23 @@ fn test_capability_least_privilege() {
     let read_only = vec!["read".into()];
 
     // 读允许
-    assert!(eaa_tools::dispatch("score", &json!({"name":"X"}), &read_only).is_ok()
-        || eaa_tools::dispatch("score", &json!({"name":"X"}), &read_only).is_err()); // 学生不存在也算 Err 但非 PermissionDenied
+    assert!(
+        eaa_tools::dispatch("score", &json!({"name":"X"}), &read_only).is_ok()
+            || eaa_tools::dispatch("score", &json!({"name":"X"}), &read_only).is_err()
+    ); // 学生不存在也算 Err 但非 PermissionDenied
 
     // 写被拒
-    let res = eaa_tools::dispatch("add_event", &json!({"name":"X","reasonCode":"HOMEWORK","delta":1.0}), &read_only);
+    let res = eaa_tools::dispatch(
+        "add_event",
+        &json!({"name":"X","reasonCode":"HOMEWORK","delta":1.0}),
+        &read_only,
+    );
     assert!(res.is_err(), "read-only agent must not write");
     let err = res.unwrap_err().to_string();
-    assert!(err.contains("能力") || err.contains("权限"), "err should mention capability: {err}");
+    assert!(
+        err.contains("能力") || err.contains("权限"),
+        "err should mention capability: {err}"
+    );
 }
 
 #[test]
@@ -114,14 +138,22 @@ fn test_reason_code_injection_rejected() {
     let _dir = setup_tmp_data_dir();
     let caps = vec!["write".into()];
     // 小写 reason_code 被白名单拒
-    let res = eaa_tools::dispatch("add_event", &json!({
-        "name": "Bob", "reasonCode": "homework", "delta": 1.0
-    }), &caps);
+    let res = eaa_tools::dispatch(
+        "add_event",
+        &json!({
+            "name": "Bob", "reasonCode": "homework", "delta": 1.0
+        }),
+        &caps,
+    );
     assert!(res.is_err(), "lowercase reason_code must be rejected");
     // 含特殊字符被拒
-    let res = eaa_tools::dispatch("add_event", &json!({
-        "name": "Bob", "reasonCode": "HOME;WORK", "delta": 1.0
-    }), &caps);
+    let res = eaa_tools::dispatch(
+        "add_event",
+        &json!({
+            "name": "Bob", "reasonCode": "HOME;WORK", "delta": 1.0
+        }),
+        &caps,
+    );
     assert!(res.is_err(), "reason_code with ; must be rejected");
 }
 
@@ -131,9 +163,14 @@ fn test_revert_loop() {
     let _dir = setup_tmp_data_dir();
     let caps = vec!["read".into(), "write".into(), "revert".into()];
 
-    let add = eaa_tools::dispatch("add_event", &json!({
-        "name": "Carol", "reasonCode": "HOMEWORK", "delta": 3.0
-    }), &caps).unwrap();
+    let add = eaa_tools::dispatch(
+        "add_event",
+        &json!({
+            "name": "Carol", "reasonCode": "HOMEWORK", "delta": 3.0
+        }),
+        &caps,
+    )
+    .unwrap();
     let event_id = add["eventId"].as_str().unwrap().to_string();
 
     // revert
@@ -148,9 +185,18 @@ fn test_revert_loop() {
 #[test]
 fn test_calculate_safe_eval() {
     // 正常算术
-    assert_eq!(utility::calculate("1+2*3").unwrap()["result"].as_f64(), Some(7.0));
-    assert_eq!(utility::calculate("(1+2)*3").unwrap()["result"].as_f64(), Some(9.0));
-    assert_eq!(utility::calculate("10%3").unwrap()["result"].as_f64(), Some(1.0));
+    assert_eq!(
+        utility::calculate("1+2*3").unwrap()["result"].as_f64(),
+        Some(7.0)
+    );
+    assert_eq!(
+        utility::calculate("(1+2)*3").unwrap()["result"].as_f64(),
+        Some(9.0)
+    );
+    assert_eq!(
+        utility::calculate("10%3").unwrap()["result"].as_f64(),
+        Some(1.0)
+    );
     // 除零被拒
     assert!(utility::calculate("1/0").is_err());
     // 非法字符被拒 (注入防护)
@@ -178,15 +224,25 @@ fn test_bulk_add_students() {
     let _dir = setup_tmp_data_dir();
     let caps = vec!["bulk".into(), "write".into()];
 
-    let res = eaa_tools::dispatch("bulk_add_students", &json!({
-        "names": ["张三", "李四", "王五"]
-    }), &caps).unwrap();
+    let res = eaa_tools::dispatch(
+        "bulk_add_students",
+        &json!({
+            "names": ["张三", "李四", "王五"]
+        }),
+        &caps,
+    )
+    .unwrap();
     assert_eq!(res["added"].as_u64().unwrap(), 3);
 
     // 重复添加 → skip
-    let res = eaa_tools::dispatch("bulk_add_students", &json!({
-        "names": ["张三", "赵六"]
-    }), &caps).unwrap();
+    let res = eaa_tools::dispatch(
+        "bulk_add_students",
+        &json!({
+            "names": ["张三", "赵六"]
+        }),
+        &caps,
+    )
+    .unwrap();
     assert_eq!(res["added"].as_u64().unwrap(), 1);
     assert_eq!(res["skipped"].as_u64().unwrap(), 1);
 }
@@ -198,9 +254,14 @@ fn test_profile_academic_roundtrip() {
     let caps = vec!["profile".into(), "academic".into()];
 
     // 写档案 (Value 透传, 字段名与 shared/types.ts StudentProfileData 一致)
-    let _ = eaa_tools::dispatch("profile_set", &json!({
-        "name": "Dave", "data": {"gender": "男", "fatherName": "Dave Sr"}
-    }), &caps).unwrap();
+    let _ = eaa_tools::dispatch(
+        "profile_set",
+        &json!({
+            "name": "Dave", "data": {"gender": "男", "fatherName": "Dave Sr"}
+        }),
+        &caps,
+    )
+    .unwrap();
 
     // 读档案
     let res = eaa_tools::dispatch("profile_get", &json!({"name":"Dave"}), &caps).unwrap();
@@ -226,9 +287,14 @@ fn test_delete_and_reset() {
     let caps = vec!["write".into(), "read".into()];
 
     // 建学生 + 事件
-    let _ = eaa_tools::dispatch("add_event", &json!({
-        "name": "Eve", "reasonCode": "HOMEWORK", "delta": 1.0
-    }), &caps).unwrap();
+    let _ = eaa_tools::dispatch(
+        "add_event",
+        &json!({
+            "name": "Eve", "reasonCode": "HOMEWORK", "delta": 1.0
+        }),
+        &caps,
+    )
+    .unwrap();
     let stats = eaa_tools::dispatch("stats", &json!({}), &caps).unwrap();
     assert!(stats["eventCount"].as_u64().unwrap() >= 1);
 

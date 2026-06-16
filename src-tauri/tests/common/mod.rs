@@ -50,7 +50,11 @@ pub fn setup_data_dir() -> tempfile::TempDir {
     for sub in ["entities", "events", "profiles", "logs", "privacy"] {
         std::fs::create_dir_all(data_dir.join(sub)).expect("mkdir");
     }
-    std::fs::write(data_dir.join("entities/entities.json"), r#"{"entities":{}}"#).expect("write");
+    std::fs::write(
+        data_dir.join("entities/entities.json"),
+        r#"{"entities":{}}"#,
+    )
+    .expect("write");
     std::fs::write(data_dir.join("entities/name_index.json"), "{}").expect("write");
     std::fs::write(data_dir.join("events/events.json"), "[]").expect("write");
 
@@ -90,12 +94,18 @@ pub fn assert_json_contains(actual: &serde_json::Value, expected: &serde_json::V
     match (actual, expected) {
         (serde_json::Value::Object(a), serde_json::Value::Object(e)) => {
             for (k, v) in e {
-                let av = a.get(k).unwrap_or_else(|| panic!("missing key `{k}` in {actual}"));
+                let av = a
+                    .get(k)
+                    .unwrap_or_else(|| panic!("missing key `{k}` in {actual}"));
                 assert_json_contains(av, v);
             }
         }
         (serde_json::Value::Array(a), serde_json::Value::Array(e)) => {
-            assert_eq!(a.len(), e.len(), "array length mismatch: {actual:?} vs {e:?}");
+            assert_eq!(
+                a.len(),
+                e.len(),
+                "array length mismatch: {actual:?} vs {e:?}"
+            );
             for (i, item) in e.iter().enumerate() {
                 assert_json_contains(&a[i], item);
             }

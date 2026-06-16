@@ -62,17 +62,18 @@ pub struct OAuthFlow {
 
 impl OAuthFlow {
     pub fn new() -> Self {
-        Self { states: Mutex::new(HashMap::new()) }
+        Self {
+            states: Mutex::new(HashMap::new()),
+        }
     }
 
     /// 启动 flow: 生成 state + PKCE verifier, 存进 Map, 返回 (authorize_url, state)。
-    pub fn start_flow(
-        &self,
-        provider: OAuthProvider,
-        client_id: &str,
-    ) -> Result<(String, String)> {
+    pub fn start_flow(&self, provider: OAuthProvider, client_id: &str) -> Result<(String, String)> {
         if client_id.is_empty() {
-            return Err(AppError::Config(format!("OAuth client_id 未配置 ({})", provider.id())));
+            return Err(AppError::Config(format!(
+                "OAuth client_id 未配置 ({})",
+                provider.id()
+            )));
         }
         let state = random_token(32);
         let code_verifier = random_token(64); // 43~128 chars
@@ -131,7 +132,8 @@ impl OAuthFlow {
             let mut map = self.states.lock();
             map.remove(state)
         };
-        let flow = flow.ok_or_else(|| AppError::Validation(format!("OAuth state 无效或已过期: {state}")))?;
+        let flow =
+            flow.ok_or_else(|| AppError::Validation(format!("OAuth state 无效或已过期: {state}")))?;
         if flow.created_at.elapsed() > Duration::from_secs(300) {
             return Err(AppError::Validation("OAuth state 已过期 (>5min)".into()));
         }
@@ -194,7 +196,10 @@ async fn exchange_notion(
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
-        return Err(AppError::Llm(format!("Notion token 交换失败 ({}): {}", status, text)));
+        return Err(AppError::Llm(format!(
+            "Notion token 交换失败 ({}): {}",
+            status, text
+        )));
     }
     let token: TokenResponse = resp.json().await?;
     Ok(token)
@@ -220,7 +225,10 @@ async fn exchange_discord(
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
-        return Err(AppError::Llm(format!("Discord token 交换失败 ({}): {}", status, text)));
+        return Err(AppError::Llm(format!(
+            "Discord token 交换失败 ({}): {}",
+            status, text
+        )));
     }
     let token: TokenResponse = resp.json().await?;
     Ok(token)

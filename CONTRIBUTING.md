@@ -185,10 +185,8 @@ days. You can expect:
 
 - Node.js **22** or later (`node -v` should print `v22.x.x`)
 - npm **10** or later (`npm -v` should print `10.x.x`)
-- A working C++ toolchain (so `better-sqlite3` can compile its native binding)
-  - Windows: `npm install --global windows-build-tools` (or use Visual Studio Build Tools)
-  - macOS: `xcode-select --install`
-  - Linux: `apt install build-essential python3`
+- Rust **1.95.0** or later (`rustc --version` should print `1.95.x`)
+  - Install from <https://rustup.rs/>, then `rustup default stable`
 - Git
 - A code editor with TypeScript + React support (we use VS Code + Biome extension)
 
@@ -198,34 +196,28 @@ days. You can expect:
 git clone https://github.com/232252/education-advisor.git
 cd education-advisor
 npm ci
-npm run build:eaa     # downloads the Rust eaa binary
+# The first `npm run tauri:dev` will compile the Rust workspace automatically.
 ```
 
 ### Daily development
 
 ```bash
-# Terminal 1: dev servers (HMR for renderer, watch for main)
-npm run dev
-
-# Terminal 2: launch the Electron shell
-npm run dev:electron
+# One command does it all: vite HMR + cargo watch + native window
+npm run tauri:dev
 ```
 
-The renderer is at `http://localhost:5173`. DevTools open automatically
-in detached mode.
+The renderer is at `http://localhost:5190` and the native window opens
+automatically. Rust and React changes hot-reload on save.
 
 ### Common gotchas
 
-- **`better-sqlite3` rebuild needed?** Run `npm rebuild better-sqlite3` after
-  switching Node versions.
-- **`EAA binary not found` on startup?** Run `npm run build:eaa` again, or
-  place the binary manually in `resources/eaa-binaries/<platform>/`.
-- **`preload not found` at startup?** The vite main config produces
-  `dist/main/preload.js`; check that the file actually exists after
-  `npm run build`.
-- **Renderer can't reach the main process?** Check that
-  `process.env.VITE_DEV_SERVER_URL` is set, or that you're loading the
-  `dist/renderer/index.html` file directly.
+- **`cargo check` fails?** Make sure Rust ≥ 1.95 is active: `rustup default stable`.
+- **`eaa_core` not found?** It is built as part of `src-tauri/Cargo.toml` workspace;
+  run `cargo build --manifest-path src-tauri/Cargo.toml` once.
+- **`tauri dev` shows a blank window?** Check that `vite.config.renderer.ts`
+  server port matches `tauri.conf.json` `devUrl` (both 5190).
+- **Renderer can't reach the backend?** Open DevTools and check the Tauri
+  `invoke` call payloads in the Console.
 
 ---
 
@@ -236,12 +228,6 @@ This section covers the parts you'll touch as a contributor.
 
 ```
 src/
-├── main/                # Electron main process (Node 22)
-│   ├── ipc/             # IPC handler modules — 11 files
-│   ├── services/        # Service modules — 13 files
-│   ├── preload/         # contextBridge bridge — 1 file
-│   ├── utils/           # logger etc.
-│   └── index.ts         # main entry — read this first
 ├── renderer/            # React 18 renderer
 │   ├── pages/           # 9 page modules — read these to learn the app
 │   ├── components/      # shared UI — keep small
@@ -250,32 +236,40 @@ src/
 │   ├── i18n/            # zh-CN + en-US
 │   ├── lib/             # typed IPC client
 │   └── main.tsx         # renderer entry
-└── shared/              # code shared by main + renderer
+└── shared/              # code shared by renderer + Rust backend
     ├── ipc-channels.ts  # 90+ channel constants
-    └── types/           # 539 lines of shared types
+    └── types/           # shared TypeScript types
 ```
 
 The two most important files for a new contributor are:
 
-- `src/main/index.ts` — the main process entry, 246 lines, reads end-to-end in 10 minutes.
-- `src/renderer/App.tsx` — the renderer entry, 46 lines, shows the routing.
+- `src-tauri/src/lib.rs` — the Rust library entry, exposes all modules and shared types.
+- `src/renderer/App.tsx` — the renderer entry, shows the routing.
 
 The two most important **directories** for a feature contributor are:
 
-- `src/main/services/` — the business logic lives here.
-- `src/renderer/pages/` — the UI lives here.
+- `src-tauri/src/services/` — the Rust business logic (each `*.rs` is a service).
+- `src/renderer/pages/` — the React UI lives here.
+
+For Tauri-specific contribution guidance (Rust code style, IPC patterns, async rules,
+testing), see [`src-tauri/docs/00-OVERVIEW.md`](./src-tauri/docs/00-OVERVIEW.md)
+and [`CONTRIBUTING-TAURI.md`](./src-tauri/CONTRIBUTING.md) (the latter is bundled
+inside the Tauri crate's documentation tree).
 
 ---
 
 ## Coding standards
 
+> **Rust 后端规范见 [`CODE_STYLES.md`](./CODE_STYLES.md)**（错误处理、所有权、
+> Unsafe 红线、测试规范、IPC 契约）。本节聚焦前端 + 通用约定。
+
 ### TypeScript
 
 - **Strict mode** is on. `any` is allowed only at module boundaries (the IPC bridge
   can use `unknown` and validate with TypeBox).
-- **Path aliases**: `@main/*`, `@renderer/*`, `@shared/*`.
+- **Path aliases**: `@renderer/*`, `@shared/*`. (No more `@main/*` — backend is Rust now.)
 - **No default exports** for modules with multiple exports; use named exports.
-- **No circular dependencies** between `src/main/` and `src/renderer/`.
+- **No circular dependencies** between `src-tauri/` and `src/renderer/`.
 - All public functions have a JSDoc comment explaining the contract.
 
 ### React
@@ -424,39 +418,47 @@ EOF
 ## Adding a new IPC channel
 
 1. Add the constant to `src/shared/ipc-channels.ts`.
-2. Add the handler in the relevant `src/main/ipc/<domain>-handlers.ts` file.
-3. Expose the method on `window.api` in `src/main/preload/index.ts`.
+2. Add the `#[tauri::command]` handler in the relevant
+   `src-tauri/src/commands/<domain>.rs` file.
+3. Register the command in `src-tauri/src/main.rs` `tauri::generate_handler![...]`.
 4. Add the method to the typed client in `src/renderer/lib/ipc-client.ts`.
-5. Add a test in `tests/main/`.
-6. Update the documentation (`docs/` and the relevant JSDoc).
+5. Add a Rust integration test in `src-tauri/tests/`.
+6. Update the documentation (`docs/` and the relevant JSDoc / doc-comment).
+
+See [`src-tauri/docs/03-COMMANDS-MAP.md`](./src-tauri/docs/03-COMMANDS-MAP.md) for the
+complete 90+ channel → command mapping.
 
 ---
 
 ## Adding a new LLM provider
 
-The provider list lives in the `@earendil-works/pi-ai` package, **not** in this
-repository. To add a provider:
+The provider list lives in the **`src-tauri/src/services/llm_service.rs`** module —
+a pure-Rust reqwest + SSE abstraction. v0.2.0 rewrote the LLM layer from the
+`@earendil-works/pi-ai` npm package to in-tree Rust code (12 providers, 0 npm deps).
+
+To add a new provider:
 
 1. Open an issue here describing the use case.
-2. File a PR against
-   [`earendil-works/pi-ai`](https://github.com/earendil-works/pi-ai) with the
-   new provider file.
-3. Once the provider is merged upstream, open a PR here to pin the new
-   version in `package.json`.
+2. Implement the adapter in `src-tauri/src/services/llm_service.rs`
+   (follow the existing OpenAI-compatible / Anthropic / Gemini patterns).
+3. Add an integration test in `src-tauri/tests/llm_tool_loop.rs`.
+4. Add the provider ID to `config/default-settings.json` providers list.
 
 ---
 
 ## Testing
 
-We use [Vitest](https://vitest.dev/) for unit and integration tests. The
-config lives in `vitest.config.ts` with two projects:
+We use **two complementary test suites**:
 
-- **`renderer`** — jsdom environment, tests under `src/renderer/**/__tests__/`
-- **`main`** — node environment, tests under `src/main/**/__tests__/`
-  and `tests/main/**`
+- **Frontend** — [Vitest](https://vitest.dev/) with jsdom environment,
+  tests under `src/renderer/**/__tests__/`. Run with `npm run test`.
+- **Backend (Rust)** — Cargo's built-in test framework, tests under
+  `src-tauri/tests/` (108 tests, 8 test executables). Run with
+  `npm run cargo:test` or `cargo test --manifest-path src-tauri/Cargo.toml`.
 
-The e2e test is under `tests/e2e/` and exercises the full agent loop
-without spawning a real Electron process.
+The Tauri command↔TS-client contract is verified by
+`src-tauri/tests/contract.rs` which round-trips JSON serialization
+against the TypeScript types in `src/shared/types/`.
 
 ### Conventions
 

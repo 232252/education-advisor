@@ -17,6 +17,9 @@ use ea_tauri::services::tray;
 use ea_tauri::state::{resolve_paths, AppState};
 use tauri::{Emitter, Manager};
 
+#[cfg(target_os = "windows")]
+use ea_tauri::platform::windows_focus;
+
 /// 处理 OAuth deep-link 回调 URL。
 ///
 /// URL 格式: `educationadvisor://oauth/callback?code=xxx&state=yyy`
@@ -98,23 +101,26 @@ fn main() {
                 }
             });
             // 解析路径
-            let user_data = app
-                .path()
-                .app_data_dir()
-                .expect("无法解析 app_data_dir");
+            let user_data = app.path().app_data_dir().expect("无法解析 app_data_dir");
             std::fs::create_dir_all(&user_data).ok();
             // 资源目录: 开发模式下指向仓库根 (src-tauri/ 的上级), 打包后用 resource_dir()。
             let dev_resources = std::env::current_dir()
                 .ok()
                 .and_then(|p| p.parent().map(|p| p.to_path_buf())) // src-tauri/.. = 仓库根
                 .filter(|p| p.join("config").join("agents.yaml").exists());
-            let resources = dev_resources
-                .unwrap_or_else(|| app.path().resource_dir().unwrap_or_else(|_| user_data.join("resources")));
+            let resources = dev_resources.unwrap_or_else(|| {
+                app.path()
+                    .resource_dir()
+                    .unwrap_or_else(|_| user_data.join("resources"))
+            });
 
             // AppState 在 tokio runtime 内异步初始化 (Tauri setup 是同步的 → block_on)
             let paths = resolve_paths(user_data.clone(), resources.clone(), None);
+            let app_handle_for_state = app.handle().clone();
             let state = tauri::async_runtime::block_on(async move {
-                AppState::init(paths).await.expect("AppState init failed")
+                AppState::init(paths, app_handle_for_state)
+                    .await
+                    .expect("AppState init failed")
             });
             app.manage(state);
 
@@ -144,8 +150,14 @@ fn main() {
                                     "runner 触发 agent={agent_id} task={task_id} prompt={prompt}"
                                 );
                                 // 复用 agent_runner::run (手动触发/定时共用同一执行路径)
-                                if let Err(e) =
-                                    ea_tauri::services::agent_runner::run(&app_handle, &st, &agent_id, &prompt, None).await
+                                if let Err(e) = ea_tauri::services::agent_runner::run(
+                                    &app_handle,
+                                    &st,
+                                    &agent_id,
+                                    &prompt,
+                                    None,
+                                )
+                                .await
                                 {
                                     tracing::warn!(target: "scheduler", "agent 执行失败: {e}");
                                 }
@@ -159,6 +171,16 @@ fn main() {
             // 托盘
             if let Err(e) = tray::setup(app.handle()) {
                 tracing::warn!(target: "main", "托盘安装失败: {e}");
+            }
+
+            // Windows 焦点修复: 启动后显式聚焦 + 守护循环
+            // 解决 "Windows 下键盘事件无响应" 的常见 DWM 焦点链问题。
+            // 其他平台编译为空 stub,完全 no-op。
+            #[cfg(target_os = "windows")]
+            if let Some(window) = app.get_webview_window("main") {
+                windows_focus::initial_focus(&window);
+                windows_focus::install_refocus_guard(&window);
+                tracing::info!(target: "main", "Windows focus guard 已启用");
             }
 
             tracing::info!(target: "main", "ready");
@@ -287,7 +309,11 @@ fn main() {
             commands::sys::sys_reset_factory,
             commands::sys::sys_delete_by_class,
             commands::sys::sys_delete_student_by_name,
-            commands::sys::sys_reset_events_only
+            commands::sys::sys_reset_events_only,
+            // Windows 焦点修复: 给前端 mousedown 监听用的兜底 command。
+            // 其他平台编译时不注册,前端调用会报 "command not found"。
+            #[cfg(target_os = "windows")]
+            ea_tauri::platform::windows_focus::force_refocus
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

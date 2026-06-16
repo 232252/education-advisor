@@ -49,15 +49,23 @@ pub async fn sys_save_dialog(app: AppHandle, options: Value) -> Result<Value> {
 pub async fn sys_open_external(app: AppHandle, url: String) -> Result<Value> {
     // 安全: 仅允许 http/https (与原 Electron 校验一致)
     if !url.starts_with("https://") && !url.starts_with("http://") {
-        return Err(AppError::Validation(format!("仅允许 http/https 链接: {url}")));
+        return Err(AppError::Validation(format!(
+            "仅允许 http/https 链接: {url}"
+        )));
     }
     use tauri_plugin_opener::OpenerExt;
-    app.opener().open_url(url, None::<&str>).map_err(crate::error::other)?;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(crate::error::other)?;
     Ok(json!({ "success": true }))
 }
 
 #[tauri::command]
-pub async fn sys_get_path(app: AppHandle, state: State<'_, AppState>, name: String) -> Result<String> {
+pub async fn sys_get_path(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<String> {
     let path = match name.as_str() {
         "userData" => app.path().app_data_dir().map_err(crate::error::other)?,
         "resources" => app.path().resource_dir().map_err(crate::error::other)?,
@@ -227,7 +235,9 @@ pub async fn sys_reset_factory(app: AppHandle, state: State<'_, AppState>) -> Re
         let _ = std::fs::remove_file(db_path);
     }
     state.settings.write().reset()?;
-    Ok(json!({ "success": true, "message": format!("已清空 {}/eaa-data 与 db, 设置重置", user_data.display()) }))
+    Ok(
+        json!({ "success": true, "message": format!("已清空 {}/eaa-data 与 db, 设置重置", user_data.display()) }),
+    )
 }
 
 #[tauri::command]
@@ -235,21 +245,28 @@ pub async fn sys_delete_by_class(_state: State<'_, AppState>, class_id: String) 
     let _lock = eaa_core::storage::FileLock::acquire().map_err(crate::error::other)?;
     let mut entities = eaa_core::storage::load_entities().map_err(crate::error::other)?;
     let before = entities.entities.len();
-    entities.entities.retain(|_, e| e.class_id.as_deref() != Some(&class_id));
+    entities
+        .entities
+        .retain(|_, e| e.class_id.as_deref() != Some(&class_id));
     let after = entities.entities.len();
     eaa_core::storage::save_entities(&entities).map_err(crate::error::other)?;
     Ok(json!({ "success": true, "message": format!("删除 {class_id}"), "deleted": before - after }))
 }
 
 #[tauri::command]
-pub async fn sys_delete_student_by_name(_state: State<'_, AppState>, name: String) -> Result<Value> {
+pub async fn sys_delete_student_by_name(
+    _state: State<'_, AppState>,
+    name: String,
+) -> Result<Value> {
     let _lock = eaa_core::storage::FileLock::acquire().map_err(crate::error::other)?;
     let mut entities = eaa_core::storage::load_entities().map_err(crate::error::other)?;
     let mut index = eaa_core::storage::load_name_index().map_err(crate::error::other)?;
     let existed = index.remove(&name).is_some() && entities.entities.remove(&name).is_some();
     eaa_core::storage::save_entities(&entities).map_err(crate::error::other)?;
     eaa_core::storage::save_name_index(&index).map_err(crate::error::other)?;
-    Ok(json!({ "success": existed, "message": if existed { format!("已删除 {name}") } else { format!("未找到 {name}") } }))
+    Ok(
+        json!({ "success": existed, "message": if existed { format!("已删除 {name}") } else { format!("未找到 {name}") } }),
+    )
 }
 
 #[tauri::command]

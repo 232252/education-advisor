@@ -7,7 +7,6 @@
 //
 // 收到回调后自动清空 pending state, 弹 toast 提示用户成功/失败。
 //
-// Electron 模式不需这个 store (用 loopback HTTP 替代 deep-link)。
 
 import { create } from 'zustand'
 import { getAPI } from '../lib/ipc-client'
@@ -36,11 +35,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     ;(window as unknown as { __ea_oauth_listener?: boolean }).__ea_oauth_listener = true
 
-    // 仅 Tauri 模式: 动态 require 避免 Electron 构建拉 @tauri-apps/api
+    // 动态 require 避免 jsdom/测试环境拉 @tauri-apps/api
     const tauriInternals = (window as unknown as { __TAURI_INTERNALS__?: unknown })
       .__TAURI_INTERNALS__
     if (!tauriInternals) {
-      // Electron 模式不监听
       return
     }
 

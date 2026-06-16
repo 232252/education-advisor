@@ -27,7 +27,8 @@ impl SettingsService {
     pub fn load(user_data: &Path) -> Result<Self> {
         // resources 在 Tauri 里通过 Manager::path() 解析; 这里取约定相对路径作为回退。
         let resources = user_data.join("resources");
-        let defaults = load_defaults(&resources).unwrap_or_else(|| Value::Object(Default::default()));
+        let defaults =
+            load_defaults(&resources).unwrap_or_else(|| Value::Object(Default::default()));
         let path = user_data.join("settings.json");
         let settings = if path.exists() {
             let raw = std::fs::read_to_string(&path)?;
@@ -36,7 +37,12 @@ impl SettingsService {
         } else {
             defaults.clone()
         };
-        Ok(Self { settings, path, defaults, resources })
+        Ok(Self {
+            settings,
+            path,
+            defaults,
+            resources,
+        })
     }
 
     pub fn resources_dir(&self) -> &Path {
@@ -73,14 +79,16 @@ impl SettingsService {
             self.settings = Value::Object(serde_json::Map::new());
         }
         let root = self.settings.as_object_mut().unwrap();
-        let models_obj = root.entry("models".to_string())
+        let models_obj = root
+            .entry("models".to_string())
             .or_insert_with(|| Value::Object(serde_json::Map::new()));
         if !models_obj.is_object() {
             *models_obj = Value::Object(serde_json::Map::new());
         }
         let obj = models_obj.as_object_mut().unwrap();
         // 嵌套结构: models.customModels[provider_id] = [...]
-        let cm = obj.entry("customModels".to_string())
+        let cm = obj
+            .entry("customModels".to_string())
             .or_insert_with(|| Value::Object(serde_json::Map::new()));
         if let Some(cm_obj) = cm.as_object_mut() {
             cm_obj.insert(provider_id.to_string(), arr);
@@ -136,8 +144,12 @@ fn set_by_path(root: &mut Value, parts: &[&str], value: Value) -> Result<()> {
         if !cur.is_object() {
             *cur = Value::Object(Default::default());
         }
-        let obj = cur.as_object_mut().ok_or_else(|| AppError::Config("路径非对象".into()))?;
-        cur = obj.entry(part.to_string()).or_insert_with(|| Value::Object(Default::default()));
+        let obj = cur
+            .as_object_mut()
+            .ok_or_else(|| AppError::Config("路径非对象".into()))?;
+        cur = obj
+            .entry(part.to_string())
+            .or_insert_with(|| Value::Object(Default::default()));
     }
     let last = parts.last().unwrap();
     if !cur.is_object() {
@@ -164,4 +176,170 @@ fn atomic_write(path: &Path, value: &Value) -> Result<()> {
     }
     std::fs::rename(&tmp, path)?;
     Ok(())
+}
+
+// =============================================================
+// 单元测试 — Settings 点路径更新 / 深合并 / 持久化往返。
+// 覆盖点: update("general.theme", ...) / merge_defaults / set_custom_models / reset。
+// 用 tempfile 隔离, headless CI 可跑。
+// =============================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// 造一个空的 user_data 临时目录 (无 resources → defaults 为空对象)。
+    fn empty_user_data() -> tempfile::TempDir {
+        tempfile::tempdir().unwrap()
+    }
+
+    fn load_empty() -> SettingsService {
+        let dir = empty_user_data();
+        // SettingsService::load 持有 path 但不持有 dir, dir 需保持存活到 svc 释放。
+        // 这里泄漏 dir 是测试用约定 (CI 临时目录自动清理)。
+        let dir_path = dir.path().to_path_buf();
+        std::mem::forget(dir);
+        SettingsService::load(&dir_path).unwrap()
+    }
+
+    #[test]
+    fn update_writes_nested_dot_path() {
+        let mut svc = load_empty();
+        svc.update("general.theme", json!("dark")).unwrap();
+        assert_eq!(
+            svc.get_path("general.theme").and_then(|v| v.as_str()),
+            Some("dark")
+        );
+    }
+
+    #[test]
+    fn update_creates_intermediate_objects() {
+        // "a.b.c" 中 a/b 不存在时自动建对象。
+        let mut svc = load_empty();
+        svc.update("a.b.c", json!(42)).unwrap();
+        assert_eq!(svc.get_path("a.b.c").and_then(|v| v.as_i64()), Some(42));
+        assert!(svc.get_path("a.b").unwrap().is_object());
+    }
+
+    #[test]
+    fn update_overwrites_scalar_at_leaf() {
+        let mut svc = load_empty();
+        svc.update("x", json!(1)).unwrap();
+        svc.update("x", json!(2)).unwrap();
+        assert_eq!(svc.get_path("x").and_then(|v| v.as_i64()), Some(2));
+    }
+
+    #[test]
+    fn update_persists_across_reload() {
+        let dir = tempfile::tempdir().unwrap();
+        let user_data = dir.path().to_path_buf();
+        {
+            let mut svc = SettingsService::load(&user_data).unwrap();
+            svc.update("ui.lang", json!("zh-CN")).unwrap();
+        }
+        // 重新 load 应从 settings.json 读回。
+        let svc2 = SettingsService::load(&user_data).unwrap();
+        assert_eq!(
+            svc2.get_path("ui.lang").and_then(|v| v.as_str()),
+            Some("zh-CN")
+        );
+        // 文件确实落盘。
+        assert!(user_data.join("settings.json").exists());
+    }
+
+    #[test]
+    fn empty_dot_path_writes_empty_key() {
+        // "".split('.') → [""], 长度 1 非空 → 不会在 update() 入口报错,
+        // 而是在根对象插入一个空字符串 key ""。
+        // 这里锁定当前行为 (而非假装它报错)。
+        let mut svc = load_empty();
+        let result = svc.update("", json!(1));
+        // 不应 panic; 当前实现会 Ok(()) 并写入空 key。
+        assert!(result.is_ok(), "空路径当前写入空 key 而非报错 (锁定行为)");
+    }
+
+    #[test]
+    fn merge_defaults_is_shallow_at_user_top_level() {
+        // merge_defaults 只在 user 是对象时, 把 default 里 user 缺失的【顶层】key 补上。
+        // 它【不】递归进嵌套对象。锁定这个浅合并语义 (改深合并会破坏此测试)。
+        let defaults = json!({ "a": 1, "b": { "c": 2 } });
+        let user = json!({ "b": { "e": 3 } });
+        let merged = merge_defaults(&defaults, user);
+        // user 没有 "a" → 从 default 补上。
+        assert_eq!(merged["a"], 1);
+        // user 有 "b" → 整体用 user 的 (不递归补 default.b.c)。
+        assert_eq!(merged["b"]["e"], 3);
+        // b.c 不存在 (浅合并不递归)。
+        assert_eq!(merged["b"].get("c"), None);
+    }
+
+    #[test]
+    fn merge_defaults_when_default_not_object_returns_user() {
+        let defaults = json!("scalar");
+        let user = json!({ "x": 1 });
+        let merged = merge_defaults(&defaults, user);
+        assert_eq!(merged, json!({ "x": 1 }));
+    }
+
+    #[test]
+    fn reset_restores_defaults_and_persists() {
+        let dir = tempfile::tempdir().unwrap();
+        let user_data = dir.path().to_path_buf();
+        let mut svc = SettingsService::load(&user_data).unwrap();
+        svc.update("temp.value", json!(42)).unwrap();
+        assert!(svc.get_path("temp").is_some());
+        svc.reset().unwrap();
+        // reset 后 temp.value 应消失 (defaults 为空时)。
+        assert!(svc.get_path("temp").is_none());
+    }
+
+    #[test]
+    fn set_custom_models_nests_under_models_customModels() {
+        let mut svc = load_empty();
+        let models = vec![json!({ "id": "gpt-4o" })];
+        svc.set_custom_models("openai", models.clone()).unwrap();
+        let m = svc.get_path("models.customModels.openai").unwrap();
+        assert_eq!(m, &serde_json::Value::Array(models));
+    }
+
+    #[test]
+    fn set_custom_models_replaces_provider_array() {
+        let mut svc = load_empty();
+        svc.set_custom_models("openai", vec![json!("a")]).unwrap();
+        svc.set_custom_models("openai", vec![json!("b"), json!("c")])
+            .unwrap();
+        let arr = svc
+            .get_path("models.customModels.openai")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0], "b");
+    }
+
+    #[test]
+    fn eaa_data_dir_falls_back_to_user_data() {
+        let svc = load_empty();
+        let user_data = std::path::PathBuf::from("/tmp/eaa-test");
+        let dir = svc.eaa_data_dir(&user_data);
+        assert_eq!(dir, user_data.join("eaa-data"));
+    }
+
+    #[test]
+    fn eaa_data_dir_uses_setting_when_present() {
+        let mut svc = load_empty();
+        svc.update("general.dataDir", json!("/custom/path"))
+            .unwrap();
+        let dir = svc.eaa_data_dir(&std::path::PathBuf::from("/tmp/x"));
+        assert_eq!(dir, std::path::PathBuf::from("/custom/path"));
+    }
+
+    #[test]
+    fn eaa_data_dir_ignores_empty_string_setting() {
+        let mut svc = load_empty();
+        svc.update("general.dataDir", json!("")).unwrap();
+        let dir = svc.eaa_data_dir(&std::path::PathBuf::from("/tmp/x"));
+        // 空字符串视为未设置, 回退到默认。
+        assert_eq!(dir, std::path::PathBuf::from("/tmp/x").join("eaa-data"));
+    }
 }

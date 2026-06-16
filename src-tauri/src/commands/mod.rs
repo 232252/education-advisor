@@ -12,8 +12,8 @@
 //!   Tauri:        `invoke('ai_list_models', { providerId })`
 //!   (前端 ipc-client.ts 统一做 `.replace(':', '_')`, 见 docs/04-FRONTEND-SHIM.md)
 
-pub mod ai;
 pub mod agent;
+pub mod ai;
 pub mod chat;
 pub mod compliance;
 pub mod cron;
@@ -64,6 +64,8 @@ macro_rules! all_commands {
         crate::commands::agent::agent_get_history,
         crate::commands::agent::agent_get_all_executions,
         crate::commands::agent::agent_abort,
+        crate::commands::agent::agent_approval_resolve,
+        crate::commands::agent::agent_approval_pending_count,
         // ===== EAA 核心 =====
         crate::commands::eaa::eaa_info,
         crate::commands::eaa::eaa_score,

@@ -13,30 +13,64 @@ import type { AgentListItem } from '@shared/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAgentStore } from '../agentStore'
 
-// --- 桩：模拟 window.api.agent.onStatusUpdate 的多订阅器容器 ---
-// 真实 IPC 通道行为：
-//   - 每次 onStatusUpdate(cb) 都注册一个 listener,返回一个取消订阅函数
-//   - 取消订阅函数调用后,后续 IPC 事件不会再触发该 cb
-// 这里我们模拟 IPC 层,统计注册过的 listener 实例数。
-interface IpcStub {
-  activeListeners: Set<(data: unknown) => void>
-  totalRegistrations: number
-  mockOnStatusUpdate: (cb: (data: unknown) => void) => () => void
-}
-
-function makeIpcStub(): IpcStub {
+// v0.2.0 起渲染端统一通过 getAPI() 访问后端, 不再有 window.api 后备。
+// 这里用 vi.hoisted 提前准备桩实例, 让下面的 vi.mock factory 引用,
+// 避免动态 vi.mock 替换不了已加载模块的问题。
+const ipcRef = vi.hoisted(() => {
   const activeListeners = new Set<(data: unknown) => void>()
   return {
     activeListeners,
-    totalRegistrations: 0,
-    mockOnStatusUpdate: (cb) => {
-      activeListeners.add(cb)
-      return () => {
-        activeListeners.delete(cb)
-      }
-    },
+    getMockOnStatusUpdate:
+      () =>
+      (cb: (data: unknown) => void): (() => void) => {
+        activeListeners.add(cb)
+        return () => {
+          activeListeners.delete(cb)
+        }
+      },
   }
-}
+})
+
+// 注意: vi.mock 路径相对本测试文件解析。本文件在 stores/__tests__/, 比被测
+// 模块 stores/agentStore.ts 多一层目录, 因此 ipc-client 的路径是 ../../lib
+// (不是 agentStore.ts 内部的 ../lib)。路径写错时 mock 静默不生效, store
+// 会落到真实 getAPI(), 触发 window.__TAURI_INTERNALS__ 缺失错误。
+vi.mock('../../lib/ipc-client', () => ({
+  getAPI: () => {
+    // 重新指向最新 ipcRef (每个 beforeEach 会替换 activeListeners)
+    const mockOn = ipcRef.getMockOnStatusUpdate()
+    return {
+      agent: {
+        onStatusUpdate: mockOn,
+        list: vi.fn().mockResolvedValue([]),
+        get: vi.fn().mockResolvedValue(null),
+        toggle: vi.fn().mockResolvedValue({ success: true }),
+        update: vi.fn().mockResolvedValue({ success: true }),
+        getSoul: vi.fn().mockResolvedValue(''),
+        setSoul: vi.fn().mockResolvedValue({ success: true }),
+        getRules: vi.fn().mockResolvedValue(''),
+        setRules: vi.fn().mockResolvedValue({ success: true }),
+        runManual: vi.fn().mockResolvedValue({ success: true }),
+        getHistory: vi.fn().mockResolvedValue([]),
+        abort: vi.fn().mockResolvedValue({ success: true }),
+      },
+      settings: {
+        get: vi.fn().mockResolvedValue({}),
+        set: vi.fn().mockResolvedValue({ success: true }),
+        reset: vi.fn().mockResolvedValue({ success: true }),
+      },
+      chat: {
+        saveMessage: vi.fn().mockResolvedValue({ success: true, id: 1 }),
+        loadMessages: vi.fn().mockResolvedValue({ success: true, messages: [] }),
+        deleteSession: vi.fn().mockResolvedValue({ success: true }),
+        listSessions: vi.fn().mockResolvedValue({ success: true, sessions: [] }),
+      },
+      sys: {
+        openDialog: vi.fn().mockResolvedValue({ canceled: true }),
+      },
+    }
+  },
+}))
 
 // --- 桩：构造一个最小的 AgentListItem ---
 function makeAgent(overrides: Partial<AgentListItem> = {}): AgentListItem {
@@ -55,43 +89,9 @@ function makeAgent(overrides: Partial<AgentListItem> = {}): AgentListItem {
 }
 
 describe('agentStore status listener (fix double-subscription invariant)', () => {
-  let ipc: IpcStub
-
   beforeEach(() => {
-    ipc = makeIpcStub()
-    // 注入最小 window.api（agentStore 只在调用时才取 getAPI()）
-    ;(globalThis as { window?: unknown }).window = {
-      api: {
-        agent: {
-          onStatusUpdate: ipc.mockOnStatusUpdate,
-          list: vi.fn().mockResolvedValue([]),
-          get: vi.fn().mockResolvedValue(null),
-          toggle: vi.fn().mockResolvedValue({ success: true }),
-          update: vi.fn().mockResolvedValue({ success: true }),
-          getSoul: vi.fn().mockResolvedValue(''),
-          setSoul: vi.fn().mockResolvedValue({ success: true }),
-          getRules: vi.fn().mockResolvedValue(''),
-          setRules: vi.fn().mockResolvedValue({ success: true }),
-          runManual: vi.fn().mockResolvedValue({ success: true }),
-          getHistory: vi.fn().mockResolvedValue([]),
-          abort: vi.fn().mockResolvedValue({ success: true }),
-        },
-        settings: {
-          get: vi.fn().mockResolvedValue({}),
-          set: vi.fn().mockResolvedValue({ success: true }),
-          reset: vi.fn().mockResolvedValue({ success: true }),
-        },
-        chat: {
-          saveMessage: vi.fn().mockResolvedValue({ success: true, id: 1 }),
-          loadMessages: vi.fn().mockResolvedValue({ success: true, messages: [] }),
-          deleteSession: vi.fn().mockResolvedValue({ success: true }),
-          listSessions: vi.fn().mockResolvedValue({ success: true, sessions: [] }),
-        },
-        sys: {
-          openDialog: vi.fn().mockResolvedValue({ canceled: true }),
-        },
-      },
-    }
+    // 重置桩状态,确保每个 test 独立
+    ipcRef.activeListeners.clear()
 
     // 重置 store 状态,避免上一次测试残留
     useAgentStore.setState({
@@ -106,13 +106,11 @@ describe('agentStore status listener (fix double-subscription invariant)', () =>
       detailLoading: false,
       _unsubscribeStatus: null,
     })
-    // 清空派生订阅者集合（setState 不会改 _statusListeners 内部 Set 的引用,
-    //  我们通过 getState() 后手工 clear 以确保测试隔离）
+    // 清空派生订阅者集合
     useAgentStore.getState()._statusListeners.clear()
   })
 
   afterEach(() => {
-    delete (globalThis as { window?: unknown }).window
     vi.restoreAllMocks()
   })
 
@@ -124,10 +122,7 @@ describe('agentStore status listener (fix double-subscription invariant)', () =>
     store.initStatusListener()
 
     // 不变量:无论调用多少次,IPC 层只有 1 个活跃 listener
-    expect(ipc.activeListeners.size).toBe(1)
-    // 总注册数应该是 3（旧 listener 被 cleanup 释放）
-    expect(ipc.totalRegistrations === 0).toBe(true) // 此桩不计数,只算 active
-    expect(ipc.activeListeners.size).toBe(1)
+    expect(ipcRef.activeListeners.size).toBe(1)
   })
 
   // ---- 2) IPC 事件触发后 store 状态正确更新 ----
@@ -142,7 +137,7 @@ describe('agentStore status listener (fix double-subscription invariant)', () =>
     })
 
     // 模拟主进程向 a1 推送 running 状态
-    const [listener] = [...ipc.activeListeners]
+    const [listener] = [...ipcRef.activeListeners]
     listener({ agentId: 'a1', status: 'running' })
 
     const after = useAgentStore.getState()
@@ -160,11 +155,10 @@ describe('agentStore status listener (fix double-subscription invariant)', () =>
       agents: [makeAgent({ id: 'a1', status: 'idle' })],
     })
 
-    const [listener] = [...ipc.activeListeners]
+    const [listener] = [...ipcRef.activeListeners]
     listener({ agentId: 'a1', status: 'running' })
 
     // 不变量:status 被设为 'running'(不是被覆盖成 'idle' 之类的中间态)
-    // 且引用相等性可观察的次数=1
     const after = useAgentStore.getState()
     expect(after.agents[0].status).toBe('running')
 
@@ -180,7 +174,7 @@ describe('agentStore status listener (fix double-subscription invariant)', () =>
     const received: unknown[] = []
     const unsub = store.subscribeStatus((data) => received.push(data))
 
-    const [listener] = [...ipc.activeListeners]
+    const [listener] = [...ipcRef.activeListeners]
     // 模拟流式场景:3 个事件在 React 渲染前全部到达
     listener({ agentId: 'a1', status: 'running', output: 'hello' })
     listener({ agentId: 'a1', status: 'running', output: ' world' })
@@ -209,7 +203,7 @@ describe('agentStore status listener (fix double-subscription invariant)', () =>
     const u1 = store.subscribeStatus((d) => recv1.push(d))
     const u2 = store.subscribeStatus((d) => recv2.push(d))
 
-    const [listener] = [...ipc.activeListeners]
+    const [listener] = [...ipcRef.activeListeners]
     listener({ agentId: 'a1', status: 'running' })
 
     expect(recv1.length).toBe(1)
@@ -239,7 +233,7 @@ describe('agentStore status listener (fix double-subscription invariant)', () =>
     })
     const uGood = store.subscribeStatus((d) => recv.push(d))
 
-    const [listener] = [...ipc.activeListeners]
+    const [listener] = [...ipcRef.activeListeners]
     listener({ agentId: 'a1', status: 'running' })
 
     // 不变量:store 仍然正常更新

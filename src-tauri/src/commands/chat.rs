@@ -54,8 +54,16 @@ pub async fn chat_save_message(state: State<'_, AppState>, msg: SaveMsgArgs) -> 
 }
 
 #[tauri::command]
-pub async fn chat_load_messages(state: State<'_, AppState>, session_id: Option<String>) -> Result<Value> {
-    let messages = state.db.lock().await.load_messages(session_id.as_deref()).await?;
+pub async fn chat_load_messages(
+    state: State<'_, AppState>,
+    session_id: Option<String>,
+) -> Result<Value> {
+    let messages = state
+        .db
+        .lock()
+        .await
+        .load_messages(session_id.as_deref())
+        .await?;
     Ok(serde_json::json!({ "success": true, "messages": messages }))
 }
 

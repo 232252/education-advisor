@@ -60,6 +60,11 @@ pub async fn cron_run_now(state: State<'_, AppState>, id: String) -> Result<Valu
 
 #[tauri::command]
 pub async fn cron_get_logs(state: State<'_, AppState>, task_id: Option<String>) -> Result<Value> {
-    let rows = state.db.lock().await.get_cron_logs(task_id.as_deref()).await?;
+    let rows = state
+        .db
+        .lock()
+        .await
+        .get_cron_logs(task_id.as_deref())
+        .await?;
     Ok(serde_json::json!(rows))
 }

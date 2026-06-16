@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, State};
 
 use crate::error::Result;
+use crate::harness::guardrails::ApprovalDecision;
 use crate::services::agent_service::AgentDetail;
 use crate::services::llm_service::ChatMessage;
 use crate::state::AppState;
@@ -37,7 +38,11 @@ pub async fn agent_get_soul(state: State<'_, AppState>, id: String) -> Result<St
 }
 
 #[tauri::command]
-pub async fn agent_set_soul(state: State<'_, AppState>, id: String, content: String) -> Result<Value> {
+pub async fn agent_set_soul(
+    state: State<'_, AppState>,
+    id: String,
+    content: String,
+) -> Result<Value> {
     state.agents.read().set_soul(&id, &content)?;
     Ok(json!({ "success": true }))
 }
@@ -48,14 +53,23 @@ pub async fn agent_get_rules(state: State<'_, AppState>, id: String) -> Result<S
 }
 
 #[tauri::command]
-pub async fn agent_set_rules(state: State<'_, AppState>, id: String, content: String) -> Result<Value> {
+pub async fn agent_set_rules(
+    state: State<'_, AppState>,
+    id: String,
+    content: String,
+) -> Result<Value> {
     state.agents.read().set_rules(&id, &content)?;
     Ok(json!({ "success": true }))
 }
 
 #[tauri::command]
 pub async fn agent_get_history(state: State<'_, AppState>, id: String) -> Result<Value> {
-    let rows = state.db.lock().await.get_execution_history(&id, 100).await?;
+    let rows = state
+        .db
+        .lock()
+        .await
+        .get_execution_history(&id, 100)
+        .await?;
     Ok(json!(rows))
 }
 
@@ -72,20 +86,33 @@ pub async fn agent_get_all_executions(
     state: State<'_, AppState>,
     opts: Option<GetAllExecutionsOpts>,
 ) -> Result<Value> {
-    let opts = opts.unwrap_or(GetAllExecutionsOpts { status: None, agent_id: None, since_ms: None, limit: None });
+    let opts = opts.unwrap_or(GetAllExecutionsOpts {
+        status: None,
+        agent_id: None,
+        since_ms: None,
+        limit: None,
+    });
     let limit = opts.limit.unwrap_or(200);
     let rows = state
         .db
         .lock()
         .await
-        .get_all_executions(opts.status.as_deref(), opts.agent_id.as_deref(), opts.since_ms, limit)
+        .get_all_executions(
+            opts.status.as_deref(),
+            opts.agent_id.as_deref(),
+            opts.since_ms,
+            limit,
+        )
         .await?;
     let total_runs = rows.len() as u64;
     let success = rows.iter().filter(|r| r.status == "success").count() as u64;
     let error = rows.iter().filter(|r| r.status == "failure").count() as u64;
     let timeout = rows.iter().filter(|r| r.status == "aborted").count() as u64;
     let total_cost: f64 = rows.iter().filter_map(|r| r.cost_total).sum();
-    let total_tokens: i64 = rows.iter().map(|r| r.tokens_input.unwrap_or(0) + r.tokens_output.unwrap_or(0)).sum();
+    let total_tokens: i64 = rows
+        .iter()
+        .map(|r| r.tokens_input.unwrap_or(0) + r.tokens_output.unwrap_or(0))
+        .sum();
 
     let name_map: serde_json::Map<String, Value> = serde_json::Map::new();
     Ok(json!({
@@ -125,7 +152,33 @@ pub async fn agent_run_manual(
     prompt: String,
     history: Option<Vec<ChatMessage>>,
 ) -> Result<Value> {
-    let session_id = crate::services::agent_runner::run(&app, &state, &id, &prompt, history).await?;
+    let session_id =
+        crate::services::agent_runner::run(&app, &state, &id, &prompt, history).await?;
     Ok(json!({ "success": true, "id": session_id }))
 }
 
+/// 前端发回的审批决议 (HITL 闭环)
+/// `decision` 是 `ApprovalDecision` 的 JSON 表示:
+///   {"type": "approve", "by": "user_id"}
+///   {"type": "reject", "by": "user_id", "reason": "..."}
+///   {"type": "edit", "by": "user_id", "new_args": {...}}
+#[tauri::command]
+pub async fn agent_approval_resolve(
+    state: State<'_, AppState>,
+    request_id: String,
+    decision: Value,
+) -> Result<Value> {
+    let parsed = ApprovalDecision::from_json(decision)
+        .map_err(|e| crate::error::AppError::Other(format!("invalid decision: {e}")))?;
+    state
+        .approval_channel
+        .resolve(&request_id, parsed)
+        .map_err(|e| crate::error::AppError::Other(format!("resolve failed: {e}")))?;
+    Ok(json!({ "success": true, "request_id": request_id }))
+}
+
+/// 列出当前挂起的审批请求 (调试 / 仪表盘)
+#[tauri::command]
+pub async fn agent_approval_pending_count(state: State<'_, AppState>) -> Result<Value> {
+    Ok(json!({ "pending": state.approval_channel.pending_count() }))
+}

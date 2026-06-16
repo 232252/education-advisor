@@ -12,12 +12,100 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- **阶段四·Evaluation Harness** (`harness/eval/`): 把"agent 跑得对不对"变成 CI 可重复执行的回归测试
+  - **数据集层** (`dataset.rs`): JSONL 格式, 4 个内置数据集 (safety / privacy / tool_correctness / task_completion, 共 12 case)
+  - **4 个确定性 Scorer** (`scorer.rs`): ToolCallMatch (顺序子序列) / SchemaValidator (写操作 result 校验) / PiiLeak (`[PII_xxx]` 残留) / Budget (rounds/tokens/cost)
+  - **LLM-as-a-Judge** (`judge.rs`): 3-strategy verdict 解析 (纯 JSON / ```json``` fence / `{...}` 子串) + StubJudgeClient 测试桩
+  - **EvalRunner** (`runner.rs`): 评分公式 `scorer_mean * 0.5 + judge * 0.5`, `TraceProvider` trait 抽象
+  - **报告生成** (`report.rs`): 自包含 HTML (`format!` + 转义, 不用模板引擎) + JSON 写出
+  - **CLI** (`bin/eval_runner.rs`): 跑批 + exit 0/1 (按 `--pass-rate` 阈值), 支持 `--dataset` / `--dataset-dir` / `--stub-judge` / `--only-tags`
+  - **CI 集成** (`.github/workflows/eval.yml`): 单元 + 集成测试 + 跑批烟雾, 上传 report.html/json 作 14-day artifact
+  - 测试: 40 单元 + 12 集成 = **52/52 全过**, 0 warnings (clippy clean)
+  - 文档: [`docs/harness/04-evaluation.md`](./docs/harness/04-evaluation.md)
+
 ### Planned
 - Multi-class support (one teacher, N parallel classes)
 - Voice channel (push-to-talk during class) with on-device transcription
 - Plugin marketplace (community-contributed agents & skills)
 - Windows ARM64 installer
-- Tauri parity build
+- Code signing (Windows Authenticode / macOS Notarization)
+
+### Pending (阶段五+)
+- `AgentRunTraceProvider`: 接 `AgentHarness::run` + `StateStore`, 让 eval-runner 跑真 agent (替换 StubTraceProvider)
+- Baseline diff: `eval-reports/baseline.json` + 退步 >5% 即 fail
+- GuardrailTriggerScorer: 验证守护链触发率 (需要阶段三埋点 Allow/Block 事件到 RunTrace)
+- 并发跑批: `tokio::spawn` + `JoinSet`, 12 case 串行 → 并行
+
+## [0.2.0] — 2026-06-15
+
+> **🏗 Architectural transition: 仓库正式从 Electron 切换到 Tauri 2.0 单一架构**
+>
+> 这是 Education Advisor 桌面端的第二次大版本。从 v0.2.0 开始, 整个
+> 后端是一个纯 Rust 单二进制 (≈ 17 MB 安装包), 渲染端依旧 React 18。
+> 原 Electron 主进程 / `electron-builder` / `@earendil-works/pi-ai` 等
+> 资产全部软删除到 `archive/legacy/` 目录, 保留 git 历史与回滚能力。
+>
+> 详见 [`MIGRATION_REPORT.md`](./MIGRATION_REPORT.md) 与
+> [`src-tauri/docs/00-OVERVIEW.md`](./src-tauri/docs/00-OVERVIEW.md)。
+
+### Changed
+- **BREAKING**: 仓库主程序从 Electron 33 + Node 22 切换到 Tauri 2.0 + 纯 Rust
+  (单个 `ea_tauri` crate + 4 个 workspace 子 crate)。`src/main/` 整体封存
+  到 `archive/legacy/src-main/`。
+- **BREAKING**: 前端 IPC 客户端移除双轨检测 (`window.api` 后备分支)。
+  `src/renderer/lib/ipc-client.ts` 现在只走 Tauri `invoke/listen`,
+  `ipc-client.tauri.ts` 文件已合并删除。
+- **BREAKING**: 渲染端到后端的访问路径从 `ipcRenderer.invoke('ns:action', ...)`
+  改为 `@tauri-apps/api/core` 的 `invoke('ns_action', ...)`。
+  命名规则保持 `:` → `_`。
+- **BREAKING**: 旧 React 组件中 `import { getAPI } from './ipc-client'` 的
+  172 处调用点**零改动**——`getAPI()` 函数签名与 `WindowAPI` 接口保持兼容。
+- 包大小: 从 Electron 90 MB → Tauri **17 MB** (↓ 81%)。
+- 启动时间: 从 Electron 1.5-2 s → Tauri **0.3-0.6 s** (↓ 70%)。
+- 内存占用: 从 150-200 MB → **40-80 MB** (↓ 60%)。
+- 数据引擎访问: 从 spawn `eaa` 子进程 (~50ms/op) → 库内调用
+  `<1ms/op` (95x 提升)。
+- LLM 层: 从 `pi-ai` npm SDK (Node) → `src-tauri/src/services/llm_service.rs`
+  纯 Rust reqwest + SSE 抽象 (12 provider, 0 npm 依赖)。
+- SQLite: 从 `better-sqlite3` (native) → `rusqlite` (bundled, 跨平台一致)。
+- 密钥存储: 从 win-dpapi (Win only) → `keyring` crate
+  (Win Credential Manager / macOS Keychain / Linux Secret Service)。
+- 调度器: 从 `node-cron` → `tokio-cron-scheduler`。
+- 托盘: 从 Electron `Tray` → `tauri::tray::TrayIconBuilder`。
+- 更新器: 从 `electron-updater` → `tauri-plugin-updater` + `tauri-action`。
+
+### Added
+- `core/eaa-cli/` 加 `[lib] name="eaa_core"`, src-tauri 直接 path 引用,
+  库内调用, 0 子进程。
+- 4 个 workspace 子 crate 通过 path 引用:
+  `callback-signature`, `log-redact`, `data-validation`, `agent-isolation`。
+- `src-tauri/vendored/brotli/`, `brotli-decompressor/`, `alloc-stdlib/` 三方库
+  patch, 修复 brotli 8.x + alloc-no-stdlib v2/v3 分裂。
+- 108 个 Rust 单元 + 集成测试, 覆盖 13 个 service、30 个 agent 工具、
+  全部 4 个子 crate, 0 失败。
+- `MIGRATION_REPORT.md` 验证报告。
+- `archive/legacy/` 目录封存原 Electron 全部资产 (44 个文件)。
+
+### Removed
+- `electron` / `electron-builder` / `vite-plugin-electron` 等 devDependencies。
+- `better-sqlite3` / `chokidar` / `cross-spawn` / `node-cron` / `xlsx` 等
+  运行时依赖。
+- `sharp` / `to-ico` (Electron 图标生成专用)。
+- `scripts/build-icon.mjs` / `download-eaa-binaries.mjs` /
+  `generate-update-manifest.mjs` / `refine-wording.ps1` / `rename-brand.ps1`。
+- `electron-builder.yml` / `vite.config.main.ts`。
+- `.github/workflows/release.yml` (Electron release workflow)。
+- `dist/` / `release/` (Electron 构建产物, git 重新生成)。
+
+### Fixed
+- 原 Electron 版"未打通的链路":
+  - LLM 流式 abort 偶发残留 → Tauri `CancellationToken` + `tokio::select!` 干净中止。
+  - 数据写入 spawn 子进程慢 → 库内调用。
+  - 隐私预检仅 feishu.send 走 → 全部 anonymize/filter 写审计日志。
+  - 合规报告手动算 → `compliance_generate` 自动按季度聚合 + SHA-256 manifest。
+  - better-sqlite3 native 模块跨平台重编 → rusqlite bundled。
+  - tray-service 偶发菜单项错位 → Tauri 显式 `on_menu_event` 路由。
 
 ## [0.1.0] — 2026-06-09
 

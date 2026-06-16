@@ -52,6 +52,32 @@ export default defineConfig({
             { label: '安装指南', slug: 'installation' },
           ],
         },
+        {
+          label: '架构与原理',
+          items: [
+            { label: '架构说明', slug: 'architecture' },
+            { label: '隐私引擎', slug: 'privacy_engine' },
+            { label: '数据引擎桥接', slug: 'eaa_bridge' },
+            { label: '定时调度', slug: 'cron' },
+            { label: 'Agent 编写', slug: 'agent_authoring' },
+          ],
+        },
+        {
+          label: '开发与部署',
+          items: [
+            { label: '开发指南', slug: 'development' },
+            { label: '桌面端构建', slug: 'desktop_build' },
+            { label: '分发打包', slug: 'distribution' },
+            { label: '配置项', slug: 'configuration' },
+          ],
+        },
+        {
+          label: '帮助',
+          items: [
+            { label: '常见问题', slug: 'faq' },
+            { label: '问题排查', slug: 'troubleshooting' },
+          ],
+        },
       ],
 
       pagefind: true, // 内置静态搜索 (零延迟, 浏览器本地)

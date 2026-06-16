@@ -6,6 +6,10 @@
 > 起源: 用户在 2026-06-14 提出 "在这个目录夹下面建一个 Tauri 目录夹, 整个项目
 > 用 Rust 做一次全面 Tauri 重建/重构, 把没完成的功能和没打通的链路重写一遍,
 > 大量使用 Rust, 要有详细 md 文件以及修改内容"。
+>
+> **当前状态 (v0.2.0, 2026-06-15)**: Tauri 单一架构已正式转正, 原 Electron 资产
+> 已封存到仓库根 [`archive/legacy/`](../../archive/legacy/), 仓库主入口即为
+> `src-tauri/`。 后续 PR 提交不再有 Electron 兼容分支。
 
 ---
 
@@ -134,6 +138,7 @@ src-tauri/
 | 5 前端适配 | ✅ | ipc-client.tauri.ts + ipc-client.ts 双轨 + tauri:* scripts |
 | 6 文档收尾 | ✅ | 本系列 9 篇 md |
 | 7 编译修复 + 完整构建 + 多轮工具调用闭环 | ✅ | 见 CHANGELOG 阶段 7 |
+| **8 仓库转正迁移** | ✅ | 见 CHANGELOG 阶段 8 + [`MIGRATION_REPORT.md`](../../MIGRATION_REPORT.md) |
 
 **编译验证 (最终)**:
 - ✅ `cargo +1.95.0 check --all-targets` (lib + bin + tests) **0 错误**

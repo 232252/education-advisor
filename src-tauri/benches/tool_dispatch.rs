@@ -36,8 +36,16 @@ fn setup_data_with_students(n: usize) -> tempfile::TempDir {
         });
         index[&name] = json!(id);
     }
-    std::fs::write(data_dir.join("entities").join("entities.json"), entities.to_string()).unwrap();
-    std::fs::write(data_dir.join("entities").join("name_index.json"), index.to_string()).unwrap();
+    std::fs::write(
+        data_dir.join("entities").join("entities.json"),
+        entities.to_string(),
+    )
+    .unwrap();
+    std::fs::write(
+        data_dir.join("entities").join("name_index.json"),
+        index.to_string(),
+    )
+    .unwrap();
     std::fs::write(data_dir.join("events").join("events.json"), "[]").unwrap();
 
     // schema
@@ -134,5 +142,10 @@ fn bench_single_dispatch_by_scale(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_tool_loop_no_cache, bench_tool_loop_cached, bench_single_dispatch_by_scale);
+criterion_group!(
+    benches,
+    bench_tool_loop_no_cache,
+    bench_tool_loop_cached,
+    bench_single_dispatch_by_scale
+);
 criterion_main!(benches);

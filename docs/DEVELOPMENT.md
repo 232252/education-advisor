@@ -1,3 +1,10 @@
+---
+title: Development
+description: "开发环境搭建"
+sidebar:
+  label: "开发指南"
+---
+
 # Development
 
 > **How to set up your dev environment and start hacking on the

@@ -1,3 +1,10 @@
+---
+title: Agent authoring
+description: "如何编写新 Agent"
+sidebar:
+  label: "Agent 编写"
+---
+
 # Agent authoring
 
 > **A new agent is one of the highest-leverage contributions you can make

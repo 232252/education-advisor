@@ -16,7 +16,7 @@ import { riskColor, riskSortValue } from '../../lib/risk'
 import { toast } from '../../stores/toastStore'
 import { StudentProfile } from './StudentProfile'
 
-// Electron 文件对话框返回类型
+// 文件对话框返回类型
 interface OpenDialogResult {
   canceled: boolean
   filePaths: string[]

@@ -1,3 +1,10 @@
+---
+title: Quick start
+description: "15 分钟内跑起来"
+sidebar:
+  label: "极速上手"
+---
+
 # Quick start
 
 > **Get Education Advisor running on your machine in under 15 minutes.**

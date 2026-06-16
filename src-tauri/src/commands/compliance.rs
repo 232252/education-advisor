@@ -35,7 +35,11 @@ pub async fn compliance_list(state: State<'_, AppState>) -> Result<Value> {
 }
 
 #[tauri::command]
-pub async fn compliance_save(_state: State<'_, AppState>, report_json: String, dest_path: String) -> Result<Value> {
+pub async fn compliance_save(
+    _state: State<'_, AppState>,
+    report_json: String,
+    dest_path: String,
+) -> Result<Value> {
     match std::fs::write(&dest_path, report_json.as_bytes()) {
         Ok(_) => Ok(json!({ "success": true, "filePath": dest_path, "bytes": report_json.len() })),
         Err(e) => Ok(json!({ "success": false, "error": e.to_string() })),
@@ -43,8 +47,13 @@ pub async fn compliance_save(_state: State<'_, AppState>, report_json: String, d
 }
 
 #[tauri::command]
-pub async fn compliance_read_audit(state: State<'_, AppState>, opts: Option<Value>) -> Result<Value> {
-    let limit = opts.and_then(|o| o.get("limit").and_then(|l| l.as_u64())).unwrap_or(200) as usize;
+pub async fn compliance_read_audit(
+    state: State<'_, AppState>,
+    opts: Option<Value>,
+) -> Result<Value> {
+    let limit = opts
+        .and_then(|o| o.get("limit").and_then(|l| l.as_u64()))
+        .unwrap_or(200) as usize;
     let audit = state.privacy_audit.read();
     let entries = audit.read(limit).unwrap_or_default();
     let out: Vec<Value> = entries

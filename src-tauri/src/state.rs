@@ -14,6 +14,7 @@ use parking_lot::RwLock;
 use tokio::sync::Mutex;
 
 use crate::error::Result;
+use crate::harness::guardrails::ApprovalChannel;
 use crate::services;
 
 /// 用户数据根目录 (对应 Electron 的 `app.getPath('userData')`)。
@@ -49,13 +50,17 @@ pub struct AppState {
     pub profile: Arc<RwLock<services::profile_service::ProfileService>>,
     pub oauth: Arc<services::oauth::OAuthFlow>,
     /// 当前进行中的 LLM/Agent 流, 用于 abort。key = 流式会话 id。
-    pub active_streams: Arc<Mutex<std::collections::HashMap<String, tokio_util::sync::CancellationToken>>>,
+    pub active_streams:
+        Arc<Mutex<std::collections::HashMap<String, tokio_util::sync::CancellationToken>>>,
+    /// 审批通道 (HITL)— oneshot 一次性决议，前端发 `agent_approval_resolve` 命令回写
+    pub approval_channel: Arc<ApprovalChannel>,
 }
 
 impl AppState {
     /// 初始化所有 service。在 Tauri setup 钩子里调用。
     /// 失败会让 app 启动失败 (设置/DB 是硬依赖)。
-    pub async fn init(paths: Paths) -> Result<Self> {
+    /// `app` 必传 — 阶段三用于 ApprovalChannel 持有 AppHandle (emit approval-required 事件)
+    pub async fn init(paths: Paths, app: tauri::AppHandle) -> Result<Self> {
         // 首次运行: 确保 EAA 数据引擎的文件结构存在 (空 entities/events/index),
         // 否则 add_student/score 等会因为 load_* 找不到文件而失败。
         // 对应原 Electron 版 eaa-bridge 在首次调用前的 init 步骤。
@@ -100,12 +105,15 @@ impl AppState {
             scheduler: Arc::new(Mutex::new(services::scheduler::SchedulerService::new())),
             skills,
             settings,
-            keystore: Arc::new(services::keystore::KeystoreService::new("education-advisor")),
+            keystore: Arc::new(services::keystore::KeystoreService::new(
+                "education-advisor",
+            )),
             privacy_audit,
             feishu: Arc::new(services::feishu_service::FeishuService::new()),
             oauth: Arc::new(services::oauth::OAuthFlow::new()),
             profile,
             active_streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            approval_channel: Arc::new(ApprovalChannel::new(app)),
         })
     }
 }

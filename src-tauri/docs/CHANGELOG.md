@@ -1,9 +1,103 @@
 # CHANGELOG — Tauri 重构
 
 > 每个阶段一条记录, 含"修改了什么文件、为什么、对应原 TS/Rust 哪段"。
-> 日期: 2026-06-14。
+> 起始日期: 2026-06-14。
 
 格式: `## [阶段] — 标题`, 下分 `### 修改` (按文件) + `### 原因`。
+
+---
+
+## [阶段 8] — 仓库转正 (Electron → Tauri 单一架构, v0.2.0)
+
+> v0.2.0 起, `src-tauri/` 不再是 "子项目" 或 "可选实现", 而是仓库主程序。
+> 原 Electron 资产软删除到 `archive/legacy/`, 详见仓库根
+> [`MIGRATION_REPORT.md`](../../MIGRATION_REPORT.md) 与
+> [`archive/legacy/README.md`](../../archive/legacy/README.md)。
+
+### 修改
+
+#### 仓库结构调整
+- **封存** 到 `archive/legacy/`:
+  - `src/main/` → `archive/legacy/src-main/main/` (36 个 .ts 文件)
+  - `src/main/preload/` → `archive/legacy/src-main/main/preload/`
+  - `electron-builder.yml`, `vite.config.main.ts` → `archive/legacy/`
+  - `scripts/build-icon.mjs`, `download-eaa-binaries.mjs`,
+    `generate-update-manifest.mjs`, `refine-wording.ps1`,
+    `rename-brand.ps1` → `archive/legacy/scripts/`
+  - `.github/workflows/release.yml` → `archive/legacy/.github/workflows/`
+- **删除** `src/renderer/lib/ipc-client.tauri.ts` (合并到 `ipc-client.ts`)
+- **删除** `README-TAURI.md`, `CONTRIBUTING-TAURI.md` (内容并入主 README / CONTRIBUTING)
+- **新建** `archive/legacy/README.md` 详细说明封存原因、回滚方法、删除条件
+
+#### 渲染端去 Electron 双轨
+- **修改** `src/renderer/lib/ipc-client.ts`:
+  - 移除 `import { getAPI as getTauriAPI } from './ipc-client.tauri'` 双轨检测
+  - 移除 `window.api` 后备分支与 `declare global { interface Window { api } }`
+  - 移除 `__TAURI_INTERNALS__` 运行时探测
+  - 现在 `getAPI()` 直接调用内部 `buildAPI()` (Tauri 单一)
+- **修改** `src/renderer/stores/__tests__/agentStore.test.ts`:
+  - 把桩从 `window.api` 改为 `vi.mock('../lib/ipc-client')` (用 `vi.hoisted`)
+  - 与生产代码路径一致 (Tauri invoke/listen 桩)
+
+#### 配置精简
+- **修改** `package.json`:
+  - 删除 scripts: `dev`, `dev:main`, `dev:electron`, `build`, `start`,
+    `package`, `package:portable`, `package:installer`, `build:icon`, `build:eaa`
+  - 删除 deps: `better-sqlite3`, `chokidar`, `cross-spawn`, `node-cron`,
+    `xlsx`, `@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`
+  - 删除 devDeps: `electron`, `electron-builder`, `vite-plugin-electron`,
+    `sharp`, `to-ico`, `@types/better-sqlite3`, `@types/cross-spawn`,
+    `@types/node-cron`
+  - 添加 scripts: `tauri:dev`, `tauri:build`, `tauri:build:debug` (Tauri CLI)
+- **修改** `tsconfig.json`:
+  - 删除 `@main/*` alias
+- **修改** `vitest.config.ts`:
+  - 删除 `projects: [renderer, main]` (无 main 测试)
+  - 顶层用 jsdom
+  - 排除 `archive` 目录
+- **修改** `vite.config.renderer.ts`:
+  - 删除 `// See vite.config.main.ts` 注释
+
+#### CI 升级
+- **修改** `.github/workflows/ci.yml`:
+  - 拆分为 `frontend-quality` (jsdom, typecheck/lint/test/build renderer)
+    + `rust-quality` (cargo check --all-targets + cargo test --lib) 两个 job
+  - 删除 `auto-update-manifest` job (electron-updater 专属)
+- **修改** `.github/workflows/release-tauri.yml`:
+  - 改名为 `Release` (无 Tauri 后缀, 因为不再有并行)
+  - 去掉"与 release.yml (Electron 版) 并存"占位注释
+  - releaseBody 加 MIGRATION_REPORT.md 链接
+- **删除** `.github/workflows/release.yml` (移至 archive/legacy/)
+
+#### src-tauri 版本号
+- **修改** `src-tauri/Cargo.toml`:
+  - `version: "0.1.0"` → `"0.2.0"`
+  - `description` 更新为 "Education Advisor 桌面端 (Tauri 2.0 + Rust 重写后端) — 仓库主程序"
+  - `license: "MIT"` → `"MIT OR Apache-2.0"` (与顶层 LICENSE-MIT/LICENSE-APACHE 对齐)
+- **修改** `src-tauri/tauri.conf.json`:
+  - `version: "0.1.0"` → `"0.2.0"`
+
+#### 顶层文档全面重写
+- **修改** `README.md`: badges / Quick start / Build 表格 / FAQ 全部更新为 Tauri
+- **修改** `CHANGELOG.md`: 新增 `[0.2.0] — 仓库转正迁移` 段
+- **修改** `ROADMAP.md`: "Tauri parity build" 标 ✅ shipped, 加迁移注释
+- **修改** `BACKLOG.md`: 删除 Tauri parity 项, 加代码签名项
+- **修改** `CONTRIBUTING.md`: 开发流程、IPC channel 添加指引、LLM provider 添加入口
+- **修改** `PROJECT_INTRO.md`: 加 v0.2.0 历史条目
+- **修改** `docs/EAA_BRIDGE.md`: 整篇重写为 "EAA Core Integration"
+- **修改** `docs/DESKTOP_BUILD.md`: 重写前置依赖 + 章节结构
+- **修改** `docs/FAQ.md`: "Why Tauri" 段更新为 v0.2.0 解释
+
+#### src-tauri 内部文档
+- **修改** `src-tauri/docs/00-OVERVIEW.md`: 顶部加 v0.2.0 状态 + 进度表加阶段 8
+- **修改** `src-tauri/docs/06-MIGRATION-CHECKLIST.md`: 阶段 8 详细记录, 回滚指向 archive/legacy/README.md
+- **修改** `src-tauri/docs/CHANGELOG.md`: 本文件, 加阶段 8 段
+
+### 原因
+
+Tauri 重构完成后 (阶段 7), 仓库进入"双轨共存"状态: src-tauri 与 src/main 并行。
+v0.2.0 起, Tauri 已稳定运行 1+ 周, 108 个 Rust 测试全绿, 0 个未对接链路,
+可以正式作为仓库主程序。Electron 资产封存而非删除, 保留 1-2 小时紧急回滚能力。
 
 ---
 

@@ -87,11 +87,18 @@ pub fn load_reason_codes() -> Result<ReasonCodesFile, AppError> {
 }
 
 pub fn resolve_entity_id(name: &str, index: &HashMap<String, String>) -> Result<String, AppError> {
-    index.get(name).cloned().ok_or_else(|| AppError::StudentNotFound(name.to_string()))
+    index
+        .get(name)
+        .cloned()
+        .ok_or_else(|| AppError::StudentNotFound(name.to_string()))
 }
 
-pub fn compute_scores(entities: &std::collections::HashMap<String, Entity>, events: &[Event]) -> HashMap<String, f64> {
-    let mut scores: HashMap<String, f64> = entities.keys().map(|k| (k.clone(), BASE_SCORE)).collect();
+pub fn compute_scores(
+    entities: &std::collections::HashMap<String, Entity>,
+    events: &[Event],
+) -> HashMap<String, f64> {
+    let mut scores: HashMap<String, f64> =
+        entities.keys().map(|k| (k.clone(), BASE_SCORE)).collect();
     for evt in events {
         if evt.is_valid && evt.reverted_by.is_none() {
             *scores.entry(evt.entity_id.clone()).or_insert(BASE_SCORE) += evt.score_delta;
@@ -146,7 +153,10 @@ pub fn append_operation_log(entry: &serde_json::Value) -> Result<(), AppError> {
     let log_dir = get_data_dir().join("logs");
     fs::create_dir_all(&log_dir)?;
     let log_path = log_dir.join("operations.jsonl");
-    let mut f = fs::OpenOptions::new().create(true).append(true).open(log_path)?;
+    let mut f = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)?;
     let line = format!("{}\n", serde_json::to_string(entry)?);
     f.write_all(line.as_bytes())?;
     Ok(())
@@ -169,8 +179,13 @@ pub fn get_operator(cli_operator: Option<&str>) -> String {
 
 /// Determine risk level from score
 pub fn risk_level(score: f64) -> &'static str {
-    if score >= 100.0 { "低" }
-    else if score >= 80.0 { "中" }
-    else if score >= 60.0 { "高" }
-    else { "极高" }
+    if score >= 100.0 {
+        "低"
+    } else if score >= 80.0 {
+        "中"
+    } else if score >= 60.0 {
+        "高"
+    } else {
+        "极高"
+    }
 }

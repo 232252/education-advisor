@@ -24,7 +24,11 @@ fn setup_tmp_data() -> tempfile::TempDir {
     std::fs::create_dir_all(data_dir.join("entities")).unwrap();
     std::fs::create_dir_all(data_dir.join("events")).unwrap();
     std::fs::create_dir_all(data_dir.join("profiles")).unwrap();
-    std::fs::write(data_dir.join("entities").join("entities.json"), r#"{"entities":{}}"#).unwrap();
+    std::fs::write(
+        data_dir.join("entities").join("entities.json"),
+        r#"{"entities":{}}"#,
+    )
+    .unwrap();
     std::fs::write(data_dir.join("entities").join("name_index.json"), "{}").unwrap();
     std::fs::write(data_dir.join("events").join("events.json"), "[]").unwrap();
     // schema
@@ -47,7 +51,10 @@ fn test_capability_all_allows_everything() {
     let caps = vec!["all".to_string()];
     // score 需要 name 参数, 报 Validation (不是 PermissionDenied) 说明权限通过
     let err = eaa_tools::dispatch("eaa_score", &json!({}), &caps).unwrap_err();
-    assert!(err.to_string().contains("缺少参数"), "all 应允许 score, 实际: {err}");
+    assert!(
+        err.to_string().contains("缺少参数"),
+        "all 应允许 score, 实际: {err}"
+    );
 }
 
 /// 工具 capability 校验: read 不应允许写工具。
@@ -57,7 +64,10 @@ fn test_capability_read_blocks_write() {
     let _dir = setup_tmp_data();
     let caps = vec!["read".to_string()];
     let err = eaa_tools::dispatch("eaa_add_event", &json!({}), &caps).unwrap_err();
-    assert!(err.to_string().contains("缺少调用"), "read 不应允许 add_event: {err}");
+    assert!(
+        err.to_string().contains("缺少调用"),
+        "read 不应允许 add_event: {err}"
+    );
 }
 
 /// 工具 capability 校验: read 允许只读工具。
@@ -67,7 +77,10 @@ fn test_capability_read_allows_readonly() {
     let _dir = setup_tmp_data();
     let caps = vec!["read".to_string()];
     let err = eaa_tools::dispatch("eaa_score", &json!({}), &caps).unwrap_err();
-    assert!(!err.to_string().contains("缺少调用"), "read 应允许 score: {err}");
+    assert!(
+        !err.to_string().contains("缺少调用"),
+        "read 应允许 score: {err}"
+    );
 }
 
 /// calculate 工具: 基本四则运算 (参数 key 是 "expression")。
@@ -149,7 +162,10 @@ fn test_capability_academic_group() {
     let _dir = setup_tmp_data();
     let caps = vec!["academic".to_string()];
     let err = eaa_tools::dispatch("eaa_academic_get", &json!({}), &caps).unwrap_err();
-    assert!(!err.to_string().contains("缺少调用"), "academic 应允许 academic_get: {err}");
+    assert!(
+        !err.to_string().contains("缺少调用"),
+        "academic 应允许 academic_get: {err}"
+    );
 }
 
 /// 完整链路: add_event (写) → score (读) 验证数据真的写进去了。
@@ -179,7 +195,10 @@ fn test_full_write_read_chain() {
     // 4. 排行榜应包含张三
     let r = eaa_tools::dispatch("eaa_ranking", &json!({ "n": 10 }), &caps).unwrap();
     let ranking = r["ranking"].as_array().unwrap();
-    assert!(ranking.iter().any(|x| x["name"] == json!("张三")), "排行榜应含张三: {r}");
+    assert!(
+        ranking.iter().any(|x| x["name"] == json!("张三")),
+        "排行榜应含张三: {r}"
+    );
 }
 
 /// 完整链路: revert 后分数恢复。

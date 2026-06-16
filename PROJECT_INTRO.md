@@ -3,6 +3,14 @@
 > **An in-depth introduction to the project: why it exists, how it's designed, what it
 > does today, and where it's going next.**
 
+> ⚠️ **Architecture update notice (v0.2.0, 2026-06-15):** This document still reflects the
+> **v0.1.0 Electron + Node.js main process** architecture. The repository has since migrated
+> to **Tauri 2.0 + pure Rust backend**. For the current architecture, build instructions,
+> and command mapping, see [`README.md`](./README.md) and
+> [`MIGRATION_REPORT.md`](./MIGRATION_REPORT.md). The conceptual sections below (design
+> principles, agents, data engine, privacy engine) remain accurate; the desktop shell and
+> LLM-layer implementation details are now in Rust.
+
 This is the long-form companion to [`README.md`](./README.md). The README is a five-minute
 tour; this document is the hour-long deep-dive. If you are evaluating the project for
 adoption, contributing code, or just curious how a 18-agent multi-LLM education OS fits
@@ -169,6 +177,10 @@ A short version, from a desktop-client perspective:
   unchanged; the new piece is the Electron shell, the React renderer, the
   better-sqlite3 layer, the 6 new class-operation agents, and the agent
   authoring story.
+- **v0.2.0 (this repo) — Jun 2026.** **Tauri 2.0 transition.** The Electron shell is
+  replaced with Tauri 2.0 + pure Rust backend (a single 17 MB binary). The
+  `eaa-cli` data engine is now statically linked as `eaa_core` library (no more
+  subprocess spawn — 95x faster data access). See [`MIGRATION_REPORT.md`](./MIGRATION_REPORT.md).
 
 The v3.x CLI series is still recommended for **headless / cron-only** deployments
 (servers, scheduled scripts). This v0.1.0 desktop release is the recommended

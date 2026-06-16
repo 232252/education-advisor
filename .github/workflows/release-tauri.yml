@@ -1,12 +1,13 @@
 # =============================================================
-# Tauri 版三平台构建 (Windows / macOS / Linux)
+# 仓库 release workflow: Tauri 三平台构建
+# (Windows / macOS / Linux)
 #
 # 触发: push v*.*.* tag → 构建三平台安装包 + 上传 GitHub Release
 # 手动: workflow_dispatch (调试用, 不发布)
 #
-# 与 release.yml (Electron 版) 并存, 产物名带 -tauri 后缀区分。
+# v0.2.0: 仓库已转正为 Tauri 单一架构, 此 workflow 即唯一 release 入口。
 # =============================================================
-name: Release (Tauri)
+name: Release
 
 on:
   push:
@@ -15,7 +16,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: release-tauri-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -26,7 +27,7 @@ jobs:
   # 三平台并行构建 Tauri 安装包
   # ----------------------------------------------------------------
   build:
-    name: Tauri ${{ matrix.label }}
+    name: ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -146,8 +147,14 @@ jobs:
         with:
           projectPath: src-tauri
           tagName: ${{ github.ref_name }}
-          releaseName: "Tauri ${{ github.ref_name }}"
-          releaseBody: "Tauri 桌面端安装包 (Rust 后端 + React 前端)。详见 src-tauri/docs/CHANGELOG.md"
+          releaseName: "${{ github.ref_name }}"
+          releaseBody: |
+            Education Advisor 桌面端安装包 (Tauri 2.0 + Rust 后端 + React 前端)。
+
+            详见:
+            - [CHANGELOG.md](./CHANGELOG.md)
+            - [MIGRATION_REPORT.md](./MIGRATION_REPORT.md)
+            - [src-tauri/docs/CHANGELOG.md](./src-tauri/docs/CHANGELOG.md)
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
           # Windows NSIS 比 MSI 体积小 + 安装体验好, latest.json 优先指向 NSIS
@@ -193,12 +200,16 @@ jobs:
       - name: Generate checksums
         run: |
           cd artifacts
-          find . -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \) \
-            -exec sha256sum {} \; > TAURI_SHA256SUMS
-          cat TAURI_SHA256SUMS
+          find . -type f \( \
+              -name "*.exe" -o -name "*.msi" \
+              -o -name "*.dmg" -o -name "*.app.tar.gz" \
+              -o -name "*.AppImage" -o -name "*.deb" \
+            \) ! -name "*.sig" \
+            -exec sha256sum {} \; > SHA256SUMS
+          cat SHA256SUMS
 
       - name: Upload checksums
         uses: actions/upload-artifact@v4
         with:
-          name: tauri-checksums
-          path: artifacts/TAURI_SHA256SUMS
+          name: checksums
+          path: artifacts/SHA256SUMS

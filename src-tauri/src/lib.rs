@@ -17,9 +17,15 @@
 
 pub mod commands;
 pub mod error;
+pub mod harness;
 pub mod services;
 pub mod state;
 pub mod tools;
+
+// Windows 平台特定的焦点修复 (键盘事件被 WebView2 父层吞的兜底)
+// 在其他平台编译为 no-op,见 platform/windows_focus.rs。
+#[cfg(target_os = "windows")]
+pub mod platform;
 
 // =============================================================
 // IPC 通道名常量 — 与 src/shared/ipc-channels.ts 一一对应
@@ -60,10 +66,18 @@ pub struct ApiResult<T> {
 
 impl<T> ApiResult<T> {
     pub fn ok(data: T) -> Self {
-        Self { success: true, data: Some(data), error: None }
+        Self {
+            success: true,
+            data: Some(data),
+            error: None,
+        }
     }
     pub fn err(msg: impl Into<String>) -> Self {
-        Self { success: false, data: None, error: Some(msg.into()) }
+        Self {
+            success: false,
+            data: None,
+            error: Some(msg.into()),
+        }
     }
 }
 
@@ -81,13 +95,28 @@ pub struct EAAResult<T> {
 
 impl<T> EAAResult<T> {
     pub fn ok(data: T) -> Self {
-        Self { success: true, message: None, data: Some(data), error: None }
+        Self {
+            success: true,
+            message: None,
+            data: Some(data),
+            error: None,
+        }
     }
     pub fn ok_with_msg(data: T, message: impl Into<String>) -> Self {
-        Self { success: true, message: Some(message.into()), data: Some(data), error: None }
+        Self {
+            success: true,
+            message: Some(message.into()),
+            data: Some(data),
+            error: None,
+        }
     }
     pub fn fail(msg: impl Into<String>) -> Self {
-        Self { success: false, message: None, data: None, error: Some(msg.into()) }
+        Self {
+            success: false,
+            message: None,
+            data: None,
+            error: Some(msg.into()),
+        }
     }
     /// 把内部 data 丢弃成 () 用于无返回值的 EAA 操作。
     pub fn into_unit(self) -> EAAResult<()> {
@@ -102,3 +131,88 @@ impl<T> EAAResult<T> {
 
 /// 应用版本 (来自 Cargo.toml)。
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+// =============================================================
+// 单元测试 — 共享类型契约 (ApiResult/EAAResult) 与版本常量。
+// 这些类型是前后端 IPC 的桥梁, 字段结构改动会破坏前端契约, 必须锁死。
+// =============================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn api_result_ok_shape() {
+        let r = ApiResult::ok(42);
+        assert!(r.success);
+        assert_eq!(r.data, Some(42));
+        assert!(r.error.is_none());
+        // 序列化后 success/data 出现, error 字段被 skip。
+        let v = serde_json::to_value(&r).unwrap();
+        assert_eq!(v["success"], true);
+        assert_eq!(v["data"], 42);
+        assert!(v.get("error").is_none());
+    }
+
+    #[test]
+    fn api_result_err_shape() {
+        let r = ApiResult::<i32>::err("网络炸了");
+        assert!(!r.success);
+        assert!(r.data.is_none());
+        assert_eq!(r.error, Some("网络炸了".into()));
+        let v = serde_json::to_value(&r).unwrap();
+        assert_eq!(v["success"], false);
+        assert_eq!(v["error"], "网络炸了");
+        assert!(v.get("data").is_none());
+    }
+
+    #[test]
+    fn eaa_result_ok_and_fail() {
+        let ok = EAAResult::ok_with_msg(7, "完成");
+        assert!(ok.success);
+        assert_eq!(ok.data, Some(7));
+        assert_eq!(ok.message.as_deref(), Some("完成"));
+        assert!(ok.error.is_none());
+
+        let fail = EAAResult::<i32>::fail("学生不存在");
+        assert!(!fail.success);
+        assert_eq!(fail.error.as_deref(), Some("学生不存在"));
+        assert!(fail.data.is_none());
+    }
+
+    #[test]
+    fn eaa_result_into_unit_drops_data() {
+        // 无返回值的 EAA 操作复用同一类型, 把 data 丢弃成 ()。
+        let ok = EAAResult::ok_with_msg(123, "已撤销");
+        let unit: EAAResult<()> = ok.into_unit();
+        assert!(unit.success);
+        assert!(unit.data.is_none());
+        assert_eq!(unit.message.as_deref(), Some("已撤销"));
+    }
+
+    #[test]
+    fn eaa_result_round_trips_through_json() {
+        // 前端发回的 EAAResult 应能反序列化 (Deserialize 已派生)。
+        let ok = EAAResult::ok_with_msg(vec![1, 2, 3], "批量");
+        let json = serde_json::to_string(&ok).unwrap();
+        let back: EAAResult<Vec<i32>> = serde_json::from_str(&json).unwrap();
+        assert!(back.success);
+        assert_eq!(back.data, Some(vec![1, 2, 3]));
+    }
+
+    #[test]
+    fn app_version_is_set() {
+        // CARGO_PKG_VERSION 在编译期注入, 不应为空且符合 semver 起始。
+        assert!(!APP_VERSION.is_empty());
+        assert!(APP_VERSION.chars().next().unwrap().is_ascii_digit());
+    }
+
+    #[test]
+    fn events_constants_use_colon_namespace() {
+        // 前端 ipc-client.ts 按这些字符串 listen, 改名会静默断流。
+        assert!(events::AI_CHAT_STREAM.starts_with("ai:"));
+        assert!(events::AGENT_STATUS_UPDATE.starts_with("agent:"));
+        assert!(events::EAA_EVENT_ADDED.starts_with("eaa:"));
+        assert!(events::PRIVACY_STATE_CHANGED.starts_with("privacy:"));
+        assert!(events::CRON_STATUS_UPDATE.starts_with("cron:"));
+    }
+}

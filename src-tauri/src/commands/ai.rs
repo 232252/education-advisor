@@ -8,23 +8,28 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::error::{AppError, Result};
+use crate::events;
 use crate::services::broadcaster;
 use crate::services::llm_service::{ChatParams, StreamEvent};
 use crate::state::AppState;
-use crate::events;
 
 #[tauri::command]
 pub async fn ai_list_providers(_state: State<'_, AppState>) -> Result<Vec<Value>> {
-    Ok(crate::services::llm_service::LlmService::list_providers()
+    // to_value 对 derive(Serialize) 的纯数据结构理论不会失败, 但用 ? 传播比 unwrap
+    // 更稳 (一旦类型加了 custom serializer 出错, 也不会 panic 到主线程)。
+    crate::services::llm_service::LlmService::list_providers()
         .into_iter()
-        .map(|p| serde_json::to_value(p).unwrap())
-        .collect())
+        .map(|p| serde_json::to_value(p).map_err(AppError::from))
+        .collect()
 }
 
 #[tauri::command]
 pub async fn ai_list_models(state: State<'_, AppState>, provider_id: String) -> Result<Vec<Value>> {
     let models = state.llm.list_models(&provider_id);
-    Ok(models.into_iter().map(|m| serde_json::to_value(m).unwrap()).collect())
+    models
+        .into_iter()
+        .map(|m| serde_json::to_value(m).map_err(AppError::from))
+        .collect()
 }
 
 #[tauri::command]
@@ -34,12 +39,19 @@ pub async fn ai_test_connection(
     api_key: String,
     base_url: Option<String>,
 ) -> Result<Value> {
-    let r = state.llm.test_connection(&provider_id, &api_key, base_url.as_deref()).await?;
-    Ok(serde_json::to_value(r).unwrap())
+    let r = state
+        .llm
+        .test_connection(&provider_id, &api_key, base_url.as_deref())
+        .await?;
+    serde_json::to_value(r).map_err(AppError::from)
 }
 
 #[tauri::command]
-pub async fn ai_set_api_key(state: State<'_, AppState>, provider_id: String, api_key: String) -> Result<Value> {
+pub async fn ai_set_api_key(
+    state: State<'_, AppState>,
+    provider_id: String,
+    api_key: String,
+) -> Result<Value> {
     state.keystore.set(&provider_id, &api_key)?;
     Ok(json!({ "success": true }))
 }
@@ -147,9 +159,7 @@ pub async fn ai_oauth_exchange(
         .await?;
 
     // 写 keystore (provider_id 作为 key, 后续 ai_chat 用此 token 作 API key)
-    state
-        .keystore
-        .set(&provider_id, &token.access_token)?;
+    state.keystore.set(&provider_id, &token.access_token)?;
     tracing::info!(target: "oauth", "{} token exchange success, expires_in={:?}", provider_id, token.expires_in);
 
     Ok(json!({
@@ -171,11 +181,13 @@ pub async fn ai_oauth_list_supported() -> Result<Value> {
     use crate::services::oauth::OAuthProvider;
     let list = [OAuthProvider::Notion, OAuthProvider::Discord]
         .iter()
-        .map(|p| json!({
-            "providerId": p.id(),
-            "supportsOAuth": true,
-            "requiresClientSecret": matches!(p, OAuthProvider::Discord),
-        }))
+        .map(|p| {
+            json!({
+                "providerId": p.id(),
+                "supportsOAuth": true,
+                "requiresClientSecret": matches!(p, OAuthProvider::Discord),
+            })
+        })
         .collect::<Vec<_>>();
     Ok(json!({ "providers": list }))
 }
@@ -184,11 +196,15 @@ pub async fn ai_oauth_list_supported() -> Result<Value> {
 pub async fn ai_add_custom_model(state: State<'_, AppState>, params: Value) -> Result<Value> {
     let m: crate::services::llm_service::ModelInfo = serde_json::from_value(params)?;
     state.llm.add_custom_model(m.clone());
-    Ok(serde_json::to_value(m).unwrap())
+    serde_json::to_value(m).map_err(AppError::from)
 }
 
 #[tauri::command]
-pub async fn ai_del_custom_model(state: State<'_, AppState>, provider_id: String, model_id: String) -> Result<Value> {
+pub async fn ai_del_custom_model(
+    state: State<'_, AppState>,
+    provider_id: String,
+    model_id: String,
+) -> Result<Value> {
     state.llm.delete_custom_model(&provider_id, &model_id);
     Ok(json!({ "success": true }))
 }
@@ -212,7 +228,11 @@ pub async fn ai_chat(
 ) -> Result<Value> {
     let session_id = Uuid::new_v4().to_string();
     let cancel = CancellationToken::new();
-    state.active_streams.lock().await.insert(session_id.clone(), cancel.clone());
+    state
+        .active_streams
+        .lock()
+        .await
+        .insert(session_id.clone(), cancel.clone());
 
     let api_key = state
         .keystore
@@ -259,17 +279,33 @@ pub async fn ai_chat(
         let _ = broadcaster::emit_all(
             &app3,
             events::AI_CHAT_STREAM,
-            StreamEvent::Start { model: params2.model_id.clone(), provider: params2.provider_id.clone() },
+            StreamEvent::Start {
+                model: params2.model_id.clone(),
+                provider: params2.provider_id.clone(),
+            },
         );
-        let _ = broadcaster::emit_all(&app3.clone(), events::AI_CHAT_STREAM, StreamEvent::TextStart);
+        let _ = broadcaster::emit_all(
+            &app3.clone(),
+            events::AI_CHAT_STREAM,
+            StreamEvent::TextStart,
+        );
         let on_event = move |ev: StreamEvent| {
             let _ = broadcaster::emit_all(&app3, events::AI_CHAT_STREAM, &ev);
         };
-        let result = llm.stream_chat(&params2, &api_key, base_url.as_deref(), on_event, cancel).await;
+        let result = llm
+            .stream_chat(&params2, &api_key, base_url.as_deref(), on_event, cancel)
+            .await;
         // 正文结束: 前端据此 saveMessage 持久化
         let _ = broadcaster::emit_all(&app2, events::AI_CHAT_STREAM, StreamEvent::TextEnd);
         if let Err(e) = result {
-            let _ = broadcaster::emit_all(&app2, events::AI_CHAT_STREAM, StreamEvent::Error { message: e.to_string(), retryable: false });
+            let _ = broadcaster::emit_all(
+                &app2,
+                events::AI_CHAT_STREAM,
+                StreamEvent::Error {
+                    message: e.to_string(),
+                    retryable: false,
+                },
+            );
         }
     });
 

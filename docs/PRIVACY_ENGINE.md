@@ -1,3 +1,10 @@
+---
+title: Privacy engine
+description: "AES-256 隐私引擎原理"
+sidebar:
+  label: "隐私引擎"
+---
+
 # Privacy engine
 
 > **The privacy engine is the project's most distinctive feature.**

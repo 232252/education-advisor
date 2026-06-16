@@ -6,9 +6,9 @@ use ea_tauri::services::db::DbService;
 use ea_tauri::services::llm_service::LlmService;
 use ea_tauri::services::privacy_audit::{AuditEntry, PrivacyAuditService};
 use ea_tauri::services::profile_service::{AcademicExamRecord, ProfileService};
-use std::collections::HashMap;
 use ea_tauri::services::settings_service::SettingsService;
 use serde_json::json;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 // ============================================================
@@ -21,7 +21,9 @@ fn test_settings_dot_path_update_and_get() {
     let mut s = SettingsService::load(dir.path()).unwrap();
 
     // 初始无 general.theme
-    assert!(s.get_path("general.theme").is_none() || s.get_path("general.theme") == Some(&json!(null)));
+    assert!(
+        s.get_path("general.theme").is_none() || s.get_path("general.theme") == Some(&json!(null))
+    );
 
     // update
     s.update("general.theme", json!("dark")).unwrap();
@@ -72,7 +74,11 @@ fn test_settings_eaa_data_dir_fallback() {
 // profile_service: validate_academic 校验规则
 // ============================================================
 
-fn make_record(exam_type: &str, exam_name: &str, subjects: Vec<(&str, Option<f64>)>) -> AcademicExamRecord {
+fn make_record(
+    exam_type: &str,
+    exam_name: &str,
+    subjects: Vec<(&str, Option<f64>)>,
+) -> AcademicExamRecord {
     let mut map = HashMap::new();
     for (k, v) in subjects {
         map.insert(k.to_string(), v);
@@ -88,16 +94,22 @@ fn make_record(exam_type: &str, exam_name: &str, subjects: Vec<(&str, Option<f64
 
 #[test]
 fn test_validate_academic_valid() {
-    let records = vec![
-        make_record("期中", "2025秋期中", vec![("数学", Some(95.0)), ("语文", Some(88.0))]),
-    ];
+    let records = vec![make_record(
+        "期中",
+        "2025秋期中",
+        vec![("数学", Some(95.0)), ("语文", Some(88.0))],
+    )];
     let errs = ProfileService::validate_academic(&records);
     assert!(errs.is_empty(), "有效记录不应有错误: {errs:?}");
 }
 
 #[test]
 fn test_validate_academic_score_out_of_range() {
-    let records = vec![make_record("期中", "2025秋期中", vec![("数学", Some(9999.0))])];
+    let records = vec![make_record(
+        "期中",
+        "2025秋期中",
+        vec![("数学", Some(9999.0))],
+    )];
     let errs = ProfileService::validate_academic(&records);
     assert!(!errs.is_empty(), "成绩超出范围应报错");
     assert!(errs[0].contains("超出范围"));
@@ -105,7 +117,11 @@ fn test_validate_academic_score_out_of_range() {
 
 #[test]
 fn test_validate_academic_nan_score() {
-    let records = vec![make_record("期中", "2025秋期中", vec![("数学", Some(f64::NAN))])];
+    let records = vec![make_record(
+        "期中",
+        "2025秋期中",
+        vec![("数学", Some(f64::NAN))],
+    )];
     let errs = ProfileService::validate_academic(&records);
     assert!(!errs.is_empty(), "NaN 成绩应报错");
 }
@@ -114,14 +130,20 @@ fn test_validate_academic_nan_score() {
 fn test_validate_academic_empty_exam_type() {
     let records = vec![make_record("  ", "2025秋期中", vec![("数学", Some(80.0))])];
     let errs = ProfileService::validate_academic(&records);
-    assert!(errs.iter().any(|e| e.contains("考试类型")), "空考试类型应报错: {errs:?}");
+    assert!(
+        errs.iter().any(|e| e.contains("考试类型")),
+        "空考试类型应报错: {errs:?}"
+    );
 }
 
 #[test]
 fn test_validate_academic_no_subjects() {
     let records = vec![make_record("期中", "2025秋期中", vec![])];
     let errs = ProfileService::validate_academic(&records);
-    assert!(errs.iter().any(|e| e.contains("至少需要一个科目")), "无科目应报错: {errs:?}");
+    assert!(
+        errs.iter().any(|e| e.contains("至少需要一个科目")),
+        "无科目应报错: {errs:?}"
+    );
 }
 
 #[test]
@@ -129,7 +151,10 @@ fn test_validate_academic_bad_date_format() {
     let mut r = make_record("期中", "2025秋期中", vec![("数学", Some(80.0))]);
     r.date = Some("2025/10/01".into()); // 应为 YYYY-MM-DD
     let errs = ProfileService::validate_academic(&[r]);
-    assert!(errs.iter().any(|e| e.contains("日期格式")), "错误日期格式应报错: {errs:?}");
+    assert!(
+        errs.iter().any(|e| e.contains("日期格式")),
+        "错误日期格式应报错: {errs:?}"
+    );
 }
 
 // ============================================================
@@ -170,8 +195,17 @@ fn test_privacy_audit_sha256_consistent() {
     let svc = PrivacyAuditService::open(path).unwrap();
 
     let entry = AuditEntry {
-        ts: 1, op: "filter".into(), input_len: 10, output_len: 8, has_pii: false,
-        pii_count: 0, receiver: None, entity_type: None, duration_ms: 1, success: true, error: None,
+        ts: 1,
+        op: "filter".into(),
+        input_len: 10,
+        output_len: 8,
+        has_pii: false,
+        pii_count: 0,
+        receiver: None,
+        entity_type: None,
+        duration_ms: 1,
+        success: true,
+        error: None,
     };
     svc.append(&entry).unwrap();
 
@@ -224,11 +258,22 @@ fn test_privacy_audit_generate_report() {
 #[test]
 fn test_llm_provider_registry() {
     let providers = LlmService::list_providers();
-    assert!(providers.len() >= 10, "应至少有 10 个内置 provider, 实际: {}", providers.len());
+    assert!(
+        providers.len() >= 10,
+        "应至少有 10 个内置 provider, 实际: {}",
+        providers.len()
+    );
 
     // 验证关键 provider 存在
     let ids: Vec<&str> = providers.iter().map(|p| p.id.as_str()).collect();
-    for must in &["openai", "anthropic", "gemini", "deepseek", "qwen", "ollama"] {
+    for must in &[
+        "openai",
+        "anthropic",
+        "gemini",
+        "deepseek",
+        "qwen",
+        "ollama",
+    ] {
         assert!(ids.contains(must), "缺少 provider: {must}");
     }
 }
@@ -254,19 +299,21 @@ fn test_db_agent_execution_roundtrip() {
     let db = DbService::open(&dir.path().join("test.db")).unwrap();
 
     // insert
-    let id = futures::executor::block_on(db.insert_execution(&ea_tauri::services::db::AgentExecutionRecord {
-        id: None,
-        agent_id: "class-monitor".into(),
-        started_at: 1000,
-        finished_at: None,
-        status: "running".into(),
-        prompt: Some("test".into()),
-        output: None,
-        error: None,
-        tokens_input: None,
-        tokens_output: None,
-        cost_total: None,
-    }))
+    let id = futures::executor::block_on(db.insert_execution(
+        &ea_tauri::services::db::AgentExecutionRecord {
+            id: None,
+            agent_id: "class-monitor".into(),
+            started_at: 1000,
+            finished_at: None,
+            status: "running".into(),
+            prompt: Some("test".into()),
+            output: None,
+            error: None,
+            tokens_input: None,
+            tokens_output: None,
+            cost_total: None,
+        },
+    ))
     .unwrap();
     assert!(id > 0);
 
@@ -301,21 +348,22 @@ fn test_db_chat_message_roundtrip() {
     let dir = tempfile::tempdir().unwrap();
     let db = DbService::open(&dir.path().join("test.db")).unwrap();
 
-    let id = futures::executor::block_on(db.save_message(&ea_tauri::services::db::ChatMessageRecord {
-        id: None,
-        session_id: "sess1".into(),
-        role: "user".into(),
-        content: "你好".into(),
-        thinking: None,
-        tool_calls: None,
-        timestamp: 1000,
-        provider: Some("openai".into()),
-        model: Some("gpt-4o".into()),
-        token_input: Some(10),
-        token_output: Some(20),
-        cost: Some(0.001),
-    }))
-    .unwrap();
+    let id =
+        futures::executor::block_on(db.save_message(&ea_tauri::services::db::ChatMessageRecord {
+            id: None,
+            session_id: "sess1".into(),
+            role: "user".into(),
+            content: "你好".into(),
+            thinking: None,
+            tool_calls: None,
+            timestamp: 1000,
+            provider: Some("openai".into()),
+            model: Some("gpt-4o".into()),
+            token_input: Some(10),
+            token_output: Some(20),
+            cost: Some(0.001),
+        }))
+        .unwrap();
     assert!(id > 0);
 
     let msgs = futures::executor::block_on(db.load_messages(Some("sess1"))).unwrap();
@@ -334,7 +382,11 @@ fn test_agent_service_loads_all_agents() {
     let svc = AgentService::load(&resources).unwrap();
 
     let list = svc.list();
-    assert!(list.len() >= 15, "应至少加载 15 个 agent, 实际: {}", list.len());
+    assert!(
+        list.len() >= 15,
+        "应至少加载 15 个 agent, 实际: {}",
+        list.len()
+    );
 
     // main agent 必须存在
     let main = svc.get("main");
@@ -445,15 +497,23 @@ fn test_db_get_all_executions_with_filters() {
     }
 
     // 仅 success
-    let r = futures::executor::block_on(db.get_all_executions(Some("success"), None, None, 100)).unwrap();
+    let r = futures::executor::block_on(db.get_all_executions(Some("success"), None, None, 100))
+        .unwrap();
     assert_eq!(r.len(), 2);
 
     // 仅 a1
-    let r = futures::executor::block_on(db.get_all_executions(None, Some("a1"), None, 100)).unwrap();
+    let r =
+        futures::executor::block_on(db.get_all_executions(None, Some("a1"), None, 100)).unwrap();
     assert_eq!(r.len(), 2);
 
     // since 过滤
-    let r = futures::executor::block_on(db.get_all_executions(None, None, Some(1_700_000_002_500), 100)).unwrap();
+    let r = futures::executor::block_on(db.get_all_executions(
+        None,
+        None,
+        Some(1_700_000_002_500),
+        100,
+    ))
+    .unwrap();
     assert_eq!(r.len(), 1);
 }
 
@@ -571,12 +631,14 @@ fn test_settings_set_custom_models_persists() {
         json!({"id": "x1", "name": "X One", "contextWindow": 4096}),
         json!({"id": "x2", "name": "X Two", "contextWindow": 8192}),
     ];
-    svc.set_custom_models("my-provider", models.clone()).unwrap();
+    svc.set_custom_models("my-provider", models.clone())
+        .unwrap();
 
     // 重 load, 应能读到
     let svc2 = SettingsService::load(&dir.path()).unwrap();
     // 嵌套结构: models.customModels[provider_id] = [...]
-    let stored = svc2.get_path("models.customModels")
+    let stored = svc2
+        .get_path("models.customModels")
         .and_then(|v| v.get("my-provider"))
         .unwrap();
     let arr = stored.as_array().unwrap();

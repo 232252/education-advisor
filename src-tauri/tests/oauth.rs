@@ -14,7 +14,10 @@ fn test_oauth_unsupported_provider_rejected() {
 fn test_oauth_provider_id_roundtrip() {
     assert_eq!(OAuthProvider::Notion.id(), "notion");
     assert_eq!(OAuthProvider::Discord.id(), "discord");
-    assert_eq!(OAuthProvider::from_id(OAuthProvider::Notion.id()), Some(OAuthProvider::Notion));
+    assert_eq!(
+        OAuthProvider::from_id(OAuthProvider::Notion.id()),
+        Some(OAuthProvider::Notion)
+    );
 }
 
 #[tokio::test]
@@ -80,9 +83,7 @@ async fn test_oauth_exchange_discord_requires_secret() {
 #[tokio::test]
 async fn test_oauth_state_cleanup_after_exchange() {
     let flow = OAuthFlow::new();
-    let (_, state) = flow
-        .start_flow(OAuthProvider::Notion, "client")
-        .unwrap();
+    let (_, state) = flow.start_flow(OAuthProvider::Notion, "client").unwrap();
     // exchange 后 state 应被 remove
     let http = reqwest::Client::new();
     let _ = flow.exchange(&state, "code", None, &http).await;
@@ -117,9 +118,7 @@ async fn test_oauth_random_state_unique() {
     let flow = OAuthFlow::new();
     let mut seen = HashSet::new();
     for _ in 0..100 {
-        let (_, state) = flow
-            .start_flow(OAuthProvider::Notion, "client")
-            .unwrap();
+        let (_, state) = flow.start_flow(OAuthProvider::Notion, "client").unwrap();
         assert!(seen.insert(state.clone()), "state 重复: {state}");
     }
     assert_eq!(seen.len(), 100);

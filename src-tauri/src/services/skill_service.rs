@@ -90,11 +90,12 @@ impl SkillService {
         // 重写文件 (更新 frontmatter)
         let raw = if skill.raw.starts_with("---\n") {
             // 替换 frontmatter 里的 enabled
-            let end = skill.raw[4..].find("\n---\n").map(|i| i + 4).unwrap_or(skill.raw.len());
+            let end = skill.raw[4..]
+                .find("\n---\n")
+                .map(|i| i + 4)
+                .unwrap_or(skill.raw.len());
             let body = &skill.raw[end..];
-            format!(
-                "---\nenabled: {enabled}\n---{body}"
-            )
+            format!("---\nenabled: {enabled}\n---{body}")
         } else {
             format!("---\nenabled: {enabled}\n---\n{}", skill.content)
         };
@@ -112,7 +113,10 @@ impl SkillService {
                 let body = &rest[end + 5..];
                 let en = fm
                     .lines()
-                    .find_map(|l| l.strip_prefix("enabled:").and_then(|s| s.trim().parse::<bool>().ok()))
+                    .find_map(|l| {
+                        l.strip_prefix("enabled:")
+                            .and_then(|s| s.trim().parse::<bool>().ok())
+                    })
                     .unwrap_or(true);
                 (en, body.to_string())
             } else {
@@ -144,4 +148,142 @@ fn atomic_write(path: &Path, content: &str) -> Result<()> {
     }
     std::fs::rename(&tmp, path)?;
     Ok(())
+}
+
+// =============================================================
+// 单元测试 — Skill 解析/保存/启用切换 (用 tempfile 隔离文件 IO)。
+// 覆盖点: frontmatter 解析 / 默认 enabled=true / 原子写往返 / set_enabled 重写。
+// headless CI 可跑 (不依赖 Tauri 运行时)。
+// =============================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    /// 用临时目录造一个 resources 目录 + 测试 skill 文件。
+    fn fixture(skill_md: &str) -> (tempfile::TempDir, PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let resources = dir.path().to_path_buf();
+        let skills_dir = resources.join("skills");
+        fs::create_dir_all(&skills_dir).unwrap();
+        fs::write(skills_dir.join("greet.md"), skill_md).unwrap();
+        (dir, resources)
+    }
+
+    #[test]
+    fn parses_skill_with_frontmatter() {
+        let md = "---\nenabled: false\n---\n你好,我是问候技能。";
+        let (_tmp, resources) = fixture(md);
+        let svc = SkillService::load(&resources).unwrap();
+        let s = svc.get("greet").unwrap();
+        assert!(!s.enabled, "frontmatter enabled: false 应被解析");
+        assert_eq!(s.content.trim(), "你好,我是问候技能。");
+        assert_eq!(s.name, "greet");
+    }
+
+    #[test]
+    fn parses_skill_without_frontmatter_defaults_enabled() {
+        // 没有 frontmatter → enabled 默认 true (default_true)。
+        let md = "纯正文,无 frontmatter。";
+        let (_tmp, resources) = fixture(md);
+        let svc = SkillService::load(&resources).unwrap();
+        let s = svc.get("greet").unwrap();
+        assert!(s.enabled);
+        assert_eq!(s.content, md);
+    }
+
+    #[test]
+    fn list_returns_all_parsed_skills() {
+        let dir = tempfile::tempdir().unwrap();
+        let resources = dir.path().to_path_buf();
+        let skills_dir = resources.join("skills");
+        fs::create_dir_all(&skills_dir).unwrap();
+        fs::write(skills_dir.join("a.md"), "A").unwrap();
+        fs::write(skills_dir.join("b.md"), "B").unwrap();
+        // 非 .md 文件应被忽略。
+        fs::write(skills_dir.join("c.txt"), "C").unwrap();
+        let svc = SkillService::load(&resources).unwrap();
+        let names: Vec<String> = svc.list().into_iter().map(|s| s.name).collect();
+        assert!(names.contains(&"a".to_string()));
+        assert!(names.contains(&"b".to_string()));
+        assert!(!names.contains(&"c".to_string()));
+        assert_eq!(names.len(), 2);
+    }
+
+    #[test]
+    fn save_creates_file_and_round_trips() {
+        let dir = tempfile::tempdir().unwrap();
+        let resources = dir.path().to_path_buf();
+        // skills 目录不存在时 save 应自动创建 (atomic_write → create_dir_all)。
+        let mut svc = SkillService::load(&resources).unwrap();
+        svc.save("newbie", "---\nenabled: true\n---\n新技能正文")
+            .unwrap();
+        assert!(resources.join("skills").join("newbie.md").exists());
+        // 重新 load 应能读回。
+        let svc2 = SkillService::load(&resources).unwrap();
+        assert_eq!(svc2.get("newbie").unwrap().content.trim(), "新技能正文");
+    }
+
+    #[test]
+    fn delete_removes_file_and_memory() {
+        let (_tmp, resources) = fixture("---\n---\n待删除");
+        let mut svc = SkillService::load(&resources).unwrap();
+        assert!(svc.get("greet").is_some());
+        svc.delete("greet").unwrap();
+        assert!(svc.get("greet").is_none());
+        assert!(!resources.join("skills").join("greet.md").exists());
+    }
+
+    #[test]
+    fn delete_nonexistent_is_idempotent() {
+        // 删不存在的 skill 不应报错 (幂等)。
+        let dir = tempfile::tempdir().unwrap();
+        let resources = dir.path().to_path_buf();
+        let mut svc = SkillService::load(&resources).unwrap();
+        assert!(svc.delete("ghost").is_ok());
+    }
+
+    #[test]
+    fn set_enabled_toggles_frontmatter() {
+        let md = "---\nenabled: false\n---\n正文";
+        let (_tmp, resources) = fixture(md);
+        let mut svc = SkillService::load(&resources).unwrap();
+        assert!(!svc.get("greet").unwrap().enabled, "初始应为 false");
+        // false → true
+        svc.set_enabled("greet", true).unwrap();
+        assert!(svc.get("greet").unwrap().enabled, "改 true 后内存应为 true");
+        // 文件应被重写, 重新 load 仍是 true。
+        let svc2 = SkillService::load(&resources).unwrap();
+        assert!(svc2.get("greet").unwrap().enabled, "重新 load 应为 true");
+        // true → false (在同一实例上再切回)
+        svc.set_enabled("greet", false).unwrap();
+        assert!(
+            !svc.get("greet").unwrap().enabled,
+            "改 false 后内存应为 false"
+        );
+    }
+
+    #[test]
+    fn set_enabled_on_unknown_skill_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let resources = dir.path().to_path_buf();
+        let mut svc = SkillService::load(&resources).unwrap();
+        let err = svc.set_enabled("nope", true).unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)));
+    }
+
+    #[test]
+    fn malformed_markdown_is_skipped_not_fatal() {
+        // 损坏的 .md 不应让整个 load 崩溃 (parse_file 返回 Err 时静默跳过)。
+        let dir = tempfile::tempdir().unwrap();
+        let resources = dir.path().to_path_buf();
+        let skills_dir = resources.join("skills");
+        fs::create_dir_all(&skills_dir).unwrap();
+        fs::write(skills_dir.join("good.md"), "正常").unwrap();
+        // 写一个不可读的文件 (权限问题模拟: 这里用一个二进制垃圾)。
+        fs::write(skills_dir.join("bad.md"), &[0xff, 0xfe, 0xfd]).unwrap();
+        // load 不应 panic。
+        let svc = SkillService::load(&resources).unwrap();
+        assert!(svc.get("good").is_some());
+    }
 }

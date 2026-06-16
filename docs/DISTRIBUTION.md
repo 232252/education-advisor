@@ -1,3 +1,10 @@
+---
+title: Distribution
+description: "打包与分发"
+sidebar:
+  label: "分发打包"
+---
+
 # Distribution
 
 > **How to ship Education Advisor to end users.** This document covers

@@ -104,11 +104,70 @@
 - [ ] 集成测试 (tests/) 覆盖 eaa_core + tools 分发。
 - [ ] i18n 文案在 Tauri 版的验证 (renderer 共用, 应零问题)。
 
-## 4. 回滚预案
+## 4. 紧急回滚预案 (v0.2.0 后)
 
-若 Tauri 版出现问题, **不影响 Electron 版**:
+> **v0.2.0 起**, 仓库已转正为 Tauri 单一架构, 原 Electron 资产封存在
+> [`archive/legacy/`](../../archive/legacy/)。 若 Tauri 版出现严重问题,
+> 按 [`archive/legacy/README.md` §4](../../archive/legacy/README.md#4-回滚到-electron-的方法)
+> 步骤回滚 (1-2 小时工作量)。
+>
+> 简单总结:
+> 1. 复制 `archive/legacy/src-main/main/` 回 `src/main/`
+> 2. 从 git history 恢复 `package.json` / `package-lock.json` 到 v0.1.0
+> 3. 恢复 `electron-builder.yml` 和 `vite.config.main.ts`
+> 4. 恢复 `.github/workflows/release.yml` 到 `.github/workflows/`
+> 5. 恢复 `scripts/build-icon.mjs` 等
+> 6. 渲染端 `ipc-client.ts` 恢复双轨检测 (从 git history 找回)
+> 7. `npm ci && npm run build && npm run dev`
 
-- Electron 代码 (src/main, src/main/preload, package.json 原 scripts) 原样保留
-- `npm run dev` / `npm run start` / `npm run package` 仍走 Electron
-- 删除 `src-tauri/` + 撤销 `ipc-client.ts` 的 Tauri 分支 + 撤销 package.json 的 tauri scripts
-  即可完全回滚 (eaa_cli 的 `[lib]` 改动可保留, 它不破坏 CLI 行为)
+## 5. 阶段 8 — 仓库转正 ✅ (v0.2.0, 2026-06-15)
+
+> 从 v0.2.0 起, 仓库正式从 Electron 切换到 Tauri 2.0 单一架构。
+> 详见 [`MIGRATION_REPORT.md`](../../MIGRATION_REPORT.md)。
+
+### 修改清单
+
+- **封存** 原 Electron 资产 (44 个文件) 到 `archive/legacy/`:
+  - `src/main/` 整体 (36 个 .ts 文件)
+  - `electron-builder.yml` / `vite.config.main.ts`
+  - `scripts/build-icon.mjs` / `download-eaa-binaries.mjs` /
+    `generate-update-manifest.mjs` / `refine-wording.ps1` / `rename-brand.ps1`
+  - `.github/workflows/release.yml`
+- **删除** 渲染端 `ipc-client.tauri.ts`, 合并到 `ipc-client.ts`。
+  移除运行时 `window.__TAURI_INTERNALS__` 探测分支,
+  渲染端 100% 强制走 Tauri。
+- **清理** `package.json`:
+  - 删除 scripts: `dev`, `dev:main`, `dev:electron`, `build`, `start`,
+    `package`, `package:portable`, `package:installer`, `build:icon`, `build:eaa`
+  - 删除 dependencies: `better-sqlite3`, `chokidar`, `cross-spawn`,
+    `node-cron`, `xlsx`, `@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`
+  - 删除 devDependencies: `electron`, `electron-builder`, `vite-plugin-electron`,
+    `sharp`, `to-ico`, `@types/better-sqlite3`, `@types/cross-spawn`, `@types/node-cron`
+- **CI**:
+  - `ci.yml` 拆分为 `frontend-quality` (jsdom) + `rust-quality` (lib + tests) 两个 job
+  - `release-tauri.yml` 升级为主 release, 去掉"Tauri"后缀和占位注释
+- **顶层文档** 全面重写为 Tauri-only:
+  - README.md badges / Quick start / FAQ 全部更新
+  - README-TAURI.md / CONTRIBUTING-TAURI.md 删除 (内容已并入主 README / CONTRIBUTING.md)
+  - CHANGELOG.md 添加 [0.2.0] 段
+  - ROADMAP.md 标记 Tauri parity 为 ✅ shipped
+  - BACKLOG.md 删除"Tauri parity build"项
+  - docs/EAA_BRIDGE.md 改写为 EAA Core Integration (无 bridge)
+  - docs/DESKTOP_BUILD.md / docs/FAQ.md 更新流程与对比
+
+### 验证
+
+- `cargo +1.95.0 check --manifest-path src-tauri/Cargo.toml --all-targets` 0 错误
+- `cargo +1.95.0 test --manifest-path src-tauri/Cargo.toml --lib` 108 个测试通过
+- `npm run typecheck` 通过
+- `npm run lint` 通过
+- `npm run test` (vitest) 通过
+- `npm run build:renderer` 成功
+
+### 资产归档
+
+- `archive/legacy/README.md` 详细说明:
+  - 44 个 Electron 资产的位置和内容
+  - 删除条件 (连续运行 6 个月 + 三平台验证)
+  - 完整回滚步骤
+  - Git 历史完整保留 (rename detection)
