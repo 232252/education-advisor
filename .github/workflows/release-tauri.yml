@@ -101,17 +101,15 @@ jobs:
         shell: bash
         run: npm run build:renderer
 
-      # ---- Rust 编译 (分离以便定位 Windows 问题) ----
-      - name: Cargo build (release)
-        shell: bash
-        run: cargo build --manifest-path src-tauri/Cargo.toml --release
-
-      # ---- Tauri 打包 ----
-      - name: Tauri bundle
+      # ---- Tauri 构建 + 打包 ----
+      - name: Build Tauri app
         shell: bash
         run: |
           cd src-tauri
           npm run tauri:build -- --bundles ${{ matrix.bundles }} --ci --verbose
+        env:
+          # 避免 Windows 上因 WebView2 未安装导致 codegen 警告转错误
+          TAURI_SKIP_DEV_DEPS_CHECK: "true"
 
       # ---- 上传产物 ----
       - name: Upload artifacts
