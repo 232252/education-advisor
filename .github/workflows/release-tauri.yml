@@ -13,6 +13,9 @@ on:
   push:
     tags:
       - "v*.*.*"
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 concurrency:
@@ -146,8 +149,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: src-tauri
-          tagName: ${{ github.ref_name }}
-          releaseName: "${{ github.ref_name }}"
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseBody: |
             Education Advisor 桌面端安装包 (Tauri 2.0 + Rust 后端 + React 前端)。
 
@@ -156,7 +159,7 @@ jobs:
             - [MIGRATION_REPORT.md](./MIGRATION_REPORT.md)
             - [src-tauri/docs/CHANGELOG.md](./src-tauri/docs/CHANGELOG.md)
           releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
+          prerelease: ${{ startsWith(github.ref, 'refs/tags/') && (contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta')) || false }}
           # Windows NSIS 比 MSI 体积小 + 安装体验好, latest.json 优先指向 NSIS
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
