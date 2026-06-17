@@ -62,10 +62,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -134,7 +134,7 @@ jobs:
       # ---- 上传 cargo 构建日志 (用于诊断编译错误) ----
       - name: Upload cargo build log
         if: always() && matrix.label == 'windows-x64'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cargo-out-${{ matrix.label }}-${{ github.run_attempt }}
           path: ${{ github.workspace }}/cargo_out.txt
@@ -142,7 +142,7 @@ jobs:
 
       # ---- 上传产物 ----
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tauri-${{ matrix.label }}
           path: |
