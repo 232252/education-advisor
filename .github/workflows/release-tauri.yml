@@ -42,16 +42,18 @@ jobs:
             label: windows-x64
             bundles: "msi"
             args: ""
-          # macOS x64 (Intel) — DMG
-          - os: macos-13
+          # macOS x64 (Intel) — 在 ARM 宿主编译 x86_64
+          - os: macos-latest
             label: macos-x64
             bundles: "dmg"
-            args: ""
-          # macOS arm64 (Apple Silicon) — DMG
+            args: "--target x86_64-apple-darwin"
+            extra_target: x86_64-apple-darwin
+          # macOS arm64 (Apple Silicon) — 原生编译
           - os: macos-latest
             label: macos-arm64
             bundles: "dmg"
             args: ""
+            extra_target: ""
           # Linux x64 — AppImage + deb
           - os: ubuntu-22.04
             label: linux-x64
@@ -80,6 +82,11 @@ jobs:
         with:
           workspaces: "src-tauri -> target"
 
+      # ---- macOS: 安装交叉编译 target ----
+      - name: Install extra Rust target (macOS)
+        if: runner.os == 'macOS' && matrix.extra_target != ''
+        run: rustup target add ${{ matrix.extra_target }}
+
       # ---- Linux: 装 WebKitGTK 系统依赖 ----
       - name: Install Linux dependencies (webkit2gtk)
         if: runner.os == 'Linux'
@@ -94,8 +101,13 @@ jobs:
         shell: bash
         run: npm run build:renderer
 
+      # ---- Rust 编译 (分离以便定位 Windows 问题) ----
+      - name: Cargo build (release)
+        shell: bash
+        run: cargo build --manifest-path src-tauri/Cargo.toml --release
+
       # ---- Tauri 打包 ----
-      - name: Build Tauri bundles
+      - name: Tauri bundle
         shell: bash
         run: |
           cd src-tauri
