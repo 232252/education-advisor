@@ -82,6 +82,11 @@ jobs:
         with:
           workspaces: "src-tauri -> target"
 
+      # ---- Windows: 设置 MSVC 编译环境 ----
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       # ---- macOS: 安装交叉编译 target ----
       - name: Install extra Rust target (macOS)
         if: runner.os == 'macOS' && matrix.extra_target != ''
@@ -106,13 +111,10 @@ jobs:
         shell: bash
         run: |
           cd src-tauri
-          echo "### Rust build output" >> $GITHUB_STEP_SUMMARY
-          cargo build --release 2>&1 | tee -a $GITHUB_STEP_SUMMARY | tail -200
           npm run tauri:build -- --bundles ${{ matrix.bundles }} --ci --verbose
         env:
           RUST_BACKTRACE: "full"
           CARGO_TERM_COLOR: "always"
-          TAURI_SKIP_DEV_DEPS_CHECK: "true"
 
       # ---- 上传产物 ----
       - name: Upload artifacts
