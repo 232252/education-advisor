@@ -115,14 +115,14 @@ jobs:
           cd src-tauri
           
           echo '::group::cargo build output'
-          cargo build --release ${{ matrix.tauri_target }} 2>&1 | tee /tmp/cargo_out.txt
-          CARGO_EXIT=${PIPESTATUS[0]}
+          cargo build --release ${{ matrix.tauri_target }} 2>&1 > /tmp/cargo_out.txt
+          CARGO_EXIT=$?
+          cat /tmp/cargo_out.txt
           if [ $CARGO_EXIT -ne 0 ]; then
             echo "::error::CARGO BUILD FAILED (exit=$CARGO_EXIT)"
-            # Output first 100 lines as annotations
-            head -100 /tmp/cargo_out.txt | while IFS= read -r line; do
-              echo "::error::$line"
-            done
+            echo "::group::Rust compile errors"
+            head -200 /tmp/cargo_out.txt
+            echo '::endgroup::'
             exit $CARGO_EXIT
           fi
           echo '::endgroup::'
