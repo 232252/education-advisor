@@ -34,13 +34,6 @@ path = "src/main.rs"
 name = "eval-runner"
 path = "src/bin/eval_runner.rs"
 
-[profile.release]
-opt-level = "z"     # 优化体积
-lto = true          # LTO 减少体积
-codegen-units = 1   # 单 Codegen Unit 提升优化
-strip = "symbols"   # 去除调试符号
-panic = "abort"     # panic=abort 减少 unwind 代码
-
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
