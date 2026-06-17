@@ -48,6 +48,7 @@ pub struct AppState {
     pub privacy_audit: Arc<RwLock<services::privacy_audit::PrivacyAuditService>>,
     pub feishu: Arc<services::feishu_service::FeishuService>,
     pub profile: Arc<RwLock<services::profile_service::ProfileService>>,
+    pub memory: Arc<services::memory_service::MemoryService>,
     pub oauth: Arc<services::oauth::OAuthFlow>,
     /// 当前进行中的 LLM/Agent 流, 用于 abort。key = 流式会话 id。
     pub active_streams:
@@ -97,7 +98,7 @@ impl AppState {
 
         Ok(Self {
             paths,
-            db,
+            db: db.clone(),
             privacy,
             privacy_enabled,
             agents,
@@ -110,6 +111,7 @@ impl AppState {
             )),
             privacy_audit,
             feishu: Arc::new(services::feishu_service::FeishuService::new()),
+            memory: Arc::new(services::memory_service::MemoryService::new(db)),
             oauth: Arc::new(services::oauth::OAuthFlow::new()),
             profile,
             active_streams: Arc::new(Mutex::new(std::collections::HashMap::new())),

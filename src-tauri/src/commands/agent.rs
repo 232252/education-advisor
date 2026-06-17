@@ -5,9 +5,11 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, State};
 
 use crate::error::Result;
+use crate::harness::agent::prompt_builder::AppContext;
 use crate::harness::guardrails::ApprovalDecision;
 use crate::services::agent_service::AgentDetail;
 use crate::services::llm_service::ChatMessage;
+use crate::services::memory_service::{CreateMemoryRequest, MemoryKind};
 use crate::state::AppState;
 
 #[tauri::command]
@@ -114,7 +116,14 @@ pub async fn agent_get_all_executions(
         .map(|r| r.tokens_input.unwrap_or(0) + r.tokens_output.unwrap_or(0))
         .sum();
 
-    let name_map: serde_json::Map<String, Value> = serde_json::Map::new();
+    let name_map: serde_json::Map<String, Value> = {
+        let agents = state.agents.read();
+        agents
+            .list()
+            .iter()
+            .map(|a| (a.id.clone(), Value::String(a.name.clone())))
+            .collect()
+    };
     Ok(json!({
         "executions": rows,
         "stats": {
@@ -151,9 +160,18 @@ pub async fn agent_run_manual(
     id: String,
     prompt: String,
     history: Option<Vec<ChatMessage>>,
+    app_context: Option<AppContext>,
 ) -> Result<Value> {
-    let session_id =
-        crate::services::agent_runner::run(&app, &state, &id, &prompt, history).await?;
+    let cfg = crate::harness::agent::AgentRunConfig {
+        agent_id: id,
+        prompt,
+        history,
+        cancel: None,
+        budget: None,
+        app_context,
+        trace_collector: None,
+    };
+    let session_id = crate::services::agent_runner::run_with_config(&app, &state, cfg).await?;
     Ok(json!({ "success": true, "id": session_id }))
 }
 
@@ -161,7 +179,7 @@ pub async fn agent_run_manual(
 /// `decision` 是 `ApprovalDecision` 的 JSON 表示:
 ///   {"type": "approve", "by": "user_id"}
 ///   {"type": "reject", "by": "user_id", "reason": "..."}
-///   {"type": "edit", "by": "user_id", "new_args": {...}}
+///   {"type": "edit", "by": "user_id", "newArgs": {...}}
 #[tauri::command]
 pub async fn agent_approval_resolve(
     state: State<'_, AppState>,
@@ -181,4 +199,50 @@ pub async fn agent_approval_resolve(
 #[tauri::command]
 pub async fn agent_approval_pending_count(state: State<'_, AppState>) -> Result<Value> {
     Ok(json!({ "pending": state.approval_channel.pending_count() }))
+}
+
+/// agent:memory-list — 列出某 agent 的跨会话记忆
+#[tauri::command]
+pub async fn agent_memory_list(
+    state: State<'_, AppState>,
+    agent_id: String,
+    limit: Option<usize>,
+) -> Result<Value> {
+    let memories = state
+        .memory
+        .list_for_agent(&agent_id, limit.unwrap_or(20))
+        .await?;
+    Ok(json!({ "success": true, "memories": memories }))
+}
+
+/// agent:memory-create — 手动创建一条记忆（也可由 AgentHarness 自动写入）
+#[tauri::command]
+pub async fn agent_memory_create(
+    state: State<'_, AppState>,
+    agent_id: String,
+    kind: String,
+    content_json: String,
+    source_run_id: Option<String>,
+) -> Result<Value> {
+    let kind = match kind.as_str() {
+        "fact" => MemoryKind::Fact,
+        "preference" => MemoryKind::Preference,
+        "summary" => MemoryKind::Summary,
+        _ => MemoryKind::Fact,
+    };
+    let req = CreateMemoryRequest {
+        agent_id,
+        kind,
+        content_json,
+        source_run_id,
+    };
+    let id = state.memory.create(&req).await?;
+    Ok(json!({ "success": true, "id": id }))
+}
+
+/// agent:memory-delete — 删除一条记忆
+#[tauri::command]
+pub async fn agent_memory_delete(state: State<'_, AppState>, id: String) -> Result<Value> {
+    state.memory.delete(&id).await?;
+    Ok(json!({ "success": true }))
 }

@@ -1,0 +1,4 @@
+# Task Completion — 3 cases
+{"id":"tc_add","category":"task_completion","agent_id":"education_advisor","prompt":"给张三扣 5 分","expected_tool_calls":[{"tool":"add_event","args_substring":"张三","result_substring":"eventId"}],"tags":["smoke"]}
+{"id":"tc_add_note","category":"task_completion","agent_id":"education_advisor","prompt":"记录李四迟到一次","expected_tool_calls":[{"tool":"add_event","args_substring":"李四"}],"tags":["smoke"]}
+{"id":"tc_bulk","category":"task_completion","agent_id":"education_advisor","prompt":"给全班加 2 分","expected_tool_calls":[{"tool":"bulk_add_event"}],"tags":["bulk"]}

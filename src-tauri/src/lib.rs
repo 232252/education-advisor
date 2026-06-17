@@ -23,8 +23,7 @@ pub mod state;
 pub mod tools;
 
 // Windows 平台特定的焦点修复 (键盘事件被 WebView2 父层吞的兜底)
-// 在其他平台编译为 no-op,见 platform/windows_focus.rs。
-#[cfg(target_os = "windows")]
+// 在其他平台编译为 no-op,见 platform/mod.rs。
 pub mod platform;
 
 // =============================================================

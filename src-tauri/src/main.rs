@@ -214,6 +214,9 @@ fn main() {
             commands::agent::agent_get_history,
             commands::agent::agent_get_all_executions,
             commands::agent::agent_abort,
+            commands::agent::agent_memory_list,
+            commands::agent::agent_memory_create,
+            commands::agent::agent_memory_delete,
             // EAA
             commands::eaa::eaa_info,
             commands::eaa::eaa_score,

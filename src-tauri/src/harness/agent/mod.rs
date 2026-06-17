@@ -28,15 +28,17 @@ use tokio_util::sync::CancellationToken;
 
 use crate::error::AppError;
 use crate::harness::agent::budget::{Budget, BudgetTracker};
-use crate::harness::agent::event_bridge::{AgentStatusUpdate, EventBridge};
-use crate::harness::agent::prompt_builder::{PromptBuilder, PromptInputs, SkillPromptEntry};
+use crate::harness::agent::event_bridge::{AgentStatusUpdate, EventBridge, GuardrailBlockEvent};
+use crate::harness::agent::prompt_builder::{AppContext, PromptBuilder, PromptInputs, SkillPromptEntry};
 use crate::harness::agent::react_machine::{ReactPhase, ReActMachine, StepDecision};
 use crate::harness::agent::state_store::{StateStore, StepKind, ToolCallStatus};
+use crate::harness::agent::trace::{RunTrace, TraceToolCall};
 use crate::harness::error::{HarnessError, Result as HarnessResult};
 use crate::harness::guardrails::GuardrailPipeline;
 use crate::harness::tools::{ToolContext, ToolRegistry};
 use crate::services::agent_service::ModelTier;
 use crate::services::llm_service::{ChatMessage, ChatParams, StreamEvent};
+use crate::services::memory_service::{CreateMemoryRequest, MemoryKind};
 use crate::state::AppState;
 
 // 子模块
@@ -45,6 +47,7 @@ pub mod event_bridge;
 pub mod prompt_builder;
 pub mod react_machine;
 pub mod state_store;
+pub mod trace;
 
 /// Agent 运行配置 (由 commands/agent.rs 构造)
 #[derive(Debug, Clone)]
@@ -54,6 +57,10 @@ pub struct AgentRunConfig {
     pub history: Option<Vec<ChatMessage>>,
     pub cancel: Option<CancellationToken>,
     pub budget: Option<Budget>,
+    /// 应用运行时上下文（阶段五：上下文感知 Prompt）
+    pub app_context: Option<AppContext>,
+    /// 阶段四: trace 收集器,运行结束后可转成 eval 用的 RunTrace
+    pub trace_collector: Option<Arc<std::sync::Mutex<RunTrace>>>,
 }
 
 /// Agent 运行汇总 (返回给前端 + 落 agent_runs 表)
@@ -149,6 +156,12 @@ impl<'a> AgentHarness<'a> {
         };
         let tool_descs = self.registry.llm_descriptions();
         let capabilities: Vec<String> = entry.capabilities.clone();
+
+        // 阶段五：加载跨会话记忆
+        let memories = self.state.memory.list_for_agent(&cfg.agent_id, 5).await.unwrap_or_default();
+        let memory_prompt = crate::services::memory_service::MemoryService::render_memory_prompt(&memories);
+        let app_context = cfg.app_context.clone().unwrap_or_default();
+
         let system_prompt = PromptBuilder::build(&PromptInputs {
             soul: &soul,
             rules: &rules,
@@ -156,6 +169,8 @@ impl<'a> AgentHarness<'a> {
             skills: &skills,
             tools: &tool_descs,
             agent_id: &cfg.agent_id,
+            memory: &memory_prompt,
+            app_context: &app_context,
         });
 
         // === Step 4: Agent 数据隔离 (阶段二 best-effort, 失败仅 warn) ===
@@ -211,6 +226,7 @@ impl<'a> AgentHarness<'a> {
             self.app.clone(),
             Some(self.state.approval_channel.clone()),
         );
+        let trace_collector = cfg.trace_collector.clone();
         let loop_result = self
             .react_loop(
                 &run_id,
@@ -227,6 +243,7 @@ impl<'a> AgentHarness<'a> {
                 &mut tracker,
                 &mut final_text,
                 &pipeline,
+                &trace_collector,
             )
             .await;
 
@@ -241,6 +258,39 @@ impl<'a> AgentHarness<'a> {
         } else {
             "success"
         };
+
+        // 阶段四: 填充 eval trace
+        if let Some(collector) = &trace_collector {
+            if let Ok(mut trace) = collector.lock() {
+                trace.final_text = final_text.clone();
+                trace.rounds = snap.rounds as u32;
+                trace.input_tokens = snap.input_tokens;
+                trace.output_tokens = snap.output_tokens;
+                trace.cost_usd_micros = snap.cost_usd_micros;
+                trace.status = final_status.to_string();
+                trace.error = summary_error.clone();
+            }
+        }
+
+        // 阶段五: 成功运行后写回一条 summary 记忆
+        if summary_error.is_none() {
+            let memory_req = CreateMemoryRequest {
+                agent_id: cfg.agent_id.clone(),
+                kind: MemoryKind::Summary,
+                content_json: serde_json::json!({
+                    "prompt": cfg.prompt,
+                    "output": final_text,
+                    "rounds": snap.rounds,
+                    "cost_usd_micros": snap.cost_usd_micros,
+                })
+                .to_string(),
+                source_run_id: Some(run_id.clone()),
+            };
+            if let Err(e) = self.state.memory.create(&memory_req).await {
+                tracing::warn!(target: "harness.memory", "自动写入记忆失败: {e}");
+            }
+        }
+
         let _ = store
             .finish_run(final_status, Some(&final_text), summary_error.as_deref())
             .await;
@@ -292,15 +342,19 @@ impl<'a> AgentHarness<'a> {
         tracker: &mut BudgetTracker,
         final_text: &mut String,
         pipeline: &GuardrailPipeline,
+        trace_collector: &Option<Arc<std::sync::Mutex<RunTrace>>>,
     ) -> HarnessResult<()> {
         let mut phase = ReactPhase::Init;
         let llm = self.state.llm.clone();
         let caps: Arc<Vec<String>> = Arc::new({
             let agents = self.state.agents.read();
-            agents
+            let raw = agents
                 .entry(agent_id)
                 .map(|e| e.capabilities.clone())
-                .unwrap_or_default()
+                .unwrap_or_default();
+            // 把 YAML 中的 capability 别名（read/write/academic/...）展开为
+            // ToolRegistry 要求的命名空间 cap（read:scores/write:events/...）。
+            crate::harness::tools::expand_capabilities(&raw)
         });
         let data_cache: Arc<crate::tools::data_cache::DataCache> =
             Arc::new(crate::tools::data_cache::DataCache::new());
@@ -328,6 +382,7 @@ impl<'a> AgentHarness<'a> {
                     .await
                 {
                     tracing::warn!(target: "harness.guardrail", "input filter blocked: {e}");
+                    self.emit_guardrail_block(run_id, agent_id, "input", &e);
                     return Err(e);
                 }
             }
@@ -436,6 +491,7 @@ impl<'a> AgentHarness<'a> {
                             .await
                         {
                             tracing::warn!(target: "harness.guardrail", "tool_call blocked for {}: {e}", call.name);
+                            self.emit_guardrail_block(run_id, agent_id, "tool_call", &e);
                             // 拒绝: 记录 Rejected tool_call + 回喂 LLM
                             let result_json = json!({"error": e.to_string()}).to_string();
                             let _ = store
@@ -457,7 +513,7 @@ impl<'a> AgentHarness<'a> {
                             continue;
                         }
 
-                        // 阶段三会插 Guardrails HITL; 阶段二先放行 (auto-approve)
+                        // HITL 已经由 GuardrailPipeline 接管,符合配置的策略决定放行还是审批
                         let now = chrono::Utc::now().timestamp_millis();
                         let tool_ctx = ToolContext {
                             run_id: run_id.to_string(),
@@ -482,7 +538,17 @@ impl<'a> AgentHarness<'a> {
                         // 真正执行 (用可能改写过的 tool_args)
                         // 先取 schema (checked 在 .call() 后被 move)
                         let tool_schema = checked.input_schema();
-                        let tool_result = checked.call(tool_args.clone(), &tool_ctx).await;
+                        let tool_timeout = pipeline.tool_timeout();
+                        let tool_result = async {
+                            tokio::time::timeout(tool_timeout, checked.call(tool_args.clone(), &tool_ctx))
+                                .await
+                                .unwrap_or_else(|_| {
+                                    Err(crate::harness::tools::ToolError::Internal(
+                                        format!("工具执行超时 ({:?})", tool_timeout),
+                                    ))
+                                })
+                        }
+                        .await;
                         // === GUARDRAIL: tool_result — 值过 OutputFilter (schema/deanonymize/truncate) ===
                         let (status, result_json) = match tool_result {
                             Ok(v) => {
@@ -499,6 +565,7 @@ impl<'a> AgentHarness<'a> {
                                     .await
                                 {
                                     tracing::warn!(target: "harness.guardrail", "tool_result blocked for {}: {e}", call.name);
+                                    self.emit_guardrail_block(run_id, agent_id, "tool_result", &e);
                                     (ToolCallStatus::Failed, json!({"error": e.to_string()}).to_string())
                                 } else {
                                     (
@@ -516,6 +583,37 @@ impl<'a> AgentHarness<'a> {
                         // 更新 tool_call 的 result (写新一行覆盖 Pending → Executed)
                         // 简化: 不做 update, finish 时通过 final_text 携带
                         let _ = (call_id_for_record, status, finished_at);
+
+                        // 阶段四: 收集 eval trace
+                        if let Some(collector) = trace_collector {
+                            if let Ok(mut trace) = collector.lock() {
+                                let status_str = match status {
+                                    ToolCallStatus::Executed => "executed",
+                                    ToolCallStatus::Rejected => "rejected",
+                                    ToolCallStatus::Failed => "failed",
+                                    _ => "failed",
+                                }
+                                .to_string();
+                                let result_value = if status == ToolCallStatus::Executed {
+                                    serde_json::from_str(&result_json).ok()
+                                } else {
+                                    None
+                                };
+                                trace.tool_calls.push(TraceToolCall {
+                                    name: call.name.clone(),
+                                    args: tool_args.clone(),
+                                    result: result_value,
+                                    is_write: is_write_flag,
+                                    risk: risk_str.to_string(),
+                                    status: status_str,
+                                    error: if status == ToolCallStatus::Executed {
+                                        None
+                                    } else {
+                                        Some(result_json.clone())
+                                    },
+                                });
+                            }
+                        }
 
                         // 记录 Observe step
                         let _ = store
@@ -539,7 +637,22 @@ impl<'a> AgentHarness<'a> {
                         ));
                     }
 
-                    // Observe → Act (下一轮)
+                    // Observe → Reflect：显式记录反思阶段
+                    ReActMachine::validate_transition(phase, ReactPhase::Reflect)?;
+                    phase = ReactPhase::Reflect;
+                    let _ = store
+                        .record_step(
+                            StepKind::Reflect,
+                            &json!({"message_count": messages.len()}),
+                        )
+                        .await;
+                    bridge.emit(AgentStatusUpdate::Phase {
+                        run_id: run_id.into(),
+                        agent_id: agent_id.into(),
+                        phase: "reflect".into(),
+                    });
+
+                    // Reflect → Act (下一轮)
                     ReActMachine::validate_transition(phase, ReactPhase::Act)?;
                     phase = ReactPhase::Act;
                 }
@@ -618,6 +731,38 @@ impl<'a> AgentHarness<'a> {
         Ok((provider_id, model_id))
     }
 
+    /// 若错误是 Guardrail 拦截,向前端 emit `agent:guardrail-block`
+    fn emit_guardrail_block(
+        &self,
+        run_id: &str,
+        agent_id: &str,
+        hook: &str,
+        error: &HarnessError,
+    ) {
+        if let HarnessError::GuardrailBlocked {
+            guardrail,
+            hook: _,
+            reason,
+            severity,
+            evidence,
+        } = error
+        {
+            let payload = GuardrailBlockEvent {
+                run_id: run_id.to_string(),
+                agent_id: agent_id.to_string(),
+                hook: hook.to_string(),
+                guardrail: guardrail.clone(),
+                reason: reason.clone(),
+                severity: severity.clone(),
+                evidence: evidence.clone(),
+            };
+            EventBridge::new(self.app.clone()).emit_raw(
+                crate::harness::agent::event_bridge::EV_AGENT_GUARDRAIL_BLOCK,
+                payload,
+            );
+        }
+    }
+
     /// Agent 数据隔离 (best-effort)
     async fn try_isolate(&self, agent_id: &str) {
         let eaa_data = self.state.paths.eaa_data.clone();
@@ -640,17 +785,6 @@ impl From<AppError> for HarnessError {
     fn from(e: AppError) -> Self {
         HarnessError::Llm(e.to_string())
     }
-}
-
-// 注: 旧的 `state.active_streams.lock().await.insert(...)` 用 tokio Mutex, 这里用 .await
-// 不会阻塞 sync context (因为本函数整体是 async fn)
-#[allow(dead_code)]
-fn _ensure_async_fn_used(_: tokio::sync::MutexGuard<'_, ()>) {}
-
-// 把 TokenUsage 的 optional 字段硬转 u64 的小工具 (避免警告)
-#[allow(dead_code)]
-fn _u64_opt(o: &u64) -> u64 {
-    *o
 }
 
 // Re-export

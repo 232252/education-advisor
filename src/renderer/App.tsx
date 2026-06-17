@@ -15,6 +15,7 @@
 
 import { lazy, Suspense } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { AgentApprovalDialog } from './components/AgentApprovalDialog'
 import { ToastContainer } from './components/ToastContainer'
 import { useForwardConsole } from './hooks/useForwardConsole'
 import { useTheme } from './hooks/useTheme'
@@ -76,6 +77,8 @@ export function App() {
     <HashRouter>
       {/* P2-8: 全局 toast 通知容器,挂载在 Router 之外,跨页面保持 */}
       <ToastContainer />
+      {/* P3: HITL 全局审批弹窗 */}
+      <AgentApprovalDialog />
       <Suspense fallback={<PageSkeleton />}>
         <Routes>
           <Route element={<MainLayout />}>

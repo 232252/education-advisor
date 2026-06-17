@@ -15,6 +15,7 @@ pub const EV_AGENT_STEP: &str = "agent:step";
 pub const EV_AGENT_TOOL_CALL: &str = "agent:tool-call";
 pub const EV_AGENT_BUDGET: &str = "agent:budget";
 pub const EV_AGENT_DONE: &str = "agent:done";
+pub const EV_AGENT_GUARDRAIL_BLOCK: &str = "agent:guardrail-block";
 
 /// 统一的 status-update payload (前端 `chatStore.handleStreamEvent` 同形态)
 #[derive(Debug, Clone, Serialize)]
@@ -58,6 +59,21 @@ pub enum AgentStatusUpdate {
         success: bool,
         error: Option<String>,
     },
+}
+
+/// Guardrail 拦截事件 payload
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GuardrailBlockEvent {
+    #[serde(rename = "runId")]
+    pub run_id: String,
+    #[serde(rename = "agentId")]
+    pub agent_id: String,
+    pub hook: String,
+    pub guardrail: String,
+    pub reason: String,
+    pub severity: String,
+    pub evidence: Option<String>,
 }
 
 #[derive(Clone)]

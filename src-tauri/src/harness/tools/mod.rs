@@ -15,10 +15,12 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+mod capability;
 mod eaa_bridge;
 mod macros;
 mod registry;
 
+pub use capability::expand_capabilities;
 pub use eaa_bridge::build_default_registry;
 pub use registry::{CheckedTool, ToolDescription, ToolRegistry};
 

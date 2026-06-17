@@ -11,6 +11,7 @@ pub mod db; // ← src/main/services/db-service.ts (556 行)
 pub mod feishu_service; // ← src/main/services/feishu-service.ts
 pub mod keystore; // ← src/main/services/keystore-service.ts (DPAPI -> keyring)
 pub mod llm_service; // ← src/main/services/pi-ai-service.ts (951 行)
+pub mod memory_service; // 跨会话记忆 (阶段五)
 pub mod oauth; // Notion + Discord OAuth flow (PKCE + token exchange)
 pub mod privacy_audit; // ← src/main/services/privacy-audit.ts + compliance-report.ts
 pub mod profile_service; // ← src/main/services/profile-service.ts

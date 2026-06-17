@@ -2,7 +2,7 @@
 // Agent Store — Agent 状态管理 (Zustand)
 // =============================================================
 
-import type { AgentDetail, AgentExecution, AgentListItem } from '@shared/types'
+import type { AgentDetail, AgentExecution, AgentListItem, AppContext } from '@shared/types'
 import { create } from 'zustand'
 import { getAPI } from '../lib/ipc-client'
 import { toast } from './toastStore'
@@ -43,7 +43,7 @@ interface AgentState {
     }>,
   ) => Promise<void>
   selectAgent: (id: string | null) => Promise<void>
-  runAgent: (id: string, prompt: string) => Promise<void>
+  runAgent: (id: string, prompt: string, appContext?: AppContext) => Promise<void>
   abortAgent: (id: string) => Promise<void>
   saveSoul: (id: string, content: string) => Promise<void>
   saveRules: (id: string, content: string) => Promise<void>
@@ -257,7 +257,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
 
-  runAgent: async (id, prompt) => {
+  runAgent: async (id, prompt, appContext) => {
     set({
       liveOutput: '',
       liveToolCalls: [],
@@ -266,7 +266,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       lastError: null,
     })
     try {
-      await getAPI().agent.runManual(id, prompt)
+      await getAPI().agent.runManual(id, prompt, undefined, appContext)
     } catch (err) {
       console.error('[AgentStore] Failed to run agent:', err)
       toast.error('执行 Agent 失败')

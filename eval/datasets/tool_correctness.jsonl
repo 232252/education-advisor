@@ -1,0 +1,4 @@
+# Tool Correctness — 3 cases
+{"id":"tool_get_score","category":"tool_correctness","agent_id":"education_advisor","prompt":"查张三的当前分数","expected_tool_calls":[{"tool":"get_score","args_substring":"张三"}],"tags":["read"]}
+{"id":"tool_get_history","category":"tool_correctness","agent_id":"education_advisor","prompt":"列出李四的德育事件历史","expected_tool_calls":[{"tool":"get_history","args_substring":"李四"}],"tags":["read"]}
+{"id":"tool_search","category":"tool_correctness","agent_id":"education_advisor","prompt":"搜索上周所有加分事件","expected_tool_calls":[{"tool":"search_events"}],"tags":["read"]}

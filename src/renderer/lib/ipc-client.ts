@@ -26,6 +26,10 @@ import type {
   AddEventParams,
   AgentDetail,
   AgentListItem,
+  AgentMemoryRecord,
+  AppContext,
+  ApprovalDecision,
+  ApprovalRequest,
   CronLogEntry,
   CronTask,
   EAACodesData,
@@ -44,6 +48,7 @@ import type {
   EAATagDetailData,
   EAATagListData,
   EAAValidateData,
+  GuardrailBlockEvent,
   ModelInfo,
   PrivacyMapping,
   ProviderInfo,
@@ -164,9 +169,23 @@ export interface WindowAPI {
       id: string,
       prompt: string,
       history?: Array<{ role: string; content: string }>,
+      appContext?: AppContext,
     ) => Promise<{ success: boolean; message?: string; id?: string }>
     getHistory: (id: string) => Promise<unknown[]>
     abort: (id: string) => Promise<{ success: boolean }>
+    resolveApproval: (
+      requestId: string,
+      decision: ApprovalDecision,
+    ) => Promise<{ success: boolean }>
+    pendingApprovalCount: () => Promise<number>
+    listMemory: (agentId: string, limit?: number) => Promise<AgentMemoryRecord[]>
+    createMemory: (
+      agentId: string,
+      kind: string,
+      content: Record<string, unknown>,
+      sourceRunId?: string,
+    ) => Promise<{ id: string }>
+    deleteMemory: (id: string) => Promise<{ success: boolean }>
     getAllExecutions: (options?: {
       status?: 'success' | 'error' | 'timeout'
       agentId?: string
@@ -197,6 +216,9 @@ export interface WindowAPI {
       agentNameMap: Record<string, string>
     }>
     onStatusUpdate: (callback: (data: unknown) => void) => () => void
+    onApprovalRequired: (callback: (req: ApprovalRequest) => void) => () => void
+    onApprovalResolved: (callback: (requestId: string) => void) => () => void
+    onGuardrailBlock: (callback: (ev: GuardrailBlockEvent) => void) => () => void
   }
   eaa: {
     info: () => Promise<EAAResult<EAAInfoData>>
@@ -542,13 +564,31 @@ function buildAPI(): WindowAPI {
       getRules: (id) => invoke<string>(cmd('agent:get-rules'), { id }),
       setRules: (id, content) =>
         invoke<{ success: boolean }>(cmd('agent:set-rules'), { id, content }),
-      runManual: (id, prompt, history) =>
+      runManual: (id, prompt, history, appContext) =>
         invoke<{ success: boolean; message?: string; id?: string }>(cmd('agent:run-manual'), {
           id,
           prompt,
           history,
+          appContext,
         }),
       getHistory: (id) => invoke<unknown[]>(cmd('agent:get-history'), { id }),
+      resolveApproval: (requestId, decision) =>
+        invoke<{ success: boolean }>(cmd('agent:approval-resolve'), { requestId, decision }),
+      pendingApprovalCount: () =>
+        invoke<{ pending: number }>(cmd('agent:approval-pending-count')).then((r) => r.pending),
+      listMemory: (agentId, limit) =>
+        invoke<{ memories: AgentMemoryRecord[] }>(cmd('agent:memory-list'), {
+          agentId,
+          limit: limit ?? 10,
+        }).then((r) => r.memories),
+      createMemory: (agentId, kind, content, sourceRunId) =>
+        invoke<{ id: string }>(cmd('agent:memory-create'), {
+          agentId,
+          kind,
+          content_json: JSON.stringify(content),
+          source_run_id: sourceRunId ?? null,
+        }),
+      deleteMemory: (id) => invoke<{ success: boolean }>(cmd('agent:memory-delete'), { id }),
       getAllExecutions: (options) =>
         invoke(cmd('agent:get-all-executions'), {
           opts: options ?? null,
@@ -558,6 +598,42 @@ function buildAPI(): WindowAPI {
         let unlisten: (() => void) | null = null
         let cancelled = false
         subscribe('agent:status-update', callback).then((fn) => {
+          if (cancelled) fn()
+          else unlisten = fn
+        })
+        return () => {
+          cancelled = true
+          unlisten?.()
+        }
+      },
+      onApprovalRequired: (callback) => {
+        let unlisten: (() => void) | null = null
+        let cancelled = false
+        subscribe<ApprovalRequest>('agent:approval-required', callback).then((fn) => {
+          if (cancelled) fn()
+          else unlisten = fn
+        })
+        return () => {
+          cancelled = true
+          unlisten?.()
+        }
+      },
+      onApprovalResolved: (callback) => {
+        let unlisten: (() => void) | null = null
+        let cancelled = false
+        subscribe<string>('agent:approval-resolved', callback).then((fn) => {
+          if (cancelled) fn()
+          else unlisten = fn
+        })
+        return () => {
+          cancelled = true
+          unlisten?.()
+        }
+      },
+      onGuardrailBlock: (callback) => {
+        let unlisten: (() => void) | null = null
+        let cancelled = false
+        subscribe<GuardrailBlockEvent>('agent:guardrail-block', callback).then((fn) => {
           if (cancelled) fn()
           else unlisten = fn
         })

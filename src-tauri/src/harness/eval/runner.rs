@@ -19,79 +19,13 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
+use crate::harness::agent::trace::RunTrace;
 use crate::harness::eval::dataset::DatasetCase;
 use crate::harness::eval::judge::{Judge, JudgeVerdict};
 use crate::harness::eval::scorer::{Scorer, ScorerResult};
 
 pub use crate::harness::eval::scorer::ScorerResult as ScorerResultExport;
-
-// =============================================================
-// Trace 模型 (R1 已定义, 这里保留别名)
-// =============================================================
-
-/// 单个工具调用的 trace
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct TraceToolCall {
-    pub name: String,
-    pub args: Value,
-    pub result: Option<Value>,
-    pub is_write: bool,
-    /// 风险等级 ("low" | "medium" | "high" | "destructive")
-    pub risk: String,
-    /// 状态 ("executed" | "rejected" | "failed")
-    pub status: String,
-    /// 错误信息 (失败时)
-    pub error: Option<String>,
-}
-
-/// 单 case 的运行 trace
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RunTrace {
-    pub case_id: String,
-    pub final_text: String,
-    pub tool_calls: Vec<TraceToolCall>,
-    pub rounds: u32,
-    pub input_tokens: u64,
-    pub output_tokens: u64,
-    pub cost_usd_micros: u64,
-    /// "success" | "aborted" | "failure" | "blocked"
-    pub status: String,
-    pub error: Option<String>,
-    pub latency_ms: u64,
-}
-
-impl Default for RunTrace {
-    fn default() -> Self {
-        Self {
-            case_id: String::new(),
-            final_text: String::new(),
-            tool_calls: Vec::new(),
-            rounds: 0,
-            input_tokens: 0,
-            output_tokens: 0,
-            cost_usd_micros: 0,
-            status: "failure".to_string(),
-            error: None,
-            latency_ms: 0,
-        }
-    }
-}
-
-impl RunTrace {
-    pub fn is_success(&self) -> bool {
-        self.status == "success"
-    }
-
-    pub fn is_blocked(&self) -> bool {
-        self.status == "blocked"
-    }
-
-    pub fn tool_names(&self) -> Vec<&str> {
-        self.tool_calls.iter().map(|t| t.name.as_str()).collect()
-    }
-}
 
 // =============================================================
 // TraceProvider — 给一个 case, 返回其 trace
@@ -109,6 +43,84 @@ pub struct StubTraceProvider(pub RunTrace);
 impl TraceProvider for StubTraceProvider {
     async fn run(&self, _case: &DatasetCase) -> RunTrace {
         self.0.clone()
+    }
+}
+
+/// 生产 TraceProvider: 调 AgentHarness 真实跑 case,收集 RunTrace
+pub struct AgentHarnessTraceProvider {
+    pub app: tauri::AppHandle,
+    pub state: std::sync::Arc<crate::state::AppState>,
+    pub registry: crate::harness::tools::ToolRegistry,
+}
+
+impl AgentHarnessTraceProvider {
+    pub fn new(
+        app: tauri::AppHandle,
+        state: std::sync::Arc<crate::state::AppState>,
+        registry: crate::harness::tools::ToolRegistry,
+    ) -> Self {
+        Self { app, state, registry }
+    }
+}
+
+#[async_trait::async_trait]
+impl TraceProvider for AgentHarnessTraceProvider {
+    async fn run(&self, case: &DatasetCase) -> RunTrace {
+        use std::sync::{Arc, Mutex};
+        use std::time::Instant;
+
+        let trace = Arc::new(Mutex::new(RunTrace {
+            case_id: case.id.clone(),
+            ..RunTrace::default()
+        }));
+
+        let cfg = crate::harness::agent::AgentRunConfig {
+            agent_id: case.agent_id.clone(),
+            prompt: case.prompt.clone(),
+            history: case.history.clone(),
+            cancel: None,
+            budget: case.budget.clone(),
+            app_context: None,
+            trace_collector: Some(trace.clone()),
+        };
+
+        let harness = crate::harness::agent::AgentHarness::new(
+            &self.state,
+            self.registry.clone(),
+            self.app.clone(),
+        );
+        let start = Instant::now();
+        let result = harness.run(cfg).await;
+        let latency_ms = start.elapsed().as_millis() as u64;
+
+        match Arc::try_unwrap(trace) {
+            Ok(mutex) => {
+                let mut t = mutex.into_inner().unwrap_or_default();
+                t.latency_ms = latency_ms;
+                if let Err(e) = result {
+                    t.error = Some(e.to_string());
+                    if t.status.is_empty() || t.status == "failure" {
+                        /* 已设置 */
+                    } else {
+                        t.status = "failure".into();
+                    }
+                }
+                t
+            }
+            Err(arc) => {
+                // 仍被 harness 引用, 复制当前状态
+                let mut t = arc
+                    .lock()
+                    .map(|g| g.clone())
+                    .unwrap_or_else(|_| RunTrace::default());
+                t.latency_ms = latency_ms;
+                if let Err(e) = result {
+                    t.error = Some(e.to_string());
+                    t.status = "failure".into();
+                }
+                t
+            }
+        }
     }
 }
 
@@ -255,6 +267,7 @@ pub fn aggregate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::harness::agent::trace::TraceToolCall;
     use crate::harness::eval::dataset::CaseCategory;
     use crate::harness::eval::scorer::PiiLeakScorer;
     use serde_json::json;

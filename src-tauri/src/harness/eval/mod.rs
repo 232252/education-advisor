@@ -48,7 +48,8 @@ pub mod scorer;
 pub use dataset::{CaseCategory, Dataset, DatasetCase, DatasetError, ExpectedToolCall};
 pub use judge::{Judge, JudgeError, JudgeVerdict, LlmJudge, StubJudgeClient, DEFAULT_RUBRIC};
 pub use report::{EvalRunReport, ReportWriter};
-pub use runner::{CaseResult, EvalRunner, RunTrace, TraceToolCall};
+pub use crate::harness::agent::trace::{RunTrace, TraceToolCall};
+pub use runner::{CaseResult, EvalRunner};
 pub use scorer::{
     BudgetScorer, PiiLeakScorer, SchemaValidatorScorer, Scorer, ScorerResult, ToolCallMatchScorer,
 };

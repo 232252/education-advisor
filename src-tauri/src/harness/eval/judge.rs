@@ -23,8 +23,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::harness::agent::trace::RunTrace;
 use crate::harness::eval::dataset::DatasetCase;
-use crate::harness::eval::runner::RunTrace;
 use crate::services::llm_service::{ChatMessage, ChatParams};
 
 /// 默认评分准则
