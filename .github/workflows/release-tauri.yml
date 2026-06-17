@@ -113,16 +113,22 @@ jobs:
         shell: bash
         run: |
           cd src-tauri
-          echo '::group::tauri info'
-          npx tauri info || true
-          echo '::endgroup::'
           
-          echo '::group::cargo build'
-          cargo build --release ${{ matrix.tauri_target }} 2>&1 | tail -100
+          echo '::group::cargo build output'
+          cargo build --release ${{ matrix.tauri_target }} 2>&1 | tee /tmp/cargo_out.txt
+          CARGO_EXIT=${PIPESTATUS[0]}
+          if [ $CARGO_EXIT -ne 0 ]; then
+            echo "::error::CARGO BUILD FAILED (exit=$CARGO_EXIT)"
+            # Output first 100 lines as annotations
+            head -100 /tmp/cargo_out.txt | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit $CARGO_EXIT
+          fi
           echo '::endgroup::'
           
           echo '::group::tauri build'
-          npx tauri build --bundles ${{ matrix.bundles }} ${{ matrix.tauri_target }} --ci --verbose 2>&1 | tail -200
+          npx tauri build --bundles ${{ matrix.bundles }} ${{ matrix.tauri_target }} --ci --verbose 2>&1
           echo '::endgroup::'
         env:
           RUST_BACKTRACE: "full"
