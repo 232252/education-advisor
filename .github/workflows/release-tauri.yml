@@ -111,14 +111,28 @@ jobs:
       # ---- Tauri 构建 + 打包 ----
       - name: Build Tauri app
         shell: bash
+        env:
+          RUST_BACKTRACE: "full"
+          CARGO_TERM_COLOR: "always"
+          GH_TOKEN: ${{ github.token }}
         run: |
           cd src-tauri
           
           echo '::group::cargo build output'
           cargo build --release ${{ matrix.tauri_target }} > "${GITHUB_WORKSPACE}/cargo_out.txt" 2>&1
           CARGO_EXIT=$?
-          cat "${GITHUB_WORKSPACE}/cargo_out.txt"
           if [ $CARGO_EXIT -ne 0 ]; then
+            # Post error as an issue comment (only for windows-x64)
+            if [ "${{ matrix.label }}" = "windows-x64" ]; then
+              echo "Cargo build failed with exit code $CARGO_EXIT" > /tmp/error_body.md
+              echo '' >> /tmp/error_body.md
+              echo '```' >> /tmp/error_body.md
+              tail -100 "${GITHUB_WORKSPACE}/cargo_out.txt" >> /tmp/error_body.md
+              echo '```' >> /tmp/error_body.md
+              gh issue create --title "Windows build error (rc.${{ github.run_attempt }})" \
+                --label "build" \
+                --body "$(cat /tmp/error_body.md)" 2>/dev/null || true
+            fi
             exit $CARGO_EXIT
           fi
           echo '::endgroup::'
@@ -126,9 +140,6 @@ jobs:
           echo '::group::tauri build'
           npx tauri build --bundles ${{ matrix.bundles }} ${{ matrix.tauri_target }} --ci --verbose 2>&1
           echo '::endgroup::'
-        env:
-          RUST_BACKTRACE: "full"
-          CARGO_TERM_COLOR: "always"
 
       # ---- 上传 cargo 构建日志 (用于诊断编译错误) ----
       - name: Upload cargo build log
