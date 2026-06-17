@@ -132,7 +132,7 @@ jobs:
 
       # ---- Tauri 构建 (产出安装包) ----
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v2
+        uses: tauri-apps/tauri-action@dev
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 代码签名 (所有 secret 均可选, 未配时跳过对应签名步骤)
