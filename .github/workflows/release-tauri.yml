@@ -41,16 +41,16 @@ jobs:
             label: windows-x64
             target: x86_64-pc-windows-msvc
             args: ""
-          # macOS x64 (Intel) — DMG (无签名, ad-hoc)
+          # macOS x64 (Intel) — DMG (ad-hoc)
           - os: macos-13
             label: macos-x64
             target: x86_64-apple-darwin
-            args: "--target x86_64-apple-darwin --no-bundle"
-          # macOS arm64 (Apple Silicon M1/M2/M3) — DMG (无签名, ad-hoc)
+            args: "--target x86_64-apple-darwin"
+          # macOS arm64 (Apple Silicon) — DMG (ad-hoc)
           - os: macos-latest
             label: macos-arm64
             target: aarch64-apple-darwin
-            args: "--target aarch64-apple-darwin --no-bundle"
+            args: "--target aarch64-apple-darwin"
           # Linux x64 — AppImage + deb
           - os: ubuntu-22.04
             label: linux-x64
@@ -132,7 +132,7 @@ jobs:
 
       # ---- Tauri 构建 (产出安装包) ----
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 代码签名 (所有 secret 均可选, 未配时跳过对应签名步骤)
