@@ -9,9 +9,22 @@
 //! 旧 `agent_runner::run` 在 line 130-145 手工拼 system prompt, 这里抽出来
 //! 集中管理, 后续加新元素不需要改 runner。
 
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::harness::tools::ToolDescription;
+
+/// 应用运行时上下文（阶段五：上下文感知 Prompt）
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppContext {
+    #[serde(rename = "currentPage")]
+    pub current_page: Option<String>,
+    #[serde(rename = "selectedStudent")]
+    pub selected_student: Option<String>,
+    #[serde(rename = "openSettings")]
+    pub open_settings: Option<String>,
+}
 
 /// PromptBuilder 输入
 #[derive(Debug, Clone)]
@@ -22,6 +35,8 @@ pub struct PromptInputs<'a> {
     pub skills: &'a [SkillPromptEntry],
     pub tools: &'a [ToolDescription],
     pub agent_id: &'a str,
+    pub memory: &'a str,      // 跨会话记忆文本（可为空）
+    pub app_context: &'a AppContext, // 应用运行时上下文
 }
 
 /// Skill 列表项 (从 SkillService 拿)
@@ -97,6 +112,29 @@ impl PromptBuilder {
             }
             out.push('\n');
         }
+
+        if !inputs.memory.is_empty() {
+            out.push_str(inputs.memory);
+            out.push('\n');
+        }
+
+        out.push_str("# 应用当前上下文\n");
+        if let Some(page) = &inputs.app_context.current_page {
+            out.push_str(&format!("当前页面: {page}\n"));
+        }
+        if let Some(student) = &inputs.app_context.selected_student {
+            out.push_str(&format!("选中/关注学生: {student}\n"));
+        }
+        if let Some(setting) = &inputs.app_context.open_settings {
+            out.push_str(&format!("当前设置项: {setting}\n"));
+        }
+        if inputs.app_context.current_page.is_none()
+            && inputs.app_context.selected_student.is_none()
+            && inputs.app_context.open_settings.is_none()
+        {
+            out.push_str("无额外上下文\n");
+        }
+        out.push('\n');
 
         out.push_str("# 当前 Agent\n");
         out.push_str(&format!("agent_id: {}\n", inputs.agent_id));

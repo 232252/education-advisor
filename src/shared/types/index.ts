@@ -609,3 +609,55 @@ export interface ConnectionTestParams {
   apiKey: string
   baseUrl?: string
 }
+
+// ===== Agent Harness 增强: 应用上下文与跨会话记忆 =====
+
+/** 渲染端当前应用上下文,Agent 每次运行时由前端传入 */
+export interface AppContext {
+  currentPage?: string
+  selectedStudent?: string
+  openSettings?: string
+}
+
+/** agent_memory 单条记录 (后端 -> 前端) */
+export interface AgentMemoryRecord {
+  id: string
+  agentId: string
+  kind: string
+  /** JSON 字符串内容 */
+  content: string
+  sourceRunId?: string
+  createdAt: number
+  lastAccessedAt: number
+}
+
+/** HITL 审批请求 (后端 -> 前端) */
+export type ApprovalRiskLevel = 'low' | 'medium' | 'high' | 'destructive'
+
+export interface ApprovalRequest {
+  id: string
+  runId: string
+  agentId: string
+  tool: string
+  args: Record<string, unknown>
+  isWrite: boolean
+  risk: ApprovalRiskLevel
+  requestedAt: number
+}
+
+/** HITL 审批决议 (前端 -> 后端) */
+export type ApprovalDecision =
+  | { type: 'approve'; by: string }
+  | { type: 'reject'; by: string; reason: string }
+  | { type: 'edit'; by: string; newArgs: Record<string, unknown> }
+
+/** Guardrail 拦截事件 (后端 -> 前端) */
+export interface GuardrailBlockEvent {
+  runId: string
+  agentId: string
+  hook: string
+  guardrail: string
+  reason: string
+  severity: string
+  evidence?: string
+}

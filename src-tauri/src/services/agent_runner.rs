@@ -26,7 +26,18 @@ pub async fn run(
         history,
         cancel: None,
         budget: None,
+        app_context: None,
+        trace_collector: None,
     };
+    run_with_config(app, state, cfg).await
+}
+
+/// 执行一次 agent 运行 (传入完整配置)
+pub async fn run_with_config(
+    app: &AppHandle,
+    state: &AppState,
+    cfg: AgentRunConfig,
+) -> Result<String> {
     let registry = crate::harness::tools::build_default_registry();
     let harness = AgentHarness::new(state, registry, app.clone());
     match harness.run(cfg).await {

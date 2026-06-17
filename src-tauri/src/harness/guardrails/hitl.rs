@@ -59,24 +59,29 @@ impl RiskLevel {
 
 /// 审批请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ApprovalRequest {
     pub id: String,
+    #[serde(rename = "runId")]
     pub run_id: String,
+    #[serde(rename = "agentId")]
     pub agent_id: String,
     pub tool: String,
     pub args: Value,
+    #[serde(rename = "isWrite")]
     pub is_write: bool,
     pub risk: RiskLevel,
+    #[serde(rename = "requestedAt")]
     pub requested_at: i64,
 }
 
 /// 审批决议
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum ApprovalDecision {
     Approve { by: String },
     Reject { by: String, reason: String },
-    Edit { by: String, new_args: Value },
+    Edit { by: String, #[serde(rename = "newArgs")] new_args: Value },
 }
 
 impl ApprovalDecision {
@@ -333,7 +338,7 @@ mod tests {
         let v = serde_json::json!({
             "type": "edit",
             "by": "user_42",
-            "new_args": {"student": "李四"}
+            "newArgs": {"student": "李四"}
         });
         let d = ApprovalDecision::from_json(v).unwrap();
         match d {

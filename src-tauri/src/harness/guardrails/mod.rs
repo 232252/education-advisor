@@ -36,6 +36,7 @@ pub mod sandbox;
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -156,6 +157,11 @@ pub trait Guardrail: Send + Sync {
     ) -> HarnessResult<GuardrailAction> {
         Ok(GuardrailAction::Allow)
     }
+
+    /// 若守卫实现了超时限制,返回秒数（供 AgentHarness 工具调用超时使用）
+    fn timeout_secs(&self) -> Option<u64> {
+        None
+    }
 }
 
 /// 守卫链 — 按顺序短路：第一个 Block 即终止
@@ -209,6 +215,16 @@ impl GuardrailPipeline {
         Self::new(guards)
     }
 
+    /// 工具调用超时（取链上 Sandbox 守卫的限制，默认 30s）
+    pub fn tool_timeout(&self) -> Duration {
+        for g in &self.guards {
+            if let Some(secs) = g.timeout_secs() {
+                return Duration::from_secs(secs);
+            }
+        }
+        Duration::from_secs(30)
+    }
+
     /// 检查 LLM 输入
     pub async fn check_input(
         &self,
@@ -220,11 +236,18 @@ impl GuardrailPipeline {
         let mut ctx = GuardrailContext::new(run_id, agent_id, GuardrailHook::LlmInput, data, &mut meta);
         for g in &self.guards {
             let action = g.check_input(&mut ctx).await?;
-            if let GuardrailAction::Block { reason, .. } = action {
+            if let GuardrailAction::Block {
+                reason,
+                severity,
+                evidence,
+            } = action
+            {
                 return Err(HarnessError::GuardrailBlocked {
                     guardrail: g.name().to_string(),
                     hook: "input".into(),
                     reason,
+                    severity: format!("{severity:?}").to_lowercase(),
+                    evidence,
                 });
             }
         }
@@ -259,11 +282,18 @@ impl GuardrailPipeline {
             .with_tool(tool);
         for g in &self.guards {
             let action = g.check_tool_call(&mut ctx).await?;
-            if let GuardrailAction::Block { reason, .. } = action {
+            if let GuardrailAction::Block {
+                reason,
+                severity,
+                evidence,
+            } = action
+            {
                 return Err(HarnessError::GuardrailBlocked {
                     guardrail: g.name().to_string(),
                     hook: "tool_call".into(),
                     reason,
+                    severity: format!("{severity:?}").to_lowercase(),
+                    evidence,
                 });
             }
         }
@@ -304,11 +334,18 @@ impl GuardrailPipeline {
         .with_tool(tool);
         for g in &self.guards {
             let action = g.check_tool_result(&mut ctx).await?;
-            if let GuardrailAction::Block { reason, .. } = action {
+            if let GuardrailAction::Block {
+                reason,
+                severity,
+                evidence,
+            } = action
+            {
                 return Err(HarnessError::GuardrailBlocked {
                     guardrail: g.name().to_string(),
                     hook: "tool_result".into(),
                     reason,
+                    severity: format!("{severity:?}").to_lowercase(),
+                    evidence,
                 });
             }
         }
@@ -429,7 +466,8 @@ fn uuid_v4_short() -> String {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    format!("{:x}", nanos & 0xFFFF_FFFF)
+    // {:08x} 保证固定 8 字符，避免最高 nibble 为 0 时长度变成 7。
+    format!("{:08x}", nanos & 0xFFFF_FFFF)
 }
 
 #[cfg(test)]

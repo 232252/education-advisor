@@ -15,7 +15,7 @@
 //! - EventBridge emit (需要 mock AppHandle)
 
 use ea_tauri::harness::agent::budget::{Budget, BudgetTracker};
-use ea_tauri::harness::agent::prompt_builder::{PromptBuilder, PromptInputs, SkillPromptEntry};
+use ea_tauri::harness::agent::prompt_builder::{AppContext, PromptBuilder, PromptInputs, SkillPromptEntry};
 use ea_tauri::harness::agent::react_machine::{
     ParsedToolCall, ReActMachine, ReactPhase, StepDecision,
 };
@@ -107,6 +107,51 @@ fn test_registry_llm_descriptions() {
         assert!(!d.name.is_empty());
         assert!(d.schema.is_object() || d.schema.is_string());
     }
+}
+
+// =============================================================
+// 1b. Capability 别名展开测试（config/agents.yaml 语义）
+// =============================================================
+
+#[test]
+fn test_capability_yaml_alias_read_allows_get_score() {
+    let reg = ea_tauri::harness::tools::build_default_registry();
+    let raw = vec!["read".to_string()];
+    let expanded = ea_tauri::harness::tools::expand_capabilities(&raw);
+    assert!(
+        expanded.contains(&"read:scores".to_string()),
+        "read alias should expand to read:scores"
+    );
+    assert!(reg.get_checked("get_score", &expanded).is_ok());
+}
+
+#[test]
+fn test_capability_yaml_alias_write_allows_add_event() {
+    let reg = ea_tauri::harness::tools::build_default_registry();
+    let raw = vec!["write".to_string()];
+    let expanded = ea_tauri::harness::tools::expand_capabilities(&raw);
+    assert!(
+        expanded.contains(&"write:events".to_string()),
+        "write alias should expand to write:events"
+    );
+    assert!(reg.get_checked("add_event", &expanded).is_ok());
+}
+
+#[test]
+fn test_capability_read_blocks_write_tool() {
+    let reg = ea_tauri::harness::tools::build_default_registry();
+    let raw = vec!["read".to_string()];
+    let expanded = ea_tauri::harness::tools::expand_capabilities(&raw);
+    assert!(reg.get_checked("add_event", &expanded).is_err());
+}
+
+#[test]
+fn test_capability_academic_alias_expands_both_ways() {
+    let reg = ea_tauri::harness::tools::build_default_registry();
+    let raw = vec!["academic".to_string()];
+    let expanded = ea_tauri::harness::tools::expand_capabilities(&raw);
+    assert!(reg.get_checked("academic_get", &expanded).is_ok());
+    assert!(reg.get_checked("academic_add", &expanded).is_ok());
 }
 
 // =============================================================
@@ -299,6 +344,8 @@ fn test_prompt_builder_basic() {
         skills: &[],
         tools: &[],
         agent_id: "test_agent",
+        memory: "",
+        app_context: &AppContext::default(),
     });
     assert!(prompt.contains("AI 助手"));
     assert!(prompt.contains("遵守规则"));
@@ -326,6 +373,8 @@ fn test_prompt_builder_with_skills_and_tools() {
         skills: &skills,
         tools: &tools,
         agent_id: "a",
+        memory: "",
+        app_context: &AppContext::default(),
     });
     assert!(prompt.contains("OCR 识别图片文字"));
     assert!(prompt.contains("calculate"));
@@ -355,6 +404,8 @@ fn test_prompt_builder_filters_disabled_skills() {
         skills: &skills,
         tools: &[],
         agent_id: "a",
+        memory: "",
+        app_context: &AppContext::default(),
     });
     assert!(prompt.contains("on: ON"));
     assert!(!prompt.contains("off: OFF"));
@@ -375,6 +426,8 @@ fn test_prompt_builder_write_tag() {
         skills: &[],
         tools: &tools,
         agent_id: "a",
+        memory: "",
+        app_context: &AppContext::default(),
     });
     assert!(prompt.contains("⚠️") || prompt.contains("写操作"));
 }

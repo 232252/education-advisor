@@ -5,13 +5,14 @@
 import type { AgentDetail, AgentExecution } from '@shared/types'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+// P6: 跳转到全局历史页面(集中管理路由路径)
+import { AgentMemoryPanel } from '../../components/AgentMemoryPanel'
 import { ROUTES } from '../../hooks/useNavigation'
 import { useT } from '../../i18n'
-// P6: 跳转到全局历史页面(集中管理路由路径)
 import { getAPI } from '../../lib/ipc-client'
 import { useAgentStore } from '../../stores/agentStore'
 
-type TabKey = 'config' | 'run' | 'soul' | 'rules' | 'skills' | 'history'
+type TabKey = 'config' | 'run' | 'soul' | 'rules' | 'skills' | 'history' | 'memory'
 
 export function AgentsPage() {
   const { t } = useT()
@@ -220,6 +221,7 @@ function AgentDetailPanel({
     { key: 'soul', label: 'SOUL.md' },
     { key: 'rules', label: 'AGENTS.md' },
     { key: 'skills', label: '绑定技能' },
+    { key: 'memory', label: '记忆' },
     { key: 'history', label: `历史 (${detail.executionHistory.length})` },
   ]
 
@@ -312,6 +314,7 @@ function AgentDetailPanel({
           />
         )}
         {tab === 'skills' && <SkillsTab detail={detail} onUpdate={onUpdate} />}
+        {tab === 'memory' && <AgentMemoryPanel agentId={detail.id} />}
         {tab === 'history' && <HistoryTab executions={detail.executionHistory} />}
       </div>
     </>

@@ -66,6 +66,9 @@ macro_rules! all_commands {
         crate::commands::agent::agent_abort,
         crate::commands::agent::agent_approval_resolve,
         crate::commands::agent::agent_approval_pending_count,
+        crate::commands::agent::agent_memory_list,
+        crate::commands::agent::agent_memory_create,
+        crate::commands::agent::agent_memory_delete,
         // ===== EAA 核心 =====
         crate::commands::eaa::eaa_info,
         crate::commands::eaa::eaa_score,

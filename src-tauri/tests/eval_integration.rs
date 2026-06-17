@@ -19,7 +19,8 @@ use std::sync::Arc;
 use ea_tauri::harness::eval::dataset::{CaseCategory, Dataset};
 use ea_tauri::harness::eval::judge::{Judge, JudgeClient, JudgeVerdict, StubJudgeClient};
 use ea_tauri::harness::eval::report::ReportWriter;
-use ea_tauri::harness::eval::runner::{EvalRunner, RunTrace, StubTraceProvider, TraceToolCall};
+use ea_tauri::harness::agent::trace::{RunTrace, TraceToolCall};
+use ea_tauri::harness::eval::runner::{EvalRunner, StubTraceProvider};
 use ea_tauri::harness::eval::scorer::{
     BudgetScorer, PiiLeakScorer, SchemaValidatorScorer, Scorer, ToolCallMatchScorer,
 };

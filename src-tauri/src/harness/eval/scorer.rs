@@ -13,8 +13,8 @@
 //! # 扩展
 //! 实现 [`Scorer`] trait, 加到 `EvalRunner::scorers` 即可。
 
+use crate::harness::agent::trace::{RunTrace, TraceToolCall};
 use crate::harness::eval::dataset::{CaseCategory, DatasetCase, ExpectedToolCall};
-use crate::harness::eval::runner::{RunTrace, TraceToolCall};
 
 /// 单个 Scorer 的结果
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

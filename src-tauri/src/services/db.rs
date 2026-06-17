@@ -208,9 +208,23 @@ impl DbService {
             CREATE INDEX IF NOT EXISTS idx_agent_run_tool_calls_run_id ON agent_run_tool_calls(run_id);
             CREATE INDEX IF NOT EXISTS idx_agent_run_tool_calls_step_id ON agent_run_tool_calls(step_id);
             CREATE INDEX IF NOT EXISTS idx_agent_run_tool_calls_status ON agent_run_tool_calls(status);
+
+            -- ===== 跨会话记忆表 (阶段五) =====
+            CREATE TABLE IF NOT EXISTS agent_memory (
+                id TEXT PRIMARY KEY,
+                agent_id TEXT NOT NULL,
+                kind TEXT NOT NULL CHECK(kind IN ('fact','preference','summary')),
+                content_json TEXT NOT NULL,
+                source_run_id TEXT,
+                created_at INTEGER NOT NULL,
+                last_accessed_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_agent_memory_agent_id ON agent_memory(agent_id);
+            CREATE INDEX IF NOT EXISTS idx_agent_memory_kind ON agent_memory(kind);
+            CREATE INDEX IF NOT EXISTS idx_agent_memory_accessed ON agent_memory(last_accessed_at);
             ",
         )?;
-        tracing::info!("db migrated: 7 tables ready");
+        tracing::info!("db migrated: 8 tables ready");
         Ok(())
     }
 

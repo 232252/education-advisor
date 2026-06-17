@@ -280,7 +280,7 @@ th { background: #fafafa; font-weight: 600; }
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::harness::eval::runner::{RunTrace, TraceToolCall};
+    use crate::harness::agent::trace::{RunTrace, TraceToolCall};
     use crate::harness::eval::scorer::ScorerResult;
     use serde_json::json;
 

@@ -56,6 +56,8 @@ pub enum HarnessError {
         guardrail: String,
         hook: String,
         reason: String,
+        severity: String, // "info" | "warn" | "block" | "critical"
+        evidence: Option<String>,
     },
 }
 

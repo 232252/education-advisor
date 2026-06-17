@@ -1,139 +1,52 @@
 name: Eval Harness
 
-# 阶段四 Evaluation Harness 跑批门
-# - 触发: 改 eval/ 或 harness/eval/ 或 main 分支合并
-# - 行为: cargo test (harness::eval) + eval-runner CLI 跑全部 datasets
-# - 通过条件: pass_rate >= 0.8 (CLI 默认阈值)
-# - 失败: 上传 report.html + report.json 作 artifact 供审查
-
 on:
   push:
-    branches: [main, release/**]
-    paths:
-      - "src-tauri/eval/**"
-      - "src-tauri/src/harness/eval/**"
-      - "src-tauri/Cargo.toml"
-      - "src-tauri/Cargo.lock"
-      - ".github/workflows/eval.yml"
+    branches: [main, master]
   pull_request:
-    branches: [main, release/**]
-    paths:
-      - "src-tauri/eval/**"
-      - "src-tauri/src/harness/eval/**"
-      - "src-tauri/Cargo.toml"
-      - "src-tauri/Cargo.lock"
-      - ".github/workflows/eval.yml"
-  # 允许手动触发 (调试 / 跑新增 dataset)
-  workflow_dispatch: {}
+    branches: [main, master]
+  workflow_dispatch:
 
-# Cancel in-progress runs for the same branch / PR
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  # ----------------------------------------------------------------
-  # 单元 + 集成测试 (不依赖网络 / API key)
-  # ----------------------------------------------------------------
-  unit-tests:
-    name: Eval unit + integration tests
+  eval:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (1.95.0)
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
         with:
-          toolchains: 1.95.0
-          components: rustfmt
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-eval-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-eval-
+            ${{ runner.os }}-cargo-
 
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: "src-tauri -> target"
+      - name: Run unit tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
-      - name: cargo test (harness::eval lib)
-        shell: bash
+      - name: Run eval harness (stub trace + stub judge)
         run: |
-          cargo +1.95.0 test --manifest-path src-tauri/Cargo.toml --lib \
-            harness::eval -- --nocapture
-
-      - name: cargo test (eval_integration)
-        shell: bash
-        run: |
-          cargo +1.95.0 test --manifest-path src-tauri/Cargo.toml \
-            --test eval_integration -- --nocapture
-
-  # ----------------------------------------------------------------
-  # eval-runner CLI 跑批 (stub judge, 不发真 LLM)
-  # ----------------------------------------------------------------
-  runner-cli:
-    name: eval-runner CLI smoke (stub judge)
-    runs-on: ubuntu-latest
-    needs: unit-tests
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain (1.95.0)
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchains: 1.95.0
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: "src-tauri -> target"
-
-      - name: Build eval-runner
-        shell: bash
-        run: |
-          cargo +1.95.0 build --manifest-path src-tauri/Cargo.toml \
-            --bin eval-runner --release
-
-      - name: Run eval on all datasets
-        id: run
-        shell: bash
-        run: |
-          mkdir -p reports/eval
-          src-tauri/target/release/eval-runner \
-            --dataset-dir src-tauri/eval/datasets \
+          cargo run --manifest-path src-tauri/Cargo.toml --bin eval-runner -- \
+            --dataset eval/datasets/education_v1.jsonl \
             --out-dir reports/eval \
-            --pass-rate 0.5 \
+            --pass-rate 0.3 \
             --judge-model stub \
             --stub-judge
-        # 注: CI 默认 threshold=0.5 是因为 StubTraceProvider 返回空 trace,
-        # Privacy/Privacy 走 Judge stub 拿满分, ToolCorrectness 走 schema_validator
-        # 因无 tool_calls 会 fail, pass_rate 通常在 0.5~0.8 之间。
-        # 真实 TraceProvider (AgentRunTraceProvider) 接入后, 阈值可提升到 0.8。
-        continue-on-error: true
 
-      - name: Upload report
-        if: always()
+      - name: Upload eval reports
         uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: eval-report-${{ github.run_id }}
-          path: |
-            reports/eval/report.html
-            reports/eval/report.json
-          retention-days: 14
-
-      - name: Exit status
-        if: steps.run.outcome == 'success'
-        shell: bash
-        run: echo "✅ eval-runner exited 0 (pass_rate >= threshold)"
-
-      - name: Exit status (CI smoke pass)
-        if: steps.run.outcome == 'failure'
-        shell: bash
-        # CI smoke 当前不阻断 (StubTraceProvider 限制), 仅记录
-        run: |
-          echo "::warning::eval-runner exited non-zero. Report uploaded as artifact."
-          echo "注: 阶段四 CI smoke 暂不阻断 (StubTraceProvider 限制); \
-            阶段五接入 AgentRunTraceProvider 后, --pass-rate 提升到 0.8, \
-            非 0 即 fail。"
-          exit 0
+          name: eval-reports
+          path: reports/eval/

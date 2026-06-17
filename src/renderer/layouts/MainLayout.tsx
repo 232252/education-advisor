@@ -7,7 +7,10 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { ROUTES } from '../hooks/useNavigation'
 import { usePrivacyFilter } from '../hooks/usePrivacyFilter'
 import { useT } from '../i18n'
+import { getAPI } from '../lib/ipc-client'
 import { useAgentStore } from '../stores/agentStore'
+import { useApprovalStore } from '../stores/approvalStore'
+import { toast } from '../stores/toastStore'
 
 const NAV_ITEMS = [
   { path: ROUTES.dashboard, icon: '\u{1F4CA}', labelKey: 'nav.dashboard' },
@@ -28,6 +31,7 @@ export function MainLayout() {
   const agents = useAgentStore((s) => s.agents)
   const fetchAgents = useAgentStore((s) => s.fetchAgents)
   const initStatusListener = useAgentStore((s) => s.initStatusListener)
+  const initApprovalListeners = useApprovalStore((s) => s.initListeners)
 
   // P1-6: 隐私引擎状态徽章 — 实时反映当前是否脱敏
   const { enabled: privacyEnabled, initialized: privacyInitialized } = usePrivacyFilter()
@@ -36,7 +40,16 @@ export function MainLayout() {
     fetchAgents()
     // 初始化 Agent 状态推送监听器（修复:原代码未调用导致实时状态不更新）
     initStatusListener()
-  }, [fetchAgents, initStatusListener])
+    // 初始化 HITL 审批监听器
+    initApprovalListeners()
+    // Guardrail 拦截事件 — toast 提示
+    const unsubGuardrail = getAPI().agent.onGuardrailBlock((ev) => {
+      toast.error(`Guardrail 拦截 [${ev.guardrail}] ${ev.reason}`)
+    })
+    return () => {
+      unsubGuardrail()
+    }
+  }, [fetchAgents, initStatusListener, initApprovalListeners])
 
   return (
     <div className="flex h-screen bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100">

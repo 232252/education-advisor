@@ -78,6 +78,8 @@ impl Sandbox {
                     self.limits.max_args_bytes,
                     tool
                 ),
+                severity: "block".into(),
+                evidence: None,
             });
         }
         // 2. 路径守卫
@@ -104,6 +106,8 @@ impl Sandbox {
                     guardrail: "sandbox.path".into(),
                     hook: "tool_call.path".into(),
                     reason: format!("路径 {path:?} 在黑名单内 ({prefix:?}), tool={tool}"),
+                    severity: "block".into(),
+                    evidence: None,
                 });
             }
         }
@@ -119,6 +123,8 @@ impl Sandbox {
                     guardrail: "sandbox.path".into(),
                     hook: "tool_call.path".into(),
                     reason: format!("路径 {path:?} 不在白名单内, tool={tool}"),
+                    severity: "block".into(),
+                    evidence: None,
                 });
             }
         }
@@ -135,6 +141,10 @@ impl Sandbox {
 impl Guardrail for Sandbox {
     fn name(&self) -> &'static str {
         "sandbox"
+    }
+
+    fn timeout_secs(&self) -> Option<u64> {
+        Some(self.limits.max_tool_timeout_sec)
     }
 
     async fn check_tool_call(

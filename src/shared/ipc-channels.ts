@@ -82,10 +82,11 @@ export const IPC_PRIVACY_BACKUP = 'privacy:backup'
 export const IPC_PRIVACY_STATE_CHANGED = 'privacy:state-changed'
 
 // ===== 合规报告（Pillar 6）=====
-// 生成 / 列出 / 保存到文件
+// 生成 / 列出 / 保存到文件 / 读取审计日志
 export const IPC_COMPLIANCE_GENERATE = 'compliance:generate'
 export const IPC_COMPLIANCE_LIST = 'compliance:list'
 export const IPC_COMPLIANCE_SAVE = 'compliance:save'
+export const IPC_COMPLIANCE_READ_AUDIT = 'compliance:read-audit'
 
 // ===== 定时任务 =====
 export const IPC_CRON_LIST = 'cron:list'
@@ -116,6 +117,8 @@ export const IPC_SYS_SAVE_DIALOG = 'sys:save-dialog'
 export const IPC_SYS_OPEN_EXTERNAL = 'sys:open-external'
 export const IPC_SYS_GET_PATH = 'sys:get-path'
 export const IPC_SYS_CHECK_UPDATE = 'sys:check-update'
+// 此前已被 sys-handlers.ts 引用但未在常量表中，补齐
+export const IPC_SYS_SHOW_UPDATE_DIALOG = 'sys:show-update-dialog'
 export const IPC_SYS_NOTIFICATION = 'sys:notification'
 
 // ===== 学生档案 =====
@@ -151,10 +154,6 @@ export const IPC_LOG_EXPORT = 'log:export'
 export const IPC_LOG_EXPORT_DIALOG = 'log:export-dialog'
 // renderer→main 单向通知（ipcRenderer.send），不需要 ipcMain.handle
 export const IPC_LOG_WRITE_RENDERER = 'log:write-renderer'
-
-// ===== 系统（更新对话框扩展） =====
-// 此前已被 sys-handlers.ts 引用但未在常量表中，补齐
-export const IPC_SYS_SHOW_UPDATE_DIALOG = 'sys:show-update-dialog'
 
 // ===== 系统维护 =====
 export const IPC_SYS_RESET_FACTORY = 'sys:reset-factory'
