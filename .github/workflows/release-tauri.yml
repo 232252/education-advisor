@@ -106,10 +106,22 @@ jobs:
         shell: bash
         run: |
           cd src-tauri
+          set -o pipefail
+          cargo build --release 2>&1 | tee /tmp/cargo_build.log
           npm run tauri:build -- --bundles ${{ matrix.bundles }} --ci --verbose
         env:
-          # 避免 Windows 上因 WebView2 未安装导致 codegen 警告转错误
+          RUST_BACKTRACE: "full"
+          CARGO_TERM_COLOR: "always"
           TAURI_SKIP_DEV_DEPS_CHECK: "true"
+
+      # ---- 上传诊断日志 (仅失败时) ----
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diag-${{ matrix.label }}
+          path: /tmp/cargo_build.log
+          retention-days: 14
 
       # ---- 上传产物 ----
       - name: Upload artifacts
