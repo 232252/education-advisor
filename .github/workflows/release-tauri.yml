@@ -42,21 +42,25 @@ jobs:
             label: windows-x64
             bundles: "msi"
             extra_target: ""
+            tauri_target: ""
           # macOS x64 (Intel) — 在 ARM 宿主编译 x86_64
           - os: macos-latest
             label: macos-x64
             bundles: "dmg"
             extra_target: x86_64-apple-darwin
+            tauri_target: "--target x86_64-apple-darwin"
           # macOS arm64 (Apple Silicon) — 原生编译
           - os: macos-latest
             label: macos-arm64
             bundles: "dmg"
             extra_target: ""
+            tauri_target: ""
           # Linux x64 — AppImage + deb
           - os: ubuntu-22.04
             label: linux-x64
             bundles: "deb,appimage"
             extra_target: ""
+            tauri_target: ""
 
     steps:
       - name: Checkout
@@ -114,11 +118,11 @@ jobs:
           echo '::endgroup::'
           
           echo '::group::cargo build'
-          cargo build --release 2>&1 | tail -100
+          cargo build --release ${{ matrix.tauri_target }} 2>&1 | tail -100
           echo '::endgroup::'
           
           echo '::group::tauri build'
-          npx tauri build --bundles ${{ matrix.bundles }} --ci --verbose 2>&1 | tail -100
+          npx tauri build --bundles ${{ matrix.bundles }} ${{ matrix.tauri_target }} --ci --verbose 2>&1 | tail -200
           echo '::endgroup::'
         env:
           RUST_BACKTRACE: "full"
