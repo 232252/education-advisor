@@ -1,0 +1,8 @@
+name: "Education Advisor CodeQL Config"
+paths-ignore:
+  - archive
+  - vendor
+  - "**/node_modules"
+  - "**/bower_components"
+  - "**/*.min.js"
+  - "**/dist"
