@@ -99,7 +99,7 @@ jobs:
         shell: bash
         run: |
           cd src-tauri
-          npx tauri build --bundles ${{ matrix.bundles }} ${{ matrix.args }} --ci
+          npm run tauri:build -- --bundles ${{ matrix.bundles }} --ci --verbose
 
       # ---- 上传产物 ----
       - name: Upload artifacts
