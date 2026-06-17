@@ -37,28 +37,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Windows x64 — MSI (NSIS 不在 GitHub 预装环境, 用 MSI)
+          # Windows x64 — MSI
           - os: windows-latest
             label: windows-x64
             bundles: "msi"
-            args: ""
+            extra_target: ""
           # macOS x64 (Intel) — 在 ARM 宿主编译 x86_64
           - os: macos-latest
             label: macos-x64
             bundles: "dmg"
-            args: "--target x86_64-apple-darwin"
             extra_target: x86_64-apple-darwin
           # macOS arm64 (Apple Silicon) — 原生编译
           - os: macos-latest
             label: macos-arm64
             bundles: "dmg"
-            args: ""
             extra_target: ""
           # Linux x64 — AppImage + deb
           - os: ubuntu-22.04
             label: linux-x64
             bundles: "deb,appimage"
-            args: ""
+            extra_target: ""
 
     steps:
       - name: Checkout
@@ -111,7 +109,17 @@ jobs:
         shell: bash
         run: |
           cd src-tauri
-          npm run tauri:build -- --bundles ${{ matrix.bundles }} --ci --verbose
+          echo '::group::tauri info'
+          npx tauri info || true
+          echo '::endgroup::'
+          
+          echo '::group::cargo build'
+          cargo build --release 2>&1 | tail -100
+          echo '::endgroup::'
+          
+          echo '::group::tauri build'
+          npx tauri build --bundles ${{ matrix.bundles }} --ci --verbose 2>&1 | tail -100
+          echo '::endgroup::'
         env:
           RUST_BACKTRACE: "full"
           CARGO_TERM_COLOR: "always"
