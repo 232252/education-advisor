@@ -115,14 +115,10 @@ jobs:
           cd src-tauri
           
           echo '::group::cargo build output'
-          cargo build --release ${{ matrix.tauri_target }} > /tmp/cargo_out.txt 2>&1
+          cargo build --release ${{ matrix.tauri_target }} > ${{ runner.temp }}/cargo_out.txt 2>&1
           CARGO_EXIT=$?
-          cat /tmp/cargo_out.txt
+          cat ${{ runner.temp }}/cargo_out.txt
           if [ $CARGO_EXIT -ne 0 ]; then
-            echo "::error::CARGO BUILD FAILED (exit=$CARGO_EXIT)"
-            echo "::group::Rust compile errors"
-            head -200 /tmp/cargo_out.txt
-            echo '::endgroup::'
             exit $CARGO_EXIT
           fi
           echo '::endgroup::'
@@ -133,6 +129,15 @@ jobs:
         env:
           RUST_BACKTRACE: "full"
           CARGO_TERM_COLOR: "always"
+
+      # ---- 上传 cargo 构建日志 (用于诊断编译错误) ----
+      - name: Upload cargo build log
+        if: always() && matrix.label == 'windows-x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-out-${{ matrix.label }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cargo_out.txt
+          retention-days: 7
 
       # ---- 上传产物 ----
       - name: Upload artifacts
