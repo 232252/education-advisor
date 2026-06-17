@@ -26,7 +26,7 @@ impl AgentIsolator {
                 .map_err(|e| IsolationError::DirectoryCreationFailed(e.to_string()))?;
         }
 
-        // 设置根目录权限为700
+        // 设置根目录权限为700 (Unix) 或移除继承并限制为仅当前用户 (Windows)
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -36,6 +36,15 @@ impl AgentIsolator {
             perms.set_mode(0o700);
             fs::set_permissions(&root_dir, perms)
                 .map_err(|e| IsolationError::PermissionSetupFailed(e.to_string()))?;
+        }
+        #[cfg(target_os = "windows")]
+        {
+            // Windows: 移除继承的 ACE, 仅保留当前用户的读写执行权限
+            // 等效于 Unix 700: 仅 owner 可访问
+            let _ = std::process::Command::new("icacls")
+                .arg(&root_dir)
+                .args(["/inheritance:r", "/grant:r", "%USERNAME%:(R,W,X)"])
+                .output();
         }
 
         Ok(Self {
@@ -60,7 +69,7 @@ impl AgentIsolator {
                 .map_err(|e| IsolationError::DirectoryCreationFailed(e.to_string()))?;
         }
 
-        // 设置目录权限为700（仅所有者可读写）
+        // 设置目录权限为700 (Unix) 或移除继承并限制为仅当前用户 (Windows)
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -70,6 +79,14 @@ impl AgentIsolator {
             perms.set_mode(0o700);
             fs::set_permissions(&agent_dir, perms)
                 .map_err(|e| IsolationError::PermissionSetupFailed(e.to_string()))?;
+        }
+        #[cfg(target_os = "windows")]
+        {
+            // Windows: 移除继承的 ACE, 仅保留当前用户的读写执行权限
+            let _ = std::process::Command::new("icacls")
+                .arg(&agent_dir)
+                .args(["/inheritance:r", "/grant:r", "%USERNAME%:(R,W,X)"])
+                .output();
         }
 
         // 记录映射关系

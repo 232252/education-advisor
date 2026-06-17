@@ -1169,6 +1169,12 @@ pub fn cmd_dashboard(output_dir: Option<&str>, open_browser: bool) -> Result<(),
         {
             let _ = std::process::Command::new("open").arg(&index_path).spawn();
         }
+        #[cfg(target_os = "windows")]
+        {
+            let _ = std::process::Command::new("cmd")
+                .args(["/c", "start", "", &index_path])
+                .spawn();
+        }
     }
     Ok(())
 }
