@@ -294,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn set_custom_models_nests_under_models_customModels() {
+    fn set_custom_models_nests_under_models_custom_models() {
         let mut svc = load_empty();
         let models = vec![json!({ "id": "gpt-4o" })];
         svc.set_custom_models("openai", models.clone()).unwrap();

@@ -26,9 +26,13 @@ pub mod settings;
 pub mod skill;
 pub mod sys;
 
+/// Tauri 2 invoke handler 类型别名, 让 `register()` 签名一眼可读。
+type InvokeHandler =
+    Box<dyn Fn(&mut tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync>;
+
 /// 把所有 command 注册进 Tauri Builder。
 /// 在 main.rs 里 `tauri::Builder::default().invoke_handler(crate::commands::register())`。
-pub fn register() -> Box<dyn Fn(&mut tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync> {
+pub fn register() -> InvokeHandler {
     // Tauri 2.x 用 generate_handler! 宏在 main.rs 直接展开; 这里提供一份统一入口便于
     // 单文件维护。详见 main.rs。
     unimplemented!("use generate_handler! in main.rs; this is a placeholder for documentation")
@@ -37,12 +41,13 @@ pub fn register() -> Box<dyn Fn(&mut tauri::ipc::Invoke<tauri::Wry>) -> bool + S
 /// generate_handler 引用的全部 command 函数, 按命名空间分组列出。
 /// 当 main.rs 写 `tauri::generate_handler![crate::commands::all_commands!()]` 时展开。
 #[macro_export]
+#[allow(clippy::crate_in_macro_def)] // 宏仅在同 crate 的 main.rs 内展开, `crate` 解析正确
 macro_rules! all_commands {
     () => {
         // ===== AI / LLM =====
-        crate::commands::ai::ai_list_providers,
-        crate::commands::ai::ai_list_models,
-        crate::commands::ai::ai_test_connection,
+        $crate::commands::ai::ai_list_providers,
+        $crate::commands::ai::ai_list_models,
+        $crate::commands::ai::ai_test_connection,
         crate::commands::ai::ai_set_api_key,
         crate::commands::ai::ai_delete_api_key,
         crate::commands::ai::ai_oauth_login,

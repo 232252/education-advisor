@@ -312,6 +312,12 @@ pub struct LlmService {
     http: reqwest::Client,
 }
 
+impl Default for LlmService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LlmService {
     pub fn new() -> Self {
         // 优化: 连接池复用 + 超时, 避免每次 LLM 调用重建 TCP/TLS 连接,
@@ -484,6 +490,7 @@ impl LlmService {
     /// - `params.messages`: 初始对话 (会被本方法扩展)。
     /// - `exec_tool`: 收到 ToolCall 时调, 返回工具结果字符串 (供 LLM 下一轮读)。
     /// - `max_rounds`: 防止无限循环 (默认 8)。
+    #[allow(clippy::too_many_arguments)]
     pub async fn stream_chat_with_tool_loop(
         &self,
         params: &ChatParams,
@@ -656,8 +663,7 @@ impl LlmService {
                     Some(Ok(bytes)) => {
                         buf.push_str(&String::from_utf8_lossy(&bytes));
                         // 按 SSE 行解析: "data: {...}\n\n"
-                        loop {
-                            let Some(idx) = buf.find("\n\n") else { break };
+                        while let Some(idx) = buf.find("\n\n") {
                             let line = buf[..idx].trim().to_string();
                             buf.drain(..idx + 2);
                             if let Some(json_str) = line.strip_prefix("data:") {
@@ -833,6 +839,12 @@ pub struct OpenAIChunkState {
     tool_calls: std::collections::HashMap<u64, OpenAIToolCall>,
 }
 
+impl Default for OpenAIChunkState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OpenAIChunkState {
     pub fn new() -> Self {
         Self {
@@ -898,7 +910,7 @@ pub fn parse_openai_chunk(
                             // 更严格做法: 在 entry 上记录 last_sent_len, 此处取差值。
                             // 为简化且前端 chatStore 已按 id 覆盖, 这里发增量 token 也无害。
                             // 实际 emit 我们让调用方负责; 这里仅记录 args_buf。
-                            let _ = args_token_emit(&entry.args_buf, &entry.id, on_event);
+                            args_token_emit(&entry.args_buf, &entry.id, on_event);
                         }
                     }
                 }
@@ -966,6 +978,12 @@ struct AnthropicToolUse {
 
 pub struct AnthropicChunkState {
     tool_uses: std::collections::HashMap<u64, AnthropicToolUse>,
+}
+
+impl Default for AnthropicChunkState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AnthropicChunkState {

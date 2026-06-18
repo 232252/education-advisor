@@ -130,7 +130,7 @@ impl ReActMachine {
                 .into_iter()
                 .map(|(id, name, args_str)| {
                     let args = serde_json::from_str(&args_str)
-                        .unwrap_or_else(|_| serde_json::Value::String(args_str));
+                        .unwrap_or(serde_json::Value::String(args_str));
                     ParsedToolCall { id, name, args }
                 })
                 .collect();

@@ -4,6 +4,7 @@
 //!   - tenant_access_token 获取
 //!   - 消息发送 (im/v1/messages)
 //!   - Bitable 表列表 / 记录写入
+//!
 //! HMAC 回调校验复用 core/eaa-cli/crates/callback-signature。
 //! 隐私预检 (send-preflight / send-confirm) 复用 eaa_core::privacy::filter_for_receiver。
 
@@ -48,6 +49,12 @@ pub struct TokenResp {
 pub struct BitableTable {
     pub table_id: String,
     pub name: String,
+}
+
+impl Default for FeishuService {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl FeishuService {
@@ -132,12 +139,9 @@ impl FeishuService {
             .await?;
         let code = resp.get("code").and_then(|c| c.as_i64()).unwrap_or(-1);
         if code != 0 {
-            return Err(AppError::Feishu(format!(
-                "{}",
-                resp.get("msg")
+            return Err(AppError::Feishu(resp.get("msg")
                     .and_then(|m| m.as_str())
-                    .unwrap_or("unknown")
-            )));
+                    .unwrap_or("unknown").to_string()));
         }
         let tables = resp
             .pointer("/data/items")
@@ -188,12 +192,9 @@ impl FeishuService {
             .await?;
         let code = resp.get("code").and_then(|c| c.as_i64()).unwrap_or(-1);
         if code != 0 {
-            return Err(AppError::Feishu(format!(
-                "{}",
-                resp.get("msg")
+            return Err(AppError::Feishu(resp.get("msg")
                     .and_then(|m| m.as_str())
-                    .unwrap_or("unknown")
-            )));
+                    .unwrap_or("unknown").to_string()));
         }
         let msg_id = resp
             .pointer("/data/message_id")
@@ -226,12 +227,9 @@ impl FeishuService {
             .await?;
         let code = resp.get("code").and_then(|c| c.as_i64()).unwrap_or(-1);
         if code != 0 {
-            return Err(AppError::Feishu(format!(
-                "{}",
-                resp.get("msg")
+            return Err(AppError::Feishu(resp.get("msg")
                     .and_then(|m| m.as_str())
-                    .unwrap_or("unknown")
-            )));
+                    .unwrap_or("unknown").to_string()));
         }
         Ok(resp
             .pointer("/data/record/record_id")

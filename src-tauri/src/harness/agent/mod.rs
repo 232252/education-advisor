@@ -199,7 +199,7 @@ impl<'a> AgentHarness<'a> {
         }
 
         // === Step 7: 注册 cancel token ===
-        let cancel = cfg.cancel.unwrap_or_else(CancellationToken::new);
+        let cancel = cfg.cancel.unwrap_or_default();
         let session_id = format!("agent_{run_id}");
         self.state
             .active_streams
@@ -326,6 +326,7 @@ impl<'a> AgentHarness<'a> {
     }
 
     /// ReAct 主循环 — 显式 Plan → Act → Observe → Reflect
+    #[allow(clippy::too_many_arguments)]
     async fn react_loop(
         &self,
         run_id: &str,
@@ -665,6 +666,7 @@ impl<'a> AgentHarness<'a> {
     }
 
     /// 单步 LLM 调用 + 收集 events
+    #[allow(clippy::too_many_arguments)]
     async fn llm_step(
         &self,
         llm: &Arc<crate::services::llm_service::LlmService>,

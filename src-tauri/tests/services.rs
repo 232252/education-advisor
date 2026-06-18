@@ -625,7 +625,7 @@ fn test_llm_get_provider_returns_none_for_unknown() {
 fn test_settings_set_custom_models_persists() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("settings.json");
-    let mut svc = SettingsService::load(&dir.path()).unwrap();
+    let mut svc = SettingsService::load(dir.path()).unwrap();
 
     let models = vec![
         json!({"id": "x1", "name": "X One", "contextWindow": 4096}),
@@ -635,7 +635,7 @@ fn test_settings_set_custom_models_persists() {
         .unwrap();
 
     // 重 load, 应能读到
-    let svc2 = SettingsService::load(&dir.path()).unwrap();
+    let svc2 = SettingsService::load(dir.path()).unwrap();
     // 嵌套结构: models.customModels[provider_id] = [...]
     let stored = svc2
         .get_path("models.customModels")

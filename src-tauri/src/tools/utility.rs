@@ -180,7 +180,7 @@ fn parse_factor(tokens: &[Token], pos: &mut usize) -> Result<f64> {
 // 这些是 agent 工具会调的纯函数, headless CI 可跑。
 // =============================================================
 #[cfg(test)]
-#[allow(clippy::approxconstant)] // 测试里 3.14/6.28 是算术输入, 非数学常量
+#[allow(clippy::approx_constant)] // 测试里 3.14/6.28 是算术输入, 非数学常量
 mod tests {
     use super::*;
 
