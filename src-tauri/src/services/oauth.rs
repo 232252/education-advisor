@@ -60,6 +60,12 @@ pub struct OAuthFlow {
     states: Mutex<HashMap<String, FlowState>>,
 }
 
+impl Default for OAuthFlow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OAuthFlow {
     pub fn new() -> Self {
         Self {

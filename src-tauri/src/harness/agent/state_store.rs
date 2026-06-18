@@ -191,6 +191,7 @@ impl StateStore {
     }
 
     /// 记录一次工具调用
+    #[allow(clippy::too_many_arguments)]
     pub async fn record_tool_call(
         &self,
         step_id: &str,

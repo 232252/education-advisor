@@ -241,7 +241,7 @@ impl AgentService {
 
     fn read_md(&self, id: &str, file: &str) -> Result<String> {
         let p = self.resources.join("agents").join(id).join(file);
-        std::fs::read_to_string(&p).map_err(|e| AppError::Io(e))
+        std::fs::read_to_string(&p).map_err(AppError::Io)
     }
     fn write_md(&self, id: &str, file: &str, content: &str) -> Result<()> {
         let p = self.resources.join("agents").join(id).join(file);

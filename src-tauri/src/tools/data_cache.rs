@@ -48,6 +48,12 @@ pub struct DataCache {
     inner: Arc<RwLock<Option<DataSnapshot>>>,
 }
 
+impl Default for DataCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DataCache {
     pub fn new() -> Self {
         Self {

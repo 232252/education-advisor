@@ -99,7 +99,7 @@ fn test_full_agent_tool_loop() {
 
     // 5. history 有记录
     let res = eaa_tools::dispatch("history", &json!({"name":"Alice"}), &caps).unwrap();
-    assert!(res["history"].as_array().unwrap().len() >= 1);
+    assert!(!res["history"].as_array().unwrap().is_empty());
 
     // 6. stats
     let res = eaa_tools::dispatch("stats", &json!({}), &caps).unwrap();

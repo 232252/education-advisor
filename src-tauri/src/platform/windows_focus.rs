@@ -16,7 +16,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
+use tauri::{AppHandle, Listener, Manager, WebviewWindow};
 
 const WINDOW_LABEL: &str = "main";
 

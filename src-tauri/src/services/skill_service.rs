@@ -281,7 +281,7 @@ mod tests {
         fs::create_dir_all(&skills_dir).unwrap();
         fs::write(skills_dir.join("good.md"), "正常").unwrap();
         // 写一个不可读的文件 (权限问题模拟: 这里用一个二进制垃圾)。
-        fs::write(skills_dir.join("bad.md"), &[0xff, 0xfe, 0xfd]).unwrap();
+        fs::write(skills_dir.join("bad.md"), [0xff, 0xfe, 0xfd]).unwrap();
         // load 不应 panic。
         let svc = SkillService::load(&resources).unwrap();
         assert!(svc.get("good").is_some());

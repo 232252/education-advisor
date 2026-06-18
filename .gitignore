@@ -38,6 +38,9 @@ lerna-debug.log*
 .DS_Store
 Thumbs.db
 
+# ===== AI assistant / IDE local config (per-user) =====
+.trae/
+
 # ===== Test / coverage =====
 coverage/
 .nyc_output/

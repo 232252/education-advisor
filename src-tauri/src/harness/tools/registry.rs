@@ -63,8 +63,9 @@ impl ToolRegistry {
     /// 取工具 + 校验 capability
     ///
     /// 返回的 `CheckedTool` 已确认:
-    /// - 工具存在
-    /// - agent 拥有所有所需 capability
+    ///   - 工具存在
+    ///   - agent 拥有所有所需 capability
+    ///
     /// 调用方拿到后, 直接 `checked.call(args, ctx)` 即可, 不会再触发 capability 错误。
     pub fn get_checked(
         &self,

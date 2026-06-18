@@ -399,7 +399,7 @@ fn test_delete_by_class() {
     assert_eq!(r["deleted"].as_u64().unwrap(), 2);
 
     // 验证: 仅 B1 留下
-    let r = dispatch("list_students", &json!({}), &vec!["read".to_string()]).unwrap();
+    let r = dispatch("list_students", &json!({}), &["read".to_string()]).unwrap();
     let names: Vec<&str> = r["students"]
         .as_array()
         .unwrap()
@@ -421,7 +421,7 @@ fn test_reset_factory() {
     assert_eq!(r["reset"], "factory");
 
     // 列表应为空 (整个 data 目录被删重建)
-    let r = dispatch("list_students", &json!({}), &vec!["read".to_string()]).unwrap();
+    let r = dispatch("list_students", &json!({}), &["read".to_string()]).unwrap();
     assert_eq!(r["students"].as_array().unwrap().len(), 0);
 }
 
@@ -435,7 +435,7 @@ fn test_bulk_add_academics() {
     dispatch(
         "add_student",
         &json!({"name": "小测"}),
-        &vec!["write".to_string()],
+        &["write".to_string()],
     )
     .unwrap();
 
@@ -484,7 +484,7 @@ fn test_bulk_add_events() {
     assert_eq!(r["added"].as_u64().unwrap(), 3);
 
     // 分数: 100 + 2 + 2 - 2 = 102
-    let r = dispatch("score", &json!({"name": "周测"}), &vec!["read".to_string()]).unwrap();
+    let r = dispatch("score", &json!({"name": "周测"}), &["read".to_string()]).unwrap();
     let s = r["score"].as_f64().unwrap();
     assert!((s - 102.0).abs() < 0.01, "score 应为 102, got {s}");
 }
@@ -513,7 +513,7 @@ fn test_range_query() {
     let r = dispatch(
         "range",
         &json!({"start": "2000-01-01T00:00:00Z", "end": "2100-01-01T00:00:00Z"}),
-        &vec!["read".to_string()],
+        &["read".to_string()],
     )
     .unwrap();
     let events = r["events"].as_array().unwrap();
@@ -527,7 +527,7 @@ fn test_range_query() {
     let r = dispatch(
         "range",
         &json!({"start": "2200-01-01T00:00:00Z", "end": "2300-01-01T00:00:00Z"}),
-        &vec!["read".to_string()],
+        &["read".to_string()],
     )
     .unwrap();
     assert_eq!(r["events"].as_array().unwrap().len(), 0);
@@ -538,7 +538,7 @@ fn test_codes_lists_all_reason_codes() {
     let _g = lock();
     let _dir = setup_temp_data_dir("p0_test");
 
-    let r = dispatch("codes", &json!({}), &vec!["read".to_string()]).unwrap();
+    let r = dispatch("codes", &json!({}), &["read".to_string()]).unwrap();
     let codes = r["codes"].as_object().unwrap();
 
     // 至少应包含仓库 reason-codes.json 里的常见 codes

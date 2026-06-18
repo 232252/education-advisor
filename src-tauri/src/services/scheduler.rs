@@ -53,6 +53,12 @@ pub struct SchedulerService {
     runner: Option<TaskRunner>,
 }
 
+impl Default for SchedulerService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SchedulerService {
     pub fn new() -> Self {
         Self {

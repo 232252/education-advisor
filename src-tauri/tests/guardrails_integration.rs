@@ -313,8 +313,10 @@ fn test_policy_destructive_requires_approval() {
 
 #[test]
 fn test_policy_safe_writes_auto_approve_when_enabled() {
-    let mut p = HitlPolicy::default();
-    p.auto_approve_safe_writes = true;
+    let p = HitlPolicy {
+        auto_approve_safe_writes: true,
+        ..Default::default()
+    };
     let req = approval_request("add_event", RiskLevel::Medium);
     // safe_writes=true 且 Medium → 不要求审批
     assert!(!p.requires_approval(&req));

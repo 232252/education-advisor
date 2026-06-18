@@ -129,7 +129,7 @@ impl PrivacyAuditService {
             total_duration += e.duration_ms;
         }
         let total = period_entries.len() as u64;
-        let avg_duration = if total > 0 { total_duration / total } else { 0 };
+        let avg_duration = total_duration.checked_div(total).unwrap_or(0);
 
         let mut report = ComplianceReport {
             schema_version: 1,
