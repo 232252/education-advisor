@@ -35,9 +35,7 @@ pub struct UiState {
     pub show_export_preview: bool,
 
     // chat page
-    #[allow(dead_code)]
     pub new_conversation_agent: String,
-    #[allow(dead_code)]
     pub new_conversation_title: String,
 
     // scheduler page

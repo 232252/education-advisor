@@ -120,3 +120,29 @@ impl Default for Redactor {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cipher_roundtrip() {
+        let cipher = Cipher::from_passphrase("test-pass");
+        let msg = "监护人电话 13800138000";
+        let enc = cipher.encrypt_str(msg).unwrap();
+        assert_ne!(enc, msg);
+        let dec = cipher.decrypt_str(&enc).unwrap();
+        assert_eq!(dec, msg);
+    }
+
+    #[test]
+    fn redaction_masks_pii() {
+        let r = Redactor::new();
+        let text = "联系我 13800138000 或 lihua@example.com，身份证 110101199001011234";
+        let (out, count) = r.redact(text);
+        assert!(count >= 3);
+        assert!(!out.contains("13800138000"));
+        assert!(!out.contains("lihua@example.com"));
+        assert!(!out.contains("110101199001011234"));
+    }
+}

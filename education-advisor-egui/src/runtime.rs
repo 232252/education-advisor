@@ -74,6 +74,7 @@ pub enum Event {
     StudentsImported { added: usize },
     Conversations(Vec<Conversation>),
     ConversationCreated(Conversation),
+    ConversationDeleted,
     Messages(Uuid, Vec<Message>),
     // AI streaming
     StreamStart { conversation_id: Uuid, message_id: Uuid },
@@ -213,7 +214,7 @@ async fn run_command(
     evt_tx: &Sender<Event>,
     cmd: Command,
 ) -> anyhow::Result<()> {
-    use Command::{LoadStudents, SaveStudent, DeleteStudent, LoadGrades, AddGrade, ImportStudentsCsv, LoadConversations, NewConversation, LoadMessages, SendMessage, CancelConversation, LoadTasks, SaveTask, DeleteTask, RunTaskNow, LoadProviders, SaveProvider, DeleteProvider, LoadRagDocuments, SaveRagDocument, DeleteRagDocument, LoadStats, LoadSettings, SaveSettings};
+    use Command::{LoadStudents, SaveStudent, DeleteStudent, LoadGrades, AddGrade, ImportStudentsCsv, LoadConversations, NewConversation, LoadMessages, DeleteConversation, SendMessage, CancelConversation, LoadTasks, SaveTask, DeleteTask, RunTaskNow, LoadProviders, SaveProvider, DeleteProvider, LoadRagDocuments, SaveRagDocument, DeleteRagDocument, LoadStats, LoadSettings, SaveSettings};
     match cmd {
         LoadStudents => {
             let v = ctx.db.list_students()?;
@@ -273,6 +274,12 @@ async fn run_command(
         LoadMessages(id) => {
             let v = ctx.db.messages_for(id)?;
             let _ = evt_tx.send(Event::Messages(id, v));
+        }
+        DeleteConversation(id) => {
+            ctx.db.delete_conversation(id)?;
+            let _ = evt_tx.send(Event::ConversationDeleted);
+            let v = ctx.db.list_conversations()?;
+            let _ = evt_tx.send(Event::Conversations(v));
         }
         SendMessage { conversation_id, agent_id, student_id, text } => {
             // Persist the user message and immediately refresh the UI so the

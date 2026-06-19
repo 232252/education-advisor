@@ -24,11 +24,22 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     ui.label(egui::RichText::new("会话").font(FontId::proportional(13.0)).strong().color(app.theme.text));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if primary_button(ui, &app.theme, "新建") {
+                            let agent_id = if app.ui_state.new_conversation_agent.is_empty() {
+                                app.active_agent.clone()
+                            } else {
+                                app.ui_state.new_conversation_agent.clone()
+                            };
+                            let title = if app.ui_state.new_conversation_title.is_empty() {
+                                format!("新对话 {}", chrono::Utc::now().format("%H:%M"))
+                            } else {
+                                app.ui_state.new_conversation_title.clone()
+                            };
                             let _ = app.runtime.tx.send(crate::runtime::Command::NewConversation {
-                                agent_id: app.active_agent.clone(),
+                                agent_id,
                                 student_id: None,
-                                title: format!("新对话 {}", chrono::Utc::now().format("%H:%M")),
+                                title,
                             });
+                            app.ui_state.new_conversation_title.clear();
                         }
                     });
                 });
@@ -71,19 +82,19 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                                 app.theme.text_faint,
                             );
                             if resp.clicked() {
-                    app.selected_conversation = Some(c.id);
-                    let _ = app.runtime.tx.send(crate::runtime::Command::LoadMessages(c.id));
-                }
-                // right-click context menu
-                resp.context_menu(|ui| {
-                    if ui.button("删除会话").clicked() {
-                        let _ = app.runtime.tx.send(crate::runtime::Command::DeleteConversation(c.id));
-                        if app.selected_conversation == Some(c.id) {
-                            app.selected_conversation = None;
-                        }
-                        ui.close_menu();
-                    }
-                });
+                                app.selected_conversation = Some(c.id);
+                                let _ = app.runtime.tx.send(crate::runtime::Command::LoadMessages(c.id));
+                            }
+                            // right-click context menu
+                            resp.context_menu(|ui| {
+                                if ui.button("删除会话").clicked() {
+                                    let _ = app.runtime.tx.send(crate::runtime::Command::DeleteConversation(c.id));
+                                    if app.selected_conversation == Some(c.id) {
+                                        app.selected_conversation = None;
+                                    }
+                                    ui.close_menu();
+                                }
+                            });
                         }
                     });
             });
@@ -152,11 +163,12 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
             ui.separator();
             // input
             ui.horizontal(|ui| {
-                let mut text_edit = egui::TextEdit::multiline(&mut app.chat_input)
-                    .desired_width(ui.available_width() - 90.0)
-                    .desired_rows(1)
-                    .hint_text("输入消息，Enter 发送，Shift+Enter 换行…");
-                let resp = ui.add(&mut text_edit);
+                let resp = ui.add(
+                    egui::TextEdit::multiline(&mut app.chat_input)
+                        .desired_width(ui.available_width() - 90.0)
+                        .desired_rows(1)
+                        .hint_text("输入消息，Enter 发送，Shift+Enter 换行…"),
+                );
                 if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !ui.input(|i| i.modifiers.shift) {
                     if !app.chat_input.trim().is_empty() {
                         send(app, conv_id);

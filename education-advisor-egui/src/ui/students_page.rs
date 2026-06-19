@@ -346,6 +346,11 @@ fn edit_dialog(app: &mut App, ui: &mut Ui) {
                     });
                 s.risk_level = RiskLevel::all()[idx as usize];
                 ui.end_row();
+                ui.label("出生日期");
+                let mut birth_text = s.birth_date.map_or_else(String::new, |d| d.to_string());
+                ui.text_edit_singleline(&mut birth_text);
+                s.birth_date = chrono::NaiveDate::parse_from_str(&birth_text, "%Y-%m-%d").ok();
+                ui.end_row();
                 ui.label("监护人电话");
                 let raw = s.guardian_contact.get_or_insert_with(String::new);
                 let mut display = raw.strip_prefix("enc:").and_then(|rest| app.cipher.decrypt_str(rest).ok()).unwrap_or_else(|| raw.clone());
@@ -390,7 +395,8 @@ fn export_panel(app: &mut App, ui: &mut Ui) {
         let selected = app.selected_student;
         let grades_map = &app.ui_state.grades;
         let csv = crate::students::export_csv(&students, grades_map, scope, selected);
-        ui.add(egui::TextEdit::multiline(&mut csv.clone()).desired_rows(6));
+        let mut csv_view = csv.clone();
+        ui.add(egui::TextEdit::multiline(&mut csv_view).desired_rows(6));
         ui.horizontal(|ui| {
             if primary_button(ui, &theme, "保存到文件") {
                 if let Some(path) = rfd::FileDialog::new().add_filter("CSV", &["csv"]).save_file() {

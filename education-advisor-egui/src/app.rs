@@ -230,7 +230,7 @@ impl App {
     }
 
     fn drain_events(&mut self, ctx: &Context) {
-        use Event::{Students, StudentsSaved, StudentDeleted, Grades, StudentsImported, Conversations, ConversationCreated, Messages, StreamStart, StreamToken, StreamTool, StreamDone, StreamError, Tasks, TaskSaved, TaskDeleted, Providers, ProviderSaved, ProviderDeleted, RagDocuments, RagDocumentSaved, RagDocumentDeleted, Stats, Settings, Toast};
+        use Event::{Students, StudentsSaved, StudentDeleted, Grades, StudentsImported, Conversations, ConversationCreated, ConversationDeleted, Messages, StreamStart, StreamToken, StreamTool, StreamDone, StreamError, Tasks, TaskSaved, TaskDeleted, Providers, ProviderSaved, ProviderDeleted, RagDocuments, RagDocumentSaved, RagDocumentDeleted, Stats, Settings, Toast};
         while let Ok(evt) = self.runtime.rx.try_recv() {
             match evt {
                 Students(v) => *self.students.write() = v,
@@ -250,6 +250,9 @@ impl App {
                     }
                     self.selected_conversation = Some(c.id);
                     let _ = self.runtime.tx.send(crate::runtime::Command::LoadMessages(c.id));
+                }
+                ConversationDeleted => {
+                    self.push_toast(ToastKind::Success, "会话已删除");
                 }
                 Messages(id, v) => {
                     self.messages.insert(id, v);
@@ -383,9 +386,12 @@ impl eframe::App for App {
         crate::ui::topbar::show(self, ctx);
 
         // body: sidebar + content
+        let screen_w = ctx.screen_rect().width();
+        let min_sidebar = 64.0_f32.min(screen_w * 0.18);
+        let sidebar_width = self.sidebar_anim.value().max(0.0).mul_add(200.0, min_sidebar);
         egui::SidePanel::left("sidebar")
             .resizable(false)
-            .exact_width(self.sidebar_anim.value().max(0.0).mul_add(200.0, 64.0))
+            .exact_width(sidebar_width)
             .frame(Frame::none().fill(self.theme.bg_elevated).inner_margin(Margin::same(0.0)))
             .show(ctx, |ui| {
                 crate::ui::sidebar::show(self, ui);

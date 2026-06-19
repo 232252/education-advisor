@@ -129,3 +129,23 @@ pub fn next_fire(expr: &str, after: DateTime<Utc>) -> anyhow::Result<DateTime<Ut
 pub fn validate(expr: &str) -> Result<(), String> {
     next_fire(expr, Utc::now() + Duration::seconds(1)).map(|_| ()).map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Timelike;
+
+    #[test]
+    fn next_fire_parses_standard_cron() {
+        let now = Utc::now();
+        let next = next_fire("0 8 * * *", now).unwrap();
+        assert!(next > now);
+        assert_eq!(next.minute(), 0);
+        assert_eq!(next.hour(), 8);
+    }
+
+    #[test]
+    fn validate_rejects_bad_cron() {
+        assert!(validate("not a cron").is_err());
+    }
+}
