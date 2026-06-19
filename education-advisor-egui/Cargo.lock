@@ -994,7 +994,7 @@ dependencies = [
 
 [[package]]
 name = "education-advisor-egui"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3735,7 +3735,7 @@ dependencies = [
  "wayland-client",
  "wayland-csd-frame",
  "wayland-cursor",
- "wayland-protocols 0.32.12",
+ "wayland-protocols 0.32.13",
  "wayland-protocols-experimental",
  "wayland-protocols-misc",
  "wayland-protocols-wlr 0.3.12",
@@ -4433,9 +4433,9 @@ dependencies = [
 
 [[package]]
 name = "wayland-protocols"
-version = "0.32.12"
+version = "0.32.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "563a85523cade2429938e790815fd7319062103b9f4a2dc806e9b53b95982d8f"
+checksum = "23d0c813de3daa2ed6520af85a3bd49b0e722a3078506899aa9686fea58dc4b6"
 dependencies = [
  "bitflags 2.13.0",
  "wayland-backend",
@@ -4452,7 +4452,7 @@ dependencies = [
  "bitflags 2.13.0",
  "wayland-backend",
  "wayland-client",
- "wayland-protocols 0.32.12",
+ "wayland-protocols 0.32.13",
  "wayland-scanner",
 ]
 
@@ -4465,7 +4465,7 @@ dependencies = [
  "bitflags 2.13.0",
  "wayland-backend",
  "wayland-client",
- "wayland-protocols 0.32.12",
+ "wayland-protocols 0.32.13",
  "wayland-scanner",
 ]
 
@@ -4504,7 +4504,7 @@ dependencies = [
  "bitflags 2.13.0",
  "wayland-backend",
  "wayland-client",
- "wayland-protocols 0.32.12",
+ "wayland-protocols 0.32.13",
  "wayland-scanner",
 ]
 
