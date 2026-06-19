@@ -194,3 +194,57 @@ pub fn export_csv(
     }
     lines.join("\n")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn csv_import_parses_header_and_rows() {
+        let db = Db::open_in_memory().unwrap();
+        let csv = "name,grade,class,risk,gpa\n孙悦,高三,1班,low,3.7\n周杰,高二,2班,high,2.5\n";
+        let added = import_csv(&db, csv).unwrap();
+        assert_eq!(added, 2);
+        let list = db.list_students().unwrap();
+        assert!(list.iter().any(|s| s.name == "孙悦"));
+    }
+
+    #[test]
+    fn export_csv_respects_scope() {
+        let s1 = Student {
+            id: Uuid::new_v4(),
+            name: "A".into(),
+            grade: "高一".into(),
+            class: "1班".into(),
+            birth_date: None,
+            guardian_contact: None,
+            risk_level: RiskLevel::Low,
+            gpa: Some(3.5),
+            tags: vec![],
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        let s2 = Student {
+            id: Uuid::new_v4(),
+            name: "B".into(),
+            grade: "高一".into(),
+            class: "2班".into(),
+            birth_date: None,
+            guardian_contact: None,
+            risk_level: RiskLevel::Low,
+            gpa: Some(3.0),
+            tags: vec![],
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        let students = vec![s1.clone(), s2.clone()];
+        let grades = HashMap::new();
+        let all = export_csv(&students, &grades, ExportScope::All, None);
+        assert_eq!(all.lines().count(), 3);
+        let one = export_csv(&students, &grades, ExportScope::SelectedStudent, Some(s1.id));
+        assert_eq!(one.lines().count(), 2);
+        assert!(one.contains("A"));
+        assert!(!one.contains("B"));
+    }
+}
+

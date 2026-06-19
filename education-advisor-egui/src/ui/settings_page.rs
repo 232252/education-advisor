@@ -45,8 +45,23 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
         ui.add_space(8.0);
 
+        // AI behavior
+        card(ui, &theme, |ui| {
+            section_title(ui, &app.theme, "AI 行为");
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("温度").font(FontId::proportional(13.0)).color(app.theme.text_dim));
+                ui.add(egui::Slider::new(&mut app.settings.temperature, 0.0..=1.0).step_by(0.1).text(" creativity "));
+            });
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("最大工具迭代").font(FontId::proportional(13.0)).color(app.theme.text_dim));
+                ui.add(egui::Slider::new(&mut app.settings.max_tool_iterations, 1..=12));
+            });
+        });
+
+        ui.add_space(8.0);
+
         // privacy
-        card(ui, &app.theme, |ui| {
+        card(ui, &theme, |ui| {
             section_title(ui, &app.theme, "隐私与安全");
             ui.checkbox(&mut app.settings.privacy_enabled, "启用 PII 脱敏（发送前）");
             ui.label(
@@ -164,6 +179,9 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     if app.ui_state.editing_provider.is_some() {
         provider_dialog(app, ui);
     }
+
+    // persist settings whenever the page is rendered and values changed
+    let _ = app.runtime.tx.send(crate::runtime::Command::SaveSettings(app.settings.clone()));
 }
 
 fn provider_dialog(app: &mut App, ui: &mut Ui) {

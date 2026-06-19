@@ -28,7 +28,7 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                         .color(app.theme.text),
                 );
                 ui.label(
-                    egui::RichText::new("v1.0")
+                    egui::RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
                         .font(FontId::proportional(11.0))
                         .color(app.theme.text_faint),
                 );

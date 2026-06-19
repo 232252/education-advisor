@@ -5,22 +5,36 @@
 //! update loop. If the platform doesn't support tray icons (or dependencies are
 //! missing), the app gracefully falls back to a normal window.
 
+#[cfg(feature = "tray")]
 use tray_icon::{
     menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem},
     TrayIcon, TrayIconBuilder, TrayIconEvent,
 };
 
+#[cfg(feature = "tray")]
 const MENU_SHOW: &str = "ea.show";
+#[cfg(feature = "tray")]
 const MENU_HIDE: &str = "ea.hide";
+#[cfg(feature = "tray")]
 const MENU_QUIT: &str = "ea.quit";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrayAction {
+    Quit,
+}
+
+#[cfg(feature = "tray")]
 pub struct TrayHandle {
     #[allow(dead_code)]
     tray: TrayIcon,
 }
 
+#[cfg(not(feature = "tray"))]
+pub struct TrayHandle;
+
 /// Try to build a tray icon and menu. Returns `None` on unsupported platforms or
 /// missing system libraries (e.g., libappindicator on Linux).
+#[cfg(feature = "tray")]
 pub fn build_tray() -> Option<TrayHandle> {
     let menu = Menu::new();
     let show_i = MenuItem::with_id(MENU_SHOW, "显示窗口", true, None);
@@ -44,32 +58,42 @@ pub fn build_tray() -> Option<TrayHandle> {
     Some(TrayHandle { tray })
 }
 
-/// Poll pending tray events and apply window commands.
-pub fn poll_events(ctx: &eframe::egui::Context, visible: &mut bool) -> Option<TrayAction> {
-    // Tray icon left-click toggles visibility.
-    while let Ok(event) = TrayIconEvent::receiver().try_recv() {
-        if matches!(event, tray_icon::TrayIconEvent::Click { .. }) {
-            toggle_visibility(ctx, visible);
-        }
-    }
-
-    while let Ok(event) = MenuEvent::receiver().try_recv() {
-        match event.id().as_ref() {
-            MENU_SHOW => {
-                ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(true));
-                *visible = true;
-            }
-            MENU_HIDE => {
-                ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(false));
-                *visible = false;
-            }
-            MENU_QUIT => return Some(TrayAction::Quit),
-            _ => {}
-        }
-    }
+#[cfg(not(feature = "tray"))]
+pub fn build_tray() -> Option<TrayHandle> {
     None
 }
 
+/// Poll pending tray events and apply window commands.
+pub fn poll_events(ctx: &eframe::egui::Context, visible: &mut bool) -> Option<TrayAction> {
+    #[cfg(feature = "tray")]
+    {
+        // Tray icon left-click toggles visibility.
+        while let Ok(event) = TrayIconEvent::receiver().try_recv() {
+            if matches!(event, TrayIconEvent::Click { .. }) {
+                toggle_visibility(ctx, visible);
+            }
+        }
+
+        while let Ok(event) = MenuEvent::receiver().try_recv() {
+            match event.id().as_ref() {
+                MENU_SHOW => {
+                    ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(true));
+                    *visible = true;
+                }
+                MENU_HIDE => {
+                    ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(false));
+                    *visible = false;
+                }
+                MENU_QUIT => return Some(TrayAction::Quit),
+                _ => {}
+            }
+        }
+    }
+    let _ = (ctx, visible);
+    None
+}
+
+#[cfg(feature = "tray")]
 fn toggle_visibility(ctx: &eframe::egui::Context, visible: &mut bool) {
     let next = !*visible;
     ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(next));
@@ -77,9 +101,4 @@ fn toggle_visibility(ctx: &eframe::egui::Context, visible: &mut bool) {
         ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Focus);
     }
     *visible = next;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TrayAction {
-    Quit,
 }

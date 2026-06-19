@@ -232,6 +232,12 @@ impl Db {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
+    pub fn delete_conversation(&self, id: Uuid) -> Result<()> {
+        let c = self.conn.lock();
+        c.execute("DELETE FROM conversations WHERE id=?", params![id.to_string()])?;
+        Ok(())
+    }
+
     pub fn insert_message(&self, m: &Message) -> Result<()> {
         let c = self.conn.lock();
         c.execute(
