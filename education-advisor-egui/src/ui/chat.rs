@@ -1,5 +1,5 @@
-//! Chat page: conversation list, streaming message view, tool-call timeline,
-//! and an agent selector. This is the live surface of the AI loop.
+//! Chat page: modern conversation interface with message bubbles,
+//! streaming display, tool-call timeline, and student linkage.
 
 use eframe::egui::{
     self, Align, Align2, Color32, FontId, Layout, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2,
@@ -10,7 +10,7 @@ use crate::app::App;
 use crate::models::{Message, Role, ToolStatus};
 use crate::ui::icons;
 use crate::ui::widgets::{
-    card, empty_state, ghost_button, primary_button, section_title, text_input,
+    card, empty_state, ghost_button, primary_button, search_input, section_title,
 };
 
 pub fn show(app: &mut App, ui: &mut Ui) {
@@ -18,52 +18,38 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     section_title(ui, &theme, "对话");
 
     let avail = ui.available_width();
-    let list_w = 260.0_f32.min(avail * 0.28);
+    let list_w = 280.0_f32.min(avail * 0.30);
 
     ui.horizontal_top(|ui| {
-        // conversation list
+        // ═══════════════════════════════════════
+        //  LEFT: Conversation List
+        // ═══════════════════════════════════════
         ui.vertical(|ui| {
             ui.set_min_width(list_w);
             ui.set_max_width(list_w);
             card(ui, &theme, |ui| {
+                // Header with new button
                 ui.horizontal(|ui| {
                     ui.label(
-                        egui::RichText::new("会话")
+                        egui::RichText::new("会话列表")
                             .font(FontId::proportional(13.0))
                             .strong()
                             .color(theme.text),
                     );
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if primary_button(ui, &theme, "新建").clicked() {
+                        if primary_button(ui, &theme, "+ 新建").clicked() {
                             new_conversation(app);
                         }
                     });
                 });
+                ui.add_space(8.0);
+
+                // Quick filter
+                let filter_w = ui.available_width();
+                let mut filter_text = String::new();
+                search_input(ui, &theme, &mut filter_text, "搜索会话...", filter_w);
                 ui.add_space(6.0);
 
-                // new-conversation quick form
-                ui.horizontal(|ui| {
-                    let mut selected = app.ui_state.new_conversation_agent.clone();
-                    egui::ComboBox::from_id_source("new_conv_agent")
-                        .selected_text(agent_name(&selected))
-                        .width(ui.available_width() * 0.45)
-                        .show_ui(ui, |ui| {
-                            for a in crate::agents::all_agents() {
-                                ui.selectable_value(&mut selected, a.id.to_string(), a.name);
-                            }
-                        });
-                    app.ui_state.new_conversation_agent = selected;
-                    ui.add_space(4.0);
-                    let _ = text_input(
-                        ui,
-                        &theme,
-                        &mut app.ui_state.new_conversation_title,
-                        "标题（可选）",
-                        ui.available_width(),
-                    );
-                });
-
-                ui.separator();
                 let convs = app.conversations.read().clone();
                 egui::ScrollArea::vertical()
                     .max_height(ui.available_height() - 4.0)
@@ -78,15 +64,17 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             });
         });
 
-        ui.add_space(8.0);
+        ui.add_space(10.0);
 
-        // chat view
+        // ═══════════════════════════════════════
+        //  RIGHT: Chat View
+        // ═══════════════════════════════════════
         ui.vertical(|ui| {
             ui.set_min_width(ui.available_width());
             let sel = app.selected_conversation;
             let Some(conv_id) = sel else {
                 card(ui, &theme, |ui| {
-                    empty_state(ui, &theme, icons::chat, "选择或新建一个会话");
+                    empty_state(ui, &theme, icons::chat, "选择左侧会话或新建对话");
                 });
                 return;
             };
@@ -125,21 +113,26 @@ fn conversation_row(
     theme: &crate::theme::Theme,
 ) {
     let selected = app.selected_conversation == Some(c.id);
-    let row_h = 48.0;
+    let row_h = 56.0;
     let (rect, resp) =
         ui.allocate_exact_size(Vec2::new(ui.available_width(), row_h), Sense::click());
+
+    // Background
     if selected {
         ui.painter()
-            .rect_filled(rect, Rounding::same(8.0), theme.accent_dim);
+            .rect_filled(rect, Rounding::same(12.0), theme.accent_dim);
+        let bar = Rect::from_min_size(rect.min, Vec2::new(3.0, rect.height()));
+        ui.painter().rect_filled(bar, Rounding::same(2.0), theme.accent);
     } else if resp.hovered() {
         ui.painter()
-            .rect_filled(rect, Rounding::same(8.0), theme.surface);
+            .rect_filled(rect, Rounding::same(12.0), theme.surface_hover);
     }
 
+    // Agent avatar
     let agent = crate::agents::find(&c.agent_id);
     let avatar_rect = Rect::from_min_size(
-        Pos2::new(rect.min.x + 8.0, rect.center().y - 10.0),
-        Vec2::splat(20.0),
+        Pos2::new(rect.min.x + 10.0, rect.center().y - 12.0),
+        Vec2::splat(24.0),
     );
     if let Some(a) = agent {
         let color = Color32::from_rgb(a.color[0], a.color[1], a.color[2]);
@@ -148,32 +141,34 @@ fn conversation_row(
         icons::agent(ui.painter(), avatar_rect, theme);
     }
 
-    let text_w = rect.width() - 72.0;
+    // Title
     ui.painter().text(
-        Pos2::new(rect.min.x + 32.0, rect.min.y + 8.0),
+        Pos2::new(rect.min.x + 42.0, rect.min.y + 10.0),
         Align2::LEFT_CENTER,
-        crate::util::truncate(&c.title, 16),
+        crate::util::truncate(&c.title, 18),
         FontId::proportional(12.0),
         theme.text,
     );
+
+    // Meta: student name + time
     let meta_text = if let Some(sid) = c.student_id {
         let students = app.students.read();
         let name = students.iter().find(|s| s.id == sid).map_or("未知学生", |s| s.name.as_str());
-        format!("{} · {}", name, c.updated_at.format("%m-%d %H:%M"))
+        format!("{name} · {}", c.updated_at.format("%m-%d %H:%M"))
     } else {
         c.updated_at.format("%m-%d %H:%M").to_string()
     };
     ui.painter().text(
-        Pos2::new(rect.min.x + 32.0, rect.min.y + 26.0),
+        Pos2::new(rect.min.x + 42.0, rect.min.y + 28.0),
         Align2::LEFT_CENTER,
         meta_text,
         FontId::proportional(9.0),
         theme.text_faint,
     );
 
-    // inline delete button
+    // Delete button
     let del_rect = Rect::from_min_size(
-        Pos2::new(rect.max.x - 26.0, rect.center().y - 10.0),
+        Pos2::new(rect.max.x - 28.0, rect.center().y - 10.0),
         Vec2::splat(20.0),
     );
     let del_resp = ui.allocate_rect(del_rect, Sense::click());
@@ -200,18 +195,13 @@ fn conversation_row(
             .tx
             .send(crate::runtime::Command::LoadMessages(c.id));
     }
-    let _ = text_w;
-}
-
-fn agent_name(id: &str) -> String {
-    crate::agents::find(id).map_or_else(|| id.to_string(), |a| a.name.to_string())
 }
 
 fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
     let theme = app.theme.clone();
     card(ui, &theme, |ui| {
         ui.vertical(|ui| {
-            // header: agent selector
+            // ── Header ──
             ui.horizontal(|ui| {
                 let convs = app.conversations.read().clone();
                 let agent_id = convs
@@ -220,6 +210,7 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                     .map_or_else(|| app.active_agent.clone(), |c| c.agent_id.clone());
                 app.active_agent.clone_from(&agent_id);
                 let agent = crate::agents::find(&agent_id);
+
                 let avatar_rect = Rect::from_min_size(
                     Pos2::new(ui.cursor().left(), ui.cursor().center().y - 10.0),
                     Vec2::splat(20.0),
@@ -232,19 +223,16 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                         egui::RichText::new(a.name)
                             .font(FontId::proportional(14.0))
                             .strong()
-                            .color(app.theme.text),
+                            .color(theme.text),
                     );
-                } else {
-                    icons::agent(ui.painter(), avatar_rect, &app.theme);
-                    ui.add_space(26.0);
                     ui.label(
-                        egui::RichText::new("代理")
-                            .font(FontId::proportional(14.0))
-                            .strong()
-                            .color(app.theme.text),
+                        egui::RichText::new(a.description)
+                            .font(FontId::proportional(10.0))
+                            .color(theme.text_faint),
                     );
                 }
-                // 若会话绑定了学生，显示快捷跳转（提前读取避免闭包内借用冲突）
+
+                // Student link
                 let bound_student_name: Option<String> = {
                     let convs = app.conversations.read();
                     convs.iter().find(|c| c.id == conv_id).and_then(|c| {
@@ -256,8 +244,7 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                 };
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if let Some(name) = &bound_student_name {
-                        if ghost_button(ui, &app.theme, name).clicked() {
-                            // 提前读取 sid，避免在闭包内同时持有读锁和可变引用
+                        if ghost_button(ui, &theme, name).clicked() {
                             let sid_opt = {
                                 let convs = app.conversations.read();
                                 convs.iter().find(|c| c.id == conv_id).and_then(|c| c.student_id)
@@ -274,28 +261,28 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                         ui.label(
                             egui::RichText::new("生成中…")
                                 .font(FontId::proportional(11.0))
-                                .color(app.theme.accent),
+                                .color(theme.accent),
                         );
                     }
                 });
             });
-            ui.separator();
+            ui.add_space(4.0);
+            crate::ui::widgets::divider(ui, &theme);
+            ui.add_space(4.0);
 
-            // messages
+            // ── Messages ──
             let messages = app.messages.get(&conv_id).cloned().unwrap_or_default();
             let stream = app.streaming.get(&conv_id).cloned();
             egui::ScrollArea::vertical()
                 .stick_to_bottom(true)
-                .max_height(ui.available_height() - 60.0)
+                .max_height(ui.available_height() - 70.0)
                 .show(ui, |ui| {
-                    if messages.is_empty() && stream.as_ref().map_or(true, |s| s.buffer.is_empty())
-                    {
-                        empty_state(ui, &app.theme, icons::agent, "输入消息开始与 AI 代理对话");
+                    if messages.is_empty() && stream.as_ref().map_or(true, |s| s.buffer.is_empty()) {
+                        empty_state(ui, &theme, icons::agent, "输入消息开始与 AI 代理对话");
                     }
                     for m in &messages {
                         message_bubble(app, ui, m);
                     }
-                    // live streaming bubble
                     if let Some(s) = &stream {
                         if s.active || !s.buffer.is_empty() {
                             streaming_bubble(app, ui, s);
@@ -303,12 +290,16 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                     }
                 });
 
-            ui.separator();
-            // input
+            ui.add_space(6.0);
+            crate::ui::widgets::divider(ui, &theme);
+            ui.add_space(6.0);
+
+            // ── Input ──
             ui.horizontal(|ui| {
+                let input_w = ui.available_width() - 100.0;
                 let resp = ui.add(
                     egui::TextEdit::multiline(&mut app.chat_input)
-                        .desired_width(ui.available_width() - 90.0)
+                        .desired_width(input_w)
                         .desired_rows(1)
                         .hint_text("输入消息，Enter 发送，Shift+Enter 换行…"),
                 );
@@ -323,13 +314,13 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                 }
                 let streaming = app.streaming.get(&conv_id).is_some_and(|s| s.active);
                 if streaming {
-                    if ghost_button(ui, &app.theme, "停止").clicked() {
+                    if ghost_button(ui, &theme, "停止").clicked() {
                         let _ = app
                             .runtime
                             .tx
                             .send(crate::runtime::Command::CancelConversation(conv_id));
                     }
-                } else if primary_button(ui, &app.theme, "发送").clicked() {
+                } else if primary_button(ui, &theme, "发送").clicked() {
                     send(app, conv_id);
                 }
             });
@@ -355,9 +346,10 @@ fn send(app: &mut App, conv_id: Uuid) {
 }
 
 fn message_bubble(app: &mut App, ui: &mut Ui, m: &Message) {
-    ui.add_space(4.0);
+    ui.add_space(6.0);
     let is_user = m.role == Role::User;
-    let max_w = ui.available_width() * 0.75;
+    let max_w = ui.available_width() * 0.78;
+
     ui.horizontal(|ui| {
         if is_user {
             ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
@@ -371,35 +363,56 @@ fn message_bubble(app: &mut App, ui: &mut Ui, m: &Message) {
 }
 
 fn bubble(app: &mut App, ui: &mut Ui, m: &Message, max_w: f32, is_user: bool) {
-    let color = if is_user {
-        app.theme.accent
+    let theme = &app.theme;
+    let bg = if is_user {
+        theme.accent
     } else {
-        app.theme.surface
+        theme.surface
     };
     let text_color = if is_user {
-        egui::Color32::WHITE
+        Color32::WHITE
     } else {
-        app.theme.text
+        theme.text
     };
+
     let galley = ui.painter().layout(
         m.content.clone(),
         FontId::proportional(13.0),
         text_color,
         max_w,
     );
-    let pad = 10.0;
-    let size = Vec2::new(galley.size().x + pad * 2.0, galley.size().y + pad * 2.0);
+    let pad = Vec2::new(12.0, 10.0);
+    let size = galley.size() + pad * 2.0;
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-    ui.painter().rect_filled(rect, Rounding::same(12.0), color);
+
+    // Shadow for assistant bubbles
+    if !is_user {
+        ui.painter().rect_filled(
+            rect.translate(Vec2::new(0.0, 2.0)),
+            Rounding::same(14.0),
+            Color32::from_rgba_premultiplied(0, 0, 0, 30),
+        );
+    }
+    ui.painter().rect_filled(rect, Rounding::same(14.0), bg);
     ui.painter().galley(
-        Pos2::new(rect.min.x + pad, rect.min.y + pad),
+        Pos2::new(rect.min.x + pad.x, rect.min.y + pad.y),
         galley,
         text_color,
     );
 
-    // tool call timeline under assistant messages
+    // Timestamp
+    let time_text = m.created_at.format("%H:%M").to_string();
+    ui.painter().text(
+        Pos2::new(rect.max.x - 8.0, rect.max.y + 2.0),
+        Align2::RIGHT_TOP,
+        time_text,
+        FontId::proportional(9.0),
+        theme.text_faint,
+    );
+
+    // Tool calls
     if !m.tool_calls.is_empty() {
-        ui.add_space(2.0);
+        ui.add_space(4.0);
         for tc in &m.tool_calls {
             tool_row(app, ui, tc);
         }
@@ -407,10 +420,9 @@ fn bubble(app: &mut App, ui: &mut Ui, m: &Message, max_w: f32, is_user: bool) {
 }
 
 fn streaming_bubble(app: &mut App, ui: &mut Ui, s: &crate::app::StreamState) {
-    ui.add_space(4.0);
+    ui.add_space(6.0);
     ui.horizontal(|ui| {
-        let color = app.theme.surface;
-        let text_color = app.theme.text;
+        let theme = &app.theme;
         let content = if s.buffer.is_empty() {
             "思考中…"
         } else {
@@ -419,22 +431,32 @@ fn streaming_bubble(app: &mut App, ui: &mut Ui, s: &crate::app::StreamState) {
         let galley = ui.painter().layout(
             content.to_string(),
             FontId::proportional(13.0),
-            text_color,
-            ui.available_width() * 0.75,
+            theme.text,
+            ui.available_width() * 0.78,
         );
-        let pad = 10.0;
-        let size = Vec2::new(galley.size().x + pad * 2.0, galley.size().y + pad * 2.0);
+        let pad = Vec2::new(12.0, 10.0);
+        let size = galley.size() + pad * 2.0;
         let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-        ui.painter().rect_filled(rect, Rounding::same(12.0), color);
-        ui.painter().galley(
-            Pos2::new(rect.min.x + pad, rect.min.y + pad),
-            galley,
-            text_color,
+
+        // Pulsing border effect
+        let pulse = (ui.input(|i| i.time) as f32 * 3.0).sin().mul_add(0.3, 0.7);
+        let pulse_color = Color32::from_rgba_premultiplied(
+            theme.accent.r(),
+            theme.accent.g(),
+            theme.accent.b(),
+            (pulse * 60.0) as u8,
         );
-        let _ = ui.input(|i| i.time); // caret animation hook
+        ui.painter().rect_filled(rect.translate(Vec2::new(0.0, 2.0)), Rounding::same(14.0), Color32::from_rgba_premultiplied(0, 0, 0, 30));
+        ui.painter().rect_filled(rect, Rounding::same(14.0), theme.surface);
+        ui.painter().rect_stroke(rect, Rounding::same(14.0), Stroke::new(1.5, pulse_color));
+        ui.painter().galley(
+            Pos2::new(rect.min.x + pad.x, rect.min.y + pad.y),
+            galley,
+            theme.text,
+        );
     });
     if !s.tool_calls.is_empty() {
-        ui.add_space(2.0);
+        ui.add_space(4.0);
         for tc in &s.tool_calls {
             tool_row(app, ui, tc);
         }
@@ -442,52 +464,65 @@ fn streaming_bubble(app: &mut App, ui: &mut Ui, s: &crate::app::StreamState) {
 }
 
 fn tool_row(app: &mut App, ui: &mut Ui, tc: &crate::models::ToolCallRecord) {
+    let theme = &app.theme;
     let color = match tc.status {
-        ToolStatus::Pending | ToolStatus::Running => app.theme.warning,
-        ToolStatus::Success => app.theme.success,
-        ToolStatus::Failed => app.theme.danger,
+        ToolStatus::Pending | ToolStatus::Running => theme.warning,
+        ToolStatus::Success => theme.success,
+        ToolStatus::Failed => theme.danger,
     };
+
     ui.horizontal(|ui| {
         let icon_rect = Rect::from_min_size(
             Pos2::new(ui.cursor().left(), ui.cursor().center().y - 6.0),
-            Vec2::splat(12.0),
+            Vec2::splat(14.0),
         );
         match tc.status {
             ToolStatus::Pending | ToolStatus::Running => {
-                ui.painter()
-                    .circle_stroke(icon_rect.center(), 5.0, Stroke::new(1.5, color));
+                // Animated spinner
+                let angle = ui.input(|i| i.time) as f32 * 4.0;
+                let center = icon_rect.center();
+                let r = 5.0;
+                let n = 8;
+                for i in 0..n {
+                    let a = (i as f32 / n as f32).mul_add(std::f32::consts::TAU, angle);
+                    let alpha = ((i as f32 / n as f32) * 200.0) as u8;
+                    let dot_color = Color32::from_rgba_premultiplied(color.r(), color.g(), color.b(), alpha);
+                    let p = Pos2::new(center.x + r * a.cos(), center.y + r * a.sin());
+                    ui.painter().circle_filled(p, 1.5, dot_color);
+                }
             }
             ToolStatus::Success => icons::check(ui.painter(), icon_rect, color),
             ToolStatus::Failed => icons::cross(ui.painter(), icon_rect, color),
         }
-        ui.add_space(14.0);
+        ui.add_space(16.0);
         ui.label(
-            egui::RichText::new(format!("工具调用: {}", tc.name))
+            egui::RichText::new(tc.name.clone())
                 .font(FontId::proportional(11.0))
                 .color(color),
         );
         if !tc.args.is_empty() {
             ui.label(
-                egui::RichText::new(crate::util::truncate(&tc.args, 24))
+                egui::RichText::new(crate::util::truncate(&tc.args, 28))
                     .font(FontId::proportional(10.0))
-                    .color(app.theme.text_faint),
+                    .color(theme.text_faint),
             );
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.label(
                 egui::RichText::new(crate::util::fmt_duration(tc.duration_ms))
                     .font(FontId::proportional(10.0))
-                    .color(app.theme.text_faint),
+                    .color(theme.text_faint),
             );
         });
     });
+
     if !tc.result.is_empty() && tc.status != ToolStatus::Running {
         ui.horizontal_wrapped(|ui| {
-            ui.add_space(26.0);
+            ui.add_space(30.0);
             ui.label(
-                egui::RichText::new(crate::util::truncate(&tc.result, 80))
+                egui::RichText::new(crate::util::truncate(&tc.result, 100))
                     .font(FontId::proportional(10.0))
-                    .color(app.theme.text_dim),
+                    .color(theme.text_dim),
             );
         });
     }
