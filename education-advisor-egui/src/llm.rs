@@ -19,13 +19,22 @@ pub struct ChatMessage {
 
 impl ChatMessage {
     pub fn system(s: impl Into<String>) -> Self {
-        Self { role: Role::System, content: s.into() }
+        Self {
+            role: Role::System,
+            content: s.into(),
+        }
     }
     pub fn user(s: impl Into<String>) -> Self {
-        Self { role: Role::User, content: s.into() }
+        Self {
+            role: Role::User,
+            content: s.into(),
+        }
     }
     pub fn assistant(s: impl Into<String>) -> Self {
-        Self { role: Role::Assistant, content: s.into() }
+        Self {
+            role: Role::Assistant,
+            content: s.into(),
+        }
     }
 }
 
@@ -116,7 +125,10 @@ impl LlmClient {
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
-            return Err(anyhow!("LLM error {status}: {}", crate::util::truncate(&text, 300)));
+            return Err(anyhow!(
+                "LLM error {status}: {}",
+                crate::util::truncate(&text, 300)
+            ));
         }
         let mut stream = response.bytes_stream();
         let mut full = String::new();
@@ -125,7 +137,9 @@ impl LlmClient {
             let chunk = chunk.context("stream read")?;
             buf.push_str(&String::from_utf8_lossy(&chunk));
             loop {
-                let Some(line_end) = buf.find('\n') else { break };
+                let Some(line_end) = buf.find('\n') else {
+                    break;
+                };
                 let line = buf[..line_end].trim().to_string();
                 buf = buf[line_end + 1..].to_string();
                 if let Some(data) = line.strip_prefix("data: ") {
@@ -133,7 +147,11 @@ impl LlmClient {
                         continue;
                     }
                     if let Ok(parsed) = serde_json::from_str::<OpenAiStream>(data) {
-                        if let Some(delta) = parsed.choices.first().and_then(|c| c.delta.content.as_deref()) {
+                        if let Some(delta) = parsed
+                            .choices
+                            .first()
+                            .and_then(|c| c.delta.content.as_deref())
+                        {
                             if !delta.is_empty() {
                                 on_token(delta);
                                 full.push_str(delta);
@@ -164,15 +182,25 @@ impl LlmClient {
                     }
                     system.push_str(&m.content);
                 }
-                Role::User | Role::Tool => msgs.push(AnthropicMsg { role: "user".into(), content: m.content.clone() }),
-                Role::Assistant => msgs.push(AnthropicMsg { role: "assistant".into(), content: m.content.clone() }),
+                Role::User | Role::Tool => msgs.push(AnthropicMsg {
+                    role: "user".into(),
+                    content: m.content.clone(),
+                }),
+                Role::Assistant => msgs.push(AnthropicMsg {
+                    role: "assistant".into(),
+                    content: m.content.clone(),
+                }),
             }
         }
         let body = AnthropicBody {
             model: req.provider.model.clone(),
             max_tokens: req.max_tokens,
             temperature: req.temperature,
-            system: if system.is_empty() { None } else { Some(system) },
+            system: if system.is_empty() {
+                None
+            } else {
+                Some(system)
+            },
             messages: msgs,
             stream: true,
         };
@@ -189,7 +217,10 @@ impl LlmClient {
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
-            return Err(anyhow!("Anthropic error {status}: {}", crate::util::truncate(&text, 300)));
+            return Err(anyhow!(
+                "Anthropic error {status}: {}",
+                crate::util::truncate(&text, 300)
+            ));
         }
         let mut stream = response.bytes_stream();
         let mut full = String::new();
@@ -198,7 +229,9 @@ impl LlmClient {
             let chunk = chunk.context("stream read")?;
             buf.push_str(&String::from_utf8_lossy(&chunk));
             loop {
-                let Some(line_end) = buf.find('\n') else { break };
+                let Some(line_end) = buf.find('\n') else {
+                    break;
+                };
                 let line = buf[..line_end].trim().to_string();
                 buf = buf[line_end + 1..].to_string();
                 if let Some(data) = line.strip_prefix("data: ") {
@@ -292,62 +325,258 @@ struct AnthropicDelta {
 pub fn provider_presets() -> Vec<ProviderPreset> {
     vec![
         // OpenAI
-        ProviderPreset { name: "OpenAI GPT-4o".into(), kind: ProviderKind::OpenAi, base_url: "https://api.openai.com".into(), model: "gpt-4o".into() },
-        ProviderPreset { name: "OpenAI GPT-4o-mini".into(), kind: ProviderKind::OpenAi, base_url: "https://api.openai.com".into(), model: "gpt-4o-mini".into() },
-        ProviderPreset { name: "OpenAI o3-mini".into(), kind: ProviderKind::OpenAi, base_url: "https://api.openai.com".into(), model: "o3-mini".into() },
-        ProviderPreset { name: "OpenAI o1".into(), kind: ProviderKind::OpenAi, base_url: "https://api.openai.com".into(), model: "o1".into() },
+        ProviderPreset {
+            name: "OpenAI GPT-4o".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.openai.com".into(),
+            model: "gpt-4o".into(),
+        },
+        ProviderPreset {
+            name: "OpenAI GPT-4o-mini".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.openai.com".into(),
+            model: "gpt-4o-mini".into(),
+        },
+        ProviderPreset {
+            name: "OpenAI o3-mini".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.openai.com".into(),
+            model: "o3-mini".into(),
+        },
+        ProviderPreset {
+            name: "OpenAI o1".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.openai.com".into(),
+            model: "o1".into(),
+        },
         // Anthropic
-        ProviderPreset { name: "Anthropic Claude 3.5 Sonnet".into(), kind: ProviderKind::Anthropic, base_url: "https://api.anthropic.com".into(), model: "claude-3-5-sonnet-20241022".into() },
-        ProviderPreset { name: "Anthropic Claude 3 Opus".into(), kind: ProviderKind::Anthropic, base_url: "https://api.anthropic.com".into(), model: "claude-3-opus-20240229".into() },
-        ProviderPreset { name: "Anthropic Claude 3 Haiku".into(), kind: ProviderKind::Anthropic, base_url: "https://api.anthropic.com".into(), model: "claude-3-haiku-20240307".into() },
+        ProviderPreset {
+            name: "Anthropic Claude 3.5 Sonnet".into(),
+            kind: ProviderKind::Anthropic,
+            base_url: "https://api.anthropic.com".into(),
+            model: "claude-3-5-sonnet-20241022".into(),
+        },
+        ProviderPreset {
+            name: "Anthropic Claude 3 Opus".into(),
+            kind: ProviderKind::Anthropic,
+            base_url: "https://api.anthropic.com".into(),
+            model: "claude-3-opus-20240229".into(),
+        },
+        ProviderPreset {
+            name: "Anthropic Claude 3 Haiku".into(),
+            kind: ProviderKind::Anthropic,
+            base_url: "https://api.anthropic.com".into(),
+            model: "claude-3-haiku-20240307".into(),
+        },
         // Google Gemini
-        ProviderPreset { name: "Gemini 2.0 Flash".into(), kind: ProviderKind::Gemini, base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(), model: "gemini-2.0-flash-exp".into() },
-        ProviderPreset { name: "Gemini 1.5 Pro".into(), kind: ProviderKind::Gemini, base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(), model: "gemini-1.5-pro".into() },
+        ProviderPreset {
+            name: "Gemini 2.0 Flash".into(),
+            kind: ProviderKind::Gemini,
+            base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
+            model: "gemini-2.0-flash-exp".into(),
+        },
+        ProviderPreset {
+            name: "Gemini 1.5 Pro".into(),
+            kind: ProviderKind::Gemini,
+            base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
+            model: "gemini-1.5-pro".into(),
+        },
         // OpenRouter
-        ProviderPreset { name: "OpenRouter GPT-4o".into(), kind: ProviderKind::OpenRouter, base_url: "https://openrouter.ai/api".into(), model: "openai/gpt-4o".into() },
-        ProviderPreset { name: "OpenRouter Claude 3.5 Sonnet".into(), kind: ProviderKind::OpenRouter, base_url: "https://openrouter.ai/api".into(), model: "anthropic/claude-3.5-sonnet".into() },
-        ProviderPreset { name: "OpenRouter DeepSeek V3".into(), kind: ProviderKind::OpenRouter, base_url: "https://openrouter.ai/api".into(), model: "deepseek/deepseek-chat".into() },
-        ProviderPreset { name: "OpenRouter Qwen 2.5 72B".into(), kind: ProviderKind::OpenRouter, base_url: "https://openrouter.ai/api".into(), model: "qwen/qwen-2.5-72b-instruct".into() },
-        ProviderPreset { name: "OpenRouter Llama 3.3 70B".into(), kind: ProviderKind::OpenRouter, base_url: "https://openrouter.ai/api".into(), model: "meta-llama/llama-3.3-70b-instruct".into() },
+        ProviderPreset {
+            name: "OpenRouter GPT-4o".into(),
+            kind: ProviderKind::OpenRouter,
+            base_url: "https://openrouter.ai/api".into(),
+            model: "openai/gpt-4o".into(),
+        },
+        ProviderPreset {
+            name: "OpenRouter Claude 3.5 Sonnet".into(),
+            kind: ProviderKind::OpenRouter,
+            base_url: "https://openrouter.ai/api".into(),
+            model: "anthropic/claude-3.5-sonnet".into(),
+        },
+        ProviderPreset {
+            name: "OpenRouter DeepSeek V3".into(),
+            kind: ProviderKind::OpenRouter,
+            base_url: "https://openrouter.ai/api".into(),
+            model: "deepseek/deepseek-chat".into(),
+        },
+        ProviderPreset {
+            name: "OpenRouter Qwen 2.5 72B".into(),
+            kind: ProviderKind::OpenRouter,
+            base_url: "https://openrouter.ai/api".into(),
+            model: "qwen/qwen-2.5-72b-instruct".into(),
+        },
+        ProviderPreset {
+            name: "OpenRouter Llama 3.3 70B".into(),
+            kind: ProviderKind::OpenRouter,
+            base_url: "https://openrouter.ai/api".into(),
+            model: "meta-llama/llama-3.3-70b-instruct".into(),
+        },
         // Ollama (local)
-        ProviderPreset { name: "Ollama qwen2.5".into(), kind: ProviderKind::Ollama, base_url: "http://localhost:11434".into(), model: "qwen2.5".into() },
-        ProviderPreset { name: "Ollama llama3.2".into(), kind: ProviderKind::Ollama, base_url: "http://localhost:11434".into(), model: "llama3.2".into() },
-        ProviderPreset { name: "Ollama deepseek-r1".into(), kind: ProviderKind::Ollama, base_url: "http://localhost:11434".into(), model: "deepseek-r1".into() },
-        ProviderPreset { name: "Ollama gemma2".into(), kind: ProviderKind::Ollama, base_url: "http://localhost:11434".into(), model: "gemma2".into() },
+        ProviderPreset {
+            name: "Ollama qwen2.5".into(),
+            kind: ProviderKind::Ollama,
+            base_url: "http://localhost:11434".into(),
+            model: "qwen2.5".into(),
+        },
+        ProviderPreset {
+            name: "Ollama llama3.2".into(),
+            kind: ProviderKind::Ollama,
+            base_url: "http://localhost:11434".into(),
+            model: "llama3.2".into(),
+        },
+        ProviderPreset {
+            name: "Ollama deepseek-r1".into(),
+            kind: ProviderKind::Ollama,
+            base_url: "http://localhost:11434".into(),
+            model: "deepseek-r1".into(),
+        },
+        ProviderPreset {
+            name: "Ollama gemma2".into(),
+            kind: ProviderKind::Ollama,
+            base_url: "http://localhost:11434".into(),
+            model: "gemma2".into(),
+        },
         // Alibaba DashScope
-        ProviderPreset { name: "DashScope Qwen-Max".into(), kind: ProviderKind::OpenAi, base_url: "https://dashscope.aliyuncs.com/compatible-mode".into(), model: "qwen-max".into() },
-        ProviderPreset { name: "DashScope Qwen-Plus".into(), kind: ProviderKind::OpenAi, base_url: "https://dashscope.aliyuncs.com/compatible-mode".into(), model: "qwen-plus".into() },
-        ProviderPreset { name: "DashScope Qwen-Turbo".into(), kind: ProviderKind::OpenAi, base_url: "https://dashscope.aliyuncs.com/compatible-mode".into(), model: "qwen-turbo".into() },
+        ProviderPreset {
+            name: "DashScope Qwen-Max".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://dashscope.aliyuncs.com/compatible-mode".into(),
+            model: "qwen-max".into(),
+        },
+        ProviderPreset {
+            name: "DashScope Qwen-Plus".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://dashscope.aliyuncs.com/compatible-mode".into(),
+            model: "qwen-plus".into(),
+        },
+        ProviderPreset {
+            name: "DashScope Qwen-Turbo".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://dashscope.aliyuncs.com/compatible-mode".into(),
+            model: "qwen-turbo".into(),
+        },
         // DeepSeek
-        ProviderPreset { name: "DeepSeek V3".into(), kind: ProviderKind::OpenAi, base_url: "https://api.deepseek.com".into(), model: "deepseek-chat".into() },
-        ProviderPreset { name: "DeepSeek R1".into(), kind: ProviderKind::OpenAi, base_url: "https://api.deepseek.com".into(), model: "deepseek-reasoner".into() },
+        ProviderPreset {
+            name: "DeepSeek V3".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.deepseek.com".into(),
+            model: "deepseek-chat".into(),
+        },
+        ProviderPreset {
+            name: "DeepSeek R1".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.deepseek.com".into(),
+            model: "deepseek-reasoner".into(),
+        },
         // Zhipu
-        ProviderPreset { name: "Zhipu GLM-4".into(), kind: ProviderKind::OpenAi, base_url: "https://open.bigmodel.cn/api/paas/v4".into(), model: "glm-4".into() },
-        ProviderPreset { name: "Zhipu GLM-4-Flash".into(), kind: ProviderKind::OpenAi, base_url: "https://open.bigmodel.cn/api/paas/v4".into(), model: "glm-4-flash".into() },
+        ProviderPreset {
+            name: "Zhipu GLM-4".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://open.bigmodel.cn/api/paas/v4".into(),
+            model: "glm-4".into(),
+        },
+        ProviderPreset {
+            name: "Zhipu GLM-4-Flash".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://open.bigmodel.cn/api/paas/v4".into(),
+            model: "glm-4-flash".into(),
+        },
         // Moonshot
-        ProviderPreset { name: "Moonshot Kimi K2".into(), kind: ProviderKind::OpenAi, base_url: "https://api.moonshot.cn/v1".into(), model: "kimi-k2-0711-preview".into() },
-        ProviderPreset { name: "Moonshot Kimi K1.5".into(), kind: ProviderKind::OpenAi, base_url: "https://api.moonshot.cn/v1".into(), model: "kimi-k1.5".into() },
+        ProviderPreset {
+            name: "Moonshot Kimi K2".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.moonshot.cn/v1".into(),
+            model: "kimi-k2-0711-preview".into(),
+        },
+        ProviderPreset {
+            name: "Moonshot Kimi K1.5".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.moonshot.cn/v1".into(),
+            model: "kimi-k1.5".into(),
+        },
         // SiliconFlow
-        ProviderPreset { name: "SiliconFlow Qwen2.5-72B".into(), kind: ProviderKind::OpenAi, base_url: "https://api.siliconflow.cn/v1".into(), model: "Qwen/Qwen2.5-72B-Instruct".into() },
-        ProviderPreset { name: "SiliconFlow DeepSeek V3".into(), kind: ProviderKind::OpenAi, base_url: "https://api.siliconflow.cn/v1".into(), model: "deepseek-ai/DeepSeek-V3".into() },
+        ProviderPreset {
+            name: "SiliconFlow Qwen2.5-72B".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.siliconflow.cn/v1".into(),
+            model: "Qwen/Qwen2.5-72B-Instruct".into(),
+        },
+        ProviderPreset {
+            name: "SiliconFlow DeepSeek V3".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.siliconflow.cn/v1".into(),
+            model: "deepseek-ai/DeepSeek-V3".into(),
+        },
         // 01.AI
-        ProviderPreset { name: "01.AI Yi-Lightning".into(), kind: ProviderKind::OpenAi, base_url: "https://api.lingyiwanwu.com/v1".into(), model: "yi-lightning".into() },
+        ProviderPreset {
+            name: "01.AI Yi-Lightning".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.lingyiwanwu.com/v1".into(),
+            model: "yi-lightning".into(),
+        },
         // MiniMax
-        ProviderPreset { name: "MiniMax abab6.5s".into(), kind: ProviderKind::OpenAi, base_url: "https://api.minimax.chat/v1".into(), model: "abab6.5s-chat".into() },
+        ProviderPreset {
+            name: "MiniMax abab6.5s".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.minimax.chat/v1".into(),
+            model: "abab6.5s-chat".into(),
+        },
         // Azure OpenAI
-        ProviderPreset { name: "Azure OpenAI GPT-4o".into(), kind: ProviderKind::OpenAi, base_url: "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT".into(), model: "gpt-4o".into() },
+        ProviderPreset {
+            name: "Azure OpenAI GPT-4o".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+                .into(),
+            model: "gpt-4o".into(),
+        },
         // Groq
-        ProviderPreset { name: "Groq Llama 3.3 70B".into(), kind: ProviderKind::OpenAi, base_url: "https://api.groq.com/openai/v1".into(), model: "llama-3.3-70b-versatile".into() },
-        ProviderPreset { name: "Groq Mixtral 8x7B".into(), kind: ProviderKind::OpenAi, base_url: "https://api.groq.com/openai/v1".into(), model: "mixtral-8x7b-32768".into() },
+        ProviderPreset {
+            name: "Groq Llama 3.3 70B".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.groq.com/openai/v1".into(),
+            model: "llama-3.3-70b-versatile".into(),
+        },
+        ProviderPreset {
+            name: "Groq Mixtral 8x7B".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.groq.com/openai/v1".into(),
+            model: "mixtral-8x7b-32768".into(),
+        },
         // Cohere
-        ProviderPreset { name: "Cohere Command R+".into(), kind: ProviderKind::OpenAi, base_url: "https://api.cohere.ai/v1".into(), model: "command-r-plus".into() },
+        ProviderPreset {
+            name: "Cohere Command R+".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.cohere.ai/v1".into(),
+            model: "command-r-plus".into(),
+        },
         // Mistral
-        ProviderPreset { name: "Mistral Large".into(), kind: ProviderKind::OpenAi, base_url: "https://api.mistral.ai/v1".into(), model: "mistral-large-latest".into() },
+        ProviderPreset {
+            name: "Mistral Large".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.mistral.ai/v1".into(),
+            model: "mistral-large-latest".into(),
+        },
         // Together AI
-        ProviderPreset { name: "Together DeepSeek R1".into(), kind: ProviderKind::OpenAi, base_url: "https://api.together.xyz/v1".into(), model: "deepseek-ai/DeepSeek-R1".into() },
+        ProviderPreset {
+            name: "Together DeepSeek R1".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.together.xyz/v1".into(),
+            model: "deepseek-ai/DeepSeek-R1".into(),
+        },
         // Perplexity
-        ProviderPreset { name: "Perplexity Sonar".into(), kind: ProviderKind::OpenAi, base_url: "https://api.perplexity.ai".into(), model: "sonar".into() },
+        ProviderPreset {
+            name: "Perplexity Sonar".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.perplexity.ai".into(),
+            model: "sonar".into(),
+        },
         // Fireworks
-        ProviderPreset { name: "Fireworks Llama 3.3 70B".into(), kind: ProviderKind::OpenAi, base_url: "https://api.fireworks.ai/inference/v1".into(), model: "accounts/fireworks/models/llama-v3p3-70b-instruct".into() },
+        ProviderPreset {
+            name: "Fireworks Llama 3.3 70B".into(),
+            kind: ProviderKind::OpenAi,
+            base_url: "https://api.fireworks.ai/inference/v1".into(),
+            model: "accounts/fireworks/models/llama-v3p3-70b-instruct".into(),
+        },
     ]
 }

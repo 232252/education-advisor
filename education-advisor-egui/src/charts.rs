@@ -24,7 +24,8 @@ pub fn line_chart(
     );
 
     // background
-    ui.painter().rect_filled(rect, Rounding::same(12.0), theme.surface_glass);
+    ui.painter()
+        .rect_filled(rect, Rounding::same(12.0), theme.surface_glass);
     ui.painter().text(
         Pos2::new(rect.min.x + 12.0, rect.min.y + 6.0),
         Align2::LEFT_CENTER,
@@ -44,7 +45,12 @@ pub fn line_chart(
         return;
     }
 
-    let max_len = series.iter().map(|(_, v)| v.len()).max().unwrap_or(0).max(1);
+    let max_len = series
+        .iter()
+        .map(|(_, v)| v.len())
+        .max()
+        .unwrap_or(0)
+        .max(1);
     let max_val = series
         .iter()
         .flat_map(|(_, v)| v.iter().copied())
@@ -80,8 +86,13 @@ pub fn line_chart(
             .iter()
             .enumerate()
             .map(|(i, v)| {
-                let x = plot_rect.width().mul_add(i as f32 / (max_len - 1).max(1) as f32, plot_rect.min.x);
-                let y = plot_rect.height().mul_add(-((*v - min_val) / (max_val - min_val)).clamp(0.0, 1.0), plot_rect.max.y);
+                let x = plot_rect
+                    .width()
+                    .mul_add(i as f32 / (max_len - 1).max(1) as f32, plot_rect.min.x);
+                let y = plot_rect.height().mul_add(
+                    -((*v - min_val) / (max_val - min_val)).clamp(0.0, 1.0),
+                    plot_rect.max.y,
+                );
                 Pos2::new(x, y)
             })
             .collect();
@@ -91,9 +102,11 @@ pub fn line_chart(
             fill_pts.push(Pos2::new(pts.last().unwrap().x, plot_rect.max.y));
             fill_pts.push(Pos2::new(pts.first().unwrap().x, plot_rect.max.y));
             let fill = Color32::from_rgba_premultiplied(color.r(), color.g(), color.b(), 40);
-            ui.painter().add(egui::Shape::convex_polygon(fill_pts, fill, Stroke::NONE));
+            ui.painter()
+                .add(egui::Shape::convex_polygon(fill_pts, fill, Stroke::NONE));
             // smooth line via quadratic midpoints
-            ui.painter().add(egui::Shape::line(pts.clone(), Stroke::new(2.0, color)));
+            ui.painter()
+                .add(egui::Shape::line(pts.clone(), Stroke::new(2.0, color)));
         }
         // legend
         let lx = rect.max.x - 90.0;
@@ -122,7 +135,8 @@ pub fn donut_chart(
     size: f32,
 ) {
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(size, size + 20.0), Sense::hover());
-    ui.painter().rect_filled(rect, Rounding::same(12.0), theme.surface_glass);
+    ui.painter()
+        .rect_filled(rect, Rounding::same(12.0), theme.surface_glass);
     ui.painter().text(
         Pos2::new(rect.min.x + 12.0, rect.min.y + 6.0),
         Align2::LEFT_CENTER,
@@ -149,12 +163,19 @@ pub fn donut_chart(
         let inner: Vec<Pos2> = (0..=n)
             .map(|i| {
                 let t = (end - start).mul_add(i as f32 / n as f32, start);
-                Pos2::new((radius - 14.0).mul_add(t.cos(), center.x), (radius - 14.0).mul_add(t.sin(), center.y))
+                Pos2::new(
+                    (radius - 14.0).mul_add(t.cos(), center.x),
+                    (radius - 14.0).mul_add(t.sin(), center.y),
+                )
             })
             .collect();
         let mut poly: Vec<Pos2> = outer.clone();
         poly.extend(inner.iter().rev());
-        ui.painter().add(egui::Shape::convex_polygon(poly, *color, Stroke::new(1.0, theme.bg)));
+        ui.painter().add(egui::Shape::convex_polygon(
+            poly,
+            *color,
+            Stroke::new(1.0, theme.bg),
+        ));
         // hover detection
         if let Some(hp) = hover_pos {
             let dx = hp.x - center.x;
@@ -162,7 +183,11 @@ pub fn donut_chart(
             let dist = dx.hypot(dy);
             if dist <= radius && dist >= radius - 14.0 {
                 let ang = dy.atan2(dx);
-                let ang = if ang < start { ang + std::f32::consts::TAU } else { ang };
+                let ang = if ang < start {
+                    ang + std::f32::consts::TAU
+                } else {
+                    ang
+                };
                 if ang >= start && ang <= end {
                     hover_label = Some(format!("{name}: {:.0}%", frac * 100.0));
                 }
@@ -195,7 +220,8 @@ pub fn bar_chart(
     height: f32,
 ) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
-    ui.painter().rect_filled(rect, Rounding::same(12.0), theme.surface_glass);
+    ui.painter()
+        .rect_filled(rect, Rounding::same(12.0), theme.surface_glass);
     ui.painter().text(
         Pos2::new(rect.min.x + 12.0, rect.min.y + 6.0),
         Align2::LEFT_CENTER,
@@ -206,7 +232,11 @@ pub fn bar_chart(
     if bars.is_empty() {
         return;
     }
-    let max = bars.iter().map(|(_, v)| *v).fold(0.0f32, f32::max).max(0.001);
+    let max = bars
+        .iter()
+        .map(|(_, v)| *v)
+        .fold(0.0f32, f32::max)
+        .max(0.001);
     let top = rect.min.y + 24.0;
     let bottom = rect.max.y - 8.0;
     let row_h = (bottom - top) / bars.len() as f32;
@@ -221,11 +251,10 @@ pub fn bar_chart(
         );
         let bar_x = rect.min.x + 90.0;
         let bar_w = (rect.max.x - bar_x - 50.0) * (*val / max).clamp(0.0, 1.0);
-        let bar_rect = Rect::from_min_size(
-            Pos2::new(bar_x, y + 6.0),
-            Vec2::new(bar_w, row_h - 12.0),
-        );
-        ui.painter().rect_filled(bar_rect, Rounding::same(4.0), accent);
+        let bar_rect =
+            Rect::from_min_size(Pos2::new(bar_x, y + 6.0), Vec2::new(bar_w, row_h - 12.0));
+        ui.painter()
+            .rect_filled(bar_rect, Rounding::same(4.0), accent);
         ui.painter().text(
             Pos2::new(bar_rect.max.x + 6.0, bar_rect.center().y),
             Align2::LEFT_CENTER,
@@ -247,7 +276,8 @@ pub fn radar_chart(
     size: f32,
 ) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(size, size + 16.0), Sense::hover());
-    ui.painter().rect_filled(rect, Rounding::same(12.0), theme.surface_glass);
+    ui.painter()
+        .rect_filled(rect, Rounding::same(12.0), theme.surface_glass);
     ui.painter().text(
         Pos2::new(rect.min.x + 12.0, rect.min.y + 6.0),
         Align2::LEFT_CENTER,
@@ -263,21 +293,33 @@ pub fn radar_chart(
         let r = radius * (ring as f32 / 4.0);
         let pts: Vec<Pos2> = (0..n)
             .map(|i| {
-                let t = (i as f32 / n as f32).mul_add(std::f32::consts::TAU, -std::f32::consts::FRAC_PI_2);
+                let t = (i as f32 / n as f32)
+                    .mul_add(std::f32::consts::TAU, -std::f32::consts::FRAC_PI_2);
                 Pos2::new(center.x + r * t.cos(), center.y + r * t.sin())
             })
             .collect();
         let mut poly = pts.clone();
         poly.push(pts[0]);
-        ui.painter().add(egui::Shape::line(poly, Stroke::new(1.0, theme.border)));
+        ui.painter()
+            .add(egui::Shape::line(poly, Stroke::new(1.0, theme.border)));
     }
     // axes + labels
     for (i, axis) in axes.iter().enumerate() {
         let t = (i as f32 / n as f32).mul_add(std::f32::consts::TAU, -std::f32::consts::FRAC_PI_2);
         let p = Pos2::new(center.x + radius * t.cos(), center.y + radius * t.sin());
-        ui.painter().line_segment([center, p], Stroke::new(1.0, theme.border));
-        let lp = Pos2::new((radius + 12.0).mul_add(t.cos(), center.x), (radius + 12.0).mul_add(t.sin(), center.y));
-        ui.painter().text(lp, Align2::CENTER_CENTER, axis, FontId::proportional(9.0), theme.text_dim);
+        ui.painter()
+            .line_segment([center, p], Stroke::new(1.0, theme.border));
+        let lp = Pos2::new(
+            (radius + 12.0).mul_add(t.cos(), center.x),
+            (radius + 12.0).mul_add(t.sin(), center.y),
+        );
+        ui.painter().text(
+            lp,
+            Align2::CENTER_CENTER,
+            axis,
+            FontId::proportional(9.0),
+            theme.text_dim,
+        );
     }
     // values polygon
     if values.len() == n {
@@ -285,7 +327,8 @@ pub fn radar_chart(
             .iter()
             .enumerate()
             .map(|(i, v)| {
-                let t = (i as f32 / n as f32).mul_add(std::f32::consts::TAU, -std::f32::consts::FRAC_PI_2);
+                let t = (i as f32 / n as f32)
+                    .mul_add(std::f32::consts::TAU, -std::f32::consts::FRAC_PI_2);
                 let r = radius * v.clamp(0.0, 1.0);
                 Pos2::new(center.x + r * t.cos(), center.y + r * t.sin())
             })
@@ -293,8 +336,13 @@ pub fn radar_chart(
         let mut poly = pts.clone();
         poly.push(pts[0]);
         let fill = Color32::from_rgba_premultiplied(accent.r(), accent.g(), accent.b(), 60);
-        ui.painter().add(egui::Shape::convex_polygon(poly.clone(), fill, Stroke::NONE));
-        ui.painter().add(egui::Shape::line(poly, Stroke::new(2.0, accent)));
+        ui.painter().add(egui::Shape::convex_polygon(
+            poly.clone(),
+            fill,
+            Stroke::NONE,
+        ));
+        ui.painter()
+            .add(egui::Shape::line(poly, Stroke::new(2.0, accent)));
         for p in &pts {
             ui.painter().circle_filled(*p, 3.0, accent);
         }

@@ -1,9 +1,10 @@
 //! Models page: provider presets, active model status, and quick provider edits.
 
-use eframe::egui::{self, Align, FontId, Layout, Ui};
+use eframe::egui::{self, Align, FontId, Layout, Pos2, Rect, Ui, Vec2};
 
 use crate::app::App;
 use crate::models::{LlmProvider, ProviderKind};
+use crate::ui::icons;
 use crate::ui::widgets::{card, empty_state, ghost_button, primary_button, section_title};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
@@ -51,11 +52,13 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         );
         if let Some(p) = active {
             ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new("●")
-                        .font(FontId::proportional(14.0))
-                        .color(theme.success),
+                let dot_rect = Rect::from_min_size(
+                    Pos2::new(ui.cursor().left(), ui.cursor().center().y - 5.0),
+                    Vec2::splat(10.0),
                 );
+                ui.painter()
+                    .circle_filled(dot_rect.center(), 5.0, theme.success);
+                ui.add_space(14.0);
                 ui.vertical(|ui| {
                     ui.label(
                         egui::RichText::new(&p.name)
@@ -71,7 +74,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 });
             });
         } else {
-            empty_state(ui, &theme, "🧠", "未设置活跃模型，请在设置中配置");
+            empty_state(ui, &theme, icons::model, "未设置活跃模型，请在设置中配置");
         }
     });
 
@@ -87,16 +90,21 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         );
         ui.separator();
         if providers.is_empty() {
-            empty_state(ui, &theme, "📭", "暂无提供商");
+            empty_state(ui, &theme, icons::rag, "暂无提供商");
         }
         for p in &providers {
             ui.horizontal(|ui| {
-                let dot = if p.enabled { theme.success } else { theme.text_faint };
-                ui.label(
-                    egui::RichText::new("●")
-                        .font(FontId::proportional(10.0))
-                        .color(dot),
+                let dot = if p.enabled {
+                    theme.success
+                } else {
+                    theme.text_faint
+                };
+                let dot_rect = Rect::from_min_size(
+                    Pos2::new(ui.cursor().left(), ui.cursor().center().y - 3.0),
+                    Vec2::splat(6.0),
                 );
+                ui.painter().circle_filled(dot_rect.center(), 3.0, dot);
+                ui.add_space(10.0);
                 ui.vertical(|ui| {
                     ui.label(
                         egui::RichText::new(&p.name)
@@ -120,7 +128,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                         );
                     } else if p.enabled && ghost_button(ui, &theme, "设为活跃").clicked() {
                         app.settings.active_provider_id = Some(p.id.clone());
-                        let _ = app.runtime.tx.send(crate::runtime::Command::SaveSettings(app.settings.clone()));
+                        let _ = app
+                            .runtime
+                            .tx
+                            .send(crate::runtime::Command::SaveSettings(app.settings.clone()));
                     }
                 });
             });
@@ -139,32 +150,34 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 .color(theme.text),
         );
         ui.separator();
-        egui::ScrollArea::vertical().max_height(240.0).show(ui, |ui| {
-            let presets = crate::llm::provider_presets();
-            for pr in presets.iter().take(20) {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new(&pr.name)
-                            .font(FontId::proportional(12.0))
-                            .color(theme.text),
-                    );
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ghost_button(ui, &theme, "添加").clicked() {
-                            app.ui_state.editing_provider = Some(LlmProvider {
-                                id: uuid::Uuid::new_v4().to_string(),
-                                name: pr.name.clone(),
-                                kind: pr.kind,
-                                base_url: pr.base_url.clone(),
-                                api_key: None,
-                                model: pr.model.clone(),
-                                enabled: true,
-                            });
-                            app.navigate(crate::app::Page::Settings);
-                        }
+        egui::ScrollArea::vertical()
+            .max_height(240.0)
+            .show(ui, |ui| {
+                let presets = crate::llm::provider_presets();
+                for pr in presets.iter().take(20) {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(&pr.name)
+                                .font(FontId::proportional(12.0))
+                                .color(theme.text),
+                        );
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if ghost_button(ui, &theme, "添加").clicked() {
+                                app.ui_state.editing_provider = Some(LlmProvider {
+                                    id: uuid::Uuid::new_v4().to_string(),
+                                    name: pr.name.clone(),
+                                    kind: pr.kind,
+                                    base_url: pr.base_url.clone(),
+                                    api_key: None,
+                                    model: pr.model.clone(),
+                                    enabled: true,
+                                });
+                                app.navigate(crate::app::Page::Settings);
+                            }
+                        });
                     });
-                });
-                ui.separator();
-            }
-        });
+                    ui.separator();
+                }
+            });
     });
 }

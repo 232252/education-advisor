@@ -8,7 +8,10 @@ use eframe::egui;
 use eframe::egui::{Context, Frame, Margin, Vec2};
 use parking_lot::RwLock;
 
-use crate::models::{Settings, Student, Conversation, Message, ScheduledTask, LlmProvider, DashboardStats, ToolCallRecord, ThemeMode, ToolStatus, Role};
+use crate::models::{
+    Conversation, DashboardStats, LlmProvider, Message, Role, ScheduledTask, Settings, Student,
+    ThemeMode, ToolCallRecord, ToolStatus,
+};
 use crate::privacy::Cipher;
 use crate::runtime::{Event, RuntimeHandle, ToastKind};
 use crate::theme::Theme;
@@ -56,21 +59,6 @@ impl Page {
             Self::Rag => "知识库",
             Self::Privacy => "隐私",
             Self::Settings => "设置",
-        }
-    }
-    pub const fn icon(self) -> &'static str {
-        match self {
-            Self::Dashboard => "📊",
-            Self::Chat => "💬",
-            Self::Students => "👥",
-            Self::Agents => "🤖",
-            Self::AgentHistory => "📋",
-            Self::Models => "🧠",
-            Self::Skills => "📝",
-            Self::Scheduler => "⏰",
-            Self::Rag => "📚",
-            Self::Privacy => "🔒",
-            Self::Settings => "⚙️",
         }
     }
 }
@@ -157,7 +145,8 @@ impl App {
                 eprintln!("[startup] runtime launch failed: {e}, falling back to in-memory DB");
                 let db = crate::db::Db::open_in_memory().expect("in-memory db");
                 let cipher = crate::privacy::Cipher::random();
-                let (rt, _) = crate::runtime::Runtime::launch_with(db, cipher.clone()).expect("launch");
+                let (rt, _) =
+                    crate::runtime::Runtime::launch_with(db, cipher.clone()).expect("launch");
                 (rt.handle(), cipher)
             }
         };
@@ -184,7 +173,10 @@ impl App {
             page: Page::Dashboard,
             page_anim: crate::util::Anim::new(1.0, 350),
             sidebar_collapsed: settings.sidebar_collapsed,
-            sidebar_anim: crate::util::Anim::new(if settings.sidebar_collapsed { 0.0 } else { 1.0 }, 300),
+            sidebar_anim: crate::util::Anim::new(
+                if settings.sidebar_collapsed { 0.0 } else { 1.0 },
+                300,
+            ),
             students: Arc::new(RwLock::new(Vec::new())),
             conversations: Arc::new(RwLock::new(Vec::new())),
             messages: HashMap::new(),
@@ -246,7 +238,13 @@ impl App {
     }
 
     fn drain_events(&mut self, ctx: &Context) {
-        use Event::{Students, StudentsSaved, StudentDeleted, Grades, StudentsImported, Conversations, ConversationCreated, ConversationDeleted, Messages, StreamStart, StreamToken, StreamTool, StreamDone, StreamError, Tasks, TaskSaved, TaskDeleted, Providers, ProviderSaved, ProviderDeleted, RagDocuments, RagDocumentSaved, RagDocumentDeleted, Stats, Settings, Toast};
+        use Event::{
+            ConversationCreated, ConversationDeleted, Conversations, Grades, Messages,
+            ProviderDeleted, ProviderSaved, Providers, RagDocumentDeleted, RagDocumentSaved,
+            RagDocuments, Settings, Stats, StreamDone, StreamError, StreamStart, StreamToken,
+            StreamTool, StudentDeleted, Students, StudentsImported, StudentsSaved, TaskDeleted,
+            TaskSaved, Tasks, Toast,
+        };
         while let Ok(evt) = self.runtime.rx.try_recv() {
             match evt {
                 Students(v) => *self.students.write() = v,
@@ -265,7 +263,10 @@ impl App {
                         convs.insert(0, c.clone());
                     }
                     self.selected_conversation = Some(c.id);
-                    let _ = self.runtime.tx.send(crate::runtime::Command::LoadMessages(c.id));
+                    let _ = self
+                        .runtime
+                        .tx
+                        .send(crate::runtime::Command::LoadMessages(c.id));
                 }
                 ConversationDeleted => {
                     self.push_toast(ToastKind::Success, "会话已删除");
@@ -273,7 +274,10 @@ impl App {
                 Messages(id, v) => {
                     self.messages.insert(id, v);
                 }
-                StreamStart { conversation_id, message_id } => {
+                StreamStart {
+                    conversation_id,
+                    message_id,
+                } => {
                     let st = self.streaming.entry(conversation_id).or_default();
                     st.current_message_id = Some(message_id);
                     st.buffer.clear();
@@ -281,20 +285,26 @@ impl App {
                     st.active = true;
                     ctx.request_repaint();
                 }
-                StreamToken { conversation_id, message_id: _, delta } => {
+                StreamToken {
+                    conversation_id,
+                    message_id: _,
+                    delta,
+                } => {
                     if let Some(st) = self.streaming.get_mut(&conversation_id) {
                         st.buffer.push_str(&delta);
                     }
                     ctx.request_repaint();
                 }
-                StreamTool { conversation_id, message_id: _, call } => {
+                StreamTool {
+                    conversation_id,
+                    message_id: _,
+                    call,
+                } => {
                     if let Some(st) = self.streaming.get_mut(&conversation_id) {
                         // update or append
-                        if let Some(existing) = st
-                            .tool_calls
-                            .iter_mut()
-                            .find(|t| t.name == call.name && t.result.is_empty() && call.result.is_empty())
-                        {
+                        if let Some(existing) = st.tool_calls.iter_mut().find(|t| {
+                            t.name == call.name && t.result.is_empty() && call.result.is_empty()
+                        }) {
                             *existing = call;
                         } else if let Some(existing) = st
                             .tool_calls
@@ -308,7 +318,10 @@ impl App {
                     }
                     ctx.request_repaint();
                 }
-                StreamDone { conversation_id, message_id } => {
+                StreamDone {
+                    conversation_id,
+                    message_id,
+                } => {
                     if let Some(st) = self.streaming.get_mut(&conversation_id) {
                         // finalize: move buffer into messages list
                         let content = std::mem::take(&mut st.buffer);
@@ -327,10 +340,16 @@ impl App {
                         self.messages.entry(conversation_id).or_default().push(msg);
                     }
                     // refresh conversation list order
-                    let _ = self.runtime.tx.send(crate::runtime::Command::LoadConversations);
+                    let _ = self
+                        .runtime
+                        .tx
+                        .send(crate::runtime::Command::LoadConversations);
                     ctx.request_repaint();
                 }
-                StreamError { conversation_id, error } => {
+                StreamError {
+                    conversation_id,
+                    error,
+                } => {
                     if let Some(st) = self.streaming.get_mut(&conversation_id) {
                         st.active = false;
                     }
@@ -379,7 +398,9 @@ impl eframe::App for App {
         self.last_dt = ctx.input(|i| i.stable_dt.min(0.05));
 
         // Tray menu events: show/hide/quit.
-        if crate::tray::poll_events(ctx, &mut self.window_visible) == Some(crate::tray::TrayAction::Quit) {
+        if crate::tray::poll_events(ctx, &mut self.window_visible)
+            == Some(crate::tray::TrayAction::Quit)
+        {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
 
@@ -402,17 +423,29 @@ impl eframe::App for App {
         // body: sidebar + content
         let screen_w = ctx.screen_rect().width();
         let min_sidebar = 64.0_f32.min(screen_w * 0.18);
-        let sidebar_width = self.sidebar_anim.value().max(0.0).mul_add(200.0, min_sidebar);
+        let sidebar_width = self
+            .sidebar_anim
+            .value()
+            .max(0.0)
+            .mul_add(200.0, min_sidebar);
         egui::SidePanel::left("sidebar")
             .resizable(false)
             .exact_width(sidebar_width)
-            .frame(Frame::none().fill(self.theme.bg_elevated).inner_margin(Margin::same(0.0)))
+            .frame(
+                Frame::none()
+                    .fill(self.theme.bg_elevated)
+                    .inner_margin(Margin::same(0.0)),
+            )
             .show(ctx, |ui| {
                 crate::ui::sidebar::show(self, ui);
             });
 
         egui::CentralPanel::default()
-            .frame(Frame::none().fill(self.theme.bg).inner_margin(Margin::same(16.0)))
+            .frame(
+                Frame::none()
+                    .fill(self.theme.bg)
+                    .inner_margin(Margin::same(16.0)),
+            )
             .show(ctx, |ui| {
                 let alpha = self.page_anim.value();
                 let opacity = alpha.clamp(0.0, 1.0);
@@ -459,7 +492,10 @@ impl eframe::App for App {
         self.settings.sidebar_collapsed = self.sidebar_collapsed;
         eframe::set_value(storage, eframe::APP_KEY, &self.settings);
         // Persist settings to DB as well so window geometry survives re-installs.
-        let _ = self.runtime.tx.send(crate::runtime::Command::SaveSettings(self.settings.clone()));
+        let _ = self
+            .runtime
+            .tx
+            .send(crate::runtime::Command::SaveSettings(self.settings.clone()));
     }
 }
 
@@ -470,15 +506,12 @@ fn paint_gradient_bg(ctx: &Context, theme: &Theme) {
     let steps = 64;
     let h = rect.height();
     for i in 0..steps {
-        let y0 = rect.min.y + h * (i as f32 / steps as f32);
-        let y1 = rect.min.y + h * ((i + 1) as f32 / steps as f32);
+        let y0 = h.mul_add(i as f32 / steps as f32, rect.min.y);
+        let y1 = h.mul_add((i + 1) as f32 / steps as f32, rect.min.y);
         let t = (i as f32 / steps as f32).clamp(0.0, 1.0);
         let color = Theme::lerp(theme.bg_gradient_from, theme.bg_gradient_to, t);
         painter.rect_filled(
-            egui::Rect::from_min_max(
-                egui::pos2(rect.min.x, y0),
-                egui::pos2(rect.max.x, y1),
-            ),
+            egui::Rect::from_min_max(egui::pos2(rect.min.x, y0), egui::pos2(rect.max.x, y1)),
             0.0,
             color,
         );
@@ -513,10 +546,9 @@ fn install_fonts(ctx: &Context) {
     ];
     for path in candidates {
         if let Ok(data) = std::fs::read(path) {
-            fonts.font_data.insert(
-                "cjk".into(),
-                egui::FontData::from_owned(data),
-            );
+            fonts
+                .font_data
+                .insert("cjk".into(), egui::FontData::from_owned(data));
             fonts
                 .families
                 .entry(egui::FontFamily::Proportional)

@@ -21,7 +21,10 @@ use uuid::Uuid;
 
 use crate::db::Db;
 use crate::llm::LlmClient;
-use crate::models::{Student, GradeEntry, ScheduledTask, LlmProvider, Settings, Conversation, Message, ToolCallRecord, DashboardStats, RagDocument};
+use crate::models::{
+    Conversation, DashboardStats, GradeEntry, LlmProvider, Message, RagDocument, ScheduledTask,
+    Settings, Student, ToolCallRecord,
+};
 use crate::privacy::{Cipher, Redactor};
 
 /// Work requested by the UI.
@@ -36,11 +39,20 @@ pub enum Command {
     ImportStudentsCsv(String),
     // Conversations
     LoadConversations,
-    NewConversation { agent_id: String, student_id: Option<Uuid>, title: String },
+    NewConversation {
+        agent_id: String,
+        student_id: Option<Uuid>,
+        title: String,
+    },
     LoadMessages(Uuid),
     DeleteConversation(Uuid),
     // AI
-    SendMessage { conversation_id: Uuid, agent_id: String, student_id: Option<Uuid>, text: String },
+    SendMessage {
+        conversation_id: Uuid,
+        agent_id: String,
+        student_id: Option<Uuid>,
+        text: String,
+    },
     CancelConversation(Uuid),
     // Tasks
     LoadTasks,
@@ -71,17 +83,38 @@ pub enum Event {
     StudentsSaved,
     StudentDeleted,
     Grades(Uuid, Vec<GradeEntry>),
-    StudentsImported { added: usize },
+    StudentsImported {
+        added: usize,
+    },
     Conversations(Vec<Conversation>),
     ConversationCreated(Conversation),
     ConversationDeleted,
     Messages(Uuid, Vec<Message>),
     // AI streaming
-    StreamStart { conversation_id: Uuid, message_id: Uuid },
-    StreamToken { conversation_id: Uuid, #[allow(dead_code)] message_id: Uuid, delta: String },
-    StreamTool { conversation_id: Uuid, #[allow(dead_code)] message_id: Uuid, call: ToolCallRecord },
-    StreamDone { conversation_id: Uuid, message_id: Uuid },
-    StreamError { conversation_id: Uuid, error: String },
+    StreamStart {
+        conversation_id: Uuid,
+        message_id: Uuid,
+    },
+    StreamToken {
+        conversation_id: Uuid,
+        #[allow(dead_code)]
+        message_id: Uuid,
+        delta: String,
+    },
+    StreamTool {
+        conversation_id: Uuid,
+        #[allow(dead_code)]
+        message_id: Uuid,
+        call: ToolCallRecord,
+    },
+    StreamDone {
+        conversation_id: Uuid,
+        message_id: Uuid,
+    },
+    StreamError {
+        conversation_id: Uuid,
+        error: String,
+    },
     Tasks(Vec<ScheduledTask>),
     TaskSaved,
     TaskDeleted,
@@ -94,7 +127,10 @@ pub enum Event {
     Stats(DashboardStats),
     #[allow(dead_code)]
     Settings(Settings),
-    Toast { kind: ToastKind, msg: String },
+    Toast {
+        kind: ToastKind,
+        msg: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -170,7 +206,13 @@ impl Runtime {
                 });
             })?;
 
-        Ok((Self { handle, _join: Some(join) }, cipher))
+        Ok((
+            Self {
+                handle,
+                _join: Some(join),
+            },
+            cipher,
+        ))
     }
 
     pub fn handle(&self) -> RuntimeHandle {
@@ -214,7 +256,13 @@ async fn run_command(
     evt_tx: &Sender<Event>,
     cmd: Command,
 ) -> anyhow::Result<()> {
-    use Command::{LoadStudents, SaveStudent, DeleteStudent, LoadGrades, AddGrade, ImportStudentsCsv, LoadConversations, NewConversation, LoadMessages, DeleteConversation, SendMessage, CancelConversation, LoadTasks, SaveTask, DeleteTask, RunTaskNow, LoadProviders, SaveProvider, DeleteProvider, LoadRagDocuments, SaveRagDocument, DeleteRagDocument, LoadStats, LoadSettings, SaveSettings};
+    use Command::{
+        AddGrade, CancelConversation, DeleteConversation, DeleteProvider, DeleteRagDocument,
+        DeleteStudent, DeleteTask, ImportStudentsCsv, LoadConversations, LoadGrades, LoadMessages,
+        LoadProviders, LoadRagDocuments, LoadSettings, LoadStats, LoadStudents, LoadTasks,
+        NewConversation, RunTaskNow, SaveProvider, SaveRagDocument, SaveSettings, SaveStudent,
+        SaveTask, SendMessage,
+    };
     match cmd {
         LoadStudents => {
             let v = ctx.db.list_students()?;
@@ -258,7 +306,11 @@ async fn run_command(
             let v = ctx.db.list_conversations()?;
             let _ = evt_tx.send(Event::Conversations(v));
         }
-        NewConversation { agent_id, student_id, title } => {
+        NewConversation {
+            agent_id,
+            student_id,
+            title,
+        } => {
             let now = chrono::Utc::now();
             let conv = Conversation {
                 id: Uuid::new_v4(),
@@ -281,7 +333,12 @@ async fn run_command(
             let v = ctx.db.list_conversations()?;
             let _ = evt_tx.send(Event::Conversations(v));
         }
-        SendMessage { conversation_id, agent_id, student_id, text } => {
+        SendMessage {
+            conversation_id,
+            agent_id,
+            student_id,
+            text,
+        } => {
             // Persist the user message and immediately refresh the UI so the
             // sent message appears before the assistant starts streaming.
             let now = chrono::Utc::now();
@@ -299,7 +356,9 @@ async fn run_command(
             let _ = evt_tx.send(Event::Messages(conversation_id, history));
 
             let token = CancellationToken::new();
-            ctx.cancel_tokens.write().insert(conversation_id, token.clone());
+            ctx.cancel_tokens
+                .write()
+                .insert(conversation_id, token.clone());
             if let Err(e) = crate::ai::run_turn(
                 ctx.clone(),
                 evt_tx.clone(),
@@ -448,7 +507,9 @@ async fn run_command(
 #[allow(dead_code)]
 pub fn decrypt_field(cipher: &Cipher, v: &str) -> String {
     if let Some(rest) = v.strip_prefix("enc:") {
-        cipher.decrypt_str(rest).unwrap_or_else(|_| "[解密失败]".into())
+        cipher
+            .decrypt_str(rest)
+            .unwrap_or_else(|_| "[解密失败]".into())
     } else {
         v.to_string()
     }

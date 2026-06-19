@@ -3,8 +3,11 @@
 use eframe::egui::{self, Align, FontId, Layout, Ui, Vec2};
 
 use crate::app::App;
-use crate::models::{ThemeMode, LlmProvider, ProviderKind};
-use crate::ui::widgets::{card, ghost_button, icon_button, primary_button, section_title, toggle_switch};
+use crate::models::{LlmProvider, ProviderKind, ThemeMode};
+use crate::ui::icons;
+use crate::ui::widgets::{
+    card, ghost_button, icon_button, primary_button, section_title, toggle_switch,
+};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
     section_title(ui, &app.theme, "设置");
@@ -87,16 +90,26 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     settings_changed = true;
                 }
             });
-            ui.label(
-                egui::RichText::new("• 敏感字段（监护人电话、API Key）使用 AES-256-GCM 加密落盘")
-                    .font(FontId::proportional(11.0))
-                    .color(app.theme.text_dim),
-            );
-            ui.label(
-                egui::RichText::new("• 手机号 / 身份证 / 邮箱在进入 LLM 前自动掩码")
-                    .font(FontId::proportional(11.0))
-                    .color(app.theme.text_dim),
-            );
+            ui.horizontal(|ui| {
+                let dot_rect = egui::Rect::from_min_size(egui::pos2(ui.cursor().left(), ui.cursor().center().y - 2.0), egui::Vec2::splat(4.0));
+                icons::dot(ui.painter(), dot_rect, app.theme.text_dim);
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new("敏感字段（监护人电话、API Key）使用 AES-256-GCM 加密落盘")
+                        .font(FontId::proportional(11.0))
+                        .color(app.theme.text_dim),
+                );
+            });
+            ui.horizontal(|ui| {
+                let dot_rect = egui::Rect::from_min_size(egui::pos2(ui.cursor().left(), ui.cursor().center().y - 2.0), egui::Vec2::splat(4.0));
+                icons::dot(ui.painter(), dot_rect, app.theme.text_dim);
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new("手机号 / 身份证 / 邮箱在进入 LLM 前自动掩码")
+                        .font(FontId::proportional(11.0))
+                        .color(app.theme.text_dim),
+                );
+            });
         });
 
         ui.add_space(8.0);
@@ -198,7 +211,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                         .font(FontId::proportional(10.0))
                         .color(app.theme.text_faint),
                 );
-                if icon_button(ui, &app.theme, "📂", 28.0).clicked() {
+                if icon_button(ui, &app.theme, icons::folder, 28.0).clicked() {
                     if let Some(dir) = dirs::data_dir().map(|d| d.join("education-advisor")) {
                         let _ = std::fs::create_dir_all(&dir);
                         let _ = open_dir(&dir);
@@ -214,7 +227,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     // persist settings only when something changed
     if settings_changed {
-        let _ = app.runtime.tx.send(crate::runtime::Command::SaveSettings(app.settings.clone()));
+        let _ = app
+            .runtime
+            .tx
+            .send(crate::runtime::Command::SaveSettings(app.settings.clone()));
     }
 }
 
@@ -249,45 +265,48 @@ fn provider_dialog(app: &mut App, ui: &mut Ui) {
                 }
             }
             ui.separator();
-            egui::Grid::new("prov_grid").num_columns(2).spacing(Vec2::new(8.0, 6.0)).show(ui, |ui| {
-                ui.label("名称");
-                ui.text_edit_singleline(&mut p.name);
-                ui.end_row();
-                ui.label("类型");
-                let mut kind = p.kind;
-                egui::ComboBox::from_id_source("prov_kind")
-                    .selected_text(format!("{kind:?}"))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut kind, ProviderKind::OpenAi, "OpenAI");
-                        ui.selectable_value(&mut kind, ProviderKind::Anthropic, "Anthropic");
-                        ui.selectable_value(&mut kind, ProviderKind::Gemini, "Gemini");
-                        ui.selectable_value(&mut kind, ProviderKind::OpenRouter, "OpenRouter");
-                        ui.selectable_value(&mut kind, ProviderKind::Ollama, "Ollama");
-                        ui.selectable_value(&mut kind, ProviderKind::Custom, "自定义");
+            egui::Grid::new("prov_grid")
+                .num_columns(2)
+                .spacing(Vec2::new(8.0, 6.0))
+                .show(ui, |ui| {
+                    ui.label("名称");
+                    ui.text_edit_singleline(&mut p.name);
+                    ui.end_row();
+                    ui.label("类型");
+                    let mut kind = p.kind;
+                    egui::ComboBox::from_id_source("prov_kind")
+                        .selected_text(format!("{kind:?}"))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut kind, ProviderKind::OpenAi, "OpenAI");
+                            ui.selectable_value(&mut kind, ProviderKind::Anthropic, "Anthropic");
+                            ui.selectable_value(&mut kind, ProviderKind::Gemini, "Gemini");
+                            ui.selectable_value(&mut kind, ProviderKind::OpenRouter, "OpenRouter");
+                            ui.selectable_value(&mut kind, ProviderKind::Ollama, "Ollama");
+                            ui.selectable_value(&mut kind, ProviderKind::Custom, "自定义");
+                        });
+                    p.kind = kind;
+                    ui.end_row();
+                    ui.label("Base URL");
+                    ui.text_edit_singleline(&mut p.base_url);
+                    ui.end_row();
+                    ui.label("模型");
+                    ui.text_edit_singleline(&mut p.model);
+                    ui.end_row();
+                    ui.label("API Key");
+                    let mut key = p.api_key.as_ref().map_or_else(String::new, |k| {
+                        if let Some(rest) = k.strip_prefix("enc:") {
+                            app.cipher.decrypt_str(rest).unwrap_or_else(|_| k.clone())
+                        } else {
+                            k.clone()
+                        }
                     });
-                p.kind = kind;
-                ui.end_row();
-                ui.label("Base URL");
-                ui.text_edit_singleline(&mut p.base_url);
-                ui.end_row();
-                ui.label("模型");
-                ui.text_edit_singleline(&mut p.model);
-                ui.end_row();
-                ui.label("API Key");
-                let mut key = p.api_key.as_ref().map_or_else(String::new, |k| {
-                    if let Some(rest) = k.strip_prefix("enc:") {
-                        app.cipher.decrypt_str(rest).unwrap_or_else(|_| k.clone())
-                    } else {
-                        k.clone()
-                    }
+                    ui.add(egui::TextEdit::singleline(&mut key).password(true));
+                    p.api_key = if key.is_empty() { None } else { Some(key) };
+                    ui.end_row();
+                    ui.label("启用");
+                    ui.checkbox(&mut p.enabled, "");
+                    ui.end_row();
                 });
-                ui.add(egui::TextEdit::singleline(&mut key).password(true));
-                p.api_key = if key.is_empty() { None } else { Some(key) };
-                ui.end_row();
-                ui.label("启用");
-                ui.checkbox(&mut p.enabled, "");
-                ui.end_row();
-            });
             ui.horizontal(|ui| {
                 if primary_button(ui, &app.theme, "保存").clicked() {
                     to_save = Some(app.ui_state.editing_provider.take().unwrap());
@@ -298,7 +317,10 @@ fn provider_dialog(app: &mut App, ui: &mut Ui) {
             });
         });
     if let Some(p) = to_save {
-        let _ = app.runtime.tx.send(crate::runtime::Command::SaveProvider(p));
+        let _ = app
+            .runtime
+            .tx
+            .send(crate::runtime::Command::SaveProvider(p));
     }
     if !open {
         app.ui_state.editing_provider = None;
@@ -306,7 +328,10 @@ fn provider_dialog(app: &mut App, ui: &mut Ui) {
 }
 
 fn data_dir_display() -> String {
-    dirs::data_dir().map_or_else(|| ".".into(), |d| d.join("education-advisor").display().to_string())
+    dirs::data_dir().map_or_else(
+        || ".".into(),
+        |d| d.join("education-advisor").display().to_string(),
+    )
 }
 
 fn open_dir(path: &std::path::Path) -> std::io::Result<()> {

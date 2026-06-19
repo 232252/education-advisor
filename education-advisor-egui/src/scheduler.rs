@@ -95,9 +95,15 @@ async fn check_and_run(ctx: &Arc<RuntimeCtx>, evt_tx: &Sender<Event>) -> anyhow:
             let history = ctx.db.messages_for(conv.id)?;
             let _ = evt_tx.send(Event::Messages(conv.id, history));
             // run the turn (streams into UI)
-            if let Err(e) =
-                crate::ai::run_turn(ctx.clone(), evt_tx.clone(), conv.id, agent_id, None, tokio_util::sync::CancellationToken::new())
-                    .await
+            if let Err(e) = crate::ai::run_turn(
+                ctx.clone(),
+                evt_tx.clone(),
+                conv.id,
+                agent_id,
+                None,
+                tokio_util::sync::CancellationToken::new(),
+            )
+            .await
             {
                 let _ = evt_tx.send(Event::Toast {
                     kind: crate::runtime::ToastKind::Error,
@@ -117,8 +123,8 @@ pub fn next_fire(expr: &str, after: DateTime<Utc>) -> anyhow::Result<DateTime<Ut
     } else {
         expr.to_string()
     };
-    let schedule = Schedule::from_str(&normalized)
-        .map_err(|e| anyhow::anyhow!("cron 解析失败: {e}"))?;
+    let schedule =
+        Schedule::from_str(&normalized).map_err(|e| anyhow::anyhow!("cron 解析失败: {e}"))?;
     schedule
         .after(&after)
         .next()
@@ -127,7 +133,9 @@ pub fn next_fire(expr: &str, after: DateTime<Utc>) -> anyhow::Result<DateTime<Ut
 
 /// Validate a cron expression without computing the next fire.
 pub fn validate(expr: &str) -> Result<(), String> {
-    next_fire(expr, Utc::now() + Duration::seconds(1)).map(|_| ()).map_err(|e| e.to_string())
+    next_fire(expr, Utc::now() + Duration::seconds(1))
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

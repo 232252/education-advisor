@@ -9,7 +9,7 @@ use std::io::Cursor;
 use uuid::Uuid;
 
 use crate::db::Db;
-use crate::models::{RiskLevel, Student, GradeEntry, ExportScope};
+use crate::models::{ExportScope, GradeEntry, RiskLevel, Student};
 
 /// Parse CSV content and insert students. Expected header (any order):
 /// name,grade,class,risk,gpa
@@ -17,10 +17,7 @@ use crate::models::{RiskLevel, Student, GradeEntry, ExportScope};
 pub fn import_csv(db: &Db, content: &str) -> Result<usize> {
     let mut lines = content.lines();
     let header = lines.next().ok_or_else(|| anyhow!("空文件"))?;
-    let cols: Vec<String> = header
-        .split(',')
-        .map(|c| c.trim().to_lowercase())
-        .collect();
+    let cols: Vec<String> = header.split(',').map(|c| c.trim().to_lowercase()).collect();
     let idx = |name: &str| cols.iter().position(|c| c == name);
 
     let n_name = idx("name").ok_or_else(|| anyhow!("缺少 name 列"))?;
@@ -36,7 +33,9 @@ pub fn import_csv(db: &Db, content: &str) -> Result<usize> {
         }
         let fields: Vec<&str> = line.split(',').collect();
         let get = |i: Option<usize>| -> String {
-            i.and_then(|i| fields.get(i)).map(|s| s.trim().to_string()).unwrap_or_default()
+            i.and_then(|i| fields.get(i))
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default()
         };
         let name = get(Some(n_name));
         if name.is_empty() {
@@ -50,7 +49,9 @@ pub fn import_csv(db: &Db, content: &str) -> Result<usize> {
                 "critical" | "危机" => RiskLevel::Critical,
                 _ => RiskLevel::Low,
             });
-        let gpa = n_gpa.and_then(|i| fields.get(i)).and_then(|s| s.trim().parse::<f32>().ok());
+        let gpa = n_gpa
+            .and_then(|i| fields.get(i))
+            .and_then(|s| s.trim().parse::<f32>().ok());
         let now = Utc::now();
         let s = Student {
             id: Uuid::new_v4(),
@@ -103,7 +104,9 @@ pub fn seed_demo(db: &Db) -> Result<()> {
         // a few grades
         let subjects = ["语文", "数学", "英语", "物理"];
         for (i, subj) in subjects.iter().enumerate() {
-            let score = (gpa / 4.0).mul_add(100.0, (i as f32 - 1.5) * 6.0).clamp(40.0, 100.0);
+            let score = (gpa / 4.0)
+                .mul_add(100.0, (i as f32 - 1.5) * 6.0)
+                .clamp(40.0, 100.0);
             db.add_grade(&GradeEntry {
                 id: Uuid::new_v4(),
                 student_id: id,
@@ -122,9 +125,12 @@ pub fn seed_demo(db: &Db) -> Result<()> {
 /// with `import_csv`.
 pub fn import_excel(bytes: &[u8]) -> Result<String> {
     let cursor = Cursor::new(bytes);
-    let mut workbook: Xlsx<_> = calamine::open_workbook_from_rs(cursor)
-        .map_err(|e| anyhow!("无法打开 Excel: {e}"))?;
-    let sheet_name = workbook.sheet_names().first().cloned()
+    let mut workbook: Xlsx<_> =
+        calamine::open_workbook_from_rs(cursor).map_err(|e| anyhow!("无法打开 Excel: {e}"))?;
+    let sheet_name = workbook
+        .sheet_names()
+        .first()
+        .cloned()
         .ok_or_else(|| anyhow!("Excel 无工作表"))?;
     let range = workbook
         .worksheet_range(&sheet_name)
@@ -237,14 +243,18 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        let students = vec![s1.clone(), s2.clone()];
+        let students = vec![s1.clone(), s2];
         let grades = HashMap::new();
         let all = export_csv(&students, &grades, ExportScope::All, None);
         assert_eq!(all.lines().count(), 3);
-        let one = export_csv(&students, &grades, ExportScope::SelectedStudent, Some(s1.id));
+        let one = export_csv(
+            &students,
+            &grades,
+            ExportScope::SelectedStudent,
+            Some(s1.id),
+        );
         assert_eq!(one.lines().count(), 2);
-        assert!(one.contains("A"));
-        assert!(!one.contains("B"));
+        assert!(one.contains('A'));
+        assert!(!one.contains('B'));
     }
 }
-

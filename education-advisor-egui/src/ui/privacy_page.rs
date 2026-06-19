@@ -1,8 +1,9 @@
 //! Privacy page: encryption status, PII redaction controls, and audit log.
 
-use eframe::egui::{self, Align, FontId, Layout, Ui};
+use eframe::egui::{self, Align, FontId, Layout, Pos2, Rect, Ui, Vec2};
 
 use crate::app::App;
+use crate::ui::icons;
 use crate::ui::widgets::{card, ghost_button, primary_button, section_title};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
@@ -34,11 +35,12 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         );
         ui.add_space(4.0);
         ui.horizontal(|ui| {
-            ui.label(
-                egui::RichText::new("●")
-                    .font(FontId::proportional(12.0))
-                    .color(theme.success),
+            let dot_rect = Rect::from_min_size(
+                Pos2::new(ui.cursor().left(), ui.cursor().center().y - 3.0),
+                Vec2::splat(6.0),
             );
+            icons::dot(ui.painter(), dot_rect, theme.success);
+            ui.add_space(10.0);
             ui.label(
                 egui::RichText::new("AES-256-GCM 已启用")
                     .font(FontId::proportional(13.0))
@@ -63,8 +65,14 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 .color(theme.text),
         );
         ui.horizontal(|ui| {
-            if ui.checkbox(&mut app.settings.privacy_enabled, "发送前自动脱敏").changed() {
-                let _ = app.runtime.tx.send(crate::runtime::Command::SaveSettings(app.settings.clone()));
+            if ui
+                .checkbox(&mut app.settings.privacy_enabled, "发送前自动脱敏")
+                .changed()
+            {
+                let _ = app
+                    .runtime
+                    .tx
+                    .send(crate::runtime::Command::SaveSettings(app.settings.clone()));
             }
         });
         ui.label(
@@ -82,7 +90,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         );
         let sample = "联系我 13800138000，身份证 110101199001011234，邮箱 lihua@example.com";
         let (redacted, count) = crate::privacy::Redactor::new().redact(sample);
-        let mut preview = redacted.clone();
+        let mut preview = redacted;
         ui.add(egui::TextEdit::multiline(&mut preview).desired_rows(2));
         ui.label(
             egui::RichText::new(format!("已识别并脱敏 {count} 处"))
