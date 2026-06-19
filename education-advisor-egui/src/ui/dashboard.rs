@@ -9,7 +9,7 @@ use crate::ui::widgets::{card, empty_state, ghost_button, section_title, stat_ca
 pub fn show(app: &mut App, ui: &mut Ui) {
     section_title(ui, &app.theme, "总览");
 
-    // KPI row
+    // KPI 行：均分四列，间距 8
     ui.horizontal(|ui| {
         let stats = app.stats.read();
         let s = stats.as_ref();
@@ -17,47 +17,17 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         let avg = s.map_or(0.0, |s| s.avg_gpa);
         let convs = s.map_or(0, |s| s.conversations_today);
         let tools = s.map_or(0, |s| s.tool_calls_total);
-        ui.vertical(|ui| {
-            stat_card(
-                ui,
-                &app.theme,
-                "学生总数",
-                &total.to_string(),
-                icons::students,
-                app.theme.accent,
-            );
-        });
-        ui.vertical(|ui| {
-            stat_card(
-                ui,
-                &app.theme,
-                "平均 GPA",
-                &format!("{avg:.2}"),
-                icons::chat,
-                app.theme.success,
-            );
-        });
-        ui.vertical(|ui| {
-            stat_card(
-                ui,
-                &app.theme,
-                "今日对话",
-                &convs.to_string(),
-                icons::history,
-                app.theme.info,
-            );
-        });
-        ui.vertical(|ui| {
-            stat_card(
-                ui,
-                &app.theme,
-                "工具调用",
-                &tools.to_string(),
-                icons::skills,
-                app.theme.warning,
-            );
-        });
-        ui.add_space(8.0);
+        let gap = 8.0;
+        let card_w = ((ui.available_width() - gap * 3.0) / 4.0).max(120.0);
+        let make_card = |ui: &mut Ui, label: &str, value: &str, icon, accent| {
+            ui.set_width(card_w);
+            stat_card(ui, &app.theme, label, value, icon, accent, card_w);
+        };
+        ui.vertical(|ui| make_card(ui, "学生总数", &total.to_string(), icons::students, app.theme.accent));
+        ui.vertical(|ui| make_card(ui, "平均 GPA", &format!("{avg:.2}"), icons::chat, app.theme.success));
+        ui.vertical(|ui| make_card(ui, "今日对话", &convs.to_string(), icons::history, app.theme.info));
+        ui.vertical(|ui| make_card(ui, "工具调用", &tools.to_string(), icons::skills, app.theme.warning));
+        ui.add_space(gap);
     });
 
     ui.add_space(8.0);

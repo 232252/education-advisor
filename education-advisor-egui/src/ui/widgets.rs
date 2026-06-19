@@ -13,10 +13,9 @@ use crate::theme::Theme;
 // Cards
 // ---------------------------------------------------------------------------
 
-/// A frosted-glass card with a soft shadow and subtle top highlight.
+/// 通用卡片容器：自动占用正确高度，毛玻璃背景 + 顶部强调线。
 pub fn card(ui: &mut Ui, theme: &Theme, add: impl FnOnce(&mut Ui)) {
     let available = ui.available_width();
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(available, 0.0), Sense::hover());
     let frame = egui::Frame::none()
         .fill(theme.surface_glass)
         .stroke(Stroke::new(1.0, theme.border))
@@ -28,15 +27,18 @@ pub fn card(ui: &mut Ui, theme: &Theme, add: impl FnOnce(&mut Ui)) {
             spread: 0.0,
             color: theme.shadow,
         });
-    // subtle top highlight line
+    let response = frame.show(ui, |ui| {
+        ui.set_width((available - 32.0).max(1.0));
+        add(ui);
+    });
+    let rect = response.response.rect;
     ui.painter().line_segment(
         [
-            Pos2::new(rect.min.x + 10.0, rect.min.y + 1.0),
-            Pos2::new(rect.max.x - 10.0, rect.min.y + 1.0),
+            Pos2::new(rect.min.x + 12.0, rect.min.y + 1.0),
+            Pos2::new(rect.max.x - 12.0, rect.min.y + 1.0),
         ],
-        Stroke::new(1.0, theme.translucent(theme.text, 0.08)),
+        Stroke::new(2.0, theme.accent),
     );
-    frame.show(ui, add);
 }
 
 /// A flat selectable list row.
@@ -820,8 +822,9 @@ pub fn stat_card(
     value: &str,
     icon: fn(&eframe::egui::Painter, Rect, &Theme),
     accent: Color32,
+    width: f32,
 ) -> Response {
-    let width = (ui.available_width() - 8.0).max(120.0);
+    let width = width.max(120.0);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, 92.0), Sense::hover());
     ui.painter()
         .rect_filled(rect, Rounding::same(16.0), theme.surface_glass);

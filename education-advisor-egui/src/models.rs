@@ -5,6 +5,7 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 use uuid::Uuid;
 
@@ -152,6 +153,8 @@ pub struct Settings {
     pub temperature: f32,
     pub sidebar_collapsed: bool,
     pub window_rect: Option<WindowRect>,
+    /// 启用的技能 ID 集合；为空时默认全部启用。
+    pub enabled_skills: HashSet<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -179,6 +182,7 @@ impl Default for Settings {
             temperature: 0.4,
             sidebar_collapsed: false,
             window_rect: None,
+            enabled_skills: HashSet::new(),
         }
     }
 }
