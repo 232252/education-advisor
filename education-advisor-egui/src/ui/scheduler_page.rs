@@ -18,7 +18,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 .color(app.theme.text_dim),
         );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if primary_button(ui, &app.theme, "新建任务") {
+            if primary_button(ui, &app.theme, "新建任务").clicked() {
                 app.ui_state.editing_task = Some(ScheduledTask {
                     id: Uuid::new_v4(),
                     name: String::new(),
@@ -84,13 +84,13 @@ fn task_row(app: &mut App, ui: &mut Ui, t: &ScheduledTask) {
                 }
             });
             ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                if ghost_button(ui, &app.theme, "立即运行") {
+                if ghost_button(ui, &app.theme, "立即运行").clicked() {
                     let _ = app.runtime.tx.send(crate::runtime::Command::RunTaskNow(t.id));
                 }
-                if ghost_button(ui, &app.theme, "编辑") {
+                if ghost_button(ui, &app.theme, "编辑").clicked() {
                     app.ui_state.editing_task = Some(t.clone());
                 }
-                if ghost_button(ui, &app.theme, "删除") {
+                if ghost_button(ui, &app.theme, "删除").clicked() {
                     let _ = app.runtime.tx.send(crate::runtime::Command::DeleteTask(t.id));
                 }
             });
@@ -152,11 +152,11 @@ fn edit_dialog(app: &mut App, ui: &mut Ui) {
                 }
             }
             ui.horizontal(|ui| {
-                if primary_button(ui, &app.theme, "保存") {
+                if primary_button(ui, &app.theme, "保存").clicked() {
                     let t = app.ui_state.editing_task.take().unwrap();
                     to_save = Some(t);
                 }
-                if ghost_button(ui, &app.theme, "取消") {
+                if ghost_button(ui, &app.theme, "取消").clicked() {
                     app.ui_state.editing_task = None;
                 }
             });

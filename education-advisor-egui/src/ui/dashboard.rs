@@ -17,16 +17,16 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         let convs = s.map_or(0, |s| s.conversations_today);
         let tools = s.map_or(0, |s| s.tool_calls_total);
         ui.vertical(|ui| {
-            stat_card(ui, &app.theme, "学生总数", &total.to_string(), app.theme.accent, "🎓");
+            stat_card(ui, &app.theme, "学生总数", &total.to_string(), "🎓", app.theme.accent);
         });
         ui.vertical(|ui| {
-            stat_card(ui, &app.theme, "平均 GPA", &format!("{avg:.2}"), app.theme.success, "📈");
+            stat_card(ui, &app.theme, "平均 GPA", &format!("{avg:.2}"), "📈", app.theme.success);
         });
         ui.vertical(|ui| {
-            stat_card(ui, &app.theme, "今日对话", &convs.to_string(), app.theme.info, "💬");
+            stat_card(ui, &app.theme, "今日对话", &convs.to_string(), "💬", app.theme.info);
         });
         ui.vertical(|ui| {
-            stat_card(ui, &app.theme, "工具调用", &tools.to_string(), app.theme.warning, "🔧");
+            stat_card(ui, &app.theme, "工具调用", &tools.to_string(), "🔧", app.theme.warning);
         });
         ui.add_space(8.0);
     });
@@ -135,7 +135,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     // refresh button
     ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
-        if crate::ui::widgets::ghost_button(ui, &app.theme, "刷新数据") {
+        if crate::ui::widgets::ghost_button(ui, &app.theme, "刷新数据").clicked() {
             let _ = app.runtime.tx.send(crate::runtime::Command::LoadStats);
             let _ = app.runtime.tx.send(crate::runtime::Command::LoadStudents);
             let _ = app.runtime.tx.send(crate::runtime::Command::LoadConversations);

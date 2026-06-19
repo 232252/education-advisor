@@ -8,12 +8,17 @@ use uuid::Uuid;
 
 use crate::models::{Student, GradeEntry, ScheduledTask, LlmProvider};
 
+pub mod agent_history_page;
 pub mod agents_page;
 pub mod chat;
 pub mod dashboard;
+pub mod icons;
+pub mod models_page;
+pub mod privacy_page;
 pub mod scheduler_page;
 pub mod settings_page;
 pub mod sidebar;
+pub mod skills_page;
 pub mod students_page;
 pub mod rag_page;
 pub mod toast;

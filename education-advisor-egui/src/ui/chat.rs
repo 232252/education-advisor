@@ -23,7 +23,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new("会话").font(FontId::proportional(13.0)).strong().color(app.theme.text));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if primary_button(ui, &app.theme, "新建") {
+                        if primary_button(ui, &app.theme, "新建").clicked() {
                             let agent_id = if app.ui_state.new_conversation_agent.is_empty() {
                                 app.active_agent.clone()
                             } else {
@@ -177,10 +177,10 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                 }
                 let streaming = app.streaming.get(&conv_id).is_some_and(|s| s.active);
                 if streaming {
-                    if ghost_button(ui, &app.theme, "停止") {
+                    if ghost_button(ui, &app.theme, "停止").clicked() {
                         let _ = app.runtime.tx.send(crate::runtime::Command::CancelConversation(conv_id));
                     }
-                } else if primary_button(ui, &app.theme, "发送") {
+                } else if primary_button(ui, &app.theme, "发送").clicked() {
                     send(app, conv_id);
                 }
             });

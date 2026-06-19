@@ -26,7 +26,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 .color(app.theme.text_dim),
         );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if primary_button(ui, &app.theme, "添加文档") {
+            if primary_button(ui, &app.theme, "添加文档").clicked() {
                 if let Some(path) = rfd::FileDialog::new().add_filter("Text", &["txt", "md"]).pick_file() {
                     if let Ok(content) = std::fs::read_to_string(&path) {
                         let title = path.file_stem().map_or_else(|| "未命名".into(), |s| s.to_string_lossy().to_string());
@@ -45,7 +45,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new("🔍").font(FontId::proportional(14.0)));
             ui.text_edit_singleline(&mut app.ui_state.rag_query);
-            if primary_button(ui, &theme, "检索") {
+            if primary_button(ui, &theme, "检索").clicked() {
                 let query = app.ui_state.rag_query.clone();
                 app.ui_state.rag_results = search_rag(app, &query);
             }
@@ -97,7 +97,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                             );
                         });
                         ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                            if ghost_button(ui, &app.theme, "删除") {
+                            if ghost_button(ui, &app.theme, "删除").clicked() {
                                 let _ = app.runtime.tx.send(crate::runtime::Command::DeleteRagDocument(d.id));
                             }
                         });
