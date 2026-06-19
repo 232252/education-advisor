@@ -1,76 +1,94 @@
-//! Top bar: app title, theme toggle, quick actions.
+//! Top bar: app title, breadcrumb, theme toggle, quick actions and live status.
 
-use eframe::egui::{self, Align2, Align, FontId, Layout, Ui, Vec2};
+use eframe::egui::{self, Align, Align2, FontId, Layout, Pos2, Ui, Vec2};
 
 use crate::app::App;
 use crate::theme::Theme;
+use crate::ui::widgets::{icon_button, status_pill};
 
 pub fn show(app: &mut App, ctx: &egui::Context) {
     egui::TopBottomPanel::top("topbar")
-        .exact_height(56.0)
+        .exact_height(60.0)
         .frame(
             egui::Frame::none()
                 .fill(app.theme.bg_elevated)
-                .inner_margin(egui::Margin::symmetric(16.0, 0.0)),
+                .stroke(egui::Stroke::new(1.0, app.theme.border))
+                .inner_margin(egui::Margin::symmetric(18.0, 0.0)),
         )
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.add_space(2.0);
+                ui.add_space(4.0);
+
+                // app title + breadcrumb
                 ui.label(
                     egui::RichText::new("◆")
                         .font(FontId::proportional(20.0))
                         .color(app.theme.accent),
                 );
-                ui.label(
-                    egui::RichText::new("Education Advisor")
-                        .font(FontId::proportional(16.0))
-                        .strong()
-                        .color(app.theme.text),
-                );
-                ui.label(
-                    egui::RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
-                        .font(FontId::proportional(11.0))
-                        .color(app.theme.text_faint),
-                );
+                ui.vertical(|ui| {
+                    ui.label(
+                        egui::RichText::new("Education Advisor")
+                            .font(FontId::proportional(15.0))
+                            .strong()
+                            .color(app.theme.text),
+                    );
+                    ui.label(
+                        egui::RichText::new(format!("{} / v{}", app.page.label(), env!("CARGO_PKG_VERSION")))
+                            .font(FontId::proportional(10.0))
+                            .color(app.theme.text_faint),
+                    );
+                });
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     // theme toggle
-                    let theme_icon = if app.theme.dark { "☀️" } else { "🌙" };
-                    if icon_button(ui, &app.theme, theme_icon, 32.0) {
+                    let theme_icon = if app.theme.dark { "☀" } else { "🌙" };
+                    if icon_button(ui, &app.theme, theme_icon, 34.0).clicked() {
                         app.toggle_theme(ctx);
                     }
-                    ui.separator();
-                    // status dot
+                    icon_button(ui, &app.theme, theme_icon, 34.0).on_hover_text("切换主题");
+                    ui.add_space(4.0);
+
+                    // notifications
+                    if icon_button(ui, &app.theme, "🔔", 34.0).clicked() {
+                        app.push_toast(crate::runtime::ToastKind::Info, "暂无新通知");
+                    }
+                    ui.add_space(4.0);
+
+                    // model status
                     let providers = app.providers.read();
-                    let (dot, label) = if providers.iter().any(|p| p.enabled) {
-                        (app.theme.success, "在线")
+                    let (dot, label, color) = if providers.iter().any(|p| p.enabled) {
+                        ("●", "模型在线", app.theme.success)
                     } else {
-                        (app.theme.danger, "未配置模型")
+                        ("●", "未配置模型", app.theme.danger)
                     };
-                    let (r, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
-                    ui.painter().circle_filled(r.center(), 4.0, dot);
-                    ui.label(
-                        egui::RichText::new(label)
-                            .font(FontId::proportional(12.0))
-                            .color(app.theme.text_dim),
-                    );
+                    let _ = status_pill(ui, &app.theme, dot, label, color);
+                    ui.add_space(4.0);
+
+                    // privacy status
+                    let (p_dot, p_label, p_color) = if app.settings.privacy_enabled {
+                        ("●", "隐私保护", app.theme.info)
+                    } else {
+                        ("●", "隐私关闭", app.theme.text_faint)
+                    };
+                    let _ = status_pill(ui, &app.theme, p_dot, p_label, p_color);
                 });
             });
         });
 }
 
-fn icon_button(ui: &mut Ui, theme: &Theme, icon: &str, size: f32) -> bool {
-    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::click());
-    let hover = resp.hovered();
-    if hover {
-        ui.painter().rect_filled(rect, egui::Rounding::same(8.0), theme.accent_dim);
-    }
+#[allow(dead_code)]
+fn separator_dot(ui: &mut Ui, theme: &Theme) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::splat(4.0), egui::Sense::hover());
+    ui.painter().circle_filled(rect.center(), 2.0, theme.text_faint);
+}
+
+#[allow(dead_code)]
+fn breadcrumb(ui: &mut Ui, theme: &Theme, label: &str) {
     ui.painter().text(
-        rect.center(),
-        Align2::CENTER_CENTER,
-        icon,
-        FontId::proportional(16.0),
-        theme.text,
+        Pos2::new(ui.min_rect().min.x, ui.cursor().center().y),
+        Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(12.0),
+        theme.text_dim,
     );
-    resp.clicked()
 }

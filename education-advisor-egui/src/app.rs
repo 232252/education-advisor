@@ -13,47 +13,63 @@ use crate::privacy::Cipher;
 use crate::runtime::{Event, RuntimeHandle, ToastKind};
 use crate::theme::Theme;
 
-/// Top-level navigation targets.
+/// Top-level navigation targets, matching the original React app.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Page {
     Dashboard,
+    Chat,
     Students,
     Agents,
-    Chat,
+    AgentHistory,
+    Models,
+    Skills,
     Scheduler,
     Rag,
+    Privacy,
     Settings,
 }
 
 impl Page {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 11] = [
         Self::Dashboard,
+        Self::Chat,
         Self::Students,
         Self::Agents,
-        Self::Chat,
+        Self::AgentHistory,
+        Self::Models,
+        Self::Skills,
         Self::Scheduler,
         Self::Rag,
+        Self::Privacy,
         Self::Settings,
     ];
     pub const fn label(self) -> &'static str {
         match self {
             Self::Dashboard => "总览",
+            Self::Chat => "对话",
             Self::Students => "学生档案",
             Self::Agents => "AI 代理",
-            Self::Chat => "对话",
+            Self::AgentHistory => "执行历史",
+            Self::Models => "模型",
+            Self::Skills => "技能",
             Self::Scheduler => "定时任务",
             Self::Rag => "知识库",
+            Self::Privacy => "隐私",
             Self::Settings => "设置",
         }
     }
     pub const fn icon(self) -> &'static str {
         match self {
             Self::Dashboard => "📊",
-            Self::Students => "🎓",
-            Self::Agents => "🤖",
             Self::Chat => "💬",
+            Self::Students => "👥",
+            Self::Agents => "🤖",
+            Self::AgentHistory => "📋",
+            Self::Models => "🧠",
+            Self::Skills => "📝",
             Self::Scheduler => "⏰",
             Self::Rag => "📚",
+            Self::Privacy => "🔒",
             Self::Settings => "⚙️",
         }
     }
@@ -201,7 +217,7 @@ impl App {
         } else {
             egui::Visuals::light()
         };
-        style.visuals.window_fill = t.bg_elevated;
+        style.visuals.window_fill = t.elevated;
         style.visuals.faint_bg_color = t.surface;
         style.visuals.extreme_bg_color = t.bg;
         style.visuals.widgets.noninteractive.bg_fill = t.surface;
@@ -377,10 +393,8 @@ impl eframe::App for App {
 
         self.drain_events(ctx);
 
-        // background
-        let bg = self.theme.bg;
-        let painter = ctx.layer_painter(egui::LayerId::background());
-        painter.rect_filled(ctx.screen_rect(), 0.0, bg);
+        // subtle gradient background
+        paint_gradient_bg(ctx, &self.theme);
 
         // top bar
         crate::ui::topbar::show(self, ctx);
@@ -413,9 +427,13 @@ impl eframe::App for App {
                             Page::Dashboard => crate::ui::dashboard::show(self, ui),
                             Page::Students => crate::ui::students_page::show(self, ui),
                             Page::Agents => crate::ui::agents_page::show(self, ui),
+                            Page::AgentHistory => crate::ui::agent_history_page::show(self, ui),
                             Page::Chat => crate::ui::chat::show(self, ui),
                             Page::Scheduler => crate::ui::scheduler_page::show(self, ui),
                             Page::Rag => crate::ui::rag_page::show(self, ui),
+                            Page::Models => crate::ui::models_page::show(self, ui),
+                            Page::Skills => crate::ui::skills_page::show(self, ui),
+                            Page::Privacy => crate::ui::privacy_page::show(self, ui),
                             Page::Settings => crate::ui::settings_page::show(self, ui),
                         }
                     },
@@ -442,6 +460,28 @@ impl eframe::App for App {
         eframe::set_value(storage, eframe::APP_KEY, &self.settings);
         // Persist settings to DB as well so window geometry survives re-installs.
         let _ = self.runtime.tx.send(crate::runtime::Command::SaveSettings(self.settings.clone()));
+    }
+}
+
+fn paint_gradient_bg(ctx: &Context, theme: &Theme) {
+    let rect = ctx.screen_rect();
+    let painter = ctx.layer_painter(egui::LayerId::background());
+    // Draw a vertical gradient using a series of horizontal lines.
+    let steps = 64;
+    let h = rect.height();
+    for i in 0..steps {
+        let y0 = rect.min.y + h * (i as f32 / steps as f32);
+        let y1 = rect.min.y + h * ((i + 1) as f32 / steps as f32);
+        let t = (i as f32 / steps as f32).clamp(0.0, 1.0);
+        let color = Theme::lerp(theme.bg_gradient_from, theme.bg_gradient_to, t);
+        painter.rect_filled(
+            egui::Rect::from_min_max(
+                egui::pos2(rect.min.x, y0),
+                egui::pos2(rect.max.x, y1),
+            ),
+            0.0,
+            color,
+        );
     }
 }
 

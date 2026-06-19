@@ -64,5 +64,5 @@ log = "0.4"
 regex = "1"
 
 [features]
-default = ["tray"]
+default = []
 tray = ["dep:tray-icon"]

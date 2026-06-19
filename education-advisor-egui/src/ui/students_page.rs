@@ -21,10 +21,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 .color(app.theme.text_faint),
         );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ghost_button(ui, &app.theme, "导出") {
+            if ghost_button(ui, &app.theme, "导出").clicked() {
                 app.ui_state.show_export_preview = !app.ui_state.show_export_preview;
             }
-            if ghost_button(ui, &app.theme, "导入 Excel") {
+            if ghost_button(ui, &app.theme, "导入 Excel").clicked() {
                 if let Some(path) = rfd::FileDialog::new().add_filter("Excel", &["xlsx", "xls"]).pick_file() {
                     if let Ok(bytes) = std::fs::read(&path) {
                         match crate::students::import_excel(&bytes) {
@@ -36,10 +36,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     }
                 }
             }
-            if ghost_button(ui, &app.theme, "导入 CSV") {
+            if ghost_button(ui, &app.theme, "导入 CSV").clicked() {
                 app.ui_state.show_import = !app.ui_state.show_import;
             }
-            if primary_button(ui, &app.theme, "新增学生") {
+            if primary_button(ui, &app.theme, "新增学生").clicked() {
                 app.ui_state.editing_student = Some(Student {
                     id: Uuid::new_v4(),
                     name: String::new(),
@@ -67,7 +67,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             );
             ui.text_edit_multiline(&mut app.ui_state.import_text);
             ui.horizontal(|ui| {
-                if primary_button(ui, &app.theme, "导入") {
+                if primary_button(ui, &app.theme, "导入").clicked() {
                     let text = std::mem::take(&mut app.ui_state.import_text);
                     let _ = app
                         .runtime
@@ -75,7 +75,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                         .send(crate::runtime::Command::ImportStudentsCsv(text));
                     app.ui_state.show_import = false;
                 }
-                if ghost_button(ui, &app.theme, "示例") {
+                if ghost_button(ui, &app.theme, "示例").clicked() {
                     app.ui_state.import_text = "name,grade,class,risk,gpa\n孙悦,高三,1班,low,3.7\n周杰,高二,2班,high,2.5\n".into();
                 }
             });
@@ -199,7 +199,7 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
                 ui.label(egui::RichText::new(format!("{} · {}", student.grade, student.class)).font(FontId::proportional(12.0)).color(app.theme.text_dim));
             });
             ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                crate::ui::widgets::badge(ui, student.risk_level.label(), app.theme.risk_color(student.risk_level));
+                crate::ui::widgets::badge(ui, &theme, student.risk_level.label(), app.theme.risk_color(student.risk_level));
             });
         });
 
@@ -231,7 +231,7 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
                     ui.label(egui::RichText::new("—").font(FontId::proportional(12.0)).color(app.theme.text_faint));
                 }
                 for t in &student.tags {
-                    crate::ui::widgets::badge(ui, t, app.theme.info);
+                    crate::ui::widgets::badge(ui, &theme, t, app.theme.info);
                 }
             });
             ui.end_row();
@@ -240,7 +240,7 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.add(egui::TextEdit::singleline(&mut app.ui_state.tag_input).desired_width(120.0).hint_text("新标签"));
-            if ghost_button(ui, &app.theme, "添加标签") && !app.ui_state.tag_input.trim().is_empty() {
+            if ghost_button(ui, &app.theme, "添加标签").clicked() && !app.ui_state.tag_input.trim().is_empty() {
                 let tag = app.ui_state.tag_input.trim().to_string();
                 app.ui_state.tag_input.clear();
                 let mut updated = student.clone();
@@ -254,10 +254,10 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
 
         ui.add_space(8.0);
         ui.horizontal(|ui| {
-            if primary_button(ui, &app.theme, "编辑") {
+            if primary_button(ui, &app.theme, "编辑").clicked() {
                 app.ui_state.editing_student = Some(student.clone());
             }
-            if ghost_button(ui, &app.theme, "咨询代理") {
+            if ghost_button(ui, &app.theme, "咨询代理").clicked() {
                 let title = format!("关于「{}」的咨询", student.name);
                 let _ = app.runtime.tx.send(crate::runtime::Command::NewConversation {
                     agent_id: app.active_agent.clone(),
@@ -266,7 +266,7 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
                 });
                 app.navigate(crate::app::Page::Chat);
             }
-            if ghost_button(ui, &app.theme, "删除") {
+            if ghost_button(ui, &app.theme, "删除").clicked() {
                 let _ = app.runtime.tx.send(crate::runtime::Command::DeleteStudent(student.id));
                 app.selected_student = None;
             }
@@ -286,7 +286,7 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
         ui.horizontal(|ui| {
             ui.text_edit_singleline(&mut app.ui_state.new_grade_subject);
             ui.add(egui::TextEdit::singleline(&mut app.ui_state.new_grade_score).desired_width(60.0));
-            if primary_button(ui, &app.theme, "添加") {
+            if primary_button(ui, &app.theme, "添加").clicked() {
                 if let Ok(score) = app.ui_state.new_grade_score.trim().parse::<f32>() {
                     let g = GradeEntry {
                         id: Uuid::new_v4(),
@@ -363,12 +363,12 @@ fn edit_dialog(app: &mut App, ui: &mut Ui) {
                 ui.end_row();
             });
             ui.horizontal(|ui| {
-                if primary_button(ui, &app.theme, "保存") {
+                if primary_button(ui, &app.theme, "保存").clicked() {
                     let mut s = app.ui_state.editing_student.take().unwrap();
                     s.updated_at = Utc::now();
                     to_save = Some(s);
                 }
-                if ghost_button(ui, &app.theme, "取消") {
+                if ghost_button(ui, &app.theme, "取消").clicked() {
                     app.ui_state.editing_student = None;
                 }
             });
@@ -398,7 +398,7 @@ fn export_panel(app: &mut App, ui: &mut Ui) {
         let mut csv_view = csv.clone();
         ui.add(egui::TextEdit::multiline(&mut csv_view).desired_rows(6));
         ui.horizontal(|ui| {
-            if primary_button(ui, &theme, "保存到文件") {
+            if primary_button(ui, &theme, "保存到文件").clicked() {
                 if let Some(path) = rfd::FileDialog::new().add_filter("CSV", &["csv"]).save_file() {
                     if std::fs::write(&path, &csv).is_ok() {
                         app.push_toast(crate::runtime::ToastKind::Success, "导出成功");
@@ -407,7 +407,7 @@ fn export_panel(app: &mut App, ui: &mut Ui) {
                     }
                 }
             }
-            if ghost_button(ui, &theme, "关闭") {
+            if ghost_button(ui, &theme, "关闭").clicked() {
                 app.ui_state.show_export_preview = false;
             }
         });

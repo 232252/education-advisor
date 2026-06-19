@@ -1,15 +1,17 @@
-//! Settings page: LLM providers, privacy, theme, about.
+//! Settings page: LLM providers, appearance, AI behavior, privacy, about.
 
 use eframe::egui::{self, Align, FontId, Layout, Ui, Vec2};
 
 use crate::app::App;
 use crate::models::{ThemeMode, LlmProvider, ProviderKind};
-use crate::ui::widgets::{card, ghost_button, primary_button, section_title};
+use crate::ui::widgets::{card, ghost_button, icon_button, primary_button, section_title, toggle_switch};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
     section_title(ui, &app.theme, "设置");
 
     let theme = app.theme.clone();
+    let mut settings_changed = false;
+
     egui::ScrollArea::vertical().show(ui, |ui| {
         // appearance
         card(ui, &theme, |ui| {
@@ -33,12 +35,16 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                         ThemeMode::Light => crate::theme::Theme::light(),
                     };
                     app.apply_theme(ui.ctx());
+                    settings_changed = true;
                 }
             });
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new("侧边栏").font(FontId::proportional(13.0)).color(app.theme.text_dim));
-                if ui.checkbox(&mut app.sidebar_collapsed, "折叠").changed() {
-                    app.settings.sidebar_collapsed = app.sidebar_collapsed;
+                let mut collapsed = app.sidebar_collapsed;
+                if toggle_switch(ui, &app.theme, &mut collapsed).changed() {
+                    app.sidebar_collapsed = collapsed;
+                    app.settings.sidebar_collapsed = collapsed;
+                    settings_changed = true;
                 }
             });
         });
@@ -50,11 +56,21 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             section_title(ui, &app.theme, "AI 行为");
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new("温度").font(FontId::proportional(13.0)).color(app.theme.text_dim));
-                ui.add(egui::Slider::new(&mut app.settings.temperature, 0.0..=1.0).step_by(0.1).text(" creativity "));
+                let mut temp = app.settings.temperature;
+                ui.add(egui::Slider::new(&mut temp, 0.0..=1.0).step_by(0.1).text(" creativity "));
+                if (temp - app.settings.temperature).abs() > 1e-4 {
+                    app.settings.temperature = temp;
+                    settings_changed = true;
+                }
             });
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new("最大工具迭代").font(FontId::proportional(13.0)).color(app.theme.text_dim));
-                ui.add(egui::Slider::new(&mut app.settings.max_tool_iterations, 1..=12));
+                let mut iters = app.settings.max_tool_iterations;
+                ui.add(egui::Slider::new(&mut iters, 1..=12));
+                if iters != app.settings.max_tool_iterations {
+                    app.settings.max_tool_iterations = iters;
+                    settings_changed = true;
+                }
             });
         });
 
@@ -63,7 +79,14 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         // privacy
         card(ui, &theme, |ui| {
             section_title(ui, &app.theme, "隐私与安全");
-            ui.checkbox(&mut app.settings.privacy_enabled, "启用 PII 脱敏（发送前）");
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("PII 脱敏").font(FontId::proportional(13.0)).color(app.theme.text_dim));
+                let mut enabled = app.settings.privacy_enabled;
+                if toggle_switch(ui, &app.theme, &mut enabled).changed() {
+                    app.settings.privacy_enabled = enabled;
+                    settings_changed = true;
+                }
+            });
             ui.label(
                 egui::RichText::new("• 敏感字段（监护人电话、API Key）使用 AES-256-GCM 加密落盘")
                     .font(FontId::proportional(11.0))
@@ -98,6 +121,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     });
                 if selected != app.settings.active_provider_id {
                     app.settings.active_provider_id = selected;
+                    settings_changed = true;
                 }
             });
         });
@@ -109,7 +133,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             ui.horizontal(|ui| {
                 section_title(ui, &app.theme, "LLM 提供商");
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if primary_button(ui, &app.theme, "新增") {
+                    if primary_button(ui, &app.theme, "新增").clicked() {
                         app.ui_state.editing_provider = Some(LlmProvider {
                             id: uuid::Uuid::new_v4().to_string(),
                             name: String::new(),
@@ -145,10 +169,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                         );
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ghost_button(ui, &app.theme, "编辑") {
+                        if ghost_button(ui, &app.theme, "编辑").clicked() {
                             app.ui_state.editing_provider = Some(p.clone());
                         }
-                        if ghost_button(ui, &app.theme, "删除") {
+                        if ghost_button(ui, &app.theme, "删除").clicked() {
                             let _ = app.runtime.tx.send(crate::runtime::Command::DeleteProvider(p.id.clone()));
                         }
                     });
@@ -168,11 +192,19 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     .font(FontId::proportional(11.0))
                     .color(app.theme.text_dim),
             );
-            ui.label(
-                egui::RichText::new(format!("数据目录: {}", data_dir_display()))
-                    .font(FontId::proportional(10.0))
-                    .color(app.theme.text_faint),
-            );
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("数据目录: {}", data_dir_display()))
+                        .font(FontId::proportional(10.0))
+                        .color(app.theme.text_faint),
+                );
+                if icon_button(ui, &app.theme, "📂", 28.0).clicked() {
+                    if let Some(dir) = dirs::data_dir().map(|d| d.join("education-advisor")) {
+                        let _ = std::fs::create_dir_all(&dir);
+                        let _ = open_dir(&dir);
+                    }
+                }
+            });
         });
     });
 
@@ -180,8 +212,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         provider_dialog(app, ui);
     }
 
-    // persist settings whenever the page is rendered and values changed
-    let _ = app.runtime.tx.send(crate::runtime::Command::SaveSettings(app.settings.clone()));
+    // persist settings only when something changed
+    if settings_changed {
+        let _ = app.runtime.tx.send(crate::runtime::Command::SaveSettings(app.settings.clone()));
+    }
 }
 
 fn provider_dialog(app: &mut App, ui: &mut Ui) {
@@ -190,6 +224,7 @@ fn provider_dialog(app: &mut App, ui: &mut Ui) {
     egui::Window::new("编辑提供商")
         .open(&mut open)
         .resizable(false)
+        .collapsible(false)
         .show(ui.ctx(), |ui| {
             let p = app.ui_state.editing_provider.as_mut().unwrap();
             // preset selector
@@ -239,25 +274,25 @@ fn provider_dialog(app: &mut App, ui: &mut Ui) {
                 ui.text_edit_singleline(&mut p.model);
                 ui.end_row();
                 ui.label("API Key");
-            let mut key = p.api_key.as_ref().map_or_else(String::new, |k| {
-                if let Some(rest) = k.strip_prefix("enc:") {
-                    app.cipher.decrypt_str(rest).unwrap_or_else(|_| k.clone())
-                } else {
-                    k.clone()
-                }
-            });
-            ui.add(egui::TextEdit::singleline(&mut key).password(true));
-            p.api_key = if key.is_empty() { None } else { Some(key) };
-            ui.end_row();
+                let mut key = p.api_key.as_ref().map_or_else(String::new, |k| {
+                    if let Some(rest) = k.strip_prefix("enc:") {
+                        app.cipher.decrypt_str(rest).unwrap_or_else(|_| k.clone())
+                    } else {
+                        k.clone()
+                    }
+                });
+                ui.add(egui::TextEdit::singleline(&mut key).password(true));
+                p.api_key = if key.is_empty() { None } else { Some(key) };
+                ui.end_row();
                 ui.label("启用");
                 ui.checkbox(&mut p.enabled, "");
                 ui.end_row();
             });
             ui.horizontal(|ui| {
-                if primary_button(ui, &app.theme, "保存") {
+                if primary_button(ui, &app.theme, "保存").clicked() {
                     to_save = Some(app.ui_state.editing_provider.take().unwrap());
                 }
-                if ghost_button(ui, &app.theme, "取消") {
+                if ghost_button(ui, &app.theme, "取消").clicked() {
                     app.ui_state.editing_provider = None;
                 }
             });
@@ -272,4 +307,20 @@ fn provider_dialog(app: &mut App, ui: &mut Ui) {
 
 fn data_dir_display() -> String {
     dirs::data_dir().map_or_else(|| ".".into(), |d| d.join("education-advisor").display().to_string())
+}
+
+fn open_dir(path: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer").arg(path).spawn()?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg(path).spawn()?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open").arg(path).spawn()?;
+    }
+    Ok(())
 }
