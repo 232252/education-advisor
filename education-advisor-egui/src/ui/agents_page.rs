@@ -3,7 +3,7 @@
 use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, Pos2, Rounding, Sense, Stroke, Ui, Vec2};
 
 use crate::app::App;
-use crate::ui::widgets::{card, empty_state, section_title};
+use crate::ui::widgets::{card, section_title};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
     section_title(ui, &app.theme, "AI 代理");
@@ -136,7 +136,6 @@ fn agent_card(app: &mut App, ui: &mut Ui, agent: &crate::agents::AgentDef) {
         });
         app.navigate(crate::app::Page::Chat);
     }
-    let _ = empty_state;
 }
 
 fn hash_str(s: &str) -> u64 {

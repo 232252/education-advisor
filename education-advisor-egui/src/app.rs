@@ -9,6 +9,7 @@ use eframe::egui::{Context, Frame, Margin, Vec2};
 use parking_lot::RwLock;
 
 use crate::models::{Settings, Student, Conversation, Message, ScheduledTask, LlmProvider, DashboardStats, ToolCallRecord, ThemeMode, ToolStatus, Role};
+use crate::privacy::Cipher;
 use crate::runtime::{Event, RuntimeHandle, ToastKind};
 use crate::theme::Theme;
 
@@ -20,16 +21,18 @@ pub enum Page {
     Agents,
     Chat,
     Scheduler,
+    Rag,
     Settings,
 }
 
 impl Page {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Dashboard,
         Self::Students,
         Self::Agents,
         Self::Chat,
         Self::Scheduler,
+        Self::Rag,
         Self::Settings,
     ];
     pub const fn label(self) -> &'static str {
@@ -39,6 +42,7 @@ impl Page {
             Self::Agents => "AI 代理",
             Self::Chat => "对话",
             Self::Scheduler => "定时任务",
+            Self::Rag => "知识库",
             Self::Settings => "设置",
         }
     }
@@ -49,6 +53,7 @@ impl Page {
             Self::Agents => "🤖",
             Self::Chat => "💬",
             Self::Scheduler => "⏰",
+            Self::Rag => "📚",
             Self::Settings => "⚙️",
         }
     }
@@ -65,6 +70,7 @@ pub struct Toast {
 
 pub struct App {
     pub runtime: RuntimeHandle,
+    pub cipher: Cipher,
     pub theme: Theme,
     pub settings: Settings,
     pub page: Page,
@@ -78,6 +84,7 @@ pub struct App {
     pub messages: HashMap<uuid::Uuid, Vec<Message>>,
     pub tasks: Arc<RwLock<Vec<ScheduledTask>>>,
     pub providers: Arc<RwLock<Vec<LlmProvider>>>,
+    pub rag_documents: Arc<RwLock<Vec<crate::models::RagDocument>>>,
     pub stats: Arc<RwLock<Option<DashboardStats>>>,
 
     // streaming state per conversation
@@ -93,6 +100,11 @@ pub struct App {
 
     // page-local state owned by ui modules via a shared bag
     pub ui_state: crate::ui::UiState,
+
+    // tray integration
+    #[allow(dead_code)]
+    pub tray: Option<crate::tray::TrayHandle>,
+    pub window_visible: bool,
 }
 
 #[derive(Default, Clone)]
@@ -108,22 +120,29 @@ impl App {
         // ---- fonts: ship a CJK-capable font so Chinese renders everywhere ----
         install_fonts(&cc.egui_ctx);
 
-        // ---- persistence ----
+        // ---- launch background runtime ----
+        let db_path = db_path();
+
+        // ---- persistence: eframe storage first, DB fallback ----
         let settings = cc
             .storage
             .and_then(|s| eframe::get_value::<Settings>(s, eframe::APP_KEY))
+            .or_else(|| {
+                if let Ok(db) = crate::db::Db::open(&db_path) {
+                    db.load_settings().ok()
+                } else {
+                    None
+                }
+            })
             .unwrap_or_default();
-
-        // ---- launch background runtime ----
-        let db_path = db_path();
-        let (runtime, _cipher) = match crate::runtime::Runtime::launch(db_path) {
+        let (runtime, cipher) = match crate::runtime::Runtime::launch(db_path) {
             Ok((rt, cipher)) => (rt.handle(), cipher),
             Err(e) => {
                 eprintln!("[startup] runtime launch failed: {e}, falling back to in-memory DB");
                 let db = crate::db::Db::open_in_memory().expect("in-memory db");
                 let cipher = crate::privacy::Cipher::random();
-                let (rt, _) = crate::runtime::Runtime::launch_with(db, cipher).expect("launch");
-                (rt.handle(), crate::privacy::Cipher::random())
+                let (rt, _) = crate::runtime::Runtime::launch_with(db, cipher.clone()).expect("launch");
+                (rt.handle(), cipher)
             }
         };
 
@@ -132,6 +151,7 @@ impl App {
         let _ = runtime.tx.send(crate::runtime::Command::LoadConversations);
         let _ = runtime.tx.send(crate::runtime::Command::LoadTasks);
         let _ = runtime.tx.send(crate::runtime::Command::LoadProviders);
+        let _ = runtime.tx.send(crate::runtime::Command::LoadRagDocuments);
         let _ = runtime.tx.send(crate::runtime::Command::LoadStats);
 
         let theme = match settings.theme {
@@ -139,8 +159,10 @@ impl App {
             ThemeMode::Light => Theme::light(),
         };
 
+        let tray = crate::tray::build_tray();
         let app = Self {
             runtime,
+            cipher,
             theme,
             settings: settings.clone(),
             page: Page::Dashboard,
@@ -152,6 +174,7 @@ impl App {
             messages: HashMap::new(),
             tasks: Arc::new(RwLock::new(Vec::new())),
             providers: Arc::new(RwLock::new(Vec::new())),
+            rag_documents: Arc::new(RwLock::new(Vec::new())),
             stats: Arc::new(RwLock::new(None)),
             streaming: HashMap::new(),
             toasts: Vec::new(),
@@ -161,6 +184,8 @@ impl App {
             chat_input: String::new(),
             last_dt: 0.0,
             ui_state: crate::ui::UiState::default(),
+            tray,
+            window_visible: true,
         };
         app.apply_theme(&cc.egui_ctx);
         app
@@ -205,7 +230,7 @@ impl App {
     }
 
     fn drain_events(&mut self, ctx: &Context) {
-        use Event::{Students, StudentsSaved, StudentDeleted, Grades, StudentsImported, Conversations, ConversationCreated, Messages, StreamStart, StreamToken, StreamTool, StreamDone, StreamError, Tasks, TaskSaved, TaskDeleted, Providers, ProviderSaved, ProviderDeleted, Stats, Settings, Toast};
+        use Event::{Students, StudentsSaved, StudentDeleted, Grades, StudentsImported, Conversations, ConversationCreated, Messages, StreamStart, StreamToken, StreamTool, StreamDone, StreamError, Tasks, TaskSaved, TaskDeleted, Providers, ProviderSaved, ProviderDeleted, RagDocuments, RagDocumentSaved, RagDocumentDeleted, Stats, Settings, Toast};
         while let Ok(evt) = self.runtime.rx.try_recv() {
             match evt {
                 Students(v) => *self.students.write() = v,
@@ -299,6 +324,9 @@ impl App {
                 Providers(v) => *self.providers.write() = v,
                 ProviderSaved => self.push_toast(ToastKind::Success, "提供商已保存"),
                 ProviderDeleted => self.push_toast(ToastKind::Success, "提供商已删除"),
+                RagDocuments(v) => *self.rag_documents.write() = v,
+                RagDocumentSaved => self.push_toast(ToastKind::Success, "文档已加入知识库"),
+                RagDocumentDeleted => self.push_toast(ToastKind::Success, "文档已删除"),
                 Stats(s) => *self.stats.write() = Some(s),
                 Settings(_) => {}
                 Toast { kind, msg } => self.push_toast(kind, msg),
@@ -306,7 +334,7 @@ impl App {
         }
     }
 
-    fn push_toast(&mut self, kind: ToastKind, msg: impl Into<String>) {
+    pub(crate) fn push_toast(&mut self, kind: ToastKind, msg: impl Into<String>) {
         self.toasts.push(Toast {
             kind,
             msg: msg.into(),
@@ -330,6 +358,20 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.last_dt = ctx.input(|i| i.stable_dt.min(0.05));
+
+        // Tray menu events: show/hide/quit.
+        if crate::tray::poll_events(ctx, &mut self.window_visible) == Some(crate::tray::TrayAction::Quit) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+
+        // Intercept close when tray is active: hide instead of quitting.
+        let close_requested = ctx.input(|i| i.viewport().close_requested());
+        if close_requested && self.tray.is_some() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            self.window_visible = false;
+        }
+
         self.drain_events(ctx);
 
         // background
@@ -367,6 +409,7 @@ impl eframe::App for App {
                             Page::Agents => crate::ui::agents_page::show(self, ui),
                             Page::Chat => crate::ui::chat::show(self, ui),
                             Page::Scheduler => crate::ui::scheduler_page::show(self, ui),
+                            Page::Rag => crate::ui::rag_page::show(self, ui),
                             Page::Settings => crate::ui::settings_page::show(self, ui),
                         }
                     },
@@ -391,6 +434,8 @@ impl eframe::App for App {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         self.settings.sidebar_collapsed = self.sidebar_collapsed;
         eframe::set_value(storage, eframe::APP_KEY, &self.settings);
+        // Persist settings to DB as well so window geometry survives re-installs.
+        let _ = self.runtime.tx.send(crate::runtime::Command::SaveSettings(self.settings.clone()));
     }
 }
 

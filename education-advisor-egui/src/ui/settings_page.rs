@@ -63,6 +63,32 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
         ui.add_space(8.0);
 
+        // active provider
+        card(ui, &app.theme, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("当前使用模型").font(FontId::proportional(13.0)).color(app.theme.text_dim));
+                let providers = app.providers.read().clone();
+                let mut selected = app.settings.active_provider_id.clone();
+                let enabled: Vec<_> = providers.into_iter().filter(|p| p.enabled).collect();
+                egui::ComboBox::from_id_source("active_provider")
+                    .selected_text(match &selected {
+                        Some(id) => enabled.iter().find(|p| p.id == *id).map_or_else(|| "—".to_string(), |p| p.name.clone()),
+                        None => "—".to_string(),
+                    })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut selected, None, "—");
+                        for p in &enabled {
+                            ui.selectable_value(&mut selected, Some(p.id.clone()), &p.name);
+                        }
+                    });
+                if selected != app.settings.active_provider_id {
+                    app.settings.active_provider_id = selected;
+                }
+            });
+        });
+
+        ui.add_space(8.0);
+
         // providers
         card(ui, &app.theme, |ui| {
             ui.horizontal(|ui| {
@@ -121,7 +147,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         // about
         card(ui, &app.theme, |ui| {
             section_title(ui, &app.theme, "关于");
-            ui.label(egui::RichText::new("Education Advisor v1.0").font(FontId::proportional(13.0)).color(app.theme.text));
+            ui.label(egui::RichText::new(format!("Education Advisor v{}", env!("CARGO_PKG_VERSION"))).font(FontId::proportional(13.0)).color(app.theme.text));
             ui.label(
                 egui::RichText::new("纯 Rust + egui 商业级教育管理桌面应用 · 18 AI 代理 · AES-256-GCM 隐私引擎")
                     .font(FontId::proportional(11.0))
@@ -148,6 +174,28 @@ fn provider_dialog(app: &mut App, ui: &mut Ui) {
         .resizable(false)
         .show(ui.ctx(), |ui| {
             let p = app.ui_state.editing_provider.as_mut().unwrap();
+            // preset selector
+            let presets = crate::llm::provider_presets();
+            let mut preset_idx: Option<usize> = None;
+            egui::ComboBox::from_id_source("preset_select")
+                .selected_text("从 30+ 预设中选择…")
+                .show_ui(ui, |ui| {
+                    for (i, pr) in presets.iter().enumerate() {
+                        if ui.selectable_label(false, &pr.name).clicked() {
+                            preset_idx = Some(i);
+                        }
+                    }
+                });
+            if let Some(i) = preset_idx {
+                let pr = &presets[i];
+                p.kind = pr.kind;
+                p.base_url.clone_from(&pr.base_url);
+                p.model.clone_from(&pr.model);
+                if p.name.is_empty() {
+                    p.name.clone_from(&pr.name);
+                }
+            }
+            ui.separator();
             egui::Grid::new("prov_grid").num_columns(2).spacing(Vec2::new(8.0, 6.0)).show(ui, |ui| {
                 ui.label("名称");
                 ui.text_edit_singleline(&mut p.name);
@@ -173,10 +221,16 @@ fn provider_dialog(app: &mut App, ui: &mut Ui) {
                 ui.text_edit_singleline(&mut p.model);
                 ui.end_row();
                 ui.label("API Key");
-                let mut key = p.api_key.clone().unwrap_or_default();
-                ui.add(egui::TextEdit::singleline(&mut key).password(true));
-                p.api_key = if key.is_empty() { None } else { Some(key) };
-                ui.end_row();
+            let mut key = p.api_key.as_ref().map_or_else(String::new, |k| {
+                if let Some(rest) = k.strip_prefix("enc:") {
+                    app.cipher.decrypt_str(rest).unwrap_or_else(|_| k.clone())
+                } else {
+                    k.clone()
+                }
+            });
+            ui.add(egui::TextEdit::singleline(&mut key).password(true));
+            p.api_key = if key.is_empty() { None } else { Some(key) };
+            ui.end_row();
                 ui.label("启用");
                 ui.checkbox(&mut p.enabled, "");
                 ui.end_row();

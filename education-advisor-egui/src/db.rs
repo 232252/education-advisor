@@ -6,11 +6,11 @@
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, NaiveDate, Utc};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::models::{Student, GradeEntry, Conversation, Message, ScheduledTask, LlmProvider, DashboardStats, RiskLevel, ToolCallRecord, Role, ProviderKind};
+use crate::models::{Student, GradeEntry, Conversation, Message, ScheduledTask, LlmProvider, DashboardStats, RiskLevel, ToolCallRecord, Role, ProviderKind, Settings, RagDocument, RagChunk};
 
 /// Thread-safe database handle. The connection is guarded by a mutex; all
 /// access happens on the background runtime thread, never on the UI thread.
@@ -104,7 +104,24 @@ impl Db {
             );
             CREATE INDEX IF NOT EXISTS idx_grades_student ON grades(student_id);
             CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);
-            CREATE INDEX IF NOT EXISTS idx_students_risk ON students(risk_level);",
+            CREATE INDEX IF NOT EXISTS idx_students_risk ON students(risk_level);
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS rag_documents (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS rag_chunks (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                text TEXT NOT NULL,
+                embedding TEXT NOT NULL,
+                FOREIGN KEY(document_id) REFERENCES rag_documents(id) ON DELETE CASCADE
+            );",
         )?;
         Ok(())
     }
@@ -182,6 +199,15 @@ impl Db {
     }
 
     // ---- Conversations & messages ----
+    pub fn touch_conversation(&self, id: Uuid) -> Result<()> {
+        let c = self.conn.lock();
+        c.execute(
+            "UPDATE conversations SET updated_at=? WHERE id=?",
+            params![chrono::Utc::now().to_rfc3339(), id.to_string()],
+        )?;
+        Ok(())
+    }
+
     pub fn upsert_conversation(&self, conv: &Conversation) -> Result<()> {
         let c = self.conn.lock();
         c.execute(
@@ -375,6 +401,83 @@ impl Db {
             grade_trend: trend,
         })
     }
+
+    // ---- Settings ----
+    pub fn save_settings(&self, s: &Settings) -> Result<()> {
+        let c = self.conn.lock();
+        let value = serde_json::to_string(s).unwrap_or_default();
+        c.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            params!["app", value],
+        )?;
+        Ok(())
+    }
+
+    pub fn load_settings(&self) -> Result<Settings> {
+        let c = self.conn.lock();
+        let value: Option<String> = c
+            .query_row(
+                "SELECT value FROM settings WHERE key=?",
+                params!["app"],
+                |r| r.get(0),
+            )
+            .optional()?;
+        match value {
+            Some(v) => serde_json::from_str(&v).map_err(Into::into),
+            None => Ok(Settings::default()),
+        }
+    }
+
+    // ---- RAG documents ----
+    pub fn upsert_rag_document(&self, d: &RagDocument) -> Result<()> {
+        let c = self.conn.lock();
+        c.execute(
+            "INSERT OR REPLACE INTO rag_documents (id, title, content, created_at) VALUES (?,?,?,?)",
+            params![d.id.to_string(), d.title, d.content, d.created_at.to_rfc3339()],
+        )?;
+        c.execute(
+            "DELETE FROM rag_chunks WHERE document_id=?",
+            params![d.id.to_string()],
+        )?;
+        for chunk in &d.chunks {
+            c.execute(
+                "INSERT OR REPLACE INTO rag_chunks (id, document_id, text, embedding) VALUES (?,?,?,?)",
+                params![
+                    chunk.id.to_string(),
+                    chunk.document_id.to_string(),
+                    chunk.text,
+                    serde_json::to_string(&chunk.embedding).unwrap_or_default(),
+                ],
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn list_rag_documents(&self) -> Result<Vec<RagDocument>> {
+        let c = self.conn.lock();
+        let mut stmt = c.prepare("SELECT * FROM rag_documents ORDER BY created_at DESC")?;
+        let docs: Result<Vec<RagDocument>, _> = stmt
+            .query_map([], row_to_rag_document)?
+            .collect();
+        let mut docs = docs?;
+        for d in &mut docs {
+            d.chunks = self.rag_chunks_for(d.id)?;
+        }
+        Ok(docs)
+    }
+
+    pub fn delete_rag_document(&self, id: Uuid) -> Result<()> {
+        let c = self.conn.lock();
+        c.execute("DELETE FROM rag_documents WHERE id=?", params![id.to_string()])?;
+        Ok(())
+    }
+
+    fn rag_chunks_for(&self, document_id: Uuid) -> Result<Vec<RagChunk>> {
+        let c = self.conn.lock();
+        let mut stmt = c.prepare("SELECT * FROM rag_chunks WHERE document_id=?")?;
+        let rows = stmt.query_map(params![document_id.to_string()], row_to_rag_chunk)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
 }
 
 // ---- Row mappers ----
@@ -493,4 +596,28 @@ fn row_to_provider(r: &rusqlite::Row) -> rusqlite::Result<LlmProvider> {
 
 fn parse_ts(s: String) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(&s).map_or_else(|_| Utc::now(), |d| d.with_timezone(&Utc))
+}
+
+fn row_to_rag_document(r: &rusqlite::Row) -> rusqlite::Result<RagDocument> {
+    let id: String = r.get("id")?;
+    Ok(RagDocument {
+        id: Uuid::parse_str(&id).unwrap_or_default(),
+        title: r.get("title")?,
+        content: r.get("content")?,
+        chunks: vec![],
+        created_at: parse_ts(r.get::<_, String>("created_at")?),
+    })
+}
+
+fn row_to_rag_chunk(r: &rusqlite::Row) -> rusqlite::Result<RagChunk> {
+    let id: String = r.get("id")?;
+    let document_id: String = r.get("document_id")?;
+    let emb_json: String = r.get("embedding")?;
+    let embedding = serde_json::from_str(&emb_json).unwrap_or_default();
+    Ok(RagChunk {
+        id: Uuid::parse_str(&id).unwrap_or_default(),
+        document_id: Uuid::parse_str(&document_id).unwrap_or_default(),
+        text: r.get("text")?,
+        embedding,
+    })
 }

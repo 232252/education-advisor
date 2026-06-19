@@ -43,6 +43,7 @@ mod runtime;
 mod scheduler;
 mod students;
 mod theme;
+mod tray;
 mod ui;
 mod util;
 
@@ -56,11 +57,18 @@ fn main() -> eframe::Result<()> {
         eprintln!("[FATAL] {info}");
     }));
 
-    let viewport = egui::ViewportBuilder::default()
+    // Restore persisted window geometry if available.
+    let settings = load_settings();
+    let mut viewport = egui::ViewportBuilder::default()
         .with_title("Education Advisor")
         .with_inner_size([1280.0, 820.0])
         .with_min_inner_size([960.0, 600.0])
         .with_icon(load_icon());
+    if let Some(r) = settings.window_rect {
+        viewport = viewport
+            .with_inner_size([r.w, r.h])
+            .with_position([r.x, r.y]);
+    }
 
     eframe::run_native(
         "Education Advisor",
@@ -72,32 +80,22 @@ fn main() -> eframe::Result<()> {
     )
 }
 
+fn load_settings() -> crate::models::Settings {
+    let db_path = {
+        let mut p = dirs::data_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+        p.push("education-advisor");
+        let _ = std::fs::create_dir_all(&p);
+        p.push("ea.db");
+        p
+    };
+    if let Ok(db) = crate::db::Db::open(&db_path) {
+        db.load_settings().unwrap_or_default()
+    } else {
+        crate::models::Settings::default()
+    }
+}
+
 fn load_icon() -> egui::IconData {
-    // A simple procedurally generated icon: a rounded gradient square with a
-    // graduation-cap silhouette. Avoids shipping a binary asset.
-    let size = 64usize;
-    let mut rgba = Vec::with_capacity(size * size * 4);
-    for y in 0..size {
-        for x in 0..size {
-            let t = (x + y) as f32 / (2 * size) as f32;
-            let r = 90.0f32.mul_add(t, 40.0) as u8;
-            let g = 120.0f32.mul_add(t, 60.0) as u8;
-            let b = 100.0f32.mul_add(t, 120.0) as u8;
-            // rounded corners
-            let corner = 12.0;
-            let mut alpha = 255u8;
-            let dx = (x as f32).min((size - 1 - x) as f32);
-            let dy = (y as f32).min((size - 1 - y) as f32);
-            if dx < corner || dy < corner {
-                let d = (dx.min(dy) - corner).max(0.0);
-                alpha = (255.0 * (d / corner).clamp(0.0, 1.0)) as u8;
-            }
-            rgba.extend_from_slice(&[r, g, b, alpha]);
-        }
-    }
-    egui::IconData {
-        rgba,
-        width: size as u32,
-        height: size as u32,
-    }
+    let (rgba, width, height) = crate::theme::app_icon_rgba();
+    egui::IconData { rgba, width, height }
 }

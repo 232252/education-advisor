@@ -6,6 +6,31 @@
 
 use eframe::egui::{Color32, Rgba, Stroke};
 
+/// Generate the application's procedural icon as raw RGBA bytes.
+/// Used for both the window icon and the system tray icon.
+pub fn app_icon_rgba() -> (Vec<u8>, u32, u32) {
+    let size = 64usize;
+    let mut rgba = Vec::with_capacity(size * size * 4);
+    for y in 0..size {
+        for x in 0..size {
+            let t = (x + y) as f32 / (2 * size) as f32;
+            let r = 90.0f32.mul_add(t, 40.0) as u8;
+            let g = 120.0f32.mul_add(t, 60.0) as u8;
+            let b = 100.0f32.mul_add(t, 120.0) as u8;
+            let corner = 12.0;
+            let mut alpha = 255u8;
+            let dx = (x as f32).min((size - 1 - x) as f32);
+            let dy = (y as f32).min((size - 1 - y) as f32);
+            if dx < corner || dy < corner {
+                let d = (dx.min(dy) - corner).max(0.0);
+                alpha = (255.0 * (d / corner).clamp(0.0, 1.0)) as u8;
+            }
+            rgba.extend_from_slice(&[r, g, b, alpha]);
+        }
+    }
+    (rgba, size as u32, size as u32)
+}
+
 #[derive(Clone)]
 pub struct Theme {
     pub dark: bool,
