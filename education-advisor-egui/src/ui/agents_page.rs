@@ -166,15 +166,27 @@ fn agent_card(app: &mut App, ui: &mut Ui, agent: &crate::agents::AgentDef) {
     if resp.clicked() {
         app.active_agent = agent.id.to_string();
     }
-    // double-click starts a conversation
+    // double-click starts a conversation (auto-binds selected student if any)
     if resp.double_clicked() {
+        let student_id = app.selected_student;
+        let title = if let Some(sid) = student_id {
+            let students = app.students.read();
+            let name = students.iter().find(|s| s.id == sid).map_or("", |s| s.name.as_str());
+            if name.is_empty() {
+                format!("与 {} 对话", agent.name)
+            } else {
+                format!("{} · {}", name, agent.name)
+            }
+        } else {
+            format!("与 {} 对话", agent.name)
+        };
         let _ = app
             .runtime
             .tx
             .send(crate::runtime::Command::NewConversation {
                 agent_id: agent.id.to_string(),
-                student_id: None,
-                title: format!("与 {} 对话", agent.name),
+                student_id,
+                title,
             });
         app.navigate(crate::app::Page::Chat);
     }

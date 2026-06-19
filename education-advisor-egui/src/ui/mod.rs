@@ -52,7 +52,4 @@ pub struct UiState {
 
     // settings page
     pub editing_provider: Option<LlmProvider>,
-
-    // skills page
-    pub skill_enabled: HashMap<&'static str, bool>,
 }
