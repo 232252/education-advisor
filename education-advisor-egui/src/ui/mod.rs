@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::models::{Student, GradeEntry, ScheduledTask, LlmProvider};
+use crate::models::{GradeEntry, LlmProvider, ScheduledTask, Student};
 
 pub mod agent_history_page;
 pub mod agents_page;
@@ -15,12 +15,12 @@ pub mod dashboard;
 pub mod icons;
 pub mod models_page;
 pub mod privacy_page;
+pub mod rag_page;
 pub mod scheduler_page;
 pub mod settings_page;
 pub mod sidebar;
 pub mod skills_page;
 pub mod students_page;
-pub mod rag_page;
 pub mod toast;
 pub mod topbar;
 pub mod widgets;
@@ -52,4 +52,7 @@ pub struct UiState {
 
     // settings page
     pub editing_provider: Option<LlmProvider>,
+
+    // skills page
+    pub skill_enabled: HashMap<&'static str, bool>,
 }

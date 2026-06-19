@@ -1,8 +1,11 @@
 //! Agents page: grid of all 18 agents with capability radar and quick chat.
 
-use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, Pos2, Rounding, Sense, Stroke, Ui, Vec2};
+use eframe::egui::{
+    self, Align, Align2, Color32, FontId, Layout, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2,
+};
 
 use crate::app::App;
+use crate::ui::icons;
 use crate::ui::widgets::{card, section_title};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
@@ -52,10 +55,25 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         if let Some(a) = crate::agents::find(&app.active_agent) {
             card(ui, &app.theme, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(a.icon).font(FontId::proportional(28.0)));
+                    let avatar_rect = Rect::from_min_size(
+                        Pos2::new(ui.cursor().left(), ui.cursor().center().y - 14.0),
+                        Vec2::splat(28.0),
+                    );
+                    let color = Color32::from_rgb(a.color[0], a.color[1], a.color[2]);
+                    icons::avatar(ui.painter(), avatar_rect, color, a.name);
+                    ui.add_space(34.0);
                     ui.vertical(|ui| {
-                        ui.label(egui::RichText::new(a.name).font(FontId::proportional(16.0)).strong().color(app.theme.text));
-                        ui.label(egui::RichText::new(a.description).font(FontId::proportional(12.0)).color(app.theme.text_dim));
+                        ui.label(
+                            egui::RichText::new(a.name)
+                                .font(FontId::proportional(16.0))
+                                .strong()
+                                .color(app.theme.text),
+                        );
+                        ui.label(
+                            egui::RichText::new(a.description)
+                                .font(FontId::proportional(12.0))
+                                .color(app.theme.text_dim),
+                        );
                     });
                 });
                 ui.add_space(4.0);
@@ -69,7 +87,15 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     })
                     .collect();
                 let color = Color32::from_rgb(a.color[0], a.color[1], a.color[2]);
-                crate::charts::radar_chart(ui, &app.theme, "能力画像", &axes, &values, color, 220.0);
+                crate::charts::radar_chart(
+                    ui,
+                    &app.theme,
+                    "能力画像",
+                    &axes,
+                    &values,
+                    color,
+                    220.0,
+                );
             });
         }
     });
@@ -92,13 +118,26 @@ fn agent_card(app: &mut App, ui: &mut Ui, agent: &crate::agents::AgentDef) {
         app.theme.surface_glass
     };
     ui.painter().rect_filled(rect, Rounding::same(14.0), bg);
-    ui.painter().rect_stroke(rect, Rounding::same(14.0), Stroke::new(1.0, if active { app.theme.accent } else { app.theme.border }));
+    ui.painter().rect_stroke(
+        rect,
+        Rounding::same(14.0),
+        Stroke::new(
+            1.0,
+            if active {
+                app.theme.accent
+            } else {
+                app.theme.border
+            },
+        ),
+    );
 
     let color = Color32::from_rgb(agent.color[0], agent.color[1], agent.color[2]);
-    // icon circle
-    let ic = Pos2::new(rect.min.x + 28.0, rect.min.y + 28.0);
-    ui.painter().circle_filled(ic, 16.0, color);
-    ui.painter().text(ic, Align2::CENTER_CENTER, agent.icon, FontId::proportional(14.0), app.theme.bg);
+    // avatar circle
+    let avatar_rect = Rect::from_min_size(
+        Pos2::new(rect.min.x + 12.0, rect.min.y + 12.0),
+        Vec2::splat(32.0),
+    );
+    icons::avatar(ui.painter(), avatar_rect, color, agent.name);
 
     ui.painter().text(
         Pos2::new(rect.min.x + 52.0, rect.min.y + 22.0),
@@ -129,11 +168,14 @@ fn agent_card(app: &mut App, ui: &mut Ui, agent: &crate::agents::AgentDef) {
     }
     // double-click starts a conversation
     if resp.double_clicked() {
-        let _ = app.runtime.tx.send(crate::runtime::Command::NewConversation {
-            agent_id: agent.id.to_string(),
-            student_id: None,
-            title: format!("与 {} 对话", agent.name),
-        });
+        let _ = app
+            .runtime
+            .tx
+            .send(crate::runtime::Command::NewConversation {
+                agent_id: agent.id.to_string(),
+                student_id: None,
+                title: format!("与 {} 对话", agent.name),
+            });
         app.navigate(crate::app::Page::Chat);
     }
 }

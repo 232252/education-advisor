@@ -6,15 +6,24 @@ use uuid::Uuid;
 
 use crate::app::App;
 use crate::models::{RagChunk, RagDocument};
-use crate::ui::widgets::{card, empty_state, ghost_button, primary_button, section_title};
+use crate::ui::icons;
+use crate::ui::widgets::{
+    card, empty_state, ghost_button, primary_button, search_input, section_title,
+};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
     section_title(ui, &app.theme, "本地知识库");
 
     // drag-and-drop: accept text files dropped onto the page.
-    if let Some(paths) = ui.input(|i| i.raw.dropped_files.clone()).first().and_then(|f| f.path.clone()) {
+    if let Some(paths) = ui
+        .input(|i| i.raw.dropped_files.clone())
+        .first()
+        .and_then(|f| f.path.clone())
+    {
         if let Ok(content) = std::fs::read_to_string(&paths) {
-            let title = paths.file_stem().map_or_else(|| "未命名".into(), |s| s.to_string_lossy().to_string());
+            let title = paths
+                .file_stem()
+                .map_or_else(|| "未命名".into(), |s| s.to_string_lossy().to_string());
             add_document(app, title, content);
         }
     }
@@ -27,9 +36,14 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if primary_button(ui, &app.theme, "添加文档").clicked() {
-                if let Some(path) = rfd::FileDialog::new().add_filter("Text", &["txt", "md"]).pick_file() {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Text", &["txt", "md"])
+                    .pick_file()
+                {
                     if let Ok(content) = std::fs::read_to_string(&path) {
-                        let title = path.file_stem().map_or_else(|| "未命名".into(), |s| s.to_string_lossy().to_string());
+                        let title = path
+                            .file_stem()
+                            .map_or_else(|| "未命名".into(), |s| s.to_string_lossy().to_string());
                         add_document(app, title, content);
                     }
                 }
@@ -43,8 +57,14 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     let theme = app.theme.clone();
     card(ui, &theme, |ui| {
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("🔍").font(FontId::proportional(14.0)));
-            ui.text_edit_singleline(&mut app.ui_state.rag_query);
+            let search_w = ui.available_width() - 86.0;
+            let _ = search_input(
+                ui,
+                &theme,
+                &mut app.ui_state.rag_query,
+                "输入查询，检索本地知识库…",
+                search_w,
+            );
             if primary_button(ui, &theme, "检索").clicked() {
                 let query = app.ui_state.rag_query.clone();
                 app.ui_state.rag_results = search_rag(app, &query);
@@ -61,17 +81,38 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         card(ui, &app.theme, |ui| {
             section_title(ui, &app.theme, "检索命中热度");
             for (doc_id, chunk_idx, score, text) in &app.ui_state.rag_results {
-                let doc_title = docs.iter().find(|d| d.id == *doc_id).map_or_else(|| "未知文档".to_string(), |d| d.title.clone());
+                let doc_title = docs
+                    .iter()
+                    .find(|d| d.id == *doc_id)
+                    .map_or_else(|| "未知文档".to_string(), |d| d.title.clone());
                 let heat = (score.clamp(0.0, 1.0) * 255.0) as u8;
                 let color = app.theme.risk_color(crate::models::RiskLevel::Medium);
-                let heat_color = egui::Color32::from_rgba_premultiplied(color.r(), color.g(), color.b(), heat);
+                let heat_color =
+                    egui::Color32::from_rgba_premultiplied(color.r(), color.g(), color.b(), heat);
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(format!("{doc_title} · 块{chunk_idx}")).font(FontId::proportional(11.0)).color(app.theme.text_dim));
-                    ui.label(egui::RichText::new(format!("{score:.2}")).font(FontId::proportional(11.0)).strong().color(color));
+                    ui.label(
+                        egui::RichText::new(format!("{doc_title} · 块{chunk_idx}"))
+                            .font(FontId::proportional(11.0))
+                            .color(app.theme.text_dim),
+                    );
+                    ui.label(
+                        egui::RichText::new(format!("{score:.2}"))
+                            .font(FontId::proportional(11.0))
+                            .strong()
+                            .color(color),
+                    );
                 });
-                let (r, _) = ui.allocate_exact_size(Vec2::new(ui.available_width() * score, 4.0), egui::Sense::hover());
-                ui.painter().rect_filled(r, egui::Rounding::same(2.0), heat_color);
-                ui.label(egui::RichText::new(crate::util::truncate(text, 120)).font(FontId::proportional(11.0)).color(app.theme.text));
+                let (r, _) = ui.allocate_exact_size(
+                    Vec2::new(ui.available_width() * score, 4.0),
+                    egui::Sense::hover(),
+                );
+                ui.painter()
+                    .rect_filled(r, egui::Rounding::same(2.0), heat_color);
+                ui.label(
+                    egui::RichText::new(crate::util::truncate(text, 120))
+                        .font(FontId::proportional(11.0))
+                        .color(app.theme.text),
+                );
                 ui.separator();
             }
         });
@@ -81,7 +122,12 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     // document list
     if docs.is_empty() {
         card(ui, &app.theme, |ui| {
-            empty_state(ui, &app.theme, "📚", "知识库为空，点击「添加文档」开始构建");
+            empty_state(
+                ui,
+                &app.theme,
+                icons::rag,
+                "知识库为空，点击「添加文档」开始构建",
+            );
         });
     } else {
         egui::ScrollArea::vertical().show(ui, |ui| {
@@ -89,16 +135,28 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 card(ui, &app.theme, |ui| {
                     ui.horizontal_top(|ui| {
                         ui.vertical(|ui| {
-                            ui.label(egui::RichText::new(&d.title).font(FontId::proportional(14.0)).strong().color(app.theme.text));
                             ui.label(
-                                egui::RichText::new(format!("{} 字符 · {} 块", d.content.len(), d.chunks.len()))
-                                    .font(FontId::proportional(11.0))
-                                    .color(app.theme.text_dim),
+                                egui::RichText::new(&d.title)
+                                    .font(FontId::proportional(14.0))
+                                    .strong()
+                                    .color(app.theme.text),
+                            );
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "{} 字符 · {} 块",
+                                    d.content.len(),
+                                    d.chunks.len()
+                                ))
+                                .font(FontId::proportional(11.0))
+                                .color(app.theme.text_dim),
                             );
                         });
                         ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
                             if ghost_button(ui, &app.theme, "删除").clicked() {
-                                let _ = app.runtime.tx.send(crate::runtime::Command::DeleteRagDocument(d.id));
+                                let _ = app
+                                    .runtime
+                                    .tx
+                                    .send(crate::runtime::Command::DeleteRagDocument(d.id));
                             }
                         });
                     });
@@ -132,7 +190,10 @@ fn add_document(app: &mut App, title: String, content: String) {
         chunks,
         created_at: Utc::now(),
     };
-    let _ = app.runtime.tx.send(crate::runtime::Command::SaveRagDocument(doc));
+    let _ = app
+        .runtime
+        .tx
+        .send(crate::runtime::Command::SaveRagDocument(doc));
 }
 
 /// Split text into overlapping chunks. Works for both whitespace-separated
@@ -144,7 +205,9 @@ fn chunk_text(text: &str) -> Vec<String> {
     // For scripts without spaces (CJK), split by Unicode chars; otherwise words.
     let has_spaces = text.chars().any(char::is_whitespace);
     let tokens: Vec<String> = if has_spaces {
-        text.split_whitespace().map(std::string::ToString::to_string).collect()
+        text.split_whitespace()
+            .map(std::string::ToString::to_string)
+            .collect()
     } else {
         text.chars().map(|c| c.to_string()).collect()
     };

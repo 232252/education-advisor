@@ -10,7 +10,10 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::models::{Student, GradeEntry, Conversation, Message, ScheduledTask, LlmProvider, DashboardStats, RiskLevel, ToolCallRecord, Role, ProviderKind, Settings, RagDocument, RagChunk};
+use crate::models::{
+    Conversation, DashboardStats, GradeEntry, LlmProvider, Message, ProviderKind, RagChunk,
+    RagDocument, RiskLevel, Role, ScheduledTask, Settings, Student, ToolCallRecord,
+};
 
 /// Thread-safe database handle. The connection is guarded by a mutex; all
 /// access happens on the background runtime thread, never on the UI thread.
@@ -22,7 +25,9 @@ pub struct Db {
 impl Db {
     pub fn open(path: &std::path::Path) -> Result<Self> {
         let conn = Connection::open(path).with_context(|| format!("open {}", path.display()))?;
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;")?;
+        conn.execute_batch(
+            "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;",
+        )?;
         let db = Self {
             conn: Arc::new(parking_lot::Mutex::new(conn)),
         };
@@ -184,8 +189,7 @@ impl Db {
 
     pub fn grades_for(&self, student_id: Uuid) -> Result<Vec<GradeEntry>> {
         let c = self.conn.lock();
-        let mut stmt =
-            c.prepare("SELECT * FROM grades WHERE student_id=? ORDER BY exam_date")?;
+        let mut stmt = c.prepare("SELECT * FROM grades WHERE student_id=? ORDER BY exam_date")?;
         let rows = stmt.query_map(params![student_id.to_string()], row_to_grade)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
@@ -234,7 +238,10 @@ impl Db {
 
     pub fn delete_conversation(&self, id: Uuid) -> Result<()> {
         let c = self.conn.lock();
-        c.execute("DELETE FROM conversations WHERE id=?", params![id.to_string()])?;
+        c.execute(
+            "DELETE FROM conversations WHERE id=?",
+            params![id.to_string()],
+        )?;
         Ok(())
     }
 
@@ -336,7 +343,8 @@ impl Db {
             .query_row("SELECT COUNT(*) FROM students", [], |r| r.get(0))
             .unwrap_or(0);
         let mut risk = [0usize; 4];
-        let mut stmt = c.prepare("SELECT risk_level, COUNT(*) FROM students GROUP BY risk_level")?;
+        let mut stmt =
+            c.prepare("SELECT risk_level, COUNT(*) FROM students GROUP BY risk_level")?;
         let rows = stmt.query_map([], |r| {
             Ok((r.get::<_, i64>(0)? as usize, r.get::<_, i64>(1)? as usize))
         })?;
@@ -347,9 +355,11 @@ impl Db {
             }
         }
         let avg_gpa: f64 = c
-            .query_row("SELECT AVG(gpa) FROM students WHERE gpa IS NOT NULL", [], |r| {
-                r.get(0)
-            })
+            .query_row(
+                "SELECT AVG(gpa) FROM students WHERE gpa IS NOT NULL",
+                [],
+                |r| r.get(0),
+            )
             .unwrap_or(0.0);
         let today = Utc::now().date_naive();
         let convs_today: i64 = c
@@ -462,9 +472,7 @@ impl Db {
     pub fn list_rag_documents(&self) -> Result<Vec<RagDocument>> {
         let c = self.conn.lock();
         let mut stmt = c.prepare("SELECT * FROM rag_documents ORDER BY created_at DESC")?;
-        let docs: Result<Vec<RagDocument>, _> = stmt
-            .query_map([], row_to_rag_document)?
-            .collect();
+        let docs: Result<Vec<RagDocument>, _> = stmt.query_map([], row_to_rag_document)?.collect();
         let mut docs = docs?;
         for d in &mut docs {
             d.chunks = self.rag_chunks_for(d.id)?;
@@ -474,7 +482,10 @@ impl Db {
 
     pub fn delete_rag_document(&self, id: Uuid) -> Result<()> {
         let c = self.conn.lock();
-        c.execute("DELETE FROM rag_documents WHERE id=?", params![id.to_string()])?;
+        c.execute(
+            "DELETE FROM rag_documents WHERE id=?",
+            params![id.to_string()],
+        )?;
         Ok(())
     }
 
@@ -511,8 +522,10 @@ fn row_to_student(r: &rusqlite::Row) -> rusqlite::Result<Student> {
         },
         gpa: r.get("gpa")?,
         tags,
-        created_at: DateTime::parse_from_rfc3339(&r.get::<_, String>("created_at")?).map_or_else(|_| Utc::now(), |d| d.with_timezone(&Utc)),
-        updated_at: DateTime::parse_from_rfc3339(&r.get::<_, String>("updated_at")?).map_or_else(|_| Utc::now(), |d| d.with_timezone(&Utc)),
+        created_at: DateTime::parse_from_rfc3339(&r.get::<_, String>("created_at")?)
+            .map_or_else(|_| Utc::now(), |d| d.with_timezone(&Utc)),
+        updated_at: DateTime::parse_from_rfc3339(&r.get::<_, String>("updated_at")?)
+            .map_or_else(|_| Utc::now(), |d| d.with_timezone(&Utc)),
     })
 }
 
@@ -526,8 +539,10 @@ fn row_to_grade(r: &rusqlite::Row) -> rusqlite::Result<GradeEntry> {
         subject: r.get("subject")?,
         score: r.get("score")?,
         max_score: r.get("max_score")?,
-        exam_date: NaiveDate::parse_from_str(&date, "%Y-%m-%d").unwrap_or_else(|_| Utc::now().date_naive()),
-        recorded_at: DateTime::parse_from_rfc3339(&r.get::<_, String>("recorded_at")?).map_or_else(|_| Utc::now(), |d| d.with_timezone(&Utc)),
+        exam_date: NaiveDate::parse_from_str(&date, "%Y-%m-%d")
+            .unwrap_or_else(|_| Utc::now().date_naive()),
+        recorded_at: DateTime::parse_from_rfc3339(&r.get::<_, String>("recorded_at")?)
+            .map_or_else(|_| Utc::now(), |d| d.with_timezone(&Utc)),
     })
 }
 
@@ -549,7 +564,8 @@ fn row_to_message(r: &rusqlite::Row) -> rusqlite::Result<Message> {
     let tool_calls: Vec<ToolCallRecord> = serde_json::from_str(&tc_json).unwrap_or_default();
     Ok(Message {
         id: Uuid::parse_str(&r.get::<_, String>("id")?).unwrap_or_default(),
-        conversation_id: Uuid::parse_str(&r.get::<_, String>("conversation_id")?).unwrap_or_default(),
+        conversation_id: Uuid::parse_str(&r.get::<_, String>("conversation_id")?)
+            .unwrap_or_default(),
         role: match role_i {
             1 => Role::Assistant,
             2 => Role::System,
@@ -573,8 +589,12 @@ fn row_to_task(r: &rusqlite::Row) -> rusqlite::Result<ScheduledTask> {
         agent_id: r.get("agent_id")?,
         prompt: r.get("prompt")?,
         enabled: enabled != 0,
-        last_run: last.and_then(|s| DateTime::parse_from_rfc3339(&s).ok()).map(|d| d.with_timezone(&Utc)),
-        next_run: next.and_then(|s| DateTime::parse_from_rfc3339(&s).ok()).map(|d| d.with_timezone(&Utc)),
+        last_run: last
+            .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+            .map(|d| d.with_timezone(&Utc)),
+        next_run: next
+            .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+            .map(|d| d.with_timezone(&Utc)),
         created_at: parse_ts(r.get::<_, String>("created_at")?),
     })
 }

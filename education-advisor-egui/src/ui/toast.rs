@@ -2,10 +2,11 @@
 
 use std::time::Instant;
 
-use eframe::egui::{self, FontId, Pos2, Vec2};
+use eframe::egui::{self, FontId, Pos2, Rect, Vec2};
 
 use crate::app::App;
 use crate::runtime::ToastKind;
+use crate::ui::icons;
 
 pub fn show(app: &mut App, ctx: &egui::Context) {
     if app.toasts.is_empty() {
@@ -31,11 +32,11 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                         1.0
                     };
                     let alpha = slide.clamp(0.0, 1.0);
-                    let (color, icon) = match toast.kind {
-                        ToastKind::Info => (app.theme.info, "ℹ️"),
-                        ToastKind::Success => (app.theme.success, "✅"),
-                        ToastKind::Warning => (app.theme.warning, "⚠️"),
-                        ToastKind::Error => (app.theme.danger, "⛔"),
+                    let color = match toast.kind {
+                        ToastKind::Info => app.theme.info,
+                        ToastKind::Success => app.theme.success,
+                        ToastKind::Warning => app.theme.warning,
+                        ToastKind::Error => app.theme.danger,
                     };
                     let frame = egui::Frame::none()
                         .fill(egui::Color32::from_rgba_premultiplied(
@@ -62,7 +63,65 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                     );
                     frame.show(ui, |ui| {
                         ui.horizontal_top(|ui| {
-                            ui.label(egui::RichText::new(icon).font(FontId::proportional(14.0)));
+                            let icon_rect = Rect::from_min_size(
+                                Pos2::new(ui.cursor().left(), ui.cursor().center().y - 7.0),
+                                Vec2::splat(14.0),
+                            );
+                            match toast.kind {
+                                ToastKind::Info => {
+                                    ui.painter().circle_stroke(
+                                        icon_rect.center(),
+                                        6.0,
+                                        egui::Stroke::new(1.5, color),
+                                    );
+                                    ui.painter().circle_filled(
+                                        Pos2::new(icon_rect.center().x, icon_rect.center().y - 2.0),
+                                        1.5,
+                                        color,
+                                    );
+                                    ui.painter().line_segment(
+                                        [
+                                            Pos2::new(
+                                                icon_rect.center().x,
+                                                icon_rect.center().y + 1.0,
+                                            ),
+                                            Pos2::new(
+                                                icon_rect.center().x,
+                                                icon_rect.center().y + 4.0,
+                                            ),
+                                        ],
+                                        egui::Stroke::new(1.5, color),
+                                    );
+                                }
+                                ToastKind::Success => icons::check(ui.painter(), icon_rect, color),
+                                ToastKind::Warning => {
+                                    ui.painter().circle_stroke(
+                                        icon_rect.center(),
+                                        6.0,
+                                        egui::Stroke::new(1.5, color),
+                                    );
+                                    ui.painter().circle_filled(
+                                        Pos2::new(icon_rect.center().x, icon_rect.center().y + 2.0),
+                                        1.5,
+                                        color,
+                                    );
+                                    ui.painter().line_segment(
+                                        [
+                                            Pos2::new(
+                                                icon_rect.center().x,
+                                                icon_rect.center().y - 4.0,
+                                            ),
+                                            Pos2::new(
+                                                icon_rect.center().x,
+                                                icon_rect.center().y + 0.0,
+                                            ),
+                                        ],
+                                        egui::Stroke::new(1.5, color),
+                                    );
+                                }
+                                ToastKind::Error => icons::cross(ui.painter(), icon_rect, color),
+                            }
+                            ui.add_space(18.0);
                             ui.label(
                                 egui::RichText::new(&toast.msg)
                                     .font(FontId::proportional(13.0))
@@ -70,7 +129,10 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                             );
                         });
                         // progress bar
-                        let (r, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 3.0), egui::Sense::hover());
+                        let (r, _) = ui.allocate_exact_size(
+                            Vec2::new(ui.available_width(), 3.0),
+                            egui::Sense::hover(),
+                        );
                         let mut bar_color = color;
                         bar_color = egui::Color32::from_rgba_premultiplied(
                             bar_color.r(),

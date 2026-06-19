@@ -97,5 +97,9 @@ fn load_settings() -> crate::models::Settings {
 
 fn load_icon() -> egui::IconData {
     let (rgba, width, height) = crate::theme::app_icon_rgba();
-    egui::IconData { rgba, width, height }
+    egui::IconData {
+        rgba,
+        width,
+        height,
+    }
 }

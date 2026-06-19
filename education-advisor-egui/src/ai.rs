@@ -20,7 +20,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::llm::{ChatMessage, LlmRequest};
-use crate::models::{Message, Role, ToolCallRecord, ToolStatus, RiskLevel};
+use crate::models::{Message, RiskLevel, Role, ToolCallRecord, ToolStatus};
 use crate::runtime::{Event, RuntimeCtx};
 
 /// Run one full agent turn for a conversation.
@@ -33,8 +33,8 @@ pub async fn run_turn(
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     // 1. Resolve agent + provider (active provider first, then any enabled).
-    let agent = crate::agents::find(&agent_id)
-        .ok_or_else(|| anyhow::anyhow!("未知代理: {agent_id}"))?;
+    let agent =
+        crate::agents::find(&agent_id).ok_or_else(|| anyhow::anyhow!("未知代理: {agent_id}"))?;
     let providers = ctx.db.list_providers()?;
     let settings = ctx.settings.read().clone();
     let provider = if let Some(active_id) = settings.active_provider_id {
@@ -52,12 +52,16 @@ pub async fn run_turn(
     let history = ctx.db.messages_for(conversation_id)?;
     let mut messages = Vec::with_capacity(history.len() + 2);
     let mut system = String::from(agent.system_prompt);
-    system.push_str("\n\n你可以使用工具，格式为：<tool name=\"工具名\" args='{\"k\":\"v\"}'/>。可用工具：");
+    system.push_str(
+        "\n\n你可以使用工具，格式为：<tool name=\"工具名\" args='{\"k\":\"v\"}'/>。可用工具：",
+    );
     system.push_str("\n- lookup_student: 查询学生档案，args: {\"name\":\"姓名\"}");
     system.push_str("\n- get_grades: 查询学生成绩，args: {\"id\":\"学生UUID\"}");
     system.push_str("\n- list_risk_students: 列出高风险学生，args: {}");
     system.push_str("\n- count_students: 统计学生总数与风险分布，args: {}");
-    system.push_str("\n工具结果会以 <tool_result>...</tool_result> 形式返回。给出最终答复时不要包含工具标签。");
+    system.push_str(
+        "\n工具结果会以 <tool_result>...</tool_result> 形式返回。给出最终答复时不要包含工具标签。",
+    );
     messages.push(ChatMessage::system(system));
 
     // attach student context if provided
@@ -137,10 +141,7 @@ pub async fn run_turn(
                 delta: delta.to_string(),
             });
         };
-        let full = ctx
-            .llm
-            .stream(&req, &ctx.cipher, &mut on_token)
-            .await?;
+        let full = ctx.llm.stream(&req, &ctx.cipher, &mut on_token).await?;
 
         if cancelled || cancel.is_cancelled() {
             let _ = evt_tx.send(Event::StreamError {
@@ -275,7 +276,10 @@ fn execute_tool(ctx: &Arc<RuntimeCtx>, tc: &ParsedTool) -> (String, ToolStatus) 
                         .filter(|s| s.name.contains(&name))
                         .collect();
                     if found.is_empty() {
-                        (format!("未找到姓名包含「{name}」的学生"), ToolStatus::Success)
+                        (
+                            format!("未找到姓名包含「{name}」的学生"),
+                            ToolStatus::Success,
+                        )
                     } else {
                         let s = &found[0];
                         (
@@ -325,7 +329,15 @@ fn execute_tool(ctx: &Arc<RuntimeCtx>, tc: &ParsedTool) -> (String, ToolStatus) 
                 } else {
                     let lines: Vec<String> = high
                         .iter()
-                        .map(|s| format!("{}（{}{}）- {}", s.name, s.grade, s.class, s.risk_level.label()))
+                        .map(|s| {
+                            format!(
+                                "{}（{}{}）- {}",
+                                s.name,
+                                s.grade,
+                                s.class,
+                                s.risk_level.label()
+                            )
+                        })
                         .collect();
                     (lines.join("\n"), ToolStatus::Success)
                 }

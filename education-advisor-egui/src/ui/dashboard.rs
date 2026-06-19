@@ -1,9 +1,10 @@
 //! Dashboard: KPI cards + charts overview.
 
-use eframe::egui::{self, FontId, Ui};
+use eframe::egui::{self, FontId, Ui, Vec2};
 
 use crate::app::App;
-use crate::ui::widgets::{card, section_title, stat_card};
+use crate::ui::icons;
+use crate::ui::widgets::{card, empty_state, ghost_button, section_title, stat_card};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
     section_title(ui, &app.theme, "总览");
@@ -17,16 +18,44 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         let convs = s.map_or(0, |s| s.conversations_today);
         let tools = s.map_or(0, |s| s.tool_calls_total);
         ui.vertical(|ui| {
-            stat_card(ui, &app.theme, "学生总数", &total.to_string(), "🎓", app.theme.accent);
+            stat_card(
+                ui,
+                &app.theme,
+                "学生总数",
+                &total.to_string(),
+                icons::students,
+                app.theme.accent,
+            );
         });
         ui.vertical(|ui| {
-            stat_card(ui, &app.theme, "平均 GPA", &format!("{avg:.2}"), "📈", app.theme.success);
+            stat_card(
+                ui,
+                &app.theme,
+                "平均 GPA",
+                &format!("{avg:.2}"),
+                icons::chat,
+                app.theme.success,
+            );
         });
         ui.vertical(|ui| {
-            stat_card(ui, &app.theme, "今日对话", &convs.to_string(), "💬", app.theme.info);
+            stat_card(
+                ui,
+                &app.theme,
+                "今日对话",
+                &convs.to_string(),
+                icons::history,
+                app.theme.info,
+            );
         });
         ui.vertical(|ui| {
-            stat_card(ui, &app.theme, "工具调用", &tools.to_string(), "🔧", app.theme.warning);
+            stat_card(
+                ui,
+                &app.theme,
+                "工具调用",
+                &tools.to_string(),
+                icons::skills,
+                app.theme.warning,
+            );
         });
         ui.add_space(8.0);
     });
@@ -56,7 +85,11 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             let segs: Vec<(&str, f32, eframe::egui::Color32)> = vec![
                 ("低", rd[0] as f32, app.theme.success),
                 ("中", rd[1] as f32, app.theme.warning),
-                ("高", rd[2] as f32, eframe::egui::Color32::from_rgb(255, 140, 86)),
+                (
+                    "高",
+                    rd[2] as f32,
+                    eframe::egui::Color32::from_rgb(255, 140, 86),
+                ),
                 ("危机", rd[3] as f32, app.theme.danger),
             ];
             crate::charts::donut_chart(ui, &app.theme, "风险分布", &segs, 200.0);
@@ -86,7 +119,15 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             // radar of main agent capabilities (illustrative)
             let axes = ["调度", "共情", "分析", "执行", "校验", "沟通"];
             let values = [0.9, 0.6, 0.85, 0.8, 0.7, 0.85];
-            crate::charts::radar_chart(ui, &app.theme, "总管代理能力", &axes, &values, app.theme.accent, 200.0);
+            crate::charts::radar_chart(
+                ui,
+                &app.theme,
+                "总管代理能力",
+                &axes,
+                &values,
+                app.theme.accent,
+                200.0,
+            );
         });
     });
 
@@ -97,15 +138,19 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         section_title(ui, &app.theme, "最近对话");
         let convs = app.conversations.read().clone();
         if convs.is_empty() {
-            crate::ui::widgets::empty_state(ui, &app.theme, "💬", "还没有对话，去「对话」页开始吧");
+            empty_state(
+                ui,
+                &app.theme,
+                icons::chat,
+                "还没有对话，去「对话」页开始吧",
+            );
         } else {
             for c in convs.iter().take(6) {
                 ui.horizontal(|ui| {
                     let agent = crate::agents::find(&c.agent_id);
-                    ui.label(
-                        egui::RichText::new(agent.map_or("🤖", |a| a.icon))
-                            .font(FontId::proportional(16.0)),
-                    );
+                    let (icon_rect, _) =
+                        ui.allocate_exact_size(Vec2::splat(24.0), egui::Sense::hover());
+                    icons::agent(ui.painter(), icon_rect, &app.theme);
                     ui.vertical(|ui| {
                         ui.label(
                             egui::RichText::new(&c.title)
@@ -135,10 +180,13 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     // refresh button
     ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
-        if crate::ui::widgets::ghost_button(ui, &app.theme, "刷新数据").clicked() {
+        if ghost_button(ui, &app.theme, "刷新数据").clicked() {
             let _ = app.runtime.tx.send(crate::runtime::Command::LoadStats);
             let _ = app.runtime.tx.send(crate::runtime::Command::LoadStudents);
-            let _ = app.runtime.tx.send(crate::runtime::Command::LoadConversations);
+            let _ = app
+                .runtime
+                .tx
+                .send(crate::runtime::Command::LoadConversations);
         }
     });
 }

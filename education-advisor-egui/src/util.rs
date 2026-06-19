@@ -30,7 +30,9 @@ pub mod ease {
         } else if t >= 1.0 {
             1.0
         } else {
-            (-10.0 * t).exp2().mul_add((t.mul_add(10.0, -0.75) * c4).sin(), 1.0)
+            (-10.0 * t)
+                .exp2()
+                .mul_add((t.mul_add(10.0, -0.75) * c4).sin(), 1.0)
         }
     }
 }

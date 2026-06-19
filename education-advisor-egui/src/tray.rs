@@ -59,7 +59,7 @@ pub fn build_tray() -> Option<TrayHandle> {
 }
 
 #[cfg(not(feature = "tray"))]
-pub fn build_tray() -> Option<TrayHandle> {
+pub const fn build_tray() -> Option<TrayHandle> {
     None
 }
 
