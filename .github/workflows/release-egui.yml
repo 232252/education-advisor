@@ -61,7 +61,7 @@ jobs:
 
       - name: Build release binary
         working-directory: education-advisor-egui
-        run: cargo build --release --locked --target ${{ matrix.target }} --features tray
+        run: cargo build --release --locked --target ${{ matrix.target }}
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
