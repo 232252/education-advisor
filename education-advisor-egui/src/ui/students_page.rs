@@ -2,11 +2,11 @@
 //! one-click "ask agent" shortcut that wires the student into a new chat.
 
 use chrono::Utc;
-use eframe::egui::{self, Align, Align2, FontId, Layout, Ui, Vec2};
+use eframe::egui::{self, Align, Align2, FontId, Layout, Pos2, Ui, Vec2};
 use uuid::Uuid;
 
 use crate::app::App;
-use crate::models::{Student, RiskLevel, GradeEntry};
+use crate::models::{Student, RiskLevel, GradeEntry, ExportScope};
 use crate::ui::widgets::{card, empty_state, ghost_button, primary_button, section_title};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
@@ -21,6 +21,21 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 .color(app.theme.text_faint),
         );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if ghost_button(ui, &app.theme, "导出") {
+                app.ui_state.show_export_preview = !app.ui_state.show_export_preview;
+            }
+            if ghost_button(ui, &app.theme, "导入 Excel") {
+                if let Some(path) = rfd::FileDialog::new().add_filter("Excel", &["xlsx", "xls"]).pick_file() {
+                    if let Ok(bytes) = std::fs::read(&path) {
+                        match crate::students::import_excel(&bytes) {
+                            Ok(text) => {
+                                let _ = app.runtime.tx.send(crate::runtime::Command::ImportStudentsCsv(text));
+                            }
+                            Err(e) => app.push_toast(crate::runtime::ToastKind::Error, format!("Excel 解析失败: {e}")),
+                        }
+                    }
+                }
+            }
             if ghost_button(ui, &app.theme, "导入 CSV") {
                 app.ui_state.show_import = !app.ui_state.show_import;
             }
@@ -65,6 +80,11 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 }
             });
         });
+    }
+
+    if app.ui_state.show_export_preview {
+        ui.add_space(4.0);
+        export_panel(app, ui);
     }
 
     ui.add_space(8.0);
@@ -165,8 +185,6 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     });
 }
 
-use eframe::egui::Pos2;
-
 fn detail(app: &mut App, ui: &mut Ui, student: Student) {
     let theme = app.theme.clone();
     card(ui, &theme, |ui| {
@@ -189,12 +207,23 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
         ui.separator();
         ui.add_space(6.0);
 
+        let decrypted_contact = student.guardian_contact.as_ref().map_or_else(|| "—".to_string(), |c| {
+            if let Some(rest) = c.strip_prefix("enc:") {
+                app.cipher.decrypt_str(rest).unwrap_or_else(|_| "[解密失败]".to_string())
+            } else {
+                c.clone()
+            }
+        });
+
         egui::Grid::new("student_meta").num_columns(2).spacing(Vec2::new(12.0, 6.0)).show(ui, |ui| {
             ui.label(egui::RichText::new("GPA").font(FontId::proportional(12.0)).color(app.theme.text_dim));
             ui.label(egui::RichText::new(student.gpa.map_or_else(|| "—".into(), |g| format!("{g:.2}"))).font(FontId::proportional(13.0)).color(app.theme.text));
             ui.end_row();
             ui.label(egui::RichText::new("出生日期").font(FontId::proportional(12.0)).color(app.theme.text_dim));
             ui.label(egui::RichText::new(student.birth_date.map_or_else(|| "—".into(), |d| d.to_string())).font(FontId::proportional(13.0)).color(app.theme.text));
+            ui.end_row();
+            ui.label(egui::RichText::new("监护人电话").font(FontId::proportional(12.0)).color(app.theme.text_dim));
+            ui.label(egui::RichText::new(decrypted_contact).font(FontId::proportional(13.0)).color(app.theme.text));
             ui.end_row();
             ui.label(egui::RichText::new("标签").font(FontId::proportional(12.0)).color(app.theme.text_dim));
             ui.horizontal(|ui| {
@@ -206,6 +235,21 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
                 }
             });
             ui.end_row();
+        });
+
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.add(egui::TextEdit::singleline(&mut app.ui_state.tag_input).desired_width(120.0).hint_text("新标签"));
+            if ghost_button(ui, &app.theme, "添加标签") && !app.ui_state.tag_input.trim().is_empty() {
+                let tag = app.ui_state.tag_input.trim().to_string();
+                app.ui_state.tag_input.clear();
+                let mut updated = student.clone();
+                if !updated.tags.contains(&tag) {
+                    updated.tags.push(tag);
+                    updated.updated_at = Utc::now();
+                    let _ = app.runtime.tx.send(crate::runtime::Command::SaveStudent(updated));
+                }
+            }
         });
 
         ui.add_space(8.0);
@@ -303,7 +347,14 @@ fn edit_dialog(app: &mut App, ui: &mut Ui) {
                 s.risk_level = RiskLevel::all()[idx as usize];
                 ui.end_row();
                 ui.label("监护人电话");
-                ui.text_edit_singleline(s.guardian_contact.get_or_insert_with(String::new));
+                let raw = s.guardian_contact.get_or_insert_with(String::new);
+                let mut display = raw.strip_prefix("enc:").and_then(|rest| app.cipher.decrypt_str(rest).ok()).unwrap_or_else(|| raw.clone());
+                ui.text_edit_singleline(&mut display);
+                if display.is_empty() {
+                    s.guardian_contact = None;
+                } else {
+                    s.guardian_contact = Some(display);
+                }
                 ui.end_row();
             });
             ui.horizontal(|ui| {
@@ -323,4 +374,36 @@ fn edit_dialog(app: &mut App, ui: &mut Ui) {
     if !open {
         app.ui_state.editing_student = None;
     }
+}
+
+fn export_panel(app: &mut App, ui: &mut Ui) {
+    let theme = app.theme.clone();
+    card(ui, &theme, |ui| {
+        ui.label(egui::RichText::new("导出学生与成绩").font(FontId::proportional(13.0)).strong().color(theme.text));
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("范围").font(FontId::proportional(12.0)).color(theme.text_dim));
+            ui.radio_value(&mut app.ui_state.export_scope, ExportScope::All, "全部");
+            ui.radio_value(&mut app.ui_state.export_scope, ExportScope::SelectedStudent, "当前学生");
+        });
+        let students = app.students.read().clone();
+        let scope = app.ui_state.export_scope;
+        let selected = app.selected_student;
+        let grades_map = &app.ui_state.grades;
+        let csv = crate::students::export_csv(&students, grades_map, scope, selected);
+        ui.add(egui::TextEdit::multiline(&mut csv.clone()).desired_rows(6));
+        ui.horizontal(|ui| {
+            if primary_button(ui, &theme, "保存到文件") {
+                if let Some(path) = rfd::FileDialog::new().add_filter("CSV", &["csv"]).save_file() {
+                    if std::fs::write(&path, &csv).is_ok() {
+                        app.push_toast(crate::runtime::ToastKind::Success, "导出成功");
+                    } else {
+                        app.push_toast(crate::runtime::ToastKind::Error, "导出失败");
+                    }
+                }
+            }
+            if ghost_button(ui, &theme, "关闭") {
+                app.ui_state.show_export_preview = false;
+            }
+        });
+    });
 }

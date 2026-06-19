@@ -20,17 +20,21 @@ opt-level = 1
 [dependencies]
 # GUI
 eframe = { version = "0.27", default-features = false, features = ["default_fonts", "glow", "persistence"] }
+tray-icon = "0.19"
 egui = "0.27"
 egui_extras = { version = "0.27", features = ["image"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
 # Async runtime
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time", "fs", "io-util"] }
+tokio-util = "0.7"
 futures-util = "0.3"
 async-trait = "0.1"
 
 # Storage
 rusqlite = { version = "0.31", features = ["bundled"] }
+calamine = "0.24"
+rfd = "0.14"
 
 # Crypto / privacy
 aes-gcm = "0.10"

@@ -81,9 +81,22 @@ async fn check_and_run(ctx: &Arc<RuntimeCtx>, evt_tx: &Sender<Event>) -> anyhow:
             t.last_run = Some(now);
             t.next_run = next_fire(&t.cron_expr, now).ok();
             ctx.db.upsert_task(&t)?;
+            // Insert the scheduled prompt as the user message, then run the turn.
+            let user_msg = crate::models::Message {
+                id: uuid::Uuid::new_v4(),
+                conversation_id: conv.id,
+                role: crate::models::Role::User,
+                content: prompt,
+                tool_calls: vec![],
+                created_at: now,
+            };
+            ctx.db.insert_message(&user_msg)?;
+            let _ = ctx.db.touch_conversation(conv.id);
+            let history = ctx.db.messages_for(conv.id)?;
+            let _ = evt_tx.send(Event::Messages(conv.id, history));
             // run the turn (streams into UI)
             if let Err(e) =
-                crate::ai::run_turn(ctx.clone(), evt_tx.clone(), conv.id, agent_id, None, prompt)
+                crate::ai::run_turn(ctx.clone(), evt_tx.clone(), conv.id, agent_id, None, tokio_util::sync::CancellationToken::new())
                     .await
             {
                 let _ = evt_tx.send(Event::Toast {

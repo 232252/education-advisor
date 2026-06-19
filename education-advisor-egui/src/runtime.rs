@@ -11,14 +11,17 @@
 //! the render loop never waits.
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use parking_lot::RwLock;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
 use tokio::runtime::Runtime as TokioRuntime;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::db::Db;
 use crate::llm::LlmClient;
-use crate::models::{Student, GradeEntry, ScheduledTask, LlmProvider, Settings, Conversation, Message, ToolCallRecord, DashboardStats};
+use crate::models::{Student, GradeEntry, ScheduledTask, LlmProvider, Settings, Conversation, Message, ToolCallRecord, DashboardStats, RagDocument};
 use crate::privacy::{Cipher, Redactor};
 
 /// Work requested by the UI.
@@ -47,6 +50,10 @@ pub enum Command {
     LoadProviders,
     SaveProvider(LlmProvider),
     DeleteProvider(String),
+    // RAG
+    LoadRagDocuments,
+    SaveRagDocument(RagDocument),
+    DeleteRagDocument(Uuid),
     // Stats
     LoadStats,
     // Settings
@@ -79,6 +86,9 @@ pub enum Event {
     Providers(Vec<LlmProvider>),
     ProviderSaved,
     ProviderDeleted,
+    RagDocuments(Vec<RagDocument>),
+    RagDocumentSaved,
+    RagDocumentDeleted,
     Stats(DashboardStats),
     #[allow(dead_code)]
     Settings(Settings),
@@ -134,11 +144,14 @@ impl Runtime {
                         return;
                     }
                 };
+                let settings = db.load_settings().unwrap_or_default();
                 let ctx = Arc::new(RuntimeCtx {
                     db,
                     cipher: cipher_for_thread,
                     redactor: Redactor::new(),
                     llm: LlmClient::new(),
+                    cancel_tokens: RwLock::new(HashMap::new()),
+                    settings: RwLock::new(settings),
                 });
                 let handle = rt.handle().clone();
                 rt.block_on(async move {
@@ -168,6 +181,10 @@ pub struct RuntimeCtx {
     pub cipher: Cipher,
     pub redactor: Redactor,
     pub llm: LlmClient,
+    /// Per-conversation cancellation tokens so the UI can abort an in-flight turn.
+    pub cancel_tokens: RwLock<HashMap<Uuid, CancellationToken>>,
+    /// Cached application settings; kept in sync by `SaveSettings` commands.
+    pub settings: RwLock<Settings>,
 }
 
 fn machine_passphrase(db_path: &std::path::Path) -> String {
@@ -195,7 +212,7 @@ async fn run_command(
     evt_tx: &Sender<Event>,
     cmd: Command,
 ) -> anyhow::Result<()> {
-    use Command::{LoadStudents, SaveStudent, DeleteStudent, LoadGrades, AddGrade, ImportStudentsCsv, LoadConversations, NewConversation, LoadMessages, SendMessage, CancelConversation, LoadTasks, SaveTask, DeleteTask, RunTaskNow, LoadProviders, SaveProvider, DeleteProvider, LoadStats, LoadSettings, SaveSettings};
+    use Command::{LoadStudents, SaveStudent, DeleteStudent, LoadGrades, AddGrade, ImportStudentsCsv, LoadConversations, NewConversation, LoadMessages, SendMessage, CancelConversation, LoadTasks, SaveTask, DeleteTask, RunTaskNow, LoadProviders, SaveProvider, DeleteProvider, LoadRagDocuments, SaveRagDocument, DeleteRagDocument, LoadStats, LoadSettings, SaveSettings};
     match cmd {
         LoadStudents => {
             let v = ctx.db.list_students()?;
@@ -257,13 +274,31 @@ async fn run_command(
             let _ = evt_tx.send(Event::Messages(id, v));
         }
         SendMessage { conversation_id, agent_id, student_id, text } => {
+            // Persist the user message and immediately refresh the UI so the
+            // sent message appears before the assistant starts streaming.
+            let now = chrono::Utc::now();
+            let user_msg = crate::models::Message {
+                id: uuid::Uuid::new_v4(),
+                conversation_id,
+                role: crate::models::Role::User,
+                content: text.clone(),
+                tool_calls: vec![],
+                created_at: now,
+            };
+            ctx.db.insert_message(&user_msg)?;
+            let _ = ctx.db.touch_conversation(conversation_id);
+            let history = ctx.db.messages_for(conversation_id)?;
+            let _ = evt_tx.send(Event::Messages(conversation_id, history));
+
+            let token = CancellationToken::new();
+            ctx.cancel_tokens.write().insert(conversation_id, token.clone());
             if let Err(e) = crate::ai::run_turn(
                 ctx.clone(),
                 evt_tx.clone(),
                 conversation_id,
                 agent_id,
                 student_id,
-                text,
+                token,
             )
             .await
             {
@@ -272,20 +307,24 @@ async fn run_command(
                     error: e.to_string(),
                 });
             }
+            ctx.cancel_tokens.write().remove(&conversation_id);
         }
-        CancelConversation(_id) => {
-            // Cancellation is cooperative: the agent loop checks a flag. For
-            // simplicity we emit a toast; full cancellation is wired in `ai`.
-            let _ = evt_tx.send(Event::Toast {
-                kind: ToastKind::Info,
-                msg: "已请求停止生成".into(),
-            });
+        CancelConversation(id) => {
+            let token = ctx.cancel_tokens.read().get(&id).cloned();
+            if let Some(token) = token {
+                token.cancel();
+                let _ = evt_tx.send(Event::Toast {
+                    kind: ToastKind::Info,
+                    msg: "已请求停止生成".into(),
+                });
+            }
         }
         LoadTasks => {
             let v = ctx.db.list_tasks()?;
             let _ = evt_tx.send(Event::Tasks(v));
         }
-        SaveTask(t) => {
+        SaveTask(mut t) => {
+            t.next_run = crate::scheduler::next_fire(&t.cron_expr, chrono::Utc::now()).ok();
             ctx.db.upsert_task(&t)?;
             let _ = evt_tx.send(Event::TaskSaved);
             let v = ctx.db.list_tasks()?;
@@ -311,15 +350,32 @@ async fn run_command(
                 };
                 ctx.db.upsert_conversation(&conv)?;
                 let _ = evt_tx.send(Event::ConversationCreated(conv.clone()));
-                crate::ai::run_turn(
+                // Insert the task prompt as the user message, then run the turn.
+                let user_msg = crate::models::Message {
+                    id: uuid::Uuid::new_v4(),
+                    conversation_id: conv.id,
+                    role: crate::models::Role::User,
+                    content: t.prompt.clone(),
+                    tool_calls: vec![],
+                    created_at: now,
+                };
+                ctx.db.insert_message(&user_msg)?;
+                let _ = ctx.db.touch_conversation(conv.id);
+                let history = ctx.db.messages_for(conv.id)?;
+                let _ = evt_tx.send(Event::Messages(conv.id, history));
+                let token = CancellationToken::new();
+                ctx.cancel_tokens.write().insert(conv.id, token.clone());
+                let res = crate::ai::run_turn(
                     ctx.clone(),
                     evt_tx.clone(),
                     conv.id,
                     t.agent_id,
                     None,
-                    t.prompt,
+                    token,
                 )
-                .await?;
+                .await;
+                ctx.cancel_tokens.write().remove(&conv.id);
+                res?;
             }
         }
         LoadProviders => {
@@ -344,6 +400,22 @@ async fn run_command(
             let v = ctx.db.list_providers()?;
             let _ = evt_tx.send(Event::Providers(v));
         }
+        LoadRagDocuments => {
+            let v = ctx.db.list_rag_documents()?;
+            let _ = evt_tx.send(Event::RagDocuments(v));
+        }
+        SaveRagDocument(d) => {
+            ctx.db.upsert_rag_document(&d)?;
+            let _ = evt_tx.send(Event::RagDocumentSaved);
+            let v = ctx.db.list_rag_documents()?;
+            let _ = evt_tx.send(Event::RagDocuments(v));
+        }
+        DeleteRagDocument(id) => {
+            ctx.db.delete_rag_document(id)?;
+            let _ = evt_tx.send(Event::RagDocumentDeleted);
+            let v = ctx.db.list_rag_documents()?;
+            let _ = evt_tx.send(Event::RagDocuments(v));
+        }
         LoadStats => {
             let s = ctx.db.dashboard_stats()?;
             let _ = evt_tx.send(Event::Stats(s));
@@ -355,8 +427,10 @@ async fn run_command(
             let v = ctx.db.list_providers()?;
             let _ = evt_tx.send(Event::Providers(v));
         }
-        SaveSettings(_) => {
-            // handled by app persistence layer
+        SaveSettings(s) => {
+            ctx.db.save_settings(&s)?;
+            *ctx.settings.write() = s.clone();
+            let _ = evt_tx.send(Event::Settings(s));
         }
     }
     Ok(())

@@ -12,10 +12,11 @@
 //! reflect it in real time without ever blocking.
 
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use crossbeam_channel::Sender;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::llm::{ChatMessage, LlmRequest};
@@ -29,28 +30,23 @@ pub async fn run_turn(
     conversation_id: Uuid,
     agent_id: String,
     student_id: Option<Uuid>,
-    user_text: String,
+    cancel: CancellationToken,
 ) -> anyhow::Result<()> {
-    // 1. Persist the user message.
-    let now = Utc::now();
-    let user_msg = Message {
-        id: Uuid::new_v4(),
-        conversation_id,
-        role: Role::User,
-        content: user_text.clone(),
-        tool_calls: vec![],
-        created_at: now,
-    };
-    ctx.db.insert_message(&user_msg)?;
-
-    // 2. Resolve agent + provider.
+    // 1. Resolve agent + provider (active provider first, then any enabled).
     let agent = crate::agents::find(&agent_id)
         .ok_or_else(|| anyhow::anyhow!("未知代理: {agent_id}"))?;
     let providers = ctx.db.list_providers()?;
-    let provider = providers
-        .into_iter()
-        .find(|p| p.enabled)
-        .ok_or_else(|| anyhow::anyhow!("未配置可用的 LLM 提供商，请在设置中添加"))?;
+    let settings = ctx.settings.read().clone();
+    let provider = if let Some(active_id) = settings.active_provider_id {
+        providers
+            .iter()
+            .find(|p| p.id == active_id && p.enabled)
+            .cloned()
+            .or_else(|| providers.into_iter().find(|p| p.enabled))
+    } else {
+        providers.into_iter().find(|p| p.enabled)
+    }
+    .ok_or_else(|| anyhow::anyhow!("未配置可用的 LLM 提供商，请在设置中添加"))?;
 
     // 3. Build the message history.
     let history = ctx.db.messages_for(conversation_id)?;
@@ -86,9 +82,13 @@ pub async fn run_turn(
             Role::User => {
                 // PII redaction: mask phone/ID/email before sending to the LLM.
                 // The original text is persisted in the DB; only the LLM sees the
-                // redacted version.
-                let (redacted, _) = ctx.redactor.redact(&m.content);
-                messages.push(ChatMessage::user(&redacted));
+                // redacted version. Respect the user's privacy toggle.
+                let content = if settings.privacy_enabled {
+                    ctx.redactor.redact(&m.content).0
+                } else {
+                    m.content.clone()
+                };
+                messages.push(ChatMessage::user(&content));
             }
             Role::Assistant => messages.push(ChatMessage::assistant(&m.content)),
             Role::System => {}
@@ -97,7 +97,7 @@ pub async fn run_turn(
     }
 
     // 4. Iterate the ReAct loop.
-    let max_iter = 6u32;
+    let max_iter = settings.max_tool_iterations.clamp(1, 12);
     let mut iteration = 0u32;
     let assistant_id = Uuid::new_v4();
     let _ = evt_tx.send(Event::StreamStart {
@@ -106,18 +106,31 @@ pub async fn run_turn(
     });
 
     let mut accumulated = String::new();
+    let mut all_tool_records: Vec<ToolCallRecord> = Vec::new();
     loop {
+        if cancel.is_cancelled() {
+            let _ = evt_tx.send(Event::StreamError {
+                conversation_id,
+                error: "生成已取消".into(),
+            });
+            return Ok(());
+        }
         iteration += 1;
         let req = LlmRequest {
             provider: provider.clone(),
             messages: messages.clone(),
-            temperature: 0.4,
-            max_tokens: 1024,
+            temperature: settings.temperature,
+            max_tokens: 2048,
         };
 
         let tx = evt_tx.clone();
         let msg_id = assistant_id;
+        let mut cancelled = false;
         let mut on_token = |delta: &str| {
+            if cancel.is_cancelled() {
+                cancelled = true;
+                return;
+            }
             let _ = tx.send(Event::StreamToken {
                 conversation_id,
                 message_id: msg_id,
@@ -129,6 +142,14 @@ pub async fn run_turn(
             .stream(&req, &ctx.cipher, &mut on_token)
             .await?;
 
+        if cancelled || cancel.is_cancelled() {
+            let _ = evt_tx.send(Event::StreamError {
+                conversation_id,
+                error: "生成已取消".into(),
+            });
+            return Ok(());
+        }
+
         // Try to extract & execute tool calls.
         let (clean, tool_calls) = parse_tool_calls(&full);
         if tool_calls.is_empty() || iteration >= max_iter {
@@ -138,9 +159,15 @@ pub async fn run_turn(
 
         // We had tool calls: execute them and continue.
         accumulated.push_str(&clean);
-        // persist intermediate assistant text as part of the message tool_calls
-        let mut tc_records = Vec::new();
+        let mut iteration_records: Vec<ToolCallRecord> = Vec::new();
         for tc in tool_calls {
+            if cancel.is_cancelled() {
+                let _ = evt_tx.send(Event::StreamError {
+                    conversation_id,
+                    error: "生成已取消".into(),
+                });
+                return Ok(());
+            }
             let start = Instant::now();
             let _ = evt_tx.send(Event::StreamTool {
                 conversation_id,
@@ -155,29 +182,27 @@ pub async fn run_turn(
             });
             let (result, status) = execute_tool(&ctx, &tc);
             let dur = start.elapsed().as_millis() as u64;
-            tc_records.push(ToolCallRecord {
+            let record = ToolCallRecord {
                 name: tc.name.clone(),
                 args: tc.args.clone(),
                 result: result.clone(),
                 status,
                 duration_ms: dur,
-            });
+            };
+            iteration_records.push(record.clone());
+            all_tool_records.push(record.clone());
             let _ = evt_tx.send(Event::StreamTool {
                 conversation_id,
                 message_id: assistant_id,
-                call: ToolCallRecord {
-                    name: tc.name,
-                    args: String::new(),
-                    result,
-                    status,
-                    duration_ms: dur,
-                },
+                call: record,
             });
+            // brief pause to keep the UI responsive and show tool progress
+            tokio::time::sleep(Duration::from_millis(20)).await;
         }
 
         // feed tool results back into the conversation
         messages.push(ChatMessage::assistant(&clean));
-        for tc in &tc_records {
+        for tc in &iteration_records {
             messages.push(ChatMessage::user(format!(
                 "<tool_result name=\"{}\">{}</tool_result>",
                 tc.name, tc.result
@@ -185,17 +210,18 @@ pub async fn run_turn(
         }
     }
 
-    // 5. Persist the assistant message.
+    // 5. Persist the assistant message with full tool-call history.
     let now = Utc::now();
     let assistant_msg = Message {
         id: assistant_id,
         conversation_id,
         role: Role::Assistant,
         content: accumulated.trim().to_string(),
-        tool_calls: vec![],
+        tool_calls: all_tool_records,
         created_at: now,
     };
     ctx.db.insert_message(&assistant_msg)?;
+    let _ = ctx.db.touch_conversation(conversation_id);
     let _ = evt_tx.send(Event::StreamDone {
         conversation_id,
         message_id: assistant_id,

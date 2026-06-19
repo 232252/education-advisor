@@ -142,13 +142,15 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
             ui.separator();
             // input
             ui.horizontal(|ui| {
-                let resp = ui.add(
+                let shift = ui.input(|i| i.modifiers.shift);
+                let enter_send = !shift && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
+                let _resp = ui.add(
                     egui::TextEdit::multiline(&mut app.chat_input)
                         .desired_width(ui.available_width() - 90.0)
                         .desired_rows(1)
-                        .hint_text("输入消息，Enter 发送…"),
+                        .hint_text("输入消息，Enter 发送，Shift+Enter 换行…"),
                 );
-                if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !app.chat_input.trim().is_empty() {
+                if enter_send && !app.chat_input.trim().is_empty() {
                     send(app, conv_id);
                 }
                 let streaming = app.streaming.get(&conv_id).is_some_and(|s| s.active);

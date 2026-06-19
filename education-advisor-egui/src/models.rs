@@ -5,6 +5,7 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+
 use uuid::Uuid;
 
 /// A student record.
@@ -192,4 +193,39 @@ pub struct DashboardStats {
     pub tool_calls_total: usize,
     pub agent_activity: Vec<(String, u32)>,
     pub grade_trend: Vec<(String, f32)>,
+}
+
+/// A local RAG document.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RagDocument {
+    pub id: Uuid,
+    pub title: String,
+    pub content: String,
+    pub chunks: Vec<RagChunk>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RagChunk {
+    pub id: Uuid,
+    pub document_id: Uuid,
+    pub text: String,
+    pub embedding: Vec<f32>,
+}
+
+/// Built-in provider preset so users can pick from 30+ models out of the box.
+#[derive(Debug, Clone)]
+pub struct ProviderPreset {
+    pub name: String,
+    pub kind: ProviderKind,
+    pub base_url: String,
+    pub model: String,
+}
+
+/// Export scope for students/grades.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ExportScope {
+    #[default]
+    All,
+    SelectedStudent,
 }

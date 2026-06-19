@@ -1,6 +1,6 @@
 //! Dashboard: KPI cards + charts overview.
 
-use eframe::egui::{self, FontId, Ui, Vec2};
+use eframe::egui::{self, FontId, Ui};
 
 use crate::app::App;
 use crate::ui::widgets::{card, section_title, stat_card};
@@ -141,5 +141,4 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             let _ = app.runtime.tx.send(crate::runtime::Command::LoadConversations);
         }
     });
-    let _ = Vec2::ZERO;
 }

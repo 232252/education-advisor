@@ -15,6 +15,7 @@ pub mod scheduler_page;
 pub mod settings_page;
 pub mod sidebar;
 pub mod students_page;
+pub mod rag_page;
 pub mod toast;
 pub mod topbar;
 pub mod widgets;
@@ -29,6 +30,9 @@ pub struct UiState {
     pub new_grade_score: String,
     pub import_text: String,
     pub show_import: bool,
+    pub tag_input: String,
+    pub export_scope: crate::models::ExportScope,
+    pub show_export_preview: bool,
 
     // chat page
     #[allow(dead_code)]
@@ -38,6 +42,10 @@ pub struct UiState {
 
     // scheduler page
     pub editing_task: Option<ScheduledTask>,
+
+    // rag page
+    pub rag_query: String,
+    pub rag_results: Vec<(Uuid, usize, f32, String)>,
 
     // settings page
     pub editing_provider: Option<LlmProvider>,
