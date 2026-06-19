@@ -2,7 +2,9 @@
 //! one-click "ask agent" shortcut that wires the student into a new chat.
 
 use chrono::Utc;
-use eframe::egui::{self, Align, Align2, FontId, Layout, Pos2, Ui, Vec2};
+use eframe::egui::{
+    self, Align, Align2, FontId, Layout, Pos2, Rect, Rounding, Sense, Ui, Vec2,
+};
 use uuid::Uuid;
 
 use crate::app::App;
@@ -16,13 +18,14 @@ use crate::ui::widgets::{
 pub fn show(app: &mut App, ui: &mut Ui) {
     section_title(ui, &app.theme, "学生档案");
 
+    // Toolbar
     ui.horizontal(|ui| {
         let search_w = ui.available_width() * 0.45;
         search_input(
             ui,
             &app.theme,
             &mut app.ui_state.student_filter,
-            "搜索姓名/班级",
+            "搜索姓名 / 班级",
             search_w,
         );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -91,7 +94,9 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     app.ui_state.show_import = false;
                 }
                 if ghost_button(ui, &app.theme, "示例").clicked() {
-                    app.ui_state.import_text = "name,grade,class,risk,gpa\n孙悦,高三,1班,low,3.7\n周杰,高二,2班,high,2.5\n".into();
+                    app.ui_state.import_text =
+                        "name,grade,class,risk,gpa\n孙悦,高三,1班,low,3.7\n周杰,高二,2班,high,2.5\n"
+                            .into();
                 }
             });
         });
@@ -104,12 +109,11 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     ui.add_space(8.0);
 
-    // two-column: list + detail
     let avail = ui.available_width();
-    let list_w = (avail * 0.42).min(420.0);
+    let list_w = (avail * 0.40).min(400.0);
 
     ui.horizontal_top(|ui| {
-        // list
+        // ── 左侧列表 ──
         ui.vertical(|ui| {
             ui.set_min_width(list_w);
             card(ui, &app.theme, |ui| {
@@ -137,27 +141,27 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                         for s in &filtered {
                             let selected = app.selected_student == Some(s.id);
                             let (rect, resp) = ui.allocate_exact_size(
-                                Vec2::new(ui.available_width(), 56.0),
-                                egui::Sense::click(),
+                                Vec2::new(ui.available_width(), 64.0),
+                                Sense::click(),
                             );
                             if selected {
                                 ui.painter().rect_filled(
                                     rect,
-                                    egui::Rounding::same(10.0),
+                                    Rounding::same(12.0),
                                     app.theme.accent_dim,
                                 );
                             } else if resp.hovered() {
                                 ui.painter().rect_filled(
                                     rect,
-                                    egui::Rounding::same(10.0),
+                                    Rounding::same(12.0),
                                     app.theme.surface,
                                 );
                             }
-                            // avatar circle with initial
-                            let av = Pos2::new(rect.min.x + 22.0, rect.center().y);
+                            // avatar
+                            let av = Pos2::new(rect.min.x + 18.0, rect.center().y);
                             ui.painter().circle_filled(
                                 av,
-                                16.0,
+                                18.0,
                                 app.theme.risk_color(s.risk_level),
                             );
                             let initial = s.name.chars().next().unwrap_or('?');
@@ -168,25 +172,45 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                                 FontId::proportional(14.0),
                                 app.theme.bg,
                             );
+                            // name
                             ui.painter().text(
-                                Pos2::new(rect.min.x + 48.0, rect.min.y + 10.0),
+                                Pos2::new(rect.min.x + 46.0, rect.min.y + 14.0),
                                 Align2::LEFT_CENTER,
                                 &s.name,
                                 FontId::proportional(13.0),
                                 app.theme.text,
                             );
+                            // meta
                             ui.painter().text(
-                                Pos2::new(rect.min.x + 48.0, rect.min.y + 28.0),
+                                Pos2::new(rect.min.x + 46.0, rect.min.y + 32.0),
                                 Align2::LEFT_CENTER,
                                 format!("{} · {}", s.grade, s.class),
                                 FontId::proportional(10.0),
                                 app.theme.text_faint,
                             );
-                            ui.painter().text(
-                                Pos2::new(rect.max.x - 8.0, rect.center().y),
-                                Align2::RIGHT_CENTER,
-                                s.risk_level.label(),
-                                FontId::proportional(11.0),
+                            // risk badge
+                            let risk_text = s.risk_level.label();
+                            let galley = ui.ctx().fonts(|f| {
+                                f.layout_no_wrap(
+                                    risk_text.to_string(),
+                                    FontId::proportional(10.0),
+                                    app.theme.risk_color(s.risk_level),
+                                )
+                            });
+                            let badge_w = galley.rect.width() + 14.0;
+                            let badge_h = 20.0;
+                            let badge_rect = Rect::from_min_size(
+                                Pos2::new(rect.max.x - badge_w - 8.0, rect.center().y - badge_h / 2.0),
+                                Vec2::new(badge_w, badge_h),
+                            );
+                            ui.painter().rect_filled(
+                                badge_rect,
+                                Rounding::same(6.0),
+                                app.theme.translucent(app.theme.risk_color(s.risk_level), 0.12),
+                            );
+                            ui.painter().galley(
+                                badge_rect.center() - galley.rect.size() * 0.5,
+                                galley,
                                 app.theme.risk_color(s.risk_level),
                             );
                             if resp.clicked() {
@@ -203,7 +227,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
         ui.add_space(8.0);
 
-        // detail
+        // ── 右侧详情 ──
         ui.vertical(|ui| {
             ui.set_min_width(ui.available_width());
             let sel = app.selected_student;
@@ -222,18 +246,19 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
 fn detail(app: &mut App, ui: &mut Ui, student: Student) {
     let theme = app.theme.clone();
+
+    // ── 档案头部 ──
     card(ui, &theme, |ui| {
         ui.horizontal_top(|ui| {
-            // big avatar
-            let (av, _) = ui.allocate_exact_size(Vec2::splat(56.0), egui::Sense::hover());
+            let (av, _) = ui.allocate_exact_size(Vec2::splat(64.0), Sense::hover());
             ui.painter()
-                .circle_filled(av.center(), 28.0, app.theme.risk_color(student.risk_level));
+                .circle_filled(av.center(), 32.0, app.theme.risk_color(student.risk_level));
             let initial = student.name.chars().next().unwrap_or('?');
             ui.painter().text(
                 av.center(),
                 Align2::CENTER_CENTER,
                 initial.to_string(),
-                FontId::proportional(24.0),
+                FontId::proportional(26.0),
                 app.theme.bg,
             );
             ui.vertical(|ui| {
@@ -259,9 +284,9 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
             });
         });
 
-        ui.add_space(6.0);
+        ui.add_space(8.0);
         crate::ui::widgets::divider(ui, &theme);
-        ui.add_space(6.0);
+        ui.add_space(8.0);
 
         let decrypted_contact = student.guardian_contact.as_ref().map_or_else(
             || "—".to_string(),
@@ -278,61 +303,31 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
 
         egui::Grid::new("student_meta")
             .num_columns(2)
-            .spacing(Vec2::new(12.0, 6.0))
+            .spacing(Vec2::new(16.0, 8.0))
             .show(ui, |ui| {
-                ui.label(
-                    egui::RichText::new("GPA")
-                        .font(FontId::proportional(12.0))
-                        .color(app.theme.text_dim),
-                );
-                ui.label(
-                    egui::RichText::new(
-                        student
-                            .gpa
-                            .map_or_else(|| "—".into(), |g| format!("{g:.2}")),
-                    )
-                    .font(FontId::proportional(13.0))
-                    .color(app.theme.text),
+                meta_label(ui, &app.theme, "GPA");
+                meta_value(
+                    ui,
+                    &app.theme,
+                    &student.gpa.map_or_else(|| "—".into(), |g| format!("{g:.2}")),
                 );
                 ui.end_row();
-                ui.label(
-                    egui::RichText::new("出生日期")
-                        .font(FontId::proportional(12.0))
-                        .color(app.theme.text_dim),
-                );
-                ui.label(
-                    egui::RichText::new(
-                        student
-                            .birth_date
-                            .map_or_else(|| "—".into(), |d| d.to_string()),
-                    )
-                    .font(FontId::proportional(13.0))
-                    .color(app.theme.text),
+                meta_label(ui, &app.theme, "出生日期");
+                meta_value(
+                    ui,
+                    &app.theme,
+                    &student
+                        .birth_date
+                        .map_or_else(|| "—".into(), |d| d.to_string()),
                 );
                 ui.end_row();
-                ui.label(
-                    egui::RichText::new("监护人电话")
-                        .font(FontId::proportional(12.0))
-                        .color(app.theme.text_dim),
-                );
-                ui.label(
-                    egui::RichText::new(decrypted_contact)
-                        .font(FontId::proportional(13.0))
-                        .color(app.theme.text),
-                );
+                meta_label(ui, &app.theme, "监护人电话");
+                meta_value(ui, &app.theme, &decrypted_contact);
                 ui.end_row();
-                ui.label(
-                    egui::RichText::new("标签")
-                        .font(FontId::proportional(12.0))
-                        .color(app.theme.text_dim),
-                );
+                meta_label(ui, &app.theme, "标签");
                 ui.horizontal(|ui| {
                     if student.tags.is_empty() {
-                        ui.label(
-                            egui::RichText::new("—")
-                                .font(FontId::proportional(12.0))
-                                .color(app.theme.text_faint),
-                        );
+                        meta_value(ui, &app.theme, "—");
                     }
                     for t in &student.tags {
                         crate::ui::widgets::badge(ui, &theme, t, app.theme.info);
@@ -341,7 +336,7 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
                 ui.end_row();
             });
 
-        ui.add_space(4.0);
+        ui.add_space(6.0);
         ui.horizontal(|ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut app.ui_state.tag_input)
@@ -365,7 +360,7 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
             }
         });
 
-        ui.add_space(8.0);
+        ui.add_space(10.0);
         ui.horizontal(|ui| {
             if tool_button(ui, &app.theme, "编辑", icons::edit).clicked() {
                 app.ui_state.editing_student = Some(student.clone());
@@ -394,7 +389,7 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
 
     ui.add_space(8.0);
 
-    // grades chart
+    // ── 成绩折线图 ──
     let grades = app
         .ui_state
         .grades
@@ -405,17 +400,23 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
     crate::charts::line_chart(
         ui,
         &app.theme,
-        &format!("{} 的成绩", student.name),
+        &format!("{} 的成绩趋势", student.name),
         &series,
         app.theme.success,
-        160.0,
+        170.0,
     );
 
     ui.add_space(8.0);
+
+    // ── 添加成绩 ──
     card(ui, &app.theme, |ui| {
         section_title(ui, &app.theme, "添加成绩");
         ui.horizontal(|ui| {
-            ui.text_edit_singleline(&mut app.ui_state.new_grade_subject);
+            ui.add(
+                egui::TextEdit::singleline(&mut app.ui_state.new_grade_subject)
+                    .desired_width(140.0)
+                    .hint_text("科目"),
+            );
             ui.add(
                 egui::TextEdit::singleline(&mut app.ui_state.new_grade_score).desired_width(60.0),
             );
@@ -446,6 +447,22 @@ fn detail(app: &mut App, ui: &mut Ui, student: Student) {
     if app.ui_state.editing_student.is_some() {
         edit_dialog(app, ui);
     }
+}
+
+fn meta_label(ui: &mut Ui, theme: &crate::theme::Theme, text: &str) {
+    ui.label(
+        egui::RichText::new(text)
+            .font(FontId::proportional(12.0))
+            .color(theme.text_dim),
+    );
+}
+
+fn meta_value(ui: &mut Ui, theme: &crate::theme::Theme, text: &str) {
+    ui.label(
+        egui::RichText::new(text)
+            .font(FontId::proportional(13.0))
+            .color(theme.text),
+    );
 }
 
 fn edit_dialog(app: &mut App, ui: &mut Ui) {

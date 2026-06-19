@@ -106,12 +106,13 @@ fn new_conversation(app: &mut App) {
     } else {
         app.ui_state.new_conversation_title.clone()
     };
+    let student_id = app.selected_student;
     let _ = app
         .runtime
         .tx
         .send(crate::runtime::Command::NewConversation {
             agent_id,
-            student_id: None,
+            student_id,
             title,
         });
     app.ui_state.new_conversation_title.clear();
@@ -155,10 +156,17 @@ fn conversation_row(
         FontId::proportional(12.0),
         theme.text,
     );
+    let meta_text = if let Some(sid) = c.student_id {
+        let students = app.students.read();
+        let name = students.iter().find(|s| s.id == sid).map_or("未知学生", |s| s.name.as_str());
+        format!("{} · {}", name, c.updated_at.format("%m-%d %H:%M"))
+    } else {
+        c.updated_at.format("%m-%d %H:%M").to_string()
+    };
     ui.painter().text(
         Pos2::new(rect.min.x + 32.0, rect.min.y + 26.0),
         Align2::LEFT_CENTER,
-        c.updated_at.format("%m-%d %H:%M").to_string(),
+        meta_text,
         FontId::proportional(9.0),
         theme.text_faint,
     );
@@ -236,7 +244,30 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                             .color(app.theme.text),
                     );
                 }
+                // 若会话绑定了学生，显示快捷跳转（提前读取避免闭包内借用冲突）
+                let bound_student_name: Option<String> = {
+                    let convs = app.conversations.read();
+                    convs.iter().find(|c| c.id == conv_id).and_then(|c| {
+                        c.student_id.and_then(|sid| {
+                            let students = app.students.read();
+                            students.iter().find(|s| s.id == sid).map(|s| s.name.clone())
+                        })
+                    })
+                };
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if let Some(name) = &bound_student_name {
+                        if ghost_button(ui, &app.theme, name).clicked() {
+                            // 提前读取 sid，避免在闭包内同时持有读锁和可变引用
+                            let sid_opt = {
+                                let convs = app.conversations.read();
+                                convs.iter().find(|c| c.id == conv_id).and_then(|c| c.student_id)
+                            };
+                            if let Some(sid) = sid_opt {
+                                app.selected_student = Some(sid);
+                                app.navigate(crate::app::Page::Students);
+                            }
+                        }
+                    }
                     let streaming = app.streaming.get(&conv_id).is_some_and(|s| s.active);
                     if streaming {
                         ui.spinner();

@@ -1,4 +1,6 @@
 //! Skills page: agent tool skills registry and capability toggles.
+//!
+//! Skills are persisted to `Settings.enabled_skills` so they survive restarts.
 
 use eframe::egui::{self, Align, Color32, FontId, Layout, Sense, Ui, Vec2};
 
@@ -69,6 +71,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     }
 
     for skill in &SKILLS {
+        let mut enabled = is_skill_enabled(app, skill.id);
         card(ui, &app.theme, |ui| {
             ui.horizontal_top(|ui| {
                 // avatar circle
@@ -95,13 +98,44 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 });
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    let mut enabled = *app.ui_state.skill_enabled.get(skill.id).unwrap_or(&true);
                     if ui.checkbox(&mut enabled, "启用").changed() {
-                        app.ui_state.skill_enabled.insert(skill.id, enabled);
+                        // 通过 Command 持久化，避免闭包内可变借用冲突
+                        let _ = app
+                            .runtime
+                            .tx
+                            .send(crate::runtime::Command::SaveSettings({
+                                let mut s = app.settings.clone();
+                                if enabled {
+                                    s.enabled_skills.insert(skill.id.to_string());
+                                } else {
+                                    s.enabled_skills.remove(skill.id);
+                                }
+                                s
+                            }));
                     }
                 });
             });
         });
         ui.add_space(6.0);
     }
+}
+
+fn is_skill_enabled(app: &App, skill_id: &str) -> bool {
+    if app.settings.enabled_skills.is_empty() {
+        true
+    } else {
+        app.settings.enabled_skills.contains(skill_id)
+    }
+}
+
+fn _set_skill_enabled(app: &mut App, skill_id: &str, enabled: bool) {
+    if enabled {
+        app.settings.enabled_skills.insert(skill_id.to_string());
+    } else {
+        app.settings.enabled_skills.remove(skill_id);
+    }
+    let _ = app
+        .runtime
+        .tx
+        .send(crate::runtime::Command::SaveSettings(app.settings.clone()));
 }
