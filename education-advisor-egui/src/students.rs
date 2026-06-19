@@ -12,7 +12,7 @@ use crate::db::Db;
 use crate::models::{ExportScope, GradeEntry, RiskLevel, Student};
 
 /// Parse CSV content and insert students. Expected header (any order):
-/// name,grade,class,risk,gpa
+/// `name,gender,grade,class,id_number,risk,gpa`
 /// `risk` is one of: low/medium/high/critical.
 pub fn import_csv(db: &Db, content: &str) -> Result<usize> {
     let mut lines = content.lines();
@@ -21,8 +21,10 @@ pub fn import_csv(db: &Db, content: &str) -> Result<usize> {
     let idx = |name: &str| cols.iter().position(|c| c == name);
 
     let n_name = idx("name").ok_or_else(|| anyhow!("缺少 name 列"))?;
+    let n_gender = idx("gender");
     let n_grade = idx("grade").unwrap_or(1);
     let n_class = idx("class").unwrap_or(2);
+    let n_number = idx("id_number");
     let n_risk = idx("risk");
     let n_gpa = idx("gpa");
 
@@ -32,15 +34,12 @@ pub fn import_csv(db: &Db, content: &str) -> Result<usize> {
             continue;
         }
         let fields: Vec<&str> = line.split(',').collect();
-        let get = |i: Option<usize>| -> String {
+        let get = |i: Option<usize>| -> Option<String> {
             i.and_then(|i| fields.get(i))
                 .map(|s| s.trim().to_string())
-                .unwrap_or_default()
+                .filter(|s| !s.is_empty())
         };
-        let name = get(Some(n_name));
-        if name.is_empty() {
-            continue;
-        }
+        let name = get(Some(n_name)).ok_or_else(|| anyhow!("姓名为空"))?;
         let risk = n_risk
             .and_then(|i| fields.get(i))
             .map_or(RiskLevel::Low, |s| match s.trim().to_lowercase().as_str() {
@@ -56,13 +55,21 @@ pub fn import_csv(db: &Db, content: &str) -> Result<usize> {
         let s = Student {
             id: Uuid::new_v4(),
             name,
-            grade: get(Some(n_grade)),
-            class: get(Some(n_class)),
+            gender: get(n_gender),
+            grade: get(Some(n_grade)).unwrap_or_default(),
+            class: get(Some(n_class)).unwrap_or_default(),
+            id_number: get(n_number),
             birth_date: None,
+            enrollment_date: None,
+            guardian_name: None,
             guardian_contact: None,
+            guardian_relation: None,
+            home_address: None,
+            emergency_contact: None,
             risk_level: risk,
             gpa,
             tags: vec![],
+            notes: None,
             created_at: now,
             updated_at: now,
         };
@@ -78,26 +85,34 @@ pub fn seed_demo(db: &Db) -> Result<()> {
         return Ok(());
     }
     let demo = [
-        ("张明", "高三", "1班", RiskLevel::Medium, 3.4_f32),
-        ("李华", "高三", "2班", RiskLevel::High, 2.8),
-        ("王芳", "高二", "3班", RiskLevel::Low, 3.9),
-        ("刘洋", "高二", "1班", RiskLevel::Critical, 2.1),
-        ("陈静", "高一", "4班", RiskLevel::Low, 4.0),
-        ("赵磊", "高一", "2班", RiskLevel::Medium, 3.2),
+        ("张明", "男", "高三", "1班", "2021001", RiskLevel::Medium, 3.4_f32),
+        ("李华", "女", "高三", "2班", "2021002", RiskLevel::High, 2.8),
+        ("王芳", "女", "高二", "3班", "2022003", RiskLevel::Low, 3.9),
+        ("刘洋", "男", "高二", "1班", "2022004", RiskLevel::Critical, 2.1),
+        ("陈静", "女", "高一", "4班", "2023005", RiskLevel::Low, 4.0),
+        ("赵磊", "男", "高一", "2班", "2023006", RiskLevel::Medium, 3.2),
     ];
     let now = Utc::now();
-    for (name, grade, class, risk, gpa) in demo {
+    for (name, gender, grade, class, number, risk, gpa) in demo {
         let id = Uuid::new_v4();
         db.upsert_student(&Student {
             id,
             name: name.into(),
+            gender: Some(gender.into()),
             grade: grade.into(),
             class: class.into(),
+            id_number: Some(number.into()),
             birth_date: None,
+            enrollment_date: None,
+            guardian_name: None,
             guardian_contact: None,
+            guardian_relation: None,
+            home_address: None,
+            emergency_contact: None,
             risk_level: risk,
             gpa: Some(gpa),
             tags: vec!["示例".into()],
+            notes: Some("这是示例学生数据".into()),
             created_at: now,
             updated_at: now,
         })?;
@@ -220,26 +235,42 @@ mod tests {
         let s1 = Student {
             id: Uuid::new_v4(),
             name: "A".into(),
+            gender: None,
             grade: "高一".into(),
             class: "1班".into(),
+            id_number: None,
             birth_date: None,
+            enrollment_date: None,
+            guardian_name: None,
             guardian_contact: None,
+            guardian_relation: None,
+            home_address: None,
+            emergency_contact: None,
             risk_level: RiskLevel::Low,
             gpa: Some(3.5),
             tags: vec![],
+            notes: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
         let s2 = Student {
             id: Uuid::new_v4(),
             name: "B".into(),
+            gender: None,
             grade: "高一".into(),
             class: "2班".into(),
+            id_number: None,
             birth_date: None,
+            enrollment_date: None,
+            guardian_name: None,
             guardian_contact: None,
+            guardian_relation: None,
+            home_address: None,
+            emergency_contact: None,
             risk_level: RiskLevel::Low,
             gpa: Some(3.0),
             tags: vec![],
+            notes: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };

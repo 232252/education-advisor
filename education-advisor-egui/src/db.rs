@@ -50,13 +50,21 @@ impl Db {
             "CREATE TABLE IF NOT EXISTS students (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
+                gender TEXT,
                 grade TEXT NOT NULL,
                 class TEXT NOT NULL,
+                id_number TEXT,
                 birth_date TEXT,
+                enrollment_date TEXT,
+                guardian_name TEXT,
                 guardian_contact TEXT,
+                guardian_relation TEXT,
+                home_address TEXT,
+                emergency_contact TEXT,
                 risk_level INTEGER NOT NULL,
                 gpa REAL,
                 tags TEXT NOT NULL DEFAULT '[]',
+                notes TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -136,18 +144,26 @@ impl Db {
         let c = self.conn.lock();
         c.execute(
             "INSERT OR REPLACE INTO students
-             (id,name,grade,class,birth_date,guardian_contact,risk_level,gpa,tags,created_at,updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+             (id,name,gender,grade,class,id_number,birth_date,enrollment_date,guardian_name,guardian_contact,guardian_relation,home_address,emergency_contact,risk_level,gpa,tags,notes,created_at,updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             params![
                 s.id.to_string(),
                 s.name,
+                s.gender,
                 s.grade,
                 s.class,
+                s.id_number,
                 s.birth_date.map(|d| d.to_string()),
+                s.enrollment_date.map(|d| d.to_string()),
+                s.guardian_name,
                 s.guardian_contact,
+                s.guardian_relation,
+                s.home_address,
+                s.emergency_contact,
                 s.risk_level as i64,
                 s.gpa,
                 serde_json::to_string(&s.tags).unwrap_or_default(),
+                s.notes,
                 s.created_at.to_rfc3339(),
                 s.updated_at.to_rfc3339(),
             ],
@@ -502,15 +518,23 @@ impl Db {
 fn row_to_student(r: &rusqlite::Row) -> rusqlite::Result<Student> {
     let id: String = r.get("id")?;
     let birth: Option<String> = r.get("birth_date")?;
+    let enroll: Option<String> = r.get("enrollment_date")?;
     let tags_json: String = r.get("tags")?;
     let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
     Ok(Student {
         id: Uuid::parse_str(&id).unwrap_or_default(),
         name: r.get("name")?,
+        gender: r.get("gender")?,
         grade: r.get("grade")?,
         class: r.get("class")?,
+        id_number: r.get("id_number")?,
         birth_date: birth.and_then(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok()),
+        enrollment_date: enroll.and_then(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok()),
+        guardian_name: r.get("guardian_name")?,
         guardian_contact: r.get("guardian_contact")?,
+        guardian_relation: r.get("guardian_relation")?,
+        home_address: r.get("home_address")?,
+        emergency_contact: r.get("emergency_contact")?,
         risk_level: {
             let v: i64 = r.get("risk_level")?;
             match v {
@@ -522,6 +546,7 @@ fn row_to_student(r: &rusqlite::Row) -> rusqlite::Result<Student> {
         },
         gpa: r.get("gpa")?,
         tags,
+        notes: r.get("notes")?,
         created_at: DateTime::parse_from_rfc3339(&r.get::<_, String>("created_at")?)
             .map_or_else(|_| Utc::now(), |d| d.with_timezone(&Utc)),
         updated_at: DateTime::parse_from_rfc3339(&r.get::<_, String>("updated_at")?)

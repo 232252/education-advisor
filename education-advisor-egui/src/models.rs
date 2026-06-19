@@ -9,18 +9,26 @@ use std::collections::HashSet;
 
 use uuid::Uuid;
 
-/// A student record.
+/// A student record with comprehensive fields for education management.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Student {
     pub id: Uuid,
     pub name: String,
+    pub gender: Option<String>,
     pub grade: String,
     pub class: String,
+    pub id_number: Option<String>,  // 学号/学籍号
     pub birth_date: Option<NaiveDate>,
+    pub enrollment_date: Option<NaiveDate>,
+    pub guardian_name: Option<String>,
     pub guardian_contact: Option<String>, // stored encrypted
+    pub guardian_relation: Option<String>,
+    pub home_address: Option<String>,
+    pub emergency_contact: Option<String>,
     pub risk_level: RiskLevel,
     pub gpa: Option<f32>,
     pub tags: Vec<String>,
+    pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

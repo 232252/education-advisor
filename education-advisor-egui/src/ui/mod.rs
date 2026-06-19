@@ -38,6 +38,7 @@ pub struct UiState {
     pub tag_input: String,
     pub export_scope: crate::models::ExportScope,
     pub show_export_preview: bool,
+    pub student_detail_tab: usize,
 
     // chat page
     pub new_conversation_agent: String,
