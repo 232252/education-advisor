@@ -6,6 +6,7 @@
 //! a constant 60/120fps.
 
 #![forbid(unsafe_code)]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(
     clippy::module_name_repetitions,
