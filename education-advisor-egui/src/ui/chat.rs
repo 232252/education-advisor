@@ -71,9 +71,19 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                                 app.theme.text_faint,
                             );
                             if resp.clicked() {
-                                app.selected_conversation = Some(c.id);
-                                let _ = app.runtime.tx.send(crate::runtime::Command::LoadMessages(c.id));
-                            }
+                    app.selected_conversation = Some(c.id);
+                    let _ = app.runtime.tx.send(crate::runtime::Command::LoadMessages(c.id));
+                }
+                // right-click context menu
+                resp.context_menu(|ui| {
+                    if ui.button("删除会话").clicked() {
+                        let _ = app.runtime.tx.send(crate::runtime::Command::DeleteConversation(c.id));
+                        if app.selected_conversation == Some(c.id) {
+                            app.selected_conversation = None;
+                        }
+                        ui.close_menu();
+                    }
+                });
                         }
                     });
             });
@@ -142,16 +152,16 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
             ui.separator();
             // input
             ui.horizontal(|ui| {
-                let shift = ui.input(|i| i.modifiers.shift);
-                let enter_send = !shift && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
-                let _resp = ui.add(
-                    egui::TextEdit::multiline(&mut app.chat_input)
-                        .desired_width(ui.available_width() - 90.0)
-                        .desired_rows(1)
-                        .hint_text("输入消息，Enter 发送，Shift+Enter 换行…"),
-                );
-                if enter_send && !app.chat_input.trim().is_empty() {
-                    send(app, conv_id);
+                let mut text_edit = egui::TextEdit::multiline(&mut app.chat_input)
+                    .desired_width(ui.available_width() - 90.0)
+                    .desired_rows(1)
+                    .hint_text("输入消息，Enter 发送，Shift+Enter 换行…");
+                let resp = ui.add(&mut text_edit);
+                if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !ui.input(|i| i.modifiers.shift) {
+                    if !app.chat_input.trim().is_empty() {
+                        send(app, conv_id);
+                    }
+                    resp.request_focus();
                 }
                 let streaming = app.streaming.get(&conv_id).is_some_and(|s| s.active);
                 if streaming {

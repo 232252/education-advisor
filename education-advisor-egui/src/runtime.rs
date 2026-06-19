@@ -38,6 +38,7 @@ pub enum Command {
     LoadConversations,
     NewConversation { agent_id: String, student_id: Option<Uuid>, title: String },
     LoadMessages(Uuid),
+    DeleteConversation(Uuid),
     // AI
     SendMessage { conversation_id: Uuid, agent_id: String, student_id: Option<Uuid>, text: String },
     CancelConversation(Uuid),
