@@ -142,9 +142,9 @@ fn chunk_text(text: &str) -> Vec<String> {
         return vec![text.to_string()];
     }
     // For scripts without spaces (CJK), split by Unicode chars; otherwise words.
-    let has_spaces = text.chars().any(|c| c.is_whitespace());
+    let has_spaces = text.chars().any(char::is_whitespace);
     let tokens: Vec<String> = if has_spaces {
-        text.split_whitespace().map(|s| s.to_string()).collect()
+        text.split_whitespace().map(std::string::ToString::to_string).collect()
     } else {
         text.chars().map(|c| c.to_string()).collect()
     };
