@@ -45,7 +45,6 @@ pub struct SearchHit {
 pub fn tokenize(text: &str) -> Vec<String> {
     let mut out = Vec::with_capacity(text.len() / 4);
     let mut buf = String::new();
-    let mut prev_is_cjk = false;
     let mut cjk_run: Vec<char> = Vec::new();
 
     for ch in text.chars() {
@@ -56,7 +55,6 @@ pub fn tokenize(text: &str) -> Vec<String> {
                 buf.clear();
             }
             cjk_run.push(ch);
-            prev_is_cjk = true;
         } else {
             // End of a CJK run: emit unigrams + bigrams.
             if !cjk_run.is_empty() {
@@ -69,7 +67,6 @@ pub fn tokenize(text: &str) -> Vec<String> {
                 push_ascii_tokens(&mut out, &buf);
                 buf.clear();
             }
-            prev_is_cjk = false;
         }
     }
     if !buf.is_empty() {
@@ -103,7 +100,7 @@ fn emit_cjk_tokens(out: &mut Vec<String>, run: &[char]) {
     }
 }
 
-fn is_cjk(c: char) -> bool {
+const fn is_cjk(c: char) -> bool {
     matches!(c as u32,
         0x3400..=0x4DBF |   // CJK Extension A
         0x4E00..=0x9FFF |   // CJK Unified Ideographs
@@ -120,10 +117,10 @@ fn is_cjk(c: char) -> bool {
 /// `alternate_sign=True`).
 fn hash_token(token: &str) -> (usize, f32) {
     // FNV-1a 64-bit. Stable across runs and platforms, no std lib required.
-    let mut h: u64 = 0xcbf29ce484222325;
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for b in token.as_bytes() {
-        h ^= *b as u64;
-        h = h.wrapping_mul(0x100000001b3);
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
     }
     let slot = (h as usize) % EMBEDDING_DIM;
     let sign = if h & 1 == 0 { 1.0 } else { -1.0 };
@@ -145,7 +142,7 @@ pub fn embed(tokens: &[String]) -> Vec<f32> {
     // L2 normalize.
     let norm: f32 = v.iter().map(|x| x * x).sum::<f32>().sqrt();
     if norm > 0.0 {
-        for x in v.iter_mut() {
+        for x in &mut v {
             *x /= norm;
         }
     }
@@ -250,21 +247,28 @@ impl<'a> Corpus<'a> {
 // ─── Chunking ────────────────────────────────────────────────────────────
 
 /// Split a long document into overlapping chunks suitable for embedding.
-/// Targets ~256 Chinese chars / ~512 ASCII chars per chunk with 32-token
+/// Targets ~256 Chinese chars / ~512 ASCII chars per chunk with 64-char
 /// overlap, which keeps the embedding in a regime where the hashing trick
-/// is stable.
+/// is stable. Splits on line breaks first; for scripts without spaces
+/// (CJK) we additionally split on sentence-ending punctuation so a long
+/// paragraph of Chinese doesn't produce a single huge chunk.
 pub fn chunk_text(text: &str) -> Vec<String> {
-    const TARGET_CHARS: usize = 512;
+    const TARGET_CHARS: usize = 256;
     const OVERLAP_CHARS: usize = 64;
 
     // Split on paragraph / line boundaries first; keep the separators in the
-    // output by joining with a single '\n'.
-    let mut paragraphs: Vec<&str> = text.split(['\n', '\r']).collect();
-    paragraphs.retain(|p| !p.trim().is_empty());
+    // output by joining with a single '\n'. Then split very long paragraphs
+    // (mostly CJK with no newlines) on sentence-ending punctuation so the
+    // target char count is respected.
+    let paragraphs: Vec<String> = text
+        .split(['\n', '\r'])
+        .filter(|p| !p.trim().is_empty())
+        .flat_map(|p| split_long_paragraph(p, TARGET_CHARS))
+        .collect();
 
     let mut chunks: Vec<String> = Vec::new();
     let mut current = String::new();
-    for p in paragraphs {
+    for p in &paragraphs {
         if current.len() + p.len() + 1 > TARGET_CHARS && !current.is_empty() {
             chunks.push(std::mem::take(&mut current));
         }
@@ -277,8 +281,10 @@ pub fn chunk_text(text: &str) -> Vec<String> {
         chunks.push(current);
     }
 
-    // Apply overlap: re-emit the last OVERLAP_CHARS of chunk N as the start
-    // of chunk N+1 so context doesn't get lost on hard paragraph breaks.
+    // Apply overlap: re-emit the last OVERLAP_CHARS characters of chunk N
+    // as the start of chunk N+1 so context doesn't get lost on hard
+    // paragraph breaks. We work in characters, not bytes, because chunks
+    // are mixed CJK / ASCII and a byte-based offset can land mid-character.
     if chunks.len() > 1 && OVERLAP_CHARS > 0 {
         let mut overlapped: Vec<String> = Vec::with_capacity(chunks.len());
         for (i, c) in chunks.iter().enumerate() {
@@ -286,10 +292,16 @@ pub fn chunk_text(text: &str) -> Vec<String> {
                 overlapped.push(c.clone());
             } else {
                 let prev = &chunks[i - 1];
-                let tail_start = prev.len().saturating_sub(OVERLAP_CHARS);
-                let tail = &prev[tail_start..];
+                let tail: String = prev
+                    .chars()
+                    .rev()
+                    .take(OVERLAP_CHARS)
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .rev()
+                    .collect();
                 let mut new_chunk = String::with_capacity(tail.len() + 1 + c.len());
-                new_chunk.push_str(tail);
+                new_chunk.push_str(&tail);
                 new_chunk.push('\n');
                 new_chunk.push_str(c);
                 overlapped.push(new_chunk);
@@ -299,6 +311,63 @@ pub fn chunk_text(text: &str) -> Vec<String> {
     }
 
     chunks
+}
+
+/// Split a single paragraph that is longer than `target_chars` into pieces
+/// at sentence boundaries (Chinese: 。！？； + Western: . ! ? ;). If no
+/// boundaries fit, fall back to a hard cut.
+fn split_long_paragraph(p: &str, target_chars: usize) -> Vec<String> {
+    if p.chars().count() <= target_chars {
+        return vec![p.to_string()];
+    }
+    // Collect byte indices of sentence-ending punctuation.
+    let boundaries: Vec<usize> = p
+        .char_indices()
+        .filter_map(|(i, c)| match c {
+            // Chinese
+            '。' | '！' | '？' | '；' => Some(i + c.len_utf8()),
+            '，' | '…' => Some(i + c.len_utf8()),
+            // Western
+            '.' | '!' | '?' | ';' => Some(i + 1),
+            _ => None,
+        })
+        .collect();
+
+    let mut out = Vec::new();
+    let mut start = 0usize;
+    let mut next_bidx = 0usize;
+    for (i, _) in p.char_indices() {
+        // Advance past any boundaries we've crossed.
+        while next_bidx < boundaries.len() && boundaries[next_bidx] <= i {
+            next_bidx += 1;
+        }
+        if i - start >= target_chars {
+            // The most recent boundary *at or before* i is boundaries[next_bidx-1]
+            // (if any).
+            if next_bidx > 0 {
+                let b = boundaries[next_bidx - 1];
+                let piece = p[start..b].trim();
+                if !piece.is_empty() {
+                    out.push(piece.to_string());
+                }
+                start = b;
+            } else {
+                // No boundary before us — hard cut.
+                let piece = p[start..i].trim();
+                if !piece.is_empty() {
+                    out.push(piece.to_string());
+                }
+                start = i;
+            }
+        }
+    }
+    if start < p.len() {
+        let piece = p[start..].trim();
+        if !piece.is_empty() {
+            out.push(piece.to_string());
+        }
+    }
+    out
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────
@@ -369,12 +438,22 @@ mod tests {
 
     #[test]
     fn chunk_text_splits_long_doc() {
-        let long = "第一段。\n第二段。\n第三段内容很长很长很长很长很长很长很长很长很长。\n第四段。";
-        let chunks = chunk_text(long);
-        // Should be at least 2 chunks since combined length > 512 chars
-        assert!(chunks.len() >= 2);
-        // Every non-empty original paragraph should appear in some chunk
-        assert!(chunks.iter().any(|c| c.contains("第一段")));
+        // Build a string that's clearly longer than the target chunk size
+        // so we can exercise the Chinese sentence-boundary splitter.
+        let mut s = String::new();
+        for i in 0..50 {
+            s.push_str(&format!(
+                "第{i}段这是一段超过目标长度的中文文本，用于触发分块逻辑。"
+            ));
+        }
+        let chunks = chunk_text(&s);
+        assert!(
+            chunks.len() >= 2,
+            "expected at least 2 chunks, got {}",
+            chunks.len()
+        );
+        assert!(chunks.iter().any(|c| c.contains("第0段")));
+        assert!(chunks.iter().any(|c| c.contains("第49段")));
     }
 
     #[test]

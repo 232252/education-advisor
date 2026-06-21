@@ -122,16 +122,20 @@ fn row(app: &mut App, ui: &mut Ui, s: &Student) {
 
     // Background
     if selected {
-        ui.painter().rect_filled(rect, Rounding::same(14.0), theme.accent_dim);
+        ui.painter()
+            .rect_filled(rect, Rounding::same(14.0), theme.accent_dim);
         let bar = Rect::from_min_size(rect.min, Vec2::new(3.0, rect.height()));
-        ui.painter().rect_filled(bar, Rounding::same(2.0), theme.accent);
+        ui.painter()
+            .rect_filled(bar, Rounding::same(2.0), theme.accent);
     } else if resp.hovered() {
-        ui.painter().rect_filled(rect, Rounding::same(14.0), theme.surface_hover);
+        ui.painter()
+            .rect_filled(rect, Rounding::same(14.0), theme.surface_hover);
     }
 
     // Avatar with risk color
     let av_center = Pos2::new(rect.min.x + 28.0, rect.center().y);
-    ui.painter().circle_filled(av_center, 22.0, theme.risk_color(s.risk_level));
+    ui.painter()
+        .circle_filled(av_center, 22.0, theme.risk_color(s.risk_level));
     let initial = s.name.chars().next().unwrap_or('?');
     ui.painter().text(
         av_center,
@@ -174,9 +178,9 @@ fn row(app: &mut App, ui: &mut Ui, s: &Student) {
         } else {
             theme.danger
         };
-        let galley = ui.ctx().fonts(|f| {
-            f.layout_no_wrap(gpa_text.clone(), FontId::proportional(10.0), gpa_color)
-        });
+        let galley = ui
+            .ctx()
+            .fonts(|f| f.layout_no_wrap(gpa_text.clone(), FontId::proportional(10.0), gpa_color));
         let badge_w = galley.rect.width() + 16.0;
         let badge_h = 22.0;
         let badge_rect = Rect::from_min_size(
@@ -188,26 +192,35 @@ fn row(app: &mut App, ui: &mut Ui, s: &Student) {
             Rounding::same(8.0),
             theme.translucent(gpa_color, 0.12),
         );
-        ui.painter()
-            .galley(badge_rect.center() - galley.rect.size() * 0.5, galley, gpa_color);
+        ui.painter().galley(
+            badge_rect.center() - galley.rect.size() * 0.5,
+            galley,
+            gpa_color,
+        );
     }
 
     // Risk badge
     let risk_color = theme.risk_color(s.risk_level);
     let risk_text = s.risk_level.label();
-    let r_galley = ui.ctx().fonts(|f| {
-        f.layout_no_wrap(risk_text.to_string(), FontId::proportional(9.0), risk_color)
-    });
+    let r_galley = ui
+        .ctx()
+        .fonts(|f| f.layout_no_wrap(risk_text.to_string(), FontId::proportional(9.0), risk_color));
     let r_w = r_galley.rect.width() + 12.0;
     let r_h = 18.0;
     let r_rect = Rect::from_min_size(
         Pos2::new(rect.max.x - r_w - 10.0, rect.min.y + 8.0),
         Vec2::new(r_w, r_h),
     );
-    ui.painter()
-        .rect_filled(r_rect, Rounding::same(6.0), theme.translucent(risk_color, 0.15));
-    ui.painter()
-        .galley(r_rect.center() - r_galley.rect.size() * 0.5, r_galley, risk_color);
+    ui.painter().rect_filled(
+        r_rect,
+        Rounding::same(6.0),
+        theme.translucent(risk_color, 0.15),
+    );
+    ui.painter().galley(
+        r_rect.center() - r_galley.rect.size() * 0.5,
+        r_galley,
+        risk_color,
+    );
 
     if resp.clicked() {
         app.selected_student = Some(s.id);

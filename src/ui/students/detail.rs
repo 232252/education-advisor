@@ -1,13 +1,11 @@
 //! Student detail panel: the right-hand header + tab switcher. The four tab
 //! bodies are rendered by [`super::tabs`].
 
-use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, Pos2, Sense, Ui, Vec2};
+use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, Sense, Ui, Vec2};
 
 use crate::app::App;
 use crate::models::Student;
-use crate::ui::widgets::{
-    badge, card, danger_button, divider, primary_button, tab_switcher, tool_button,
-};
+use crate::ui::widgets::{badge, card, danger_button, divider, tab_switcher, tool_button};
 
 /// Render the detail header and the currently-selected tab body.
 pub fn show(app: &mut App, ui: &mut Ui, student: Student) {
@@ -71,11 +69,14 @@ pub fn show(app: &mut App, ui: &mut Ui, student: Student) {
             }
             if tool_button(ui, &theme, "AI 咨询", crate::ui::icons::chat_color).clicked() {
                 let title = format!("关于「{}」的学业咨询", student.name);
-                let _ = app.runtime.tx.send(crate::runtime::Command::NewConversation {
-                    agent_id: app.active_agent.clone(),
-                    student_id: Some(student.id),
-                    title,
-                });
+                let _ = app
+                    .runtime
+                    .tx
+                    .send(crate::runtime::Command::NewConversation {
+                        agent_id: app.active_agent.clone(),
+                        student_id: Some(student.id),
+                        title,
+                    });
                 app.navigate(crate::app::Page::Chat);
             }
             if tool_button(ui, &theme, "添加成绩", crate::ui::icons::edit).clicked() {

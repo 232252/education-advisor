@@ -7,9 +7,7 @@ use uuid::Uuid;
 
 use crate::app::App;
 use crate::models::{GradeEntry, RiskLevel, Student};
-use crate::ui::widgets::{
-    badge, card, divider, empty_state, primary_button, text_input,
-};
+use crate::ui::widgets::{badge, card, divider, empty_state, primary_button, text_input};
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -39,7 +37,12 @@ pub fn basic_info(app: &mut App, ui: &mut Ui, student: &Student) {
             .show(ui, |ui| {
                 info_field(ui, &theme, "姓名", &student.name);
                 info_field(ui, &theme, "性别", student.gender.as_deref().unwrap_or("—"));
-                info_field(ui, &theme, "学号", student.id_number.as_deref().unwrap_or("—"));
+                info_field(
+                    ui,
+                    &theme,
+                    "学号",
+                    student.id_number.as_deref().unwrap_or("—"),
+                );
                 info_field(ui, &theme, "年级", &student.grade);
                 ui.end_row();
 
@@ -93,7 +96,8 @@ pub fn basic_info(app: &mut App, ui: &mut Ui, student: &Student) {
                 } else {
                     theme.translucent(color, 0.08)
                 };
-                ui.painter().rect_filled(rect, egui::Rounding::same(8.0), bg);
+                ui.painter()
+                    .rect_filled(rect, egui::Rounding::same(8.0), bg);
                 ui.painter().text(
                     rect.center(),
                     egui::Align2::CENTER_CENTER,
@@ -116,7 +120,12 @@ pub fn grades(app: &mut App, ui: &mut Ui, student: &Student) {
     let theme = app.theme.clone();
 
     // Grade chart
-    let grades = app.ui_state.grades.get(&student.id).cloned().unwrap_or_default();
+    let grades = app
+        .ui_state
+        .grades
+        .get(&student.id)
+        .cloned()
+        .unwrap_or_default();
     if !grades.is_empty() {
         let series: Vec<(&str, Vec<f32>)> =
             vec![("成绩", grades.iter().map(|g| g.score).collect())];
@@ -235,7 +244,11 @@ pub fn grades(app: &mut App, ui: &mut Ui, student: &Student) {
                                 .font(FontId::proportional(11.0))
                                 .color(theme.text_faint),
                         );
-                        let status = if g.score >= 60.0 { "及格" } else { "不及格" };
+                        let status = if g.score >= 60.0 {
+                            "及格"
+                        } else {
+                            "不及格"
+                        };
                         let status_color = if g.score >= 60.0 {
                             theme.success
                         } else {
@@ -334,7 +347,13 @@ pub fn notes_tags(app: &mut App, ui: &mut Ui, student: &Student) {
         });
         ui.add_space(8.0);
         ui.horizontal(|ui| {
-            text_input(ui, &theme, &mut app.ui_state.tag_input, "输入新标签...", 160.0);
+            text_input(
+                ui,
+                &theme,
+                &mut app.ui_state.tag_input,
+                "输入新标签...",
+                160.0,
+            );
             ui.add_space(6.0);
             if primary_button(ui, &theme, "添加").clicked()
                 && !app.ui_state.tag_input.trim().is_empty()

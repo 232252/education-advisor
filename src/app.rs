@@ -10,7 +10,7 @@ use parking_lot::RwLock;
 
 use crate::models::{
     Conversation, DashboardStats, LlmProvider, Message, Role, ScheduledTask, Settings, Student,
-    ThemeMode, ToolCallRecord, ToolStatus,
+    ThemeMode, ToolCallRecord,
 };
 use crate::privacy::Cipher;
 use crate::runtime::{Event, RuntimeHandle, ToastKind};
@@ -145,8 +145,8 @@ impl App {
                 eprintln!("[startup] runtime launch failed: {e}, falling back to in-memory DB");
                 let db = crate::db::Db::open_in_memory().expect("in-memory db");
                 let cipher = crate::privacy::Cipher::random();
-                let (rt, _) = crate::runtime::Runtime::launch_with(db, cipher.clone(), None)
-                    .expect("launch");
+                let (rt, _) =
+                    crate::runtime::Runtime::launch_with(db, cipher.clone(), None).expect("launch");
                 (rt.handle(), cipher)
             }
         };
@@ -239,7 +239,7 @@ impl App {
 
     fn drain_events(&mut self, ctx: &Context) {
         use Event::{
-            ConversationCreated, ConversationDeleted, Conversations, Grades, Messages,
+            BackupReady, ConversationCreated, ConversationDeleted, Conversations, Grades, Messages,
             ProviderDeleted, ProviderSaved, Providers, RagDocumentDeleted, RagDocumentSaved,
             RagDocuments, Settings, Stats, StreamDone, StreamError, StreamStart, StreamToken,
             StreamTool, StudentDeleted, Students, StudentsImported, StudentsSaved, TaskDeleted,
@@ -319,10 +319,7 @@ impl App {
                             Some(idx) if call.result.is_empty() => {
                                 // Phase 1 (start) — replace placeholder if any,
                                 // otherwise update in-place.
-                                st.tool_calls[idx] = ToolCallRecord {
-                                    message_id,
-                                    ..call
-                                };
+                                st.tool_calls[idx] = ToolCallRecord { message_id, ..call };
                             }
                             Some(idx) => {
                                 // Phase 2 (end) — keep the recorded duration from
@@ -339,10 +336,7 @@ impl App {
                                 };
                             }
                             None => {
-                                st.tool_calls.push(ToolCallRecord {
-                                    message_id,
-                                    ..call
-                                });
+                                st.tool_calls.push(ToolCallRecord { message_id, ..call });
                             }
                         }
                     }
@@ -405,32 +399,25 @@ impl App {
                         "education-advisor-backup-{}.json",
                         backup.created_at.format("%Y%m%d-%H%M%S")
                     );
-                    match rfd::FileDialog::new()
+                    if let Some(path) = rfd::FileDialog::new()
                         .set_file_name(&default_name)
                         .add_filter("JSON", &["json"])
                         .save_file()
                     {
-                        Some(path) => {
-                            match serde_json::to_string_pretty(&backup) {
-                                Ok(s) => match std::fs::write(&path, s) {
-                                    Ok(()) => self.push_toast(
-                                        ToastKind::Success,
-                                        format!("备份已保存到 {}", path.display()),
-                                    ),
-                                    Err(e) => self.push_toast(
-                                        ToastKind::Error,
-                                        format!("写入失败: {e}"),
-                                    ),
-                                },
-                                Err(e) => self.push_toast(
-                                    ToastKind::Error,
-                                    format!("序列化失败: {e}"),
+                        match serde_json::to_string_pretty(&backup) {
+                            Ok(s) => match std::fs::write(&path, s) {
+                                Ok(()) => self.push_toast(
+                                    ToastKind::Success,
+                                    format!("备份已保存到 {}", path.display()),
                                 ),
-                            }
+                                Err(e) => {
+                                    self.push_toast(ToastKind::Error, format!("写入失败: {e}"))
+                                }
+                            },
+                            Err(e) => self.push_toast(ToastKind::Error, format!("序列化失败: {e}")),
                         }
-                        None => {
-                            // User cancelled the dialog — not an error.
-                        }
+                    } else {
+                        // User cancelled the dialog — not an error.
                     }
                 }
                 Settings(s) => {
@@ -485,7 +472,7 @@ impl eframe::App for App {
         // Ctrl/Cmd + K       = Chat
         // Ctrl/Cmd + L       = focus chat input (handled in chat page)
         // Esc                = cancel any in-flight AI generation
-        let input = ctx.input(|i| i.clone());
+        let input = ctx.input(std::clone::Clone::clone);
         let cmd_or_ctrl = input.modifiers.command || input.modifiers.ctrl;
         if cmd_or_ctrl && !input.modifiers.alt && !input.modifiers.shift {
             // Digit keys: egui exposes Key::Num1..Num9 + Key::Num0.
@@ -556,7 +543,7 @@ impl eframe::App for App {
             Some(crate::tray::TrayAction::Backup) => {
                 let _ = self.runtime.tx.send(crate::runtime::Command::ExportBackup);
             }
-            Some(crate::tray::TrayAction::Show) | Some(crate::tray::TrayAction::Hide) | None => {}
+            Some(crate::tray::TrayAction::Show | crate::tray::TrayAction::Hide) | None => {}
         }
 
         // Intercept close when tray is active: hide instead of quitting.

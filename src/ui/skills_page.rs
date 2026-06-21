@@ -100,18 +100,15 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if ui.checkbox(&mut enabled, "启用").changed() {
                         // 通过 Command 持久化，避免闭包内可变借用冲突
-                        let _ = app
-                            .runtime
-                            .tx
-                            .send(crate::runtime::Command::SaveSettings({
-                                let mut s = app.settings.clone();
-                                if enabled {
-                                    s.enabled_skills.insert(skill.id.to_string());
-                                } else {
-                                    s.enabled_skills.remove(skill.id);
-                                }
-                                s
-                            }));
+                        let _ = app.runtime.tx.send(crate::runtime::Command::SaveSettings({
+                            let mut s = app.settings.clone();
+                            if enabled {
+                                s.enabled_skills.insert(skill.id.to_string());
+                            } else {
+                                s.enabled_skills.remove(skill.id);
+                            }
+                            s
+                        }));
                     }
                 });
             });

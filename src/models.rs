@@ -17,7 +17,7 @@ pub struct Student {
     pub gender: Option<String>,
     pub grade: String,
     pub class: String,
-    pub id_number: Option<String>,  // 学号/学籍号
+    pub id_number: Option<String>, // 学号/学籍号
     pub birth_date: Option<NaiveDate>,
     pub enrollment_date: Option<NaiveDate>,
     pub guardian_name: Option<String>,

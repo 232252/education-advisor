@@ -75,7 +75,8 @@ impl LlmClient {
     /// Borrow the underlying `reqwest::Client` so other modules (e.g. the
     /// `web_search` / `web_fetch` tools) can share the same connection pool
     /// and rustls stack. Cheap to clone (internally `Arc`-wrapped).
-    pub fn http(&self) -> &reqwest::Client {
+    #[allow(dead_code)]
+    pub const fn http(&self) -> &reqwest::Client {
         &self.http
     }
 

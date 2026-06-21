@@ -222,48 +222,53 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
         ui.add_space(8.0);
 
-        // backup / restore
-        card(ui, &app.theme, |ui| {
-            section_title(ui, &app.theme, "数据备份 / 恢复");
+        // backup / restore — pull the theme out so the closure can mutably
+        // borrow `app` for the runtime sends. (Capturing `&app.theme` and
+        // `&mut app` in the same closure is rejected by the borrow checker.)
+        let backup_theme = app.theme.clone();
+        let app_theme = app.theme.clone();
+        card(ui, &backup_theme, |ui| {
+            section_title(ui, &backup_theme, "数据备份 / 恢复");
             ui.label(
                 egui::RichText::new("导出会生成一个 JSON 快照，包含所有学生、成绩、会话、任务、知识库。加密字段以密文形式保存（只能在同一台机器上用同一助记词恢复）。")
                     .font(FontId::proportional(11.0))
-                    .color(app.theme.text_dim),
+                    .color(app_theme.text_dim),
             );
             ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                if primary_button(ui, &app.theme, "导出全部数据").clicked() {
-                    let _ = app
-                        .runtime
-                        .tx
-                        .send(crate::runtime::Command::ExportBackup);
-                }
-                if ghost_button(ui, &app.theme, "从备份恢复…").clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("JSON", &["json"])
-                        .pick_file()
-                    {
-                        match std::fs::read_to_string(&path) {
-                            Ok(s) => match serde_json::from_str::<crate::models::FullBackup>(&s) {
-                                Ok(backup) => {
-                                    let _ = app
-                                        .runtime
-                                        .tx
-                                        .send(crate::runtime::Command::ImportBackup(backup));
-                                }
-                                Err(e) => app.push_toast(
-                                    crate::runtime::ToastKind::Error,
-                                    format!("备份文件格式错误: {e}"),
-                                ),
-                            },
+            let export_clicked = primary_button(ui, &backup_theme, "导出全部数据").clicked();
+            let restore_clicked = ghost_button(ui, &backup_theme, "从备份恢复…").clicked();
+            ui.horizontal(|ui| { ui.add_space(1.0); });
+            if export_clicked {
+                let _ = app
+                    .runtime
+                    .tx
+                    .send(crate::runtime::Command::ExportBackup);
+            }
+            if restore_clicked {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("JSON", &["json"])
+                    .pick_file()
+                {
+                    match std::fs::read_to_string(&path) {
+                        Ok(s) => match serde_json::from_str::<crate::models::FullBackup>(&s) {
+                            Ok(backup) => {
+                                let _ = app
+                                    .runtime
+                                    .tx
+                                    .send(crate::runtime::Command::ImportBackup(backup));
+                            }
                             Err(e) => app.push_toast(
                                 crate::runtime::ToastKind::Error,
-                                format!("读取失败: {e}"),
+                                format!("备份文件格式错误: {e}"),
                             ),
-                        }
+                        },
+                        Err(e) => app.push_toast(
+                            crate::runtime::ToastKind::Error,
+                            format!("读取失败: {e}"),
+                        ),
                     }
                 }
-            });
+            }
         });
     });
 

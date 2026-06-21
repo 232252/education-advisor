@@ -108,20 +108,13 @@ pub fn show_dialog(app: &mut App, ui: &mut Ui) {
                         edit_label(ui, &theme, "监护人关系");
                         let mut grel = s.guardian_relation.clone().unwrap_or_default();
                         ui.text_edit_singleline(&mut grel);
-                        s.guardian_relation = if grel.is_empty() {
-                            None
-                        } else {
-                            Some(grel)
-                        };
+                        s.guardian_relation = if grel.is_empty() { None } else { Some(grel) };
                         ui.end_row();
 
                         edit_label(ui, &theme, "监护人电话");
                         let mut gcontact = s.guardian_contact.clone().unwrap_or_default();
                         if gcontact.starts_with("enc:") {
-                            gcontact = app
-                                .cipher
-                                .decrypt_str(&gcontact[4..])
-                                .unwrap_or(gcontact);
+                            gcontact = app.cipher.decrypt_str(&gcontact[4..]).unwrap_or(gcontact);
                         }
                         ui.text_edit_singleline(&mut gcontact);
                         s.guardian_contact = if gcontact.is_empty() {
@@ -134,11 +127,7 @@ pub fn show_dialog(app: &mut App, ui: &mut Ui) {
                         edit_label(ui, &theme, "紧急联系人");
                         let mut emerg = s.emergency_contact.clone().unwrap_or_default();
                         ui.text_edit_singleline(&mut emerg);
-                        s.emergency_contact = if emerg.is_empty() {
-                            None
-                        } else {
-                            Some(emerg)
-                        };
+                        s.emergency_contact = if emerg.is_empty() { None } else { Some(emerg) };
                         ui.end_row();
 
                         edit_label(ui, &theme, "家庭住址");

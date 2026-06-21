@@ -7,7 +7,7 @@
 
 #![forbid(unsafe_code)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
+#![warn(clippy::all)]
 #![allow(
     clippy::module_name_repetitions,
     clippy::too_many_lines,
