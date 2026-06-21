@@ -72,6 +72,19 @@ impl LlmClient {
         Self { http }
     }
 
+    /// Borrow the underlying `reqwest::Client` so other modules (e.g. the
+    /// `web_search` / `web_fetch` tools) can share the same connection pool
+    /// and rustls stack. Cheap to clone (internally `Arc`-wrapped).
+    pub fn http(&self) -> &reqwest::Client {
+        &self.http
+    }
+
+    /// Consume self and yield the inner client. Used by tool code that
+    /// wants an owned `reqwest::Client` without going through the LLM.
+    pub fn into_http(self) -> reqwest::Client {
+        self.http
+    }
+
     /// Stream a completion, invoking `on_token` for each text delta. Returns
     /// the full concatenated text when the stream ends.
     pub async fn stream(
