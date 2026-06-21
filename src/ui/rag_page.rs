@@ -156,22 +156,25 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                                     "{} 字符 · {} 块{}",
                                     d.content.len(),
                                     d.chunks.len(),
-                                    if needs_reindex { " · 需重新索引" } else { "" }
+                                    if needs_reindex {
+                                        " · 需重新索引"
+                                    } else {
+                                        ""
+                                    }
                                 ))
                                 .font(FontId::proportional(11.0))
                                 .color(app.theme.text_dim),
                             );
                         });
                         ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                            if needs_reindex
-                                && ghost_button(ui, &app.theme, "重新索引").clicked()
+                            if needs_reindex && ghost_button(ui, &app.theme, "重新索引").clicked()
                             {
-                                let _ = app
-                                    .runtime
-                                    .tx
-                                    .send(crate::runtime::Command::SaveRagDocument(
-                                        reindex_document(d.clone()),
-                                    ));
+                                let _ =
+                                    app.runtime
+                                        .tx
+                                        .send(crate::runtime::Command::SaveRagDocument(
+                                            reindex_document(d.clone()),
+                                        ));
                             }
                             if ghost_button(ui, &app.theme, "删除").clicked() {
                                 let _ = app

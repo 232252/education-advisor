@@ -49,7 +49,7 @@ pub struct UiState {
 
     // rag page
     pub rag_query: String,
-    pub rag_results: Vec<(Uuid, usize, f32, String)>,
+    pub rag_results: Vec<(Uuid, Uuid, f32, String)>,
 
     // settings page
     pub editing_provider: Option<LlmProvider>,

@@ -274,10 +274,10 @@ async fn run_command(
 ) -> anyhow::Result<()> {
     use Command::{
         AddGrade, CancelConversation, DeleteConversation, DeleteProvider, DeleteRagDocument,
-        DeleteStudent, DeleteTask, ImportStudentsCsv, LoadConversations, LoadGrades, LoadMessages,
-        LoadProviders, LoadRagDocuments, LoadSettings, LoadStats, LoadStudents, LoadTasks,
-        NewConversation, RunTaskNow, SaveProvider, SaveRagDocument, SaveSettings, SaveStudent,
-        SaveTask, SendMessage,
+        DeleteStudent, DeleteTask, ExportBackup, ImportBackup, ImportStudentsCsv,
+        LoadConversations, LoadGrades, LoadMessages, LoadProviders, LoadRagDocuments, LoadSettings,
+        LoadStats, LoadStudents, LoadTasks, NewConversation, RunTaskNow, SaveProvider,
+        SaveRagDocument, SaveSettings, SaveStudent, SaveTask, SendMessage,
     };
     match cmd {
         LoadStudents => {
@@ -292,11 +292,7 @@ async fn run_command(
                     s.guardian_contact = Some(format!("enc:{enc}"));
                 }
             }
-            let existed = ctx
-                .db
-                .list_students()?
-                .iter()
-                .any(|x| x.id == s.id);
+            let existed = ctx.db.list_students()?.iter().any(|x| x.id == s.id);
             ctx.db.upsert_student(&s)?;
             if let Some(audit) = &ctx.audit {
                 if existed {
@@ -320,10 +316,9 @@ async fn run_command(
                 .db
                 .list_students()?
                 .iter()
-                .find(|s| s.id == *id)
-                .map(|s| s.name.clone())
-                .unwrap_or_else(|| id.to_string());
-            ctx.db.delete_student(*id)?;
+                .find(|s| s.id == id)
+                .map_or_else(|| id.to_string(), |s| s.name.clone());
+            ctx.db.delete_student(id)?;
             if let Some(audit) = &ctx.audit {
                 audit.log(
                     crate::audit::AuditKind::StudentDelete,
@@ -497,11 +492,7 @@ async fn run_command(
             let _ = evt_tx.send(Event::Providers(v));
         }
         SaveProvider(mut p) => {
-            let existed = ctx
-                .db
-                .list_providers()?
-                .iter()
-                .any(|x| x.id == p.id);
+            let existed = ctx.db.list_providers()?.iter().any(|x| x.id == p.id);
             if let Some(k) = p.api_key.as_ref() {
                 if !k.is_empty() && !k.starts_with("enc:") {
                     let enc = ctx.cipher.encrypt_str(k)?;
@@ -532,9 +523,8 @@ async fn run_command(
                 .list_providers()?
                 .iter()
                 .find(|p| p.id == *id)
-                .map(|p| p.name.clone())
-                .unwrap_or_else(|| id.clone());
-            ctx.db.delete_provider(id)?;
+                .map_or_else(|| id.clone(), |p| p.name.clone());
+            ctx.db.delete_provider(&id)?;
             if let Some(audit) = &ctx.audit {
                 audit.log(
                     crate::audit::AuditKind::ProviderDelete,
@@ -577,35 +567,33 @@ async fn run_command(
             *ctx.settings.write() = s.clone();
             let _ = evt_tx.send(Event::Settings(s));
         }
-        ExportBackup => {
-            match ctx.db.export_full() {
-                Ok(backup) => {
-                    if let Some(audit) = &ctx.audit {
-                        audit.log_with(
-                            crate::audit::AuditKind::BackupExport,
-                            format!(
-                                "{} 学生 / {} 会话 / {} 消息",
-                                backup.students.len(),
-                                backup.conversations.len(),
-                                backup.messages.len()
-                            ),
-                            serde_json::json!({
-                                "students": backup.students.len(),
-                                "conversations": backup.conversations.len(),
-                                "messages": backup.messages.len(),
-                            }),
-                        );
-                    }
-                    let _ = evt_tx.send(Event::BackupReady(backup));
+        ExportBackup => match ctx.db.export_full() {
+            Ok(backup) => {
+                if let Some(audit) = &ctx.audit {
+                    audit.log_with(
+                        crate::audit::AuditKind::BackupExport,
+                        format!(
+                            "{} 学生 / {} 会话 / {} 消息",
+                            backup.students.len(),
+                            backup.conversations.len(),
+                            backup.messages.len()
+                        ),
+                        serde_json::json!({
+                            "students": backup.students.len(),
+                            "conversations": backup.conversations.len(),
+                            "messages": backup.messages.len(),
+                        }),
+                    );
                 }
-                Err(e) => {
-                    let _ = evt_tx.send(Event::Toast {
-                        kind: ToastKind::Error,
-                        msg: format!("备份失败: {e}"),
-                    });
-                }
+                let _ = evt_tx.send(Event::BackupReady(backup));
             }
-        }
+            Err(e) => {
+                let _ = evt_tx.send(Event::Toast {
+                    kind: ToastKind::Error,
+                    msg: format!("备份失败: {e}"),
+                });
+            }
+        },
         ImportBackup(backup) => {
             if backup.schema_version != crate::models::FullBackup::CURRENT_SCHEMA_VERSION {
                 let _ = evt_tx.send(Event::Toast {

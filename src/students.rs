@@ -85,12 +85,36 @@ pub fn seed_demo(db: &Db) -> Result<()> {
         return Ok(());
     }
     let demo = [
-        ("张明", "男", "高三", "1班", "2021001", RiskLevel::Medium, 3.4_f32),
+        (
+            "张明",
+            "男",
+            "高三",
+            "1班",
+            "2021001",
+            RiskLevel::Medium,
+            3.4_f32,
+        ),
         ("李华", "女", "高三", "2班", "2021002", RiskLevel::High, 2.8),
         ("王芳", "女", "高二", "3班", "2022003", RiskLevel::Low, 3.9),
-        ("刘洋", "男", "高二", "1班", "2022004", RiskLevel::Critical, 2.1),
+        (
+            "刘洋",
+            "男",
+            "高二",
+            "1班",
+            "2022004",
+            RiskLevel::Critical,
+            2.1,
+        ),
         ("陈静", "女", "高一", "4班", "2023005", RiskLevel::Low, 4.0),
-        ("赵磊", "男", "高一", "2班", "2023006", RiskLevel::Medium, 3.2),
+        (
+            "赵磊",
+            "男",
+            "高一",
+            "2班",
+            "2023006",
+            RiskLevel::Medium,
+            3.2,
+        ),
     ];
     let now = Utc::now();
     for (name, gender, grade, class, number, risk, gpa) in demo {
@@ -138,6 +162,7 @@ pub fn seed_demo(db: &Db) -> Result<()> {
 
 /// Convert the first worksheet of an Excel file to a CSV string compatible
 /// with `import_csv`.
+#[allow(dead_code)]
 pub fn import_excel(bytes: &[u8]) -> Result<String> {
     let cursor = Cursor::new(bytes);
     let mut workbook: Xlsx<_> =

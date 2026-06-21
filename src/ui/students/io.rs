@@ -7,7 +7,7 @@ use crate::ui::widgets::{card, ghost_button, primary_button};
 
 /// Render the import / export panels if their respective toggles are on.
 /// (They appear under the header but above the list, hence the
-/// "show_panels" name.)
+/// "`show_panels`" name.)
 pub fn show_panels(app: &mut App, ui: &mut Ui) {
     if app.ui_state.show_import {
         ui.add_space(4.0);
