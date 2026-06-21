@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: -D warnings
+
+jobs:
+  # ─── 1. Format & lint (fast) ────────────────────────────────────────────
+  fmt:
+    name: rustfmt + clippy
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        working-directory: education-advisor-egui
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (no features, all targets)
+        working-directory: education-advisor-egui
+        run: cargo clippy --all-targets --no-features -- -D warnings
+
+  # ─── 2. Build matrix (slower) ───────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.target }})
+    needs: fmt
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            features: tray
+            install_linux_deps: 'true'
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            features: ''
+            install_linux_deps: 'true'
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            features: tray
+          - os: macos-13
+            target: x86_64-apple-darwin
+            features: tray
+          - os: macos-14
+            target: aarch64-apple-darwin
+            features: tray
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}-${{ matrix.features }}
+
+      - name: Install Linux system dependencies
+        if: matrix.install_linux_deps == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev libxi-dev libxext-dev libxrandr-dev \
+            libgl1-mesa-dev libasound2-dev libudev-dev \
+            libappindicator3-dev libgtk-3-dev
+
+      - name: Build
+        working-directory: education-advisor-egui
+        run: |
+          FEAT_FLAGS=""
+          if [ -n "${{ matrix.features }}" ]; then
+            FEAT_FLAGS="--features ${{ matrix.features }}"
+          fi
+          cargo build --locked --release --target ${{ matrix.target }} $FEAT_FLAGS
+
+  # ─── 3. Unit + integration tests ────────────────────────────────────────
+  test:
+    name: Tests
+    needs: fmt
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev libxi-dev libxext-dev libxrandr-dev \
+            libgl1-mesa-dev libasound2-dev libudev-dev \
+            libappindicator3-dev libgtk-3-dev
+
+      - name: Run tests
+        working-directory: education-advisor-egui
+        run: cargo test --locked --all-features
+
+  # ─── 4. Security audit (weekly + on PR) ─────────────────────────────────
+  audit:
+    name: Security audit
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-audit
+        run: cargo install --locked cargo-audit
+
+      - name: Audit
+        working-directory: education-advisor-egui
+        run: cargo audit
