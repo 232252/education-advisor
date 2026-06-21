@@ -20,7 +20,7 @@ pub mod scheduler_page;
 pub mod settings_page;
 pub mod sidebar;
 pub mod skills_page;
-pub mod students_page;
+pub mod students;
 pub mod toast;
 pub mod topbar;
 pub mod widgets;

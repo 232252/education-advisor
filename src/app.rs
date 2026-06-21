@@ -145,8 +145,8 @@ impl App {
                 eprintln!("[startup] runtime launch failed: {e}, falling back to in-memory DB");
                 let db = crate::db::Db::open_in_memory().expect("in-memory db");
                 let cipher = crate::privacy::Cipher::random();
-                let (rt, _) =
-                    crate::runtime::Runtime::launch_with(db, cipher.clone()).expect("launch");
+                let (rt, _) = crate::runtime::Runtime::launch_with(db, cipher.clone(), None)
+                    .expect("launch");
                 (rt.handle(), cipher)
             }
         };
@@ -396,6 +396,43 @@ impl App {
                 RagDocumentSaved => self.push_toast(ToastKind::Success, "文档已加入知识库"),
                 RagDocumentDeleted => self.push_toast(ToastKind::Success, "文档已删除"),
                 Stats(s) => *self.stats.write() = Some(s),
+                BackupReady(backup) => {
+                    // Prompt the user for a save location; the actual write
+                    // happens off the UI thread via std::fs. (We could push to
+                    // the runtime, but the payload is small and synchronous
+                    // IO is fine here.)
+                    let default_name = format!(
+                        "education-advisor-backup-{}.json",
+                        backup.created_at.format("%Y%m%d-%H%M%S")
+                    );
+                    match rfd::FileDialog::new()
+                        .set_file_name(&default_name)
+                        .add_filter("JSON", &["json"])
+                        .save_file()
+                    {
+                        Some(path) => {
+                            match serde_json::to_string_pretty(&backup) {
+                                Ok(s) => match std::fs::write(&path, s) {
+                                    Ok(()) => self.push_toast(
+                                        ToastKind::Success,
+                                        format!("备份已保存到 {}", path.display()),
+                                    ),
+                                    Err(e) => self.push_toast(
+                                        ToastKind::Error,
+                                        format!("写入失败: {e}"),
+                                    ),
+                                },
+                                Err(e) => self.push_toast(
+                                    ToastKind::Error,
+                                    format!("序列化失败: {e}"),
+                                ),
+                            }
+                        }
+                        None => {
+                            // User cancelled the dialog — not an error.
+                        }
+                    }
+                }
                 Settings(s) => {
                     // The runtime confirms a persisted Settings write (e.g.
                     // triggered by `eframe::App::save`). Mirror it locally so
@@ -505,11 +542,21 @@ impl eframe::App for App {
             }
         }
 
-        // Tray menu events: show/hide/quit.
-        if crate::tray::poll_events(ctx, &mut self.window_visible)
-            == Some(crate::tray::TrayAction::Quit)
-        {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        // Tray menu events: show/hide/quit/...
+        match crate::tray::poll_events(ctx, &mut self.window_visible) {
+            Some(crate::tray::TrayAction::Quit) => {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            Some(crate::tray::TrayAction::NewChat) => {
+                self.navigate(Page::Chat);
+            }
+            Some(crate::tray::TrayAction::Knowledge) => {
+                self.navigate(Page::Rag);
+            }
+            Some(crate::tray::TrayAction::Backup) => {
+                let _ = self.runtime.tx.send(crate::runtime::Command::ExportBackup);
+            }
+            Some(crate::tray::TrayAction::Show) | Some(crate::tray::TrayAction::Hide) | None => {}
         }
 
         // Intercept close when tray is active: hide instead of quitting.
@@ -566,7 +613,7 @@ impl eframe::App for App {
                         ui.set_opacity(opacity);
                         match self.page {
                             Page::Dashboard => crate::ui::dashboard::show(self, ui),
-                            Page::Students => crate::ui::students_page::show(self, ui),
+                            Page::Students => crate::ui::students::show(self, ui),
                             Page::Agents => crate::ui::agents_page::show(self, ui),
                             Page::AgentHistory => crate::ui::agent_history_page::show(self, ui),
                             Page::Chat => crate::ui::chat::show(self, ui),

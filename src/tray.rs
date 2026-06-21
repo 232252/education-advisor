@@ -16,11 +16,24 @@ const MENU_SHOW: &str = "ea.show";
 #[cfg(feature = "tray")]
 const MENU_HIDE: &str = "ea.hide";
 #[cfg(feature = "tray")]
+const MENU_NEW_CHAT: &str = "ea.new_chat";
+#[cfg(feature = "tray")]
+const MENU_KNOWLEDGE: &str = "ea.knowledge";
+#[cfg(feature = "tray")]
+const MENU_BACKUP: &str = "ea.backup";
+#[cfg(feature = "tray")]
 const MENU_QUIT: &str = "ea.quit";
 
+/// All actions the tray can request. Most are simple "navigate to" hints
+/// that the UI's `update` loop translates into a `navigate` call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrayAction {
     Quit,
+    Show,
+    Hide,
+    NewChat,
+    Knowledge,
+    Backup,
 }
 
 #[cfg(feature = "tray")]
@@ -39,9 +52,16 @@ pub fn build_tray() -> Option<TrayHandle> {
     let menu = Menu::new();
     let show_i = MenuItem::with_id(MENU_SHOW, "显示窗口", true, None);
     let hide_i = MenuItem::with_id(MENU_HIDE, "隐藏窗口", true, None);
+    let new_chat_i = MenuItem::with_id(MENU_NEW_CHAT, "新建对话", true, None);
+    let knowledge_i = MenuItem::with_id(MENU_KNOWLEDGE, "知识库", true, None);
+    let backup_i = MenuItem::with_id(MENU_BACKUP, "导出备份…", true, None);
     let quit_i = MenuItem::with_id(MENU_QUIT, "退出", true, None);
     let _ = menu.append(&show_i);
     let _ = menu.append(&hide_i);
+    let _ = menu.append(&PredefinedMenuItem::separator());
+    let _ = menu.append(&new_chat_i);
+    let _ = menu.append(&knowledge_i);
+    let _ = menu.append(&backup_i);
     let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&quit_i);
 
@@ -78,12 +98,18 @@ pub fn poll_events(ctx: &eframe::egui::Context, visible: &mut bool) -> Option<Tr
             match event.id().as_ref() {
                 MENU_SHOW => {
                     ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(true));
+                    ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Focus);
                     *visible = true;
+                    return Some(TrayAction::Show);
                 }
                 MENU_HIDE => {
                     ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(false));
                     *visible = false;
+                    return Some(TrayAction::Hide);
                 }
+                MENU_NEW_CHAT => return Some(TrayAction::NewChat),
+                MENU_KNOWLEDGE => return Some(TrayAction::Knowledge),
+                MENU_BACKUP => return Some(TrayAction::Backup),
                 MENU_QUIT => return Some(TrayAction::Quit),
                 _ => {}
             }

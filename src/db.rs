@@ -11,8 +11,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::models::{
-    Conversation, DashboardStats, GradeEntry, LlmProvider, Message, ProviderKind, RagChunk,
-    RagDocument, RiskLevel, Role, ScheduledTask, Settings, Student, ToolCallRecord,
+    Conversation, DashboardStats, FullBackup, GradeEntry, LlmProvider, Message, ProviderKind,
+    RagChunk, RagDocument, RiskLevel, Role, ScheduledTask, Settings, Student, ToolCallRecord,
 };
 
 /// Thread-safe database handle. The connection is guarded by a mutex; all
@@ -511,6 +511,293 @@ impl Db {
         let rows = stmt.query_map(params![document_id.to_string()], row_to_rag_chunk)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
+
+    // ---- Full backup & restore ----
+    //
+    // The backup is a single self-contained JSON file containing every
+    // table's worth of data. It does **not** include SQLite internals
+    // (schema, indexes) because we already run `migrate()` on open, and it
+    // does **not** touch the settings table (so a restore doesn't clobber
+    // a different machine's window geometry). Encrypted columns are
+    // dumped as-is (still ciphertext), so a backup can be moved between
+    // machines that share the same machine passphrase; otherwise the LLM
+    // provider keys will appear as ciphertext and fail to decrypt on
+    // restore — we surface that as a warning rather than a hard error.
+
+    /// Snapshot every user-visible table into a single JSON document.
+    pub fn export_full(&self) -> Result<FullBackup> {
+        let c = self.conn.lock();
+        let mut students: Vec<Student> = Vec::new();
+        let mut grades: Vec<(Uuid, GradeEntry)> = Vec::new();
+        let mut convs: Vec<Conversation> = Vec::new();
+        let mut messages: Vec<Message> = Vec::new();
+        let mut tasks: Vec<ScheduledTask> = Vec::new();
+        let mut providers: Vec<LlmProvider> = Vec::new();
+        let mut rag: Vec<RagDocument> = Vec::new();
+
+        {
+            let mut s = c.prepare("SELECT * FROM students ORDER BY created_at")?;
+            for row in s.query_map([], row_to_student)? {
+                students.push(row?);
+            }
+        }
+        {
+            // We need to (a) gather every grade row, (b) re-attach the
+            // owning student_id which is already on the row. We round-trip
+            // through GradeEntry for the export.
+            let mut s = c.prepare("SELECT * FROM grades")?;
+            let rows = s.query_map([], |r| {
+                let id: String = r.get("id")?;
+                let sid: String = r.get("student_id")?;
+                let exam: String = r.get("exam_date")?;
+                let recorded: String = r.get("recorded_at")?;
+                Ok(GradeEntry {
+                    id: Uuid::parse_str(&id).unwrap_or_default(),
+                    student_id: Uuid::parse_str(&sid).unwrap_or_default(),
+                    subject: r.get("subject")?,
+                    score: r.get("score")?,
+                    max_score: r.get("max_score")?,
+                    exam_date: NaiveDate::parse_from_str(&exam, "%Y-%m-%d").unwrap_or_else(|_| Utc::now().date_naive()),
+                    recorded_at: DateTime::parse_from_rfc3339(&recorded)
+                        .map(|d| d.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now()),
+                })
+            })?;
+            for row in rows {
+                let g = row?;
+                let sid = g.student_id;
+                grades.push((sid, g));
+            }
+        }
+        {
+            let mut s = c.prepare("SELECT * FROM conversations ORDER BY created_at")?;
+            for row in s.query_map([], row_to_conversation)? {
+                convs.push(row?);
+            }
+        }
+        {
+            let mut s = c.prepare("SELECT * FROM messages ORDER BY created_at")?;
+            for row in s.query_map([], row_to_message)? {
+                messages.push(row?);
+            }
+        }
+        {
+            let mut s = c.prepare("SELECT * FROM tasks")?;
+            for row in s.query_map([], row_to_task)? {
+                tasks.push(row?);
+            }
+        }
+        {
+            let mut s = c.prepare("SELECT * FROM providers")?;
+            for row in s.query_map([], row_to_provider)? {
+                providers.push(row?);
+            }
+        }
+        {
+            let mut s = c.prepare("SELECT * FROM rag_documents ORDER BY created_at")?;
+            for row in s.query_map([], row_to_rag_document)? {
+                let mut d = row?;
+                d.chunks = {
+                    let mut cs = c.prepare("SELECT * FROM rag_chunks WHERE document_id=?")?;
+                    let rows = cs.query_map(params![d.id.to_string()], row_to_rag_chunk)?;
+                    rows.collect::<rusqlite::Result<Vec<_>>>()?
+                };
+                rag.push(d);
+            }
+        }
+
+        Ok(FullBackup {
+            schema_version: 1,
+            created_at: Utc::now(),
+            students,
+            grades,
+            conversations: convs,
+            messages,
+            tasks,
+            providers,
+            rag_documents: rag,
+        })
+    }
+
+    /// Replace the contents of every user-visible table with the snapshot
+    /// returned by `export_full`. Existing rows with the same primary key
+    /// are overwritten. The whole operation runs in a single transaction so
+    /// a partial import never leaves the DB in a half-state.
+    pub fn import_full(&self, backup: &FullBackup) -> Result<()> {
+        let mut c = self.conn.lock();
+        let tx = c.transaction()?;
+
+        // We intentionally do NOT delete first: INSERT OR REPLACE handles
+        // upsert for the parent rows, and DELETE…WHERE for the child rows
+        // happens implicitly through the ON DELETE CASCADE foreign keys
+        // when we re-insert parents. For tables without cascading (RAG
+        // chunks → rag_documents is the only one that does), we wipe the
+        // child rows manually.
+        tx.execute("DELETE FROM rag_chunks", [])?;
+        tx.execute("DELETE FROM rag_documents", [])?;
+        tx.execute("DELETE FROM grades", [])?;
+        tx.execute("DELETE FROM messages", [])?;
+        tx.execute("DELETE FROM conversations", [])?;
+        tx.execute("DELETE FROM tasks", [])?;
+        tx.execute("DELETE FROM providers", [])?;
+        tx.execute("DELETE FROM students", [])?;
+
+        for s in &backup.students {
+            upsert_student_in_tx(&tx, s)?;
+        }
+        for (sid, g) in &backup.grades {
+            tx.execute(
+                "INSERT INTO grades (id, student_id, subject, score, max_score, exam_date, recorded_at) VALUES (?,?,?,?,?,?,?)",
+                params![
+                    g.id.to_string(),
+                    sid.to_string(),
+                    g.subject,
+                    g.score,
+                    g.max_score,
+                    g.exam_date.to_string(),
+                    g.recorded_at.to_rfc3339(),
+                ],
+            )?;
+        }
+        for conv in &backup.conversations {
+            upsert_conversation_in_tx(&tx, conv)?;
+        }
+        for m in &backup.messages {
+            insert_message_in_tx(&tx, m)?;
+        }
+        for t in &backup.tasks {
+            upsert_task_in_tx(&tx, t)?;
+        }
+        for p in &backup.providers {
+            upsert_provider_in_tx(&tx, p)?;
+        }
+        for d in &backup.rag_documents {
+            upsert_rag_document_in_tx(&tx, d)?;
+        }
+
+        tx.commit()?;
+        Ok(())
+    }
+}
+
+// ---- Transaction-bound versions of the upsert helpers ----
+//
+// These are private duplicates of the public `upsert_*` methods but they
+// take a `&Transaction` instead of locking the connection. Used by
+// `import_full` so the whole import is atomic.
+
+fn upsert_student_in_tx(tx: &rusqlite::Transaction<'_>, s: &Student) -> Result<()> {
+    tx.execute(
+        "INSERT OR REPLACE INTO students
+         (id,name,gender,grade,class,id_number,birth_date,enrollment_date,guardian_name,guardian_contact,guardian_relation,home_address,emergency_contact,risk_level,gpa,tags,notes,created_at,updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        params![
+            s.id.to_string(),
+            s.name,
+            s.gender,
+            s.grade,
+            s.class,
+            s.id_number,
+            s.birth_date.map(|d| d.to_string()),
+            s.enrollment_date.map(|d| d.to_string()),
+            s.guardian_name,
+            s.guardian_contact,
+            s.guardian_relation,
+            s.home_address,
+            s.emergency_contact,
+            s.risk_level as i64,
+            s.gpa,
+            serde_json::to_string(&s.tags).unwrap_or_default(),
+            s.notes,
+            s.created_at.to_rfc3339(),
+            s.updated_at.to_rfc3339(),
+        ],
+    )?;
+    Ok(())
+}
+
+fn upsert_conversation_in_tx(
+    tx: &rusqlite::Transaction<'_>,
+    conv: &Conversation,
+) -> Result<()> {
+    tx.execute(
+        "INSERT OR REPLACE INTO conversations
+         (id,agent_id,student_id,title,created_at,updated_at) VALUES (?,?,?,?,?,?)",
+        params![
+            conv.id.to_string(),
+            conv.agent_id,
+            conv.student_id.map(|u| u.to_string()),
+            conv.title,
+            conv.created_at.to_rfc3339(),
+            conv.updated_at.to_rfc3339(),
+        ],
+    )?;
+    Ok(())
+}
+
+fn insert_message_in_tx(tx: &rusqlite::Transaction<'_>, m: &Message) -> Result<()> {
+    tx.execute(
+        "INSERT OR REPLACE INTO messages
+         (id,conversation_id,role,content,tool_calls,created_at) VALUES (?,?,?,?,?,?)",
+        params![
+            m.id.to_string(),
+            m.conversation_id.to_string(),
+            m.role as i64,
+            m.content,
+            serde_json::to_string(&m.tool_calls).unwrap_or_default(),
+            m.created_at.to_rfc3339(),
+        ],
+    )?;
+    Ok(())
+}
+
+fn upsert_task_in_tx(tx: &rusqlite::Transaction<'_>, t: &ScheduledTask) -> Result<()> {
+    tx.execute(
+        "INSERT OR REPLACE INTO tasks
+         (id,name,cron_expr,agent_id,prompt,enabled,last_run,next_run,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        params![
+            t.id.to_string(),
+            t.name,
+            t.cron_expr,
+            t.agent_id,
+            t.prompt,
+            t.enabled as i64,
+            t.last_run.map(|d| d.to_rfc3339()),
+            t.next_run.map(|d| d.to_rfc3339()),
+            t.created_at.to_rfc3339(),
+        ],
+    )?;
+    Ok(())
+}
+
+fn upsert_provider_in_tx(tx: &rusqlite::Transaction<'_>, p: &LlmProvider) -> Result<()> {
+    tx.execute(
+        "INSERT OR REPLACE INTO providers
+         (id,name,kind,base_url,api_key,model,enabled) VALUES (?,?,?,?,?,?,?)",
+        params![
+            p.id, p.name, p.kind as i64, p.base_url, p.api_key, p.model, p.enabled as i64,
+        ],
+    )?;
+    Ok(())
+}
+
+fn upsert_rag_document_in_tx(tx: &rusqlite::Transaction<'_>, d: &RagDocument) -> Result<()> {
+    tx.execute(
+        "INSERT INTO rag_documents (id, title, content, created_at) VALUES (?,?,?,?)",
+        params![d.id.to_string(), d.title, d.content, d.created_at.to_rfc3339()],
+    )?;
+    for c in &d.chunks {
+        tx.execute(
+            "INSERT INTO rag_chunks (id, document_id, text, embedding) VALUES (?,?,?,?)",
+            params![
+                c.id.to_string(),
+                c.document_id.to_string(),
+                c.text,
+                serde_json::to_string(&c.embedding).unwrap_or_default(),
+            ],
+        )?;
+    }
+    Ok(())
 }
 
 // ---- Row mappers ----

@@ -24,6 +24,17 @@ use uuid::Uuid;
 use crate::models::{RiskLevel, ToolStatus};
 use crate::runtime::RuntimeCtx;
 
+// ============================================================================
+// Tool size / time limits
+// ============================================================================
+
+/// Maximum number of web search results to surface. Keeps the agent's next
+/// turn within a sensible context budget.
+const WEB_SEARCH_MAX_RESULTS: usize = 5;
+
+/// HTTP timeout for an individual web search.
+const WEB_SEARCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// Static description of a tool, used to render the system prompt.
 #[derive(Debug, Clone)]
 pub struct ToolDefinition {
@@ -110,6 +121,14 @@ impl ToolRegistry {
         });
         r.register(rag_query_def(), |ctx, args, cancel| {
             Box::pin(rag_query(ctx, args, cancel))
+        });
+        // Network — opt-in (no PII, no student data leak). Uses the same
+        // shared `reqwest` client built in [`crate::llm::LlmClient::http`].
+        r.register(web_search_def(), |ctx, args, cancel| {
+            Box::pin(web_search(ctx, args, cancel))
+        });
+        r.register(web_fetch_def(), |ctx, args, cancel| {
+            Box::pin(web_fetch(ctx, args, cancel))
         });
         r
     }
@@ -238,6 +257,20 @@ fn rag_query_def() -> ToolDefinition {
         name: "rag_query",
         purpose: "在本地知识库里查询与问题最相关的文档片段",
         args_schema_hint: r#"{"query":"学生请假流程","top_k":3}"#,
+    }
+}
+fn web_search_def() -> ToolDefinition {
+    ToolDefinition {
+        name: "web_search",
+        purpose: "联网搜索（使用 DuckDuckGo Lite），返回网页标题/链接/摘要",
+        args_schema_hint: r#"{"query":"中国高考 2026 新政策","max_results":5}"#,
+    }
+}
+fn web_fetch_def() -> ToolDefinition {
+    ToolDefinition {
+        name: "web_fetch",
+        purpose: "抓取一个 URL 的纯文本（去除 HTML 标签），最大 4 KB",
+        args_schema_hint: r#"{"url":"https://example.com/article"}"#,
     }
 }
 
@@ -513,36 +546,319 @@ async fn rag_query(
             if docs.is_empty() {
                 return ToolResult::ok("知识库为空，请先在「知识库」页导入文档。".into());
             }
-            // naive substring scoring — good enough for the local RAG use-case
-            // since documents are short and queries are educational Chinese.
-            let mut scored: Vec<(usize, &str, &str, f32)> = Vec::new();
-            for d in &docs {
-                for c in &d.chunks {
-                    let hits = q
-                        .chars()
-                        .filter(|ch| c.text.contains(*ch))
-                        .count() as f32;
-                    let total = q.chars().count().max(1) as f32;
-                    let s = hits / total;
-                    if s > 0.0 {
-                        scored.push((s as usize, &d.title, &c.text, s));
-                    }
-                }
-            }
-            scored.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap_or(std::cmp::Ordering::Equal));
-            if scored.is_empty() {
+            let corpus = crate::embedding::Corpus::from_documents(&docs);
+            let hits = corpus.search_text(q, top_k);
+            if hits.is_empty() {
                 ToolResult::ok(format!("未找到与「{q}」相关的知识库片段"))
             } else {
-                let lines: Vec<String> = scored
+                let lines: Vec<String> = hits
                     .iter()
-                    .take(top_k)
-                    .map(|(hits, title, text, _)| format!("《{title}》[{hits} 命中] {text}"))
+                    .map(|h| {
+                        format!(
+                            "《{}》(score {:.2}) {}",
+                            h.document_title,
+                            h.score,
+                            crate::util::truncate(&h.chunk_text, 320)
+                        )
+                    })
                     .collect();
                 ToolResult::ok(lines.join("\n---\n"))
             }
         }
         Err(e) => ToolResult::err(format!("知识库查询失败: {e}")),
     }
+}
+
+// ============================================================================
+// Web tools (network, opt-in)
+// ============================================================================
+//
+// We re-use the same `reqwest::Client` as the LLM client to share the
+// connection pool and the rustls stack. There is no separate `reqwest`
+// dependency; the LLM module already pulls it in.
+
+fn http_client() -> std::sync::Arc<reqwest::Client> {
+    // LlmClient::new() is cheap and stores the client in a `static` cell
+    // would be cleaner, but constructing one per call is fine: reqwest's
+    // Client is Clone-cheap (it wraps an Arc internally).
+    std::sync::Arc::new(crate::llm::LlmClient::new().into_http())
+}
+
+async fn web_search(
+    _ctx: Arc<RuntimeCtx>,
+    args: Value,
+    _cancel: CancellationToken,
+) -> ToolResult {
+    let q = arg_string(&args, "query").trim();
+    if q.is_empty() {
+        return ToolResult::err("缺少必填参数 query".into());
+    }
+    let max_results = args
+        .get("max_results")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(WEB_SEARCH_MAX_RESULTS as u64)
+        .clamp(1, WEB_SEARCH_MAX_RESULTS as u64) as usize;
+
+    let client = http_client();
+    let url = format!(
+        "https://html.duckduckgo.com/html/?q={}",
+        urlencode(q)
+    );
+    let resp = match tokio::time::timeout(WEB_SEARCH_TIMEOUT, client.get(&url).send()).await {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => return ToolResult::err(format!("网络请求失败: {e}")),
+        Err(_) => {
+            return ToolResult::err(format!(
+                "web_search 超过 {:?} 未返回",
+                WEB_SEARCH_TIMEOUT
+            ))
+        }
+    };
+    if !resp.status().is_success() {
+        return ToolResult::err(format!(
+            "DuckDuckGo 返回 HTTP {}",
+            resp.status()
+        ));
+    }
+    let body = match resp.text().await {
+        Ok(b) => b,
+        Err(e) => return ToolResult::err(format!("读取响应失败: {e}")),
+    };
+    let hits = parse_duckduckgo(&body, max_results);
+    if hits.is_empty() {
+        return ToolResult::ok(format!("未找到与「{q}」相关的网页结果"));
+    }
+    let mut out = String::new();
+    for (i, (title, link, snippet)) in hits.iter().enumerate() {
+        out.push_str(&format!(
+            "{}. {}\n   {}\n   {}\n",
+            i + 1,
+            title,
+            link,
+            snippet
+        ));
+    }
+    ToolResult::ok(out)
+}
+
+async fn web_fetch(
+    _ctx: Arc<RuntimeCtx>,
+    args: Value,
+    _cancel: CancellationToken,
+) -> ToolResult {
+    let url = arg_string(&args, "url").trim();
+    if url.is_empty() {
+        return ToolResult::err("缺少必填参数 url".into());
+    }
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return ToolResult::err("url 必须以 http(s):// 开头".into());
+    }
+    let client = http_client();
+    let resp = match tokio::time::timeout(WEB_SEARCH_TIMEOUT, client.get(url).send()).await {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => return ToolResult::err(format!("网络请求失败: {e}")),
+        Err(_) => {
+            return ToolResult::err(format!("web_fetch 超过 {:?} 未返回", WEB_SEARCH_TIMEOUT))
+        }
+    };
+    if !resp.status().is_success() {
+        return ToolResult::err(format!("HTTP {}", resp.status()));
+    }
+    let body = match resp.text().await {
+        Ok(b) => b,
+        Err(e) => return ToolResult::err(format!("读取响应失败: {e}")),
+    };
+    let text = html_to_text(&body);
+    ToolResult::ok(crate::util::truncate(&text, 4096))
+}
+
+// --- small HTML helpers (intentionally minimal; we strip tags, do not
+//     attempt to render a DOM). Sufficient for the LLM to ingest a page.
+
+/// URL-encoder for query strings. We avoid pulling the `urlencoding` crate
+/// by reusing `reqwest::Url` which can do the percent-encoding for us.
+fn urlencode(s: &str) -> String {
+    // `Url::parse` is a roundabout but reliable way: build a URL whose
+    // query we then read back percent-encoded.
+    let dummy = format!("https://x.invalid/?q={}", s);
+    match reqwest::Url::parse(&dummy) {
+        Ok(u) => u
+            .query_pairs()
+            .find(|(k, _)| k == "q")
+            .map(|(_, v)| v.into_owned())
+            .unwrap_or_else(|| s.to_string()),
+        Err(_) => s.to_string(),
+    }
+}
+
+/// Parse the DuckDuckGo Lite HTML for the first N results.
+///
+/// The structure of a result is roughly:
+/// ```html
+/// <a class="result__a" href="https://duckduckgo.com/l/?uddg=ENCODED_URL&...">TITLE</a>
+/// <a class="result__snippet" ...>SNIPPET_TEXT</a>
+/// ```
+fn parse_duckduckgo(html: &str, max: usize) -> Vec<(String, String, String)> {
+    let mut hits: Vec<(String, String, String)> = Vec::new();
+    let mut cursor = 0usize;
+    while let Some(rel) = html[cursor..].find("class=\"result__a\"") {
+        let start = cursor + rel;
+        // Find the href=...> and the closing </a>
+        let Some(href_open) = html[start..].find("href=") else {
+            break;
+        };
+        let href_start = start + href_open + 5;
+        let Some(href_close_rel) = html[href_start..].find('"') else {
+            break;
+        };
+        let href_close = href_start + href_close_rel;
+        let raw_href = &html[href_start..href_close];
+        // DDG wraps every result URL as a redirect; decode the uddg= param.
+        let real_href = decode_ddg_redirect(raw_href);
+
+        // closing </a> after href
+        let Some(close_rel) = html[href_close..].find("</a>") else {
+            break;
+        };
+        let inner_start = href_close;
+        let inner_end = href_close + close_rel;
+        let title = strip_tags(&html[inner_start..inner_end]).trim().to_string();
+        if title.is_empty() {
+            cursor = inner_end + 4;
+            continue;
+        }
+        // Find the matching snippet (next sibling)
+        let snippet_start = inner_end + 4;
+        let snippet = if let Some(snip_rel) = html[snippet_start..].find("result__snippet") {
+            let abs_snip = snippet_start + snip_rel;
+            if let Some(snip_end_rel) = html[abs_snip..].find("</a>") {
+                strip_tags(&html[abs_snip..abs_snip + snip_end_rel])
+                    .trim()
+                    .to_string()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+        hits.push((title, real_href, snippet));
+        cursor = snippet_start;
+        if hits.len() >= max {
+            break;
+        }
+    }
+    hits
+}
+
+/// DDG Lite wraps every outbound link in a redirect like
+///   `https://duckduckgo.com/l/?uddg=ENCODED%20URL&...`
+/// Decode the uddg parameter if present; otherwise return the raw href.
+fn decode_ddg_redirect(href: &str) -> String {
+    if let Some(qpos) = href.find('?') {
+        let qs = &href[qpos + 1..];
+        for pair in qs.split('&') {
+            if let Some(rest) = pair.strip_prefix("uddg=") {
+                return urldecode(rest);
+            }
+        }
+    }
+    href.to_string()
+}
+
+fn urldecode(s: &str) -> String {
+    // We do a tiny custom decoder to avoid the `urlencoding` crate. The
+    // format is %XX with XX hex; '+' → space (form encoding, used by DDG).
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'+' => {
+                out.push(b' ');
+                i += 1;
+            }
+            b'%' if i + 2 < bytes.len() => {
+                let hex = &bytes[i + 1..i + 3];
+                if let (Some(a), Some(b)) = (hex_digit(hex[0]), hex_digit(hex[1])) {
+                    out.push((a << 4) | b);
+                    i += 3;
+                } else {
+                    out.push(bytes[i]);
+                    i += 1;
+                }
+            }
+            other => {
+                out.push(other);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn hex_digit(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn strip_tags(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_tag = false;
+    for c in s.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' if in_tag => in_tag = false,
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    // collapse runs of whitespace
+    let mut collapsed = String::with_capacity(out.len());
+    let mut prev_ws = false;
+    for c in out.chars() {
+        if c.is_whitespace() {
+            if !prev_ws {
+                collapsed.push(' ');
+            }
+            prev_ws = true;
+        } else {
+            collapsed.push(c);
+            prev_ws = false;
+        }
+    }
+    collapsed
+}
+
+fn html_to_text(html: &str) -> String {
+    // Drop <script> and <style> blocks first (they'd add noise).
+    let mut s = String::with_capacity(html.len());
+    let mut i = 0;
+    let lower = html.to_ascii_lowercase();
+    while i < html.len() {
+        if let Some(rel) = lower[i..].find("<script") {
+            s.push_str(&html[i..i + rel]);
+            if let Some(end_rel) = lower[i + rel..].find("</script>") {
+                i = i + rel + end_rel + "</script>".len();
+            } else {
+                break;
+            }
+        } else if let Some(rel) = lower[i..].find("<style") {
+            s.push_str(&html[i..i + rel]);
+            if let Some(end_rel) = lower[i + rel..].find("</style>") {
+                i = i + rel + end_rel + "</style>".len();
+            } else {
+                break;
+            }
+        } else {
+            s.push_str(&html[i..]);
+            break;
+        }
+    }
+    strip_tags(&s)
 }
 
 #[cfg(test)]
@@ -553,7 +869,7 @@ mod tests {
     fn registry_has_defaults() {
         let r = ToolRegistry::with_defaults();
         let names = r.names();
-        // sanity: all 9 built-ins present
+        // sanity: all 11 built-ins present
         for n in [
             "lookup_student",
             "get_student",
@@ -564,6 +880,8 @@ mod tests {
             "search_students",
             "recent_grades",
             "rag_query",
+            "web_search",
+            "web_fetch",
         ] {
             assert!(names.contains(&n), "missing tool: {n}");
         }
@@ -573,5 +891,74 @@ mod tests {
     fn unknown_tool_is_not_registered() {
         let r = ToolRegistry::with_defaults();
         assert!(r.get("nope").is_none());
+    }
+
+    // ── HTML helpers ──────────────────────────────────────────────────
+
+    #[test]
+    fn strip_tags_removes_tags_and_collapses_ws() {
+        let s = strip_tags("<p>Hello  <b>world</b>!\n</p>");
+        assert_eq!(s, "Hello world ! ");
+    }
+
+    #[test]
+    fn urlencode_and_decode_round_trip() {
+        let original = "中国 高三 2026";
+        let encoded = urlencode(original);
+        let decoded = urldecode(&encoded);
+        assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn urldecode_handles_plus_as_space() {
+        assert_eq!(urldecode("hello+world"), "hello world");
+    }
+
+    #[test]
+    fn ddg_redirect_decodes_uddg() {
+        let href = "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fpath&rut=abc";
+        assert_eq!(decode_ddg_redirect(href), "https://example.com/path");
+    }
+
+    #[test]
+    fn parse_duckduckgo_extracts_results() {
+        let html = r#"
+            <html><body>
+              <a class="result__a" href="https://duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fa&x=1">First Title</a>
+              <a class="result__snippet">First snippet text</a>
+              <a class="result__a" href="https://duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fb&x=2">Second Title</a>
+              <a class="result__snippet">Second snippet text</a>
+            </body></html>
+        "#;
+        let hits = parse_duckduckgo(html, 5);
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].0, "First Title");
+        assert_eq!(hits[0].1, "https://example.com/a");
+        assert!(hits[0].2.contains("First snippet"));
+        assert_eq!(hits[1].1, "https://example.com/b");
+    }
+
+    #[test]
+    fn parse_duckduckgo_respects_max() {
+        let html = r#"<a class="result__a" href="x">A</a><a class="result__snippet">s1</a>
+                      <a class="result__a" href="y">B</a><a class="result__snippet">s2</a>
+                      <a class="result__a" href="z">C</a><a class="result__snippet">s3</a>"#;
+        let hits = parse_duckduckgo(html, 2);
+        assert_eq!(hits.len(), 2);
+    }
+
+    #[test]
+    fn html_to_text_drops_script_and_style() {
+        let html = r#"
+            <html><head><style>body{color:red}</style></head>
+            <body><p>Real content.</p>
+            <script>alert(1)</script>
+            <p>More real content.</p>
+            </body></html>
+        "#;
+        let t = html_to_text(html);
+        assert!(t.contains("Real content"));
+        assert!(!t.contains("alert"));
+        assert!(!t.contains("color:red"));
     }
 }

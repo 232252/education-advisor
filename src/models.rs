@@ -246,3 +246,28 @@ pub enum ExportScope {
     All,
     SelectedStudent,
 }
+
+/// A complete, portable snapshot of every user-visible table in the
+/// database. Used by the Settings page "数据备份 / 恢复" feature.
+///
+/// Bump `schema_version` whenever the on-disk shape of this struct changes
+/// in a non-backward-compatible way; the restore path rejects mismatched
+/// versions explicitly.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FullBackup {
+    pub schema_version: u32,
+    pub created_at: DateTime<Utc>,
+    pub students: Vec<Student>,
+    /// `(student_id, grade)` pairs; we keep the `student_id` explicit so
+    /// the backup file is self-describing even if a parent row is missing.
+    pub grades: Vec<(Uuid, GradeEntry)>,
+    pub conversations: Vec<Conversation>,
+    pub messages: Vec<Message>,
+    pub tasks: Vec<ScheduledTask>,
+    pub providers: Vec<LlmProvider>,
+    pub rag_documents: Vec<RagDocument>,
+}
+
+impl FullBackup {
+    pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+}

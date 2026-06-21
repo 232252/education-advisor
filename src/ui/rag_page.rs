@@ -1,12 +1,17 @@
-//! Local RAG knowledge base: drag-drop text files, chunk, vectorize, and search.
+//! Local RAG knowledge base: drag-drop text files, chunk, embed, and search.
+//!
+//! Embeddings are produced by [`crate::embedding`], a hashing TF vectorizer
+//! that ships in-tree (no model download, no extra deps). The on-disk schema
+//! is unchanged from earlier versions: `RagDocument` carries a `Vec<RagChunk>`
+//! where each chunk has a `text` and a `Vec<f32>` embedding.
 
 use chrono::Utc;
 use eframe::egui::{self, Align, FontId, Layout, Ui, Vec2};
 use uuid::Uuid;
 
 use crate::app::App;
+use crate::embedding::{self, SearchHit};
 use crate::models::{RagChunk, RagDocument};
-use crate::ui::icons;
 use crate::ui::widgets::{
     card, empty_state, ghost_button, primary_button, search_input, section_title,
 };
@@ -67,7 +72,11 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             );
             if primary_button(ui, &theme, "检索").clicked() {
                 let query = app.ui_state.rag_query.clone();
-                app.ui_state.rag_results = search_rag(app, &query);
+                let hits = search_rag(app, &query);
+                app.ui_state.rag_results = hits
+                    .into_iter()
+                    .map(|h| (h.document_id, h.chunk_id, h.score, h.chunk_text))
+                    .collect();
             }
         });
     });
@@ -80,7 +89,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     if !app.ui_state.rag_results.is_empty() {
         card(ui, &app.theme, |ui| {
             section_title(ui, &app.theme, "检索命中热度");
-            for (doc_id, chunk_idx, score, text) in &app.ui_state.rag_results {
+            for (doc_id, _chunk_id, score, text) in &app.ui_state.rag_results {
                 let doc_title = docs
                     .iter()
                     .find(|d| d.id == *doc_id)
@@ -91,7 +100,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     egui::Color32::from_rgba_premultiplied(color.r(), color.g(), color.b(), heat);
                 ui.horizontal(|ui| {
                     ui.label(
-                        egui::RichText::new(format!("{doc_title} · 块{chunk_idx}"))
+                        egui::RichText::new(doc_title.clone())
                             .font(FontId::proportional(11.0))
                             .color(app.theme.text_dim),
                     );
@@ -125,13 +134,14 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             empty_state(
                 ui,
                 &app.theme,
-                icons::rag,
+                crate::ui::icons::rag,
                 "知识库为空，点击「添加文档」开始构建",
             );
         });
     } else {
         egui::ScrollArea::vertical().show(ui, |ui| {
             for d in &docs {
+                let needs_reindex = d.chunks.iter().any(|c| c.embedding.is_empty());
                 card(ui, &app.theme, |ui| {
                     ui.horizontal_top(|ui| {
                         ui.vertical(|ui| {
@@ -143,15 +153,26 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                             );
                             ui.label(
                                 egui::RichText::new(format!(
-                                    "{} 字符 · {} 块",
+                                    "{} 字符 · {} 块{}",
                                     d.content.len(),
-                                    d.chunks.len()
+                                    d.chunks.len(),
+                                    if needs_reindex { " · 需重新索引" } else { "" }
                                 ))
                                 .font(FontId::proportional(11.0))
                                 .color(app.theme.text_dim),
                             );
                         });
                         ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
+                            if needs_reindex
+                                && ghost_button(ui, &app.theme, "重新索引").clicked()
+                            {
+                                let _ = app
+                                    .runtime
+                                    .tx
+                                    .send(crate::runtime::Command::SaveRagDocument(
+                                        reindex_document(d.clone()),
+                                    ));
+                            }
                             if ghost_button(ui, &app.theme, "删除").clicked() {
                                 let _ = app
                                     .runtime
@@ -168,19 +189,14 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 }
 
 fn add_document(app: &mut App, title: String, content: String) {
-    let chunks = chunk_text(&content);
     let doc_id = Uuid::new_v4();
-    let chunks: Vec<RagChunk> = chunks
+    let chunks: Vec<RagChunk> = embedding::chunk_text(&content)
         .into_iter()
-        .enumerate()
-        .map(|(i, text)| {
-            let embedding = embed(&text, i);
-            RagChunk {
-                id: Uuid::new_v4(),
-                document_id: doc_id,
-                text,
-                embedding,
-            }
+        .map(|text| RagChunk {
+            id: Uuid::new_v4(),
+            document_id: doc_id,
+            embedding: embedding::embed_text(&text),
+            text,
         })
         .collect();
     let doc = RagDocument {
@@ -196,89 +212,27 @@ fn add_document(app: &mut App, title: String, content: String) {
         .send(crate::runtime::Command::SaveRagDocument(doc));
 }
 
-/// Split text into overlapping chunks. Works for both whitespace-separated
-/// languages and CJK streams without spaces.
-fn chunk_text(text: &str) -> Vec<String> {
-    if text.is_empty() {
-        return vec![text.to_string()];
-    }
-    // For scripts without spaces (CJK), split by Unicode chars; otherwise words.
-    let has_spaces = text.chars().any(char::is_whitespace);
-    let tokens: Vec<String> = if has_spaces {
-        text.split_whitespace()
-            .map(std::string::ToString::to_string)
-            .collect()
-    } else {
-        text.chars().map(|c| c.to_string()).collect()
-    };
-    let size = if has_spaces { 80 } else { 200 };
-    let overlap = if has_spaces { 20 } else { 50 };
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < tokens.len() {
-        let end = (i + size).min(tokens.len());
-        out.push(tokens[i..end].join(if has_spaces { " " } else { "" }));
-        if end == tokens.len() {
-            break;
-        }
-        i += size - overlap;
-    }
-    out
+/// Re-embed every chunk of an existing document. Used when a document was
+/// loaded from disk but its embedding vector is empty (e.g. an older
+/// schema that didn't store embeddings, or a chunk that was added through
+/// a path that bypassed the embedder).
+fn reindex_document(mut d: RagDocument) -> RagDocument {
+    d.chunks = d
+        .chunks
+        .into_iter()
+        .map(|mut c| {
+            c.embedding = embedding::embed_text(&c.text);
+            c
+        })
+        .collect();
+    d
 }
 
-/// A deterministic local embedding surrogate using character n-gram hashes.
-/// Keeps everything on-device with no external model.
-fn embed(text: &str, chunk_index: usize) -> Vec<f32> {
-    let mut vec = vec![0.0f32; 64];
-    let bytes = text.as_bytes();
-    for w in bytes.windows(3) {
-        let mut h = 0u32;
-        for b in w {
-            h = h.wrapping_mul(31).wrapping_add(u32::from(*b));
-        }
-        let idx = (h as usize) % vec.len();
-        vec[idx] += 1.0;
-    }
-    // incorporate chunk position for variety
-    let len = vec.len();
-    vec[chunk_index % len] += 1.0;
-    // normalize
-    let norm = vec.iter().map(|v| v * v).sum::<f32>().sqrt().max(1.0);
-    for v in &mut vec {
-        *v /= norm;
-    }
-    vec
-}
-
-fn search_rag(app: &App, query: &str) -> Vec<(Uuid, usize, f32, String)> {
+fn search_rag(app: &App, query: &str) -> Vec<SearchHit> {
     if query.trim().is_empty() {
         return Vec::new();
     }
-    let q = embed(query, 0);
     let docs = app.rag_documents.read().clone();
-    let mut hits = Vec::new();
-    for d in docs {
-        for (i, c) in d.chunks.iter().enumerate() {
-            let score = cosine_similarity(&q, &c.embedding);
-            if score > 0.05 {
-                hits.push((d.id, i, score, c.text.clone()));
-            }
-        }
-    }
-    hits.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
-    hits.truncate(20);
-    hits
-}
-
-fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-    let n = a.len().min(b.len());
-    let mut dot = 0.0f32;
-    let mut na = 0.0f32;
-    let mut nb = 0.0f32;
-    for i in 0..n {
-        dot += a[i] * b[i];
-        na += a[i] * a[i];
-        nb += b[i] * b[i];
-    }
-    dot / (na.sqrt() * nb.sqrt()).max(1e-6)
+    let corpus = embedding::Corpus::from_documents(&docs);
+    corpus.search_text(query, 20)
 }
