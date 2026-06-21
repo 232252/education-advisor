@@ -109,6 +109,7 @@ jobs:
         working-directory: .
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        shell: bash
         run: |
           FEAT_FLAGS=""
           if [ -n "${{ matrix.features }}" ]; then
@@ -141,6 +142,7 @@ jobs:
 
       - name: Run tests
         working-directory: .
+        shell: bash
         run: cargo test --locked --all-features
 
   # ─── 4. Security audit (weekly + on PR) ─────────────────────────────────
