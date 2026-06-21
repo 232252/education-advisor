@@ -1,0 +1,68 @@
+[package]
+name = "education-advisor-egui"
+version = "1.0.2"
+edition = "2021"
+authors = ["Education Advisor Team"]
+description = "Commercial-grade AI education management desktop application built with egui"
+license = "MIT OR Apache-2.0"
+rust-version = "1.76"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
+
+[profile.dev]
+opt-level = 1
+
+[dependencies]
+# GUI
+eframe = { version = "0.27", default-features = false, features = ["default_fonts", "glow", "persistence"] }
+tray-icon = { version = "0.19", optional = true, default-features = false }
+egui = "0.27"
+egui_extras = { version = "0.27", features = ["image"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+
+# Async runtime
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time", "fs", "io-util"] }
+tokio-util = "0.7"
+futures-util = "0.3"
+async-trait = "0.1"
+
+# Storage
+rusqlite = { version = "0.31", features = ["bundled"] }
+calamine = "0.24"
+rfd = "0.14"
+
+# Crypto / privacy
+aes-gcm = "0.10"
+rand = "0.8"
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+
+# Networking / LLM
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Utils
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+dirs = "5"
+anyhow = "1"
+thiserror = "1"
+parking_lot = "0.12"
+crossbeam-channel = "0.5"
+cron = "0.12"
+indexmap = { version = "2", features = ["serde"] }
+log = "0.4"
+regex = "1"
+
+[features]
+default = []
+tray = ["dep:tray-icon"]
