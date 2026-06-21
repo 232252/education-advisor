@@ -65,7 +65,7 @@ pub type BoxedToolFuture =
     Pin<Box<dyn Future<Output = ToolResult> + Send + 'static>>;
 
 /// A tool function: `(ctx, args, cancel) -> future of ToolResult`.
-pub type BoxedTool = Arc<
+pub type BoxedTool = Box<
     dyn Fn(Arc<RuntimeCtx>, Value, CancellationToken) -> BoxedToolFuture + Send + Sync + 'static,
 >;
 
@@ -123,8 +123,12 @@ impl ToolRegistry {
             + Sync
             + 'static,
     {
+        // `Box::from` triggers the unsized coercion from `Box<F>` to
+        // `Box<dyn Fn(...) -> ... + Send + Sync + 'static>`. Plain `Box::new`
+        // does not perform that coercion automatically.
+        let boxed: BoxedTool = Box::from(f);
         self.defs.push(def);
-        self.map.insert(def.name, Arc::new(f));
+        self.map.insert(def.name, boxed);
     }
 
     pub fn list(&self) -> &[ToolDefinition] {
