@@ -385,13 +385,18 @@ impl Db {
                 |r| r.get(0),
             )
             .unwrap_or(0);
-        let tool_calls: i64 = c
-            .query_row(
-                "SELECT COUNT(*) FROM messages WHERE content LIKE '%tool%'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap_or(0);
+        // Count the tool-call records stored as a JSON array on each assistant
+        // message. The previous implementation did `content LIKE '%tool%'`,
+        // which is a meaningless proxy in a Chinese-language product and
+        // typically returned 0; the JSON-array path actually counts calls.
+        let mut tool_stmt = c.prepare("SELECT tool_calls FROM messages")?;
+        let mut total_tool_calls: i64 = 0;
+        for row in tool_stmt.query_map([], |r| r.get::<_, String>(0))? {
+            let s = row?;
+            if let Ok(arr) = serde_json::from_str::<Vec<serde_json::Value>>(&s) {
+                total_tool_calls += arr.len() as i64;
+            }
+        }
 
         // grade trend by month
         let mut trend = Vec::new();
@@ -428,7 +433,7 @@ impl Db {
             risk_distribution: risk,
             avg_gpa: avg_gpa as f32,
             conversations_today: convs_today as usize,
-            tool_calls_total: tool_calls as usize,
+            tool_calls_total: total_tool_calls as usize,
             agent_activity,
             grade_trend: trend,
         })

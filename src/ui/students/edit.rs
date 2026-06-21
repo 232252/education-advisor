@@ -114,9 +114,27 @@ pub fn show_dialog(app: &mut App, ui: &mut Ui) {
                         edit_label(ui, &theme, "监护人电话");
                         let mut gcontact = s.guardian_contact.clone().unwrap_or_default();
                         if gcontact.starts_with("enc:") {
-                            gcontact = app.cipher.decrypt_str(&gcontact[4..]).unwrap_or(gcontact);
+                            match app.cipher.decrypt_str(&gcontact[4..]) {
+                                Ok(decrypted) => gcontact = decrypted,
+                                Err(e) => {
+                                    // Surface the failure in the dialog so the
+                                    // user knows their stored value can't be
+                                    // read, and force a fresh value before save.
+                                    ui.colored_label(
+                                        theme.danger,
+                                        format!("⚠ 解密失败: {e}，请重新输入"),
+                                    );
+                                }
+                            }
                         }
                         ui.text_edit_singleline(&mut gcontact);
+                        // Reject saving a still-encrypted blob — `runtime`
+                        // re-encrypts on save, which would wrap ciphertext in
+                        // more ciphertext. Strip the prefix to force a clean
+                        // write or skip the field entirely.
+                        if gcontact.starts_with("enc:") {
+                            gcontact.clear();
+                        }
                         s.guardian_contact = if gcontact.is_empty() {
                             None
                         } else {

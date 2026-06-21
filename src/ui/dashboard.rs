@@ -189,6 +189,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 .runtime
                 .tx
                 .send(crate::runtime::Command::LoadConversations);
+            app.push_toast(crate::runtime::ToastKind::Info, "正在刷新数据…");
         }
     });
 }

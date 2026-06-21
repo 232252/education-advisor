@@ -47,6 +47,12 @@ impl Scheduler {
             }
         }));
     }
+
+    /// One-shot pass used by tests so we don't have to wait for the 30s tick.
+    #[allow(dead_code)]
+    pub async fn tick_once(&self) -> anyhow::Result<()> {
+        check_and_run(&self.ctx, &self.evt_tx).await
+    }
 }
 
 async fn check_and_run(ctx: &Arc<RuntimeCtx>, evt_tx: &Sender<Event>) -> anyhow::Result<()> {
@@ -63,7 +69,15 @@ async fn check_and_run(ctx: &Arc<RuntimeCtx>, evt_tx: &Sender<Event>) -> anyhow:
                 let last = t.last_run.unwrap_or(DateTime::UNIX_EPOCH);
                 next <= now && next > last
             }
-            Err(_) => false,
+            Err(e) => {
+                // Surface a parser error once per tick so a typo in the cron
+                // expression isn't silently ignored forever.
+                let _ = evt_tx.send(Event::Toast {
+                    kind: crate::runtime::ToastKind::Warning,
+                    msg: format!("任务「{}」cron 解析失败: {e}", t.name),
+                });
+                false
+            }
         };
         if due {
             let conv = Conversation {

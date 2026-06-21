@@ -1,9 +1,10 @@
 //! Privacy engine: AES-256-GCM encryption at rest + PII redaction in transit.
 //!
-//! The master key is derived once per install from a random secret stored in a
-//! platform-appropriate location, then used to encrypt sensitive fields (guardian
-//! contacts, API keys) before they ever touch `SQLite`. A regex-based redaction
-//! layer scrubs PII from prompts before they are sent to any LLM provider.
+//! The master key is derived from a passphrase mixed with a 32-byte random
+//! salt stored alongside the database. The salt is generated once per
+//! install; losing it means losing access to encrypted fields, which is the
+//! correct failure mode for a local-first privacy engine. A regex-based
+//! redaction layer scrubs PII from prompts before they are sent to any LLM.
 
 use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
@@ -14,6 +15,9 @@ use rand::RngCore;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
+/// File name for the per-install random salt, sitting next to the database.
+pub const SALT_FILE: &str = "ea.salt";
+
 /// A self-contained cipher wrapping AES-256-GCM with a random key.
 #[derive(Clone)]
 pub struct Cipher {
@@ -21,9 +25,12 @@ pub struct Cipher {
 }
 
 impl Cipher {
-    /// Create a cipher from a passphrase (key derived via SHA-256).
-    pub fn from_passphrase(passphrase: &str) -> Self {
+    /// Create a cipher from a passphrase + salt (key derived via SHA-256).
+    /// The salt must be a stable, per-install random value; the call sites
+    /// load it from disk on startup.
+    pub fn from_passphrase(passphrase: &str, salt: &[u8]) -> Self {
         let mut hasher = Sha256::new();
+        hasher.update(salt);
         hasher.update(passphrase.as_bytes());
         let hash = hasher.finalize();
         let mut key = [0u8; 32];
@@ -73,6 +80,34 @@ impl Cipher {
     pub fn decrypt_str(&self, payload: &str) -> anyhow::Result<String> {
         String::from_utf8(self.decrypt(payload)?).map_err(Into::into)
     }
+}
+
+/// Load or create the per-install salt sitting next to the database file.
+/// The salt is 32 random bytes; once created, it never changes.
+pub fn load_or_create_salt(data_dir: &std::path::Path) -> anyhow::Result<Vec<u8>> {
+    std::fs::create_dir_all(data_dir)?;
+    let path = data_dir.join(SALT_FILE);
+    if let Ok(existing) = std::fs::read(&path) {
+        if existing.len() == 32 {
+            return Ok(existing);
+        }
+        // Salt file is corrupt (wrong length). Refuse to silently overwrite
+        // it: doing so would invalidate every existing encrypted value.
+        anyhow::bail!(
+            "salt 文件长度异常 ({} 字节)，拒绝覆盖以保护已加密数据",
+            existing.len()
+        );
+    }
+    let mut salt = vec![0u8; 32];
+    OsRng.fill_bytes(&mut salt);
+    std::fs::write(&path, &salt)?;
+    // Best-effort permission tightening on Unix; harmless on Windows.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(salt)
 }
 
 /// PII redactor that masks phone numbers, ID cards and emails.
@@ -127,12 +162,25 @@ mod tests {
 
     #[test]
     fn cipher_roundtrip() {
-        let cipher = Cipher::from_passphrase("test-pass");
+        let salt = b"0123456789abcdef0123456789abcdef";
+        let cipher = Cipher::from_passphrase("test-pass", salt);
         let msg = "监护人电话 13800138000";
         let enc = cipher.encrypt_str(msg).unwrap();
         assert_ne!(enc, msg);
         let dec = cipher.decrypt_str(&enc).unwrap();
         assert_eq!(dec, msg);
+    }
+
+    #[test]
+    fn cipher_depends_on_salt() {
+        // Two ciphers derived from the same passphrase but different salts
+        // must NOT be able to decrypt each other's ciphertext.
+        let salt_a = b"aaaa....aaaa";
+        let salt_b = b"bbbb....bbbb";
+        let c1 = Cipher::from_passphrase("p", salt_a);
+        let c2 = Cipher::from_passphrase("p", salt_b);
+        let enc = c1.encrypt_str("hello").unwrap();
+        assert!(c2.decrypt_str(&enc).is_err());
     }
 
     #[test]
