@@ -130,11 +130,8 @@ fn tool_call_badge(
         pad.y.mul_add(2.0, galley.size().y),
     );
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-    ui.painter().rect_filled(rect, Rounding::same(8.0), {
-        let mut c = color;
-        c[3] = 30;
-        c
-    });
+    let bg = eframe::egui::Color32::from_rgba_premultiplied(color.r(), color.g(), color.b(), 30);
+    ui.painter().rect_filled(rect, Rounding::same(8.0), bg);
     ui.painter()
         .rect_stroke(rect, Rounding::same(8.0), Stroke::new(1.0, color));
     let icon_rect = Rect::from_min_size(

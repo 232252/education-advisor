@@ -69,6 +69,9 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 .checkbox(&mut app.settings.privacy_enabled, "发送前自动脱敏")
                 .changed()
             {
+                // The runtime keeps a copy of the settings; the next
+                // turn's PII redaction will use the freshly toggled value
+                // because the AI loop reads from `ctx.settings`.
                 let _ = app
                     .runtime
                     .tx

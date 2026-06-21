@@ -68,10 +68,15 @@ fn main() -> eframe::Result<()> {
         .with_inner_size([1280.0, 820.0])
         .with_min_inner_size([960.0, 600.0])
         .with_icon(load_icon());
-    if let Some(r) = settings.window_rect {
-        viewport = viewport
-            .with_inner_size([r.w, r.h])
-            .with_position([r.x, r.y]);
+    if let Some(r) = settings.window_rect.as_ref() {
+        if r.w >= 600.0 && r.h >= 400.0 {
+            // Guard against absurdly small "saved" rects that would
+            // otherwise pop the window into an unusable corner of the
+            // screen.
+            viewport = viewport
+                .with_inner_size([r.w, r.h])
+                .with_position([r.x, r.y]);
+        }
     }
 
     eframe::run_native(
@@ -85,13 +90,7 @@ fn main() -> eframe::Result<()> {
 }
 
 fn load_settings() -> crate::models::Settings {
-    let db_path = {
-        let mut p = dirs::data_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-        p.push("education-advisor");
-        let _ = std::fs::create_dir_all(&p);
-        p.push("ea.db");
-        p
-    };
+    let db_path = db_path();
     if let Ok(db) = crate::db::Db::open(&db_path) {
         db.load_settings().unwrap_or_default()
     } else {
@@ -106,4 +105,12 @@ fn load_icon() -> egui::IconData {
         width,
         height,
     }
+}
+
+fn db_path() -> std::path::PathBuf {
+    let mut p = dirs::data_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    p.push("education-advisor");
+    let _ = std::fs::create_dir_all(&p);
+    p.push("ea.db");
+    p
 }

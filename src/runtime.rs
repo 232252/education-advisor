@@ -70,9 +70,7 @@ pub enum Command {
     // Stats
     LoadStats,
     // Settings
-    #[allow(dead_code)]
     LoadSettings,
-    #[allow(dead_code)]
     SaveSettings(Settings),
     // Backup / restore
     ExportBackup,
@@ -100,13 +98,11 @@ pub enum Event {
     },
     StreamToken {
         conversation_id: Uuid,
-        #[allow(dead_code)]
         message_id: Uuid,
         delta: String,
     },
     StreamTool {
         conversation_id: Uuid,
-        #[allow(dead_code)]
         message_id: Uuid,
         call: ToolCallRecord,
     },
@@ -129,7 +125,6 @@ pub enum Event {
     RagDocumentDeleted,
     Stats(DashboardStats),
     BackupReady(crate::models::FullBackup),
-    #[allow(dead_code)]
     Settings(Settings),
     Toast {
         kind: ToastKind,
@@ -163,7 +158,14 @@ impl Runtime {
         let db = Db::open(&db_path)?;
         // seed demo data on first run so the app is immediately useful
         let _ = crate::students::seed_demo(&db);
-        let cipher = Cipher::from_passphrase(&machine_passphrase(&db_path));
+        // Derive the master key from a random per-install salt so an
+        // attacker who copies just the database file can't reuse a public
+        // passphrase to decrypt sensitive columns.
+        let data_dir = db_path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."));
+        let salt = crate::privacy::load_or_create_salt(data_dir)?;
+        let cipher = Cipher::from_passphrase(&machine_passphrase(&db_path), &salt);
         let audit = db_path
             .parent()
             .and_then(|p| crate::audit::AuditLog::open(p).ok())
@@ -556,11 +558,13 @@ async fn run_command(
             let _ = evt_tx.send(Event::Stats(s));
         }
         LoadSettings => {
-            // Settings are persisted by egui's persistence in the app; the
-            // runtime only needs to know the active provider. We emit the
-            // providers list as the source of truth.
-            let v = ctx.db.list_providers()?;
-            let _ = evt_tx.send(Event::Providers(v));
+            // Echo the latest persisted settings back to the UI so it can
+            // pick up any changes a sibling process (or a manual edit of
+            // the DB) made since startup. We also refresh the in-memory
+            // copy held by the runtime, which the AI loop reads from.
+            let s = ctx.db.load_settings().unwrap_or_default();
+            *ctx.settings.write() = s.clone();
+            let _ = evt_tx.send(Event::Settings(s));
         }
         SaveSettings(s) => {
             ctx.db.save_settings(&s)?;

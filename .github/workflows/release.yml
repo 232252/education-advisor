@@ -10,6 +10,14 @@ on:
         description: 'Tag to release (e.g. v1.0.3). Leave blank to use the current version from Cargo.toml.'
         required: false
         default: ''
+      draft:
+        description: 'Create a draft release (no notification).'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 env:
   CARGO_TERM_COLOR: always
@@ -117,6 +125,7 @@ jobs:
           cp target/${{ matrix.target }}/release/education-advisor-egui${{ matrix.ext }} dist/$NAME/
           cp README.md dist/$NAME/ 2>/dev/null || true
           cp LICENSE dist/$NAME/ 2>/dev/null || true
+          cp LICENSE-APACHE dist/$NAME/ 2>/dev/null || true
           cp CHANGELOG.md dist/$NAME/ 2>/dev/null || true
           cd dist
           tar czf $NAME.${{ matrix.archive }} $NAME
@@ -141,6 +150,7 @@ jobs:
           Copy-Item "target/${{ matrix.target }}/release/education-advisor-egui${{ matrix.ext }}" "dist/$name/"
           Copy-Item "README.md" "dist/$name/" -ErrorAction SilentlyContinue
           Copy-Item "LICENSE" "dist/$name/" -ErrorAction SilentlyContinue
+          Copy-Item "LICENSE-APACHE" "dist/$name/" -ErrorAction SilentlyContinue
           Copy-Item "CHANGELOG.md" "dist/$name/" -ErrorAction SilentlyContinue
           Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.${{ matrix.archive }}"
           $hash = (Get-FileHash "dist/$name.${{ matrix.archive }}" -Algorithm SHA256).Hash.ToLower()
@@ -160,10 +170,22 @@ jobs:
     name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     steps:
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            VERSION=${{ github.event.inputs.tag }}
+          elif [ -n "${{ github.ref_name }}" ]; then
+            VERSION=${{ github.ref_name }}
+          else
+            VERSION=$(grep '^version' Cargo.toml | head -n1 | sed 's/.*"\(.*\)".*/\1/')
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -173,7 +195,30 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.VERSION }}
+          name: Education Advisor ${{ env.VERSION }}
+          body: |
+            ## 下载
+
+            | 平台 | 架构 | 文件 |
+            | --- | --- | --- |
+            | Linux | x86_64 | `education-advisor-egui-${{ env.VERSION }}-linux-x64.tar.gz` |
+            | Linux | aarch64 | `education-advisor-egui-${{ env.VERSION }}-linux-arm64.tar.gz` |
+            | Windows | x86_64 | `education-advisor-egui-${{ env.VERSION }}-windows-x64.zip` |
+            | Windows | aarch64 | `education-advisor-egui-${{ env.VERSION }}-windows-arm64.zip` |
+            | macOS | Intel | `education-advisor-egui-${{ env.VERSION }}-macos-x64.tar.gz` |
+            | macOS | Apple Silicon | `education-advisor-egui-${{ env.VERSION }}-macos-arm64.tar.gz` |
+
+            每个 archive 都附带同名的 `.sha256` 校验和文件。
+
+            ## 安装
+
+            1. 解压到任意目录
+            2. 在 `设置` → `AI 行为` → `提供商` 中添加至少一个 LLM 提供商
+            3. 启动首对话
+
+            详细文档见仓库 `README.md`。
           files: dist/*
           generate_release_notes: true
-          draft: false
-          prerelease: false
+          draft: ${{ github.event.inputs.draft == 'true' }}
+          prerelease: ${{ contains(env.VERSION, '-') }}

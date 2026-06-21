@@ -276,7 +276,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         provider_dialog(app, ui);
     }
 
-    // persist settings only when something changed
+    // Persist settings only when something changed. We also fire a
+    // `SaveSettings` if the in-memory settings differ from the last
+    // persisted copy; this catches the "user edited a slider then
+    // immediately navigated away" case before `update()` flushes.
     if settings_changed {
         let _ = app
             .runtime

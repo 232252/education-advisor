@@ -207,12 +207,18 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
         ui.vertical(|ui| {
             // ── Header ──
             ui.horizontal(|ui| {
+                // Show the *bound* agent of the conversation if any,
+                // otherwise fall back to whatever the user picked globally
+                // via the agents page. Don't mutate `active_agent` here:
+                // that is a user-facing preference that should only change
+                // when the user explicitly switches agents in the agents
+                // page or via the "AI 咨询" button.
                 let convs = app.conversations.read().clone();
-                let agent_id = convs
+                let bound_agent = convs
                     .iter()
                     .find(|c| c.id == conv_id)
-                    .map_or_else(|| app.active_agent.clone(), |c| c.agent_id.clone());
-                app.active_agent.clone_from(&agent_id);
+                    .map(|c| c.agent_id.clone());
+                let agent_id = bound_agent.unwrap_or_else(|| app.active_agent.clone());
                 let agent = crate::agents::find(&agent_id);
 
                 let avatar_rect = Rect::from_min_size(
@@ -236,30 +242,39 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                     );
                 }
 
-                // Student link
+                // Student link: re-resolve on every frame so that switching
+                // conversations never shows a stale student name from the
+                // previous session. We do NOT cache the name on the app
+                // because the underlying student list is mutable and the
+                // user can rename / delete a student between frames.
                 let bound_student_name: Option<String> = {
                     let convs = app.conversations.read();
-                    convs.iter().find(|c| c.id == conv_id).and_then(|c| {
-                        c.student_id.and_then(|sid| {
+                    convs
+                        .iter()
+                        .find(|c| c.id == conv_id)
+                        .and_then(|c| c.student_id)
+                        .and_then(|sid| {
                             let students = app.students.read();
                             students
                                 .iter()
                                 .find(|s| s.id == sid)
                                 .map(|s| s.name.clone())
                         })
-                    })
+                };
+                // Also resolve the id once for the click handler so we
+                // don't have to walk the conversation list twice in a
+                // single frame.
+                let bound_student_id: Option<uuid::Uuid> = {
+                    let convs = app.conversations.read();
+                    convs
+                        .iter()
+                        .find(|c| c.id == conv_id)
+                        .and_then(|c| c.student_id)
                 };
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if let Some(name) = &bound_student_name {
                         if ghost_button(ui, &theme, name).clicked() {
-                            let sid_opt = {
-                                let convs = app.conversations.read();
-                                convs
-                                    .iter()
-                                    .find(|c| c.id == conv_id)
-                                    .and_then(|c| c.student_id)
-                            };
-                            if let Some(sid) = sid_opt {
+                            if let Some(sid) = bound_student_id {
                                 app.selected_student = Some(sid);
                                 app.navigate(crate::app::Page::Students);
                             }
@@ -314,14 +329,19 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                         .desired_rows(1)
                         .hint_text("输入消息，Enter 发送，Shift+Enter 换行…"),
                 );
-                if resp.lost_focus()
-                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                    && !ui.input(|i| i.modifiers.shift)
+                // Enter should send *as long as* the input has focus and
+                // Shift is not held. We can't rely on `lost_focus()` here
+                // because Enter is consumed by the TextEdit before focus
+                // ever changes; checking the key state on the focused
+                // response is more reliable.
+                let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter));
+                let shift_held = ui.input(|i| i.modifiers.shift);
+                if resp.has_focus()
+                    && enter_pressed
+                    && !shift_held
+                    && !app.chat_input.trim().is_empty()
                 {
-                    if !app.chat_input.trim().is_empty() {
-                        send(app, conv_id);
-                    }
-                    resp.request_focus();
+                    send(app, conv_id);
                 }
                 let streaming = app.streaming.get(&conv_id).is_some_and(|s| s.active);
                 if streaming {

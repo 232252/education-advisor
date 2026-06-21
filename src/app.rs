@@ -158,6 +158,7 @@ impl App {
         let _ = runtime.tx.send(crate::runtime::Command::LoadProviders);
         let _ = runtime.tx.send(crate::runtime::Command::LoadRagDocuments);
         let _ = runtime.tx.send(crate::runtime::Command::LoadStats);
+        let _ = runtime.tx.send(crate::runtime::Command::LoadSettings);
 
         let theme = match settings.theme {
             ThemeMode::Dark => Theme::dark(),
@@ -287,11 +288,18 @@ impl App {
                 }
                 StreamToken {
                     conversation_id,
-                    message_id: _,
+                    message_id,
                     delta,
                 } => {
                     if let Some(st) = self.streaming.get_mut(&conversation_id) {
-                        st.buffer.push_str(&delta);
+                        // Cross-check that the runtime is still talking
+                        // about the same message we started streaming
+                        // (a follow-up turn on the same conversation will
+                        // emit a new message id, and we want to discard
+                        // stale deltas).
+                        if st.current_message_id == Some(message_id) {
+                            st.buffer.push_str(&delta);
+                        }
                     }
                     ctx.request_repaint();
                 }
@@ -301,6 +309,13 @@ impl App {
                     call,
                 } => {
                     if let Some(st) = self.streaming.get_mut(&conversation_id) {
+                        // Discard stale tool events from a previous turn
+                        // if the message id no longer matches.
+                        if st.current_message_id.is_some()
+                            && st.current_message_id != Some(message_id)
+                        {
+                            return;
+                        }
                         // The same logical tool call may arrive in two phases:
                         //   1) "Running" with empty result (start)
                         //   2) "Success"/"Failed" with the populated result (end)
@@ -346,12 +361,10 @@ impl App {
                     conversation_id,
                     message_id,
                 } => {
-                    if let Some(st) = self.streaming.get_mut(&conversation_id) {
+                    if let Some(st) = self.streaming.remove(&conversation_id) {
                         // finalize: move buffer into messages list
-                        let content = std::mem::take(&mut st.buffer);
-                        let tcs = std::mem::take(&mut st.tool_calls);
-                        st.active = false;
-                        st.current_message_id = None;
+                        let content = st.buffer;
+                        let tcs = st.tool_calls;
                         let now = chrono::Utc::now();
                         let msg = Message {
                             id: message_id,
@@ -374,9 +387,8 @@ impl App {
                     conversation_id,
                     error,
                 } => {
-                    if let Some(st) = self.streaming.get_mut(&conversation_id) {
-                        st.active = false;
-                    }
+                    // Drop the streaming state so the entry doesn't leak.
+                    self.streaming.remove(&conversation_id);
                     self.push_toast(ToastKind::Error, error);
                     ctx.request_repaint();
                 }
@@ -465,6 +477,21 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.last_dt = ctx.input(|i| i.stable_dt.min(0.05));
 
+        // ── Persist window geometry ──
+        // We only write when the rect actually changes to avoid hammering
+        // the runtime command channel.
+        if let Some(outer) = ctx.input(|i| i.viewport().outer_rect) {
+            let new_rect = crate::models::WindowRect {
+                x: outer.min.x,
+                y: outer.min.y,
+                w: outer.width(),
+                h: outer.height(),
+            };
+            if self.settings.window_rect.as_ref() != Some(&new_rect) {
+                self.settings.window_rect = Some(new_rect);
+            }
+        }
+
         // ─── Keyboard shortcuts ─────────────────────────────────────────
         // Ctrl/Cmd + <digit> = jump to the n-th navigation slot
         // Ctrl/Cmd + B       = toggle sidebar
@@ -515,6 +542,9 @@ impl eframe::App for App {
         }
         if input.key_pressed(egui::Key::Escape) {
             // Cancel every in-flight AI generation (typically just one).
+            // We *also* clear the in-memory `streaming` state right away so
+            // the UI stops showing the spinner even before the runtime
+            // emits its `StreamError` event.
             let active: Vec<uuid::Uuid> = self
                 .streaming
                 .iter()
@@ -522,6 +552,7 @@ impl eframe::App for App {
                 .map(|(id, _)| *id)
                 .collect();
             for id in active {
+                self.streaming.remove(&id);
                 let _ = self
                     .runtime
                     .tx
