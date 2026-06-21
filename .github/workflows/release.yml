@@ -45,13 +45,13 @@ jobs:
             archive: zip
             label: windows-x64
             features: tray
-          - os: macos-13
+          - os: macos-latest
             target: x86_64-apple-darwin
             ext: ''
             archive: tar.gz
             label: macos-x64
             features: tray
-          - os: macos-14
+          - os: macos-latest
             target: aarch64-apple-darwin
             ext: ''
             archive: tar.gz
