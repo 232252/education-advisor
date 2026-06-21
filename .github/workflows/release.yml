@@ -1,0 +1,179 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.3). Leave blank to use the current version from Cargo.toml.'
+        required: false
+        default: ''
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build:
+    name: Build (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Desktop tier 1 — full feature set (tray icon enabled)
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            ext: ''
+            archive: tar.gz
+            label: linux-x64
+            features: tray
+            install_linux_deps: 'true'
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            ext: .exe
+            archive: zip
+            label: windows-x64
+            features: tray
+          - os: macos-13
+            target: x86_64-apple-darwin
+            ext: ''
+            archive: tar.gz
+            label: macos-x64
+            features: tray
+          - os: macos-14
+            target: aarch64-apple-darwin
+            ext: ''
+            archive: tar.gz
+            label: macos-arm64
+            features: tray
+          # Desktop tier 2 — headless (no tray) for ARM Linux / Windows ARM
+          - os: ubuntu-22.04
+            target: aarch64-unknown-linux-gnu
+            ext: ''
+            archive: tar.gz
+            label: linux-arm64
+            features: ''
+            install_linux_deps: 'true'
+            cross: 'true'
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            ext: .exe
+            archive: zip
+            label: windows-arm64
+            features: ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}-${{ matrix.features }}
+
+      - name: Install Linux system dependencies
+        if: matrix.install_linux_deps == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev libxi-dev libxext-dev libxrandr-dev \
+            libgl1-mesa-dev libasound2-dev libudev-dev \
+            libappindicator3-dev libgtk-3-dev
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.label == 'linux-arm64'
+        run: |
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Build release binary
+        working-directory: education-advisor-egui
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: |
+          FEAT_FLAGS=""
+          if [ -n "${{ matrix.features }}" ]; then
+            FEAT_FLAGS="--features ${{ matrix.features }}"
+          fi
+          cargo build --locked --release --target ${{ matrix.target }} $FEAT_FLAGS
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        working-directory: education-advisor-egui
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          [ -z "$VERSION" ] && VERSION=${{ github.event.inputs.tag }}
+          [ -z "$VERSION" ] && VERSION=$(grep '^version' Cargo.toml | head -n1 | sed 's/.*"\(.*\)".*/\1/')
+          NAME=education-advisor-egui-v${VERSION}-${{ matrix.label }}
+          mkdir -p dist/$NAME
+          cp target/${{ matrix.target }}/release/education-advisor-egui${{ matrix.ext }} dist/$NAME/
+          cp README.md dist/$NAME/ 2>/dev/null || true
+          cp LICENSE dist/$NAME/ 2>/dev/null || true
+          cp CHANGELOG.md dist/$NAME/ 2>/dev/null || true
+          cd dist
+          tar czf $NAME.${{ matrix.archive }} $NAME
+          sha256sum $NAME.${{ matrix.archive }} > $NAME.${{ matrix.archive }}.sha256
+          echo "ASSET=$NAME.${{ matrix.archive }}" >> $GITHUB_ENV
+          echo "CHECKSUM=$NAME.${{ matrix.archive }}.sha256" >> $GITHUB_ENV
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: education-advisor-egui
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          if ([string]::IsNullOrEmpty($version)) {
+            $version = "${{ github.event.inputs.tag }}".TrimStart('v')
+          }
+          if ([string]::IsNullOrEmpty($version)) {
+            $version = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          }
+          $name = "education-advisor-egui-v$version-${{ matrix.label }}"
+          New-Item -ItemType Directory -Force -Path "dist/$name" | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/education-advisor-egui${{ matrix.ext }}" "dist/$name/"
+          Copy-Item "README.md" "dist/$name/" -ErrorAction SilentlyContinue
+          Copy-Item "LICENSE" "dist/$name/" -ErrorAction SilentlyContinue
+          Copy-Item "CHANGELOG.md" "dist/$name/" -ErrorAction SilentlyContinue
+          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.${{ matrix.archive }}"
+          $hash = (Get-FileHash "dist/$name.${{ matrix.archive }}" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $name.${{ matrix.archive }}" | Out-File -FilePath "dist/$name.${{ matrix.archive }}.sha256" -Encoding ascii
+          "ASSET=$name.${{ matrix.archive }}" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "CHECKSUM=$name.${{ matrix.archive }}.sha256" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET }}
+          path: |
+            dist/${{ env.ASSET }}
+            dist/${{ env.CHECKSUM }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
