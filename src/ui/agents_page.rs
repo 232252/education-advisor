@@ -30,9 +30,15 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     let agents = crate::agents::all_agents();
     egui::ScrollArea::vertical().show(ui, |ui| {
-        // group by category
-        let mut categories: Vec<&str> = agents.iter().map(|a| a.category).collect();
-        categories.dedup();
+        // Group by category while preserving the canonical agent order
+        // (the `AGENTS` array is hand-curated, so we mustn't lose it
+        // through a sort). `dedup` on the iterator is stable.
+        let mut categories: Vec<&str> = Vec::new();
+        for a in agents.iter() {
+            if !categories.contains(&a.category) {
+                categories.push(a.category);
+            }
+        }
         for cat in categories {
             ui.label(
                 egui::RichText::new(cat)
@@ -166,8 +172,11 @@ fn agent_card(app: &mut App, ui: &mut Ui, agent: &crate::agents::AgentDef) {
     if resp.clicked() {
         app.active_agent = agent.id.to_string();
     }
-    // double-click starts a conversation (auto-binds selected student if any)
-    if resp.double_clicked() {
+    // Double-click starts a conversation (auto-binds selected student if any).
+    // `egui` reports both `clicked()` *and* `double_clicked()` on the second
+    // beat of a double-click, so we gate on the latter to avoid firing the
+    // "navigate to chat" branch on every plain click.
+    if resp.double_clicked() && !resp.clicked() {
         let student_id = app.selected_student;
         let title = if let Some(sid) = student_id {
             let students = app.students.read();

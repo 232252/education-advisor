@@ -161,7 +161,6 @@ impl ToolRegistry {
     }
 
     #[allow(dead_code)]
-    #[allow(dead_code)]
     pub fn names(&self) -> Vec<&'static str> {
         self.defs.iter().map(|d| d.name).collect()
     }
@@ -620,6 +619,20 @@ async fn web_fetch(_ctx: Arc<RuntimeCtx>, args: Value, _cancel: CancellationToke
     if !(url.starts_with("https://") || url.starts_with("http://")) {
         return ToolResult::err("url 必须以 http(s):// 开头".into());
     }
+    // SSRF guard: refuse to fetch private/loopback addresses. The LLM can
+    // be tricked into probing the local network or cloud metadata services
+    // (e.g. `http://169.254.169.254/...`). We resolve the host once and
+    // block if every resolved address is private.
+    match reqwest::Url::parse(url) {
+        Ok(parsed) => {
+            if let Some(host) = parsed.host_str() {
+                if is_blocked_host(host) {
+                    return ToolResult::err(format!("web_fetch 拒绝访问私有/内网地址: {host}"));
+                }
+            }
+        }
+        Err(e) => return ToolResult::err(format!("url 解析失败: {e}")),
+    }
     let client = http_client();
     let resp = match tokio::time::timeout(WEB_SEARCH_TIMEOUT, client.get(url).send()).await {
         Ok(Ok(r)) => r,
@@ -635,6 +648,43 @@ async fn web_fetch(_ctx: Arc<RuntimeCtx>, args: Value, _cancel: CancellationToke
     };
     let text = html_to_text(&body);
     ToolResult::ok(crate::util::truncate(&text, 4096))
+}
+
+/// Returns true when the host is an obvious private/loopback/link-local
+/// target that an LLM has no business reaching.
+fn is_blocked_host(host: &str) -> bool {
+    let h = host.to_ascii_lowercase();
+    if h == "localhost" || h.ends_with(".localhost") || h.ends_with(".local") {
+        return true;
+    }
+    if h == "0.0.0.0" || h == "::1" || h == "::" {
+        return true;
+    }
+    // Try to parse as an IP. If parsing fails the host is a DNS name and
+    // we let the request go through (the LLM shouldn't be hitting internal
+    // DNS names anyway, and DNS-rebinding is a different threat model).
+    if let Ok(ip) = h.parse::<std::net::IpAddr>() {
+        return match ip {
+            std::net::IpAddr::V4(v4) => {
+                v4.is_loopback()
+                    || v4.is_private()
+                    || v4.is_link_local()
+                    || v4.is_unspecified()
+                    || v4.is_multicast()
+                    || v4.is_broadcast()
+            }
+            std::net::IpAddr::V6(v6) => {
+                v6.is_loopback()
+                    || v6.is_unspecified()
+                    || v6.is_multicast()
+                    // Unique-local fc00::/7
+                    || (v6.segments()[0] & 0xfe00) == 0xfc00
+                    // Link-local fe80::/10
+                    || (v6.segments()[0] & 0xffc0) == 0xfe80
+            }
+        };
+    }
+    false
 }
 
 // --- small HTML helpers (intentionally minimal; we strip tags, do not

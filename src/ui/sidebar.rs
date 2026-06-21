@@ -151,6 +151,13 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     };
                     if icon_button(ui, &app.theme, collapse_icon, 32.0).clicked() {
                         app.sidebar_collapsed = !app.sidebar_collapsed;
+                        // Keep the persisted setting in sync so the next
+                        // launch reflects the user's last choice.
+                        app.settings.sidebar_collapsed = app.sidebar_collapsed;
+                        let _ = app
+                            .runtime
+                            .tx
+                            .send(crate::runtime::Command::SaveSettings(app.settings.clone()));
                     }
                     if expanded > 0.5 {
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
