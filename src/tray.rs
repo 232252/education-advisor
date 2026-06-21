@@ -27,6 +27,11 @@ const MENU_QUIT: &str = "ea.quit";
 /// All actions the tray can request. Most are simple "navigate to" hints
 /// that the UI's `update` loop translates into a `navigate` call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// The `tray` feature is opt-in. Variants other than `Quit` are only
+// constructed behind `#[cfg(feature = "tray")]`, so without the feature
+// they would be flagged as never-constructed. The `dead_code` allow
+// keeps the API surface stable for callers that *do* enable the feature.
+#[allow(dead_code)]
 pub enum TrayAction {
     Quit,
     Show,
