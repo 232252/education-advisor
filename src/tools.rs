@@ -11,6 +11,12 @@
 //!
 //! The registry is small and intentionally synchronous from the LLM's
 //! perspective; we don't need a hot-reload system at the current scale.
+//!
+//! Most tool bodies are sync; they are marked `async` only so the registry
+//! can hold them behind a single `Box<dyn Future<…>>` type. Hence the
+//! module-level `unused_async` allow.
+
+#![allow(clippy::unused_async)]
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -72,8 +78,7 @@ impl ToolResult {
 /// The boxed future a tool returns. Using a trait object (rather than a
 /// function pointer to a concrete `async fn`) lets us store heterogeneous
 /// `async` functions behind a single `HashMap<&'static str, …>`.
-pub type BoxedToolFuture =
-    Pin<Box<dyn Future<Output = ToolResult> + Send + 'static>>;
+pub type BoxedToolFuture = Pin<Box<dyn Future<Output = ToolResult> + Send + 'static>>;
 
 /// A tool function: `(ctx, args, cancel) -> future of ToolResult`.
 pub type BoxedTool = Box<
@@ -81,7 +86,7 @@ pub type BoxedTool = Box<
 >;
 
 /// In-memory registry. The lifetime of the program is bounded so we keep it
-/// simple — no RwLock, no dynamic unload.
+/// simple — no `RwLock`, no dynamic unload.
 pub struct ToolRegistry {
     defs: Vec<ToolDefinition>,
     map: HashMap<&'static str, BoxedTool>,
@@ -137,16 +142,13 @@ impl ToolRegistry {
     /// allow callers to write as `|ctx, args, cancel| Box::pin(tool_fn(ctx, args, cancel))`.
     fn register<F>(&mut self, def: ToolDefinition, f: F)
     where
-        F: Fn(Arc<RuntimeCtx>, Value, CancellationToken) -> BoxedToolFuture
-            + Send
-            + Sync
-            + 'static,
+        F: Fn(Arc<RuntimeCtx>, Value, CancellationToken) -> BoxedToolFuture + Send + Sync + 'static,
     {
         // `Box::from` triggers the unsized coercion from `Box<F>` to
         // `Box<dyn Fn(...) -> ... + Send + Sync + 'static>`. Plain `Box::new`
         // does not perform that coercion automatically.
         let boxed: BoxedTool = Box::from(f);
-        self.defs.push(def);
+        self.defs.push(def.clone());
         self.map.insert(def.name, boxed);
     }
 
@@ -158,6 +160,8 @@ impl ToolRegistry {
         self.defs.iter().find(|d| d.name == name)
     }
 
+    #[allow(dead_code)]
+    #[allow(dead_code)]
     pub fn names(&self) -> Vec<&'static str> {
         self.defs.iter().map(|d| d.name).collect()
     }
@@ -196,77 +200,77 @@ fn arg_uuid(args: &Value, key: &str) -> Option<Uuid> {
 // Tool definitions
 // ============================================================================
 
-fn lookup_student_def() -> ToolDefinition {
+const fn lookup_student_def() -> ToolDefinition {
     ToolDefinition {
         name: "lookup_student",
         purpose: "按姓名（子串匹配）查询学生档案：年级、班级、风险等级、GPA",
         args_schema_hint: r#"{"name":"张三"}"#,
     }
 }
-fn get_grades_def() -> ToolDefinition {
+const fn get_grades_def() -> ToolDefinition {
     ToolDefinition {
         name: "get_grades",
         purpose: "按学生 UUID 查询该生所有成绩（科目 / 分数 / 满分 / 考试日期）",
         args_schema_hint: r#"{"id":"学生UUID"}"#,
     }
 }
-fn list_risk_students_def() -> ToolDefinition {
+const fn list_risk_students_def() -> ToolDefinition {
     ToolDefinition {
         name: "list_risk_students",
         purpose: "列出当前所有高风险 / 危机等级的学生（按姓名、年级、班级）",
         args_schema_hint: "{}",
     }
 }
-fn count_students_def() -> ToolDefinition {
+const fn count_students_def() -> ToolDefinition {
     ToolDefinition {
         name: "count_students",
         purpose: "统计学生总数与各风险等级分布",
         args_schema_hint: "{}",
     }
 }
-fn dashboard_summary_def() -> ToolDefinition {
+const fn dashboard_summary_def() -> ToolDefinition {
     ToolDefinition {
         name: "dashboard_summary",
         purpose: "获取首页总览：平均 GPA、当日新增会话、累计工具调用",
         args_schema_hint: "{}",
     }
 }
-fn search_students_def() -> ToolDefinition {
+const fn search_students_def() -> ToolDefinition {
     ToolDefinition {
         name: "search_students",
         purpose: "按关键字搜索学生：姓名 / 年级 / 班级 / 标签 任意字段子串匹配",
         args_schema_hint: r#"{"query":"高三"}"#,
     }
 }
-fn get_student_def() -> ToolDefinition {
+const fn get_student_def() -> ToolDefinition {
     ToolDefinition {
         name: "get_student",
         purpose: "按学生 UUID 精确查询完整档案（含监护人、地址、标签）",
         args_schema_hint: r#"{"id":"学生UUID"}"#,
     }
 }
-fn recent_grades_def() -> ToolDefinition {
+const fn recent_grades_def() -> ToolDefinition {
     ToolDefinition {
         name: "recent_grades",
         purpose: "查询最近 N 条全年级考试记录，用于横向对比",
         args_schema_hint: r#"{"limit":10}"#,
     }
 }
-fn rag_query_def() -> ToolDefinition {
+const fn rag_query_def() -> ToolDefinition {
     ToolDefinition {
         name: "rag_query",
         purpose: "在本地知识库里查询与问题最相关的文档片段",
         args_schema_hint: r#"{"query":"学生请假流程","top_k":3}"#,
     }
 }
-fn web_search_def() -> ToolDefinition {
+const fn web_search_def() -> ToolDefinition {
     ToolDefinition {
         name: "web_search",
         purpose: "联网搜索（使用 DuckDuckGo Lite），返回网页标题/链接/摘要",
         args_schema_hint: r#"{"query":"中国高考 2026 新政策","max_results":5}"#,
     }
 }
-fn web_fetch_def() -> ToolDefinition {
+const fn web_fetch_def() -> ToolDefinition {
     ToolDefinition {
         name: "web_fetch",
         purpose: "抓取一个 URL 的纯文本（去除 HTML 标签），最大 4 KB",
@@ -317,11 +321,7 @@ async fn lookup_student(
     }
 }
 
-async fn get_student(
-    ctx: Arc<RuntimeCtx>,
-    args: Value,
-    _cancel: CancellationToken,
-) -> ToolResult {
+async fn get_student(ctx: Arc<RuntimeCtx>, args: Value, _cancel: CancellationToken) -> ToolResult {
     let Some(id) = arg_uuid(&args, "id") else {
         return ToolResult::err("缺少或非法的 id 参数".into());
     };
@@ -353,11 +353,7 @@ async fn get_student(
     }
 }
 
-async fn get_grades(
-    ctx: Arc<RuntimeCtx>,
-    args: Value,
-    _cancel: CancellationToken,
-) -> ToolResult {
+async fn get_grades(ctx: Arc<RuntimeCtx>, args: Value, _cancel: CancellationToken) -> ToolResult {
     let Some(id) = arg_uuid(&args, "id") else {
         return ToolResult::err("缺少或非法的 id 参数".into());
     };
@@ -441,10 +437,7 @@ async fn dashboard_summary(
     match ctx.db.dashboard_stats() {
         Ok(st) => ToolResult::ok(format!(
             "总览：学生 {} 人，平均 GPA {:.2}，今日会话 {} 条，累计工具调用 {} 次。",
-            st.total_students,
-            st.avg_gpa,
-            st.conversations_today,
-            st.tool_calls_total
+            st.total_students, st.avg_gpa, st.conversations_today, st.tool_calls_total
         )),
         Err(e) => ToolResult::err(format!("总览获取失败: {e}")),
     }
@@ -500,13 +493,13 @@ async fn recent_grades(
 ) -> ToolResult {
     let limit = args
         .get("limit")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or(10)
         .clamp(1, 200) as usize;
     match ctx.db.all_grades() {
         Ok(mut g) => {
             // sort newest first by exam_date
-            g.sort_by(|a, b| b.exam_date.cmp(&a.exam_date));
+            g.sort_by_key(|x| std::cmp::Reverse(x.exam_date));
             g.truncate(limit);
             if g.is_empty() {
                 ToolResult::ok("暂无成绩记录".into())
@@ -527,18 +520,14 @@ async fn recent_grades(
     }
 }
 
-async fn rag_query(
-    ctx: Arc<RuntimeCtx>,
-    args: Value,
-    _cancel: CancellationToken,
-) -> ToolResult {
+async fn rag_query(ctx: Arc<RuntimeCtx>, args: Value, _cancel: CancellationToken) -> ToolResult {
     let q = arg_string(&args, "query").trim();
     if q.is_empty() {
         return ToolResult::err("缺少必填参数 query".into());
     }
     let top_k = args
         .get("top_k")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or(3)
         .clamp(1, 10) as usize;
     match ctx.db.list_rag_documents() {
@@ -584,41 +573,26 @@ fn http_client() -> std::sync::Arc<reqwest::Client> {
     std::sync::Arc::new(crate::llm::LlmClient::new().into_http())
 }
 
-async fn web_search(
-    _ctx: Arc<RuntimeCtx>,
-    args: Value,
-    _cancel: CancellationToken,
-) -> ToolResult {
+async fn web_search(_ctx: Arc<RuntimeCtx>, args: Value, _cancel: CancellationToken) -> ToolResult {
     let q = arg_string(&args, "query").trim();
     if q.is_empty() {
         return ToolResult::err("缺少必填参数 query".into());
     }
     let max_results = args
         .get("max_results")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or(WEB_SEARCH_MAX_RESULTS as u64)
         .clamp(1, WEB_SEARCH_MAX_RESULTS as u64) as usize;
 
     let client = http_client();
-    let url = format!(
-        "https://html.duckduckgo.com/html/?q={}",
-        urlencode(q)
-    );
+    let url = format!("https://html.duckduckgo.com/html/?q={}", urlencode(q));
     let resp = match tokio::time::timeout(WEB_SEARCH_TIMEOUT, client.get(&url).send()).await {
         Ok(Ok(r)) => r,
         Ok(Err(e)) => return ToolResult::err(format!("网络请求失败: {e}")),
-        Err(_) => {
-            return ToolResult::err(format!(
-                "web_search 超过 {:?} 未返回",
-                WEB_SEARCH_TIMEOUT
-            ))
-        }
+        Err(_) => return ToolResult::err(format!("web_search 超过 {WEB_SEARCH_TIMEOUT:?} 未返回")),
     };
     if !resp.status().is_success() {
-        return ToolResult::err(format!(
-            "DuckDuckGo 返回 HTTP {}",
-            resp.status()
-        ));
+        return ToolResult::err(format!("DuckDuckGo 返回 HTTP {}", resp.status()));
     }
     let body = match resp.text().await {
         Ok(b) => b,
@@ -631,21 +605,14 @@ async fn web_search(
     let mut out = String::new();
     for (i, (title, link, snippet)) in hits.iter().enumerate() {
         out.push_str(&format!(
-            "{}. {}\n   {}\n   {}\n",
-            i + 1,
-            title,
-            link,
-            snippet
+            "{n}. {title}\n   {link}\n   {snippet}\n",
+            n = i + 1,
         ));
     }
     ToolResult::ok(out)
 }
 
-async fn web_fetch(
-    _ctx: Arc<RuntimeCtx>,
-    args: Value,
-    _cancel: CancellationToken,
-) -> ToolResult {
+async fn web_fetch(_ctx: Arc<RuntimeCtx>, args: Value, _cancel: CancellationToken) -> ToolResult {
     let url = arg_string(&args, "url").trim();
     if url.is_empty() {
         return ToolResult::err("缺少必填参数 url".into());
@@ -657,9 +624,7 @@ async fn web_fetch(
     let resp = match tokio::time::timeout(WEB_SEARCH_TIMEOUT, client.get(url).send()).await {
         Ok(Ok(r)) => r,
         Ok(Err(e)) => return ToolResult::err(format!("网络请求失败: {e}")),
-        Err(_) => {
-            return ToolResult::err(format!("web_fetch 超过 {:?} 未返回", WEB_SEARCH_TIMEOUT))
-        }
+        Err(_) => return ToolResult::err(format!("web_fetch 超过 {WEB_SEARCH_TIMEOUT:?} 未返回")),
     };
     if !resp.status().is_success() {
         return ToolResult::err(format!("HTTP {}", resp.status()));
@@ -680,18 +645,17 @@ async fn web_fetch(
 fn urlencode(s: &str) -> String {
     // `Url::parse` is a roundabout but reliable way: build a URL whose
     // query we then read back percent-encoded.
-    let dummy = format!("https://x.invalid/?q={}", s);
+    let dummy = format!("https://x.invalid/?q={s}");
     match reqwest::Url::parse(&dummy) {
         Ok(u) => u
             .query_pairs()
             .find(|(k, _)| k == "q")
-            .map(|(_, v)| v.into_owned())
-            .unwrap_or_else(|| s.to_string()),
+            .map_or_else(|| s.to_string(), |(_, v)| v.into_owned()),
         Err(_) => s.to_string(),
     }
 }
 
-/// Parse the DuckDuckGo Lite HTML for the first N results.
+/// Parse the `DuckDuckGo` Lite HTML for the first N results.
 ///
 /// The structure of a result is roughly:
 /// ```html
@@ -707,21 +671,29 @@ fn parse_duckduckgo(html: &str, max: usize) -> Vec<(String, String, String)> {
         let Some(href_open) = html[start..].find("href=") else {
             break;
         };
-        let href_start = start + href_open + 5;
-        let Some(href_close_rel) = html[href_start..].find('"') else {
+        // Skip past `href="` (6 chars) so `href_start` points inside the value.
+        let href_open_quote = start + href_open + 6;
+        let Some(href_close_rel) = html[href_open_quote..].find('"') else {
             break;
         };
-        let href_close = href_start + href_close_rel;
+        let href_start = href_open_quote;
+        let href_close = href_open_quote + href_close_rel;
         let raw_href = &html[href_start..href_close];
         // DDG wraps every result URL as a redirect; decode the uddg= param.
         let real_href = decode_ddg_redirect(raw_href);
 
-        // closing </a> after href
-        let Some(close_rel) = html[href_close..].find("</a>") else {
+        // closing </a> after href. Skip past the closing `"` of the href
+        // *and* the opening `>` of the <a> tag, so the title extraction
+        // doesn't include `">` at the front.
+        let after_quote = href_close + 1; // position right after the closing `"`
+        let Some(gt_rel) = html[after_quote..].find('>') else {
             break;
         };
-        let inner_start = href_close;
-        let inner_end = href_close + close_rel;
+        let inner_start = after_quote + gt_rel + 1;
+        let Some(close_rel) = html[inner_start..].find("</a>") else {
+            break;
+        };
+        let inner_end = inner_start + close_rel;
         let title = strip_tags(&html[inner_start..inner_end]).trim().to_string();
         if title.is_empty() {
             cursor = inner_end + 4;
@@ -796,7 +768,7 @@ fn urldecode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-fn hex_digit(b: u8) -> Option<u8> {
+const fn hex_digit(b: u8) -> Option<u8> {
     match b {
         b'0'..=b'9' => Some(b - b'0'),
         b'a'..=b'f' => Some(b - b'a' + 10),
@@ -811,7 +783,13 @@ fn strip_tags(s: &str) -> String {
     for c in s.chars() {
         match c {
             '<' => in_tag = true,
-            '>' if in_tag => in_tag = false,
+            '>' if in_tag => {
+                // Drop the tag, but preserve a separator so adjacent text
+                // doesn't merge (e.g. "world</b>!" should not become
+                // "world!").
+                in_tag = false;
+                out.push(' ');
+            }
             _ if !in_tag => out.push(c),
             _ => {}
         }
@@ -835,30 +813,56 @@ fn strip_tags(s: &str) -> String {
 
 fn html_to_text(html: &str) -> String {
     // Drop <script> and <style> blocks first (they'd add noise).
-    let mut s = String::with_capacity(html.len());
+    // The two cases are interleaved in real pages, so we always pick the
+    // closer of the two at each step rather than preferring one tag type.
+    let mut out = String::with_capacity(html.len());
     let mut i = 0;
     let lower = html.to_ascii_lowercase();
     while i < html.len() {
-        if let Some(rel) = lower[i..].find("<script") {
-            s.push_str(&html[i..i + rel]);
-            if let Some(end_rel) = lower[i + rel..].find("</script>") {
-                i = i + rel + end_rel + "</script>".len();
-            } else {
+        let script_rel = lower[i..].find("<script");
+        let style_rel = lower[i..].find("<style");
+        // Pick whichever comes first.
+        match (script_rel, style_rel) {
+            (Some(srel), Some(trel)) if srel < trel => {
+                out.push_str(&html[i..i + srel]);
+                if let Some(end_rel) = lower[i + srel..].find("</script>") {
+                    i = i + srel + end_rel + "</script>".len();
+                } else {
+                    break;
+                }
+            }
+            (Some(srel), Some(trel)) if trel < srel => {
+                out.push_str(&html[i..i + trel]);
+                if let Some(end_rel) = lower[i + trel..].find("</style>") {
+                    i = i + trel + end_rel + "</style>".len();
+                } else {
+                    break;
+                }
+            }
+            (Some(srel), None) => {
+                out.push_str(&html[i..i + srel]);
+                if let Some(end_rel) = lower[i + srel..].find("</script>") {
+                    i = i + srel + end_rel + "</script>".len();
+                } else {
+                    break;
+                }
+            }
+            (None, Some(trel)) => {
+                out.push_str(&html[i..i + trel]);
+                if let Some(end_rel) = lower[i + trel..].find("</style>") {
+                    i = i + trel + end_rel + "</style>".len();
+                } else {
+                    break;
+                }
+            }
+            (None, None) => {
+                out.push_str(&html[i..]);
                 break;
             }
-        } else if let Some(rel) = lower[i..].find("<style") {
-            s.push_str(&html[i..i + rel]);
-            if let Some(end_rel) = lower[i + rel..].find("</style>") {
-                i = i + rel + end_rel + "</style>".len();
-            } else {
-                break;
-            }
-        } else {
-            s.push_str(&html[i..]);
-            break;
+            _ => unreachable!(),
         }
     }
-    strip_tags(&s)
+    strip_tags(&out)
 }
 
 #[cfg(test)]
@@ -897,8 +901,12 @@ mod tests {
 
     #[test]
     fn strip_tags_removes_tags_and_collapses_ws() {
+        // strip_tags inserts a space at every removed tag so that adjacent
+        // text doesn't merge; this means `<p>Hello` produces ` Hello`.
+        // The test documents that behaviour so future refactors don't
+        // break it accidentally.
         let s = strip_tags("<p>Hello  <b>world</b>!\n</p>");
-        assert_eq!(s, "Hello world ! ");
+        assert_eq!(s, " Hello world ! ");
     }
 
     #[test]
@@ -932,6 +940,9 @@ mod tests {
         "#;
         let hits = parse_duckduckgo(html, 5);
         assert_eq!(hits.len(), 2);
+        // Title should be clean (no leading `"` or `>`) after the parser
+        // skips past the href closing quote and the opening `>` of the
+        // <a> tag.
         assert_eq!(hits[0].0, "First Title");
         assert_eq!(hits[0].1, "https://example.com/a");
         assert!(hits[0].2.contains("First snippet"));
@@ -949,14 +960,15 @@ mod tests {
 
     #[test]
     fn html_to_text_drops_script_and_style() {
-        let html = r#"
+        let html = r"
             <html><head><style>body{color:red}</style></head>
             <body><p>Real content.</p>
             <script>alert(1)</script>
             <p>More real content.</p>
             </body></html>
-        "#;
+        ";
         let t = html_to_text(html);
+        eprintln!("DEBUG html_to_text output:\n---\n{t}\n---");
         assert!(t.contains("Real content"));
         assert!(!t.contains("alert"));
         assert!(!t.contains("color:red"));

@@ -23,10 +23,42 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             ui.set_width(card_w);
             stat_card(ui, &app.theme, label, value, icon, accent, card_w);
         };
-        ui.vertical(|ui| make_card(ui, "学生总数", &total.to_string(), icons::students, app.theme.accent));
-        ui.vertical(|ui| make_card(ui, "平均 GPA", &format!("{avg:.2}"), icons::chat, app.theme.success));
-        ui.vertical(|ui| make_card(ui, "今日对话", &convs.to_string(), icons::history, app.theme.info));
-        ui.vertical(|ui| make_card(ui, "工具调用", &tools.to_string(), icons::skills, app.theme.warning));
+        ui.vertical(|ui| {
+            make_card(
+                ui,
+                "学生总数",
+                &total.to_string(),
+                icons::students,
+                app.theme.accent,
+            )
+        });
+        ui.vertical(|ui| {
+            make_card(
+                ui,
+                "平均 GPA",
+                &format!("{avg:.2}"),
+                icons::chat,
+                app.theme.success,
+            )
+        });
+        ui.vertical(|ui| {
+            make_card(
+                ui,
+                "今日对话",
+                &convs.to_string(),
+                icons::history,
+                app.theme.info,
+            )
+        });
+        ui.vertical(|ui| {
+            make_card(
+                ui,
+                "工具调用",
+                &tools.to_string(),
+                icons::skills,
+                app.theme.warning,
+            )
+        });
         ui.add_space(gap);
     });
 

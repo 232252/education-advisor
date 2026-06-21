@@ -52,8 +52,8 @@ pub async fn run_turn(
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     // ---- 1. Resolve agent + provider (active first, then any enabled). ----
-    let agent = crate::agents::find(&agent_id)
-        .ok_or_else(|| anyhow::anyhow!("未知代理: {agent_id}"))?;
+    let agent =
+        crate::agents::find(&agent_id).ok_or_else(|| anyhow::anyhow!("未知代理: {agent_id}"))?;
     let providers = ctx.db.list_providers()?;
     let settings = ctx.settings.read().clone();
     let provider = if let Some(active_id) = settings.active_provider_id.clone() {
@@ -74,9 +74,8 @@ pub async fn run_turn(
     // System prompt: identity + tool surface.
     let registry = ToolRegistry::with_defaults();
     let mut system = String::from(agent.system_prompt);
-    system.push_str(
-        "\n\n你可以调用以下工具，格式为：<tool name=\"工具名\" args='{...JSON...}'/>。",
-    );
+    system
+        .push_str("\n\n你可以调用以下工具，格式为：<tool name=\"工具名\" args='{...JSON...}'/>。");
     system.push_str("\n可用工具（name + 一句话用途 + JSON 形参）：");
     for t in registry.list() {
         system.push_str(&format!(
@@ -84,12 +83,8 @@ pub async fn run_turn(
             t.name, t.purpose, t.args_schema_hint
         ));
     }
-    system.push_str(
-        "\n工具结果会以 <tool_result name=\"工具名\">...</tool_result> 形式回传。",
-    );
-    system.push_str(
-        "\n给出最终答复时不要包含 <tool> 标签；如需调用工具则只输出标签，等待结果。",
-    );
+    system.push_str("\n工具结果会以 <tool_result name=\"工具名\">...</tool_result> 形式回传。");
+    system.push_str("\n给出最终答复时不要包含 <tool> 标签；如需调用工具则只输出标签，等待结果。");
     messages.push(ChatMessage::system(system));
 
     // attach student context if provided
@@ -224,10 +219,7 @@ pub async fn run_turn(
                     message_id: assistant_id,
                     name: tc.name.clone(),
                     args: tc.args.chars().take(200).collect::<String>() + "…",
-                    result: format!(
-                        "args 超过 {} 字节上限，已拒绝执行",
-                        MAX_TOOL_ARGS_BYTES
-                    ),
+                    result: format!("args 超过 {MAX_TOOL_ARGS_BYTES} 字节上限，已拒绝执行"),
                     status: ToolStatus::Failed,
                     duration_ms: 0,
                 };
@@ -257,16 +249,11 @@ pub async fn run_turn(
             });
 
             // Phase 2: run with a hard timeout. Cancellation cooperates.
-            let args_value: Value = serde_json::from_str(&tc.args)
-                .unwrap_or_else(|_| Value::String(tc.args.clone()));
+            let args_value: Value =
+                serde_json::from_str(&tc.args).unwrap_or_else(|_| Value::String(tc.args.clone()));
             let ToolResult { output, status } = match timeout(
                 TOOL_TIMEOUT,
-                registry.execute(
-                    &ctx,
-                    &tc.name,
-                    &args_value,
-                    cancel.clone(),
-                ),
+                registry.execute(&ctx, &tc.name, &args_value, cancel.clone()),
             )
             .await
             {
@@ -346,13 +333,13 @@ pub async fn run_turn(
 
 /// A parsed `<tool name="…" args="…"/>` invocation.
 #[derive(Debug, Clone)]
-pub(crate) struct ParsedTool {
+pub struct ParsedTool {
     pub name: String,
     pub args: String,
 }
 
 /// Extract zero or more tool calls from the streamed text. Returns
-/// (clean_text_without_tool_tags, parsed_calls).
+/// (`clean_text_without_tool_tags`, `parsed_calls`).
 ///
 /// Grammar (intentionally permissive — different LLMs format slightly
 /// differently):
@@ -365,7 +352,7 @@ pub(crate) struct ParsedTool {
 /// vast majority of LLM output. If a stray `<tool ` is left unterminated, the
 /// rest of the stream is preserved verbatim in `clean_text` so the user at
 /// least sees what the model said.
-pub(crate) fn parse_tool_calls(text: &str) -> (String, Vec<ParsedTool>) {
+pub fn parse_tool_calls(text: &str) -> (String, Vec<ParsedTool>) {
     let mut tools = Vec::new();
     let mut clean = String::new();
     let mut rest = text;
@@ -386,7 +373,11 @@ pub(crate) fn parse_tool_calls(text: &str) -> (String, Vec<ParsedTool>) {
         }
         // Skip past the tag terminator. If we matched ">", the tag itself is
         // a stray open-tag with no body; if we matched "/>", advance past it.
-        let skip = if after[end_rel..].starts_with("/>") { 2 } else { 1 };
+        let skip = if after[end_rel..].starts_with("/>") {
+            2
+        } else {
+            1
+        };
         rest = &after[end_rel + skip..];
     }
     clean.push_str(rest);
@@ -424,9 +415,7 @@ mod tests {
 
     #[test]
     fn parses_double_quoted_args() {
-        let (_, calls) = parse_tool_calls(
-            r#"<tool name="count_students" args="{}"/>"#,
-        );
+        let (_, calls) = parse_tool_calls(r#"<tool name="count_students" args="{}"/>"#);
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].name, "count_students");
     }
@@ -440,8 +429,7 @@ mod tests {
 
     #[test]
     fn handles_unterminated_tag() {
-        let (clean, calls) =
-            parse_tool_calls("before <tool name=\"x\" args=\"{\" after");
+        let (clean, calls) = parse_tool_calls("before <tool name=\"x\" args=\"{\" after");
         assert!(calls.is_empty());
         assert!(clean.contains("before"));
         assert!(clean.contains("after"));
@@ -449,9 +437,8 @@ mod tests {
 
     #[test]
     fn handles_multiple_tool_calls() {
-        let (_, calls) = parse_tool_calls(
-            r#"<tool name="a" args="{}"/><tool name="b" args="{}"/>"#,
-        );
+        let (_, calls) =
+            parse_tool_calls(r#"<tool name="a" args="{}"/><tool name="b" args="{}"/>"#);
         assert_eq!(calls.len(), 2);
         assert_eq!(calls[0].name, "a");
         assert_eq!(calls[1].name, "b");

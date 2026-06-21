@@ -557,10 +557,10 @@ impl Db {
                     subject: r.get("subject")?,
                     score: r.get("score")?,
                     max_score: r.get("max_score")?,
-                    exam_date: NaiveDate::parse_from_str(&exam, "%Y-%m-%d").unwrap_or_else(|_| Utc::now().date_naive()),
+                    exam_date: NaiveDate::parse_from_str(&exam, "%Y-%m-%d")
+                        .unwrap_or_else(|_| Utc::now().date_naive()),
                     recorded_at: DateTime::parse_from_rfc3339(&recorded)
-                        .map(|d| d.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now()),
+                        .map_or_else(|_| Utc::now(), |d| d.with_timezone(&Utc)),
                 })
             })?;
             for row in rows {
@@ -716,10 +716,7 @@ fn upsert_student_in_tx(tx: &rusqlite::Transaction<'_>, s: &Student) -> Result<(
     Ok(())
 }
 
-fn upsert_conversation_in_tx(
-    tx: &rusqlite::Transaction<'_>,
-    conv: &Conversation,
-) -> Result<()> {
+fn upsert_conversation_in_tx(tx: &rusqlite::Transaction<'_>, conv: &Conversation) -> Result<()> {
     tx.execute(
         "INSERT OR REPLACE INTO conversations
          (id,agent_id,student_id,title,created_at,updated_at) VALUES (?,?,?,?,?,?)",
@@ -761,7 +758,7 @@ fn upsert_task_in_tx(tx: &rusqlite::Transaction<'_>, t: &ScheduledTask) -> Resul
             t.cron_expr,
             t.agent_id,
             t.prompt,
-            t.enabled as i64,
+            i64::from(t.enabled),
             t.last_run.map(|d| d.to_rfc3339()),
             t.next_run.map(|d| d.to_rfc3339()),
             t.created_at.to_rfc3339(),
@@ -775,7 +772,13 @@ fn upsert_provider_in_tx(tx: &rusqlite::Transaction<'_>, p: &LlmProvider) -> Res
         "INSERT OR REPLACE INTO providers
          (id,name,kind,base_url,api_key,model,enabled) VALUES (?,?,?,?,?,?,?)",
         params![
-            p.id, p.name, p.kind as i64, p.base_url, p.api_key, p.model, p.enabled as i64,
+            p.id,
+            p.name,
+            p.kind as i64,
+            p.base_url,
+            p.api_key,
+            p.model,
+            i64::from(p.enabled),
         ],
     )?;
     Ok(())
@@ -784,7 +787,12 @@ fn upsert_provider_in_tx(tx: &rusqlite::Transaction<'_>, p: &LlmProvider) -> Res
 fn upsert_rag_document_in_tx(tx: &rusqlite::Transaction<'_>, d: &RagDocument) -> Result<()> {
     tx.execute(
         "INSERT INTO rag_documents (id, title, content, created_at) VALUES (?,?,?,?)",
-        params![d.id.to_string(), d.title, d.content, d.created_at.to_rfc3339()],
+        params![
+            d.id.to_string(),
+            d.title,
+            d.content,
+            d.created_at.to_rfc3339()
+        ],
     )?;
     for c in &d.chunks {
         tx.execute(

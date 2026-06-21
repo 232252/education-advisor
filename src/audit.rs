@@ -40,6 +40,7 @@ pub enum AuditKind {
 }
 
 impl AuditKind {
+    #[allow(dead_code)]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::StudentCreate => "student.create",
@@ -133,12 +134,7 @@ impl AuditLog {
         });
     }
 
-    pub fn log_with(
-        &self,
-        kind: AuditKind,
-        summary: impl Into<String>,
-        detail: serde_json::Value,
-    ) {
+    pub fn log_with(&self, kind: AuditKind, summary: impl Into<String>, detail: serde_json::Value) {
         self.append(&AuditEntry {
             ts: Utc::now(),
             kind,
@@ -151,12 +147,14 @@ impl AuditLog {
 
     /// Path to the underlying file (used by the UI to show a "reveal in
     /// folder" button).
+    #[allow(dead_code)]
     pub fn path(&self) -> &Path {
         &self.path
     }
 
     /// Snapshot the last N entries by tail-reading the file. Best-effort:
     /// corrupt lines are skipped.
+    #[allow(dead_code)]
     pub fn tail(&self, n: usize) -> Vec<AuditEntry> {
         let Ok(content) = std::fs::read_to_string(&self.path) else {
             return Vec::new();

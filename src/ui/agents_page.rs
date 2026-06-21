@@ -171,7 +171,10 @@ fn agent_card(app: &mut App, ui: &mut Ui, agent: &crate::agents::AgentDef) {
         let student_id = app.selected_student;
         let title = if let Some(sid) = student_id {
             let students = app.students.read();
-            let name = students.iter().find(|s| s.id == sid).map_or("", |s| s.name.as_str());
+            let name = students
+                .iter()
+                .find(|s| s.id == sid)
+                .map_or("", |s| s.name.as_str());
             if name.is_empty() {
                 format!("与 {} 对话", agent.name)
             } else {

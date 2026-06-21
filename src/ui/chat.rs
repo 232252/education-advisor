@@ -122,7 +122,8 @@ fn conversation_row(
         ui.painter()
             .rect_filled(rect, Rounding::same(12.0), theme.accent_dim);
         let bar = Rect::from_min_size(rect.min, Vec2::new(3.0, rect.height()));
-        ui.painter().rect_filled(bar, Rounding::same(2.0), theme.accent);
+        ui.painter()
+            .rect_filled(bar, Rounding::same(2.0), theme.accent);
     } else if resp.hovered() {
         ui.painter()
             .rect_filled(rect, Rounding::same(12.0), theme.surface_hover);
@@ -153,7 +154,10 @@ fn conversation_row(
     // Meta: student name + time
     let meta_text = if let Some(sid) = c.student_id {
         let students = app.students.read();
-        let name = students.iter().find(|s| s.id == sid).map_or("未知学生", |s| s.name.as_str());
+        let name = students
+            .iter()
+            .find(|s| s.id == sid)
+            .map_or("未知学生", |s| s.name.as_str());
         format!("{name} · {}", c.updated_at.format("%m-%d %H:%M"))
     } else {
         c.updated_at.format("%m-%d %H:%M").to_string()
@@ -238,7 +242,10 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                     convs.iter().find(|c| c.id == conv_id).and_then(|c| {
                         c.student_id.and_then(|sid| {
                             let students = app.students.read();
-                            students.iter().find(|s| s.id == sid).map(|s| s.name.clone())
+                            students
+                                .iter()
+                                .find(|s| s.id == sid)
+                                .map(|s| s.name.clone())
                         })
                     })
                 };
@@ -247,7 +254,10 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                         if ghost_button(ui, &theme, name).clicked() {
                             let sid_opt = {
                                 let convs = app.conversations.read();
-                                convs.iter().find(|c| c.id == conv_id).and_then(|c| c.student_id)
+                                convs
+                                    .iter()
+                                    .find(|c| c.id == conv_id)
+                                    .and_then(|c| c.student_id)
                             };
                             if let Some(sid) = sid_opt {
                                 app.selected_student = Some(sid);
@@ -277,7 +287,8 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                 .stick_to_bottom(true)
                 .max_height(ui.available_height() - 70.0)
                 .show(ui, |ui| {
-                    if messages.is_empty() && stream.as_ref().map_or(true, |s| s.buffer.is_empty()) {
+                    if messages.is_empty() && stream.as_ref().map_or(true, |s| s.buffer.is_empty())
+                    {
                         empty_state(ui, &theme, icons::agent, "输入消息开始与 AI 代理对话");
                     }
                     for m in &messages {
@@ -364,16 +375,8 @@ fn message_bubble(app: &mut App, ui: &mut Ui, m: &Message) {
 
 fn bubble(app: &mut App, ui: &mut Ui, m: &Message, max_w: f32, is_user: bool) {
     let theme = &app.theme;
-    let bg = if is_user {
-        theme.accent
-    } else {
-        theme.surface
-    };
-    let text_color = if is_user {
-        Color32::WHITE
-    } else {
-        theme.text
-    };
+    let bg = if is_user { theme.accent } else { theme.surface };
+    let text_color = if is_user { Color32::WHITE } else { theme.text };
 
     let galley = ui.painter().layout(
         m.content.clone(),
@@ -446,9 +449,15 @@ fn streaming_bubble(app: &mut App, ui: &mut Ui, s: &crate::app::StreamState) {
             theme.accent.b(),
             (pulse * 60.0) as u8,
         );
-        ui.painter().rect_filled(rect.translate(Vec2::new(0.0, 2.0)), Rounding::same(14.0), Color32::from_rgba_premultiplied(0, 0, 0, 30));
-        ui.painter().rect_filled(rect, Rounding::same(14.0), theme.surface);
-        ui.painter().rect_stroke(rect, Rounding::same(14.0), Stroke::new(1.5, pulse_color));
+        ui.painter().rect_filled(
+            rect.translate(Vec2::new(0.0, 2.0)),
+            Rounding::same(14.0),
+            Color32::from_rgba_premultiplied(0, 0, 0, 30),
+        );
+        ui.painter()
+            .rect_filled(rect, Rounding::same(14.0), theme.surface);
+        ui.painter()
+            .rect_stroke(rect, Rounding::same(14.0), Stroke::new(1.5, pulse_color));
         ui.painter().galley(
             Pos2::new(rect.min.x + pad.x, rect.min.y + pad.y),
             galley,
@@ -486,7 +495,8 @@ fn tool_row(app: &mut App, ui: &mut Ui, tc: &crate::models::ToolCallRecord) {
                 for i in 0..n {
                     let a = (i as f32 / n as f32).mul_add(std::f32::consts::TAU, angle);
                     let alpha = ((i as f32 / n as f32) * 200.0) as u8;
-                    let dot_color = Color32::from_rgba_premultiplied(color.r(), color.g(), color.b(), alpha);
+                    let dot_color =
+                        Color32::from_rgba_premultiplied(color.r(), color.g(), color.b(), alpha);
                     let p = Pos2::new(center.x + r * a.cos(), center.y + r * a.sin());
                     ui.painter().circle_filled(p, 1.5, dot_color);
                 }
