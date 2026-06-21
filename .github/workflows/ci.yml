@@ -56,11 +56,11 @@ jobs:
             target: x86_64-pc-windows-msvc
             features: tray
             label: windows-x64
-          - os: macos-13
+          - os: macos-latest
             target: x86_64-apple-darwin
             features: tray
             label: macos-x64
-          - os: macos-14
+          - os: macos-latest
             target: aarch64-apple-darwin
             features: tray
             label: macos-arm64
