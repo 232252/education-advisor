@@ -104,6 +104,72 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     ui.add_space(8.0);
 
+    // PII Shield 假名化引擎（v0.1.0-rc.1 核心隐私功能）
+    card(ui, &theme, |ui| {
+        ui.label(
+            egui::RichText::new("PII Shield 假名化引擎")
+                .font(FontId::proportional(13.0))
+                .strong()
+                .color(theme.text),
+        );
+        ui.label(
+            egui::RichText::new(
+                "v0.1.0-rc.1 核心隐私功能。真名 → S_001 等确定性化名，\
+                 AI 全程看不到明文；AES-256-GCM 加密映射表（密码派生密钥，\
+                 密码丢失不可恢复）。",
+            )
+            .font(FontId::proportional(11.0))
+            .color(theme.text_dim),
+        );
+        ui.add_space(6.0);
+        // Read the engine state under the lock, then drop it before
+        // touching any &mut App state so the borrow checker is happy.
+        let (enabled, mapping_count) = {
+            let pii = app.pii.lock();
+            (pii.enabled, pii.mapping_count())
+        };
+        ui.horizontal(|ui| {
+            let dot_color = if enabled {
+                theme.success
+            } else {
+                theme.warning
+            };
+            let dot_rect = Rect::from_min_size(
+                Pos2::new(ui.cursor().left(), ui.cursor().center().y - 3.0),
+                Vec2::splat(6.0),
+            );
+            icons::dot(ui.painter(), dot_rect, dot_color);
+            ui.add_space(10.0);
+            ui.label(
+                egui::RichText::new(if enabled {
+                    "已启用（已加载加密映射表）"
+                } else {
+                    "未启用"
+                })
+                .font(FontId::proportional(12.0))
+                .color(theme.text),
+            );
+        });
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(format!("当前映射: {mapping_count} 条"))
+                    .font(FontId::proportional(11.0))
+                    .color(theme.text_dim),
+            );
+        });
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            if primary_button(ui, &theme, "初始化 / 解锁").clicked() {
+                crate::ui::pii_dialog::open_unlock_dialog(app);
+            }
+            if ghost_button(ui, &theme, "查看映射").clicked() {
+                crate::ui::pii_dialog::open_mappings_view(app);
+            }
+        });
+    });
+
+    ui.add_space(8.0);
+
     // Local-only RAG note
     card(ui, &theme, |ui| {
         ui.label(

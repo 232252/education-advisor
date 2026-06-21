@@ -109,6 +109,11 @@ pub struct App {
     #[allow(dead_code)]
     pub tray: Option<crate::tray::TrayHandle>,
     pub window_visible: bool,
+
+    // PII Shield — 假名化引擎（v0.1.0-rc.1 核心隐私功能）。
+    // 启动时尝试自动加载已存在的映射文件；如果用户首次使用，
+    // 则保持 enabled=false，UI 提供"解锁 / 初始化"入口。
+    pub pii: parking_lot::Mutex<crate::pii_shield::PrivacyEngine>,
 }
 
 #[derive(Default, Clone)]
@@ -195,6 +200,7 @@ impl App {
             ui_state: crate::ui::UiState::default(),
             tray,
             window_visible: true,
+            pii: parking_lot::Mutex::new(crate::pii_shield::PrivacyEngine::default()),
         };
         app.apply_theme(&cc.egui_ctx);
         app
@@ -648,6 +654,11 @@ impl eframe::App for App {
 
         // toasts overlay
         crate::ui::toast::show(self, ctx);
+
+        // PII Shield dialogs (initialize / unlock / view mappings).
+        // Always drawn on top of every page so the user can unlock
+        // from anywhere.
+        crate::ui::pii_dialog::show(self, ctx);
 
         // keep repainting while animating or streaming
         let animating = !self.page_anim.done()

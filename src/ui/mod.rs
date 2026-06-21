@@ -14,6 +14,7 @@ pub mod chat;
 pub mod dashboard;
 pub mod icons;
 pub mod models_page;
+pub mod pii_dialog;
 pub mod privacy_page;
 pub mod rag_page;
 pub mod scheduler_page;
@@ -53,4 +54,7 @@ pub struct UiState {
 
     // settings page
     pub editing_provider: Option<LlmProvider>,
+
+    // PII Shield dialogs (v0.1.0-rc.1 核心隐私功能)
+    pub pii_dialog: crate::ui::pii_dialog::PiiDialogState,
 }
