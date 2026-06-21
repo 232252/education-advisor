@@ -35,8 +35,10 @@
 mod agents;
 mod ai;
 mod app;
+mod audit;
 mod charts;
 mod db;
+mod embedding;
 mod llm;
 mod models;
 mod privacy;
