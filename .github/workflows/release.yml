@@ -128,6 +128,14 @@ jobs:
           cp LICENSE dist/$NAME/ 2>/dev/null || true
           cp LICENSE-APACHE dist/$NAME/ 2>/dev/null || true
           cp CHANGELOG.md dist/$NAME/ 2>/dev/null || true
+          # Bundle the v0.1.0-rc.1-recovered persona/rules assets so the
+          # binary has access to the full agent prompts and the
+          # PII Shield compliance rules on first launch.
+          for d in agents config skills; do
+            if [ -d "$d" ]; then
+              cp -r "$d" dist/$NAME/
+            fi
+          done
           cd dist
           tar czf $NAME.${{ matrix.archive }} $NAME
           sha256sum $NAME.${{ matrix.archive }} > $NAME.${{ matrix.archive }}.sha256
@@ -153,6 +161,12 @@ jobs:
           Copy-Item "LICENSE" "dist/$name/" -ErrorAction SilentlyContinue
           Copy-Item "LICENSE-APACHE" "dist/$name/" -ErrorAction SilentlyContinue
           Copy-Item "CHANGELOG.md" "dist/$name/" -ErrorAction SilentlyContinue
+          # Bundle v0.1.0-rc.1-recovered persona/rules assets.
+          foreach ($d in @("agents", "config", "skills")) {
+            if (Test-Path $d) {
+              Copy-Item -Recurse -Force $d "dist/$name/"
+            }
+          }
           Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.${{ matrix.archive }}"
           $hash = (Get-FileHash "dist/$name.${{ matrix.archive }}" -Algorithm SHA256).Hash.ToLower()
           "$hash  $name.${{ matrix.archive }}" | Out-File -FilePath "dist/$name.${{ matrix.archive }}.sha256" -Encoding ascii

@@ -72,8 +72,36 @@ pub async fn run_turn(
     let mut messages = Vec::with_capacity(history.len() + 4);
 
     // System prompt: identity + tool surface.
+    //
+    // The orchestrator concatenates four sources in order:
+    //   1. The compact in-binary baseline (always available).
+    //   2. The full persona file from `agents/<id>.md` — recovered from
+    //      v0.1.0-rc.1, the canonical full-featured release.
+    //   3. The small-model compliance rules from
+    //      `config/SMALL_MODEL_RULES.md` (防幻觉铁律 + 禁止心算).
+    //   4. The reason-codes catalogue for the agents that need it
+    //      (discipline / counselor / weekly-reporter / governor).
     let registry = ToolRegistry::with_defaults();
-    let mut system = String::from(agent.system_prompt);
+    let agent_id_str = agent_id.clone();
+    let needs_reason_codes = matches!(
+        agent_id_str.as_str(),
+        "counselor"
+            | "discipline-officer"
+            | "weekly-reporter"
+            | "governor"
+            | "class-monitor"
+            | "main"
+    );
+    let mut system = crate::agents::build_full_prompt(agent, &["STUDENT_MANAGEMENT.md"]);
+    if needs_reason_codes {
+        let codes = crate::agents::load_reason_codes();
+        if codes.is_object() && !codes.as_object().map_or(true, |o| o.is_empty()) {
+            system.push_str("\n\n---\n\n## 校内 reason-codes 目录（行为分扣分项）\n\n");
+            if let Ok(s) = serde_json::to_string_pretty(&codes) {
+                system.push_str(&s);
+            }
+        }
+    }
     system
         .push_str("\n\n你可以调用以下工具，格式为：<tool name=\"工具名\" args='{...JSON...}'/>。");
     system.push_str("\n可用工具（name + 一句话用途 + JSON 形参）：");
@@ -107,17 +135,32 @@ pub async fn run_turn(
     for m in &history {
         match m.role {
             Role::User => {
-                // PII redaction: mask phone/ID/email before sending to the LLM.
-                // The original text is persisted in the DB; only the LLM sees
-                // the redacted version. Respect the user's privacy toggle.
-                let content = if settings.privacy_enabled {
-                    ctx.redactor.redact(&m.content).0
+                // Two layers of privacy:
+                //   1. PII Shield 假名化（v0.1.0-rc.1 核心功能）— 如果
+                //      引擎已启用且映射表非空，把真名替换成 S_001
+                //      等化名，让 LLM 看不到真实姓名。
+                //   2. Regex 脱敏 — 总是把手机/身份证/邮箱掩码。
+                // The original text is persisted in the DB; only the LLM
+                // sees the redacted version.
+                let mut content = if settings.privacy_enabled {
+                    let pii = ctx.pii.lock();
+                    pii.anonymize(&m.content)
                 } else {
                     m.content.clone()
                 };
+                if settings.privacy_enabled {
+                    content = ctx.redactor.redact(&content).0;
+                }
                 messages.push(ChatMessage::user(&content));
             }
-            Role::Assistant => messages.push(ChatMessage::assistant(&m.content)),
+            Role::Assistant => {
+                // Assistant 历史消息同样脱敏（它们在被生成时可能
+                // 包含 S_001 化名，但用户看到的应该是真名；显示
+                // 时由 chat.rs 做 deanonymize，存储的应该是化名版
+                // 还是真名版？我们保留 LLM 写回的内容，由 UI 决定
+                // 还原时机——目前保留 LLM 原文以便审计）。
+                messages.push(ChatMessage::assistant(&m.content));
+            }
             Role::System => {}
             Role::Tool => messages.push(ChatMessage::user(&m.content)),
         }

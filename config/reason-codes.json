@@ -1,0 +1,112 @@
+{
+  "SPEAK_IN_CLASS": {
+    "label": "课堂讲话",
+    "category": "deduct",
+    "delta": -2
+  },
+  "SLEEP_IN_CLASS": {
+    "label": "课堂睡觉",
+    "category": "deduct",
+    "delta": -2
+  },
+  "LATE": {
+    "label": "迟到",
+    "category": "deduct",
+    "delta": -2
+  },
+  "SCHOOL_CAUGHT": {
+    "label": "学校抓拍违纪",
+    "category": "deduct",
+    "delta": -5
+  },
+  "MAKEUP": {
+    "label": "补差扣分",
+    "category": "deduct",
+    "delta": -2
+  },
+  "DESK_UNALIGNED": {
+    "label": "桌椅不整齐",
+    "category": "deduct",
+    "delta": -1
+  },
+  "PHONE_IN_CLASS": {
+    "label": "手机违纪",
+    "category": "deduct",
+    "delta": -5
+  },
+  "SMOKING": {
+    "label": "抽烟",
+    "category": "deduct",
+    "delta": -10
+  },
+  "DRINKING_DORM": {
+    "label": "寝室饮酒",
+    "category": "deduct",
+    "delta": -5
+  },
+  "OTHER_DEDUCT": {
+    "label": "其他扣分",
+    "category": "deduct",
+    "delta": -1
+  },
+  "APPEARANCE_VIOLATION": {
+    "label": "仪容仪表违纪",
+    "category": "deduct",
+    "delta": -2
+  },
+  "BONUS_VARIABLE": {
+    "label": "学业奖励(变量)",
+    "category": "bonus",
+    "delta": null
+  },
+  "ACTIVITY_PARTICIPATION": {
+    "label": "活动参与加分",
+    "category": "bonus",
+    "delta": 1
+  },
+  "CLASS_MONITOR": {
+    "label": "班长履职加分",
+    "category": "bonus",
+    "delta": 10
+  },
+  "CLASS_COMMITTEE": {
+    "label": "班委履职加分",
+    "category": "bonus",
+    "delta": 5
+  },
+  "CIVILIZED_DORM": {
+    "label": "文明寝室",
+    "category": "bonus",
+    "delta": 3
+  },
+  "MONTHLY_ATTENDANCE": {
+    "label": "月勤奖励",
+    "category": "bonus",
+    "delta": 2
+  },
+  "REVERT": {
+    "label": "撤销(自动计算)",
+    "category": "system",
+    "delta": null
+  },
+  "LAB_EQUIPMENT_DAMAGE": {
+    "label": "实验室设备损坏",
+    "category": "lab",
+    "delta": -5
+  },
+  "LAB_SAFETY_VIOLATION": {
+    "label": "实验室安全违规",
+    "category": "lab",
+    "delta": -10
+  },
+  "LAB_UNSAFE_BEHAVIOR": {
+    "label": "实验室不安全行为",
+    "category": "lab",
+    "delta": -5
+  },
+  "LAB_CLEAN_UP": {
+    "label": "实验室未清理",
+    "category": "lab",
+    "delta": -1
+  }
+}

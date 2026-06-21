@@ -41,6 +41,7 @@ mod db;
 mod embedding;
 mod llm;
 mod models;
+mod pii_shield;
 mod privacy;
 mod runtime;
 mod scheduler;
