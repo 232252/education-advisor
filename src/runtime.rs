@@ -197,11 +197,17 @@ impl Runtime {
                     }
                 };
                 let settings = db.load_settings().unwrap_or_default();
+                // PII Shield: we don't unlock the encrypted mapping at
+                // startup (it needs a password the user types in).
+                // The engine stays in `enabled = false` state until
+                // the user unlocks it via the Privacy page.
+                let pii = parking_lot::Mutex::new(crate::pii_shield::PrivacyEngine::default());
                 let ctx = Arc::new(RuntimeCtx {
                     db,
                     cipher: cipher_for_thread,
                     redactor: Redactor::new(),
                     llm: LlmClient::new(),
+                    pii,
                     cancel_tokens: RwLock::new(HashMap::new()),
                     settings: RwLock::new(settings),
                     audit,
@@ -240,6 +246,9 @@ pub struct RuntimeCtx {
     pub cipher: Cipher,
     pub redactor: Redactor,
     pub llm: LlmClient,
+    /// PII Shield 假名化引擎（v0.1.0-rc.1 核心隐私功能）。所有
+    /// 出站到 LLM 的文本都会先经过 `pii.anonymize`。
+    pub pii: parking_lot::Mutex<crate::pii_shield::PrivacyEngine>,
     /// Per-conversation cancellation tokens so the UI can abort an in-flight turn.
     pub cancel_tokens: RwLock<HashMap<Uuid, CancellationToken>>,
     /// Cached application settings; kept in sync by `SaveSettings` commands.
