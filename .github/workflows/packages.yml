@@ -119,25 +119,31 @@ jobs:
           LABEL: ${{ matrix.label }}
         run: |
           set -euo pipefail
-          # Work from $GITHUB_WORKSPACE so the spec's `%install` can
-          # find the binary at the same relative path the cargo step
-          # produced.
           cd "$GITHUB_WORKSPACE"
           BIN=target/${TARGET}/release/education-advisor-egui
           test -f "$BIN" || { echo "ERROR: missing $BIN"; ls -la target/${TARGET}/release/ 2>&1 | head -10; exit 1; }
           rm -rf rpmbuild
           mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          # Place a stage copy of the binary inside the rpmbuild
+          # sources tree so the spec can refer to it with a relative
+          # %{_sourcedir} path. rpmbuild changes working directory to
+          # rpmbuild/BUILD during the %install phase, so an absolute
+          # path anchored at $GITHUB_WORKSPACE is the only thing that
+          # works without an explicit stage copy.
+          STAGE_BIN=rpmbuild/SOURCES/education-advisor-egui
+          cp "$BIN" "$STAGE_BIN"
           cat > rpmbuild/SPECS/education-advisor.spec <<EOF
           Name: education-advisor
           Version: ${VERSION}
           Release: 1%{?dist}
           Summary: AI education management desktop app
           License: MIT OR Apache-2.0
+          Source0: education-advisor-egui
           %description
           Commercial-grade AI education management desktop application.
           %install
           mkdir -p %{buildroot}/usr/bin
-          install -m 0755 ${BIN} %{buildroot}/usr/bin/education-advisor-egui
+          install -m 0755 %{_sourcedir}/education-advisor-egui %{buildroot}/usr/bin/education-advisor-egui
           %files
           /usr/bin/education-advisor-egui
           EOF
@@ -180,10 +186,47 @@ jobs:
         run: |
           cargo build --locked --release --target x86_64-pc-windows-msvc --features tray
 
+      # cargo-wix needs at least one .wxs template; ship a minimal one
+      # in wix/main.wxs and an empty assets dir so the bundle has
+      # something to package.
+      - name: Create WiX template
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path wix/assets | Out-Null
+          $wxs = @'
+          <?xml version='1.0' encoding='utf-8'?>
+          <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+            <Product Name="Education Advisor"
+                     Manufacturer="Education Advisor Team"
+                     Id="*"
+                     UpgradeCode="C0AB1B0A-1D11-4D11-8F11-1A1B1B1B1B1B"
+                     Version="0.0.0"
+                     Language="1033">
+              <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
+              <MediaTemplate EmbedCab="yes" />
+              <Feature Id="ProductFeature" Title="Education Advisor" Level="1">
+                <ComponentGroupRef Id="ProductComponents" />
+              </Feature>
+            </Product>
+            <Fragment>
+              <Directory Id="INSTALLDIR" Name="Education Advisor" />
+              <Directory Id="ProgramFilesFolder">
+                <Directory Id="INSTALLDIR_PARENT" Name="Education Advisor">
+                  <Directory Id="INSTALLDIR" Name="app" />
+                </Directory>
+              </Directory>
+              <ComponentGroup Id="ProductComponents" Directory="INSTALLDIR">
+                <Component Id="MainExecutable">
+                  <File Source="$(var.CargoTargetDir)\release\education-advisor-egui.exe" KeyPath="yes" />
+                </Component>
+              </ComponentGroup>
+            </Fragment>
+          </Wix>
+          '@
+          Set-Content -Path wix/main.wxs -Value $wxs -Encoding UTF8
+
       - name: Build MSI
         run: |
-          # cargo-wix does not accept --features; the feature was
-          # already applied when the binary was built above.
           cargo wix --target x86_64-pc-windows-msvc
 
       - name: Upload MSI
