@@ -1,13 +1,17 @@
 name: Packages
 
-# Native platform installers:
-#   * Linux:   .deb (Debian / Ubuntu) + .rpm (Fedora / RHEL)
-#   * Windows: .msi (WiX) — pure-Rust installer with cargo-wix
-#   * macOS:   .dmg (aarch64) — hdiutil from a staged .app bundle
+# Native platform installers. Each installer job runs on its own host
+# architecture so we never have to cross-compile (egui + native
+# toolkits like GTK / AppKit are notoriously hard to cross-build):
 #
-# Runs on tag pushes alongside the binary release workflow. Can also be
-# triggered manually to produce installers from the current Cargo.toml
-# version.
+#   * Linux:   .deb (Debian / Ubuntu) + .rpm (Fedora / RHEL) — amd64
+#   * Windows: .msi (WiX) — x64
+#   * macOS:   .dmg (aarch64) — Apple Silicon
+#
+# The release workflow has already produced the per-platform binaries;
+# this workflow just packages them. Run on tag pushes alongside the
+# release workflow, or trigger manually to refresh installers for an
+# existing release.
 
 on:
   push:
@@ -21,18 +25,8 @@ env:
 
 jobs:
   linux-packages:
-    name: Linux packages (${{ matrix.label }})
+    name: Linux packages (amd64)
     runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            label: amd64
-            cargo_target: x86_64-unknown-linux-gnu
-          - target: aarch64-unknown-linux-gnu
-            label: arm64
-            cargo_target: aarch64-unknown-linux-gnu
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,12 +34,12 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.cargo_target }}
+          targets: x86_64-unknown-linux-gnu
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.cargo_target }}-tray
+          key: x86_64-unknown-linux-gnu-tray
 
       - name: Install Linux system dependencies
         run: |
@@ -56,19 +50,9 @@ jobs:
             libappindicator3-dev libgtk-3-dev \
             rpm fakeroot
 
-      - name: Install cross toolchain (ARM64)
-        if: matrix.label == 'arm64'
-        run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-
       - name: Build release binary
-        working-directory: .
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
         run: |
-          cargo build --locked --release --target ${{ matrix.cargo_target }} --features tray
+          cargo build --locked --release --target x86_64-unknown-linux-gnu --features tray
 
       - name: Resolve version
         id: ver
@@ -78,23 +62,31 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Stage .deb payload
-        env:
-          TARGET: ${{ matrix.cargo_target }}
-          LABEL: ${{ matrix.label }}
         run: |
           set -euo pipefail
-          BIN=target/${TARGET}/release/education-advisor-egui
-          test -f "$BIN" || { echo "ERROR: missing $BIN"; ls -la target/${TARGET}/release/ 2>&1 | head -10; exit 1; }
-          DEST=stage/education-advisor_${VERSION}_${LABEL}
+          cd "$GITHUB_WORKSPACE"
+          BIN=target/x86_64-unknown-linux-gnu/release/education-advisor-egui
+          test -f "$BIN" || { echo "ERROR: missing $BIN"; ls -la target/x86_64-unknown-linux-gnu/release/ 2>&1 | head -10; exit 1; }
+          DEST=stage/education-advisor_${VERSION}_amd64
+          rm -rf "$DEST"
           mkdir -p $DEST/DEBIAN $DEST/usr/bin $DEST/usr/share/applications $DEST/usr/share/icons/hicolor/256x256/apps $DEST/usr/share/doc/education-advisor
           cp $BIN $DEST/usr/bin/education-advisor-egui
           cp README.md CHANGELOG.md $DEST/usr/share/doc/education-advisor/ 2>/dev/null || true
+          # Bundle the v0.1.0-rc.1-recovered persona / compliance /
+          # skills assets so the binary can load full agent prompts
+          # on first launch.
+          for d in agents config skills; do
+            if [ -d "$d" ]; then
+              mkdir -p $DEST/usr/share/education-advisor
+              cp -r $d $DEST/usr/share/education-advisor/
+            fi
+          done
           cat > $DEST/DEBIAN/control <<EOF
           Package: education-advisor
           Version: ${VERSION}
           Section: education
           Priority: optional
-          Architecture: ${LABEL}
+          Architecture: amd64
           Maintainer: Education Advisor Team <noreply@example.com>
           Description: Commercial-grade AI education management desktop application.
            18 specialised AI agents, 30+ LLM providers, local-first privacy.
@@ -108,30 +100,21 @@ jobs:
           Type=Application
           Categories=Education;Office;
           EOF
-          # Placeholder icon (the real icon is bundled inside the binary).
           : > $DEST/usr/share/icons/hicolor/256x256/apps/education-advisor.png
           mkdir -p artifacts
-          dpkg-deb --build $DEST artifacts/education-advisor_${VERSION}_${LABEL}.deb
+          dpkg-deb --build $DEST artifacts/education-advisor_${VERSION}_amd64.deb
 
       - name: Stage .rpm payload
-        env:
-          TARGET: ${{ matrix.cargo_target }}
-          LABEL: ${{ matrix.label }}
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE"
-          BIN=target/${TARGET}/release/education-advisor-egui
-          test -f "$BIN" || { echo "ERROR: missing $BIN"; ls -la target/${TARGET}/release/ 2>&1 | head -10; exit 1; }
+          BIN=target/x86_64-unknown-linux-gnu/release/education-advisor-egui
+          test -f "$BIN" || { echo "ERROR: missing $BIN"; exit 1; }
           rm -rf rpmbuild
           mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-          # Place a stage copy of the binary inside the rpmbuild
-          # sources tree so the spec can refer to it with a relative
-          # %{_sourcedir} path. rpmbuild changes working directory to
-          # rpmbuild/BUILD during the %install phase, so an absolute
-          # path anchored at $GITHUB_WORKSPACE is the only thing that
-          # works without an explicit stage copy.
-          STAGE_BIN=rpmbuild/SOURCES/education-advisor-egui
-          cp "$BIN" "$STAGE_BIN"
+          # Copy the binary into SOURCES so the spec can reference it
+          # with %{_sourcedir} regardless of rpmbuild's cwd.
+          cp "$BIN" rpmbuild/SOURCES/education-advisor-egui
           cat > rpmbuild/SPECS/education-advisor.spec <<EOF
           Name: education-advisor
           Version: ${VERSION}
@@ -147,7 +130,7 @@ jobs:
           %files
           /usr/bin/education-advisor-egui
           EOF
-          rpmbuild -ba --target=${TARGET} \
+          rpmbuild -ba --target=x86_64-unknown-linux-gnu \
             --define "_topdir $(pwd)/rpmbuild" \
             rpmbuild/SPECS/education-advisor.spec
           mkdir -p artifacts
@@ -157,11 +140,11 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux-packages-${{ matrix.label }}
+          name: linux-packages-amd64
           path: artifacts/*
 
   windows-msi:
-    name: Windows MSI
+    name: Windows MSI (x64)
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -183,6 +166,7 @@ jobs:
       # The tray feature is built into the binary here; cargo-wix
       # picks up the same binary via target/wix/.
       - name: Build binary
+        shell: bash
         run: |
           cargo build --locked --release --target x86_64-pc-windows-msvc --features tray
 
@@ -209,25 +193,27 @@ jobs:
               </Feature>
             </Product>
             <Fragment>
-              <Directory Id="INSTALLDIR" Name="Education Advisor" />
               <Directory Id="ProgramFilesFolder">
-                <Directory Id="INSTALLDIR_PARENT" Name="Education Advisor">
-                  <Directory Id="INSTALLDIR" Name="app" />
+                <Directory Id="INSTALLDIR" Name="Education Advisor">
+                  <Component Id="MainExecutable">
+                    <File Source="$(var.CargoTargetDir)\release\education-advisor-egui.exe" KeyPath="yes" />
+                  </Component>
                 </Directory>
               </Directory>
               <ComponentGroup Id="ProductComponents" Directory="INSTALLDIR">
-                <Component Id="MainExecutable">
-                  <File Source="$(var.CargoTargetDir)\release\education-advisor-egui.exe" KeyPath="yes" />
-                </Component>
+                <ComponentRef Id="MainExecutable" />
               </ComponentGroup>
             </Fragment>
           </Wix>
           '@
           Set-Content -Path wix/main.wxs -Value $wxs -Encoding UTF8
+          Get-Content wix/main.wxs | Select-Object -First 3
 
       - name: Build MSI
+        shell: bash
         run: |
           cargo wix --target x86_64-pc-windows-msvc
+          ls -la target/wix/
 
       - name: Upload MSI
         uses: actions/upload-artifact@v4
@@ -236,7 +222,7 @@ jobs:
           path: target/wix/*.msi
 
   macos-dmg:
-    name: macOS DMG
+    name: macOS DMG (aarch64)
     runs-on: macos-14
     steps:
       - name: Checkout
@@ -292,6 +278,12 @@ jobs:
           </dict>
           </plist>
           EOF
+          # Bundle the recovered persona / compliance / skills assets.
+          for d in agents config skills; do
+            if [ -d "$d" ]; then
+              cp -r "$d" "$APP_STAGE/Contents/Resources/"
+            fi
+          done
           # Rename to the human-friendly form right before the DMG
           # step so the path with spaces never has to be expanded by
           # the shell as separate arguments.
