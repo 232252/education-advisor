@@ -184,11 +184,13 @@ jobs:
       - name: Create WiX template
         shell: pwsh
         run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          Write-Host "Using version $version"
           New-Item -ItemType Directory -Force -Path wix/assets | Out-Null
-          $wxs = @'
+          $wxs = @"
           <?xml version="1.0" encoding="utf-8"?>
           <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-            <Product Id="*" Name="Education Advisor" Version="$(var.CargoPackageVersion)" Manufacturer="Education Advisor Team" UpgradeCode="c0ab1b0a-1d11-4d11-8f11-1a1b1b1b1b1b" Language="1033">
+            <Product Id="*" Name="Education Advisor" Version="$version" Manufacturer="Education Advisor Team" UpgradeCode="c0ab1b0a-1d11-4d11-8f11-1a1b1b1b1b1b" Language="1033">
               <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
               <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
               <MediaTemplate EmbedCab="yes" />
@@ -208,12 +210,12 @@ jobs:
             <Fragment>
               <ComponentGroup Id="ProductComponents" Directory="AppDir">
                 <Component Id="MainExecutable" Guid="11111111-1111-1111-1111-111111111111">
-                  <File Id="MainExe" Source="$(var.CargoTargetDir)\release\education-advisor-egui.exe" KeyPath="yes" />
+                  <File Id="MainExe" Source="`$(var.CargoTargetDir)\release\education-advisor-egui.exe" KeyPath="yes" />
                 </Component>
               </ComponentGroup>
             </Fragment>
           </Wix>
-          '@
+          "@
           Set-Content -Path wix/main.wxs -Value $wxs -Encoding UTF8
           Get-Content wix/main.wxs | Select-Object -First 5
 
