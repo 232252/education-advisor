@@ -3,11 +3,11 @@ name: Packages
 # Native platform installers:
 #   * Linux:   .deb (Debian / Ubuntu) + .rpm (Fedora / RHEL)
 #   * Windows: .msi (WiX) — pure-Rust installer with cargo-wix
-#   * macOS:   .pkg and signed .app bundle (post-signing step optional)
+#   * macOS:   .dmg (aarch64) — hdiutil from a staged .app bundle
 #
-# This job runs on tag pushes alongside the binary release workflow. It
-# can also be triggered manually to produce installers from the current
-# Cargo.toml version.
+# Runs on tag pushes alongside the binary release workflow. Can also be
+# triggered manually to produce installers from the current Cargo.toml
+# version.
 
 on:
   push:
@@ -63,7 +63,7 @@ jobs:
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
-      - name: Build binary
+      - name: Build release binary
         working-directory: .
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
@@ -78,11 +78,15 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Stage .deb payload
+        env:
+          TARGET: ${{ matrix.cargo_target }}
+          LABEL: ${{ matrix.label }}
         run: |
           set -euo pipefail
-          BIN=target/${{ matrix.cargo_target }}/release/education-advisor-egui
-          DEST=stage/education-advisor_${VERSION}_${{ matrix.label }}
-          mkdir -p $DEST/DEBIAN $DEST/usr/bin $DEST/usr/share/applications $DEST/usr/share/icons/hicolor/256x256/apps
+          BIN=target/${TARGET}/release/education-advisor-egui
+          test -f "$BIN" || { echo "ERROR: missing $BIN"; ls -la target/${TARGET}/release/ 2>&1 | head -10; exit 1; }
+          DEST=stage/education-advisor_${VERSION}_${LABEL}
+          mkdir -p $DEST/DEBIAN $DEST/usr/bin $DEST/usr/share/applications $DEST/usr/share/icons/hicolor/256x256/apps $DEST/usr/share/doc/education-advisor
           cp $BIN $DEST/usr/bin/education-advisor-egui
           cp README.md CHANGELOG.md $DEST/usr/share/doc/education-advisor/ 2>/dev/null || true
           cat > $DEST/DEBIAN/control <<EOF
@@ -90,7 +94,7 @@ jobs:
           Version: ${VERSION}
           Section: education
           Priority: optional
-          Architecture: ${{ matrix.label }}
+          Architecture: ${LABEL}
           Maintainer: Education Advisor Team <noreply@example.com>
           Description: Commercial-grade AI education management desktop application.
            18 specialised AI agents, 30+ LLM providers, local-first privacy.
@@ -104,16 +108,24 @@ jobs:
           Type=Application
           Categories=Education;Office;
           EOF
-          # Build a tiny placeholder icon (the real icon is bundled in
-          # the binary; this entry just satisfies the desktop spec).
+          # Placeholder icon (the real icon is bundled inside the binary).
           : > $DEST/usr/share/icons/hicolor/256x256/apps/education-advisor.png
           mkdir -p artifacts
-          dpkg-deb --build $DEST artifacts/education-advisor_${VERSION}_${{ matrix.label }}.deb
+          dpkg-deb --build $DEST artifacts/education-advisor_${VERSION}_${LABEL}.deb
 
       - name: Stage .rpm payload
+        env:
+          TARGET: ${{ matrix.cargo_target }}
+          LABEL: ${{ matrix.label }}
         run: |
           set -euo pipefail
-          BIN=target/${{ matrix.cargo_target }}/release/education-advisor-egui
+          # Work from $GITHUB_WORKSPACE so the spec's `%install` can
+          # find the binary at the same relative path the cargo step
+          # produced.
+          cd "$GITHUB_WORKSPACE"
+          BIN=target/${TARGET}/release/education-advisor-egui
+          test -f "$BIN" || { echo "ERROR: missing $BIN"; ls -la target/${TARGET}/release/ 2>&1 | head -10; exit 1; }
+          rm -rf rpmbuild
           mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
           cat > rpmbuild/SPECS/education-advisor.spec <<EOF
           Name: education-advisor
@@ -125,15 +137,16 @@ jobs:
           Commercial-grade AI education management desktop application.
           %install
           mkdir -p %{buildroot}/usr/bin
-          install -m 0755 $BIN %{buildroot}/usr/bin/education-advisor-egui
+          install -m 0755 ${BIN} %{buildroot}/usr/bin/education-advisor-egui
           %files
           /usr/bin/education-advisor-egui
           EOF
-          rpmbuild -ba --target=${{ matrix.cargo_target }} \
+          rpmbuild -ba --target=${TARGET} \
             --define "_topdir $(pwd)/rpmbuild" \
             rpmbuild/SPECS/education-advisor.spec
           mkdir -p artifacts
           find rpmbuild/RPMS -name "*.rpm" -exec cp {} artifacts/ \;
+          ls -la artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -161,13 +174,17 @@ jobs:
       - name: Install WiX toolset
         run: cargo install --locked cargo-wix
 
+      # The tray feature is built into the binary here; cargo-wix
+      # picks up the same binary via target/wix/.
       - name: Build binary
         run: |
           cargo build --locked --release --target x86_64-pc-windows-msvc --features tray
 
       - name: Build MSI
         run: |
-          cargo wix --target x86_64-pc-windows-msvc --features tray
+          # cargo-wix does not accept --features; the feature was
+          # already applied when the binary was built above.
+          cargo wix --target x86_64-pc-windows-msvc
 
       - name: Upload MSI
         uses: actions/upload-artifact@v4
@@ -196,15 +213,27 @@ jobs:
         run: |
           cargo build --locked --release --target aarch64-apple-darwin --features tray
 
+      - name: Resolve version
+        id: ver
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          [ -z "$VERSION" ] && VERSION=$(grep '^version' Cargo.toml | head -n1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
       - name: Stage .app bundle
         run: |
           set -euo pipefail
           BIN=target/aarch64-apple-darwin/release/education-advisor-egui
-          APP=stage/Education Advisor.app
-          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-          cp "$BIN" "$APP/Contents/MacOS/education-advisor-egui"
-          chmod +x "$APP/Contents/MacOS/education-advisor-egui"
-          cat > "$APP/Contents/Info.plist" <<'EOF'
+          test -f "$BIN" || { echo "ERROR: missing $BIN"; ls -la target/aarch64-apple-darwin/release/ 2>&1 | head -10; exit 1; }
+          # Use a path without spaces to avoid shell word-splitting
+          # under bash with default IFS. The Info.plist and the
+          # bundling step can still refer to the human-friendly name.
+          APP_STAGE="$GITHUB_WORKSPACE/stage/EducationAdvisor.app"
+          rm -rf "$GITHUB_WORKSPACE/stage"
+          mkdir -p "$APP_STAGE/Contents/MacOS" "$APP_STAGE/Contents/Resources"
+          cp "$BIN" "$APP_STAGE/Contents/MacOS/education-advisor-egui"
+          chmod +x "$APP_STAGE/Contents/MacOS/education-advisor-egui"
+          cat > "$APP_STAGE/Contents/Info.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -212,16 +241,22 @@ jobs:
             <key>CFBundleName</key><string>Education Advisor</string>
             <key>CFBundleDisplayName</key><string>Education Advisor</string>
             <key>CFBundleIdentifier</key><string>app.education-advisor.desktop</string>
-            <key>CFBundleVersion</key><string>1.0.2</string>
-            <key>CFBundleShortVersionString</key><string>1.0.2</string>
+            <key>CFBundleVersion</key><string>${VERSION}</string>
+            <key>CFBundleShortVersionString</key><string>${VERSION}</string>
             <key>CFBundleExecutable</key><string>education-advisor-egui</string>
             <key>LSMinimumSystemVersion</key><string>11.0</string>
             <key>NSHighResolutionCapable</key><true/>
           </dict>
           </plist>
           EOF
+          # Rename to the human-friendly form right before the DMG
+          # step so the path with spaces never has to be expanded by
+          # the shell as separate arguments.
+          APP_FINAL="$GITHUB_WORKSPACE/stage/Education Advisor.app"
+          mv "$APP_STAGE" "$APP_FINAL"
           mkdir -p artifacts
-          hdiutil create -ov -volname "Education Advisor" -fs HFS+ -srcfolder "$APP" artifacts/Education-Advisor.dmg
+          hdiutil create -ov -volname "Education Advisor" -fs HFS+ -srcfolder "$APP_FINAL" artifacts/Education-Advisor.dmg
+          ls -la artifacts/
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
