@@ -56,10 +56,13 @@ jobs:
 
       - name: Resolve version
         id: ver
+        # Always read Cargo.toml — GITHUB_REF_NAME is "main" when
+        # triggered manually and a tag name when triggered on push,
+        # but the canonical version is the one in Cargo.toml.
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          [ -z "$VERSION" ] && VERSION=$(grep '^version' Cargo.toml | head -n1 | sed 's/.*"\(.*\)".*/\1/')
+          VERSION=$(grep '^version' Cargo.toml | head -n1 | sed 's/.*"\(.*\)".*/\1/')
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "using version $VERSION"
 
       - name: Stage .deb payload
         run: |
@@ -161,7 +164,12 @@ jobs:
           key: x86_64-pc-windows-msvc-tray-msi
 
       - name: Install WiX toolset
-        run: cargo install --locked cargo-wix
+        # Don't pin cargo-wix's transitive deps with --locked: crates.io
+        # occasionally returns HTTP/2 framing errors on a fresh registry
+        # download, and a locked install can't recover. A non-locked
+        # install is fine because cargo-wix isn't a runtime dep of the
+        # app we're shipping.
+        run: cargo install cargo-wix
 
       # The tray feature is built into the binary here; cargo-wix
       # picks up the same binary via target/wix/.
@@ -244,10 +252,13 @@ jobs:
 
       - name: Resolve version
         id: ver
+        # Always read Cargo.toml — GITHUB_REF_NAME is "main" when
+        # triggered manually and a tag name when triggered on push,
+        # but the canonical version is the one in Cargo.toml.
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          [ -z "$VERSION" ] && VERSION=$(grep '^version' Cargo.toml | head -n1 | sed 's/.*"\(.*\)".*/\1/')
+          VERSION=$(grep '^version' Cargo.toml | head -n1 | sed 's/.*"\(.*\)".*/\1/')
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "using version $VERSION"
 
       - name: Stage .app bundle
         run: |
