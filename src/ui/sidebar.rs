@@ -1,6 +1,6 @@
 //! Sidebar navigation with elastic collapse and a refined hand-painted look.
 
-use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, Pos2, Rect, Sense, Ui, Vec2};
+use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, Pos2, Rect, Response, Rounding, Sense, Stroke, Ui, Vec2};
 
 use crate::app::{App, Page};
 use crate::ui::icons;
@@ -12,7 +12,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     let expanded = app.sidebar_anim.value();
 
     let inner_margin = if expanded > 0.5 { 12.0 } else { 8.0 };
-    ui.set_min_width(if expanded > 0.5 { 200.0 } else { 64.0 });
+    ui.set_min_width(if expanded > 0.5 { 180.0 } else { 56.0 });
 
     ui.vertical(|ui| {
         ui.add_space(14.0);
@@ -114,52 +114,43 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         }
 
         // spacer pushes footer down
+        let footer_target = if expanded > 0.5 { 86.0 } else { 104.0 };
         ui.with_layout(
             Layout::top_down(Align::LEFT).with_main_align(Align::LEFT),
             |ui| {
-                ui.allocate_space(Vec2::new(0.0, ui.available_height().max(0.0) - 86.0));
+                ui.allocate_space(Vec2::new(0.0, ui.available_height().max(0.0) - footer_target));
             },
         );
 
-        // footer: privacy + collapse + agent count
+        // footer: privacy status + collapse toggle + user avatar/settings shortcut
         ui.horizontal(|ui| {
             ui.add_space(inner_margin);
             ui.vertical(|ui| {
                 ui.set_width(ui.available_width() - inner_margin);
 
-                // privacy pill
-                let privacy_color = if app.settings.privacy_enabled {
-                    app.theme.success
-                } else {
-                    app.theme.warning
-                };
-                let privacy_label = if app.settings.privacy_enabled {
-                    "隐私开启"
-                } else {
-                    "隐私关闭"
-                };
-                let _ = status_pill(ui, &app.theme, privacy_label, privacy_color);
-
-                ui.add_space(8.0);
-
-                // collapse toggle + agent count
-                ui.horizontal(|ui| {
-                    let collapse_icon = if app.sidebar_collapsed {
-                        icons::chevron_right
+                if expanded > 0.5 {
+                    // privacy pill
+                    let privacy_color = if app.settings.privacy_enabled {
+                        app.theme.success
                     } else {
-                        icons::chevron_left
+                        app.theme.warning
                     };
-                    if icon_button(ui, &app.theme, collapse_icon, 32.0).clicked() {
-                        app.sidebar_collapsed = !app.sidebar_collapsed;
-                        // Keep the persisted setting in sync so the next
-                        // launch reflects the user's last choice.
-                        app.settings.sidebar_collapsed = app.sidebar_collapsed;
-                        let _ = app
-                            .runtime
-                            .tx
-                            .send(crate::runtime::Command::SaveSettings(app.settings.clone()));
-                    }
-                    if expanded > 0.5 {
+                    let privacy_label = if app.settings.privacy_enabled {
+                        "隐私开启"
+                    } else {
+                        "隐私关闭"
+                    };
+                    let _ = status_pill(ui, &app.theme, privacy_label, privacy_color);
+                    ui.add_space(8.0);
+                }
+
+                if expanded > 0.5 {
+                    ui.horizontal(|ui| {
+                        sidebar_collapse_toggle(app, ui);
+                        ui.add_space(6.0);
+                        if avatar_button(ui, &app.theme, 32.0, "我", app.theme.accent).clicked() {
+                            app.navigate(Page::Settings);
+                        }
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             let count = crate::agents::all_agents().len();
                             ui.label(
@@ -168,12 +159,63 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                                     .color(app.theme.text_faint),
                             );
                         });
-                    }
-                });
+                    });
+                } else {
+                    ui.vertical(|ui| {
+                        sidebar_collapse_toggle(app, ui);
+                        ui.add_space(4.0);
+                        if avatar_button(ui, &app.theme, 32.0, "我", app.theme.accent).clicked() {
+                            app.navigate(Page::Settings);
+                        }
+                    });
+                }
             });
         });
         ui.add_space(12.0);
     });
+}
+
+fn sidebar_collapse_toggle(app: &mut App, ui: &mut Ui) {
+    let collapse_icon = if app.sidebar_collapsed {
+        icons::chevron_right
+    } else {
+        icons::chevron_left
+    };
+    if icon_button(ui, &app.theme, collapse_icon, 32.0).clicked() {
+        app.sidebar_collapsed = !app.sidebar_collapsed;
+        // Keep the persisted setting in sync so the next
+        // launch reflects the user's last choice.
+        app.settings.sidebar_collapsed = app.sidebar_collapsed;
+        let _ = app
+            .runtime
+            .tx
+            .send(crate::runtime::Command::SaveSettings(app.settings.clone()));
+    }
+}
+
+fn avatar_button(
+    ui: &mut Ui,
+    theme: &crate::theme::Theme,
+    size: f32,
+    label: &str,
+    color: Color32,
+) -> Response {
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(size), Sense::click());
+    let hover = resp.hovered();
+    let active = resp.is_pointer_button_down_on();
+    let bg = if active {
+        theme.accent_dim
+    } else if hover {
+        theme.surface_hover
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter().rect_filled(rect, Rounding::same(size / 2.0), bg);
+    let stroke = if hover { theme.border_strong } else { theme.border };
+    ui.painter()
+        .rect_stroke(rect, Rounding::same(size / 2.0), Stroke::new(1.0, stroke));
+    icons::avatar(ui.painter(), rect.shrink(size * 0.22), color, label);
+    resp
 }
 
 fn page_icon(page: Page) -> fn(&eframe::egui::Painter, eframe::egui::Rect, &crate::theme::Theme) {

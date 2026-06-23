@@ -1,10 +1,11 @@
 //! Privacy page: encryption status, PII redaction controls, and audit log.
 
-use eframe::egui::{self, Align, FontId, Layout, Pos2, Rect, Ui, Vec2};
+use eframe::egui::{self, Align, FontId, Layout, Pos2, Rect, Sense, Ui, Vec2};
 
 use crate::app::App;
+use crate::theme::Theme;
 use crate::ui::icons;
-use crate::ui::widgets::{card, ghost_button, primary_button, section_title};
+use crate::ui::widgets::{ghost_button, glass_card, glow_button, primary_button, section_title};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
     let theme = app.theme.clone();
@@ -23,41 +24,47 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         });
     });
 
-    ui.add_space(8.0);
+    ui.add_space(12.0);
 
-    // Encryption status
-    card(ui, &theme, |ui| {
+    // Core security capabilities with colored left-border feature rows.
+    glass_card(ui, &theme, |ui| {
         ui.label(
-            egui::RichText::new("数据加密")
+            egui::RichText::new("核心安全能力")
                 .font(FontId::proportional(13.0))
                 .strong()
                 .color(theme.text),
         );
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            let dot_rect = Rect::from_min_size(
-                Pos2::new(ui.cursor().left(), ui.cursor().center().y - 3.0),
-                Vec2::splat(6.0),
-            );
-            icons::dot(ui.painter(), dot_rect, theme.success);
-            ui.add_space(10.0);
-            ui.label(
-                egui::RichText::new("AES-256-GCM 已启用")
-                    .font(FontId::proportional(13.0))
-                    .color(theme.text),
-            );
-        });
-        ui.label(
-            egui::RichText::new("监护人电话、API Key 等敏感字段在落盘前自动加密")
-                .font(FontId::proportional(11.0))
-                .color(theme.text_dim),
+        ui.add_space(10.0);
+
+        feature_row(
+            ui,
+            &theme,
+            theme.success,
+            "AES-256-GCM 全盘加密",
+            "监护人电话、API Key 等敏感字段在落盘前自动加密。",
+        );
+        ui.add_space(8.0);
+        feature_row(
+            ui,
+            &theme,
+            theme.info,
+            "定向发送过滤器",
+            "仅向 LLM 发送当前任务必需的最小数据集合，自动屏蔽非相关敏感字段。",
+        );
+        ui.add_space(8.0);
+        feature_row(
+            ui,
+            &theme,
+            theme.purple,
+            "PII 自动脱敏",
+            "手机号、身份证号、邮箱地址在发送给 LLM 前会被掩码。",
         );
     });
 
     ui.add_space(8.0);
 
     // PII redaction switch
-    card(ui, &theme, |ui| {
+    glass_card(ui, &theme, |ui| {
         ui.label(
             egui::RichText::new("PII 脱敏")
                 .font(FontId::proportional(13.0))
@@ -105,13 +112,17 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     ui.add_space(8.0);
 
     // PII Shield 假名化引擎（v0.1.0-rc.1 核心隐私功能）
-    card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("PII Shield 假名化引擎")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+    glass_card(ui, &theme, |ui| {
+        ui.horizontal(|ui| {
+            let (icon_rect, _) = ui.allocate_exact_size(Vec2::splat(24.0), Sense::hover());
+            icons::shield_icon(ui.painter(), icon_rect, &theme);
+            ui.label(
+                egui::RichText::new("PII Shield 假名化引擎")
+                    .font(FontId::proportional(13.0))
+                    .strong()
+                    .color(theme.text),
+            );
+        });
         ui.label(
             egui::RichText::new(
                 "v0.1.0-rc.1 核心隐私功能。真名 → S_001 等确定性化名，\
@@ -159,7 +170,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         });
         ui.add_space(6.0);
         ui.horizontal(|ui| {
-            if primary_button(ui, &theme, "初始化 / 解锁").clicked() {
+            if glow_button(ui, &theme, "导出备份").clicked() {
+                app.push_toast(crate::runtime::ToastKind::Info, "导出备份功能开发中");
+            }
+            if glow_button(ui, &theme, "初始化/解绑").clicked() {
                 crate::ui::pii_dialog::open_unlock_dialog(app);
             }
             if ghost_button(ui, &theme, "查看映射").clicked() {
@@ -171,7 +185,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     ui.add_space(8.0);
 
     // Local-only RAG note
-    card(ui, &theme, |ui| {
+    glass_card(ui, &theme, |ui| {
         ui.label(
             egui::RichText::new("本地知识库")
                 .font(FontId::proportional(13.0))
@@ -195,6 +209,30 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     app.navigate(crate::app::Page::Rag);
                 }
             });
+        });
+    });
+}
+
+/// A security feature row with a 3 px rounded accent bar on the left.
+fn feature_row(ui: &mut Ui, theme: &Theme, color: egui::Color32, title: &str, desc: &str) {
+    let row_height = 38.0;
+    ui.horizontal(|ui| {
+        let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(3.0, row_height), Sense::hover());
+        ui.painter()
+            .rect_filled(bar_rect, egui::Rounding::same(2.0), color);
+        ui.add_space(10.0);
+        ui.vertical(|ui| {
+            ui.label(
+                egui::RichText::new(title)
+                    .font(FontId::proportional(13.0))
+                    .strong()
+                    .color(theme.text),
+            );
+            ui.label(
+                egui::RichText::new(desc)
+                    .font(FontId::proportional(11.0))
+                    .color(theme.text_dim),
+            );
         });
     });
 }

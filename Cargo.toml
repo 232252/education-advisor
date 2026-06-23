@@ -1,6 +1,6 @@
 [package]
 name = "education-advisor-egui"
-version = "1.0.3"
+version = "1.1.0"
 edition = "2021"
 authors = ["Education Advisor Team"]
 description = "Commercial-grade AI education management desktop application built with egui"
