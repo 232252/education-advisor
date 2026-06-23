@@ -72,6 +72,7 @@ pub fn import_csv(db: &Db, content: &str) -> Result<usize> {
             notes: None,
             created_at: now,
             updated_at: now,
+            notes_modified_at: None,
         };
         db.upsert_student(&s)?;
         added += 1;
@@ -139,6 +140,7 @@ pub fn seed_demo(db: &Db) -> Result<()> {
             notes: Some("这是示例学生数据".into()),
             created_at: now,
             updated_at: now,
+            notes_modified_at: None,
         })?;
         // a few grades
         let subjects = ["语文", "数学", "英语", "物理"];
@@ -277,6 +279,7 @@ mod tests {
             notes: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            notes_modified_at: None,
         };
         let s2 = Student {
             id: Uuid::new_v4(),
@@ -298,6 +301,7 @@ mod tests {
             notes: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            notes_modified_at: None,
         };
         let students = vec![s1.clone(), s2];
         let grades = HashMap::new();

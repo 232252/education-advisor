@@ -37,7 +37,17 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     ui.add_space(8.0);
 
     let avail = ui.available_rect_before_wrap();
-    let list_w = (avail.width() * 0.35).clamp(280.0, 380.0);
+    // Bug #4 — 窄屏列表宽度硬编码：按屏幕宽度自适应。
+    //   - 窄屏 (<720)：左 35% 但下界降到 200，列表/详情仍能挤下。
+    //   - 中等屏：clamp 到 [280, 380]（原行为）。
+    //   - 宽屏 (>1280)：列表上限放宽到 420，让"姓名 + 学号 + GPA + 风险" 不挤。
+    let list_w = if avail.width() < 720.0 {
+        (avail.width() * 0.45).clamp(200.0, 320.0)
+    } else if avail.width() > 1280.0 {
+        (avail.width() * 0.32).clamp(320.0, 420.0)
+    } else {
+        (avail.width() * 0.35).clamp(280.0, 380.0)
+    };
 
     ui.horizontal_top(|ui| {
         // ═══════════════════════════════════════

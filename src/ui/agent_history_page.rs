@@ -39,8 +39,47 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         return;
     }
 
+    // Bug #18 — 分页：原版 `.take(50)` 把后面所有会话直接丢掉。
+    // 现在按 `history_page_size` 分页，配合上/下一页按钮。
+    if app.ui_state.history_page_size == 0 {
+        app.ui_state.history_page_size = 20;
+    }
+    let total = convs.len();
+    let page_size = app.ui_state.history_page_size;
+    let total_pages = total.div_ceil(page_size).max(1);
+    if app.ui_state.history_page >= total_pages {
+        app.ui_state.history_page = total_pages - 1;
+    }
+    let start = app.ui_state.history_page * page_size;
+    let end = (start + page_size).min(total);
+
+    ui.horizontal(|ui| {
+        ui.label(
+            egui::RichText::new(format!(
+                "第 {} / {} 页（{start}–{end} / 共 {total} 条）",
+                app.ui_state.history_page + 1,
+                total_pages
+            ))
+            .font(FontId::proportional(11.0))
+            .color(theme.text_dim),
+        );
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if ghost_button(ui, &theme, "下一页 ›").clicked()
+                && app.ui_state.history_page + 1 < total_pages
+            {
+                app.ui_state.history_page += 1;
+            }
+            if ghost_button(ui, &theme, "‹ 上一页").clicked()
+                && app.ui_state.history_page > 0
+            {
+                app.ui_state.history_page -= 1;
+            }
+        });
+    });
+    ui.add_space(4.0);
+
     egui::ScrollArea::vertical().show(ui, |ui| {
-        for c in convs.iter().take(50) {
+        for c in convs.iter().take(end).skip(start) {
             card(ui, &theme, |ui| {
                 ui.horizontal_top(|ui| {
                     let agent = crate::agents::find(&c.agent_id);
@@ -85,8 +124,11 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 });
 
                 // tool-call summary for this conversation
-                let msgs = app.messages.get(&c.id).cloned().unwrap_or_default();
-                let total_tools: usize = msgs.iter().map(|m| m.tool_calls.len()).sum();
+                let total_tools: usize = app
+                    .messages
+                    .get(&c.id)
+                    .map(|m| m.iter().map(|mm| mm.tool_calls.len()).sum())
+                    .unwrap_or(0);
                 if total_tools > 0 {
                     ui.add_space(6.0);
                     ui.separator();
@@ -96,9 +138,11 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                             .font(FontId::proportional(11.0))
                             .color(theme.text_faint),
                     );
-                    for m in msgs.iter().filter(|m| m.role == Role::Assistant) {
-                        for tc in &m.tool_calls {
-                            tool_call_badge(app, ui, tc, &theme);
+                    if let Some(msgs) = app.messages.get(&c.id) {
+                        for m in msgs.iter().filter(|m| m.role == Role::Assistant) {
+                            for tc in &m.tool_calls {
+                                tool_call_badge(ui, tc, &theme);
+                            }
                         }
                     }
                 }
@@ -109,7 +153,6 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 }
 
 fn tool_call_badge(
-    _app: &mut App,
     ui: &mut Ui,
     tc: &crate::models::ToolCallRecord,
     theme: &crate::theme::Theme,

@@ -66,7 +66,8 @@ impl Db {
                 tags TEXT NOT NULL DEFAULT '[]',
                 notes TEXT,
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                notes_modified_at TEXT
             );
             CREATE TABLE IF NOT EXISTS grades (
                 id TEXT PRIMARY KEY,
@@ -136,6 +137,8 @@ impl Db {
                 FOREIGN KEY(document_id) REFERENCES rag_documents(id) ON DELETE CASCADE
             );",
         )?;
+        // Forward-compatible column add (Bug #12 — notes_modified_at).
+        let _ = c.execute("ALTER TABLE students ADD COLUMN notes_modified_at TEXT", []);
         Ok(())
     }
 
@@ -144,8 +147,8 @@ impl Db {
         let c = self.conn.lock();
         c.execute(
             "INSERT OR REPLACE INTO students
-             (id,name,gender,grade,class,id_number,birth_date,enrollment_date,guardian_name,guardian_contact,guardian_relation,home_address,emergency_contact,risk_level,gpa,tags,notes,created_at,updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+             (id,name,gender,grade,class,id_number,birth_date,enrollment_date,guardian_name,guardian_contact,guardian_relation,home_address,emergency_contact,risk_level,gpa,tags,notes,created_at,updated_at,notes_modified_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             params![
                 s.id.to_string(),
                 s.name,
@@ -166,6 +169,7 @@ impl Db {
                 s.notes,
                 s.created_at.to_rfc3339(),
                 s.updated_at.to_rfc3339(),
+                s.notes_modified_at.map(|d| d.to_rfc3339()),
             ],
         )?;
         Ok(())
@@ -821,6 +825,7 @@ fn row_to_student(r: &rusqlite::Row) -> rusqlite::Result<Student> {
     let enroll: Option<String> = r.get("enrollment_date")?;
     let tags_json: String = r.get("tags")?;
     let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+    let notes_modified_at: Option<String> = r.get("notes_modified_at").ok();
     Ok(Student {
         id: Uuid::parse_str(&id).unwrap_or_default(),
         name: r.get("name")?,
@@ -851,6 +856,11 @@ fn row_to_student(r: &rusqlite::Row) -> rusqlite::Result<Student> {
             .map_or_else(|_| Utc::now(), |d| d.with_timezone(&Utc)),
         updated_at: DateTime::parse_from_rfc3339(&r.get::<_, String>("updated_at")?)
             .map_or_else(|_| Utc::now(), |d| d.with_timezone(&Utc)),
+        notes_modified_at: notes_modified_at.and_then(|s| {
+            DateTime::parse_from_rfc3339(&s)
+                .ok()
+                .map(|d| d.with_timezone(&Utc))
+        }),
     })
 }
 

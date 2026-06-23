@@ -200,6 +200,7 @@ pub fn new_blank_student() -> Student {
         notes: None,
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        notes_modified_at: None,
     }
 }
 

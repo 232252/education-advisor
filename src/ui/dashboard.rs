@@ -9,58 +9,37 @@ use crate::ui::widgets::{card, empty_state, ghost_button, section_title, stat_ca
 pub fn show(app: &mut App, ui: &mut Ui) {
     section_title(ui, &app.theme, "总览");
 
-    // KPI 行：均分四列，间距 8
-    ui.horizontal(|ui| {
-        let stats = app.stats.read();
-        let s = stats.as_ref();
-        let total = s.map_or(0, |s| s.total_students);
-        let avg = s.map_or(0.0, |s| s.avg_gpa);
-        let convs = s.map_or(0, |s| s.conversations_today);
-        let tools = s.map_or(0, |s| s.tool_calls_total);
-        let gap = 8.0;
-        let card_w = ((ui.available_width() - gap * 3.0) / 4.0).max(120.0);
-        let make_card = |ui: &mut Ui, label: &str, value: &str, icon, accent| {
-            ui.set_width(card_w);
-            stat_card(ui, &app.theme, label, value, icon, accent, card_w);
-        };
-        ui.vertical(|ui| {
-            make_card(
-                ui,
-                "学生总数",
-                &total.to_string(),
-                icons::students,
-                app.theme.accent,
-            )
+    // KPI 行：Bug #5 — 硬编码 4 列改为按屏幕宽度自适应（窄屏 2 列）。
+    let avail_w = ui.available_width();
+    let (cols, card_w) = if avail_w < 720.0 {
+        (2usize, ((avail_w - 8.0) / 2.0).max(140.0))
+    } else if avail_w < 1100.0 {
+        (2, ((avail_w - 24.0) / 2.0).max(160.0))
+    } else {
+        (4, ((avail_w - 24.0) / 4.0).max(160.0))
+    };
+    let stats = app.stats.read();
+    let s = stats.as_ref();
+    let total = s.map_or(0, |s| s.total_students);
+    let avg = s.map_or(0.0, |s| s.avg_gpa);
+    let convs = s.map_or(0, |s| s.conversations_today);
+    let tools = s.map_or(0, |s| s.tool_calls_total);
+    drop(stats);
+    let cards: [(&str, String, fn(&eframe::egui::Painter, eframe::egui::Rect, &crate::theme::Theme), eframe::egui::Color32); 4] = [
+        ("学生总数", total.to_string(), icons::students, app.theme.accent),
+        ("平均 GPA", format!("{avg:.2}"), icons::chat, app.theme.success),
+        ("今日对话", convs.to_string(), icons::history, app.theme.info),
+        ("工具调用", tools.to_string(), icons::skills, app.theme.warning),
+    ];
+    for row in cards.chunks(cols) {
+        ui.horizontal(|ui| {
+            let gap = 8.0;
+            ui.spacing_mut().item_spacing = Vec2::new(gap, 8.0);
+            for (label, value, icon, accent) in row {
+                stat_card(ui, &app.theme, label, value, *icon, *accent, card_w);
+            }
         });
-        ui.vertical(|ui| {
-            make_card(
-                ui,
-                "平均 GPA",
-                &format!("{avg:.2}"),
-                icons::chat,
-                app.theme.success,
-            )
-        });
-        ui.vertical(|ui| {
-            make_card(
-                ui,
-                "今日对话",
-                &convs.to_string(),
-                icons::history,
-                app.theme.info,
-            )
-        });
-        ui.vertical(|ui| {
-            make_card(
-                ui,
-                "工具调用",
-                &tools.to_string(),
-                icons::skills,
-                app.theme.warning,
-            )
-        });
-        ui.add_space(gap);
-    });
+    }
 
     ui.add_space(8.0);
 

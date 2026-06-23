@@ -203,6 +203,11 @@ fn conversation_row(
 
 fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
     let theme = app.theme.clone();
+    // Bug #9 — 在 chat_view 入口先记录"输入框是否聚焦"，供后面的
+    // 全局 Enter 检测使用。注意：这里只在 chat 页生效（其他页根本
+    // 不会调 chat_view），所以不会和全局其它 Enter 行为冲突。
+    let input_had_focus_at_entry = app.ui_state.chat_input_focused;
+
     card(ui, &theme, |ui| {
         ui.vertical(|ui| {
             // ── Header ──
@@ -296,20 +301,32 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
             ui.add_space(4.0);
 
             // ── Messages ──
-            let messages = app.messages.get(&conv_id).cloned().unwrap_or_default();
-            let stream = app.streaming.get(&conv_id).cloned();
+            // Bug #2: 不再每帧 clone Vec<Message>，按引用迭代。
+            // `streaming` 也改成按引用（Clone 仅在 `streaming_bubble` 需要
+            // 内部写时借用，本身不需要 owned）。
+            let messages_empty = app
+                .messages
+                .get(&conv_id)
+                .map(|v| v.is_empty())
+                .unwrap_or(true);
+            let stream_empty = app
+                .streaming
+                .get(&conv_id)
+                .map(|s| s.buffer.is_empty() && !s.active)
+                .unwrap_or(true);
             egui::ScrollArea::vertical()
                 .stick_to_bottom(true)
                 .max_height(ui.available_height() - 70.0)
                 .show(ui, |ui| {
-                    if messages.is_empty() && stream.as_ref().map_or(true, |s| s.buffer.is_empty())
-                    {
+                    if messages_empty && stream_empty {
                         empty_state(ui, &theme, icons::agent, "输入消息开始与 AI 代理对话");
                     }
-                    for m in &messages {
-                        message_bubble(app, ui, m);
+                    if let Some(msgs) = app.messages.get(&conv_id) {
+                        for m in msgs {
+                            message_bubble(app, ui, m);
+                        }
                     }
-                    if let Some(s) = &stream {
+                    if let Some(s) = app.streaming.get(&conv_id) {
                         if s.active || !s.buffer.is_empty() {
                             streaming_bubble(app, ui, s);
                         }
@@ -321,6 +338,9 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
             ui.add_space(6.0);
 
             // ── Input ──
+            // Bug #9 — 用 `resp.has_focus()` 标记当前帧是否聚焦。
+            // 不在 TextEdit 内部处理 Enter，避免被 TextEdit 的 IME/多行
+            // 换行逻辑吞掉键事件（Shift+Enter 仍能换行）。
             ui.horizontal(|ui| {
                 let input_w = ui.available_width() - 100.0;
                 let resp = ui.add(
@@ -329,19 +349,8 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
                         .desired_rows(1)
                         .hint_text("输入消息，Enter 发送，Shift+Enter 换行…"),
                 );
-                // Enter should send *as long as* the input has focus and
-                // Shift is not held. We can't rely on `lost_focus()` here
-                // because Enter is consumed by the TextEdit before focus
-                // ever changes; checking the key state on the focused
-                // response is more reliable.
-                let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter));
-                let shift_held = ui.input(|i| i.modifiers.shift);
-                if resp.has_focus()
-                    && enter_pressed
-                    && !shift_held
-                    && !app.chat_input.trim().is_empty()
-                {
-                    send(app, conv_id);
+                if resp.has_focus() {
+                    app.ui_state.chat_input_focused = true;
                 }
                 let streaming = app.streaming.get(&conv_id).is_some_and(|s| s.active);
                 if streaming {
@@ -357,6 +366,29 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
             });
         });
     });
+    // Bug #9 — 全局 Enter 发送：仅在 chat 页生效（chat_view 是 chat 页
+    // 唯一入口），避免与其他页的 Enter 行为冲突。
+    // 关键改进：
+    //   - 用 `chat_input_focused`（在 TextEdit 渲染时记录的帧内标志）
+    //     来判断"用户当前是否在输入框"，与 TextEdit 自身的换行逻辑
+    //     完全解耦；
+    //   - 排除 Shift+Enter（让多行编辑依然能用）；
+    //   - 空文本不发；
+    //   - 使用 selected_conversation 而不是闭包外的 conv_id 副本，
+    //     避免"用户切换了会话但 Enter 仍发给旧会话"的边界情况。
+    if input_had_focus_at_entry
+        || app.ui_state.chat_input_focused
+    {
+        let want_send = ui.input(|i| {
+            i.key_pressed(egui::Key::Enter) && !i.modifiers.shift && !i.modifiers.alt
+        });
+        if want_send && !app.chat_input.trim().is_empty() {
+            if let Some(conv) = app.selected_conversation {
+                send(app, conv);
+            }
+        }
+    }
+    app.ui_state.chat_input_focused = false;
 }
 
 fn send(app: &mut App, conv_id: Uuid) {
@@ -376,7 +408,7 @@ fn send(app: &mut App, conv_id: Uuid) {
     }
 }
 
-fn message_bubble(app: &mut App, ui: &mut Ui, m: &Message) {
+fn message_bubble(app: &App, ui: &mut Ui, m: &Message) {
     ui.add_space(6.0);
     let is_user = m.role == Role::User;
     let max_w = ui.available_width() * 0.78;
@@ -393,7 +425,7 @@ fn message_bubble(app: &mut App, ui: &mut Ui, m: &Message) {
     ui.add_space(2.0);
 }
 
-fn bubble(app: &mut App, ui: &mut Ui, m: &Message, max_w: f32, is_user: bool) {
+fn bubble(app: &App, ui: &mut Ui, m: &Message, max_w: f32, is_user: bool) {
     let theme = &app.theme;
     let bg = if is_user { theme.accent } else { theme.surface };
     let text_color = if is_user { Color32::WHITE } else { theme.text };
@@ -442,7 +474,7 @@ fn bubble(app: &mut App, ui: &mut Ui, m: &Message, max_w: f32, is_user: bool) {
     }
 }
 
-fn streaming_bubble(app: &mut App, ui: &mut Ui, s: &crate::app::StreamState) {
+fn streaming_bubble(app: &App, ui: &mut Ui, s: &crate::app::StreamState) {
     ui.add_space(6.0);
     ui.horizontal(|ui| {
         let theme = &app.theme;
@@ -492,7 +524,7 @@ fn streaming_bubble(app: &mut App, ui: &mut Ui, s: &crate::app::StreamState) {
     }
 }
 
-fn tool_row(app: &mut App, ui: &mut Ui, tc: &crate::models::ToolCallRecord) {
+fn tool_row(app: &App, ui: &mut Ui, tc: &crate::models::ToolCallRecord) {
     let theme = &app.theme;
     let color = match tc.status {
         ToolStatus::Pending | ToolStatus::Running => theme.warning,
