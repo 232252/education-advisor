@@ -60,6 +60,7 @@ pub fn view(app: &App) -> Element<Message> {
     let content = column![
         header,
         kpi_row,
+        Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(16.0)),
         risk_section,
         row![trend_section, agent_section].spacing(12),
         conv_section,
@@ -89,7 +90,7 @@ fn risk_distribution_card<'a>(app: &'a App) -> Element<'a, Message> {
     let mut rows: Vec<Element<Message>> = Vec::new();
     rows.push(widgets::section_title(theme, "风险分布").into());
 
-    // Stacked bar chart: one row of containers, each FillPortion by ratio, 12px tall, 6px radius
+    // Stacked capsule bar: one row of containers, each FillPortion by ratio, 14px tall, 7px radius
     let mut bar_segments: Vec<Element<Message>> = Vec::new();
     for (i, &count) in stats.risk_distribution.iter().enumerate() {
         if count == 0 {
@@ -98,18 +99,18 @@ fn risk_distribution_card<'a>(app: &'a App) -> Element<'a, Message> {
         let color = colors[i];
         let portion = ((count as f32 / total as f32) * 100.0).max(1.0) as u16;
         bar_segments.push(
-            container(Space::new().width(Length::Fill).height(Length::Fixed(12.0)))
+            container(Space::new().width(Length::Fill).height(Length::Fixed(14.0)))
                 .style(move |_: &iced::Theme| iced::widget::container::Style {
                     background: Some(iced::Background::Color(color)),
                     border: iced::Border {
                         color: iced::Color::TRANSPARENT,
                         width: 0.0,
-                        radius: iced::border::Radius::from(6.0),
+                        radius: iced::border::Radius::from(7.0),
                     },
                     ..Default::default()
                 })
                 .width(Length::FillPortion(portion))
-                .height(Length::Fixed(12.0))
+                .height(Length::Fixed(14.0))
                 .into(),
         );
     }
@@ -118,7 +119,7 @@ fn risk_distribution_card<'a>(app: &'a App) -> Element<'a, Message> {
         rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)).into());
     }
 
-    // Detail rows: label(60px) + progress_bar + value(50px)
+    // Detail rows: label(60px) + capsule progress bar(girth 10px, radius 5px) + percentage value(50px)
     for (i, &count) in stats.risk_distribution.iter().enumerate() {
         let pct = count as f32 / total as f32;
         let color = colors[i];
@@ -127,9 +128,12 @@ fn risk_distribution_card<'a>(app: &'a App) -> Element<'a, Message> {
             .style(move |_: &iced::Theme| iced::widget::progress_bar::Style {
                 background: iced::Background::Color(iced::Color { a: 0.1, ..color }),
                 bar: iced::Background::Color(color),
-                border: iced::Border::default(),
+                border: iced::Border {
+                    radius: iced::border::Radius::from(5.0),
+                    ..Default::default()
+                },
             })
-            .girth(Length::Fixed(8.0))
+            .girth(Length::Fixed(10.0))
             .length(Length::Fill);
 
         let row_item = row![
@@ -139,9 +143,14 @@ fn risk_distribution_card<'a>(app: &'a App) -> Element<'a, Message> {
                 .style(move |_: &iced::Theme| style::text_dim(theme))
                 .width(Length::Fixed(60.0)),
             bar,
-            text(format!("{}", count))
+            text(format!("{:.0}%", pct * 100.0))
                 .font(CJK_FONT)
                 .size(13)
+                .font(Font {
+                    family: CJK_FONT.family,
+                    weight: iced::font::Weight::Bold,
+                    ..Default::default()
+                })
                 .style(move |_: &iced::Theme| iced::widget::text::Style {
                     color: Some(color),
                 })
@@ -181,14 +190,35 @@ fn grade_trend_card<'a>(app: &'a App) -> Element<'a, Message> {
 
         for (label, score) in &stats.grade_trend {
             let pct = (*score / max_score).clamp(0.0, 1.0);
-            let bar = progress_bar(0.0..=1.0, pct)
-                .style(move |_: &iced::Theme| iced::widget::progress_bar::Style {
-                    background: iced::Background::Color(iced::Color { a: 0.1, ..theme.accent }),
-                    bar: iced::Background::Color(theme.accent),
-                    border: iced::Border::default(),
-                })
-                .girth(Length::Fixed(6.0))
-                .length(Length::Fill);
+
+            // Dual-track bar: outer container (background track) + inner container (foreground track)
+            let portion = (pct * 100.0).max(1.0) as u16;
+
+            let dual_bar = container(
+                row![container(Space::new().width(Length::FillPortion(portion)).height(Length::Fixed(10.0)))
+                    .style(move |_: &iced::Theme| iced::widget::container::Style {
+                        background: Some(iced::Background::Color(theme.accent)),
+                        border: iced::Border {
+                            color: iced::Color::TRANSPARENT,
+                            width: 0.0,
+                            radius: iced::border::Radius::from(6.0),
+                        },
+                        ..Default::default()
+                    }),
+                    Space::new().width(Length::FillPortion((100 - portion).max(1))).height(Length::Fixed(10.0))]
+                .align_y(Alignment::Center),
+            )
+            .style(move |_: &iced::Theme| iced::widget::container::Style {
+                background: Some(iced::Background::Color(iced::Color { a: 0.1, ..theme.accent })),
+                border: iced::Border {
+                    color: iced::Color::TRANSPARENT,
+                    width: 0.0,
+                    radius: iced::border::Radius::from(6.0),
+                },
+                ..Default::default()
+            })
+            .width(Length::Fill)
+            .height(Length::Fixed(10.0));
 
             let row_item = row![
                 text(label.clone())
@@ -196,12 +226,14 @@ fn grade_trend_card<'a>(app: &'a App) -> Element<'a, Message> {
                     .size(12)
                     .style(move |_: &iced::Theme| style::text_faint(theme))
                     .width(Length::Fixed(50.0)),
-                bar,
+                dual_bar.width(Length::Fill),
                 text(format!("{:.1}", score))
                     .font(CJK_FONT)
-                    .size(12)
-                    .style(move |_: &iced::Theme| style::text_dim(theme))
-                    .width(Length::Fixed(40.0)),
+                    .size(13)
+                    .style(move |_: &iced::Theme| iced::widget::text::Style {
+                        color: Some(theme.accent),
+                    })
+                    .width(Length::Fixed(45.0)),
             ]
             .spacing(8)
             .align_y(Alignment::Center);
@@ -221,7 +253,28 @@ fn agent_activity_card<'a>(app: &'a App) -> Element<'a, Message> {
     rows.push(widgets::section_title(theme, "代理活动").into());
 
     if stats.agent_activity.is_empty() {
-        rows.push(widgets::empty_state(theme, "🤖", "暂无活动数据").into());
+        let empty_content = column![
+            text("🤖").size(48),
+            text("暂无代理活动")
+                .font(CJK_FONT)
+                .size(15)
+                .style(move |_: &iced::Theme| style::text_dim(theme)),
+            text("当 AI 代理执行任务后，活动数据将在此展示")
+                .font(CJK_FONT)
+                .size(12)
+                .style(move |_: &iced::Theme| style::text_faint(theme)),
+        ]
+        .spacing(8)
+        .align_x(Alignment::Center);
+
+        rows.push(
+            container(empty_content)
+                .padding(40.0)
+                .width(Length::Fill)
+                .align_x(Alignment::Center)
+                .align_y(Alignment::Center)
+                .into(),
+        );
     } else {
         let max_count = stats
             .agent_activity
@@ -278,6 +331,7 @@ fn recent_conversations_card(app: &App) -> Element<Message> {
                 theme,
                 "💬",
                 "还没有对话记录",
+                "点击按钮创建你的第一个对话",
                 "开始新对话",
                 Message::Navigate(Page::Chat),
             )

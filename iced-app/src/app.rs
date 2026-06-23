@@ -8,7 +8,8 @@ use std::time::Duration;
 
 use futures_util::stream::{self, StreamExt};
 use iced::widget::{column, container, row, scrollable, text};
-use iced::{Alignment, Element, Font, Length, Subscription, Task};
+use iced::{Alignment, Background, Degrees, Element, Font, Gradient, Length, Subscription, Task};
+use iced::gradient;
 use parking_lot::RwLock;
 use uuid::Uuid;
 
@@ -1082,10 +1083,22 @@ impl App {
         .height(Length::Fill)
         .style(move |_, _| ui::style::scrollable(theme));
 
-        let body = row![sidebar, content]
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_y(Alignment::Start);
+        let bg_gradient = Gradient::Linear(gradient::Linear::new(Degrees(180.0))
+            .add_stop(0.0, theme.bg_gradient_from)
+            .add_stop(1.0, theme.bg_gradient_to));
+
+        let body = container(
+            row![sidebar, content]
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_y(Alignment::Start),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(move |_: &iced::Theme| iced::widget::container::Style {
+            background: Some(Background::Gradient(bg_gradient.clone())),
+            ..Default::default()
+        });
 
         let toasts = ui::toast::view(self);
 
