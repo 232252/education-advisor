@@ -583,8 +583,7 @@ pub fn tab_switcher(ui: &mut Ui, theme: &Theme, tabs: &[&str], active: usize) ->
                                 Pos2::new((i as f32).mul_add(tab_w, rect.min.x), rect.min.y),
                                 Vec2::new(tab_w, height),
                             );
-                            let (_, resp) =
-                                ui.allocate_exact_size(tr.size(), Sense::click());
+                            let (_, resp) = ui.allocate_exact_size(tr.size(), Sense::click());
                             if i == active {
                                 ui.painter().rect_filled(
                                     tr.shrink(2.0),

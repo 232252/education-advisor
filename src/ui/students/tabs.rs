@@ -374,11 +374,7 @@ pub fn notes_tags(app: &mut App, ui: &mut Ui, student: &Student) {
         });
         ui.add_space(8.0);
         // Bug #16 — tag_input 改为按学生隔离，切换学生不会残留上次输入。
-        let tag_buf = app
-            .ui_state
-            .tag_input
-            .entry(student.id)
-            .or_default();
+        let tag_buf = app.ui_state.tag_input.entry(student.id).or_default();
         let mut local = std::mem::take(tag_buf);
         ui.horizontal(|ui| {
             text_input(ui, &theme, &mut local, "输入新标签...", 160.0);
@@ -433,9 +429,7 @@ pub fn notes_tags(app: &mut App, ui: &mut Ui, student: &Student) {
         }
         if resp.changed() {
             // Bug #1：只更新草稿，**不**触发 SaveStudent。
-            app.ui_state
-                .notes_draft
-                .insert(student.id, notes.clone());
+            app.ui_state.notes_draft.insert(student.id, notes.clone());
             app.ui_state.notes_dirty.insert(student.id, true);
         }
         if resp.lost_focus() {
@@ -444,13 +438,7 @@ pub fn notes_tags(app: &mut App, ui: &mut Ui, student: &Student) {
             app.ui_state.notes_focus_student = None;
         }
         // 草稿状态指示
-        if app
-            .ui_state
-            .notes_dirty
-            .get(&student.id)
-            .copied()
-            .unwrap_or(false)
-        {
+        if app.ui_state.notes_dirty.get(&student.id).copied().unwrap_or(false) {
             ui.add_space(4.0);
             ui.label(
                 egui::RichText::new("● 未保存（失焦时自动保存）")
