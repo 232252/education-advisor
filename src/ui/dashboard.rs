@@ -26,10 +26,30 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     let tools = s.map_or(0, |s| s.tool_calls_total);
     drop(stats);
     let cards: [(&str, String, fn(&eframe::egui::Painter, eframe::egui::Rect, &crate::theme::Theme), eframe::egui::Color32); 4] = [
-        ("学生总数", total.to_string(), icons::students, app.theme.accent),
-        ("平均 GPA", format!("{avg:.2}"), icons::chat, app.theme.success),
-        ("今日对话", convs.to_string(), icons::history, app.theme.info),
-        ("工具调用", tools.to_string(), icons::skills, app.theme.warning),
+        (
+            "学生总数",
+            total.to_string(),
+            icons::students,
+            app.theme.accent,
+        ),
+        (
+            "平均 GPA",
+            format!("{avg:.2}"),
+            icons::chat,
+            app.theme.success,
+        ),
+        (
+            "今日对话",
+            convs.to_string(),
+            icons::history,
+            app.theme.info,
+        ),
+        (
+            "工具调用",
+            tools.to_string(),
+            icons::skills,
+            app.theme.warning,
+        ),
     ];
     for row in cards.chunks(cols) {
         ui.horizontal(|ui| {
