@@ -31,6 +31,10 @@ pub struct Student {
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// 备注最后修改时间 — 独立于 `updated_at`，避免备注草稿每次键入都
+    /// 把整张学生表重排（详见 v0.1.0-rc.1 修复 Bug #12）。
+    #[serde(default)]
+    pub notes_modified_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]

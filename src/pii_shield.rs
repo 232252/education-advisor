@@ -482,6 +482,24 @@ impl PrivacyEngine {
     pub fn set_enabled(&mut self, on: bool) {
         self.enabled = on;
     }
+
+    /// Bug #10 — 用 `other` 的内部状态完全替换本引擎。
+    ///
+    /// 用途：UI 在异步线程里跑完 `init` / `load`（KDF + AES-GCM 解密 +
+    /// JSON 反序列化 + 反向映射构建，对几万条映射可能耗时 100~500ms），
+    /// 然后把成品引擎通过 `mpsc` 传回 UI 线程。UI 线程调用本方法即可
+    /// 一次性落位，避免在 UI 线程上再跑一遍 `init`/`load`（OS page cache
+    /// 命中不代表 JSON 反序列化是免费的）。
+    ///
+    /// 设计上是一次性 swap，不会触发任何落盘；调用方负责保证 `other`
+    /// 来自可信的本地代码路径。
+    pub fn replace_with(&mut self, other: PrivacyEngine) {
+        self.enabled = other.enabled;
+        self.forward = other.forward;
+        self.reverse = other.reverse;
+        self.cipher = other.cipher;
+        self.mapping_path = other.mapping_path;
+    }
 }
 
 /// 从密码派生 256 位 AES 密钥。

@@ -172,11 +172,10 @@ fn agent_card(app: &mut App, ui: &mut Ui, agent: &crate::agents::AgentDef) {
     if resp.clicked() {
         app.active_agent = agent.id.to_string();
     }
-    // Double-click starts a conversation (auto-binds selected student if any).
-    // `egui` reports both `clicked()` *and* `double_clicked()` on the second
-    // beat of a double-click, so we gate on the latter to avoid firing the
-    // "navigate to chat" branch on every plain click.
-    if resp.double_clicked() && !resp.clicked() {
+    // Bug #15 — 之前 `!resp.clicked()` 把双击分支给屏蔽了，导致双击
+    // 永远不进入对话。egui 在双击的第二次按下时同时报告 `clicked()` 与
+    // `double_clicked()`，因此正确做法是优先用 `double_clicked()`。
+    if resp.double_clicked() {
         let student_id = app.selected_student;
         let title = if let Some(sid) = student_id {
             let students = app.students.read();

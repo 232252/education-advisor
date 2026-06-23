@@ -84,6 +84,12 @@ pub fn basic_info(app: &mut App, ui: &mut Ui, student: &Student) {
                 .color(theme.text),
         );
         ui.add_space(6.0);
+        // Bug #6 — 风险等级按钮无响应：
+        //   1) 用 `allocate_exact_size(.., Sense::click())` 拿到 `resp`
+        //   2) 点击非当前等级 → 克隆学生、更新 `risk_level` 与 `updated_at`
+        //   3) 发送 `SaveStudent` 命令到 runtime；DB 写完会回灌
+        //      `Event::Students(...)`，下一帧 detail.rs 拉到的学生就带新等级
+        //   4) 顺便推一条 toast 给用户即时反馈，避免「按了没反应」的疑虑
         ui.horizontal(|ui| {
             for level in RiskLevel::all() {
                 let is_current = student.risk_level == level;
@@ -109,6 +115,19 @@ pub fn basic_info(app: &mut App, ui: &mut Ui, student: &Student) {
                         color
                     },
                 );
+                if resp.clicked() && !is_current {
+                    let mut updated = student.clone();
+                    updated.risk_level = level;
+                    updated.updated_at = Utc::now();
+                    let _ = app
+                        .runtime
+                        .tx
+                        .send(crate::runtime::Command::SaveStudent(updated));
+                    app.push_toast(
+                        crate::runtime::ToastKind::Success,
+                        format!("已将「{}」的风险等级更新为 {}", student.name, level.label()),
+                    );
+                }
             }
         });
     });
@@ -324,6 +343,14 @@ pub fn family_info(app: &mut App, ui: &mut Ui, student: &Student) {
 pub fn notes_tags(app: &mut App, ui: &mut Ui, student: &Student) {
     let theme = app.theme.clone();
 
+    // ── 切换学生时先把上一位学生的草稿落盘（Bug #1） ───────────
+    if let Some(prev) = app.ui_state.notes_focus_student {
+        if prev != student.id {
+            flush_notes_draft(app, prev);
+            app.ui_state.notes_focus_student = None;
+        }
+    }
+
     // Tags
     card(ui, &theme, |ui| {
         ui.label(
@@ -346,20 +373,19 @@ pub fn notes_tags(app: &mut App, ui: &mut Ui, student: &Student) {
             }
         });
         ui.add_space(8.0);
+        // Bug #16 — tag_input 改为按学生隔离，切换学生不会残留上次输入。
+        let tag_buf = app
+            .ui_state
+            .tag_input
+            .entry(student.id)
+            .or_default();
+        let mut local = std::mem::take(tag_buf);
         ui.horizontal(|ui| {
-            text_input(
-                ui,
-                &theme,
-                &mut app.ui_state.tag_input,
-                "输入新标签...",
-                160.0,
-            );
+            text_input(ui, &theme, &mut local, "输入新标签...", 160.0);
             ui.add_space(6.0);
-            if primary_button(ui, &theme, "添加").clicked()
-                && !app.ui_state.tag_input.trim().is_empty()
-            {
-                let tag = app.ui_state.tag_input.trim().to_string();
-                app.ui_state.tag_input.clear();
+            if primary_button(ui, &theme, "添加").clicked() && !local.trim().is_empty() {
+                let tag = local.trim().to_string();
+                local.clear();
                 let mut updated = student.clone();
                 if !updated.tags.contains(&tag) {
                     updated.tags.push(tag);
@@ -371,11 +397,12 @@ pub fn notes_tags(app: &mut App, ui: &mut Ui, student: &Student) {
                 }
             }
         });
+        *app.ui_state.tag_input.entry(student.id).or_default() = local;
     });
 
     ui.add_space(10.0);
 
-    // Notes
+    // Notes — 草稿模式：键入只更新 in-memory 缓存；失焦时再写盘。
     card(ui, &theme, |ui| {
         ui.label(
             egui::RichText::new("备注")
@@ -384,24 +411,98 @@ pub fn notes_tags(app: &mut App, ui: &mut Ui, student: &Student) {
                 .color(theme.text),
         );
         ui.add_space(8.0);
-        let mut notes = student.notes.clone().unwrap_or_default();
+        // 取草稿优先；没有则用当前 student.notes 作为初值。
+        if !app.ui_state.notes_draft.contains_key(&student.id) {
+            app.ui_state
+                .notes_draft
+                .insert(student.id, student.notes.clone().unwrap_or_default());
+        }
+        let mut notes = app
+            .ui_state
+            .notes_draft
+            .get(&student.id)
+            .cloned()
+            .unwrap_or_default();
         let edit = egui::TextEdit::multiline(&mut notes)
             .desired_width(ui.available_width())
             .desired_rows(4)
             .hint_text("输入学生备注信息...");
         let resp = ui.add(edit);
+        if resp.has_focus() {
+            app.ui_state.notes_focus_student = Some(student.id);
+        }
         if resp.changed() {
-            let mut updated = student.clone();
-            updated.notes = if notes.trim().is_empty() {
-                None
-            } else {
-                Some(notes)
-            };
-            updated.updated_at = Utc::now();
-            let _ = app
-                .runtime
-                .tx
-                .send(crate::runtime::Command::SaveStudent(updated));
+            // Bug #1：只更新草稿，**不**触发 SaveStudent。
+            app.ui_state
+                .notes_draft
+                .insert(student.id, notes.clone());
+            app.ui_state.notes_dirty.insert(student.id, true);
+        }
+        if resp.lost_focus() {
+            // Bug #1：失焦落盘一次，**不**改 updated_at，只改 notes_modified_at。
+            flush_notes_draft(app, student.id);
+            app.ui_state.notes_focus_student = None;
+        }
+        // 草稿状态指示
+        if app
+            .ui_state
+            .notes_dirty
+            .get(&student.id)
+            .copied()
+            .unwrap_or(false)
+        {
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new("● 未保存（失焦时自动保存）")
+                    .font(FontId::proportional(10.0))
+                    .color(theme.warning),
+            );
         }
     });
+}
+
+/// Bug #1 — 把指定学生的备注草稿写入 DB。
+/// 关键改动：只更新 `notes` 与 `notes_modified_at`，**绝不**触碰 `updated_at`，
+/// 避免学生列表在每次按键时抖一下。
+fn flush_notes_draft(app: &mut App, student_id: Uuid) {
+    let dirty = app
+        .ui_state
+        .notes_dirty
+        .get(&student_id)
+        .copied()
+        .unwrap_or(false);
+    if !dirty {
+        return;
+    }
+    let Some(draft) = app.ui_state.notes_draft.get(&student_id).cloned() else {
+        return;
+    };
+    let Some(snapshot) = app
+        .students
+        .read()
+        .iter()
+        .find(|s| s.id == student_id)
+        .cloned()
+    else {
+        return;
+    };
+    let mut updated = snapshot;
+    let new_notes = if draft.trim().is_empty() {
+        None
+    } else {
+        Some(draft)
+    };
+    if updated.notes == new_notes {
+        // 内容没有实质变化（只有空白之类），仍然清 dirty 避免下次重复刷。
+        app.ui_state.notes_dirty.insert(student_id, false);
+        return;
+    }
+    updated.notes = new_notes;
+    updated.notes_modified_at = Some(Utc::now());
+    // 注意：updated_at 不动。
+    let _ = app
+        .runtime
+        .tx
+        .send(crate::runtime::Command::SaveStudent(updated));
+    app.ui_state.notes_dirty.insert(student_id, false);
 }

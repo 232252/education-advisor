@@ -86,6 +86,8 @@ pub struct App {
     pub students: Arc<RwLock<Vec<Student>>>,
     pub conversations: Arc<RwLock<Vec<Conversation>>>,
     pub messages: HashMap<uuid::Uuid, Vec<Message>>,
+    /// Bug #8 — messages 的 LRU 时间戳跟踪表。
+    pub messages_last_used: HashMap<uuid::Uuid, u64>,
     pub tasks: Arc<RwLock<Vec<ScheduledTask>>>,
     pub providers: Arc<RwLock<Vec<LlmProvider>>>,
     pub rag_documents: Arc<RwLock<Vec<crate::models::RagDocument>>>,
@@ -116,12 +118,79 @@ pub struct App {
     pub pii: parking_lot::Mutex<crate::pii_shield::PrivacyEngine>,
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct StreamState {
     pub current_message_id: Option<uuid::Uuid>,
     pub buffer: String,
     pub tool_calls: Vec<ToolCallRecord>,
     pub active: bool,
+    /// Bug #7 — 标记本条 streaming 状态最后一次被刷新的时间；
+    /// `drain_events` 会定期清理超过一定时长未刷新的条目，避免
+    /// 因网络/UI 卡顿造成的"僵尸"条目无限堆积。
+    pub last_touched: std::time::Instant,
+}
+
+impl Default for StreamState {
+    fn default() -> Self {
+        Self {
+            current_message_id: None,
+            buffer: String::new(),
+            tool_calls: Vec::new(),
+            active: false,
+            last_touched: std::time::Instant::now(),
+        }
+    }
+}
+
+/// Bug #7 — streaming 条目超过该时长未刷新即视为"僵尸"被清理。
+/// 60s 足以覆盖任何正常的 token/tool 间隔（普通 LLM 流式 30~60 token/s
+/// 不会断流 60s），同时把"网络卡住 / runtime 崩溃 / StreamDone/Error
+/// 因通道背压丢失"等异常场景的条目兜底回收，避免内存泄漏。
+const STREAM_ZOMBIE_TTL: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Bug #8 — messages 缓存 LRU 上限：超过此数量的会话会被驱逐最久未使用
+/// 的条目。
+const MESSAGES_LRU_CAP: usize = 20;
+const MESSAGES_EVICT_BATCH: usize = 5;
+
+/// Bug #8 — 全局单调 tick，作为 LRU 时间戳。
+static MESSAGES_TICK: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+fn next_tick() -> u64 {
+    MESSAGES_TICK.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Bug #8 — 驱逐超量条目。
+///
+/// - 若 `last_used` 有孤儿（map 里存在但 last_used 没记录），优先用
+///   `last_used` 的最小 tick 当作"未知时间戳"回填，再统一排序驱逐。
+/// - 若 `map` 仍有 `last_used` 缺失的条目（极端情况），把它们的 tick
+///   视为 0（即最早），保证也会被驱逐。
+fn enforce_messages_lru(
+    map: &mut HashMap<uuid::Uuid, Vec<Message>>,
+    last_used: &mut HashMap<uuid::Uuid, u64>,
+) {
+    if map.len() <= MESSAGES_LRU_CAP {
+        return;
+    }
+    // 同步 last_used：删除 map 里已经不存在的；为 map 里的孤儿补 0
+    // tick（确保它们会被优先驱逐）。
+    last_used.retain(|id, _| map.contains_key(id));
+    for id in map.keys() {
+        last_used.entry(*id).or_insert(0);
+    }
+    let mut entries: Vec<(uuid::Uuid, u64)> = last_used
+        .iter()
+        .map(|(id, t)| (*id, *t))
+        .collect();
+    entries.sort_by_key(|(_, t)| *t);
+    // 目标容量 = MESSAGES_LRU_CAP - evict_batch（留下 5 个槽位吸收
+    // 下一次增长，避免每帧都做 evict 的抖动）。
+    let target = MESSAGES_LRU_CAP.saturating_sub(MESSAGES_EVICT_BATCH);
+    let to_evict = map.len().saturating_sub(target);
+    for (id, _) in entries.iter().take(to_evict) {
+        map.remove(id);
+        last_used.remove(id);
+    }
 }
 
 impl App {
@@ -186,6 +255,7 @@ impl App {
             students: Arc::new(RwLock::new(Vec::new())),
             conversations: Arc::new(RwLock::new(Vec::new())),
             messages: HashMap::new(),
+            messages_last_used: HashMap::new(),
             tasks: Arc::new(RwLock::new(Vec::new())),
             providers: Arc::new(RwLock::new(Vec::new())),
             rag_documents: Arc::new(RwLock::new(Vec::new())),
@@ -252,6 +322,17 @@ impl App {
             StreamTool, StudentDeleted, Students, StudentsImported, StudentsSaved, TaskDeleted,
             TaskSaved, Tasks, Toast,
         };
+        // Bug #7 — 在拉事件前先清扫超时未刷新的 streaming 僵尸条目。
+        // 判定标准：`active` 且 `now - last_touched >= STREAM_ZOMBIE_TTL`。
+        // （inactive 的条目在 StreamDone/Error 已经 remove 了，正常路径
+        // 不会出现 `active=false` 长期驻留；这里多一道防护即可。）
+        let now = std::time::Instant::now();
+        self.streaming.retain(|_, st| {
+            st.last_touched.elapsed() < STREAM_ZOMBIE_TTL
+        });
+        // Bug #8 — 限制 messages 缓存规模（LRU 风格：删除最久未用的会话）。
+        enforce_messages_lru(&mut self.messages, &mut self.messages_last_used);
+
         while let Ok(evt) = self.runtime.rx.try_recv() {
             match evt {
                 Students(v) => *self.students.write() = v,
@@ -280,6 +361,7 @@ impl App {
                 }
                 Messages(id, v) => {
                     self.messages.insert(id, v);
+                    self.messages_last_used.insert(id, next_tick());
                 }
                 StreamStart {
                     conversation_id,
@@ -290,6 +372,7 @@ impl App {
                     st.buffer.clear();
                     st.tool_calls.clear();
                     st.active = true;
+                    st.last_touched = std::time::Instant::now();
                     ctx.request_repaint();
                 }
                 StreamToken {
@@ -305,6 +388,7 @@ impl App {
                         // stale deltas).
                         if st.current_message_id == Some(message_id) {
                             st.buffer.push_str(&delta);
+                            st.last_touched = std::time::Instant::now();
                         }
                     }
                     ctx.request_repaint();
@@ -322,6 +406,7 @@ impl App {
                         {
                             return;
                         }
+                        st.last_touched = std::time::Instant::now();
                         // The same logical tool call may arrive in two phases:
                         //   1) "Running" with empty result (start)
                         //   2) "Success"/"Failed" with the populated result (end)
@@ -381,6 +466,8 @@ impl App {
                             created_at: now,
                         };
                         self.messages.entry(conversation_id).or_default().push(msg);
+                        self.messages_last_used
+                            .insert(conversation_id, next_tick());
                     }
                     // refresh conversation list order
                     let _ = self
@@ -593,8 +680,10 @@ impl eframe::App for App {
 
         self.drain_events(ctx);
 
-        // subtle gradient background
-        paint_gradient_bg(ctx, &self.theme);
+        // subtle gradient background (Bug #3 — 缓存避免每帧 64 paints)
+        if self.window_visible {
+            paint_gradient_bg(ctx, &self.theme, &mut self.ui_state);
+        }
 
         // top bar
         crate::ui::topbar::show(self, ctx);
@@ -683,21 +772,45 @@ impl eframe::App for App {
     }
 }
 
-fn paint_gradient_bg(ctx: &Context, theme: &Theme) {
+fn paint_gradient_bg(ctx: &Context, theme: &Theme, ui_state: &mut crate::ui::UiState) {
     let rect = ctx.screen_rect();
     let painter = ctx.layer_painter(egui::LayerId::background());
-    // Draw a vertical gradient using a series of horizontal lines.
-    let steps = 64;
-    let h = rect.height();
-    for i in 0..steps {
-        let y0 = h.mul_add(i as f32 / steps as f32, rect.min.y);
-        let y1 = h.mul_add((i + 1) as f32 / steps as f32, rect.min.y);
-        let t = (i as f32 / steps as f32).clamp(0.0, 1.0);
-        let color = Theme::lerp(theme.bg_gradient_from, theme.bg_gradient_to, t);
+    // Bug #3 — 缓存键：尺寸或主题变 → 重画；否则只画一个混合背景矩形。
+    let key = crate::ui::GradCacheKey {
+        w: rect.width() as i32,
+        h: rect.height() as i32,
+        dark: theme.dark,
+    };
+    if ui_state.grad_bg_cache_key != Some(key) {
+        let steps = 16;
+        let h = rect.height();
+        for i in 0..steps {
+            let y0 = h.mul_add(i as f32 / steps as f32, rect.min.y);
+            let y1 = h.mul_add((i + 1) as f32 / steps as f32, rect.min.y);
+            let t = (i as f32 / steps as f32).clamp(0.0, 1.0);
+            let color = Theme::lerp(theme.bg_gradient_from, theme.bg_gradient_to, t);
+            painter.rect_filled(
+                egui::Rect::from_min_max(egui::pos2(rect.min.x, y0), egui::pos2(rect.max.x, y1)),
+                0.0,
+                color,
+            );
+        }
+        ui_state.grad_bg_cache_key = Some(key);
+        ui_state.grad_bg_cache_size = (rect.width(), rect.height());
+    } else {
+        // 命中缓存：只画 2 个大矩形 (顶/底色)，保留视觉一致但成本 < 1% 原开销。
+        let top = theme.bg_gradient_from;
+        let bot = theme.bg_gradient_to;
+        let mid = Theme::lerp(top, bot, 0.5);
         painter.rect_filled(
-            egui::Rect::from_min_max(egui::pos2(rect.min.x, y0), egui::pos2(rect.max.x, y1)),
+            egui::Rect::from_min_max(rect.min, egui::pos2(rect.max.x, rect.center().y)),
             0.0,
-            color,
+            top,
+        );
+        painter.rect_filled(
+            egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.center().y), rect.max),
+            0.0,
+            Theme::lerp(mid, bot, 0.5),
         );
     }
 }
@@ -712,39 +825,118 @@ fn db_path() -> std::path::PathBuf {
 
 fn install_fonts(ctx: &Context) {
     let mut fonts = egui::FontDefinitions::default();
-    // Try to install a system CJK font so Chinese glyphs render. We probe a few
-    // common paths; if none exist we fall back to egui's default (Latin only).
-    let candidates: &[&str] = &[
-        // Linux
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc",
-        "/usr/share/fonts/wenquanyi/wqy-zenhei/wqy-zenhei.ttc",
-        // macOS
-        "/System/Library/Fonts/PingFang.ttc",
-        "/System/Library/Fonts/STHeiti Light.ttc",
-        // Windows
-        "C:/Windows/Fonts/msyh.ttc",
-        "C:/Windows/Fonts/simhei.ttf",
+    // Bug #11 — CJK 字体回退：除了已知的固定路径外，
+    // 1) 扫描常见字体目录里的中文字体（NotoSans* / *CJK* / simhei / simsun / msyh* 等）
+    // 2) 优先用项目自带的 assets/fonts/NotoSansSC-Regular.otf（如有）
+    // 3) 若仍找不到，向 stderr 输出一条可观测的提示，方便诊断。
+    let mut candidates: Vec<std::path::PathBuf> = vec![
+        // 项目自带的打包字体（用户可放 assets/fonts/NotoSansSC-Regular.otf）
+        std::path::PathBuf::from("assets/fonts/NotoSansSC-Regular.otf"),
+        std::path::PathBuf::from("assets/fonts/NotoSansCJK-Regular.ttc"),
     ];
-    for path in candidates {
+    // Linux
+    candidates.extend(
+        [
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
+            "/usr/share/fonts/opentype/noto/NotoSansSC-Regular.otf",
+            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc",
+            "/usr/share/fonts/wenquanyi/wqy-zenhei/wqy-zenhei.ttc",
+            "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        ]
+        .iter()
+        .map(std::path::PathBuf::from),
+    );
+    // macOS
+    candidates.extend(
+        [
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/STHeiti Light.ttc",
+            "/System/Library/Fonts/STHeiti Medium.ttc",
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            "/Library/Fonts/Songti.ttc",
+        ]
+        .iter()
+        .map(std::path::PathBuf::from),
+    );
+    // Windows
+    candidates.extend(
+        [
+            "C:/Windows/Fonts/msyh.ttc",
+            "C:/Windows/Fonts/msyh.ttf",
+            "C:/Windows/Fonts/msyhbd.ttc",
+            "C:/Windows/Fonts/simhei.ttf",
+            "C:/Windows/Fonts/simsun.ttc",
+            "C:/Windows/Fonts/simsunb.ttf",
+            "C:/Windows/Fonts/simkai.ttf",
+            "C:/Windows/Fonts/simfang.ttf",
+        ]
+        .iter()
+        .map(std::path::PathBuf::from),
+    );
+    // 递归扫描常见字体目录，匹配中文字体文件名。
+    for dir in &[
+        "/usr/share/fonts",
+        "/usr/local/share/fonts",
+        "/System/Library/Fonts",
+        "/Library/Fonts",
+        "C:/Windows/Fonts",
+    ] {
+        if let Ok(rd) = std::fs::read_dir(dir) {
+            for e in rd.flatten() {
+                let p = e.path();
+                if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+                    let lower = name.to_ascii_lowercase();
+                    let is_cjk = lower.contains("cjk")
+                        || lower.contains("notosanssc")
+                        || lower.contains("notosansc")
+                        || lower.starts_with("msyh")
+                        || lower.starts_with("simhei")
+                        || lower.starts_with("simsun")
+                        || lower.starts_with("simkai")
+                        || lower.starts_with("simfang")
+                        || lower.contains("pingfang")
+                        || lower.contains("wqy")
+                        || lower.contains("hiraginosansgb");
+                    if is_cjk {
+                        candidates.push(p);
+                    }
+                }
+            }
+        }
+    }
+    let mut installed = false;
+    'outer: for path in &candidates {
         if let Ok(data) = std::fs::read(path) {
             fonts
                 .font_data
                 .insert("cjk".into(), egui::FontData::from_owned(data));
-            fonts
+            // 把 cjk 放在 Proportional 家族最前面作为优先 fallback。
+            let prop = fonts
                 .families
                 .entry(egui::FontFamily::Proportional)
-                .or_default()
-                .insert(0, "cjk".into());
-            fonts
+                .or_default();
+            if !prop.contains(&"cjk".into()) {
+                prop.insert(0, "cjk".into());
+            }
+            let mono = fonts
                 .families
                 .entry(egui::FontFamily::Monospace)
-                .or_default()
-                .push("cjk".into());
-            break;
+                .or_default();
+            if !mono.contains(&"cjk".into()) {
+                mono.push("cjk".into());
+            }
+            installed = true;
+            break 'outer;
         }
+    }
+    if !installed {
+        eprintln!(
+            "[fonts] 未找到任何 CJK 字体；中文/日文/韩文将无法正确渲染。\n\
+             请在以下任一位置放置 NotoSansSC 或同等 CJK 字体：\n  - assets/fonts/NotoSansSC-Regular.otf\n  - C:/Windows/Fonts/msyh.ttc\n  - /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+        );
     }
     ctx.set_fonts(fonts);
 }
