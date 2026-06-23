@@ -404,16 +404,30 @@ pub fn empty_state_with_cta<'a>(
     theme: &'a Theme,
     icon: &'a str,
     msg: &'a str,
+    subtitle: &'a str,
     cta_label: &'a str,
     on_press: Message,
 ) -> Element<'a, Message> {
     let content = column![
-        text(icon).size(64),
+        text(icon).size(72),
         text(msg)
             .font(CJK_FONT)
-            .size(15)
+            .size(16)
+            .style(move |_: &iced::Theme| style::text_primary(theme)),
+        text(subtitle)
+            .font(CJK_FONT)
+            .size(12)
             .style(move |_: &iced::Theme| style::text_faint(theme)),
-        primary_button(theme, cta_label, on_press),
+        button(
+            text(cta_label)
+                .font(CJK_FONT)
+                .size(14)
+                .align_x(iced::alignment::Horizontal::Center)
+                .align_y(iced::alignment::Vertical::Center),
+        )
+        .style(move |_, status| style::grad_button(theme, status))
+        .padding([10.0, 16.0])
+        .on_press(on_press),
     ]
     .spacing(16)
     .align_x(iced::alignment::Horizontal::Center);

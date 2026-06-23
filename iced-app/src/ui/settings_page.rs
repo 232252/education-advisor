@@ -70,21 +70,23 @@ pub fn view(app: &App) -> Element<Message> {
 
     // Temperature
     let temp_row = row![
-        text("温度")
+        text("AI 温度")
             .font(CJK_FONT)
             .size(13)
             .style(move |_: &iced::Theme| style::text_dim(theme))
             .width(Length::Fixed(60.0)),
-        slider(0.0..=2.0, app.settings.temperature, |v| {
+        slider(0.0..=1.0, app.settings.temperature, |v| {
             Message::SettingsTemperatureChanged(v)
         })
-        .step(0.1)
+        .step(0.01)
         .width(Length::Fill),
-        text(format!("{:.1}", app.settings.temperature))
+        text(format!("{:.2}", app.settings.temperature))
             .font(CJK_FONT)
-            .size(13)
-            .style(move |_: &iced::Theme| style::text_primary(theme))
-            .width(Length::Fixed(40.0)),
+            .size(14)
+            .style(move |_: &iced::Theme| {
+                iced::widget::text::Style { color: Some(theme.accent), ..Default::default() }
+            })
+            .width(Length::Fixed(45.0)),
     ]
     .spacing(12)
     .align_y(Alignment::Center);
@@ -110,9 +112,11 @@ pub fn view(app: &App) -> Element<Message> {
         .width(Length::Fill),
         text(format!("{}", app.settings.max_tool_iterations))
             .font(CJK_FONT)
-            .size(13)
-            .style(move |_: &iced::Theme| style::text_primary(theme))
-            .width(Length::Fixed(40.0)),
+            .size(14)
+            .style(move |_: &iced::Theme| {
+                iced::widget::text::Style { color: Some(theme.accent), ..Default::default() }
+            })
+            .width(Length::Fixed(45.0)),
     ]
     .spacing(12)
     .align_y(Alignment::Center);
@@ -178,7 +182,7 @@ pub fn view(app: &App) -> Element<Message> {
             .align_y(iced::alignment::Vertical::Center),
     )
     .style(move |_, status| style::grad_button(theme, status))
-    .padding([12.0, 16.0])
+    .padding([12.0, 24.0])
     .width(Length::Fill)
     .on_press(Message::SaveSettings);
     items.push(save_button.into());
