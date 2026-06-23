@@ -326,7 +326,6 @@ impl App {
         // 判定标准：`active` 且 `now - last_touched >= STREAM_ZOMBIE_TTL`。
         // （inactive 的条目在 StreamDone/Error 已经 remove 了，正常路径
         // 不会出现 `active=false` 长期驻留；这里多一道防护即可。）
-        let now = std::time::Instant::now();
         self.streaming.retain(|_, st| {
             st.last_touched.elapsed() < STREAM_ZOMBIE_TTL
         });
