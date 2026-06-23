@@ -75,13 +75,13 @@
   - [x] 11.4 运行 Linux release 构建 `cargo build --release`
   - [x] 11.5 运行 Windows 交叉编译 `cargo xwin build --release --target x86_64-pc-windows-msvc`（cargo-xwin 未安装，已确认目标配置并跳过）
 
-- [ ] Task 12: 打包便携版并发布
-  - [ ] 12.1 将 Windows exe 复制到 `dist/EducationAdvisor-Windows-Portable/`，添加/更新 `使用说明.txt`
-  - [ ] 12.2 打包为 `dist/EducationAdvisor-Windows-Portable.zip`
-  - [ ] 12.3 更新 `Cargo.toml` 版本号（建议 v1.1.0）与 `CHANGELOG.md`
-  - [ ] 12.4 Git commit 所有变更到 main 分支
-  - [ ] 12.5 创建并推送新版本 tag（v1.1.0）
-  - [ ] 12.6 通过 GitHub Release 上传便携包并附带完整 changelog
+- [x] Task 12: 打包便携版并发布
+  - [x] 12.1 将 Windows exe 复制到 `dist/EducationAdvisor-Windows-Portable/`，添加/更新 `使用说明.txt`
+  - [x] 12.2 打包为 `dist/EducationAdvisor-Windows-Portable.zip`
+  - [x] 12.3 更新 `Cargo.toml` 版本号（建议 v1.1.0）与 `CHANGELOG.md`
+  - [x] 12.4 Git commit 所有变更到 main 分支
+  - [x] 12.5 创建并推送新版本 tag（v1.1.0）
+  - [x] 12.6 通过 GitHub Release 上传便携包并附带完整 changelog
 
 # Task Dependencies
 - [Task 2] depends on [Task 1]（组件依赖新色板）
