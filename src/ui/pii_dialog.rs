@@ -193,8 +193,7 @@ fn try_init_or_unlock(app: &mut App) {
         .spawn(move || {
             // 线程内部做完整的 init/load；结束时把本地密码 buffer 立刻清零。
             let mut engine = crate::pii_shield::PrivacyEngine::default();
-            let exists =
-                crate::pii_shield::PrivacyEngine::is_initialized(&dir_for_thread);
+            let exists = crate::pii_shield::PrivacyEngine::is_initialized(&dir_for_thread);
             let result = if exists {
                 engine.load(&dir_for_thread, &pwd_for_thread)
             } else {
@@ -224,8 +223,7 @@ fn try_init_or_unlock(app: &mut App) {
             // 一次性 swap：UI 线程不重跑 init/load。
             app.pii.lock().replace_with(engine);
             app.ui_state.pii_dialog.last_error = None;
-            app.ui_state.pii_dialog.last_info =
-                Some(format!("成功：已加载 {count} 条映射"));
+            app.ui_state.pii_dialog.last_info = Some(format!("成功：已加载 {count} 条映射"));
         }
         Ok(Err(err)) => {
             app.ui_state.pii_dialog.last_error = Some(err);
