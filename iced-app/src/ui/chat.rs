@@ -131,6 +131,7 @@ fn message_area(app: &App) -> Element<Message> {
                 theme,
                 "💬",
                 "选择一个对话或创建新对话",
+                "开始与 AI 代理进行智能对话",
                 "新对话",
                 Message::Navigate(Page::Chat),
             ))

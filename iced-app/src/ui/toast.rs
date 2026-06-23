@@ -27,10 +27,24 @@ pub fn view(app: &App) -> Element<'_, crate::app::Message> {
                 ToastKind::Warning => theme.warning,
                 ToastKind::Error => theme.danger,
             };
-            // Fade-out animation.
+            // Entrance (fade-in + slide-in) → steady → fade-out animation.
             let age = now.duration_since(t.born).as_secs_f32();
             let ttl = t.ttl.as_secs_f32();
-            let alpha = (1.0 - age / ttl).clamp(0.0, 1.0);
+            let enter_dur = 0.3;
+            let opacity = if age < enter_dur {
+                // Fade in over first 0.3 s.
+                age / enter_dur
+            } else {
+                // Steady then fade out.
+                (1.0 - (age - enter_dur) / ttl).clamp(0.0, 1.0)
+            };
+
+            // Slide-from-right: extra padding-right shrinks from 30 px → 10 px.
+            let slide_right = if age < enter_dur {
+                30.0 - (20.0 * (age / enter_dur))
+            } else {
+                10.0
+            };
 
             // Left 3px colored vertical bar.
             let bar = container(Space::new())
@@ -38,7 +52,7 @@ pub fn view(app: &App) -> Element<'_, crate::app::Message> {
                 .height(Length::Fill)
                 .style(move |_: &iced::Theme| iced::widget::container::Style {
                     background: Some(iced::Background::Color(iced::Color {
-                        a: alpha,
+                        a: opacity,
                         ..bar_color
                     })),
                     border: iced::Border {
@@ -53,7 +67,7 @@ pub fn view(app: &App) -> Element<'_, crate::app::Message> {
                 .font(CJK_FONT)
                 .size(13)
                 .style(move |_: &iced::Theme| iced::widget::text::Style {
-                    color: Some(iced::Color { a: alpha, ..theme.text }),
+                    color: Some(iced::Color { a: opacity, ..theme.text }),
                 })]
             .align_y(Alignment::Center)
             .spacing(10);
@@ -61,7 +75,7 @@ pub fn view(app: &App) -> Element<'_, crate::app::Message> {
             container(content)
                 .style(move |_: &iced::Theme| iced::widget::container::Style {
                     background: Some(iced::Background::Color(iced::Color {
-                        a: theme.surface_glass.a * alpha,
+                        a: theme.surface_glass.a * opacity,
                         ..theme.surface_glass
                     })),
                     border: iced::Border {
@@ -70,14 +84,14 @@ pub fn view(app: &App) -> Element<'_, crate::app::Message> {
                         radius: iced::border::Radius::from(12.0),
                     },
                     shadow: iced::Shadow {
-                        color: iced::Color { a: 0.18 * alpha, ..theme.shadow },
+                        color: iced::Color { a: 0.18 * opacity, ..theme.shadow },
                         offset: iced::Vector::new(0.0, 4.0),
                         blur_radius: 16.0,
                     },
                     text_color: None,
                     snap: false,
                 })
-                .padding([10.0, 14.0])
+                .padding([10.0, slide_right])
                 .width(Length::Fixed(360.0))
                 .into()
         })

@@ -48,6 +48,29 @@ pub fn card_flat(theme: &Theme) -> container::Style {
     }
 }
 
+/// Lifted container style for hoverable cards.
+///
+/// Provides a subtle elevated base shadow; the actual hover deepening is
+/// handled by wrapping the container inside a button that uses
+/// [`secondary_button`] or [`card_flat`] with a `Hovered` status.
+pub fn hover_lift(theme: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(theme.surface)),
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: iced::border::Radius::from(16.0),
+        },
+        shadow: Shadow {
+            color: Color { a: 0.06, ..theme.shadow },
+            offset: Vector::new(0.0, 4.0),
+            blur_radius: 32.0,
+        },
+        text_color: None,
+        snap: false,
+    }
+}
+
 pub fn elevated(theme: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(theme.elevated)),
@@ -212,9 +235,9 @@ pub fn secondary_button(theme: &Theme, status: button::Status) -> button::Style 
     };
     let shadow = match status {
         button::Status::Hovered => Shadow {
-            color: Color { a: 0.12, ..theme.shadow },
-            offset: Vector::new(0.0, 4.0),
-            blur_radius: 16.0,
+            color: Color { a: 0.18, ..theme.shadow },
+            offset: Vector::new(0.0, 8.0),
+            blur_radius: 40.0,
         },
         _ => Shadow::default(),
     };
