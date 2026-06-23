@@ -558,47 +558,73 @@ pub fn toggle_switch(ui: &mut Ui, theme: &Theme, value: &mut bool) -> Response {
 /// A small segmented tab switcher.
 pub fn tab_switcher(ui: &mut Ui, theme: &Theme, tabs: &[&str], active: usize) -> Option<usize> {
     let height = 32.0;
+    // Bug #13 — 窄屏不滚动：当 tab 总宽度超过可用宽度时，套一层水平
+    // ScrollArea 防止标签被截断（4 个中文 tab + 边框在 360px 屏宽下就会撞墙）。
     let total_w = ui.available_width();
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(total_w, height), Sense::hover());
-    ui.painter()
-        .rect_filled(rect, Rounding::same(8.0), theme.surface);
-    let count = tabs.len();
-    let tab_w = total_w / count.max(1) as f32;
-    let mut changed = None;
-    for (i, label) in tabs.iter().enumerate() {
-        let tr = Rect::from_min_size(
-            Pos2::new((i as f32).mul_add(tab_w, rect.min.x), rect.min.y),
-            Vec2::new(tab_w, height),
-        );
-        let (_, resp) = ui.allocate_exact_size(tr.size(), Sense::click());
-        if i == active {
-            ui.painter()
-                .rect_filled(tr.shrink(2.0), Rounding::same(6.0), theme.bg_elevated);
-            ui.painter().rect_stroke(
-                tr.shrink(2.0),
-                Rounding::same(6.0),
-                Stroke::new(1.0, theme.border),
-            );
-        } else if resp.hovered() {
-            ui.painter()
-                .rect_filled(tr.shrink(2.0), Rounding::same(6.0), theme.surface_hover);
-        }
-        if resp.clicked() {
-            changed = Some(i);
-        }
-        ui.painter().text(
-            tr.center(),
-            Align2::CENTER_CENTER,
-            *label,
-            FontId::proportional(12.0),
-            if i == active {
-                theme.text
-            } else {
-                theme.text_dim
+    let outer = ui
+        .allocate_ui_with_layout(
+            Vec2::new(total_w, height),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                egui::ScrollArea::horizontal()
+                    .id_source("tab_switcher_scroll")
+                    .max_height(height)
+                    .auto_shrink([false, true])
+                    .show(ui, |ui| {
+                        let (rect, _) =
+                            ui.allocate_exact_size(Vec2::new(total_w, height), Sense::hover());
+                        ui.painter()
+                            .rect_filled(rect, Rounding::same(8.0), theme.surface);
+                        let count = tabs.len();
+                        let tab_w = total_w / count.max(1) as f32;
+                        let mut changed = None;
+                        for (i, label) in tabs.iter().enumerate() {
+                            let tr = Rect::from_min_size(
+                                Pos2::new((i as f32).mul_add(tab_w, rect.min.x), rect.min.y),
+                                Vec2::new(tab_w, height),
+                            );
+                            let (_, resp) =
+                                ui.allocate_exact_size(tr.size(), Sense::click());
+                            if i == active {
+                                ui.painter().rect_filled(
+                                    tr.shrink(2.0),
+                                    Rounding::same(6.0),
+                                    theme.bg_elevated,
+                                );
+                                ui.painter().rect_stroke(
+                                    tr.shrink(2.0),
+                                    Rounding::same(6.0),
+                                    Stroke::new(1.0, theme.border),
+                                );
+                            } else if resp.hovered() {
+                                ui.painter().rect_filled(
+                                    tr.shrink(2.0),
+                                    Rounding::same(6.0),
+                                    theme.surface_hover,
+                                );
+                            }
+                            if resp.clicked() {
+                                changed = Some(i);
+                            }
+                            ui.painter().text(
+                                tr.center(),
+                                Align2::CENTER_CENTER,
+                                *label,
+                                FontId::proportional(12.0),
+                                if i == active {
+                                    theme.text
+                                } else {
+                                    theme.text_dim
+                                },
+                            );
+                        }
+                        changed
+                    })
+                    .inner
             },
-        );
-    }
-    changed
+        )
+        .inner;
+    outer
 }
 
 /// A hand-painted dropdown selector. Returns Some(index) when selection changes.
