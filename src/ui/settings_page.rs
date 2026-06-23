@@ -6,7 +6,8 @@ use crate::app::App;
 use crate::models::{LlmProvider, ProviderKind, ThemeMode};
 use crate::ui::icons;
 use crate::ui::widgets::{
-    card, ghost_button, icon_button, primary_button, section_title, toggle_switch,
+    custom_slider, dropdown_select, fab_button, ghost_button, glass_card, icon_button,
+    primary_button, section_title, toggle_switch,
 };
 
 pub fn show(app: &mut App, ui: &mut Ui) {
@@ -17,7 +18,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     egui::ScrollArea::vertical().show(ui, |ui| {
         // appearance
-        card(ui, &theme, |ui| {
+        glass_card(ui, &theme, |ui| {
             section_title(ui, &app.theme, "外观");
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new("主题").font(FontId::proportional(13.0)).color(app.theme.text_dim));
@@ -55,32 +56,77 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         ui.add_space(8.0);
 
         // AI behavior
-        card(ui, &theme, |ui| {
+        glass_card(ui, &theme, |ui| {
             section_title(ui, &app.theme, "AI 行为");
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("温度").font(FontId::proportional(13.0)).color(app.theme.text_dim));
+                ui.allocate_ui_with_layout(
+                    Vec2::new(60.0, 24.0),
+                    Layout::left_to_right(Align::Center),
+                    |ui| {
+                        ui.label(
+                            egui::RichText::new("温度")
+                                .font(FontId::proportional(13.0))
+                                .color(app.theme.text_dim),
+                        );
+                    },
+                );
                 let mut temp = app.settings.temperature;
-                ui.add(egui::Slider::new(&mut temp, 0.0..=1.0).step_by(0.1).text(" creativity "));
-                if (temp - app.settings.temperature).abs() > 1e-4 {
+                let (_, changed) = custom_slider(ui, &theme, &mut temp, 0.0..=1.0, 40.0, "");
+                if changed {
                     app.settings.temperature = temp;
                     settings_changed = true;
                 }
+                ui.allocate_ui_with_layout(
+                    Vec2::new(40.0, 24.0),
+                    Layout::right_to_left(Align::Center),
+                    |ui| {
+                        ui.label(
+                            egui::RichText::new(format!("{:.2}", temp))
+                                .strong()
+                                .color(theme.accent)
+                                .font(FontId::proportional(12.0)),
+                        );
+                    },
+                );
             });
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("最大工具迭代").font(FontId::proportional(13.0)).color(app.theme.text_dim));
-                let mut iters = app.settings.max_tool_iterations;
-                ui.add(egui::Slider::new(&mut iters, 1..=12));
-                if iters != app.settings.max_tool_iterations {
+                ui.allocate_ui_with_layout(
+                    Vec2::new(100.0, 24.0),
+                    Layout::left_to_right(Align::Center),
+                    |ui| {
+                        ui.label(
+                            egui::RichText::new("最大工具迭代")
+                                .font(FontId::proportional(13.0))
+                                .color(app.theme.text_dim),
+                        );
+                    },
+                );
+                let mut iters_f = app.settings.max_tool_iterations as f32;
+                let (_, changed) = custom_slider(ui, &theme, &mut iters_f, 1.0..=12.0, 40.0, "");
+                let iters = iters_f.round() as u32;
+                if changed && iters != app.settings.max_tool_iterations {
                     app.settings.max_tool_iterations = iters;
                     settings_changed = true;
                 }
+                ui.allocate_ui_with_layout(
+                    Vec2::new(40.0, 24.0),
+                    Layout::right_to_left(Align::Center),
+                    |ui| {
+                        ui.label(
+                            egui::RichText::new(format!("{}", app.settings.max_tool_iterations))
+                                .strong()
+                                .color(theme.accent)
+                                .font(FontId::proportional(12.0)),
+                        );
+                    },
+                );
             });
         });
 
         ui.add_space(8.0);
 
         // privacy
-        card(ui, &theme, |ui| {
+        glass_card(ui, &theme, |ui| {
             section_title(ui, &app.theme, "隐私与安全");
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new("PII 脱敏").font(FontId::proportional(13.0)).color(app.theme.text_dim));
@@ -115,26 +161,40 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         ui.add_space(8.0);
 
         // active provider
-        card(ui, &app.theme, |ui| {
+        glass_card(ui, &app.theme, |ui| {
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("当前使用模型").font(FontId::proportional(13.0)).color(app.theme.text_dim));
+                ui.label(
+                    egui::RichText::new("当前使用模型")
+                        .font(FontId::proportional(13.0))
+                        .color(app.theme.text_dim),
+                );
                 let providers = app.providers.read().clone();
-                let mut selected = app.settings.active_provider_id.clone();
                 let enabled: Vec<_> = providers.into_iter().filter(|p| p.enabled).collect();
-                egui::ComboBox::from_id_source("active_provider")
-                    .selected_text(match &selected {
-                        Some(id) => enabled.iter().find(|p| p.id == *id).map_or_else(|| "—".to_string(), |p| p.name.clone()),
-                        None => "—".to_string(),
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut selected, None, "—");
-                        for p in &enabled {
-                            ui.selectable_value(&mut selected, Some(p.id.clone()), &p.name);
-                        }
-                    });
-                if selected != app.settings.active_provider_id {
-                    app.settings.active_provider_id = selected;
-                    settings_changed = true;
+                let mut item_names = vec!["—".to_string()];
+                item_names.extend(enabled.iter().map(|p| p.name.clone()));
+                let items: Vec<&str> = item_names.iter().map(|s| s.as_str()).collect();
+                let selected_idx = app.settings.active_provider_id.as_ref().and_then(|id| {
+                    enabled.iter().position(|p| p.id == *id).map(|i| i + 1)
+                });
+                let selected_text = match selected_idx {
+                    Some(i) => items[i],
+                    None => "—",
+                };
+
+                let (icon_rect, _) = ui.allocate_exact_size(Vec2::splat(28.0), egui::Sense::hover());
+                icons::robot_icon(ui.painter(), icon_rect, &app.theme);
+                ui.add_space(8.0);
+
+                if let Some(idx) = dropdown_select(ui, &app.theme, "active_provider", selected_text, &items) {
+                    let new_selected = if idx == 0 {
+                        None
+                    } else {
+                        Some(enabled[idx - 1].id.clone())
+                    };
+                    if new_selected != app.settings.active_provider_id {
+                        app.settings.active_provider_id = new_selected;
+                        settings_changed = true;
+                    }
                 }
             });
         });
@@ -142,7 +202,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         ui.add_space(8.0);
 
         // providers
-        card(ui, &app.theme, |ui| {
+        glass_card(ui, &app.theme, |ui| {
             ui.horizontal(|ui| {
                 section_title(ui, &app.theme, "LLM 提供商");
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -197,7 +257,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         ui.add_space(8.0);
 
         // about
-        card(ui, &app.theme, |ui| {
+        glass_card(ui, &app.theme, |ui| {
             section_title(ui, &app.theme, "关于");
             ui.label(egui::RichText::new(format!("Education Advisor v{}", env!("CARGO_PKG_VERSION"))).font(FontId::proportional(13.0)).color(app.theme.text));
             ui.label(
@@ -227,7 +287,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         // `&mut app` in the same closure is rejected by the borrow checker.)
         let backup_theme = app.theme.clone();
         let app_theme = app.theme.clone();
-        card(ui, &backup_theme, |ui| {
+        glass_card(ui, &backup_theme, |ui| {
             section_title(ui, &backup_theme, "数据备份 / 恢复");
             ui.label(
                 egui::RichText::new("导出会生成一个 JSON 快照，包含所有学生、成绩、会话、任务、知识库。加密字段以密文形式保存（只能在同一台机器上用同一助记词恢复）。")
@@ -270,6 +330,21 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 }
             }
         });
+
+        ui.add_space(24.0);
+        ui.allocate_ui_with_layout(
+            Vec2::new(ui.available_width(), 64.0),
+            Layout::right_to_left(Align::Center),
+            |ui| {
+                if fab_button(ui, &theme, "保存设置").clicked() {
+                    let _ = app
+                        .runtime
+                        .tx
+                        .send(crate::runtime::Command::SaveSettings(app.settings.clone()));
+                    app.push_toast(crate::runtime::ToastKind::Success, "设置已保存".to_string());
+                }
+            },
+        );
     });
 
     if app.ui_state.editing_provider.is_some() {

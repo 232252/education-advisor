@@ -5,8 +5,11 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::time::Instant;
 
-use eframe::egui::{self, Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
+use eframe::egui::{
+    self, epaint, Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2,
+};
 
 use crate::theme::Theme;
 
@@ -34,6 +37,21 @@ fn chart_cache_key(rect: Rect, values: &[f32]) -> u64 {
         v.to_bits().hash(&mut h);
     }
     h.finish()
+}
+
+/// 600 ms 生长动画：target * ease_out_cubic(t)。
+pub fn animated_value(target: f32, elapsed_ms: f32) -> f32 {
+    let t = (elapsed_ms / 600.0).clamp(0.0, 1.0);
+    target * crate::util::ease::out_cubic(t)
+}
+
+/// 每个图表实例的动画进度（首次绘制时记录起始时间）。
+fn chart_animation_phase(ui: &Ui, id: egui::Id) -> f32 {
+    let start = ui
+        .ctx()
+        .memory_mut(|mem| *mem.data.get_temp_mut_or_insert_with(id, Instant::now));
+    let elapsed = start.elapsed().as_millis() as f32;
+    (elapsed / 600.0).clamp(0.0, 1.0)
 }
 
 /// Bug #17 — 折线图：跨系列最近点 tooltip + 形状缓存。
@@ -108,11 +126,17 @@ pub fn line_chart(
     // series
     let colors = [accent, theme.info, theme.success, theme.warning];
 
+    // Task 9 — 生长动画：首次显示时从 0 淡入到目标值。
+    let anim_phase = chart_animation_phase(ui, ui.id().with("line_anim"));
+
     // Bug #20 — 把所有要画的形状一次性放进 cache；下一帧命中就 add。
-    let mut all_values: Vec<f32> = Vec::with_capacity(series.iter().map(|(_, v)| v.len()).sum());
+    // 把动画进度也混进 key，动画过程中每帧重建，结束后稳定缓存。
+    let mut all_values: Vec<f32> =
+        Vec::with_capacity(series.iter().map(|(_, v)| v.len()).sum::<usize>() + 1);
     for (_, v) in series {
         all_values.extend_from_slice(v);
     }
+    all_values.push(anim_phase);
     let cache_id = ui.id().with("line_chart_cache");
     let mut cache: ChartCache = ui.ctx().memory_mut(|mem| {
         mem.data
@@ -131,12 +155,13 @@ pub fn line_chart(
                 .iter()
                 .enumerate()
                 .map(|(i, v)| {
+                    let av = *v * anim_phase;
                     let x = plot_rect.width().mul_add(
                         i as f32 / (max_len - 1).max(1) as f32,
                         plot_rect.min.x,
                     );
                     let y = plot_rect.height().mul_add(
-                        -((*v - min_val) / (max_val - min_val)).clamp(0.0, 1.0),
+                        -((av - min_val) / (max_val - min_val)).clamp(0.0, 1.0),
                         plot_rect.max.y,
                     );
                     Pos2::new(x, y)
@@ -211,6 +236,7 @@ pub fn line_chart(
 }
 
 /// A donut chart with hover highlight.
+#[allow(dead_code)]
 pub fn donut_chart(
     ui: &mut Ui,
     theme: &Theme,
@@ -348,6 +374,7 @@ pub fn bar_chart(
         .map(|(_, v)| *v)
         .fold(0.0f32, f32::max)
         .max(0.001);
+    let anim_phase = chart_animation_phase(ui, ui.id().with("bar_anim"));
     let top = rect.min.y + 24.0;
     let bottom = rect.max.y - 8.0;
     let row_h = (bottom - top) / bars.len() as f32;
@@ -361,7 +388,7 @@ pub fn bar_chart(
             theme.text_dim,
         );
         let bar_x = rect.min.x + 90.0;
-        let bar_w = (rect.max.x - bar_x - 50.0) * (*val / max).clamp(0.0, 1.0);
+        let bar_w = (rect.max.x - bar_x - 50.0) * (*val / max).clamp(0.0, 1.0) * anim_phase;
         let bar_rect =
             Rect::from_min_size(Pos2::new(bar_x, y + 6.0), Vec2::new(bar_w, row_h - 12.0));
         ui.painter()
@@ -373,6 +400,180 @@ pub fn bar_chart(
             FontId::proportional(11.0),
             theme.text,
         );
+    }
+}
+
+/// 水平堆叠胶囊条：每个 segment 是 (颜色, 值)，按 total 比例分配宽度。
+#[allow(dead_code)]
+pub fn capsule_stacked_bar(
+    ui: &mut Ui,
+    theme: &Theme,
+    segments: &[(Color32, f32)],
+    total: f32,
+) {
+    let height = 14.0;
+    let (rect, _) =
+        ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
+    ui.painter()
+        .rect_filled(rect, Rounding::same(height / 2.0), theme.surface);
+
+    let total = total.max(segments.iter().map(|(_, v)| *v).sum::<f32>().max(0.001));
+    let anim_phase = chart_animation_phase(ui, ui.id().with("stacked_bar_anim"));
+    let mut x = rect.min.x;
+    let count = segments.len();
+    let r = height / 2.0;
+
+    for (i, (color, val)) in segments.iter().enumerate() {
+        let w = rect.width() * (*val / total) * anim_phase;
+        if w <= 0.0 {
+            continue;
+        }
+        let seg_rect = Rect::from_min_size(Pos2::new(x, rect.min.y), Vec2::new(w, height));
+        let rounding = if count == 1 {
+            Rounding::same(r)
+        } else if i == 0 {
+            Rounding {
+                nw: r,
+                ne: 0.0,
+                sw: r,
+                se: 0.0,
+            }
+        } else if i == count - 1 {
+            Rounding {
+                nw: 0.0,
+                ne: r,
+                sw: 0.0,
+                se: r,
+            }
+        } else {
+            Rounding::ZERO
+        };
+        ui.painter().rect_filled(seg_rect, rounding, *color);
+        x += w;
+    }
+}
+
+/// 平滑面积图：带渐变填充与生长动画，适合单条趋势曲线。
+#[allow(dead_code)]
+pub fn smooth_area_chart(
+    ui: &mut Ui,
+    theme: &Theme,
+    title: &str,
+    values: &[f32],
+    accent: Color32,
+    height: f32,
+) {
+    let (rect, resp) =
+        ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
+    let pad = 28.0;
+    let plot_rect = Rect::from_min_max(
+        Pos2::new(rect.min.x + pad, rect.min.y + 14.0),
+        Pos2::new(rect.max.x - 8.0, rect.max.y - 18.0),
+    );
+
+    ui.painter()
+        .rect_filled(rect, Rounding::same(12.0), theme.surface_glass);
+    ui.painter().text(
+        Pos2::new(rect.min.x + 12.0, rect.min.y + 6.0),
+        Align2::LEFT_CENTER,
+        title,
+        FontId::proportional(12.0),
+        theme.text_dim,
+    );
+
+    if values.len() < 2 {
+        ui.painter().text(
+            plot_rect.center(),
+            Align2::CENTER_CENTER,
+            "暂无数据",
+            FontId::proportional(12.0),
+            theme.text_faint,
+        );
+        return;
+    }
+
+    let max_val = values.iter().copied().fold(0.0f32, f32::max).max(0.001);
+    let anim_phase = chart_animation_phase(ui, ui.id().with("area_anim"));
+
+    // grid lines
+    for i in 0..=4 {
+        let y = plot_rect.height().mul_add(i as f32 / 4.0, plot_rect.min.y);
+        ui.painter().line_segment(
+            [Pos2::new(plot_rect.min.x, y), Pos2::new(plot_rect.max.x, y)],
+            Stroke::new(1.0, theme.border),
+        );
+        let val = max_val * (1.0 - i as f32 / 4.0);
+        ui.painter().text(
+            Pos2::new(plot_rect.min.x - 4.0, y),
+            Align2::RIGHT_CENTER,
+            format!("{val:.1}"),
+            FontId::proportional(9.0),
+            theme.text_faint,
+        );
+    }
+
+    let n = values.len();
+    let top_pts: Vec<Pos2> = values
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            let av = *v * anim_phase;
+            let x = plot_rect.width().mul_add(i as f32 / (n - 1) as f32, plot_rect.min.x);
+            let y = plot_rect
+                .height()
+                .mul_add(-(av / max_val).clamp(0.0, 1.0), plot_rect.max.y);
+            Pos2::new(x, y)
+        })
+        .collect();
+
+    // Gradient-filled area mesh: top row accent with alpha, bottom row transparent.
+    let mut mesh = epaint::Mesh::default();
+    let top_alpha = 120;
+    let top_color = Color32::from_rgba_premultiplied(accent.r(), accent.g(), accent.b(), top_alpha);
+    let bot_color = Color32::from_rgba_premultiplied(accent.r(), accent.g(), accent.b(), 0);
+    let uv = epaint::Pos2::ZERO;
+    for (i, p) in top_pts.iter().enumerate() {
+        mesh.vertices.push(epaint::Vertex {
+            pos: *p,
+            uv,
+            color: top_color,
+        });
+        mesh.vertices.push(epaint::Vertex {
+            pos: Pos2::new(p.x, plot_rect.max.y),
+            uv,
+            color: bot_color,
+        });
+        if i + 1 < n {
+            let base = i * 2;
+            mesh.indices.extend_from_slice(&[
+                base as u32,
+                (base + 1) as u32,
+                (base + 2) as u32,
+                (base + 2) as u32,
+                (base + 1) as u32,
+                (base + 3) as u32,
+            ]);
+        }
+    }
+    if !mesh.indices.is_empty() {
+        ui.painter().add(egui::Shape::mesh(mesh));
+    }
+
+    // smooth line on top
+    ui.painter()
+        .add(egui::Shape::line(top_pts.clone(), Stroke::new(2.0, accent)));
+
+    // tooltip
+    if let Some(hover) = resp.hover_pos() {
+        if plot_rect.contains(hover) {
+            let rel = (hover.x - plot_rect.min.x) / plot_rect.width();
+            let idx = ((rel * (n - 1) as f32).round() as usize).min(n - 1);
+            let v = values[idx];
+            egui::show_tooltip_at_pointer(ui.ctx(), egui::Id::new("area_tip"), |ui| {
+                ui.label(egui::RichText::new(format!("第 {idx} 个数据点")).strong());
+                ui.label(format!("{v:.1}"));
+            });
+        }
     }
 }
 
