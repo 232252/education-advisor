@@ -1,10 +1,9 @@
 //! Top bar with title, theme toggle, and quick actions.
 
 use iced::widget::{button, container, row, text, Space};
-use iced::{Alignment, Element, Font, Length, Padding};
+use iced::{Alignment, Element, Font, Length};
 
 use crate::app::{App, CJK_FONT, Message, Page};
-use crate::theme::Theme;
 use crate::ui::style;
 
 pub fn view(app: &App) -> Element<Message> {
@@ -20,7 +19,7 @@ pub fn view(app: &App) -> Element<Message> {
         .style(move |_: &iced::Theme| style::text_primary(theme));
 
     let collapse_btn = button(
-        text(if app.sidebar_collapsed { "→" } else { "←" })
+        text(if app.sidebar_collapsed { "☰" } else { "✕" })
             .font(CJK_FONT)
             .size(14)
             .style(move |_: &iced::Theme| style::text_dim(theme)),
@@ -53,7 +52,7 @@ pub fn view(app: &App) -> Element<Message> {
         .spacing(6)
         .align_y(Alignment::Center),
     )
-    .style(move |_, status| style::primary_button(theme, status))
+    .style(move |_, status| style::grad_button(theme, status))
     .padding([8.0, 14.0])
     .on_press(Message::Navigate(Page::Chat));
 
@@ -65,8 +64,8 @@ pub fn view(app: &App) -> Element<Message> {
         theme_btn,
     ]
     .align_y(Alignment::Center)
-    .spacing(12)
-    .padding([12.0, 20.0]);
+    .spacing(10)
+    .padding([10.0, 20.0]);
 
     container(content)
         .style(move |_: &iced::Theme| style::topbar_bg(theme))

@@ -33,6 +33,7 @@ pub fn view(app: &App) -> Element<Message> {
 
     let mut items: Vec<Element<Message>> = Vec::new();
 
+    // Top stats badge + description
     let count_badge = widgets::badge(theme, theme.accent, format!("{} 个技能", SKILLS.len()));
     items.push(
         row![
@@ -46,41 +47,60 @@ pub fn view(app: &App) -> Element<Message> {
         .align_y(Alignment::Center)
         .into(),
     );
-    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)).into());
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(14.0)).into());
 
     // Two-column grid layout
     let mut row_items: Vec<Element<Message>> = Vec::new();
     for skill in SKILLS {
-        let card_content = row![
-            text(skill.icon).size(28),
-            column![
-                text(skill.name)
-                    .font(Font {
-                        family: CJK_FONT.family,
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    })
-                    .size(14)
-                    .style(move |_: &iced::Theme| style::text_primary(theme)),
-                text(skill.description)
-                    .font(CJK_FONT)
-                    .size(12)
-                    .style(move |_: &iced::Theme| style::text_dim(theme)),
-                text(format!("ID: {}", skill.id))
-                    .font(CJK_FONT)
-                    .size(10)
-                    .style(move |_: &iced::Theme| style::text_faint(theme)),
-            ]
-            .spacing(3),
+        // Title + description column
+        let body = column![
+            text(skill.name)
+                .font(Font {
+                    family: CJK_FONT.family,
+                    weight: iced::font::Weight::Bold,
+                    ..Default::default()
+                })
+                .size(15)
+                .style(move |_: &iced::Theme| style::text_primary(theme)),
+            text(skill.description)
+                .font(CJK_FONT)
+                .size(12)
+                .style(move |_: &iced::Theme| style::text_dim(theme)),
+        ]
+        .spacing(4);
+
+        // Top section: icon (left) + body
+        let top = row![
+            text(skill.icon).size(32),
+            body,
         ]
         .spacing(14)
         .align_y(Alignment::Center)
         .width(Length::Fill);
 
+        // Bottom row: code ID at bottom-right corner
+        let bottom = row![
+            Space::new().width(Length::Fill).height(Length::Fixed(0.0)),
+            text(skill.id.to_string())
+                .font(CJK_FONT)
+                .size(10)
+                .style(move |_: &iced::Theme| style::text_faint(theme)),
+        ]
+        .spacing(0)
+        .width(Length::Fill);
+
+        let card_content = column![
+            top,
+            Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(10.0)),
+            bottom,
+        ]
+        .spacing(0)
+        .width(Length::Fill);
+
         row_items.push(
             container(card_content)
                 .style(move |_: &iced::Theme| style::card_flat(theme))
-                .padding(Padding::from(16.0))
+                .padding(Padding::from(18.0))
                 .width(Length::Fill)
                 .into(),
         );
@@ -93,14 +113,14 @@ pub fn view(app: &App) -> Element<Message> {
         if let Some(second) = iter.next() {
             grid_rows.push(
                 row![first, second]
-                    .spacing(12)
+                    .spacing(14)
                     .width(Length::Fill)
                     .into(),
             );
         } else {
             grid_rows.push(first);
         }
-        grid_rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)).into());
+        grid_rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(14.0)).into());
     }
     items.extend(grid_rows);
 
@@ -109,7 +129,7 @@ pub fn view(app: &App) -> Element<Message> {
 
     column![
         header,
-        Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)),
+        Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(14.0)),
         container(content).width(Length::Fill).height(Length::Fill)
     ]
     .spacing(0)

@@ -22,7 +22,7 @@ pub fn view(app: &App) -> Element<Message> {
 
     let pii_card = column![
         row![
-            text(if pii_enabled { "🔒" } else { "🔓" }).size(32),
+            text("🛡️").size(36),
             column![
                 text("PII Shield 假名化引擎")
                     .font(Font {
@@ -30,7 +30,7 @@ pub fn view(app: &App) -> Element<Message> {
                         weight: iced::font::Weight::Bold,
                         ..Default::default()
                     })
-                    .size(16)
+                    .size(18)
                     .style(move |_: &iced::Theme| style::text_primary(theme)),
                 text(if pii_enabled {
                     format!("已启用 · {} 条映射", pii_count)
@@ -68,7 +68,7 @@ pub fn view(app: &App) -> Element<Message> {
                     color: Some(iced::Color::WHITE),
                 }),
         )
-        .style(move |_, status| style::primary_button(theme, status))
+        .style(move |_, status| style::grad_button(theme, status))
         .padding([8.0, 14.0])
         .on_press(Message::PiiOpenUnlock),
         iced::widget::button(
@@ -90,7 +90,7 @@ pub fn view(app: &App) -> Element<Message> {
         .padding([8.0, 14.0])
         .on_press(Message::PiiLock),
     ]
-    .spacing(8);
+    .spacing(10);
     items.push(
         container(pii_actions)
             .style(move |_: &iced::Theme| style::card_flat(theme))
@@ -104,42 +104,14 @@ pub fn view(app: &App) -> Element<Message> {
     items.push(widgets::section_title(theme, "隐私功能").into());
 
     let features = vec![
-        ("🔐", "AES-256-GCM 加密", "监护人联系方式和 API 密钥在 SQLite 中加密存储"),
-        ("🎭", "定向发送过滤器", "发送消息给特定家长时，其他学生姓名替换为「其他同学」"),
-        ("📝", "正则 PII 脱敏", "手机号 / 身份证 / 邮箱在每次出站提示中自动掩码"),
-        ("🔑", "随机盐派生", "每次安装生成随机盐，防止数据库复制后重用密码"),
+        ("🔐", "AES-256-GCM 加密", "监护人联系方式和 API 密钥在 SQLite 中加密存储", theme.success),
+        ("🎭", "定向发送过滤器", "发送消息给特定家长时，其他学生姓名替换为「其他同学」", theme.info),
+        ("📝", "正则 PII 脱敏", "手机号 / 身份证 / 邮箱在每次出站提示中自动掩码", theme.warning),
+        ("🔑", "随机盐派生", "每次安装生成随机盐，防止数据库复制后重用密码", theme.purple),
     ];
 
-    for (icon, title, desc) in features {
-        let card_content = row![
-            text(icon).size(24),
-            column![
-                text(title)
-                    .font(Font {
-                        family: CJK_FONT.family,
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    })
-                    .size(13)
-                    .style(move |_: &iced::Theme| style::text_primary(theme)),
-                text(desc)
-                    .font(CJK_FONT)
-                    .size(12)
-                    .style(move |_: &iced::Theme| style::text_dim(theme)),
-            ]
-            .spacing(3),
-        ]
-        .spacing(14)
-        .align_y(Alignment::Center)
-        .width(Length::Fill);
-
-        items.push(
-            container(card_content)
-                .style(move |_: &iced::Theme| style::card_flat(theme))
-                .padding(Padding::from(14.0))
-                .width(Length::Fill)
-                .into(),
-        );
+    for (icon, title, desc, accent) in features {
+        items.push(widgets::feature_card(theme, icon, title, desc, accent));
         items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(8.0)).into());
     }
 
@@ -157,7 +129,7 @@ pub fn view(app: &App) -> Element<Message> {
                     color: Some(iced::Color::WHITE),
                 }),
         )
-        .style(move |_, status| style::primary_button(theme, status))
+        .style(move |_, status| style::grad_button(theme, status))
         .padding([8.0, 14.0])
         .on_press(Message::ExportBackup),
         iced::widget::button(
