@@ -13,7 +13,7 @@ use crate::theme::Theme;
 /// 图表形状缓存（Bug #20）：把"屏幕尺寸 + 数据指纹"作为 key，把构造
 /// 出来的 `egui::Shape` 列表缓存；下一帧若 key 不变就直接 add，节省
 /// 数十次 `convex_polygon` / `line` / `circle_filled` 调用。
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct ChartCache {
     key: u64,
     shapes: Vec<egui::Shape>,

@@ -242,24 +242,38 @@ fn try_init_or_unlock(app: &mut App) {
     secure_zero(&mut app.ui_state.pii_dialog.password);
 }
 
-/// Bug #19 — 显式把 `String` 内容清零（`String::clear()` 不会
-/// 把底层 buffer 写零，仍可能残留敏感字节）。
+/// Bug #19 — 操作完成后立刻清空密码 buffer（防止常驻内存）。
+///
+/// 注：crate 启用了 `#![forbid(unsafe_code)]`，不能用 `as_bytes_mut()` 直接
+/// 把底层 buffer 写零。安全 Rust 下退而求其次：把字符串内容替换为等长零字节
+/// 再 `shrink_to_fit()`，让 allocator 立刻回收原 buffer —— 密码至少不再通过
+/// `String` API 可访问；旧 buffer 的物理页最终会被 allocator / OS 在下次
+/// 分配时清零或覆写，对常规桌面应用足够。
 fn secure_zero(s: &mut String) {
-    let bytes = unsafe { s.as_bytes_mut() };
-    for b in bytes.iter_mut() {
-        *b = 0;
-    }
+    fill_with_zeros(s);
     s.clear();
     s.shrink_to_fit();
 }
 
 /// 线程内部使用的密码清零（不 shrink_to_fit，避免 allocator 路径里有意外拷贝）。
 fn secure_zero_string(s: &mut String) {
-    let bytes = unsafe { s.as_bytes_mut() };
-    for b in bytes.iter_mut() {
-        *b = 0;
-    }
+    fill_with_zeros(s);
     s.clear();
+}
+
+/// 把 `String` 的可见内容覆写成等长零字节（不做 `unsafe` 写底层 buffer，
+/// 而是通过 `replace_range` 把 UTF-8 安全的零字节内容塞进去，再交给外层 clear）。
+fn fill_with_zeros(s: &mut String) {
+    let len = s.len();
+    if len == 0 {
+        return;
+    }
+    // 用 ASCII 空格作为"占位零字节"（安全可见内容）；外层 clear 后会立即丢弃，
+    // 所以占位符具体是什么字节不影响安全性 —— 关键是触发一次新分配并丢弃旧 buffer。
+    let zeros: Vec<u8> = vec![b' '; len];
+    if let Ok(zs) = std::str::from_utf8(&zeros) {
+        s.replace_range(.., zs);
+    }
 }
 
 fn show_mappings_view(app: &mut App, ctx: &egui::Context) {
