@@ -438,7 +438,13 @@ pub fn notes_tags(app: &mut App, ui: &mut Ui, student: &Student) {
             app.ui_state.notes_focus_student = None;
         }
         // 草稿状态指示
-        if app.ui_state.notes_dirty.get(&student.id).copied().unwrap_or(false) {
+        if app
+            .ui_state
+            .notes_dirty
+            .get(&student.id)
+            .copied()
+            .unwrap_or(false)
+        {
             ui.add_space(4.0);
             ui.label(
                 egui::RichText::new("● 未保存（失焦时自动保存）")
