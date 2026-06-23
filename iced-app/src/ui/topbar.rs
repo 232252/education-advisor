@@ -20,13 +20,13 @@ pub fn view(app: &App) -> Element<Message> {
         .style(move |_: &iced::Theme| style::text_primary(theme));
 
     let collapse_btn = button(
-        text(if app.sidebar_collapsed { "☰" } else { "☰" })
+        text(if app.sidebar_collapsed { "→" } else { "←" })
             .font(CJK_FONT)
-            .size(16)
+            .size(14)
             .style(move |_: &iced::Theme| style::text_dim(theme)),
     )
     .style(move |_, status| style::ghost_button(theme, status))
-    .padding([8.0, 12.0])
+    .padding([8.0, 10.0])
     .on_press(Message::ToggleSidebar);
 
     let theme_btn = button(
@@ -35,16 +35,23 @@ pub fn view(app: &App) -> Element<Message> {
             .style(move |_: &iced::Theme| style::text_dim(theme)),
     )
     .style(move |_, status| style::ghost_button(theme, status))
-    .padding([8.0, 12.0])
+    .padding([8.0, 10.0])
     .on_press(Message::ToggleTheme);
 
     let chat_btn = button(
-        text("新对话")
-            .font(CJK_FONT)
-            .size(13)
-            .style(move |_: &iced::Theme| iced::widget::text::Style {
+        row![
+            text("+").size(14).style(move |_: &iced::Theme| iced::widget::text::Style {
                 color: Some(iced::Color::WHITE),
             }),
+            text("新对话")
+                .font(CJK_FONT)
+                .size(13)
+                .style(move |_: &iced::Theme| iced::widget::text::Style {
+                    color: Some(iced::Color::WHITE),
+                }),
+        ]
+        .spacing(6)
+        .align_y(Alignment::Center),
     )
     .style(move |_, status| style::primary_button(theme, status))
     .padding([8.0, 14.0])

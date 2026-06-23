@@ -48,6 +48,8 @@ pub fn view(app: &App) -> Element<Message> {
     );
     items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)).into());
 
+    // Two-column grid layout
+    let mut row_items: Vec<Element<Message>> = Vec::new();
     for skill in SKILLS {
         let card_content = row![
             text(skill.icon).size(28),
@@ -75,15 +77,32 @@ pub fn view(app: &App) -> Element<Message> {
         .align_y(Alignment::Center)
         .width(Length::Fill);
 
-        items.push(
+        row_items.push(
             container(card_content)
                 .style(move |_: &iced::Theme| style::card_flat(theme))
                 .padding(Padding::from(16.0))
                 .width(Length::Fill)
                 .into(),
         );
-        items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(8.0)).into());
     }
+
+    // Arrange in pairs
+    let mut grid_rows: Vec<Element<Message>> = Vec::new();
+    let mut iter = row_items.into_iter();
+    while let Some(first) = iter.next() {
+        if let Some(second) = iter.next() {
+            grid_rows.push(
+                row![first, second]
+                    .spacing(12)
+                    .width(Length::Fill)
+                    .into(),
+            );
+        } else {
+            grid_rows.push(first);
+        }
+        grid_rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)).into());
+    }
+    items.extend(grid_rows);
 
     let grid = column(items).spacing(0).width(Length::Fill);
     let content = scrollable(grid).style(move |_, _| style::scrollable(theme));
