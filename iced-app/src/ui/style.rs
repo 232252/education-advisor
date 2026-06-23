@@ -1,7 +1,10 @@
 //! Reusable iced style functions matching the commercial design system.
+//!
+//! Glassmorphism + soft diffuse shadow design language: borderless surfaces,
+//! large radii, translucent glass backgrounds and layered diffuse shadows.
 
 use iced::widget::{button, container, pick_list, scrollable as iced_scrollable, text, text_input};
-use iced::{Background, Border, Color, Shadow, Vector};
+use iced::{gradient, Background, Border, Color, Degrees, Gradient, Shadow, Vector};
 
 use crate::theme::Theme;
 
@@ -13,14 +16,14 @@ pub fn card(theme: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(theme.surface_glass)),
         border: Border {
-            color: theme.border,
-            width: 1.0,
-            radius: iced::border::Radius::from(16.0),
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: iced::border::Radius::from(20.0),
         },
         shadow: Shadow {
-            color: theme.shadow,
-            offset: Vector::new(0.0, 4.0),
-            blur_radius: 20.0,
+            color: Color { a: 0.06, ..theme.shadow },
+            offset: Vector::new(0.0, 8.0),
+            blur_radius: 32.0,
         },
         text_color: None,
         snap: false,
@@ -31,11 +34,15 @@ pub fn card_flat(theme: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(theme.surface)),
         border: Border {
-            color: theme.border,
-            width: 1.0,
-            radius: iced::border::Radius::from(12.0),
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: iced::border::Radius::from(16.0),
         },
-        shadow: Shadow::default(),
+        shadow: Shadow {
+            color: Color { a: 0.03, ..theme.shadow },
+            offset: Vector::new(0.0, 2.0),
+            blur_radius: 12.0,
+        },
         text_color: None,
         snap: false,
     }
@@ -45,14 +52,14 @@ pub fn elevated(theme: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(theme.elevated)),
         border: Border {
-            color: theme.border,
-            width: 1.0,
-            radius: iced::border::Radius::from(12.0),
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: iced::border::Radius::from(16.0),
         },
         shadow: Shadow {
-            color: theme.shadow,
-            offset: Vector::new(0.0, 2.0),
-            blur_radius: 10.0,
+            color: Color { a: 0.12, ..theme.shadow },
+            offset: Vector::new(0.0, 6.0),
+            blur_radius: 20.0,
         },
         text_color: None,
         snap: false,
@@ -61,9 +68,12 @@ pub fn elevated(theme: &Theme) -> container::Style {
 
 pub fn sidebar_bg(theme: &Theme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(theme.bg_elevated)),
+        background: Some(Background::Color(Color {
+            a: 0.6,
+            ..theme.surface_glass
+        })),
         border: Border {
-            color: theme.border,
+            color: Color { a: 0.08, ..theme.border },
             width: 1.0,
             radius: iced::border::Radius::from(0.0),
         },
@@ -75,16 +85,19 @@ pub fn sidebar_bg(theme: &Theme) -> container::Style {
 
 pub fn topbar_bg(theme: &Theme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(theme.bg_elevated)),
+        background: Some(Background::Color(Color {
+            a: 0.6,
+            ..theme.surface_glass
+        })),
         border: Border {
-            color: theme.border,
+            color: Color { a: 0.08, ..theme.border },
             width: 1.0,
             radius: iced::border::Radius::from(0.0),
         },
         shadow: Shadow {
-            color: theme.shadow,
+            color: Color { a: 0.04, ..theme.shadow },
             offset: Vector::new(0.0, 2.0),
-            blur_radius: 8.0,
+            blur_radius: 12.0,
         },
         text_color: None,
         snap: false,
@@ -93,14 +106,11 @@ pub fn topbar_bg(theme: &Theme) -> container::Style {
 
 pub fn badge(theme: &Theme, color: Color) -> container::Style {
     container::Style {
-        background: Some(Background::Color(Color {
-            a: 0.15,
-            ..color
-        })),
+        background: Some(Background::Color(Color { a: 0.12, ..color })),
         border: Border {
             color: Color { a: 0.3, ..color },
             width: 1.0,
-            radius: iced::border::Radius::from(8.0),
+            radius: iced::border::Radius::from(6.0),
         },
         shadow: Shadow::default(),
         text_color: Some(color),
@@ -114,16 +124,12 @@ pub fn accent_badge(theme: &Theme) -> container::Style {
 
 pub fn scrollable(theme: &Theme) -> iced_scrollable::Style {
     let rail_bg = Color {
-        a: 0.06,
-        r: theme.text.r,
-        g: theme.text.g,
-        b: theme.text.b,
+        a: 0.03,
+        ..theme.text
     };
     let scroller_bg = Color {
-        a: 0.35,
-        r: theme.text.r,
-        g: theme.text.g,
-        b: theme.text.b,
+        a: 0.25,
+        ..theme.text
     };
     iced_scrollable::Style {
         container: container::Style::default(),
@@ -135,7 +141,7 @@ pub fn scrollable(theme: &Theme) -> iced_scrollable::Style {
                 border: Border {
                     color: Color::TRANSPARENT,
                     width: 0.0,
-                    radius: iced::border::Radius::from(4.0),
+                    radius: iced::border::Radius::from(3.0),
                 },
             },
         },
@@ -147,7 +153,7 @@ pub fn scrollable(theme: &Theme) -> iced_scrollable::Style {
                 border: Border {
                     color: Color::TRANSPARENT,
                     width: 0.0,
-                    radius: iced::border::Radius::from(4.0),
+                    radius: iced::border::Radius::from(3.0),
                 },
             },
         },
@@ -172,8 +178,8 @@ pub fn primary_button(theme: &Theme, status: button::Status) -> button::Style {
     let shadow = match status {
         button::Status::Hovered => Shadow {
             color: Color { a: 0.5, ..theme.accent },
-            offset: Vector::new(0.0, 4.0),
-            blur_radius: 16.0,
+            offset: Vector::new(0.0, 6.0),
+            blur_radius: 20.0,
         },
         button::Status::Pressed => Shadow {
             color: Color { a: 0.2, ..theme.accent },
@@ -182,8 +188,8 @@ pub fn primary_button(theme: &Theme, status: button::Status) -> button::Style {
         },
         _ => Shadow {
             color: Color { a: 0.3, ..theme.accent },
-            offset: Vector::new(0.0, 2.0),
-            blur_radius: 8.0,
+            offset: Vector::new(0.0, 3.0),
+            blur_radius: 12.0,
         },
     };
     button::Style {
@@ -192,7 +198,7 @@ pub fn primary_button(theme: &Theme, status: button::Status) -> button::Style {
         border: Border {
             color: Color::TRANSPARENT,
             width: 0.0,
-            radius: iced::border::Radius::from(10.0),
+            radius: iced::border::Radius::from(12.0),
         },
         shadow,
         snap: false,
@@ -202,13 +208,13 @@ pub fn primary_button(theme: &Theme, status: button::Status) -> button::Style {
 pub fn secondary_button(theme: &Theme, status: button::Status) -> button::Style {
     let bg = match status {
         button::Status::Hovered => theme.surface_hover,
-        _ => theme.surface,
+        _ => Color { a: 0.5, ..theme.surface },
     };
     let shadow = match status {
         button::Status::Hovered => Shadow {
-            color: Color { a: 0.15, ..theme.shadow },
-            offset: Vector::new(0.0, 3.0),
-            blur_radius: 12.0,
+            color: Color { a: 0.12, ..theme.shadow },
+            offset: Vector::new(0.0, 4.0),
+            blur_radius: 16.0,
         },
         _ => Shadow::default(),
     };
@@ -216,9 +222,9 @@ pub fn secondary_button(theme: &Theme, status: button::Status) -> button::Style 
         background: Some(Background::Color(bg)),
         text_color: theme.text,
         border: Border {
-            color: theme.border,
-            width: 1.0,
-            radius: iced::border::Radius::from(10.0),
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: iced::border::Radius::from(12.0),
         },
         shadow,
         snap: false,
@@ -227,7 +233,7 @@ pub fn secondary_button(theme: &Theme, status: button::Status) -> button::Style 
 
 pub fn ghost_button(theme: &Theme, status: button::Status) -> button::Style {
     let bg = match status {
-        button::Status::Hovered => theme.surface_hover,
+        button::Status::Hovered => Color { a: 0.08, ..theme.text },
         _ => Color::TRANSPARENT,
     };
     button::Style {
@@ -236,7 +242,7 @@ pub fn ghost_button(theme: &Theme, status: button::Status) -> button::Style {
         border: Border {
             color: Color::TRANSPARENT,
             width: 0.0,
-            radius: iced::border::Radius::from(8.0),
+            radius: iced::border::Radius::from(10.0),
         },
         shadow: Shadow::default(),
         snap: false,
@@ -252,10 +258,19 @@ pub fn danger_button(theme: &Theme, status: button::Status) -> button::Style {
     let shadow = match status {
         button::Status::Hovered => Shadow {
             color: Color { a: 0.4, ..theme.danger },
-            offset: Vector::new(0.0, 3.0),
-            blur_radius: 12.0,
+            offset: Vector::new(0.0, 5.0),
+            blur_radius: 16.0,
         },
-        _ => Shadow::default(),
+        button::Status::Pressed => Shadow {
+            color: Color { a: 0.2, ..theme.danger },
+            offset: Vector::new(0.0, 1.0),
+            blur_radius: 4.0,
+        },
+        _ => Shadow {
+            color: Color { a: 0.25, ..theme.danger },
+            offset: Vector::new(0.0, 3.0),
+            blur_radius: 10.0,
+        },
     };
     button::Style {
         background: Some(Background::Color(bg)),
@@ -263,7 +278,7 @@ pub fn danger_button(theme: &Theme, status: button::Status) -> button::Style {
         border: Border {
             color: Color::TRANSPARENT,
             width: 0.0,
-            radius: iced::border::Radius::from(10.0),
+            radius: iced::border::Radius::from(12.0),
         },
         shadow,
         snap: false,
@@ -272,9 +287,9 @@ pub fn danger_button(theme: &Theme, status: button::Status) -> button::Style {
 
 pub fn nav_button(theme: &Theme, active: bool, status: button::Status) -> button::Style {
     let (bg, text) = if active {
-        (theme.accent_dim, theme.accent_hover)
+        (theme.accent_bg, theme.accent_hover)
     } else if matches!(status, button::Status::Hovered) {
-        (theme.surface_hover, theme.text)
+        (Color { a: 0.05, ..theme.text }, theme.text)
     } else {
         (Color::TRANSPARENT, theme.text_dim)
     };
@@ -291,24 +306,73 @@ pub fn nav_button(theme: &Theme, active: bool, status: button::Status) -> button
     }
 }
 
+/// Gradient button style for primary/high-emphasis actions.
+///
+/// Simulates a two-color overlay using a linear gradient between the accent
+/// and its hover variant. The shadow deepens and grows on hover, and shrinks
+/// when pressed.
+pub fn grad_button(theme: &Theme, status: button::Status) -> button::Style {
+    let (from, to, shadow) = match status {
+        button::Status::Hovered => (
+            theme.accent_hover,
+            theme.accent_strong,
+            Shadow {
+                color: Color { a: 0.55, ..theme.accent },
+                offset: Vector::new(0.0, 6.0),
+                blur_radius: 20.0,
+            },
+        ),
+        button::Status::Pressed => (
+            theme.accent_strong,
+            theme.accent,
+            Shadow {
+                color: Color { a: 0.25, ..theme.accent },
+                offset: Vector::new(0.0, 1.0),
+                blur_radius: 4.0,
+            },
+        ),
+        _ => (
+            theme.accent,
+            theme.accent_hover,
+            Shadow {
+                color: Color { a: 0.4, ..theme.accent },
+                offset: Vector::new(0.0, 4.0),
+                blur_radius: 14.0,
+            },
+        ),
+    };
+    let bg = Gradient::Linear(
+        gradient::Linear::new(Degrees(135.0))
+            .add_stop(0.0, from)
+            .add_stop(1.0, to),
+    );
+    button::Style {
+        background: Some(Background::Gradient(bg)),
+        text_color: Color::WHITE,
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: iced::border::Radius::from(12.0),
+        },
+        shadow,
+        snap: false,
+    }
+}
+
 // ── Text input styles ──────────────────────────────────────────────
 
 pub fn text_input_style(theme: &Theme, status: text_input::Status) -> text_input::Style {
-    let border_color = match status {
-        text_input::Status::Focused { .. } => theme.accent,
-        text_input::Status::Hovered => theme.border_strong,
-        _ => theme.border,
+    let (border_color, border_width) = match status {
+        text_input::Status::Focused { .. } => (theme.accent, 2.0),
+        text_input::Status::Hovered => (theme.border_strong, 1.0),
+        _ => (theme.border, 1.0),
     };
     text_input::Style {
         background: Background::Color(theme.surface),
         border: Border {
             color: border_color,
-            width: if matches!(status, text_input::Status::Focused { .. }) {
-                2.0
-            } else {
-                1.0
-            },
-            radius: iced::border::Radius::from(10.0),
+            width: border_width,
+            radius: iced::border::Radius::from(12.0),
         },
         icon: theme.text_faint,
         placeholder: theme.text_faint,
@@ -326,9 +390,9 @@ pub fn pick_list_style(theme: &Theme, _status: pick_list::Status) -> pick_list::
         handle_color: theme.text_faint,
         background: Background::Color(theme.surface),
         border: Border {
-            color: theme.border,
+            color: Color { a: 0.08, ..theme.border },
             width: 1.0,
-            radius: iced::border::Radius::from(10.0),
+            radius: iced::border::Radius::from(12.0),
         },
     }
 }

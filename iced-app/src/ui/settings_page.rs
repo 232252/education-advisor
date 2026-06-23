@@ -70,15 +70,21 @@ pub fn view(app: &App) -> Element<Message> {
 
     // Temperature
     let temp_row = row![
-        text(format!("温度: {:.1}", app.settings.temperature))
+        text("温度")
             .font(CJK_FONT)
             .size(13)
             .style(move |_: &iced::Theme| style::text_dim(theme))
-            .width(Length::Fixed(100.0)),
+            .width(Length::Fixed(60.0)),
         slider(0.0..=2.0, app.settings.temperature, |v| {
             Message::SettingsTemperatureChanged(v)
         })
-        .step(0.1),
+        .step(0.1)
+        .width(Length::Fill),
+        text(format!("{:.1}", app.settings.temperature))
+            .font(CJK_FONT)
+            .size(13)
+            .style(move |_: &iced::Theme| style::text_primary(theme))
+            .width(Length::Fixed(40.0)),
     ]
     .spacing(12)
     .align_y(Alignment::Center);
@@ -93,14 +99,20 @@ pub fn view(app: &App) -> Element<Message> {
 
     // Max iterations
     let iter_row = row![
-        text(format!("最大工具迭代: {}", app.settings.max_tool_iterations))
+        text("最大工具迭代")
             .font(CJK_FONT)
             .size(13)
             .style(move |_: &iced::Theme| style::text_dim(theme))
-            .width(Length::Fixed(160.0)),
+            .width(Length::Fixed(100.0)),
         slider(1..=20, app.settings.max_tool_iterations, |v| {
             Message::SettingsMaxIterChanged(v)
-        }),
+        })
+        .width(Length::Fill),
+        text(format!("{}", app.settings.max_tool_iterations))
+            .font(CJK_FONT)
+            .size(13)
+            .style(move |_: &iced::Theme| style::text_primary(theme))
+            .width(Length::Fixed(40.0)),
     ]
     .spacing(12)
     .align_y(Alignment::Center);
@@ -128,6 +140,7 @@ pub fn view(app: &App) -> Element<Message> {
             .size(13)
             .style(move |_: &iced::Theme| style::text_dim(theme)),
         iced::widget::Space::new().width(Length::Fill).height(Length::Fixed(0.0)),
+        text("🤖").size(16),
         pick_list(
             provider_ids.clone(),
             if active_name.is_empty() { None } else { Some(active_name) },
@@ -145,7 +158,7 @@ pub fn view(app: &App) -> Element<Message> {
         .padding([8.0, 10.0])
         .style(move |_, status| style::pick_list_style(theme, status)),
     ]
-    .spacing(12)
+    .spacing(8)
     .align_y(Alignment::Center);
     items.push(
         container(provider_row)
@@ -156,8 +169,19 @@ pub fn view(app: &App) -> Element<Message> {
     );
     items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(16.0)).into());
 
-    // Save button
-    items.push(widgets::primary_button(theme, "💾 保存设置", Message::SaveSettings));
+    // Save button — gradient, full width, at the bottom
+    let save_button = iced::widget::button(
+        text("💾 保存设置")
+            .font(CJK_FONT)
+            .size(14)
+            .align_x(iced::alignment::Horizontal::Center)
+            .align_y(iced::alignment::Vertical::Center),
+    )
+    .style(move |_, status| style::grad_button(theme, status))
+    .padding([12.0, 16.0])
+    .width(Length::Fill)
+    .on_press(Message::SaveSettings);
+    items.push(save_button.into());
 
     let grid = column(items).spacing(0).width(Length::Fill);
     let content = scrollable(grid).style(move |_, _| style::scrollable(theme));

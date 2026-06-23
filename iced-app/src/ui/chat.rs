@@ -3,7 +3,7 @@
 use iced::widget::{button, column, container, row, scrollable, text, text_input, Space};
 use iced::{Alignment, Element, Font, Length, Padding};
 
-use crate::app::{App, CJK_FONT, Message};
+use crate::app::{App, CJK_FONT, Message, Page};
 use crate::models::Role;
 use crate::theme::Theme;
 use crate::ui::style;
@@ -127,17 +127,29 @@ fn message_area(app: &App) -> Element<Message> {
     let conv_id = match app.selected_conversation {
         Some(id) => id,
         None => {
-            return container(widgets::empty_state(
+            return container(widgets::empty_state_with_cta(
                 theme,
                 "💬",
-                "选择一个会话或创建新对话开始聊天",
+                "选择一个对话或创建新对话",
+                "新对话",
+                Message::Navigate(Page::Chat),
             ))
             .width(Length::Fill)
             .height(Length::Fill)
             .center_x(Length::Fill)
+            .center_y(Length::Fill)
             .into();
         }
     };
+
+    // Look up the conversation's agent_id for AI role badges.
+    let agent_id = app
+        .conversations
+        .read()
+        .iter()
+        .find(|c| c.id == conv_id)
+        .map(|c| c.agent_id.clone())
+        .unwrap_or_else(|| "AI".to_string());
 
     let messages = app.messages.get(&conv_id).cloned().unwrap_or_default();
     let streaming = app.streaming.get(&conv_id).cloned();
@@ -145,8 +157,14 @@ fn message_area(app: &App) -> Element<Message> {
     let mut items: Vec<Element<Message>> = Vec::new();
 
     for msg in &messages {
-        items.push(message_bubble(theme, msg.role, msg.content.clone(), msg.tool_calls.clone()));
-        items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(8.0)).into());
+        items.push(message_bubble(
+            theme,
+            msg.role,
+            msg.content.clone(),
+            msg.tool_calls.clone(),
+            &agent_id,
+        ));
+        items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)).into());
     }
 
     // Streaming message
@@ -157,8 +175,14 @@ fn message_area(app: &App) -> Element<Message> {
             } else {
                 st.buffer.clone()
             };
-            items.push(message_bubble(theme, Role::Assistant, content, st.tool_calls.clone()));
-            items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(8.0)).into());
+            items.push(message_bubble(
+                theme,
+                Role::Assistant,
+                content,
+                st.tool_calls.clone(),
+                &agent_id,
+            ));
+            items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)).into());
         }
     }
 
@@ -187,12 +211,16 @@ fn message_bubble<'a>(
     role: Role,
     content: String,
     tool_calls: Vec<crate::models::ToolCallRecord>,
+    agent_id: &str,
 ) -> Element<'a, Message> {
-    let (is_user, name, color) = match role {
-        Role::User => (true, "你", theme.accent),
-        Role::Assistant => (false, "AI", theme.purple),
-        Role::System => (false, "系统", theme.text_faint),
-        Role::Tool => (false, "工具", theme.cyan),
+    let is_user = matches!(role, Role::User);
+
+    // Role label badge: user="你", AI=agent_id
+    let (badge_color, badge_label) = match role {
+        Role::User => (theme.accent, "你".to_string()),
+        Role::Assistant => (theme.purple, agent_id.to_string()),
+        Role::System => (theme.text_faint, "系统".to_string()),
+        Role::Tool => (theme.cyan, "工具".to_string()),
     };
 
     let mut col_items: Vec<Element<Message>> = Vec::new();
@@ -234,6 +262,7 @@ fn message_bubble<'a>(
         text(content)
             .font(CJK_FONT)
             .size(14)
+            .width(Length::Fill)
             .style(move |_: &iced::Theme| iced::widget::text::Style {
                 color: Some(theme.text),
             })
@@ -241,6 +270,23 @@ fn message_bubble<'a>(
     );
 
     let bubble_content = column(col_items).spacing(0).width(Length::Fill);
+
+    // Rounded 16px, with the bottom corner facing the sender tapered to 4px.
+    let radius = if is_user {
+        iced::border::Radius {
+            top_left: 16.0,
+            top_right: 16.0,
+            bottom_right: 4.0,
+            bottom_left: 16.0,
+        }
+    } else {
+        iced::border::Radius {
+            top_left: 16.0,
+            top_right: 16.0,
+            bottom_right: 16.0,
+            bottom_left: 4.0,
+        }
+    };
 
     let bubble = container(bubble_content)
         .style(move |_: &iced::Theme| iced::widget::container::Style {
@@ -250,9 +296,9 @@ fn message_bubble<'a>(
                 theme.surface
             })),
             border: iced::Border {
-                color: if is_user { theme.accent } else { theme.border },
-                width: 1.0,
-                radius: iced::border::Radius::from(12.0),
+                color: iced::Color::TRANSPARENT,
+                width: 0.0,
+                radius,
             },
             shadow: iced::Shadow {
                 color: iced::Color { a: 0.08, ..theme.shadow },
@@ -262,31 +308,45 @@ fn message_bubble<'a>(
             text_color: None,
             snap: false,
         })
-        .padding(Padding::from(14.0))
+        .padding([10.0, 14.0])
         .width(Length::Fill);
 
-    let name_label = text(name)
-        .font(CJK_FONT)
-        .size(11)
-        .style(move |_: &iced::Theme| iced::widget::text::Style {
-            color: Some(color),
-        });
+    let badge = container(
+        text(badge_label)
+            .font(CJK_FONT)
+            .size(11)
+            .style(move |_: &iced::Theme| iced::widget::text::Style {
+                color: Some(badge_color),
+            }),
+    )
+    .style(move |_: &iced::Theme| style::badge(theme, badge_color))
+    .padding([3.0, 8.0]);
 
-    let bubble_col = column![name_label, bubble].spacing(4);
+    // Cap the bubble column at 70% width; right-align for user, left for AI.
+    let bubble_col = column![badge, bubble]
+        .spacing(4)
+        .align_x(if is_user {
+            iced::alignment::Horizontal::Right
+        } else {
+            iced::alignment::Horizontal::Left
+        })
+        .width(Length::FillPortion(7));
 
     if is_user {
         row![
-            iced::widget::Space::new().width(Length::Fill).height(Length::Fixed(0.0)),
-            bubble_col.width(Length::FillPortion(3)),
+            Space::new().width(Length::FillPortion(3)).height(Length::Fixed(0.0)),
+            bubble_col,
         ]
         .spacing(0)
+        .align_y(Alignment::Start)
         .into()
     } else {
         row![
-            bubble_col.width(Length::FillPortion(3)),
-            iced::widget::Space::new().width(Length::Fill).height(Length::Fixed(0.0)),
+            bubble_col,
+            Space::new().width(Length::FillPortion(3)).height(Length::Fixed(0.0)),
         ]
         .spacing(0)
+        .align_y(Alignment::Start)
         .into()
     }
 }
@@ -307,9 +367,9 @@ fn input_area(app: &App) -> Element<Message> {
         .style(move |_, status| style::text_input_style(theme, status))
         .width(Length::Fill);
 
-    let send_btn = if is_streaming {
+    let action_btn = if is_streaming {
         button(
-            text("⏹ 停止")
+            text("取消")
                 .font(CJK_FONT)
                 .size(13)
                 .style(move |_: &iced::Theme| iced::widget::text::Style {
@@ -328,14 +388,18 @@ fn input_area(app: &App) -> Element<Message> {
                     color: Some(iced::Color::WHITE),
                 }),
         )
-        .style(move |_, status| style::primary_button(theme, status))
+        .style(move |_, status| style::grad_button(theme, status))
         .padding([12.0, 16.0])
         .on_press(Message::SendChat)
     };
 
-    row![input, send_btn]
+    let input_row = row![input, action_btn]
         .spacing(8)
         .align_y(Alignment::Center)
+        .width(Length::Fill);
+
+    container(input_row)
+        .padding([10.0, 20.0])
         .width(Length::Fill)
         .into()
 }
