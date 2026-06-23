@@ -21,43 +21,50 @@ pub fn view(app: &App) -> Element<Message> {
         let active = app.active_agent == agent.id;
         let icon_char = agent.name.chars().next().unwrap_or('◆');
 
+        // Top row: big icon (left) + active badge (right)
+        let top_row = row![
+            text(icon_char.to_string())
+                .font(Font {
+                    family: CJK_FONT.family,
+                    weight: iced::font::Weight::Bold,
+                    ..Default::default()
+                })
+                .size(28)
+                .style(move |_: &iced::Theme| iced::widget::text::Style {
+                    color: Some(theme.accent),
+                }),
+            Space::new().width(Length::Fill).height(Length::Fixed(0.0)),
+            if active {
+                widgets::badge(theme, theme.success, "当前".to_string())
+            } else {
+                Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(0.0)).into()
+            },
+        ]
+        .align_y(Alignment::Center)
+        .spacing(8);
+
+        // Name + ID sub-column (tight spacing for breathing feel)
+        let name_id = column![
+            text(agent.name.clone())
+                .font(Font {
+                    family: CJK_FONT.family,
+                    weight: iced::font::Weight::Bold,
+                    ..Default::default()
+                })
+                .size(16)
+                .style(move |_: &iced::Theme| style::text_primary(theme)),
+            text(agent.id.clone())
+                .font(CJK_FONT)
+                .size(11)
+                .style(move |_: &iced::Theme| style::text_faint(theme)),
+        ]
+        .spacing(2);
+
         let card_content = column![
-            row![
-                text(icon_char.to_string())
-                    .font(Font {
-                        family: CJK_FONT.family,
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    })
-                    .size(24)
-                    .style(move |_: &iced::Theme| iced::widget::text::Style {
-                        color: Some(theme.accent),
-                    }),
-                column![
-                    text(agent.name.clone())
-                        .font(Font {
-                            family: CJK_FONT.family,
-                            weight: iced::font::Weight::Bold,
-                            ..Default::default()
-                        })
-                        .size(15)
-                        .style(move |_: &iced::Theme| style::text_primary(theme)),
-                    text(agent.id.clone())
-                        .font(CJK_FONT)
-                        .size(11)
-                        .style(move |_: &iced::Theme| style::text_faint(theme)),
-                ]
-                .spacing(2),
-                iced::widget::Space::new().width(Length::Fill).height(Length::Fixed(0.0)),
-                if active {
-                    widgets::badge(theme, theme.success, "当前".to_string())
-                } else {
-                    iced::widget::Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(0.0)).into()
-                },
-            ]
-            .align_y(Alignment::Center)
-            .spacing(12),
-            iced::widget::Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(8.0)),
+            top_row,
+            Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(10.0)),
+            name_id,
+            Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(8.0)),
             text(agent.description.clone())
                 .font(CJK_FONT)
                 .size(12)
@@ -67,44 +74,42 @@ pub fn view(app: &App) -> Element<Message> {
         .width(Length::Fill);
 
         let btn = iced::widget::button(card_content)
-            .style(move |_, status| {
-                if active {
-                    style::nav_button(theme, true, status)
-                } else {
-                    style::secondary_button(theme, status)
-                }
-            })
-            .padding(Padding::from(16.0))
+            .style(move |_, status| style::secondary_button(theme, status))
+            .padding(Padding::from(20.0))
             .width(Length::Fill)
             .on_press(Message::SetActiveAgent(agent.id.to_string()));
 
         row_items.push(btn.into());
     }
 
-    // Arrange in pairs
+    // Arrange in pairs (two-column grid)
     let mut grid_rows: Vec<Element<Message>> = Vec::new();
     let mut iter = row_items.into_iter();
     while let Some(first) = iter.next() {
         if let Some(second) = iter.next() {
             grid_rows.push(
                 row![first, second]
-                    .spacing(12)
+                    .spacing(14)
                     .width(Length::Fill)
                     .into(),
             );
         } else {
             grid_rows.push(first);
         }
-        grid_rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)).into());
+        grid_rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(14.0)).into());
     }
     items.extend(grid_rows);
 
     let grid = column(items).spacing(0).width(Length::Fill);
     let content = scrollable(grid).style(move |_, _| style::scrollable(theme));
 
-    column![header, Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)), container(content).width(Length::Fill).height(Length::Fill)]
-        .spacing(0)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+    column![
+        header,
+        Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(14.0)),
+        container(content).width(Length::Fill).height(Length::Fill)
+    ]
+    .spacing(0)
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
 }
