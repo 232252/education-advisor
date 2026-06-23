@@ -13,7 +13,43 @@ pub fn view(app: &App) -> Element<Message> {
 
     let header = widgets::page_header(theme, "知识库", "本地 RAG 知识库，支持向量检索");
 
+    // If adding a document, show the add form
+    if app.ui_state.rag_adding_document {
+        return column![
+            header,
+            Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)),
+            document_add_form(app)
+        ]
+        .spacing(0)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into();
+    }
+
     let mut items: Vec<Element<Message>> = Vec::new();
+
+    // Add document button
+    let add_doc_btn = iced::widget::button(
+        row![
+            text("+").size(14).style(move |_: &iced::Theme| iced::widget::text::Style {
+                color: Some(iced::Color::WHITE),
+            }),
+            text("添加文档")
+                .font(CJK_FONT)
+                .size(13)
+                .style(move |_: &iced::Theme| iced::widget::text::Style {
+                    color: Some(iced::Color::WHITE),
+                }),
+        ]
+        .spacing(6)
+        .align_y(Alignment::Center),
+    )
+    .style(move |_, status| style::primary_button(theme, status))
+    .padding([8.0, 14.0])
+    .on_press(Message::RagOpenAddDocument);
+
+    items.push(add_doc_btn.into());
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)).into());
 
     // Query box
     let query_input = text_input("输入搜索关键词…", &app.ui_state.rag_query)
@@ -150,6 +186,103 @@ pub fn view(app: &App) -> Element<Message> {
         container(content).width(Length::Fill).height(Length::Fill)
     ]
     .spacing(0)
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
+}
+
+fn document_add_form(app: &App) -> Element<Message> {
+    let theme = &app.theme;
+    let mut items: Vec<Element<Message>> = Vec::new();
+
+    items.push(
+        text("添加文档到知识库")
+            .font(Font {
+                family: CJK_FONT.family,
+                weight: iced::font::Weight::Bold,
+                ..Default::default()
+            })
+            .size(20)
+            .style(move |_: &iced::Theme| style::text_primary(theme))
+            .into(),
+    );
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(16.0)).into());
+
+    // Title input
+    items.push(
+        column![
+            text("文档标题")
+                .font(CJK_FONT)
+                .size(12)
+                .style(move |_: &iced::Theme| style::text_faint(theme)),
+            text_input("输入文档标题", &app.ui_state.rag_new_title)
+                .on_input(Message::RagNewTitleChanged)
+                .font(CJK_FONT)
+                .size(13)
+                .padding([8.0, 10.0])
+                .style(move |_, status| style::text_input_style(theme, status))
+                .width(Length::Fill),
+        ]
+        .spacing(4)
+        .into(),
+    );
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(10.0)).into());
+
+    // Content input
+    items.push(
+        column![
+            text("文档内容")
+                .font(CJK_FONT)
+                .size(12)
+                .style(move |_: &iced::Theme| style::text_faint(theme)),
+            text_input("粘贴文档内容…", &app.ui_state.rag_new_content)
+                .on_input(Message::RagNewContentChanged)
+                .font(CJK_FONT)
+                .size(13)
+                .padding([8.0, 10.0])
+                .style(move |_, status| style::text_input_style(theme, status))
+                .width(Length::Fill),
+        ]
+        .spacing(4)
+        .into(),
+    );
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(16.0)).into());
+
+    // Actions
+    let actions = row![
+        iced::widget::button(
+            text("保存")
+                .font(CJK_FONT)
+                .size(13)
+                .style(move |_: &iced::Theme| iced::widget::text::Style {
+                    color: Some(iced::Color::WHITE),
+                }),
+        )
+        .style(move |_, status| style::primary_button(theme, status))
+        .padding([10.0, 20.0])
+        .on_press(Message::SaveRagDocument(
+            app.ui_state.rag_new_title.clone(),
+            app.ui_state.rag_new_content.clone(),
+        )),
+        iced::widget::button(
+            text("取消")
+                .font(CJK_FONT)
+                .size(13)
+                .style(move |_: &iced::Theme| style::text_dim(theme)),
+        )
+        .style(move |_, status| style::secondary_button(theme, status))
+        .padding([10.0, 20.0])
+        .on_press(Message::RagCloseAddDocument),
+    ]
+    .spacing(12);
+    items.push(actions.into());
+
+    let content = column(items).spacing(0).width(Length::Fill);
+    container(
+        scrollable(content).style(move |_, _| style::scrollable(theme)),
+    )
+    .style(move |_: &iced::Theme| style::card_flat(theme))
+    .padding(Padding::from(20.0))
     .width(Length::Fill)
     .height(Length::Fill)
     .into()

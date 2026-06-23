@@ -28,7 +28,7 @@ pub fn view(app: &App) -> Element<'_, crate::app::Message> {
             };
             let age = now.duration_since(t.born).as_secs_f32();
             let ttl = t.ttl.as_secs_f32();
-            let alpha = ((1.0 - age / ttl) * 2.0).min(1.0).max(0.0) as f32;
+            let alpha = (1.0 - age / ttl).clamp(0.0, 1.0);
 
             let content = row![
                 text(icon)
@@ -74,10 +74,11 @@ pub fn view(app: &App) -> Element<'_, crate::app::Message> {
 
     container(col)
         .width(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Right)
         .padding(Padding {
-            top: 0.0,
+            top: 20.0,
             right: 20.0,
-            bottom: 20.0,
+            bottom: 0.0,
             left: 0.0,
         })
         .into()

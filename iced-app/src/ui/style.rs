@@ -62,7 +62,11 @@ pub fn elevated(theme: &Theme) -> container::Style {
 pub fn sidebar_bg(theme: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(theme.bg_elevated)),
-        border: Border::default(),
+        border: Border {
+            color: theme.border,
+            width: 1.0,
+            radius: iced::border::Radius::from(0.0),
+        },
         shadow: Shadow::default(),
         text_color: None,
         snap: false,
@@ -74,7 +78,7 @@ pub fn topbar_bg(theme: &Theme) -> container::Style {
         background: Some(Background::Color(theme.bg_elevated)),
         border: Border {
             color: theme.border,
-            width: 0.0,
+            width: 1.0,
             radius: iced::border::Radius::from(0.0),
         },
         shadow: Shadow {
@@ -109,22 +113,42 @@ pub fn accent_badge(theme: &Theme) -> container::Style {
 }
 
 pub fn scrollable(theme: &Theme) -> iced_scrollable::Style {
+    let rail_bg = Color {
+        a: 0.06,
+        r: theme.text.r,
+        g: theme.text.g,
+        b: theme.text.b,
+    };
+    let scroller_bg = Color {
+        a: 0.35,
+        r: theme.text.r,
+        g: theme.text.g,
+        b: theme.text.b,
+    };
     iced_scrollable::Style {
         container: container::Style::default(),
         vertical_rail: iced_scrollable::Rail {
-            background: None,
+            background: Some(Background::Color(rail_bg)),
             border: Border::default(),
             scroller: iced_scrollable::Scroller {
-                background: Background::Color(theme.border_strong),
-                border: Border::default(),
+                background: Background::Color(scroller_bg),
+                border: Border {
+                    color: Color::TRANSPARENT,
+                    width: 0.0,
+                    radius: iced::border::Radius::from(4.0),
+                },
             },
         },
         horizontal_rail: iced_scrollable::Rail {
-            background: None,
+            background: Some(Background::Color(rail_bg)),
             border: Border::default(),
             scroller: iced_scrollable::Scroller {
-                background: Background::Color(theme.border_strong),
-                border: Border::default(),
+                background: Background::Color(scroller_bg),
+                border: Border {
+                    color: Color::TRANSPARENT,
+                    width: 0.0,
+                    radius: iced::border::Radius::from(4.0),
+                },
             },
         },
         gap: None,
@@ -145,6 +169,23 @@ pub fn primary_button(theme: &Theme, status: button::Status) -> button::Style {
         button::Status::Pressed => theme.accent_strong,
         _ => theme.accent,
     };
+    let shadow = match status {
+        button::Status::Hovered => Shadow {
+            color: Color { a: 0.5, ..theme.accent },
+            offset: Vector::new(0.0, 4.0),
+            blur_radius: 16.0,
+        },
+        button::Status::Pressed => Shadow {
+            color: Color { a: 0.2, ..theme.accent },
+            offset: Vector::new(0.0, 1.0),
+            blur_radius: 4.0,
+        },
+        _ => Shadow {
+            color: Color { a: 0.3, ..theme.accent },
+            offset: Vector::new(0.0, 2.0),
+            blur_radius: 8.0,
+        },
+    };
     button::Style {
         background: Some(Background::Color(bg)),
         text_color: Color::WHITE,
@@ -153,11 +194,7 @@ pub fn primary_button(theme: &Theme, status: button::Status) -> button::Style {
             width: 0.0,
             radius: iced::border::Radius::from(10.0),
         },
-        shadow: Shadow {
-            color: Color { a: 0.3, ..theme.accent },
-            offset: Vector::new(0.0, 2.0),
-            blur_radius: 8.0,
-        },
+        shadow,
         snap: false,
     }
 }
@@ -167,6 +204,14 @@ pub fn secondary_button(theme: &Theme, status: button::Status) -> button::Style 
         button::Status::Hovered => theme.surface_hover,
         _ => theme.surface,
     };
+    let shadow = match status {
+        button::Status::Hovered => Shadow {
+            color: Color { a: 0.15, ..theme.shadow },
+            offset: Vector::new(0.0, 3.0),
+            blur_radius: 12.0,
+        },
+        _ => Shadow::default(),
+    };
     button::Style {
         background: Some(Background::Color(bg)),
         text_color: theme.text,
@@ -175,7 +220,7 @@ pub fn secondary_button(theme: &Theme, status: button::Status) -> button::Style 
             width: 1.0,
             radius: iced::border::Radius::from(10.0),
         },
-        shadow: Shadow::default(),
+        shadow,
         snap: false,
     }
 }
@@ -204,6 +249,14 @@ pub fn danger_button(theme: &Theme, status: button::Status) -> button::Style {
         button::Status::Pressed => Color { a: 0.8, ..theme.danger },
         _ => theme.danger,
     };
+    let shadow = match status {
+        button::Status::Hovered => Shadow {
+            color: Color { a: 0.4, ..theme.danger },
+            offset: Vector::new(0.0, 3.0),
+            blur_radius: 12.0,
+        },
+        _ => Shadow::default(),
+    };
     button::Style {
         background: Some(Background::Color(bg)),
         text_color: Color::WHITE,
@@ -212,7 +265,7 @@ pub fn danger_button(theme: &Theme, status: button::Status) -> button::Style {
             width: 0.0,
             radius: iced::border::Radius::from(10.0),
         },
-        shadow: Shadow::default(),
+        shadow,
         snap: false,
     }
 }

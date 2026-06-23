@@ -57,6 +57,9 @@ pub struct UiState {
     // rag page
     pub rag_query: String,
     pub rag_results: Vec<(Uuid, Uuid, f32, String)>,
+    pub rag_adding_document: bool,
+    pub rag_new_title: String,
+    pub rag_new_content: String,
 
     // settings page
     pub editing_provider: Option<LlmProvider>,

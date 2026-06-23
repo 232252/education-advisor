@@ -227,6 +227,10 @@ pub enum Message {
     RagQuery,
     SaveRagDocument(String, String),
     DeleteRagDocument(Uuid),
+    RagOpenAddDocument,
+    RagCloseAddDocument,
+    RagNewTitleChanged(String),
+    RagNewContentChanged(String),
     // Settings
     SaveSettings,
     SettingsThemeChanged(ThemeMode),
@@ -235,6 +239,9 @@ pub enum Message {
     SettingsActiveProviderChanged(String),
     ExportBackup,
     ImportBackup,
+    // Agents
+    SetActiveAgent(String),
+    NavigateToChat(uuid::Uuid),
     // PII
     PiiInit(String),
     PiiUnlock(String),
@@ -533,8 +540,29 @@ impl App {
                     backup.created_at.format("%Y%m%d-%H%M%S")
                 );
                 let default_name_for_dialog = default_name.clone();
-                // Use rfd in a blocking thread to avoid blocking the UI
-                let task = Task::perform(
+                // Serialize first
+                let backup_json = match serde_json::to_string_pretty(&backup) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        self.push_toast(ToastKind::Error, format!("序列化失败: {e}"));
+                        return;
+                    }
+                };
+                // Write to default download dir
+                let default_path = dirs::download_dir()
+                    .unwrap_or_else(|| std::path::PathBuf::from("."))
+                    .join(&default_name);
+                if let Err(e) = std::fs::write(&default_path, &backup_json) {
+                    self.push_toast(ToastKind::Error, format!("默认路径写入失败: {e}"));
+                } else {
+                    self.push_toast(
+                        ToastKind::Success,
+                        format!("备份已保存到 {}", default_path.display()),
+                    );
+                }
+                // Also open save dialog; if user picks a path, write there too
+                let backup_json_for_dialog = backup_json.clone();
+                let _ = Task::perform(
                     async move {
                         rfd::AsyncFileDialog::new()
                             .set_file_name(&default_name_for_dialog)
@@ -542,34 +570,16 @@ impl App {
                             .save_file()
                             .await
                     },
-                    |path| {
+                    move |path| {
                         if let Some(p) = path {
-                            Message::BackupSaved(p.path().to_string_lossy().to_string())
+                            let path_str = p.path().to_string_lossy().to_string();
+                            let _ = std::fs::write(p.path(), &backup_json_for_dialog);
+                            Message::BackupSaved(path_str)
                         } else {
                             Message::None
                         }
                     },
                 );
-                // We can't return a Task from drain_events; store the backup for the
-                // update function to handle. Instead, just serialize inline.
-                match serde_json::to_string_pretty(&backup) {
-                    Ok(s) => {
-                        // Write to a default location if dialog not available
-                        let path = dirs::download_dir()
-                            .unwrap_or_else(|| std::path::PathBuf::from("."))
-                            .join(default_name);
-                        match std::fs::write(&path, s) {
-                            Ok(()) => self.push_toast(
-                                ToastKind::Success,
-                                format!("备份已保存到 {}", path.display()),
-                            ),
-                            Err(e) => self
-                                .push_toast(ToastKind::Error, format!("写入失败: {e}")),
-                        }
-                    }
-                    Err(e) => self.push_toast(ToastKind::Error, format!("序列化失败: {e}")),
-                }
-                let _ = task; // suppress unused
             }
             Settings(s) => {
                 if s != self.settings {
@@ -587,6 +597,18 @@ impl App {
     pub fn update(&mut self, msg: Message) -> Task<Message> {
         match msg {
             Message::None => {}
+            Message::SetActiveAgent(id) => {
+                self.active_agent = id;
+                self.push_toast(crate::runtime::ToastKind::Info, "已切换活跃代理".to_string());
+            }
+            Message::NavigateToChat(conv_id) => {
+                self.page = Page::Chat;
+                self.selected_conversation = Some(conv_id);
+                let _ = self
+                    .runtime
+                    .tx
+                    .send(crate::runtime::Command::LoadMessages(conv_id));
+            }
             Message::Tick => {
                 // Clean up zombie streaming entries
                 self.streaming
@@ -875,6 +897,18 @@ impl App {
                     .tx
                     .send(crate::runtime::Command::DeleteRagDocument(id));
             }
+            Message::RagOpenAddDocument => {
+                self.ui_state.rag_adding_document = true;
+                self.ui_state.rag_new_title.clear();
+                self.ui_state.rag_new_content.clear();
+            }
+            Message::RagCloseAddDocument => {
+                self.ui_state.rag_adding_document = false;
+                self.ui_state.rag_new_title.clear();
+                self.ui_state.rag_new_content.clear();
+            }
+            Message::RagNewTitleChanged(s) => self.ui_state.rag_new_title = s,
+            Message::RagNewContentChanged(s) => self.ui_state.rag_new_content = s,
             // Settings
             Message::SaveSettings => {
                 let _ = self
@@ -1055,10 +1089,32 @@ impl App {
 
         let toasts = ui::toast::view(self);
 
-        column![topbar, body, toasts]
+        let main_stack = column![topbar, body, toasts]
             .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+            .height(Length::Fill);
+
+        // PII Shield dialog overlay (modal) — use iced::widget::Stack for proper overlay
+        if let Some(dialog) = ui::pii_dialog::view(self) {
+            iced::widget::Stack::new()
+                .push(main_stack)
+                .push(
+                    container(dialog)
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .center_x(Length::Fill)
+                        .center_y(Length::Fill)
+                        .style(move |_: &iced::Theme| iced::widget::container::Style {
+                            background: Some(iced::Background::Color(iced::Color {
+                                a: 0.5,
+                                ..iced::Color::BLACK
+                            })),
+                            ..Default::default()
+                        }),
+                )
+                .into()
+        } else {
+            main_stack.into()
+        }
     }
 
     fn view_page(&self) -> Element<Message> {

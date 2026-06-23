@@ -1,7 +1,7 @@
 //! Students page — list + detail + edit.
 
-use iced::widget::{column, container, row, scrollable, text, Space};
-use iced::{Element, Length, Padding};
+use iced::widget::{column, container, row, scrollable, text, pick_list, Space};
+use iced::{Element, Font, Length, Padding};
 
 use crate::app::{App, CJK_FONT, Message};
 use crate::ui::style;
@@ -14,7 +14,9 @@ pub fn view(app: &App) -> Element<Message> {
 
     let list = list_panel(app);
 
-    let detail = if let Some(id) = app.selected_student {
+    let detail = if let Some(editing) = app.ui_state.editing_student.clone() {
+        student_edit_form(app, editing)
+    } else if let Some(id) = app.selected_student {
         let students = app.students.read();
         if let Some(student) = students.iter().find(|s| s.id == id).cloned() {
             detail_panel(app, student)
@@ -369,6 +371,165 @@ fn detail_panel<'a>(app: &'a App, student: crate::models::Student) -> Element<'a
         .on_press(Message::DeleteStudent(student.id)),
     ]
     .spacing(8);
+    items.push(actions.into());
+
+    let content = column(items).spacing(0).width(Length::Fill);
+    container(
+        scrollable(content).style(move |_, _| style::scrollable(theme)),
+    )
+    .style(move |_: &iced::Theme| style::card_flat(theme))
+    .padding(Padding::from(20.0))
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
+}
+
+fn student_edit_form(app: &App, student: crate::models::Student) -> Element<Message> {
+    let theme = &app.theme;
+
+    let mut items: Vec<Element<Message>> = Vec::new();
+
+    items.push(
+        text(if student.name.is_empty() { "新增学生" } else { "编辑学生" })
+            .font(Font {
+                family: CJK_FONT.family,
+                weight: iced::font::Weight::Bold,
+                ..Default::default()
+            })
+            .size(20)
+            .style(move |_: &iced::Theme| style::text_primary(theme))
+            .into(),
+    );
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(16.0)).into());
+
+    let s = student.clone();
+
+    // Helper macro for labeled text inputs
+    macro_rules! field {
+        ($label:expr, $value:expr, $field:ident) => {{
+            let val = $value;
+            let label = $label;
+            column![
+                text(label)
+                    .font(CJK_FONT)
+                    .size(12)
+                    .style(move |_: &iced::Theme| style::text_faint(theme)),
+                iced::widget::text_input(&format!("输入{label}"), &val)
+                    .on_input(|v| Message::StudentFieldChanged(crate::app::StudentField::$field(v)))
+                    .font(CJK_FONT)
+                    .size(13)
+                    .padding([8.0, 10.0])
+                    .style(move |_, status| style::text_input_style(theme, status))
+                    .width(Length::Fill),
+            ]
+            .spacing(4)
+            .into()
+        }};
+    }
+
+    items.push(field!("姓名", s.name, Name));
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(10.0)).into());
+
+    items.push(field!("年级", s.grade, Grade));
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(10.0)).into());
+
+    items.push(field!("班级", s.class, Class));
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(10.0)).into());
+
+    items.push(field!("学号", s.id_number.unwrap_or_default(), IdNumber));
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(10.0)).into());
+
+    items.push(field!("监护人", s.guardian_name.unwrap_or_default(), GuardianName));
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(10.0)).into());
+
+    items.push(field!("联系方式", s.guardian_contact.unwrap_or_default(), GuardianContact));
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(10.0)).into());
+
+    items.push(field!("地址", s.home_address.unwrap_or_default(), HomeAddress));
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(10.0)).into());
+
+    // GPA
+    items.push(
+        column![
+            text("GPA")
+                .font(CJK_FONT)
+                .size(12)
+                .style(move |_: &iced::Theme| style::text_faint(theme)),
+            iced::widget::text_input("输入GPA", &s.gpa.map(|g| format!("{:.2}", g)).unwrap_or_default())
+                .on_input(|v| {
+                    let gpa = v.parse::<f32>().unwrap_or(0.0);
+                    Message::StudentFieldChanged(crate::app::StudentField::Gpa(gpa))
+                })
+                .font(CJK_FONT)
+                .size(13)
+                .padding([8.0, 10.0])
+                .style(move |_, status| style::text_input_style(theme, status))
+                .width(Length::Fill),
+        ]
+        .spacing(4)
+        .into(),
+    );
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(10.0)).into());
+
+    // Risk level
+    let risk_options = vec![
+        crate::models::RiskLevel::Low,
+        crate::models::RiskLevel::Medium,
+        crate::models::RiskLevel::High,
+        crate::models::RiskLevel::Critical,
+    ];
+    let risk_labels: Vec<String> = risk_options.iter().map(|r| r.label().to_string()).collect();
+    let current_risk_label = s.risk_level.label().to_string();
+
+    items.push(
+        column![
+            text("风险等级")
+                .font(CJK_FONT)
+                .size(12)
+                .style(move |_: &iced::Theme| style::text_faint(theme)),
+            pick_list(
+                risk_labels,
+                Some(current_risk_label),
+                move |label| {
+                    let risk = risk_options.iter().find(|r| r.label() == label).cloned().unwrap_or(crate::models::RiskLevel::Low);
+                    Message::StudentFieldChanged(crate::app::StudentField::RiskLevel(risk))
+                },
+            )
+            .font(CJK_FONT)
+            .text_size(13)
+            .padding([8.0, 10.0])
+            .style(move |_, status| style::pick_list_style(theme, status))
+            .width(Length::Fill),
+        ]
+        .spacing(4)
+        .into(),
+    );
+    items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(16.0)).into());
+
+    // Action buttons
+    let actions = row![
+        iced::widget::button(
+            text("保存")
+                .font(CJK_FONT)
+                .size(13)
+                .style(move |_: &iced::Theme| iced::widget::text::Style {
+                    color: Some(iced::Color::WHITE),
+                }),
+        )
+        .style(move |_, status| style::primary_button(theme, status))
+        .padding([10.0, 20.0])
+        .on_press(Message::SaveStudent),
+        iced::widget::button(
+            text("取消")
+                .font(CJK_FONT)
+                .size(13)
+                .style(move |_: &iced::Theme| style::text_dim(theme)),
+        )
+        .style(move |_, status| style::secondary_button(theme, status))
+        .padding([10.0, 20.0])
+        .on_press(Message::EditStudent(None)),
+    ]
+    .spacing(12);
     items.push(actions.into());
 
     let content = column(items).spacing(0).width(Length::Fill);
