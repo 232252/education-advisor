@@ -3,6 +3,7 @@ Education Advisor - 便携版 (Windows)
 
 使用方法：
   直接双击 EducationAdvisor.exe 即可运行，无需安装。
+  首次启动时会自动初始化本地数据库与默认配置。
 
 系统要求：
   - Windows 10 64位 或更高版本
@@ -16,11 +17,12 @@ Education Advisor - 便携版 (Windows)
   - RAG 知识库检索
   - Cron 定时任务调度
   - SQLite 本地存储
+  - UI v4.0 高级 redesign：渐变品牌色、玻璃拟态、微交互动效
 
 技术栈：
-  - GUI: iced 0.14 (Rust)
-  - 渲染: wgpu (DirectX 12)
+  - GUI: egui (Rust)
+  - 渲染: glow / wgpu
   - 字体: NotoSansSC（已内嵌，支持中文显示）
 
-版本: 1.0.3
-构建: 2026-06-23
+版本: 1.1.0
+构建: 2026-06-24

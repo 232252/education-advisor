@@ -771,6 +771,245 @@ pub fn chat_color(painter: &Painter, rect: Rect, color: Color32) {
     painter.add(egui::Shape::closed_line(tail.to_vec(), stroke));
 }
 
+// ---------------------------------------------------------------------------
+// Premium gradient orb icons (Task 9)
+// ---------------------------------------------------------------------------
+
+fn paint_icon_gradient_bg(painter: &Painter, rect: Rect, top: Color32, bottom: Color32) {
+    let center = rect.center();
+    let radius = rect.width().min(rect.height()) / 2.0;
+    if radius <= 0.0 {
+        return;
+    }
+    let steps = 16;
+    for i in 0..steps {
+        let t0 = i as f32 / steps as f32;
+        let t1 = (i + 1) as f32 / steps as f32;
+        let color = Theme::lerp(top, bottom, (t0 + t1) / 2.0);
+        let y0 = center.y - radius + t0 * radius * 2.0;
+        let y1 = center.y - radius + t1 * radius * 2.0;
+        let ym = (y0 + y1) / 2.0;
+        let dy = (ym - center.y).abs();
+        let half_w = (radius * radius - dy * dy).sqrt();
+        if half_w > 0.0 && y1 > y0 {
+            let strip = Rect::from_min_max(
+                Pos2::new(center.x - half_w, y0),
+                Pos2::new(center.x + half_w, y1),
+            );
+            painter.rect_filled(strip, Rounding::ZERO, color);
+        }
+    }
+}
+
+pub fn book_icon(painter: &Painter, rect: Rect, theme: &Theme) {
+    paint_icon_gradient_bg(
+        painter,
+        rect,
+        theme.gradient_primary_to,
+        theme.gradient_primary_from,
+    );
+    let c = rect.center();
+    let w = rect.width().min(rect.height()) * 0.26;
+    let h = w * 1.15;
+    let stroke = Stroke::new(2.0, Color32::WHITE);
+    painter.rect_stroke(
+        Rect::from_center_size(c, Vec2::new(w * 2.0, h * 2.0)),
+        Rounding::same(3.0),
+        stroke,
+    );
+    painter.line_segment([Pos2::new(c.x, c.y - h), Pos2::new(c.x, c.y + h)], stroke);
+    for i in 0..3 {
+        let y = c.y - h * 0.25 + i as f32 * h * 0.35;
+        painter.line_segment([Pos2::new(c.x - w * 0.7, y), Pos2::new(c.x - w * 0.1, y)], stroke);
+        painter.line_segment([Pos2::new(c.x + w * 0.1, y), Pos2::new(c.x + w * 0.7, y)], stroke);
+    }
+}
+
+pub fn trend_arrow_icon(painter: &Painter, rect: Rect, theme: &Theme) {
+    paint_icon_gradient_bg(
+        painter,
+        rect,
+        theme.gradient_cyan,
+        theme.info,
+    );
+    let c = rect.center();
+    let s = rect.width().min(rect.height()) * 0.28;
+    let stroke = Stroke::new(2.5, Color32::WHITE);
+    let pts = vec![
+        Pos2::new(c.x - s, c.y + s * 0.3),
+        Pos2::new(c.x - s * 0.2, c.y + s * 0.1),
+        Pos2::new(c.x + s * 0.3, c.y - s * 0.2),
+        Pos2::new(c.x + s, c.y - s * 0.6),
+    ];
+    painter.add(egui::Shape::line(pts.clone(), stroke));
+    let tip = pts[pts.len() - 1];
+    let prev = pts[pts.len() - 2];
+    let dx = tip.x - prev.x;
+    let dy = tip.y - prev.y;
+    let len = dx.hypot(dy).max(1.0);
+    let nx = dx / len;
+    let ny = dy / len;
+    let a1 = Pos2::new(
+        (s * 0.35).mul_add(-(nx * 0.87 - ny * 0.49), tip.x),
+        (s * 0.35).mul_add(-(ny * 0.87 + nx * 0.49), tip.y),
+    );
+    let a2 = Pos2::new(
+        (s * 0.35).mul_add(-(nx * 0.87 + ny * 0.49), tip.x),
+        (s * 0.35).mul_add(-(ny * 0.87 - nx * 0.49), tip.y),
+    );
+    painter.line_segment([tip, a1], stroke);
+    painter.line_segment([tip, a2], stroke);
+}
+
+pub fn chat_bubble_icon(painter: &Painter, rect: Rect, theme: &Theme) {
+    paint_icon_gradient_bg(
+        painter,
+        rect,
+        theme.gradient_primary_to,
+        theme.gradient_cyan,
+    );
+    let c = rect.center();
+    let w = rect.width().min(rect.height()) * 0.32;
+    let h = w * 0.85;
+    let r = Rect::from_center_size(c, Vec2::new(w * 2.0, h * 2.0));
+    let stroke = Stroke::new(2.0, Color32::WHITE);
+    painter.rect_stroke(r, Rounding::same(7.0), stroke);
+    let tail = [
+        Pos2::new(c.x - w * 0.35, c.y + h),
+        Pos2::new(c.x - w * 0.1, c.y + h + w * 0.35),
+        Pos2::new(c.x + w * 0.1, c.y + h),
+    ];
+    painter.add(egui::Shape::closed_line(tail.to_vec(), stroke));
+}
+
+pub fn tool_wrench_icon(painter: &Painter, rect: Rect, theme: &Theme) {
+    paint_icon_gradient_bg(
+        painter,
+        rect,
+        theme.warning,
+        theme.danger,
+    );
+    let c = rect.center();
+    let s = rect.width().min(rect.height()) * 0.3;
+    let stroke = Stroke::new(2.0, Color32::WHITE);
+    // handle
+    painter.line_segment(
+        [Pos2::new(c.x - s * 0.7, c.y + s * 0.7), Pos2::new(c.x + s * 0.4, c.y - s * 0.4)],
+        stroke,
+    );
+    // open jaw at top-right
+    let jaw = [
+        Pos2::new(c.x + s * 0.15, c.y - s * 0.7),
+        Pos2::new(c.x + s * 0.5, c.y - s * 0.35),
+        Pos2::new(c.x + s * 0.85, c.y - s * 0.7),
+    ];
+    painter.add(egui::Shape::line(jaw.to_vec(), stroke));
+    // ring at bottom-left
+    painter.circle_stroke(Pos2::new(c.x - s * 0.75, c.y + s * 0.75), s * 0.22, stroke);
+}
+
+pub fn shield_icon(painter: &Painter, rect: Rect, theme: &Theme) {
+    paint_icon_gradient_bg(
+        painter,
+        rect,
+        theme.success,
+        theme.info,
+    );
+    let c = rect.center();
+    let s = rect.width().min(rect.height()) * 0.32;
+    let stroke = Stroke::new(2.0, Color32::WHITE);
+    // shield outline
+    let shield: Vec<Pos2> = vec![
+        Pos2::new(c.x - s, c.y - s * 0.6),
+        Pos2::new(c.x - s, c.y + s * 0.1),
+        Pos2::new(c.x, c.y + s * 0.9),
+        Pos2::new(c.x + s, c.y + s * 0.1),
+        Pos2::new(c.x + s, c.y - s * 0.6),
+        Pos2::new(c.x, c.y - s * 0.9),
+    ];
+    let mut path = shield.clone();
+    path.push(shield[0]);
+    painter.add(egui::Shape::line(path, stroke));
+    // checkmark
+    painter.line_segment(
+        [Pos2::new(c.x - s * 0.35, c.y), Pos2::new(c.x - s * 0.05, c.y + s * 0.3)],
+        Stroke::new(2.5, Color32::WHITE),
+    );
+    painter.line_segment(
+        [Pos2::new(c.x - s * 0.05, c.y + s * 0.3), Pos2::new(c.x + s * 0.45, c.y - s * 0.25)],
+        Stroke::new(2.5, Color32::WHITE),
+    );
+}
+
+pub fn robot_icon(painter: &Painter, rect: Rect, theme: &Theme) {
+    paint_icon_gradient_bg(
+        painter,
+        rect,
+        theme.gradient_purple,
+        theme.gradient_primary_to,
+    );
+    let c = rect.center();
+    let s = rect.width().min(rect.height()) * 0.28;
+    let stroke = Stroke::new(2.0, Color32::WHITE);
+    // head
+    painter.rect_stroke(
+        Rect::from_center_size(c, Vec2::splat(s * 2.0)),
+        Rounding::same(5.0),
+        stroke,
+    );
+    // eyes
+    painter.circle_filled(Pos2::new(c.x - s * 0.45, c.y - s * 0.05), s * 0.12, Color32::WHITE);
+    painter.circle_filled(Pos2::new(c.x + s * 0.45, c.y - s * 0.05), s * 0.12, Color32::WHITE);
+    // mouth
+    painter.line_segment(
+        [Pos2::new(c.x - s * 0.35, c.y + s * 0.45), Pos2::new(c.x + s * 0.35, c.y + s * 0.45)],
+        stroke,
+    );
+    // antenna
+    painter.line_segment([Pos2::new(c.x, c.y - s), Pos2::new(c.x, c.y - s * 1.5)], stroke);
+    painter.circle_filled(Pos2::new(c.x, c.y - s * 1.55), s * 0.15, Color32::WHITE);
+}
+
+pub fn sparkle_icon(painter: &Painter, rect: Rect, theme: &Theme) {
+    paint_icon_gradient_bg(
+        painter,
+        rect,
+        theme.pink,
+        theme.purple,
+    );
+    let c = rect.center();
+    let s = rect.width().min(rect.height()) * 0.32;
+    let stroke = Stroke::new(2.0, Color32::WHITE);
+    let pts = vec![
+        Pos2::new(c.x, c.y - s),
+        Pos2::new(c.x + s * 0.25, c.y - s * 0.25),
+        Pos2::new(c.x + s, c.y),
+        Pos2::new(c.x + s * 0.25, c.y + s * 0.25),
+        Pos2::new(c.x, c.y + s),
+        Pos2::new(c.x - s * 0.25, c.y + s * 0.25),
+        Pos2::new(c.x - s, c.y),
+        Pos2::new(c.x - s * 0.25, c.y - s * 0.25),
+    ];
+    let mut path = pts.clone();
+    path.push(pts[0]);
+    painter.add(egui::Shape::line(path, stroke));
+}
+
+/// Colorful gradient orb for skill cards.
+/// Uses `color` as the base and blends to a lighter variant for a premium v4 look.
+pub fn skill_orb(painter: &Painter, rect: Rect, color: Color32, label: &str) {
+    let light = Theme::lerp(color, Color32::WHITE, 0.35);
+    paint_icon_gradient_bg(painter, rect, light, color);
+    let initial = label.chars().next().unwrap_or('A');
+    painter.text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        initial.to_string(),
+        FontId::proportional(rect.width().min(rect.height()) * 0.45),
+        Color32::WHITE,
+    );
+}
+
 /// Colored circle avatar with an initial letter.
 pub fn avatar(painter: &Painter, rect: Rect, color: Color32, label: &str) {
     let r = rect.width().min(rect.height()) / 2.0;
@@ -781,6 +1020,25 @@ pub fn avatar(painter: &Painter, rect: Rect, color: Color32, label: &str) {
         egui::Align2::CENTER_CENTER,
         initial.to_string(),
         FontId::proportional(r * 0.9),
+        Color32::WHITE,
+    );
+}
+
+/// Gradient circular avatar with an initial letter.
+pub fn gradient_avatar(
+    painter: &Painter,
+    rect: Rect,
+    top: Color32,
+    bottom: Color32,
+    label: &str,
+) {
+    paint_icon_gradient_bg(painter, rect, top, bottom);
+    let initial = label.chars().next().unwrap_or('A');
+    painter.text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        initial.to_string(),
+        FontId::proportional(rect.width().min(rect.height()) * 0.45),
         Color32::WHITE,
     );
 }

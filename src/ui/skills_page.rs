@@ -6,7 +6,7 @@ use eframe::egui::{self, Align, Color32, FontId, Layout, Sense, Ui, Vec2};
 
 use crate::app::App;
 use crate::ui::icons;
-use crate::ui::widgets::{card, empty_state, section_title};
+use crate::ui::widgets::{empty_state, glass_card, hover_lift_card, section_title, toggle_switch};
 
 #[derive(Debug, Clone, Copy)]
 struct Skill {
@@ -106,7 +106,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     ui.add_space(8.0);
 
     if SKILLS.is_empty() {
-        card(ui, &app.theme, |ui| {
+        glass_card(ui, &app.theme, |ui| {
             empty_state(ui, &app.theme, icons::skills, "暂无技能");
         });
         return;
@@ -114,48 +114,63 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     for skill in &SKILLS {
         let mut enabled = is_skill_enabled(app, skill.id);
-        card(ui, &app.theme, |ui| {
-            ui.horizontal_top(|ui| {
-                // avatar circle
-                let (rect, _) = ui.allocate_exact_size(Vec2::splat(40.0), Sense::hover());
-                icons::avatar(ui.painter(), rect.shrink(4.0), skill.color, skill.name);
+        hover_lift_card(ui, &app.theme, 1.0, |ui| {
+            let content_w = ui.available_width();
+            ui.set_min_size(Vec2::new(content_w, 58.0));
+            ui.vertical(|ui| {
+                ui.horizontal(|ui| {
+                    let icon_size = 48.0;
+                    let (icon_rect, _) =
+                        ui.allocate_exact_size(Vec2::splat(icon_size), Sense::hover());
+                    icons::skill_orb(ui.painter(), icon_rect, skill.color, skill.name);
 
-                ui.vertical(|ui| {
+                    ui.add_space(12.0);
+
+                    ui.vertical(|ui| {
+                        ui.label(
+                            egui::RichText::new(skill.name)
+                                .font(FontId::proportional(14.0))
+                                .strong()
+                                .color(app.theme.text),
+                        );
+                        ui.add_space(4.0);
+                        ui.label(
+                            egui::RichText::new(skill.description)
+                                .font(FontId::proportional(11.0))
+                                .color(app.theme.text_dim),
+                        );
+                    });
+
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if toggle_switch(ui, &app.theme, &mut enabled).changed() {
+                            let _ =
+                                app.runtime
+                                    .tx
+                                    .send(crate::runtime::Command::SaveSettings({
+                                        let mut s = app.settings.clone();
+                                        if enabled {
+                                            s.enabled_skills.insert(skill.id.to_string());
+                                        } else {
+                                            s.enabled_skills.remove(skill.id);
+                                        }
+                                        s
+                                    }));
+                        }
+                    });
+                });
+
+                ui.add_space(4.0);
+
+                ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
                     ui.label(
-                        egui::RichText::new(skill.name)
-                            .font(FontId::proportional(14.0))
-                            .strong()
-                            .color(app.theme.text),
-                    );
-                    ui.label(
-                        egui::RichText::new(skill.description)
-                            .font(FontId::proportional(11.0))
-                            .color(app.theme.text_dim),
-                    );
-                    ui.label(
-                        egui::RichText::new(format!("ID: {}", skill.id))
-                            .font(FontId::proportional(9.0))
+                        egui::RichText::new(skill.id)
+                            .font(FontId::proportional(10.0))
                             .color(app.theme.text_faint),
                     );
                 });
-
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui.checkbox(&mut enabled, "启用").changed() {
-                        // 通过 Command 持久化，避免闭包内可变借用冲突
-                        let _ = app.runtime.tx.send(crate::runtime::Command::SaveSettings({
-                            let mut s = app.settings.clone();
-                            if enabled {
-                                s.enabled_skills.insert(skill.id.to_string());
-                            } else {
-                                s.enabled_skills.remove(skill.id);
-                            }
-                            s
-                        }));
-                    }
-                });
             });
         });
-        ui.add_space(6.0);
+        ui.add_space(8.0);
     }
 }
 

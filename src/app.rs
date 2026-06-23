@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use eframe::egui;
-use eframe::egui::{Context, Frame, Margin, Vec2};
+use eframe::egui::{Color32, Context, Frame, Margin, Pos2, Vec2};
 use parking_lot::RwLock;
 
 use crate::models::{
@@ -689,18 +689,20 @@ impl eframe::App for App {
 
         // body: sidebar + content
         let screen_w = ctx.screen_rect().width();
-        let min_sidebar = 64.0_f32.min(screen_w * 0.18);
-        let sidebar_width = self
-            .sidebar_anim
-            .value()
-            .max(0.0)
-            .mul_add(200.0, min_sidebar);
+        let sidebar_t = self.sidebar_anim.value().clamp(0.0, 1.0);
+        let sidebar_width = 56.0 + sidebar_t * (180.0 - 56.0);
         egui::SidePanel::left("sidebar")
             .resizable(false)
-            .exact_width(sidebar_width)
+            .exact_width(sidebar_width.min(screen_w * 0.7))
             .frame(
                 Frame::none()
-                    .fill(self.theme.bg_elevated)
+                    .fill(self.theme.surface_glass)
+                    .shadow(egui::epaint::Shadow {
+                        offset: Vec2::new(4.0, 0.0),
+                        blur: 24.0,
+                        spread: 0.0,
+                        color: self.theme.shadow,
+                    })
                     .inner_margin(Margin::same(0.0)),
             )
             .show(ctx, |ui| {
@@ -710,7 +712,7 @@ impl eframe::App for App {
         egui::CentralPanel::default()
             .frame(
                 Frame::none()
-                    .fill(self.theme.bg)
+                    .fill(Color32::TRANSPARENT)
                     .inner_margin(Margin::same(16.0)),
             )
             .show(ctx, |ui| {
@@ -812,6 +814,48 @@ fn paint_gradient_bg(ctx: &Context, theme: &Theme, ui_state: &mut crate::ui::UiS
             Theme::lerp(mid, bot, 0.5),
         );
     }
+
+    // 叠加淡色弥散光晕，让卡片有“浮在渐变背景上”的层次感。
+    paint_soft_glows(&painter, rect, theme);
+}
+
+fn paint_soft_glows(painter: &egui::Painter, rect: egui::Rect, theme: &Theme) {
+    let glows = [
+        (0.15, 0.22, 260.0, theme.glow_accent, 12),
+        (0.82, 0.48, 320.0, theme.glow_purple, 10),
+        (0.25, 0.82, 240.0, theme.glow_cyan, 11),
+    ];
+    for (nx, ny, radius, color, alpha) in glows {
+        let center = Pos2::new(rect.min.x + rect.width() * nx, rect.min.y + rect.height() * ny);
+        paint_radial_glow(painter, center, radius, color, alpha);
+    }
+}
+
+fn paint_radial_glow(
+    painter: &egui::Painter,
+    center: Pos2,
+    radius: f32,
+    color: Color32,
+    max_alpha: u8,
+) {
+    let steps = 14;
+    let base = egui::Rgba::from(color);
+    let max_a = max_alpha as f32 / 255.0;
+    for i in (0..steps).rev() {
+        let t = i as f32 / steps as f32;
+        let r = radius * (1.0 - t * 0.95);
+        let a = max_a * (1.0 - t);
+        if a <= 0.0 || r <= 1.0 {
+            continue;
+        }
+        let faded = egui::Rgba::from_rgba_premultiplied(
+            base.r() * a,
+            base.g() * a,
+            base.b() * a,
+            base.a() * a,
+        );
+        painter.circle_filled(center, r, Color32::from(faded));
+    }
 }
 
 fn db_path() -> std::path::PathBuf {
@@ -824,10 +868,11 @@ fn db_path() -> std::path::PathBuf {
 
 fn install_fonts(ctx: &Context) {
     let mut fonts = egui::FontDefinitions::default();
-    // Bug #11 — CJK 字体回退：除了已知的固定路径外，
-    // 1) 扫描常见字体目录里的中文字体（NotoSans* / *CJK* / simhei / simsun / msyh* 等）
-    // 2) 优先用项目自带的 assets/fonts/NotoSansSC-Regular.otf（如有）
-    // 3) 若仍找不到，向 stderr 输出一条可观测的提示，方便诊断。
+    // Task 10 — 现代无衬线字体与数字字体配置：
+    // 1) Proportional 家族优先使用项目自带或系统中的 CJK 无衬线字体（Noto Sans SC / PingFang 等），
+    //    回退到 egui 默认的拉丁无衬线字体（Comfortaa-Light，Inter-like）。
+    // 2) 创建一个 Numbers 字体家族，作为专用数字字体；当前没有打包 Lato/Roboto TTF，
+    //    因此复用 Proportional 的默认字体数据，配合 28px + strong 仍能保证 KPI 数字清晰显示。
     let mut candidates: Vec<std::path::PathBuf> = vec![
         // 项目自带的打包字体（用户可放 assets/fonts/NotoSansSC-Regular.otf）
         std::path::PathBuf::from("assets/fonts/NotoSansSC-Regular.otf"),
@@ -937,5 +982,17 @@ fn install_fonts(ctx: &Context) {
              请在以下任一位置放置 NotoSansSC 或同等 CJK 字体：\n  - assets/fonts/NotoSansSC-Regular.otf\n  - C:/Windows/Fonts/msyh.ttc\n  - /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
         );
     }
+
+    // 注册专用数字字体家族；无本地 Lato/Roboto 时复用默认 Proportional 字体数据。
+    let numbers_family = if installed {
+        // 若 CJK 字体已安装，Numbers 优先走 CJK（数字字形完整），再回退默认比例字体。
+        vec!["cjk".into(), "Comfortaa-Light".into(), "NotoEmoji-Regular".into()]
+    } else {
+        vec!["Comfortaa-Light".into(), "NotoEmoji-Regular".into()]
+    };
+    fonts
+        .families
+        .insert(egui::FontFamily::Name("Numbers".into()), numbers_family);
+
     ctx.set_fonts(fonts);
 }

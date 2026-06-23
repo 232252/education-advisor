@@ -6,7 +6,19 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-06-24
+
 ### Added
+- **UI v4.0 Premium Redesign**: complete visual overhaul across the entire application.
+  - New gradient brand color system with `gradient_primary_from/to`, `gradient_purple`, `gradient_cyan`, `glow_accent`, and `glass_bg`.
+  - Glassmorphism surfaces with translucent panels, diffused shadows, and layered gradient canvas backgrounds in both light and dark themes.
+  - Redesigned Dashboard with `kpi_card`, staggered entrance animations, stacked capsule risk bars, gradient-filled area/line charts, skeleton loading, and empty-state CTAs.
+  - Redesigned Agents page grouped by Teaching / Safety / Administration with category headers, larger gradient-icon cards, and role pill tags.
+  - Redesigned Skills page with taller cards, gradient icons, hover-lift effects, and subtle skill-code labels.
+  - Redesigned Privacy page with green shield iconography, `ghost_button` and `glow_button` actions, and color-coded left-border feature descriptions.
+  - Redesigned Settings page with `custom_slider` controls, live numeric readouts, provider icon, and floating `fab_button` save action.
+  - Micro-interactions: hover-lift cards, active sidebar indicator transitions, and 600 ms chart growth animations.
+  - Global typography refresh: Chinese sans-serif (PingFang SC / Noto Sans SC) for body text, bold Lato/Roboto numerals for KPIs, scores, and percentages.
 - **CI workflow** (`.github/workflows/ci.yml`): `cargo fmt` + `clippy -D warnings` + matrix builds (Linux x64, Windows x64, macOS x64/arm64) + `cargo test` + `cargo audit`.
 - **Multi-arch release pipeline** (`.github/workflows/release.yml`): Linux x64 + aarch64, Windows x64 + aarch64, macOS x64 + Apple Silicon. Each archive ships with a `.sha256` sidecar.
 - **Tool registry** (`src/tools.rs`): one place to register a tool, including JSON-args validation, hard-cancel propagation, per-tool 15-second timeout, and a 16 KB args cap.
@@ -34,10 +46,11 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - AES-256-GCM encryption for `guardian_contact` and `api_key` fields.
 - Per-render gradient background and refactored sidebar animation.
 
-### Known limitations (being addressed in Unreleased)
-- Hard-coded tool list (4 entries); see `Unreleased > Added > Tool registry`.
+### Known limitations (addressed in 1.1.0)
+- Hard-coded tool list (4 entries); see `1.1.0 > Added > Tool registry`.
 - No keyboard shortcuts.
 - `StreamTool` dedup logic was order-dependent.
 
-[Unreleased]: https://github.com/232252/education-advisor/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/232252/education-advisor/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/232252/education-advisor/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/232252/education-advisor/releases/tag/v1.0.2

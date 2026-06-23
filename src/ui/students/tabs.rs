@@ -408,11 +408,10 @@ pub fn notes_tags(app: &mut App, ui: &mut Ui, student: &Student) {
         );
         ui.add_space(8.0);
         // 取草稿优先；没有则用当前 student.notes 作为初值。
-        if !app.ui_state.notes_draft.contains_key(&student.id) {
-            app.ui_state
-                .notes_draft
-                .insert(student.id, student.notes.clone().unwrap_or_default());
-        }
+        app.ui_state
+            .notes_draft
+            .entry(student.id)
+            .or_insert_with(|| student.notes.clone().unwrap_or_default());
         let mut notes = app
             .ui_state
             .notes_draft
