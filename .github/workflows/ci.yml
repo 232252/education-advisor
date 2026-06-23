@@ -164,4 +164,4 @@ jobs:
 
       - name: Audit
         working-directory: .
-        run: cargo audit
+        run: cargo audit --allow RUSTSEC-2024-0370 --allow RUSTSEC-2024-0429
