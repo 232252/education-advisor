@@ -65,7 +65,7 @@ pub fn view(app: &App) -> Element<Message> {
                 .style(move |_, status| style::secondary_button(theme, status))
                 .padding(Padding::from(14.0))
                 .width(Length::Fill)
-                .on_press(Message::SelectConversation(c.id));
+                .on_press(Message::NavigateToChat(c.id));
 
             items.push(btn.into());
             items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(8.0)).into());

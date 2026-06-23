@@ -254,7 +254,11 @@ fn message_bubble<'a>(
                 width: 1.0,
                 radius: iced::border::Radius::from(12.0),
             },
-            shadow: iced::Shadow::default(),
+            shadow: iced::Shadow {
+                color: iced::Color { a: 0.08, ..theme.shadow },
+                offset: iced::Vector::new(0.0, 2.0),
+                blur_radius: 8.0,
+            },
             text_color: None,
             snap: false,
         })
@@ -268,7 +272,23 @@ fn message_bubble<'a>(
             color: Some(color),
         });
 
-    column![name_label, bubble].spacing(4).into()
+    let bubble_col = column![name_label, bubble].spacing(4);
+
+    if is_user {
+        row![
+            iced::widget::Space::new().width(Length::Fill).height(Length::Fixed(0.0)),
+            bubble_col.width(Length::FillPortion(3)),
+        ]
+        .spacing(0)
+        .into()
+    } else {
+        row![
+            bubble_col.width(Length::FillPortion(3)),
+            iced::widget::Space::new().width(Length::Fill).height(Length::Fixed(0.0)),
+        ]
+        .spacing(0)
+        .into()
+    }
 }
 
 fn input_area(app: &App) -> Element<Message> {

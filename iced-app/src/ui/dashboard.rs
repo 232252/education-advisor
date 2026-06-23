@@ -50,15 +50,16 @@ pub fn view(app: &App) -> Element<Message> {
 
     let stats_row = row![total_card, risk_card, gpa_card, conv_card]
         .spacing(12)
-        .width(Length::Fill);
+        .width(Length::Fill)
+        .wrap();
 
-    // Risk distribution
+    // Risk distribution with mini bar chart
     let risk_section = risk_distribution_card(app);
 
-    // Grade trend
+    // Grade trend with sparkline
     let trend_section = grade_trend_card(app);
 
-    // Agent activity
+    // Agent activity with horizontal bars
     let agent_section = agent_activity_card(app);
 
     // Recent conversations
@@ -94,6 +95,33 @@ fn risk_distribution_card<'a>(app: &'a App) -> Element<'a, Message> {
     let mut rows: Vec<Element<Message>> = Vec::new();
     rows.push(widgets::section_title(theme, "风险分布").into());
 
+    // Mini horizontal bar chart
+    let mut bar_segments: Vec<Element<Message>> = Vec::new();
+    for (i, &count) in stats.risk_distribution.iter().enumerate() {
+        let pct = count as f32 / total as f32;
+        if pct > 0.0 {
+            bar_segments.push(
+                container(Space::new().width(Length::Fill).height(Length::Fixed(8.0)))
+                    .style(move |_: &iced::Theme| iced::widget::container::Style {
+                        background: Some(iced::Background::Color(colors[i])),
+                        border: iced::Border::default(),
+                        ..Default::default()
+                    })
+                    .width(Length::FillPortion((pct * 100.0) as u16 + 1))
+                    .into(),
+            );
+        }
+    }
+    if !bar_segments.is_empty() {
+        rows.push(
+            row(bar_segments)
+                .spacing(2)
+                .width(Length::Fill)
+                .into(),
+        );
+        rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(8.0)).into());
+    }
+
     for (i, &count) in stats.risk_distribution.iter().enumerate() {
         let pct = count as f32 / total as f32;
         let color = colors[i];
@@ -107,7 +135,7 @@ fn risk_distribution_card<'a>(app: &'a App) -> Element<'a, Message> {
             .girth(Length::Fixed(8.0))
             .length(Length::Fill);
 
-        let row = row![
+        let row_item = row![
             text(labels[i])
                 .font(CJK_FONT)
                 .size(13)
@@ -125,7 +153,7 @@ fn risk_distribution_card<'a>(app: &'a App) -> Element<'a, Message> {
         .spacing(12)
         .align_y(Alignment::Center);
 
-        rows.push(row.into());
+        rows.push(row_item.into());
         rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(8.0)).into());
     }
 
@@ -147,12 +175,43 @@ fn grade_trend_card<'a>(app: &'a App) -> Element<'a, Message> {
                 .into(),
         );
     } else {
+        // Sparkline chart using SVG-like text bars
         let max_score = stats
             .grade_trend
             .iter()
             .map(|(_, v)| *v)
             .fold(0.0f32, f32::max)
             .max(1.0);
+
+        // Build sparkline bars
+        let mut sparkline: Vec<Element<Message>> = Vec::new();
+        for (_label, score) in &stats.grade_trend {
+            let h = ((*score / max_score).clamp(0.0, 1.0) * 40.0) as u32;
+            let bar_chars = "█".repeat(h as usize / 8 + 1);
+            sparkline.push(
+                container(
+                    text(bar_chars)
+                        .size(8)
+                        .style(move |_: &iced::Theme| iced::widget::text::Style {
+                            color: Some(theme.accent),
+                        }),
+                )
+                .style(|_: &iced::Theme| iced::widget::container::Style::default())
+                .align_y(iced::alignment::Vertical::Bottom)
+                .height(Length::Fixed(48.0))
+                .into(),
+            );
+        }
+        if !sparkline.is_empty() {
+            rows.push(
+                row(sparkline)
+                    .spacing(4)
+                    .align_y(Alignment::End)
+                    .width(Length::Fill)
+                    .into(),
+            );
+            rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(8.0)).into());
+        }
 
         for (label, score) in &stats.grade_trend {
             let pct = (*score / max_score).clamp(0.0, 1.0);
@@ -165,7 +224,7 @@ fn grade_trend_card<'a>(app: &'a App) -> Element<'a, Message> {
                 .girth(Length::Fixed(6.0))
                 .length(Length::Fill);
 
-            let row = row![
+            let row_item = row![
                 text(label.clone())
                     .font(CJK_FONT)
                     .size(12)
@@ -181,7 +240,7 @@ fn grade_trend_card<'a>(app: &'a App) -> Element<'a, Message> {
             .spacing(8)
             .align_y(Alignment::Center);
 
-            rows.push(row.into());
+            rows.push(row_item.into());
             rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(6.0)).into());
         }
     }
@@ -223,7 +282,7 @@ fn agent_activity_card<'a>(app: &'a App) -> Element<'a, Message> {
                 .girth(Length::Fixed(6.0))
                 .length(Length::Fill);
 
-            let row = row![
+            let row_item = row![
                 text(name.clone())
                     .font(CJK_FONT)
                     .size(12)
@@ -239,7 +298,7 @@ fn agent_activity_card<'a>(app: &'a App) -> Element<'a, Message> {
             .spacing(8)
             .align_y(Alignment::Center);
 
-            rows.push(row.into());
+            rows.push(row_item.into());
             rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(6.0)).into());
         }
     }
@@ -289,7 +348,7 @@ fn recent_conversations_card(app: &App) -> Element<Message> {
                 .style(move |_, status| style::ghost_button(theme, status))
                 .padding([6.0, 8.0])
                 .width(Length::Fill)
-                .on_press(Message::SelectConversation(c.id));
+                .on_press(Message::NavigateToChat(c.id));
 
             rows.push(btn.into());
             rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(4.0)).into());

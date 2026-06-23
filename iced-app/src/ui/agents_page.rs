@@ -15,6 +15,8 @@ pub fn view(app: &App) -> Element<Message> {
 
     let mut items: Vec<Element<Message>> = Vec::new();
 
+    // Two-column grid for agents
+    let mut row_items: Vec<Element<Message>> = Vec::new();
     for agent in agents {
         let active = app.active_agent == agent.id;
         let icon_char = agent.name.chars().next().unwrap_or('◆');
@@ -74,11 +76,28 @@ pub fn view(app: &App) -> Element<Message> {
             })
             .padding(Padding::from(16.0))
             .width(Length::Fill)
-            .on_press(Message::None);
+            .on_press(Message::SetActiveAgent(agent.id.to_string()));
 
-        items.push(btn.into());
-        items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(8.0)).into());
+        row_items.push(btn.into());
     }
+
+    // Arrange in pairs
+    let mut grid_rows: Vec<Element<Message>> = Vec::new();
+    let mut iter = row_items.into_iter();
+    while let Some(first) = iter.next() {
+        if let Some(second) = iter.next() {
+            grid_rows.push(
+                row![first, second]
+                    .spacing(12)
+                    .width(Length::Fill)
+                    .into(),
+            );
+        } else {
+            grid_rows.push(first);
+        }
+        grid_rows.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(12.0)).into());
+    }
+    items.extend(grid_rows);
 
     let grid = column(items).spacing(0).width(Length::Fill);
     let content = scrollable(grid).style(move |_, _| style::scrollable(theme));

@@ -50,7 +50,31 @@ pub fn view(app: &App) -> Element<Message> {
             .width(Length::Fill)
             .on_press(Message::Navigate(*page));
 
-        nav_items.push(nav_btn.into());
+        // Active indicator bar + button row
+        let indicator = container(Space::new().width(Length::Fixed(3.0)).height(Length::Fixed(36.0)))
+            .style(move |_: &iced::Theme| iced::widget::container::Style {
+                background: Some(iced::Background::Color(if active {
+                    theme.accent
+                } else {
+                    iced::Color::TRANSPARENT
+                })),
+                border: iced::Border {
+                    radius: iced::border::Radius::from(2.0),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .center_y(Length::Fixed(40.0));
+
+        let item_row = row![
+            indicator.width(Length::Fixed(3.0)),
+            nav_btn,
+        ]
+        .spacing(0)
+        .align_y(Alignment::Center)
+        .width(Length::Fill);
+
+        nav_items.push(item_row.into());
         if i < Page::ALL.len() - 1 {
             nav_items.push(Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(4.0)).into());
         }
@@ -87,7 +111,7 @@ pub fn view(app: &App) -> Element<Message> {
                         color: Some(theme.text_faint),
                     }),
             ]
-            .spacing(0)
+            .spacing(0),
         ]
         .align_y(Alignment::Center)
         .spacing(10)
@@ -97,7 +121,7 @@ pub fn view(app: &App) -> Element<Message> {
 
     let content = column![
         container(brand)
-            .padding([16.0, 16.0])
+            .padding([16.0, 12.0])
             .width(Length::Fill),
         Space::new().width(Length::Fixed(0.0)).height(Length::Fixed(8.0)),
         nav_col,
