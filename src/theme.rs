@@ -1,9 +1,11 @@
-//! Modern commercial design system for egui.
+//! DeepSeek-style dark sci-fi design system for egui.
 //!
-//! All colors live in sRGB space as egui expects. The palette mirrors a
-//! refined dark/light mode with subtle gradients, glass surfaces and a
-//! consistent accent. No external widget crates are used; every visual
-//! element is drawn with primitive egui painters.
+//! All colors live in sRGB space as egui expects. The dark palette mirrors
+//! the DeepSeek reference: an ultra-deep blue-black canvas, translucent glass
+//! cards, hairline white borders and a blue→purple→cyan accent triad. Light
+//! mode reuses the same accents on clean white/slate surfaces. No external
+//! widget crates are used; every visual element is drawn with primitive egui
+//! painters.
 
 use eframe::egui::{Color32, Rgba};
 
@@ -16,9 +18,10 @@ pub fn app_icon_rgba() -> (Vec<u8>, u32, u32) {
             let nx = x as f32 / size as f32;
             let ny = y as f32 / size as f32;
             let t = (nx + ny) / 2.0;
-            let r = (40.0 + t * 70.0) as u8;
-            let g = (80.0 + t * 90.0) as u8;
-            let b = (180.0 + t * 60.0) as u8;
+            // DeepSeek-style blue→purple gradient icon.
+            let r = (59.0 + t * 80.0) as u8;
+            let g = (92.0 + t * 40.0) as u8;
+            let b = (246.0 - t * 60.0) as u8;
             let mut alpha = 255u8;
             let corner = 12.0;
             let dx = (x as f32).min((size - 1 - x) as f32);
@@ -80,93 +83,105 @@ pub struct Theme {
 }
 
 impl Theme {
+    /// DeepSeek-style dark sci-fi theme. This is the primary/default theme.
     pub const fn dark() -> Self {
         Self {
             dark: true,
-            bg: Color32::from_rgb(15, 18, 28),
-            bg_gradient_from: Color32::from_rgb(15, 18, 28),
-            bg_gradient_to: Color32::from_rgb(22, 26, 40),
-            elevated: Color32::from_rgb(22, 26, 40),
-            bg_elevated: Color32::from_rgb(22, 26, 40),
-            surface: Color32::from_rgb(28, 33, 50),
-            surface_glass: Color32::from_rgba_premultiplied(30, 35, 55, 191),
-            surface_hover: Color32::from_rgb(40, 47, 68),
-            border: Color32::from_rgba_premultiplied(60, 70, 100, 50),
-            border_strong: Color32::from_rgba_premultiplied(100, 115, 155, 90),
-            text: Color32::from_rgb(244, 246, 252),
-            text_dim: Color32::from_rgb(165, 174, 198),
-            text_faint: Color32::from_rgb(110, 122, 148),
-            accent: Color32::from_rgb(80, 160, 255),
-            accent_strong: Color32::from_rgb(40, 100, 220),
-            accent_hover: Color32::from_rgb(120, 190, 255),
-            accent_dim: Color32::from_rgba_premultiplied(80, 160, 255, 45),
-            accent_bg: Color32::from_rgba_premultiplied(80, 160, 255, 22),
-            success: Color32::from_rgb(74, 222, 128),
-            success_dim: Color32::from_rgba_premultiplied(74, 222, 128, 20),
-            warning: Color32::from_rgb(250, 204, 21),
-            warning_dim: Color32::from_rgba_premultiplied(250, 204, 21, 20),
-            danger: Color32::from_rgb(248, 113, 113),
-            danger_dim: Color32::from_rgba_premultiplied(248, 113, 113, 20),
-            info: Color32::from_rgb(56, 189, 248),
-            info_dim: Color32::from_rgba_premultiplied(56, 189, 248, 20),
-            purple: Color32::from_rgb(160, 90, 230),
-            purple_dim: Color32::from_rgba_premultiplied(160, 90, 230, 20),
-            cyan: Color32::from_rgb(34, 211, 238),
-            pink: Color32::from_rgb(244, 114, 182),
-            shadow: Color32::from_rgba_premultiplied(0, 0, 0, 38),
-            gradient_primary_from: Color32::from_rgb(40, 100, 220),
-            gradient_primary_to: Color32::from_rgb(90, 180, 255),
-            gradient_purple: Color32::from_rgb(150, 80, 220),
-            gradient_cyan: Color32::from_rgb(50, 170, 240),
-            glow_accent: Color32::from_rgba_premultiplied(90, 180, 255, 100),
-            glow_purple: Color32::from_rgba_premultiplied(150, 80, 220, 100),
-            glow_cyan: Color32::from_rgba_premultiplied(50, 170, 240, 100),
-            glass_bg: Color32::from_rgba_premultiplied(22, 26, 40, 191),
+            // Ultra-deep blue-black canvas.
+            bg: Color32::from_rgb(8, 12, 22),
+            bg_gradient_from: Color32::from_rgb(8, 12, 22),
+            bg_gradient_to: Color32::from_rgb(12, 18, 34),
+            elevated: Color32::from_rgb(15, 23, 42),
+            bg_elevated: Color32::from_rgb(15, 23, 42),
+            // Translucent deep-blue glass card.
+            surface: Color32::from_rgba_premultiplied(23, 34, 58, 153),
+            surface_glass: Color32::from_rgba_premultiplied(12, 18, 34, 166),
+            surface_hover: Color32::from_rgba_premultiplied(255, 255, 255, 13),
+            // Hairline white borders.
+            border: Color32::from_rgba_premultiplied(255, 255, 255, 15),
+            border_strong: Color32::from_rgba_premultiplied(255, 255, 255, 31),
+            // Text.
+            text: Color32::from_rgb(255, 255, 255),
+            text_dim: Color32::from_rgb(148, 163, 184),
+            text_faint: Color32::from_rgb(100, 116, 139),
+            // Blue accent triad.
+            accent: Color32::from_rgb(59, 130, 246),
+            accent_strong: Color32::from_rgb(37, 99, 235),
+            accent_hover: Color32::from_rgb(96, 165, 250),
+            accent_dim: Color32::from_rgba_premultiplied(59, 130, 246, 38),
+            accent_bg: Color32::from_rgba_premultiplied(59, 130, 246, 26),
+            // Status colors.
+            success: Color32::from_rgb(16, 185, 129),
+            success_dim: Color32::from_rgba_premultiplied(16, 185, 129, 38),
+            warning: Color32::from_rgb(234, 179, 8),
+            warning_dim: Color32::from_rgba_premultiplied(234, 179, 8, 38),
+            danger: Color32::from_rgb(239, 68, 68),
+            danger_dim: Color32::from_rgba_premultiplied(239, 68, 68, 38),
+            info: Color32::from_rgb(6, 182, 212),
+            info_dim: Color32::from_rgba_premultiplied(6, 182, 212, 38),
+            // Brand triad.
+            purple: Color32::from_rgb(139, 92, 246),
+            purple_dim: Color32::from_rgba_premultiplied(139, 92, 246, 38),
+            cyan: Color32::from_rgb(6, 182, 212),
+            pink: Color32::from_rgb(236, 72, 153),
+            shadow: Color32::from_rgba_premultiplied(0, 0, 0, 204),
+            // Button gradient: linear-gradient(135deg, #3b82f6, #8b5cf6).
+            gradient_primary_from: Color32::from_rgb(59, 130, 246),
+            gradient_primary_to: Color32::from_rgb(139, 92, 246),
+            gradient_purple: Color32::from_rgb(139, 92, 246),
+            gradient_cyan: Color32::from_rgb(6, 182, 212),
+            // Radial-gradient glows.
+            glow_accent: Color32::from_rgba_premultiplied(59, 130, 246, 102),
+            glow_purple: Color32::from_rgba_premultiplied(139, 92, 246, 102),
+            glow_cyan: Color32::from_rgba_premultiplied(6, 182, 212, 102),
+            glass_bg: Color32::from_rgba_premultiplied(12, 18, 34, 166),
         }
     }
 
+    /// Clean light theme mirroring the same blue/purple/cyan accents on
+    /// white/slate surfaces.
     pub const fn light() -> Self {
         Self {
             dark: false,
-            bg: Color32::from_rgb(245, 247, 252),
-            bg_gradient_from: Color32::from_rgb(245, 247, 252),
-            bg_gradient_to: Color32::from_rgb(235, 240, 250),
+            bg: Color32::from_rgb(248, 250, 252),
+            bg_gradient_from: Color32::from_rgb(248, 250, 252),
+            bg_gradient_to: Color32::from_rgb(238, 242, 247),
             elevated: Color32::from_rgb(255, 255, 255),
             bg_elevated: Color32::from_rgb(255, 255, 255),
-            surface: Color32::from_rgb(248, 249, 252),
-            surface_glass: Color32::from_rgba_premultiplied(255, 255, 255, 191),
-            surface_hover: Color32::from_rgb(235, 238, 246),
-            border: Color32::from_rgba_premultiplied(40, 50, 80, 30),
-            border_strong: Color32::from_rgba_premultiplied(60, 70, 100, 55),
-            text: Color32::from_rgb(26, 30, 46),
-            text_dim: Color32::from_rgb(80, 88, 112),
-            text_faint: Color32::from_rgb(150, 160, 184),
-            accent: Color32::from_rgb(45, 130, 255),
-            accent_strong: Color32::from_rgb(30, 95, 220),
-            accent_hover: Color32::from_rgb(80, 170, 255),
-            accent_dim: Color32::from_rgba_premultiplied(45, 130, 255, 20),
-            accent_bg: Color32::from_rgba_premultiplied(45, 130, 255, 10),
-            success: Color32::from_rgb(34, 197, 94),
-            success_dim: Color32::from_rgba_premultiplied(34, 197, 94, 14),
+            surface: Color32::from_rgb(255, 255, 255),
+            surface_glass: Color32::from_rgba_premultiplied(255, 255, 255, 178),
+            surface_hover: Color32::from_rgba_premultiplied(15, 23, 42, 8),
+            border: Color32::from_rgba_premultiplied(15, 23, 42, 20),
+            border_strong: Color32::from_rgba_premultiplied(15, 23, 42, 38),
+            text: Color32::from_rgb(15, 23, 42),
+            text_dim: Color32::from_rgb(71, 85, 105),
+            text_faint: Color32::from_rgb(148, 163, 184),
+            accent: Color32::from_rgb(59, 130, 246),
+            accent_strong: Color32::from_rgb(37, 99, 235),
+            accent_hover: Color32::from_rgb(96, 165, 250),
+            accent_dim: Color32::from_rgba_premultiplied(59, 130, 246, 31),
+            accent_bg: Color32::from_rgba_premultiplied(59, 130, 246, 20),
+            success: Color32::from_rgb(16, 185, 129),
+            success_dim: Color32::from_rgba_premultiplied(16, 185, 129, 31),
             warning: Color32::from_rgb(234, 179, 8),
-            warning_dim: Color32::from_rgba_premultiplied(234, 179, 8, 14),
+            warning_dim: Color32::from_rgba_premultiplied(234, 179, 8, 31),
             danger: Color32::from_rgb(239, 68, 68),
-            danger_dim: Color32::from_rgba_premultiplied(239, 68, 68, 14),
-            info: Color32::from_rgb(14, 165, 233),
-            info_dim: Color32::from_rgba_premultiplied(14, 165, 233, 14),
-            purple: Color32::from_rgb(168, 100, 230),
-            purple_dim: Color32::from_rgba_premultiplied(168, 100, 230, 20),
+            danger_dim: Color32::from_rgba_premultiplied(239, 68, 68, 31),
+            info: Color32::from_rgb(6, 182, 212),
+            info_dim: Color32::from_rgba_premultiplied(6, 182, 212, 31),
+            purple: Color32::from_rgb(139, 92, 246),
+            purple_dim: Color32::from_rgba_premultiplied(139, 92, 246, 31),
             cyan: Color32::from_rgb(6, 182, 212),
             pink: Color32::from_rgb(236, 72, 153),
             shadow: Color32::from_rgba_premultiplied(0, 0, 0, 25),
-            gradient_primary_from: Color32::from_rgb(30, 80, 180),
-            gradient_primary_to: Color32::from_rgb(80, 160, 255),
-            gradient_purple: Color32::from_rgb(168, 100, 230),
-            gradient_cyan: Color32::from_rgb(60, 180, 250),
-            glow_accent: Color32::from_rgba_premultiplied(80, 160, 255, 80),
-            glow_purple: Color32::from_rgba_premultiplied(168, 100, 230, 80),
-            glow_cyan: Color32::from_rgba_premultiplied(60, 180, 250, 80),
-            glass_bg: Color32::from_rgba_premultiplied(255, 255, 255, 191),
+            gradient_primary_from: Color32::from_rgb(59, 130, 246),
+            gradient_primary_to: Color32::from_rgb(139, 92, 246),
+            gradient_purple: Color32::from_rgb(139, 92, 246),
+            gradient_cyan: Color32::from_rgb(6, 182, 212),
+            glow_accent: Color32::from_rgba_premultiplied(59, 130, 246, 51),
+            glow_purple: Color32::from_rgba_premultiplied(139, 92, 246, 51),
+            glow_cyan: Color32::from_rgba_premultiplied(6, 182, 212, 51),
+            glass_bg: Color32::from_rgba_premultiplied(255, 255, 255, 178),
         }
     }
 

@@ -1,5 +1,9 @@
 //! Reusable hand-painted widgets. No external widget crates — every control is
 //! drawn with egui's primitive painters for full visual control.
+//!
+//! The visual language mirrors the DeepSeek-style dark sci-fi reference:
+//! translucent glass cards with hairline white borders, blue→purple gradient
+//! primary buttons, cyan→purple section accent bars and 4 px slider tracks.
 
 #![allow(dead_code)] // shared widget kit: controls are used across the evolving UI
 
@@ -13,9 +17,20 @@ use eframe::egui::{
 use crate::charts;
 use crate::theme::Theme;
 
-const CARD_RADIUS: f32 = 16.0;
-const BUTTON_RADIUS: f32 = 10.0;
-const GLOW_BUTTON_RADIUS: f32 = 12.0;
+const CARD_RADIUS: f32 = 20.0;
+const BUTTON_RADIUS: f32 = 20.0;
+const GLOW_BUTTON_RADIUS: f32 = 16.0;
+
+/// DeepSeek card shadow: rgba(0,0,0,0.4).
+const CARD_SHADOW: Color32 = Color32::from_rgba_premultiplied(0, 0, 0, 102);
+/// DeepSeek slider/progress track base: #1e293b.
+const TRACK_BASE: Color32 = Color32::from_rgb(30, 41, 59);
+/// DeepSeek agent-tag text color: #64748b.
+const TAG_TEXT: Color32 = Color32::from_rgb(100, 116, 139);
+/// DeepSeek agent-tag background: rgba(255,255,255,0.05).
+const TAG_BG: Color32 = Color32::from_rgba_premultiplied(255, 255, 255, 13);
+/// DeepSeek setting-row divider: rgba(255,255,255,0.03).
+const ROW_DIVIDER: Color32 = Color32::from_rgba_premultiplied(255, 255, 255, 8);
 
 // ---------------------------------------------------------------------------
 // Cards
@@ -148,18 +163,20 @@ fn paint_circle_gradient(
     }
 }
 
-/// 通用卡片容器：自动占用正确高度，毛玻璃背景 + 顶部强调线。
-/// 现在委托给 `glass_card_with_accent` 以统一 premium 风格。
+/// 通用卡片容器：毛玻璃背景 + 1px 发丝边框 + 20px 圆角 + 柔和阴影。
+/// 默认不绘制顶部强调线（与 DeepSeek 参考一致）。
 pub fn card(ui: &mut Ui, theme: &Theme, add: impl FnOnce(&mut Ui)) {
-    glass_card_with_accent(ui, theme, Some(theme.accent), add);
+    glass_card_with_accent(ui, theme, None, add);
 }
 
-/// Semi-transparent gradient card with no border, 16 px rounding and a diffused shadow.
+/// Semi-transparent glass card with a hairline border, 20 px rounding and a
+/// diffused drop shadow.
 pub fn glass_card(ui: &mut Ui, theme: &Theme, add: impl FnOnce(&mut Ui)) {
     glass_card_with_accent(ui, theme, None, add);
 }
 
-/// `glass_card` with an optional 2 px top accent line.
+/// `glass_card` with an optional 2 px top accent line. By default no accent is
+/// drawn — pass `Some(color)` only when an explicit accent line is desired.
 pub fn glass_card_with_accent(
     ui: &mut Ui,
     theme: &Theme,
@@ -168,21 +185,12 @@ pub fn glass_card_with_accent(
 ) {
     let available = ui.available_width();
     let frame = egui::Frame::none()
-        .fill(Color32::TRANSPARENT)
+        .fill(theme.surface)
+        .stroke(Stroke::new(1.0, theme.border))
         .rounding(Rounding::same(CARD_RADIUS))
         .inner_margin(egui::Margin::same(16.0))
-        .shadow(make_shadow(Vec2::new(0.0, 8.0), 32.0, theme.shadow));
+        .shadow(make_shadow(Vec2::new(0.0, 4.0), 15.0, CARD_SHADOW));
     let response = frame.show(ui, |ui| {
-        // `ui.max_rect()` is the inner (content) rect; expand by the margin to cover the card.
-        let full_rect = ui.max_rect().expand2(Vec2::splat(16.0));
-        paint_rounded_vertical_gradient(
-            ui,
-            full_rect,
-            CARD_RADIUS,
-            theme.glass_bg,
-            theme.surface_glass,
-            24,
-        );
         ui.set_width((available - 32.0).max(1.0));
         add(ui);
     });
@@ -199,11 +207,8 @@ pub fn glass_card_with_accent(
     }
 }
 
-/// Wrapper around `glass_card` that visually lifts the card on hover.
-///
-/// This is the preferred card container for KPI/agent/skill cards in the
-/// premium v4 redesign: it combines a glass gradient background with a
-/// subtle hover lift and diffused shadow change.
+/// Glass card that visually lifts on hover: translates up 4 px, deepens the
+/// shadow and switches the border to `border_strong`.
 pub fn hover_lift_card(
     ui: &mut Ui,
     theme: &Theme,
@@ -221,26 +226,30 @@ pub fn hover_lift_card(
         let resp = ui.interact(full_rect, ui.id().with("hover_lift_card"), Sense::click());
         let hover = resp.hovered();
 
-        let lift = if hover { -2.0 } else { 0.0 };
-        let shadow_offset = Vec2::new(0.0, if hover { 12.0 } else { 8.0 });
-        let shadow_blur = if hover { 48.0 } else { 32.0 };
+        // Translate up 4 px on hover (negative Y).
+        let lift = if hover { -4.0 } else { 0.0 };
+        let shadow_offset = Vec2::new(0.0, if hover { 10.0 } else { 4.0 });
+        let shadow_blur = if hover { 30.0 } else { 15.0 };
         let bg_rect = full_rect.translate(Vec2::new(0.0, lift));
 
-        let shadow_color = if a < 1.0 {
-            Color32::from_rgba_premultiplied(
-                theme.shadow.r(),
-                theme.shadow.g(),
-                theme.shadow.b(),
-                (theme.shadow.a() as f32 * a) as u8,
-            )
-        } else {
-            theme.shadow
-        };
+        let shadow_alpha = (CARD_SHADOW.a() as f32 * a) as u8;
+        let shadow_color = Color32::from_rgba_premultiplied(0, 0, 0, shadow_alpha);
         paint_diffused_shadow(ui, bg_rect, shadow_offset, shadow_blur, shadow_color);
 
-        let top = Theme::lerp(Color32::TRANSPARENT, theme.glass_bg, a);
-        let bottom = Theme::lerp(Color32::TRANSPARENT, theme.surface_glass, a);
-        paint_rounded_vertical_gradient(ui, bg_rect, CARD_RADIUS, top, bottom, 24);
+        let fill = Theme::lerp(Color32::TRANSPARENT, theme.surface, a);
+        let border_base = if hover {
+            theme.border_strong
+        } else {
+            theme.border
+        };
+        let border = Theme::lerp(Color32::TRANSPARENT, border_base, a);
+        ui.painter()
+            .rect_filled(bg_rect, Rounding::same(CARD_RADIUS), fill);
+        ui.painter().rect_stroke(
+            bg_rect,
+            Rounding::same(CARD_RADIUS),
+            Stroke::new(1.0, border),
+        );
 
         let slide = (1.0 - a) * 8.0;
         let content_rect = bg_rect.shrink(16.0).translate(Vec2::new(0.0, slide));
@@ -254,7 +263,9 @@ pub fn hover_lift_card(
     response.inner
 }
 
-/// Premium KPI card: gradient icon orb, large value, label, bottom accent strip.
+/// DeepSeek-style KPI card: large 32 px bold accent-colored value on top, a
+/// 13 px label with a tiny icon below, glass card background, hover lift.
+/// No bottom accent strip (matches the reference).
 #[allow(clippy::too_many_arguments)]
 pub fn kpi_card(
     ui: &mut Ui,
@@ -273,38 +284,22 @@ pub fn kpi_card(
         egui::Layout::top_down(egui::Align::LEFT),
         |ui| {
             hover_lift_card(ui, theme, entrance, |ui| {
+                ui.label(
+                    egui::RichText::new(value)
+                        .font(FontId::new(32.0, FontFamily::Name("Lato".into())))
+                        .strong()
+                        .color(with_alpha(accent, a)),
+                );
                 ui.horizontal(|ui| {
-                    let (icon_rect, _) = ui.allocate_exact_size(Vec2::splat(40.0), Sense::hover());
+                    let (icon_rect, _) =
+                        ui.allocate_exact_size(Vec2::splat(14.0), Sense::hover());
                     icon(ui.painter(), icon_rect, theme);
-
-                    ui.vertical(|ui| {
-                        ui.label(
-                            egui::RichText::new(value)
-                                .font(FontId::new(28.0, FontFamily::Name("Lato".into())))
-                                .strong()
-                                .color(with_alpha(theme.text, a)),
-                        );
-                        ui.label(
-                            egui::RichText::new(label)
-                                .font(FontId::proportional(12.0))
-                                .color(with_alpha(theme.text_dim, a)),
-                        );
-                    });
+                    ui.label(
+                        egui::RichText::new(label)
+                            .font(FontId::proportional(13.0))
+                            .color(with_alpha(theme.text_dim, a)),
+                    );
                 });
-
-                // 3 px bottom accent strip inside the card content area.
-                let strip_h = 3.0;
-                ui.add_space(strip_h + 2.0);
-                let content_rect = ui.min_rect();
-                let strip_rect = Rect::from_min_max(
-                    Pos2::new(content_rect.min.x, content_rect.max.y - strip_h),
-                    Pos2::new(content_rect.max.x, content_rect.max.y),
-                );
-                ui.painter().rect_filled(
-                    strip_rect,
-                    Rounding::same(strip_h / 2.0),
-                    with_alpha(accent, a),
-                );
             })
         },
     )
@@ -343,19 +338,25 @@ pub fn list_item(
 // Typography helpers
 // ---------------------------------------------------------------------------
 
+/// Section/panel title: a 3 px × 14 px cyan→purple gradient bar followed by a
+/// 15 px bold white title.
 pub fn section_title(ui: &mut Ui, theme: &Theme, text: &str) {
     ui.horizontal(|ui| {
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(4.0, 20.0), Sense::hover());
-        ui.painter()
-            .rect_filled(rect, Rounding::same(2.0), theme.accent);
+        let (rect, _) = ui.allocate_exact_size(Vec2::new(3.0, 14.0), Sense::hover());
+        paint_rounded_vertical_gradient(ui, rect, 1.5, theme.cyan, theme.purple, 8);
         ui.label(
             egui::RichText::new(text)
-                .font(FontId::proportional(16.0))
+                .font(FontId::proportional(15.0))
                 .strong()
                 .color(theme.text),
         );
     });
     ui.add_space(6.0);
+}
+
+/// Alias of `section_title` for panel headers — same gradient bar + bold title.
+pub fn panel_title(ui: &mut Ui, theme: &Theme, text: &str) {
+    section_title(ui, theme, text);
 }
 
 pub fn page_header(ui: &mut Ui, theme: &Theme, title: &str, subtitle: &str) {
@@ -451,20 +452,12 @@ pub fn ghost_button(ui: &mut Ui, theme: &Theme, text: &str) -> Response {
     let desired = button_size(ui, text, theme);
     let (rect, resp) = ui.allocate_exact_size(desired, Sense::click());
     let hover = resp.hovered();
-    let active = resp.is_pointer_button_down_on();
-    let fill = if active {
-        theme.accent_dim
-    } else if hover {
-        theme.surface_hover
-    } else {
-        Color32::TRANSPARENT
-    };
     ui.painter()
-        .rect_filled(rect, Rounding::same(BUTTON_RADIUS), fill);
+        .rect_filled(rect, Rounding::same(BUTTON_RADIUS), theme.surface);
     ui.painter().rect_stroke(
         rect,
         Rounding::same(BUTTON_RADIUS),
-        Stroke::new(1.0, theme.border_strong),
+        Stroke::new(1.0, theme.border),
     );
     ui.painter().text(
         rect.center(),
@@ -476,42 +469,14 @@ pub fn ghost_button(ui: &mut Ui, theme: &Theme, text: &str) -> Response {
     resp
 }
 
-/// Premium blue-purple gradient button with a diffused colored glow.
+/// Premium blue→purple gradient button with a colored glow shadow. Visually
+/// identical to `primary_button` — kept as a separate name for call-site intent.
 pub fn glow_button(ui: &mut Ui, theme: &Theme, text: &str) -> Response {
     let desired = button_size(ui, text, theme);
     let (rect, resp) = ui.allocate_exact_size(desired, Sense::click());
-    let hover = resp.hovered();
-    let active = resp.is_pointer_button_down_on();
-
-    let lift = if active { 1.0 } else if hover { -1.0 } else { 0.0 };
-    let bg_rect = rect.translate(Vec2::new(0.0, -lift));
-
-    // Colored glow shadow.
-    let glow_alpha = if hover { 140 } else { 100 };
-    let glow_color = Color32::from_rgba_premultiplied(
-        theme.glow_accent.r(),
-        theme.glow_accent.g(),
-        theme.glow_accent.b(),
-        glow_alpha,
-    );
-    paint_diffused_shadow(ui, bg_rect, Vec2::new(0.0, 4.0), 24.0, glow_color);
-
-    let top = if hover {
-        theme.gradient_primary_to
-    } else {
-        Theme::lerp(theme.gradient_primary_from, theme.gradient_primary_to, 0.3)
-    };
-    paint_rounded_vertical_gradient(
-        ui,
-        bg_rect,
-        GLOW_BUTTON_RADIUS,
-        top,
-        theme.gradient_primary_from,
-        16,
-    );
-
+    paint_button_bg(ui, theme, rect, &resp, true, false);
     ui.painter().text(
-        bg_rect.center(),
+        rect.center(),
         Align2::CENTER_CENTER,
         text,
         FontId::proportional(13.0),
@@ -532,9 +497,9 @@ pub fn danger_button(ui: &mut Ui, theme: &Theme, text: &str) -> Response {
     } else {
         theme.translucent(theme.danger, 0.12)
     };
-    ui.painter().rect_filled(rect, Rounding::same(10.0), bg);
+    ui.painter().rect_filled(rect, Rounding::same(BUTTON_RADIUS), bg);
     ui.painter()
-        .rect_stroke(rect, Rounding::same(10.0), Stroke::new(1.0, theme.danger));
+        .rect_stroke(rect, Rounding::same(BUTTON_RADIUS), Stroke::new(1.0, theme.danger));
     ui.painter().text(
         rect.center(),
         Align2::CENTER_CENTER,
@@ -566,6 +531,31 @@ pub fn icon_button(
         .rect_filled(rect, Rounding::same(size / 4.0), bg);
     let color = if hover { theme.accent } else { theme.text_dim };
     icon(ui.painter(), rect.shrink(size * 0.22), color);
+    resp
+}
+
+/// DeepSeek-style glass icon button: 40 px circle with a translucent glass
+/// background, a hairline border and a centered color icon.
+pub fn glass_icon_button(
+    ui: &mut Ui,
+    theme: &Theme,
+    icon: fn(&eframe::egui::Painter, Rect, Color32),
+    icon_color: Color32,
+) -> Response {
+    let size = 40.0;
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(size), Sense::click());
+    let hover = resp.hovered();
+    let fill = if hover { theme.surface_hover } else { theme.surface };
+    let center = rect.center();
+    let radius = size / 2.0;
+    ui.painter().circle_filled(center, radius, fill);
+    ui.painter().circle_stroke(
+        center,
+        radius,
+        Stroke::new(1.0, if hover { theme.border_strong } else { theme.border }),
+    );
+    let inner = rect.shrink(size * 0.25);
+    icon(ui.painter(), inner, icon_color);
     resp
 }
 
@@ -609,6 +599,9 @@ pub fn tool_button(
     resp
 }
 
+/// Paint a DeepSeek gradient primary button background: linear gradient
+/// (#3b82f6 → #8b5cf6), 20 px rounding, blue glow shadow that brightens on
+/// hover (rgba 0.3 → 0.5, offset 4→8, blur 15→25).
 fn paint_button_bg(
     ui: &mut Ui,
     theme: &Theme,
@@ -620,58 +613,36 @@ fn paint_button_bg(
     let hover = resp.hovered();
     let active = resp.is_pointer_button_down_on();
     if primary {
-        let lift = if active {
-            -1.0
-        } else if hover {
-            -2.0
-        } else {
-            0.0
-        };
-        let r = rect.translate(Vec2::new(0.0, lift));
-        let top = if active {
-            theme.accent_strong
-        } else {
-            theme.accent_hover
-        };
-        let bottom = if active {
-            theme.accent
-        } else {
-            theme.accent_strong
-        };
-        ui.painter().rect_filled(r, Rounding::same(10.0), bottom);
-        let sheen = Rect::from_min_max(
-            r.min,
-            Pos2::new(r.max.x, r.min.y + r.height().mul_add(0.5, 0.0)),
+        let lift = if active { 1.0 } else if hover { -2.0 } else { 0.0 };
+        let bg_rect = rect.translate(Vec2::new(0.0, -lift));
+
+        let shadow_alpha = if hover { 128 } else { 77 }; // 0.5 / 0.3
+        let shadow_offset = Vec2::new(0.0, if hover { 8.0 } else { 4.0 });
+        let shadow_blur = if hover { 25.0 } else { 15.0 };
+        let shadow_color = Color32::from_rgba_premultiplied(59, 130, 246, shadow_alpha);
+        paint_diffused_shadow(ui, bg_rect, shadow_offset, shadow_blur, shadow_color);
+
+        paint_rounded_vertical_gradient(
+            ui,
+            bg_rect,
+            BUTTON_RADIUS,
+            theme.gradient_primary_from,
+            theme.gradient_primary_to,
+            16,
         );
-        ui.painter()
-            .rect_filled(sheen, Rounding::same(10.0), Theme::lerp(bottom, top, 0.5));
-        if !active {
-            ui.painter().rect_filled(
-                r.translate(Vec2::new(0.0, 2.0)),
-                Rounding::same(10.0),
-                Color32::from_rgba_premultiplied(0, 0, 0, if hover { 55 } else { 40 }),
-            );
-        }
     } else {
         let bg = if active {
             theme.accent_dim
         } else if hover {
             theme.translucent(theme.accent, 0.10)
         } else {
-            Color32::TRANSPARENT
+            theme.surface
         };
-        ui.painter().rect_filled(rect, Rounding::same(10.0), bg);
+        ui.painter().rect_filled(rect, Rounding::same(BUTTON_RADIUS), bg);
         ui.painter().rect_stroke(
             rect,
-            Rounding::same(10.0),
-            Stroke::new(
-                1.0,
-                if hover {
-                    theme.border_strong
-                } else {
-                    theme.border
-                },
-            ),
+            Rounding::same(BUTTON_RADIUS),
+            Stroke::new(1.0, if hover { theme.border_strong } else { theme.border }),
         );
     }
 }
@@ -893,7 +864,8 @@ fn paint_input_bg(ui: &mut Ui, theme: &Theme, rect: Rect, focused: bool) {
         .rect_stroke(rect, Rounding::same(10.0), Stroke::new(1.0, stroke));
 }
 
-/// A hand-painted toggle switch. The returned response is marked changed on click.
+/// A hand-painted toggle switch. The "on" track uses the blue→purple gradient.
+/// The returned response is marked changed on click.
 pub fn toggle_switch(ui: &mut Ui, theme: &Theme, value: &mut bool) -> Response {
     let width = 44.0;
     let height = 24.0;
@@ -903,9 +875,19 @@ pub fn toggle_switch(ui: &mut Ui, theme: &Theme, value: &mut bool) -> Response {
         resp.mark_changed();
     }
     let on = *value;
-    let bg = if on { theme.accent } else { theme.border };
-    ui.painter()
-        .rect_filled(rect, Rounding::same(height / 2.0), bg);
+    if on {
+        paint_rounded_vertical_gradient(
+            ui,
+            rect,
+            height / 2.0,
+            theme.gradient_primary_from,
+            theme.gradient_primary_to,
+            8,
+        );
+    } else {
+        ui.painter()
+            .rect_filled(rect, Rounding::same(height / 2.0), theme.border);
+    }
     let margin = 3.0;
     let thumb_r = (height - margin * 2.0) / 2.0;
     let thumb_x = if on {
@@ -1073,13 +1055,19 @@ pub fn slider_f32(
         Vec2::new(rect.width(), track_h),
     );
     ui.painter()
-        .rect_filled(track_rect, Rounding::same(track_h / 2.0), theme.surface);
+        .rect_filled(track_rect, Rounding::same(track_h / 2.0), TRACK_BASE);
     let fill_rect = Rect::from_min_size(
         track_rect.min,
         Vec2::new(track_rect.width() * frac, track_h),
     );
-    ui.painter()
-        .rect_filled(fill_rect, Rounding::same(track_h / 2.0), theme.accent);
+    paint_rounded_vertical_gradient(
+        ui,
+        fill_rect,
+        track_h / 2.0,
+        theme.gradient_primary_to,
+        theme.gradient_primary_from,
+        8,
+    );
 
     // thumb
     let thumb_r = 8.0;
@@ -1111,10 +1099,10 @@ pub fn slider_f32(
 }
 
 /// A simple progress bar.
-pub fn progress_bar(ui: &mut Ui, theme: &Theme, frac: f32, height: f32, color: Color32) {
+pub fn progress_bar(ui: &mut Ui, _theme: &Theme, frac: f32, height: f32, color: Color32) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
     ui.painter()
-        .rect_filled(rect, Rounding::same(height / 2.0), theme.surface);
+        .rect_filled(rect, Rounding::same(height / 2.0), TRACK_BASE);
     let fill_w = rect.width() * frac.clamp(0.0, 1.0);
     if fill_w > 0.0 {
         let fill = Rect::from_min_size(rect.min, Vec2::new(fill_w, rect.height()));
@@ -1123,7 +1111,8 @@ pub fn progress_bar(ui: &mut Ui, theme: &Theme, frac: f32, height: f32, color: C
     }
 }
 
-/// Rounded capsule progress bar (14 px high) with an optional percentage label.
+/// Rounded capsule progress bar with a 4 px `#1e293b` track, a gradient fill
+/// and an optional percentage label.
 pub fn capsule_progress(
     ui: &mut Ui,
     theme: &Theme,
@@ -1132,10 +1121,11 @@ pub fn capsule_progress(
     color: Color32,
     show_percent: bool,
 ) {
-    let height = 14.0;
+    let track_h = 4.0;
+    let row_h = if show_percent { 16.0 } else { track_h };
     let text_w = if show_percent { 40.0 } else { 0.0 };
     let track_w = (ui.available_width() - text_w - 8.0).max(20.0);
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(track_w, height), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(track_w, row_h), Sense::hover());
 
     // Task 9 — 600 ms 生长动画。
     let anim_id = ui.id().with("capsule_progress_anim");
@@ -1150,14 +1140,19 @@ pub fn capsule_progress(
         0.0
     };
 
+    let track_y = rect.center().y;
+    let track_rect = Rect::from_min_size(
+        Pos2::new(rect.min.x, track_y - track_h / 2.0),
+        Vec2::new(track_w, track_h),
+    );
     ui.painter()
-        .rect_filled(rect, Rounding::same(height / 2.0), theme.surface);
+        .rect_filled(track_rect, Rounding::same(track_h / 2.0), TRACK_BASE);
 
-    let fill_w = rect.width() * frac;
+    let fill_w = track_rect.width() * frac;
     if fill_w > 0.0 {
-        let fill_rect = Rect::from_min_size(rect.min, Vec2::new(fill_w, height));
+        let fill_rect = Rect::from_min_size(track_rect.min, Vec2::new(fill_w, track_h));
         let light = Theme::lerp(color, Color32::WHITE, 0.25);
-        paint_rounded_vertical_gradient(ui, fill_rect, height / 2.0, light, color, 8);
+        paint_rounded_vertical_gradient(ui, fill_rect, track_h / 2.0, light, color, 8);
     }
 
     if show_percent {
@@ -1172,7 +1167,8 @@ pub fn capsule_progress(
     }
 }
 
-/// Custom wide-track slider with a large glowing thumb and a value label on the right.
+/// Custom DeepSeek-style slider: 4 px `#1e293b` track with a gradient fill and
+/// a 16 px cyan→blue gradient thumb with a blue glow.
 pub fn custom_slider(
     ui: &mut Ui,
     theme: &Theme,
@@ -1190,15 +1186,15 @@ pub fn custom_slider(
     let (rect, mut resp) = ui.allocate_exact_size(Vec2::new(track_w, height), Sense::click());
     let frac = ((*value - min) / (max - min)).clamp(0.0, 1.0);
 
-    // Track
-    let track_h = 8.0;
+    // Track (4 px, #1e293b).
+    let track_h = 4.0;
     let track_y = rect.center().y;
     let track_rect = Rect::from_min_max(
         Pos2::new(rect.min.x, track_y - track_h / 2.0),
         Pos2::new(rect.max.x, track_y + track_h / 2.0),
     );
     ui.painter()
-        .rect_filled(track_rect, Rounding::same(track_h / 2.0), theme.surface);
+        .rect_filled(track_rect, Rounding::same(track_h / 2.0), TRACK_BASE);
     let fill_rect = Rect::from_min_max(
         track_rect.min,
         Pos2::new(track_rect.min.x + track_rect.width() * frac, track_rect.max.y),
@@ -1212,17 +1208,21 @@ pub fn custom_slider(
         8,
     );
 
-    // Thumb
+    // Thumb (16 px diameter) with cyan→blue gradient + blue glow.
     let thumb_r = 8.0; // diameter 16
     let thumb_x = rect.min.x + frac * rect.width();
     let thumb_center = Pos2::new(thumb_x, track_y);
-    if resp.dragged() {
-        ui.painter()
-            .circle_filled(thumb_center, thumb_r + 5.0, theme.glow_accent);
-    }
-    ui.painter().circle_filled(thumb_center, thumb_r, theme.accent);
+    let glow = Color32::from_rgba_premultiplied(59, 130, 246, 102); // rgba(59,130,246,0.4)
     ui.painter()
-        .circle_filled(thumb_center, thumb_r - 3.0, Color32::WHITE);
+        .circle_filled(thumb_center, thumb_r + 5.0, glow);
+    paint_circle_gradient(
+        ui.painter(),
+        thumb_center,
+        thumb_r,
+        theme.cyan,
+        theme.accent,
+        16,
+    );
 
     // Value text
     ui.painter().text(
@@ -1248,7 +1248,7 @@ pub fn custom_slider(
 }
 
 // ---------------------------------------------------------------------------
-// Badges, pills, empty state, stat card
+// Badges, pills, tags, empty state, stat card
 // ---------------------------------------------------------------------------
 
 pub fn badge(ui: &mut Ui, _theme: &Theme, text: &str, color: Color32) -> Response {
@@ -1304,6 +1304,28 @@ pub fn status_pill(ui: &mut Ui, _theme: &Theme, label: &str, color: Color32) -> 
         Pos2::new(rect.min.x + pad.x + dot_w, rect.min.y + pad.y),
         galley,
         color,
+    );
+    resp
+}
+
+/// DeepSeek-style agent tag: a small pill with `rgba(255,255,255,0.05)`
+/// background, 20 px rounding, 11 px `#64748b` text and 4 px × 12 px padding.
+pub fn agent_tag(ui: &mut Ui, _theme: &Theme, text: &str) -> Response {
+    let pad_x = 12.0;
+    let pad_y = 4.0;
+    let galley = ui
+        .painter()
+        .layout(text.to_string(), FontId::proportional(11.0), TAG_TEXT, 200.0);
+    let size = Vec2::new(galley.size().x + pad_x * 2.0, galley.size().y + pad_y * 2.0);
+    let (rect, resp) = ui.allocate_exact_size(size, Sense::hover());
+    ui.painter().rect_filled(rect, Rounding::same(20.0), TAG_BG);
+    ui.painter().galley(
+        Pos2::new(
+            rect.center().x - galley.size().x / 2.0,
+            rect.center().y - galley.size().y / 2.0,
+        ),
+        galley,
+        TAG_TEXT,
     );
     resp
 }
@@ -1375,9 +1397,9 @@ pub fn stat_card(
     let width = width.max(120.0);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, 92.0), Sense::hover());
     ui.painter()
-        .rect_filled(rect, Rounding::same(16.0), theme.surface_glass);
+        .rect_filled(rect, Rounding::same(CARD_RADIUS), theme.surface);
     ui.painter()
-        .rect_stroke(rect, Rounding::same(16.0), Stroke::new(1.0, theme.border));
+        .rect_stroke(rect, Rounding::same(CARD_RADIUS), Stroke::new(1.0, theme.border));
     let orb = Rect::from_min_size(
         Pos2::new(rect.max.x - 44.0, rect.min.y - 8.0),
         Vec2::splat(52.0),
@@ -1407,6 +1429,46 @@ pub fn stat_card(
         theme.text_dim,
     );
     resp
+}
+
+/// DeepSeek-style settings row: title + subtitle on the left, arbitrary right
+/// content (switch, dropdown, …) aligned to the right, separated by a faint
+/// `rgba(255,255,255,0.03)` bottom border with 16 px vertical padding.
+pub fn setting_row(
+    ui: &mut Ui,
+    theme: &Theme,
+    title: &str,
+    subtitle: &str,
+    right_content: impl FnOnce(&mut Ui),
+) {
+    ui.add_space(16.0);
+    let width = ui.available_width();
+    ui.allocate_ui_with_layout(
+        Vec2::new(width, 0.0),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.set_min_width(width);
+            ui.vertical(|ui| {
+                ui.label(
+                    egui::RichText::new(title)
+                        .font(FontId::proportional(14.0))
+                        .color(theme.text),
+                );
+                if !subtitle.is_empty() {
+                    ui.label(
+                        egui::RichText::new(subtitle)
+                            .font(FontId::proportional(11.0))
+                            .color(theme.text_faint),
+                    );
+                }
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                right_content(ui);
+            });
+        },
+    );
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), Sense::hover());
+    ui.painter().rect_filled(rect, 0.0, ROW_DIVIDER);
 }
 
 // ---------------------------------------------------------------------------
@@ -1593,6 +1655,7 @@ pub fn tooltip(resp: &Response, text: &str) {
 }
 
 /// Floating action button anchored at the bottom-right of the available space.
+/// Uses the DeepSeek blue→purple gradient with a blue glow shadow.
 pub fn fab_button(ui: &mut Ui, theme: &Theme, text: &str) -> Response {
     let padding = Vec2::new(24.0, 16.0);
     let galley = ui.painter().layout(
@@ -1622,19 +1685,18 @@ pub fn fab_button(ui: &mut Ui, theme: &Theme, text: &str) -> Response {
     let lift = if active { 1.0 } else if hover { -2.0 } else { 0.0 };
     let bg_rect = resp.rect.translate(Vec2::new(0.0, -lift));
 
-    paint_diffused_shadow(ui, bg_rect, Vec2::new(0.0, 8.0), 24.0, theme.shadow);
+    let shadow_alpha = if hover { 128 } else { 77 };
+    let shadow_offset = Vec2::new(0.0, if hover { 8.0 } else { 4.0 });
+    let shadow_blur = if hover { 25.0 } else { 15.0 };
+    let shadow_color = Color32::from_rgba_premultiplied(59, 130, 246, shadow_alpha);
+    paint_diffused_shadow(ui, bg_rect, shadow_offset, shadow_blur, shadow_color);
 
-    let top = if hover {
-        theme.gradient_primary_to
-    } else {
-        Theme::lerp(theme.gradient_primary_from, theme.gradient_primary_to, 0.3)
-    };
     paint_rounded_vertical_gradient(
         ui,
         bg_rect,
-        16.0,
-        top,
+        BUTTON_RADIUS,
         theme.gradient_primary_from,
+        theme.gradient_primary_to,
         16,
     );
 
