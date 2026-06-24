@@ -13,11 +13,11 @@ pub struct NavItemSpec {
 }
 
 /// Render a clickable sidebar item.
-pub fn nav_item<'a, M: 'a + Clone>(spec: &'a NavItemSpec, on_press: M) -> Element<'a, M> {
+pub fn nav_item<'a, M: 'a + Clone>(spec: NavItemSpec, on_press: M) -> Element<'a, M> {
     let active = spec.active;
-    let label = &spec.label;
+    let label = spec.label;
     let icon_name = spec.icon;
-    let badge = spec.badge.as_deref();
+    let badge = spec.badge;
 
     let content: Element<'a, M> = row![
         iced::widget::Svg::new(icon(icon_name))
