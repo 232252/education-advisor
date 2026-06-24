@@ -1,0 +1,2187 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1320" />
+<title>Education Advisor · 0.0.1.rc1 — 预览</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+  /* ===== THEME TOKENS ===== */
+  :root,
+  :root[data-theme="dark"]{
+    --bg-base:#08080f;
+    --bg-soft:var(--bg-soft);
+    --bg-soft-hover:var(--border);
+    --bg-card:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.02));
+    --bg-card-solid:rgba(15,15,26,.78);
+    --bg-elevated:var(--border);
+    --bg-input:var(--bg-soft);
+    --bg-hover:var(--border);
+    --border:var(--border);
+    --border-soft:var(--border-soft);
+    --border-strong:var(--border-strong);
+    --text-1:#fff;
+    --text-2:var(--text-2);
+    --text-3:var(--text-3);
+    --text-4:var(--text-4);
+    --text-5:var(--text-5);
+    --text-6:var(--text-6);
+    --text-faint:#4a5070;
+    --shadow-card:0 1px 0 var(--bg-soft) inset, 0 8px 24px -8px rgba(0,0,0,.5);
+    --shadow-hover:0 16px 40px -12px rgba(0,0,0,.6);
+    --scroll-thumb:var(--border);
+    --scroll-thumb-hover:var(--border-strong);
+    --grid-color:var(--border-soft);
+    --bg-glow-1:rgba(99,102,241,.18);
+    --bg-glow-2:rgba(236,72,153,.14);
+    --bg-glow-3:rgba(6,182,212,.12);
+    --bg-glow-4:rgba(168,85,247,.18);
+    --brand-logo-bg:#1a1a2e;
+    --selection-bg:rgba(168,85,247,.35);
+  }
+  :root[data-theme="light"]{
+    --bg-base:#f4f5fa;
+    --bg-soft:rgba(99,102,241,.04);
+    --bg-soft-hover:rgba(99,102,241,.08);
+    --bg-card:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.85));
+    --bg-card-solid:rgba(255,255,255,.85);
+    --bg-elevated:rgba(255,255,255,.7);
+    --bg-input:rgba(255,255,255,.7);
+    --bg-hover:rgba(99,102,241,.1);
+    --border:rgba(99,102,241,.12);
+    --border-soft:rgba(99,102,241,.07);
+    --border-strong:rgba(99,102,241,.2);
+    --text-1:#0f172a;
+    --text-2:#1e293b;
+    --text-3:#334155;
+    --text-4:#475569;
+    --text-5:#64748b;
+    --text-6:#94a3b8;
+    --text-faint:#cbd5e1;
+    --shadow-card:0 1px 0 rgba(255,255,255,.6) inset, 0 4px 16px -4px rgba(99,102,241,.08), 0 1px 3px rgba(15,23,42,.04);
+    --shadow-hover:0 16px 40px -12px rgba(99,102,241,.18);
+    --scroll-thumb:rgba(99,102,241,.15);
+    --scroll-thumb-hover:rgba(99,102,241,.3);
+    --grid-color:rgba(99,102,241,.05);
+    --bg-glow-1:rgba(99,102,241,.12);
+    --bg-glow-2:rgba(236,72,153,.1);
+    --bg-glow-3:rgba(6,182,212,.1);
+    --bg-glow-4:rgba(168,85,247,.1);
+    --brand-logo-bg:#ffffff;
+    --selection-bg:rgba(168,85,247,.25);
+  }
+  /* follow-system */
+  @media (prefers-color-scheme: light) {
+    :root[data-theme="auto"] {
+      --bg-base:#f4f5fa;
+      --bg-soft:rgba(99,102,241,.04);
+      --bg-soft-hover:rgba(99,102,241,.08);
+      --bg-card:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.85));
+      --bg-card-solid:rgba(255,255,255,.85);
+      --bg-elevated:rgba(255,255,255,.7);
+      --bg-input:rgba(255,255,255,.7);
+      --bg-hover:rgba(99,102,241,.1);
+      --border:rgba(99,102,241,.12);
+      --border-soft:rgba(99,102,241,.07);
+      --border-strong:rgba(99,102,241,.2);
+      --text-1:#0f172a;
+      --text-2:#1e293b;
+      --text-3:#334155;
+      --text-4:#475569;
+      --text-5:#64748b;
+      --text-6:#94a3b8;
+      --text-faint:#cbd5e1;
+      --shadow-card:0 1px 0 rgba(255,255,255,.6) inset, 0 4px 16px -4px rgba(99,102,241,.08), 0 1px 3px rgba(15,23,42,.04);
+      --shadow-hover:0 16px 40px -12px rgba(99,102,241,.18);
+      --scroll-thumb:rgba(99,102,241,.15);
+      --scroll-thumb-hover:rgba(99,102,241,.3);
+      --grid-color:rgba(99,102,241,.05);
+      --bg-glow-1:rgba(99,102,241,.12);
+      --bg-glow-2:rgba(236,72,153,.1);
+      --bg-glow-3:rgba(6,182,212,.1);
+      --bg-glow-4:rgba(168,85,247,.1);
+      --brand-logo-bg:#ffffff;
+      --selection-bg:rgba(168,85,247,.25);
+    }
+  }
+
+  /* ===== Base reset ===== */
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{
+    font-family:'Outfit','Noto Sans SC',system-ui,sans-serif;
+    font-size:14px;
+    color:var(--text-2);
+    background:var(--bg-base);
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    transition:background .25s ease, color .25s ease;
+  }
+  button,input,select,textarea{font:inherit;color:inherit}
+  button{cursor:pointer;background:none;border:none;padding:0}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--selection-bg);color:#fff}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:8px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover)}
+
+  /* ===== Background canvas (gradient + glow orbs + grid) ===== */
+  .app-bg{
+    position:fixed;inset:0;z-index:-1;overflow:hidden;
+    background:
+      radial-gradient(1200px 800px at 12% -8%, var(--bg-glow-1), transparent 60%),
+      radial-gradient(900px 700px at 92% 8%, var(--bg-glow-2), transparent 60%),
+      radial-gradient(1100px 900px at 50% 110%, var(--bg-glow-3), transparent 60%),
+      linear-gradient(180deg, var(--bg-base) 0%, var(--bg-base) 60%, var(--bg-base) 100%);
+    transition:background .25s ease;
+  }
+  .app-bg::before{
+    content:"";position:absolute;inset:0;
+    background-image:
+      linear-gradient(var(--grid-color) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid-color) 1px,transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(ellipse 80% 60% at 50% 30%, #000 30%, transparent 80%);
+    -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 30%, #000 30%, transparent 80%);
+  }
+  .app-bg::after{
+    content:"";position:absolute;inset:0;
+    background:radial-gradient(600px 200px at 50% 100%, var(--bg-glow-4), transparent 70%);
+  }
+
+  /* ===== Layout ===== */
+  .app{display:grid;grid-template-columns:248px 1fr;grid-template-rows:64px 1fr;height:100vh}
+  .sidebar{grid-row:1/3;border-right:1px solid var(--border);background:var(--bg-card-solid);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);display:flex;flex-direction:column;padding:18px 14px;gap:6px;position:relative;z-index:5;transition:background .25s, border-color .25s}
+  .topbar{grid-column:2;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid var(--border-soft);background:rgba(10,10,20,.5);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);position:relative;z-index:4;transition:border-color .25s}
+  :root[data-theme="light"] .topbar, :root[data-theme="auto"] .topbar {background:rgba(255,255,255,.7)}
+  .main{grid-column:2;overflow-y:auto;padding:28px 36px 60px;position:relative;z-index:1}
+  .main-inner{max-width:1280px;margin:0 auto}
+
+  /* ===== Brand ===== */
+  .brand{display:flex;align-items:center;gap:10px;padding:6px 10px 18px;border-bottom:1px solid var(--border-soft);margin-bottom:14px}
+  .brand-logo{
+    width:34px;height:34px;border-radius:10px;
+    background:conic-gradient(from 200deg, #6366f1, #a855f7, #ec4899, #06b6d4, #6366f1);
+    position:relative;flex-shrink:0;
+    box-shadow:0 0 24px rgba(168,85,247,.45), inset 0 0 0 1px var(--border-strong);
+  }
+  .brand-logo::after{content:"";position:absolute;inset:5px;border-radius:7px;background:linear-gradient(135deg,#0c0c18,#1a1a2e)}
+  .brand-logo svg{position:absolute;inset:0;margin:auto;z-index:2}
+  .brand-name{font-size:14px;font-weight:700;letter-spacing:.2px}
+  .brand-sub{font-size:10.5px;color:var(--text-5);letter-spacing:1.2px;text-transform:uppercase;margin-top:1px}
+  .brand-version{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-4);background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.25);padding:2px 7px;border-radius:5px}
+
+  /* ===== Nav ===== */
+  .nav-section{margin-top:14px}
+  .nav-title{font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--text-6);padding:0 10px 8px;font-weight:600}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;
+    font-size:13px;color:var(--text-3);font-weight:500;cursor:pointer;
+    transition:all .15s ease;position:relative;
+  }
+  .nav-item:hover{background:var(--bg-soft);color:var(--text-2)}
+  .nav-item.active{
+    background:linear-gradient(90deg, rgba(168,85,247,.16), rgba(168,85,247,.04));
+    color:var(--text-1);
+    box-shadow:inset 0 0 0 1px rgba(168,85,247,.22);
+  }
+  .nav-item.active::before{
+    content:"";position:absolute;left:-14px;top:50%;transform:translateY(-50%);
+    width:3px;height:18px;border-radius:0 3px 3px 0;
+    background:linear-gradient(180deg,#a855f7,#ec4899);
+    box-shadow:0 0 12px rgba(168,85,247,.6);
+  }
+  .nav-item svg{width:17px;height:17px;stroke-width:2;flex-shrink:0}
+  .nav-badge{margin-left:auto;background:rgba(236,72,153,.18);color:#f9a8d4;font-size:10px;padding:1px 6px;border-radius:5px;font-weight:600;font-family:'JetBrains Mono',monospace}
+  .nav-badge.cyan{background:rgba(6,182,212,.18);color:#67e8f9}
+  .nav-badge.amber{background:rgba(245,158,11,.18);color:#fcd34d}
+
+  /* ===== Sidebar bottom (user) ===== */
+  .sidebar-bottom{margin-top:auto;padding-top:14px;border-top:1px solid var(--border-soft)}
+  .user-card{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--border-soft);border:1px solid var(--border-soft)}
+  .avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#06b6d4,#a855f7);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0;box-shadow:inset 0 0 0 1px var(--border-strong)}
+  .user-name{font-size:12.5px;font-weight:600}
+  .user-role{font-size:10.5px;color:var(--text-5)}
+
+  /* ===== Topbar ===== */
+  .search{
+    display:flex;align-items:center;gap:9px;background:var(--bg-soft);
+    border:1px solid var(--border);border-radius:10px;padding:7px 13px;
+    width:340px;font-size:13px;color:var(--text-4);transition:all .15s;
+  }
+  .search:hover{border-color:var(--border-strong)}
+  .search:focus-within{border-color:rgba(168,85,247,.45);box-shadow:0 0 0 3px rgba(168,85,247,.12)}
+  .search svg{width:14px;height:14px;stroke-width:2.2}
+  .search kbd{font-family:'JetBrains Mono',monospace;font-size:10px;background:var(--border);border:1px solid var(--border-strong);padding:1px 5px;border-radius:4px;margin-left:auto;color:var(--text-3)}
+  .top-actions{display:flex;align-items:center;gap:10px}
+  .top-pill{display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);color:#6ee7b7;font-size:11.5px;font-weight:500}
+  .pulse-dot{width:6px;height:6px;border-radius:50%;background:#10b981;box-shadow:0 0 0 0 rgba(16,185,129,.5);animation:pulse 1.8s infinite}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(16,185,129,.5)}
+    70%{box-shadow:0 0 0 8px rgba(16,185,129,0)}
+    100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}
+  }
+  .icon-btn{
+    width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    background:var(--bg-soft);border:1px solid var(--border);
+    transition:all .15s;
+  }
+  .icon-btn:hover{background:var(--border);border-color:var(--border-strong)}
+  .icon-btn svg{width:16px;height:16px;stroke-width:2}
+  .provider-chip{display:flex;align-items:center;gap:8px;padding:5px 10px 5px 5px;border-radius:999px;background:var(--bg-soft);border:1px solid var(--border);font-size:12px}
+  .provider-chip .dot{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#a855f7,#ec4899);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+
+  /* ===== Page header ===== */
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px}
+  .page-title{font-size:24px;font-weight:700;letter-spacing:-.3px;color:var(--text-1)}
+  .page-sub{font-size:13px;color:#8b91ad;margin-top:4px}
+
+  /* ===== Glass card ===== */
+  .card{
+    background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.02));
+    border:1px solid var(--border);
+    border-radius:16px;
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
+    box-shadow:0 1px 0 var(--bg-soft) inset, 0 8px 24px -8px rgba(0,0,0,.5);
+  }
+  .card-pad{padding:20px 22px}
+  .card-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border-soft)}
+  .card-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .card-title svg{width:15px;height:15px;stroke-width:2;color:#a78bfa}
+  .card-sub{font-size:11.5px;color:var(--text-5)}
+
+  /* ===== KPI card ===== */
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+  .kpi{
+    position:relative;overflow:hidden;
+    background:linear-gradient(180deg,var(--border-soft),rgba(255,255,255,.02));
+    border:1px solid var(--border);
+    border-radius:16px;padding:18px 20px;
+    transition:all .2s ease;
+  }
+  .kpi:hover{transform:translateY(-2px);border-color:rgba(168,85,247,.3);box-shadow:0 12px 32px -8px rgba(168,85,247,.3)}
+  .kpi::before{content:"";position:absolute;inset:0;background:radial-gradient(400px 200px at 100% 0%, var(--accent,rgba(168,85,247,.18)), transparent 60%);pointer-events:none}
+  .kpi-icon{
+    width:38px;height:38px;border-radius:10px;
+    background:linear-gradient(135deg,var(--accent,rgba(168,85,247,.25)),transparent);
+    border:1px solid var(--border);
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:14px;
+  }
+  .kpi-icon svg{width:18px;height:18px;stroke-width:2;stroke:var(--accent-color,#a78bfa)}
+  .kpi-label{font-size:12px;color:var(--text-4);font-weight:500;letter-spacing:.2px}
+  .kpi-value{font-size:28px;font-weight:700;letter-spacing:-.5px;margin-top:4px;font-family:'Outfit',sans-serif;font-feature-settings:"tnum"}
+  .kpi-delta{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;margin-top:6px;padding:2px 7px;border-radius:5px;font-weight:600}
+  .kpi-delta.up{color:#6ee7b7;background:rgba(16,185,129,.1)}
+  .kpi-delta.down{color:#fca5a5;background:rgba(239,68,68,.1)}
+  .kpi-delta svg{width:11px;height:11px;stroke-width:2.5}
+  .kpi-spark{margin-top:10px;height:32px;position:relative}
+
+  /* ===== Buttons ===== */
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:9px;
+    font-size:12.5px;font-weight:600;border:1px solid transparent;
+    transition:all .15s ease;
+  }
+  .btn svg{width:14px;height:14px;stroke-width:2.2}
+  .btn-primary{
+    background:linear-gradient(135deg,#a855f7,#6366f1);
+    color:#fff;
+    box-shadow:0 4px 14px -2px rgba(168,85,247,.45);
+  }
+  .btn-primary:hover{box-shadow:0 6px 20px -2px rgba(168,85,247,.6);transform:translateY(-1px)}
+  .btn-ghost{background:var(--bg-soft);border-color:var(--border);color:var(--text-2)}
+  .btn-ghost:hover{background:var(--bg-soft-hover);color:var(--text-1)}
+  .btn-outline{background:transparent;border-color:var(--border-strong);color:var(--text-2)}
+  .btn-outline:hover{border-color:rgba(168,85,247,.45);color:var(--text-1);background:rgba(168,85,247,.08)}
+  .btn-danger{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3);color:#fca5a5}
+  .btn-danger:hover{background:rgba(239,68,68,.2)}
+
+  /* ===== Charts area ===== */
+  .row-2{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-bottom:20px}
+  .row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:20px}
+
+  /* ===== Risk capsule bar ===== */
+  .capsule-row{display:flex;align-items:center;gap:14px;padding:10px 0}
+  .capsule-row + .capsule-row{border-top:1px dashed var(--border-soft)}
+  .capsule-label{font-size:12.5px;color:var(--text-3);min-width:90px;display:flex;align-items:center;gap:8px}
+  .capsule-label .dot{width:8px;height:8px;border-radius:2px}
+  .capsule-track{flex:1;height:10px;background:var(--border-soft);border-radius:6px;overflow:hidden;position:relative}
+  .capsule-fill{position:absolute;left:0;top:0;bottom:0;border-radius:6px;transition:width .8s cubic-bezier(.16,1,.3,1)}
+  .capsule-pct{font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:600;min-width:50px;text-align:right}
+
+  /* ===== Score bar (dual track) ===== */
+  .score-row{display:flex;align-items:center;gap:14px;padding:11px 0}
+  .score-row + .score-row{border-top:1px dashed var(--border-soft)}
+  .score-label{font-size:12.5px;color:var(--text-3);min-width:80px}
+  .score-track{flex:1;height:18px;background:rgba(99,102,241,.08);border-radius:6px;overflow:hidden;position:relative;border:1px solid rgba(99,102,241,.12)}
+  .score-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#06b6d4,#a855f7);border-radius:6px;transition:width .8s cubic-bezier(.16,1,.3,1);box-shadow:0 0 12px rgba(168,85,247,.3)}
+  .score-value{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:var(--text-2);min-width:52px;text-align:right}
+
+  /* ===== Recent conversations ===== */
+  .conv-row{display:flex;align-items:center;gap:12px;padding:11px 0;cursor:pointer;border-radius:8px;transition:all .15s}
+  .conv-row:hover{background:rgba(255,255,255,.03);padding-left:10px;padding-right:10px;margin:0 -10px}
+  .conv-row + .conv-row{border-top:1px dashed var(--border-soft)}
+  .conv-agent{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--c1,#a855f7),var(--c2,#06b6d4));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;box-shadow:inset 0 0 0 1px var(--border-strong)}
+  .conv-body{flex:1;min-width:0}
+  .conv-title{font-size:13px;font-weight:600;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .conv-meta{font-size:11.5px;color:var(--text-5);margin-top:2px;display:flex;align-items:center;gap:8px}
+  .conv-meta svg{width:11px;height:11px;stroke-width:2.2}
+
+  /* ===== Pills / tags ===== */
+  .pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:10.5px;font-weight:600;letter-spacing:.2px}
+  .pill-purple{background:rgba(168,85,247,.14);color:#d8b4fe;border:1px solid rgba(168,85,247,.25)}
+  .pill-pink{background:rgba(236,72,153,.14);color:#f9a8d4;border:1px solid rgba(236,72,153,.25)}
+  .pill-cyan{background:rgba(6,182,212,.14);color:#67e8f9;border:1px solid rgba(6,182,212,.25)}
+  .pill-amber{background:rgba(245,158,11,.14);color:#fcd34d;border:1px solid rgba(245,158,11,.25)}
+  .pill-emerald{background:rgba(16,185,129,.14);color:#6ee7b7;border:1px solid rgba(16,185,129,.25)}
+  .pill-red{background:rgba(239,68,68,.14);color:#fca5a5;border:1px solid rgba(239,68,68,.25)}
+  .pill-zinc{background:var(--border);color:var(--text-3);border:1px solid var(--border-strong)}
+  .pill-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+
+  /* ===== Tables ===== */
+  .table{width:100%;border-collapse:separate;border-spacing:0}
+  .table th{text-align:left;font-size:11px;font-weight:600;color:var(--text-4);letter-spacing:.8px;text-transform:uppercase;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .table td{padding:14px 16px;font-size:13px;color:var(--text-2);border-bottom:1px solid var(--border)}
+  .table tr:hover td{background:rgba(255,255,255,.02)}
+  .table tr:last-child td{border-bottom:none}
+
+  /* ===== Chat layout ===== */
+  .chat-layout{display:grid;grid-template-columns:280px 1fr 320px;gap:18px;height:calc(100vh - 64px - 56px)}
+  .chat-side,.chat-main,.chat-tools{display:flex;flex-direction:column;min-height:0}
+  .agent-list{flex:1;overflow-y:auto;padding:8px}
+  .agent-list-item{
+    display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;cursor:pointer;
+    transition:all .15s;margin-bottom:3px;
+  }
+  .agent-list-item:hover{background:var(--bg-soft)}
+  .agent-list-item.active{background:linear-gradient(90deg,rgba(168,85,247,.18),rgba(168,85,247,.04));box-shadow:inset 0 0 0 1px rgba(168,85,247,.25)}
+  .agent-avatar{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--c1,#a855f7),var(--c2,#06b6d4));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0;box-shadow:inset 0 0 0 1px var(--border-strong)}
+  .agent-info{flex:1;min-width:0}
+  .agent-name{font-size:12.5px;font-weight:600;color:var(--text-2)}
+  .agent-desc{font-size:10.5px;color:var(--text-5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  .chat-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border-soft)}
+  .chat-header-left{display:flex;align-items:center;gap:12px}
+  .chat-title-block .title{font-size:14px;font-weight:600}
+  .chat-title-block .sub{font-size:11.5px;color:var(--text-5)}
+  .chat-stream{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:16px}
+  .msg{max-width:78%;display:flex;flex-direction:column;gap:6px}
+  .msg.user{align-self:flex-end;align-items:flex-end}
+  .msg .role{font-size:10.5px;color:var(--text-5);font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+  .msg .bubble{
+    padding:11px 15px;border-radius:14px;font-size:13.5px;line-height:1.65;
+    background:var(--border-soft);border:1px solid var(--border);
+  }
+  .msg.user .bubble{
+    background:linear-gradient(135deg,#a855f7,#6366f1);
+    border-color:var(--border-strong);color:#fff;
+    box-shadow:0 4px 14px -2px rgba(168,85,247,.4);
+  }
+  .msg.assistant .bubble{background:var(--bg-soft)}
+  .bubble code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(0,0,0,.3);padding:1px 5px;border-radius:4px;color:#fbbf24}
+  .tool-call{
+    display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;
+    background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.18);
+    font-size:12px;color:#a5f3fc;
+  }
+  .tool-call.running{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25);color:#fcd34d}
+  .tool-call.success{background:rgba(16,185,129,.06);border-color:rgba(16,185,129,.18);color:#6ee7b7}
+  .tool-call.failed{background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.2);color:#fca5a5}
+  .tool-call svg{width:13px;height:13px;stroke-width:2.2;flex-shrink:0}
+  .tool-call .name{font-family:'JetBrains Mono',monospace;font-weight:600}
+  .tool-call .meta{margin-left:auto;font-size:10.5px;opacity:.8}
+
+  .chat-input{padding:14px 18px;border-top:1px solid var(--border-soft)}
+  .chat-input-box{
+    display:flex;align-items:flex-end;gap:10px;padding:10px 12px;
+    background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;
+    transition:all .15s;
+  }
+  .chat-input-box:focus-within{border-color:rgba(168,85,247,.4);box-shadow:0 0 0 3px rgba(168,85,247,.1)}
+  .chat-input-box textarea{
+    flex:1;background:none;border:none;outline:none;resize:none;
+    color:var(--text-2);font-size:13.5px;line-height:1.5;max-height:140px;min-height:24px;
+    font-family:inherit;
+  }
+  .chat-input-box textarea::placeholder{color:#6b7280}
+  .chat-tools{display:flex;gap:6px}
+
+  /* ===== Tools timeline (right panel) ===== */
+  .tools-timeline{padding:14px;flex:1;overflow-y:auto}
+  .tool-step{
+    display:flex;gap:12px;padding:10px 0;position:relative;
+  }
+  .tool-step::before{
+    content:"";position:absolute;left:11px;top:24px;bottom:-6px;width:1px;
+    background:linear-gradient(180deg,rgba(168,85,247,.4),transparent);
+  }
+  .tool-step:last-child::before{display:none}
+  .tool-step-dot{
+    width:23px;height:23px;border-radius:50%;flex-shrink:0;
+    background:rgba(168,85,247,.18);border:1.5px solid rgba(168,85,247,.5);
+    display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#d8b4fe;
+  }
+  .tool-step.success .tool-step-dot{background:rgba(16,185,129,.18);border-color:rgba(16,185,129,.5);color:#6ee7b7}
+  .tool-step.running .tool-step-dot{background:rgba(245,158,11,.18);border-color:rgba(245,158,11,.5);color:#fcd34d;animation:spin 1.2s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .tool-step-body{flex:1;min-width:0}
+  .tool-step-name{font-size:12.5px;font-weight:600;color:var(--text-2)}
+  .tool-step-args{font-size:11px;color:var(--text-4);margin-top:2px;font-family:'JetBrains Mono',monospace}
+  .tool-step-result{font-size:11px;color:var(--text-5);margin-top:4px}
+
+  /* ===== Agent grid ===== */
+  .agent-section{margin-bottom:32px}
+  .agent-section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .agent-section-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px var(--border)}
+  .agent-section-icon svg{width:15px;height:15px;stroke-width:2.2}
+  .agent-section-title{font-size:13px;font-weight:700;letter-spacing:.3px}
+  .agent-section-count{font-size:11px;color:var(--text-5);background:var(--border-soft);padding:2px 7px;border-radius:5px;font-family:'JetBrains Mono',monospace}
+
+  .agent-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .agent-card{
+    position:relative;overflow:hidden;
+    background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));
+    border:1px solid var(--border);border-radius:14px;padding:16px;
+    transition:all .2s;cursor:pointer;
+  }
+  .agent-card::before{content:"";position:absolute;inset:0;background:radial-gradient(400px 200px at 100% 0%, var(--glow,rgba(168,85,247,.18)), transparent 60%);opacity:0;transition:opacity .2s}
+  .agent-card:hover{transform:translateY(-3px);border-color:var(--border-strong);box-shadow:0 16px 40px -12px rgba(0,0,0,.6)}
+  .agent-card:hover::before{opacity:1}
+  .agent-card-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;position:relative;z-index:1}
+  .agent-card-icon{
+    width:40px;height:40px;border-radius:11px;
+    background:linear-gradient(135deg,var(--c1,#a855f7),var(--c2,#06b6d4));
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 14px -2px var(--glow,rgba(168,85,247,.4)), inset 0 0 0 1px var(--border-strong);
+  }
+  .agent-card-icon svg{width:20px;height:20px;stroke:#fff;stroke-width:2}
+  .agent-card-name{font-size:14px;font-weight:700;color:#fff;margin-bottom:2px}
+  .agent-card-role{font-size:11px;color:var(--text-5);letter-spacing:.3px}
+  .agent-card-desc{font-size:12.5px;color:var(--text-3);line-height:1.6;margin:10px 0 12px;min-height:60px}
+  .agent-card-tags{display:flex;flex-wrap:wrap;gap:5px}
+  .agent-card-footer{display:flex;align-items:center;justify-content:space-between;padding-top:10px;margin-top:6px;border-top:1px dashed var(--border)}
+  .agent-card-status{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-4)}
+
+  /* ===== Form controls ===== */
+  .field{display:flex;flex-direction:column;gap:7px;margin-bottom:18px}
+  .field-label{font-size:12px;font-weight:600;color:var(--text-3);display:flex;align-items:center;gap:6px}
+  .field-hint{font-size:11px;color:var(--text-5);line-height:1.5}
+  .input,.select,.textarea{
+    width:100%;padding:9px 12px;border-radius:9px;
+    background:var(--bg-soft);border:1px solid var(--border);
+    color:var(--text-2);font-size:13px;transition:all .15s;
+  }
+  .input:hover,.select:hover,.textarea:hover{border-color:var(--border-strong)}
+  .input:focus,.select:focus,.textarea:focus{outline:none;border-color:rgba(168,85,247,.45);box-shadow:0 0 0 3px rgba(168,85,247,.12)}
+  .textarea{min-height:80px;resize:vertical;line-height:1.6;font-family:inherit}
+
+  /* Slider */
+  .slider-wrap{display:flex;align-items:center;gap:12px}
+  .slider-track{
+    flex:1;height:6px;background:var(--border);border-radius:3px;position:relative;cursor:pointer;
+  }
+  .slider-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#a855f7,#06b6d4);border-radius:3px;box-shadow:0 0 12px rgba(168,85,247,.4)}
+  .slider-thumb{
+    position:absolute;top:50%;width:16px;height:16px;border-radius:50%;
+    background:#fff;box-shadow:0 0 0 4px rgba(168,85,247,.25), 0 2px 8px rgba(0,0,0,.4);
+    transform:translate(-50%,-50%);cursor:grab;
+  }
+  .slider-thumb:active{cursor:grabbing}
+  .slider-value{font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:600;color:#a78bfa;min-width:54px;text-align:right}
+
+  /* Toggle */
+  .toggle{width:38px;height:22px;border-radius:11px;background:var(--border-strong);position:relative;cursor:pointer;transition:all .2s}
+  .toggle::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:all .2s}
+  .toggle.on{background:linear-gradient(135deg,#a855f7,#6366f1)}
+  .toggle.on::after{left:18px}
+
+  /* ===== Section divider ===== */
+  .section-title{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .section-title h3{font-size:14px;font-weight:700;color:var(--text-2)}
+  .section-title .line{flex:1;height:1px;background:linear-gradient(90deg,var(--border-strong),transparent)}
+
+  /* ===== Empty state ===== */
+  .empty{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:40px 20px;text-align:center;
+  }
+  .empty-icon{
+    width:64px;height:64px;border-radius:18px;
+    background:linear-gradient(135deg,rgba(168,85,247,.15),rgba(6,182,212,.1));
+    border:1px solid rgba(168,85,247,.2);
+    display:flex;align-items:center;justify-content:center;margin-bottom:14px;
+  }
+  .empty-icon svg{width:30px;height:30px;stroke-width:1.7;stroke:#a78bfa}
+  .empty-title{font-size:14px;font-weight:600;color:var(--text-3);margin-bottom:4px}
+  .empty-desc{font-size:12px;color:var(--text-5);max-width:280px;line-height:1.55}
+
+  /* ===== Page visibility ===== */
+  .page{display:none}
+  .page.active{display:block;animation:fadeIn .3s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+  /* ===== Toast ===== */
+  .toast-stack{position:fixed;top:80px;right:24px;display:flex;flex-direction:column;gap:10px;z-index:100;pointer-events:none}
+  .toast{
+    display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;
+    background:rgba(15,15,26,.85);border:1px solid var(--border);
+    box-shadow:0 12px 32px -8px rgba(0,0,0,.5);
+    backdrop-filter:blur(20px);
+    animation:slideIn .3s cubic-bezier(.16,1,.3,1);
+    pointer-events:auto;min-width:260px;
+  }
+  @keyframes slideIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+  .toast.success{border-color:rgba(16,185,129,.3)}
+  .toast.success .ico{color:#6ee7b7}
+  .toast.info .ico{color:#67e8f9}
+  .toast.warn .ico{color:#fcd34d}
+  .toast .ico{width:20px;height:20px;flex-shrink:0}
+  .toast .ico svg{width:100%;height:100%;stroke-width:2.2}
+
+  /* ===== Misc ===== */
+  .grid-cols-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid-cols-3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .grid-cols-4{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+  .divider{height:1px;background:var(--border);margin:18px 0}
+  .mb-2{margin-bottom:8px}.mb-3{margin-bottom:12px}.mb-4{margin-bottom:16px}.mb-5{margin-bottom:20px}.mb-6{margin-bottom:24px}
+  .flex{display:flex}.items-center{align-items:center}.justify-between{justify-content:space-between}.gap-2{gap:8px}.gap-3{gap:12px}.gap-4{gap:16px}
+  .text-sm{font-size:12px}.text-xs{font-size:11px}.text-muted{color:var(--text-5)}.text-bright{color:var(--text-1)}
+  .mono{font-family:'JetBrains Mono',monospace}
+  .text-emerald{color:#6ee7b7}.text-amber{color:#fcd34d}.text-red{color:#fca5a5}.text-purple{color:#d8b4fe}.text-cyan{color:#67e8f9}
+  .w-full{width:100%}
+
+  /* Heatmap */
+  .heat-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin-top:8px}
+  .heat-cell{aspect-ratio:1;border-radius:3px;background:var(--bg-soft);transition:all .15s}
+  .heat-cell.l1{background:rgba(168,85,247,.18)}
+  .heat-cell.l2{background:rgba(168,85,247,.4)}
+  .heat-cell.l3{background:rgba(168,85,247,.65)}
+  .heat-cell.l4{background:linear-gradient(135deg,#a855f7,#ec4899);box-shadow:0 0 6px rgba(168,85,247,.4)}
+
+  /* Loading shimmer */
+  .shimmer{background:linear-gradient(90deg,var(--bg-soft) 0%,var(--bg-soft-hover) 50%,var(--bg-soft) 100%);background-size:200% 100%;animation:shimmer 1.5s infinite}
+  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+  /* ===== Student panel (inline, below table) ===== */
+  #studentDetailWrap{margin-top:20px}
+  .student-panel{
+    background:var(--bg-card);
+    border:1px solid var(--border);
+    border-radius:16px;
+    box-shadow:var(--shadow-card);
+    overflow:hidden;
+    animation:panelSlideIn .35s cubic-bezier(.16,1,.3,1);
+  }
+  @keyframes panelSlideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+  .student-panel-head{
+    display:flex;align-items:center;gap:16px;padding:20px 24px;
+    background:linear-gradient(135deg,rgba(168,85,247,.08),rgba(6,182,212,.04));
+    border-bottom:1px solid var(--border-soft);
+  }
+  .student-panel-avatar{
+    width:60px;height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;
+    font-size:24px;font-weight:700;color:#fff;flex-shrink:0;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.15), 0 4px 14px -2px rgba(168,85,247,.4);
+  }
+  .student-panel-title{flex:1;min-width:0}
+  .student-panel-title .name-row{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .student-panel-title h2{font-size:22px;font-weight:700;color:var(--text-1);letter-spacing:-.3px}
+  .student-panel-title .meta-row{font-size:12px;color:var(--text-5);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .student-panel-actions{display:flex;gap:8px;flex-shrink:0}
+  .student-panel-tabs{
+    display:flex;padding:0 24px;border-bottom:1px solid var(--border-soft);
+    background:var(--bg-soft);gap:2px;overflow-x:auto;
+  }
+  .student-panel-tab{
+    padding:12px 16px;font-size:12.5px;font-weight:600;color:var(--text-4);
+    cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;
+    margin-bottom:-1px;white-space:nowrap;
+  }
+  .student-panel-tab:hover{color:var(--text-2)}
+  .student-panel-tab.active{color:#a78bfa;border-bottom-color:#a855f7}
+  .student-panel-content{padding:22px 24px}
+  .sp-pane{display:none;animation:fadeIn .2s ease}
+  .sp-pane.active{display:block}
+
+  /* Clickable rows + selected state */
+  tr[data-student]{cursor:pointer;transition:background .15s}
+  tr[data-student]:hover td{background:rgba(168,85,247,.08)!important}
+  tr[data-student].selected td{background:rgba(168,85,247,.1)!important;box-shadow:inset 3px 0 0 #a855f7}
+</style>
+</head>
+<body>
+  <!-- Background -->
+  <div class="app-bg"></div>
+
+  <!-- App shell -->
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <!-- Topbar -->
+    <header class="topbar" id="topbar"></header>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="main-inner" id="main"></div>
+    </main>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-stack" id="toastStack"></div>
+
+  <!-- Modal root -->
+  <div id="modalRoot"></div>
+
+<script>
+  /* ============================================================
+   *  ICONS (lucide inline SVG)
+   * ============================================================ */
+  const I = {
+    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-7h-6v7H4a1 1 0 01-1-1V9.5z"/></svg>',
+    message: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 11.5a8.38 8.38 0 01-8.5 8.5 8.5 8.5 0 01-3.6-.8L3 21l1.9-5.7A8.38 8.38 0 014.5 12 8.5 8.5 0 0113 3.5a8.38 8.38 0 018 8z"/></svg>',
+    bot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="8" width="18" height="12" rx="3"/><circle cx="9" cy="14" r="1.3"/><circle cx="15" cy="14" r="1.3"/><path d="M12 5v3M9 3h6"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 016.5 17H20V3H6.5A2.5 2.5 0 004 5.5v14z"/><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/></svg>',
+    users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>',
+    cpu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>',
+    database: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+    history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v5h5M3.05 13A9 9 0 1012 3"/><path d="M12 7v5l4 2"/></svg>',
+    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>',
+    send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>',
+    bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>',
+    chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18l6-6-6-6"/></svg>',
+    arrowUp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+    arrowDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12l7 7 7-7"/></svg>',
+    sparkles: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l1.7 4.6L18 9.3l-4.3 1.7L12 15l-1.7-4-4.3-1.7 4.3-1.7L12 3zM5 17l.85 2.3L8 20.15l-2.15.85L5 23l-.85-2-2.15-.85L4.15 19.3 5 17zM19 13l.6 1.7L21 15.3l-1.4.6L19 17.6l-.6-1.7L17 15.3l1.4-.6L19 13z"/></svg>',
+    risk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/></svg>',
+    trend: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 14l4-4 4 4 5-5"/></svg>',
+    play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>',
+    key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15L19 4M18 5l3 3M15 8l3 3"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>',
+    download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>',
+    upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>',
+    filter: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>',
+    more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>',
+    zap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+    target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+    activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+    graduation: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 10L12 5 2 10l10 5 10-5zM6 12v5c3 3 9 3 12 0v-5"/></svg>',
+    alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>',
+    briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 0115-6.7L21 8M21 3v5h-5M21 12a9 9 0 01-15 6.7L3 16M3 21v-5h5"/></svg>',
+  };
+  function icon(name, size) {
+    if (!I[name]) return '';
+    return I[name].replace('<svg ', `<svg width="${size||16}" height="${size||16}" `);
+  }
+
+  /* ============================================================
+   *  MOCK DATA
+   * ============================================================ */
+  const MOCK = {
+    kpis: [
+      { label: '学生总数', value: '1,284', delta: '+24', dir: 'up', accent: 'rgba(168,85,247,.25)', color: '#a78bfa', icon: 'users' },
+      { label: '高风险学生', value: '37', delta: '−5', dir: 'up', accent: 'rgba(236,72,153,.25)', color: '#f472b6', icon: 'risk' },
+      { label: '本月对话', value: '5,612', delta: '+18%', dir: 'up', accent: 'rgba(6,182,212,.25)', color: '#22d3ee', icon: 'message' },
+      { label: '调度任务', value: '12', delta: '运行中', dir: 'up', accent: 'rgba(16,185,129,.25)', color: '#34d399', icon: 'clock' },
+    ],
+    risk: [
+      { label: '高风险', level: 4, count: 12, pct: 32, c1: '#f43f5e', c2: '#fb7185', light: 'rgba(244,63,94,.12)', border: 'rgba(244,63,94,.3)' },
+      { label: '中风险', level: 3, count: 25, pct: 41, c1: '#f59e0b', c2: '#fbbf24', light: 'rgba(245,158,11,.12)', border: 'rgba(245,158,11,.3)' },
+      { label: '关注',   level: 2, count: 38, pct: 58, c1: '#a855f7', c2: '#c084fc', light: 'rgba(168,85,247,.14)', border: 'rgba(168,85,247,.3)' },
+      { label: '稳定',   level: 1, count: 89, pct: 76, c1: '#06b6d4', c2: '#22d3ee', light: 'rgba(6,182,212,.14)',  border: 'rgba(6,182,212,.3)'  },
+    ],
+    scores: [
+      { label: '语文', val: 87, max: 100, c1: '#a855f7', c2: '#c084fc' },
+      { label: '数学', val: 92, max: 100, c1: '#06b6d4', c2: '#22d3ee' },
+      { label: '英语', val: 78, max: 100, c1: '#ec4899', c2: '#f472b6' },
+      { label: '物理', val: 81, max: 100, c1: '#10b981', c2: '#34d399' },
+      { label: '化学', val: 85, max: 100, c1: '#f59e0b', c2: '#fbbf24' },
+    ],
+    conversations: [
+      { agent: '教务主任', initials: 'J', c1: '#a855f7', c2: '#6366f1', title: '本周违纪情况汇总', meta: '2 分钟前 · 4 条工具调用', type: 'discipline' },
+      { agent: '心理咨询', initials: 'X', c1: '#ec4899', c2: '#f59e0b', title: 'S_017 近期情绪异常分析', meta: '14 分钟前 · 2 条工具调用', type: 'psy' },
+      { agent: '学业分析', initials: 'X', c1: '#06b6d4', c2: '#10b981', title: '八年级三班月考趋势报告', meta: '1 小时前 · 6 条工具调用', type: 'academic' },
+      { agent: '风险预警', initials: 'F', c1: '#ef4444', c2: '#f59e0b', title: '周末离校学生名单', meta: '3 小时前 · 1 条工具调用', type: 'risk' },
+      { agent: '周报生成', initials: 'Z', c1: '#10b981', c2: '#06b6d4', title: '本周全校工作周报', meta: '昨天 18:42 · 8 条工具调用', type: 'weekly' },
+    ],
+    agents: [
+      // 教学组
+      { group: 'teach', name: '学业分析师', role: 'academic-analyst', desc: '深入分析学生成绩趋势，识别科目短板，生成可视化报告', tags: ['成绩分析', '趋势预测'], tools: 5, c1: '#a855f7', c2: '#6366f1', icon: 'trend', status: '在线' },
+      { group: 'teach', name: '课程顾问',   role: 'curriculum',     desc: '为学生推荐选修课、辅导方案，结合兴趣与升学目标', tags: ['选课', '规划'], tools: 4, c1: '#8b5cf6', c2: '#ec4899', icon: 'book', status: '在线' },
+      { group: 'teach', name: '评估专家',   role: 'assessment',     desc: '组织单元测试、模拟考，自动出题与评分', tags: ['出题', '评分'], tools: 6, c1: '#6366f1', c2: '#06b6d4', icon: 'target', status: '在线' },
+      { group: 'teach', name: '学业辅导',   role: 'tutor',          desc: '1对1 答疑，错题解析，针对性练习推荐', tags: ['答疑', '练习'], tools: 5, c1: '#a78bfa', c2: '#22d3ee', icon: 'graduation', status: '在线' },
+      { group: 'teach', name: '班主任助理', role: 'class-monitor',  desc: '管理班级事务、值日表、通知公告', tags: ['班级', '通知'], tools: 3, c1: '#c084fc', c2: '#f472b6', icon: 'users', status: '空闲' },
+      { group: 'teach', name: '教研主管',   role: 'supervisor',     desc: '协调各科教学进度，分析教研数据', tags: ['教研', '协调'], tools: 4, c1: '#818cf8', c2: '#a78bfa', icon: 'briefcase', status: '在线' },
+      // 安全组
+      { group: 'safety', name: '风险预警',   role: 'risk-alert',     desc: '实时监控学生异常行为，生成风险等级评估', tags: ['监控', '预警'], tools: 5, c1: '#ef4444', c2: '#f59e0b', icon: 'risk', status: '在线' },
+      { group: 'safety', name: '心理咨询',  role: 'psychology',     desc: '学生情绪疏导、心理状态评估、危机干预', tags: ['心理', '疏导'], tools: 6, c1: '#ec4899', c2: '#f43f5e', icon: 'sparkles', status: '在线' },
+      { group: 'safety', name: '纪律管理',  role: 'discipline',     desc: '处理违规记录、家长沟通、处分跟踪', tags: ['纪律', '沟通'], tools: 4, c1: '#f97316', c2: '#ef4444', icon: 'alert', status: '在线' },
+      { group: 'safety', name: '安全员',    role: 'safety',         desc: '校园安全巡查、应急预案、隐患排查', tags: ['安全', '巡查'], tools: 3, c1: '#dc2626', c2: '#f59e0b', icon: 'shield', status: '在线' },
+      { group: 'safety', name: '考勤员',    role: 'attendance',     desc: '每日考勤统计、异常追踪、家长通知', tags: ['考勤', '通知'], tools: 3, c1: '#f59e0b', c2: '#fbbf24', icon: 'clock', status: '在线' },
+      { group: 'safety', name: '家校联络',  role: 'home-school',    desc: '家长沟通、家长会组织、反馈汇总', tags: ['家长', '沟通'], tools: 4, c1: '#fb7185', c2: '#ec4899', icon: 'message', status: '空闲' },
+      // 行政组
+      { group: 'admin', name: '招生顾问',   role: 'enrollment',     desc: '招生咨询、录取通知、入学准备', tags: ['招生', '咨询'], tools: 4, c1: '#06b6d4', c2: '#0ea5e9', icon: 'plus', status: '在线' },
+      { group: 'admin', name: '排课调度',   role: 'scheduling',     desc: '课表编排、教室分配、教师工作量均衡', tags: ['排课', '调度'], tools: 5, c1: '#0891b2', c2: '#6366f1', icon: 'clock', status: '在线' },
+      { group: 'admin', name: '周报生成',   role: 'weekly-reporter',desc: '自动汇总本周全校数据，生成结构化周报', tags: ['周报', '汇总'], tools: 6, c1: '#10b981', c2: '#06b6d4', icon: 'activity', status: '在线' },
+      { group: 'admin', name: '数据分析师', role: 'data-analyst',   desc: '跨表数据查询、统计、可视化分析', tags: ['数据', '分析'], tools: 7, c1: '#22d3ee', c2: '#a78bfa', icon: 'database', status: '在线' },
+      { group: 'admin', name: '学生关怀',   role: 'student-care',   desc: '贫困生档案、资助申请、生活关怀', tags: ['关怀', '档案'], tools: 3, c1: '#67e8f9', c2: '#34d399', icon: 'sparkles', status: '在线' },
+      { group: 'admin', name: '研究助手',   role: 'research',       desc: '教育政策研究、文献检索、报告撰写', tags: ['研究', '文献'], tools: 5, c1: '#7dd3fc', c2: '#a78bfa', icon: 'book', status: '空闲' },
+    ],
+    skills: [
+      { code: 'SK-001', name: '学生全周期管理', desc: '从入学到毕业的完整学生档案管理，包括基本信息、家庭关系、学业记录、奖惩情况', tools: ['lookup_student', 'get_student', 'search_students', 'get_grades'], triggers: ['查询学生', '添加学生', '更新档案'], freq: 342, c1: '#a855f7', c2: '#6366f1' },
+      { code: 'SK-002', name: '风险预警响应', desc: '实时识别高风险学生，自动触发预警流程并通知相关人员', tools: ['list_risk_students', 'dashboard_summary'], triggers: ['风险评估', '异常行为'], freq: 89, c1: '#ef4444', c2: '#f59e0b' },
+      { code: 'SK-003', name: '教学周报生成', desc: '汇总本周教学数据、考勤、违纪、成绩等多维度信息生成周报', tools: ['dashboard_summary', 'recent_grades'], triggers: ['生成周报', '本周总结'], freq: 28, c1: '#10b981', c2: '#06b6d4' },
+      { code: 'SK-004', name: '家长定向沟通', desc: '针对单个家长发送定制化消息，自动脱敏其他学生信息', tools: ['lookup_student', 'search_students'], triggers: ['联系家长', '发送通知'], freq: 156, c1: '#ec4899', c2: '#f472b6' },
+      { code: 'SK-005', name: '学业趋势分析', desc: '对单个或群体学生进行多科目成绩趋势分析，生成可视化报告', tools: ['get_grades', 'search_students'], triggers: ['成绩分析', '趋势报告'], freq: 67, c1: '#06b6d4', c2: '#22d3ee' },
+      { code: 'SK-006', name: '违规处理流程', desc: '登记违规事件、通知家长、跟踪处分结果、记录档案', tools: ['lookup_student', 'get_student'], triggers: ['处理违规', '记录处分'], freq: 41, c1: '#f97316', c2: '#ef4444' },
+    ],
+    students: [
+      { id: 'S_001', name: '张明轩', grade: '八年级', class: '三班', risk: 'low', score: 92, tags: ['班委', '数学竞赛'], guardian: '张父' },
+      { id: 'S_002', name: '李雨桐', grade: '八年级', class: '三班', risk: 'mid', score: 78, tags: ['关注'], guardian: '李母' },
+      { id: 'S_003', name: '王梓涵', grade: '八年级', class: '一班', risk: 'high', score: 64, tags: ['迟到×3', '作业未交'], guardian: '王父' },
+      { id: 'S_004', name: '陈思远', grade: '九年级', class: '二班', risk: 'low', score: 88, tags: ['物理竞赛'], guardian: '陈母' },
+      { id: 'S_005', name: '刘子墨', grade: '八年级', class: '一班', risk: 'mid', score: 75, tags: ['情绪波动'], guardian: '刘父' },
+      { id: 'S_006', name: '黄雅琪', grade: '九年级', class: '一班', risk: 'low', score: 95, tags: ['学生会主席'], guardian: '黄母' },
+      { id: 'S_007', name: '赵睿',   grade: '七年级', class: '四班', risk: 'crit', score: 52, tags: ['多次旷课', '重点关注'], guardian: '赵父' },
+      { id: 'S_008', name: '孙嘉怡', grade: '八年级', class: '二班', risk: 'low', score: 84, tags: ['文艺委员'], guardian: '孙母' },
+    ],
+    models: [
+      { name: 'GPT-4o', provider: 'OpenAI', context: '128K', status: 'active', c1: '#10a37f', c2: '#10b981' },
+      { name: 'Claude 3.5 Sonnet', provider: 'Anthropic', context: '200K', status: 'idle', c1: '#d97706', c2: '#f59e0b' },
+      { name: 'Gemini 1.5 Pro', provider: 'Google', context: '2M', status: 'idle', c1: '#3b82f6', c2: '#06b6d4' },
+      { name: 'DeepSeek V3', provider: 'DeepSeek', context: '64K', status: 'idle', c1: '#6366f1', c2: '#a855f7' },
+      { name: 'Qwen2.5-72B', provider: '通义千问', context: '32K', status: 'idle', c1: '#ec4899', c2: '#f472b6' },
+      { name: 'GLM-4-Plus', provider: '智谱', context: '128K', status: 'idle', c1: '#0ea5e9', c2: '#06b6d4' },
+      { name: 'Doubao-Pro', provider: '豆包', context: '32K', status: 'idle', c1: '#f97316', c2: '#fbbf24' },
+      { name: 'Moonshot v1', provider: '月之暗面', context: '128K', status: 'idle', c1: '#8b5cf6', c2: '#a78bfa' },
+      { name: 'Llama 3.3 70B', provider: 'Ollama · 本地', context: '128K', status: 'idle', c1: '#22d3ee', c2: '#10b981' },
+    ],
+    providers: [
+      'OpenAI', 'Anthropic', 'Google Gemini', 'DeepSeek', '通义千问', '智谱 GLM', '豆包', '月之暗面', '百川', 'MiniMax', 'Groq', 'Mistral', 'Cohere', 'Perplexity', 'OpenRouter', 'Ollama (本地)', 'LM Studio (本地)', 'vLLM (本地)', 'Azure OpenAI', 'AWS Bedrock', '自定义 OpenAI 兼容端点'
+    ],
+    rag: [
+      { name: '学生手册 2026 版.pdf', size: '2.4 MB', chunks: 184, type: 'pdf', added: '2026-06-20' },
+      { name: '教学规范汇编.docx', size: '1.1 MB', chunks: 96, type: 'doc', added: '2026-06-18' },
+      { name: '校园安全应急预案.md', size: '32 KB', chunks: 28, type: 'md', added: '2026-06-15' },
+      { name: '心理咨询案例集.xlsx', size: '780 KB', chunks: 142, type: 'sheet', added: '2026-06-12' },
+      { name: '家长沟通话术库.txt', size: '156 KB', chunks: 64, type: 'txt', added: '2026-06-08' },
+    ],
+    schedule: [
+      { name: '每周一 8:00 — 教学周报', cron: '0 0 8 * * 1', agent: '周报生成', last: '2026-06-23 08:00', next: '2026-06-30 08:00', status: 'active' },
+      { name: '每天 18:00 — 风险扫描', cron: '0 0 18 * * *', agent: '风险预警', last: '今天 18:00', next: '明天 18:00', status: 'active' },
+      { name: '每月 1 号 9:00 — 月度报告', cron: '0 0 9 1 * *', agent: '数据分析师', last: '2026-06-01 09:00', next: '2026-07-01 09:00', status: 'active' },
+      { name: '每周五 16:00 — 周末离校名单', cron: '0 0 16 * * 5', agent: '风险预警', last: '2026-06-20 16:00', next: '2026-06-27 16:00', status: 'paused' },
+    ],
+    history: [
+      { agent: '心理咨询', title: 'S_017 心理状态评估', started: '今天 20:08', turns: 12, status: 'success', duration: '1分24秒' },
+      { agent: '教务主任', title: '本周违纪情况汇总', started: '今天 19:46', turns: 8,  status: 'success', duration: '48秒' },
+      { agent: '风险预警', title: '周末离校学生名单', started: '今天 17:00', turns: 5,  status: 'success', duration: '32秒' },
+      { agent: '学业分析师', title: '八年级三班月考分析', started: '今天 16:12', turns: 14, status: 'success', duration: '2分06秒' },
+      { agent: '周报生成', title: '本周全校工作周报', started: '昨天 18:42', turns: 22, status: 'success', duration: '3分18秒' },
+      { agent: '纪律管理', title: 'S_007 处分跟踪', started: '昨天 14:20', turns: 6,  status: 'failed', duration: '12秒' },
+      { agent: '心理咨询', title: 'P_023 家长沟通建议', started: '前天 16:30', turns: 9,  status: 'success', duration: '1分02秒' },
+    ],
+  };
+
+  /* ============================================================
+   *  APP STATE / ROUTER
+   * ============================================================ */
+  const PAGES = [
+    { id: 'dashboard',  name: '总览',     icon: 'home',     group: 'main' },
+    { id: 'chat',       name: '对话',     icon: 'message',  group: 'main' },
+    { id: 'agents',     name: 'AI 代理',  icon: 'bot',      group: 'work' },
+    { id: 'skills',     name: '技能',     icon: 'sparkles', group: 'work' },
+    { id: 'students',   name: '学生',     icon: 'graduation', group: 'work' },
+    { id: 'rag',        name: '知识库',   icon: 'database', group: 'data' },
+    { id: 'scheduler',  name: '调度',     icon: 'clock',    group: 'data', badge: '3' },
+    { id: 'privacy',    name: '隐私',     icon: 'shield',   group: 'data' },
+    { id: 'history',    name: '代理历史', icon: 'history',  group: 'data' },
+    { id: 'models',     name: '模型',     icon: 'cpu',      group: 'system' },
+    { id: 'settings',   name: '设置',     icon: 'settings', group: 'system' },
+  ];
+  const GROUPS = {
+    main:   { title: '主要' },
+    work:   { title: '工作台' },
+    data:   { title: '数据与隐私' },
+    system: { title: '系统' },
+  };
+  let currentPage = 'dashboard';
+
+  /* ============================================================
+   *  SIDEBAR
+   * ============================================================ */
+  function renderSidebar() {
+    const html = `
+      <div class="brand">
+        <div class="brand-logo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-name">Education Advisor</div>
+          <div class="brand-sub">AI 教育管理</div>
+        </div>
+        <span class="brand-version">0.0.1.rc1</span>
+      </div>
+      ${Object.entries(GROUPS).map(([gid, g]) => `
+        <div class="nav-section">
+          <div class="nav-title">${g.title}</div>
+          ${PAGES.filter(p => p.group === gid).map(p => `
+            <div class="nav-item ${p.id === currentPage ? 'active' : ''}" data-page="${p.id}">
+              ${icon(p.icon, 17)}
+              <span>${p.name}</span>
+              ${p.badge ? `<span class="nav-badge">${p.badge}</span>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `).join('')}
+      <div class="sidebar-bottom">
+        <div class="user-card">
+          <div class="avatar">王</div>
+          <div>
+            <div class="user-name">王老师</div>
+            <div class="user-role">年级主任</div>
+          </div>
+          <div style="margin-left:auto">${icon('more', 16)}</div>
+        </div>
+      </div>
+    `;
+    document.getElementById('sidebar').innerHTML = html;
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.addEventListener('click', () => navigate(el.dataset.page));
+    });
+  }
+
+  /* ============================================================
+   *  TOPBAR
+   * ============================================================ */
+  function renderTopbar() {
+    const html = `
+      <div class="search">
+        ${icon('search', 14)}
+        <span>搜索学生、代理、记录…</span>
+        <kbd>⌘ K</kbd>
+      </div>
+      <div class="top-actions">
+        <div class="top-pill"><span class="pulse-dot"></span>AI 引擎运行中</div>
+        <div class="provider-chip">
+          <span class="dot">D</span>
+          <span>DeepSeek V3</span>
+        </div>
+        <button class="icon-btn" title="通知">${icon('bell', 16)}</button>
+        <button class="icon-btn" title="刷新">${icon('refresh', 16)}</button>
+      </div>
+    `;
+    document.getElementById('topbar').innerHTML = html;
+  }
+
+  /* ============================================================
+   *  PAGES (lazy render)
+   * ============================================================ */
+  function navigate(page) {
+    currentPage = page;
+    renderSidebar();
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    const el = document.getElementById('page-' + page);
+    if (el) { el.classList.add('active'); }
+    initCharts(page);
+  }
+
+    /* ============================================================
+     *  PAGE RENDERERS
+     * ============================================================ */
+    function pageHead(title, sub) {
+      return `<div class="page-head">
+        <div>
+          <div class="page-title">${title}</div>
+          <div class="page-sub">${sub}</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost">${icon('refresh', 14)}刷新</button>
+          <button class="btn btn-primary">${icon('plus', 14)}新建</button>
+        </div>
+      </div>`;
+    }
+
+    /* ----- Dashboard ----- */
+    function renderDashboard() {
+      const kpis = MOCK.kpis.map((k, i) => `
+        <div class="kpi" style="--accent:${k.accent};--accent-color:${k.color}">
+          <div class="kpi-icon">${icon(k.icon, 18)}</div>
+          <div class="kpi-label">${k.label}</div>
+          <div class="kpi-value">${k.value}</div>
+          <span class="kpi-delta ${k.dir}">${icon(k.dir === 'up' ? 'arrowUp' : 'arrowDown', 11)} ${k.delta}</span>
+          <div class="kpi-spark"><canvas id="spark${i}"></canvas></div>
+        </div>
+      `).join('');
+
+      const riskBars = MOCK.risk.map(r => `
+        <div class="capsule-row">
+          <div class="capsule-label"><span class="dot" style="background:linear-gradient(135deg,${r.c1},${r.c2})"></span>${r.label}</div>
+          <div class="capsule-track"><div class="capsule-fill" style="width:${r.pct}%;background:linear-gradient(90deg,${r.c1},${r.c2})"></div></div>
+          <div class="capsule-pct" style="color:${r.c1}">${r.pct}%</div>
+        </div>
+      `).join('');
+
+      const scoreBars = MOCK.scores.map(s => `
+        <div class="score-row">
+          <div class="score-label">${s.label}</div>
+          <div class="score-track"><div class="score-fill" style="width:${(s.val/s.max)*100}%;background:linear-gradient(90deg,${s.c1},${s.c2});box-shadow:0 0 14px ${s.c1}55"></div></div>
+          <div class="score-value" style="color:${s.c1}">${s.val}</div>
+        </div>
+      `).join('');
+
+      const convs = MOCK.conversations.map(c => `
+        <div class="conv-row">
+          <div class="conv-agent" style="--c1:${c.c1};--c2:${c.c2}">${c.initials}</div>
+          <div class="conv-body">
+            <div class="conv-title">${c.title}</div>
+            <div class="conv-meta">${icon('clock', 11)} ${c.meta}</div>
+          </div>
+          ${icon('chevron', 14)}
+        </div>
+      `).join('');
+
+      return `
+        <div class="page active" id="page-dashboard">
+          ${pageHead('总览', '欢迎回来，王老师 · 今天有 3 项任务待处理，1 名学生需要关注')}
+          <div class="kpi-grid">${kpis}</div>
+          <div class="row-2">
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">${icon('risk', 15)} 风险分布</div>
+                <span class="card-sub">共 164 名学生</span>
+              </div>
+              <div class="card-pad">
+                <div style="display:flex;height:18px;border-radius:8px;overflow:hidden;margin-bottom:18px;box-shadow:0 0 0 1px var(--border-soft)">
+                  ${MOCK.risk.map((r, i) => `<div style="flex:${r.pct};background:linear-gradient(135deg,${r.c1},${r.c2});position:relative${i > 0 ? ';border-left:1px solid rgba(255,255,255,.15)' : ''}" title="${r.label} ${r.pct}%"></div>`).join('')}
+                </div>
+                ${riskBars}
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">${icon('trend', 15)} 成绩趋势</div>
+                <span class="card-sub">八年级三班 · 月考</span>
+              </div>
+              <div class="card-pad">${scoreBars}</div>
+            </div>
+          </div>
+          <div class="row-2">
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">${icon('message', 15)} 最近对话</div>
+                <button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px">查看全部 ${icon('chevron', 12)}</button>
+              </div>
+              <div class="card-pad" style="padding-top:6px;padding-bottom:6px">${convs}</div>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">${icon('activity', 15)} 代理活跃度</div>
+                <span class="card-sub">最近 7 天</span>
+              </div>
+              <div class="card-pad">
+                <div id="agentActivityChart" style="height:200px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    /* ----- Chat ----- */
+    function renderChat() {
+      const agentsList = MOCK.agents.slice(0, 12).map((a, i) => `
+        <div class="agent-list-item ${i === 0 ? 'active' : ''}" style="--c1:${a.c1};--c2:${a.c2}">
+          <div class="agent-avatar">${a.name.charAt(0)}</div>
+          <div class="agent-info">
+            <div class="agent-name">${a.name}</div>
+            <div class="agent-desc">${a.desc.slice(0, 18)}…</div>
+          </div>
+        </div>
+      `).join('');
+
+      return `
+        <div class="page" id="page-chat">
+          ${pageHead('对话', '流式输出 · 工具调用可视化 · 支持 18 个 AI 代理')}
+          <div class="chat-layout">
+            <!-- Left: agent list -->
+            <div class="card chat-side">
+              <div style="padding:14px 14px 10px;display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:13px;font-weight:600">代理</div>
+                <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px">${icon('plus', 12)}新建</button>
+              </div>
+              <div class="agent-list">${agentsList}</div>
+            </div>
+
+            <!-- Middle: conversation -->
+            <div class="card chat-main">
+              <div class="chat-header">
+                <div class="chat-header-left">
+                  <div class="agent-avatar" style="--c1:#a855f7;--c2:#6366f1;width:36px;height:36px">教</div>
+                  <div class="chat-title-block">
+                    <div class="title">教务主任 · 本周违纪情况汇总</div>
+                    <div class="sub">${icon('zap', 11)} DeepSeek V3 · 上下文 8,420 / 64K</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <span class="pill pill-emerald"><span class="pill-dot"></span>流式中</span>
+                  <button class="btn btn-danger" style="padding:5px 10px;font-size:11.5px">${icon('x', 12)}停止</button>
+                </div>
+              </div>
+              <div class="chat-stream">
+                <div class="msg user">
+                  <div class="role">王老师</div>
+                  <div class="bubble">帮我汇总一下本周的违纪情况，按班级分组，列出每类违纪的次数和主要学生。</div>
+                </div>
+                <div class="msg assistant">
+                  <div class="role">教务主任 · 06:42:18</div>
+                  <div class="bubble">好的，我先查询本周的违纪记录和班级分组数据。</div>
+                  <div class="tool-call running">
+                    ${icon('refresh', 13)}
+                    <span class="name">dashboard_summary</span>
+                    <span class="meta">执行中…</span>
+                  </div>
+                </div>
+                <div class="msg assistant">
+                  <div class="role">教务主任 · 06:42:21</div>
+                  <div class="tool-call success">
+                    ${icon('check', 13)}
+                    <span class="name">search_students</span>
+                    <span class="meta">42ms · 164 条</span>
+                  </div>
+                </div>
+                <div class="msg assistant">
+                  <div class="role">教务主任 · 06:42:23</div>
+                  <div class="bubble">根据本周的违纪记录，汇总如下：<br><br>
+                    <strong style="color:#d8b4fe">本周共发生 17 起违纪事件</strong>，涉及 14 名学生，分布在 6 个班级。主要类型为：<br><br>
+                    · <code>SPEAK_IN_CLASS</code> 课堂说话：<strong>6 起</strong>（35%）<br>
+                    · <code>LATE</code> 迟到：<strong>5 起</strong>（29%）<br>
+                    · <code>HOMEWORK_MISSING</code> 作业未交：<strong>4 起</strong>（24%）<br>
+                    · <code>FIGHT</code> 打架：<strong>2 起</strong>（12%）<br><br>
+                    高频学生：<strong>S_003 王梓涵</strong>（3 次，集中在迟到和作业未交）。建议下周安排 1 对 1 沟通。
+                  </div>
+                </div>
+              </div>
+              <div class="chat-input">
+                <div class="chat-input-box">
+                  <textarea placeholder="输入消息…  (Shift+Enter 换行)" rows="1"></textarea>
+                  <div class="chat-tools">
+                    <button class="icon-btn">${icon('zap', 14)}</button>
+                    <button class="icon-btn" style="background:linear-gradient(135deg,#a855f7,#6366f1);border-color:transparent;color:#fff">${icon('send', 14)}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: tools timeline -->
+            <div class="card chat-tools">
+              <div style="padding:14px 14px 10px;border-bottom:1px solid var(--border-soft)">
+                <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px">${icon('activity', 14)} 工具调用时间轴</div>
+                <div style="font-size:11px;color:var(--text-5);margin-top:3px">4 次调用 · 总耗时 1.2s</div>
+              </div>
+              <div class="tools-timeline">
+                <div class="tool-step success">
+                  <div class="tool-step-dot">${icon('check', 12)}</div>
+                  <div class="tool-step-body">
+                    <div class="tool-step-name">dashboard_summary</div>
+                    <div class="tool-step-args">scope: "this_week"</div>
+                    <div class="tool-step-result">42ms · 8.2 KB 返回</div>
+                  </div>
+                </div>
+                <div class="tool-step success">
+                  <div class="tool-step-dot">${icon('check', 12)}</div>
+                  <div class="tool-step-body">
+                    <div class="tool-step-name">search_students</div>
+                    <div class="tool-step-args">query: "违纪"</div>
+                    <div class="tool-step-result">86ms · 14 条匹配</div>
+                  </div>
+                </div>
+                <div class="tool-step success">
+                  <div class="tool-step-dot">${icon('check', 12)}</div>
+                  <div class="tool-step-body">
+                    <div class="tool-step-name">get_student</div>
+                    <div class="tool-step-args">id: "S_003"</div>
+                    <div class="tool-step-result">38ms · 1 条记录</div>
+                  </div>
+                </div>
+                <div class="tool-step running">
+                  <div class="tool-step-dot">${icon('refresh', 11)}</div>
+                  <div class="tool-step-body">
+                    <div class="tool-step-name">rag_query</div>
+                    <div class="tool-step-args">query: "违纪处理流程"</div>
+                    <div class="tool-step-result">执行中…</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    /* ----- Agents ----- */
+    function renderAgents() {
+      const groups = [
+        { id: 'teach',  name: '教学',  color: '#a855f7', bg: 'rgba(168,85,247,.18)', border: 'rgba(168,85,247,.3)', agents: MOCK.agents.filter(a => a.group === 'teach') },
+        { id: 'safety', name: '安全',  color: '#f97316', bg: 'rgba(249,115,22,.18)', border: 'rgba(249,115,22,.3)', agents: MOCK.agents.filter(a => a.group === 'safety') },
+        { id: 'admin',  name: '行政',  color: '#06b6d4', bg: 'rgba(6,182,212,.18)',  border: 'rgba(6,182,212,.3)',  agents: MOCK.agents.filter(a => a.group === 'admin') },
+      ];
+      return `
+        <div class="page" id="page-agents">
+          ${pageHead('AI 代理', '18 个专业代理 · 共享 ReAct 编排循环 · 全部遵循 SMALL_MODEL_RULES')}
+          ${groups.map(g => `
+            <div class="agent-section">
+              <div class="agent-section-head">
+                <div class="agent-section-icon" style="background:${g.bg};border:1px solid ${g.border}">
+                  <span style="color:${g.color}">${icon(g.id === 'teach' ? 'graduation' : g.id === 'safety' ? 'shield' : 'briefcase', 15)}</span>
+                </div>
+                <div class="agent-section-title" style="color:${g.color}">${g.name}组</div>
+                <div class="agent-section-count">${g.agents.length}</div>
+                <div style="margin-left:auto;display:flex;gap:6px">
+                  <span class="pill pill-zinc">${g.agents.filter(a => a.status === '在线').length} 在线</span>
+                </div>
+              </div>
+              <div class="agent-grid">
+                ${g.agents.map(a => `
+                  <div class="agent-card" style="--c1:${a.c1};--c2:${a.c2};--glow:${a.c1}33">
+                    <div class="agent-card-head">
+                      <div>
+                        <div class="agent-card-icon" style="background:linear-gradient(135deg,${a.c1},${a.c2})">${icon(a.icon, 20)}</div>
+                      </div>
+                      <span class="pill ${a.status === '在线' ? 'pill-emerald' : 'pill-zinc'}"><span class="pill-dot"></span>${a.status}</span>
+                    </div>
+                    <div class="agent-card-name">${a.name}</div>
+                    <div class="agent-card-role">${a.role}</div>
+                    <div class="agent-card-desc">${a.desc}</div>
+                    <div class="agent-card-tags">
+                      ${a.tags.map(t => `<span class="pill pill-zinc">${t}</span>`).join('')}
+                    </div>
+                    <div class="agent-card-footer">
+                      <div class="agent-card-status">${icon('zap', 12)} ${a.tools} 个工具</div>
+                      <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px">${icon('message', 12)}对话</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    /* ----- Skills ----- */
+    function renderSkills() {
+      return `
+        <div class="page" id="page-skills">
+          ${pageHead('技能', `${MOCK.skills.length} 个技能 · 可被代理调用 · 触发器 / 工具映射齐全`)}
+          <div class="agent-grid" style="grid-template-columns:repeat(2,1fr)">
+            ${MOCK.skills.map(s => `
+              <div class="card" style="overflow:hidden">
+                <div style="padding:18px 20px 14px;background:linear-gradient(135deg,${s.c1}22,${s.c2}11);border-bottom:1px solid var(--border-soft)">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <div style="width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,${s.c1},${s.c2});display:flex;align-items:center;justify-content:center;color:#fff">${icon('sparkles', 16)}</div>
+                      <div style="font-size:14px;font-weight:700">${s.name}</div>
+                    </div>
+                    <span class="mono pill pill-zinc">${s.code}</span>
+                  </div>
+                  <div style="font-size:12.5px;color:var(--text-3);line-height:1.6">${s.desc}</div>
+                </div>
+                <div style="padding:14px 20px">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px">
+                    <div>
+                      <div style="font-size:10.5px;color:var(--text-5);letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px">触发器</div>
+                      <div style="display:flex;flex-wrap:wrap;gap:5px">${s.triggers.map(t => `<span class="pill pill-purple">${t}</span>`).join('')}</div>
+                    </div>
+                    <div>
+                      <div style="font-size:10.5px;color:var(--text-5);letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px">可用工具</div>
+                      <div style="display:flex;flex-wrap:wrap;gap:5px">${s.tools.map(t => `<span class="mono pill pill-cyan">${t}</span>`).join('')}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px dashed var(--border)">
+                    <div style="font-size:11.5px;color:var(--text-5)">${icon('activity', 12)} 本月调用 <strong style="color:var(--text-2)">${s.freq}</strong> 次</div>
+                    <div style="display:flex;gap:6px">
+                      <button class="btn btn-ghost" style="padding:4px 9px;font-size:11.5px">${icon('edit', 12)}编辑</button>
+                      <button class="btn btn-ghost" style="padding:4px 9px;font-size:11.5px">${icon('play', 12)}测试</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    /* ----- Students ----- */
+    function renderStudents() {
+      const riskBadge = r => {
+        const map = { low: ['pill-emerald','低风险'], mid: ['pill-amber','中风险'], high: ['pill-red','高风险'], crit: ['pill-pink','重点关注'] };
+        return `<span class="pill ${map[r][0]}"><span class="pill-dot"></span>${map[r][1]}</span>`;
+      };
+      return `
+        <div class="page" id="page-students">
+          ${pageHead('学生', `${MOCK.students.length} / 1,284 名学生 · 风险 37 · 重点关注 8`)}
+          <div class="card" id="studentsTableCard">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:10px;flex:1">
+                <div class="search" style="width:280px;padding:5px 11px">
+                  ${icon('search', 13)}
+                  <span style="font-size:12px">按姓名 / 学号 / 班级</span>
+                </div>
+                <button class="btn btn-ghost" style="padding:5px 11px;font-size:11.5px">${icon('filter', 12)}筛选</button>
+                <span class="card-sub" style="margin-left:8px">显示 1-8</span>
+              </div>
+              <button class="btn btn-primary" style="padding:5px 11px;font-size:11.5px">${icon('download', 12)}导出</button>
+            </div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>学号</th><th>姓名</th><th>年级 / 班级</th><th>综合分</th><th>风险等级</th><th>标签</th><th>监护人</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${MOCK.students.map(s => `
+                  <tr data-student="${s.id}">
+                    <td class="mono text-muted">${s.id}</td>
+                    <td style="font-weight:600">${s.name}</td>
+                    <td>${s.grade} · ${s.class}</td>
+                    <td><span class="mono" style="color:${s.score >= 85 ? '#6ee7b7' : s.score >= 70 ? '#fcd34d' : '#fca5a5'};font-weight:600">${s.score}</span></td>
+                    <td>${riskBadge(s.risk)}</td>
+                    <td>${s.tags.map(t => `<span class="pill pill-zinc" style="margin-right:3px">${t}</span>`).join('')}</td>
+                    <td>${s.guardian}</td>
+                    <td>
+                      <div style="display:flex;gap:4px">
+                        <button class="icon-btn" style="width:28px;height:28px">${icon('eye', 13)}</button>
+                        <button class="icon-btn" style="width:28px;height:28px">${icon('edit', 13)}</button>
+                        <button class="icon-btn" style="width:28px;height:28px">${icon('message', 13)}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid var(--border-soft)">
+              <div class="text-xs text-muted">共 1,284 条 · 当前第 1 页</div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost" style="padding:5px 10px;font-size:11.5px">上一页</button>
+                <button class="btn btn-primary" style="padding:5px 10px;font-size:11.5px">1</button>
+                <button class="btn btn-ghost" style="padding:5px 10px;font-size:11.5px">2</button>
+                <button class="btn btn-ghost" style="padding:5px 10px;font-size:11.5px">3</button>
+                <button class="btn btn-ghost" style="padding:5px 10px;font-size:11.5px">…</button>
+                <button class="btn btn-ghost" style="padding:5px 10px;font-size:11.5px">161</button>
+                <button class="btn btn-ghost" style="padding:5px 10px;font-size:11.5px">下一页</button>
+              </div>
+            </div>
+          </div>
+          <div id="studentDetailWrap"></div>
+        </div>
+      `;
+    }
+
+    /* ----- RAG / Knowledge Base ----- */
+    function renderRag() {
+      return `
+        <div class="page" id="page-rag">
+          ${pageHead('知识库', `${MOCK.rag.length} 个文档 · 514 chunks · 嵌入模型 BGE-M3`)}
+          <div class="row-2">
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">${icon('database', 15)} 文档列表</div>
+                <button class="btn btn-primary" style="padding:5px 11px;font-size:11.5px">${icon('upload', 12)}上传</button>
+              </div>
+              <table class="table">
+                <thead><tr><th>文档</th><th>大小</th><th>Chunks</th><th>类型</th><th>添加时间</th><th></th></tr></thead>
+                <tbody>
+                  ${MOCK.rag.map(d => `
+                    <tr>
+                      <td style="font-weight:600">${d.name}</td>
+                      <td class="mono text-muted">${d.size}</td>
+                      <td class="mono">${d.chunks}</td>
+                      <td><span class="pill pill-zinc">${d.type.toUpperCase()}</span></td>
+                      <td class="text-muted">${d.added}</td>
+                      <td>
+                        <div style="display:flex;gap:4px">
+                          <button class="icon-btn" style="width:26px;height:26px">${icon('eye', 12)}</button>
+                          <button class="icon-btn" style="width:26px;height:26px">${icon('trash', 12)}</button>
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">${icon('search', 15)} 检索测试</div>
+                <span class="card-sub">Top-K: 5</span>
+              </div>
+              <div class="card-pad">
+                <div class="field">
+                  <div class="search" style="width:100%">${icon('search', 14)}<input class="search-input" style="flex:1;background:none;border:none;outline:none" placeholder="输入查询语句…"></div>
+                </div>
+                <div style="background:rgba(168,85,247,.05);border:1px solid rgba(168,85,247,.15);border-radius:10px;padding:12px;margin-bottom:10px">
+                  <div style="font-size:11px;color:#a78bfa;font-weight:600;margin-bottom:6px">${icon('check', 11)} Chunk #1 · 相似度 0.86</div>
+                  <div style="font-size:12px;color:var(--text-3);line-height:1.6">学生违纪处理流程分为三个等级：一般违纪由班主任记录并通知家长；严重违纪需上报年级组；重大违纪由学校纪律委员会讨论决定。</div>
+                </div>
+                <div style="background:rgba(168,85,247,.05);border:1px solid rgba(168,85,247,.15);border-radius:10px;padding:12px;margin-bottom:10px">
+                  <div style="font-size:11px;color:#a78bfa;font-weight:600;margin-bottom:6px">${icon('check', 11)} Chunk #2 · 相似度 0.79</div>
+                  <div style="font-size:12px;color:var(--text-3);line-height:1.6">家长沟通应在 24 小时内进行，沟通记录需保存到学生档案，重大事件需在 7 天内完成回访。</div>
+                </div>
+                <div style="background:rgba(168,85,247,.05);border:1px solid rgba(168,85,247,.15);border-radius:10px;padding:12px;margin-bottom:10px">
+                  <div style="font-size:11px;color:#a78bfa;font-weight:600;margin-bottom:6px">${icon('check', 11)} Chunk #3 · 相似度 0.72</div>
+                  <div style="font-size:12px;color:var(--text-3);line-height:1.6">处分跟踪周期为 30 天，期间班主任每周需与学生进行至少一次沟通，记录改进情况。</div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
+                  <span class="text-xs text-muted">检索耗时 86ms · 3 / 5 命中</span>
+                  <button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px">${icon('zap', 12)}应用到对话</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    /* ----- Scheduler ----- */
+    function renderScheduler() {
+      return `
+        <div class="page" id="page-scheduler">
+          ${pageHead('调度', 'Cron 调度器 · 每 30s 唤醒 · 触发后为每次执行创建独立对话')}
+          <div class="grid-cols-2">
+            ${MOCK.schedule.map(s => `
+              <div class="card" style="padding:18px 20px">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
+                  <div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      ${icon('clock', 16)}
+                      <span style="font-size:14px;font-weight:700">${s.name}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span class="pill ${s.status === 'active' ? 'pill-emerald' : 'pill-zinc'}"><span class="pill-dot"></span>${s.status === 'active' ? '运行中' : '已暂停'}</span>
+                      <span class="mono pill pill-zinc">${s.cron}</span>
+                    </div>
+                  </div>
+                  <div class="toggle ${s.status === 'active' ? 'on' : ''}"></div>
+                </div>
+                <div class="divider"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:12px">
+                  <div>
+                    <div class="text-xs text-muted" style="margin-bottom:3px">代理</div>
+                    <div style="font-weight:600">${s.agent}</div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-muted" style="margin-bottom:3px">上次执行</div>
+                    <div style="font-weight:600">${s.last}</div>
+                  </div>
+                  <div style="grid-column:1/3">
+                    <div class="text-xs text-muted" style="margin-bottom:3px">下次执行</div>
+                    <div style="font-weight:600;color:#a78bfa">${s.next}</div>
+                  </div>
+                </div>
+                <div class="divider"></div>
+                <div style="display:flex;gap:6px;justify-content:flex-end">
+                  <button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px">${icon('edit', 12)}编辑</button>
+                  <button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px">${icon('history', 12)}日志</button>
+                  <button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px">${icon('play', 12)}立即执行</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    /* ----- Privacy ----- */
+    function renderPrivacy() {
+      return `
+        <div class="page" id="page-privacy">
+          ${pageHead('隐私', 'PII Shield 假名化 · AES-256-GCM 加密 · 定向发送过滤 · 全链路防护')}
+          <div class="grid-cols-2">
+            <div class="card" style="border-left:3px solid #10b981;padding:0">
+              <div style="padding:20px 22px 18px">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                  <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,rgba(16,185,129,.25),rgba(16,185,129,.05));border:1px solid rgba(16,185,129,.3);display:flex;align-items:center;justify-content:center;color:#34d399">${icon('shield', 18)}</div>
+                  <div>
+                    <div style="font-size:14px;font-weight:700">PII Shield 假名化引擎</div>
+                    <div style="font-size:11.5px;color:var(--text-5)">真实姓名 → S_001 / P_001 确定性别名</div>
+                  </div>
+                </div>
+                <div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:14px">
+                  AI 永远看不到明文姓名。映射表以 AES-256-GCM 加密存储在 <code class="mono" style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:4px;color:#fbbf24">&lt;data-dir&gt;/privacy/mapping.enc</code>，密钥由你的密码派生。
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);border-radius:9px;margin-bottom:10px">
+                  <div style="font-size:12px">已映射实体</div>
+                  <div class="mono" style="font-size:14px;font-weight:700;color:#34d399">2,847</div>
+                </div>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-ghost" style="padding:5px 11px;font-size:11.5px">${icon('eye', 12)}查看示例</button>
+                  <button class="btn btn-ghost" style="padding:5px 11px;font-size:11.5px">${icon('key', 12)}更换密码</button>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="border-left:3px solid #a855f7;padding:0">
+              <div style="padding:20px 22px 18px">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                  <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,rgba(168,85,247,.25),rgba(168,85,247,.05));border:1px solid rgba(168,85,247,.3);display:flex;align-items:center;justify-content:center;color:#a78bfa">${icon('filter', 18)}</div>
+                  <div>
+                    <div style="font-size:14px;font-weight:700">定向发送过滤器</div>
+                    <div style="font-size:11.5px;color:var(--text-5)">给 张三妈妈 发消息时，其他学生真实姓名 → "其他同学"</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(168,85,247,.06);border:1px solid rgba(168,85,247,.15);border-radius:9px;margin-bottom:10px">
+                  <div style="font-size:12px">启用定向过滤</div>
+                  <div class="toggle on"></div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(168,85,247,.06);border:1px solid rgba(168,85,247,.15);border-radius:9px;margin-bottom:10px">
+                  <div style="font-size:12px">替换为"其他同学"</div>
+                  <div class="toggle on"></div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(168,85,247,.06);border:1px solid rgba(168,85,247,.15);border-radius:9px">
+                  <div style="font-size:12px">保留收件人姓名</div>
+                  <div class="toggle on"></div>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="border-left:3px solid #06b6d4;padding:0">
+              <div style="padding:20px 22px 18px">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                  <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,rgba(6,182,212,.25),rgba(6,182,212,.05));border:1px solid rgba(6,182,212,.3);display:flex;align-items:center;justify-content:center;color:#22d3ee">${icon('lock', 18)}</div>
+                  <div>
+                    <div style="font-size:14px;font-weight:700">AES-256-GCM 落盘加密</div>
+                    <div style="font-size:11.5px;color:var(--text-5)">监护人联系方式 · 提供商 API 密钥</div>
+                  </div>
+                </div>
+                <div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:14px">每个安装生成独立随机盐。密钥派生自系统主密钥，丢失主密钥 = 永久丢失数据（设计如此）。</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;background:rgba(0,0,0,.3);padding:10px 12px;border-radius:8px;color:#67e8f9;line-height:1.6;border:1px solid rgba(6,182,212,.15)">
+                  salt = 0x7e4f...b21a<br>
+                  key_id = edu-advisor-v1<br>
+                  algo = AES-256-GCM
+                </div>
+              </div>
+            </div>
+            <div class="card" style="border-left:3px solid #f59e0b;padding:0">
+              <div style="padding:20px 22px 18px">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                  <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,rgba(245,158,11,.25),rgba(245,158,11,.05));border:1px solid rgba(245,158,11,.3);display:flex;align-items:center;justify-content:center;color:#fbbf24">${icon('eye', 18)}</div>
+                  <div>
+                    <div style="font-size:14px;font-weight:700">正则 PII 脱敏</div>
+                    <div style="font-size:11.5px;color:var(--text-5)">电话 / 身份证 / 邮箱在每次出站提示前自动屏蔽</div>
+                  </div>
+                </div>
+                <div style="background:rgba(0,0,0,.25);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+                  <div style="font-size:10.5px;color:var(--text-5);margin-bottom:4px">原始</div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fca5a5">张明轩 138****1234 3201**********0011</div>
+                </div>
+                <div style="background:rgba(0,0,0,.25);border-radius:8px;padding:10px 12px">
+                  <div style="font-size:10.5px;color:var(--text-5);margin-bottom:4px">脱敏后 → AI 看到的</div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6ee7b7">S_001 138****1234 3201**********0011</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    /* ----- Agent History ----- */
+    function renderHistory() {
+      return `
+        <div class="page" id="page-history">
+          ${pageHead('代理历史', '7 天内 ${MOCK.history.length} 次调用 · 平均 1分12秒 · 成功率 95%'.replace('${MOCK.history.length}', MOCK.history.length))}
+          <div class="card">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:10px;flex:1">
+                <div class="search" style="width:280px;padding:5px 11px">${icon('search', 13)}<span style="font-size:12px">按代理 / 标题</span></div>
+                <button class="btn btn-ghost" style="padding:5px 11px;font-size:11.5px">${icon('filter', 12)}全部代理</button>
+                <button class="btn btn-ghost" style="padding:5px 11px;font-size:11.5px">${icon('filter', 12)}近 7 天</button>
+              </div>
+            </div>
+            <table class="table">
+              <thead><tr><th>代理</th><th>标题</th><th>开始时间</th><th>轮次</th><th>耗时</th><th>状态</th><th></th></tr></thead>
+              <tbody>
+                ${MOCK.history.map(h => `
+                  <tr>
+                    <td><span class="pill pill-purple">${h.agent}</span></td>
+                    <td style="font-weight:600">${h.title}</td>
+                    <td class="text-muted">${h.started}</td>
+                    <td class="mono">${h.turns}</td>
+                    <td class="mono text-muted">${h.duration}</td>
+                    <td><span class="pill ${h.status === 'success' ? 'pill-emerald' : 'pill-red'}"><span class="pill-dot"></span>${h.status === 'success' ? '成功' : '失败'}</span></td>
+                    <td>
+                      <div style="display:flex;gap:4px">
+                        <button class="icon-btn" style="width:26px;height:26px">${icon('eye', 12)}</button>
+                        <button class="icon-btn" style="width:26px;height:26px">${icon('refresh', 12)}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    /* ----- Models ----- */
+    function renderModels() {
+      return `
+        <div class="page" id="page-models">
+          ${pageHead('模型', '支持 30+ 提供商 · 当前激活: DeepSeek V3')}
+          <div class="card mb-5">
+            <div class="card-head">
+              <div class="card-title">${icon('plus', 15)} 添加提供商</div>
+              <span class="card-sub">从 30+ 预设中选择或自定义 OpenAI 兼容端点</span>
+            </div>
+            <div class="card-pad">
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+                ${MOCK.providers.slice(0, 12).map(p => `
+                  <div style="padding:12px;border-radius:10px;background:var(--border-soft);border:1px solid var(--border);cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='rgba(168,85,247,.4)'" onmouseout="this.style.borderColor='var(--border)'">
+                    <div style="font-size:12.5px;font-weight:600">${p}</div>
+                    <div style="font-size:10.5px;color:var(--text-5);margin-top:2px">${icon('plus', 10)} 配置</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">${icon('cpu', 15)} 已配置模型</div>
+              <span class="card-sub">${MOCK.models.length} 个</span>
+            </div>
+            <table class="table">
+              <thead><tr><th>模型</th><th>提供商</th><th>上下文</th><th>状态</th><th></th></tr></thead>
+              <tbody>
+                ${MOCK.models.map(m => `
+                  <tr>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:10px">
+                        <div style="width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,${m.c1},${m.c2})"></div>
+                        <span style="font-weight:600">${m.name}</span>
+                      </div>
+                    </td>
+                    <td>${m.provider}</td>
+                    <td class="mono text-muted">${m.context}</td>
+                    <td>
+                      ${m.status === 'active'
+                        ? '<span class="pill pill-emerald"><span class="pill-dot"></span>当前使用</span>'
+                        : '<span class="pill pill-zinc"><span class="pill-dot"></span>已配置</span>'}
+                    </td>
+                    <td>
+                      <div style="display:flex;gap:4px">
+                        <button class="btn btn-ghost" style="padding:4px 9px;font-size:11px">${icon('zap', 11)}测试</button>
+                        <button class="btn btn-ghost" style="padding:4px 9px;font-size:11px">${icon('settings', 11)}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    /* ----- Settings ----- */
+    function renderSettings() {
+      const slider = (label, value, suffix, pct) => `
+        <div class="field">
+          <div class="field-label">${label}</div>
+          <div class="slider-wrap">
+            <div class="slider-track"><div class="slider-fill" style="width:${pct}%"></div><div class="slider-thumb" style="left:${pct}%"></div></div>
+            <div class="slider-value">${value}${suffix || ''}</div>
+          </div>
+        </div>
+      `;
+      const toggle = (label, sub, on) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px dashed var(--border-soft)">
+          <div>
+            <div style="font-size:13px;font-weight:600">${label}</div>
+            ${sub ? `<div style="font-size:11.5px;color:var(--text-5);margin-top:2px">${sub}</div>` : ''}
+          </div>
+          <div class="toggle ${on ? 'on' : ''}"></div>
+        </div>
+      `;
+      return `
+        <div class="page" id="page-settings">
+          ${pageHead('设置', '个性化 AI 行为 · 主题 · 快捷键 · 数据管理')}
+          <div class="row-2">
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">${icon('cpu', 15)} AI 行为</div>
+              </div>
+              <div class="card-pad">
+                <div class="field">
+                  <div class="field-label">当前提供商</div>
+                  <select class="select">
+                    <option>🤖 DeepSeek V3</option>
+                    <option>GPT-4o</option>
+                    <option>Claude 3.5 Sonnet</option>
+                    <option>Gemini 1.5 Pro</option>
+                    <option>Qwen2.5-72B (本地)</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <div class="field-label">API 密钥</div>
+                  <input class="input mono" type="password" value="sk-****************************c3a2" />
+                  <div class="field-hint">使用 AES-256-GCM 加密后存储在本地数据库</div>
+                </div>
+                ${slider('温度 (Temperature)', '0.40', '', 40)}
+                ${slider('最大迭代次数', '8', '', 40)}
+                ${slider('Top-P', '0.90', '', 90)}
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">${icon('sparkles', 15)} 外观</div>
+              </div>
+              <div class="card-pad">
+                <div class="field">
+                  <div class="field-label">主题</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                    <div data-set-theme="dark" style="padding:14px;border-radius:10px;background:linear-gradient(135deg,#1a1a2e,#0c0c18);border:2px solid #a855f7;cursor:pointer;text-align:center;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                      <div style="font-size:11.5px;font-weight:600;color:#fff">🌙 深色</div>
+                      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:2px">dark</div>
+                    </div>
+                    <div data-set-theme="light" style="padding:14px;border-radius:10px;background:linear-gradient(135deg,#fafafa,#e5e7eb);border:1px solid var(--border-strong);cursor:pointer;text-align:center;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                      <div style="font-size:11.5px;font-weight:600;color:#374151">☀ 浅色</div>
+                      <div style="font-size:10px;color:#94a3b8;margin-top:2px">light</div>
+                    </div>
+                    <div data-set-theme="auto" style="padding:14px;border-radius:10px;background:linear-gradient(135deg,#1a1a2e,#fafafa);border:1px solid var(--border-strong);cursor:pointer;text-align:center;transition:all .15s;position:relative;overflow:hidden" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                      <div style="font-size:11.5px;font-weight:600;color:var(--text-3)">⚙ 跟随系统</div>
+                      <div style="font-size:10px;color:var(--text-6);margin-top:2px">auto</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="field-label">强调色</div>
+                  <div style="display:flex;gap:8px">
+                    <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#a855f7,#ec4899);border:2px solid #fff;cursor:pointer"></div>
+                    <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#06b6d4,#3b82f6);border:1px solid rgba(255,255,255,.2);cursor:pointer"></div>
+                    <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#10b981,#06b6d4);border:1px solid rgba(255,255,255,.2);cursor:pointer"></div>
+                    <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#ef4444);border:1px solid rgba(255,255,255,.2);cursor:pointer"></div>
+                    <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#ec4899,#f59e0b);border:1px solid rgba(255,255,255,.2);cursor:pointer"></div>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="field-label">字体</div>
+                  <select class="select">
+                    <option>Outfit + Noto Sans SC（推荐）</option>
+                    <option>Inter</option>
+                    <option>系统默认</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="row-2">
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">${icon('key', 15)} 行为开关</div>
+              </div>
+              <div class="card-pad">
+                ${toggle('启用流式输出', '逐字返回响应，体验更流畅', true)}
+                ${toggle('工具调用可视化', '在右侧面板显示工具调用时间轴', true)}
+                ${toggle('PII 假名化', '学生姓名 → S_001 等确定性别名', true)}
+                ${toggle('正则脱敏', '电话 / 身份证 / 邮箱自动屏蔽', true)}
+                ${toggle('定向发送过滤', '其他学生姓名 → "其他同学"', true)}
+                ${toggle('系统托盘', '最小化到系统托盘（需启用 tray feature）', false)}
+                ${toggle('开机自启', '系统启动时自动运行', false)}
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">${icon('zap', 15)} 快捷键</div>
+              </div>
+              <div class="card-pad">
+                ${[
+                  ['⌘ 1 — ⌘ 0', '跳转到第 n 个导航'],
+                  ['⌘ B', '切换侧边栏'],
+                  ['⌘ K', '跳转到对话'],
+                  ['⌘ ,', '打开设置'],
+                  ['Esc', '取消正在进行的 AI 生成'],
+                  ['Shift ⏎', '在输入框中换行'],
+                ].map(([k, v]) => `
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px dashed var(--border-soft)">
+                    <span style="font-size:12.5px;color:var(--text-3)">${v}</span>
+                    <span class="mono" style="font-size:11.5px;background:var(--border);border:1px solid var(--border-strong);padding:3px 9px;border-radius:5px;color:var(--text-3)">${k}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">
+            <button class="btn btn-ghost">重置默认</button>
+            <button class="btn btn-primary">${icon('check', 14)}保存设置</button>
+          </div>
+        </div>
+      `;
+    }
+
+    /* ============================================================
+     *  CHART INITIALIZATION
+     * ============================================================ */
+    let charts = {};
+    function initCharts(page) {
+      Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
+      charts = {};
+
+      // Dashboard sparklines
+      if (page === 'dashboard') {
+        MOCK.kpis.forEach((k, i) => {
+          const data = Array.from({length: 12}, (_, j) => 30 + Math.sin(j*0.7 + i)*15 + Math.random()*10);
+          const el = document.getElementById('spark' + i);
+          if (!el) return;
+          charts['spark'+i] = new Chart(el, {
+            type: 'line',
+            data: {
+              labels: data.map((_, j) => j),
+              datasets: [{
+                data,
+                borderColor: k.color,
+                backgroundColor: k.color + '22',
+                borderWidth: 1.8, fill: true, tension: 0.4,
+                pointRadius: 0,
+              }]
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false }, tooltip: { enabled: false } },
+              scales: { x: { display: false }, y: { display: false } },
+            }
+          });
+        });
+
+        // Agent activity bar chart
+        const el = document.getElementById('agentActivityChart');
+        if (el) {
+          charts.activity = new Chart(el, {
+            type: 'bar',
+            data: {
+              labels: ['心理咨询', '周报生成', '学业分析', '风险预警', '纪律管理', '家校联络', '排课调度'],
+              datasets: [{
+                data: [142, 96, 78, 64, 51, 42, 38],
+                backgroundColor: [
+                  'rgba(236,72,153,.7)','rgba(16,185,129,.7)','rgba(6,182,212,.7)','rgba(239,68,68,.7)',
+                  'rgba(249,115,22,.7)','rgba(251,113,133,.7)','rgba(8,145,178,.7)'
+                ],
+                borderRadius: 6,
+                borderSkipped: false,
+              }]
+            },
+            options: {
+              indexAxis: 'y',
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { grid: { color: 'var(--bg-soft)' }, ticks: { color: 'var(--text-5)', font: { family: 'JetBrains Mono', size: 10 } } },
+                y: { grid: { display: false }, ticks: { color: 'var(--text-3)', font: { family: 'Outfit', size: 11 } } },
+              }
+            }
+          });
+        }
+      }
+    }
+
+    /* ============================================================
+     *  INIT
+     * ============================================================ */
+    const PAGES_RENDERERS = {
+      dashboard: renderDashboard,
+      chat: renderChat,
+      agents: renderAgents,
+      skills: renderSkills,
+      students: renderStudents,
+      rag: renderRag,
+      scheduler: renderScheduler,
+      privacy: renderPrivacy,
+      history: renderHistory,
+      models: renderModels,
+      settings: renderSettings,
+    };
+
+    function init() {
+      renderSidebar();
+      renderTopbar();
+      const main = document.getElementById('main');
+      main.innerHTML = PAGES.map(p => PAGES_RENDERERS[p.id]()).join('');
+      // activate current
+      document.getElementById('page-' + currentPage).classList.add('active');
+      initCharts(currentPage);
+
+      // Toggle interactions
+      document.addEventListener('click', e => {
+        const t = e.target.closest('.toggle');
+        if (t) t.classList.toggle('on');
+
+        // Theme picker
+        const tp = e.target.closest('[data-set-theme]');
+        if (tp) setTheme(tp.dataset.setTheme);
+
+        // Student row click → open detail panel
+        const sr = e.target.closest('tr[data-student]');
+        if (sr) openStudentDetail(sr.dataset.student);
+      });
+    }
+
+    /* ============================================================
+     *  THEME
+     * ============================================================ */
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      try { localStorage.setItem('ea-theme', theme); } catch(e){}
+      // Re-init charts so they pick up new colors
+      setTimeout(() => initCharts(currentPage), 50);
+    }
+    (function(){
+      try {
+        const saved = localStorage.getItem('ea-theme');
+        if (saved) document.documentElement.setAttribute('data-theme', saved);
+      } catch(e){}
+    })();
+
+    /* ============================================================
+     *  STUDENT DETAIL DRAWER
+     * ============================================================ */
+    const STUDENT_DETAILS = {
+      'S_001': {
+        name: '张明轩', initials: '张', avatar: 'linear-gradient(135deg,#a855f7,#6366f1)',
+        grade: '八年级 · 三班', id: 'S_001', score: 92, risk: 'low',
+        tags: ['班委', '数学竞赛一等奖', '三好学生'],
+        guardian: { name: '张建国', rel: '父亲', phone: '138****2310', occ: '工程师' },
+        family: '双亲家庭 · 长子',
+        birthday: '2011-04-12', gender: '男',
+        grades: [
+          { subj: '语文', score: 89, trend: 2 },
+          { subj: '数学', score: 96, trend: 4 },
+          { subj: '英语', score: 88, trend: -1 },
+          { subj: '物理', score: 92, trend: 3 },
+          { subj: '化学', score: 91, trend: 1 },
+        ],
+        behavior: [
+          { date: '06-23', type: '表扬', code: 'PRIZE_MATH', desc: '数学竞赛校级一等奖' },
+          { date: '06-12', type: '表扬', code: 'HELP_PEER', desc: '帮助同学补习数学' },
+          { date: '05-30', type: '日常',  code: 'ATTEND_OK',  desc: '本月全勤' },
+        ],
+        timeline: [
+          { time: '今天 16:20', agent: '班主任助理', text: '登记本月考勤，全勤。' },
+          { time: '昨天 14:00', agent: '学业分析师', text: '生成月考分析报告，综合分提升 3.2 分。' },
+          { time: '3 天前',    agent: '教务主任',   text: '推荐参加区数学竞赛。' },
+        ],
+        riskIndex: 12, attention: 0, awards: 5,
+      },
+      'S_002': {
+        name: '李雨桐', initials: '李', avatar: 'linear-gradient(135deg,#06b6d4,#10b981)',
+        grade: '八年级 · 三班', id: 'S_002', score: 78, risk: 'mid',
+        tags: ['关注'],
+        guardian: { name: '王秀英', rel: '母亲', phone: '139****8821', occ: '教师' },
+        family: '单亲家庭 · 独女',
+        birthday: '2011-08-23', gender: '女',
+        grades: [
+          { subj: '语文', score: 82, trend: 1 },
+          { subj: '数学', score: 74, trend: -2 },
+          { subj: '英语', score: 86, trend: 2 },
+          { subj: '物理', score: 71, trend: -3 },
+          { subj: '化学', score: 76, trend: 0 },
+        ],
+        behavior: [
+          { date: '06-18', type: '关注', code: 'MOOD_LOW', desc: '近期情绪波动，与同学交流减少' },
+          { date: '05-20', type: '日常', code: 'HOMEWORK_MISS', desc: '作业 2 次未交' },
+        ],
+        timeline: [
+          { time: '今天 14:30', agent: '心理咨询', text: '建议安排 1对1 沟通，关注学业压力。' },
+          { time: '2 天前',    agent: '班主任助理', text: '登记 1 次作业未交。' },
+        ],
+        riskIndex: 48, attention: 2, awards: 1,
+      },
+      'S_003': {
+        name: '王梓涵', initials: '王', avatar: 'linear-gradient(135deg,#f59e0b,#ef4444)',
+        grade: '八年级 · 一班', id: 'S_003', score: 64, risk: 'high',
+        tags: ['迟到×3', '作业未交×2', '重点关注'],
+        guardian: { name: '王志强', rel: '父亲', phone: '136****5512', occ: '个体' },
+        family: '重组家庭',
+        birthday: '2010-11-05', gender: '男',
+        grades: [
+          { subj: '语文', score: 68, trend: -4 },
+          { subj: '数学', score: 58, trend: -6 },
+          { subj: '英语', score: 62, trend: -3 },
+          { subj: '物理', score: 65, trend: -2 },
+          { subj: '化学', score: 67, trend: -1 },
+        ],
+        behavior: [
+          { date: '06-22', type: '违规', code: 'LATE',         desc: '周一早读迟到 15 分钟' },
+          { date: '06-19', type: '违规', code: 'HOMEWORK_MISS', desc: '数学作业连续 2 天未交' },
+          { date: '06-15', type: '违规', code: 'SPEAK_IN_CLASS', desc: '课堂说话 3 次' },
+          { date: '06-10', type: '关注', code: 'ATTEND_BAD',   desc: '本周已迟到 2 次' },
+        ],
+        timeline: [
+          { time: '今天 18:00', agent: '风险预警', text: '风险等级上升至 高，触发预警。' },
+          { time: '今天 14:00', agent: '纪律管理', text: '建议联系家长，安排面谈。' },
+          { time: '昨天 16:00', agent: '心理咨询', text: '建议关注家庭情况，必要时介入。' },
+        ],
+        riskIndex: 78, attention: 4, awards: 0,
+      },
+      'S_007': {
+        name: '赵睿', initials: '赵', avatar: 'linear-gradient(135deg,#ec4899,#f43f5e)',
+        grade: '七年级 · 四班', id: 'S_007', score: 52, risk: 'crit',
+        tags: ['多次旷课', '重点关注', '已通知家长'],
+        guardian: { name: '赵建军', rel: '父亲', phone: '135****0091', occ: '司机' },
+        family: '单亲家庭',
+        birthday: '2012-02-18', gender: '男',
+        grades: [
+          { subj: '语文', score: 54, trend: -5 },
+          { subj: '数学', score: 48, trend: -8 },
+          { subj: '英语', score: 50, trend: -4 },
+          { subj: '物理', score: 55, trend: -3 },
+        ],
+        behavior: [
+          { date: '06-21', type: '严重', code: 'TRUANCY',      desc: '旷课 2 天' },
+          { date: '06-18', type: '违规', code: 'FIGHT',        desc: '与同学发生冲突' },
+          { date: '06-10', type: '关注', code: 'MOOD_LOW',     desc: '情绪持续低落' },
+        ],
+        timeline: [
+          { time: '今天 17:00', agent: '风险预警',   text: '升级为重点关注对象，已通知校长。' },
+          { time: '今天 15:00', agent: '心理咨询',   text: '已安排 1对1 心理疏导。' },
+          { time: '昨天 10:00', agent: '家校联络',   text: '已与家长电话沟通，约定面谈。' },
+        ],
+        riskIndex: 92, attention: 8, awards: 0,
+      },
+    };
+    // Default detail for any other student id
+    function buildDetailFor(id) {
+      const s = MOCK.students.find(x => x.id === id);
+      if (!s) return null;
+      if (STUDENT_DETAILS[id]) return STUDENT_DETAILS[id];
+      return {
+        name: s.name, initials: s.name.charAt(0),
+        avatar: 'linear-gradient(135deg,#a855f7,#6366f1)',
+        grade: `${s.grade} · ${s.class}`, id: s.id, score: s.score, risk: s.risk,
+        tags: s.tags,
+        guardian: { name: s.guardian, rel: '家长', phone: '138****0000', occ: '—' },
+        family: '—', birthday: '2010-01-01', gender: '—',
+        grades: MOCK.scores.map((x, i) => ({ subj: x.label, score: Math.max(50, s.score + (i*3 - 6)), trend: (i%2?1:-1) })),
+        behavior: [{ date: '06-12', type: '日常', code: 'ATTEND_OK', desc: '本月正常出勤' }],
+        timeline: [{ time: '今天 09:00', agent: '班主任助理', text: '常规更新学生档案。' }],
+        riskIndex: s.risk === 'crit' ? 85 : s.risk === 'high' ? 65 : s.risk === 'mid' ? 40 : 15,
+        attention: 0, awards: 1,
+      };
+    }
+
+    function renderStudentDetail(id) {
+      const d = buildDetailFor(id);
+      if (!d) return '';
+      const riskBadge = { low: ['pill-emerald','低风险'], mid: ['pill-amber','中风险'], high: ['pill-red','高风险'], crit: ['pill-pink','重点关注'] }[d.risk];
+      const trend = t => t > 0 ? `<span style="color:#34d399">↑${t}</span>` : t < 0 ? `<span style="color:#f87171">↓${Math.abs(t)}</span>` : `<span style="color:var(--text-5)">—</span>`;
+      return `
+        <div class="student-panel" id="studentPanel">
+          <div class="student-panel-head">
+            <div class="student-panel-avatar" style="background:${d.avatar}">${d.initials}</div>
+            <div class="student-panel-title">
+              <div class="name-row">
+                <h2>${d.name}</h2>
+                <span class="pill ${riskBadge[0]}"><span class="pill-dot"></span>${riskBadge[1]}</span>
+              </div>
+              <div class="meta-row">
+                <span class="mono">${d.id}</span> · ${d.grade} · ${d.gender} · 出生 ${d.birthday}
+              </div>
+            </div>
+            <div class="student-panel-actions">
+              <button class="btn btn-ghost">${icon('download', 13)}导出档案</button>
+              <button class="btn btn-ghost" onclick="closeStudentDetail()">${icon('x', 13)}关闭</button>
+            </div>
+          </div>
+          <div class="student-panel-tabs" id="studentPanelTabs">
+            <div class="student-panel-tab active" data-tab="overview">概览</div>
+            <div class="student-panel-tab" data-tab="academic">学业</div>
+            <div class="student-panel-tab" data-tab="behavior">行为</div>
+            <div class="student-panel-tab" data-tab="contact">联系</div>
+            <div class="student-panel-tab" data-tab="privacy">隐私</div>
+          </div>
+          <div class="student-panel-content">
+            <!-- TAB: overview -->
+            <div class="sp-pane active" data-pane="overview">
+              <div class="grid-cols-3" style="margin-bottom:18px">
+                <div class="kpi" style="--accent:rgba(168,85,247,.25);--accent-color:#a78bfa">
+                  <div class="kpi-icon">${icon('trend', 18)}</div>
+                  <div class="kpi-label">综合分</div>
+                  <div class="kpi-value" style="color:#a78bfa">${d.score}</div>
+                  <div style="font-size:11px;color:var(--text-5);margin-top:4px">班级前 ${100 - d.score}%</div>
+                </div>
+                <div class="kpi" style="--accent:rgba(244,63,94,.25);--accent-color:#f43f5e">
+                  <div class="kpi-icon">${icon('risk', 18)}</div>
+                  <div class="kpi-label">风险指数</div>
+                  <div class="kpi-value" style="color:${d.riskIndex >= 60 ? '#f43f5e' : d.riskIndex >= 40 ? '#f59e0b' : '#06b6d4'}">${d.riskIndex}</div>
+                  <div style="font-size:11px;color:var(--text-5);margin-top:4px">最近 30 天</div>
+                </div>
+                <div class="kpi" style="--accent:rgba(16,185,129,.25);--accent-color:#10b981">
+                  <div class="kpi-icon">${icon('check', 18)}</div>
+                  <div class="kpi-label">本月奖惩</div>
+                  <div class="kpi-value" style="color:#34d399">+${d.awards}</div>
+                  <div style="font-size:11px;color:var(--text-5);margin-top:4px">${d.attention} 次关注</div>
+                </div>
+              </div>
+              <div class="row-2">
+                <div class="card" style="padding:18px 20px">
+                  <div class="section-title" style="margin-bottom:14px"><h3>${icon('users', 14)}基本信息</h3><div class="line"></div></div>
+                  <dl class="kv" style="grid-template-columns:90px 1fr 90px 1fr">
+                    <dt>学号</dt><dd class="mono">${d.id}</dd>
+                    <dt>出生</dt><dd>${d.birthday}</dd>
+                    <dt>性别</dt><dd>${d.gender}</dd>
+                    <dt>年级</dt><dd>${d.grade}</dd>
+                    <dt>家庭</dt><dd>${d.family}</dd>
+                    <dt>标签</dt><dd>${d.tags.map(t => `<span class="pill pill-zinc" style="margin-right:4px">${t}</span>`).join('')}</dd>
+                  </dl>
+                </div>
+                <div class="card" style="padding:18px 20px">
+                  <div class="section-title" style="margin-bottom:14px"><h3>${icon('activity', 14)}最近活动</h3><div class="line"></div></div>
+                  ${d.timeline.map(t => `
+                    <div style="display:flex;gap:10px;padding:8px 0;position:relative">
+                      <div style="width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#a855f7,#ec4899);margin-top:6px;flex-shrink:0;box-shadow:0 0 0 3px var(--bg-card)"></div>
+                      <div style="flex:1;min-width:0">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;gap:8px">
+                          <span style="font-size:12.5px;font-weight:600;color:var(--text-1)">${t.agent}</span>
+                          <span style="font-size:11px;color:var(--text-5)" class="mono">${t.time}</span>
+                        </div>
+                        <div style="font-size:12.5px;color:var(--text-3);line-height:1.6">${t.text}</div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+            <!-- TAB: academic -->
+            <div class="sp-pane" data-pane="academic">
+              <div class="card" style="padding:18px 20px">
+                <div class="section-title" style="margin-bottom:14px"><h3>${icon('trend', 14)}最近一次月考成绩</h3><div class="line"></div></div>
+                <table class="table" style="margin:0 -20px;width:calc(100% + 40px)">
+                  <thead><tr><th>科目</th><th>分数</th><th>趋势</th><th>分布</th></tr></thead>
+                  <tbody>
+                    ${d.grades.map(g => `
+                      <tr>
+                        <td style="font-weight:600;color:var(--text-1)">${g.subj}</td>
+                        <td class="mono" style="font-weight:600;color:${g.score >= 85 ? '#34d399' : g.score >= 70 ? '#fbbf24' : '#f87171'}">${g.score}</td>
+                        <td class="mono" style="font-size:12px;color:var(--text-3)">${trend(g.trend)}</td>
+                        <td><div class="score-track" style="height:8px"><div class="score-fill" style="width:${g.score}%;background:linear-gradient(90deg,#a855f7,#06b6d4)"></div></div></td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <!-- TAB: behavior -->
+            <div class="sp-pane" data-pane="behavior">
+              <div class="card" style="padding:18px 20px">
+                <div class="section-title" style="margin-bottom:14px"><h3>${icon('alert', 14)}行为记录</h3><div class="line"></div></div>
+                ${d.behavior.map(b => {
+                  const colorMap = { '表扬': 'pill-emerald', '日常': 'pill-zinc', '关注': 'pill-amber', '违规': 'pill-red', '严重': 'pill-pink' };
+                  return `
+                    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px dashed var(--border)">
+                      <span class="mono" style="color:var(--text-5);font-size:11.5px;min-width:42px">${b.date}</span>
+                      <span class="pill ${colorMap[b.type] || 'pill-zinc'}" style="min-width:48px;justify-content:center"><span class="pill-dot"></span>${b.type}</span>
+                      <span class="mono pill pill-zinc" style="font-size:10.5px">${b.code}</span>
+                      <span style="flex:1;font-size:12.5px;color:var(--text-3)">${b.desc}</span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+            <!-- TAB: contact -->
+            <div class="sp-pane" data-pane="contact">
+              <div class="card" style="padding:20px 22px;margin-bottom:14px;background:linear-gradient(135deg,rgba(236,72,153,.08),rgba(245,158,11,.04))">
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+                  <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#ec4899,#f59e0b);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700">${d.guardian.name.charAt(0)}</div>
+                  <div>
+                    <div style="font-size:15px;font-weight:700;color:var(--text-1)">${d.guardian.name}</div>
+                    <div style="font-size:11.5px;color:var(--text-5)">${d.guardian.rel} · ${d.guardian.occ}</div>
+                  </div>
+                </div>
+                <dl class="kv" style="grid-template-columns:80px 1fr">
+                  <dt>电话</dt><dd class="mono">${d.guardian.phone}</dd>
+                  <dt>关系</dt><dd>${d.guardian.rel}</dd>
+                  <dt>职业</dt><dd>${d.guardian.occ}</dd>
+                </dl>
+                <div style="display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px dashed var(--border)">
+                  <button class="btn btn-primary" style="flex:1">${icon('message', 13)}发送消息</button>
+                  <button class="btn btn-ghost">${icon('phone', 13)}电话</button>
+                  <button class="btn btn-ghost">${icon('history', 13)}沟通记录</button>
+                </div>
+              </div>
+            </div>
+            <!-- TAB: privacy -->
+            <div class="sp-pane" data-pane="privacy">
+              <div class="row-2">
+                <div class="card" style="border-left:3px solid #10b981;padding:18px 20px">
+                  <div class="section-title" style="margin-bottom:12px"><h3>${icon('shield', 14)}PII 假名化</h3><div class="line"></div></div>
+                  <div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:14px">显示给 AI 的是 <code class="mono" style="background:var(--bg-soft);padding:1px 5px;border-radius:4px;color:#fbbf24">S_${d.id.slice(2)}</code> 假名，AI 永远看不到明文姓名。</div>
+                  <div style="background:rgba(0,0,0,.2);border-radius:8px;padding:10px 12px">
+                    <div style="font-size:10.5px;color:var(--text-5);margin-bottom:4px">AI 看到的提示</div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6ee7b7">学生 S_${d.id.slice(2)} 最近成绩有所下降，建议关注。</div>
+                  </div>
+                </div>
+                <div class="card" style="border-left:3px solid #06b6d4;padding:18px 20px">
+                  <div class="section-title" style="margin-bottom:12px"><h3>${icon('filter', 14)}定向发送过滤</h3><div class="line"></div></div>
+                  <div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:14px">给该家长发消息时，其他学生真实姓名自动替换为"其他同学"。</div>
+                  <div style="background:rgba(0,0,0,.2);border-radius:8px;padding:10px 12px">
+                    <div style="font-size:10.5px;color:var(--text-5);margin-bottom:4px">即将发送</div>
+                    <div style="font-size:12px;color:#d1d5db;line-height:1.6">${d.guardian.name.replace(/./g, c => Math.random() > 0.5 ? c : c)} 您好，您孩子 ${d.name} 最近表现稳定，与<span style="color:#6ee7b7">其他同学</span>相处融洽。</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    function openStudentDetail(id) {
+      const wrap = document.getElementById('studentDetailWrap');
+      if (!wrap) return;
+      wrap.innerHTML = renderStudentDetail(id);
+      // Wire tabs
+      wrap.querySelectorAll('.student-panel-tab').forEach(t => {
+        t.addEventListener('click', () => {
+          wrap.querySelectorAll('.student-panel-tab').forEach(x => x.classList.remove('active'));
+          wrap.querySelectorAll('.sp-pane').forEach(x => x.classList.remove('active'));
+          t.classList.add('active');
+          wrap.querySelector(`[data-pane="${t.dataset.tab}"]`).classList.add('active');
+        });
+      });
+      // Highlight selected row
+      document.querySelectorAll('tr[data-student]').forEach(r => r.classList.remove('selected'));
+      const row = document.querySelector(`tr[data-student="${id}"]`);
+      if (row) row.classList.add('selected');
+      // Scroll into view
+      setTimeout(() => wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    }
+    function closeStudentDetail() {
+      const wrap = document.getElementById('studentDetailWrap');
+      if (wrap) wrap.innerHTML = '';
+      document.querySelectorAll('tr[data-student]').forEach(r => r.classList.remove('selected'));
+    }
+    init();
+  </script>
+</body>
+</html>

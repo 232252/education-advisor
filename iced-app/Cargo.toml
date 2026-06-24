@@ -19,7 +19,7 @@ opt-level = 1
 
 [dependencies]
 # GUI
-iced = { version = "0.14", features = ["tokio", "advanced", "image"] }
+iced = { version = "0.14", features = ["tokio", "advanced", "image", "svg"] }
 iced_fonts = "0.1"
 
 # Async runtime

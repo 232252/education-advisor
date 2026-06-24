@@ -103,6 +103,10 @@ pub struct App {
     pub settings: Settings,
     pub page: Page,
     pub sidebar_collapsed: bool,
+    /// Current window size — updated by the `window::resize` subscription.
+    pub window_size: iced::Size,
+    /// Cached layout mode derived from `window_size`.
+    pub layout_mode: crate::ui::responsive::LayoutMode,
 
     // cached domain data
     pub students: Arc<RwLock<Vec<Student>>>,
@@ -189,6 +193,9 @@ pub enum Message {
     Navigate(Page),
     ToggleSidebar,
     ToggleTheme,
+    /// Fired on every window resize. Updates cached `window_size` and
+    /// `layout_mode` so responsive views can branch without recomputing.
+    WindowResized(iced::Size),
     // Chat
     ChatInputChanged(String),
     SendChat,
@@ -334,6 +341,7 @@ impl App {
         let theme = match settings.theme {
             ThemeMode::Dark => Theme::dark(),
             ThemeMode::Light => Theme::light(),
+            ThemeMode::Auto => Theme::auto(crate::theme::detect_os_uses_light()),
         };
 
         let app = Self {
@@ -343,6 +351,8 @@ impl App {
             settings: settings.clone(),
             page: Page::Dashboard,
             sidebar_collapsed: settings.sidebar_collapsed,
+            window_size: iced::Size::new(1280.0, 820.0),
+            layout_mode: crate::ui::responsive::LayoutMode::Wide,
             students: Arc::new(RwLock::new(Vec::new())),
             conversations: Arc::new(RwLock::new(Vec::new())),
             messages: HashMap::new(),
@@ -383,7 +393,9 @@ impl App {
             runtime_stream,
         );
         let tick = iced::time::every(Duration::from_millis(200)).map(|_| Message::Tick);
-        Subscription::batch(vec![runtime_sub, tick])
+        // Listen for window resize events to drive responsive layout.
+        let resize = iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size));
+        Subscription::batch(vec![runtime_sub, tick, resize])
     }
 
     pub fn push_toast(&mut self, kind: ToastKind, msg: impl Into<String>) {
@@ -588,6 +600,7 @@ impl App {
                     self.theme = match self.settings.theme {
                         ThemeMode::Dark => Theme::dark(),
                         ThemeMode::Light => Theme::light(),
+                        ThemeMode::Auto => Theme::auto(crate::theme::detect_os_uses_light()),
                     };
                 }
             }
@@ -619,6 +632,10 @@ impl App {
                 let now = std::time::Instant::now();
                 self.toasts.retain(|t| now.duration_since(t.born) < t.ttl);
             }
+            Message::WindowResized(size) => {
+                self.window_size = size;
+                self.layout_mode = crate::ui::responsive::LayoutMode::from_size(size);
+            }
             Message::Navigate(page) => self.navigate(page),
             Message::ToggleSidebar => {
                 self.sidebar_collapsed = !self.sidebar_collapsed;
@@ -631,11 +648,13 @@ impl App {
             Message::ToggleTheme => {
                 self.settings.theme = match self.settings.theme {
                     ThemeMode::Dark => ThemeMode::Light,
-                    ThemeMode::Light => ThemeMode::Dark,
+                    ThemeMode::Light => ThemeMode::Auto,
+                    ThemeMode::Auto => ThemeMode::Dark,
                 };
                 self.theme = match self.settings.theme {
                     ThemeMode::Dark => Theme::dark(),
                     ThemeMode::Light => Theme::light(),
+                    ThemeMode::Auto => Theme::auto(crate::theme::detect_os_uses_light()),
                 };
                 let _ = self
                     .runtime
@@ -922,6 +941,7 @@ impl App {
                 self.theme = match t {
                     ThemeMode::Dark => Theme::dark(),
                     ThemeMode::Light => Theme::light(),
+                    ThemeMode::Auto => Theme::auto(crate::theme::detect_os_uses_light()),
                 };
             }
             Message::SettingsTemperatureChanged(v) => self.settings.temperature = v,
