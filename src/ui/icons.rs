@@ -738,9 +738,12 @@ pub fn trash(painter: &Painter, rect: Rect, color: Color32) {
 }
 
 pub fn refresh(painter: &Painter, rect: Rect, color: Color32) {
+    if rect.width() < 2.0 || rect.height() < 2.0 {
+        return;
+    }
     let c = rect.center();
-    let r = rect.width().min(rect.height()) * 0.32;
-    let stroke = Stroke::new(W, color);
+    let r = (rect.width().min(rect.height()) * 0.32).max(1.0);
+    let stroke = Stroke::new(W.max(0.1), color);
     let pts: Vec<Pos2> = (0..=14)
         .map(|i| {
             let a = i as f32 * std::f32::consts::TAU / 14.0 + 0.5;
@@ -748,23 +751,23 @@ pub fn refresh(painter: &Painter, rect: Rect, color: Color32) {
         })
         .collect();
     painter.add(egui::Shape::line(pts.clone(), stroke));
-    let tip = pts.last().copied().unwrap_or(c);
-    let prev = pts[pts.len().saturating_sub(2)];
-    let dx = tip.x - prev.x;
-    let dy = tip.y - prev.y;
-    let len = dx.hypot(dy).max(1.0);
-    let nx = dx / len;
-    let ny = dy / len;
-    let a1 = Pos2::new(
-        (r * 0.35).mul_add(-(nx * 0.87 - ny * 0.49), tip.x),
-        (r * 0.35).mul_add(-(ny * 0.87 + nx * 0.49), tip.y),
-    );
-    let a2 = Pos2::new(
-        (r * 0.35).mul_add(-(nx * 0.87 + ny * 0.49), tip.x),
-        (r * 0.35).mul_add(-(ny * 0.87 - nx * 0.49), tip.y),
-    );
-    painter.line_segment([tip, a1], stroke);
-    painter.line_segment([tip, a2], stroke);
+    if let (Some(&tip), Some(&prev)) = (pts.last(), pts.get(pts.len().saturating_sub(2))) {
+        let dx = tip.x - prev.x;
+        let dy = tip.y - prev.y;
+        let len = dx.hypot(dy).max(1.0);
+        let nx = dx / len;
+        let ny = dy / len;
+        let a1 = Pos2::new(
+            (r * 0.35).mul_add(-(nx * 0.87 - ny * 0.49), tip.x),
+            (r * 0.35).mul_add(-(ny * 0.87 + nx * 0.49), tip.y),
+        );
+        let a2 = Pos2::new(
+            (r * 0.35).mul_add(-(nx * 0.87 + ny * 0.49), tip.x),
+            (r * 0.35).mul_add(-(ny * 0.87 - nx * 0.49), tip.y),
+        );
+        painter.line_segment([tip, a1], stroke);
+        painter.line_segment([tip, a2], stroke);
+    }
 }
 
 pub fn run(painter: &Painter, rect: Rect, color: Color32) {
@@ -958,9 +961,12 @@ pub fn dots_vertical(painter: &Painter, rect: Rect, color: Color32) {
 }
 
 pub fn sparkles(painter: &Painter, rect: Rect, color: Color32) {
+    if rect.width() < 2.0 || rect.height() < 2.0 {
+        return;
+    }
     let c = rect.center();
-    let s = rect.width().min(rect.height()) * 0.3;
-    let stroke = Stroke::new(W, color);
+    let s = (rect.width().min(rect.height()) * 0.3).max(1.0);
+    let stroke = Stroke::new(W.max(0.1), color);
     let pts = vec![
         Pos2::new(c.x, c.y - s),
         Pos2::new(c.x + s * 0.25, c.y - s * 0.25),
@@ -972,7 +978,9 @@ pub fn sparkles(painter: &Painter, rect: Rect, color: Color32) {
         Pos2::new(c.x - s * 0.25, c.y - s * 0.25),
     ];
     let mut path = pts.clone();
-    path.push(pts[0]);
+    if let Some(&first) = pts.first() {
+        path.push(first);
+    }
     painter.add(egui::Shape::line(path, stroke));
 }
 
@@ -1065,10 +1073,13 @@ pub fn book_icon(painter: &Painter, rect: Rect, theme: &Theme) {
 }
 
 pub fn trend_arrow_icon(painter: &Painter, rect: Rect, theme: &Theme) {
+    if rect.width() < 2.0 || rect.height() < 2.0 {
+        return;
+    }
     paint_icon_gradient_bg(painter, rect, theme.gradient_cyan, theme.info);
     let c = rect.center();
-    let s = rect.width().min(rect.height()) * 0.28;
-    let stroke = Stroke::new(W, Color32::WHITE);
+    let s = (rect.width().min(rect.height()) * 0.28).max(1.0);
+    let stroke = Stroke::new(W.max(0.1), Color32::WHITE);
     let pts = vec![
         Pos2::new(c.x - s, c.y + s * 0.3),
         Pos2::new(c.x - s * 0.2, c.y + s * 0.1),
@@ -1076,23 +1087,23 @@ pub fn trend_arrow_icon(painter: &Painter, rect: Rect, theme: &Theme) {
         Pos2::new(c.x + s, c.y - s * 0.6),
     ];
     painter.add(egui::Shape::line(pts.clone(), stroke));
-    let tip = pts[pts.len() - 1];
-    let prev = pts[pts.len() - 2];
-    let dx = tip.x - prev.x;
-    let dy = tip.y - prev.y;
-    let len = dx.hypot(dy).max(1.0);
-    let nx = dx / len;
-    let ny = dy / len;
-    let a1 = Pos2::new(
-        (s * 0.35).mul_add(-(nx * 0.87 - ny * 0.49), tip.x),
-        (s * 0.35).mul_add(-(ny * 0.87 + nx * 0.49), tip.y),
-    );
-    let a2 = Pos2::new(
-        (s * 0.35).mul_add(-(nx * 0.87 + ny * 0.49), tip.x),
-        (s * 0.35).mul_add(-(ny * 0.87 - nx * 0.49), tip.y),
-    );
-    painter.line_segment([tip, a1], stroke);
-    painter.line_segment([tip, a2], stroke);
+    if let (Some(&tip), Some(&prev)) = (pts.last(), pts.get(pts.len().saturating_sub(2))) {
+        let dx = tip.x - prev.x;
+        let dy = tip.y - prev.y;
+        let len = dx.hypot(dy).max(1.0);
+        let nx = dx / len;
+        let ny = dy / len;
+        let a1 = Pos2::new(
+            (s * 0.35).mul_add(-(nx * 0.87 - ny * 0.49), tip.x),
+            (s * 0.35).mul_add(-(ny * 0.87 + nx * 0.49), tip.y),
+        );
+        let a2 = Pos2::new(
+            (s * 0.35).mul_add(-(nx * 0.87 + ny * 0.49), tip.x),
+            (s * 0.35).mul_add(-(ny * 0.87 - nx * 0.49), tip.y),
+        );
+        painter.line_segment([tip, a1], stroke);
+        painter.line_segment([tip, a2], stroke);
+    }
 }
 
 pub fn chat_bubble_icon(painter: &Painter, rect: Rect, theme: &Theme) {
@@ -1130,10 +1141,13 @@ pub fn tool_wrench_icon(painter: &Painter, rect: Rect, theme: &Theme) {
 }
 
 pub fn shield_icon(painter: &Painter, rect: Rect, theme: &Theme) {
+    if rect.width() < 2.0 || rect.height() < 2.0 {
+        return;
+    }
     paint_icon_gradient_bg(painter, rect, theme.success, theme.info);
     let c = rect.center();
-    let s = rect.width().min(rect.height()) * 0.32;
-    let stroke = Stroke::new(W, Color32::WHITE);
+    let s = (rect.width().min(rect.height()) * 0.32).max(1.0);
+    let stroke = Stroke::new(W.max(0.1), Color32::WHITE);
     let shield: Vec<Pos2> = vec![
         Pos2::new(c.x - s, c.y - s * 0.6),
         Pos2::new(c.x - s, c.y + s * 0.1),
@@ -1143,7 +1157,9 @@ pub fn shield_icon(painter: &Painter, rect: Rect, theme: &Theme) {
         Pos2::new(c.x, c.y - s * 0.9),
     ];
     let mut path = shield.clone();
-    path.push(shield[0]);
+    if let Some(&first) = shield.first() {
+        path.push(first);
+    }
     painter.add(egui::Shape::line(path, stroke));
     painter.line_segment(
         [Pos2::new(c.x - s * 0.35, c.y), Pos2::new(c.x - s * 0.05, c.y + s * 0.3)],
@@ -1176,10 +1192,13 @@ pub fn robot_icon(painter: &Painter, rect: Rect, theme: &Theme) {
 }
 
 pub fn sparkle_icon(painter: &Painter, rect: Rect, theme: &Theme) {
+    if rect.width() < 2.0 || rect.height() < 2.0 {
+        return;
+    }
     paint_icon_gradient_bg(painter, rect, theme.pink, theme.purple);
     let c = rect.center();
-    let s = rect.width().min(rect.height()) * 0.32;
-    let stroke = Stroke::new(W, Color32::WHITE);
+    let s = (rect.width().min(rect.height()) * 0.32).max(1.0);
+    let stroke = Stroke::new(W.max(0.1), Color32::WHITE);
     let pts = vec![
         Pos2::new(c.x, c.y - s),
         Pos2::new(c.x + s * 0.25, c.y - s * 0.25),
@@ -1191,7 +1210,9 @@ pub fn sparkle_icon(painter: &Painter, rect: Rect, theme: &Theme) {
         Pos2::new(c.x - s * 0.25, c.y - s * 0.25),
     ];
     let mut path = pts.clone();
-    path.push(pts[0]);
+    if let Some(&first) = pts.first() {
+        path.push(first);
+    }
     painter.add(egui::Shape::line(path, stroke));
 }
 

@@ -24,5 +24,5 @@ Education Advisor - 便携版 (Windows)
   - 渲染: glow / wgpu
   - 字体: NotoSansSC（已内嵌，支持中文显示）
 
-版本: 1.2.0
+版本: 1.2.1
 构建: 2026-06-24

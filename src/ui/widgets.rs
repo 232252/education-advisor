@@ -286,7 +286,7 @@ pub fn kpi_card(
             hover_lift_card(ui, theme, entrance, |ui| {
                 ui.label(
                     egui::RichText::new(value)
-                        .font(FontId::new(32.0, FontFamily::Name("Lato".into())))
+                        .font(FontId::new(32.0, FontFamily::Name("Numbers".into())))
                         .strong()
                         .color(with_alpha(accent, a)),
                 );
@@ -1132,14 +1132,18 @@ pub fn slider_f32(
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, height), Sense::click());
     let min = *range.start();
     let max = *range.end();
-    let frac = ((*value - min) / (max - min)).clamp(0.0, 1.0);
+    let frac = if (max - min).abs() > f32::EPSILON {
+        ((*value - min) / (max - min)).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
 
     // track
     let track_h = 4.0;
     let track_y = rect.center().y;
     let track_rect = Rect::from_min_size(
         Pos2::new(rect.min.x, track_y - track_h / 2.0),
-        Vec2::new(rect.width(), track_h),
+        Vec2::new(rect.width().max(1.0), track_h),
     );
     ui.painter()
         .rect_filled(track_rect, Rounding::same(track_h / 2.0), TRACK_BASE);
@@ -1158,7 +1162,7 @@ pub fn slider_f32(
 
     // thumb
     let thumb_r = 8.0;
-    let thumb_x = rect.min.x + frac * rect.width();
+    let thumb_x = rect.min.x + frac * rect.width().max(1.0);
     ui.painter()
         .circle_filled(Pos2::new(thumb_x, track_y), thumb_r, theme.accent);
     ui.painter().circle_filled(
@@ -1178,7 +1182,7 @@ pub fn slider_f32(
 
     if resp.dragged() {
         if let Some(pos) = resp.interact_pointer_pos() {
-            let new_frac = ((pos.x - rect.min.x) / rect.width()).clamp(0.0, 1.0);
+            let new_frac = ((pos.x - rect.min.x) / rect.width().max(1.0)).clamp(0.0, 1.0);
             *value = min + new_frac * (max - min);
         }
     }
@@ -1187,7 +1191,7 @@ pub fn slider_f32(
 
 /// A simple progress bar.
 pub fn progress_bar(ui: &mut Ui, _theme: &Theme, frac: f32, height: f32, color: Color32) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width().max(1.0), height), Sense::hover());
     ui.painter()
         .rect_filled(rect, Rounding::same(height / 2.0), TRACK_BASE);
     let fill_w = rect.width() * frac.clamp(0.0, 1.0);
@@ -1271,7 +1275,11 @@ pub fn custom_slider(
     let value_w = label_width.max(40.0);
     let track_w = (ui.available_width() - value_w - 8.0).max(40.0);
     let (rect, mut resp) = ui.allocate_exact_size(Vec2::new(track_w, height), Sense::click());
-    let frac = ((*value - min) / (max - min)).clamp(0.0, 1.0);
+    let frac = if (max - min).abs() > f32::EPSILON {
+        ((*value - min) / (max - min)).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
 
     // Track (4 px, #1e293b).
     let track_h = 4.0;
@@ -1282,9 +1290,10 @@ pub fn custom_slider(
     );
     ui.painter()
         .rect_filled(track_rect, Rounding::same(track_h / 2.0), TRACK_BASE);
+    let fill_w = (track_rect.width() * frac).max(0.0);
     let fill_rect = Rect::from_min_max(
         track_rect.min,
-        Pos2::new(track_rect.min.x + track_rect.width() * frac, track_rect.max.y),
+        Pos2::new(track_rect.min.x + fill_w, track_rect.max.y),
     );
     paint_rounded_vertical_gradient(
         ui,
@@ -1297,7 +1306,7 @@ pub fn custom_slider(
 
     // Thumb (16 px diameter) with cyan→blue gradient + blue glow.
     let thumb_r = 8.0; // diameter 16
-    let thumb_x = rect.min.x + frac * rect.width();
+    let thumb_x = rect.min.x + frac * rect.width().max(1.0);
     let thumb_center = Pos2::new(thumb_x, track_y);
     let glow = Color32::from_rgba_premultiplied(59, 130, 246, 102); // rgba(59,130,246,0.4)
     ui.painter()
@@ -1316,13 +1325,13 @@ pub fn custom_slider(
         Pos2::new(rect.max.x + 8.0, rect.center().y),
         Align2::LEFT_CENTER,
         value_text,
-        FontId::new(12.0, FontFamily::Name("Lato".into())),
+        FontId::new(12.0, FontFamily::Name("Numbers".into())),
         theme.accent,
     );
 
     if resp.dragged() {
         if let Some(pos) = resp.interact_pointer_pos() {
-            let new_frac = ((pos.x - rect.min.x) / rect.width()).clamp(0.0, 1.0);
+            let new_frac = ((pos.x - rect.min.x) / rect.width().max(1.0)).clamp(0.0, 1.0);
             *value = min + new_frac * (max - min);
         }
     }
@@ -1715,13 +1724,19 @@ pub fn divider(ui: &mut Ui, theme: &Theme) {
 
 /// A circular progress ring.
 pub fn progress_ring(ui: &mut Ui, theme: &Theme, frac: f32, size: f32) {
+    if size < 8.0 {
+        return;
+    }
     let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
     let center = rect.center();
-    let radius = size / 2.0 - 3.0;
+    let radius = (size / 2.0 - 3.0).max(1.0);
     let stroke_bg = Stroke::new(4.0, theme.border);
     let stroke_fg = Stroke::new(4.0, theme.accent);
     ui.painter().circle_stroke(center, radius, stroke_bg);
     let frac = frac.clamp(0.0, 1.0);
+    if frac <= 0.0 {
+        return;
+    }
     let start = std::f32::consts::FRAC_PI_2;
     let end = start + frac * std::f32::consts::TAU;
     let n = ((frac * 64.0) as usize).max(1);
@@ -1791,7 +1806,7 @@ pub fn fab_button(ui: &mut Ui, theme: &Theme, text: &str) -> Response {
         bg_rect.center(),
         Align2::CENTER_CENTER,
         text,
-        FontId::new(14.0, FontFamily::Name("Lato".into())),
+        FontId::new(14.0, FontFamily::Name("Numbers".into())),
         Color32::WHITE,
     );
     resp

@@ -6,6 +6,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-06-24
+
+### Fixed
+- 修复启动闪退问题（FontFamily::Name("Lato") 和 "Comfortaa-Light" 字体族未注册导致 panic）
+- 数字字体家族 Numbers 改为使用 egui 0.27 默认字体 Ubuntu-Light
+- 全局防御性代码加固：charts/widgets/icons 增加零尺寸/除零/负半径保护
+
 ## [1.2.0] — 2026-06-24
 
 ### Added
@@ -65,7 +72,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - No keyboard shortcuts.
 - `StreamTool` dedup logic was order-dependent.
 
-[Unreleased]: https://github.com/232252/education-advisor/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/232252/education-advisor/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/232252/education-advisor/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/232252/education-advisor/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/232252/education-advisor/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/232252/education-advisor/releases/tag/v1.0.2
