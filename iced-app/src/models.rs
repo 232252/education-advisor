@@ -179,6 +179,9 @@ pub enum ThemeMode {
     #[default]
     Dark,
     Light,
+    /// Follow OS preference (Windows: `AppsUseLightTheme` registry value;
+    /// macOS / Linux: best-effort detection, falls back to dark).
+    Auto,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
