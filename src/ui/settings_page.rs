@@ -1,210 +1,207 @@
 //! Settings page: LLM providers, appearance, AI behavior, privacy, about.
+//!
+//! Redesigned to mirror the DeepSeek-style dark sci-fi reference: each group
+//! is a translucent `glass_card` with a `panel_title`, every option is a
+//! `setting_row` (title + subtitle on the left, control on the right) and the
+//! save action is a floating gradient `fab_button` anchored bottom-right.
 
-use eframe::egui::{self, Align, FontId, Layout, Ui, Vec2};
+use eframe::egui::{self, Align, Color32, FontId, Layout, Sense, Ui, Vec2};
 
 use crate::app::App;
 use crate::models::{LlmProvider, ProviderKind, ThemeMode};
 use crate::ui::icons;
 use crate::ui::widgets::{
-    custom_slider, dropdown_select, fab_button, ghost_button, glass_card, icon_button,
-    primary_button, section_title, toggle_switch,
+    custom_slider, dropdown_select, fab_button, ghost_button, glass_card, glass_icon_button,
+    icon_button, panel_title, primary_button, setting_row, toggle_switch,
 };
 
 pub fn show(app: &mut App, ui: &mut Ui) {
-    section_title(ui, &app.theme, "设置");
-
+    // The top-level header is owned by the topbar now — jump straight into the
+    // scrollable glass-card stack.
     let theme = app.theme.clone();
     let mut settings_changed = false;
 
     egui::ScrollArea::vertical().show(ui, |ui| {
-        // appearance
+        // -----------------------------------------------------------------
+        // 外观
+        // -----------------------------------------------------------------
+        let mut mode = app.settings.theme;
+        let mut collapsed = app.settings.sidebar_collapsed;
         glass_card(ui, &theme, |ui| {
-            section_title(ui, &app.theme, "外观");
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("主题").font(FontId::proportional(13.0)).color(app.theme.text_dim));
-                let mut mode = app.settings.theme;
-                egui::ComboBox::from_id_source("theme_combo")
-                    .selected_text(match mode {
-                        ThemeMode::Dark => "深色",
-                        ThemeMode::Light => "浅色",
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut mode, ThemeMode::Dark, "深色");
-                        ui.selectable_value(&mut mode, ThemeMode::Light, "浅色");
-                    });
-                if mode != app.settings.theme {
-                    app.settings.theme = mode;
-                    app.theme = match mode {
-                        ThemeMode::Dark => crate::theme::Theme::dark(),
-                        ThemeMode::Light => crate::theme::Theme::light(),
-                    };
-                    app.apply_theme(ui.ctx());
-                    settings_changed = true;
-                }
-            });
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("侧边栏").font(FontId::proportional(13.0)).color(app.theme.text_dim));
-                let mut collapsed = app.sidebar_collapsed;
-                if toggle_switch(ui, &app.theme, &mut collapsed).changed() {
-                    app.sidebar_collapsed = collapsed;
-                    app.settings.sidebar_collapsed = collapsed;
-                    settings_changed = true;
-                }
-            });
-        });
-
-        ui.add_space(8.0);
-
-        // AI behavior
-        glass_card(ui, &theme, |ui| {
-            section_title(ui, &app.theme, "AI 行为");
-            ui.horizontal(|ui| {
-                ui.allocate_ui_with_layout(
-                    Vec2::new(60.0, 24.0),
-                    Layout::left_to_right(Align::Center),
-                    |ui| {
-                        ui.label(
-                            egui::RichText::new("温度")
-                                .font(FontId::proportional(13.0))
-                                .color(app.theme.text_dim),
-                        );
-                    },
-                );
-                let mut temp = app.settings.temperature;
-                let (_, changed) = custom_slider(ui, &theme, &mut temp, 0.0..=1.0, 40.0, "");
-                if changed {
-                    app.settings.temperature = temp;
-                    settings_changed = true;
-                }
-                ui.allocate_ui_with_layout(
-                    Vec2::new(40.0, 24.0),
-                    Layout::right_to_left(Align::Center),
-                    |ui| {
-                        ui.label(
-                            egui::RichText::new(format!("{:.2}", temp))
-                                .strong()
-                                .color(theme.accent)
-                                .font(FontId::proportional(12.0)),
-                        );
-                    },
-                );
-            });
-            ui.horizontal(|ui| {
-                ui.allocate_ui_with_layout(
-                    Vec2::new(100.0, 24.0),
-                    Layout::left_to_right(Align::Center),
-                    |ui| {
-                        ui.label(
-                            egui::RichText::new("最大工具迭代")
-                                .font(FontId::proportional(13.0))
-                                .color(app.theme.text_dim),
-                        );
-                    },
-                );
-                let mut iters_f = app.settings.max_tool_iterations as f32;
-                let (_, changed) = custom_slider(ui, &theme, &mut iters_f, 1.0..=12.0, 40.0, "");
-                let iters = iters_f.round() as u32;
-                if changed && iters != app.settings.max_tool_iterations {
-                    app.settings.max_tool_iterations = iters;
-                    settings_changed = true;
-                }
-                ui.allocate_ui_with_layout(
-                    Vec2::new(40.0, 24.0),
-                    Layout::right_to_left(Align::Center),
-                    |ui| {
-                        ui.label(
-                            egui::RichText::new(format!("{}", app.settings.max_tool_iterations))
-                                .strong()
-                                .color(theme.accent)
-                                .font(FontId::proportional(12.0)),
-                        );
-                    },
-                );
-            });
-        });
-
-        ui.add_space(8.0);
-
-        // privacy
-        glass_card(ui, &theme, |ui| {
-            section_title(ui, &app.theme, "隐私与安全");
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("PII 脱敏").font(FontId::proportional(13.0)).color(app.theme.text_dim));
-                let mut enabled = app.settings.privacy_enabled;
-                if toggle_switch(ui, &app.theme, &mut enabled).changed() {
-                    app.settings.privacy_enabled = enabled;
-                    settings_changed = true;
-                }
-            });
-            ui.horizontal(|ui| {
-                let dot_rect = egui::Rect::from_min_size(egui::pos2(ui.cursor().left(), ui.cursor().center().y - 2.0), egui::Vec2::splat(4.0));
-                icons::dot(ui.painter(), dot_rect, app.theme.text_dim);
-                ui.add_space(8.0);
-                ui.label(
-                    egui::RichText::new("敏感字段（监护人电话、API Key）使用 AES-256-GCM 加密落盘")
-                        .font(FontId::proportional(11.0))
-                        .color(app.theme.text_dim),
-                );
-            });
-            ui.horizontal(|ui| {
-                let dot_rect = egui::Rect::from_min_size(egui::pos2(ui.cursor().left(), ui.cursor().center().y - 2.0), egui::Vec2::splat(4.0));
-                icons::dot(ui.painter(), dot_rect, app.theme.text_dim);
-                ui.add_space(8.0);
-                ui.label(
-                    egui::RichText::new("手机号 / 身份证 / 邮箱在进入 LLM 前自动掩码")
-                        .font(FontId::proportional(11.0))
-                        .color(app.theme.text_dim),
-                );
-            });
-        });
-
-        ui.add_space(8.0);
-
-        // active provider
-        glass_card(ui, &app.theme, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new("当前使用模型")
-                        .font(FontId::proportional(13.0))
-                        .color(app.theme.text_dim),
-                );
-                let providers = app.providers.read().clone();
-                let enabled: Vec<_> = providers.into_iter().filter(|p| p.enabled).collect();
-                let mut item_names = vec!["—".to_string()];
-                item_names.extend(enabled.iter().map(|p| p.name.clone()));
-                let items: Vec<&str> = item_names.iter().map(|s| s.as_str()).collect();
-                let selected_idx = app.settings.active_provider_id.as_ref().and_then(|id| {
-                    enabled.iter().position(|p| p.id == *id).map(|i| i + 1)
-                });
-                let selected_text = match selected_idx {
-                    Some(i) => items[i],
-                    None => "—",
+            panel_title(ui, &theme, "外观");
+            setting_row(ui, &theme, "主题模式", "切换深色与浅色模式", |ui| {
+                let (icon_fn, icon_color) = match mode {
+                    ThemeMode::Dark => (
+                        icons::sun as fn(&egui::Painter, egui::Rect, Color32),
+                        Color32::from_rgb(250, 204, 21), // #facc15
+                    ),
+                    ThemeMode::Light => (
+                        icons::moon as fn(&egui::Painter, egui::Rect, Color32),
+                        theme.text_dim,
+                    ),
                 };
-
-                let (icon_rect, _) = ui.allocate_exact_size(Vec2::splat(28.0), egui::Sense::hover());
-                icons::robot_icon(ui.painter(), icon_rect, &app.theme);
-                ui.add_space(8.0);
-
-                if let Some(idx) = dropdown_select(ui, &app.theme, "active_provider", selected_text, &items) {
-                    let new_selected = if idx == 0 {
-                        None
-                    } else {
-                        Some(enabled[idx - 1].id.clone())
+                if glass_icon_button(ui, &theme, icon_fn, icon_color).clicked() {
+                    mode = match mode {
+                        ThemeMode::Dark => ThemeMode::Light,
+                        ThemeMode::Light => ThemeMode::Dark,
                     };
-                    if new_selected != app.settings.active_provider_id {
-                        app.settings.active_provider_id = new_selected;
-                        settings_changed = true;
-                    }
                 }
             });
+            setting_row(ui, &theme, "侧边栏", "折叠或展开左侧导航栏", |ui| {
+                toggle_switch(ui, &theme, &mut collapsed);
+            });
         });
+        if mode != app.settings.theme {
+            app.settings.theme = mode;
+            app.theme = match mode {
+                ThemeMode::Dark => crate::theme::Theme::dark(),
+                ThemeMode::Light => crate::theme::Theme::light(),
+            };
+            app.apply_theme(ui.ctx());
+            settings_changed = true;
+        }
+        if collapsed != app.settings.sidebar_collapsed {
+            app.settings.sidebar_collapsed = collapsed;
+            app.sidebar_collapsed = collapsed;
+            settings_changed = true;
+        }
 
-        ui.add_space(8.0);
+        ui.add_space(16.0);
 
-        // providers
+        // -----------------------------------------------------------------
+        // AI 行为
+        // -----------------------------------------------------------------
+        let mut temp = app.settings.temperature;
+        let mut iters_f = app.settings.max_tool_iterations as f32;
+        glass_card(ui, &theme, |ui| {
+            panel_title(ui, &theme, "AI 行为");
+            setting_row(ui, &theme, "模型温度", "控制回答的创造性与随机性", |ui| {
+                ui.allocate_ui_with_layout(
+                    Vec2::new(248.0, 24.0),
+                    Layout::left_to_right(Align::Center),
+                    |ui| {
+                        let text = format!("{:.1}", temp);
+                        custom_slider(ui, &theme, &mut temp, 0.0..=1.0, 40.0, &text);
+                    },
+                );
+            });
+            setting_row(ui, &theme, "最大迭代次数", "工具调用的上限次数", |ui| {
+                ui.allocate_ui_with_layout(
+                    Vec2::new(248.0, 24.0),
+                    Layout::left_to_right(Align::Center),
+                    |ui| {
+                        let text = format!("{}", iters_f.round() as u32);
+                        custom_slider(ui, &theme, &mut iters_f, 1.0..=20.0, 40.0, &text);
+                    },
+                );
+            });
+        });
+        let new_iters = iters_f.round().clamp(1.0, 20.0) as u32;
+        if (temp - app.settings.temperature).abs() > f32::EPSILON {
+            app.settings.temperature = temp;
+            settings_changed = true;
+        }
+        if new_iters != app.settings.max_tool_iterations {
+            app.settings.max_tool_iterations = new_iters;
+            settings_changed = true;
+        }
+
+        ui.add_space(16.0);
+
+        // -----------------------------------------------------------------
+        // 隐私
+        // -----------------------------------------------------------------
+        let mut privacy = app.settings.privacy_enabled;
+        let audit_id = egui::Id::new("settings_audit_logging");
+        let mut audit: bool = ui
+            .ctx()
+            .memory(|m| m.data.get_temp::<bool>(audit_id).unwrap_or(true));
+        glass_card(ui, &theme, |ui| {
+            panel_title(ui, &theme, "隐私");
+            setting_row(
+                ui,
+                &theme,
+                "PII 脱敏",
+                "敏感字段（监护人电话、API Key）使用 AES-256-GCM 加密落盘",
+                |ui| {
+                    toggle_switch(ui, &theme, &mut privacy);
+                },
+            );
+            setting_row(
+                ui,
+                &theme,
+                "审计日志",
+                "记录安全敏感操作到本地 audit.log",
+                |ui| {
+                    toggle_switch(ui, &theme, &mut audit);
+                },
+            );
+        });
+        if privacy != app.settings.privacy_enabled {
+            app.settings.privacy_enabled = privacy;
+            settings_changed = true;
+        }
+        ui.ctx()
+            .memory_mut(|m| m.data.insert_temp(audit_id, audit));
+
+        ui.add_space(16.0);
+
+        // -----------------------------------------------------------------
+        // 当前模型
+        // -----------------------------------------------------------------
+        let providers = app.providers.read().clone();
+        let enabled: Vec<_> = providers.into_iter().filter(|p| p.enabled).collect();
+        let mut item_names = vec!["—".to_string()];
+        item_names.extend(enabled.iter().map(|p| p.name.clone()));
+        let items: Vec<&str> = item_names.iter().map(|s| s.as_str()).collect();
+        let selected_idx = app.settings.active_provider_id.as_ref().and_then(|id| {
+            enabled.iter().position(|p| p.id == *id).map(|i| i + 1)
+        });
+        let selected_text = match selected_idx {
+            Some(i) => items[i],
+            None => "—",
+        };
+        let mut new_idx: Option<usize> = None;
+        glass_card(ui, &theme, |ui| {
+            panel_title(ui, &theme, "当前模型");
+            setting_row(ui, &theme, "当前使用模型", "选择默认调用的 LLM 提供商", |ui| {
+                ui.allocate_ui_with_layout(
+                    Vec2::new(240.0, 34.0),
+                    Layout::left_to_right(Align::Center),
+                    |ui| {
+                        let (icon_rect, _) =
+                            ui.allocate_exact_size(Vec2::splat(24.0), Sense::hover());
+                        icons::robot_icon(ui.painter(), icon_rect, &theme);
+                        ui.add_space(6.0);
+                        if let Some(idx) =
+                            dropdown_select(ui, &theme, "active_provider", selected_text, &items)
+                        {
+                            new_idx = Some(idx);
+                        }
+                    },
+                );
+            });
+        });
+        if let Some(idx) = new_idx {
+            let new_selected = if idx == 0 {
+                None
+            } else {
+                Some(enabled[idx - 1].id.clone())
+            };
+            if new_selected != app.settings.active_provider_id {
+                app.settings.active_provider_id = new_selected;
+                settings_changed = true;
+            }
+        }
+
+        ui.add_space(16.0);
+
+        // -----------------------------------------------------------------
+        // LLM 提供商
+        // -----------------------------------------------------------------
         glass_card(ui, &app.theme, |ui| {
             ui.horizontal(|ui| {
-                section_title(ui, &app.theme, "LLM 提供商");
+                panel_title(ui, &app.theme, "LLM 提供商");
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if primary_button(ui, &app.theme, "新增").clicked() {
                         app.ui_state.editing_provider = Some(LlmProvider {
@@ -231,7 +228,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             for p in &providers {
                 ui.horizontal(|ui| {
                     let dot = if p.enabled { app.theme.success } else { app.theme.text_faint };
-                    let (r, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
+                    let (r, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), Sense::hover());
                     ui.painter().circle_filled(r.center(), 4.0, dot);
                     ui.vertical(|ui| {
                         ui.label(egui::RichText::new(&p.name).font(FontId::proportional(13.0)).color(app.theme.text));
@@ -246,7 +243,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                             app.ui_state.editing_provider = Some(p.clone());
                         }
                         if ghost_button(ui, &app.theme, "删除").clicked() {
-                            let _ = app.runtime.tx.send(crate::runtime::Command::DeleteProvider(p.id.clone()));
+                            let _ = app
+                                .runtime
+                                .tx
+                                .send(crate::runtime::Command::DeleteProvider(p.id.clone()));
                         }
                     });
                 });
@@ -254,11 +254,13 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             }
         });
 
-        ui.add_space(8.0);
+        ui.add_space(16.0);
 
-        // about
+        // -----------------------------------------------------------------
+        // 关于
+        // -----------------------------------------------------------------
         glass_card(ui, &app.theme, |ui| {
-            section_title(ui, &app.theme, "关于");
+            panel_title(ui, &app.theme, "关于");
             ui.label(egui::RichText::new(format!("Education Advisor v{}", env!("CARGO_PKG_VERSION"))).font(FontId::proportional(13.0)).color(app.theme.text));
             ui.label(
                 egui::RichText::new("纯 Rust + egui 商业级教育管理桌面应用 · 18 AI 代理 · AES-256-GCM 隐私引擎")
@@ -280,15 +282,17 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             });
         });
 
-        ui.add_space(8.0);
+        ui.add_space(16.0);
 
-        // backup / restore — pull the theme out so the closure can mutably
+        // -----------------------------------------------------------------
+        // 数据备份 / 恢复 — pull the theme out so the closure can mutably
         // borrow `app` for the runtime sends. (Capturing `&app.theme` and
         // `&mut app` in the same closure is rejected by the borrow checker.)
+        // -----------------------------------------------------------------
         let backup_theme = app.theme.clone();
         let app_theme = app.theme.clone();
         glass_card(ui, &backup_theme, |ui| {
-            section_title(ui, &backup_theme, "数据备份 / 恢复");
+            panel_title(ui, &backup_theme, "数据备份 / 恢复");
             ui.label(
                 egui::RichText::new("导出会生成一个 JSON 快照，包含所有学生、成绩、会话、任务、知识库。加密字段以密文形式保存（只能在同一台机器上用同一助记词恢复）。")
                     .font(FontId::proportional(11.0))
@@ -336,7 +340,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             Vec2::new(ui.available_width(), 64.0),
             Layout::right_to_left(Align::Center),
             |ui| {
-                if fab_button(ui, &theme, "保存设置").clicked() {
+                if fab_button(ui, &theme, "保存偏好").clicked() {
                     let _ = app
                         .runtime
                         .tx

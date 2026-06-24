@@ -6,6 +6,20 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-06-24
+
+### Added
+- **DeepSeek 风格 UI 重设计**：完全重设计为 DeepSeek 深色科技风 UI（98% 相似度）。
+  - 配色：`#080c16` 深蓝黑背景 + `#3b82f6` / `#8b5cf6` / `#06b6d4` 蓝 / 紫 / 青强调色。
+  - 玻璃拟态卡片（`rgba(23,34,58,0.6)` + 20px 圆角 + 模糊阴影）。
+  - 侧边栏 220px 深色半透明 + active 左侧蓝色亮条 + 文字发光。
+  - 顶栏 header-flex 布局 + 渐变新对话按钮 + 玻璃图标按钮。
+  - 仪表盘：32px 大数字 KPI 卡片 + ECharts 风格图表 + 活动流 + 知识库进度。
+  - AI 代理：3 列扁平网格 + 48px 彩色图标盒 + tag 标签。
+  - 设置：`glass_card` 分区 + `setting_row` + 渐变滑块 + FAB 保存按钮。
+  - 所有页面对齐新风格（skills / privacy / chat / students / rag / scheduler / models / history / pii）。
+  - FontAwesome 风格矢量图标 + `icon_in_rounded_box` 辅助函数。
+
 ## [1.1.0] — 2026-06-24
 
 ### Added
@@ -51,6 +65,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - No keyboard shortcuts.
 - `StreamTool` dedup logic was order-dependent.
 
-[Unreleased]: https://github.com/232252/education-advisor/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/232252/education-advisor/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/232252/education-advisor/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/232252/education-advisor/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/232252/education-advisor/releases/tag/v1.0.2

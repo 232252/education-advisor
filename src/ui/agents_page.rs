@@ -1,59 +1,186 @@
-//! Agents page: grid of all 18 agents with capability radar and quick chat.
+//! Agents page: flat 3-column grid of all agents with colored icon-wraps,
+//! matching the DeepSeek-style dark sci-fi reference. Each card shows a 48 px
+//! tinted icon box, a 16 px bold name (with an optional "New" pill), a 13 px
+//! description and an `agent_tag` pill. A capability radar chart for the
+//! active agent sits below the grid inside a glass card.
 
 use eframe::egui::{
     self, Align, Color32, FontId, Layout, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2,
 };
 
+use crate::agents::AgentDef;
 use crate::app::App;
 use crate::theme::Theme;
 use crate::ui::icons;
-use crate::ui::widgets::{badge, glass_card, group_header, hover_lift_card, section_title};
-use crate::agents::AgentDef;
+use crate::ui::widgets::{agent_tag, glass_card, hover_lift_card, panel_title};
+
+/// Per-agent visual identity: icon stroke color, the theme-icon painter, the
+/// tag label shown at the bottom of the card and whether to render a "New"
+/// pill next to the name.
+struct AgentStyle {
+    color: Color32,
+    icon: fn(&eframe::egui::Painter, Rect, &Theme),
+    tag: &'static str,
+    is_new: bool,
+}
+
+fn agent_style(agent: &AgentDef) -> AgentStyle {
+    let blue = Color32::from_rgb(59, 130, 246);
+    let orange = Color32::from_rgb(249, 115, 22);
+    let green = Color32::from_rgb(16, 185, 129);
+    let purple = Color32::from_rgb(168, 85, 247);
+    let cyan = Color32::from_rgb(6, 182, 212);
+    let yellow = Color32::from_rgb(234, 179, 8);
+    let pink = Color32::from_rgb(236, 72, 153);
+    let red = Color32::from_rgb(239, 68, 68);
+    match agent.id {
+        "governor" => AgentStyle {
+            color: blue,
+            icon: icons::gem,
+            tag: "统一调度",
+            is_new: true,
+        },
+        "supervisor" => AgentStyle {
+            color: orange,
+            icon: icons::chalkboard,
+            tag: "教学质量",
+            is_new: false,
+        },
+        "validator" => AgentStyle {
+            color: green,
+            icon: icons::robot,
+            tag: "AI 验证",
+            is_new: false,
+        },
+        "psychology" => AgentStyle {
+            color: purple,
+            icon: icons::heart,
+            tag: "心理健康",
+            is_new: false,
+        },
+        "home_school" => AgentStyle {
+            color: cyan,
+            icon: icons::school,
+            tag: "家校共育",
+            is_new: false,
+        },
+        "safety" => AgentStyle {
+            color: yellow,
+            icon: icons::shield,
+            tag: "校园安全",
+            is_new: false,
+        },
+        "academic" => AgentStyle {
+            color: blue,
+            icon: icons::rag,
+            tag: "学业分析",
+            is_new: false,
+        },
+        "counselor" => AgentStyle {
+            color: pink,
+            icon: icons::heart,
+            tag: "学生辅导",
+            is_new: false,
+        },
+        "discipline-officer" => AgentStyle {
+            color: red,
+            icon: icons::shield,
+            tag: "纪律管理",
+            is_new: false,
+        },
+        "risk-alert" => AgentStyle {
+            color: red,
+            icon: icons::bolt,
+            tag: "风险预警",
+            is_new: false,
+        },
+        "data-analyst" => AgentStyle {
+            color: cyan,
+            icon: icons::chart_pie,
+            tag: "数据洞察",
+            is_new: false,
+        },
+        "weekly-reporter" => AgentStyle {
+            color: purple,
+            icon: icons::message,
+            tag: "周报摘要",
+            is_new: false,
+        },
+        "class-monitor" => AgentStyle {
+            color: orange,
+            icon: icons::students,
+            tag: "班级事务",
+            is_new: false,
+        },
+        "research" => AgentStyle {
+            color: blue,
+            icon: icons::brain,
+            tag: "教学研究",
+            is_new: false,
+        },
+        "student-care" => AgentStyle {
+            color: green,
+            icon: icons::heart,
+            tag: "学生关怀",
+            is_new: false,
+        },
+        "bug-hunter" => AgentStyle {
+            color: yellow,
+            icon: icons::bolt,
+            tag: "问题追踪",
+            is_new: false,
+        },
+        "executor" => AgentStyle {
+            color: blue,
+            icon: icons::robot,
+            tag: "任务执行",
+            is_new: false,
+        },
+        _ => AgentStyle {
+            color: blue,
+            icon: icons::agent,
+            tag: "核心调度",
+            is_new: false,
+        },
+    }
+}
 
 pub fn show(app: &mut App, ui: &mut Ui) {
-    section_title(ui, &app.theme, "AI 代理");
-
-    ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new("18 个专业代理协同工作，覆盖教育管理全场景")
-                .font(FontId::proportional(12.0))
-                .color(app.theme.text_dim),
-        );
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            ui.label(
-                egui::RichText::new(format!("当前活跃: {}", active_name(app)))
-                    .font(FontId::proportional(12.0))
-                    .color(app.theme.accent),
-            );
-        });
-    });
-
-    ui.add_space(8.0);
+    // The topbar already renders the page title ("AI 代理") and subtitle, so we
+    // skip the header-flex here and go straight to the agent grid.
 
     let agents = crate::agents::all_agents();
+
     egui::ScrollArea::vertical().show(ui, |ui| {
-        let mut teaching: Vec<&AgentDef> = Vec::new();
-        let mut safety: Vec<&AgentDef> = Vec::new();
-        let mut admin: Vec<&AgentDef> = Vec::new();
-        for a in agents {
-            let (group, _) = agent_group(a, &app.theme);
-            match group {
-                "教学" => teaching.push(a),
-                "安全" => safety.push(a),
-                _ => admin.push(a),
-            }
+        // Responsive column count: 3 cols by default, 2 when narrow, 1 when
+        // very narrow — mirrors the reference media queries.
+        let avail = ui.available_width();
+        let cols = if avail >= 720.0 {
+            3
+        } else if avail >= 420.0 {
+            2
+        } else {
+            1
+        };
+        let gap = 16.0;
+        let col_w = ((avail - gap * (cols - 1) as f32) / cols as f32).max(160.0);
+
+        for chunk in agents.chunks(cols) {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = Vec2::new(gap, gap);
+                for agent in chunk {
+                    agent_card(app, ui, agent, col_w);
+                }
+            });
+            ui.add_space(gap);
         }
 
-        render_group(app, ui, "教学", app.theme.gradient_purple, &teaching);
-        ui.add_space(24.0);
-        render_group(app, ui, "安全", app.theme.danger, &safety);
-        ui.add_space(24.0);
-        render_group(app, ui, "行政", app.theme.gradient_cyan, &admin);
-
-        ui.add_space(8.0);
-        // capability radar for active agent
+        // Capability radar for the active agent, wrapped in a glass card.
         if let Some(a) = crate::agents::find(&app.active_agent) {
+            ui.add_space(8.0);
             glass_card(ui, &app.theme, |ui| {
+                panel_title(ui, &app.theme, "能力画像");
+                ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     let avatar_rect = Rect::from_min_size(
                         Pos2::new(ui.cursor().left(), ui.cursor().center().y - 14.0),
@@ -78,7 +205,6 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 });
                 ui.add_space(4.0);
                 let axes = ["专业度", "响应", "共情", "严谨", "效率", "协作"];
-                // deterministic pseudo-values from agent id hash
                 let hash = hash_str(a.id);
                 let values: Vec<f32> = (0..6)
                     .map(|i| {
@@ -87,179 +213,168 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     })
                     .collect();
                 let color = Color32::from_rgb(a.color[0], a.color[1], a.color[2]);
-                crate::charts::radar_chart(
-                    ui,
-                    &app.theme,
-                    "能力画像",
-                    &axes,
-                    &values,
-                    color,
-                    220.0,
-                );
+                crate::charts::radar_chart(ui, &app.theme, "", &axes, &values, color, 220.0);
             });
         }
     });
 }
 
-fn active_name(app: &App) -> &str {
-    crate::agents::find(&app.active_agent).map_or("—", |a| a.name)
-}
-
-/// Returns the function group for an agent and its representative theme color.
-fn agent_group(agent: &AgentDef, theme: &Theme) -> (&'static str, Color32) {
-    let id = agent.id;
-    let cat = agent.category;
-    if cat.contains("教学")
-        || id == "academic"
-        || id == "curriculum"
-        || id == "assessment"
-        || id == "counseling"
-        || id == "counselor"
-        || id == "psychology"
-        || id == "research"
-    {
-        ("教学", theme.gradient_purple)
-    } else if cat.contains("安全")
-        || id == "attendance"
-        || id == "discipline"
-        || id == "discipline-officer"
-        || id == "safety"
-        || id == "risk-alert"
-        || id == "class-monitor"
-    {
-        ("安全", theme.danger)
-    } else {
-        ("行政", theme.gradient_cyan)
-    }
-}
-
-fn render_group(
-    app: &mut App,
-    ui: &mut Ui,
-    title: &'static str,
-    color: Color32,
-    agents: &[&AgentDef],
-) {
-    group_header(ui, &app.theme, color, title, &format!("{} 个", agents.len()));
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing = Vec2::new(14.0, 14.0);
-        for agent in agents {
-            let (group, _) = agent_group(agent, &app.theme);
-            agent_card(app, ui, agent, group, color);
-        }
-    });
-}
-
-fn agent_card(app: &mut App, ui: &mut Ui, agent: &AgentDef, group: &'static str, color: Color32) {
+fn agent_card(app: &mut App, ui: &mut Ui, agent: &AgentDef, width: f32) {
     let active = app.active_agent == agent.id;
     let theme = &app.theme;
-    let (top, bottom) = group_gradient_colors(group, color, theme);
+    let style = agent_style(agent);
 
     let resp = ui
         .allocate_ui_with_layout(
-            Vec2::new(200.0_f32.min(ui.available_width()), 138.0),
+            Vec2::new(width, 200.0),
             Layout::top_down(Align::LEFT),
             |ui| {
                 hover_lift_card(ui, theme, 1.0, |ui| {
-                    let content = ui.max_rect();
-                    ui.spacing_mut().item_spacing = Vec2::ZERO;
+                    // 12 px vertical gap between card children (matches
+                    // reference `gap: 12px`).
+                    ui.spacing_mut().item_spacing.y = 12.0;
 
-                    // Top row: gradient avatar on the left, group pill on the right.
+                    // 48 px icon-wrap: tinted rounded box + colored glyph.
+                    render_icon_wrap(ui, theme, &style);
+
+                    // Name (16 px / 600) with optional "New" pill.
                     ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing = Vec2::ZERO;
-                        let (avatar_rect, _) =
-                            ui.allocate_exact_size(Vec2::splat(44.0), Sense::hover());
-                        icons::gradient_avatar(
-                            ui.painter(),
-                            avatar_rect,
-                            top,
-                            bottom,
-                            agent.name,
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        ui.label(
+                            egui::RichText::new(agent.name)
+                                .font(FontId::proportional(16.0))
+                                .strong()
+                                .color(theme.text),
                         );
-                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            badge(ui, theme, group, color);
-                        });
+                        if style.is_new {
+                            new_badge(ui);
+                        }
                     });
 
-                    ui.add_space(8.0);
-                    ui.label(
-                        egui::RichText::new(agent.name)
-                            .font(FontId::proportional(14.0))
-                            .strong()
-                            .color(theme.text),
-                    );
-                    ui.add_space(2.0);
-                    let desc = crate::util::truncate(agent.description, 22);
+                    // Description (13 px, #94a3b8), wraps to 2 lines.
                     ui.add(
                         egui::Label::new(
-                            egui::RichText::new(desc)
-                                .font(FontId::proportional(11.0))
+                            egui::RichText::new(agent.description)
+                                .font(FontId::proportional(13.0))
                                 .color(theme.text_dim),
                         )
-                        .wrap(false),
+                        .wrap(true),
                     );
-                    ui.add_space(10.0);
 
-                    // Bottom colored strip.
-                    let (strip_rect, _) =
-                        ui.allocate_exact_size(Vec2::new(content.width(), 3.0), Sense::hover());
-                    ui.painter()
-                        .rect_filled(strip_rect, Rounding::same(1.5), color);
-
-                    // Active / default border.
-                    let card_rect = content.expand(16.0);
-                    let stroke = if active {
-                        Stroke::new(1.5, theme.accent)
-                    } else {
-                        Stroke::new(1.0, theme.border)
-                    };
-                    ui.painter()
-                        .rect_stroke(card_rect, Rounding::same(16.0), stroke);
+                    // Category tag pill.
+                    agent_tag(ui, theme, style.tag);
                 })
             },
         )
         .inner;
 
+    // Active-card accent border drawn on top of the hairline border.
+    if active {
+        ui.painter().rect_stroke(
+            resp.rect,
+            Rounding::same(20.0),
+            Stroke::new(2.0, theme.accent),
+        );
+    }
+
     if resp.clicked() {
         app.active_agent = agent.id.to_string();
     }
-    // Bug #15 — 之前 `!resp.clicked()` 把双击分支给屏蔽了，导致双击
-    // 永远不进入对话。egui 在双击的第二次按下时同时报告 `clicked()` 与
-    // `double_clicked()`，因此正确做法是优先用 `double_clicked()`。
+    // egui reports both `clicked()` and `double_clicked()` on the second
+    // press of a double-click, so check `double_clicked()` independently.
     if resp.double_clicked() {
-        let student_id = app.selected_student;
-        let title = if let Some(sid) = student_id {
-            let students = app.students.read();
-            let name = students
-                .iter()
-                .find(|s| s.id == sid)
-                .map_or("", |s| s.name.as_str());
-            if name.is_empty() {
-                format!("与 {} 对话", agent.name)
-            } else {
-                format!("{} · {}", name, agent.name)
-            }
-        } else {
-            format!("与 {} 对话", agent.name)
-        };
-        let _ = app
-            .runtime
-            .tx
-            .send(crate::runtime::Command::NewConversation {
-                agent_id: agent.id.to_string(),
-                student_id,
-                title,
-            });
-        app.navigate(crate::app::Page::Chat);
+        open_chat(app, agent);
     }
 }
 
-fn group_gradient_colors(group: &'static str, _color: Color32, theme: &Theme) -> (Color32, Color32) {
-    match group {
-        "教学" => (theme.gradient_purple, theme.purple),
-        "安全" => (theme.danger, Color32::from_rgb(255, 100, 50)),
-        _ => (theme.gradient_cyan, theme.info),
-    }
+/// Draw the 48 px rounded icon container (radius 16 px) with a 10 %-alpha
+/// tinted background and the agent's themed glyph centered inside.
+fn render_icon_wrap(ui: &mut Ui, theme: &Theme, style: &AgentStyle) {
+    let size = 48.0;
+    let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
+    let bg = tint(style.color, 0.1);
+    ui.painter().rect_filled(rect, Rounding::same(16.0), bg);
+    // Theme icons pick their own colors from the theme, so we clone the theme
+    // and override the relevant accent fields to the agent's signature color.
+    let icon_theme = themed_for_color(theme, style.color);
+    (style.icon)(ui.painter(), rect, &icon_theme);
+}
+
+/// Small blue "New" pill: 10 px white text on #3b82f6, radius 10 px.
+fn new_badge(ui: &mut Ui) {
+    let galley = ui.painter().layout(
+        "New".to_string(),
+        FontId::proportional(10.0),
+        Color32::WHITE,
+        f32::INFINITY,
+    );
+    let pad = Vec2::new(6.0, 2.0);
+    let size = galley.size() + pad * 2.0;
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    ui.painter()
+        .rect_filled(rect, Rounding::same(10.0), Color32::from_rgb(59, 130, 246));
+    ui.painter().galley(
+        Pos2::new(
+            rect.center().x - galley.size().x / 2.0,
+            rect.center().y - galley.size().y / 2.0,
+        ),
+        galley,
+        Color32::WHITE,
+    );
+}
+
+fn open_chat(app: &mut App, agent: &AgentDef) {
+    let student_id = app.selected_student;
+    let title = if let Some(sid) = student_id {
+        let students = app.students.read();
+        let name = students
+            .iter()
+            .find(|s| s.id == sid)
+            .map_or("", |s| s.name.as_str());
+        if name.is_empty() {
+            format!("与 {} 对话", agent.name)
+        } else {
+            format!("{} · {}", name, agent.name)
+        }
+    } else {
+        format!("与 {} 对话", agent.name)
+    };
+    let _ = app
+        .runtime
+        .tx
+        .send(crate::runtime::Command::NewConversation {
+            agent_id: agent.id.to_string(),
+            student_id,
+            title,
+        });
+    app.navigate(crate::app::Page::Chat);
+}
+
+/// Premultiplied-alpha tint of `color` at the given opacity (0..1).
+fn tint(color: Color32, alpha: f32) -> Color32 {
+    Color32::from_rgba_premultiplied(
+        (color.r() as f32 * alpha) as u8,
+        (color.g() as f32 * alpha) as u8,
+        (color.b() as f32 * alpha) as u8,
+        (255.0 * alpha) as u8,
+    )
+}
+
+/// Clone the theme with all accent fields overridden to `color` so that any
+/// theme-icon painter renders in the agent's signature hue.
+fn themed_for_color(theme: &Theme, color: Color32) -> Theme {
+    let mut t = theme.clone();
+    t.text_dim = color;
+    t.accent = color;
+    t.accent_dim = tint(color, 0.15);
+    t.cyan = color;
+    t.pink = color;
+    t.success = color;
+    t.success_dim = tint(color, 0.15);
+    t.purple = color;
+    t.warning = color;
+    t.border_strong = color;
+    t
 }
 
 fn hash_str(s: &str) -> u64 {

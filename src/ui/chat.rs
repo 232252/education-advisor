@@ -8,14 +8,15 @@ use uuid::Uuid;
 
 use crate::app::App;
 use crate::models::{Message, Role, ToolStatus};
+use crate::theme::Theme;
 use crate::ui::icons;
 use crate::ui::widgets::{
-    card, empty_state, ghost_button, primary_button, search_input, section_title,
+    empty_state, ghost_button, glass_card, panel_title, primary_button, search_input,
 };
 
 pub fn show(app: &mut App, ui: &mut Ui) {
     let theme = app.theme.clone();
-    section_title(ui, &theme, "对话");
+    panel_title(ui, &theme, "对话");
 
     let avail = ui.available_width();
     let list_w = 280.0_f32.min(avail * 0.30);
@@ -27,7 +28,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         ui.vertical(|ui| {
             ui.set_min_width(list_w);
             ui.set_max_width(list_w);
-            card(ui, &theme, |ui| {
+            glass_card(ui, &theme, |ui| {
                 // Header with new button
                 ui.horizontal(|ui| {
                     ui.label(
@@ -73,7 +74,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             ui.set_min_width(ui.available_width());
             let sel = app.selected_conversation;
             let Some(conv_id) = sel else {
-                card(ui, &theme, |ui| {
+                glass_card(ui, &theme, |ui| {
                     empty_state(ui, &theme, icons::chat, "选择左侧会话或新建对话");
                 });
                 return;
@@ -208,7 +209,7 @@ fn chat_view(app: &mut App, ui: &mut Ui, conv_id: Uuid) {
     // 不会调 chat_view），所以不会和全局其它 Enter 行为冲突。
     let input_had_focus_at_entry = app.ui_state.chat_input_focused;
 
-    card(ui, &theme, |ui| {
+    glass_card(ui, &theme, |ui| {
         ui.vertical(|ui| {
             // ── Header ──
             ui.horizontal(|ui| {
@@ -427,7 +428,6 @@ fn message_bubble(app: &App, ui: &mut Ui, m: &Message) {
 
 fn bubble(app: &App, ui: &mut Ui, m: &Message, max_w: f32, is_user: bool) {
     let theme = &app.theme;
-    let bg = if is_user { theme.accent } else { theme.surface };
     let text_color = if is_user { Color32::WHITE } else { theme.text };
 
     let galley = ui.painter().layout(
@@ -440,15 +440,27 @@ fn bubble(app: &App, ui: &mut Ui, m: &Message, max_w: f32, is_user: bool) {
     let size = galley.size() + pad * 2.0;
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
 
-    // Shadow for assistant bubbles
-    if !is_user {
+    if is_user {
+        // User messages: blue→purple gradient bubble (right-aligned).
+        paint_gradient_rounded(
+            ui,
+            rect,
+            14.0,
+            theme.gradient_primary_from,
+            theme.gradient_primary_to,
+        );
+    } else {
+        // AI messages: glass card bubble (left-aligned) with hairline border.
         ui.painter().rect_filled(
             rect.translate(Vec2::new(0.0, 2.0)),
             Rounding::same(14.0),
             Color32::from_rgba_premultiplied(0, 0, 0, 30),
         );
+        ui.painter()
+            .rect_filled(rect, Rounding::same(14.0), theme.surface);
+        ui.painter()
+            .rect_stroke(rect, Rounding::same(14.0), Stroke::new(1.0, theme.border));
     }
-    ui.painter().rect_filled(rect, Rounding::same(14.0), bg);
     ui.painter().galley(
         Pos2::new(rect.min.x + pad.x, rect.min.y + pad.y),
         galley,
@@ -587,5 +599,50 @@ fn tool_row(app: &App, ui: &mut Ui, tc: &crate::models::ToolCallRecord) {
                     .color(theme.text_dim),
             );
         });
+    }
+}
+
+/// Paint a vertical gradient inside a rounded rectangle by drawing thin
+/// horizontal strips. Used for the blue→purple user message bubbles.
+fn paint_gradient_rounded(
+    ui: &mut Ui,
+    rect: Rect,
+    rounding: f32,
+    top: Color32,
+    bottom: Color32,
+) {
+    if rect.width() <= 0.0 || rect.height() <= 0.0 {
+        return;
+    }
+    let r = rounding.min(rect.height() / 2.0);
+    // Base mid-tone to avoid gaps between strips.
+    ui.painter()
+        .rect_filled(rect, Rounding::same(r), Theme::lerp(top, bottom, 0.5));
+    let steps = 12;
+    for i in 0..steps {
+        let t0 = i as f32 / steps as f32;
+        let t1 = (i + 1) as f32 / steps as f32;
+        let y0 = rect.min.y + t0 * rect.height();
+        let y1 = rect.min.y + t1 * rect.height();
+        let strip = Rect::from_min_max(Pos2::new(rect.min.x, y0), Pos2::new(rect.max.x, y1));
+        let color = Theme::lerp(top, bottom, (t0 + t1) / 2.0);
+        let round = if i == 0 {
+            Rounding {
+                nw: r,
+                ne: r,
+                sw: 0.0,
+                se: 0.0,
+            }
+        } else if i == steps - 1 {
+            Rounding {
+                nw: 0.0,
+                ne: 0.0,
+                sw: r,
+                se: r,
+            }
+        } else {
+            Rounding::ZERO
+        };
+        ui.painter().rect_filled(strip, round, color);
     }
 }

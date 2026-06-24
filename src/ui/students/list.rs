@@ -7,7 +7,7 @@ use eframe::egui::{
 
 use crate::app::App;
 use crate::models::Student;
-use crate::ui::widgets::{card, empty_state, search_input};
+use crate::ui::widgets::{empty_state, glass_card, panel_title, search_input};
 
 /// Render the two-column list + detail layout.
 pub fn show(app: &mut App, ui: &mut Ui) {
@@ -15,7 +15,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     // ── Header with title and action bar ──
     ui.horizontal(|ui| {
-        crate::ui::widgets::section_title(ui, &theme, "学生档案");
+        panel_title(ui, &theme, "学生档案");
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.add_space(4.0);
             if crate::ui::widgets::tool_button(ui, &theme, "导出", crate::ui::icons::download)
@@ -55,7 +55,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         // ═══════════════════════════════════════
         ui.vertical(|ui| {
             ui.set_width(list_w);
-            card(ui, &theme, |ui| {
+            glass_card(ui, &theme, |ui| {
                 ui.horizontal(|ui| {
                     let w = ui.available_width();
                     search_input(
@@ -109,7 +109,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             if let Some(student) = student {
                 super::detail::show(app, ui, student);
             } else {
-                card(ui, &theme, |ui| {
+                glass_card(ui, &theme, |ui| {
                     empty_state(
                         ui,
                         &theme,

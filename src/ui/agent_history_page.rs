@@ -7,11 +7,11 @@ use eframe::egui::{
 use crate::app::App;
 use crate::models::{Role, ToolStatus};
 use crate::ui::icons;
-use crate::ui::widgets::{card, empty_state, ghost_button, section_title};
+use crate::ui::widgets::{empty_state, ghost_button, glass_card, panel_title};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
     let theme = app.theme.clone();
-    section_title(ui, &theme, "执行历史");
+    panel_title(ui, &theme, "执行历史");
 
     ui.horizontal(|ui| {
         ui.label(
@@ -33,7 +33,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     let convs = app.conversations.read().clone();
     if convs.is_empty() {
-        card(ui, &theme, |ui| {
+        glass_card(ui, &theme, |ui| {
             empty_state(ui, &theme, icons::history, "暂无执行记录");
         });
         return;
@@ -80,7 +80,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     egui::ScrollArea::vertical().show(ui, |ui| {
         for c in convs.iter().take(end).skip(start) {
-            card(ui, &theme, |ui| {
+            glass_card(ui, &theme, |ui| {
                 ui.horizontal_top(|ui| {
                     let agent = crate::agents::find(&c.agent_id);
                     let avatar_rect = Rect::from_min_size(

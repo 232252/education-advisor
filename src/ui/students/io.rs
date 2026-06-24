@@ -3,7 +3,7 @@
 use eframe::egui::{self, FontId, Ui};
 
 use crate::app::App;
-use crate::ui::widgets::{card, ghost_button, primary_button};
+use crate::ui::widgets::{glass_card, ghost_button, panel_title, primary_button};
 
 /// Render the import / export panels if their respective toggles are on.
 /// (They appear under the header but above the list, hence the
@@ -21,13 +21,8 @@ pub fn show_panels(app: &mut App, ui: &mut Ui) {
 
 fn import(app: &mut App, ui: &mut Ui) {
     let theme = app.theme.clone();
-    card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("批量导入学生")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+    glass_card(ui, &theme, |ui| {
+        panel_title(ui, &theme, "批量导入学生");
         ui.add_space(4.0);
         ui.label(
             egui::RichText::new("CSV 格式: name,gender,grade,class,id_number,risk,gpa")
@@ -61,13 +56,8 @@ fn import(app: &mut App, ui: &mut Ui) {
 
 fn export(app: &mut App, ui: &mut Ui) {
     let theme = app.theme.clone();
-    card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("导出学生数据")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+    glass_card(ui, &theme, |ui| {
+        panel_title(ui, &theme, "导出学生数据");
         ui.horizontal(|ui| {
             ui.radio_value(
                 &mut app.ui_state.export_scope,

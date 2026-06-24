@@ -302,6 +302,7 @@ impl App {
         ctx.request_repaint();
     }
 
+    #[allow(dead_code)]
     pub(crate) fn toggle_theme(&mut self, ctx: &Context) {
         self.settings.theme = match self.settings.theme {
             ThemeMode::Dark => ThemeMode::Light,
@@ -684,36 +685,31 @@ impl eframe::App for App {
             paint_gradient_bg(ctx, &self.theme, &mut self.ui_state);
         }
 
-        // top bar
-        crate::ui::topbar::show(self, ctx);
-
-        // body: sidebar + content
+        // body: sidebar (full height) + topbar + content
         let screen_w = ctx.screen_rect().width();
         let sidebar_t = self.sidebar_anim.value().clamp(0.0, 1.0);
-        let sidebar_width = 56.0 + sidebar_t * (180.0 - 56.0);
+        // DeepSeek reference: 220 px expanded, 64 px collapsed.
+        let sidebar_width = 64.0 + sidebar_t * (220.0 - 64.0);
         egui::SidePanel::left("sidebar")
             .resizable(false)
             .exact_width(sidebar_width.min(screen_w * 0.7))
             .frame(
                 Frame::none()
-                    .fill(self.theme.surface_glass)
-                    .shadow(egui::epaint::Shadow {
-                        offset: Vec2::new(4.0, 0.0),
-                        blur: 24.0,
-                        spread: 0.0,
-                        color: self.theme.shadow,
-                    })
+                    .fill(Color32::from_rgba_premultiplied(8, 12, 22, 204))
                     .inner_margin(Margin::same(0.0)),
             )
             .show(ctx, |ui| {
                 crate::ui::sidebar::show(self, ui);
             });
 
+        // top bar (right of sidebar — matches reference header-flex layout)
+        crate::ui::topbar::show(self, ctx);
+
         egui::CentralPanel::default()
             .frame(
                 Frame::none()
                     .fill(Color32::TRANSPARENT)
-                    .inner_margin(Margin::same(16.0)),
+                    .inner_margin(Margin::symmetric(28.0, 28.0)),
             )
             .show(ctx, |ui| {
                 let alpha = self.page_anim.value();
@@ -776,59 +772,29 @@ impl eframe::App for App {
 fn paint_gradient_bg(ctx: &Context, theme: &Theme, ui_state: &mut crate::ui::UiState) {
     let rect = ctx.screen_rect();
     let painter = ctx.layer_painter(egui::LayerId::background());
-    // Bug #3 — 缓存键：尺寸或主题变 → 重画；否则只画一个混合背景矩形。
+
+    // DeepSeek canvas: solid #080c16.
+    painter.rect_filled(rect, 0.0, theme.bg);
+
+    // Two radial gradient glows matching the reference:
+    // - top-left (10%, 20%) blue rgba(59,130,246,0.15)
+    // - bottom-right (80%, 80%) purple rgba(139,92,246,0.15)
+    let radius = rect.width().min(rect.height()) * 0.55;
+    let blue = Color32::from_rgb(59, 130, 246);
+    let purple = Color32::from_rgb(139, 92, 246);
+    let tl = Pos2::new(rect.min.x + rect.width() * 0.10, rect.min.y + rect.height() * 0.20);
+    let br = Pos2::new(rect.min.x + rect.width() * 0.80, rect.min.y + rect.height() * 0.80);
+    paint_radial_glow(&painter, tl, radius, blue, 38);
+    paint_radial_glow(&painter, br, radius, purple, 38);
+
+    // Bug #3 — keep cache fields in sync (size/theme tracking).
     let key = crate::ui::GradCacheKey {
         w: rect.width() as i32,
         h: rect.height() as i32,
         dark: theme.dark,
     };
-    if ui_state.grad_bg_cache_key != Some(key) {
-        let steps = 16;
-        let h = rect.height();
-        for i in 0..steps {
-            let y0 = h.mul_add(i as f32 / steps as f32, rect.min.y);
-            let y1 = h.mul_add((i + 1) as f32 / steps as f32, rect.min.y);
-            let t = (i as f32 / steps as f32).clamp(0.0, 1.0);
-            let color = Theme::lerp(theme.bg_gradient_from, theme.bg_gradient_to, t);
-            painter.rect_filled(
-                egui::Rect::from_min_max(egui::pos2(rect.min.x, y0), egui::pos2(rect.max.x, y1)),
-                0.0,
-                color,
-            );
-        }
-        ui_state.grad_bg_cache_key = Some(key);
-        ui_state.grad_bg_cache_size = (rect.width(), rect.height());
-    } else {
-        // 命中缓存：只画 2 个大矩形 (顶/底色)，保留视觉一致但成本 < 1% 原开销。
-        let top = theme.bg_gradient_from;
-        let bot = theme.bg_gradient_to;
-        let mid = Theme::lerp(top, bot, 0.5);
-        painter.rect_filled(
-            egui::Rect::from_min_max(rect.min, egui::pos2(rect.max.x, rect.center().y)),
-            0.0,
-            top,
-        );
-        painter.rect_filled(
-            egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.center().y), rect.max),
-            0.0,
-            Theme::lerp(mid, bot, 0.5),
-        );
-    }
-
-    // 叠加淡色弥散光晕，让卡片有“浮在渐变背景上”的层次感。
-    paint_soft_glows(&painter, rect, theme);
-}
-
-fn paint_soft_glows(painter: &egui::Painter, rect: egui::Rect, theme: &Theme) {
-    let glows = [
-        (0.15, 0.22, 260.0, theme.glow_accent, 12),
-        (0.82, 0.48, 320.0, theme.glow_purple, 10),
-        (0.25, 0.82, 240.0, theme.glow_cyan, 11),
-    ];
-    for (nx, ny, radius, color, alpha) in glows {
-        let center = Pos2::new(rect.min.x + rect.width() * nx, rect.min.y + rect.height() * ny);
-        paint_radial_glow(painter, center, radius, color, alpha);
-    }
+    ui_state.grad_bg_cache_key = Some(key);
+    ui_state.grad_bg_cache_size = (rect.width(), rect.height());
 }
 
 fn paint_radial_glow(

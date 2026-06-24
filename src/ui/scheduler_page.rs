@@ -7,10 +7,10 @@ use uuid::Uuid;
 use crate::app::App;
 use crate::models::ScheduledTask;
 use crate::ui::icons;
-use crate::ui::widgets::{card, empty_state, ghost_button, primary_button, section_title};
+use crate::ui::widgets::{empty_state, ghost_button, glass_card, panel_title, primary_button};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
-    section_title(ui, &app.theme, "定时任务");
+    panel_title(ui, &app.theme, "定时任务");
 
     ui.horizontal(|ui| {
         ui.label(
@@ -39,7 +39,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     let tasks = app.tasks.read().clone();
     if tasks.is_empty() {
-        card(ui, &app.theme, |ui| {
+        glass_card(ui, &app.theme, |ui| {
             empty_state(ui, &app.theme, icons::scheduler, "暂无定时任务");
         });
     } else {
@@ -57,7 +57,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 }
 
 fn task_row(app: &mut App, ui: &mut Ui, t: &ScheduledTask) {
-    card(ui, &app.theme, |ui| {
+    glass_card(ui, &app.theme, |ui| {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {

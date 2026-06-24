@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::app::App;
 use crate::models::{GradeEntry, RiskLevel, Student};
-use crate::ui::widgets::{badge, card, divider, empty_state, primary_button, text_input};
+use crate::ui::widgets::{badge, divider, empty_state, glass_card, panel_title, primary_button, text_input};
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -30,7 +30,7 @@ fn info_field(ui: &mut Ui, theme: &crate::theme::Theme, label: &str, value: &str
 
 pub fn basic_info(app: &mut App, ui: &mut Ui, student: &Student) {
     let theme = app.theme.clone();
-    card(ui, &theme, |ui| {
+    glass_card(ui, &theme, |ui| {
         egui::Grid::new("basic_info_grid")
             .num_columns(4)
             .spacing(Vec2::new(24.0, 12.0))
@@ -77,12 +77,7 @@ pub fn basic_info(app: &mut App, ui: &mut Ui, student: &Student) {
         ui.add_space(12.0);
 
         // Risk level visualization
-        ui.label(
-            egui::RichText::new("风险等级评估")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+        panel_title(ui, &theme, "风险等级评估");
         ui.add_space(6.0);
         // Bug #6 — 风险等级按钮无响应：
         //   1) 用 `allocate_exact_size(.., Sense::click())` 拿到 `resp`
@@ -160,13 +155,8 @@ pub fn grades(app: &mut App, ui: &mut Ui, student: &Student) {
     }
 
     // Add grade form
-    card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("添加新成绩")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+    glass_card(ui, &theme, |ui| {
+        panel_title(ui, &theme, "添加新成绩");
         ui.add_space(6.0);
         ui.horizontal(|ui| {
             let w = (ui.available_width() - 120.0) / 2.0;
@@ -195,13 +185,8 @@ pub fn grades(app: &mut App, ui: &mut Ui, student: &Student) {
     ui.add_space(10.0);
 
     // Grade list
-    card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("成绩记录")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+    glass_card(ui, &theme, |ui| {
+        panel_title(ui, &theme, "成绩记录");
         ui.add_space(8.0);
 
         if grades.is_empty() {
@@ -285,7 +270,7 @@ pub fn grades(app: &mut App, ui: &mut Ui, student: &Student) {
 
 pub fn family_info(app: &mut App, ui: &mut Ui, student: &Student) {
     let theme = app.theme.clone();
-    card(ui, &theme, |ui| {
+    glass_card(ui, &theme, |ui| {
         egui::Grid::new("family_grid")
             .num_columns(2)
             .spacing(Vec2::new(40.0, 14.0))
@@ -352,13 +337,8 @@ pub fn notes_tags(app: &mut App, ui: &mut Ui, student: &Student) {
     }
 
     // Tags
-    card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("标签")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+    glass_card(ui, &theme, |ui| {
+        panel_title(ui, &theme, "标签");
         ui.add_space(8.0);
         ui.horizontal_wrapped(|ui| {
             if student.tags.is_empty() {
@@ -399,13 +379,8 @@ pub fn notes_tags(app: &mut App, ui: &mut Ui, student: &Student) {
     ui.add_space(10.0);
 
     // Notes — 草稿模式：键入只更新 in-memory 缓存；失焦时再写盘。
-    card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("备注")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+    glass_card(ui, &theme, |ui| {
+        panel_title(ui, &theme, "备注");
         ui.add_space(8.0);
         // 取草稿优先；没有则用当前 student.notes 作为初值。
         app.ui_state

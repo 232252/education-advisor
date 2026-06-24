@@ -1,103 +1,55 @@
-//! Top bar: app title, breadcrumb, theme toggle, quick actions and live status.
+//! Top bar — DeepSeek-style header-flex: page title (h1 26 px / 600) and a
+//! 14 px subtitle on the left, a gradient "新对话" primary button and a glass
+//! bolt icon button on the right. Mirrors the reference HTML header layout.
 
-use eframe::egui::{self, Align, FontId, Layout, Pos2, Stroke, Ui, Vec2};
+use eframe::egui::{self, Align, FontId, Layout, Pos2, Stroke};
 
 use crate::app::{App, Page};
-use crate::theme::Theme;
 use crate::ui::icons;
-use crate::ui::widgets::{glow_button, icon_button, status_pill};
+use crate::ui::widgets::{glass_icon_button_theme, primary_button_with_icon};
 
 pub fn show(app: &mut App, ctx: &egui::Context) {
     egui::TopBottomPanel::top("topbar")
-        .exact_height(60.0)
+        .exact_height(76.0)
         .frame(
             egui::Frame::none()
-                .fill(app.theme.surface_glass)
-                .shadow(egui::epaint::Shadow {
-                    offset: Vec2::new(0.0, 2.0),
-                    blur: 16.0,
-                    spread: 0.0,
-                    color: app.theme.shadow,
-                })
-                .inner_margin(egui::Margin::symmetric(18.0, 0.0)),
+                .fill(egui::Color32::TRANSPARENT)
+                .inner_margin(egui::Margin::symmetric(28.0, 0.0)),
         )
         .show(ctx, |ui| {
             let bar_rect = ui.max_rect();
 
             ui.horizontal(|ui| {
-                ui.add_space(4.0);
-
-                // app title + breadcrumb
-                let (logo_rect, _) =
-                    ui.allocate_exact_size(Vec2::splat(28.0), egui::Sense::hover());
-                icons::dashboard(ui.painter(), logo_rect, &app.theme);
-                ui.add_space(10.0);
+                // ── Left: page title (h1 26 px / 600) + subtitle (14 px, text_dim) ──
                 ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = 2.0;
                     ui.label(
-                        egui::RichText::new("Education Advisor")
-                            .font(FontId::proportional(15.0))
+                        egui::RichText::new(app.page.label())
+                            .font(FontId::proportional(26.0))
                             .strong()
                             .color(app.theme.text),
                     );
                     ui.label(
-                        egui::RichText::new(format!(
-                            "{} / v{}",
-                            app.page.label(),
-                            env!("CARGO_PKG_VERSION")
-                        ))
-                        .font(FontId::proportional(10.0))
-                        .color(app.theme.text_faint),
+                        egui::RichText::new(page_subtitle(app.page))
+                            .font(FontId::proportional(14.0))
+                            .color(app.theme.text_dim),
                     );
                 });
 
-                let (model_label, model_color) = {
-                    let providers = app.providers.read();
-                    if providers.iter().any(|p| p.enabled) {
-                        ("模型在线", app.theme.success)
-                    } else {
-                        ("未配置模型", app.theme.danger)
-                    }
-                };
-                let (privacy_label, privacy_color) = if app.settings.privacy_enabled {
-                    ("隐私保护", app.theme.info)
-                } else {
-                    ("隐私关闭", app.theme.text_faint)
-                };
-
+                // ── Right: 新对话 gradient button + glass bolt button ──
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    // theme toggle
-                    let theme_icon = if app.theme.dark {
-                        icons::sun
-                    } else {
-                        icons::moon
-                    };
-                    if icon_button(ui, &app.theme, theme_icon, 34.0).clicked() {
-                        app.toggle_theme(ctx);
+                    if glass_icon_button_theme(ui, &app.theme, icons::bolt).clicked() {
+                        app.push_toast(crate::runtime::ToastKind::Info, "快速操作已就绪");
                     }
-                    ui.add_space(4.0);
+                    ui.add_space(10.0);
 
-                    // notifications
-                    if icon_button(ui, &app.theme, icons::bell, 34.0).clicked() {
-                        app.push_toast(crate::runtime::ToastKind::Info, "暂无新通知");
-                    }
-                    ui.add_space(4.0);
-
-                    // model status
-                    let _ = status_pill(ui, &app.theme, model_label, model_color);
-                    ui.add_space(4.0);
-
-                    // privacy status
-                    let _ = status_pill(ui, &app.theme, privacy_label, privacy_color);
-                    ui.add_space(8.0);
-
-                    // new chat
-                    if glow_button(ui, &app.theme, "新对话").clicked() {
+                    if primary_button_with_icon(ui, &app.theme, "新对话", icons::message).clicked() {
                         new_conversation(app);
                     }
                 });
             });
 
-            // subtle bottom border
+            // subtle bottom hairline border (matches sidebar right border).
             ui.painter().line_segment(
                 [
                     Pos2::new(bar_rect.min.x, bar_rect.max.y - 0.5),
@@ -106,6 +58,23 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                 Stroke::new(1.0, app.theme.border),
             );
         });
+}
+
+/// Page-specific subtitle shown under the title in the header.
+fn page_subtitle(page: Page) -> &'static str {
+    match page {
+        Page::Dashboard => "智能教育管理平台",
+        Page::Chat => "与 AI 代理进行智能对话",
+        Page::Students => "管理学生档案与学情数据",
+        Page::Agents => "配置与调度 AI 代理",
+        Page::AgentHistory => "查看代理执行记录",
+        Page::Models => "管理 LLM 模型提供商",
+        Page::Skills => "为代理装配工具技能",
+        Page::Scheduler => "编排定时任务",
+        Page::Rag => "知识库与检索增强",
+        Page::Privacy => "PII 脱敏与隐私保护",
+        Page::Settings => "应用偏好与系统设置",
+    }
 }
 
 fn new_conversation(app: &mut App) {
@@ -119,11 +88,4 @@ fn new_conversation(app: &mut App) {
             title,
         });
     app.navigate(Page::Chat);
-}
-
-#[allow(dead_code)]
-fn separator_dot(ui: &mut Ui, theme: &Theme) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::splat(4.0), egui::Sense::hover());
-    ui.painter()
-        .circle_filled(rect.center(), 2.0, theme.text_faint);
 }

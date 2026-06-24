@@ -13,11 +13,11 @@ use crate::app::App;
 use crate::embedding::{self, SearchHit};
 use crate::models::{RagChunk, RagDocument};
 use crate::ui::widgets::{
-    card, empty_state, ghost_button, primary_button, search_input, section_title,
+    empty_state, ghost_button, glass_card, panel_title, primary_button, search_input,
 };
 
 pub fn show(app: &mut App, ui: &mut Ui) {
-    section_title(ui, &app.theme, "本地知识库");
+    panel_title(ui, &app.theme, "本地知识库");
 
     // drag-and-drop: accept text files dropped onto the page.
     if let Some(paths) = ui
@@ -60,7 +60,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     // search box
     let theme = app.theme.clone();
-    card(ui, &theme, |ui| {
+    glass_card(ui, &theme, |ui| {
         ui.horizontal(|ui| {
             let search_w = ui.available_width() - 86.0;
             let _ = search_input(
@@ -87,8 +87,8 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     // results heatmap
     if !app.ui_state.rag_results.is_empty() {
-        card(ui, &app.theme, |ui| {
-            section_title(ui, &app.theme, "检索命中热度");
+        glass_card(ui, &app.theme, |ui| {
+            panel_title(ui, &app.theme, "检索命中热度");
             for (doc_id, _chunk_id, score, text) in &app.ui_state.rag_results {
                 let doc_title = docs
                     .iter()
@@ -130,7 +130,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     // document list
     if docs.is_empty() {
-        card(ui, &app.theme, |ui| {
+        glass_card(ui, &app.theme, |ui| {
             empty_state(
                 ui,
                 &app.theme,
@@ -142,7 +142,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         egui::ScrollArea::vertical().show(ui, |ui| {
             for d in &docs {
                 let needs_reindex = d.chunks.iter().any(|c| c.embedding.is_empty());
-                card(ui, &app.theme, |ui| {
+                glass_card(ui, &app.theme, |ui| {
                     ui.horizontal_top(|ui| {
                         ui.vertical(|ui| {
                             ui.label(
