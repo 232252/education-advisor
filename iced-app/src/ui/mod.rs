@@ -5,14 +5,18 @@ use uuid::Uuid;
 
 use crate::models::{GradeEntry, LlmProvider, ScheduledTask, Student};
 
+pub mod adaptive;
 pub mod agent_history_page;
 pub mod agents_page;
 pub mod chat;
+pub mod components;
 pub mod dashboard;
+pub mod icons;
 pub mod models_page;
 pub mod pii_dialog;
 pub mod privacy_page;
 pub mod rag_page;
+pub mod responsive;
 pub mod scheduler_page;
 pub mod settings_page;
 pub mod sidebar;
