@@ -275,7 +275,7 @@ fn detect_macos_light() -> Option<bool> {
 fn detect_linux_light() -> Option<bool> {
     use std::fs;
     // Try gtk-3 first.
-    if let Some(home) = dirs::ConfigDir() {
+    if let Some(home) = dirs::config_dir() {
         let p = home.join("gtk-3.0").join("settings.ini");
         if let Ok(s) = fs::read_to_string(&p) {
             for line in s.lines() {
