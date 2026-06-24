@@ -379,10 +379,10 @@ pub fn sliders(painter: &Painter, rect: Rect, theme: &Theme) {
     let s = rect.width().min(rect.height()) * 0.34;
     let stroke = Stroke::new(W, theme.text_dim);
     let knob_xs = [c.x - s * 0.4, c.x + s * 0.25, c.x - s * 0.1];
-    for i in 0..3 {
+    for (i, &kx) in knob_xs.iter().enumerate() {
         let y = c.y - s + i as f32 * s;
         painter.line_segment([Pos2::new(c.x - s, y), Pos2::new(c.x + s, y)], stroke);
-        painter.circle_filled(Pos2::new(knob_xs[i], y), s * 0.17, theme.accent);
+        painter.circle_filled(Pos2::new(kx, y), s * 0.17, theme.accent);
     }
 }
 

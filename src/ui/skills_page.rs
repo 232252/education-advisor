@@ -6,7 +6,7 @@ use eframe::egui::{self, Align, Color32, FontId, Layout, Sense, Ui, Vec2};
 
 use crate::app::App;
 use crate::ui::icons;
-use crate::ui::widgets::{empty_state, glass_card, hover_lift_card, section_title, toggle_switch};
+use crate::ui::widgets::{agent_tag, empty_state, glass_card, hover_lift_card, panel_title, toggle_switch};
 
 #[derive(Debug, Clone, Copy)]
 struct Skill {
@@ -86,7 +86,7 @@ const SKILLS: [Skill; 11] = [
 ];
 
 pub fn show(app: &mut App, ui: &mut Ui) {
-    section_title(ui, &app.theme, "技能管理");
+    panel_title(ui, &app.theme, "技能管理");
 
     ui.horizontal(|ui| {
         ui.label(
@@ -129,14 +129,14 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     ui.vertical(|ui| {
                         ui.label(
                             egui::RichText::new(skill.name)
-                                .font(FontId::proportional(14.0))
+                                .font(FontId::proportional(16.0))
                                 .strong()
                                 .color(app.theme.text),
                         );
                         ui.add_space(4.0);
                         ui.label(
                             egui::RichText::new(skill.description)
-                                .font(FontId::proportional(11.0))
+                                .font(FontId::proportional(13.0))
                                 .color(app.theme.text_dim),
                         );
                     });
@@ -162,11 +162,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 ui.add_space(4.0);
 
                 ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                    ui.label(
-                        egui::RichText::new(skill.id)
-                            .font(FontId::proportional(10.0))
-                            .color(app.theme.text_faint),
-                    );
+                    agent_tag(ui, &app.theme, skill.id);
                 });
             });
         });

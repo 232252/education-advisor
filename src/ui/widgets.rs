@@ -559,6 +559,93 @@ pub fn glass_icon_button(
     resp
 }
 
+/// Like `glass_icon_button` but for theme icons (`fn(&Painter, Rect, &Theme)`),
+/// e.g. `icons::bolt` which picks its own color from the theme.
+pub fn glass_icon_button_theme(
+    ui: &mut Ui,
+    theme: &Theme,
+    icon: fn(&eframe::egui::Painter, Rect, &Theme),
+) -> Response {
+    let size = 40.0;
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(size), Sense::click());
+    let hover = resp.hovered();
+    let fill = if hover { theme.surface_hover } else { theme.surface };
+    let center = rect.center();
+    let radius = size / 2.0;
+    ui.painter().circle_filled(center, radius, fill);
+    ui.painter().circle_stroke(
+        center,
+        radius,
+        Stroke::new(1.0, if hover { theme.border_strong } else { theme.border }),
+    );
+    let inner = rect.shrink(size * 0.25);
+    icon(ui.painter(), inner, theme);
+    resp
+}
+
+/// DeepSeek gradient primary button with a leading vector icon + label.
+/// Mirrors `primary_button` styling (blue→purple gradient, pill shape, blue
+/// glow shadow) but lays out an icon to the left of the text.
+pub fn primary_button_with_icon(
+    ui: &mut Ui,
+    theme: &Theme,
+    text: &str,
+    icon: fn(&eframe::egui::Painter, Rect, &Theme),
+) -> Response {
+    let icon_size = 14.0;
+    let gap = 8.0;
+    let pad_x = 24.0;
+    let pad_y = 10.0;
+    let text_font = FontId::proportional(14.0);
+    let galley = ui
+        .painter()
+        .layout(text.to_string(), text_font, Color32::WHITE, f32::INFINITY);
+    let text_w = galley.size().x;
+    let text_h = galley.size().y;
+    let content_w = icon_size + gap + text_w;
+    let total_w = content_w + pad_x * 2.0;
+    let total_h = (text_h.max(icon_size) + pad_y * 2.0).max(40.0);
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(total_w, total_h), Sense::click());
+
+    let hover = resp.hovered();
+    let active = resp.is_pointer_button_down_on();
+    let lift = if active { 1.0 } else if hover { -2.0 } else { 0.0 };
+    let bg_rect = rect.translate(Vec2::new(0.0, -lift));
+
+    // Blue glow shadow (brightens on hover).
+    let shadow_alpha = if hover { 128 } else { 77 };
+    let shadow_offset = Vec2::new(0.0, if hover { 8.0 } else { 4.0 });
+    let shadow_blur = if hover { 25.0 } else { 15.0 };
+    let shadow_color = Color32::from_rgba_premultiplied(59, 130, 246, shadow_alpha);
+    paint_diffused_shadow(ui, bg_rect, shadow_offset, shadow_blur, shadow_color);
+
+    // Gradient fill (blue → purple) with pill rounding.
+    paint_rounded_vertical_gradient(
+        ui,
+        bg_rect,
+        40.0,
+        theme.gradient_primary_from,
+        theme.gradient_primary_to,
+        16,
+    );
+
+    // Icon + text centered as a group.
+    let start_x = bg_rect.center().x - content_w / 2.0;
+    let center_y = bg_rect.center().y;
+    let icon_rect = Rect::from_center_size(
+        Pos2::new(start_x + icon_size / 2.0, center_y),
+        Vec2::splat(icon_size),
+    );
+    icon(ui.painter(), icon_rect, theme);
+    ui.painter().galley(
+        Pos2::new(start_x + icon_size + gap, center_y - text_h / 2.0),
+        galley,
+        Color32::WHITE,
+    );
+
+    resp
+}
+
 /// Toolbar button with icon + label.
 pub fn tool_button(
     ui: &mut Ui,

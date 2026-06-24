@@ -19,9 +19,10 @@
 
 #![allow(dead_code)]
 
-use eframe::egui::{self, Align, FontId, Layout, Vec2};
+use eframe::egui::{self, Align, FontId, Layout, Rounding, Stroke, Vec2};
 
 use crate::app::App;
+use crate::ui::widgets::panel_title;
 
 #[derive(Default)]
 pub struct PiiDialogState {
@@ -94,11 +95,19 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
 fn show_unlock_dialog(app: &mut App, ctx: &egui::Context) {
     let mut open = true;
     let theme = app.theme.clone();
+    let frame = egui::Frame::none()
+        .fill(theme.surface)
+        .stroke(Stroke::new(1.0, theme.border))
+        .rounding(Rounding::same(20.0))
+        .inner_margin(egui::Margin::same(16.0));
     egui::Window::new("PII Shield 初始化 / 解锁")
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
+        .frame(frame)
         .show(ctx, |ui| {
+            panel_title(ui, &theme, "PII Shield 初始化 / 解锁");
+            ui.add_space(8.0);
             let cached_dir = data_dir_cached(&mut app.ui_state.pii_dialog);
             let pii_exists = cached_dir.join("privacy").join("mapping.enc").exists();
             ui.label(
@@ -282,11 +291,19 @@ fn show_mappings_view(app: &mut App, ctx: &egui::Context) {
     let enabled = pii.enabled;
     let count = pii.mapping_count();
     drop(pii);
+    let frame = egui::Frame::none()
+        .fill(theme.surface)
+        .stroke(Stroke::new(1.0, theme.border))
+        .rounding(Rounding::same(20.0))
+        .inner_margin(egui::Margin::same(16.0));
     egui::Window::new("PII Shield 映射表")
         .open(&mut open)
         .resizable(true)
         .default_width(420.0)
+        .frame(frame)
         .show(ctx, |ui| {
+            panel_title(ui, &theme, "PII Shield 映射表");
+            ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new(if enabled {

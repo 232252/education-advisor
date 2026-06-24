@@ -17,12 +17,12 @@ Education Advisor - 便携版 (Windows)
   - RAG 知识库检索
   - Cron 定时任务调度
   - SQLite 本地存储
-  - UI v4.0 高级 redesign：渐变品牌色、玻璃拟态、微交互动效
+  - DeepSeek 深色科技风 UI：深蓝黑背景 + 蓝/紫/青强调色 + 玻璃拟态卡片
 
 技术栈：
   - GUI: egui (Rust)
   - 渲染: glow / wgpu
   - 字体: NotoSansSC（已内嵌，支持中文显示）
 
-版本: 1.1.0
+版本: 1.2.0
 构建: 2026-06-24

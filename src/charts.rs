@@ -348,6 +348,7 @@ pub fn donut_chart(
 }
 
 /// A horizontal bar chart.
+#[allow(dead_code)]
 pub fn bar_chart(
     ui: &mut Ui,
     theme: &Theme,

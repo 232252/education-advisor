@@ -5,11 +5,11 @@ use eframe::egui::{self, Align, FontId, Layout, Pos2, Rect, Sense, Ui, Vec2};
 use crate::app::App;
 use crate::theme::Theme;
 use crate::ui::icons;
-use crate::ui::widgets::{ghost_button, glass_card, glow_button, primary_button, section_title};
+use crate::ui::widgets::{ghost_button, glass_card, panel_title, primary_button};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
     let theme = app.theme.clone();
-    section_title(ui, &theme, "隐私与安全");
+    panel_title(ui, &theme, "隐私与安全");
 
     ui.horizontal(|ui| {
         ui.label(
@@ -28,13 +28,8 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     // Core security capabilities with colored left-border feature rows.
     glass_card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("核心安全能力")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
-        ui.add_space(10.0);
+        panel_title(ui, &theme, "核心安全能力");
+        ui.add_space(4.0);
 
         feature_row(
             ui,
@@ -65,12 +60,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     // PII redaction switch
     glass_card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("PII 脱敏")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+        panel_title(ui, &theme, "PII 脱敏");
         ui.horizontal(|ui| {
             if ui
                 .checkbox(&mut app.settings.privacy_enabled, "发送前自动脱敏")
@@ -114,14 +104,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     // PII Shield 假名化引擎（v0.1.0-rc.1 核心隐私功能）
     glass_card(ui, &theme, |ui| {
         ui.horizontal(|ui| {
-            let (icon_rect, _) = ui.allocate_exact_size(Vec2::splat(24.0), Sense::hover());
+            let (icon_rect, _) = ui.allocate_exact_size(Vec2::splat(20.0), Sense::hover());
             icons::shield_icon(ui.painter(), icon_rect, &theme);
-            ui.label(
-                egui::RichText::new("PII Shield 假名化引擎")
-                    .font(FontId::proportional(13.0))
-                    .strong()
-                    .color(theme.text),
-            );
+            ui.add_space(2.0);
+            panel_title(ui, &theme, "PII Shield 假名化引擎");
         });
         ui.label(
             egui::RichText::new(
@@ -170,10 +156,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         });
         ui.add_space(6.0);
         ui.horizontal(|ui| {
-            if glow_button(ui, &theme, "导出备份").clicked() {
+            if ghost_button(ui, &theme, "导出备份").clicked() {
                 app.push_toast(crate::runtime::ToastKind::Info, "导出备份功能开发中");
             }
-            if glow_button(ui, &theme, "初始化/解绑").clicked() {
+            if primary_button(ui, &theme, "初始化/解绑").clicked() {
                 crate::ui::pii_dialog::open_unlock_dialog(app);
             }
             if ghost_button(ui, &theme, "查看映射").clicked() {
@@ -186,12 +172,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
     // Local-only RAG note
     glass_card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("本地知识库")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+        panel_title(ui, &theme, "本地知识库");
         ui.label(
             egui::RichText::new("知识库文档与向量均保存在本地 SQLite，不会上传至任何外部服务。")
                 .font(FontId::proportional(11.0))

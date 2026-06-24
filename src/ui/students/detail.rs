@@ -5,14 +5,14 @@ use eframe::egui::{self, Align, Align2, Color32, FontId, Layout, Sense, Ui, Vec2
 
 use crate::app::App;
 use crate::models::Student;
-use crate::ui::widgets::{badge, card, danger_button, divider, tab_switcher, tool_button};
+use crate::ui::widgets::{badge, danger_button, divider, glass_card, tab_switcher, tool_button};
 
 /// Render the detail header and the currently-selected tab body.
 pub fn show(app: &mut App, ui: &mut Ui, student: Student) {
     let theme = app.theme.clone();
 
     // Header Card
-    card(ui, &theme, |ui| {
+    glass_card(ui, &theme, |ui| {
         ui.horizontal_top(|ui| {
             // Large avatar
             let (av, _) = ui.allocate_exact_size(Vec2::splat(72.0), Sense::hover());

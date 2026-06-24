@@ -5,11 +5,11 @@ use eframe::egui::{self, Align, FontId, Layout, Pos2, Rect, Ui, Vec2};
 use crate::app::App;
 use crate::models::{LlmProvider, ProviderKind};
 use crate::ui::icons;
-use crate::ui::widgets::{card, empty_state, ghost_button, primary_button, section_title};
+use crate::ui::widgets::{empty_state, ghost_button, glass_card, panel_title, primary_button};
 
 pub fn show(app: &mut App, ui: &mut Ui) {
     let theme = app.theme.clone();
-    section_title(ui, &theme, "模型管理");
+    panel_title(ui, &theme, "模型管理");
 
     ui.horizontal(|ui| {
         ui.label(
@@ -43,13 +43,8 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         .as_ref()
         .and_then(|id| providers.iter().find(|p| p.id == *id).cloned());
 
-    card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("当前活跃模型")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+    glass_card(ui, &theme, |ui| {
+        panel_title(ui, &theme, "当前活跃模型");
         if let Some(p) = active {
             ui.horizontal(|ui| {
                 let dot_rect = Rect::from_min_size(
@@ -81,13 +76,8 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     ui.add_space(8.0);
 
     // Provider list
-    card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("已配置提供商")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+    glass_card(ui, &theme, |ui| {
+        panel_title(ui, &theme, "已配置提供商");
         ui.separator();
         if providers.is_empty() {
             empty_state(ui, &theme, icons::rag, "暂无提供商");
@@ -142,13 +132,8 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     ui.add_space(8.0);
 
     // Preset quick reference
-    card(ui, &theme, |ui| {
-        ui.label(
-            egui::RichText::new("内置模型预设")
-                .font(FontId::proportional(13.0))
-                .strong()
-                .color(theme.text),
-        );
+    glass_card(ui, &theme, |ui| {
+        panel_title(ui, &theme, "内置模型预设");
         ui.separator();
         egui::ScrollArea::vertical()
             .max_height(240.0)
