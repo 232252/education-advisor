@@ -82,7 +82,7 @@ pub fn line_chart(
         theme.text_dim,
     );
 
-    if series.is_empty() || series.iter().all(|(_, v)| v.is_empty()) {
+    if series.is_empty() || series.iter().all(|(_, v)| v.is_empty()) || plot_rect.width() <= 0.0 || plot_rect.height() <= 0.0 {
         ui.painter().text(
             plot_rect.center(),
             Align2::CENTER_CENTER,
@@ -168,8 +168,12 @@ pub fn line_chart(
                 })
                 .collect();
             let mut fill_pts = pts.clone();
-            fill_pts.push(Pos2::new(pts.last().unwrap().x, plot_rect.max.y));
-            fill_pts.push(Pos2::new(pts.first().unwrap().x, plot_rect.max.y));
+            if let Some(last) = pts.last() {
+                fill_pts.push(Pos2::new(last.x, plot_rect.max.y));
+            }
+            if let Some(first) = pts.first() {
+                fill_pts.push(Pos2::new(first.x, plot_rect.max.y));
+            }
             let fill = Color32::from_rgba_premultiplied(color.r(), color.g(), color.b(), 40);
             cache
                 .shapes
@@ -255,7 +259,17 @@ pub fn donut_chart(
         theme.text_dim,
     );
     let center = Pos2::new(rect.center().x, rect.center().y + 4.0);
-    let radius = size / 2.0 - 18.0;
+    if size < 40.0 {
+        ui.painter().text(
+            center,
+            Align2::CENTER_CENTER,
+            "…",
+            FontId::proportional(12.0),
+            theme.text_dim,
+        );
+        return;
+    }
+    let radius = (size / 2.0 - 18.0).max(1.0);
     let total: f32 = segments.iter().map(|(_, v, _)| v).sum::<f32>().max(0.001);
     let mut start = -std::f32::consts::FRAC_PI_2;
     let hover_pos = resp.hover_pos();
@@ -286,9 +300,10 @@ pub fn donut_chart(
             let inner: Vec<Pos2> = (0..=n)
                 .map(|i| {
                     let t = (end - start).mul_add(i as f32 / n as f32, start);
+                    let inner_r = (radius - 14.0).max(1.0);
                     Pos2::new(
-                        (radius - 14.0).mul_add(t.cos(), center.x),
-                        (radius - 14.0).mul_add(t.sin(), center.y),
+                        inner_r.mul_add(t.cos(), center.x),
+                        inner_r.mul_add(t.sin(), center.y),
                     )
                 })
                 .collect();
@@ -378,7 +393,7 @@ pub fn bar_chart(
     let anim_phase = chart_animation_phase(ui, ui.id().with("bar_anim"));
     let top = rect.min.y + 24.0;
     let bottom = rect.max.y - 8.0;
-    let row_h = (bottom - top) / bars.len() as f32;
+    let row_h = (bottom - top) / bars.len().max(1) as f32;
     for (i, (name, val)) in bars.iter().enumerate() {
         let y = (i as f32).mul_add(row_h, top);
         ui.painter().text(
@@ -482,7 +497,7 @@ pub fn smooth_area_chart(
         theme.text_dim,
     );
 
-    if values.len() < 2 {
+    if values.len() < 2 || plot_rect.width() <= 0.0 || plot_rect.height() <= 0.0 {
         ui.painter().text(
             plot_rect.center(),
             Align2::CENTER_CENTER,
@@ -566,14 +581,15 @@ pub fn smooth_area_chart(
 
     // tooltip
     if let Some(hover) = resp.hover_pos() {
-        if plot_rect.contains(hover) {
-            let rel = (hover.x - plot_rect.min.x) / plot_rect.width();
+        if plot_rect.contains(hover) && plot_rect.width() > 0.0 && n > 0 {
+            let rel = (hover.x - plot_rect.min.x) / plot_rect.width().max(1.0);
             let idx = ((rel * (n - 1) as f32).round() as usize).min(n - 1);
-            let v = values[idx];
-            egui::show_tooltip_at_pointer(ui.ctx(), egui::Id::new("area_tip"), |ui| {
-                ui.label(egui::RichText::new(format!("第 {idx} 个数据点")).strong());
-                ui.label(format!("{v:.1}"));
-            });
+            if let Some(v) = values.get(idx) {
+                egui::show_tooltip_at_pointer(ui.ctx(), egui::Id::new("area_tip"), |ui| {
+                    ui.label(egui::RichText::new(format!("第 {idx} 个数据点")).strong());
+                    ui.label(format!("{v:.1}"));
+                });
+            }
         }
     }
 }
@@ -599,7 +615,17 @@ pub fn radar_chart(
         theme.text_dim,
     );
     let center = Pos2::new(rect.center().x, rect.center().y + 6.0);
-    let radius = size / 2.0 - 30.0;
+    if size < 60.0 {
+        ui.painter().text(
+            center,
+            Align2::CENTER_CENTER,
+            "…",
+            FontId::proportional(12.0),
+            theme.text_dim,
+        );
+        return;
+    }
+    let radius = (size / 2.0 - 30.0).max(1.0);
     let n = axes.len().max(1);
 
     // Bug #20 — 缓存静态网格/坐标轴形状。
@@ -623,7 +649,9 @@ pub fn radar_chart(
                 })
                 .collect();
             let mut poly = pts.clone();
-            poly.push(pts[0]);
+            if let Some(first) = pts.first() {
+                poly.push(*first);
+            }
             cache
                 .shapes
                 .push(egui::Shape::line(poly, Stroke::new(1.0, theme.border)));
@@ -650,7 +678,9 @@ pub fn radar_chart(
                 })
                 .collect();
             let mut poly = pts.clone();
-            poly.push(pts[0]);
+            if let Some(first) = pts.first() {
+                poly.push(*first);
+            }
             let fill = Color32::from_rgba_premultiplied(accent.r(), accent.g(), accent.b(), 60);
             cache.shapes.push(egui::Shape::convex_polygon(
                 poly.clone(),

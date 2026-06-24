@@ -771,6 +771,9 @@ impl eframe::App for App {
 
 fn paint_gradient_bg(ctx: &Context, theme: &Theme, ui_state: &mut crate::ui::UiState) {
     let rect = ctx.screen_rect();
+    if rect.width() <= 0.0 || rect.height() <= 0.0 {
+        return;
+    }
     let painter = ctx.layer_painter(egui::LayerId::background());
 
     // DeepSeek canvas: solid #080c16.
@@ -779,7 +782,7 @@ fn paint_gradient_bg(ctx: &Context, theme: &Theme, ui_state: &mut crate::ui::UiS
     // Two radial gradient glows matching the reference:
     // - top-left (10%, 20%) blue rgba(59,130,246,0.15)
     // - bottom-right (80%, 80%) purple rgba(139,92,246,0.15)
-    let radius = rect.width().min(rect.height()) * 0.55;
+    let radius = (rect.width().min(rect.height()) * 0.55).max(1.0);
     let blue = Color32::from_rgb(59, 130, 246);
     let purple = Color32::from_rgb(139, 92, 246);
     let tl = Pos2::new(rect.min.x + rect.width() * 0.10, rect.min.y + rect.height() * 0.20);
@@ -951,10 +954,18 @@ fn install_fonts(ctx: &Context) {
 
     // 注册专用数字字体家族；无本地 Lato/Roboto 时复用默认 Proportional 字体数据。
     let numbers_family = if installed {
-        // 若 CJK 字体已安装，Numbers 优先走 CJK（数字字形完整），再回退默认比例字体。
-        vec!["cjk".into(), "Comfortaa-Light".into(), "NotoEmoji-Regular".into()]
+        vec![
+            "cjk".into(),
+            "Ubuntu-Light".into(),
+            "NotoEmoji-Regular".into(),
+            "emoji-icon-font".into(),
+        ]
     } else {
-        vec!["Comfortaa-Light".into(), "NotoEmoji-Regular".into()]
+        vec![
+            "Ubuntu-Light".into(),
+            "NotoEmoji-Regular".into(),
+            "emoji-icon-font".into(),
+        ]
     };
     fonts
         .families
