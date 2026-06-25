@@ -159,7 +159,7 @@ fn message_area(app: &App) -> Element<Message> {
 
     for msg in &messages {
         items.push(message_bubble(
-            theme,
+            app,
             msg.role,
             msg.content.clone(),
             msg.tool_calls.clone(),
@@ -177,7 +177,7 @@ fn message_area(app: &App) -> Element<Message> {
                 st.buffer.clone()
             };
             items.push(message_bubble(
-                theme,
+                app,
                 Role::Assistant,
                 content,
                 st.tool_calls.clone(),
@@ -208,13 +208,28 @@ fn message_area(app: &App) -> Element<Message> {
 }
 
 fn message_bubble<'a>(
-    theme: &'a Theme,
+    app: &'a App,
     role: Role,
     content: String,
     tool_calls: Vec<crate::models::ToolCallRecord>,
     agent_id: &str,
 ) -> Element<'a, Message> {
+    let theme = &app.theme;
     let is_user = matches!(role, Role::User);
+
+    // P0 BUG #12 fix: 显示前对消息内容调用 deanonymize()。
+    // ai.rs 里发给 LLM 的内容是化名版（S_001），UI 不还原的话老师
+    // 看到的是一堆别名而不是真名。先看是否启用了 PII：
+    //   - 启用 + 引擎有映射：deanonymize（化名 → 真名）
+    //   - 未启用 / 未解锁：保持原文
+    let content = {
+        let pii = app.pii.lock();
+        if pii.enabled && pii.has_mappings() {
+            pii.deanonymize(&content)
+        } else {
+            content
+        }
+    };
 
     // Role label badge: user="你", AI=agent_id
     let (badge_color, badge_label) = match role {

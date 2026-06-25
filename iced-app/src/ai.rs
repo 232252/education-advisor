@@ -116,10 +116,18 @@ pub async fn run_turn(
     messages.push(ChatMessage::system(system));
 
     // attach student context if provided
+    //
+    // P0 BUG #1 fix: previously `s.name` was inlined into the system
+    // prompt verbatim, leaking the real student name to the cloud LLM
+    // even when PII Shield was enabled. Now we always route the display
+    // string through the privacy pipeline:
+    //   1. PII Shield anonymization (real name -> S_001 etc.) when enabled
+    //   2. Regex redaction as a defence-in-depth fallback (phone / id / email)
     if let Some(sid) = student_id {
         if let Ok(students) = ctx.db.list_students() {
             if let Some(s) = students.into_iter().find(|s| s.id == sid) {
-                let ctx_line = format!(
+                // Build the raw line first, then scrub.
+                let mut ctx_line = format!(
                     "当前关注学生：{}，{}{}，风险等级：{}，GPA：{}",
                     s.name,
                     s.grade,
@@ -127,6 +135,11 @@ pub async fn run_turn(
                     s.risk_level.label(),
                     s.gpa.map_or_else(|| "未知".into(), |g| format!("{g:.2}"))
                 );
+                if settings.privacy_enabled {
+                    let pii = ctx.pii.lock();
+                    ctx_line = pii.anonymize(&ctx_line);
+                    ctx_line = ctx.redactor.redact(&ctx_line).0;
+                }
                 messages.push(ChatMessage::system(ctx_line));
             }
         }
