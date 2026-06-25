@@ -68,6 +68,23 @@ pub struct UiState {
     // settings page
     pub editing_provider: Option<LlmProvider>,
 
+    // ─────────────────────────────────────────────────────────────────────
     // PII Shield dialogs
+    // ─────────────────────────────────────────────────────────────────────
+    //
+    // DEPRECATED: in the release design (`iced-app/preview/index.html`) the
+    // student-detail workflow is in-page: clicking a row in the students
+    // table expands a `studentPanel` underneath with tabs for 概览 / 学业 /
+    // 行为 / 联系 / 隐私. The 隐私 tab replaces the modal-based
+    // PII Shield dialog entirely.
+    //
+    // We keep the field so the existing Message::PiiDialogClose / PiiUnlock
+    // / PiiInit / PiiPasswordChanged plumbing continues to compile. The
+    // *viewing* path (`pii_dialog::view(app)`) is no longer called from
+    // `App::view` — see `app.rs` for the removal note.
+    //
+    // Next refactor cycle: drop `pii_dialog` field + module + Message
+    // variants; wire the 隐私 tab to call into `App::pii` directly.
+    #[allow(dead_code)]
     pub pii_dialog: pii_dialog::PiiDialogState,
 }

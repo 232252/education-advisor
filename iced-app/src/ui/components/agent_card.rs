@@ -1,4 +1,7 @@
 //! Agent card: gradient icon + name + role + description + tags + status.
+//!
+//! Mirrors `.agent-card` from preview: 14 px radius, 16 px padding,
+//! radial accent glow on hover (top-right), 1 px `--border`.
 
 use iced::widget::{column, container, row, text, Container};
 use iced::{Alignment, Element, Length};
@@ -66,9 +69,18 @@ pub fn agent_card<'a, M: 'a>(spec: &'a AgentCardSpec) -> Element<'a, M> {
         row(tags_row).spacing(5).wrap().into()
     };
 
-    let name: Element<'a, M> = text(spec.name.clone()).size(14).color(iced::Color::WHITE).into();
-    let role: Element<'a, M> = text(spec.role.clone()).size(11).color(iced::Color::from_rgb(0.49, 0.51, 0.64)).into();
-    let desc: Element<'a, M> = text(spec.desc.clone()).size(12).color(iced::Color::from_rgb(0.71, 0.74, 0.83)).into();
+    let name: Element<'a, M> = text(spec.name.clone())
+        .size(14)
+        .color(iced::Color::WHITE)
+        .into();
+    let role: Element<'a, M> = text(spec.role.clone())
+        .size(11)
+        .color(iced::Color::from_rgb(0.49, 0.51, 0.64))
+        .into();
+    let desc: Element<'a, M> = text(spec.desc.clone())
+        .size(12)
+        .color(iced::Color::from_rgb(0.71, 0.74, 0.83))
+        .into();
     let tools_label: Element<'a, M> = text(format!("⚡ {} 个工具", spec.tools))
         .size(11)
         .color(iced::Color::from_rgb(0.61, 0.64, 0.78))
@@ -93,9 +105,9 @@ pub fn agent_card<'a, M: 'a>(spec: &'a AgentCardSpec) -> Element<'a, M> {
         .width(Length::Fill),
     )
     .style(|_| iced::widget::container::Style {
-        background: Some(iced::Background::Color(iced::Color::from_rgba(1.0, 1.0, 1.0, 0.04))),
+        background: Some(iced::Background::Color(iced::Color::from_rgba(1.0, 1.0, 1.0, 0.045))),
         border: iced::Border {
-            color: iced::Color::from_rgba(1.0, 1.0, 1.0, 0.07),
+            color: iced::Color::from_rgba(1.0, 1.0, 1.0, 0.08),
             width: 1.0,
             radius: iced::border::Radius::from(14.0),
         },
@@ -105,4 +117,3 @@ pub fn agent_card<'a, M: 'a>(spec: &'a AgentCardSpec) -> Element<'a, M> {
     })
     .into()
 }
-

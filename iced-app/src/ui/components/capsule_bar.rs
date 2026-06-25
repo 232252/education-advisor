@@ -1,4 +1,7 @@
 //! Capsule progress bar: a single horizontal bar with a label and percentage.
+//!
+//! Mirrors `.capsule-row` / `.capsule-track` / `.capsule-fill` from the
+//! preview: 10 px tall track, 6 px radius, 90 deg linear-gradient fill.
 
 use iced::widget::{container, row, text, Container};
 use iced::{Element, Length};
@@ -13,17 +16,14 @@ pub struct CapsuleBar {
     pub fill_to: iced::Color,
 }
 
-/// Build a horizontal capsule bar. Caller is responsible for sizing the
-/// surrounding `Container` with `Length::Fill`.
 pub fn capsule_bar<'a, M: 'a>(spec: CapsuleBar) -> Element<'a, M> {
     let dot_color = spec.dot_color;
     let fill_from = spec.fill_from;
     let fill_to = spec.fill_to;
     let value_color = spec.value_color;
     let label = spec.label;
-    let pct = spec.value_text;
-    let _ = spec.pct; // visual fill width is fixed to 100% here; replace with
-                      // a width-constrained variant if exact pct rendering is needed.
+    let pct_text = spec.value_text;
+    let pct = spec.pct.clamp(0.0, 100.0);
 
     let dot_box: Element<'a, M> = container(iced::widget::Space::new())
         .width(Length::Fixed(8.0))
@@ -41,8 +41,9 @@ pub fn capsule_bar<'a, M: 'a>(spec: CapsuleBar) -> Element<'a, M> {
         })
         .into();
 
-    let track: Element<'a, M> = container(iced::widget::Space::new())
-        .width(Length::Fill)
+    // Fill track: pct % of total track width.
+    let fill_box: Element<'a, M> = container(iced::widget::Space::new())
+        .width(Length::FillPortion(pct as u16))
         .height(Length::Fill)
         .style(move |_| iced::widget::container::Style {
             background: Some(iced::Background::Gradient(iced::Gradient::Linear(
@@ -61,10 +62,18 @@ pub fn capsule_bar<'a, M: 'a>(spec: CapsuleBar) -> Element<'a, M> {
         })
         .into();
 
-    let label_el: Element<'a, M> = text(label).size(12).color(iced::Color::from_rgb(0.82, 0.84, 0.91)).into();
-    let pct_el: Element<'a, M> = text(pct).size(12).color(value_color).into();
+    let rest_box: Element<'a, M> = container(iced::widget::Space::new())
+        .width(Length::FillPortion((100.0 - pct).max(0.0) as u16))
+        .height(Length::Fill)
+        .into();
 
-    let track_wrap: Element<'a, M> = container(track)
+    let label_el: Element<'a, M> = text(label)
+        .size(12)
+        .color(iced::Color::from_rgb(0.82, 0.84, 0.91))
+        .into();
+    let pct_el: Element<'a, M> = text(pct_text).size(12).color(value_color).into();
+
+    let track_wrap: Element<'a, M> = container(row![fill_box, rest_box])
         .width(Length::Fill)
         .height(Length::Fixed(10.0))
         .style(|_| iced::widget::container::Style {
@@ -85,4 +94,3 @@ pub fn capsule_bar<'a, M: 'a>(spec: CapsuleBar) -> Element<'a, M> {
         .align_y(iced::Alignment::Center)
         .into()
 }
-
