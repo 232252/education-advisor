@@ -1065,7 +1065,7 @@ impl App {
             Message::PiiLock => {
                 {
                     let mut pii = self.pii.lock();
-                    pii.set_enabled(false);
+                    pii.lock();
                 }
                 self.push_toast(ToastKind::Info, "PII Shield 已锁定");
             }

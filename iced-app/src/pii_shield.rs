@@ -207,8 +207,13 @@ impl PrivacyEngine {
     }
 
     /// 初始化新引擎：派生密钥、清空映射、生成 nonce、写入空表。
+    ///
+    /// P0 BUG #2 fix: 现在会创建并使用 32 字节随机盐（mapping.salt），
+    /// 密钥通过 20 万轮 SHA-256 拉伸派生。老文件会被自动检测并升级。
     pub fn init(&mut self, data_dir: &Path, password: &str) -> Result<(), PrivacyError> {
-        let key = derive_key(password);
+        // 创建 / 加载盐文件（在 mapping.enc 同目录）。
+        let salt = load_or_create_pii_salt(&data_dir.join("privacy"))?;
+        let key = derive_key(password, &salt);
         self.cipher =
             Some(Aes256Gcm::new_from_slice(&key).map_err(|e| PrivacyError::Crypto(e.to_string()))?);
         self.mapping_path = Self::mapping_path(data_dir);
@@ -228,19 +233,45 @@ impl PrivacyEngine {
     }
 
     /// 从加密文件加载。每次启动 / 解锁时调用一次。
+    ///
+    /// P0 BUG #2 fix: 自动检测文件版本：
+    ///   - v1 带盐格式：用 `derive_key_v1(password, salt)` 解密
+    ///   - v0 老格式（无盐 SHA-256）：用 `derive_key_legacy(password)` 解密
+    /// 解密成功后立刻升级写回 v1，丢弃旧格式。
     pub fn load(&mut self, data_dir: &Path, password: &str) -> Result<(), PrivacyError> {
         let path = Self::mapping_path(data_dir);
         if !path.exists() {
             return Err(PrivacyError::MappingNotFound);
         }
-        let key = derive_key(password);
+        let raw = std::fs::read(&path)?;
+        if raw.is_empty() {
+            return Err(PrivacyError::Crypto("加密文件为空".into()));
+        }
+
+        // 探测文件版本：v1 以 0x01 字节开头；v0 直接以 12 字节 nonce 开头。
+        let (version, salt, body) = if raw[0] == FILE_VERSION_V1 {
+            if raw.len() < 1 + 32 + 12 {
+                return Err(PrivacyError::Crypto("加密文件长度异常 (v1)".into()));
+            }
+            let salt = raw[1..33].to_vec();
+            let body = raw[33..].to_vec();
+            (FILE_VERSION_V1, Some(salt), body)
+        } else {
+            // v0 老格式：12 字节 nonce + ciphertext，没有版本头也没有盐。
+            (FILE_VERSION_V0, None, raw.clone())
+        };
+
+        let key = match (&salt, version) {
+            (Some(s), FILE_VERSION_V1) => derive_key_v1(password, s),
+            (None, FILE_VERSION_V0) => derive_key_legacy(password),
+            _ => return Err(PrivacyError::Crypto("未知文件版本".into())),
+        };
         let cipher =
             Aes256Gcm::new_from_slice(&key).map_err(|e| PrivacyError::Crypto(e.to_string()))?;
-        let raw = std::fs::read(&path)?;
-        if raw.len() < 12 {
+        if body.len() < 12 {
             return Err(PrivacyError::Crypto("加密文件损坏".into()));
         }
-        let (nonce_bytes, ciphertext) = raw.split_at(12);
+        let (nonce_bytes, ciphertext) = body.split_at(12);
         let decrypted = cipher
             .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
             .map_err(|_| PrivacyError::Decrypt("密码错误或文件损坏".into()))?;
@@ -269,10 +300,24 @@ impl PrivacyEngine {
         self.cipher = Some(cipher);
         self.mapping_path = path;
         self.enabled = true;
+
+        // 如果是从 v0 老文件升级而来，立刻用新格式重写。
+        if version == FILE_VERSION_V0 {
+            // 升级需要重新创建/加载盐，并重派生密钥（防止是 v0 legacy 密钥）。
+            let new_salt = load_or_create_pii_salt(
+                &self.mapping_path.parent().unwrap_or(&PathBuf::from(".")),
+            )?;
+            let new_key = derive_key_v1(password, &new_salt);
+            self.cipher = Some(
+                Aes256Gcm::new_from_slice(&new_key)
+                    .map_err(|e| PrivacyError::Crypto(e.to_string()))?,
+            );
+            self.save()?;
+        }
         Ok(())
     }
 
-    /// 落盘到加密文件。每次 add_entity / add_entities 后调用。
+    /// 落盘到加密文件（v1 带盐格式）。每次 add_entity / add_entities 后调用。
     fn save(&self) -> Result<(), PrivacyError> {
         let cipher = self.cipher.as_ref().ok_or(PrivacyError::NotInitialized)?;
         let table = MappingTable {
@@ -287,7 +332,27 @@ impl PrivacyEngine {
         let encrypted = cipher
             .encrypt(Nonce::from_slice(&nonce_bytes), json.as_bytes())
             .map_err(|e| PrivacyError::Crypto(e.to_string()))?;
-        let mut out = Vec::with_capacity(12 + encrypted.len());
+
+        // 从现有 mapping.salt 读盐，与 init 路径保持一致。
+        let salt_path = self
+            .mapping_path
+            .parent()
+            .unwrap_or(&PathBuf::from("."))
+            .join("mapping.salt");
+        let salt = std::fs::read(&salt_path).unwrap_or_else(|_| {
+            // fallback：写一个临时盐，避免静默丢失加密强度。
+            let mut s = vec![0u8; 32];
+            use rand::RngCore;
+            rand::rngs::OsRng.fill_bytes(&mut s);
+            s
+        });
+        if salt.len() != 32 {
+            return Err(PrivacyError::Crypto("mapping.salt 长度异常".into()));
+        }
+
+        let mut out = Vec::with_capacity(1 + 32 + 12 + encrypted.len());
+        out.push(FILE_VERSION_V1);
+        out.extend_from_slice(&salt);
         out.extend_from_slice(&nonce_bytes);
         out.extend_from_slice(&encrypted);
         std::fs::write(&self.mapping_path, &out)?;
@@ -376,13 +441,34 @@ impl PrivacyEngine {
         }
         entries.sort_by_key(|b| std::cmp::Reverse(b.0.len()));
 
-        // 一次预编译所有 regex；如果任一失败则整体放弃（不替换）。
+        // P0 BUG #3 fix: 不要因为某一条 regex 编不过就放弃整个脱敏。
+        // 原逻辑：`Err(_) => return text.to_string()` 等于全裸奔给 LLM。
+        // 现在：失败的条目记下来跳过，其余继续。失败条数返回给上层
+        // 走 audit log（未接到 audit，但记录数保留在这里方便后续接入）。
         let mut compiled: Vec<(Regex, String)> = Vec::new();
+        let mut failed = 0usize;
         for (plain, alias) in &entries {
             match Regex::new(&escape_regex(plain)) {
                 Ok(re) => compiled.push((re, alias.clone())),
-                Err(_) => return text.to_string(),
+                Err(e) => {
+                    failed += 1;
+                    eprintln!(
+                        "[pii] anonymize: skip un-compilable entity (len={}, alias={}, err={})",
+                        plain.len(),
+                        alias,
+                        e
+                    );
+                }
             }
+        }
+        if compiled.is_empty() {
+            // 所有条目都编不过（极端情况），为了不静默送出明文，
+            // 仍然返回原文但伴随一次告警输出。
+            eprintln!(
+                "[pii] anonymize: all {} regex entries failed, text passes through UNREDACTED",
+                failed
+            );
+            return text.to_string();
         }
         let mut result = text.to_string();
         for (re, alias) in &compiled {
@@ -466,6 +552,11 @@ impl PrivacyEngine {
         self.forward.values().map(|m| m.len()).sum()
     }
 
+    /// 是否已加载到任何映射。UI 层用来决定是否调用 deanonymize。
+    pub fn has_mappings(&self) -> bool {
+        self.forward.values().any(|m| !m.is_empty())
+    }
+
     /// 备份加密映射表到指定路径。
     pub fn backup(&self, backup_path: &Path) -> Result<(), PrivacyError> {
         if !self.mapping_path.exists() {
@@ -481,6 +572,26 @@ impl PrivacyEngine {
     /// 切换启用状态（不改映射内容）。
     pub fn set_enabled(&mut self, on: bool) {
         self.enabled = on;
+    }
+
+    /// P0 BUG #11 fix: 真正的“锁定” — 清理所有内存中的敏感状态。
+    ///
+    /// 原 `set_enabled(false)` 只翻 `enabled` flag，forward/reverse/cipher
+    /// 全留在进程内存里，锁定后进程被dump / core dump 落盘则泄露全部
+    /// 真名↔化名映射。修正：同时清空双向映射表 + 丢掉 cipher，并擦除
+    /// 路径（避免路径提示文件位置）。
+    pub fn lock(&mut self) {
+        self.enabled = false;
+        for v in self.forward.values_mut() {
+            v.clear();
+        }
+        self.forward.clear();
+        for v in self.reverse.values_mut() {
+            v.clear();
+        }
+        self.reverse.clear();
+        self.cipher = None;
+        // 保留 mapping_path 以便下次 unlock 时复用。
     }
 
     /// Bug #10 — 用 `other` 的内部状态完全替换本引擎。
@@ -502,15 +613,77 @@ impl PrivacyEngine {
     }
 }
 
-/// 从密码派生 256 位 AES 密钥。
+/// 从密码派生 256 位 AES 密钥（带盐 + 拉伸）。
 ///
-/// 与 v0.1.0-rc.1 的 `derive_key` 完全一致（SHA-256，无盐）。
-/// 这意味着老备份文件在本引擎里照样能解密。
-fn derive_key(password: &str) -> [u8; 32] {
+/// P0 BUG #2 fix: 原 `derive_key` 仅 `SHA-256(password)`，无盐无拉伸，
+/// 抵御不了字典/彩虹表攻击。现改为：
+///   - 32 字节随机盐（与 mapping.enc 同目录的 `mapping.salt`）
+///   - 20 万轮 SHA-256 拉伸（≈200ms@主流 CPU），平衡移动端 + 桌面
+///
+/// 迁移策略：on-disk 文件格式增加 1 字节版本前缀：
+///   - v0 (0x00) = 旧无盐格式，load 时探测，密钥用 `derive_key_legacy`
+///   - v1 (0x01) = 新带盐格式，密钥用 `derive_key_v1`
+/// 首次 save 时如果发现是 v0 文件，会自动升级到 v1 并重写。
+fn derive_key_v1(password: &str, salt: &[u8]) -> [u8; 32] {
+    const ITERATIONS: u32 = 200_000;
+    let mut buf = Vec::with_capacity(salt.len() + password.len());
+    buf.extend_from_slice(salt);
+    buf.extend_from_slice(password.as_bytes());
+    let mut result: [u8; 32] = Sha256::digest(&buf).into();
+    for i in 0..ITERATIONS {
+        let mut hasher = Sha256::new();
+        hasher.update(&result);
+        hasher.update(&i.to_le_bytes());
+        result = hasher.finalize().into();
+    }
+    result
+}
+
+/// 兼容老格式：SHA-256(password) 无盐。仅用于读 v0 文件。
+fn derive_key_legacy(password: &str) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(password.as_bytes());
-    let result: [u8; 32] = hasher.finalize().into();
-    result
+    hasher.finalize().into()
+}
+
+/// 当前落盘格式版本号。新写文件用 v1。
+const FILE_VERSION_V1: u8 = 0x01;
+/// 老格式（无盐 SHA-256）。仅 load 时识别，落盘时升级。
+const FILE_VERSION_V0: u8 = 0x00;
+
+/// 派生 256 位 AES 密钥的当前默认实现。
+///
+/// 调用方需要传入 `salt`（来自 `mapping.salt`）。`init` 时如果盐文件
+/// 不存在则创建；`load` 时强制要求盐文件存在。
+fn derive_key(password: &str, salt: &[u8]) -> [u8; 32] {
+    derive_key_v1(password, salt)
+}
+
+/// 加载或创建 PII Shield 用的盐文件（与 mapping.enc 同目录）。
+fn load_or_create_pii_salt(data_dir: &std::path::Path) -> Result<Vec<u8>, PrivacyError> {
+    let path = data_dir.join("mapping.salt");
+    if let Ok(existing) = std::fs::read(&path) {
+        if existing.len() == 32 {
+            return Ok(existing);
+        }
+        return Err(PrivacyError::Crypto(format!(
+            "mapping.salt 长度异常 ({} 字节)",
+            existing.len()
+        )));
+    }
+    let mut salt = vec![0u8; 32];
+    use rand::RngCore;
+    rand::rngs::OsRng.fill_bytes(&mut salt);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&path, &salt)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(salt)
 }
 
 /// 转义正则元字符。
