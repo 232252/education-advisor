@@ -1,6 +1,6 @@
 [package]
-name = "education-advisor-iced"
-version = "1.0.3"
+name = "education-advisor"
+version = "2.0.0"
 edition = "2021"
 authors = ["Education Advisor Team"]
 description = "Commercial-grade AI education management desktop application built with iced"
@@ -20,7 +20,6 @@ opt-level = 1
 [dependencies]
 # GUI
 iced = { version = "0.14", features = ["tokio", "advanced", "image", "svg"] }
-iced_fonts = "0.1"
 
 # Async runtime
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time", "fs", "io-util"] }
