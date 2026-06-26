@@ -1,14 +1,14 @@
 //! Async runtime bridge.
 //!
-//! The UI runs on the egui main thread and is strictly non-blocking. All
+//! The UI runs on the iced main thread and is strictly non-blocking. All
 //! expensive work (DB I/O, LLM streaming, tool execution, cron scheduling)
 //! happens on a dedicated tokio runtime living on its own OS thread. The two
 //! sides communicate through lock-free `crossbeam-channel`s:
 //!
 //!   UI --[Command]--> Runtime --[Event]--> UI
 //!
-//! The UI polls `try_recv` every frame (cheap, allocation-free when empty), so
-//! the render loop never waits.
+//! The UI subscription wakes every 16 ms to drain pending events (cheap,
+//! allocation-free when empty), so the render loop never waits.
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use parking_lot::RwLock;
