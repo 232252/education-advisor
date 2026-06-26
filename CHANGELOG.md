@@ -1,10 +1,56 @@
 # Changelog
 
-All notable changes to **Education Advisor (egui)** are documented in this file.
+All notable changes to **Education Advisor** are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [2.0.0] — 2026-06-26
+
+### Changed — UI framework migration: egui → iced 0.14
+
+The application is now built on top of [`iced` 0.14](https://github.com/iced-rs/iced)
+instead of `egui` 0.27. The new desktop shell lives in `iced-app/`. The 11 backend
+modules (`agents`, `ai`, `audit`, `db`, `embedding`, `llm`, `models`, `pii_shield`,
+`privacy`, `runtime`, `scheduler`, `students`, `tools`, `util`) are byte-identical
+to the egui era — **no behaviour was changed**, only the rendering layer was rewritten.
+
+- **Package rename**: `education-advisor-egui` → `education-advisor` (v2.0.0).
+- **Binary rename**: `education-advisor-egui` → `education-advisor` (32 MB single-file).
+- **Dependency churn**: removed `eframe`, `egui`, `egui_extras`, `tray-icon`;
+  added `iced 0.14` with `tokio / advanced / image / svg` features.
+- **System tray** (`feature = "tray"` on egui) is **not** yet available on iced
+  0.14. Closing the window now quits the process; the feature gate stays wired
+  so it can be re-enabled without touching the UI tree.
+
+### Added — iced shell features
+
+- **Three theme modes**: `Dark`, `Light`, `Auto` (auto follows the OS via
+  `winreg` / `darkmode` crate).
+- **Responsive layout**: `LayoutMode { Compact <900, Medium 900–1280, Wide ≥1280 }`
+  re-computed every frame from the live window size via `iced::window::resize_events()`.
+  Sidebar collapses, KPI grid reflows, chat tool panel docks differently per mode.
+- **SVG icon system** (`src/ui/icons.rs`): 50+ inline `lucide`-style stroke icons
+  that inherit `currentColor`, so the same set renders correctly in both themes.
+- **Reusable component library** (`src/ui/components/`): `badge`, `kpi`,
+  `capsule_bar`, `score_bar`, `section_header`, `empty_state`, `agent_card`,
+  `sidebar_item`, `theme_picker`.
+- **Event-pump bridge**: `Subscription::run_with(runtime_stream, …)` wakes every
+  16 ms to drain events from the tokio runtime's `crossbeam-channel`, matching
+  the previous `try_recv`-per-frame behaviour without touching the render loop.
+- **Message-driven `Message` enum** (≈ 120 variants) routes every UI gesture to
+  a `runtime::Command` or a pure local mutation; the 7 startup `LoadXxx` commands
+  (`LoadStudents`, `LoadConversations`, `LoadTasks`, `LoadProviders`,
+  `LoadRagDocuments`, `LoadStats`, `LoadSettings`) are issued from `App::new`.
+
+### Removed
+
+- `tray` feature gate (was `tray = ["dep:tray-icon"]`); see above.
+- 11 `src/ui/*` files from the egui tree (now lives in `iced-app/src/ui/`).
+- `src/charts.rs` (egui `Painter`-based) — replaced with inline SVG in
+  `iced-app/src/ui/dashboard.rs` for KPI sparklines and the agent-activity
+  HBarChart.
 
 ## [1.1.0] — 2026-06-24
 
