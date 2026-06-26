@@ -103,7 +103,7 @@ jobs:
           echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
       - name: Build release binary
-        working-directory: .
+        working-directory: iced-app
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
         shell: bash
@@ -116,7 +116,7 @@ jobs:
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
-        working-directory: .
+        working-directory: iced-app
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           [ -z "$VERSION" ] && VERSION=${{ github.event.inputs.tag }}
@@ -145,7 +145,7 @@ jobs:
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        working-directory: .
+        working-directory: iced-app
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
           if ([string]::IsNullOrEmpty($version)) {
