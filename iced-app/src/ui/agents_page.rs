@@ -178,7 +178,7 @@ pub fn view(app: &App) -> Element<Message> {
                 .spacing(6);
 
                 let name_id = column![
-                    text(agent.name.clone())
+                    text(agent.name)
                         .font(Font {
                             family: CJK_FONT.family,
                             weight: iced::font::Weight::Bold,
@@ -186,7 +186,7 @@ pub fn view(app: &App) -> Element<Message> {
                         })
                         .size(16)
                         .style(move |_: &iced::Theme| style::text_primary(theme)),
-                    text(agent.id.clone())
+                    text(agent.id)
                         .font(CJK_FONT)
                         .size(11)
                         .style(move |_: &iced::Theme| style::text_faint(theme)),
@@ -202,7 +202,7 @@ pub fn view(app: &App) -> Element<Message> {
                     Space::new()
                         .width(Length::Fixed(0.0))
                         .height(Length::Fixed(8.0)),
-                    text(agent.description.clone())
+                    text(agent.description)
                         .font(CJK_FONT)
                         .size(12)
                         .style(move |_: &iced::Theme| style::text_dim(theme)),
