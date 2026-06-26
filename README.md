@@ -1,6 +1,9 @@
-# Education Advisor (egui)
+# Education Advisor
 
-> Commercial-grade AI education management desktop application, built end-to-end in Rust + [egui](https://github.com/emilk/egui).
+> Commercial-grade AI education management desktop application, built end-to-end in Rust + [iced](https://github.com/iced-rs/iced).
+
+> **v2.0.0+** — The application now lives under [`iced-app/`](./iced-app). See [CHANGELOG.md](./CHANGELOG.md) for the egui → iced migration notes.
+> The last egui-based release (`v1.1.0`) is preserved as the `v1.1.0-egui-final` git tag — `git checkout v1.1.0-egui-final` to restore it.
 
 [![CI](https://github.com/232252/education-advisor/actions/workflows/ci.yml/badge.svg)](https://github.com/232252/education-advisor/actions/workflows/ci.yml)
 [![Release](https://github.com/232252/education-advisor/actions/workflows/release.yml/badge.svg)](https://github.com/232252/education-advisor/actions/workflows/release.yml)
