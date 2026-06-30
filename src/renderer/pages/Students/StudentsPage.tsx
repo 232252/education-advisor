@@ -3,8 +3,10 @@
 // 右侧使用 StudentProfile 多选项卡组件
 // =============================================================
 
-import type { EAARiskLevel, EAAStudent } from '@shared/types'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ClassEntity, EAARiskLevel, EAAStudent } from '@shared/types'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useT } from '../../i18n'
 import { getAPI, getErrorMessage } from '../../lib/ipc-client'
@@ -47,6 +49,26 @@ export function StudentsPage() {
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const setActionMessageAuto = useAutoDismiss<string>(setActionMessage, '')
+  // 批量选择
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set())
+  const [batchDeleting, setBatchDeleting] = useState(false)
+  // 班级（用于按已存档班级隐藏学生）
+  const [classList, setClassList] = useState<ClassEntity[]>([])
+  const [showArchivedClass, setShowArchivedClass] = useState(false)
+  // 导出格式：从 EAA 动态获取（fallback 到内置列表）
+  // C-2 修复: fallback 列表必须与 EAA Rust 端 cmd_export 一致 (csv/jsonl/html)
+  // 之前包含 json 和 markdown,EAA 不支持,选了会报"未知导出格式"错误
+  const [exportFormats, setExportFormats] = useState<string[]>(['csv', 'jsonl', 'html'])
+  // 从 Dashboard 排行榜跳转时,通过 query param 携带 entity_id 自动选中学生
+  const [searchParams, setSearchParams] = useSearchParams()
+  // 自定义确认对话框（替代 window.confirm）
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean
+    message: string
+    onConfirm: () => void
+    variant?: 'default' | 'danger'
+  }>({ open: false, message: '', onConfirm: () => {} })
 
   // 加载学生列表
   const loadStudents = useCallback(async () => {
@@ -63,9 +85,61 @@ export function StudentsPage() {
     }
   }, [t])
 
+  // 加载班级列表（用于按已存档班级过滤学生）
+  const loadClasses = useCallback(async () => {
+    try {
+      const res = await getAPI().class.list()
+      if (res.success && res.data) setClassList(res.data)
+    } catch (err) {
+      console.warn('[Students] Failed to load classes:', err)
+    }
+  }, [])
+
+  // 加载导出格式（从 EAA 获取支持列表，失败时使用 fallback）
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const formats = await getAPI().eaa.exportFormats()
+        if (!cancelled && Array.isArray(formats) && formats.length > 0) {
+          setExportFormats(formats)
+        }
+      } catch (err) {
+        console.warn('[Students] Failed to load export formats, using fallback:', err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   useEffect(() => {
     loadStudents()
-  }, [loadStudents])
+    loadClasses()
+  }, [loadStudents, loadClasses])
+
+  // 从 Dashboard 排行榜跳转过来时,学生列表加载完成后按 entity_id 自动选中并打开详情
+  useEffect(() => {
+    const targetId = searchParams.get('entity_id')
+    if (!targetId || loading) return
+    // LOW 修复: students 列表为空时(加载完成但无数据),也清除 URL param 并提示,
+    // 避免之前直接 return 导致 entity_id param 残留在 URL 中。
+    if (students.length === 0) {
+      setSearchParams({}, { replace: true })
+      toast.warning(`学生列表为空,无法定位 (entity_id: ${targetId})`)
+      return
+    }
+    const match = students.find((s) => s.entity_id === targetId)
+    if (match) {
+      setSelectedStudent(match)
+      // 清除 query param,避免刷新或返回时重复选中
+      setSearchParams({}, { replace: true })
+    } else {
+      // entity_id 不存在: 清除 URL param 避免残留,并提示用户
+      setSearchParams({}, { replace: true })
+      toast.warning(`未找到该学生 (entity_id: ${targetId})`)
+    }
+  }, [students, loading, searchParams, setSearchParams])
 
   // 添加新学生
   const handleAddStudent = async () => {
@@ -85,22 +159,102 @@ export function StudentsPage() {
     }
   }
 
-  // 删除学生（UI 二次确认）
-  const handleDeleteStudent = async (name: string) => {
-    if (!window.confirm(`${t('common.delete')}: "${name}"?`)) return
-    try {
-      const result = await getAPI().eaa.deleteStudent(name, '管理员操作')
-      setActionMessageAuto(
-        result.success
-          ? `${t('common.delete')}: ${name}`
-          : `${t('status.failed')}: ${getErrorMessage(result)}`,
-      )
-      if (result.success && selectedStudent?.name === name) setSelectedStudent(null)
-      if (result.success) loadStudents()
-    } catch (err) {
-      console.error('[Students] Delete failed:', err)
-      setActionMessageAuto('删除失败')
-    }
+  // 删除学生（使用自定义确认对话框）
+  const handleDeleteStudent = (name: string) => {
+    setConfirmState({
+      open: true,
+      message: `${t('common.delete')}: "${name}"?`,
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, open: false }))
+        try {
+          const result = await getAPI().eaa.deleteStudent(name, '管理员操作')
+          setActionMessageAuto(
+            result.success
+              ? `${t('common.delete')}: ${name}`
+              : `${t('status.failed')}: ${getErrorMessage(result)}`,
+          )
+          if (result.success && selectedStudent?.name === name) setSelectedStudent(null)
+          if (result.success) loadStudents()
+        } catch (err) {
+          console.error('[Students] Delete failed:', err)
+          setActionMessageAuto('删除失败')
+        }
+      },
+    })
+  }
+
+  // 切换单个学生选中状态
+  const toggleSelect = (name: string) => {
+    setSelectedNames((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  // 全选/取消全选（作用于当前排序后的可见列表）
+  const toggleSelectAll = () => {
+    setSelectedNames((prev) => {
+      // 若当前可见项已全选，则清空；否则全选
+      const visibleNames = sorted.map((s) => s.name)
+      const allSelected = visibleNames.length > 0 && visibleNames.every((n) => prev.has(n))
+      if (allSelected) {
+        const next = new Set(prev)
+        for (const n of visibleNames) next.delete(n)
+        return next
+      }
+      const next = new Set(prev)
+      for (const n of visibleNames) next.add(n)
+      return next
+    })
+  }
+
+  // 退出选择模式
+  const exitSelectMode = () => {
+    setSelectMode(false)
+    setSelectedNames(new Set())
+  }
+
+  // 批量删除选中学生（使用自定义确认对话框，danger 变体）
+  const handleBatchDelete = () => {
+    const names = Array.from(selectedNames)
+    if (names.length === 0) return
+    setConfirmState({
+      open: true,
+      message: t('page.students.batch.delete.confirm').replace('{0}', String(names.length)),
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, open: false }))
+        setBatchDeleting(true)
+        let ok = 0
+        let fail = 0
+        // 串行调用：EAA 写操作有内部队列，串行更稳妥
+        for (const name of names) {
+          try {
+            const r = await getAPI().eaa.deleteStudent(name, '管理员批量操作')
+            if (r.success) {
+              ok++
+              if (selectedStudent?.name === name) setSelectedStudent(null)
+            } else {
+              fail++
+              console.warn(`[Students] Batch delete failed for ${name}:`, getErrorMessage(r))
+            }
+          } catch (err) {
+            fail++
+            console.error(`[Students] Batch delete error for ${name}:`, err)
+          }
+        }
+        setBatchDeleting(false)
+        setActionMessageAuto(
+          t('page.students.batch.deleted')
+            .replace('{0}', String(ok))
+            .replace('{1}', String(ok + fail)),
+        )
+        exitSelectMode()
+        await loadStudents()
+      },
+    })
   }
 
   // 批量导入学生
@@ -168,24 +322,49 @@ export function StudentsPage() {
     }
   }, [exportMenuOpen])
 
-  // 过滤
-  const filtered = students.filter(
-    (s) =>
+  // 已存档的班级 class_id 集合（用于默认隐藏这些班级的学生）
+  const archivedClassIds = useMemo(
+    () => new Set(classList.filter((c) => c.archived).map((c) => c.class_id)),
+    [classList],
+  )
+
+  // 过滤：搜索 + 按已存档班级隐藏
+  const filtered = students.filter((s) => {
+    // 默认隐藏已存档班级的学生（除非用户开启"显示已存档班级学生"）
+    if (!showArchivedClass && s.class_id && archivedClassIds.has(s.class_id)) return false
+    return (
       s.name.includes(search) ||
       s.groups.some((g) => g.includes(search)) ||
-      s.roles.some((r) => r.includes(search)),
+      s.roles.some((r) => r.includes(search))
+    )
+  })
+
+  // 被隐藏的已存档班级学生数（用于提示）
+  const archivedHiddenCount = useMemo(
+    () => students.filter((s) => s.class_id && archivedClassIds.has(s.class_id)).length,
+    [students, archivedClassIds],
   )
 
   // 排序: 高风险优先
   const riskOrder: Record<EAARiskLevel, number> = { 极高: 0, 高: 1, 中: 2, 低: 3 }
   const sorted = [...filtered].sort((a, b) => riskOrder[a.risk] - riskOrder[b.risk])
 
+  // 当前可见列表是否全选
+  const allVisibleSelected = sorted.length > 0 && sorted.every((s) => selectedNames.has(s.name))
+
   return (
     <div className="h-full flex">
       {/* 左侧：学生列表 */}
       <div className={`flex flex-col transition-all ${selectedStudent ? 'w-[45%]' : 'w-full'}`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h1 className="text-xl font-bold">学生管理 ({students.length})</h1>
+          <h1 className="text-xl font-bold">
+            学生管理 ({students.length})
+            {archivedHiddenCount > 0 && !showArchivedClass && (
+              <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">
+                {t('page.students.archivedHidden').replace('{0}', String(archivedHiddenCount))}
+              </span>
+            )}
+          </h1>
           <div className="flex gap-2 items-center">
             <input
               type="text"
@@ -195,10 +374,53 @@ export function StudentsPage() {
               className="bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm w-48
                          focus:outline-none focus:border-blue-500"
             />
+            {archivedHiddenCount > 0 && (
+              <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showArchivedClass}
+                  onChange={(e) => setShowArchivedClass(e.target.checked)}
+                  className="accent-blue-500"
+                />
+                {t('page.students.showArchived')}
+              </label>
+            )}
+            {selectMode ? (
+              <>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('page.students.batch.selected').replace('{0}', String(selectedNames.size))}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleBatchDelete}
+                  disabled={selectedNames.size === 0 || batchDeleting}
+                  className="bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg text-sm text-white transition-colors"
+                >
+                  {batchDeleting
+                    ? t('common.loading')
+                    : `${t('page.students.batch.delete')} (${selectedNames.size})`}
+                </button>
+                <button
+                  type="button"
+                  onClick={exitSelectMode}
+                  className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1.5 text-sm"
+                >
+                  {t('page.students.batch.cancel')}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSelectMode(true)}
+                className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1.5 rounded-lg text-sm transition-colors"
+              >
+                ☑ {t('page.students.batch.select')}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setAddingStudent(!addingStudent)}
-              className="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg text-sm transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors"
             >
               + 添加
             </button>
@@ -219,20 +441,14 @@ export function StudentsPage() {
               </button>
               {exportMenuOpen && (
                 <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 min-w-[120px]">
-                  {(['csv', 'json', 'markdown', 'html'] as const).map((fmt) => (
+                  {exportFormats.map((fmt) => (
                     <button
                       type="button"
                       key={fmt}
                       onClick={() => handleExport(fmt)}
                       className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors first:rounded-t-lg last:rounded-b-lg"
                     >
-                      {fmt === 'csv'
-                        ? 'CSV'
-                        : fmt === 'json'
-                          ? 'JSON'
-                          : fmt === 'markdown'
-                            ? 'Markdown'
-                            : 'HTML'}
+                      {fmt.toUpperCase()}
                     </button>
                   ))}
                 </div>
@@ -298,6 +514,17 @@ export function StudentsPage() {
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white dark:bg-gray-900">
                 <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 text-xs">
+                  {selectMode && (
+                    <th className="py-2 px-4 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleSelectAll}
+                        className="accent-blue-500 cursor-pointer"
+                        title={t('page.students.batch.selectAll')}
+                      />
+                    </th>
+                  )}
                   <th className="text-left py-2 px-4">{t('page.students.col.name')}</th>
                   <th className="text-right py-2 px-4">{t('page.students.col.score')}</th>
                   <th className="text-right py-2 px-4">{t('page.students.col.change')}</th>
@@ -311,14 +538,26 @@ export function StudentsPage() {
                 {sorted.map((s) => (
                   <tr
                     key={s.entity_id}
-                    onClick={() => setSelectedStudent(s)}
+                    onClick={() => (selectMode ? toggleSelect(s.name) : setSelectedStudent(s))}
                     className={`border-b border-gray-100 dark:border-gray-800 cursor-pointer transition-colors
                       ${
-                        selectedStudent?.entity_id === s.entity_id
-                          ? 'bg-blue-600/20 border-l-2 border-l-blue-400'
-                          : 'hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                        selectMode && selectedNames.has(s.name)
+                          ? 'bg-blue-600/10 border-l-2 border-l-blue-400'
+                          : selectedStudent?.entity_id === s.entity_id
+                            ? 'bg-blue-600/20 border-l-2 border-l-blue-400'
+                            : 'hover:bg-gray-100 dark:hover:bg-gray-800/50'
                       }`}
                   >
+                    {selectMode && (
+                      <td className="py-2.5 px-4" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedNames.has(s.name)}
+                          onChange={() => toggleSelect(s.name)}
+                          className="accent-blue-500 cursor-pointer"
+                        />
+                      </td>
+                    )}
                     <td className="py-2.5 px-4 font-medium">{s.name}</td>
                     <td className="py-2.5 px-4 text-right font-mono">{s.score.toFixed(1)}</td>
                     <td
@@ -389,6 +628,15 @@ export function StudentsPage() {
           />
         </div>
       )}
+
+      {/* 自定义确认对话框（替代 window.confirm） */}
+      <ConfirmDialog
+        open={confirmState.open}
+        message={confirmState.message}
+        variant={confirmState.variant}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+      />
     </div>
   )
 }

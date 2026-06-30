@@ -1,0 +1,199 @@
+{
+  "summary": {
+    "ok": 14,
+    "fail": 1,
+    "total": 15
+  },
+  "results": [
+    {
+      "category": "class",
+      "name": "create",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "id": "4d458808-d13b-46f8-9557-f541cc843c64",
+          "class_id": "TEST-1782783927603",
+          "name": "自动化测试班级",
+          "grade": "2026",
+          "note": "自动化测试创建",
+          "archived": false,
+          "created_at": 1782783927606
+        }
+      }
+    },
+    {
+      "category": "class",
+      "name": "update",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "class",
+      "name": "archive",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "class",
+      "name": "list_after_archive",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": [
+          {
+            "id": "4d458808-d13b-46f8-9557-f541cc843c64",
+            "class_id": "TEST-1782783927603",
+            "name": "自动化测试班级",
+            "grade": "2026",
+            "note": "更新后的备注",
+            "archived": true,
+            "created_at": 1782783927606,
+            "archived_at": 1782783927611
+          }
+        ]
+      }
+    },
+    {
+      "category": "class",
+      "name": "restore",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "class",
+      "name": "delete",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "classId": "TEST-1782783927603"
+      }
+    },
+    {
+      "category": "class",
+      "name": "list_after_delete",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": []
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "addStudent_for_revert",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "✓ 学生已添加: __revert_test_1782783927615 (ent_48b0781c9638)",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "addEvent_for_revert",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": false,
+        "data": "Error: Validation(\"原因码 LATE 标准分值: Some(-2.0)，当前: 0.0\")",
+        "stderr": "Error: Validation(\"原因码 LATE 标准分值: Some(-2.0)，当前: 0.0\")\n",
+        "exitCode": 1
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "revert",
+      "ok": false,
+      "error": "No event ID found in history",
+      "data": null
+    },
+    {
+      "category": "eaa",
+      "name": "deleteStudent_after_revert",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "✓ 学生已删除: __revert_test_1782783927615 (保留0条历史事件)",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "addEvent.LATE.with_correct_delta",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "✓ 事件已创建: evt_15d8dd29b254 __delta_test_1782783927809 -2.0",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "addEvent.ACTIVITY.with_correct_delta",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "✓ 事件已创建: evt_ee1ff510e088 __delta_test_1782783927809 +1.0",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "addEvent.LATE.no_delta",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": false,
+        "data": "Error: Validation(\"原因码 SLEEP_IN_CLASS 标准分值: Some(-2.0)，当前: 0.0\")",
+        "stderr": "Error: Validation(\"原因码 SLEEP_IN_CLASS 标准分值: Some(-2.0)，当前: 0.0\")\n",
+        "exitCode": 1
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "score_after_events",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "class_id": null,
+          "delta": -1,
+          "entity_id": "ent_cfc619fc4e01",
+          "events_count": 2,
+          "groups": [],
+          "last_event_at": "2026-06-30T09:45:27+08:00",
+          "name": "__delta_test_1782783927809",
+          "risk": "中",
+          "risk_stored": "未知",
+          "roles": [],
+          "score": 99,
+          "status": "Active"
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    }
+  ]
+}

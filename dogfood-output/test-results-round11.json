@@ -1,0 +1,169 @@
+{
+  "round": 11,
+  "timestamp": "2026-06-30T04:09:04.152Z",
+  "results": [
+    {
+      "name": "ai.listProviders",
+      "ok": true,
+      "detail": "count=32"
+    },
+    {
+      "name": "ai.testConnection_no_key",
+      "ok": true,
+      "detail": "success=false, error=Request timed out."
+    },
+    {
+      "name": "chat.saveMessage",
+      "ok": true,
+      "detail": "success=true, id=66"
+    },
+    {
+      "name": "chat.loadMessages",
+      "ok": true,
+      "detail": "count=1"
+    },
+    {
+      "name": "chat.saveReply",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "chat.loadMessages_after_reply",
+      "ok": true,
+      "detail": "count=2"
+    },
+    {
+      "name": "chat.listSessions",
+      "ok": true,
+      "detail": "count=8"
+    },
+    {
+      "name": "chat.deleteSession",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "chat.deleteSession_verified",
+      "ok": true,
+      "detail": "stillExists=false"
+    },
+    {
+      "name": "cron.add",
+      "ok": true,
+      "detail": "id=task-1782792474550-6jm4is"
+    },
+    {
+      "name": "cron.runNow",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "cron.getLogs_after_run",
+      "ok": true,
+      "detail": "type=object"
+    },
+    {
+      "name": "cron.remove",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "agent.runManual.weekly-reporter",
+      "ok": true,
+      "detail": "success=true, id=weekly-reporter"
+    },
+    {
+      "name": "agent.runManual.data-analyst",
+      "ok": true,
+      "detail": "success=true, id=data-analyst"
+    },
+    {
+      "name": "agent.getHistory.weekly-reporter",
+      "ok": true,
+      "detail": "count=3"
+    },
+    {
+      "name": "agent.getHistory.data-analyst",
+      "ok": true,
+      "detail": "count=2"
+    },
+    {
+      "name": "concurrent.30_calls",
+      "ok": true,
+      "detail": "30/30 succeeded, duration=265ms"
+    },
+    {
+      "name": "serial.30_calls",
+      "ok": true,
+      "detail": "30/30 succeeded, duration=1091ms"
+    },
+    {
+      "name": "concurrent_vs_serial",
+      "ok": true,
+      "detail": "concurrent=265ms, serial=1091ms"
+    },
+    {
+      "name": "stability.memory_growth",
+      "ok": true,
+      "detail": "growth=0.0%, samples=[14300000,14300000,14300000,14300000,14300000]"
+    },
+    {
+      "name": "feishu.status",
+      "ok": true,
+      "detail": "hasToken=unknown"
+    },
+    {
+      "name": "feishu.test_no_secret",
+      "ok": true,
+      "detail": "error=Feishu auth failed: code=10003 msg=invalid param"
+    },
+    {
+      "name": "settings.set_debug",
+      "ok": true,
+      "detail": "value=debug"
+    },
+    {
+      "name": "settings.restore_value",
+      "ok": true,
+      "detail": "restored=info"
+    },
+    {
+      "name": "settings.set_theme",
+      "ok": true,
+      "detail": "value=light"
+    },
+    {
+      "name": "eaa.search",
+      "ok": true,
+      "detail": "success=true, events=15"
+    },
+    {
+      "name": "eaa.listStudents",
+      "ok": true,
+      "detail": "count=55"
+    },
+    {
+      "name": "eaa.score",
+      "ok": true,
+      "detail": "success=true, score=100"
+    },
+    {
+      "name": "eaa.ranking",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.stats",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.summary",
+      "ok": true,
+      "detail": "success=true"
+    }
+  ],
+  "passed": 32,
+  "failed": 0,
+  "total": 32
+}

@@ -54,6 +54,8 @@ pub enum EntityStatus {
     Active,
     Transferred,
     Suspended,
+    /// v3.1.3 fix: soft-deleted (used by delete-student). Events retained but is_valid=false.
+    Deleted,
 }
 
 // === Entity ===

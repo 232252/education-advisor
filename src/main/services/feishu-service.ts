@@ -10,6 +10,9 @@
 
 const FEISHU_API_BASE = 'https://open.feishu.cn/open-apis'
 
+/** fetch 超时上限,防止 DNS 失败或服务器 hang 导致无限等待 */
+const FEISHU_FETCH_TIMEOUT_MS = 15_000
+
 interface TenantTokenResponse {
   code: number
   msg: string
@@ -52,6 +55,7 @@ async function getTenantToken(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
+    signal: AbortSignal.timeout(FEISHU_FETCH_TIMEOUT_MS),
   })
   const data = (await res.json()) as TenantTokenResponse
   if (data.code !== 0 || !data.tenant_access_token) {
@@ -78,6 +82,18 @@ export async function testConnection(
   }
 }
 
+/** MEDIUM 修复: 校验 token 格式,防止 URL 路径注入(如 ../ 或 / 等) */
+function validateToken(token: unknown, name: string): void {
+  if (
+    typeof token !== 'string' ||
+    token.length === 0 ||
+    token.length > 256 ||
+    !/^[A-Za-z0-9_-]+$/.test(token)
+  ) {
+    throw new Error(`Invalid ${name}: expected non-empty alphanumeric string (max 256 chars)`)
+  }
+}
+
 /** 列出某 bitable app 下的所有表 */
 export async function listBitableTables(
   appId: string,
@@ -85,9 +101,12 @@ export async function listBitableTables(
   appToken: string,
 ): Promise<{ success: boolean; tables?: BitableTable[]; error?: string }> {
   try {
+    // MEDIUM 修复: 校验 appToken,防止 URL 路径注入
+    validateToken(appToken, 'appToken')
     const { token } = await getTenantToken(appId, appSecret)
     const res = await fetch(`${FEISHU_API_BASE}/bitable/v1/apps/${appToken}/tables`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(FEISHU_FETCH_TIMEOUT_MS),
     })
     const data = (await res.json()) as BitableListResponse
     if (data.code !== 0) {
@@ -119,6 +138,7 @@ export async function sendTextMessage(
         msg_type: 'text',
         content: JSON.stringify({ text }),
       }),
+      signal: AbortSignal.timeout(FEISHU_FETCH_TIMEOUT_MS),
     })
     const data = (await res.json()) as MessageResponse
     if (data.code !== 0) {
@@ -146,6 +166,9 @@ export async function addBitableRecord(
   fields: Record<string, unknown>,
 ): Promise<{ success: boolean; recordId?: string; error?: string }> {
   try {
+    // MEDIUM 修复: 校验 appToken 和 tableId,防止 URL 路径注入
+    validateToken(appToken, 'appToken')
+    validateToken(tableId, 'tableId')
     const { token } = await getTenantToken(appId, appSecret)
     const res = await fetch(
       `${FEISHU_API_BASE}/bitable/v1/apps/${appToken}/tables/${tableId}/records`,
@@ -156,6 +179,7 @@ export async function addBitableRecord(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ fields }),
+        signal: AbortSignal.timeout(FEISHU_FETCH_TIMEOUT_MS),
       },
     )
     const data = (await res.json()) as {

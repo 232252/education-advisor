@@ -28,18 +28,11 @@ export function AgentsPage() {
     abortAgent,
     saveSoul,
     saveRules,
-    initStatusListener,
   } = useAgentStore()
 
   useEffect(() => {
     fetchAgents()
-    initStatusListener()
-    return () => {
-      // 清理：取消 IPC 监听，防止重复挂载导致监听器泄漏
-      const unsub = useAgentStore.getState()._unsubscribeStatus
-      if (unsub) unsub()
-    }
-  }, [fetchAgents, initStatusListener])
+  }, [fetchAgents])
 
   return (
     <div className="h-full flex">
@@ -50,7 +43,7 @@ export function AgentsPage() {
           <button
             type="button"
             onClick={fetchAgents}
-            className="text-xs bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1.5 rounded transition-colors"
+            className="text-xs bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1.5 rounded-lg transition-colors"
           >
             {t('page.agents.refresh')}
           </button>
@@ -76,7 +69,7 @@ export function AgentsPage() {
                 className={`w-full text-left p-3 rounded-lg transition-colors border
                   ${
                     selectedAgentId === agent.id
-                      ? 'bg-gray-200 dark:bg-gray-700 border-blue-500'
+                      ? 'bg-blue-600/10 dark:bg-blue-600/10 border-blue-500'
                       : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                   }`}
               >
@@ -328,12 +321,14 @@ function RunTab({
   const [prompt, setPrompt] = useState('')
   const outputRef = useRef<HTMLDivElement>(null)
 
-  // 自动滚动到底部
+  // 自动滚动到底部 — liveOutput/liveToolCalls 作为触发器，
+  // 每次流式输出更新时重新执行滚动，虽然 effect body 不直接读取它们。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 触发器式 effect，依赖变化驱动滚动
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight
     }
-  }, [])
+  }, [liveOutput, liveToolCalls])
 
   const handleRun = () => {
     if (!prompt.trim() || isRunning) return
@@ -364,7 +359,7 @@ function RunTab({
             <button
               type="button"
               onClick={() => onAbort(agentId)}
-              className="bg-red-700 hover:bg-red-600 px-4 py-2 rounded-lg text-sm transition-colors"
+              className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm transition-colors"
             >
               停止
             </button>
@@ -373,7 +368,7 @@ function RunTab({
               type="button"
               onClick={handleRun}
               disabled={!prompt.trim() || !enabled}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 px-4 py-2 rounded-lg text-sm transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 px-4 py-2 rounded-lg text-sm transition-colors"
             >
               执行
             </button>
@@ -447,9 +442,15 @@ function EditorTab({ content, placeholder, onSave }: EditorTabProps) {
 
   const handleSave = async () => {
     setSaving(true)
-    await onSave(text)
-    setSaving(false)
-    setDirty(false)
+    try {
+      await onSave(text)
+      setDirty(false)
+    } catch (err) {
+      // H-4 修复: 保存失败时不能让 saving 永久卡住
+      console.warn('[AgentsPage] EditorTab save failed:', err)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -462,8 +463,8 @@ function EditorTab({ content, placeholder, onSave }: EditorTabProps) {
           type="button"
           onClick={handleSave}
           disabled={!dirty || saving}
-          className="text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-40
-            px-3 py-1 rounded transition-colors"
+          className="text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-40
+            px-3 py-1 rounded-lg transition-colors"
         >
           {saving ? '保存中...' : '保存'}
         </button>
@@ -634,8 +635,8 @@ function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
           type="button"
           onClick={handleSave}
           disabled={!dirty || saving}
-          className="text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-40
-            px-3 py-1 rounded transition-colors"
+          className="text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-40
+            px-3 py-1 rounded-lg transition-colors"
         >
           {saving ? '保存中...' : '保存'}
         </button>

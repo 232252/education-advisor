@@ -189,27 +189,29 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke(IPC.IPC_EAA_SUMMARY, since, until),
     // [w] 生成 dashboard(写文件)
     dashboard: (outputDir?: string) => ipcRenderer.invoke(IPC.IPC_EAA_DASHBOARD, outputDir),
+    // [r] 获取 EAA 支持的导出格式列表(不调用二进制,从静态配置返回)
+    exportFormats: () => ipcRenderer.invoke(IPC.IPC_EAA_EXPORT_FORMATS),
   },
 
   // ----- 隐私引擎 -----
   privacy: {
-    // [w] 初始化(password 注入到主进程 env, 不入存储)
+    // [w] 初始化(密码仅在本次 IPC 传输,主进程在内存中保留,渲染进程应随后清空自身状态)
     init: (password: string, autoScan?: boolean) =>
       ipcRenderer.invoke(IPC.IPC_PRIVACY_INIT, password, autoScan),
-    // [w] 载入隐私字典
+    // [w] 载入隐私字典(密码仅在本次 IPC 传输)
     load: (password: string) => ipcRenderer.invoke(IPC.IPC_PRIVACY_LOAD, password),
-    // [w] 启用隐私引擎
+    // [w] 启用隐私引擎(使用主进程内存中已缓存的密码)
     enable: () => ipcRenderer.invoke(IPC.IPC_PRIVACY_ENABLE),
-    // [w] 停用隐私引擎
+    // [w] 停用隐私引擎(需要密码)
     disable: (password: string) => ipcRenderer.invoke(IPC.IPC_PRIVACY_DISABLE, password),
-    // [r] 列出映射(需 password 解密)
-    list: (password: string) => ipcRenderer.invoke(IPC.IPC_PRIVACY_LIST, password),
+    // [r] 列出映射(使用主进程内存中已缓存的密码,渲染进程无需再传密码)
+    list: (password?: string) => ipcRenderer.invoke(IPC.IPC_PRIVACY_LIST, password),
     // [w] 新增映射
     add: (entityType: string, text: string) =>
       ipcRenderer.invoke(IPC.IPC_PRIVACY_ADD, entityType, text),
     // [r] 匿名化
     anonymize: (text: string) => ipcRenderer.invoke(IPC.IPC_PRIVACY_ANONYMIZE, text),
-    // [r] 反匿名化(需 password)
+    // [r] 反匿名化(使用主进程内存中已缓存的密码)
     deanonymize: (text: string) => ipcRenderer.invoke(IPC.IPC_PRIVACY_DEANONYMIZE, text),
     // [r] 按接收方过滤
     filter: (receiver: string, text: string) =>
@@ -218,6 +220,10 @@ contextBridge.exposeInMainWorld('api', {
     dryrun: (text: string) => ipcRenderer.invoke(IPC.IPC_PRIVACY_DRYRUN, text),
     // [c] 备份映射(写文件到 destPath) — UI 层应二次确认
     backup: (destPath: string) => ipcRenderer.invoke(IPC.IPC_PRIVACY_BACKUP, destPath),
+    // [w] 锁定(清空主进程内存中的密码,后续隐私操作需重新输入密码)
+    lock: () => ipcRenderer.invoke(IPC.IPC_PRIVACY_LOCK),
+    // [r] 查询隐私引擎状态(是否已加载密码,不返回密码本身)
+    status: () => ipcRenderer.invoke(IPC.IPC_PRIVACY_STATUS),
   },
 
   // ----- 定时任务 -----
@@ -284,6 +290,9 @@ contextBridge.exposeInMainWorld('api', {
     // [r] 系统通知
     notify: (title: string, body: string) =>
       ipcRenderer.invoke(IPC.IPC_SYS_NOTIFICATION, title, body),
+    // [r] 读取文件内容(文本 utf-8 / 二进制 base64),用于文件上传
+    //   安全限制: 文件大小 ≤ 10MB,自动推断 MIME 类型
+    readFile: (filePath: string) => ipcRenderer.invoke(IPC.IPC_SYS_READ_FILE, filePath),
   },
 
   // ----- 学生档案 -----
@@ -292,6 +301,26 @@ contextBridge.exposeInMainWorld('api', {
     get: (name: string) => ipcRenderer.invoke(IPC.IPC_PROFILE_GET, name),
     // [w] 写入学生扩展档案
     set: (name: string, data: unknown) => ipcRenderer.invoke(IPC.IPC_PROFILE_SET, name, data),
+  },
+
+  // ----- 班级管理（本地：存档/删除） -----
+  class: {
+    // [r] 列出所有班级
+    list: () => ipcRenderer.invoke(IPC.IPC_CLASS_LIST),
+    // [w] 新建班级
+    create: (params: unknown) => ipcRenderer.invoke(IPC.IPC_CLASS_CREATE, params),
+    // [w] 更新班级信息（名称/年级/备注/班主任）
+    update: (id: string, fields: unknown) => ipcRenderer.invoke(IPC.IPC_CLASS_UPDATE, id, fields),
+    // [w] 存档班级（标记隐藏，数据保留）
+    archive: (id: string) => ipcRenderer.invoke(IPC.IPC_CLASS_ARCHIVE, id),
+    // [w] 恢复班级（取消存档）
+    restore: (id: string) => ipcRenderer.invoke(IPC.IPC_CLASS_RESTORE, id),
+    // [c] 删除班级（仅删本地记录，学生保留）— UI 层应二次确认
+    delete: (id: string) => ipcRenderer.invoke(IPC.IPC_CLASS_DELETE, id),
+    // [w] 调班：批量把学生分入班级
+    assign: (params: unknown) => ipcRenderer.invoke(IPC.IPC_CLASS_ASSIGN, params),
+    // [w] 调班：把学生移出班级（清空 class_id）
+    removeStudent: (params: unknown) => ipcRenderer.invoke(IPC.IPC_CLASS_REMOVE, params),
   },
 
   // ----- 对话持久化 -----

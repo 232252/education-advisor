@@ -1,0 +1,71 @@
+{
+  "report_id": "SEC-CHECK-20260630",
+  "date": "2026-06-30",
+  "weekday": "星期二",
+  "check_time": "02:07",
+  "inspector": "安全检查员",
+  "check_type": "周检（补检）",
+  "data_source": "eaa CLI",
+  "privacy_status": "脱敏完成（S_XXX化名）",
+  "scope": {
+    "物理实验室": {
+      "灭火器": "未发现异常（无LAB相关事件）",
+      "电源": "正常",
+      "实验器材": "正常",
+      "通风": "正常"
+    },
+    "化学实验室": {
+      "危险化学品": "无异常登记",
+      "通风橱": "正常",
+      "应急冲淋": "正常",
+      "废液处理": "正常"
+    },
+    "通用技术实验室": {
+      "机械加工设备": "正常",
+      "电气设备": "正常",
+      "工具管理": "正常"
+    }
+  },
+  "lab_event_audit": {
+    "LAB_SAFETY_VIOLATION": 0,
+    "LAB_UNSAFE_BEHAVIOR": 0,
+    "LAB_EQUIPMENT_DAMAGE": 0,
+    "LAB_CLEAN_UP": 0,
+    "total_lab_events": 0
+  },
+  "student_risk_overview": {
+    "total_students": 58,
+    "极高风险": 0,
+    "高风险": 0,
+    "中风险": 4,
+    "低风险": 54
+  },
+  "weekly_event_summary": {
+    "period": "2026-06-23 ~ 2026-06-30",
+    "total_events": 10,
+    "deduct_count": 6,
+    "deduct_total": -12,
+    "bonus_count": 4,
+    "bonus_total": 5,
+    "top_reason_codes": [
+      {"code": "LATE", "count": 4},
+      {"code": "ACTIVITY_PARTICIPATION", "count": 3},
+      {"code": "SLEEP_IN_CLASS", "count": 2}
+    ]
+  },
+  "hazards": [],
+  "summary": {
+    "check_items": 11,
+    "passed": 11,
+    "failed": 0,
+    "overall_status": "✅ 合格",
+    "key_finding": "本周无实验室安全违规、设备损坏、不安全行为或未清理事件，整体安全状况良好。"
+  },
+  "recommendations": [
+    "继续维持每周一8:00周检制度",
+    "下周一（2026-07-07）执行例行周检，重点核查灭火器与化学试剂专柜",
+    "关注4名中风险学生的纪律表现，防范风险升级"
+  ],
+  "next_check": "2026-07-07 08:00",
+  "generated_at": "2026-06-30T02:07:08+08:00"
+}

@@ -53,6 +53,7 @@ export const IPC_EAA_CODES = 'eaa:codes'
 export const IPC_EAA_DOCTOR = 'eaa:doctor'
 export const IPC_EAA_SUMMARY = 'eaa:summary'
 export const IPC_EAA_DASHBOARD = 'eaa:dashboard'
+export const IPC_EAA_EXPORT_FORMATS = 'eaa:export-formats'
 // ===== 隐私引擎 =====
 export const IPC_PRIVACY_INIT = 'privacy:init'
 export const IPC_PRIVACY_LOAD = 'privacy:load'
@@ -65,6 +66,8 @@ export const IPC_PRIVACY_DEANONYMIZE = 'privacy:deanonymize'
 export const IPC_PRIVACY_FILTER = 'privacy:filter'
 export const IPC_PRIVACY_DRYRUN = 'privacy:dryrun'
 export const IPC_PRIVACY_BACKUP = 'privacy:backup'
+export const IPC_PRIVACY_LOCK = 'privacy:lock'
+export const IPC_PRIVACY_STATUS = 'privacy:status'
 
 // ===== 定时任务 =====
 export const IPC_CRON_LIST = 'cron:list'
@@ -94,10 +97,22 @@ export const IPC_SYS_OPEN_EXTERNAL = 'sys:open-external'
 export const IPC_SYS_GET_PATH = 'sys:get-path'
 export const IPC_SYS_CHECK_UPDATE = 'sys:check-update'
 export const IPC_SYS_NOTIFICATION = 'sys:notification'
+export const IPC_SYS_READ_FILE = 'sys:read-file'
 
 // ===== 学生档案 =====
 export const IPC_PROFILE_GET = 'profile:get'
 export const IPC_PROFILE_SET = 'profile:set'
+
+// ===== 班级管理（本地：存档/删除） =====
+export const IPC_CLASS_LIST = 'class:list'
+export const IPC_CLASS_CREATE = 'class:create'
+export const IPC_CLASS_UPDATE = 'class:update'
+export const IPC_CLASS_ARCHIVE = 'class:archive'
+export const IPC_CLASS_RESTORE = 'class:restore'
+export const IPC_CLASS_DELETE = 'class:delete'
+// 调班：批量分入班级 / 单个移出班级（联动 EAA set-student-meta）
+export const IPC_CLASS_ASSIGN = 'class:assign'
+export const IPC_CLASS_REMOVE = 'class:remove'
 
 // ===== 对话持久化 =====
 export const IPC_CHAT_SAVE_MESSAGE = 'chat:save-message'

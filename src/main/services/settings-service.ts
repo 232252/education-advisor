@@ -27,6 +27,8 @@ const DEFAULT_SETTINGS: UnifiedSettings = {
     autoStart: false,
     minimizeToTray: true,
     closeBehavior: 'ask',
+    // H-4 修复: cron 调度时区默认值
+    timezone: 'Asia/Shanghai',
   },
   models: {
     defaultProvider: '',
@@ -56,6 +58,7 @@ const DEFAULT_SETTINGS: UnifiedSettings = {
     showImages: true,
     maxTokens: 32768,
     conversationLogging: true,
+    thinkingLevel: 'medium',
   },
   privacy: {
     enabled: false,
@@ -65,6 +68,8 @@ const DEFAULT_SETTINGS: UnifiedSettings = {
     appId: '',
     appSecret: '',
     userOpenId: '',
+    bitableAppToken: '',
+    bitableTableId: '',
     bitableSync: {
       enabled: false,
       syncInterval: '0 */6 * * *',
@@ -118,10 +123,12 @@ class SettingsService {
         ) as unknown as UnifiedSettings
       } catch (err) {
         console.warn('[Settings] Failed to load settings.json, using defaults:', err)
-        return { ...DEFAULT_SETTINGS }
+        // 修复: 用 deep clone 防止 update() 意外修改 DEFAULT_SETTINGS 的嵌套对象
+        return JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as UnifiedSettings
       }
     }
-    return { ...DEFAULT_SETTINGS }
+    // 修复: 用 deep clone 防止 update() 意外修改 DEFAULT_SETTINGS 的嵌套对象
+    return JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as UnifiedSettings
   }
 
   private deepMerge(
@@ -160,6 +167,10 @@ class SettingsService {
    * 直接设置 customModels（绕过 dotPath 校验，因为 provider ID 是动态的）
    */
   setCustomModels(providerId: string, models: Array<Record<string, unknown>>): void {
+    // RISK 修复: 校验 models 是数组
+    if (!Array.isArray(models)) {
+      throw new Error(`models must be an array, got ${typeof models}`)
+    }
     if (!this.settings.models.customModels) {
       this.settings.models.customModels = {}
     }
@@ -181,6 +192,33 @@ class SettingsService {
     const keys = dotPath.split('.')
     if (keys.some((k) => k.length === 0)) {
       throw new Error(`dotPath contains empty segment: ${dotPath}`)
+    }
+
+    // RISK 修复 + CONCERN 修复: 基本类型校验,防止 JSON.stringify 抛错或数据污染
+    // 拒绝 undefined / null / function / symbol / bigint
+    if (
+      value === undefined ||
+      value === null ||
+      typeof value === 'function' ||
+      typeof value === 'symbol' ||
+      typeof value === 'bigint'
+    ) {
+      throw new Error(`Invalid value type for ${dotPath}: ${typeof value}`)
+    }
+    // 拒绝 NaN 和 Infinity (JSON.stringify 会把它们变成 null,静默丢数据)
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      throw new Error(`Invalid number value for ${dotPath}: ${value} (NaN/Infinity not allowed)`)
+    }
+    // 防止超长字符串撑爆 settings.json
+    if (typeof value === 'string' && value.length > 1_000_000) {
+      throw new Error(`Value too long for ${dotPath}: ${value.length} chars (max 1,000,000)`)
+    }
+    // 对象深度限制:防止恶意/意外深嵌套对象导致 JSON.stringify 栈溢出
+    if (typeof value === 'object') {
+      const depth = SettingsService._getObjectDepth(value)
+      if (depth > 10) {
+        throw new Error(`Object depth too deep for ${dotPath}: ${depth} (max 10)`)
+      }
     }
 
     // 校验路径在默认设置中存在
@@ -239,21 +277,25 @@ class SettingsService {
   }
 
   /** 异步写盘，不阻塞主进程（P1-26） */
+  private _needsResave = false
   private async saveNow(): Promise<void> {
     if (this._writing) {
-      // 已有写入进行中，等下次节流
-      this.scheduleSave()
+      // 已有写入进行中,标记需要再次写盘;当前 write 完成后会在 do-while 里重写最新状态
+      this._needsResave = true
       return
     }
     this._writing = true
     try {
-      const json = JSON.stringify(this.settings, null, 2)
-      const tmpPath = `${this.settingsPath}.tmp`
-      // 确保目录存在
-      await fsp.mkdir(path.dirname(this.settingsPath), { recursive: true })
-      await fsp.writeFile(tmpPath, json, 'utf-8')
-      await fsp.rename(tmpPath, this.settingsPath)
-      this._lastError = null
+      do {
+        this._needsResave = false
+        const json = JSON.stringify(this.settings, null, 2)
+        const tmpPath = `${this.settingsPath}.tmp`
+        // 确保目录存在
+        await fsp.mkdir(path.dirname(this.settingsPath), { recursive: true })
+        await fsp.writeFile(tmpPath, json, 'utf-8')
+        await fsp.rename(tmpPath, this.settingsPath)
+        this._lastError = null
+      } while (this._needsResave)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       this._lastError = `Failed to save settings: ${msg}`
@@ -278,6 +320,26 @@ class SettingsService {
   /** 获取最近一次错误信息 */
   getLastError(): string | null {
     return this._lastError
+  }
+
+  /** 计算对象最大嵌套深度(防御恶意深嵌套对象) */
+  private static _getObjectDepth(obj: unknown, seen = new WeakSet()): number {
+    if (obj === null || typeof obj !== 'object') return 0
+    if (seen.has(obj as object)) return 0 // 防止循环引用导致无限递归
+    seen.add(obj as object)
+    let maxDepth = 0
+    try {
+      for (const val of Object.values(obj as Record<string, unknown>)) {
+        if (typeof val === 'object' && val !== null) {
+          const d = SettingsService._getObjectDepth(val, seen)
+          if (d > maxDepth) maxDepth = d
+        }
+      }
+    } catch {
+      // Object.values 在异常对象上可能抛错,忽略
+      return 1
+    }
+    return maxDepth + 1
   }
 }
 

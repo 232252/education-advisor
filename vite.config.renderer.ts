@@ -10,6 +10,9 @@ export default defineConfig({
   base: './',
   build: {
     outDir: resolve(__dirname, 'dist/renderer'),
+    // RISK 修复: outDir 不在 project root 内,vite 默认不会 empty
+    // 显式开启 emptyOutDir 避免多次构建后旧 index-*.js 残留污染 dist
+    emptyOutDir: true,
     rollupOptions: {
       input: resolve(__dirname, 'src/renderer/index.html'),
     },

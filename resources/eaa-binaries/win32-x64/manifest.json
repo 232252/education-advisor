@@ -1,0 +1,7 @@
+{
+  "built_at": "2026-06-30T13:43:00.930Z",
+  "platform": "win32-x64",
+  "binary": "eaa.exe",
+  "cargo_version": "cargo 1.95.0 (f2d3ce0bd 2026-03-21)",
+  "source": "core/eaa-cli (本地源码编译)"
+}

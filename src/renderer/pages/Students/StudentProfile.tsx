@@ -19,9 +19,11 @@ import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import ReactEChartsCore from 'echarts-for-react/lib/core'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useTheme } from '../../hooks/useTheme'
 import { getAPI, getErrorMessage } from '../../lib/ipc-client'
+import { useAgentStore } from '../../stores/agentStore'
 import { toast } from '../../stores/toastStore'
 
 echarts.use([LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
@@ -114,16 +116,37 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
 
   const loadAllData = useCallback(async () => {
     try {
-      const [scoreRes, historyRes, codesRes, agentsRes] = await Promise.all([
+      // 使用 allSettled: 单个请求失败不影响其他请求的结果
+      const [scoreSettled, historySettled, codesSettled, agentsSettled] = await Promise.allSettled([
         getAPI().eaa.score(student.name),
         getAPI().eaa.history(student.name),
         getAPI().eaa.codes(),
         getAPI().agent.list(),
       ])
-      if (scoreRes.success) setScore(scoreRes.data)
-      if (historyRes.success) setHistory(historyRes.data)
-      if (codesRes.success && codesRes.data?.codes) setReasonCodes(codesRes.data.codes)
-      if (agentsRes) setAgents(agentsRes)
+      if (scoreSettled.status === 'fulfilled' && scoreSettled.value.success) {
+        setScore(scoreSettled.value.data)
+      } else if (scoreSettled.status === 'rejected') {
+        console.warn('[Profile] score request failed:', scoreSettled.reason)
+      }
+      if (historySettled.status === 'fulfilled' && historySettled.value.success) {
+        setHistory(historySettled.value.data)
+      } else if (historySettled.status === 'rejected') {
+        console.warn('[Profile] history request failed:', historySettled.reason)
+      }
+      if (
+        codesSettled.status === 'fulfilled' &&
+        codesSettled.value.success &&
+        codesSettled.value.data?.codes
+      ) {
+        setReasonCodes(codesSettled.value.data.codes)
+      } else if (codesSettled.status === 'rejected') {
+        console.warn('[Profile] codes request failed:', codesSettled.reason)
+      }
+      if (agentsSettled.status === 'fulfilled' && agentsSettled.value) {
+        setAgents(agentsSettled.value)
+      } else if (agentsSettled.status === 'rejected') {
+        console.warn('[Profile] agent list request failed:', agentsSettled.reason)
+      }
       loadProfileData(student.name)
     } catch (err) {
       console.error('[Profile] Load error:', err)
@@ -155,9 +178,13 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
     setAiOutput('')
     setAiSaved(false)
 
-    // 订阅状态更新以获取实时输出
-    const unsub = getAPI().agent.onStatusUpdate((rawData) => {
-      const data = rawData as { output?: string; result?: { durationMs?: number }; error?: string }
+    // High 修复: 改用 agentStore.subscribeStatus 派生订阅,并通过 agentId 过滤避免事件串扰
+    // 之前直接 getAPI().agent.onStatusUpdate 会绕过 agentStore 的去重逻辑,
+    // 多个组件同时订阅时收到重复事件;且不过滤 agentId 时,其他 agent 的事件会串扰到此处
+    const selectedAgentIds = new Set(selectedAgents)
+    const unsub = useAgentStore.getState().subscribeStatus((data) => {
+      // 仅处理当前选中的 agent 发出的状态事件
+      if (!selectedAgentIds.has(data.agentId)) return
       if (data.output) {
         setAiOutput((prev) => prev + data.output)
       }
@@ -197,9 +224,10 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
     setAiOutput('')
     setAiSaved(false)
 
-    // 订阅状态更新以获取实时输出
-    const unsub = getAPI().agent.onStatusUpdate((rawData) => {
-      const data = rawData as { output?: string; result?: { durationMs?: number }; error?: string }
+    // High 修复: 改用 agentStore.subscribeStatus 派生订阅,并通过 agentId 过滤避免事件串扰
+    const allAgentIds = new Set(allIds)
+    const unsub = useAgentStore.getState().subscribeStatus((data) => {
+      if (!allAgentIds.has(data.agentId)) return
       if (data.output) {
         setAiOutput((prev) => prev + data.output)
       }
@@ -869,12 +897,27 @@ function EventsTab({
   // 搜索/范围结果（替换 history 事件）
   const [searchEvents, setSearchEvents] = useState<EAAHistoryEvent[] | null>(null)
   const [searchLoading, setSearchLoading] = useState(false)
+  // 自定义确认对话框（替代 window.confirm）
+  const [revertConfirm, setRevertConfirm] = useState<{ open: boolean; eventId: string }>({
+    open: false,
+    eventId: '',
+  })
 
   // 实际展示的事件列表：有搜索/范围结果时用结果，否则用 props.events
   const displayEvents = searchEvents ?? events
 
   // 搜索防抖
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // MEDIUM 修复: 组件卸载时清理 searchTimerRef,防止内存泄漏与卸载后 setState
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current)
+        searchTimerRef.current = null
+      }
+    }
+  }, [])
 
   // 用 ref 持有 performSearch 引用，避免回调依赖变化时频繁重建
   const performSearchRef = useRef<((q: string, s: string, e: string) => Promise<void>) | null>(null)
@@ -947,7 +990,12 @@ function EventsTab({
   performSearchRef.current = performSearch
 
   const handleRevert = async (eventId: string) => {
-    if (!confirm('确定要撤销此事件吗？撤销后分数将回退。')) return
+    setRevertConfirm({ open: true, eventId })
+  }
+
+  const executeRevert = async () => {
+    const eventId = revertConfirm.eventId
+    setRevertConfirm({ open: false, eventId: '' })
     try {
       const result = await getAPI().eaa.revertEvent(eventId, `由 ${studentName} 档案页撤销`)
       if (result.success) {
@@ -1062,6 +1110,17 @@ function EventsTab({
           ))}
         </div>
       )}
+
+      {/* 撤销事件确认对话框 */}
+      <ConfirmDialog
+        open={revertConfirm.open}
+        title="撤销事件"
+        message="确定要撤销此事件吗？撤销后分数将回退。"
+        confirmText="撤销"
+        variant="danger"
+        onConfirm={executeRevert}
+        onCancel={() => setRevertConfirm({ open: false, eventId: '' })}
+      />
     </div>
   )
 }
