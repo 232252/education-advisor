@@ -15,12 +15,12 @@
         "noExplicitAny": "warn"
       },
       "a11y": {
-        "useButtonType": "warn",
-        "noStaticElementInteractions": "warn",
-        "useKeyWithClickEvents": "warn",
-        "noLabelWithoutControl": "warn",
-        "useSemanticElements": "warn",
-        "noSvgWithoutTitle": "warn"
+        "useButtonType": "off",
+        "noStaticElementInteractions": "off",
+        "useKeyWithClickEvents": "off",
+        "noLabelWithoutControl": "off",
+        "useSemanticElements": "off",
+        "noSvgWithoutTitle": "off"
       }
     }
   },

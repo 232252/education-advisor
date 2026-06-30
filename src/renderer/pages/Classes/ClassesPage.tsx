@@ -264,101 +264,103 @@ export function ClassesPage() {
 
       {/* 内容区：左侧班级列表 + 右侧班级详情（点击行打开） */}
       <div className="flex-1 flex overflow-hidden">
-        <div className={`overflow-auto px-6 py-4 ${selectedClass ? 'w-[45%] border-r border-gray-200 dark:border-gray-700' : 'w-full'}`}>
-        {loading ? (
-          <div className="text-center text-sm text-gray-400 py-12">{t('common.loading')}</div>
-        ) : visibleClasses.length === 0 ? (
-          <div className="text-center text-sm text-gray-400 py-12">{t('page.classes.empty')}</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-white dark:bg-gray-900 z-10">
-              <tr className="text-left text-xs text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
-                <th className="py-2 px-3 font-medium">{t('page.classes.col.classId')}</th>
-                <th className="py-2 px-3 font-medium">{t('page.classes.col.name')}</th>
-                <th className="py-2 px-3 font-medium">{t('page.classes.col.grade')}</th>
-                <th className="py-2 px-3 font-medium">{t('page.classes.col.teacher')}</th>
-                <th className="py-2 px-3 font-medium text-center">
-                  {t('page.classes.col.students')}
-                </th>
-                <th className="py-2 px-3 font-medium">{t('page.classes.col.status')}</th>
-                <th className="py-2 px-3 font-medium text-center">
-                  {t('page.classes.col.action')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleClasses.map((c) => (
-                <tr
-                  key={c.id}
-                  onClick={() => setSelectedClass(c)}
-                  className={`border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${
-                    c.archived ? 'opacity-60' : ''
-                  } ${selectedClass?.id === c.id ? 'bg-blue-600/10 border-l-2 border-l-blue-400' : ''}`}
-                >
-                  <td className="py-2.5 px-3 font-mono text-xs text-gray-600 dark:text-gray-300">
-                    {c.class_id}
-                  </td>
-                  <td className="py-2.5 px-3 font-medium">{c.name}</td>
-                  <td className="py-2.5 px-3 text-gray-500 dark:text-gray-400">
-                    {c.grade || t('common.dash')}
-                  </td>
-                  <td className="py-2.5 px-3 text-gray-500 dark:text-gray-400">
-                    {c.teacher || t('common.dash')}
-                  </td>
-                  <td className="py-2.5 px-3 text-center text-gray-500 dark:text-gray-400">
-                    {counts[c.class_id] ?? 0}
-                  </td>
-                  <td className="py-2.5 px-3">
-                    {c.archived ? (
-                      <span className="inline-block px-2 py-0.5 text-xs rounded bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
-                        {t('page.classes.status.archived')}
-                      </span>
-                    ) : (
-                      <span className="inline-block px-2 py-0.5 text-xs rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                        {t('page.classes.status.active')}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-2 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(c)}
-                        className="text-blue-500/70 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                      >
-                        {t('page.classes.edit')}
-                      </button>
-                      {c.archived ? (
-                        <button
-                          type="button"
-                          onClick={() => handleRestore(c)}
-                          className="text-green-500/70 hover:text-green-600 dark:hover:text-green-400 transition-colors"
-                        >
-                          {t('page.classes.restore')}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleArchive(c)}
-                          className="text-yellow-500/70 hover:text-yellow-600 dark:hover:text-yellow-400 transition-colors"
-                        >
-                          {t('page.classes.archive')}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(c)}
-                        className="text-red-400/70 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                      >
-                        {t('page.classes.delete')}
-                      </button>
-                    </div>
-                  </td>
+        <div
+          className={`overflow-auto px-6 py-4 ${selectedClass ? 'w-[45%] border-r border-gray-200 dark:border-gray-700' : 'w-full'}`}
+        >
+          {loading ? (
+            <div className="text-center text-sm text-gray-400 py-12">{t('common.loading')}</div>
+          ) : visibleClasses.length === 0 ? (
+            <div className="text-center text-sm text-gray-400 py-12">{t('page.classes.empty')}</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-white dark:bg-gray-900 z-10">
+                <tr className="text-left text-xs text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
+                  <th className="py-2 px-3 font-medium">{t('page.classes.col.classId')}</th>
+                  <th className="py-2 px-3 font-medium">{t('page.classes.col.name')}</th>
+                  <th className="py-2 px-3 font-medium">{t('page.classes.col.grade')}</th>
+                  <th className="py-2 px-3 font-medium">{t('page.classes.col.teacher')}</th>
+                  <th className="py-2 px-3 font-medium text-center">
+                    {t('page.classes.col.students')}
+                  </th>
+                  <th className="py-2 px-3 font-medium">{t('page.classes.col.status')}</th>
+                  <th className="py-2 px-3 font-medium text-center">
+                    {t('page.classes.col.action')}
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody>
+                {visibleClasses.map((c) => (
+                  <tr
+                    key={c.id}
+                    onClick={() => setSelectedClass(c)}
+                    className={`border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${
+                      c.archived ? 'opacity-60' : ''
+                    } ${selectedClass?.id === c.id ? 'bg-blue-600/10 border-l-2 border-l-blue-400' : ''}`}
+                  >
+                    <td className="py-2.5 px-3 font-mono text-xs text-gray-600 dark:text-gray-300">
+                      {c.class_id}
+                    </td>
+                    <td className="py-2.5 px-3 font-medium">{c.name}</td>
+                    <td className="py-2.5 px-3 text-gray-500 dark:text-gray-400">
+                      {c.grade || t('common.dash')}
+                    </td>
+                    <td className="py-2.5 px-3 text-gray-500 dark:text-gray-400">
+                      {c.teacher || t('common.dash')}
+                    </td>
+                    <td className="py-2.5 px-3 text-center text-gray-500 dark:text-gray-400">
+                      {counts[c.class_id] ?? 0}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {c.archived ? (
+                        <span className="inline-block px-2 py-0.5 text-xs rounded bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                          {t('page.classes.status.archived')}
+                        </span>
+                      ) : (
+                        <span className="inline-block px-2 py-0.5 text-xs rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                          {t('page.classes.status.active')}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(c)}
+                          className="text-blue-500/70 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        >
+                          {t('page.classes.edit')}
+                        </button>
+                        {c.archived ? (
+                          <button
+                            type="button"
+                            onClick={() => handleRestore(c)}
+                            className="text-green-500/70 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                          >
+                            {t('page.classes.restore')}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleArchive(c)}
+                            className="text-yellow-500/70 hover:text-yellow-600 dark:hover:text-yellow-400 transition-colors"
+                          >
+                            {t('page.classes.archive')}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(c)}
+                          className="text-red-400/70 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                        >
+                          {t('page.classes.delete')}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* 右侧：班级详情面板 */}
