@@ -81,7 +81,12 @@ export function ClassProfile({ classEntity, allStudents, onClose, onRefresh }: C
             <div className="mt-1 flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500">
               <span className="font-mono">{classEntity.class_id}</span>
               <span>·</span>
-              <span>{t('page.classes.profile.studentCount').replace('{0}', String(classStudents.length))}</span>
+              <span>
+                {t('page.classes.profile.studentCount').replace(
+                  '{0}',
+                  String(classStudents.length),
+                )}
+              </span>
             </div>
           </div>
           <button
@@ -116,11 +121,21 @@ export function ClassProfile({ classEntity, allStudents, onClose, onRefresh }: C
       {/* Tab 内容 */}
       <div className="flex-1 overflow-y-auto p-4">
         {tab === 'overview' && (
-          <OverviewTab classEntity={classEntity} createdStr={createdStr} studentCount={classStudents.length} />
+          <OverviewTab
+            classEntity={classEntity}
+            createdStr={createdStr}
+            studentCount={classStudents.length}
+          />
         )}
-        {tab === 'students' && <StudentsTab classEntity={classEntity} students={classStudents} onRefresh={onRefresh} />}
+        {tab === 'students' && (
+          <StudentsTab classEntity={classEntity} students={classStudents} onRefresh={onRefresh} />
+        )}
         {tab === 'assign' && (
-          <AssignTab classEntity={classEntity} assignable={assignableStudents} onRefresh={onRefresh} />
+          <AssignTab
+            classEntity={classEntity}
+            assignable={assignableStudents}
+            onRefresh={onRefresh}
+          />
         )}
       </div>
     </div>
@@ -150,7 +165,9 @@ function OverviewTab({
     <div className="space-y-3">
       {rows.map((r) => (
         <div key={r.label} className="flex">
-          <span className="w-24 flex-shrink-0 text-xs text-gray-400 dark:text-gray-500">{r.label}</span>
+          <span className="w-24 flex-shrink-0 text-xs text-gray-400 dark:text-gray-500">
+            {r.label}
+          </span>
           <span className="flex-1 text-sm text-gray-700 dark:text-gray-200">{r.value}</span>
         </div>
       ))}
@@ -198,12 +215,21 @@ function StudentsTab({
       toast.success(t('page.classes.profile.remove.success').replace('{0}', student.name))
       onRefresh()
     } catch (err) {
-      toast.error(t('page.classes.profile.remove.failed').replace('{0}', err instanceof Error ? err.message : String(err)))
+      toast.error(
+        t('page.classes.profile.remove.failed').replace(
+          '{0}',
+          err instanceof Error ? err.message : String(err),
+        ),
+      )
     }
   }
 
   if (students.length === 0) {
-    return <div className="text-center text-sm text-gray-400 py-12">{t('page.classes.profile.noStudents')}</div>
+    return (
+      <div className="text-center text-sm text-gray-400 py-12">
+        {t('page.classes.profile.noStudents')}
+      </div>
+    )
   }
 
   return (
@@ -213,10 +239,16 @@ function StudentsTab({
           <tr className="text-left text-xs text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
             <th className="py-2 px-2 font-medium">{t('page.classes.profile.col.name')}</th>
             <th className="py-2 px-2 font-medium">{t('page.classes.profile.col.risk')}</th>
-            <th className="py-2 px-2 font-medium text-center">{t('page.classes.profile.col.score')}</th>
-            <th className="py-2 px-2 font-medium text-center">{t('page.classes.profile.col.events')}</th>
+            <th className="py-2 px-2 font-medium text-center">
+              {t('page.classes.profile.col.score')}
+            </th>
+            <th className="py-2 px-2 font-medium text-center">
+              {t('page.classes.profile.col.events')}
+            </th>
             <th className="py-2 px-2 font-medium">{t('page.classes.profile.col.roles')}</th>
-            <th className="py-2 px-2 font-medium text-center">{t('page.classes.profile.col.action')}</th>
+            <th className="py-2 px-2 font-medium text-center">
+              {t('page.classes.profile.col.action')}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -225,7 +257,9 @@ function StudentsTab({
               <td className="py-2 px-2 font-medium">{s.name}</td>
               <td className={`py-2 px-2 ${riskColor(s.risk)}`}>{s.risk}</td>
               <td className="py-2 px-2 text-center text-gray-500 dark:text-gray-400">{s.score}</td>
-              <td className="py-2 px-2 text-center text-gray-500 dark:text-gray-400">{s.events_count}</td>
+              <td className="py-2 px-2 text-center text-gray-500 dark:text-gray-400">
+                {s.events_count}
+              </td>
               <td className="py-2 px-2 text-xs text-gray-400 dark:text-gray-500">
                 {s.roles.length > 0 ? s.roles.join(', ') : '-'}
               </td>
@@ -245,11 +279,13 @@ function StudentsTab({
       <ConfirmDialog
         open={confirm.open}
         title={t('page.classes.profile.remove')}
-        message={confirm.student
-          ? t('page.classes.profile.remove.confirm')
-              .replace('{0}', confirm.student.name)
-              .replace('{1}', classEntity.name)
-          : ''}
+        message={
+          confirm.student
+            ? t('page.classes.profile.remove.confirm')
+                .replace('{0}', confirm.student.name)
+                .replace('{1}', classEntity.name)
+            : ''
+        }
         variant="danger"
         onCancel={() => setConfirm({ open: false })}
         onConfirm={doRemove}
@@ -294,7 +330,10 @@ function AssignTab({
     if (names.length === 0 || assigning) return
     setAssigning(true)
     try {
-      const res = await getAPI().class.assign({ class_id: classEntity.class_id, student_names: names })
+      const res = await getAPI().class.assign({
+        class_id: classEntity.class_id,
+        student_names: names,
+      })
       if (!res.success) {
         toast.error(t('page.classes.profile.assign.failed').replace('{0}', res.error ?? ''))
         return
@@ -314,14 +353,23 @@ function AssignTab({
       setSelected(new Set())
       onRefresh()
     } catch (err) {
-      toast.error(t('page.classes.profile.assign.failed').replace('{0}', err instanceof Error ? err.message : String(err)))
+      toast.error(
+        t('page.classes.profile.assign.failed').replace(
+          '{0}',
+          err instanceof Error ? err.message : String(err),
+        ),
+      )
     } finally {
       setAssigning(false)
     }
   }
 
   if (assignable.length === 0) {
-    return <div className="text-center text-sm text-gray-400 py-12">{t('page.classes.profile.assign.empty')}</div>
+    return (
+      <div className="text-center text-sm text-gray-400 py-12">
+        {t('page.classes.profile.assign.empty')}
+      </div>
+    )
   }
 
   return (
@@ -332,7 +380,9 @@ function AssignTab({
 
       {assigning ? (
         <div className="py-8 text-center text-sm text-blue-600 dark:text-blue-400">
-          {t('page.classes.profile.assign.processing').replace('{0}', '0').replace('{1}', String(selected.size))}
+          {t('page.classes.profile.assign.processing')
+            .replace('{0}', '0')
+            .replace('{1}', String(selected.size))}
         </div>
       ) : (
         <>

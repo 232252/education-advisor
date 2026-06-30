@@ -28,7 +28,8 @@ function toEntity(row: ClassRecord | null | undefined): ClassEntity | null {
     archived: Number(row.archived) === 1,
     created_at: Number(row.created_at),
     archived_at: (row.archived_at as number | null) ?? undefined,
-    teacher: ((row as ClassRecord & { teacher?: string | null }).teacher as string | null) ?? undefined,
+    teacher:
+      ((row as ClassRecord & { teacher?: string | null }).teacher as string | null) ?? undefined,
   }
 }
 

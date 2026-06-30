@@ -131,28 +131,25 @@ export function registerClassHandlers() {
   })
 
   // [w] 调班：把单个学生移出班级（清空 EAA class_id）
-  ipcMain.handle(
-    IPC.IPC_CLASS_REMOVE,
-    async (_e, params: ClassRemoveStudentParams) => {
-      if (!params || typeof params !== 'object') {
-        return { success: false, error: 'params must be an object' }
+  ipcMain.handle(IPC.IPC_CLASS_REMOVE, async (_e, params: ClassRemoveStudentParams) => {
+    if (!params || typeof params !== 'object') {
+      return { success: false, error: 'params must be an object' }
+    }
+    try {
+      const name = sanitizeName(params.student_name, 'student_name')
+      const res = await eaaBridge.execute({
+        command: 'set-student-meta',
+        args: [name, '--clear-class-id'],
+      })
+      if (!res.success) {
+        return { success: false, error: res.stderr || '未知错误' }
       }
-      try {
-        const name = sanitizeName(params.student_name, 'student_name')
-        const res = await eaaBridge.execute({
-          command: 'set-student-meta',
-          args: [name, '--clear-class-id'],
-        })
-        if (!res.success) {
-          return { success: false, error: res.stderr || '未知错误' }
-        }
-        return { success: true }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        return { success: false, error: msg }
-      }
-    },
-  )
+      return { success: true }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: msg }
+    }
+  })
 
   console.log('[IPC] Class handlers registered')
 }

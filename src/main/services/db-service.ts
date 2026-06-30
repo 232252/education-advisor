@@ -694,21 +694,25 @@ class DBService {
     try {
       const tx = this.db.transaction(() => {
         // 先查数量,避免不必要的 DELETE
-        const msgCount = this.db!.prepare(
-          'SELECT COUNT(*) as n FROM chat_messages WHERE timestamp < ?',
-        ).get(cutoff) as { n: number }
+        const msgCount = this.db
+          ?.prepare('SELECT COUNT(*) as n FROM chat_messages WHERE timestamp < ?')
+          .get(cutoff) as { n: number }
         if (msgCount.n > 0) {
-          this.db!.prepare(
-            'DELETE FROM chat_messages WHERE rowid IN (SELECT rowid FROM chat_messages WHERE timestamp < ? LIMIT ?)',
-          ).run(cutoff, batchSize)
+          this.db
+            ?.prepare(
+              'DELETE FROM chat_messages WHERE rowid IN (SELECT rowid FROM chat_messages WHERE timestamp < ? LIMIT ?)',
+            )
+            .run(cutoff, batchSize)
         }
-        const execCount = this.db!.prepare(
-          'SELECT COUNT(*) as n FROM agent_executions WHERE started_at < ?',
-        ).get(cutoff) as { n: number }
+        const execCount = this.db
+          ?.prepare('SELECT COUNT(*) as n FROM agent_executions WHERE started_at < ?')
+          .get(cutoff) as { n: number }
         if (execCount.n > 0) {
-          this.db!.prepare(
-            'DELETE FROM agent_executions WHERE rowid IN (SELECT rowid FROM agent_executions WHERE started_at < ? LIMIT ?)',
-          ).run(cutoff, batchSize)
+          this.db
+            ?.prepare(
+              'DELETE FROM agent_executions WHERE rowid IN (SELECT rowid FROM agent_executions WHERE started_at < ? LIMIT ?)',
+            )
+            .run(cutoff, batchSize)
         }
       })
       tx()
