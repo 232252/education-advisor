@@ -1,0 +1,3408 @@
+{
+  "summary": {
+    "total": 63,
+    "ok": 63,
+    "fail": 0
+  },
+  "byCategory": {
+    "eaa": {
+      "ok": 21,
+      "fail": 0,
+      "fails": []
+    },
+    "agent": {
+      "ok": 1,
+      "fail": 0,
+      "fails": []
+    },
+    "privacy": {
+      "ok": 10,
+      "fail": 0,
+      "fails": []
+    },
+    "settings": {
+      "ok": 9,
+      "fail": 0,
+      "fails": []
+    },
+    "skill": {
+      "ok": 6,
+      "fail": 0,
+      "fails": []
+    },
+    "cron": {
+      "ok": 1,
+      "fail": 0,
+      "fails": []
+    },
+    "chat": {
+      "ok": 6,
+      "fail": 0,
+      "fails": []
+    },
+    "class": {
+      "ok": 2,
+      "fail": 0,
+      "fails": []
+    },
+    "profile": {
+      "ok": 3,
+      "fail": 0,
+      "fails": []
+    },
+    "ai": {
+      "ok": 1,
+      "fail": 0,
+      "fails": []
+    },
+    "log": {
+      "ok": 1,
+      "fail": 0,
+      "fails": []
+    },
+    "feishu": {
+      "ok": 1,
+      "fail": 0,
+      "fails": []
+    },
+    "sys": {
+      "ok": 1,
+      "fail": 0,
+      "fails": []
+    }
+  },
+  "results": [
+    {
+      "category": "eaa",
+      "name": "info",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "data_dir": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\eaa-data",
+          "events": 0,
+          "students": 52,
+          "version": "3.1.2"
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "doctor",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "events": 0,
+          "failed": 0,
+          "healthy": true,
+          "issues": [],
+          "passed": 10,
+          "students": 52
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "listStudents",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "students": [
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_a3c3cdd72c8f",
+              "events_count": 0,
+              "groups": [],
+              "name": "乌尼布哈",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_0e25c1820658",
+              "events_count": 0,
+              "groups": [],
+              "name": "何金全",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_ef43ecd81dce",
+              "events_count": 0,
+              "groups": [],
+              "name": "卢志强",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_3f3960919e05",
+              "events_count": 0,
+              "groups": [],
+              "name": "叶世充",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_f11f66ca310f",
+              "events_count": 0,
+              "groups": [],
+              "name": "周欣悦",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_a7b67c3b9906",
+              "events_count": 0,
+              "groups": [],
+              "name": "唐正科",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_fc4307144130",
+              "events_count": 0,
+              "groups": [],
+              "name": "央金拉姆",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_ffbc42670fc4",
+              "events_count": 0,
+              "groups": [],
+              "name": "尼尔日则",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_a780844c7b52",
+              "events_count": 0,
+              "groups": [],
+              "name": "尼尔日古莫",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_1de01b530b6d",
+              "events_count": 0,
+              "groups": [],
+              "name": "尼尔日呷",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_60f184644db9",
+              "events_count": 0,
+              "groups": [],
+              "name": "尼尔日呷莫",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_fb0855abf443",
+              "events_count": 0,
+              "groups": [],
+              "name": "巴青尔体",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_b0aa3446fb34",
+              "events_count": 0,
+              "groups": [],
+              "name": "日尔布他",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_6e0bc1c40645",
+              "events_count": 0,
+              "groups": [],
+              "name": "李启蓬",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_a966f3ba7cb4",
+              "events_count": 0,
+              "groups": [],
+              "name": "李婷婷",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_fb2aa76b5aaa",
+              "events_count": 0,
+              "groups": [],
+              "name": "李香蓝",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_1f2abed1a310",
+              "events_count": 0,
+              "groups": [],
+              "name": "杨敏",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_47e6b31fce0b",
+              "events_count": 0,
+              "groups": [],
+              "name": "格桑央青",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_825fe378f641",
+              "events_count": 0,
+              "groups": [],
+              "name": "汪大昱",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_493eb83da0fe",
+              "events_count": 0,
+              "groups": [],
+              "name": "汪小林",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_6c9e2128ab94",
+              "events_count": 0,
+              "groups": [],
+              "name": "沈权伟",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_e6ee901922cc",
+              "events_count": 0,
+              "groups": [],
+              "name": "沈玉花",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_83eea81dd906",
+              "events_count": 0,
+              "groups": [],
+              "name": "测试删除用",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_44766090909a",
+              "events_count": 0,
+              "groups": [],
+              "name": "温皓",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_d5ed168d9fd8",
+              "events_count": 0,
+              "groups": [],
+              "name": "王勇",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_fb7f06836042",
+              "events_count": 0,
+              "groups": [],
+              "name": "王学文",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_871bcb578ef9",
+              "events_count": 0,
+              "groups": [],
+              "name": "王宗顺",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_0556c4bf8fcd",
+              "events_count": 0,
+              "groups": [],
+              "name": "王建",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_ab067752d0e9",
+              "events_count": 0,
+              "groups": [],
+              "name": "王海峰",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_8d46db516c33",
+              "events_count": 0,
+              "groups": [],
+              "name": "王程",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_59425666ee23",
+              "events_count": 0,
+              "groups": [],
+              "name": "白晓宇",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_64bb087b5b17",
+              "events_count": 0,
+              "groups": [],
+              "name": "秦晓雄",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_3694f90abe5f",
+              "events_count": 0,
+              "groups": [],
+              "name": "维色乌支么",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_30a35f346663",
+              "events_count": 0,
+              "groups": [],
+              "name": "维色布呷",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_e51e36a7e671",
+              "events_count": 0,
+              "groups": [],
+              "name": "罗婷",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_12de649cb3cd",
+              "events_count": 0,
+              "groups": [],
+              "name": "罗木约者",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_8bcb26250d98",
+              "events_count": 0,
+              "groups": [],
+              "name": "罗遥骋",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_749b5d8a7e89",
+              "events_count": 0,
+              "groups": [],
+              "name": "罗韫",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_dbd0247eaf01",
+              "events_count": 0,
+              "groups": [],
+              "name": "苏久日古",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_47f9d8712e1f",
+              "events_count": 0,
+              "groups": [],
+              "name": "苏云星",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_70e5e0b003c7",
+              "events_count": 0,
+              "groups": [],
+              "name": "苏医生",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_5d7226ae4473",
+              "events_count": 0,
+              "groups": [],
+              "name": "苏晓英",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_5d3262651a35",
+              "events_count": 0,
+              "groups": [],
+              "name": "英忠尼玛",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_0cc911e88f6a",
+              "events_count": 0,
+              "groups": [],
+              "name": "蒲祥语",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_e0d72d498e52",
+              "events_count": 0,
+              "groups": [],
+              "name": "赵镜",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_0bc7f8e69a48",
+              "events_count": 0,
+              "groups": [],
+              "name": "邱鑫瑶",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_8316a805a7fc",
+              "events_count": 0,
+              "groups": [],
+              "name": "阿的叶呷",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_c47291d750f2",
+              "events_count": 0,
+              "groups": [],
+              "name": "陈友明",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_e83cd0d816f9",
+              "events_count": 0,
+              "groups": [],
+              "name": "陈强",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_c7f12a8c58b4",
+              "events_count": 0,
+              "groups": [],
+              "name": "马昊",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_6ccfbbac4eac",
+              "events_count": 0,
+              "groups": [],
+              "name": "高洪杰",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            },
+            {
+              "class_id": null,
+              "delta": 0,
+              "entity_id": "ent_0b3a42940ddc",
+              "events_count": 0,
+              "groups": [],
+              "name": "黄长杰",
+              "risk": "低",
+              "roles": [],
+              "score": 100,
+              "status": "Active"
+            }
+          ],
+          "total": 52
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "ranking",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "ranking": [
+            {
+              "delta": 0,
+              "entity_id": "ent_0cc911e88f6a",
+              "name": "蒲祥语",
+              "rank": 1,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_3694f90abe5f",
+              "name": "维色乌支么",
+              "rank": 2,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_1de01b530b6d",
+              "name": "尼尔日呷",
+              "rank": 3,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_1f2abed1a310",
+              "name": "杨敏",
+              "rank": 4,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_8316a805a7fc",
+              "name": "阿的叶呷",
+              "rank": 5,
+              "risk": "低",
+              "score": 100
+            }
+          ],
+          "total": 52
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "stats",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "reason_distribution": [],
+          "score_intervals": {
+            "中(80-100)": 0,
+            "低(>=100)": 52,
+            "极高(<60)": 0,
+            "高(60-80)": 0
+          },
+          "summary": {
+            "reverted_events": 0,
+            "students": 52,
+            "total_delta": 0,
+            "total_events": 0,
+            "valid_events": 0
+          },
+          "tag_distribution": []
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "codes",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "codes": [
+            {
+              "category": "bonus",
+              "code": "CLASS_MONITOR",
+              "label": "班长履职加分",
+              "score_delta": 10
+            },
+            {
+              "category": "bonus",
+              "code": "CLASS_COMMITTEE",
+              "label": "班委履职加分",
+              "score_delta": 5
+            },
+            {
+              "category": "bonus",
+              "code": "CIVILIZED_DORM",
+              "label": "文明寝室",
+              "score_delta": 3
+            },
+            {
+              "category": "bonus",
+              "code": "MONTHLY_ATTENDANCE",
+              "label": "月勤奖励",
+              "score_delta": 2
+            },
+            {
+              "category": "bonus",
+              "code": "ACTIVITY_PARTICIPATION",
+              "label": "活动参与加分",
+              "score_delta": 1
+            },
+            {
+              "category": "system",
+              "code": "REVERT",
+              "label": "撤销(自动计算)",
+              "score_delta": null
+            },
+            {
+              "category": "bonus",
+              "code": "BONUS_VARIABLE",
+              "label": "学业奖励(变量)",
+              "score_delta": null
+            },
+            {
+              "category": "lab",
+              "code": "LAB_CLEAN_UP",
+              "label": "实验室未清理",
+              "score_delta": -1
+            },
+            {
+              "category": "deduct",
+              "code": "OTHER_DEDUCT",
+              "label": "其他扣分",
+              "score_delta": -1
+            },
+            {
+              "category": "deduct",
+              "code": "DESK_UNALIGNED",
+              "label": "桌椅不整齐",
+              "score_delta": -1
+            },
+            {
+              "category": "deduct",
+              "code": "MAKEUP",
+              "label": "补差扣分",
+              "score_delta": -2
+            },
+            {
+              "category": "deduct",
+              "code": "SLEEP_IN_CLASS",
+              "label": "课堂睡觉",
+              "score_delta": -2
+            },
+            {
+              "category": "deduct",
+              "code": "SPEAK_IN_CLASS",
+              "label": "课堂讲话",
+              "score_delta": -2
+            },
+            {
+              "category": "deduct",
+              "code": "APPEARANCE_VIOLATION",
+              "label": "仪容仪表违纪",
+              "score_delta": -2
+            },
+            {
+              "category": "deduct",
+              "code": "LATE",
+              "label": "迟到",
+              "score_delta": -2
+            },
+            {
+              "category": "deduct",
+              "code": "PHONE_IN_CLASS",
+              "label": "手机违纪",
+              "score_delta": -5
+            },
+            {
+              "category": "lab",
+              "code": "LAB_EQUIPMENT_DAMAGE",
+              "label": "实验室设备损坏",
+              "score_delta": -5
+            },
+            {
+              "category": "lab",
+              "code": "LAB_UNSAFE_BEHAVIOR",
+              "label": "实验室不安全行为",
+              "score_delta": -5
+            },
+            {
+              "category": "deduct",
+              "code": "DRINKING_DORM",
+              "label": "寝室饮酒",
+              "score_delta": -5
+            },
+            {
+              "category": "deduct",
+              "code": "SCHOOL_CAUGHT",
+              "label": "学校抓拍违纪",
+              "score_delta": -5
+            },
+            {
+              "category": "lab",
+              "code": "LAB_SAFETY_VIOLATION",
+              "label": "实验室安全违规",
+              "score_delta": -10
+            },
+            {
+              "category": "deduct",
+              "code": "SMOKING",
+              "label": "抽烟",
+              "score_delta": -10
+            }
+          ],
+          "version": "1.0"
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "validate",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "errors": [],
+          "total_events": 0,
+          "valid": true,
+          "warnings": []
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "summary",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "events": {
+            "bonus_count": 0,
+            "bonus_total": 0,
+            "deduct_count": 0,
+            "deduct_total": 0,
+            "total": 0
+          },
+          "period": {
+            "since": null,
+            "until": null
+          },
+          "risk_distribution": {
+            "中": 0,
+            "低": 52,
+            "极高": 0,
+            "高": 0
+          },
+          "top_gainers": [
+            {
+              "delta": 0,
+              "name": "苏云星"
+            },
+            {
+              "delta": 0,
+              "name": "高洪杰"
+            },
+            {
+              "delta": 0,
+              "name": "罗韫"
+            },
+            {
+              "delta": 0,
+              "name": "赵镜"
+            },
+            {
+              "delta": 0,
+              "name": "秦晓雄"
+            }
+          ],
+          "top_losers": [
+            {
+              "delta": 0,
+              "name": "黄长杰"
+            },
+            {
+              "delta": 0,
+              "name": "邱鑫瑶"
+            },
+            {
+              "delta": 0,
+              "name": "何金全"
+            },
+            {
+              "delta": 0,
+              "name": "英忠尼玛"
+            },
+            {
+              "delta": 0,
+              "name": "罗婷"
+            }
+          ],
+          "top_reason_codes": []
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "exportFormats",
+      "ok": true,
+      "error": null,
+      "data": [
+        "csv",
+        "jsonl",
+        "json",
+        "html"
+      ]
+    },
+    {
+      "category": "eaa",
+      "name": "score",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "class_id": null,
+          "delta": 0,
+          "entity_id": "ent_a3c3cdd72c8f",
+          "events_count": 0,
+          "groups": [],
+          "last_event_at": "",
+          "name": "乌尼布哈",
+          "risk": "低",
+          "risk_stored": "未知",
+          "roles": [],
+          "score": 100,
+          "status": "Active"
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "history",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "entity_id": "ent_a3c3cdd72c8f",
+          "events": [],
+          "events_count": 0,
+          "name": "乌尼布哈",
+          "risk": "低",
+          "score": 100
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "search",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": null,
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "range",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": null,
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "tag",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "tags": []
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "replay",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "ranking": [
+            {
+              "delta": 0,
+              "entity_id": "ent_d5ed168d9fd8",
+              "name": "王勇",
+              "rank": 1,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_e0d72d498e52",
+              "name": "赵镜",
+              "rank": 2,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_1f2abed1a310",
+              "name": "杨敏",
+              "rank": 3,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_a7b67c3b9906",
+              "name": "唐正科",
+              "rank": 4,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_5d7226ae4473",
+              "name": "苏晓英",
+              "rank": 5,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_12de649cb3cd",
+              "name": "罗木约者",
+              "rank": 6,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_8d46db516c33",
+              "name": "王程",
+              "rank": 7,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_6e0bc1c40645",
+              "name": "李启蓬",
+              "rank": 8,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_ef43ecd81dce",
+              "name": "卢志强",
+              "rank": 9,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_c47291d750f2",
+              "name": "陈友明",
+              "rank": 10,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_8bcb26250d98",
+              "name": "罗遥骋",
+              "rank": 11,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_6c9e2128ab94",
+              "name": "沈权伟",
+              "rank": 12,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_0556c4bf8fcd",
+              "name": "王建",
+              "rank": 13,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_e51e36a7e671",
+              "name": "罗婷",
+              "rank": 14,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_64bb087b5b17",
+              "name": "秦晓雄",
+              "rank": 15,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_3694f90abe5f",
+              "name": "维色乌支么",
+              "rank": 16,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_1de01b530b6d",
+              "name": "尼尔日呷",
+              "rank": 17,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_fc4307144130",
+              "name": "央金拉姆",
+              "rank": 18,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_e6ee901922cc",
+              "name": "沈玉花",
+              "rank": 19,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_ab067752d0e9",
+              "name": "王海峰",
+              "rank": 20,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_30a35f346663",
+              "name": "维色布呷",
+              "rank": 21,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_dbd0247eaf01",
+              "name": "苏久日古",
+              "rank": 22,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_47f9d8712e1f",
+              "name": "苏云星",
+              "rank": 23,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_6ccfbbac4eac",
+              "name": "高洪杰",
+              "rank": 24,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_b0aa3446fb34",
+              "name": "日尔布他",
+              "rank": 25,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_c7f12a8c58b4",
+              "name": "马昊",
+              "rank": 26,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_0cc911e88f6a",
+              "name": "蒲祥语",
+              "rank": 27,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_825fe378f641",
+              "name": "汪大昱",
+              "rank": 28,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_3f3960919e05",
+              "name": "叶世充",
+              "rank": 29,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_0e25c1820658",
+              "name": "何金全",
+              "rank": 30,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_47e6b31fce0b",
+              "name": "格桑央青",
+              "rank": 31,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_fb7f06836042",
+              "name": "王学文",
+              "rank": 32,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_8316a805a7fc",
+              "name": "阿的叶呷",
+              "rank": 33,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_83eea81dd906",
+              "name": "测试删除用",
+              "rank": 34,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_0bc7f8e69a48",
+              "name": "邱鑫瑶",
+              "rank": 35,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_59425666ee23",
+              "name": "白晓宇",
+              "rank": 36,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_0b3a42940ddc",
+              "name": "黄长杰",
+              "rank": 37,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_5d3262651a35",
+              "name": "英忠尼玛",
+              "rank": 38,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_a966f3ba7cb4",
+              "name": "李婷婷",
+              "rank": 39,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_fb0855abf443",
+              "name": "巴青尔体",
+              "rank": 40,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_70e5e0b003c7",
+              "name": "苏医生",
+              "rank": 41,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_ffbc42670fc4",
+              "name": "尼尔日则",
+              "rank": 42,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_749b5d8a7e89",
+              "name": "罗韫",
+              "rank": 43,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_a780844c7b52",
+              "name": "尼尔日古莫",
+              "rank": 44,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_60f184644db9",
+              "name": "尼尔日呷莫",
+              "rank": 45,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_871bcb578ef9",
+              "name": "王宗顺",
+              "rank": 46,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_e83cd0d816f9",
+              "name": "陈强",
+              "rank": 47,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_f11f66ca310f",
+              "name": "周欣悦",
+              "rank": 48,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_a3c3cdd72c8f",
+              "name": "乌尼布哈",
+              "rank": 49,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_44766090909a",
+              "name": "温皓",
+              "rank": 50,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_fb2aa76b5aaa",
+              "name": "李香蓝",
+              "rank": 51,
+              "risk": "低",
+              "score": 100
+            },
+            {
+              "delta": 0,
+              "entity_id": "ent_493eb83da0fe",
+              "name": "汪小林",
+              "rank": 52,
+              "risk": "低",
+              "score": 100
+            }
+          ]
+        },
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "addStudent",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "✓ 学生已添加: __test_student_1782783621347 (ent_fd6c87c9a945)",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "setStudentMeta",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "✓ 学生属性已更新: __test_student_1782783621347\n  group: TestClass\n  role: student",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "addEvent",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": false,
+        "data": "Error: Validation(\"原因码 ACTIVITY_PARTICIPATION 标准分值: Some(1.0)，当前: 2.0\")",
+        "stderr": "Error: Validation(\"原因码 ACTIVITY_PARTICIPATION 标准分值: Some(1.0)，当前: 2.0\")\n",
+        "exitCode": 1
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "export.csv",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "姓名,分数,变动,风险\n王建,100.0,+0.0,低\n王宗顺,100.0,+0.0,低\n高洪杰,100.0,+0.0,低\n尼尔日呷,100.0,+0.0,低\n维色乌支么,100.0,+0.0,低\n何金全,100.0,+0.0,低\n陈强,100.0,+0.0,低\n马昊,100.0,+0.0,低\n罗韫,100.0,+0.0,低\n苏云星,100.0,+0.0,低\n__test_student_1782783621347,100.0,+0.0,低\n日尔布他,100.0,+0.0,低\n阿的叶呷,100.0,+0.0,低\n白晓宇,100.0,+0.0,低\n陈友明,100.0,+0.0,低\n测试删除用,100.0,+0.0,低\n沈玉花,100.0,+0.0,低\n邱鑫瑶,100.0,+0.0,低\n卢志强,100.0,+0.0,低\n汪小林,100.0,+0.0,低\n维色布呷,100.0,+0.0,低\n巴青尔体,100.0,+0.0,低\n李启蓬,100.0,+0.0,低\n罗木约者,100.0,+0.0,低\n王学文,100.0,+0.0,低\n叶世充,100.0,+0.0,低\n秦晓雄,100.0,+0.0,低\n李香蓝,100.0,+0.0,低\n汪大昱,100.0,+0.0,低\n罗婷,100.0,+0.0,低\n苏晓英,100.0,+0.0,低\n李婷婷,100.0,+0.0,低\n王程,100.0,+0.0,低\n王海峰,100.0,+0.0,低\n苏久日古,100.0,+0.0,低\n苏医生,100.0,+0.0,低\n王勇,100.0,+0.0,低\n黄长杰,100.0,+0.0,低\n格桑央青,100.0,+0.0,低\n英忠尼玛,100.0,+0.0,低\n周欣悦,100.0,+0.0,低\n央金拉姆,100.0,+0.0,低\n蒲祥语,100.0,+0.0,低\n乌尼布哈,100.0,+0.0,低\n唐正科,100.0,+0.0,低\n罗遥骋,100.0,+0.0,低\n沈权伟,100.0,+0.0,低\n温皓,100.0,+0.0,低\n尼尔日则,100.0,+0.0,低\n尼尔日呷莫,100.0,+0.0,低\n尼尔日古莫,100.0,+0.0,低\n杨敏,100.0,+0.0,低\n赵镜,100.0,+0.0,低",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "export.jsonl",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "{\"delta\":0.0,\"name\":\"阿的叶呷\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"尼尔日古莫\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"高洪杰\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"黄长杰\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"维色乌支么\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"叶世充\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"乌尼布哈\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"沈玉花\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"王建\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"温皓\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"王海峰\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"王宗顺\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"日尔布他\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"卢志强\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"尼尔日呷\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"王勇\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"白晓宇\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"尼尔日则\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"苏医生\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"测试删除用\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"巴青尔体\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"罗木约者\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"维色布呷\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"蒲祥语\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"李香蓝\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"苏云星\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"汪大昱\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"陈强\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"周欣悦\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"罗婷\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"苏晓英\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"李婷婷\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"王程\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"沈权伟\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"__test_student_1782783621347\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"央金拉姆\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"马昊\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"苏久日古\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"罗遥骋\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"王学文\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"汪小林\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"秦晓雄\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"罗韫\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"尼尔日呷莫\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"陈友明\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"李启蓬\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"邱鑫瑶\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"英忠尼玛\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"杨敏\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"何金全\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"唐正科\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"赵镜\",\"risk\":\"低\",\"score\":100.0}\n{\"delta\":0.0,\"name\":\"格桑央青\",\"risk\":\"低\",\"score\":100.0}",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "eaa",
+      "name": "deleteStudent",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "✓ 学生已删除: __test_student_1782783621347 (保留0条历史事件)",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "agent",
+      "name": "list",
+      "ok": true,
+      "error": null,
+      "data": [
+        {
+          "id": "main",
+          "name": "教育参谋",
+          "role": "coordinator",
+          "description": "主协调Agent，负责接收用户消息、调度其他Agent、推送报告。\n首次使用时自动引导配置流程。\n",
+          "enabled": false,
+          "modelTier": "high_quality",
+          "schedule": [],
+          "capabilities": [
+            "read",
+            "summary",
+            "add_event",
+            "add_student",
+            "history",
+            "search",
+            "list",
+            "ranking",
+            "stats",
+            "codes",
+            "range"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        },
+        {
+          "id": "governor",
+          "name": "督导",
+          "role": "governor",
+          "description": "负责督导复盘、数据质量校验、风险分析、数字孪生快照。\n7 个定时任务覆盖晨/午/晚全时段。\n",
+          "enabled": false,
+          "modelTier": "low_cost",
+          "schedule": [
+            "0 6 * * *",
+            "0 12 * * *",
+            "0 18 * * *",
+            "0 22 * * *",
+            "0 17 * * 5",
+            "0 22 * * 0",
+            "0 9 1 * *"
+          ],
+          "capabilities": [
+            "read",
+            "summary",
+            "range",
+            "stats",
+            "ranking"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        },
+        {
+          "id": "counselor",
+          "name": "辅导员",
+          "role": "counselor",
+          "description": "负责学业日报生成、谈话计划制定、末位学生跟踪。\n由原 academic 和 talk_planner 合并而来。\n",
+          "enabled": false,
+          "modelTier": "low_cost",
+          "schedule": [
+            "5 7 * * *",
+            "0 20 * * *"
+          ],
+          "capabilities": [
+            "read",
+            "summary",
+            "ranking",
+            "add_event"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        },
+        {
+          "id": "supervisor",
+          "name": "督导汇总员",
+          "role": "supervisor",
+          "description": "负责学生风险评估、生成综合督导报告、协调各 Agent 工作。\n多维度评估学生风险：学业、纪律、心理、人际。\n",
+          "enabled": false,
+          "modelTier": "low_cost",
+          "schedule": [
+            "0 22 * * *",
+            "0 6 * * *",
+            "0 22 * * 0"
+          ],
+          "capabilities": [
+            "read",
+            "summary",
+            "ranking",
+            "stats",
+            "range"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        },
+        {
+          "id": "validator",
+          "name": "数据效验AI",
+          "role": "data_guardian",
+          "description": "负责数据准确性、完整性、一致性校验，是质量管控的核心防线。\n每6小时自动核验一轮。\n",
+          "enabled": false,
+          "modelTier": "low_cost",
+          "schedule": [
+            "0 */6 * * *"
+          ],
+          "capabilities": [
+            "read",
+            "stats",
+            "codes"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        },
+        {
+          "id": "academic",
+          "name": "学业分析师",
+          "role": "academic_advisor",
+          "description": "负责学业数据分析、成绩预警、补考管理。\n支持六科成绩分析（语数英物化生），含加权计算。\n",
+          "enabled": false,
+          "modelTier": "high_quality",
+          "schedule": [
+            "5 7 * * *"
+          ],
+          "capabilities": [
+            "read",
+            "summary",
+            "stats",
+            "ranking"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        },
+        {
+          "id": "psychology",
+          "name": "心理危机监测员",
+          "role": "psychology_monitor",
+          "description": "负责学生心理危机预警、情绪监测、危机干预建议。\n是学生心理安全的最后防线。\n",
+          "enabled": false,
+          "modelTier": "low_cost",
+          "schedule": [
+            "0 21 * * *"
+          ],
+          "capabilities": [
+            "read",
+            "search",
+            "history",
+            "summary"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        },
+        {
+          "id": "safety",
+          "name": "安全检查员",
+          "role": "safety_officer",
+          "description": "负责实验室安全、校园安全检查。\n覆盖物理/化学/通用技术实验室及校园周边。\n",
+          "enabled": true,
+          "modelTier": "low_cost",
+          "schedule": [
+            "0 8 * * 1"
+          ],
+          "capabilities": [
+            "read",
+            "add_event"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        },
+        {
+          "id": "home_school",
+          "name": "家校沟通员",
+          "role": "home_school_coordinator",
+          "description": "负责生成家校沟通通知、家长联系记录。\n支持学业通知、行为反馈、紧急联系等多种类型。\n",
+          "enabled": true,
+          "modelTier": "low_cost",
+          "schedule": [
+            "30 8 * * *"
+          ],
+          "capabilities": [
+            "read",
+            "summary",
+            "ranking"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        },
+        {
+          "id": "research",
+          "name": "科研助理",
+          "role": "research_assistant",
+          "description": "负责课题管理、论文数据收集、科研进度跟踪。\n支持实证研究、案例研究、综述研究多种类型。\n",
+          "enabled": true,
+          "modelTier": "low_cost",
+          "schedule": [
+            "10 22 * * *"
+          ],
+          "capabilities": [
+            "read",
+            "summary",
+            "stats"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle",
+          "nextRunAt": 1782783040140
+        },
+        {
+          "id": "executor",
+          "name": "系统执行员",
+          "role": "system_executor",
+          "description": "负责系统自维护、错误修复、备份管理。\n日/周/月三级维护策略，确保系统稳定运行。\n",
+          "enabled": true,
+          "modelTier": "low_cost",
+          "schedule": [
+            "0 1 * * *"
+          ],
+          "capabilities": [
+            "read",
+            "stats",
+            "codes"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle",
+          "nextRunAt": 1782783040140
+        },
+        {
+          "id": "class-monitor",
+          "name": "班务助理",
+          "role": "班级日常操行管理",
+          "description": "负责日常操行事件录入、学生分数查询和班级概况汇总。\n适合班主任或班长使用，快速完成扣分/加分操作。\n",
+          "enabled": true,
+          "modelTier": "low_cost",
+          "schedule": [],
+          "capabilities": [
+            "read",
+            "add_event",
+            "list",
+            "summary"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        },
+        {
+          "id": "risk-alert",
+          "name": "风险预警员",
+          "role": "学生风险监测与预警",
+          "description": "定时扫描所有学生的操行分数，识别高风险和极高风险学生，\n生成预警报告，帮助教师及时介入。\n",
+          "enabled": true,
+          "modelTier": "low_cost",
+          "schedule": [
+            "0 8 * * 1-5",
+            "0 17 * * 5"
+          ],
+          "capabilities": [
+            "read",
+            "ranking",
+            "stats",
+            "summary",
+            "range"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle",
+          "nextRunAt": 1782783040140
+        },
+        {
+          "id": "data-analyst",
+          "name": "数据分析师",
+          "role": "操行数据统计分析",
+          "description": "擅长对操行数据进行多维度统计分析，包括扣分原因分布、\n时间段趋势、班级对比等，生成结构化的数据洞察报告。\n",
+          "enabled": true,
+          "modelTier": "high_quality",
+          "schedule": [
+            "0 9 * * 1"
+          ],
+          "capabilities": [
+            "read",
+            "stats",
+            "ranking",
+            "summary",
+            "range"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle",
+          "nextRunAt": 1782783040141
+        },
+        {
+          "id": "student-care",
+          "name": "学生关怀员",
+          "role": "学生正向激励与关怀",
+          "description": "专注于发现和表扬学生的正面行为，追踪加分情况，\n帮助教师及时给予鼓励和奖励，营造积极的班级氛围。\n",
+          "enabled": true,
+          "modelTier": "low_cost",
+          "schedule": [],
+          "capabilities": [
+            "score",
+            "history",
+            "search",
+            "list",
+            "ranking",
+            "summary",
+            "add_event"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        },
+        {
+          "id": "discipline-officer",
+          "name": "纪律管理员",
+          "role": "违纪行为管理与处分",
+          "description": "负责处理严重违纪行为（如抽烟、饮酒、实验室安全违规等），\n确保扣分操作规范执行，跟踪违纪学生的后续表现。\n",
+          "enabled": true,
+          "modelTier": "low_cost",
+          "schedule": [],
+          "capabilities": [
+            "read",
+            "add_event",
+            "search",
+            "list",
+            "ranking",
+            "summary",
+            "history"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        },
+        {
+          "id": "weekly-reporter",
+          "name": "周报撰写员",
+          "role": "自动生成班级操行周报",
+          "description": "每周五自动汇总本周操行数据，生成包含分数变动、\n风险预警、典型事件和改进建议的班级周报。\n",
+          "enabled": true,
+          "modelTier": "high_quality",
+          "schedule": [
+            "0 16 * * 5"
+          ],
+          "capabilities": [
+            "read",
+            "summary",
+            "stats",
+            "ranking",
+            "range"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle",
+          "nextRunAt": 1782783040141
+        },
+        {
+          "id": "bug-hunter",
+          "name": "Bug Hunter",
+          "role": "bug-hunter",
+          "description": "代码质量守门员。复现 bug、定位根因、写回归测试、生成报告、边界 fuzz。\n不生产代码,只审判代码;不直接改业务代码,修复决定权交人类。\n无需 EAA 学生数据,手动触发,不挂定时。\n",
+          "enabled": true,
+          "modelTier": "low_cost",
+          "schedule": [],
+          "capabilities": [
+            "read"
+          ],
+          "riskThresholds": {
+            "high": 85,
+            "medium": 93,
+            "low": 93
+          },
+          "status": "idle"
+        }
+      ]
+    },
+    {
+      "category": "privacy",
+      "name": "status",
+      "ok": true,
+      "error": null,
+      "data": {
+        "unlocked": false
+      }
+    },
+    {
+      "category": "privacy",
+      "name": "dryrun",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "⚠️ 需要设置 EAA_PRIVACY_PASSWORD",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "privacy",
+      "name": "init",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "✅ 隐私脱敏引擎初始化成功\n📊 映射: 0 个实体",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "privacy",
+      "name": "status_after_init",
+      "ok": true,
+      "error": null,
+      "data": {
+        "unlocked": true
+      }
+    },
+    {
+      "category": "privacy",
+      "name": "anonymize",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "李四同学迟到了",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "privacy",
+      "name": "list",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": null,
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "privacy",
+      "name": "filter",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "王五同学没交作业",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "privacy",
+      "name": "add",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": "✅ 测试学生赵六 → person_001",
+        "stderr": "",
+        "exitCode": 0
+      }
+    },
+    {
+      "category": "privacy",
+      "name": "lock",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "privacy",
+      "name": "status_after_lock",
+      "ok": true,
+      "error": null,
+      "data": {
+        "unlocked": false
+      }
+    },
+    {
+      "category": "settings",
+      "name": "get",
+      "ok": true,
+      "error": null,
+      "data": {
+        "general": {
+          "dataDir": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\eaa-data",
+          "defaultOperator": "",
+          "theme": "light",
+          "language": "zh-CN",
+          "autoUpdate": false,
+          "updateUrl": "",
+          "telemetry": false,
+          "logLevel": "info",
+          "autoStart": false,
+          "minimizeToTray": false,
+          "closeBehavior": "tray",
+          "timezone": "Asia/Shanghai",
+          "remoteMaintenance": true
+        },
+        "models": {
+          "defaultProvider": "minimax-cn",
+          "defaultModel": "MiniMax-M3",
+          "highQualityModel": "MiniMax-M3",
+          "lowCostModel": "MiniMax-M3",
+          "enabledModels": [],
+          "transport": "auto",
+          "cacheRetention": "short",
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "baseDelayMs": 1000,
+            "providerTimeoutMs": 60000
+          },
+          "providerBlacklist": [],
+          "customModels": {
+            "minimax-cn": [
+              {
+                "id": "MiniMax-M3",
+                "name": "MiniMax-M3",
+                "contextWindow": 492768,
+                "maxOutputTokens": 32096,
+                "supportsReasoning": false,
+                "costPerInputToken": 0,
+                "costPerOutputToken": 0,
+                "api": "anthropic-messages",
+                "baseUrl": "https://api.minimaxi.com/anthropic"
+              }
+            ]
+          }
+        },
+        "chat": {
+          "compaction": {
+            "enabled": true,
+            "reserveTokens": 10000,
+            "keepRecentTokens": 16000
+          },
+          "steeringMode": "all",
+          "followUpMode": "all",
+          "showImages": true,
+          "maxTokens": "xhigh",
+          "conversationLogging": true,
+          "thinkingLevel": "medium"
+        },
+        "privacy": {
+          "enabled": false,
+          "autoAnonymize": false
+        },
+        "feishu": {
+          "appId": "",
+          "appSecret": "",
+          "userOpenId": "",
+          "bitableAppToken": "",
+          "bitableTableId": "",
+          "bitableSync": {
+            "enabled": false,
+            "syncInterval": "0 */6 * * *"
+          }
+        },
+        "advanced": {
+          "shellPath": "",
+          "sessionDir": "",
+          "httpIdleTimeoutMs": 120000
+        },
+        "shortcuts": {
+          "chat.new": "Ctrl+N",
+          "chat.send": "Enter",
+          "chat.abort": "Escape",
+          "nav.agents": "Ctrl+Shift+A",
+          "nav.models": "Ctrl+Shift+M",
+          "nav.settings": "Ctrl+,",
+          "nav.scheduler": "Ctrl+Shift+T"
+        }
+      }
+    },
+    {
+      "category": "settings",
+      "name": "set.logLevel.debug",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "settings",
+      "name": "get.after_debug",
+      "ok": true,
+      "error": null,
+      "data": {
+        "general": {
+          "dataDir": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\eaa-data",
+          "defaultOperator": "",
+          "theme": "light",
+          "language": "zh-CN",
+          "autoUpdate": false,
+          "updateUrl": "",
+          "telemetry": false,
+          "logLevel": "debug",
+          "autoStart": false,
+          "minimizeToTray": false,
+          "closeBehavior": "tray",
+          "timezone": "Asia/Shanghai",
+          "remoteMaintenance": true
+        },
+        "models": {
+          "defaultProvider": "minimax-cn",
+          "defaultModel": "MiniMax-M3",
+          "highQualityModel": "MiniMax-M3",
+          "lowCostModel": "MiniMax-M3",
+          "enabledModels": [],
+          "transport": "auto",
+          "cacheRetention": "short",
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "baseDelayMs": 1000,
+            "providerTimeoutMs": 60000
+          },
+          "providerBlacklist": [],
+          "customModels": {
+            "minimax-cn": [
+              {
+                "id": "MiniMax-M3",
+                "name": "MiniMax-M3",
+                "contextWindow": 492768,
+                "maxOutputTokens": 32096,
+                "supportsReasoning": false,
+                "costPerInputToken": 0,
+                "costPerOutputToken": 0,
+                "api": "anthropic-messages",
+                "baseUrl": "https://api.minimaxi.com/anthropic"
+              }
+            ]
+          }
+        },
+        "chat": {
+          "compaction": {
+            "enabled": true,
+            "reserveTokens": 10000,
+            "keepRecentTokens": 16000
+          },
+          "steeringMode": "all",
+          "followUpMode": "all",
+          "showImages": true,
+          "maxTokens": "xhigh",
+          "conversationLogging": true,
+          "thinkingLevel": "medium"
+        },
+        "privacy": {
+          "enabled": false,
+          "autoAnonymize": false
+        },
+        "feishu": {
+          "appId": "",
+          "appSecret": "",
+          "userOpenId": "",
+          "bitableAppToken": "",
+          "bitableTableId": "",
+          "bitableSync": {
+            "enabled": false,
+            "syncInterval": "0 */6 * * *"
+          }
+        },
+        "advanced": {
+          "shellPath": "",
+          "sessionDir": "",
+          "httpIdleTimeoutMs": 120000
+        },
+        "shortcuts": {
+          "chat.new": "Ctrl+N",
+          "chat.send": "Enter",
+          "chat.abort": "Escape",
+          "nav.agents": "Ctrl+Shift+A",
+          "nav.models": "Ctrl+Shift+M",
+          "nav.settings": "Ctrl+,",
+          "nav.scheduler": "Ctrl+Shift+T"
+        }
+      }
+    },
+    {
+      "category": "settings",
+      "name": "set.logLevel.info",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "settings",
+      "name": "get.after_info",
+      "ok": true,
+      "error": null,
+      "data": {
+        "general": {
+          "dataDir": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\eaa-data",
+          "defaultOperator": "",
+          "theme": "light",
+          "language": "zh-CN",
+          "autoUpdate": false,
+          "updateUrl": "",
+          "telemetry": false,
+          "logLevel": "info",
+          "autoStart": false,
+          "minimizeToTray": false,
+          "closeBehavior": "tray",
+          "timezone": "Asia/Shanghai",
+          "remoteMaintenance": true
+        },
+        "models": {
+          "defaultProvider": "minimax-cn",
+          "defaultModel": "MiniMax-M3",
+          "highQualityModel": "MiniMax-M3",
+          "lowCostModel": "MiniMax-M3",
+          "enabledModels": [],
+          "transport": "auto",
+          "cacheRetention": "short",
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "baseDelayMs": 1000,
+            "providerTimeoutMs": 60000
+          },
+          "providerBlacklist": [],
+          "customModels": {
+            "minimax-cn": [
+              {
+                "id": "MiniMax-M3",
+                "name": "MiniMax-M3",
+                "contextWindow": 492768,
+                "maxOutputTokens": 32096,
+                "supportsReasoning": false,
+                "costPerInputToken": 0,
+                "costPerOutputToken": 0,
+                "api": "anthropic-messages",
+                "baseUrl": "https://api.minimaxi.com/anthropic"
+              }
+            ]
+          }
+        },
+        "chat": {
+          "compaction": {
+            "enabled": true,
+            "reserveTokens": 10000,
+            "keepRecentTokens": 16000
+          },
+          "steeringMode": "all",
+          "followUpMode": "all",
+          "showImages": true,
+          "maxTokens": "xhigh",
+          "conversationLogging": true,
+          "thinkingLevel": "medium"
+        },
+        "privacy": {
+          "enabled": false,
+          "autoAnonymize": false
+        },
+        "feishu": {
+          "appId": "",
+          "appSecret": "",
+          "userOpenId": "",
+          "bitableAppToken": "",
+          "bitableTableId": "",
+          "bitableSync": {
+            "enabled": false,
+            "syncInterval": "0 */6 * * *"
+          }
+        },
+        "advanced": {
+          "shellPath": "",
+          "sessionDir": "",
+          "httpIdleTimeoutMs": 120000
+        },
+        "shortcuts": {
+          "chat.new": "Ctrl+N",
+          "chat.send": "Enter",
+          "chat.abort": "Escape",
+          "nav.agents": "Ctrl+Shift+A",
+          "nav.models": "Ctrl+Shift+M",
+          "nav.settings": "Ctrl+,",
+          "nav.scheduler": "Ctrl+Shift+T"
+        }
+      }
+    },
+    {
+      "category": "settings",
+      "name": "set.logLevel.warn",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "settings",
+      "name": "set.logLevel.error",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "settings",
+      "name": "set.logLevel.off",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "settings",
+      "name": "set.logLevel.restore",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "skill",
+      "name": "list",
+      "ok": true,
+      "error": null,
+      "data": [
+        {
+          "name": "test-skill-1782702285584",
+          "description": "Test content",
+          "content": "# Test\n\nTest content",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\test-skill-1782702285584.md"
+        },
+        {
+          "name": "test-skill-1782702349597",
+          "description": "Test content",
+          "content": "# Test\n\nTest content",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\test-skill-1782702349597.md"
+        },
+        {
+          "name": "test-skill-1782703701412",
+          "description": "Test content",
+          "content": "# Test\n\nTest content",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\test-skill-1782703701412.md"
+        },
+        {
+          "name": "test-skill-1782703873053",
+          "description": "Test content",
+          "content": "# Test\n\nTest content",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\test-skill-1782703873053.md"
+        },
+        {
+          "name": "test-skill-1782704030076",
+          "description": "Test content",
+          "content": "# Test\n\nTest content",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\test-skill-1782704030076.md"
+        },
+        {
+          "name": "test-skill-1782704178316",
+          "description": "Test content",
+          "content": "# Test\n\nTest content",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\test-skill-1782704178316.md"
+        },
+        {
+          "name": "STUDENT_MANAGEMENT",
+          "description": "```bash",
+          "content": "# 学生管理技能\n\n## 数据查询（通过 eaa CLI）\n\n```bash\nexport EAA_DATA_DIR=./data\n\n# 查询学生分数\neaa score 张三\n\n# 查看事件时间线\neaa history 张三\n\n# 搜索相关事件\neaa search 讲话\n\n# 排行榜\neaa ranking 10\n```\n\n## 数据写入（通过 eaa CLI）\n\n```bash\n# 记录扣分\neaa add \"张三\" SPEAK_IN_CLASS --delta -2 --note \"物理课讲话\"\n\n# 记录加分\neaa add \"李四\" CIVILIZED_DORM --delta +3 --note \"文明寝室\"\n\n# 预览（不写入）\neaa add \"张三\" LATE --delta -2 --note \"迟到\" --dry-run\n\n# 撤销事件\neaa revert evt_00001 --reason \"误记\"\n```\n\n## 原因码参考\n\n| 代码 | 标准分 | 说明 |\n|:-----|:-----:|:-----|\n| SPEAK_IN_CLASS | -2 | 课堂讲话 |\n| SLEEP_IN_CLASS | -2 | 课堂睡觉 |\n| LATE | -2 | 迟到 |\n| SMOKING | -10 | 抽烟 |\n| DRINKING_DORM | -5 | 寝室饮酒 |\n| PHONE_IN_CLASS | -5 | 手机违纪 |\n| SCHOOL_CAUGHT | -5 | 学校抓拍 |\n| APPEARANCE_VIOLATION | -2 | 仪容违纪 |\n| DESK_UNALIGNED | -1 | 桌椅不整齐 |\n| MONTHLY_ATTENDANCE | +2 | 月勤奖励 |\n| CLASS_MONITOR | +10 | 班长履职 |\n| CLASS_COMMITTEE | +5 | 班委履职 |\n| CIVILIZED_DORM | +3 | 文明寝室 |\n\n运行 `eaa codes` 查看完整列表。\n\n## 注意事项\n1. **所有数据操作必须通过 eaa CLI**\n2. 禁止直接编辑 events.json 或 entities.json\n3. delta 超出 [-10, +10] 需加 `--force`\n4. 事件不可删除，只能通过 `eaa revert` 对冲\n",
+          "source": "project",
+          "filePath": "C:\\Users\\sq199\\Documents\\GitHub\\education-advisor\\skills\\STUDENT_MANAGEMENT.md"
+        }
+      ]
+    },
+    {
+      "category": "skill",
+      "name": "save",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "skill",
+      "name": "get",
+      "ok": true,
+      "error": null,
+      "data": {
+        "name": "__test_skill_1782783621798",
+        "description": "This is a test skill for testing.",
+        "content": "# Test Skill\n\nThis is a test skill for testing.",
+        "source": "user",
+        "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\__test_skill_1782783621798.md"
+      }
+    },
+    {
+      "category": "skill",
+      "name": "list_after_save",
+      "ok": true,
+      "error": null,
+      "data": [
+        {
+          "name": "test-skill-1782702285584",
+          "description": "Test content",
+          "content": "# Test\n\nTest content",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\test-skill-1782702285584.md"
+        },
+        {
+          "name": "test-skill-1782702349597",
+          "description": "Test content",
+          "content": "# Test\n\nTest content",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\test-skill-1782702349597.md"
+        },
+        {
+          "name": "test-skill-1782703701412",
+          "description": "Test content",
+          "content": "# Test\n\nTest content",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\test-skill-1782703701412.md"
+        },
+        {
+          "name": "test-skill-1782703873053",
+          "description": "Test content",
+          "content": "# Test\n\nTest content",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\test-skill-1782703873053.md"
+        },
+        {
+          "name": "test-skill-1782704030076",
+          "description": "Test content",
+          "content": "# Test\n\nTest content",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\test-skill-1782704030076.md"
+        },
+        {
+          "name": "test-skill-1782704178316",
+          "description": "Test content",
+          "content": "# Test\n\nTest content",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\test-skill-1782704178316.md"
+        },
+        {
+          "name": "__test_skill_1782783621798",
+          "description": "This is a test skill for testing.",
+          "content": "# Test Skill\n\nThis is a test skill for testing.",
+          "source": "user",
+          "filePath": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\skills\\__test_skill_1782783621798.md"
+        },
+        {
+          "name": "STUDENT_MANAGEMENT",
+          "description": "```bash",
+          "content": "# 学生管理技能\n\n## 数据查询（通过 eaa CLI）\n\n```bash\nexport EAA_DATA_DIR=./data\n\n# 查询学生分数\neaa score 张三\n\n# 查看事件时间线\neaa history 张三\n\n# 搜索相关事件\neaa search 讲话\n\n# 排行榜\neaa ranking 10\n```\n\n## 数据写入（通过 eaa CLI）\n\n```bash\n# 记录扣分\neaa add \"张三\" SPEAK_IN_CLASS --delta -2 --note \"物理课讲话\"\n\n# 记录加分\neaa add \"李四\" CIVILIZED_DORM --delta +3 --note \"文明寝室\"\n\n# 预览（不写入）\neaa add \"张三\" LATE --delta -2 --note \"迟到\" --dry-run\n\n# 撤销事件\neaa revert evt_00001 --reason \"误记\"\n```\n\n## 原因码参考\n\n| 代码 | 标准分 | 说明 |\n|:-----|:-----:|:-----|\n| SPEAK_IN_CLASS | -2 | 课堂讲话 |\n| SLEEP_IN_CLASS | -2 | 课堂睡觉 |\n| LATE | -2 | 迟到 |\n| SMOKING | -10 | 抽烟 |\n| DRINKING_DORM | -5 | 寝室饮酒 |\n| PHONE_IN_CLASS | -5 | 手机违纪 |\n| SCHOOL_CAUGHT | -5 | 学校抓拍 |\n| APPEARANCE_VIOLATION | -2 | 仪容违纪 |\n| DESK_UNALIGNED | -1 | 桌椅不整齐 |\n| MONTHLY_ATTENDANCE | +2 | 月勤奖励 |\n| CLASS_MONITOR | +10 | 班长履职 |\n| CLASS_COMMITTEE | +5 | 班委履职 |\n| CIVILIZED_DORM | +3 | 文明寝室 |\n\n运行 `eaa codes` 查看完整列表。\n\n## 注意事项\n1. **所有数据操作必须通过 eaa CLI**\n2. 禁止直接编辑 events.json 或 entities.json\n3. delta 超出 [-10, +10] 需加 `--force`\n4. 事件不可删除，只能通过 `eaa revert` 对冲\n",
+          "source": "project",
+          "filePath": "C:\\Users\\sq199\\Documents\\GitHub\\education-advisor\\skills\\STUDENT_MANAGEMENT.md"
+        }
+      ]
+    },
+    {
+      "category": "skill",
+      "name": "delete",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "skill",
+      "name": "get_after_delete",
+      "ok": true,
+      "error": null,
+      "data": {
+        "__ok_null": true
+      }
+    },
+    {
+      "category": "cron",
+      "name": "list",
+      "ok": true,
+      "error": null,
+      "data": [
+        {
+          "id": "agent-schedule-safety-0",
+          "name": "安全检查员 定时任务 1",
+          "agentId": "safety",
+          "expression": "0 8 * * 1",
+          "prompt": "执行 安全检查员 的定时任务",
+          "enabled": false,
+          "modelTier": "low_cost"
+        },
+        {
+          "id": "agent-schedule-home_school-0",
+          "name": "家校沟通员 定时任务 1",
+          "agentId": "home_school",
+          "expression": "30 8 * * *",
+          "prompt": "执行 家校沟通员 的定时任务",
+          "enabled": false,
+          "modelTier": "low_cost"
+        },
+        {
+          "id": "agent-schedule-research-0",
+          "name": "科研助理 定时任务 1",
+          "agentId": "research",
+          "expression": "10 22 * * *",
+          "prompt": "执行 科研助理 的定时任务",
+          "enabled": true,
+          "modelTier": "low_cost"
+        },
+        {
+          "id": "agent-schedule-executor-0",
+          "name": "系统执行员 定时任务 1",
+          "agentId": "executor",
+          "expression": "0 1 * * *",
+          "prompt": "执行 系统执行员 的定时任务",
+          "enabled": true,
+          "modelTier": "low_cost"
+        },
+        {
+          "id": "agent-schedule-risk-alert-0",
+          "name": "风险预警员 定时任务 1",
+          "agentId": "risk-alert",
+          "expression": "0 8 * * 1-5",
+          "prompt": "执行 风险预警员 的定时任务",
+          "enabled": true,
+          "modelTier": "low_cost"
+        },
+        {
+          "id": "agent-schedule-risk-alert-1",
+          "name": "风险预警员 定时任务 2",
+          "agentId": "risk-alert",
+          "expression": "0 17 * * 5",
+          "prompt": "执行 风险预警员 的定时任务",
+          "enabled": true,
+          "modelTier": "low_cost"
+        },
+        {
+          "id": "agent-schedule-data-analyst-0",
+          "name": "数据分析师 定时任务 1",
+          "agentId": "data-analyst",
+          "expression": "0 9 * * 1",
+          "prompt": "执行 数据分析师 的定时任务",
+          "enabled": true,
+          "modelTier": "high_quality"
+        },
+        {
+          "id": "agent-schedule-weekly-reporter-0",
+          "name": "周报撰写员 定时任务 1",
+          "agentId": "weekly-reporter",
+          "expression": "0 16 * * 5",
+          "prompt": "执行 周报撰写员 的定时任务",
+          "enabled": true,
+          "modelTier": "high_quality"
+        }
+      ]
+    },
+    {
+      "category": "chat",
+      "name": "listSessions",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "sessions": [
+          {
+            "id": "session_1782782797657_942gw5",
+            "title": "对话 2026/6/30 09:26:37",
+            "createdAt": 1782782797657,
+            "messageCount": 1
+          },
+          {
+            "id": "session_1782780697157_hpbiwe",
+            "title": "对话 2026/6/30 08:51:37",
+            "createdAt": 1782780697158,
+            "messageCount": 1
+          },
+          {
+            "id": "default",
+            "title": "对话 2026/6/29 21:24:47",
+            "createdAt": 1782739487188,
+            "messageCount": 6
+          },
+          {
+            "id": "session_1781107886027",
+            "title": "对话 2026/6/11 00:11:40",
+            "createdAt": 1781107900288,
+            "messageCount": 2
+          },
+          {
+            "id": "session_1781107366587",
+            "title": "对话 2026/6/11 00:03:22",
+            "createdAt": 1781107402420,
+            "messageCount": 10
+          },
+          {
+            "id": "session_1781107558204",
+            "title": "对话 2026/6/11 00:06:01",
+            "createdAt": 1781107561363,
+            "messageCount": 1
+          }
+        ]
+      }
+    },
+    {
+      "category": "chat",
+      "name": "saveMessage",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "id": 52
+      }
+    },
+    {
+      "category": "chat",
+      "name": "saveMessage.assistant",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "id": 53
+      }
+    },
+    {
+      "category": "chat",
+      "name": "loadMessages",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "messages": [
+          {
+            "id": 52,
+            "session_id": "__test_session_1782783621811",
+            "role": "user",
+            "content": "测试消息",
+            "thinking": null,
+            "tool_calls": null,
+            "timestamp": 1782783621811,
+            "provider": null,
+            "model": null,
+            "token_input": null,
+            "token_output": null,
+            "cost": null
+          },
+          {
+            "id": 53,
+            "session_id": "__test_session_1782783621811",
+            "role": "assistant",
+            "content": "测试回复",
+            "thinking": null,
+            "tool_calls": null,
+            "timestamp": 1782783621813,
+            "provider": null,
+            "model": null,
+            "token_input": null,
+            "token_output": null,
+            "cost": null
+          }
+        ]
+      }
+    },
+    {
+      "category": "chat",
+      "name": "listSessions_after",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "sessions": [
+          {
+            "id": "__test_session_1782783621811",
+            "title": "对话 2026/6/30 09:40:21",
+            "createdAt": 1782783621811,
+            "messageCount": 2
+          },
+          {
+            "id": "session_1782782797657_942gw5",
+            "title": "对话 2026/6/30 09:26:37",
+            "createdAt": 1782782797657,
+            "messageCount": 1
+          },
+          {
+            "id": "session_1782780697157_hpbiwe",
+            "title": "对话 2026/6/30 08:51:37",
+            "createdAt": 1782780697158,
+            "messageCount": 1
+          },
+          {
+            "id": "default",
+            "title": "对话 2026/6/29 21:24:47",
+            "createdAt": 1782739487188,
+            "messageCount": 6
+          },
+          {
+            "id": "session_1781107886027",
+            "title": "对话 2026/6/11 00:11:40",
+            "createdAt": 1781107900288,
+            "messageCount": 2
+          },
+          {
+            "id": "session_1781107366587",
+            "title": "对话 2026/6/11 00:03:22",
+            "createdAt": 1781107402420,
+            "messageCount": 10
+          },
+          {
+            "id": "session_1781107558204",
+            "title": "对话 2026/6/11 00:06:01",
+            "createdAt": 1781107561363,
+            "messageCount": 1
+          }
+        ]
+      }
+    },
+    {
+      "category": "chat",
+      "name": "deleteSession",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "class",
+      "name": "list",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": []
+      }
+    },
+    {
+      "category": "class",
+      "name": "create",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": false,
+        "error": "classId must be a string"
+      }
+    },
+    {
+      "category": "profile",
+      "name": "get",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {}
+      }
+    },
+    {
+      "category": "profile",
+      "name": "set",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true
+      }
+    },
+    {
+      "category": "profile",
+      "name": "get_after_set",
+      "ok": true,
+      "error": null,
+      "data": {
+        "success": true,
+        "data": {
+          "note": "测试档案更新",
+          "updatedAt": 1782783621819
+        }
+      }
+    },
+    {
+      "category": "ai",
+      "name": "listProviders",
+      "ok": true,
+      "error": null,
+      "data": [
+        {
+          "id": "amazon-bedrock",
+          "name": "Amazon Bedrock",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 90,
+          "hidden": false
+        },
+        {
+          "id": "anthropic",
+          "name": "Anthropic",
+          "supportsOAuth": true,
+          "hasApiKey": true,
+          "modelCount": 24,
+          "hidden": false
+        },
+        {
+          "id": "azure-openai-responses",
+          "name": "Azure OpenAI",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 42,
+          "hidden": false
+        },
+        {
+          "id": "cerebras",
+          "name": "Cerebras",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 3,
+          "hidden": false
+        },
+        {
+          "id": "cloudflare-ai-gateway",
+          "name": "Cloudflare AI Gateway",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 35,
+          "hidden": false
+        },
+        {
+          "id": "cloudflare-workers-ai",
+          "name": "Cloudflare Workers AI",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 12,
+          "hidden": false
+        },
+        {
+          "id": "deepseek",
+          "name": "DeepSeek",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 2,
+          "hidden": false
+        },
+        {
+          "id": "fireworks",
+          "name": "Fireworks AI",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 12,
+          "hidden": false
+        },
+        {
+          "id": "github-copilot",
+          "name": "GitHub Copilot",
+          "supportsOAuth": true,
+          "hasApiKey": false,
+          "modelCount": 21,
+          "hidden": false
+        },
+        {
+          "id": "google",
+          "name": "Google (Gemini)",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 16,
+          "hidden": false
+        },
+        {
+          "id": "google-vertex",
+          "name": "Google Vertex AI",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 13,
+          "hidden": false
+        },
+        {
+          "id": "groq",
+          "name": "Groq",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 18,
+          "hidden": false
+        },
+        {
+          "id": "huggingface",
+          "name": "Hugging Face",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 22,
+          "hidden": false
+        },
+        {
+          "id": "kimi-coding",
+          "name": "Kimi Coding",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 2,
+          "hidden": false
+        },
+        {
+          "id": "minimax",
+          "name": "MiniMax",
+          "supportsOAuth": false,
+          "hasApiKey": true,
+          "modelCount": 2,
+          "hidden": false
+        },
+        {
+          "id": "minimax-cn",
+          "name": "MiniMax (中国)",
+          "supportsOAuth": false,
+          "hasApiKey": true,
+          "modelCount": 2,
+          "hidden": false
+        },
+        {
+          "id": "mistral",
+          "name": "Mistral",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 28,
+          "hidden": false
+        },
+        {
+          "id": "moonshotai",
+          "name": "Moonshot AI",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 7,
+          "hidden": false
+        },
+        {
+          "id": "moonshotai-cn",
+          "name": "Moonshot AI (中国)",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 7,
+          "hidden": false
+        },
+        {
+          "id": "openai",
+          "name": "OpenAI",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 42,
+          "hidden": false
+        },
+        {
+          "id": "openai-codex",
+          "name": "OpenAI Codex",
+          "supportsOAuth": true,
+          "hasApiKey": false,
+          "modelCount": 6,
+          "hidden": false
+        },
+        {
+          "id": "opencode",
+          "name": "OpenCode",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 41,
+          "hidden": false
+        },
+        {
+          "id": "opencode-go",
+          "name": "OpenCode Go",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 13,
+          "hidden": false
+        },
+        {
+          "id": "openrouter",
+          "name": "OpenRouter",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 267,
+          "hidden": false
+        },
+        {
+          "id": "together",
+          "name": "Together AI",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 18,
+          "hidden": false
+        },
+        {
+          "id": "vercel-ai-gateway",
+          "name": "Vercel AI Gateway",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 159,
+          "hidden": false
+        },
+        {
+          "id": "xai",
+          "name": "xAI (Grok)",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 7,
+          "hidden": false
+        },
+        {
+          "id": "xiaomi",
+          "name": "Xiaomi MiMo",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 5,
+          "hidden": false
+        },
+        {
+          "id": "xiaomi-token-plan-ams",
+          "name": "Xiaomi (AMS)",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 5,
+          "hidden": false
+        },
+        {
+          "id": "xiaomi-token-plan-cn",
+          "name": "Xiaomi (中国)",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 5,
+          "hidden": false
+        },
+        {
+          "id": "xiaomi-token-plan-sgp",
+          "name": "Xiaomi (SGP)",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 5,
+          "hidden": false
+        },
+        {
+          "id": "zai",
+          "name": "Z.AI",
+          "supportsOAuth": false,
+          "hasApiKey": false,
+          "modelCount": 5,
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "category": "log",
+      "name": "list",
+      "ok": true,
+      "error": null,
+      "data": [
+        {
+          "stream": "main",
+          "date": "2026-06-30",
+          "name": "main-2026-06-30.log",
+          "sizeBytes": 410
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-29",
+          "name": "main-2026-06-29.log",
+          "sizeBytes": 16306
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-28",
+          "name": "main-2026-06-28.log",
+          "sizeBytes": 866
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-27",
+          "name": "main-2026-06-27.log",
+          "sizeBytes": 433
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-26",
+          "name": "main-2026-06-26.log",
+          "sizeBytes": 774
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-25",
+          "name": "main-2026-06-25.log",
+          "sizeBytes": 866
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-23",
+          "name": "main-2026-06-23.log",
+          "sizeBytes": 433
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-22",
+          "name": "main-2026-06-22.log",
+          "sizeBytes": 433
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-21",
+          "name": "main-2026-06-21.log",
+          "sizeBytes": 433
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-20",
+          "name": "main-2026-06-20.log",
+          "sizeBytes": 433
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-16",
+          "name": "main-2026-06-16.log",
+          "sizeBytes": 433
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-14",
+          "name": "main-2026-06-14.log",
+          "sizeBytes": 433
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-12",
+          "name": "main-2026-06-12.log",
+          "sizeBytes": 433
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-11",
+          "name": "main-2026-06-11.log",
+          "sizeBytes": 5456
+        },
+        {
+          "stream": "chat",
+          "date": "2026-06-10",
+          "name": "chat-2026-06-10.log",
+          "sizeBytes": 3950
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-10",
+          "name": "main-2026-06-10.log",
+          "sizeBytes": 43746
+        },
+        {
+          "stream": "main",
+          "date": "2026-06-09",
+          "name": "main-2026-06-09.log",
+          "sizeBytes": 5813
+        }
+      ]
+    },
+    {
+      "category": "feishu",
+      "name": "status",
+      "ok": true,
+      "error": null,
+      "data": "no cached token"
+    },
+    {
+      "category": "sys",
+      "name": "getPath.userData",
+      "ok": true,
+      "error": null,
+      "data": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor"
+    }
+  ]
+}

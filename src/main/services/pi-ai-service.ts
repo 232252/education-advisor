@@ -177,20 +177,26 @@ class PiAIService {
                 data?: Array<{ id: string; object?: string }>
               }
               if (data?.data && Array.isArray(data.data)) {
-                onlineModels = data.data.map((m) => ({
-                  id: m.id,
-                  name: m.id,
-                  providerId,
-                  api: sampleModel.api as string,
-                  contextWindow: 32768,
-                  maxOutputTokens: 4096,
-                  costPerInputToken: 0,
-                  costPerOutputToken: 0,
-                  costCacheRead: 0,
-                  costCacheWrite: 0,
-                  supportsReasoning: false,
-                  baseUrl: resolvedBaseUrl,
-                }))
+                onlineModels = data.data.map((m) => {
+                  // H-8 修复: 不再硬编码 contextWindow: 32768 / maxOutputTokens: 4096
+                  // 优先从 provider 的静态模型中查找同 id 模型获取真实参数,
+                  // 找不到才用保守默认值
+                  const staticMatch = models.find((sm) => sm.id === m.id)
+                  return {
+                    id: m.id,
+                    name: m.id,
+                    providerId,
+                    api: sampleModel.api as string,
+                    contextWindow: staticMatch?.contextWindow ?? 32768,
+                    maxOutputTokens: staticMatch?.maxTokens ?? 4096,
+                    costPerInputToken: staticMatch?.cost.input ?? 0,
+                    costPerOutputToken: staticMatch?.cost.output ?? 0,
+                    costCacheRead: staticMatch?.cost.cacheRead ?? 0,
+                    costCacheWrite: staticMatch?.cost.cacheWrite ?? 0,
+                    supportsReasoning: staticMatch?.reasoning ?? false,
+                    baseUrl: resolvedBaseUrl,
+                  }
+                })
                 console.log(
                   `[PiAI] Fetched ${onlineModels.length} models online from ${providerId}`,
                 )
@@ -479,12 +485,29 @@ class PiAIService {
     }
 
     // 创建 AbortController
+    // Critical 4.1 修复: 并发 chatStream 会覆盖 abortController,导致前一个无法 abort
+    // 策略 1: 进入新 chatStream 前先 abort 并清理旧的 controller,保证只有一个活跃流
+    // 策略 2: 记录自己的 controller 引用,finally 只清理自己创建的 controller,
+    //         避免在并发场景下错误地清理另一个流的 controller
+    if (this.abortController) {
+      try {
+        this.abortController.abort()
+      } catch {
+        /* 旧 controller abort 失败不阻塞新流程 */
+      }
+      this.abortController = null
+    }
     this.abortController = new AbortController()
+    // 保留自己 controller 的引用,用于 finally 中精确清理
+    const myController = this.abortController
 
     // 构建 pi-ai Context
-    // pi-ai 的 Message 类型区分 UserMessage 和 AssistantMessage（后者需要 api/usage 等字段）
-    // 简单对话场景下，我们只传入 user 消息，由 pi-ai 内部管理上下文
-    const userMessages = params.messages.filter((m) => m.role === 'user')
+    // H-5 修复: 不再只取 user 消息,保留 user + assistant 消息以维持完整对话上下文
+    // 之前 filter(m => m.role === 'user') 会导致 assistant 的历史回复丢失,
+    // LLM 无法理解多轮对话的连贯性
+    const conversationMessages = params.messages.filter(
+      (m) => m.role === 'user' || m.role === 'assistant',
+    )
 
     // 边界：params.messages 为空时直接返回
     if (params.messages.length === 0) {
@@ -534,7 +557,8 @@ class PiAIService {
 
     // 应用压缩(仅当启用且消息数量 > 2)
     // 优先使用 LLM 摘要(与 Agent 链路体验一致),失败时降级到字符串截断
-    const sourceMessages = userMessages.length > 0 ? userMessages : params.messages
+    // H-5 修复: 使用 conversationMessages(含 user + assistant)而非只 user 消息
+    const sourceMessages = conversationMessages.length > 0 ? conversationMessages : params.messages
     let messagesToUse: Array<{ role: string; content: string }> = sourceMessages
 
     if (compactionEnabled && sourceMessages.length > 2) {
@@ -554,7 +578,7 @@ class PiAIService {
           model,
           { enabled: true, reserveTokens: adaptiveReserve, keepRecentTokens },
           apiKey,
-          this.abortController.signal,
+          myController.signal,
         )
         if (compacted.length < agentMsgs.length) {
           // 压缩生效:把结果转回简化格式(宽松 cast 处理 AgentMessage 联合类型)
@@ -590,11 +614,38 @@ class PiAIService {
       }
     }
 
-    const piMessages: Message[] = messagesToUse.map((m) => ({
-      role: 'user' as const,
-      content: m.content,
-      timestamp: Date.now(),
-    }))
+    // H-5 修复: 根据原消息 role 构造对应的 pi-ai Message 类型
+    // - user 消息 → UserMessage (简单)
+    // - assistant 消息 → 最小合法 AssistantMessage (保留历史回复上下文)
+    // 之前所有消息都强制转 role: 'user',导致 LLM 误以为全是用户说的,多轮对话混乱
+    const piMessages: Message[] = messagesToUse.map((m) => {
+      if (m.role === 'assistant') {
+        // 构造最小合法 AssistantMessage,让 pi-ai 能识别这是之前的助手回复
+        return {
+          role: 'assistant',
+          content: [{ type: 'text', text: m.content }],
+          api: model.api,
+          provider: model.provider,
+          model: model.id,
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+          },
+          stopReason: 'stop',
+          timestamp: Date.now(),
+        } as AssistantMessage
+      }
+      // user 和其他角色都作为 UserMessage
+      return {
+        role: 'user' as const,
+        content: m.content,
+        timestamp: Date.now(),
+      }
+    })
 
     const context: Context = {
       systemPrompt: params.systemPrompt,
@@ -617,7 +668,7 @@ class PiAIService {
       apiKey,
       reasoning,
       maxTokens: effectiveOutputMax,
-      signal: this.abortController.signal,
+      signal: myController.signal,
     })
 
     yield { type: 'start', model: model.id, provider: model.provider }
@@ -693,7 +744,10 @@ class PiAIService {
         },
       }
     } finally {
-      this.abortController = null
+      // Critical 4.1 修复: 只清理自己创建的 controller,避免覆盖另一个并发 chatStream 的 controller
+      if (this.abortController === myController) {
+        this.abortController = null
+      }
     }
   }
 

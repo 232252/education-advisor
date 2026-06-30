@@ -31,19 +31,21 @@ export default defineConfig({
           globals: true,
           include: [
             'src/renderer/**/*.{test,spec}.{ts,tsx}',
+            'tests/renderer/**/*.{test,spec}.{ts,tsx}',
           ],
           environment: 'jsdom',
           setupFiles: ['./tests/setup.ts'],
         },
       },
       {
-        // 主进程 service 测试
+        // 主进程 service + shared 测试
         test: {
           name: 'main',
           globals: true,
           include: [
             'src/main/**/*.{test,spec}.{ts,tsx}',
             'tests/main/**/*.{test,spec}.{ts,tsx}',
+            'tests/shared/**/*.{test,spec}.{ts,tsx}',
             'tests/e2e/**/*.{test,spec}.{ts,tsx}',
           ],
           environment: 'node',

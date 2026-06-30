@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app, BrowserWindow, dialog, shell } from 'electron'
+import { debug } from '../shared/debug'
 import { registerAllHandlers } from './ipc/index'
 import { cronService } from './services/cron-service'
 import { dbService } from './services/db-service'
@@ -18,11 +19,29 @@ import { initLogger, log } from './utils/logger'
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
 
-// 启用 CDP 远程调试(arch-P0-3 修复: 仅 ENABLE_CDP=1 显式开启;remote-allow-origins 限 localhost 防同网段 RCE)
-if (process.env.ENABLE_CDP === '1') {
+// 启用 CDP 远程调试(arch-P0-3 修复: remote-allow-origins 限 localhost 防同网段 RCE)
+// 测试阶段默认开启(用户指示: "直接开着吧,真正到要用就是说生产级别的时候再关闭掉")
+// 生产环境设置 ENABLE_CDP=0 显式关闭
+if (process.env.ENABLE_CDP !== '0') {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
   app.commandLine.appendSwitch('remote-allow-origins', 'http://localhost:9222')
-  console.log('[Main] CDP enabled at http://localhost:9222 (localhost only)')
+  console.log('[Main] CDP enabled at http://localhost:9222 (set ENABLE_CDP=0 to disable)')
+}
+
+// 启动期输出调试配置状态
+if (debug.enabled) {
+  console.log('[Main] Debug mode enabled:', {
+    eaa: debug.eaa,
+    ipc: debug.ipc,
+    agent: debug.agent,
+    chat: debug.chat,
+    cron: debug.cron,
+    privacy: debug.privacy,
+    render: debug.render,
+    logLevel: debug.logLevel,
+    cdpPort: debug.cdpPort,
+    slowThresholdMs: debug.slowThresholdMs,
+  })
 }
 
 // =============================================================
@@ -91,9 +110,15 @@ function handleWindowClose(win: BrowserWindow, event: Electron.Event): void {
 // =============================================================
 app.whenReady().then(async () => {
   // T5: 初始化日志系统(从 settings 读 logLevel,劫持 console)
-  const initialLogLevel = settingsService.getSettings().general.logLevel
+  // DEBUG_LOG_LEVEL 环境变量优先级最高(调试时强制覆盖 settings),否则用 settings.general.logLevel
+  const settingsLogLevel = settingsService.getSettings().general.logLevel
+  const initialLogLevel = debug.logLevel ?? settingsLogLevel
   initLogger(initialLogLevel)
-  log('info', 'main', `Logger initialized at level=${initialLogLevel}`)
+  log(
+    'info',
+    'main',
+    `Logger initialized at level=${initialLogLevel}${debug.logLevel ? ' (from DEBUG_LOG_LEVEL)' : ''}`,
+  )
 
   // P2-4: 初始化 SQLite,失败不阻塞主流程
   await dbService.init()
@@ -156,10 +181,11 @@ app.whenReady().then(async () => {
       if (s.general.autoUpdate) {
         updateService
           .checkForUpdates()
-          .then((info) => {
+          .then(async (info) => {
             if (info.hasUpdate) {
               log('info', 'main', `Update available: v${info.latestVersion}`)
-              updateService.showUpdateDialog()
+              // MEDIUM 修复: await showUpdateDialog,避免其内部 reject 成为 unhandled rejection
+              await updateService.showUpdateDialog()
             }
           })
           .catch((err) => {
@@ -226,8 +252,9 @@ app.on('window-all-closed', () => {
     const { exists: trayExists } = getTrayStatus()
     if (trayExists && !isQuitting) return
     // 真正要退出时才关闭服务
-    void cronService.shutdown()
-    void dbService.close()
+    // MEDIUM 修复: 用 .catch(() => {}) 替代 void,避免 unhandled rejection 静默丢失
+    cronService.shutdown().catch(() => {})
+    dbService.close().catch(() => {})
     app.quit()
   }
 })

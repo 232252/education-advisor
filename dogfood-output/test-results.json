@@ -1,0 +1,4820 @@
+{
+  "pages": [
+    {
+      "name": "dashboard",
+      "label": "仪表盘",
+      "hash": "#/dashboard",
+      "url": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/dashboard",
+      "bodyText": "Education Advisor\n📊\n仪表盘\n💬\n对话\n👥\n学生\n🎓\n班级\n🤖\nAgent\n🧠\n模型\n📝\n技能\n⏰\n任务\n🔒\n隐私\n⚙️\n设置\nAGENT 控制台 · 刷新\n数据仪表盘\n\n学生操行数据概览与分析\n\n🔄 刷新数据\n学生总数\n👥\n0\n有效事件\n✅\n0\n撤销事件\n↩️\n0\n总分数变动\n📊\n-\n高风险学生\n⚠️\n0\n分数分布\n风险分布\n暂无数据\n事件原因分布\n暂无数据\n排行榜 Top 10\n暂无排行数据\n周期摘要\n暂无数据\n系统管理 & 诊断\nEAA 系统信息\n暂无数据\n健康检查\n运行检查\n暂无数据\n数据验证\n验证数据\n暂无数据\n标签概览\n暂无数据\n维护工具\n🔄 重放排名\n📊 导出 HTML 仪表盘",
+      "elements": [
+        {
+          "idx": 0,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📊\n仪表盘",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/dashboard",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 64,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 1,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "💬\n对话",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/chat",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 108,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 2,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "👥\n学生",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/students",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 152,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 3,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🎓\n班级",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/classes",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 196,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 4,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🤖\nAgent",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/agents",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 240,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 5,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🧠\n模型",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/models",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 284,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 6,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📝\n技能",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/skills",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 328,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 7,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⏰\n任务",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/scheduler",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 372,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 8,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🔒\n隐私",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/privacy",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 416,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 9,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⚙️\n设置",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/settings",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 460,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 10,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "🔄 刷新数据",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1239,
+            "y": 31,
+            "w": 113,
+            "h": 38
+          }
+        },
+        {
+          "idx": 11,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "运行检查",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 634,
+            "y": 887,
+            "w": 72,
+            "h": 28
+          }
+        },
+        {
+          "idx": 12,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "验证数据",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1016,
+            "y": 887,
+            "w": 72,
+            "h": 28
+          }
+        },
+        {
+          "idx": 13,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "🔄 重放排名",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 634,
+            "y": 1057,
+            "w": 92,
+            "h": 28
+          }
+        },
+        {
+          "idx": 14,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "📊 导出 HTML 仪表盘",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 734,
+            "y": 1057,
+            "w": 145,
+            "h": 28
+          }
+        }
+      ],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "buttonsClicked": [
+        {
+          "text": "🔄 刷新数据",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "🔄 刷新数据",
+            "id": "",
+            "className": "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-g"
+          }
+        },
+        {
+          "text": "运行检查",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "验证数据",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "🔄 重放排名",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "📊 导出 HTML 仪表盘",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        }
+      ],
+      "postClickErrors": [],
+      "postClickPageErrors": []
+    },
+    {
+      "name": "chat",
+      "label": "对话",
+      "hash": "#/chat",
+      "url": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/chat",
+      "bodyText": "Education Advisor\n📊\n仪表盘\n💬\n对话\n👥\n学生\n🎓\n班级\n🤖\nAgent\n🧠\n模型\n📝\n技能\n⏰\n任务\n🔒\n隐私\n⚙️\n设置\nAGENT 控制台 · 刷新\n+ 新建对话\n对话 2026/6/29 21:24:47\n6月29日\n·\n6 信息\n×\n对话 2026/6/11 00:11:40\n6月11日\n·\n2 信息\n×\n对话 2026/6/11 00:03:22\n6月11日\n·\n10 信息\n×\n对话 2026/6/11 00:06:01\n6月11日\n·\n1 信息\n×\nMiniMax (中国) / MiniMax-M3\n思考 关\n思考 最少\n思考 低\n思考 中\n思考 高\n思考 最高\n清空\n上下文\n493K\n输出上限\n32K\n充裕\n你是谁\n您好！我是 **Education Advisor AI（教育参谋助手）** 🎓\n\n我是您的智能教育辅助助手，专门为班主任/教师设计，可以帮助您：\n\n## 🎯 我的核心能力\n\n| 功能 | 说明 |\n|:-----|:-----|\n| 📋 **学生档案管理** | 添加学生、查询档案、维护信息 |\n| 📊 **操行分管理** | 加分扣分、排行榜、风险预警 |\n| 📈 **学业分析** | 成绩跟踪、趋势分析 |\n| ⚠️ **风险预警** | 自动识别需要关注的学生 |\n| 💬 **谈话辅助** | 生成谈话计划和话术建议 |\n| 📝 **报告生成** | 每日督导报告、周报月报 |\n| 🏠 **家校沟通** | 通知模板、家长信 |\n\n## 🚀 快速开始\n\n我可以帮您：\n- 查询学生信息：`查一下张三的操行分`\n- 添加学生：`添加学生李四`\n- 记录事件：`给王五加2分，帮助同学`\n- 生成报告：`生成本周督导报告`\n\n---\n\n**配置信息**：请告诉我您的姓名、学校、年级班级，我就能为您定制服务。如果您想直接体验，也可以直接告诉我您的需求！😊\n查询有哪些学生\n📋 **学生名单** （共 **52** 人）\n\n**数据来源**：`eaa_list_students`\n\n| 序号 | 姓名 | 当前分数 | 风险等级 |\n|:---:|:-----|:-------:|:-------:|\n| 1 | 乌尼布哈 | 100 | 低 |\n| 2 | 何金全 | 100 | 低 |\n| 3 | 卢志强 | 100 | 低 |\n| 4 | 叶世充 | 100 | 低 |\n| 5 | 周欣悦 | 100 | 低 |\n| 6 | 唐正科 | 100 | 低 |\n| 7 | 央金拉姆 | 100 | 低 |\n| 8 | 尼尔日则 | 100 | 低 |\n| 9 | 尼尔日古莫 | 100 | 低 |\n| 10 | 尼尔日呷 | 100 | 低 |\n| 11 | 尼尔日呷莫 | 100 | 低 |\n| 12 | 巴青尔体 | 100 | 低 |\n| 13 | 日尔布他 | 100 | 低 |\n| 14 | 李启蓬 | 100 | 低 |\n| 15 | 李婷婷 | 100 | 低 |\n| 16 | 李香蓝 | 100 | 低 |\n| 17 | 杨敏 | 100 | 低 |\n| 18 | 格桑央青 | 100 | 低 |\n| 19 | 汪大昱 | 100 | 低 |\n| 20 | 汪小林 | 100 | 低 |\n| 21 | 沈权伟 | 100 | 低 |\n| 22 | 沈玉花 | 100 | 低 |\n| 23 | 测试删除用 | 100 | 低 |\n| 24 | 温皓 | 100 | 低 |\n| 25 | 王勇 | 100 | 低 |\n| 26 | 王学文 | 100 | 低 |\n| 27 | 王宗顺 | 100 | 低 |\n| 28 | 王建 | 100 | 低 |\n| 29 | 王海峰 | 100 | 低 |\n| 30 | 王程 | 100 | 低 |\n| 31 | 白晓宇 | 100 | 低 |\n| 32 | 秦晓雄 | 100 | 低 |\n| 33 | 维色乌支么 | 100 | 低 |\n| 34 | 维色布呷 | 100 | 低 |\n| 35 | 罗婷 | 100 | 低 |\n| 36 | 罗木约者 | 100 | 低 |\n| 37 | 罗遥骋 | 100 | 低 |\n| 38 | 罗韫 | 100 | 低 |\n| 39 | 苏久日古 | 100 | 低 |\n| 40 | 苏云星 | 100 | 低 |\n| 41 | 苏医生 | 100 | 低 |\n| 42 | 苏晓英 | 100 | 低 |\n| 43 | 英忠尼玛 | 100 | 低 |\n| 44 | 蒲祥语 | 100 | 低 |\n| 45 | 赵镜 | 100 | 低 |\n| 46 | 邱鑫瑶 | 100 | 低 |\n| 47 | 阿的叶呷 | 100 | 低 |\n| 48 | 陈友明 | 100 | 低 |\n| 49 | 陈强 | 100 | 低 |\n| 50 | 马昊 | 100 | 低 |\n| 51 | 高洪杰 | 100 | 低 |\n| 52 | 黄长杰 | 100 | 低 |\n\n---\n\n## 📊 概况\n\n- **学生总数**：52 人\n- **当前分数**：均为 100 分（初始分数，尚未记录任何事件）\n- **风险等级**：全部为\"低\"风险\n- **事件总数**：0 条（全新数据）\n\n## 💡 提示\n\n1. 您班级学生看起来以**彝族**姓名为主（\"尼尔日\"\"维色\"\"呷\"等字样常见于彝族姓名）\n2. 有一位\"**测试删除用**\"的学生，可能是测试数据，建议清理\n3. 所有学生操行分都是初始的100分，还没有添加任何加减分事件\n\n需要我帮您做什么？例如：\n- 📝 给某个学生添加操行事件\n- 🗑️ 删除\"测试删除用\"学生\n- 📊 生成本周报告\n查询罗韫的情况\n📋 **罗韫** 档案\n\n**数据来源**：`eaa_score 罗韫`\n\n| 项目 | 信息 |\n|:-----|:-----|\n| 🏷️ 姓名 | 罗韫 |\n| 🆔 学号 | ent_749b5d8a7e89 |\n| 📊 当前操行分 | **100 分**（初始分） |\n| ⚠️ 风险等级 | 低 |\n| 📁 班级 | 未分配 |\n| 👥 组别 | 无 |\n| 🎭 角色 | 无 |\n| 📈 事件总数 | **0 条** |\n| 🕐 最后事件 | 无 |\n| ✅ 状态 | Active（在册） |\n\n---\n\n## 📊 分析\n\n- **基础信息**：罗韫目前在册，状态正常\n- **操行记录**：尚未记录任何加分/扣分事件\n- **数据完善度**：班级、组别、角色等信息均为空\n\n## 💡 建议\n\n您可以告诉我：\n1. 罗韫属于哪个班级？担任什么职务？\n2. 是否有需要记录的事件（如：今日表扬、违纪记录等）？\n3. 是否要查询其他学生作对比？\n\n需要补充信息或记录事件，请直接告诉我！\n正在加载 Agent 列表...\n发送",
+      "elements": [
+        {
+          "idx": 0,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📊\n仪表盘",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/dashboard",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 64,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 1,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "💬\n对话",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/chat",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 108,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 2,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "👥\n学生",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/students",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 152,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 3,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🎓\n班级",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/classes",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 196,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 4,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🤖\nAgent",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/agents",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 240,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 5,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🧠\n模型",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/models",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 284,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 6,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📝\n技能",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/skills",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 328,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 7,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⏰\n任务",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/scheduler",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 372,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 8,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🔒\n隐私",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/privacy",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 416,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 9,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⚙️\n设置",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/settings",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 460,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 10,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "+ 新建对话",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 220,
+            "y": 12,
+            "w": 231,
+            "h": 36
+          }
+        },
+        {
+          "idx": 11,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "对话 2026/6/29 21:24:47\n6月29日\n·\n6 信息",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 229,
+            "y": 80,
+            "w": 196,
+            "h": 37
+          }
+        },
+        {
+          "idx": 12,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "×",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 433,
+            "y": 91,
+            "w": 9,
+            "h": 16
+          }
+        },
+        {
+          "idx": 13,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "对话 2026/6/11 00:11:40\n6月11日\n·\n2 信息",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 229,
+            "y": 143,
+            "w": 196,
+            "h": 37
+          }
+        },
+        {
+          "idx": 14,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "×",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 433,
+            "y": 154,
+            "w": 9,
+            "h": 16
+          }
+        },
+        {
+          "idx": 15,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "对话 2026/6/11 00:03:22\n6月11日\n·\n10 信息",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 229,
+            "y": 206,
+            "w": 196,
+            "h": 37
+          }
+        },
+        {
+          "idx": 16,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "×",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 433,
+            "y": 217,
+            "w": 9,
+            "h": 16
+          }
+        },
+        {
+          "idx": 17,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "对话 2026/6/11 00:06:01\n6月11日\n·\n1 信息",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 229,
+            "y": 269,
+            "w": 196,
+            "h": 37
+          }
+        },
+        {
+          "idx": 18,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "×",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 433,
+            "y": 280,
+            "w": 9,
+            "h": 16
+          }
+        },
+        {
+          "idx": 19,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 488,
+            "y": 8,
+            "w": 160,
+            "h": 32
+          }
+        },
+        {
+          "idx": 20,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "MiniMax (中国) / MiniMax-M3",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 673,
+            "y": 9,
+            "w": 236,
+            "h": 30
+          }
+        },
+        {
+          "idx": 21,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "思考 关\n思考 最少\n思考 低\n思考 中\n思考 高\n思考 最高",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 921,
+            "y": 8,
+            "w": 92,
+            "h": 32
+          }
+        },
+        {
+          "idx": 22,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "清空",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1336,
+            "y": 16,
+            "w": 24,
+            "h": 16
+          }
+        },
+        {
+          "idx": 23,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 501,
+            "y": 808,
+            "w": 28,
+            "h": 28
+          }
+        },
+        {
+          "idx": 24,
+          "tag": "TEXTAREA",
+          "type": "textarea",
+          "role": "",
+          "text": "正在加载...",
+          "href": "",
+          "id": "",
+          "disabled": true,
+          "rect": {
+            "x": 537,
+            "y": 808,
+            "w": 722,
+            "h": 28
+          }
+        },
+        {
+          "idx": 25,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "发送",
+          "href": "",
+          "id": "",
+          "disabled": true,
+          "rect": {
+            "x": 1284,
+            "y": 801,
+            "w": 76,
+            "h": 44
+          }
+        }
+      ],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "buttonsClicked": [
+        {
+          "text": "+ 新建对话",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "+ 新建对话",
+            "id": "",
+            "className": "w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm fon"
+          }
+        },
+        {
+          "text": "对话 2026/6/29 21:24:47\n6月29日\n·\n6 信息",
+          "result": {
+            "ok": true,
+            "tag": "DIV",
+            "text": "新对话 08:51:37",
+            "id": "",
+            "className": "text-sm font-medium truncate dark:text-gray-200"
+          }
+        },
+        {
+          "text": "×",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "×",
+            "id": "",
+            "className": "opacity-0 group-hover:opacity-100 ml-2 text-gray-400 hover:text-red-500 transiti"
+          }
+        },
+        {
+          "text": "对话 2026/6/11 00:11:40\n6月11日\n·\n2 信息",
+          "result": {
+            "ok": true,
+            "tag": "DIV",
+            "text": "删除\n\n删除?\n\n取消\n确认",
+            "id": "",
+            "className": "fixed inset-0 bg-black/40 flex items-center justify-center z-[60]"
+          }
+        },
+        {
+          "text": "×",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "×",
+            "id": "",
+            "className": "opacity-0 group-hover:opacity-100 ml-2 text-gray-400 hover:text-red-500 transiti"
+          }
+        },
+        {
+          "text": "对话 2026/6/11 00:03:22\n6月11日\n·\n10 信息",
+          "result": {
+            "ok": true,
+            "tag": "DIV",
+            "text": "删除\n\n删除?\n\n取消\n确认",
+            "id": "",
+            "className": "fixed inset-0 bg-black/40 flex items-center justify-center z-[60]"
+          }
+        },
+        {
+          "text": "×",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "×",
+            "id": "",
+            "className": "opacity-0 group-hover:opacity-100 ml-2 text-gray-400 hover:text-red-500 transiti"
+          }
+        },
+        {
+          "text": "对话 2026/6/11 00:06:01\n6月11日\n·\n1 信息",
+          "result": {
+            "ok": true,
+            "tag": "DIV",
+            "text": "删除\n\n删除?\n\n取消\n确认",
+            "id": "",
+            "className": "fixed inset-0 bg-black/40 flex items-center justify-center z-[60]"
+          }
+        },
+        {
+          "text": "×",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "×",
+            "id": "",
+            "className": "opacity-0 group-hover:opacity-100 ml-2 text-gray-400 hover:text-red-500 transiti"
+          }
+        },
+        {
+          "text": "MiniMax (中国) / MiniMax-M3",
+          "result": {
+            "ok": true,
+            "tag": "DIV",
+            "text": "删除\n\n删除?\n\n取消\n确认",
+            "id": "",
+            "className": "fixed inset-0 bg-black/40 flex items-center justify-center z-[60]"
+          }
+        },
+        {
+          "text": "清空",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "清空",
+            "id": "",
+            "className": "text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gra"
+          }
+        },
+        {
+          "text": "",
+          "error": "Eval error: {\"exceptionId\":1,\"text\":\"Uncaught (in promise) TypeError: (el.className || \\\"\\\").substring is not a function\",\"lineNumber\":5,\"columnNumber\":129,\"scriptId\":\"143\",\"stackTrace\":{\"callFrames\":[{\"functionName\":\"\",\"scriptId\":\"143\",\"url\":\"\",\"lineNumber\":4,\"columnNumber\":128},{\"functionName\":\"\",\"scriptId\":\"143\",\"url\":\"\",\"lineNumber\":0,\"columnNumber\":0}]},\"exception\":{\"type\":\"object\",\"subtype\":\"error\",\"className\":\"TypeError\",\"description\":\"TypeError: (el.className || \\\"\\\").substring is not a function\\n    at <anonymous>:5:129\\n    at new Promise (<anonymous>)\\n    at <anonymous>:1:1\",\"objectId\":\"-3818185440052386299.1.3\"}}"
+        },
+        {
+          "text": "发送",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "发送",
+            "id": "",
+            "className": "px-6 py-3 rounded-lg text-sm font-medium transition-colors self-end\n            "
+          }
+        }
+      ],
+      "postClickErrors": [],
+      "postClickPageErrors": []
+    },
+    {
+      "name": "students",
+      "label": "学生",
+      "hash": "#/students",
+      "url": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/students",
+      "bodyText": "Education Advisor\n📊\n仪表盘\n💬\n对话\n👥\n学生\n🎓\n班级\n🤖\nAgent\n🧠\n模型\n📝\n技能\n⏰\n任务\n🔒\n隐私\n⚙️\n设置\nAGENT 控制台 · 刷新\n学生管理 (0)\n☑ 选择\n+ 添加\n📥 导入\n📤 导出\n刷新\n暂无学生数据",
+      "elements": [
+        {
+          "idx": 0,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📊\n仪表盘",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/dashboard",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 64,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 1,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "💬\n对话",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/chat",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 108,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 2,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "👥\n学生",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/students",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 152,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 3,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🎓\n班级",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/classes",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 196,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 4,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🤖\nAgent",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/agents",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 240,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 5,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🧠\n模型",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/models",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 284,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 6,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📝\n技能",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/skills",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 328,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 7,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⏰\n任务",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/scheduler",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 372,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 8,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🔒\n隐私",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/privacy",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 416,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 9,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⚙️\n设置",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/settings",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 460,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 10,
+          "tag": "INPUT",
+          "type": "text",
+          "role": "",
+          "text": "搜索姓名/分组/角色...",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 799,
+            "y": 16,
+            "w": 192,
+            "h": 34
+          }
+        },
+        {
+          "idx": 11,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "☑ 选择",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 999,
+            "y": 17,
+            "w": 68,
+            "h": 32
+          }
+        },
+        {
+          "idx": 12,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "+ 添加",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1075,
+            "y": 17,
+            "w": 67,
+            "h": 32
+          }
+        },
+        {
+          "idx": 13,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "📥 导入",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1149,
+            "y": 17,
+            "w": 75,
+            "h": 32
+          }
+        },
+        {
+          "idx": 14,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "📤 导出",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1233,
+            "y": 17,
+            "w": 75,
+            "h": 32
+          }
+        },
+        {
+          "idx": 15,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "刷新",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1316,
+            "y": 17,
+            "w": 52,
+            "h": 32
+          }
+        }
+      ],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "buttonsClicked": [
+        {
+          "text": "☑ 选择",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "☑ 选择",
+            "id": "",
+            "className": "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1."
+          }
+        },
+        {
+          "text": "+ 添加",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "+ 添加",
+            "id": "",
+            "className": "bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm transiti"
+          }
+        },
+        {
+          "text": "📥 导入",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "📥 导入",
+            "id": "",
+            "className": "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1."
+          }
+        },
+        {
+          "text": "📤 导出",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "📤 导出",
+            "id": "",
+            "className": "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1."
+          }
+        },
+        {
+          "text": "刷新",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "刷新",
+            "id": "",
+            "className": "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1."
+          }
+        }
+      ],
+      "postClickErrors": [],
+      "postClickPageErrors": []
+    },
+    {
+      "name": "classes",
+      "label": "班级",
+      "hash": "#/classes",
+      "url": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/classes",
+      "bodyText": "Education Advisor\n📊\n仪表盘\n💬\n对话\n👥\n学生\n🎓\n班级\n🤖\nAgent\n🧠\n模型\n📝\n技能\n⏰\n任务\n🔒\n隐私\n⚙️\n设置\nAGENT 控制台 · 刷新\n班级管理\n\n管理班级、存档不再教的班级或删除\n\n刷新\n+ 新建班级\n暂无班级，点击「新建班级」开始",
+      "elements": [
+        {
+          "idx": 0,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📊\n仪表盘",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/dashboard",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 64,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 1,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "💬\n对话",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/chat",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 108,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 2,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "👥\n学生",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/students",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 152,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 3,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🎓\n班级",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/classes",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 196,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 4,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🤖\nAgent",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/agents",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 240,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 5,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🧠\n模型",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/models",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 284,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 6,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📝\n技能",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/skills",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 328,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 7,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⏰\n任务",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/scheduler",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 372,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 8,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🔒\n隐私",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/privacy",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 416,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 9,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⚙️\n设置",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/settings",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 460,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 10,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "刷新",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1240,
+            "y": 20,
+            "w": 24,
+            "h": 16
+          }
+        },
+        {
+          "idx": 11,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "+ 新建班级",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1276,
+            "y": 14,
+            "w": 84,
+            "h": 28
+          }
+        }
+      ],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "buttonsClicked": [
+        {
+          "text": "刷新",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "刷新",
+            "id": "",
+            "className": "text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-co"
+          }
+        },
+        {
+          "text": "+ 新建班级",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "+ 新建班级",
+            "id": "",
+            "className": "px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded"
+          }
+        }
+      ],
+      "postClickErrors": [],
+      "postClickPageErrors": []
+    },
+    {
+      "name": "agents",
+      "label": "Agent",
+      "hash": "#/agents",
+      "url": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/agents",
+      "bodyText": "Education Advisor\n📊\n仪表盘\n💬\n对话\n👥\n学生\n🎓\n班级\n🤖\nAgent\n🧠\n模型\n📝\n技能\n⏰\n任务\n🔒\n隐私\n⚙️\n设置\nAGENT 控制台 · 刷新\nAgent 控制台\n刷新\n无 Agent\nconfig/agents.yaml\n选择左侧 Agent 查看详情",
+      "elements": [
+        {
+          "idx": 0,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📊\n仪表盘",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/dashboard",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 64,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 1,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "💬\n对话",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/chat",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 108,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 2,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "👥\n学生",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/students",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 152,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 3,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🎓\n班级",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/classes",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 196,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 4,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🤖\nAgent",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/agents",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 240,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 5,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🧠\n模型",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/models",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 284,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 6,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📝\n技能",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/skills",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 328,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 7,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⏰\n任务",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/scheduler",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 372,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 8,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🔒\n隐私",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/privacy",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 416,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 9,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⚙️\n设置",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/settings",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 460,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 10,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "刷新",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 463,
+            "y": 16,
+            "w": 48,
+            "h": 28
+          }
+        }
+      ],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "buttonsClicked": [
+        {
+          "text": "刷新",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "刷新",
+            "id": "",
+            "className": "text-xs bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px"
+          }
+        }
+      ],
+      "postClickErrors": [],
+      "postClickPageErrors": []
+    },
+    {
+      "name": "models",
+      "label": "模型",
+      "hash": "#/models",
+      "url": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/models",
+      "bodyText": "Education Advisor\n📊\n仪表盘\n💬\n对话\n👥\n学生\n🎓\n班级\n🤖\nAgent\n🧠\n模型\n📝\n技能\n⏰\n任务\n🔒\n隐私\n⚙️\n设置\nAGENT 控制台 · 刷新\n模型管理中心\n刷新\n默认模型配置\n默认 Provider\n请选择...\nAnthropic\nMiniMax\nMiniMax (中国)\n3 个模型可用\n刷新模型列表\n高质量模型\n输入 免费 / 输出 免费\n请选择...\nMiniMax-M2.7 (输入 $300000.00/M / 输出 $1200000.00/M)\nMiniMax-M2.7-highspeed (输入 $600000.00/M / 输出 $2400000.00/M)\nMiniMax-M3 (输入 免费 / 输出 免费)\n或输入自定义模型 ID\n低成本模型\n输入 免费 / 输出 免费\n请选择...\nMiniMax-M2.7 (输入 $300000.00/M / 输出 $1200000.00/M)\nMiniMax-M2.7-highspeed (输入 $600000.00/M / 输出 $2400000.00/M)\nMiniMax-M3 (输入 免费 / 输出 免费)\n或输入自定义模型 ID\n已配置 (3)\nAnthropic\nanthropic\n已配置\n24 个模型\nMiniMax\nminimax\n已配置\n2 个模型\nMiniMax (中国)\nminimax-cn\n已配置\n2 个模型\n未配置 (29)\nAmazon Bedrock\namazon-bedrock\n90 个模型\nAzure OpenAI\nazure-openai-responses\n42 个模型\nCerebras\ncerebras\n3 个模型\nCloudflare AI Gateway\ncloudflare-ai-gateway\n35 个模型\nCloudflare Workers AI\ncloudflare-workers-ai\n12 个模型\nDeepSeek\ndeepseek\n2 个模型\nFireworks AI\nfireworks\n12 个模型\nGitHub Copilot\ngithub-copilot\n21 个模型\nGoogle (Gemini)\ngoogle\n16 个模型\nGoogle Vertex AI\ngoogle-vertex\n13 个模型\nGroq\ngroq\n18 个模型\nHugging Face\nhuggingface\n22 个模型\nKimi Coding\nkimi-coding\n2 个模型\nMistral\nmistral\n28 个模型\nMoonshot AI\nmoonshotai\n7 个模型\nMoonshot AI (中国)\nmoonshotai-cn\n7 个模型\nOpenAI\nopenai\n42 个模型\nOpenAI Codex\nopenai-codex\n6 个模型\nOpenCode\nopencode\n41 个模型\nOpenCode Go\nopencode-go\n13 个模型\nOpenRouter\nopenrouter\n267 个模型\nTogether AI\ntogether\n18 个模型\nVercel AI Gateway\nvercel-ai-gateway\n159 个模型\nxAI (Grok)\nxai\n7 个模型\nXiaomi MiMo\nxiaomi\n5 个模型\nXiaomi (AMS)\nxiaomi-token-plan-ams\n5 个模型\nXiaomi (中国)\nxiaomi-token-plan-cn\n5 个模型\nXiaomi (SGP)\nxiaomi-token-plan-sgp\n5 个模型\nZ.AI\nzai\n5 个模型",
+      "elements": [
+        {
+          "idx": 0,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📊\n仪表盘",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/dashboard",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 64,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 1,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "💬\n对话",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/chat",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 108,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 2,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "👥\n学生",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/students",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 152,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 3,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🎓\n班级",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/classes",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 196,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 4,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🤖\nAgent",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/agents",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 240,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 5,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🧠\n模型",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/models",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 284,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 6,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📝\n技能",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/skills",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 328,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 7,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⏰\n任务",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/scheduler",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 372,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 8,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🔒\n隐私",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/privacy",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 416,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 9,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⚙️\n设置",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/settings",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 460,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 10,
+          "tag": "INPUT",
+          "type": "text",
+          "role": "",
+          "text": "搜索 Provider...",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1032,
+            "y": 24,
+            "w": 256,
+            "h": 38
+          }
+        },
+        {
+          "idx": 11,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "刷新",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1300,
+            "y": 25,
+            "w": 52,
+            "h": 36
+          }
+        },
+        {
+          "idx": 12,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "请选择...\nAnthropic\nMiniMax\nMiniMax (中国)",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1011,
+            "y": 151,
+            "w": 320,
+            "h": 39
+          }
+        },
+        {
+          "idx": 13,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "刷新模型列表",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1235,
+            "y": 210,
+            "w": 96,
+            "h": 28
+          }
+        },
+        {
+          "idx": 14,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "请选择...\nMiniMax-M2.7 (输入 $300000.00/M / 输出 $1200000.00/M)\nMiniMax-M2.7-highspeed (输入 $600000.00/M / 输",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1011,
+            "y": 258,
+            "w": 320,
+            "h": 39
+          }
+        },
+        {
+          "idx": 15,
+          "tag": "INPUT",
+          "type": "text",
+          "role": "",
+          "text": "例如 gpt-4-turbo-preview",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1011,
+            "y": 305,
+            "w": 320,
+            "h": 30
+          }
+        },
+        {
+          "idx": 16,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "请选择...\nMiniMax-M2.7 (输入 $300000.00/M / 输出 $1200000.00/M)\nMiniMax-M2.7-highspeed (输入 $600000.00/M / 输",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1011,
+            "y": 355,
+            "w": 320,
+            "h": 39
+          }
+        },
+        {
+          "idx": 17,
+          "tag": "INPUT",
+          "type": "text",
+          "role": "",
+          "text": "例如 gpt-3.5-turbo",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1011,
+            "y": 402,
+            "w": 320,
+            "h": 30
+          }
+        },
+        {
+          "idx": 18,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Anthropic\nanthropic\n已配置\n24 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 510,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 19,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "MiniMax\nminimax\n已配置\n2 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 576,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 20,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "MiniMax (中国)\nminimax-cn\n已配置\n2 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 642,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 21,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Amazon Bedrock\namazon-bedrock\n90 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 756,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 22,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Azure OpenAI\nazure-openai-responses\n42 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 822,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 23,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Cerebras\ncerebras\n3 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 888,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 24,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Cloudflare AI Gateway\ncloudflare-ai-gateway\n35 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 954,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 25,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Cloudflare Workers AI\ncloudflare-workers-ai\n12 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1020,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 26,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "DeepSeek\ndeepseek\n2 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1086,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 27,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Fireworks AI\nfireworks\n12 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1152,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 28,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "GitHub Copilot\ngithub-copilot\n21 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1218,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 29,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Google (Gemini)\ngoogle\n16 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1284,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 30,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Google Vertex AI\ngoogle-vertex\n13 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1350,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 31,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Groq\ngroq\n18 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1416,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 32,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Hugging Face\nhuggingface\n22 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1482,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 33,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Kimi Coding\nkimi-coding\n2 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1548,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 34,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Mistral\nmistral\n28 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1614,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 35,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Moonshot AI\nmoonshotai\n7 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1680,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 36,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Moonshot AI (中国)\nmoonshotai-cn\n7 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1746,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 37,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "OpenAI\nopenai\n42 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1812,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 38,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "OpenAI Codex\nopenai-codex\n6 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1878,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 39,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "OpenCode\nopencode\n41 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1944,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 40,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "OpenCode Go\nopencode-go\n13 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2010,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 41,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "OpenRouter\nopenrouter\n267 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2076,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 42,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Together AI\ntogether\n18 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2142,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 43,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Vercel AI Gateway\nvercel-ai-gateway\n159 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2208,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 44,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "xAI (Grok)\nxai\n7 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2274,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 45,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Xiaomi MiMo\nxiaomi\n5 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2340,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 46,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Xiaomi (AMS)\nxiaomi-token-plan-ams\n5 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2406,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 47,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Xiaomi (中国)\nxiaomi-token-plan-cn\n5 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2472,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 48,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Xiaomi (SGP)\nxiaomi-token-plan-sgp\n5 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2538,
+            "w": 1118,
+            "h": 56
+          }
+        },
+        {
+          "idx": 49,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "Z.AI\nzai\n5 个模型",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2604,
+            "w": 1118,
+            "h": 56
+          }
+        }
+      ],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "buttonsClicked": [
+        {
+          "text": "刷新",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "刷新",
+            "id": "",
+            "className": "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-2 "
+          }
+        },
+        {
+          "text": "刷新模型列表",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "刷新模型列表",
+            "id": "",
+            "className": "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600\n          "
+          }
+        },
+        {
+          "text": "Anthropic\nanthropic\n已配置\n24 个模型",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "Anthropic\nanthropic\n已配置\n24 个模型",
+            "id": "",
+            "className": "w-full flex items-center justify-between p-4 text-left hover:bg-gray-100 dark:ho"
+          }
+        },
+        {
+          "text": "MiniMax\nminimax\n已配置\n2 个模型",
+          "result": {
+            "ok": true,
+            "tag": "DIV",
+            "text": "API Key\n\n输入 API Key 后点击测试连接。密钥加密存储在本地。\n\n测试连接\n删除\nOAuth 登录",
+            "id": "",
+            "className": "space-y-2"
+          }
+        },
+        {
+          "text": "MiniMax (中国)\nminimax-cn\n已配置\n2 个模型",
+          "result": {
+            "ok": true,
+            "tag": "INPUT",
+            "text": "",
+            "id": "apikey-anthropic",
+            "className": "flex-1 bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-600 rou"
+          }
+        },
+        {
+          "text": "Amazon Bedrock\namazon-bedrock\n90 个模型",
+          "result": {
+            "ok": true,
+            "tag": "TH",
+            "text": "最大输出",
+            "id": "",
+            "className": "text-right px-3 py-2 font-medium"
+          }
+        },
+        {
+          "text": "Azure OpenAI\nazure-openai-responses\n42 个模型",
+          "result": {
+            "ok": true,
+            "tag": "TD",
+            "text": "8K",
+            "id": "",
+            "className": "px-3 py-2 text-right font-mono text-gray-600 dark:text-gray-300"
+          }
+        },
+        {
+          "text": "Cerebras\ncerebras\n3 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Cloudflare AI Gateway\ncloudflare-ai-gateway\n35 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Cloudflare Workers AI\ncloudflare-workers-ai\n12 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "DeepSeek\ndeepseek\n2 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Fireworks AI\nfireworks\n12 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "GitHub Copilot\ngithub-copilot\n21 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Google (Gemini)\ngoogle\n16 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Google Vertex AI\ngoogle-vertex\n13 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Groq\ngroq\n18 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Hugging Face\nhuggingface\n22 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Kimi Coding\nkimi-coding\n2 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Mistral\nmistral\n28 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Moonshot AI\nmoonshotai\n7 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Moonshot AI (中国)\nmoonshotai-cn\n7 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "OpenAI\nopenai\n42 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "OpenAI Codex\nopenai-codex\n6 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "OpenCode\nopencode\n41 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "OpenCode Go\nopencode-go\n13 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "OpenRouter\nopenrouter\n267 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Together AI\ntogether\n18 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Vercel AI Gateway\nvercel-ai-gateway\n159 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "xAI (Grok)\nxai\n7 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Xiaomi MiMo\nxiaomi\n5 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Xiaomi (AMS)\nxiaomi-token-plan-ams\n5 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Xiaomi (中国)\nxiaomi-token-plan-cn\n5 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Xiaomi (SGP)\nxiaomi-token-plan-sgp\n5 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "Z.AI\nzai\n5 个模型",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        }
+      ],
+      "postClickErrors": [],
+      "postClickPageErrors": []
+    },
+    {
+      "name": "skills",
+      "label": "技能",
+      "hash": "#/skills",
+      "url": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/skills",
+      "bodyText": "Education Advisor\n📊\n仪表盘\n💬\n对话\n👥\n学生\n🎓\n班级\n🤖\nAgent\n🧠\n模型\n📝\n技能\n⏰\n任务\n🔒\n隐私\n⚙️\n设置\nAGENT 控制台 · 刷新\n技能列表\n🔄\n📥\n+ 新建技能\n📝\ntest-skill-1782702285584\nTest content\n用户\n×\n📝\ntest-skill-1782702349597\nTest content\n用户\n×\n📝\ntest-skill-1782703701412\nTest content\n用户\n×\n📝\ntest-skill-1782703873053\nTest content\n用户\n×\n📝\ntest-skill-1782704030076\nTest content\n用户\n×\n📝\ntest-skill-1782704178316\nTest content\n用户\n×\n📝\n选择左侧技能开始编辑\n或点击 \"+ 新建技能\" 创建新技能",
+      "elements": [
+        {
+          "idx": 0,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📊\n仪表盘",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/dashboard",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 64,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 1,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "💬\n对话",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/chat",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 108,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 2,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "👥\n学生",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/students",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 152,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 3,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🎓\n班级",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/classes",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 196,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 4,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🤖\nAgent",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/agents",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 240,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 5,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🧠\n模型",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/models",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 284,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 6,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📝\n技能",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/skills",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 328,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 7,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⏰\n任务",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/scheduler",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 372,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 8,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🔒\n隐私",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/privacy",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 416,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 9,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⚙️\n设置",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/settings",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 460,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 10,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "🔄",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 414,
+            "y": 12,
+            "w": 32,
+            "h": 24
+          }
+        },
+        {
+          "idx": 11,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "📥",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 451,
+            "y": 12,
+            "w": 32,
+            "h": 24
+          }
+        },
+        {
+          "idx": 13,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "+ 新建技能",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 220,
+            "y": 44,
+            "w": 263,
+            "h": 36
+          }
+        },
+        {
+          "idx": 14,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "📝\ntest-skill-1782702285584\nTest content\n用户",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 217,
+            "y": 102,
+            "w": 269,
+            "h": 86
+          }
+        },
+        {
+          "idx": 15,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "×",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 458,
+            "y": 110,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "idx": 16,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "📝\ntest-skill-1782702349597\nTest content\n用户",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 217,
+            "y": 194,
+            "w": 269,
+            "h": 86
+          }
+        },
+        {
+          "idx": 17,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "×",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 458,
+            "y": 202,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "idx": 18,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "📝\ntest-skill-1782703701412\nTest content\n用户",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 217,
+            "y": 285,
+            "w": 269,
+            "h": 86
+          }
+        },
+        {
+          "idx": 19,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "×",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 458,
+            "y": 293,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "idx": 20,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "📝\ntest-skill-1782703873053\nTest content\n用户",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 217,
+            "y": 377,
+            "w": 269,
+            "h": 86
+          }
+        },
+        {
+          "idx": 21,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "×",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 458,
+            "y": 385,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "idx": 22,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "📝\ntest-skill-1782704030076\nTest content\n用户",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 217,
+            "y": 468,
+            "w": 269,
+            "h": 86
+          }
+        },
+        {
+          "idx": 23,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "×",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 458,
+            "y": 476,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "idx": 24,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "📝\ntest-skill-1782704178316\nTest content\n用户",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 217,
+            "y": 560,
+            "w": 269,
+            "h": 86
+          }
+        },
+        {
+          "idx": 25,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "×",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 458,
+            "y": 568,
+            "w": 20,
+            "h": 20
+          }
+        }
+      ],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "buttonsClicked": [
+        {
+          "text": "🔄",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "🔄",
+            "id": "",
+            "className": "text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gra"
+          }
+        },
+        {
+          "text": "📥",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "📥",
+            "id": "",
+            "className": "text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gra"
+          }
+        },
+        {
+          "text": "+ 新建技能",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "+ 新建技能",
+            "id": "",
+            "className": "w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 ho"
+          }
+        },
+        {
+          "text": "📝\ntest-skill-1782702285584\nTest content\n用户",
+          "result": {
+            "ok": true,
+            "tag": "INPUT",
+            "text": "",
+            "id": "",
+            "className": "w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 r"
+          }
+        },
+        {
+          "text": "×",
+          "result": {
+            "ok": true,
+            "tag": "INPUT",
+            "text": "",
+            "id": "",
+            "className": "w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 r"
+          }
+        },
+        {
+          "text": "📝\ntest-skill-1782702349597\nTest content\n用户",
+          "result": {
+            "ok": true,
+            "tag": "TEXTAREA",
+            "text": "",
+            "id": "",
+            "className": "w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 r"
+          }
+        },
+        {
+          "text": "×",
+          "result": {
+            "ok": true,
+            "tag": "TEXTAREA",
+            "text": "",
+            "id": "",
+            "className": "w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 r"
+          }
+        },
+        {
+          "text": "📝\ntest-skill-1782703701412\nTest content\n用户",
+          "result": {
+            "ok": true,
+            "tag": "DIV",
+            "text": "📝\ntest-skill-1782702285584\nTest content\n用户\n×\n📝\ntest-skill-1782702349597\nTest content\n用户\n×\n📝\ntest-",
+            "id": "",
+            "className": "flex-1 overflow-y-auto p-2 space-y-1"
+          }
+        },
+        {
+          "text": "×",
+          "result": {
+            "ok": true,
+            "tag": "DIV",
+            "text": "创建技能",
+            "id": "",
+            "className": "space-y-2 bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:b"
+          }
+        },
+        {
+          "text": "📝\ntest-skill-1782703873053\nTest content\n用户",
+          "result": {
+            "ok": true,
+            "tag": "DIV",
+            "text": "📝\ntest-skill-1782702285584\nTest content\n用户\n×\n📝\ntest-skill-1782702349597\nTest content\n用户\n×\n📝\ntest-",
+            "id": "",
+            "className": "flex-1 overflow-y-auto p-2 space-y-1"
+          }
+        },
+        {
+          "text": "×",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "📝\ntest-skill-1782702285584\nTest content\n用户",
+            "id": "",
+            "className": "w-full text-left px-3 py-2.5"
+          }
+        },
+        {
+          "text": "📝\ntest-skill-1782704030076\nTest content\n用户",
+          "result": {
+            "ok": true,
+            "tag": "DIV",
+            "text": "📝\ntest-skill-1782702285584\nTest content\n用户\n×\n📝\ntest-skill-1782702349597\nTest content\n用户\n×\n📝\ntest-",
+            "id": "",
+            "className": "flex-1 overflow-y-auto p-2 space-y-1"
+          }
+        },
+        {
+          "text": "×",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "📝\ntest-skill-1782702349597\nTest content\n用户",
+            "id": "",
+            "className": "w-full text-left px-3 py-2.5"
+          }
+        },
+        {
+          "text": "📝\ntest-skill-1782704178316\nTest content\n用户",
+          "result": {
+            "ok": true,
+            "tag": "DIV",
+            "text": "📝\ntest-skill-1782702285584\nTest content\n用户\n×\n📝\ntest-skill-1782702349597\nTest content\n用户\n×\n📝\ntest-",
+            "id": "",
+            "className": "flex-1 overflow-y-auto p-2 space-y-1"
+          }
+        },
+        {
+          "text": "×",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "📝\ntest-skill-1782703701412\nTest content\n用户",
+            "id": "",
+            "className": "w-full text-left px-3 py-2.5"
+          }
+        }
+      ],
+      "postClickErrors": [],
+      "postClickPageErrors": []
+    },
+    {
+      "name": "scheduler",
+      "label": "任务",
+      "hash": "#/scheduler",
+      "url": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/scheduler",
+      "bodyText": "Education Advisor\n📊\n仪表盘\n💬\n对话\n👥\n学生\n🎓\n班级\n🤖\nAgent\n🧠\n模型\n📝\n技能\n⏰\n任务\n🔒\n隐私\n⚙️\n设置\nAGENT 控制台 · 刷新\n任务调度中心\n刷新\n+ 新增任务\n暂无定时任务\n点击\"新增任务\"或在 Agent 配置中设置 schedule\n全部执行日志\n22:10:00\nresearch\n16.8s\n✓\n22:00:00\ngovernor\n60.5s\n✓\n22:00:00\nsupervisor\n57.9s\n✓\n20:00:00\ncounselor\n0.0s\nCannot find module './file-tools' Require stack: - C:\\Users\\sq199\\.qwenpaw\\workspaces\\default\\coding_projects\\1\\ai-workstation\\release\\win-unpacked\\resources\\app.asar\\dist\\main\\index.js -\n18:00:00\nvalidator\n0.0s\nCannot find module './file-tools' Require stack: - C:\\Users\\sq199\\.qwenpaw\\workspaces\\default\\coding_projects\\1\\ai-workstation\\release\\win-unpacked\\resources\\app.asar\\dist\\main\\index.js -\n18:00:00\ngovernor\n0.0s\nCannot find module './file-tools' Require stack: - C:\\Users\\sq199\\.qwenpaw\\workspaces\\default\\coding_projects\\1\\ai-workstation\\release\\win-unpacked\\resources\\app.asar\\dist\\main\\index.js -\n8:30:00\nhome_school\n104.8s\n✓\n8:00:00\nrisk-alert\n20.8s\n✓\n7:05:00\ncounselor\n43.2s\n✓\n7:05:00\nacademic\n36.0s\n✓\n6:00:00\nsupervisor\n135.3s\n✓\n6:00:00\ngovernor\n99.9s\n✓\n6:00:00\nvalidator\n37.2s\n✓\n1:00:00\nexecutor\n44.3s\n✓\n12:00:00\nvalidator\n86.3s\n✓\n12:00:00\nvalidator\n79.6s\n✓\n12:00:00\nvalidator\n55.2s\n✓\n12:00:00\ngovernor\n34.4s\n✓\n8:30:00\nhome_school\n19.4s\n✓\n8:00:00\nrisk-alert\n13.7s\n✓\n7:05:00\ncounselor\n65.5s\n✓\n7:05:00\nacademic\n29.0s\n✓\n6:00:00\nsupervisor\n165.0s\n✓\n6:00:00\ngovernor\n45.8s\n✓\n6:00:00\nvalidator\n24.8s\n✓\n20:00:00\ncounselor\n133.5s\n✓",
+      "elements": [
+        {
+          "idx": 0,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📊\n仪表盘",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/dashboard",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 64,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 1,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "💬\n对话",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/chat",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 108,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 2,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "👥\n学生",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/students",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 152,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 3,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🎓\n班级",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/classes",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 196,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 4,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🤖\nAgent",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/agents",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 240,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 5,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🧠\n模型",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/models",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 284,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 6,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📝\n技能",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/skills",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 328,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 7,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⏰\n任务",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/scheduler",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 372,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 8,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🔒\n隐私",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/privacy",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 416,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 9,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⚙️\n设置",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/settings",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 460,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 10,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "刷新",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1209,
+            "y": 16,
+            "w": 52,
+            "h": 32
+          }
+        },
+        {
+          "idx": 11,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "+ 新增任务",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1273,
+            "y": 16,
+            "w": 95,
+            "h": 32
+          }
+        }
+      ],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "buttonsClicked": [
+        {
+          "text": "刷新",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "刷新",
+            "id": "",
+            "className": "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1."
+          }
+        },
+        {
+          "text": "+ 新增任务",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "+ 新增任务",
+            "id": "",
+            "className": "bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg text-sm transition-colors"
+          }
+        }
+      ],
+      "postClickErrors": [],
+      "postClickPageErrors": []
+    },
+    {
+      "name": "privacy",
+      "label": "隐私",
+      "hash": "#/privacy",
+      "url": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/privacy",
+      "bodyText": "Education Advisor\n📊\n仪表盘\n💬\n对话\n👥\n学生\n🎓\n班级\n🤖\nAgent\n🧠\n模型\n📝\n技能\n⏰\n任务\n🔒\n隐私\n⚙️\n设置\nAGENT 控制台 · 刷新\n隐私控制中心 (PII Shield)\n首次使用 — 初始化隐私引擎\n\n设置一个加密密码来保护学生隐私数据。初始化后，所有敏感信息将自动脱敏处理。 密码仅在本次传输,主进程在内存中保留,关闭软件或点击\"锁定\"后将清空。\n\n初始化\n加密映射表\n加载映射表\n备份\n脱敏预览\n测试脱敏",
+      "elements": [
+        {
+          "idx": 0,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📊\n仪表盘",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/dashboard",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 64,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 1,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "💬\n对话",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/chat",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 108,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 2,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "👥\n学生",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/students",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 152,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 3,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🎓\n班级",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/classes",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 196,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 4,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🤖\nAgent",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/agents",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 240,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 5,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🧠\n模型",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/models",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 284,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 6,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📝\n技能",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/skills",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 328,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 7,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⏰\n任务",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/scheduler",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 372,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 8,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🔒\n隐私",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/privacy",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 416,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 9,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⚙️\n设置",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/settings",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 460,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 10,
+          "tag": "INPUT",
+          "type": "password",
+          "role": "",
+          "text": "设置隐私密码（至少 4 位）...",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 253,
+            "y": 165,
+            "w": 1000,
+            "h": 38
+          }
+        },
+        {
+          "idx": 11,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "初始化",
+          "href": "",
+          "id": "",
+          "disabled": true,
+          "rect": {
+            "x": 1265,
+            "y": 166,
+            "w": 74,
+            "h": 36
+          }
+        },
+        {
+          "idx": 12,
+          "tag": "INPUT",
+          "type": "password",
+          "role": "",
+          "text": "输入隐私密码...",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 253,
+            "y": 305,
+            "w": 900,
+            "h": 38
+          }
+        },
+        {
+          "idx": 13,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "加载映射表",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1165,
+            "y": 306,
+            "w": 102,
+            "h": 36
+          }
+        },
+        {
+          "idx": 14,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "备份",
+          "href": "",
+          "id": "",
+          "disabled": true,
+          "rect": {
+            "x": 1279,
+            "y": 306,
+            "w": 60,
+            "h": 36
+          }
+        },
+        {
+          "idx": 15,
+          "tag": "TEXTAREA",
+          "type": "textarea",
+          "role": "",
+          "text": "输入包含学生姓名的文本，查看脱敏效果...",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 253,
+            "y": 445,
+            "w": 1086,
+            "h": 78
+          }
+        },
+        {
+          "idx": 16,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "测试脱敏",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 253,
+            "y": 541,
+            "w": 88,
+            "h": 36
+          }
+        }
+      ],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "buttonsClicked": [
+        {
+          "text": "初始化",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "初始化",
+            "id": "",
+            "className": "bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm transition-colors dis"
+          }
+        },
+        {
+          "text": "加载映射表",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "加载映射表",
+            "id": "",
+            "className": "bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm transition-colors"
+          }
+        },
+        {
+          "text": "备份",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "备份",
+            "id": "",
+            "className": "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-4 py-2 "
+          }
+        },
+        {
+          "text": "测试脱敏",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "测试脱敏",
+            "id": "",
+            "className": "bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm transition-colors"
+          }
+        }
+      ],
+      "postClickErrors": [],
+      "postClickPageErrors": []
+    },
+    {
+      "name": "settings",
+      "label": "设置",
+      "hash": "#/settings",
+      "url": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/settings",
+      "bodyText": "Education Advisor\n📊\n仪表盘\n💬\n对话\n👥\n学生\n🎓\n班级\n🤖\nAgent\n🧠\n模型\n📝\n技能\n⏰\n任务\n🔒\n隐私\n⚙️\n设置\nAGENT 控制台 · 刷新\n系统设置\n中文\nEN\n恢复默认\n通用\n主题\n\n界面外观,system 表示跟随操作系统\n\n深色\n浅色\n跟随系统\n语言\nⓘ\n\n界面语言,useT hook 自动响应切换 (部分静态文案需重启)\n\n中文\nEnglish\n数据目录\nⓘ\n\nC:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\eaa-data\n\nC:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\eaa-data\n开机启动\nⓘ\n\n操作系统启动时自动运行 Education Advisor\n\n最小化到托盘\nⓘ\n\n关闭窗口时最小化到系统托盘,不退出\n\n关闭按钮行为\n\n点击窗口右上角关闭按钮时如何处理\n\n每次询问\n最小化到托盘\n退出应用\n日志级别\nⓘ\n\n控制主进程和渲染进程的日志输出详细程度(5 档)\n\nDebug (全日志)\nInfo (重要事件)\nWarn (警告)\nError (仅错误)\nOff (关闭)\n自动更新\nⓘ\n\n启动时自动检查新版本\n\n更新源\n\nGitHub 仓库地址，用于检查更新（如 https://github.com/owner/repo）\n\n检查更新\n\n手动检查是否有新版本可用\n\n检查更新\n对话\n最大 Token 数\nⓘ\n\n单次对话上下文窗口大小,数值越大支持的上下文越长\n\n自动压缩对话\nⓘ\n\n上下文超长时自动压缩历史消息\n\n压缩保留 Token\nⓘ\n\n压缩后保留的最小上下文 token 数\n\n保留最近 Token\nⓘ\n\n压缩时强制保留的最近消息 token 数\n\n引导模式\nⓘ\n\nAgent 接受用户中途引导(steering)的方式\n\n全部\n一次一个\n追问模式\nⓘ\n\nAgent 回答后追问用户的方式\n\n全部\n一次一个\n显示图片\nⓘ\n\n在对话中渲染 Markdown 图片\n\n对话日志记录\n\n全量记录聊天流事件到 logs/chat-YYYY-MM-DD.log,含 in/out/event 三个方向\n\n飞书\nApp ID\nⓘ\n\n飞书开放平台应用 ID (cli_xxxx)\n\nApp Secret\nⓘ\n\n飞书应用密钥,已加密保存到 keystore\n\n测试连接\n用户 Open ID\nⓘ\n\n接收消息的目标用户 open_id (ou_xxxx)\n\nBitable App Token\n\n飞书多维表格的 app_token(在 bitable URL 中可找到)\n\nBitable 列表\n\n点击拉取 Bitable 下所有表,验证凭证有效性\n\n拉取列表\nBitable 同步\nⓘ\n\n定时把 AI 报告同步到飞书多维表格\n\n同步间隔\nⓘ\n\n自动同步的时间间隔，支持 cron 表达式（如 0 */6 * * *）或分钟数\n\n诊断 & 维护\nEAA 健康检查\nⓘ\n\n检查 EAA 引擎运行环境、数据完整性、配置正确性\n\n运行检查\n数据完整性验证\nⓘ\n\n验证所有事件数据的完整性和一致性\n\n验证\n日志查看\n实时查看 logs/ 目录下的 main / chat / renderer 三类日志,按日期分割\n刷新列表\n清空\n级别:\n全部\nDebug\nInfo\nWarn\nError\n导出\n尚无日志文件。App 启动并产生日志后会出现在此。\n关于\nEducation Advisor v0.1.0\n\nEducation Advisor — Pi Agent + Education Advisor AI\n\n底层核心\nEAA Core — Rust 操行评分/事件/隐私引擎, 22 子命令\n17 教育 Agent — 参谋/督导/辅导员/心理/纪律/班务等多智能体\nPi Agent — Agent 运行时 (packages/agent)\nPi-AI — LLM 通信层 (packages/ai)\nPII Shield — 隐私脱敏加密引擎\n关键依赖\nElectron 33.2 + React 18.3\nTypeScript 5.7 + Vite 6\nTailwind 3 + Zustand 5\nbetter-sqlite3 + TypeBox\n\nEducation Advisor 内置 EAA Core (Rust) + Pi Agent 运行时 + Pi-AI 通信层 + 17 个教育 AI Agent，遵循 MIT 协议发布。\n\n本设置页面在 T1 (2026-06-05) 经过整改 — 删除了 5 个无价值模块(模型/隐私/高级/快捷键/匿名上报)与顶部组织说明文字, 保留通用/对话/飞书 3 个核心 section。新增「关于」模块展示开源信息。",
+      "elements": [
+        {
+          "idx": 0,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📊\n仪表盘",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/dashboard",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 64,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 1,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "💬\n对话",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/chat",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 108,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 2,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "👥\n学生",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/students",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 152,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 3,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🎓\n班级",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/classes",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 196,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 4,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🤖\nAgent",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/agents",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 240,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 5,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🧠\n模型",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/models",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 284,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 6,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "📝\n技能",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/skills",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 328,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 7,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⏰\n任务",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/scheduler",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 372,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 8,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "🔒\n隐私",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/privacy",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 416,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 9,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "⚙️\n设置",
+          "href": "file:///C:/Users/sq199/Documents/GitHub/education-advisor/dist/renderer/index.html#/settings",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 0,
+            "y": 460,
+            "w": 207,
+            "h": 44
+          }
+        },
+        {
+          "idx": 10,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "中文\nEN",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 340,
+            "y": 29,
+            "w": 56,
+            "h": 22
+          }
+        },
+        {
+          "idx": 11,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "恢复默认",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1278,
+            "y": 25,
+            "w": 74,
+            "h": 30
+          }
+        },
+        {
+          "idx": 12,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "通用",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 77,
+            "w": 1118,
+            "h": 49
+          }
+        },
+        {
+          "idx": 13,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "深色\n浅色\n跟随系统",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1239,
+            "y": 142,
+            "w": 92,
+            "h": 32
+          }
+        },
+        {
+          "idx": 14,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "中文\nEnglish",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1246,
+            "y": 217,
+            "w": 85,
+            "h": 32
+          }
+        },
+        {
+          "idx": 15,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1287,
+            "y": 366,
+            "w": 44,
+            "h": 24
+          }
+        },
+        {
+          "idx": 16,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1287,
+            "y": 440,
+            "w": 44,
+            "h": 24
+          }
+        },
+        {
+          "idx": 17,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "每次询问\n最小化到托盘\n退出应用",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1215,
+            "y": 515,
+            "w": 116,
+            "h": 32
+          }
+        },
+        {
+          "idx": 18,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "Debug (全日志)\nInfo (重要事件)\nWarn (警告)\nError (仅错误)\nOff (关闭)",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1200,
+            "y": 589,
+            "w": 131,
+            "h": 32
+          }
+        },
+        {
+          "idx": 19,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1287,
+            "y": 664,
+            "w": 44,
+            "h": 24
+          }
+        },
+        {
+          "idx": 20,
+          "tag": "INPUT",
+          "type": "text",
+          "role": "",
+          "text": "https://github.com/owner/repo",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1107,
+            "y": 738,
+            "w": 224,
+            "h": 30
+          }
+        },
+        {
+          "idx": 21,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "检查更新",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1257,
+            "y": 813,
+            "w": 74,
+            "h": 30
+          }
+        },
+        {
+          "idx": 22,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "对话",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 892,
+            "w": 1118,
+            "h": 49
+          }
+        },
+        {
+          "idx": 23,
+          "tag": "INPUT",
+          "type": "number",
+          "role": "",
+          "text": "",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1219,
+            "y": 957,
+            "w": 112,
+            "h": 30
+          }
+        },
+        {
+          "idx": 24,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1287,
+            "y": 1032,
+            "w": 44,
+            "h": 24
+          }
+        },
+        {
+          "idx": 25,
+          "tag": "INPUT",
+          "type": "number",
+          "role": "",
+          "text": "10000",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1219,
+            "y": 1106,
+            "w": 112,
+            "h": 30
+          }
+        },
+        {
+          "idx": 26,
+          "tag": "INPUT",
+          "type": "number",
+          "role": "",
+          "text": "16000",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1219,
+            "y": 1181,
+            "w": 112,
+            "h": 30
+          }
+        },
+        {
+          "idx": 27,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "全部\n一次一个",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1239,
+            "y": 1255,
+            "w": 92,
+            "h": 32
+          }
+        },
+        {
+          "idx": 28,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "全部\n一次一个",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1239,
+            "y": 1330,
+            "w": 92,
+            "h": 32
+          }
+        },
+        {
+          "idx": 29,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1287,
+            "y": 1404,
+            "w": 44,
+            "h": 24
+          }
+        },
+        {
+          "idx": 30,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1287,
+            "y": 1479,
+            "w": 44,
+            "h": 24
+          }
+        },
+        {
+          "idx": 31,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "飞书",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 1558,
+            "w": 1118,
+            "h": 49
+          }
+        },
+        {
+          "idx": 32,
+          "tag": "INPUT",
+          "type": "text",
+          "role": "",
+          "text": "cli_xxxxxxxx",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1139,
+            "y": 1623,
+            "w": 192,
+            "h": 30
+          }
+        },
+        {
+          "idx": 33,
+          "tag": "INPUT",
+          "type": "password",
+          "role": "",
+          "text": "未设置",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1085,
+            "y": 1698,
+            "w": 176,
+            "h": 30
+          }
+        },
+        {
+          "idx": 34,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "测试连接",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1269,
+            "y": 1698,
+            "w": 62,
+            "h": 29
+          }
+        },
+        {
+          "idx": 35,
+          "tag": "INPUT",
+          "type": "text",
+          "role": "",
+          "text": "ou_xxxxxxxx",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1139,
+            "y": 1772,
+            "w": 192,
+            "h": 30
+          }
+        },
+        {
+          "idx": 36,
+          "tag": "INPUT",
+          "type": "text",
+          "role": "",
+          "text": "bascnXXXXXXXXXX",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1139,
+            "y": 1847,
+            "w": 192,
+            "h": 30
+          }
+        },
+        {
+          "idx": 37,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "拉取列表",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1269,
+            "y": 1921,
+            "w": 62,
+            "h": 29
+          }
+        },
+        {
+          "idx": 38,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1287,
+            "y": 1996,
+            "w": 44,
+            "h": 24
+          }
+        },
+        {
+          "idx": 39,
+          "tag": "INPUT",
+          "type": "text",
+          "role": "",
+          "text": "0 */6 * * *",
+          "href": "",
+          "id": "",
+          "disabled": true,
+          "rect": {
+            "x": 1171,
+            "y": 2070,
+            "w": 160,
+            "h": 30
+          }
+        },
+        {
+          "idx": 40,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "诊断 & 维护",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2150,
+            "w": 1118,
+            "h": 49
+          }
+        },
+        {
+          "idx": 41,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "运行检查",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1257,
+            "y": 2215,
+            "w": 74,
+            "h": 30
+          }
+        },
+        {
+          "idx": 42,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "验证",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1281,
+            "y": 2289,
+            "w": 50,
+            "h": 30
+          }
+        },
+        {
+          "idx": 43,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "日志查看",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2369,
+            "w": 1118,
+            "h": 49
+          }
+        },
+        {
+          "idx": 44,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "刷新列表",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1219,
+            "y": 2434,
+            "w": 62,
+            "h": 29
+          }
+        },
+        {
+          "idx": 45,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "清空",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 1289,
+            "y": 2434,
+            "w": 42,
+            "h": 29
+          }
+        },
+        {
+          "idx": 46,
+          "tag": "SELECT",
+          "type": "select-one",
+          "role": "",
+          "text": "全部\nDebug\nInfo\nWarn\nError",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 281,
+            "y": 2476,
+            "w": 69,
+            "h": 26
+          }
+        },
+        {
+          "idx": 47,
+          "tag": "INPUT",
+          "type": "text",
+          "role": "",
+          "text": "搜索日志内容...",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 358,
+            "y": 2477,
+            "w": 923,
+            "h": 25
+          }
+        },
+        {
+          "idx": 48,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "导出",
+          "href": "",
+          "id": "",
+          "disabled": true,
+          "rect": {
+            "x": 1289,
+            "y": 2475,
+            "w": 42,
+            "h": 29
+          }
+        },
+        {
+          "idx": 49,
+          "tag": "BUTTON",
+          "type": "button",
+          "role": "",
+          "text": "关于",
+          "href": "",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 233,
+            "y": 2569,
+            "w": 1118,
+            "h": 49
+          }
+        },
+        {
+          "idx": 50,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "Pi Agent",
+          "href": "https://github.com/earendil-works/pi",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 265,
+            "y": 2782,
+            "w": 49,
+            "h": 16
+          }
+        },
+        {
+          "idx": 51,
+          "tag": "A",
+          "type": "",
+          "role": "",
+          "text": "Pi-AI",
+          "href": "https://github.com/earendil-works/pi",
+          "id": "",
+          "disabled": false,
+          "rect": {
+            "x": 265,
+            "y": 2805,
+            "w": 28,
+            "h": 16
+          }
+        }
+      ],
+      "consoleErrors": [],
+      "pageErrors": [],
+      "buttonsClicked": [
+        {
+          "text": "恢复默认",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "恢复默认",
+            "id": "",
+            "className": "text-xs text-gray-500 dark:text-gray-400 hover:text-rose-500 dark:hover:text-ros"
+          }
+        },
+        {
+          "text": "通用",
+          "result": {
+            "ok": true,
+            "tag": "DIV",
+            "text": "恢复默认\n\n恢复默认设置?此操作不会清除飞书凭证,但其他配置会重置。\n\n取消\n确认",
+            "id": "",
+            "className": "fixed inset-0 bg-black/40 flex items-center justify-center z-[60]"
+          }
+        },
+        {
+          "text": "",
+          "result": {
+            "ok": true,
+            "tag": "SPAN",
+            "text": "",
+            "id": "",
+            "className": "absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-tra"
+          }
+        },
+        {
+          "text": "",
+          "result": {
+            "ok": true,
+            "tag": "SPAN",
+            "text": "",
+            "id": "",
+            "className": "absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-tra"
+          }
+        },
+        {
+          "text": "",
+          "result": {
+            "ok": true,
+            "tag": "SPAN",
+            "text": "",
+            "id": "",
+            "className": "absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-tra"
+          }
+        },
+        {
+          "text": "检查更新",
+          "result": {
+            "ok": true,
+            "tag": "BUTTON",
+            "text": "检查更新",
+            "id": "",
+            "className": "text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blu"
+          }
+        },
+        {
+          "text": "对话",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "飞书",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "测试连接",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "拉取列表",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "诊断 & 维护",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "运行检查",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "验证",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "日志查看",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "刷新列表",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "清空",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "导出",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        },
+        {
+          "text": "关于",
+          "result": {
+            "ok": false,
+            "reason": "no element at point"
+          }
+        }
+      ],
+      "postClickErrors": [],
+      "postClickPageErrors": []
+    }
+  ],
+  "summary": {
+    "totalPages": 10,
+    "pagesWithErrors": 0,
+    "totalErrors": 0,
+    "totalButtons": 103,
+    "buttonsClicked": 102
+  }
+}

@@ -9,6 +9,7 @@ import { useTheme } from './hooks/useTheme'
 import { MainLayout } from './layouts/MainLayout'
 import { AgentsPage } from './pages/Agents/AgentsPage'
 import { ChatPage } from './pages/Chat/ChatPage'
+import { ClassesPage } from './pages/Classes/ClassesPage'
 import { DashboardPage } from './pages/Dashboard/DashboardPage'
 import { ModelsPage } from './pages/Models/ModelsPage'
 import { PrivacyPage } from './pages/Privacy/PrivacyPage'
@@ -33,12 +34,15 @@ export function App() {
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/students" element={<StudentsPage />} />
+          <Route path="/classes" element={<ClassesPage />} />
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/models" element={<ModelsPage />} />
           <Route path="/skills" element={<SkillsPage />} />
           <Route path="/scheduler" element={<SchedulerPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          {/* 兜底：未匹配路由重定向到 dashboard，避免空白页 */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>
     </HashRouter>
