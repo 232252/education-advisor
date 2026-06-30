@@ -3,6 +3,7 @@
 // =============================================================
 
 import { type BrowserWindow, ipcMain } from 'electron'
+import { startIpcTimer } from '../../shared/debug'
 import * as IPC from '../../shared/ipc-channels'
 import type { AgentConfig } from '../../shared/types'
 import { agentService } from '../services/agent-service'
@@ -62,26 +63,40 @@ export function registerAgentHandlers(win: BrowserWindow) {
   ipcMain.handle(
     IPC.IPC_AGENT_RUN_MANUAL,
     async (_e, id: string, prompt: string, history?: Array<{ role: string; content: string }>) => {
-      if (typeof id !== 'string' || id.length === 0) {
-        return { success: false, message: 'id must be a non-empty string' }
+      const stop = startIpcTimer('agent:run-manual')
+      try {
+        if (typeof id !== 'string' || id.length === 0) {
+          return { success: false, message: 'id must be a non-empty string' }
+        }
+        if (typeof prompt !== 'string') {
+          return { success: false, message: 'prompt must be a string' }
+        }
+        if (prompt.length === 0) {
+          return { success: false, message: 'prompt cannot be empty' }
+        }
+        // R21 修复:同步校验 agent 是否存在(避免对不存在的 agent 返回误导性 success:true)
+        const exists = agentService.listAgents().some((a) => a.id === id)
+        if (!exists) {
+          return { success: false, message: `Agent not found: ${id}` }
+        }
+        // 不 await:手动触发是 fire-and-forget,通过 stream 推送状态
+        // 但同步 try/catch 同步参数错误,异步错误由 runAgent 内部 sendStatus 推送
+        agentService.runAgent(id, prompt, win, history).catch((err) => {
+          const message = err instanceof Error ? err.message : String(err)
+          console.error(`[Agent] Execution error for ${id}:`, message)
+          // 已通过 sendStatus 推送到渲染进程,这里仅做兜底日志
+        })
+        return { success: true, message: 'Agent execution started', id }
+      } finally {
+        stop()
       }
-      if (typeof prompt !== 'string') {
-        return { success: false, message: 'prompt must be a string' }
-      }
-      // 不 await:手动触发是 fire-and-forget,通过 stream 推送状态
-      // 但同步 try/catch 同步参数错误,异步错误由 runAgent 内部 sendStatus 推送
-      agentService.runAgent(id, prompt, win, history).catch((err) => {
-        const message = err instanceof Error ? err.message : String(err)
-        console.error(`[Agent] Execution error for ${id}:`, message)
-        // 已通过 sendStatus 推送到渲染进程,这里仅做兜底日志
-      })
-      return { success: true, message: 'Agent execution started', id }
     },
   )
 
   // 中止 Agent 执行
   // P1-40 修复:await abortAgent,等 agent 进入 idle 后再返回
   ipcMain.handle(IPC.IPC_AGENT_ABORT, async (_e, id: string) => {
+    const stop = startIpcTimer('agent:abort')
     try {
       const aborted = await agentService.abortAgent(id, win)
       return { success: aborted, message: aborted ? 'Agent aborted' : 'Agent not running' }
@@ -89,6 +104,8 @@ export function registerAgentHandlers(win: BrowserWindow) {
       const message = err instanceof Error ? err.message : String(err)
       console.error(`[Agent] Abort error for ${id}:`, message)
       return { success: false, message }
+    } finally {
+      stop()
     }
   })
 

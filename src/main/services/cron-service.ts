@@ -20,6 +20,8 @@ import { keystoreService } from './keystore-service'
 import { settingsService } from './settings-service'
 
 class CronService {
+  private static readonly MAX_USER_TASKS = 100
+
   private tasks: Map<string, CronTask> = new Map()
   private scheduledJobs: Map<string, cron.ScheduledTask> = new Map()
   /** 下次执行时间 ISO 字符串 */
@@ -32,6 +34,8 @@ class CronService {
   /** 待写入的日志缓冲 */
   private logBuffer: CronLogEntry[] = []
   private mainWindow: BrowserWindow | null = null
+  /** H-2.3 修复: per-task 执行锁,防止 runNow 与 cron 定时同时触发同一任务造成竞态 */
+  private runningTasks: Set<string> = new Set()
 
   /** 延迟注入，避免循环依赖 */
   private agentRunner:
@@ -63,6 +67,16 @@ class CronService {
 
   /** 添加任务 */
   addTask(task: Omit<CronTask, 'id'>): string {
+    // 仅统计用户任务(排除 agent-schedule-* 和 feishu-bitable-sync 等系统任务)
+    let userTaskCount = 0
+    for (const id of this.tasks.keys()) {
+      if (!id.startsWith('agent-schedule-') && id !== 'feishu-bitable-sync') {
+        userTaskCount++
+      }
+    }
+    if (userTaskCount >= CronService.MAX_USER_TASKS) {
+      throw new Error(`Task limit reached (max ${CronService.MAX_USER_TASKS} user tasks)`)
+    }
     const id = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const fullTask: CronTask = { ...task, id }
     this.tasks.set(id, fullTask)
@@ -180,9 +194,16 @@ class CronService {
       const appId = s.feishu.appId ?? ''
       // appSecret 从 keystore 加密存储读取
       const appSecret = keystoreService.getSecret('feishu-app-secret') ?? ''
-      // appToken 暂用 userOpenId 当占位(实际应配独立字段),tableId 硬编码 'log'
-      const appToken = s.feishu.userOpenId ?? ''
-      const tableId = 'log'
+      // C-1 修复: 从 settings 读取 bitableAppToken 和 bitableTableId,
+      // 不再用 userOpenId 占位 + tableId 硬编码 'log'
+      const appToken = s.feishu.bitableAppToken ?? ''
+      const tableId = s.feishu.bitableTableId ?? 'log'
+      if (!appToken) {
+        return {
+          success: false,
+          error: 'feishu.bitableAppToken 未配置,请在设置页面填写 Bitable App Token',
+        }
+      }
       const fields = {
         timestamp: new Date().toISOString(),
         source: 'education-advisor',
@@ -278,8 +299,17 @@ class CronService {
 
   private schedule(id: string, task: CronTask) {
     if (!task.enabled || !cron.validate(task.expression)) return
+    // H-4 修复: 时区从 settings.general.timezone 读取,不再硬编码 'Asia/Shanghai'
+    // 读取失败时回退到 'Asia/Shanghai'(保持向后兼容)
+    let timezone = 'Asia/Shanghai'
+    try {
+      const tz = settingsService.getSettings().general?.timezone
+      if (typeof tz === 'string' && tz.length > 0) timezone = tz
+    } catch (err) {
+      console.warn('[CronService] Failed to read timezone from settings, using default:', err)
+    }
     const job = cron.schedule(task.expression, () => this.executeTask(id), {
-      timezone: 'Asia/Shanghai',
+      timezone,
     })
     this.scheduledJobs.set(id, job)
     // 监听 scheduled 事件更新 nextRunAt（P1-8）
@@ -296,32 +326,68 @@ class CronService {
     this.nextRunAt.delete(id)
   }
 
-  /** 执行任务 — 调用 agentService.runAgent() */
+  /** 执行任务 — Critical 2.2 修复: __feishu__ 路由到 executeBitableSync 而非 agentRunner
+   *  High 2.3 修复: per-task 锁防止 runNow + cron 定时并发执行同一任务 */
   private async executeTask(taskId: string) {
     const task = this.tasks.get(taskId)
     if (!task) return
     if (!this.mainWindow) return
 
+    // High 2.3 修复: per-task 锁,避免 runNow + cron 同时触发同一任务
+    if (this.runningTasks.has(taskId)) {
+      log('info', 'cron', `Task ${taskId} already running, skip this trigger`)
+      return
+    }
+    this.runningTasks.add(taskId)
+
     const timestamp = Date.now()
     const startTime = Date.now()
 
     try {
-      if (this.agentRunner) {
+      // Critical 2.2 修复: __feishu__ 任务路由到 executeBitableSync
+      // 之前所有任务都调 agentRunner(task.agentId, ...),但 __feishu__ 不是真实 agentId,
+      // agentRunner('__feishu__', ...) 必然抛 "Agent not found",真正的 executeBitableSync 从未被调用
+      if (task.agentId === '__feishu__') {
+        const result = await this.executeBitableSync()
+        if (!result.success) {
+          // 同步失败按 error 记录,但不算 throw,避免污染日志
+          log('warn', 'cron', `bitable sync failed: ${result.error ?? result.skipped ?? 'unknown'}`)
+          task.lastRunAt = timestamp
+          task.lastStatus = 'error'
+          this.pushLog({
+            taskId,
+            agentId: task.agentId,
+            timestamp,
+            durationMs: Date.now() - startTime,
+            status: 'error',
+            error: result.error ?? result.skipped ?? 'bitable sync failed',
+          })
+        } else {
+          task.lastRunAt = timestamp
+          task.lastStatus = 'success'
+          this.pushLog({
+            taskId,
+            agentId: task.agentId,
+            timestamp,
+            durationMs: Date.now() - startTime,
+            status: 'success',
+          })
+        }
+      } else if (this.agentRunner) {
         await this.agentRunner(task.agentId, task.prompt, this.mainWindow)
+        task.lastRunAt = timestamp
+        task.lastStatus = 'success'
+
+        this.pushLog({
+          taskId,
+          agentId: task.agentId,
+          timestamp,
+          durationMs: Date.now() - startTime,
+          status: 'success',
+        })
       } else {
         console.warn(`[CronService] Agent runner not set, skipping task ${taskId}`)
       }
-
-      task.lastRunAt = timestamp
-      task.lastStatus = 'success'
-
-      this.pushLog({
-        taskId,
-        agentId: task.agentId,
-        timestamp,
-        durationMs: Date.now() - startTime,
-        status: 'success',
-      })
     } catch (err: unknown) {
       task.lastRunAt = timestamp
       task.lastStatus = 'error'
@@ -335,6 +401,8 @@ class CronService {
         error: err instanceof Error ? err.message : String(err),
       })
     } finally {
+      // High 2.3: 释放 per-task 锁
+      this.runningTasks.delete(taskId)
       // 不管成功失败都发送状态更新（P1-10：被中止的 agent 也算完成了）
       this.mainWindow?.webContents.send(IPC.IPC_CRON_STATUS_UPDATE, {
         taskId,

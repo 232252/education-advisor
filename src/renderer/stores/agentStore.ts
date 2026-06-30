@@ -42,6 +42,7 @@ interface AgentState {
     }>,
   ) => Promise<void>
   selectAgent: (id: string | null) => Promise<void>
+  refreshDetail: () => Promise<void>
   runAgent: (id: string, prompt: string) => Promise<void>
   abortAgent: (id: string) => Promise<void>
   saveSoul: (id: string, content: string) => Promise<void>
@@ -156,9 +157,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       // 执行结束
       if (data.status === 'idle' || data.status === 'error') {
         set({ isRunning: false })
-        // 执行结束后刷新详情(获取最新的 executionHistory)
+        // C-4 修复: 执行结束后刷新详情(获取最新的 executionHistory),但不清空 liveOutput
+        // 之前调 selectAgent 会清空 liveOutput/liveToolCalls/lastExecution/lastError,
+        // 导致 Agent 执行完成瞬间输出区变空白,用户看不到最终结果
         if (selectedAgentId) {
-          get().selectAgent(selectedAgentId)
+          get().refreshDetail()
         }
       }
     }
@@ -251,8 +254,25 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     try {
       const detail = await getAPI().agent.get(id)
       set({ selectedDetail: detail, detailLoading: false })
-    } catch {
+    } catch (err) {
+      // Medium 修复: 不再静默吞错,记录错误日志便于排查
+      console.error('[agentStore] selectAgent get detail failed:', err)
       set({ detailLoading: false })
+    }
+  },
+
+  /**
+   * C-4 修复: 只刷新 selectedDetail(获取最新 executionHistory),不清空 liveOutput/liveToolCalls/lastExecution/lastError
+   * 用于 Agent 执行结束后刷新详情,保留用户刚看到的输出
+   */
+  refreshDetail: async () => {
+    const { selectedAgentId } = get()
+    if (!selectedAgentId) return
+    try {
+      const detail = await getAPI().agent.get(selectedAgentId)
+      set({ selectedDetail: detail })
+    } catch (err) {
+      console.warn('[AgentStore] refreshDetail failed:', err)
     }
   },
 

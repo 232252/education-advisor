@@ -28,7 +28,7 @@
 "area: i18n":
   - src/renderer/i18n/**/*
 "area: eaa":
-  - scripts/download-eaa-binaries.mjs
+  - scripts/build-eaa.mjs
   - "docs/EAA_BRIDGE.md"
 "area: privacy":
   - "**/privacy*"

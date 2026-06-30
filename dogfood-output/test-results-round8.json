@@ -1,0 +1,209 @@
+{
+  "round": 8,
+  "timestamp": "2026-06-30T02:47:40.594Z",
+  "results": [
+    {
+      "name": "i18n.lang_before",
+      "ok": true,
+      "detail": "lang=zh"
+    },
+    {
+      "name": "i18n.settings_lang_select_found",
+      "ok": true,
+      "detail": "found=true"
+    },
+    {
+      "name": "i18n.switch_to_en",
+      "ok": true,
+      "detail": "lang=en"
+    },
+    {
+      "name": "i18n.nav_text_en",
+      "ok": true,
+      "detail": "nav=\"📊Dashboard\""
+    },
+    {
+      "name": "i18n.switch_back_zh",
+      "ok": true,
+      "detail": "lang=zh"
+    },
+    {
+      "name": "i18n.nav_text_zh",
+      "ok": true,
+      "detail": "nav=\"📊仪表盘\""
+    },
+    {
+      "name": "theme.before",
+      "ok": true,
+      "detail": "class=\"dark\""
+    },
+    {
+      "name": "theme.switch_to_light",
+      "ok": true,
+      "detail": "class=\"\""
+    },
+    {
+      "name": "theme.switch_to_dark",
+      "ok": true,
+      "detail": "class=\"dark\""
+    },
+    {
+      "name": "theme.switch_to_system",
+      "ok": true,
+      "detail": "class=\"\""
+    },
+    {
+      "name": "theme.persist_via_settings",
+      "ok": true,
+      "detail": "theme=dark"
+    },
+    {
+      "name": "chat.list_sessions",
+      "ok": true,
+      "detail": "count=7"
+    },
+    {
+      "name": "chat.save_message",
+      "ok": true,
+      "detail": "id=63"
+    },
+    {
+      "name": "chat.load_messages",
+      "ok": true,
+      "detail": "count=1"
+    },
+    {
+      "name": "chat.session_appears_in_list",
+      "ok": true,
+      "detail": "total=8"
+    },
+    {
+      "name": "chat.delete_session",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "chat.session_removed_from_list",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "agent.list",
+      "ok": true,
+      "detail": "count=18"
+    },
+    {
+      "name": "agent.found_enabled",
+      "ok": true,
+      "detail": "id=safety, name=安全检查员"
+    },
+    {
+      "name": "agent.get_soul",
+      "ok": true,
+      "detail": "len=1344"
+    },
+    {
+      "name": "agent.get_rules",
+      "ok": true,
+      "detail": "len=8393"
+    },
+    {
+      "name": "agent.get_history",
+      "ok": true,
+      "detail": "count=5"
+    },
+    {
+      "name": "agent.run_manual_started",
+      "ok": true,
+      "detail": "result={\"success\":true,\"message\":\"Agent execution started\",\"id\":\"safety\"}"
+    },
+    {
+      "name": "agent.history_grew",
+      "ok": false,
+      "detail": "before=5, after=5"
+    },
+    {
+      "name": "settings.get_all",
+      "ok": true,
+      "detail": "keys=general,models,chat,privacy,feishu,advanced,shortcuts"
+    },
+    {
+      "name": "settings.set_loglevel_debug",
+      "ok": true,
+      "detail": "level=debug"
+    },
+    {
+      "name": "settings.restore_loglevel",
+      "ok": true,
+      "detail": "level=info"
+    },
+    {
+      "name": "settings.toggle_minimize_to_tray",
+      "ok": true,
+      "detail": "before=false, after=true"
+    },
+    {
+      "name": "ui.nav_stress_10x",
+      "ok": true,
+      "detail": "errors=0"
+    },
+    {
+      "name": "perf.memory_snapshot",
+      "ok": true,
+      "detail": "heap={\"used\":14300000,\"total\":17100000,\"limit\":3760000000}"
+    },
+    {
+      "name": "eaa.dashboard.default",
+      "ok": true,
+      "detail": "exit=0"
+    },
+    {
+      "name": "eaa.dashboard.custom_dir",
+      "ok": true,
+      "detail": "exit=0"
+    },
+    {
+      "name": "revert.add_student",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "revert.set_meta",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "revert.score_before",
+      "ok": true,
+      "detail": "score=100"
+    },
+    {
+      "name": "revert.add_late_event",
+      "ok": true,
+      "detail": "eventId=evt_bb277527e4e7"
+    },
+    {
+      "name": "revert.score_after_late",
+      "ok": true,
+      "detail": "score=98, expected=98"
+    },
+    {
+      "name": "revert.revert_event",
+      "ok": true,
+      "detail": "exit=0"
+    },
+    {
+      "name": "revert.score_after_revert",
+      "ok": true,
+      "detail": "score=100, expected=100"
+    },
+    {
+      "name": "revert.cleanup",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "passed": 39,
+  "failed": 1,
+  "total": 40
+}

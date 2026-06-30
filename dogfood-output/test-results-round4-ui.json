@@ -1,0 +1,100 @@
+{
+  "summary": {
+    "ok": 16,
+    "fail": 2,
+    "total": 18,
+    "consoleMessages": 9
+  },
+  "results": [
+    {
+      "name": "dashboard.load",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "students.fill_name",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "students.page_load",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "classes.page_load",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "skills.page_load",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "settings.find_logLevel",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "settings.logLevel.debug",
+      "ok": false,
+      "error": "element not found"
+    },
+    {
+      "name": "settings.logLevel.no_loop",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "settings.logLevel.info",
+      "ok": false,
+      "error": "element not found"
+    },
+    {
+      "name": "privacy.find_password_input",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "privacy.fill_password",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "privacy.click_init",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "privacy.page_load",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "agents.page_load",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "chat.find_input",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "chat.page_load",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "scheduler.page_load",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "models.page_load",
+      "ok": true,
+      "error": null
+    }
+  ]
+}

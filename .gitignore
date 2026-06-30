@@ -1,6 +1,9 @@
 # ===== Build artifacts =====
 node_modules/
 dist/
+release-v*/
+_apply_edits.cjs
+perf-report.json
 release/
 out/
 build/

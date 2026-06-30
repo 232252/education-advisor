@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { path: '/dashboard', icon: '\u{1F4CA}', labelKey: 'nav.dashboard' },
   { path: '/chat', icon: '\u{1F4AC}', labelKey: 'nav.chat' },
   { path: '/students', icon: '\u{1F465}', labelKey: 'nav.students' },
+  { path: '/classes', icon: '\u{1F393}', labelKey: 'nav.classes' },
   { path: '/agents', icon: '\u{1F916}', labelKey: 'nav.agents' },
   { path: '/models', icon: '\u{1F9E0}', labelKey: 'nav.models' },
   { path: '/skills', icon: '\u{1F4DD}', labelKey: 'nav.skills' },

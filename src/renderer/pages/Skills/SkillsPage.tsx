@@ -4,6 +4,7 @@
 
 import type { Skill } from '@shared/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../../stores/toastStore'
@@ -23,6 +24,13 @@ export function SkillsPage() {
   const [editingName, setEditingName] = useState(false)
   const [editNameValue, setEditNameValue] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // 自定义确认对话框状态
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean
+    message: string
+    onConfirm: () => void
+    variant?: 'default' | 'danger'
+  }>({ open: false, message: '', onConfirm: () => {} })
 
   const loadSkills = useCallback(async () => {
     try {
@@ -41,7 +49,20 @@ export function SkillsPage() {
   }, [loadSkills])
 
   const handleSelect = (skill: Skill) => {
-    if (dirty && !confirm('有未保存的更改，确定要切换吗？')) return
+    if (dirty) {
+      setConfirmState({
+        open: true,
+        message: '有未保存的更改，确定要切换吗？',
+        onConfirm: () => {
+          setSelected(skill)
+          setEditContent(skill.content)
+          setDirty(false)
+          setEditingName(false)
+          setConfirmState((s) => ({ ...s, open: false }))
+        },
+      })
+      return
+    }
     setSelected(skill)
     setEditContent(skill.content)
     setDirty(false)
@@ -70,18 +91,30 @@ export function SkillsPage() {
   }
 
   const handleDelete = async (name: string) => {
-    if (!confirm(`确定要删除技能"${name}" 吗？此操作不可恢复。`)) return
-    const result = await getAPI().skill.delete(name)
-    if (!result.success) {
-      toast.error(result.error || '删除失败')
-      return
-    }
-    toast.success(`已删除 "${name}"`)
-    if (selected?.name === name) {
-      setSelected(null)
-      setDirty(false)
-    }
-    loadSkills()
+    setConfirmState({
+      open: true,
+      message: `确定要删除技能"${name}" 吗？此操作不可恢复。`,
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmState((s) => ({ ...s, open: false }))
+        try {
+          const result = await getAPI().skill.delete(name)
+          if (!result.success) {
+            toast.error(result.error || '删除失败')
+            return
+          }
+          toast.success(`已删除 "${name}"`)
+          if (selected?.name === name) {
+            setSelected(null)
+            setDirty(false)
+          }
+          loadSkills()
+        } catch (err) {
+          console.error('[Skills] Delete failed:', err)
+          toast.error('删除技能失败')
+        }
+      },
+    })
   }
 
   const handleCreate = async () => {
@@ -328,12 +361,18 @@ export function SkillsPage() {
                       if (e.key === 'Enter') {
                         const newName = editNameValue.trim()
                         if (newName && newName !== selected.name) {
-                          // Rename: create new, copy content, delete old
-                          await getAPI().skill.save(newName, editContent)
-                          await getAPI().skill.delete(selected.name)
-                          setSelected({ ...selected, name: newName })
-                          toast.success('已重命名')
-                          loadSkills()
+                          // H-5 修复: 重命名流程加 try/catch,避免半成功状态(save 成功但 delete 失败)
+                          try {
+                            // Rename: create new, copy content, delete old
+                            await getAPI().skill.save(newName, editContent)
+                            await getAPI().skill.delete(selected.name)
+                            setSelected({ ...selected, name: newName })
+                            toast.success('已重命名')
+                            loadSkills()
+                          } catch (err) {
+                            console.error('[Skills] Rename failed:', err)
+                            toast.error('重命名失败,请检查新名称是否已存在')
+                          }
                         }
                         setEditingName(false)
                       }
@@ -432,6 +471,15 @@ export function SkillsPage() {
           </div>
         )}
       </div>
+
+      {/* 自定义确认对话框 */}
+      <ConfirmDialog
+        open={confirmState.open}
+        message={confirmState.message}
+        variant={confirmState.variant}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((s) => ({ ...s, open: false }))}
+      />
     </section>
   )
 }

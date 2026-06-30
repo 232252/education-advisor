@@ -1,0 +1,189 @@
+{
+  "round": 9,
+  "timestamp": "2026-06-30T03:25:10.697Z",
+  "results": [
+    {
+      "name": "skill.list",
+      "ok": true,
+      "detail": "count=7"
+    },
+    {
+      "name": "skill.save",
+      "ok": true,
+      "detail": "name=test-skill-1782789869547"
+    },
+    {
+      "name": "skill.get",
+      "ok": true,
+      "detail": "content_len=149"
+    },
+    {
+      "name": "skill.update",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "skill.update_verified",
+      "ok": true,
+      "detail": "content_len=177"
+    },
+    {
+      "name": "skill.list_after_save",
+      "ok": true,
+      "detail": "count=8"
+    },
+    {
+      "name": "skill.delete",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "skill.deleted_verified",
+      "ok": true,
+      "detail": "result=null"
+    },
+    {
+      "name": "class.create",
+      "ok": true,
+      "detail": "id=R9-178278986961, internal=c0d383a0-0566-40a8-ae35-bab1ae8038f6"
+    },
+    {
+      "name": "class.list",
+      "ok": true,
+      "detail": "count=1, found=true"
+    },
+    {
+      "name": "class.update",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "class.archive",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "class.archive_verified",
+      "ok": true,
+      "detail": "archived=true"
+    },
+    {
+      "name": "class.restore",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "class.delete",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "class.deleted_verified",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "cron.list",
+      "ok": true,
+      "detail": "count=8"
+    },
+    {
+      "name": "cron.add",
+      "ok": true,
+      "detail": "id=task-1782789869634-ldnjej"
+    },
+    {
+      "name": "cron.toggle",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "cron.update",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "cron.getLogs",
+      "ok": true,
+      "detail": "type=object"
+    },
+    {
+      "name": "cron.remove",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ai.listProviders",
+      "ok": true,
+      "detail": "count=32"
+    },
+    {
+      "name": "ai.addCustomModel",
+      "ok": true,
+      "detail": "id=r9-test-1782789869646"
+    },
+    {
+      "name": "ai.listModels",
+      "ok": true,
+      "detail": "count=91, found=true"
+    },
+    {
+      "name": "ai.updateCustomModel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ai.deleteCustomModel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ai.model_deleted_verified",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "stability.memory_growth",
+      "ok": true,
+      "detail": "growth=0.0%, samples=[14300000,14300000,14300000]"
+    },
+    {
+      "name": "biz.add_student",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "biz.cumulative_score",
+      "ok": true,
+      "detail": "actual=102, expected=102"
+    },
+    {
+      "name": "biz.history_count",
+      "ok": true,
+      "detail": "count=4, expected=4"
+    },
+    {
+      "name": "biz.revert_correct",
+      "ok": true,
+      "detail": "actual=104, expected=104"
+    },
+    {
+      "name": "biz.ranking",
+      "ok": true,
+      "detail": "has_data=true"
+    },
+    {
+      "name": "biz.stats",
+      "ok": true,
+      "detail": "has_data=true"
+    },
+    {
+      "name": "biz.cleanup",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "passed": 36,
+  "failed": 0,
+  "total": 36
+}

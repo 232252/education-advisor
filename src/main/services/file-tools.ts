@@ -30,11 +30,32 @@ const MAX_EXCEL_ROWS = 5000
 
 /** 检查文件大小 */
 async function checkFileSize(filePath: string): Promise<void> {
-  const stat = await fsp.stat(filePath)
+  let stat: fs.Stats
+  try {
+    stat = await fsp.stat(filePath)
+  } catch (err) {
+    throw new Error(`获取文件大小失败: ${filePath} - ${(err as Error).message}`)
+  }
   if (stat.size > MAX_FILE_SIZE) {
     throw new Error(
       `文件过大: ${(stat.size / 1024 / 1024).toFixed(1)} MB，上限 ${MAX_FILE_SIZE / 1024 / 1024} MB`,
     )
+  }
+}
+
+/**
+ * 校验文件路径安全性，防止路径遍历（path traversal）攻击
+ * 拒绝包含 ".." 路径段的输入；调用方应在 path.resolve 之前对原始入参调用本函数
+ * @param filePath 待校验的原始路径（来自外部参数）
+ */
+function validateFilePath(filePath: string): void {
+  if (typeof filePath !== 'string' || filePath.length === 0) {
+    throw new Error('路径不能为空')
+  }
+  // 按 / 和 \ 分割路径，检查是否包含 ".." 段
+  const segments = filePath.split(/[\\/]/)
+  if (segments.includes('..')) {
+    throw new Error(`路径不安全，包含 ".." 段（疑似 path traversal 攻击）: ${filePath}`)
   }
 }
 
@@ -67,6 +88,7 @@ export const readFileTool: AgentTool<typeof readFileParams> = {
     '读取本地文本文件内容（支持 .txt, .md, .csv, .json, .yaml, .xml 等文本格式）。对于 Excel 文件请使用 read_excel 工具。',
   parameters: readFileParams,
   execute: async (_toolCallId, params) => {
+    validateFilePath(params.path)
     const resolvedPath = path.resolve(params.path)
 
     if (!fs.existsSync(resolvedPath)) {
@@ -76,7 +98,12 @@ export const readFileTool: AgentTool<typeof readFileParams> = {
     await checkFileSize(resolvedPath)
 
     const encoding = (params.encoding as BufferEncoding) || 'utf-8'
-    const content = await fsp.readFile(resolvedPath, encoding)
+    let content: string
+    try {
+      content = await fsp.readFile(resolvedPath, encoding)
+    } catch (err) {
+      throw new Error(`读取文件失败: ${resolvedPath} - ${(err as Error).message}`)
+    }
 
     const ext = path.extname(resolvedPath).toLowerCase()
     const fileName = path.basename(resolvedPath)
@@ -95,6 +122,7 @@ export const readExcelTool: AgentTool<typeof readExcelParams> = {
     '读取 Excel 文件（.xlsx/.xls）的内容。返回工作表数据，包括表头和所有行。可指定工作表名称和最大行数。',
   parameters: readExcelParams,
   execute: async (_toolCallId, params) => {
+    validateFilePath(params.path)
     const resolvedPath = path.resolve(params.path)
 
     if (!fs.existsSync(resolvedPath)) {
@@ -108,8 +136,14 @@ export const readExcelTool: AgentTool<typeof readExcelParams> = {
       throw new Error(`不支持的文件格式: ${ext}，仅支持 .xlsx 和 .xls`)
     }
 
-    // 读取 Excel 文件
-    const workbook = XLSX.readFile(resolvedPath)
+    // 注意：XLSX.readFile 是同步阻塞调用，会阻塞 Electron 主进程事件循环
+    // xlsx 库未提供异步版本；此处保持同步实现，但不应在高频路径调用，且用 try/catch 防止崩溃
+    let workbook: XLSX.WorkBook
+    try {
+      workbook = XLSX.readFile(resolvedPath)
+    } catch (err) {
+      throw new Error(`读取 Excel 文件失败: ${resolvedPath} - ${(err as Error).message}`)
+    }
     const sheetNames = workbook.SheetNames
 
     if (sheetNames.length === 0) {
@@ -175,18 +209,29 @@ export const listDirTool: AgentTool<typeof listDirParams> = {
   description: '列出指定目录下的文件和子目录，显示名称、大小和类型。',
   parameters: listDirParams,
   execute: async (_toolCallId, params) => {
+    validateFilePath(params.path)
     const resolvedPath = path.resolve(params.path)
 
     if (!fs.existsSync(resolvedPath)) {
       throw new Error(`目录不存在: ${resolvedPath}`)
     }
 
-    const stat = await fsp.stat(resolvedPath)
+    let stat: fs.Stats
+    try {
+      stat = await fsp.stat(resolvedPath)
+    } catch (err) {
+      throw new Error(`获取目录信息失败: ${resolvedPath} - ${(err as Error).message}`)
+    }
     if (!stat.isDirectory()) {
       throw new Error(`路径不是目录: ${resolvedPath}`)
     }
 
-    const entries = await fsp.readdir(resolvedPath, { withFileTypes: true })
+    let entries: fs.Dirent[]
+    try {
+      entries = await fsp.readdir(resolvedPath, { withFileTypes: true })
+    } catch (err) {
+      throw new Error(`读取目录失败: ${resolvedPath} - ${(err as Error).message}`)
+    }
 
     const lines: string[] = []
     lines.push(`📁 目录: ${resolvedPath}`)
@@ -244,15 +289,29 @@ export const writeFileTool: AgentTool<typeof writeFileParams> = {
     '将文本内容写入本地文件（支持 .txt, .md, .csv, .json, .yaml 等文本格式）。文件不存在时自动创建，已存在时覆盖。你运行在用户本地桌面，拥有完整文件系统权限，不是沙箱。',
   parameters: writeFileParams,
   execute: async (_toolCallId, params) => {
+    validateFilePath(params.path)
     const resolvedPath = path.resolve(params.path)
 
     // 确保父目录存在
     const dir = path.dirname(resolvedPath)
-    await fsp.mkdir(dir, { recursive: true })
+    try {
+      await fsp.mkdir(dir, { recursive: true })
+    } catch (err) {
+      throw new Error(`创建目录失败: ${dir} - ${(err as Error).message}`)
+    }
 
-    await fsp.writeFile(resolvedPath, params.content, 'utf-8')
+    try {
+      await fsp.writeFile(resolvedPath, params.content, 'utf-8')
+    } catch (err) {
+      throw new Error(`写入文件失败: ${resolvedPath} - ${(err as Error).message}`)
+    }
 
-    const stat = await fsp.stat(resolvedPath)
+    let stat: fs.Stats
+    try {
+      stat = await fsp.stat(resolvedPath)
+    } catch (err) {
+      throw new Error(`获取写入文件信息失败: ${resolvedPath} - ${(err as Error).message}`)
+    }
     return textResult(`✅ 文件已写入: ${resolvedPath}\n大小: ${stat.size} bytes`)
   },
 }
@@ -282,11 +341,16 @@ export const writeExcelTool: AgentTool<typeof writeExcelParams> = {
     '创建或覆盖一个 Excel 文件（.xlsx），写入指定的工作表、表头和数据行。你运行在用户本地桌面，拥有完整文件系统权限，不是沙箱环境。',
   parameters: writeExcelParams,
   execute: async (_toolCallId, params) => {
+    validateFilePath(params.path)
     const resolvedPath = path.resolve(params.path)
 
     // 确保父目录存在
     const dir = path.dirname(resolvedPath)
-    await fsp.mkdir(dir, { recursive: true })
+    try {
+      await fsp.mkdir(dir, { recursive: true })
+    } catch (err) {
+      throw new Error(`创建目录失败: ${dir} - ${(err as Error).message}`)
+    }
 
     const workbook = XLSX.utils.book_new()
 
@@ -296,9 +360,20 @@ export const writeExcelTool: AgentTool<typeof writeExcelParams> = {
       XLSX.utils.book_append_sheet(workbook, worksheet, sheet.name)
     }
 
-    XLSX.writeFile(workbook, resolvedPath)
+    // 注意：XLSX.writeFile 是同步阻塞调用，会阻塞 Electron 主进程事件循环
+    // xlsx 库未提供异步版本；此处保持同步实现，但不应在高频路径调用，且用 try/catch 防止崩溃
+    try {
+      XLSX.writeFile(workbook, resolvedPath)
+    } catch (err) {
+      throw new Error(`写入 Excel 文件失败: ${resolvedPath} - ${(err as Error).message}`)
+    }
 
-    const stat = await fsp.stat(resolvedPath)
+    let stat: fs.Stats
+    try {
+      stat = await fsp.stat(resolvedPath)
+    } catch (err) {
+      throw new Error(`获取写入文件信息失败: ${resolvedPath} - ${(err as Error).message}`)
+    }
     return textResult(
       `✅ Excel 已写入: ${resolvedPath}\n` +
         `工作表: ${params.sheets.map((s) => s.name).join(', ')}\n` +
@@ -330,9 +405,14 @@ export const writeCsvTool: AgentTool<typeof writeCsvParams> = {
     '创建 CSV 文件并写入表头和数据行。默认使用 UTF-8-BOM 编码（Excel 可直接打开中文不乱码）。你运行在本地桌面，拥有文件系统写入权限。',
   parameters: writeCsvParams,
   execute: async (_toolCallId, params) => {
+    validateFilePath(params.path)
     const resolvedPath = path.resolve(params.path)
     const dir = path.dirname(resolvedPath)
-    await fsp.mkdir(dir, { recursive: true })
+    try {
+      await fsp.mkdir(dir, { recursive: true })
+    } catch (err) {
+      throw new Error(`创建目录失败: ${dir} - ${(err as Error).message}`)
+    }
 
     // CSV 转义：包含逗号、引号、换行的字段用双引号包裹
     const escapeField = (field: string): string => {
@@ -361,9 +441,18 @@ export const writeCsvTool: AgentTool<typeof writeCsvParams> = {
         : ''
     const content = bom + lines.join('\r\n')
 
-    await fsp.writeFile(resolvedPath, content, 'utf-8')
+    try {
+      await fsp.writeFile(resolvedPath, content, 'utf-8')
+    } catch (err) {
+      throw new Error(`写入 CSV 文件失败: ${resolvedPath} - ${(err as Error).message}`)
+    }
 
-    const stat = await fsp.stat(resolvedPath)
+    let stat: fs.Stats
+    try {
+      stat = await fsp.stat(resolvedPath)
+    } catch (err) {
+      throw new Error(`获取写入文件信息失败: ${resolvedPath} - ${(err as Error).message}`)
+    }
     return textResult(
       `✅ CSV 已写入: ${resolvedPath}\n` +
         `列: ${params.headers.join(', ')}\n` +

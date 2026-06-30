@@ -1,0 +1,269 @@
+{
+  "round": 10,
+  "timestamp": "2026-06-30T03:46:10.795Z",
+  "results": [
+    {
+      "name": "eaa.exportFormats",
+      "ok": true,
+      "detail": "formats=[\"csv\",\"jsonl\",\"json\",\"html\"]"
+    },
+    {
+      "name": "eaa.doctor",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.validate",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.tag_list",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.summary",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.range",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.replay",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.codes",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.info",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.dashboard",
+      "ok": true,
+      "detail": "success=true, dir=C:\\Users\\sq199\\AppData\\Local\\Temp\\eaa-dashboard-1782791169771"
+    },
+    {
+      "name": "eaa.export_csv",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.export_file_exists",
+      "ok": true,
+      "detail": "size=1603"
+    },
+    {
+      "name": "privacy.status_initial",
+      "ok": true,
+      "detail": "unlocked=true"
+    },
+    {
+      "name": "privacy.init",
+      "ok": true,
+      "detail": "first init succeeded"
+    },
+    {
+      "name": "privacy.status_unlocked",
+      "ok": true,
+      "detail": "unlocked=true"
+    },
+    {
+      "name": "privacy.add",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "privacy.list",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "privacy.dryrun",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "privacy.anonymize",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "privacy.deanonymize",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "privacy.filter",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "privacy.backup",
+      "ok": true,
+      "detail": "success=true, path=C:\\Users\\sq199\\AppData\\Local\\Temp\\eaa-privacy-backup-1782791170175.json"
+    },
+    {
+      "name": "privacy.backup_file_exists",
+      "ok": true,
+      "detail": "size=187"
+    },
+    {
+      "name": "privacy.lock",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "privacy.status_locked",
+      "ok": true,
+      "detail": "unlocked=false"
+    },
+    {
+      "name": "privacy.reload",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "privacy.disable",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "agent.list",
+      "ok": true,
+      "detail": "count=18"
+    },
+    {
+      "name": "agent.all_present",
+      "ok": true,
+      "detail": "expected=18, found=18, missing=none"
+    },
+    {
+      "name": "agent.get_all",
+      "ok": true,
+      "detail": "18/18 succeeded"
+    },
+    {
+      "name": "agent.getSoul_all",
+      "ok": true,
+      "detail": "18/18 succeeded"
+    },
+    {
+      "name": "agent.getRules_all",
+      "ok": true,
+      "detail": "18/18 succeeded"
+    },
+    {
+      "name": "agent.toggle",
+      "ok": true,
+      "detail": "agent=research, before=true, after=false"
+    },
+    {
+      "name": "sys.checkUpdate",
+      "ok": true,
+      "detail": "hasUpdate=false, current=0.1.0-rc.1, enabled=false"
+    },
+    {
+      "name": "sys.notify",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "sys.getPath",
+      "ok": true,
+      "detail": "path=C:\\Users\\sq199\\Desktop"
+    },
+    {
+      "name": "sys.openExternal_blocked",
+      "ok": "Error: Error invoking remote method 'sys:open-external': Error: Disallowed protocol: file:",
+      "detail": "error=Error: Error invoking remote method 'sys:open-external': Err"
+    },
+    {
+      "name": "profile.set",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "profile.get",
+      "ok": true,
+      "detail": "hasData=true"
+    },
+    {
+      "name": "log.list",
+      "ok": true,
+      "detail": "count=18"
+    },
+    {
+      "name": "log.filter",
+      "ok": true,
+      "detail": "type=string, len=3870"
+    },
+    {
+      "name": "log.search",
+      "ok": true,
+      "detail": "type=string, len=754"
+    },
+    {
+      "name": "log.read",
+      "ok": true,
+      "detail": "type=string, len=1611"
+    },
+    {
+      "name": "eaa.export_jsonl",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.export_html",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "eaa.export_bad_format_rejected",
+      "ok": "Error: Error invoking remote method 'eaa:export': Error: format must be one of: csv, jsonl, json, html",
+      "detail": "success=undefined"
+    },
+    {
+      "name": "eaa.range_bad_date_rejected",
+      "ok": "Error: Error invoking remote method 'eaa:range': Error: start/end must be YYYY-MM-DD format",
+      "detail": "success=undefined"
+    },
+    {
+      "name": "eaa.range_reverse_handled",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "privacy.init_short_pwd_rejected",
+      "ok": "Error: Error invoking remote method 'privacy:init': Error: password length must be 4-128 chars",
+      "detail": "success=undefined"
+    },
+    {
+      "name": "privacy.add_bad_type_rejected",
+      "ok": "Error: Error invoking remote method 'privacy:add': Error: entityType must be one of: person, place, org, phone, email, id_card, student_id",
+      "detail": "success=undefined"
+    },
+    {
+      "name": "class.create_dup_rejected",
+      "ok": true,
+      "detail": "success=false, error=班级编号 \"DUP-R10-178279\" 已存在"
+    },
+    {
+      "name": "skill.get_not_exist_handled",
+      "ok": true,
+      "detail": "type=object"
+    }
+  ],
+  "passed": 52,
+  "failed": 0,
+  "total": 52
+}

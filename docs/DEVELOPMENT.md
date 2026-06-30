@@ -476,17 +476,11 @@ See [`AGENT_AUTHORING.md`](./AGENT_AUTHORING.md) — it's a
 1. Bump the version in `core/eaa-cli/Cargo.toml`.
 2. Bump the version in `core/eaa-cli/VERSION_HISTORY.md` (if it
    exists).
-3. Build a release: `cd core/eaa-cli && cargo build --release`.
+3. Build a release: `npm run build:eaa` (compiles from `core/eaa-cli/`
+   source via `scripts/build-eaa.mjs`; requires the Rust toolchain).
 4. Commit the new binary in
    `resources/eaa-binaries/<platform>/`.
 5. Update the root `CHANGELOG.md`.
-
-Or, to use the auto-downloaded prebuilt:
-
-1. Update the `EAA_RELEASE_TAG` env var (or hardcoded value in
-   `scripts/download-eaa-binaries.mjs`).
-2. Run `npm run build:eaa`.
-3. Commit the new binary.
 
 ### Add a new LLM provider
 

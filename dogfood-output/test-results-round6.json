@@ -1,0 +1,124 @@
+{
+  "summary": {
+    "ok": 19,
+    "fail": 4,
+    "total": 23
+  },
+  "results": [
+    {
+      "name": "concurrent.addStudent.5",
+      "ok": true,
+      "detail": "41612ms, 5/5 ok"
+    },
+    {
+      "name": "concurrent.addStudent.verify",
+      "ok": true,
+      "detail": "All 5 students found in list"
+    },
+    {
+      "name": "concurrent.mixed",
+      "ok": true,
+      "detail": "5/4 reads ok"
+    },
+    {
+      "name": "consistency.add",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":\"✓ 学生已添加: __consistency_1782785062765 (ent_c3d0562f0fe4)\",\"stderr\":\"\",\"exitCo"
+    },
+    {
+      "name": "consistency.score_initial",
+      "ok": true,
+      "detail": "score=100"
+    },
+    {
+      "name": "consistency.addEvent",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":\"✓ 事件已创建: evt_1a35dad33ea7 __consistency_1782785062765 -2.0\",\"stderr\":\"\",\"exi"
+    },
+    {
+      "name": "consistency.score_after_event",
+      "ok": true,
+      "detail": "score=98 (expected 98)"
+    },
+    {
+      "name": "consistency.history",
+      "ok": true,
+      "detail": "events=1 (expected 1)"
+    },
+    {
+      "name": "consistency.search",
+      "ok": true,
+      "detail": "Student found in search"
+    },
+    {
+      "name": "consistency.delete",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":\"✓ 学生已删除: __consistency_1782785062765 (保留1条历史事件)\",\"stderr\":\"\",\"exitCode\":0}"
+    },
+    {
+      "name": "consistency.deleted_verify",
+      "ok": true,
+      "detail": "Student no longer accessible"
+    },
+    {
+      "name": "agent.runManual.graceful_fail",
+      "ok": false,
+      "detail": "{\"success\":true,\"message\":\"Agent execution started\",\"id\":\"main\"}"
+    },
+    {
+      "name": "eaa.export.csv.file_path",
+      "ok": false,
+      "detail": "姓名,分数,变动,风险\n?,101.0,+1.0,低\n秦晓雄,100.0,+0.0,低\n李婷婷,100.0,+0.0,低\n李启蓬,100.0,+0.0,低\n陈友明,100.0,+0.0,低\n蒲祥语,1"
+    },
+    {
+      "name": "eaa.dashboard.generate",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":\"✓ 仪表盘已生成: ./eaa-dashboard/index.html\",\"stderr\":\"\",\"exitCode\":0}"
+    },
+    {
+      "name": "eaa.export_dir.exists",
+      "ok": true,
+      "detail": "8 files in eaa-data"
+    },
+    {
+      "name": "eaa.export_files.csv",
+      "ok": false,
+      "detail": "0 CSV files"
+    },
+    {
+      "name": "eaa.export_files.html",
+      "ok": false,
+      "detail": "0 HTML files"
+    },
+    {
+      "name": "cron.create",
+      "ok": true,
+      "detail": "{\"success\":true,\"id\":\"task-1782785065277-655bes\"}"
+    },
+    {
+      "name": "cron.create.verify",
+      "ok": true,
+      "detail": "8 → 9"
+    },
+    {
+      "name": "cron.delete",
+      "ok": true,
+      "detail": "{\"success\":true}"
+    },
+    {
+      "name": "cron.delete.verify",
+      "ok": true,
+      "detail": "8 (expected 8)"
+    },
+    {
+      "name": "settings.set.autoStart",
+      "ok": true,
+      "detail": "false → true"
+    },
+    {
+      "name": "settings.restore",
+      "ok": true,
+      "detail": "Settings restored"
+    }
+  ]
+}
