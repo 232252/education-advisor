@@ -278,8 +278,22 @@ describe('eaa-tools: tokenizeQuery (via searchEventsTool)', () => {
  })
 
  it('只有引号 """""" → []', async () => {
- // """""" = "" + "" + "" (三对空引号) → token都被吃完
- await searchEventsTool.execute('tc', { query: '""""""' })
- expect(receivedArgs).toEqual([])
- })
+  // """""" = "" + "" + "" (三对空引号) → token都被吃完
+  await searchEventsTool.execute('tc', { query: '""""""' })
+  expect(receivedArgs).toEqual([])
+  })
+
+  it('query 含 shell 元字符应被 safeExecute 拒绝', async () => {
+  // RISK 验证：searchEventsTool 现在走 safeExecute,query 中的 ; 应抛错
+  await expect(searchEventsTool.execute('tc', { query: 'foo;rm -rf /' })).rejects.toThrow(
+  /shell 元字符/,
+  )
+  })
+
+  it('query 含 -- 开头应被 safeExecute 拒绝', async () => {
+  // RISK 验证：-- 开头在 tokenizeQuery 后可能变成 args 第一个元素,被 safeExecute 拒绝
+  await expect(searchEventsTool.execute('tc', { query: '--bad-flag' })).rejects.toThrow(
+  /\-\-/,
+  )
+  })
 })

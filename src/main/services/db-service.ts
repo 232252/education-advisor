@@ -49,11 +49,32 @@ export interface CronLogRecord {
   metadata?: string // JSON 字符串
 }
 
+/** 班级记录（本地存档/删除管理） */
+export interface ClassRecord {
+  id: string
+  /** 班级编号，与 EAA 学生 class_id 对齐，如 "G7-3" */
+  class_id: string
+  /** 班级显示名称，如 "七年级3班" */
+  name: string
+  /** 年级，如 "七年级" */
+  grade?: string
+  /** 备注 */
+  note?: string
+  /** 是否已存档（不再教这个班，但保留数据，默认隐藏该班学生） */
+  archived: 0 | 1
+  created_at: number
+  archived_at?: number
+  /** 班主任姓名（可选） */
+  teacher?: string | null
+}
+
 class DBService {
   private db: Database | null = null
   private dbPath: string = ''
   private _ready = false
   private _lastError: string | null = null
+  /** CONCERN 修复: 定期清理定时器 (每 24 小时清理一次过期数据) */
+  private cleanupTimer: NodeJS.Timeout | null = null
   /** 预编译语句缓存 */
   private stmts: {
     insertExecution?: Statement
@@ -74,6 +95,13 @@ class DBService {
     getSessionTitle?: Statement
     upsertChatSession?: Statement
     listChatSessions?: Statement
+    // 班级管理
+    insertClass?: Statement
+    updateClass?: Statement
+    selectClassById?: Statement
+    selectClassByClassId?: Statement
+    listClasses?: Statement
+    deleteClass?: Statement
   } = {}
 
   /**
@@ -99,6 +127,16 @@ class DBService {
       this.prepareStatements()
       this._ready = true
       console.log(`[DB] SQLite ready at ${this.dbPath}`)
+      // RISK 修复: 启动时自动清理过期数据,防止 DB 无限增长
+      this.cleanupOldData()
+      // CONCERN 修复: 定期清理 (每 24 小时),防止长时间运行的实例 DB 持续增长
+      // batchSize=10000 可能追赶不上高频写入,定期清理确保最终一致
+      this.cleanupTimer = setInterval(
+        () => {
+          this.cleanupOldData()
+        },
+        24 * 60 * 60 * 1000,
+      )
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       this._lastError = `Failed to init SQLite: ${msg}`
@@ -165,6 +203,20 @@ class DBService {
       );
       CREATE INDEX IF NOT EXISTS idx_cron_logs_task_id ON cron_logs(task_id);
       CREATE INDEX IF NOT EXISTS idx_cron_logs_timestamp ON cron_logs(timestamp);
+
+      CREATE TABLE IF NOT EXISTS classes (
+        id TEXT PRIMARY KEY,
+        class_id TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        grade TEXT,
+        note TEXT,
+        archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)),
+        created_at INTEGER NOT NULL,
+        archived_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_classes_archived ON classes(archived);
+      -- arch-class-1: 班主任字段（v0.1 增量迁移，幂等）
+      ALTER TABLE classes ADD COLUMN teacher TEXT;
     `)
   }
 
@@ -241,6 +293,28 @@ class DBService {
     this.stmts.listChatSessions = this.db.prepare(`
       SELECT * FROM chat_sessions ORDER BY updated_at DESC
     `)
+
+    // 班级管理预编译语句
+    this.stmts.insertClass = this.db.prepare(`
+      INSERT INTO classes (id, class_id, name, grade, note, archived, created_at, archived_at, teacher)
+      VALUES (@id, @class_id, @name, @grade, @note, @archived, @created_at, @archived_at, @teacher)
+    `)
+    this.stmts.updateClass = this.db.prepare(`
+      UPDATE classes SET
+        name = COALESCE(NULLIF(@name, ''), name),
+        grade = @grade,
+        note = @note,
+        archived = @archived,
+        archived_at = @archived_at,
+        teacher = @teacher
+      WHERE id = @id
+    `)
+    this.stmts.selectClassById = this.db.prepare(`SELECT * FROM classes WHERE id = ?`)
+    this.stmts.selectClassByClassId = this.db.prepare(`SELECT * FROM classes WHERE class_id = ?`)
+    this.stmts.listClasses = this.db.prepare(
+      `SELECT * FROM classes ORDER BY archived ASC, created_at DESC`,
+    )
+    this.stmts.deleteClass = this.db.prepare(`DELETE FROM classes WHERE id = ?`)
   }
 
   isReady(): boolean {
@@ -474,6 +548,113 @@ class DBService {
     }
   }
 
+  // -------------------- Classes（班级管理） --------------------
+
+  /** 新增班级。class_id 唯一冲突时返回 false。 */
+  insertClass(record: ClassRecord): boolean {
+    if (!this._ready || !this.stmts.insertClass) return false
+    try {
+      this.stmts.insertClass.run({
+        id: record.id,
+        class_id: record.class_id,
+        name: record.name,
+        grade: record.grade ?? null,
+        note: record.note ?? null,
+        archived: record.archived,
+        created_at: record.created_at,
+        archived_at: record.archived_at ?? null,
+        teacher: (record as ClassRecord & { teacher?: string | null }).teacher ?? null,
+      })
+      return true
+    } catch (err) {
+      this._lastError = err instanceof Error ? err.message : String(err)
+      console.error('[DB] insertClass failed:', this._lastError)
+      return false
+    }
+  }
+
+  /** 更新班级（名称/年级/备注/存档状态）。字段为 undefined/null 时不覆盖。 */
+  updateClass(
+    id: string,
+    fields: {
+      name?: string
+      grade?: string | null
+      note?: string | null
+      archived?: 0 | 1
+      archived_at?: number | null
+      teacher?: string | null
+    },
+  ): boolean {
+    if (!this._ready || !this.stmts.updateClass) return false
+    try {
+      const before = this.stmts.selectClassById?.get(id) as ClassRecord | undefined
+      const r = this.stmts.updateClass.run({
+        id,
+        name: fields.name ?? '',
+        grade: fields.grade !== undefined ? fields.grade : (before?.grade ?? null),
+        note: fields.note !== undefined ? fields.note : (before?.note ?? null),
+        archived: fields.archived !== undefined ? fields.archived : (before?.archived ?? 0),
+        archived_at:
+          fields.archived_at !== undefined ? fields.archived_at : (before?.archived_at ?? null),
+        teacher: fields.teacher !== undefined ? fields.teacher : (before?.teacher ?? null),
+      })
+      return Number(r.changes) > 0
+    } catch (err) {
+      this._lastError = err instanceof Error ? err.message : String(err)
+      console.error('[DB] updateClass failed:', this._lastError)
+      return false
+    }
+  }
+
+  /** 按主键 id 查询班级 */
+  getClassById(id: string): ClassRecord | null {
+    if (!this._ready || !this.stmts.selectClassById) return null
+    try {
+      return (this.stmts.selectClassById.get(id) as ClassRecord | undefined) ?? null
+    } catch (err) {
+      this._lastError = err instanceof Error ? err.message : String(err)
+      console.error('[DB] getClassById failed:', this._lastError)
+      return null
+    }
+  }
+
+  /** 按班级编号 class_id 查询班级（用于判断是否已存在/是否已存档） */
+  getClassByClassId(classId: string): ClassRecord | null {
+    if (!this._ready || !this.stmts.selectClassByClassId) return null
+    try {
+      return (this.stmts.selectClassByClassId.get(classId) as ClassRecord | undefined) ?? null
+    } catch (err) {
+      this._lastError = err instanceof Error ? err.message : String(err)
+      console.error('[DB] getClassByClassId failed:', this._lastError)
+      return null
+    }
+  }
+
+  /** 列出所有班级，未存档的排前面 */
+  listClasses(): ClassRecord[] {
+    if (!this._ready || !this.stmts.listClasses) return []
+    try {
+      return this.stmts.listClasses.all() as ClassRecord[]
+    } catch (err) {
+      this._lastError = err instanceof Error ? err.message : String(err)
+      console.error('[DB] listClasses failed:', this._lastError)
+      return []
+    }
+  }
+
+  /** 删除班级记录（仅删本地记录，不动学生数据） */
+  deleteClass(id: string): boolean {
+    if (!this._ready || !this.stmts.deleteClass) return false
+    try {
+      const r = this.stmts.deleteClass.run(id)
+      return Number(r.changes) > 0
+    } catch (err) {
+      this._lastError = err instanceof Error ? err.message : String(err)
+      console.error('[DB] deleteClass failed:', this._lastError)
+      return false
+    }
+  }
+
   // -------------------- Cleanup --------------------
 
   /**
@@ -503,6 +684,42 @@ class DBService {
     return { executions, logs }
   }
 
+  /** RISK 修复: 清理过期数据,防止 DB 无限增长
+   *  - chat_messages: 保留最近 90 天
+   *  - agent_executions: 保留最近 90 天
+   *  - 每次最多删除 10000 条,防止长时间阻塞 */
+  cleanupOldData(maxAgeDays = 90, batchSize = 10000): void {
+    if (!this._ready || !this.db) return
+    const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000
+    try {
+      const tx = this.db.transaction(() => {
+        // 先查数量,避免不必要的 DELETE
+        const msgCount = this.db!.prepare(
+          'SELECT COUNT(*) as n FROM chat_messages WHERE timestamp < ?',
+        ).get(cutoff) as { n: number }
+        if (msgCount.n > 0) {
+          this.db!.prepare(
+            'DELETE FROM chat_messages WHERE rowid IN (SELECT rowid FROM chat_messages WHERE timestamp < ? LIMIT ?)',
+          ).run(cutoff, batchSize)
+        }
+        const execCount = this.db!.prepare(
+          'SELECT COUNT(*) as n FROM agent_executions WHERE started_at < ?',
+        ).get(cutoff) as { n: number }
+        if (execCount.n > 0) {
+          this.db!.prepare(
+            'DELETE FROM agent_executions WHERE rowid IN (SELECT rowid FROM agent_executions WHERE started_at < ? LIMIT ?)',
+          ).run(cutoff, batchSize)
+        }
+      })
+      tx()
+      console.log(
+        `[DB] Cleanup: removed old messages/executions (cutoff=${new Date(cutoff).toISOString()})`,
+      )
+    } catch (err) {
+      console.error('[DB] Cleanup failed:', err)
+    }
+  }
+
   /**
    * 获取统计信息（用于设置页面 / 调试）。
    */
@@ -519,8 +736,9 @@ class DBService {
           const r = this.stmts.countCronLogs.get() as { count: number } | undefined
           logs = r?.count ?? 0
         }
-      } catch {
-        // 静默失败
+      } catch (err) {
+        // Medium 修复: 不再静默吞错,记录错误日志便于排查
+        console.error('[DB] getStats failed:', err)
       }
     }
     return { executions, logs, ready: this._ready, path: this.dbPath }
@@ -528,6 +746,11 @@ class DBService {
 
   /** 优雅关闭（graceful shutdown） */
   async close(): Promise<void> {
+    // Medium 修复: 清理定期清理定时器,避免 app 退出后 timer 仍引用已关闭的 db
+    if (this.cleanupTimer !== null) {
+      clearInterval(this.cleanupTimer)
+      this.cleanupTimer = null
+    }
     if (!this.db) return
     try {
       this.db.close()

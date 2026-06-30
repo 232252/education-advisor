@@ -7,6 +7,7 @@ import { agentService } from '../services/agent-service'
 import { eaaBridge } from '../services/eaa-bridge'
 import { registerAgentHandlers } from './agent-handlers'
 import { registerAIHandlers } from './ai-handlers'
+import { registerClassHandlers } from './class-handlers'
 import { registerCronHandlers } from './cron-handlers'
 import { registerEAAHandlers } from './eaa-handlers'
 import { registerFeishuHandlers } from './feishu-handlers'
@@ -29,6 +30,7 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerProfileHandlers()
   registerLogHandlers()
   registerFeishuHandlers()
+  registerClassHandlers()
 
   // 初始化 EAA Bridge（创建数据目录、复制 reason-codes、doctor 健康检查）
   const eaaStatus = await eaaBridge.initialize()

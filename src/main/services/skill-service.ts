@@ -22,9 +22,10 @@ class SkillService {
     // 用户级: ~/.education-advisor/skills/
     this.userSkillsDir = path.join(app.getPath('userData'), 'skills')
     // 项目级: resources/skills/ (打包后) 或项目根目录 skills/ (开发)
-    this.projectSkillsDir = app.isPackaged
-      ? path.join(process.resourcesPath, 'skills')
-      : path.join(__dirname, '..', '..', 'skills')
+    // app.isPackaged 在 `electron .` 启动时不可靠，优先检查 dev 路径
+    const devSkillsDir = path.join(__dirname, '..', '..', 'skills')
+    const prodSkillsDir = path.join(process.resourcesPath || '', 'skills')
+    this.projectSkillsDir = fs.existsSync(devSkillsDir) ? devSkillsDir : prodSkillsDir
 
     console.log(`[SkillService] Initialized`)
     console.log(`[SkillService]   user dir:   ${this.userSkillsDir}`)

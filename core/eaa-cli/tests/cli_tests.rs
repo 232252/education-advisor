@@ -50,7 +50,7 @@ fn test_version() {
     let mut cmd = Command::cargo_bin("eaa").unwrap();
     cmd.arg("--version")
         .assert()
-        .stdout(predicate::str::contains("eaa 2.0.0"));
+        .stdout(predicate::str::contains("eaa 3.1.2"));
 }
 
 #[test]

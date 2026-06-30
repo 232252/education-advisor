@@ -21,6 +21,10 @@ class KeystoreService {
   private _lastError: string | null = null
   /** 是否有未完成的写入（用于 graceful shutdown） */
   private _pendingWrites = 0
+  /** RISK 修复: 是否正在写盘(防止并发 save 写同一 tmp 文件导致数据丢失) */
+  private _writing = false
+  /** RISK 修复: 写盘期间有新修改,需要再写一次 */
+  private _needsResave = false
 
   constructor() {
     this.keyStorePath = path.join(app.getPath('userData'), 'keystore.enc')
@@ -66,27 +70,42 @@ class KeystoreService {
     }
   }
 
-  /** 加密后异步保存到磁盘，不阻塞调用方（P1-21） */
+  /** 加密后异步保存到磁盘，不阻塞调用方（P1-21）
+   *  RISK 修复: 加 _writing + _needsResave 机制,防止并发 save 写同一 tmp 文件导致数据丢失
+   *  之前两个并发 save() 各自读 cache 快照后都写同一个 .tmp 文件,
+   *  后写入者会覆盖前者的修改,且 rename 后另一个 save 找不到 tmp 文件
+   *  现在采用与 settings-service 一致的 do-while 模式 */
   private async save(): Promise<void> {
     if (!safeStorage.isEncryptionAvailable()) {
       this._lastError = 'Cannot save: encryption backend not available'
       console.warn(`[Keystore] ${this._lastError}`)
       return
     }
-    const obj = Object.fromEntries(this.cache)
-    const json = JSON.stringify(obj)
-    const encrypted = safeStorage.encryptString(json)
+    // 如果正在写盘,标记需要再写一次,本次直接返回
+    if (this._writing) {
+      this._needsResave = true
+      return
+    }
+    this._writing = true
     this._pendingWrites++
     try {
-      // 原子写入：先写临时文件再 rename，避免崩溃导致 keystore.enc 损坏
-      const tmpPath = `${this.keyStorePath}.tmp`
-      await fsp.writeFile(tmpPath, encrypted)
-      await fsp.rename(tmpPath, this.keyStorePath)
+      do {
+        this._needsResave = false
+        const obj = Object.fromEntries(this.cache)
+        const json = JSON.stringify(obj)
+        const encrypted = safeStorage.encryptString(json)
+        // 原子写入:先写临时文件再 rename,避免崩溃导致 keystore.enc 损坏
+        // tmp 文件名加随机后缀,即使并发也不会互相覆盖(双重防御)
+        const tmpPath = `${this.keyStorePath}.tmp.${process.pid}.${Date.now()}`
+        await fsp.writeFile(tmpPath, encrypted)
+        await fsp.rename(tmpPath, this.keyStorePath)
+      } while (this._needsResave)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       this._lastError = `Failed to save keystore: ${msg}`
       console.error('[Keystore] Save failed:', msg)
     } finally {
+      this._writing = false
       this._pendingWrites--
     }
   }

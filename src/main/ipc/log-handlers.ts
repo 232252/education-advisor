@@ -8,16 +8,26 @@
 
 import { dialog, ipcMain } from 'electron'
 import * as IPC from '../../shared/ipc-channels'
+import type { LogLevel } from '../utils/logger'
 import {
   clearAllLogs,
   exportLog,
   listLogFiles,
+  logRenderer,
   readLogTail,
   readLogTailByLevel,
   searchLog,
 } from '../utils/logger'
 
 export function registerLogHandlers(): void {
+  // 渲染进程 console 转发 (单向通知, 不需要 handle)
+  // C-1 修复: 原本只有 preload.send 但主进程无监听者,导致 renderer-*.log 永远不生成
+  ipcMain.on(IPC.IPC_LOG_WRITE_RENDERER, (_event, level: string, msg: string) => {
+    const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error']
+    const lv = validLevels.includes(level as LogLevel) ? (level as LogLevel) : 'info'
+    logRenderer(lv, String(msg))
+  })
+
   ipcMain.handle(IPC.IPC_LOG_LIST, async () => {
     try {
       return await listLogFiles()

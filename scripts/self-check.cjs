@@ -68,7 +68,7 @@ for (const f of ghFiles) {
 
 console.log('\n=== scripts/ (build tooling) ===')
 const scriptFiles = [
-  'download-eaa-binaries.mjs',
+  'build-eaa.mjs',
   'generate-update-manifest.mjs',
   'analyze-links.mjs',
 ]

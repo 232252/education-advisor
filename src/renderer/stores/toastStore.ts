@@ -32,6 +32,9 @@ interface ToastState {
 let counter = 0
 const nextId = () => `toast-${Date.now()}-${++counter}`
 
+/** Medium 修复: 保存 toast 自动消失的 timer id,dismiss 时清理,避免资源泄漏 */
+const toastTimers = new Map<string, number>()
+
 export const useToastStore = create<ToastState>((set, get) => ({
   toasts: [],
 
@@ -48,19 +51,34 @@ export const useToastStore = create<ToastState>((set, get) => ({
 
     if (item.durationMs > 0 && typeof window !== 'undefined') {
       // P2-6 同理:用 window.setTimeout 以保证 SSR/test 环境可被 mock
-      window.setTimeout(() => {
+      const timerId = window.setTimeout(() => {
+        toastTimers.delete(id)
         get().dismiss(id)
       }, item.durationMs)
+      toastTimers.set(id, timerId)
     }
 
     return id
   },
 
   dismiss: (id) => {
+    // Medium 修复: 清理未触发的 timer,避免已 dismiss 的 toast 重复触发 dismiss
+    const timerId = toastTimers.get(id)
+    if (timerId !== undefined) {
+      window.clearTimeout(timerId)
+      toastTimers.delete(id)
+    }
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
   },
 
-  clear: () => set({ toasts: [] }),
+  // MEDIUM 修复: clear() 同步清理 toastTimers Map,避免已设置但未触发的定时器泄漏
+  clear: () => {
+    for (const timerId of toastTimers.values()) {
+      window.clearTimeout(timerId)
+    }
+    toastTimers.clear()
+    set({ toasts: [] })
+  },
 }))
 
 // 便捷静态方法(用于非组件上下文)

@@ -21,15 +21,62 @@ interface UpdateInfo {
   message: string
 }
 
-/** 简单 semver 比较: 返回 1 (a>b), -1 (a<b), 0 (a==b) */
+/**
+ * 简单 semver 比较: 返回 1 (a>b), -1 (a<b), 0 (a==b)
+ * 支持基础 pre-release 版本号比较 (如 1.0.0-beta.1):
+ * - 无 pre-release 的版本 > 有 pre-release 的版本 (1.0.0 > 1.0.0-beta.1)
+ * - pre-release 标识按字母数字顺序逐段比较 (按 . 分段)
+ * - 纯数字段按数值比较,非数字段按字符串比较;数字段优先级低于非数字段
+ */
 function compareSemver(a: string, b: string): number {
-  const pa = a.replace(/^v/, '').split('.').map(Number)
-  const pb = b.replace(/^v/, '').split('.').map(Number)
+  // 移除 v 前缀,按首个 '-' 分离主版本号与 pre-release 标识
+  const cleanA = a.replace(/^v/, '')
+  const cleanB = b.replace(/^v/, '')
+  const dashA = cleanA.indexOf('-')
+  const dashB = cleanB.indexOf('-')
+  const mainA = dashA === -1 ? cleanA : cleanA.slice(0, dashA)
+  const mainB = dashB === -1 ? cleanB : cleanB.slice(0, dashB)
+  const preA = dashA === -1 ? '' : cleanA.slice(dashA + 1)
+  const preB = dashB === -1 ? '' : cleanB.slice(dashB + 1)
+
+  // 先比较主版本号 (major.minor.patch)
+  const pa = mainA.split('.').map(Number)
+  const pb = mainB.split('.').map(Number)
   for (let i = 0; i < 3; i++) {
     const na = pa[i] ?? 0
     const nb = pb[i] ?? 0
     if (na > nb) return 1
     if (na < nb) return -1
+  }
+
+  // 主版本号相同,比较 pre-release
+  // 无 pre-release 的版本 > 有 pre-release 的版本 (如 1.0.0 > 1.0.0-beta.1)
+  if (!preA && !preB) return 0
+  if (!preA) return 1
+  if (!preB) return -1
+
+  // 两者都有 pre-release,按 . 分段逐段比较 (字母数字顺序)
+  const prePartsA = preA.split('.')
+  const prePartsB = preB.split('.')
+  const len = Math.max(prePartsA.length, prePartsB.length)
+  for (let i = 0; i < len; i++) {
+    const partA = prePartsA[i] ?? ''
+    const partB = prePartsB[i] ?? ''
+    if (partA === partB) continue
+
+    const numA = Number(partA)
+    const numB = Number(partB)
+    const isNumA = partA !== '' && !Number.isNaN(numA)
+    const isNumB = partB !== '' && !Number.isNaN(numB)
+
+    // 纯数字段优先级低于非数字段 (semver 规范)
+    if (isNumA && !isNumB) return -1
+    if (!isNumA && isNumB) return 1
+    if (isNumA && isNumB) {
+      return numA > numB ? 1 : numA < numB ? -1 : 0
+    }
+    // 都是非数字段,按字符串比较
+    return partA > partB ? 1 : -1
   }
   return 0
 }
@@ -53,6 +100,8 @@ function fetchLatestRelease(repoUrl: string): Promise<{
     const cleanRepo = repo.replace(/\.git$/, '')
     const apiUrl = `https://api.github.com/repos/${owner}/${cleanRepo}/releases/latest`
 
+    // 保存 res 引用,以便在超时时清理响应流,防止资源泄漏
+    let res: import('node:http').IncomingMessage | null = null
     const req = https.get(
       apiUrl,
       {
@@ -62,7 +111,8 @@ function fetchLatestRelease(repoUrl: string): Promise<{
         },
         timeout: 10_000,
       },
-      (res) => {
+      (response) => {
+        res = response
         if (res.statusCode !== 200) {
           reject(new Error(`GitHub API returned ${res.statusCode}`))
           res.resume()
@@ -84,6 +134,8 @@ function fetchLatestRelease(repoUrl: string): Promise<{
     )
     req.on('error', reject)
     req.on('timeout', () => {
+      // 超时时同时清理响应流和请求,防止资源泄漏
+      res?.destroy()
       req.destroy()
       reject(new Error('Request timed out'))
     })

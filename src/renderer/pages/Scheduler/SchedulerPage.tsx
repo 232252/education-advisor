@@ -4,9 +4,103 @@
 
 import type { AgentListItem, CronLogEntry, CronTask } from '@shared/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../../stores/toastStore'
+
+// =============================================================
+// Cron 表达式前端基本格式校验 (不依赖 IPC, 输入时实时反馈)
+//  格式: minute hour day-of-month month day-of-week
+//  支持: * / - , 数字, */n, a-b/n
+// =============================================================
+
+interface CronValidationResult {
+  valid: boolean
+  error?: string
+}
+
+const CRON_FIELD_RANGES = [
+  { name: '分钟', min: 0, max: 59 },
+  { name: '小时', min: 0, max: 23 },
+  { name: '日', min: 1, max: 31 },
+  { name: '月', min: 1, max: 12 },
+  { name: '周', min: 0, max: 7 }, // 0 和 7 都是周日
+] as const
+
+function validateCronField(
+  field: string,
+  range: { name: string; min: number; max: number },
+): string | null {
+  if (field === '*') return null
+  const subFields = field.split(',')
+  for (const sub of subFields) {
+    if (sub === '') return `空字段 "${field}"`
+    // 处理 */n
+    if (sub.startsWith('*/')) {
+      const step = Number.parseInt(sub.slice(2), 10)
+      if (Number.isNaN(step) || step < 1) return `步长 "${sub}" 无效`
+      continue
+    }
+    // 处理 a-b 或 a-b/n
+    const rangeMatch = sub.match(/^(\d+)-(\d+)(?:\/(\d+))?$/)
+    if (rangeMatch) {
+      const [, startStr, endStr, stepStr] = rangeMatch
+      const start = Number.parseInt(startStr, 10)
+      const end = Number.parseInt(endStr, 10)
+      const effectiveMaxStart = range.name === '周' && start === 7 ? 7 : range.max
+      const effectiveMaxEnd = range.name === '周' && end === 7 ? 7 : range.max
+      if (start < range.min || start > effectiveMaxStart)
+        return `${start} 超出范围 ${range.min}-${range.max}`
+      if (end < range.min || end > effectiveMaxEnd)
+        return `${end} 超出范围 ${range.min}-${range.max}`
+      if (stepStr) {
+        const step = Number.parseInt(stepStr, 10)
+        if (step < 1) return `步长 ${step} 无效`
+      }
+      continue
+    }
+    // 处理纯数字
+    const num = Number.parseInt(sub, 10)
+    if (Number.isNaN(num)) return `"${sub}" 不是有效数字`
+    // 周的特殊处理: 0 和 7 都表示周日
+    const effectiveMax = range.name === '周' && num === 7 ? 7 : range.max
+    if (num < range.min || num > effectiveMax) return `${num} 超出范围 ${range.min}-${range.max}`
+  }
+  return null
+}
+
+/** 基本 cron 表达式校验 — 5 段格式 + 每段范围检查
+ *  支持宏表达式 (@daily, @hourly 等,与 node-cron 兼容) */
+const CRON_MACROS: Record<string, string> = {
+  '@yearly': '0 0 1 1 *',
+  '@annually': '0 0 1 1 *',
+  '@monthly': '0 0 1 * *',
+  '@weekly': '0 0 * * 0',
+  '@daily': '0 0 * * *',
+  '@midnight': '0 0 * * *',
+  '@hourly': '0 * * * *',
+}
+
+function validateCron(expr: string): CronValidationResult {
+  if (!expr || typeof expr !== 'string') return { valid: false, error: '表达式不能为空' }
+  // 宏表达式支持 (@daily 等与 node-cron 兼容)
+  const macroKey = expr.trim().toLowerCase()
+  if (macroKey.startsWith('@')) {
+    if (macroKey in CRON_MACROS) return { valid: true }
+    return {
+      valid: false,
+      error: `未知宏表达式: ${expr} (支持: @yearly/@monthly/@weekly/@daily/@hourly)`,
+    }
+  }
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length !== 5) return { valid: false, error: '需要 5 段: 分 时 日 月 周' }
+  for (let i = 0; i < 5; i++) {
+    const err = validateCronField(parts[i], CRON_FIELD_RANGES[i])
+    if (err) return { valid: false, error: `${CRON_FIELD_RANGES[i].name}: ${err}` }
+  }
+  return { valid: true }
+}
 
 export function SchedulerPage() {
   const [tasks, setTasks] = useState<CronTask[]>([])
@@ -16,17 +110,38 @@ export function SchedulerPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  // CONCERN 修复: 编辑任务模式 — 当 editingTaskId 非空时,表单填充该任务数据
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean
+    message: string
+    title?: string
+    onConfirm: () => void
+    variant?: 'default' | 'danger'
+  }>({ open: false, message: '', onConfirm: () => {} })
 
   const loadData = useCallback(async () => {
     try {
-      const [taskData, logData, agentData] = await Promise.all([
+      // 使用 allSettled: 单个 IPC 调用失败不阻塞其他数据加载
+      // 例如 agent.list() 失败时,cron 任务和日志仍能正常显示
+      const results = await Promise.allSettled([
         getAPI().cron.list(),
         getAPI().cron.getLogs(),
         getAPI().agent.list(),
       ])
-      setTasks(taskData)
-      setLogs(logData)
-      setAgents(agentData)
+      const [taskData, logData, agentData] = results.map((r) =>
+        r.status === 'fulfilled' ? r.value : [],
+      )
+      setTasks(taskData as CronTask[])
+      setLogs(logData as CronLogEntry[])
+      setAgents(agentData as AgentListItem[])
+      const failed = results.filter((r) => r.status === 'rejected')
+      if (failed.length > 0) {
+        console.warn(
+          `[Scheduler] ${failed.length}/${results.length} calls failed:`,
+          failed.map((r) => String((r as PromiseRejectedResult).reason)),
+        )
+      }
     } catch (err) {
       console.error('[Scheduler] Failed to load:', err)
       toast.error('加载定时任务失败')
@@ -40,6 +155,19 @@ export function SchedulerPage() {
   useEffect(() => {
     loadDataRef.current = loadData
   })
+
+  // MEDIUM 修复: 校验 editingTaskId 有效性
+  // 场景: 用户点击"编辑"后,任务被外部(如 cron 状态更新触发的 loadData)替换或删除,
+  //       editingTaskId 指向的任务在 tasks 中找不到,editingTask=null → isEditing=false,
+  //       表单会显示"新建"而非"编辑",提交时调用 onCreate 会创建重复任务。
+  // 修复: tasks 变化时检查 editingTaskId 是否仍存在,失效则清除并关闭表单。
+  useEffect(() => {
+    if (editingTaskId && !tasks.find((t) => t.id === editingTaskId)) {
+      setEditingTaskId(null)
+      setShowForm(false)
+      toast.warning('编辑的任务已不存在,表单已关闭')
+    }
+  }, [tasks, editingTaskId])
 
   useEffect(() => {
     loadData()
@@ -87,15 +215,23 @@ export function SchedulerPage() {
     }
   }
 
-  const handleRemove = async (id: string) => {
-    if (!window.confirm('确定要删除此定时任务吗？')) return
-    try {
-      await getAPI().cron.remove(id)
-      loadData()
-    } catch (err) {
-      console.error('[Scheduler] Remove failed:', err)
-      toast.error('删除任务失败')
-    }
+  const handleRemove = (id: string) => {
+    setConfirmState({
+      open: true,
+      message: '确定要删除此定时任务吗？',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await getAPI().cron.remove(id)
+          loadData()
+        } catch (err) {
+          console.error('[Scheduler] Remove failed:', err)
+          toast.error('删除任务失败')
+        } finally {
+          setConfirmState((prev) => ({ ...prev, open: false }))
+        }
+      },
+    })
   }
 
   const handleCreate = async (task: Omit<CronTask, 'id'>) => {
@@ -106,6 +242,24 @@ export function SchedulerPage() {
     } catch (err) {
       console.error('[Scheduler] Create failed:', err)
       toast.error('创建任务失败')
+    }
+  }
+
+  // CONCERN 修复: 编辑任务入口 — 调用 IPC_CRON_UPDATE 更新已有任务
+  const handleEdit = async (id: string, patch: Partial<CronTask>) => {
+    try {
+      const result = await getAPI().cron.update(id, patch)
+      if (result.success) {
+        setShowForm(false)
+        setEditingTaskId(null)
+        loadData()
+        toast.success('任务已更新')
+      } else {
+        toast.error('更新任务失败')
+      }
+    } catch (err) {
+      console.error('[Scheduler] Edit failed:', err)
+      toast.error('更新任务失败')
     }
   }
 
@@ -126,7 +280,10 @@ export function SchedulerPage() {
           </button>
           <button
             type="button"
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              setEditingTaskId(null)
+              setShowForm(!showForm)
+            }}
             className="bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg text-sm transition-colors"
           >
             {showForm ? '取消' : '+ 新增任务'}
@@ -134,9 +291,18 @@ export function SchedulerPage() {
         </div>
       </div>
 
-      {/* 新建表单 */}
+      {/* 新建/编辑表单 */}
       {showForm && (
-        <NewTaskForm agents={agents} onCreate={handleCreate} onCancel={() => setShowForm(false)} />
+        <NewTaskForm
+          agents={agents}
+          editingTask={editingTaskId ? (tasks.find((tk) => tk.id === editingTaskId) ?? null) : null}
+          onCreate={handleCreate}
+          onUpdate={handleEdit}
+          onCancel={() => {
+            setShowForm(false)
+            setEditingTaskId(null)
+          }}
+        />
       )}
 
       {/* 主体 */}
@@ -167,6 +333,10 @@ export function SchedulerPage() {
                   onToggle={handleToggle}
                   onRunNow={handleRunNow}
                   onRemove={handleRemove}
+                  onEdit={(id) => {
+                    setEditingTaskId(id)
+                    setShowForm(true)
+                  }}
                 />
               ))
             )}
@@ -200,6 +370,15 @@ export function SchedulerPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        variant={confirmState.variant}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+      />
     </div>
   )
 }
@@ -216,6 +395,7 @@ interface TaskCardProps {
   onToggle: (id: string, enabled: boolean) => void
   onRunNow: (id: string) => void
   onRemove: (id: string) => void
+  onEdit: (id: string) => void
 }
 
 function TaskCard({
@@ -226,6 +406,7 @@ function TaskCard({
   onToggle,
   onRunNow,
   onRemove,
+  onEdit,
 }: TaskCardProps) {
   const agent = agents.find((a) => a.id === task.agentId)
 
@@ -326,7 +507,7 @@ function TaskCard({
               e.stopPropagation()
               onRunNow(task.id)
             }}
-            className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-2.5 py-1 rounded text-xs transition-colors"
+            className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-2.5 py-1 rounded-lg text-xs transition-colors"
           >
             执行
           </button>
@@ -335,9 +516,21 @@ function TaskCard({
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
+                onEdit(task.id)
+              }}
+              className="bg-gray-200 hover:bg-blue-600 dark:bg-gray-700 dark:hover:bg-blue-700 px-2.5 py-1 rounded-lg text-xs transition-colors"
+            >
+              编辑
+            </button>
+          )}
+          {!task.id.startsWith('agent-schedule-') && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
                 onRemove(task.id)
               }}
-              className="bg-gray-200 hover:bg-red-600 dark:bg-gray-700 dark:hover:bg-red-700 px-2.5 py-1 rounded text-xs transition-colors"
+              className="bg-gray-200 hover:bg-red-600 dark:bg-gray-700 dark:hover:bg-red-700 px-2.5 py-1 rounded-lg text-xs transition-colors"
             >
               删除
             </button>
@@ -403,16 +596,59 @@ function LogEntry({ log }: { log: CronLogEntry }) {
 
 interface NewTaskFormProps {
   agents: AgentListItem[]
+  /** 编辑模式:传入已有任务则填充表单,提交时调用 onUpdate */
+  editingTask: CronTask | null
   onCreate: (task: Omit<CronTask, 'id'>) => void
+  onUpdate: (id: string, patch: Partial<CronTask>) => void
   onCancel: () => void
 }
 
-function NewTaskForm({ agents, onCreate, onCancel }: NewTaskFormProps) {
-  const [name, setName] = useState('')
-  const [agentId, setAgentId] = useState(agents[0]?.id ?? '')
-  const [expression, setExpression] = useState('0 9 * * *')
-  const [prompt, setPrompt] = useState('')
-  const [modelTier, setModelTier] = useState<'high_quality' | 'low_cost'>('low_cost')
+function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewTaskFormProps) {
+  const isEditing = editingTask !== null
+  const [name, setName] = useState(editingTask?.name ?? '')
+  const [agentId, setAgentId] = useState(editingTask?.agentId ?? agents[0]?.id ?? '')
+  const [expression, setExpression] = useState(editingTask?.expression ?? '0 9 * * *')
+  const [prompt, setPrompt] = useState(editingTask?.prompt ?? '')
+  const [modelTier, setModelTier] = useState<'high_quality' | 'low_cost'>(
+    editingTask?.modelTier ?? 'low_cost',
+  )
+
+  // LOW 修复: 切换 editingTask 时(从"编辑任务 A"切到"编辑任务 B",
+  // 或在打开表单状态下从其他位置触发编辑)同步表单字段。
+  // useState 初始化只在 mount 时执行一次,editingTask prop 变化不会自动同步,
+  // 导致切到 B 后表单仍显示 A 的数据,提交时覆盖错任务。
+  // 仅当 editingTask.id 实际变化时才同步,避免每次父组件重渲都重置用户输入。
+  const lastEditingIdRef = useRef<string | null>(editingTask?.id ?? null)
+  useEffect(() => {
+    const currentId = editingTask?.id ?? null
+    if (currentId === lastEditingIdRef.current) return
+    lastEditingIdRef.current = currentId
+    setName(editingTask?.name ?? '')
+    setAgentId(editingTask?.agentId ?? agents[0]?.id ?? '')
+    setExpression(editingTask?.expression ?? '0 9 * * *')
+    setPrompt(editingTask?.prompt ?? '')
+    setModelTier(editingTask?.modelTier ?? 'low_cost')
+  }, [editingTask, agents])
+
+  // LOW 修复: 编辑模式下,若 editingTask.agentId 不在 agents 列表中(已被删除),
+  // 自动回退到第一个可用 agent 并提示用户,避免提交时使用无效 agentId。
+  // 也覆盖 agents 列表异步加载完成后 agentId 仍指向已删除 agent 的场景。
+  useEffect(() => {
+    if (agents.length === 0) return
+    if (agentId && agents.find((a) => a.id === agentId)) return
+    // 当前 agentId 无效,回退到第一个可用 agent
+    const fallback = agents[0]?.id ?? ''
+    if (fallback && fallback !== agentId) {
+      setAgentId(fallback)
+      if (isEditing) {
+        toast.warning('原 Agent 已删除,已回退到第一个可用 Agent')
+      }
+    }
+  }, [agents, agentId, isEditing])
+
+  // P0: cron 表达式实时校验 (前端基本格式校验, 提交前再次校验避免漏判)
+  const cronValidation = validateCron(expression)
+  const isCronValid = cronValidation.valid
 
   const presets = [
     { label: '每天早上 9 点', value: '0 9 * * *' },
@@ -424,19 +660,34 @@ function NewTaskForm({ agents, onCreate, onCancel }: NewTaskFormProps) {
 
   const handleSubmit = () => {
     if (!name.trim() || !agentId || !expression.trim() || !prompt.trim()) return
-    onCreate({
-      name: name.trim(),
-      agentId,
-      expression: expression.trim(),
-      prompt: prompt.trim(),
-      enabled: true,
-      modelTier,
-    })
+    // 提交前再次校验, 防止绕过 disabled 的情况 (如直接触发)
+    if (!isCronValid) {
+      toast.error(`Cron 表达式无效: ${cronValidation.error ?? ''}`)
+      return
+    }
+    if (isEditing && editingTask) {
+      onUpdate(editingTask.id, {
+        name: name.trim(),
+        agentId,
+        expression: expression.trim(),
+        prompt: prompt.trim(),
+        modelTier,
+      })
+    } else {
+      onCreate({
+        name: name.trim(),
+        agentId,
+        expression: expression.trim(),
+        prompt: prompt.trim(),
+        enabled: true,
+        modelTier,
+      })
+    }
   }
 
   return (
     <div className="border-b border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/50">
-      <h3 className="text-sm font-medium mb-3">新建定时任务</h3>
+      <h3 className="text-sm font-medium mb-3">{isEditing ? '编辑定时任务' : '新建定时任务'}</h3>
 
       <div className="grid grid-cols-2 gap-3">
         {/* 任务名称 */}
@@ -492,7 +743,9 @@ function NewTaskForm({ agents, onCreate, onCancel }: NewTaskFormProps) {
             value={expression}
             onChange={(e) => setExpression(e.target.value)}
             placeholder="* * * * *"
-            className="w-full bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-600 rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-blue-500"
+            aria-invalid={!isCronValid}
+            className={`w-full bg-white border rounded px-3 py-1.5 text-sm font-mono focus:outline-none
+              ${isCronValid ? 'border-gray-300 dark:bg-gray-900 dark:border-gray-600 focus:border-blue-500' : 'border-red-400 dark:border-red-500 dark:bg-gray-900 focus:border-red-500'}`}
           />
           <div className="flex gap-1 mt-1.5 flex-wrap">
             {presets.map((p) => (
@@ -500,12 +753,21 @@ function NewTaskForm({ agents, onCreate, onCancel }: NewTaskFormProps) {
                 type="button"
                 key={p.value}
                 onClick={() => setExpression(p.value)}
-                className={`text-[10px] px-2 py-0.5 rounded transition-colors
+                className={`text-[10px] px-2 py-0.5 rounded-lg transition-colors
                   ${expression === p.value ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
               >
                 {p.label}
               </button>
             ))}
+          </div>
+          {/* 实时校验提示 */}
+          <div
+            className={`mt-1 text-[11px] leading-tight ${
+              isCronValid ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'
+            }`}
+            role={isCronValid ? 'status' : 'alert'}
+          >
+            {isCronValid ? '✓ 表达式有效' : `✗ ${cronValidation.error ?? '无效'}`}
           </div>
         </div>
 
@@ -519,7 +781,7 @@ function NewTaskForm({ agents, onCreate, onCancel }: NewTaskFormProps) {
               role="radio"
               aria-checked={modelTier === 'low_cost'}
               onClick={() => setModelTier('low_cost')}
-              className={`flex-1 text-sm py-1.5 rounded transition-colors
+              className={`flex-1 text-sm py-1.5 rounded-lg transition-colors
                 ${modelTier === 'low_cost' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
             >
               低成本
@@ -530,7 +792,7 @@ function NewTaskForm({ agents, onCreate, onCancel }: NewTaskFormProps) {
               role="radio"
               aria-checked={modelTier === 'high_quality'}
               onClick={() => setModelTier('high_quality')}
-              className={`flex-1 text-sm py-1.5 rounded transition-colors
+              className={`flex-1 text-sm py-1.5 rounded-lg transition-colors
                 ${modelTier === 'high_quality' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
             >
               高质量
@@ -563,17 +825,19 @@ function NewTaskForm({ agents, onCreate, onCancel }: NewTaskFormProps) {
         <button
           type="button"
           onClick={onCancel}
-          className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-4 py-1.5 rounded text-sm transition-colors"
+          className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-4 py-1.5 rounded-lg text-sm transition-colors"
         >
           取消
         </button>
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!name.trim() || !agentId || !expression.trim() || !prompt.trim()}
-          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 px-4 py-1.5 rounded text-sm transition-colors"
+          disabled={
+            !name.trim() || !agentId || !expression.trim() || !prompt.trim() || !isCronValid
+          }
+          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 px-4 py-1.5 rounded-lg text-sm transition-colors"
         >
-          创建
+          {isEditing ? '保存' : '创建'}
         </button>
       </div>
     </div>

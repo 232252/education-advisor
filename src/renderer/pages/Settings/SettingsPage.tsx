@@ -1,74 +1,54 @@
 // =============================================================
-// 系统设置页面 (v3 整改:删 5 模块 + 删顶部 banner)
-//   - 删除模块: 模型 / 隐私 / 高级 / 快捷键 / 匿名上报
-//   - 删除字段: defaultModel / defaultOperator / telemetry
-//   - 保留 section: 通用 / 对话 / 飞书
-//   - 顶部 banner 文字已迁移至「关于」模块 (T2 新增)
+// 系统设置页面 (v4 整改:删除 StatusBadge 死代码)
+//   - 所有字段均已实现 (live),不再需要状态徽章
+//   - 保留 FIELD_HINT 提供鼠标悬停说明
+//   - 保留 section: 通用 / 对话 / 飞书 / 诊断 / 日志 / 关于
 // =============================================================
 
 import type { UnifiedSettings } from '@shared/types'
-import { useCallback, useEffect, useReducer, useState } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { setLang, useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../../stores/toastStore'
 
-type Status = 'live' | 'restart' | 'todo' | 'unavailable'
-
-interface FieldMeta {
-  status: Status
-  hint?: string
+// 字段提示信息（鼠标悬停显示）
+// 所有字段已实现,不再需要 status 状态标识
+const FIELD_HINT: Record<string, string> = {
+  'general.dataDir': 'EAA 数据目录,首次启动自动生成',
+  'general.language': 'i18n 已接入,useT hook 自动响应切换 (部分静态文案需重启)',
+  'general.autoUpdate': '检查更新功能已接入',
+  'general.autoStart': '同步写入系统登录项',
+  'general.minimizeToTray': '托盘将实时创建/销毁',
+  'general.logLevel': '主进程日志级别实现完毕,运行时即时生效',
+  'chat.compaction.enabled': '上下文超长时自动压缩历史消息',
+  'chat.compaction.reserveTokens': '压缩后保留的最小 token 数',
+  'chat.compaction.keepRecentTokens': '压缩时强制保留的最近消息 token 数',
+  'chat.steeringMode': 'Agent 运行时已读取并注入 system prompt',
+  'chat.followUpMode': 'Agent 运行时已读取并注入 system prompt',
+  'chat.showImages': 'ChatPage 已接入，设置后立即生效',
+  'chat.maxTokens': 'pi-ai-service 已读取并传入 streamSimple',
+  'feishu.appId': '飞书开放平台应用 ID',
+  'feishu.appSecret': '已加密保存(keystore)',
+  'feishu.userOpenId': '接收消息的用户 open_id',
+  'feishu.bitableSync.enabled': 'cron-service.registerBitableSync 已接入',
+  'feishu.bitableSync.syncInterval': '每 N 分钟一次',
+  'eaa.doctor': 'EAA 引擎环境健康检查',
+  'eaa.validate': 'EAA 事件数据完整性验证',
 }
 
-const FIELD_META: Record<string, FieldMeta> = {
-  // 通用
-  'general.dataDir': { status: 'live', hint: 'EAA 数据目录,首次启动自动生成' },
-  'general.theme': { status: 'live' },
-  'general.language': {
-    status: 'live',
-    hint: 'i18n 已接入,useT hook 自动响应切换 (部分静态文案需重启)',
-  },
-  'general.autoUpdate': { status: 'live', hint: '检查更新功能已接入' },
-  'general.updateUrl': { status: 'live' },
-  'general.autoStart': { status: 'live', hint: '同步写入系统登录项' },
-  'general.minimizeToTray': { status: 'live', hint: '托盘将实时创建/销毁' },
-  'general.closeBehavior': { status: 'live' },
-  'general.logLevel': { status: 'live', hint: '主进程日志级别实现完毕,运行时即时生效 (T5)' },
-  // 对话
-  'chat.compaction.enabled': { status: 'live', hint: '上下文超长时自动压缩历史消息' },
-  'chat.compaction.reserveTokens': { status: 'live', hint: '压缩后保留的最小 token 数' },
-  'chat.compaction.keepRecentTokens': { status: 'live', hint: '压缩时强制保留的最近消息 token 数' },
-  'chat.steeringMode': { status: 'live', hint: 'Agent 运行时已读取并注入 system prompt' },
-  'chat.followUpMode': { status: 'live', hint: 'Agent 运行时已读取并注入 system prompt' },
-  'chat.showImages': { status: 'live', hint: 'ChatPage 已接入，设置后立即生效' },
-  'chat.maxTokens': { status: 'live', hint: 'pi-ai-service L502-517 已读取并传入 streamSimple' },
-  // 飞书
-  'feishu.appId': { status: 'live', hint: '飞书开放平台应用 ID' },
-  'feishu.appSecret': { status: 'live', hint: '已加密保存(keystore)' },
-  'feishu.userOpenId': { status: 'live', hint: '接收消息的用户 open_id' },
-  'feishu.bitableSync.enabled': { status: 'live', hint: 'cron-service.registerBitableSync 已接入' },
-  'feishu.bitableSync.syncInterval': { status: 'live', hint: '每 N 分钟一次' },
-  // 诊断 & 维护
-  'eaa.doctor': { status: 'live', hint: 'EAA 引擎环境健康检查' },
-  'eaa.validate': { status: 'live', hint: 'EAA 事件数据完整性验证' },
-}
-
-function StatusBadge({ path }: { path: string }) {
-  const meta = FIELD_META[path]
-  if (!meta || meta.status === 'live') return null
-  const map: Record<Status, { label: string; cls: string }> = {
-    live: { label: '', cls: '' },
-    restart: { label: '需重启', cls: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
-    todo: { label: '待实现', cls: 'bg-gray-500/15 text-gray-500 dark:text-gray-400' },
-    unavailable: { label: '不可用', cls: 'bg-zinc-500/15 text-zinc-500 dark:text-zinc-400' },
-  }
-  // 后续可替换为 t('settings.badge.live'/'restart'/'todo') —— 当前保持硬编码保证类型完整
-  const b = map[meta.status]
+// 提示图标:有 hint 的字段显示一个小问号,鼠标悬停显示说明
+function HintIcon({ path }: { path: string }) {
+  const hint = FIELD_HINT[path]
+  if (!hint) return null
   return (
     <span
-      className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${b.cls}`}
-      title={meta.hint ?? ''}
+      className="text-[10px] text-gray-400 dark:text-gray-500 cursor-help"
+      title={hint}
+      role="img"
+      aria-label="提示"
     >
-      {b.label}
+      ⓘ
     </span>
   )
 }
@@ -125,7 +105,7 @@ function SettingRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
           <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{label}</span>
-          <StatusBadge path={path} />
+          <HintIcon path={path} />
         </div>
         {description && (
           <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mt-0.5">
@@ -237,6 +217,17 @@ export function SettingsPage() {
   // T3: viewer UI 增强
   const [logLevelFilter, setLogLevelFilter] = useState<string>('all')
   const [logSearchQuery, setLogSearchQuery] = useState<string>('')
+  // H-9 修复: 日志搜索防抖 timer ref,避免每次按键都触发 IPC 搜索
+  const logSearchTimerRef = useRef<NodeJS.Timeout | null>(null)
+  // MEDIUM 修复: 组件卸载时清理 logSearchTimerRef,防止内存泄漏与卸载后 setState
+  useEffect(() => {
+    return () => {
+      if (logSearchTimerRef.current) {
+        clearTimeout(logSearchTimerRef.current)
+        logSearchTimerRef.current = null
+      }
+    }
+  }, [])
   // 诊断 & 维护
   const [doctorStatus, setDoctorStatus] = useState<'idle' | 'running' | 'done'>('idle')
   const [doctorResult, setDoctorResult] = useState<{
@@ -252,12 +243,16 @@ export function SettingsPage() {
     errors: string[]
     warnings: string[]
   } | null>(null)
+  const [pendingConfirm, setPendingConfirm] = useState<'reset' | 'clearLogs' | null>(null)
 
   const loadSettings = useCallback(async () => {
     try {
       setLoading(true)
       const s = await getAPI().settings.get()
       setSettings(s)
+      // C-4 修复: 从 settings 加载 bitableAppToken 到本地 state
+      // 之前该字段只在本地 state,从未持久化,重启后丢失
+      setBitableAppToken(s.feishu?.bitableAppToken ?? '')
     } catch (err) {
       console.error('[Settings] Failed to load:', err)
       toast.error(t('settings.load.failed'))
@@ -287,7 +282,10 @@ export function SettingsPage() {
   )
 
   const handleReset = useCallback(async () => {
-    if (!confirm(t('settings.reset.confirm'))) return
+    setPendingConfirm('reset')
+  }, [])
+
+  const executeReset = useCallback(async () => {
     try {
       setSaving(true)
       await getAPI().settings.reset()
@@ -476,11 +474,17 @@ export function SettingsPage() {
           <button
             type="button"
             onClick={async () => {
-              const result = await getAPI().sys.checkUpdate()
-              if (result.hasUpdate) {
-                await getAPI().sys.showUpdateDialog()
-              } else {
-                toast.success(result.message || `已是最新版本 v${result.currentVersion}`)
+              // H-6 修复: 加 try/catch,避免检查更新失败时无反馈
+              try {
+                const result = await getAPI().sys.checkUpdate()
+                if (result.hasUpdate) {
+                  await getAPI().sys.showUpdateDialog()
+                } else {
+                  toast.success(result.message || `已是最新版本 v${result.currentVersion}`)
+                }
+              } catch (err) {
+                console.error('[Settings] checkUpdate failed:', err)
+                toast.error('检查更新失败,请查看日志')
               }
             }}
             className="text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors"
@@ -692,7 +696,12 @@ export function SettingsPage() {
             type="text"
             value={bitableAppToken}
             placeholder="bascnXXXXXXXXXX"
-            onChange={(e) => setBitableAppToken(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value
+              setBitableAppToken(v)
+              // C-4 修复: 同步持久化到 settings,之前只更新本地 state 导致重启丢失
+              handleSave('feishu.bitableAppToken', v)
+            }}
             className="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-xs text-gray-700 dark:text-gray-200 w-48 focus:border-blue-500 outline-none transition-colors"
           />
         </SettingRow>
@@ -936,8 +945,14 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={async () => {
-                  const list = await getAPI().log.list()
-                  setLogFiles(list)
+                  // H-6 修复: 加 try/catch,避免 IPC 失败时按钮无反馈
+                  try {
+                    const list = await getAPI().log.list()
+                    setLogFiles(list)
+                  } catch (err) {
+                    console.error('[Settings] log.list failed:', err)
+                    toast.error('刷新日志列表失败')
+                  }
                 }}
                 className="text-[10px] px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
               >
@@ -945,15 +960,7 @@ export function SettingsPage() {
               </button>
               <button
                 type="button"
-                onClick={async () => {
-                  if (!confirm('清空所有日志文件?')) return
-                  await getAPI().log.clear()
-                  setLogFiles([])
-                  setLogContent('')
-                  setSelectedLog('')
-                  setLogSearchQuery('')
-                  setLogLevelFilter('all')
-                }}
+                onClick={() => setPendingConfirm('clearLogs')}
                 className="text-[10px] px-2.5 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-500 dark:text-rose-400 hover:bg-rose-500/20 transition-colors"
               >
                 清空
@@ -993,17 +1000,28 @@ export function SettingsPage() {
               type="text"
               value={logSearchQuery}
               placeholder="搜索日志内容..."
-              onChange={async (e) => {
+              onChange={(e) => {
                 const v = e.target.value
                 setLogSearchQuery(v)
-                if (selectedLog) {
-                  const content = v.trim()
-                    ? await getAPI().log.search(selectedLog, v, 200)
-                    : logLevelFilter === 'all'
-                      ? await getAPI().log.read(selectedLog, 200)
-                      : await getAPI().log.filter(selectedLog, [logLevelFilter], 200)
-                  setLogContent(content)
+                // H-9 修复: 300ms 防抖,避免每次按键都触发 IPC 搜索导致卡顿
+                if (logSearchTimerRef.current) {
+                  clearTimeout(logSearchTimerRef.current)
                 }
+                logSearchTimerRef.current = setTimeout(async () => {
+                  logSearchTimerRef.current = null
+                  if (selectedLog) {
+                    try {
+                      const content = v.trim()
+                        ? await getAPI().log.search(selectedLog, v, 200)
+                        : logLevelFilter === 'all'
+                          ? await getAPI().log.read(selectedLog, 200)
+                          : await getAPI().log.filter(selectedLog, [logLevelFilter], 200)
+                      setLogContent(content)
+                    } catch (err) {
+                      console.warn('[Settings] log search failed:', err)
+                    }
+                  }
+                }, 300)
               }}
               className="flex-1 min-w-[120px] bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1 text-[10px] text-gray-700 dark:text-gray-200 focus:border-blue-500 outline-none transition-colors"
             />
@@ -1012,13 +1030,21 @@ export function SettingsPage() {
               type="button"
               onClick={async () => {
                 if (!selectedLog) {
-                  alert('请先选择一个日志文件')
+                  toast.warning('请先选择一个日志文件')
                   return
                 }
-                const result = await getAPI().log.exportWithDialog(selectedLog)
-                if (result.canceled) return
-                if (result.bytes > 0) {
-                  alert(`已导出 ${result.bytes} 字节到 ${result.path}`)
+                // H-6 修复: 加 try/catch,避免导出失败时无反馈
+                try {
+                  const result = await getAPI().log.exportWithDialog(selectedLog)
+                  if (result.canceled) return
+                  if (result.bytes > 0) {
+                    toast.success(`已导出 ${result.bytes} 字节到 ${result.path}`)
+                  } else {
+                    toast.warning('导出文件为空或失败')
+                  }
+                } catch (err) {
+                  console.error('[Settings] log export failed:', err)
+                  toast.error('导出日志失败')
                 }
               }}
               disabled={!selectedLog}
@@ -1035,13 +1061,19 @@ export function SettingsPage() {
                   type="button"
                   key={f.name}
                   onClick={async () => {
+                    // H-6 修复: 加 try/catch,避免读取日志失败时无反馈
                     setSelectedLog(f.name)
-                    const content = logSearchQuery.trim()
-                      ? await getAPI().log.search(f.name, logSearchQuery, 200)
-                      : logLevelFilter === 'all'
-                        ? await getAPI().log.read(f.name, 200)
-                        : await getAPI().log.filter(f.name, [logLevelFilter], 200)
-                    setLogContent(content)
+                    try {
+                      const content = logSearchQuery.trim()
+                        ? await getAPI().log.search(f.name, logSearchQuery, 200)
+                        : logLevelFilter === 'all'
+                          ? await getAPI().log.read(f.name, 200)
+                          : await getAPI().log.filter(f.name, [logLevelFilter], 200)
+                      setLogContent(content)
+                    } catch (err) {
+                      console.error('[Settings] log read failed:', err)
+                      setLogContent('读取日志失败,请查看控制台')
+                    }
                   }}
                   className={`text-[10px] px-2 py-1 rounded-lg border ${
                     selectedLog === f.name
@@ -1169,6 +1201,33 @@ export function SettingsPage() {
           </div>
         </div>
       </Section>
+      <ConfirmDialog
+        open={pendingConfirm !== null}
+        title={pendingConfirm === 'reset' ? t('settings.reset') : '清空日志'}
+        message={pendingConfirm === 'reset' ? t('settings.reset.confirm') : '清空所有日志文件?'}
+        variant={pendingConfirm === 'clearLogs' ? 'danger' : 'default'}
+        onConfirm={async () => {
+          const action = pendingConfirm
+          setPendingConfirm(null)
+          if (action === 'reset') {
+            await executeReset()
+          } else if (action === 'clearLogs') {
+            try {
+              await getAPI().log.clear()
+              setLogFiles([])
+              setLogContent('')
+              setSelectedLog('')
+              setLogSearchQuery('')
+              setLogLevelFilter('all')
+              toast.success('已清空所有日志')
+            } catch (err) {
+              console.error('[Settings] log.clear failed:', err)
+              toast.error('清空日志失败')
+            }
+          }
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
     </div>
   )
 }

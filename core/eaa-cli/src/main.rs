@@ -130,6 +130,9 @@ enum Commands {
         role: Option<String>,
         #[arg(long)]
         class_id: Option<String>,
+        /// 清空班级（class_id 置空）。与 --class-id 互斥，优先级高于 --class-id。
+        #[arg(long)]
+        clear_class_id: bool,
     },
     /// [NEW] 生成静态HTML仪表盘
     Dashboard {
@@ -198,8 +201,8 @@ fn main() -> Result<(), AppError> {
         Commands::Doctor => cmd_doctor(output)?,
         Commands::Summary { since, until } =>
             cmd_summary(since.as_deref(), until.as_deref(), output)?,
-        Commands::SetStudentMeta { name, group, role, class_id } =>
-            cmd_set_student_meta(name, group.as_deref(), role.as_deref(), class_id.as_deref())?,
+        Commands::SetStudentMeta { name, group, role, class_id, clear_class_id } =>
+            cmd_set_student_meta(name, group.as_deref(), role.as_deref(), class_id.as_deref(), *clear_class_id)?,
         Commands::Dashboard { output_dir, open } =>
             cmd_dashboard(output_dir.as_deref(), *open)?,
     }

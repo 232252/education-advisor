@@ -146,4 +146,96 @@ describe('dbService', () => {
     expect(s).toHaveProperty('path')
     expect(s.ready).toBe(dbService.isReady())
   })
+
+  // ===== Chat Messages 持久化 =====
+  it('saveChatMessage + loadChatMessages 往返', () => {
+    if (!dbService.isReady()) {
+      expect(dbService.saveChatMessage({ role: 'user', content: 'x', timestamp: 1 })).toBe(-1)
+      expect(dbService.loadChatMessages()).toEqual([])
+      return
+    }
+    const ts = Date.now()
+    const id = dbService.saveChatMessage({
+      sessionId: 'test-session',
+      role: 'user',
+      content: 'hello world',
+      thinking: 'let me think',
+      toolCalls: '[{"name":"search"}]',
+      timestamp: ts,
+      provider: 'openai',
+      model: 'gpt-4',
+      tokenInput: 10,
+      tokenOutput: 20,
+      cost: 0.001,
+    })
+    expect(id).toBeGreaterThan(0)
+
+    const msgs = dbService.loadChatMessages('test-session')
+    expect(msgs.length).toBeGreaterThanOrEqual(1)
+    const m = msgs.find((r) => r.id === id) as Record<string, unknown> | undefined
+    expect(m).toBeDefined()
+    expect(m?.role).toBe('user')
+    expect(m?.content).toBe('hello world')
+    expect(m?.thinking).toBe('let me think')
+    expect(m?.provider).toBe('openai')
+    expect(m?.token_input).toBe(10)
+  })
+
+  it('saveChatMessage 默认 session 为 default', () => {
+    if (!dbService.isReady()) return
+    const id = dbService.saveChatMessage({
+      role: 'assistant',
+      content: 'response',
+      timestamp: Date.now(),
+    })
+    expect(id).toBeGreaterThan(0)
+    const msgs = dbService.loadChatMessages('default')
+    const found = msgs.find((r) => r.id === id)
+    expect(found).toBeDefined()
+  })
+
+  it('listChatSessions 返回包含已写入的 session', () => {
+    if (!dbService.isReady()) {
+      expect(dbService.listChatSessions()).toEqual([])
+      return
+    }
+    dbService.saveChatMessage({
+      sessionId: 'list-test',
+      role: 'user',
+      content: 'test',
+      timestamp: Date.now(),
+    })
+    const sessions = dbService.listChatSessions()
+    expect(sessions.length).toBeGreaterThanOrEqual(1)
+    const found = sessions.find((s) => s.id === 'list-test')
+    expect(found).toBeDefined()
+    expect(found?.message_count).toBeGreaterThanOrEqual(1)
+  })
+
+  it('deleteChatSession 删除消息和会话记录', () => {
+    if (!dbService.isReady()) {
+      expect(dbService.deleteChatSession('x')).toBe(false)
+      return
+    }
+    dbService.saveChatMessage({
+      sessionId: 'del-test',
+      role: 'user',
+      content: 'to be deleted',
+      timestamp: Date.now(),
+    })
+    expect(dbService.loadChatMessages('del-test').length).toBeGreaterThanOrEqual(1)
+    const ok = dbService.deleteChatSession('del-test')
+    expect(ok).toBe(true)
+    expect(dbService.loadChatMessages('del-test').length).toBe(0)
+    const sessions = dbService.listChatSessions()
+    expect(sessions.find((s) => s.id === 'del-test')).toBeUndefined()
+  })
+
+  it('close 后 isReady 应为 false', async () => {
+    if (!dbService.isReady()) return
+    await dbService.close()
+    expect(dbService.isReady()).toBe(false)
+    // close 后再 close 不应抛异常
+    await dbService.close()
+  })
 })

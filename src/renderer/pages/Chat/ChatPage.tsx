@@ -1,8 +1,9 @@
 // =============================================================
-// 对话页面 — 支持模型选择、流式对话、Agent 双模式切换
+// 对话页面 — 纯 Agent 模式 (Agent 选择器 + 模型配置常驻显示)
 // =============================================================
 
 import { useEffect, useRef, useState } from 'react'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ModelSelector } from '../../components/ModelSelector'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
@@ -10,10 +11,20 @@ import { useAgentStore } from '../../stores/agentStore'
 import { useChatStore } from '../../stores/chatStore'
 import { toast } from '../../stores/toastStore'
 
+// 上传文件元信息
+interface UploadedFile {
+  name: string
+  path: string
+  size: number
+  content: string
+  mimeType: string
+}
+
 export function ChatPage() {
   const { t } = useT()
   const [input, setInput] = useState('')
-  const [toolbarTab, setToolbarTab] = useState<'chat' | 'model'>('chat')
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messages = useChatStore((s) => s.messages)
   const isStreaming = useChatStore((s) => s.isStreaming)
@@ -114,7 +125,8 @@ export function ChatPage() {
     const value = e.target.value
     setThinkingLevel(value)
     try {
-      await getAPI().settings.set('chat.maxTokens', value)
+      // C-1 修复: 写入 chat.thinkingLevel 而非 chat.maxTokens(后者是 number,会被字符串覆盖损坏)
+      await getAPI().settings.set('chat.thinkingLevel', value)
     } catch {
       /* silent */
     }
@@ -138,17 +150,39 @@ export function ChatPage() {
       content: m.content,
     }))
 
-    // 添加用户消息
+    // 拼接上传文件内容到消息文本
+    // 文件内容以结构化方式注入,让 Agent 能识别文件边界和元信息
+    let finalText = text
+    if (uploadedFiles.length > 0) {
+      const fileBlocks = uploadedFiles.map((f) => {
+        const sizeKb = (f.size / 1024).toFixed(1)
+        // 限制单文件内容长度 (32KB),避免上下文爆炸
+        const maxLen = 32 * 1024
+        const truncated = f.content.length > maxLen
+        const content = truncated ? f.content.slice(0, maxLen) : f.content
+        const truncationNote = truncated ? `\n[... 已截断,原始大小 ${sizeKb}KB ...]` : ''
+        return `--- 文件: ${f.name} (${sizeKb}KB, ${f.mimeType}) ---\n${content}${truncationNote}\n--- 文件结束 ---`
+      })
+      finalText = `${text}\n\n${fileBlocks.join('\n\n')}`
+    }
+
+    // 添加用户消息 (显示原始文本,但传给 Agent 的是 finalText)
     useChatStore.getState().addMessage({
       role: 'user',
-      content: text,
+      content:
+        uploadedFiles.length > 0
+          ? `${text}\n\n[已附加 ${uploadedFiles.length} 个文件: ${uploadedFiles.map((f) => f.name).join(', ')}]`
+          : text,
       timestamp: Date.now(),
     })
 
+    // 清空已上传文件
+    setUploadedFiles([])
+
     // 启动 Agent（fire-and-forget，事件通过 onStatusUpdate 桥接）
-    // 传入对话历史，让 Agent 拥有完整上下文
+    // 传入对话历史和包含文件内容的最终文本
     try {
-      await getAPI().agent.runManual(selectedAgentId, text, history)
+      await getAPI().agent.runManual(selectedAgentId, finalText, history)
     } catch (err) {
       console.error('[Chat] Agent run failed:', err)
       toast.error('启动 Agent 失败')
@@ -237,7 +271,7 @@ export function ChatPage() {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (confirm(`${t('common.delete')}?`)) deleteSession(session.id)
+                    setPendingDeleteSessionId(session.id)
                   }}
                   className="opacity-0 group-hover:opacity-100 ml-2 text-gray-400 hover:text-red-500 transition-all text-xs"
                   title={t('common.delete')}
@@ -252,79 +286,57 @@ export function ChatPage() {
 
       {/* 主对话区域 */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* 顶部工具栏 */}
-        <div className="flex items-center justify-between px-6 py-2 border-b border-gray-200 dark:border-gray-700/50">
-          <div className="flex items-center gap-3">
-            {/* 模式切换：对话（Agent）/ 模型 */}
-            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 border border-gray-200 dark:border-gray-700">
-              <button
-                type="button"
-                onClick={() => setToolbarTab('chat')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  toolbarTab === 'chat'
-                    ? 'bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                对话
-              </button>
-              <button
-                type="button"
-                onClick={() => setToolbarTab('model')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  toolbarTab === 'model'
-                    ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                模型
-              </button>
-            </div>
+        {/* 顶部工具栏 — 纯 Agent 模式: Agent 选择器 + 模型配置 + 思考级别 常驻显示 */}
+        <div className="flex items-center justify-between px-6 py-2 border-b border-gray-200 dark:border-gray-700/50 flex-wrap gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Agent 选择器 — 常驻显示 */}
+            <select
+              value={selectedAgentId}
+              onChange={(e) => setSelectedAgent(e.target.value)}
+              className="bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-lg px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300
+                         focus:outline-none focus:border-purple-500 min-w-[160px]"
+              title="选择 Agent"
+            >
+              {enabledAgents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} — {a.role}
+                </option>
+              ))}
+            </select>
 
-            {toolbarTab === 'chat' ? (
-              /* Agent 选择器 */
-              <select
-                value={selectedAgentId}
-                onChange={(e) => setSelectedAgent(e.target.value)}
-                className="bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-lg px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300
-                           focus:outline-none focus:border-purple-500 min-w-[160px]"
-              >
-                {enabledAgents.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} — {a.role}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              /* 模型配置 */
-              <>
-                <ModelSelector
-                  selectedProvider={currentProvider}
-                  selectedModel={currentModel}
-                  onSelect={handleModelSelect}
-                />
-                <select
-                  value={thinkingLevel}
-                  onChange={handleThinkingLevelChange}
-                  className="bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs text-gray-600 dark:text-gray-300
-                             focus:outline-none focus:border-blue-500"
-                >
-                  <option value="off">思考 关</option>
-                  <option value="minimal">思考 最少</option>
-                  <option value="low">思考 低</option>
-                  <option value="medium">思考 中</option>
-                  <option value="high">思考 高</option>
-                  <option value="xhigh">思考 最高</option>
-                </select>
-              </>
-            )}
+            {/* 分隔线 */}
+            <div className="h-4 w-px bg-gray-300 dark:bg-gray-600" />
+
+            {/* 模型配置 — 常驻显示 */}
+            <ModelSelector
+              selectedProvider={currentProvider}
+              selectedModel={currentModel}
+              onSelect={handleModelSelect}
+            />
+
+            {/* 思考级别 — 常驻显示 */}
+            <select
+              value={thinkingLevel}
+              onChange={handleThinkingLevelChange}
+              className="bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs text-gray-600 dark:text-gray-300
+                         focus:outline-none focus:border-blue-500"
+              title="思考级别"
+            >
+              <option value="off">思考 关</option>
+              <option value="minimal">思考 最少</option>
+              <option value="low">思考 低</option>
+              <option value="medium">思考 中</option>
+              <option value="high">思考 高</option>
+              <option value="xhigh">思考 最高</option>
+            </select>
           </div>
           <button
             type="button"
             onClick={clearMessages}
             className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            title="清空当前会话显示(不删除会话)"
           >
-            {t('common.delete')}
+            清空
           </button>
         </div>
 
@@ -434,60 +446,137 @@ export function ChatPage() {
             </div>
           )}
           <div className="flex gap-3">
-            <div className="flex-1 flex items-end gap-2 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-xl px-3 py-2 focus-within:border-blue-500 dark:focus-within:border-blue-400 transition-colors">
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    const result = (await getAPI().sys.openDialog({
-                      properties: ['openFile'],
-                      filters: [{ name: '所有文件', extensions: ['*'] }],
-                    })) as { canceled: boolean; filePaths: string[] }
-                    if (!result.canceled && result.filePaths.length > 0) {
-                      const fileName =
-                        result.filePaths[0].split(/[/\\]/).pop() || result.filePaths[0]
-                      setInput((prev) => `${prev}[文件: ${fileName}](${result.filePaths[0]}) `)
-                      toast.success(`已选择: ${fileName}`)
+            <div className="flex-1 flex flex-col gap-2 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-xl px-3 py-2 focus-within:border-blue-500 dark:focus-within:border-blue-400 transition-colors">
+              {/* 已上传文件列表 */}
+              {uploadedFiles.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-1">
+                  {uploadedFiles.map((f, idx) => (
+                    <div
+                      key={f.path || `${f.name}-${idx}`}
+                      className="flex items-center gap-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-md px-2 py-1 text-[11px]"
+                    >
+                      <span className="truncate max-w-[160px]" title={f.path}>
+                        📎 {f.name}
+                      </span>
+                      <span className="text-[10px] opacity-70">{(f.size / 1024).toFixed(1)}KB</span>
+                      <button
+                        type="button"
+                        onClick={() => setUploadedFiles((prev) => prev.filter((_, i) => i !== idx))}
+                        className="text-blue-500 hover:text-blue-700 dark:hover:text-blue-200 ml-0.5"
+                        title="移除"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-end gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const result = (await getAPI().sys.openDialog({
+                        properties: ['openFile'],
+                        filters: [
+                          {
+                            name: '文本/代码/图片',
+                            extensions: [
+                              'txt',
+                              'md',
+                              'json',
+                              'yaml',
+                              'yml',
+                              'csv',
+                              'html',
+                              'xml',
+                              'js',
+                              'ts',
+                              'tsx',
+                              'jsx',
+                              'py',
+                              'rs',
+                              'go',
+                              'java',
+                              'c',
+                              'cpp',
+                              'h',
+                              'sh',
+                              'sql',
+                              'log',
+                              'png',
+                              'jpg',
+                              'jpeg',
+                              'gif',
+                              'svg',
+                              'webp',
+                            ],
+                          },
+                          { name: '所有文件', extensions: ['*'] },
+                        ],
+                      })) as { canceled: boolean; filePaths: string[] }
+                      if (result.canceled || result.filePaths.length === 0) return
+                      const filePath = result.filePaths[0]
+                      const fileName = filePath.split(/[/\\]/).pop() || filePath
+                      toast.info(`正在读取: ${fileName}`)
+                      // 真实读取文件内容
+                      const fileResult = await getAPI().sys.readFile(filePath)
+                      if (!fileResult.success || !fileResult.content) {
+                        toast.error(`读取失败: ${fileResult.error || '未知错误'}`)
+                        return
+                      }
+                      const uploaded: UploadedFile = {
+                        name: fileResult.name || fileName,
+                        path: filePath,
+                        size: fileResult.size || 0,
+                        content: fileResult.content,
+                        mimeType: fileResult.mimeType || 'application/octet-stream',
+                      }
+                      setUploadedFiles((prev) => [...prev, uploaded])
+                      toast.success(
+                        `已读取: ${uploaded.name} (${(uploaded.size / 1024).toFixed(1)}KB, ${uploaded.mimeType})`,
+                      )
+                    } catch (err) {
+                      console.error('[Chat] File upload failed:', err)
+                      toast.error('选择文件失败')
                     }
-                  } catch {
-                    toast.error('选择文件失败')
-                  }
-                }}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0 p-1"
-                title="上传文件"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="w-5 h-5"
-                  role="img"
-                  aria-label="上传文件"
+                  }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0 p-1"
+                  title="上传文件 (文本/代码/图片, 最大 10MB)"
                 >
-                  <title>上传文件</title>
-                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
-                </svg>
-              </button>
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={
-                  canSend
-                    ? `向 ${enabledAgents.find((a) => a.id === selectedAgentId)?.name ?? 'Agent'} 发送指令... (Enter 发送)`
-                    : '正在加载...'
-                }
-                rows={1}
-                className="flex-1 bg-transparent border-0 text-sm focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 resize-none max-h-32 overflow-y-auto py-1"
-                disabled={isStreaming || !canSend}
-              />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="w-5 h-5"
+                    role="img"
+                    aria-label="上传文件"
+                  >
+                    <title>上传文件</title>
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={
+                    canSend
+                      ? `向 ${enabledAgents.find((a) => a.id === selectedAgentId)?.name ?? 'Agent'} 发送指令... (Enter 发送)`
+                      : '正在加载...'
+                  }
+                  rows={1}
+                  className="flex-1 bg-transparent border-0 text-sm focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 resize-none max-h-32 overflow-y-auto py-1"
+                  disabled={isStreaming || !canSend}
+                />
+              </div>
             </div>
             <button
               type="button"
               onClick={isStreaming ? handleStop : handleSend}
-              className={`px-6 py-3 rounded-xl text-sm font-medium transition-colors self-end
+              className={`px-6 py-3 rounded-lg text-sm font-medium transition-colors self-end
                 ${
                   isStreaming
                     ? 'bg-red-600 hover:bg-red-700 text-white'
@@ -500,6 +589,19 @@ export function ChatPage() {
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={pendingDeleteSessionId !== null}
+        title={t('common.delete')}
+        message={`${t('common.delete')}?`}
+        variant="danger"
+        onConfirm={() => {
+          if (pendingDeleteSessionId) {
+            deleteSession(pendingDeleteSessionId)
+          }
+          setPendingDeleteSessionId(null)
+        }}
+        onCancel={() => setPendingDeleteSessionId(null)}
+      />
     </div>
   )
 }

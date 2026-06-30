@@ -5,6 +5,7 @@
 
 import type { ModelThinkingLevel } from '@earendil-works/pi-ai'
 import { type BrowserWindow, ipcMain } from 'electron'
+import { startIpcTimer } from '../../shared/debug'
 import * as IPC from '../../shared/ipc-channels'
 import { dbService } from '../services/db-service'
 import { piAIService } from '../services/pi-ai-service'
@@ -26,12 +27,15 @@ export function registerAIHandlers(win: BrowserWindow) {
 
   // ----- 列出指定 Provider 的模型 -----
   ipcMain.handle(IPC.IPC_AI_LIST_MODELS, async (_e, providerId: string) => {
+    const stop = startIpcTimer('ai:list-models')
     try {
       return await piAIService.listModels(providerId)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[IPC] ai:list-models failed for "${providerId}":`, msg)
       throw err
+    } finally {
+      stop()
     }
   })
 
@@ -39,20 +43,49 @@ export function registerAIHandlers(win: BrowserWindow) {
   ipcMain.handle(
     IPC.IPC_AI_TEST_CONNECTION,
     async (_e, providerId: string, apiKey: string, baseUrl?: string) => {
-      return piAIService.testConnection(providerId, apiKey, baseUrl)
+      const stop = startIpcTimer('ai:test-connection')
+      try {
+        // H-1 修复: testConnection 内部已 try-catch 返回结构化错误,
+        // 但仍要兜底外部异常(如 keystoreService.ready 抛错)
+        return await piAIService.testConnection(providerId, apiKey, baseUrl)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error(`[IPC] ai:test-connection threw for "${providerId}":`, msg)
+        return {
+          success: false,
+          latencyMs: 0,
+          model: '',
+          error: msg,
+        }
+      } finally {
+        stop()
+      }
     },
   )
 
   // ----- 设置 API Key -----
   ipcMain.handle(IPC.IPC_AI_SET_API_KEY, async (_e, providerId: string, apiKey: string) => {
-    piAIService.setApiKey(providerId, apiKey)
-    return { success: true }
+    // H-2 修复: keystoreService 可能抛错(如 keychain 不可用),必须 try-catch
+    try {
+      piAIService.setApiKey(providerId, apiKey)
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] ai:set-api-key failed for "${providerId}":`, msg)
+      return { success: false, error: msg }
+    }
   })
 
   // ----- 删除 API Key -----
   ipcMain.handle(IPC.IPC_AI_DELETE_API_KEY, async (_e, providerId: string) => {
-    piAIService.deleteApiKey(providerId)
-    return { success: true }
+    try {
+      piAIService.deleteApiKey(providerId)
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] ai:delete-api-key failed for "${providerId}":`, msg)
+      return { success: false, error: msg }
+    }
   })
 
   // ----- OAuth 登录(P0 修复)-----

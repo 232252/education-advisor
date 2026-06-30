@@ -6,6 +6,10 @@ import type {
   AddEventParams,
   AgentDetail,
   AgentListItem,
+  ClassAssignParams,
+  ClassEntity,
+  ClassRemoveStudentParams,
+  ClassUpsertParams,
   CronLogEntry,
   CronTask,
   EAACodesData,
@@ -131,19 +135,22 @@ interface WindowAPI {
     doctor: () => Promise<EAAResult<EAADoctorData>>
     summary: (since?: string, until?: string) => Promise<EAAResult<EAASummaryData>>
     dashboard: (outputDir?: string) => Promise<EAAResult<string>>
+    exportFormats: () => Promise<string[]>
   }
   privacy: {
     init: (password: string, autoScan?: boolean) => Promise<EAAResult>
     load: (password: string) => Promise<EAAResult>
     enable: () => Promise<EAAResult>
     disable: (password: string) => Promise<EAAResult>
-    list: (password: string) => Promise<EAAResult<PrivacyMapping[]>>
+    list: (password?: string) => Promise<EAAResult<PrivacyMapping[]>>
     add: (entityType: string, text: string) => Promise<EAAResult>
     anonymize: (text: string) => Promise<EAAResult>
     deanonymize: (text: string) => Promise<EAAResult>
     filter: (receiver: string, text: string) => Promise<EAAResult>
     dryrun: (text: string) => Promise<EAAResult>
     backup: (destPath: string) => Promise<EAAResult>
+    lock: () => Promise<{ success: boolean }>
+    status: () => Promise<{ unlocked: boolean }>
   }
   cron: {
     list: () => Promise<CronTask[]>
@@ -171,6 +178,30 @@ interface WindowAPI {
     set: (
       name: string,
       data: Partial<StudentProfileData>,
+    ) => Promise<{ success: boolean; error?: string }>
+  }
+  class: {
+    list: () => Promise<{ success: boolean; data: ClassEntity[]; error?: string }>
+    create: (
+      params: ClassUpsertParams,
+    ) => Promise<{ success: boolean; data?: ClassEntity; error?: string }>
+    update: (
+      id: string,
+      fields: {
+        name?: string
+        grade?: string | null
+        note?: string | null
+        teacher?: string | null
+      },
+    ) => Promise<{ success: boolean; error?: string }>
+    archive: (id: string) => Promise<{ success: boolean; error?: string }>
+    restore: (id: string) => Promise<{ success: boolean; error?: string }>
+    delete: (id: string) => Promise<{ success: boolean; classId?: string; error?: string }>
+    assign: (
+      params: ClassAssignParams,
+    ) => Promise<{ success: boolean; assigned?: number; failed?: string[]; error?: string }>
+    removeStudent: (
+      params: ClassRemoveStudentParams,
     ) => Promise<{ success: boolean; error?: string }>
   }
   chat: {
@@ -248,6 +279,16 @@ interface WindowAPI {
     }>
     showUpdateDialog: () => Promise<{ success: boolean }>
     notify: (title: string, body: string) => Promise<{ success: boolean }>
+    readFile: (filePath: string) => Promise<{
+      success: boolean
+      path: string
+      name?: string
+      size?: number
+      mimeType?: string
+      encoding?: 'utf-8' | 'base64'
+      content?: string
+      error?: string
+    }>
   }
 }
 

@@ -1,0 +1,109 @@
+{
+  "summary": {
+    "ok": 19,
+    "fail": 1,
+    "total": 20
+  },
+  "results": [
+    {
+      "name": "agent.runManual",
+      "ok": true,
+      "detail": "{\"success\":true,\"message\":\"Agent execution started\",\"id\":\"safety\"}"
+    },
+    {
+      "name": "agent.history_after_run",
+      "ok": true,
+      "detail": "History retrieved"
+    },
+    {
+      "name": "eaa.export.with_file",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":\"✓ CSV已导出: C:\\\\Users\\\\sq199\\\\AppData\\\\Roaming\\\\Education Advisor\\\\test-export"
+    },
+    {
+      "name": "eaa.export.file_exists",
+      "ok": true,
+      "detail": "C:\\Users\\sq199\\AppData\\Roaming\\Education Advisor\\test-export.csv"
+    },
+    {
+      "name": "eaa.export.file_size",
+      "ok": true,
+      "detail": "1465 bytes"
+    },
+    {
+      "name": "eaa.export.csv_content",
+      "ok": true,
+      "detail": "First line: 姓名,分数,变动,风险"
+    },
+    {
+      "name": "eaa.dashboard.generate",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":\"✓ 仪表盘已生成: ./eaa-dashboard/index.html\",\"stderr\":\"\",\"exitCode\":0}"
+    },
+    {
+      "name": "eaa.dashboard.html_exists",
+      "ok": false,
+      "detail": "C:\\Users\\sq199\\Documents\\GitHub\\education-advisor\\eaa-dashboard\\index.html"
+    },
+    {
+      "name": "combo.score_3_events",
+      "ok": true,
+      "detail": "score=97 (expected 97)"
+    },
+    {
+      "name": "combo.history_3_events",
+      "ok": true,
+      "detail": "events=3"
+    },
+    {
+      "name": "combo.stats",
+      "ok": true,
+      "detail": "{\"reason_distribution\":[{\"code\":\"LATE\",\"count\":4},{\"code\":\"ACTIVITY_PARTICIPATION\",\"count\":3},{\"code"
+    },
+    {
+      "name": "combo.ranking_contains",
+      "ok": true,
+      "detail": "Test student in ranking"
+    },
+    {
+      "name": "eaa.tag.list",
+      "ok": true,
+      "detail": "{\"tags\":[{\"count\":1,\"tag\":\"系统纠正\"}]}"
+    },
+    {
+      "name": "eaa.summary.range",
+      "ok": true,
+      "detail": "{\"events\":{\"bonus_count\":4,\"bonus_total\":5,\"deduct_count\":6,\"deduct_total\":-12,\"total\":10},\"period\":{\"since\":\"2025-01-01\",\"until\":\"2026-12-31\"},\"risk_"
+    },
+    {
+      "name": "privacy.init",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":\"✅ 隐私脱敏引擎初始化成功\\n📊 映射: 0 个实体\",\"stderr\":\"\",\"exitCode\":0}"
+    },
+    {
+      "name": "privacy.anonymize",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":\"张三同学和李四同学今天迟到了\",\"stderr\":\"\",\"exitCode\":0}"
+    },
+    {
+      "name": "privacy.deanonymize",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":\"张三同学和李四同学今天迟到了\",\"stderr\":\"\",\"exitCode\":0}"
+    },
+    {
+      "name": "privacy.add",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":\"✅ 王测试 → person_001\",\"stderr\":\"\",\"exitCode\":0}"
+    },
+    {
+      "name": "privacy.list",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":null,\"stderr\":\"\",\"exitCode\":0}"
+    },
+    {
+      "name": "privacy.lock",
+      "ok": true,
+      "detail": "{\"success\":true}"
+    }
+  ]
+}

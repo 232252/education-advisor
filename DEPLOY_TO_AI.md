@@ -97,28 +97,28 @@ If you see errors about `better-sqlite3`, see the
 
 ## 4. Fetch the Rust backend
 
-The Rust `eaa-cli` binary is a core component of this project. It is built
-and published in the EAA CLI repository
-(<https://github.com/232252/education-advisor/releases>) as a tagged
-release. We do not bundle the Rust source in this repo to keep the
-two concerns separate.
+The Rust `eaa-cli` binary is a core component of this project. Its source
+lives in `core/eaa-cli/` inside this repo, so it is built from source —
+there is no download step and no separate release to keep in sync.
 
 ```bash
 npm run build:eaa
 ```
 
-This script (`scripts/download-eaa-binaries.mjs`) will:
+This script (`scripts/build-eaa.mjs`) will:
 
-1. Detect your platform (Windows x64, macOS x64 / arm64, Linux x64 / arm64).
-2. Look up the latest release of `education-advisor` (or the tag pinned
-   in `.env` if you set `EAA_RELEASE_TAG`).
-3. Download the matching binary.
-4. Verify the SHA-256 against the manifest in the release notes.
-5. Place it in `resources/eaa-binaries/<platform>/<binary>`.
+1. Detect your platform (Windows x64/arm64, macOS x64/arm64, Linux x64/arm64).
+2. Verify the Rust toolchain (`cargo`) is installed — if not, it errors
+   out and points you to <https://rustup.rs>.
+3. Run `cargo build --release` in `core/eaa-cli/`.
+4. Place the built binary at `resources/eaa-binaries/<platform>/<binary>`.
 
-If you don't trust the release binary, see
-[`docs/EAA_BRIDGE.md`](./docs/EAA_BRIDGE.md#building-from-source) for
-instructions on building `eaa-cli` from source yourself.
+The build is cached: it skips recompiling when the existing binary is
+newer than the `.rs` sources. Force a rebuild with
+`EAA_FORCE=1 npm run build:eaa`.
+
+For details on the runtime bridge, see
+[`docs/EAA_BRIDGE.md`](./docs/EAA_BRIDGE.md).
 
 ---
 

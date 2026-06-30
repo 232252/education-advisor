@@ -2,8 +2,11 @@ appId: com.education-advisor.app
 productName: Education Advisor
 copyright: Copyright 2026
 
+# 避免 CI 环境自动 publish 到 GitHub 导致编译失败
+publish: null
+
 directories:
-  output: release
+  output: release-v11
   buildResources: resources
 
 files:

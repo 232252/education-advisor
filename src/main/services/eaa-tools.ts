@@ -209,9 +209,14 @@ export const searchEventsTool: AgentTool<typeof searchParams> = {
   description: '按关键词搜索操行事件（匹配学生姓名、原因码、标签等）',
   parameters: searchParams,
   execute: async (_toolCallId, params) => {
-    const args = tokenizeQuery(params.query)
-    if (params.limit) args.push('--limit', String(params.limit))
-    const result = await eaaBridge.execute({ command: 'search', args })
+    // RISK: 用 safeExecute + tokenizeQuery 替代直接 eaaBridge.execute,
+    // 防止 Agent 注入含控制字符 / shell 元字符的 query 绕过 sanitize。
+    // tokenizeQuery 仅做引号/空格分词,不做安全校验,
+    // 必须由 safeExecute 在转给 eaa-bridge 前对每个 token 做 sanitize。
+    const values = tokenizeQuery(params.query)
+    const flags: string[] = []
+    if (params.limit) flags.push('--limit', String(params.limit))
+    const result = await safeExecute('search', values, flags)
     if (!result.success) {
       throw new Error(`搜索失败: ${getErrorMessage(result)}`)
     }

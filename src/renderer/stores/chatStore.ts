@@ -8,6 +8,7 @@
 import type { ChatMessage, StreamEvent, TokenUsage } from '@shared/types'
 import { create } from 'zustand'
 import { getAPI } from '../lib/ipc-client'
+import { toast } from './toastStore'
 
 export interface ChatSession {
   id: string
@@ -48,6 +49,9 @@ interface ChatState {
   // Agent 模式
   chatMode: ChatMode
   selectedAgentId: string
+  /** High 3.2 配套: 跟踪当前 isStreaming 是由哪个 agent 触发的,
+   *  避免 handleAgentEvent 中清理逻辑误清新 agent 的流状态 */
+  streamingAgentId: string | null
 
   // Actions
   addMessage: (msg: ChatMessage) => void
@@ -72,10 +76,16 @@ interface ChatState {
   loadSessions: () => Promise<void>
 }
 
+/** CONCERN 修复: 切走 agent 期间的 pending output 缓存,切回时合并
+ *  避免 R-1 修复引入的"切走期间文本丢失"问题
+ *  使用模块级变量而非 Zustand 状态,避免不必要的 re-render */
+const pendingAgentOutputs = new Map<string, string[]>()
+
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isStreaming: false,
   isThinking: false,
+  streamingAgentId: null,
   currentModel: '',
   currentProvider: '',
   currentModelContext: 0,
@@ -102,8 +112,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           thinking: msg.thinking,
           timestamp: msg.timestamp,
         })
-        .catch(() => {
-          /* silent fail */
+        .catch((err) => {
+          console.warn('[chatStore] saveMessage failed (user)', err)
         })
     }
   },
@@ -163,8 +173,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 provider: get().currentProvider || undefined,
                 model: get().currentModel || undefined,
               })
-              .catch(() => {
-                /* silent fail */
+              .catch((err) => {
+                console.warn('[chatStore] saveMessage failed (assistant stream)', err)
               })
           }
         }
@@ -261,6 +271,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
           void get().fetchModelInfo(provider, model)
         }
       }
+      // C-1 修复: 从 settings 恢复 thinkingLevel 到 UI
+      const thinkingLevel = s.chat?.thinkingLevel
+      if (thinkingLevel) {
+        set({ thinkingLevel })
+      }
     } catch (err) {
       console.warn('[chatStore] initFromSettings failed:', err)
     }
@@ -301,25 +316,80 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   setThinkingLevel: (level) => set({ thinkingLevel: level }),
   setChatMode: (mode) => set({ chatMode: mode }),
-  setSelectedAgent: (id) => set({ selectedAgentId: id }),
+  // High 3.2 修复: 切 agent 时主动清理 isStreaming/isThinking,
+  // 避免旧 agent 的 running 事件把 isStreaming 置 true 后切换到新 agent 时卡死
+  // R-1 修复: 不重置 streamingAgentId,以便切回原 agent 时能检测到"未完成的流"并复用
+  // 最后一条 assistant 消息,避免重复创建消息气泡。
+  // isStreaming 仍需重置以保证切到新 agent 时 UI 不显示 streaming 状态。
+  setSelectedAgent: (id) =>
+    set({
+      selectedAgentId: id,
+      isStreaming: false,
+      isThinking: false,
+    }),
 
   // === Agent 事件桥接 — 把 AgentStatusUpdate 映射到 chat 消息 ===
   handleAgentEvent: (data) => {
     const state = get()
-    // 忽略其他 agent 的事件（只处理当前选中的 agent）
-    if (data.agentId !== state.selectedAgentId) return
+    // High 3.2 修复: 切 agent 时旧 agent 的 idle/error 被过滤导致 isStreaming 卡死
+    // 之前直接 return,旧 agent 的 idle/error 事件被丢弃,isStreaming 永远不会重置
+    // 修复策略 v1: 对于 idle/error 终止事件,即使 agentId 不匹配也要清理可能残留的 isStreaming 状态
+    // 修复策略 v2(避免 v1 引入的回归): 只有当 idle/error 来自 streamingAgentId 时才清理,
+    //   避免旧 agent 的 idle 事件错误清理新 agent 的流状态
+    if (data.agentId !== state.selectedAgentId) {
+      // CONCERN 修复: 缓存切走期间的 output,切回时合并到消息
+      if (data.status === 'running' && data.output) {
+        const buf = pendingAgentOutputs.get(data.agentId) ?? []
+        buf.push(data.output)
+        pendingAgentOutputs.set(data.agentId, buf)
+      }
+      // R-1 修复: 移除 isStreaming 条件 — 即使 isStreaming 已被 setSelectedAgent 重置为 false,
+      // 终止事件(idle/error)仍需清理 streamingAgentId,否则后续同 agent 的新流会误判为"复用"
+      if (
+        (data.status === 'idle' || data.status === 'error') &&
+        state.streamingAgentId === data.agentId
+      ) {
+        // 终止事件:清理缓存,重置流状态
+        pendingAgentOutputs.delete(data.agentId)
+        set({ isStreaming: false, isThinking: false, streamingAgentId: null })
+      }
+      return
+    }
 
     switch (data.status) {
       case 'running': {
-        // 第一次收到 running 且未在 streaming → 初始化 assistant 消息
+        // 第一次收到 running 且未在 streaming → 初始化或复用 assistant 消息
         if (!state.isStreaming) {
-          set({ isStreaming: true, isThinking: false })
-          state.addMessage({
-            role: 'assistant',
-            content: '',
-            toolCalls: [],
-            timestamp: Date.now(),
-          })
+          // R-1 修复: 检测"切回原 agent"场景 — 若 streamingAgentId 仍指向当前 agent,
+          // 说明流未被 idle/error 终止(用户只是切走又切回),复用最后一条 assistant 消息,
+          // 避免重复创建消息气泡。
+          const lastMsg = state.messages[state.messages.length - 1]
+          if (state.streamingAgentId === data.agentId && lastMsg?.role === 'assistant') {
+            // 复用:仅恢复 isStreaming,不新建消息
+            set({ isStreaming: true, isThinking: false })
+            // CONCERN 修复: 合并切走期间缓存的 output,避免文本截断
+            const pending = pendingAgentOutputs.get(data.agentId)
+            if (pending && pending.length > 0) {
+              const combined = pending.join('')
+              pendingAgentOutputs.delete(data.agentId)
+              state.appendStreamDelta(combined)
+            }
+          } else {
+            // 新流:记录 streamingAgentId + 新建 assistant 消息
+            set({ isStreaming: true, isThinking: false, streamingAgentId: data.agentId })
+            // LOW 修复: 清理非当前 agent 的残留缓存,防止 agent 崩溃(不发出 idle/error)
+            // 导致 pendingAgentOutputs 内存泄漏。新流开始意味着用户关注当前 agent,
+            // 之前切走期间的其他 agent 缓存已无意义(切回也会从新流开始)。
+            for (const key of pendingAgentOutputs.keys()) {
+              if (key !== data.agentId) pendingAgentOutputs.delete(key)
+            }
+            state.addMessage({
+              role: 'assistant',
+              content: '',
+              toolCalls: [],
+              timestamp: Date.now(),
+            })
+          }
         }
         // 追加文本输出
         if (data.output) {
@@ -389,8 +459,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
               provider: `agent:${data.agentId}`,
               model: data.agentId,
             })
-            .catch(() => {
-              /* silent fail */
+            .catch((err) => {
+              console.warn('[chatStore] saveMessage failed (agent)', err)
             })
         }
         const usage: TokenUsage = data.result?.tokenUsage || {
@@ -402,6 +472,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({
           isStreaming: false,
           isThinking: false,
+          streamingAgentId: null,
           lastUsage: usage,
           lastCost: data.result?.cost || 0,
         })
@@ -409,50 +480,75 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
 
       case 'error': {
-        if (data.error && !state.isStreaming) {
-          // streaming 未开始就出错（如启动失败）
-          set({ isStreaming: true })
-          state.addMessage({
-            role: 'assistant',
-            content: '',
-            timestamp: Date.now(),
-          })
-        }
+        // H-6 修复: 错误分支需要检查最后消息角色
+        // 之前只在 !state.isStreaming 时创建 assistant 消息,
+        // 但如果 streaming 已开始且最后消息不是 assistant(如用户在运行中发了新消息),
+        // appendStreamDelta 会静默失败,错误信息丢失
         if (data.error) {
-          get().appendStreamDelta(`\n\n**错误:** ${data.error}`)
+          const msgs = get().messages
+          const lastMsg = msgs[msgs.length - 1]
+          if (!state.isStreaming || !lastMsg || lastMsg.role !== 'assistant') {
+            // streaming 未开始,或最后消息不是 assistant → 新建一条承载错误
+            if (!state.isStreaming) {
+              set({ isStreaming: true })
+            }
+            state.addMessage({
+              role: 'assistant',
+              content: `**错误:** ${data.error}`,
+              timestamp: Date.now(),
+            })
+          } else {
+            // 最后消息是 assistant → 追加错误信息
+            get().appendStreamDelta(`\n\n**错误:** ${data.error}`)
+          }
         }
-        set({ isStreaming: false, isThinking: false })
+        set({ isStreaming: false, isThinking: false, streamingAgentId: null })
         break
       }
     }
   },
 
   clearMessages: () => {
-    const sid = get().sessionId
+    // C-3 修复: clearMessages 只清空当前显示,不删除会话数据
+    // 之前调 chat.deleteSession(sid) 会把整个会话从 DB 删除,导致用户数据丢失
+    // 用户若想删除会话,应使用侧边栏每个会话项右侧的 × 按钮(调 deleteSession)
     set({ messages: [], lastUsage: null, lastCost: 0 })
-    getAPI()
-      .chat.deleteSession(sid)
-      .catch(() => {
-        /* silent fail */
-      })
   },
 
   loadHistory: async () => {
     if (get().historyLoaded) return
+    // RISK 修复: 捕获当前 sessionId,await 后校验是否仍是当前 session
+    // 之前用户快速切换 session 时,旧 loadHistory 的结果可能覆盖新 session 的消息
+    const targetSessionId = get().sessionId
     try {
-      const result = await getAPI().chat.loadMessages(get().sessionId)
+      const result = await getAPI().chat.loadMessages(targetSessionId)
+      // 校验: await 期间 sessionId 可能已改变,若已切换则丢弃结果
+      if (get().sessionId !== targetSessionId) return
       if (result.success && result.messages && result.messages.length > 0) {
-        const loaded: ChatMessage[] = result.messages.map((m: Record<string, unknown>) => ({
-          role: m.role as 'user' | 'assistant' | 'system',
-          content: m.content as string,
-          thinking: m.thinking as string | undefined,
-          timestamp: m.timestamp as number,
-        }))
+        const loaded: ChatMessage[] = result.messages
+          // HIGH 修复: 对 DB 返回的消息做运行时校验,避免类型断言掩盖数据损坏
+          .filter(
+            (m: Record<string, unknown>) =>
+              typeof m?.role === 'string' &&
+              typeof m?.content === 'string' &&
+              typeof m?.timestamp === 'number',
+          )
+          .map((m: Record<string, unknown>) => ({
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: m.content as string,
+            thinking: typeof m.thinking === 'string' ? m.thinking : undefined,
+            timestamp: m.timestamp as number,
+          }))
+          // H-1 配套: 过滤掉 createSession 写入的空 system 占位消息
+          .filter((m) => !(m.role === 'system' && (!m.content || m.content.length === 0)))
         set({ messages: loaded, historyLoaded: true })
       } else {
         set({ historyLoaded: true })
       }
-    } catch {
+    } catch (err) {
+      console.warn('[chatStore] loadHistory failed', err)
+      // 错误时也校验 sessionId,避免错误状态覆盖新 session
+      if (get().sessionId !== targetSessionId) return
       set({ historyLoaded: true })
     }
   },
@@ -460,7 +556,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // === Session Management ===
 
   createSession: (title?: string) => {
-    const id = `session_${Date.now()}`
+    // RISK 修复: 加入随机后缀,避免 deleteSession 后立即 createSession
+    // 生成相同 id(同毫秒 Date.now() 相同),导致旧 session id 复用,
+    // 表现为 "deleteSession 后 session 仍在列表里"
+    const id = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const newSession: ChatSession = {
       id,
       title: title || `新对话 ${new Date().toLocaleTimeString()}`,
@@ -475,6 +574,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       lastCost: 0,
       historyLoaded: false,
     }))
+    // H-1 修复: 持久化空会话到 DB,避免用户创建会话后未发消息就刷新导致会话丢失
+    // 通过写入一条 system 角色的占位消息触发 syncSessionMeta 创建 session 记录
+    // loadHistory 时会加载这条消息,但因 role='system' 且 content 为空,UI 不渲染
+    getAPI()
+      .chat.saveMessage({
+        sessionId: id,
+        role: 'system',
+        content: '',
+        timestamp: Date.now(),
+      })
+      .catch((err) => {
+        console.warn('[chatStore] createSession persist failed', err)
+      })
   },
 
   switchSession: (id: string) => {
@@ -508,8 +620,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // 异步清理持久化数据
     getAPI()
       .chat.deleteSession(id)
-      .catch(() => {
-        /* silent fail */
+      .catch((err) => {
+        console.warn('[chatStore] deleteSession failed', err)
+        toast.error('删除会话失败,请查看日志')
       })
   },
 
@@ -517,20 +630,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const result = await getAPI().chat.listSessions()
       if (result.success && result.sessions) {
-        const sessions: ChatSession[] = result.sessions.map((s: Record<string, unknown>) => ({
-          id: s.id as string,
-          title: s.title as string,
-          createdAt: s.createdAt as number,
-          messageCount: s.messageCount as number,
-        }))
-        set({ sessions })
+        const dbSessions: ChatSession[] = result.sessions
+          // HIGH 修复: 对 DB 返回的 session 做运行时校验,避免非法记录污染 sessions 数组
+          .filter(
+            (s: Record<string, unknown>) =>
+              typeof s?.id === 'string' &&
+              typeof s?.title === 'string' &&
+              typeof s?.createdAt === 'number',
+          )
+          .map((s: Record<string, unknown>) => ({
+            id: s.id as string,
+            title: s.title as string,
+            createdAt: s.createdAt as number,
+            messageCount: typeof s.messageCount === 'number' ? s.messageCount : 0,
+          }))
+        // H-2 修复: 不直接覆盖 sessions,而是合并 DB sessions 和本地 sessions
+        // 保留本地存在但 DB 不存在的会话(如刚 createSession 但 saveMessage 还在 flight)
+        const localSessions = get().sessions
+        const dbIds = new Set(dbSessions.map((s) => s.id))
+        const localOnly = localSessions.filter((s) => !dbIds.has(s.id))
+        const merged = [...dbSessions, ...localOnly]
+        set({ sessions: merged })
         // 如果没有会话，自动创建一个
-        if (sessions.length === 0) {
+        if (merged.length === 0) {
           get().createSession()
         }
       }
-    } catch {
-      // 静默失败
+    } catch (err) {
+      console.warn('[chatStore] loadSessions failed', err)
     }
   },
 }))

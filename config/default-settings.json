@@ -35,7 +35,8 @@
     "steeringMode": "all",
     "followUpMode": "all",
     "showImages": true,
-    "maxTokens": 4096
+    "maxTokens": 4096,
+    "thinkingLevel": "medium"
   },
   "privacy": {
     "enabled": false,
@@ -45,6 +46,8 @@
     "appId": "",
     "appSecret": "",
     "userOpenId": "",
+    "bitableAppToken": "",
+    "bitableTableId": "",
     "bitableSync": {
       "enabled": false,
       "syncInterval": "0 */6 * * *"

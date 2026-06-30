@@ -117,13 +117,15 @@ class AgentService {
   private agentScheduleTasks: AgentScheduleMap = new Map()
 
   constructor() {
-    this.agentsDir = app.isPackaged
-      ? path.join(process.resourcesPath, 'agents')
-      : path.join(__dirname, '..', '..', 'agents')
+    // 注意: app.isPackaged 在用 `electron .` 启动时可能返回 true（不可靠）。
+    // 因此优先检查 dev 路径是否存在，不存在才回退到 packaged 路径。
+    const devAgentsDir = path.join(__dirname, '..', '..', 'agents')
+    const prodAgentsDir = path.join(process.resourcesPath, 'agents')
+    this.agentsDir = fs.existsSync(devAgentsDir) ? devAgentsDir : prodAgentsDir
 
-    this.configDir = app.isPackaged
-      ? path.join(process.resourcesPath, 'config')
-      : path.join(__dirname, '..', '..', 'config')
+    const devConfigDir = path.join(__dirname, '..', '..', 'config')
+    const prodConfigDir = path.join(process.resourcesPath, 'config')
+    this.configDir = fs.existsSync(devConfigDir) ? devConfigDir : prodConfigDir
 
     this.userOverridesPath = path.join(app.getPath('userData'), 'agents.user.yaml')
   }
@@ -232,28 +234,36 @@ ${yaml.stringify({ agents: list })}
       return
     }
 
-    const content = fs.readFileSync(yamlPath, 'utf-8')
-    const parsed = yaml.parse(content)
-    const agentList = parsed.agents ?? []
+    try {
+      const content = fs.readFileSync(yamlPath, 'utf-8')
+      const parsed = yaml.parse(content)
+      // 防御：parsed 可能为 null（空文件或 yaml.parse 返回 null）
+      const agentList = Array.isArray(parsed?.agents) ? parsed.agents : []
 
-    for (const a of agentList) {
-      const override = this.userOverrides.get(a.id)
-      const config: AgentConfig = {
-        id: a.id,
-        name: override?.name ?? a.name ?? a.id,
-        role: a.role ?? '',
-        description: override?.description ?? a.description ?? '',
-        enabled: typeof override?.enabled === 'boolean' ? override.enabled : (a.enabled ?? true),
-        modelTier: override?.modelTier ?? a.model_tier ?? 'low_cost',
-        schedule: a.schedule?.cron ?? [],
-        capabilities: override?.capabilities ?? a.capabilities ?? [],
-        riskThresholds: a.risk_thresholds,
+      for (const a of agentList) {
+        // 防御单条数据畸形：必须有字符串 id
+        if (!a || typeof a.id !== 'string') continue
+        const override = this.userOverrides.get(a.id)
+        const config: AgentConfig = {
+          id: a.id,
+          name: override?.name ?? a.name ?? a.id,
+          role: a.role ?? '',
+          description: override?.description ?? a.description ?? '',
+          enabled: typeof override?.enabled === 'boolean' ? override.enabled : (a.enabled ?? true),
+          modelTier: override?.modelTier ?? a.model_tier ?? 'low_cost',
+          schedule: a.schedule?.cron ?? [],
+          capabilities: override?.capabilities ?? a.capabilities ?? [],
+          riskThresholds: a.risk_thresholds,
+        }
+        this.agents.set(config.id, config)
+        this.agentStatus.set(config.id, 'idle')
       }
-      this.agents.set(config.id, config)
-      this.agentStatus.set(config.id, 'idle')
-    }
 
-    console.log(`[AgentService] Loaded ${this.agents.size} agents`)
+      console.log(`[AgentService] Loaded ${this.agents.size} agents`)
+    } catch (err) {
+      console.error('[AgentService] Failed to load agents.yaml:', err)
+      this.agents.clear()
+    }
   }
 
   /** 聚合 agent 下次执行时间（取所有 schedule 中最早的 ISO 时间戳） */
@@ -335,25 +345,38 @@ ${yaml.stringify({ agents: list })}
     return { success: true }
   }
 
+  /** 校验 agent id，防止 path traversal（允许小写字母、数字、连字符、下划线） */
+  private validateAgentId(id: string): string {
+    if (!/^[a-z0-9_-]+$/.test(id)) {
+      throw new Error(`Invalid agent id: ${JSON.stringify(id)}`)
+    }
+    // 双保险：即便正则通过，也用 basename 去掉任何潜在的分隔符
+    return path.basename(id)
+  }
+
   getSoul(id: string): string {
-    const soulPath = path.join(this.agentsDir, id, 'SOUL.md')
+    const safeId = this.validateAgentId(id)
+    const soulPath = path.join(this.agentsDir, safeId, 'SOUL.md')
     return fs.existsSync(soulPath) ? fs.readFileSync(soulPath, 'utf-8') : ''
   }
 
   setSoul(id: string, content: string) {
-    const soulPath = path.join(this.agentsDir, id, 'SOUL.md')
+    const safeId = this.validateAgentId(id)
+    const soulPath = path.join(this.agentsDir, safeId, 'SOUL.md')
     fs.mkdirSync(path.dirname(soulPath), { recursive: true })
     fs.writeFileSync(soulPath, content, 'utf-8')
     return { success: true }
   }
 
   getRules(id: string): string {
-    const rulesPath = path.join(this.agentsDir, id, 'AGENTS.md')
+    const safeId = this.validateAgentId(id)
+    const rulesPath = path.join(this.agentsDir, safeId, 'AGENTS.md')
     return fs.existsSync(rulesPath) ? fs.readFileSync(rulesPath, 'utf-8') : ''
   }
 
   setRules(id: string, content: string) {
-    const rulesPath = path.join(this.agentsDir, id, 'AGENTS.md')
+    const safeId = this.validateAgentId(id)
+    const rulesPath = path.join(this.agentsDir, safeId, 'AGENTS.md')
     fs.mkdirSync(path.dirname(rulesPath), { recursive: true })
     fs.writeFileSync(rulesPath, content, 'utf-8')
     return { success: true }
@@ -408,8 +431,12 @@ ${yaml.stringify({ agents: list })}
         defaultApi = staticModels[0].api
         defaultBaseUrl = staticModels[0].baseUrl
       }
-    } catch {
+    } catch (err) {
       // provider 不在静态注册表，使用默认值
+      console.warn(
+        `[AgentService] getModels threw for provider "${providerId}" (custom provider expected):`,
+        err instanceof Error ? err.message : err,
+      )
     }
 
     const model: Model<Api> = {
@@ -503,8 +530,12 @@ ${yaml.stringify({ agents: list })}
           )
           return selected
         }
-      } catch {
+      } catch (err) {
         // 静态模型查找失败（如自定义 provider），继续尝试自定义模型
+        console.warn(
+          `[AgentService] getModels threw for default provider "${providerId}" (will try custom models):`,
+          err instanceof Error ? err.message : err,
+        )
       }
 
       // 2b. 自定义模型列表
@@ -537,8 +568,12 @@ ${yaml.stringify({ agents: list })}
           console.log(`[AgentService] selectModel: fallback to ${pid}/${selected.id}`)
           return selected
         }
-      } catch {
-        // continue
+      } catch (err) {
+        // continue — 该 provider 可能是自定义 provider,静态注册表查不到
+        console.warn(
+          `[AgentService] getModels threw for provider "${pid}" during fallback scan:`,
+          err instanceof Error ? err.message : err,
+        )
       }
 
       // 3b. 也检查该 provider 的自定义模型
@@ -612,10 +647,6 @@ ${yaml.stringify({ agents: list })}
       this.sendStatus(win, id, 'error', { error: msg })
       throw new Error(msg)
     }
-
-    // 更新状态为 running
-    this.agentStatus.set(id, 'running')
-    this.sendStatus(win, id, 'running')
 
     // 选择模型
     const model = this.selectModel(config.modelTier)
@@ -740,7 +771,10 @@ ${yaml.stringify({ agents: list })}
       initialState: {
         systemPrompt,
         model,
-        thinkingLevel: 'medium' as ThinkingLevel,
+        // C-2 修复: 从 settings.chat.thinkingLevel 读取用户选择的思考级别,
+        // 而非硬编码 'medium'。fallback 到 'medium' 保证向后兼容。
+        thinkingLevel: (settingsService.getSettings().chat?.thinkingLevel ??
+          'medium') as ThinkingLevel,
         // ✅ 从模型定义中读取 maxTokens 作为单次输出上限
         // (pi-agent-core 会根据 model.maxTokens 向 LLM 请求对应数量的 token)
       },
@@ -867,6 +901,9 @@ ${yaml.stringify({ agents: list })}
     }
 
     try {
+      // MEDIUM 修复: running 状态设置移入 try 块,避免 setup 阶段抛错导致状态永久卡死
+      this.agentStatus.set(id, 'running')
+      this.sendStatus(win, id, 'running')
       // ── 执行 Agent（含智能续跑）──
       console.log(`[AgentService] runAgent(${id}) calling agent.prompt()...`)
       await agent.prompt(prompt)
@@ -947,6 +984,7 @@ ${yaml.stringify({ agents: list })}
       this.sendStatus(win, id, 'idle', { result: execution })
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err)
+      const isAborted = abortController.signal.aborted
       const execution: AgentExecution = {
         id: `exec_${Date.now()}`,
         agentId: id,
@@ -956,14 +994,14 @@ ${yaml.stringify({ agents: list })}
         durationMs: Date.now() - startedAt,
         tokenUsage: { inputTokens, outputTokens, cacheReadTokens: 0, cacheWriteTokens: 0 },
         cost: totalCost,
-        status: abortController.signal.aborted ? 'timeout' : 'error',
+        status: isAborted ? 'timeout' : 'error',
       }
       this.appendExecution(id, execution)
 
       // 同步写入 DB
       if (dbExecId >= 0) {
         dbService.updateExecution(dbExecId, {
-          status: abortController.signal.aborted ? 'aborted' : 'failure',
+          status: isAborted ? 'aborted' : 'failure',
           output: outputText || errorMsg,
           error: errorMsg,
           tokensInput: inputTokens,
@@ -972,8 +1010,16 @@ ${yaml.stringify({ agents: list })}
         })
       }
 
-      this.agentStatus.set(id, 'error')
-      this.sendStatus(win, id, 'error', { error: errorMsg })
+      // High 5.4 修复: abortAgent 与 runAgent finally 双重状态转移
+      // 之前无论是 abort 还是真实 error 都设 'error' 状态,
+      // 但 abortAgent 之后又会设 'idle',导致状态从 error 翻转为 idle,前端收到矛盾事件
+      // 修复: 如果是 abort 导致的,不设 error 状态(让 abortAgent 统一设 idle);
+      // 只在真实 error 时设 error 状态
+      if (!isAborted) {
+        this.agentStatus.set(id, 'error')
+        this.sendStatus(win, id, 'error', { error: errorMsg })
+      }
+      // abort 路径: 不在此处发状态事件,由 abortAgent 统一发送 idle + aborted: true
     } finally {
       unsubscribe()
       this.runningAgents.delete(id)
@@ -989,14 +1035,17 @@ ${yaml.stringify({ agents: list })}
     running.abortController.abort()
     try {
       await Promise.resolve(running.agent.abort())
-    } catch {
-      // agent.abort() 内部可能 throw,忽略
+    } catch (err) {
+      console.warn(`[Agent] abort() threw for ${id}:`, err instanceof Error ? err.message : err)
     }
     // 短超时等 idle(abort 后 waitForIdle 通常立即 resolve)
     try {
       await withTimeout(running.agent.waitForIdle(), 2000, `Agent abort(${id})`)
-    } catch {
-      // 超时或异常也认为已尽力 abort
+    } catch (err) {
+      console.warn(
+        `[Agent] waitForIdle timed out for ${id}:`,
+        err instanceof Error ? err.message : err,
+      )
     }
     this.runningAgents.delete(id)
     this.agentStatus.set(id, 'idle')

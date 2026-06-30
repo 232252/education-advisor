@@ -8,6 +8,7 @@ import type {
   EAARankItem,
   EAAStatsData,
   EAASummaryData,
+  EAATagDetailData,
   EAATagListData,
   EAAValidateData,
 } from '@shared/types'
@@ -22,10 +23,16 @@ import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import ReactEChartsCore from 'echarts-for-react/lib/core'
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../hooks/useTheme'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../../stores/toastStore'
+
+// MEDIUM 修复: 类型守卫,区分 EAATagListData 和 EAATagDetailData,避免不安全的 as 断言
+function isTagListData(d: EAATagListData | EAATagDetailData): d is EAATagListData {
+  return Array.isArray((d as EAATagListData).tags)
+}
 
 echarts.use([
   BarChart,
@@ -109,6 +116,7 @@ const GRADIENT_COLORS = {
 
 export function DashboardPage() {
   const { t } = useT()
+  const navigate = useNavigate()
   const [stats, setStats] = useState<EAAStatsData | null>(null)
   const [summary, setSummary] = useState<EAASummaryData | null>(null)
   const [ranking, setRanking] = useState<EAARankItem[]>([])
@@ -129,18 +137,57 @@ export function DashboardPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [statsRes, summaryRes, rankingRes, infoRes, tagRes] = await Promise.all([
+      // 使用 allSettled: 单个 EAA 命令失败不阻塞其他数据加载
+      // 例如 eaa.tag() 失败时,stats/ranking 仍能正常显示
+      const results = await Promise.allSettled([
         getAPI().eaa.stats(),
         getAPI().eaa.summary(),
         getAPI().eaa.ranking(10),
         getAPI().eaa.info(),
         getAPI().eaa.tag(),
       ])
-      if (statsRes.success && statsRes.data) setStats(statsRes.data)
-      if (summaryRes.success && summaryRes.data) setSummary(summaryRes.data)
-      if (rankingRes.success && rankingRes.data?.ranking) setRanking(rankingRes.data.ranking)
-      if (infoRes.success && infoRes.data) setEaaInfo(infoRes.data)
-      if (tagRes.success && tagRes.data) setTagData(tagRes.data as EAATagListData)
+
+      // 逐个处理结果,保持类型安全
+      const statsRes = results[0]
+      if (statsRes.status === 'fulfilled' && statsRes.value.success && statsRes.value.data) {
+        setStats(statsRes.value.data)
+      }
+
+      const summaryRes = results[1]
+      if (summaryRes.status === 'fulfilled' && summaryRes.value.success && summaryRes.value.data) {
+        setSummary(summaryRes.value.data)
+      }
+
+      const rankingRes = results[2]
+      if (
+        rankingRes.status === 'fulfilled' &&
+        rankingRes.value.success &&
+        rankingRes.value.data?.ranking
+      ) {
+        setRanking(rankingRes.value.data.ranking)
+      }
+
+      const infoRes = results[3]
+      if (infoRes.status === 'fulfilled' && infoRes.value.success && infoRes.value.data) {
+        setEaaInfo(infoRes.value.data)
+      }
+
+      const tagRes = results[4]
+      if (tagRes.status === 'fulfilled' && tagRes.value.success && tagRes.value.data) {
+        // MEDIUM 修复: 用类型守卫替代 as 断言,确保 data 确实是 EAATagListData
+        if (isTagListData(tagRes.value.data)) {
+          setTagData(tagRes.value.data)
+        }
+      }
+
+      // 记录失败的部分到控制台,便于调试
+      const failed = results.filter((r) => r.status === 'rejected')
+      if (failed.length > 0) {
+        console.warn(
+          `[Dashboard] ${failed.length}/${results.length} EAA calls failed:`,
+          failed.map((r) => String((r as PromiseRejectedResult).reason)),
+        )
+      }
     } catch (err) {
       console.error('[Dashboard] Failed to load:', err)
       toast.error(t('error.unknown'))
@@ -182,7 +229,7 @@ export function DashboardPage() {
           type="button"
           onClick={loadData}
           className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700
-                     px-4 py-2 rounded-xl text-sm transition-all duration-200 shadow-sm hover:shadow-md"
+                     px-4 py-2 rounded-lg text-sm transition-all duration-200 shadow-sm hover:shadow-md"
         >
           🔄 {t('page.dashboard.refresh')}
         </button>
@@ -411,14 +458,22 @@ export function DashboardPage() {
             {t('page.dashboard.chart.top10')}
           </h3>
           <div className="space-y-2">
-            {ranking.slice(0, 10).map((r) => (
-              <div
-                key={r.entity_id}
-                className="flex items-center justify-between text-xs p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+            {ranking.length === 0 ? (
+              <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-6">
+                暂无排行数据
+              </div>
+            ) : (
+              ranking.slice(0, 10).map((r) => (
+                <button
+                  type="button"
+                  key={r.entity_id}
+                  onClick={() => navigate(`/students?entity_id=${encodeURIComponent(r.entity_id)}`)}
+                  title={t('page.dashboard.chart.top10')}
+                  className="w-full text-left flex items-center justify-between text-xs p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer bg-transparent border-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
                     ${
                       r.rank === 1
                         ? 'bg-yellow-400 text-white shadow-lg shadow-yellow-400/30'
@@ -428,16 +483,17 @@ export function DashboardPage() {
                             ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
                             : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                     }`}
-                  >
-                    {r.rank}
+                    >
+                      {r.rank}
+                    </span>
+                    <span className="text-gray-700 dark:text-gray-200 font-medium">{r.name}</span>
+                  </div>
+                  <span className="font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+                    {(typeof r.score === 'number' ? r.score : 0).toFixed(1)}
                   </span>
-                  <span className="text-gray-700 dark:text-gray-200 font-medium">{r.name}</span>
-                </div>
-                <span className="font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-                  {r.score.toFixed(1)}
-                </span>
-              </div>
-            ))}
+                </button>
+              ))
+            )}
           </div>
         </div>
 

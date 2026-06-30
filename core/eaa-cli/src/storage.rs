@@ -93,7 +93,10 @@ pub fn resolve_entity_id(name: &str, index: &HashMap<String, String>) -> Result<
 pub fn compute_scores(entities: &std::collections::HashMap<String, Entity>, events: &[Event]) -> HashMap<String, f64> {
     let mut scores: HashMap<String, f64> = entities.keys().map(|k| (k.clone(), BASE_SCORE)).collect();
     for evt in events {
-        if evt.is_valid && evt.reverted_by.is_none() {
+        // 跳过已撤销事件 (reverted_by 已设置) 和撤销事件本身 (reason_code == "REVERT")
+        // 否则会双重计算: 原事件被过滤掉 (-2 不算), revert 事件被计入 (+2 算),
+        // 导致分数比预期高 2*|delta|。正确行为: 两者都不参与分数计算。
+        if evt.is_valid && evt.reverted_by.is_none() && evt.reason_code != "REVERT" {
             *scores.entry(evt.entity_id.clone()).or_insert(BASE_SCORE) += evt.score_delta;
         }
     }
@@ -110,6 +113,8 @@ pub fn compute_cumulative_history(
     let mut history = Vec::new();
     for evt in events {
         if evt.entity_id == entity_id {
+            // v3.1.3 fix: skip invalid (soft-deleted) events in cumulative calc to match score
+            if !evt.is_valid { continue; }
             cum += evt.score_delta;
             history.push(serde_json::json!({
                 "event_id": evt.event_id,

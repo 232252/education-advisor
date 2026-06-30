@@ -360,7 +360,7 @@ git clone https://github.com/232252/education-advisor.git
 cd education-advisor
 git checkout v0.1.0
 npm ci
-npm run build:eaa
+npm run build:eaa    # compiles core/eaa-cli from source — requires Rust (https://rustup.rs)
 npm run build
 npm run package
 

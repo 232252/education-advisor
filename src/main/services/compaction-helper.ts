@@ -37,7 +37,20 @@ export function evaluateCompaction(
   model: Model<Api>,
   settings: CompactionSettings,
 ): CompactionDecision {
-  const { tokens: sdkTokens } = estimateContextTokens(messages)
+  // 防御性: SDK 的 estimateContextTokens 对 null/object content 会抛错
+  // 我们先过滤掉非标准的 content 类型,保证不会崩
+  const safeMessages = messages.filter((m) => {
+    const c = (m as { content?: unknown }).content
+    return c === null || c === undefined || typeof c === 'string' || Array.isArray(c)
+  })
+  let sdkTokens = 0
+  try {
+    const result = estimateContextTokens(safeMessages)
+    sdkTokens = result.tokens
+  } catch (err) {
+    // SDK 抛错时静默回退到字符估算
+    console.warn('[Compaction] SDK estimateContextTokens failed, falling back:', err)
+  }
   // 兜底估算: 字符总数 / 4 (1 token ≈ 4 字符, 跟 SDK 内部策略一致)
   let charEstimate = 0
   for (const m of messages) {

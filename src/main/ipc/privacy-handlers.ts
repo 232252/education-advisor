@@ -1,8 +1,13 @@
 // =============================================================
 // 隐私引擎 IPC 处理器
 // - Init/Load/Disable: Rust CLI 要求密码作为**位置参数**传递
-// - Add/List/Anonymize/Deanonymize/Filter/DryRun: 密码走 EAA_PRIVACY_PASSWORD 环境变量
-// - 入参 sanitize（防命令注入）
+//   渲染进程仅在 init/load 时发送一次密码(明文,因 Rust CLI 需要),
+//   主进程在内存中保留密码(eaaBridge.setPrivacyPassword)供后续命令复用,
+//   渲染进程随后清空自身密码状态,避免长期持有
+// - Add/List/Anonymize/Deanonymize/Filter/DryRun: 密码走 EAA_PRIVACY_PASSWORD 环境变量,
+//   渲染进程不再需要重复传递密码
+// - Lock/Status: 显式锁定(清空内存密码)与状态查询
+// - 入参 sanitize(防命令注入)
 // =============================================================
 
 import { type BrowserWindow, ipcMain } from 'electron'
@@ -63,6 +68,7 @@ const RECEIVER_TYPES = ['student', 'parent', 'teacher', 'school', 'public'] as c
 
 export function registerPrivacyHandlers(_win: BrowserWindow) {
   // ----- init: 初始化隐私引擎（Rust CLI 要求 password 作为位置参数） -----
+  // 渲染进程发送一次密码后,主进程在内存中保留,渲染进程应立即清空自身状态
   ipcMain.handle(IPC.IPC_PRIVACY_INIT, async (_e, password: string, autoScan?: boolean) => {
     const pwd = validatePassword(password)
     eaaBridge.setPrivacyPassword(pwd)
@@ -78,7 +84,7 @@ export function registerPrivacyHandlers(_win: BrowserWindow) {
     return eaaBridge.execute({ command: 'privacy', args: ['load', pwd] })
   })
 
-  // ----- enable: 启用脱敏 -----
+  // ----- enable: 启用脱敏（使用内存中已缓存的密码） -----
   ipcMain.handle(IPC.IPC_PRIVACY_ENABLE, async () => {
     return eaaBridge.execute({ command: 'privacy', args: ['enable'] })
   })
@@ -90,7 +96,8 @@ export function registerPrivacyHandlers(_win: BrowserWindow) {
     return eaaBridge.execute({ command: 'privacy', args: ['disable', pwd] })
   })
 
-  // ----- list: 列出已注册实体（密码走 EAA_PRIVACY_PASSWORD 环境变量） -----
+  // ----- list: 列出已注册实体（密码走 EAA_PRIVACY_PASSWORD 环境变量,内存中已缓存） -----
+  // 兼容旧调用：如果渲染进程仍传密码,则更新内存中的密码；否则使用已缓存的
   ipcMain.handle(IPC.IPC_PRIVACY_LIST, async (_e, password?: string) => {
     if (typeof password === 'string' && password.length >= 4) {
       eaaBridge.setPrivacyPassword(password)
@@ -98,7 +105,7 @@ export function registerPrivacyHandlers(_win: BrowserWindow) {
     return eaaBridge.execute({ command: 'privacy', args: ['list'], jsonOutput: true })
   })
 
-  // ----- add: 添加隐私实体 -----
+  // ----- add: 添加隐私实体（使用内存中已缓存的密码） -----
   ipcMain.handle(IPC.IPC_PRIVACY_ADD, async (_e, entityType: string, text: string) => {
     const safeType = sanitizeEnum(entityType, ENTITY_TYPES, 'entityType')
     const safeText = sanitize(text, 'text')
@@ -108,19 +115,19 @@ export function registerPrivacyHandlers(_win: BrowserWindow) {
     })
   })
 
-  // ----- anonymize: 文本脱敏 -----
+  // ----- anonymize: 文本脱敏（使用内存中已缓存的密码） -----
   ipcMain.handle(IPC.IPC_PRIVACY_ANONYMIZE, async (_e, text: string) => {
     const safeText = sanitize(text, 'text')
     return eaaBridge.execute({ command: 'privacy', args: ['anonymize', safeText] })
   })
 
-  // ----- deanonymize: 文本反脱敏（需要环境变量中的密码） -----
+  // ----- deanonymize: 文本反脱敏（需要环境变量中的密码,内存中已缓存） -----
   ipcMain.handle(IPC.IPC_PRIVACY_DEANONYMIZE, async (_e, text: string) => {
     const safeText = sanitize(text, 'text')
     return eaaBridge.execute({ command: 'privacy', args: ['deanonymize', safeText] })
   })
 
-  // ----- filter: 按接收者过滤 -----
+  // ----- filter: 按接收者过滤（使用内存中已缓存的密码） -----
   ipcMain.handle(IPC.IPC_PRIVACY_FILTER, async (_e, receiver: string, text: string) => {
     const safeReceiver = sanitizeEnum(receiver, RECEIVER_TYPES, 'receiver')
     const safeText = sanitize(text, 'text')
@@ -130,13 +137,13 @@ export function registerPrivacyHandlers(_win: BrowserWindow) {
     })
   })
 
-  // ----- dry-run: 预览脱敏效果 -----
+  // ----- dry-run: 预览脱敏效果（使用内存中已缓存的密码） -----
   ipcMain.handle(IPC.IPC_PRIVACY_DRYRUN, async (_e, text: string) => {
     const safeText = sanitize(text, 'text')
     return eaaBridge.execute({ command: 'privacy', args: ['dry-run', safeText] })
   })
 
-  // ----- backup: 备份隐私库 -----
+  // ----- backup: 备份隐私库（使用内存中已缓存的密码） -----
   ipcMain.handle(IPC.IPC_PRIVACY_BACKUP, async (_e, destPath: string) => {
     const safePath = sanitize(destPath, 'destPath', 1024)
     if (safePath.includes('\0')) {
@@ -145,5 +152,20 @@ export function registerPrivacyHandlers(_win: BrowserWindow) {
     return eaaBridge.execute({ command: 'privacy', args: ['backup', safePath] })
   })
 
-  console.log('[IPC] Privacy handlers registered')
+  // ----- lock: 锁定隐私引擎（清空内存中的密码,后续命令将无法使用隐私功能） -----
+  // 渲染进程调用此方法后,需要重新输入密码才能继续使用隐私功能
+  ipcMain.handle(IPC.IPC_PRIVACY_LOCK, async () => {
+    eaaBridge.clearPrivacyPassword()
+    return { success: true }
+  })
+
+  // ----- status: 查询隐私引擎状态（是否已加载密码,是否已初始化） -----
+  // 不返回密码本身,只返回布尔状态
+  ipcMain.handle(IPC.IPC_PRIVACY_STATUS, async () => {
+    return {
+      unlocked: eaaBridge.hasPrivacyPassword(),
+    }
+  })
+
+  console.log('[IPC] Privacy handlers registered (with lock/status)')
 }

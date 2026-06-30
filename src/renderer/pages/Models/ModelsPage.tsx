@@ -165,6 +165,32 @@ export function ModelsPage() {
     }
   }
 
+  // OAuth 登录 — 调用主进程打开 provider 的 API Key 获取页面
+  // 当前实现:引导式 API Key 获取(打开浏览器到 provider 的 key 管理页)
+  // 用户手动复制 Key 后填入 API Key 输入框,点测试连接即可保存
+  // 支持 OAuth 的 provider: anthropic / github-copilot / openai-codex
+  const handleOAuthLogin = async (providerId: string) => {
+    try {
+      setTestResults((p) => ({ ...p, [providerId]: '正在打开 OAuth 登录页面...' }))
+      const result = await getAPI().ai.oauthLogin(providerId)
+      if (result.success) {
+        setTestResults((p) => ({
+          ...p,
+          [providerId]: `已在浏览器中打开登录页面,请复制 API Key 后填入上方输入框`,
+        }))
+        toast.info(`OAuth: 已打开 ${providerId} 登录页面,请复制 API Key 后填入输入框`)
+      } else {
+        setTestResults((p) => ({ ...p, [providerId]: `OAuth 失败: ${result.error}` }))
+        toast.error(`OAuth 登录失败: ${result.error}`)
+      }
+    } catch (err) {
+      console.error(`[Models] OAuth login failed for ${providerId}:`, err)
+      const msg = err instanceof Error ? err.message : String(err)
+      setTestResults((p) => ({ ...p, [providerId]: `OAuth 错误: ${msg}` }))
+      toast.error(`OAuth 登录错误: ${msg}`)
+    }
+  }
+
   // 刷新指定 Provider 的模型列表（强制重新获取）
   // 使用 useCallback 稳定引用，避免 DefaultModelConfig.useEffect([onRefreshModels]) 无限循环
   const handleRefreshModels = useCallback(async (providerId: string) => {
@@ -349,6 +375,7 @@ export function ModelsPage() {
                     onApiKeyChange={(v) => setApiKeyInputs((prev) => ({ ...prev, [p.id]: v }))}
                     onTest={() => handleTestConnection(p.id)}
                     onDeleteKey={() => handleDeleteApiKey(p.id)}
+                    onOAuthLogin={() => handleOAuthLogin(p.id)}
                     onRefreshModels={() => handleRefreshModels(p.id)}
                     onHideProvider={() => handleHideProvider(p.id)}
                     onAddCustomModel={(modelId) => handleAddCustomModel(p.id, modelId)}
@@ -383,6 +410,7 @@ export function ModelsPage() {
                     onApiKeyChange={(v) => setApiKeyInputs((prev) => ({ ...prev, [p.id]: v }))}
                     onTest={() => handleTestConnection(p.id)}
                     onDeleteKey={() => handleDeleteApiKey(p.id)}
+                    onOAuthLogin={() => handleOAuthLogin(p.id)}
                     onHideProvider={() => handleHideProvider(p.id)}
                     onAddCustomModel={(modelId) => handleAddCustomModel(p.id, modelId)}
                     onUpdateCustomModel={(modelId, updates) =>
@@ -447,6 +475,7 @@ interface ProviderCardProps {
   onApiKeyChange: (value: string) => void
   onTest: () => void
   onDeleteKey: () => void
+  onOAuthLogin?: () => void
   onRefreshModels?: () => void
   onHideProvider?: () => void
   onAddCustomModel?: (modelId: string) => void
@@ -466,6 +495,7 @@ function ProviderCard({
   onApiKeyChange,
   onTest,
   onDeleteKey,
+  onOAuthLogin,
   onRefreshModels,
   onHideProvider,
   onAddCustomModel,
@@ -561,7 +591,9 @@ function ProviderCard({
               {p.supportsOAuth && (
                 <button
                   type="button"
+                  onClick={onOAuthLogin}
                   className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap"
+                  title="打开 provider 的 API Key 管理页面"
                 >
                   OAuth 登录
                 </button>

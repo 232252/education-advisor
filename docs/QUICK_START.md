@@ -60,33 +60,25 @@ If you see `better-sqlite3` errors, see
 ## 4. Fetch (or build) the Rust EAA binary
 
 The desktop spawns the Rust `eaa-cli` as a child process for all
-student-data operations. You need the binary at
-`resources/eaa-binaries/<platform>/eaa(.exe)`.
-
-### Option A — download the prebuilt binary (recommended)
+student-data operations. The Rust source lives in `core/eaa-cli/` inside
+this repo, so you build it from source — no download required.
 
 ```bash
 npm run build:eaa
 ```
 
-The script (`scripts/download-eaa-binaries.mjs`) will:
+The script (`scripts/build-eaa.mjs`) will:
 
 1. Detect your platform and architecture.
-2. Look up the latest release of the EAA CLI for this project.
-3. Download the binary and place it in
-   `resources/eaa-binaries/<platform>/<binary>`.
-4. Verify the SHA-256 against the manifest in the release notes.
+2. Verify the Rust toolchain (`cargo`) is installed — if not, it errors
+   out and points you to <https://rustup.rs>.
+3. Run `cargo build --release` in `core/eaa-cli/`.
+4. Place the built binary at
+   `resources/eaa-binaries/<platform>/eaa(.exe)`.
 
-### Option B — build from source (fully offline)
-
-```bash
-cd core/eaa-cli
-cargo build --release
-cd ../..
-# Copy the built binary into the resources directory
-mkdir -p "resources/eaa-binaries/$(node -e \"const o=require('os'); console.log(o.platform()+'-'+o.arch())\")"
-cp "core/eaa-cli/target/release/eaa$(node -e \"process.platform==='win32'?'\.exe':''\")" "resources/eaa-binaries/$(node -e \"const o=require('os'); console.log(o.platform()+'-'+o.arch())\")/"
-```
+The build is cached: it skips recompiling when the existing binary is
+newer than the `.rs` sources. Force a rebuild with
+`EAA_FORCE=1 npm run build:eaa`.
 
 ## 5. Run in dev mode
 

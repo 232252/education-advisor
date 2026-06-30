@@ -1,0 +1,229 @@
+{
+  "round": 12,
+  "timestamp": "2026-06-30T04:30:50.336Z",
+  "results": [
+    {
+      "name": "nav.dashboard",
+      "ok": true,
+      "detail": "hash=#/dashboard, bodyLen=651"
+    },
+    {
+      "name": "nav.students",
+      "ok": true,
+      "detail": "hash=#/students, bodyLen=1522"
+    },
+    {
+      "name": "nav.classes",
+      "ok": true,
+      "detail": "hash=#/classes, bodyLen=176"
+    },
+    {
+      "name": "nav.chat",
+      "ok": true,
+      "detail": "hash=#/chat, bodyLen=3825"
+    },
+    {
+      "name": "nav.agents",
+      "ok": true,
+      "detail": "hash=#/agents, bodyLen=1317"
+    },
+    {
+      "name": "nav.skills",
+      "ok": true,
+      "detail": "hash=#/skills, bodyLen=486"
+    },
+    {
+      "name": "nav.privacy",
+      "ok": true,
+      "detail": "hash=#/privacy, bodyLen=266"
+    },
+    {
+      "name": "nav.scheduler",
+      "ok": true,
+      "detail": "hash=#/scheduler, bodyLen=1766"
+    },
+    {
+      "name": "nav.models",
+      "ok": true,
+      "detail": "hash=#/models, bodyLen=143"
+    },
+    {
+      "name": "nav.settings",
+      "ok": true,
+      "detail": "hash=#/settings, bodyLen=2054"
+    },
+    {
+      "name": "nav.invalid_route_handled",
+      "ok": true,
+      "detail": "hash=#/dashboard, bodyLen=655"
+    },
+    {
+      "name": "dom.root_exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dom.nav_exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dom.main_exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dom.has_title",
+      "ok": true,
+      "detail": "title=\"Education Advisor\""
+    },
+    {
+      "name": "dom.has_buttons",
+      "ok": true,
+      "detail": "count=15"
+    },
+    {
+      "name": "dom.has_links",
+      "ok": true,
+      "detail": "count=10"
+    },
+    {
+      "name": "dom.html_class",
+      "ok": true,
+      "detail": "class=\"dark\""
+    },
+    {
+      "name": "theme.switch_to_light",
+      "ok": true,
+      "detail": "htmlClass=\"\""
+    },
+    {
+      "name": "lang.switch_to_en",
+      "ok": true,
+      "detail": "navText=\"📊Dashboard\""
+    },
+    {
+      "name": "page.dashboard_content",
+      "ok": true,
+      "detail": "hash=#/dashboard, bodyLen=653, interactive=25"
+    },
+    {
+      "name": "page.students_content",
+      "ok": true,
+      "detail": "hash=#/students, bodyLen=1522, interactive=71"
+    },
+    {
+      "name": "page.classes_content",
+      "ok": true,
+      "detail": "hash=#/classes, bodyLen=176, interactive=12"
+    },
+    {
+      "name": "page.chat_content",
+      "ok": true,
+      "detail": "hash=#/chat, bodyLen=3849, interactive=32"
+    },
+    {
+      "name": "page.agents_content",
+      "ok": true,
+      "detail": "hash=#/agents, bodyLen=1317, interactive=47"
+    },
+    {
+      "name": "page.skills_content",
+      "ok": true,
+      "detail": "hash=#/skills, bodyLen=486, interactive=27"
+    },
+    {
+      "name": "page.privacy_content",
+      "ok": true,
+      "detail": "hash=#/privacy, bodyLen=266, interactive=17"
+    },
+    {
+      "name": "page.scheduler_content",
+      "ok": true,
+      "detail": "hash=#/scheduler, bodyLen=1766, interactive=28"
+    },
+    {
+      "name": "page.models_content",
+      "ok": true,
+      "detail": "hash=#/models, bodyLen=4112, interactive=50"
+    },
+    {
+      "name": "page.settings_content",
+      "ok": true,
+      "detail": "hash=#/settings, bodyLen=2054, interactive=52"
+    },
+    {
+      "name": "settings.selects_count",
+      "ok": true,
+      "detail": "count=8"
+    },
+    {
+      "name": "settings.inputs_count",
+      "ok": true,
+      "detail": "count=10"
+    },
+    {
+      "name": "settings.buttons_count",
+      "ok": true,
+      "detail": "count=22"
+    },
+    {
+      "name": "nav.links_count",
+      "ok": true,
+      "detail": "count=10"
+    },
+    {
+      "name": "nav.click_navigation",
+      "ok": true,
+      "detail": "8/8 succeeded"
+    },
+    {
+      "name": "error.empty_students_page",
+      "ok": true,
+      "detail": "bodyLen=1522"
+    },
+    {
+      "name": "error.no_visible_errors",
+      "ok": true,
+      "detail": "errorElements=0, bodyHasError=false"
+    },
+    {
+      "name": "a11y.focusable_elements",
+      "ok": true,
+      "detail": "count=52"
+    },
+    {
+      "name": "a11y.aria_attributes",
+      "ok": true,
+      "detail": "count=26"
+    },
+    {
+      "name": "layout.viewport_meta",
+      "ok": true,
+      "detail": "content=\"width=device-width, initial-scale=1.0\""
+    },
+    {
+      "name": "layout.media_query_works",
+      "ok": true,
+      "detail": "matches=false"
+    },
+    {
+      "name": "layout.window_size",
+      "ok": true,
+      "detail": "1350x681"
+    },
+    {
+      "name": "perf.dom_elements_count",
+      "ok": true,
+      "detail": "count=408"
+    },
+    {
+      "name": "perf.memory_usage",
+      "ok": true,
+      "detail": "used=12MB, total=14MB"
+    }
+  ],
+  "passed": 44,
+  "failed": 0,
+  "total": 44
+}

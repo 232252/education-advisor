@@ -107,30 +107,39 @@ subsequent installs:
 
 ### `npm run build:eaa` fails
 
+`build:eaa` compiles the Rust source in `core/eaa-cli/` — it does not
+download anything. The two most common failures are below.
+
 **Error**:
 
 ```
-Error: Failed to download eaa binary
-  at download-eaa-binaries.mjs:42:7
+[error] 未检测到 Rust 工具链（cargo 不可用）。
 ```
 
-**Cause**: the script couldn't reach the GitHub Releases API, or
-the release doesn't have a binary for your platform.
+**Cause**: the Rust toolchain is not installed or not on your `PATH`.
 
 **Fix**:
 
-1. **Check your internet connection.** The script needs to
-   reach `api.github.com`.
-2. **Check the release page.**
-   <https://github.com/232252/education-advisor/releases>.
-   The latest release should have binaries for
-   `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`,
-   `win32-arm64`, `win32-x64`.
-3. **If you're on an unusual platform** (e.g. FreeBSD), build
-   the binary from source. See
-   [`EAA_BRIDGE.md#building-from-source`](./EAA_BRIDGE.md#building-from-source).
-4. **If you're behind a corporate proxy**, set the
-   `HTTPS_PROXY` env var before running the script.
+1. Install Rust via <https://rustup.rs/>.
+2. Restart your terminal so `cargo` is on `PATH`, then verify with
+   `cargo --version`.
+3. Re-run `npm run build:eaa`.
+
+**Error**:
+
+```
+error[E0xxx]: ...
+error: could not compile `eaa` (bin "eaa") due to previous error
+[error] cargo build 失败（exit 101）
+```
+
+**Cause**: a Rust compile error in `core/eaa-cli/`.
+
+**Fix**:
+
+1. Read the compiler output above the `[error]` line — it names the
+   file and line.
+2. Fix the Rust source, then re-run `npm run build:eaa`.
 
 ### `npm run build:eaa` succeeds but the binary doesn't work
 

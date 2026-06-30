@@ -166,7 +166,9 @@ pub fn cmd_history(name: &str, output: OutputMode) -> Result<(), AppError> {
                 println!("{} 的事件时间线 ({}条):", name, student_events.len());
                 println!("{}", "-".repeat(60));
                 let mut running = BASE_SCORE;
+                // v3.1.3 fix: skip is_valid=false events (e.g. soft-deleted) in cumulative display
                 for evt in &student_events {
+                    if !evt.is_valid { continue; }
                     running += evt.score_delta;
                     println!("{:<12} {:>+6.1} → {:>6.1}  [{}] {}",
                         &evt.timestamp[..10], evt.score_delta, running,
@@ -227,7 +229,13 @@ pub fn cmd_score(name: &str, output: OutputMode) -> Result<(), AppError> {
             }));
         }
         OutputMode::Text => {
-            println!("{}: {:.1} 分 (风险: {})", name, score, risk);
+            // v3.1.3 fix: text mode 也显示从分数计算的 risk level(与 JSON 一致),stored risk 作为参考
+            let computed_risk = risk_level(*score);
+            if risk == "未知" {
+                println!("{}: {:.1} 分 (风险: {})", name, score, computed_risk);
+            } else {
+                println!("{}: {:.1} 分 (风险: {}, 仓库: {})", name, score, computed_risk, risk);
+            }
         }
     }
     Ok(())
@@ -345,8 +353,10 @@ pub fn cmd_search(query: &str, limit: usize, output: OutputMode) -> Result<(), A
     let mut results: Vec<&Event> = Vec::new();
     for evt in &ctx.events {
         let name = ctx.id_to_name.get(&evt.entity_id).map(|s| s.as_str()).unwrap_or("");
+        // v3.1.3 fix: 搜索同时包含 note 字段(以便按备注关键词查找),与 original_reason 同等权重
         if name.contains(query) || evt.reason_code.contains(&query_upper) ||
-           evt.category_tags.iter().any(|t| t.contains(query)) || evt.original_reason.contains(query) {
+           evt.category_tags.iter().any(|t| t.contains(query)) || evt.original_reason.contains(query) ||
+           evt.note.contains(query) {
             results.push(evt);
         }
     }
@@ -370,7 +380,7 @@ pub fn cmd_search(query: &str, limit: usize, output: OutputMode) -> Result<(), A
 
 pub fn cmd_stats(output: OutputMode) -> Result<(), AppError> {
     let ctx = DataContext::load()?;
-    let valid: Vec<_> = ctx.events.iter().filter(|e| e.is_valid && e.reverted_by.is_none()).collect();
+    let valid: Vec<_> = ctx.events.iter().filter(|e| e.is_valid && e.reverted_by.is_none() && e.reason_code != "REVERT").collect();
     let reverted_count = ctx.events.iter().filter(|e| e.reverted_by.is_some()).count();
     let total_delta: f64 = valid.iter().map(|e| e.score_delta).sum();
     let mut code_counts: HashMap<&str, usize> = HashMap::new();
@@ -500,7 +510,7 @@ pub fn cmd_list_students(output: OutputMode) -> Result<(), AppError> {
             for (eid, ent) in &sorted {
                 let score = ctx.scores.get(*eid).unwrap_or(&BASE_SCORE);
                 let status = match ent.status {
-                    EntityStatus::Active => "在读", EntityStatus::Transferred => "转出", EntityStatus::Suspended => "休学",
+                    EntityStatus::Active => "在读", EntityStatus::Transferred => "转出", EntityStatus::Suspended => "休学", EntityStatus::Deleted => "已删除",
                 };
                 let name = ctx.id_to_name.get(*eid).map(|s| s.as_str()).unwrap_or(&ent.name);
                 println!("{:<20} {:>8.1} {:<10}", name, score, status);
@@ -543,11 +553,33 @@ pub fn cmd_delete_student(name: &str, confirm: bool, reason: &str, dry_run: bool
         return Ok(());
     }
     if dry_run { println!("[DRY-RUN] 删除: {} 事件:{}", name, student_events.len()); return Ok(()); }
+    // v3.1.3 fix: capture count first to avoid borrow-after-move later
+    let event_count = student_events.len();
     let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z").to_string();
-    entities.entities.remove(&eid); index.remove(name);
-    save_entities(&entities)?; save_name_index(&index)?;
-    let _ = append_operation_log(&serde_json::json!({"action":"delete_student","entity_id":eid,"name":name,"reason":reason,"timestamp":now}));
-    println!("✓ 学生已删除: {} (保留{}条历史事件)", name, student_events.len());
+
+    // v3.1.3 fix: 软删除而非物理删除,避免孤立事件导致 validate 报错
+    // 1) 标记所有非撤销事件为 is_valid=false 并加上 tombstone tag
+    // 2) 将 entity 状态改为 Deleted 但保留在 entities.json(历史可查)
+    // 3) 保留 name_index 映射(便于 score/history 仍能查询已删除学生)
+    let mut events = events;
+    for evt in events.iter_mut() {
+        if evt.entity_id == eid && evt.reverted_by.is_none() && evt.is_valid {
+            evt.is_valid = false;
+            evt.category_tags.push(format!("tombstone:deleted:{}", eid));
+        }
+    }
+    save_events(&events)?;
+
+    if let Some(ent) = entities.entities.get_mut(&eid) {
+        ent.status = EntityStatus::Deleted;
+        ent.metadata.insert("deleted_at".to_string(), serde_json::Value::String(now.clone()));
+        ent.metadata.insert("delete_reason".to_string(), serde_json::Value::String(reason.to_string()));
+    }
+    save_entities(&entities)?;
+    // 保留 index,仅当用户调用 add-student 同名时才覆盖;此处不 remove(name)
+
+    let _ = append_operation_log(&serde_json::json!({"action":"delete_student","entity_id":eid,"name":name,"reason":reason,"timestamp":now,"soft":true}));
+    println!("✓ 学生已软删除: {} (保留{}条历史事件,is_valid=false)", name, event_count);
     Ok(())
 }
 
@@ -689,7 +721,8 @@ pub fn cmd_summary(since: Option<&str>, until: Option<&str>, output: OutputMode)
 }
 
 // === NEW: set-student-meta ===
-pub fn cmd_set_student_meta(name: &str, group: Option<&str>, role: Option<&str>, class_id: Option<&str>) -> Result<(), AppError> {
+// clear_class_id 优先级高于 class_id：当 clear_class_id=true 时清空班级，忽略 class_id。
+pub fn cmd_set_student_meta(name: &str, group: Option<&str>, role: Option<&str>, class_id: Option<&str>, clear_class_id: bool) -> Result<(), AppError> {
     let _lock = FileLock::acquire()?;
     let mut entities = load_entities()?;
     let index = load_name_index()?;
@@ -703,18 +736,24 @@ pub fn cmd_set_student_meta(name: &str, group: Option<&str>, role: Option<&str>,
     if let Some(r) = role {
         if !entity.roles.contains(&r.to_string()) { entity.roles.push(r.to_string()); }
     }
-    if let Some(c) = class_id { entity.class_id = Some(c.to_string()); }
+    if clear_class_id {
+        entity.class_id = None;
+    } else if let Some(c) = class_id { entity.class_id = Some(c.to_string()); }
 
     save_entities(&entities)?;
     let log_entry = serde_json::json!({
-        "action":"set_student_meta","student":name,"group":group,"role":role,"class_id":class_id,
+        "action":"set_student_meta","student":name,"group":group,"role":role,
+        "class_id": if clear_class_id { None } else { class_id },
+        "clear_class_id": clear_class_id,
         "timestamp":chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z").to_string()
     });
     let _ = append_operation_log(&log_entry);
     println!("✓ 学生属性已更新: {}", name);
     if let Some(g) = group { println!("  group: {}", g); }
     if let Some(r) = role { println!("  role: {}", r); }
-    if let Some(c) = class_id { println!("  class_id: {}", c); }
+    if clear_class_id {
+        println!("  class_id: (已清空)");
+    } else if let Some(c) = class_id { println!("  class_id: {}", c); }
     Ok(())
 }
 

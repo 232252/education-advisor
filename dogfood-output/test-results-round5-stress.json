@@ -1,0 +1,11 @@
+{
+  "stress": {
+    "pageSwitches": 200,
+    "timeMs": 103485,
+    "memoryBefore": 11900000,
+    "memoryAfter": 11900000,
+    "memoryDeltaMB": 0,
+    "errors": 0,
+    "errorSamples": []
+  }
+}
