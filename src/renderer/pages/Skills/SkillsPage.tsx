@@ -179,6 +179,7 @@ export function SkillsPage() {
 
   return (
     <section className="h-full flex" aria-label="技能列表" onKeyDown={handleKeyDown}>
+      <h1 style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>{t('page.skills.title')}</h1>
       {/* 左侧技能列表 */}
       <div className="w-72 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col bg-gray-50/30 dark:bg-gray-800/30">
         <div className="p-3 border-b border-gray-200 dark:border-gray-700 space-y-2">

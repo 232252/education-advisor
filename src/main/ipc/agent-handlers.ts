@@ -44,7 +44,11 @@ export function registerAgentHandlers(win: BrowserWindow) {
   })
 
   // 写入 SOUL.md
+  // R3 修复: 验证 content 类型,避免 fs.writeFile 抛 raw TypeError
   ipcMain.handle(IPC.IPC_AGENT_SET_SOUL, async (_e, id: string, content: string) => {
+    if (typeof id !== 'string' || typeof content !== 'string') {
+      return { success: false, error: 'id and content must be strings' }
+    }
     return agentService.setSoul(id, content)
   })
 
@@ -54,7 +58,11 @@ export function registerAgentHandlers(win: BrowserWindow) {
   })
 
   // 写入 AGENTS.md
+  // R3 修复: 验证 content 类型,避免 fs.writeFile 抛 raw TypeError
   ipcMain.handle(IPC.IPC_AGENT_SET_RULES, async (_e, id: string, content: string) => {
+    if (typeof id !== 'string' || typeof content !== 'string') {
+      return { success: false, error: 'id and content must be strings' }
+    }
     return agentService.setRules(id, content)
   })
 
