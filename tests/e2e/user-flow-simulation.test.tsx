@@ -307,6 +307,7 @@ async function userClickCreateClass(cls: { class_id: string; name: string; grade
   // 用户在 ClassesPage 点 "+ 新建" 按钮 → 填表 → 保存
   const r = await mockApi.class.create(cls)
   if (!r.success) throw new Error('用户操作：创建班级失败')
+  if (!r.data) throw new Error('用户操作：创建班级返回 data 为空')
   return r.data
 }
 
@@ -690,9 +691,8 @@ describe('用户按键流模拟：压力 + 长时间', () => {
   it('场景 11: 20 轮班级创建/删除循环', async () => {
     for (let i = 0; i < 20; i++) {
       const cls = randomClass()
-      const r = await userClickCreateClass(cls)
-      const id = (r.data as { id: string }).id
-      await userClickDeleteClass(id)
+      const created = (await userClickCreateClass(cls)) as { id: string }
+      await userClickDeleteClass(created.id)
     }
     expect(classStore.length).toBe(0)
   })
