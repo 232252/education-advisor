@@ -44,6 +44,19 @@ coverage/
 *.lcov
 .cache/
 
+# ===== 测试运行时数据 (dogfood 自动化测试产生的隔离用户数据) =====
+# 包含 SQLite 数据库、EAA 数据、keystore、日志等运行时状态,不应提交
+test-user-data/
+
+# ===== dogfood 测试结果 JSON (运行时产物,会被每次测试覆盖) =====
+# 保留测试脚本 *.cjs 和报告 *.md,但忽略 *-result.json 等运行时输出
+dogfood-output/*-result.json
+dogfood-output/*-results.json
+dogfood-output/comprehensive-result.json
+dogfood-output/r*-results.json
+dogfood-output/r*-result.json
+dogfood-output/stress-result.json
+
 # ===== Temporary debug / verification artifacts =====
 # (These files were development-time verification scripts; they must not be committed.)
 verify-*.ps1
