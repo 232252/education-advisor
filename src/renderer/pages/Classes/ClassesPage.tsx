@@ -50,19 +50,25 @@ export function ClassesPage() {
   const loadClasses = useCallback(async () => {
     setLoading(true)
     try {
-      const [clsRes, stuRes] = await Promise.all([
-        getAPI().class.list(),
-        getAPI().eaa.listStudents(),
-      ])
+      // 先加载班级列表 (本地 DB, 极快), 立即显示
+      const clsRes = await getAPI().class.list()
       if (clsRes.success && clsRes.data) setClasses(clsRes.data)
-      const students = stuRes.data?.students ?? []
-      setAllStudents(students)
-      // 聚合每个 class_id 的学生数
-      const map: ClassCountMap = {}
-      for (const s of students) {
-        if (s.class_id) map[s.class_id] = (map[s.class_id] ?? 0) + 1
-      }
-      setCounts(map)
+      // 异步加载学生列表 (EAA spawn 较慢), 加载完后更新学生数
+      // 不阻塞班级列表的显示
+      getAPI()
+        .eaa.listStudents()
+        .then((stuRes) => {
+          const students = stuRes.data?.students ?? []
+          setAllStudents(students)
+          const map: ClassCountMap = {}
+          for (const s of students) {
+            if (s.class_id) map[s.class_id] = (map[s.class_id] ?? 0) + 1
+          }
+          setCounts(map)
+        })
+        .catch((err) => {
+          console.warn('[Classes] Failed to load students:', err)
+        })
     } catch (err) {
       console.error('[Classes] load failed:', err)
       toast.error('加载班级列表失败')

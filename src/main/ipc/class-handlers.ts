@@ -95,7 +95,47 @@ export function registerClassHandlers() {
     if (typeof id !== 'string' || id.trim().length === 0) {
       return { success: false, error: 'id must be a non-empty string' }
     }
-    return classService.delete(id)
+    const result = classService.delete(id)
+    // 级联清理:把 EAA 中 class_id 指向该班的学生清除 class_id,避免"幽灵 class_id"导致数据不互通
+    if (result.success && result.classId) {
+      try {
+        // eaaBridge.execute() 返回 EAAResult { success, data, stderr, exitCode }
+        // list-students 命令的学生列表在 data.students 中
+        const listRes = await eaaBridge.execute<{ students?: Array<{ name: string; class_id?: string | null }> }>({ command: 'list-students', args: [] })
+        const students = listRes?.data?.students ?? []
+        const toClear = students.filter((s) => s.class_id === result.classId)
+        console.log('[Class] cascade cleanup:', {
+          classId: result.classId,
+          totalStudents: students.length,
+          toClearCount: toClear.length,
+          sampleStudents: students.slice(0, 3).map(s => ({ name: s.name, class_id: s.class_id })),
+          listSuccess: listRes?.success,
+          listExitCode: listRes?.exitCode,
+        })
+        let clearedCount = 0
+        for (const s of toClear) {
+          try {
+            const clearRes = await eaaBridge.execute({
+              command: 'set-student-meta',
+              args: [s.name, '--clear-class-id'],
+            })
+            console.log(`[Class] clear class_id for ${s.name}:`, {
+              success: clearRes.success,
+              exitCode: clearRes.exitCode,
+              stderr: clearRes.stderr?.slice(0, 200),
+              data: typeof clearRes.data === 'string' ? clearRes.data.slice(0, 200) : clearRes.data,
+            })
+            if (clearRes.success) clearedCount++
+          } catch (e) {
+            console.warn(`[Class] clear class_id failed for ${s.name}:`, e)
+          }
+        }
+        console.log(`[Class] cascade cleanup done: cleared ${clearedCount}/${toClear.length}`)
+      } catch (e) {
+        console.warn('[Class] cascade clear class_id failed:', e)
+      }
+    }
+    return result
   })
 
   // [w] 调班：把多个学生分入某班级（批量设置 EAA class_id）
