@@ -3,11 +3,14 @@
 // =============================================================
 
 import type {
+  ClassEntity,
   EAADoctorData,
+  EAAEventRecord,
   EAAInfoData,
   EAARankItem,
   EAAStatsData,
   EAASummaryData,
+  EAAStudent,
   EAATagDetailData,
   EAATagListData,
   EAAValidateData,
@@ -22,7 +25,7 @@ import {
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import ReactEChartsCore from 'echarts-for-react/lib/core'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../hooks/useTheme'
 import { useT } from '../../i18n'
@@ -120,6 +123,7 @@ export function DashboardPage() {
   const [stats, setStats] = useState<EAAStatsData | null>(null)
   const [summary, setSummary] = useState<EAASummaryData | null>(null)
   const [ranking, setRanking] = useState<EAARankItem[]>([])
+  const [allEvents, setAllEvents] = useState<EAAEventRecord[]>([])
   const [loading, setLoading] = useState(true)
   // 系统管理 & 诊断
   const [eaaInfo, setEaaInfo] = useState<EAAInfoData | null>(null)
@@ -128,6 +132,13 @@ export function DashboardPage() {
   const [validateData, setValidateData] = useState<EAAValidateData | null>(null)
   const [validateRunning, setValidateRunning] = useState(false)
   const [tagData, setTagData] = useState<EAATagListData | null>(null)
+  // 班级筛选: 加载全量学生 + 班级列表, 支持按班级过滤排行/统计
+  const [allStudents, setAllStudents] = useState<EAAStudent[]>([])
+  const [classList, setClassList] = useState<ClassEntity[]>([])
+  const [classFilter, setClassFilter] = useState<string>('__ALL__')
+  const [compareMode, setCompareMode] = useState(false)
+  const [compareClassA, setCompareClassA] = useState<string>('')
+  const [compareClassB, setCompareClassB] = useState<string>('')
   const theme = useTheme()
   const isDark = theme === 'dark'
   const axisColor = isDark ? '#9ca3af' : '#6b7280'
@@ -145,6 +156,14 @@ export function DashboardPage() {
         getAPI().eaa.ranking(10),
         getAPI().eaa.info(),
         getAPI().eaa.tag(),
+        getAPI().eaa.listStudents(),
+        getAPI().class.list(),
+        // 拉取半年内全局事件 (用于按班级过滤事件原因分布/周期摘要)
+        getAPI().eaa.range(
+          new Date(Date.now() - 180 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+          new Date().toISOString().slice(0, 10),
+          5000,
+        ),
       ])
 
       // 逐个处理结果,保持类型安全
@@ -180,6 +199,25 @@ export function DashboardPage() {
         }
       }
 
+      // 加载全量学生列表 (用于按班级过滤排行/统计)
+      // 过滤掉已删除学生 (status=Deleted),避免软删除学生干扰仪表盘统计
+      const stuRes = results[5]
+      if (stuRes.status === 'fulfilled' && stuRes.value.success && stuRes.value.data?.students) {
+        setAllStudents(stuRes.value.data.students.filter((s) => s.status !== 'Deleted'))
+      }
+
+      // 加载班级列表
+      const clsRes = results[6]
+      if (clsRes.status === 'fulfilled' && clsRes.value.success && clsRes.value.data) {
+        setClassList(clsRes.value.data)
+      }
+
+      // 加载全局事件 (用于按班级过滤事件原因分布/周期摘要)
+      const rangeRes = results[7]
+      if (rangeRes.status === 'fulfilled' && rangeRes.value.success && rangeRes.value.data?.events) {
+        setAllEvents(rangeRes.value.data.events)
+      }
+
       // 记录失败的部分到控制台,便于调试
       const failed = results.filter((r) => r.status === 'rejected')
       if (failed.length > 0) {
@@ -200,6 +238,184 @@ export function DashboardPage() {
     loadData()
   }, [loadData])
 
+  // class_id → 班级名称 映射
+  const classIdToName = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const c of classList) m[c.class_id] = c.name
+    return m
+  }, [classList])
+
+  // 活跃班级列表
+  const activeClassList = useMemo(() => classList.filter((c) => !c.archived), [classList])
+
+  // entity_id → class_id 映射 (用于过滤排行)
+  const entityIdToClassId = useMemo(() => {
+    const m: Record<string, string | null> = {}
+    for (const s of allStudents) m[s.entity_id] = s.class_id
+    return m
+  }, [allStudents])
+
+  // 按班级过滤后的排行 (取前10)
+  const filteredRanking = useMemo(() => {
+    if (classFilter === '__ALL__') return ranking
+    return ranking.filter((r) => {
+      const cid = entityIdToClassId[r.entity_id]
+      if (classFilter === '__NONE__') return !cid
+      return cid === classFilter
+    })
+  }, [ranking, classFilter, entityIdToClassId])
+
+  // 按班级过滤后的学生统计
+  const classStats = useMemo(() => {
+    let students: EAAStudent[]
+    if (classFilter === '__ALL__') {
+      students = allStudents
+    } else if (classFilter === '__NONE__') {
+      students = allStudents.filter((s) => !s.class_id)
+    } else {
+      students = allStudents.filter((s) => s.class_id === classFilter)
+    }
+    const riskCount = { 极高: 0, 高: 0, 中: 0, 低: 0 }
+    let totalScore = 0
+    for (const s of students) {
+      riskCount[s.risk] = (riskCount[s.risk] ?? 0) + 1
+      totalScore += s.score
+    }
+    return {
+      total: students.length,
+      avgScore: students.length > 0 ? totalScore / students.length : 0,
+      highRisk: riskCount['极高'] + riskCount['高'],
+      riskDistribution: riskCount,
+    }
+  }, [allStudents, classFilter])
+
+  // 按班级过滤后的学生集合 (复用过滤逻辑,供分数分布/事件聚合使用)
+  const filteredStudents = useMemo(() => {
+    if (classFilter === '__ALL__') return allStudents
+    if (classFilter === '__NONE__') return allStudents.filter((s) => !s.class_id)
+    return allStudents.filter((s) => s.class_id === classFilter)
+  }, [allStudents, classFilter])
+
+  // 按班级过滤后的分数分布 (区间定义与 stats.score_intervals 保持一致)
+  const classScoreIntervals = useMemo(() => {
+    const buckets: Record<string, number> = {
+      '极高(<60)': 0,
+      '高(60-80)': 0,
+      '中(80-100)': 0,
+      '低(>=100)': 0,
+    }
+    for (const s of filteredStudents) {
+      if (s.score < 60) buckets['极高(<60)']++
+      else if (s.score < 80) buckets['高(60-80)']++
+      else if (s.score < 100) buckets['中(80-100)']++
+      else buckets['低(>=100)']++
+    }
+    return buckets
+  }, [filteredStudents])
+
+  // 按班级过滤后的事件集合 (基于 entityIdToClassId 映射)
+  const filteredEvents = useMemo(() => {
+    if (classFilter === '__ALL__') return allEvents
+    return allEvents.filter((e) => {
+      const cid = entityIdToClassId[e.entity_id]
+      if (classFilter === '__NONE__') return !cid
+      return cid === classFilter
+    })
+  }, [allEvents, classFilter, entityIdToClassId])
+
+  // entity_id → name 映射 (用于周期摘要 top_gainers/losers 显示学生名)
+  const entityIdToName = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const s of allStudents) m[s.entity_id] = s.name
+    return m
+  }, [allStudents])
+
+  // 按班级过滤后的事件原因分布
+  const classReasonDist = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const e of filteredEvents) {
+      const code = e.reason_code || 'UNKNOWN'
+      counts[code] = (counts[code] ?? 0) + 1
+    }
+    return Object.entries(counts)
+      .map(([code, count]) => ({ code, count }))
+      .sort((a, b) => b.count - a.count)
+  }, [filteredEvents])
+
+  // 按班级过滤后的周期摘要 (事件计数 + top_gainers/losers)
+  const classPeriodSummary = useMemo(() => {
+    let bonusCount = 0
+    let deductCount = 0
+    let bonusTotal = 0
+    let deductTotal = 0
+    const deltaByEntity: Record<string, number> = {}
+    for (const e of filteredEvents) {
+      const d = e.score_delta
+      if (d > 0) {
+        bonusCount++
+        bonusTotal += d
+      } else if (d < 0) {
+        deductCount++
+        deductTotal += d
+      }
+      deltaByEntity[e.entity_id] = (deltaByEntity[e.entity_id] ?? 0) + d
+    }
+    const gainers = Object.entries(deltaByEntity)
+      .filter(([, d]) => d > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([eid, d]) => ({ name: entityIdToName[eid] ?? eid, delta: d }))
+    const losers = Object.entries(deltaByEntity)
+      .filter(([, d]) => d < 0)
+      .sort((a, b) => a[1] - b[1])
+      .slice(0, 3)
+      .map(([eid, d]) => ({ name: entityIdToName[eid] ?? eid, delta: d }))
+    return {
+      events: {
+        total: filteredEvents.length,
+        bonus_count: bonusCount,
+        deduct_count: deductCount,
+        bonus_total: bonusTotal,
+        deduct_total: deductTotal,
+      },
+      top_gainers: gainers,
+      top_losers: losers,
+    }
+  }, [filteredEvents, entityIdToName])
+
+  // 班级对比数据: 每个班级的学生数/平均分/高风险数
+  const classComparison = useMemo(() => {
+    return activeClassList.map((c) => {
+      const students = allStudents.filter((s) => s.class_id === c.class_id)
+      const riskCount = { 极高: 0, 高: 0, 中: 0, 低: 0 }
+      let totalScore = 0
+      for (const s of students) {
+        riskCount[s.risk] = (riskCount[s.risk] ?? 0) + 1
+        totalScore += s.score
+      }
+      return {
+        classId: c.class_id,
+        className: c.name,
+        grade: c.grade ?? '-',
+        teacher: c.teacher ?? '-',
+        studentCount: students.length,
+        avgScore: students.length > 0 ? totalScore / students.length : 0,
+        highRisk: riskCount['极高'] + riskCount['高'],
+        riskDistribution: riskCount,
+      }
+    })
+  }, [activeClassList, allStudents])
+
+  // 双班级对比数据
+  const compareDataA = useMemo(() => {
+    if (!compareClassA) return null
+    return classComparison.find((c) => c.classId === compareClassA) ?? null
+  }, [classComparison, compareClassA])
+  const compareDataB = useMemo(() => {
+    if (!compareClassB) return null
+    return classComparison.find((c) => c.classId === compareClassB) ?? null
+  }, [classComparison, compareClassB])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
@@ -209,14 +425,15 @@ export function DashboardPage() {
   }
 
   const s = stats?.summary
-  const scoreIntervals = stats?.score_intervals ?? {}
+  // 分数分布: 使用按班级过滤后的 classScoreIntervals (而非全局 stats.score_intervals)
+  const scoreIntervals = classScoreIntervals
   // 按风险等级排序：极高 → 高 → 中 → 低
   const SCORE_ORDER = ['极高(<60)', '高(60-80)', '中(80-100)', '低(>=100)']
   const sortedScoreKeys = SCORE_ORDER.filter((k) => k in scoreIntervals)
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             {t('page.dashboard.title')}
@@ -225,27 +442,151 @@ export function DashboardPage() {
             {t('page.dashboard.subtitle')}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={loadData}
-          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700
-                     px-4 py-2 rounded-lg text-sm transition-all duration-200 shadow-sm hover:shadow-md"
-        >
-          🔄 {t('page.dashboard.refresh')}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* 班级筛选 */}
+          <select
+            value={classFilter}
+            onChange={(e) => setClassFilter(e.target.value)}
+            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            title="按班级筛选数据"
+          >
+            <option value="__ALL__">全部班级</option>
+            <option value="__NONE__">未分班</option>
+            {activeClassList.map((c) => (
+              <option key={c.id} value={c.class_id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          {/* 班级对比模式开关 */}
+          <button
+            type="button"
+            onClick={() => setCompareMode(!compareMode)}
+            className={`px-3 py-2 rounded-lg text-sm border transition-all ${
+              compareMode
+                ? 'bg-purple-600 text-white border-purple-600'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+            title="班级对比模式"
+          >
+            📊 班级对比
+          </button>
+          <button
+            type="button"
+            onClick={loadData}
+            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700
+                       px-4 py-2 rounded-lg text-sm transition-all duration-200 shadow-sm hover:shadow-md"
+          >
+            🔄 {t('page.dashboard.refresh')}
+          </button>
+        </div>
       </div>
 
-      {/* 概览卡片 — 渐变色 + 阴影 + hover 效果 */}
+      {/* 班级对比模式: 显示对比表格 */}
+      {compareMode && (
+        <div className="mb-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg overflow-x-auto">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+            班级对比总览
+          </h3>
+          {classComparison.length === 0 ? (
+            <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-4">
+              暂无班级数据
+            </div>
+          ) : (
+            <table className="w-full text-sm min-w-[600px]">
+              <thead>
+                <tr className="text-left text-xs text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
+                  <th className="py-2 px-3 font-medium">班级</th>
+                  <th className="py-2 px-3 font-medium">年级</th>
+                  <th className="py-2 px-3 font-medium">班主任</th>
+                  <th className="py-2 px-3 font-medium text-center">学生数</th>
+                  <th className="py-2 px-3 font-medium text-center">平均分</th>
+                  <th className="py-2 px-3 font-medium text-center">高风险</th>
+                  <th className="py-2 px-3 font-medium text-center">极高</th>
+                  <th className="py-2 px-3 font-medium text-center">高</th>
+                  <th className="py-2 px-3 font-medium text-center">中</th>
+                  <th className="py-2 px-3 font-medium text-center">低</th>
+                </tr>
+              </thead>
+              <tbody>
+                {classComparison.map((c) => (
+                  <tr key={c.classId} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                    <td className="py-2 px-3 font-medium">{c.className}</td>
+                    <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{c.grade}</td>
+                    <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{c.teacher}</td>
+                    <td className="py-2 px-3 text-center font-mono">{c.studentCount}</td>
+                    <td className="py-2 px-3 text-center font-mono">{c.avgScore.toFixed(1)}</td>
+                    <td className={`py-2 px-3 text-center font-mono ${c.highRisk > 0 ? 'text-red-500 dark:text-red-400 font-bold' : ''}`}>{c.highRisk}</td>
+                    <td className="py-2 px-3 text-center text-red-500 dark:text-red-400">{c.riskDistribution['极高']}</td>
+                    <td className="py-2 px-3 text-center text-orange-500 dark:text-orange-400">{c.riskDistribution['高']}</td>
+                    <td className="py-2 px-3 text-center text-yellow-500 dark:text-yellow-400">{c.riskDistribution['中']}</td>
+                    <td className="py-2 px-3 text-center text-green-500 dark:text-green-400">{c.riskDistribution['低']}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* 双班级对比选择器 */}
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">双班级详细对比</h4>
+            <div className="flex items-center gap-3 flex-wrap">
+              <select
+                value={compareClassA}
+                onChange={(e) => setCompareClassA(e.target.value)}
+                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm"
+              >
+                <option value="">选择班级 A...</option>
+                {activeClassList.map((c) => (
+                  <option key={c.id} value={c.class_id}>{c.name}</option>
+                ))}
+              </select>
+              <span className="text-gray-400">VS</span>
+              <select
+                value={compareClassB}
+                onChange={(e) => setCompareClassB(e.target.value)}
+                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm"
+              >
+                <option value="">选择班级 B...</option>
+                {activeClassList.map((c) => (
+                  <option key={c.id} value={c.class_id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            {compareDataA && compareDataB && (
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[compareDataA, compareDataB].map((d, i) => (
+                  <div key={i} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                    <h5 className="font-semibold text-sm mb-2">{d.className}</h5>
+                    <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="flex justify-between"><span>学生数</span><span className="font-mono">{d.studentCount}</span></div>
+                      <div className="flex justify-between"><span>平均分</span><span className="font-mono">{d.avgScore.toFixed(1)}</span></div>
+                      <div className="flex justify-between"><span>高风险</span><span className={`font-mono ${d.highRisk > 0 ? 'text-red-500 font-bold' : ''}`}>{d.highRisk}</span></div>
+                      <div className="flex justify-between"><span>极高</span><span className="font-mono text-red-500">{d.riskDistribution['极高']}</span></div>
+                      <div className="flex justify-between"><span>高</span><span className="font-mono text-orange-500">{d.riskDistribution['高']}</span></div>
+                      <div className="flex justify-between"><span>中</span><span className="font-mono text-yellow-500">{d.riskDistribution['中']}</span></div>
+                      <div className="flex justify-between"><span>低</span><span className="font-mono text-green-500">{d.riskDistribution['低']}</span></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 概览卡片 — 按班级筛选时显示班级数据 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <StatCard
-          title={t('page.dashboard.stat.students')}
-          value={s?.students ?? 0}
+          title={classFilter === '__ALL__' ? t('page.dashboard.stat.students') : '班级学生'}
+          value={classStats.total}
           color="blue"
           icon="👥"
         />
         <StatCard
           title={t('page.dashboard.stat.events')}
-          value={s?.valid_events ?? 0}
+          value={classPeriodSummary.events.total}
           color="green"
           icon="✅"
         />
@@ -257,20 +598,20 @@ export function DashboardPage() {
         />
         <StatCard
           title={t('page.dashboard.stat.scoreChange')}
-          value={s?.total_delta?.toFixed(1) ?? '-'}
+          value={classFilter === '__ALL__' ? (s?.total_delta?.toFixed(1) ?? '-') : classStats.avgScore.toFixed(1)}
           color="purple"
           icon="📊"
         />
         <StatCard
           title={t('page.dashboard.stat.highRisk')}
-          value={(scoreIntervals['极高(<60)'] ?? 0) + (scoreIntervals['高(60-80)'] ?? 0)}
+          value={classStats.highRisk}
           color="red"
           icon="⚠️"
         />
       </div>
 
       {/* 图表区 */}
-      <div className="grid grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* 分数分布柱状图 */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg hover:shadow-xl transition-shadow duration-300">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
@@ -354,7 +695,7 @@ export function DashboardPage() {
             <span className="w-2 h-2 rounded-full bg-purple-500"></span>
             {t('page.dashboard.chart.riskDist')}
           </h3>
-          {summary?.risk_distribution ? (
+          {classStats.riskDistribution ? (
             <ReactEChartsCore
               echarts={echarts}
               style={{ height: 260 }}
@@ -387,7 +728,7 @@ export function DashboardPage() {
                         shadowColor: 'rgba(0,0,0,0.3)',
                       },
                     },
-                    data: Object.entries(summary.risk_distribution).map(([name, value]) => ({
+                    data: Object.entries(classStats.riskDistribution).map(([name, value]) => ({
                       name,
                       value,
                       itemStyle: {
@@ -414,7 +755,7 @@ export function DashboardPage() {
       </div>
 
       {/* 下半部分 */}
-      <div className="grid grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         {/* 原因码分布 */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg hover:shadow-xl transition-shadow duration-300">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
@@ -422,7 +763,7 @@ export function DashboardPage() {
             {t('page.dashboard.chart.eventReason')}
           </h3>
           <div className="space-y-2">
-            {stats?.reason_distribution?.slice(0, 8).map((item, idx) => (
+            {classReasonDist?.slice(0, 8).map((item, idx) => (
               <div key={item.code} className="flex items-center gap-2 text-xs group">
                 <span
                   className="text-gray-600 dark:text-gray-300 min-w-[5rem] truncate"
@@ -434,7 +775,7 @@ export function DashboardPage() {
                   <div
                     className="h-full rounded-full transition-all duration-500 group-hover:opacity-80"
                     style={{
-                      width: `${Math.min(100, (item.count / (stats.reason_distribution[0]?.count ?? 1)) * 100)}%`,
+                      width: `${Math.min(100, (item.count / (classReasonDist[0]?.count ?? 1)) * 100)}%`,
                       background: `linear-gradient(90deg, ${['#3b82f6', '#22c55e', '#eab308', '#a855f7', '#ef4444', '#06b6d4', '#f97316', '#ec4899'][idx]}, ${['#1d4ed8', '#15803d', '#a16207', '#7e22ce', '#b91c1c', '#0891b2', '#ea580c', '#db2777'][idx]})`,
                     }}
                   />
@@ -458,12 +799,12 @@ export function DashboardPage() {
             {t('page.dashboard.chart.top10')}
           </h3>
           <div className="space-y-2">
-            {ranking.length === 0 ? (
+            {filteredRanking.length === 0 ? (
               <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-6">
                 暂无排行数据
               </div>
             ) : (
-              ranking.slice(0, 10).map((r) => (
+              filteredRanking.slice(0, 10).map((r) => (
                 <button
                   type="button"
                   key={r.entity_id}
@@ -508,7 +849,7 @@ export function DashboardPage() {
               </span>
             )}
           </h3>
-          {summary ? (
+          {classPeriodSummary ? (
             <div className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-3 border border-green-200/50 dark:border-green-700/30">
@@ -516,10 +857,10 @@ export function DashboardPage() {
                     {t('page.dashboard.summary.up')}
                   </div>
                   <div className="text-green-600 dark:text-green-400 font-bold text-lg">
-                    {summary.events.bonus_count}
+                    {classPeriodSummary.events.bonus_count}
                   </div>
                   <div className="text-green-500/70 dark:text-green-400/70">
-                    +{summary.events.bonus_total.toFixed(1)}
+                    +{classPeriodSummary.events.bonus_total.toFixed(1)}
                   </div>
                 </div>
                 <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 rounded-xl p-3 border border-red-200/50 dark:border-red-700/30">
@@ -527,19 +868,19 @@ export function DashboardPage() {
                     {t('page.dashboard.summary.down')}
                   </div>
                   <div className="text-red-600 dark:text-red-400 font-bold text-lg">
-                    {summary.events.deduct_count}
+                    {classPeriodSummary.events.deduct_count}
                   </div>
                   <div className="text-red-500/70 dark:text-red-400/70">
-                    {summary.events.deduct_total.toFixed(1)}
+                    {classPeriodSummary.events.deduct_total.toFixed(1)}
                   </div>
                 </div>
               </div>
-              {summary.top_gainers.length > 0 && (
+              {classPeriodSummary.top_gainers.length > 0 && (
                 <div>
                   <div className="text-gray-500 dark:text-gray-400 mb-2 font-medium">
                     🏆 进步最快
                   </div>
-                  {summary.top_gainers.slice(0, 3).map((g) => (
+                  {classPeriodSummary.top_gainers.slice(0, 3).map((g) => (
                     <div
                       key={g.name}
                       className="flex justify-between py-1 border-b border-gray-100 dark:border-gray-700/50 last:border-0"
@@ -552,12 +893,12 @@ export function DashboardPage() {
                   ))}
                 </div>
               )}
-              {summary.top_losers.length > 0 && (
+              {classPeriodSummary.top_losers.length > 0 && (
                 <div>
                   <div className="text-gray-500 dark:text-gray-400 mb-2 font-medium">
                     ⚠️ 退步最快
                   </div>
-                  {summary.top_losers.slice(0, 3).map((l) => (
+                  {classPeriodSummary.top_losers.slice(0, 3).map((l) => (
                     <div
                       key={l.name}
                       className="flex justify-between py-1 border-b border-gray-100 dark:border-gray-700/50 last:border-0"
@@ -588,7 +929,7 @@ export function DashboardPage() {
           </h2>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         {/* EAA 系统信息 */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">

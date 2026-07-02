@@ -45,6 +45,7 @@ export function StudentsPage() {
   const [selectedStudent, setSelectedStudent] = useState<EAAStudent | null>(null)
   const [addingStudent, setAddingStudent] = useState(false)
   const [newStudentName, setNewStudentName] = useState('')
+  const [newStudentClassId, setNewStudentClassId] = useState('')
   const [actionMessage, setActionMessage] = useState('')
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const exportMenuRef = useRef<HTMLDivElement>(null)
@@ -53,9 +54,14 @@ export function StudentsPage() {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
-  // 班级（用于按已存档班级隐藏学生）
+  // 班级（用于按已存档班级隐藏学生 + 班级筛选）
   const [classList, setClassList] = useState<ClassEntity[]>([])
   const [showArchivedClass, setShowArchivedClass] = useState(false)
+  // 班级筛选: '__ALL__' = 全部, '__NONE__' = 未分班, 其他 = class_id
+  const [classFilter, setClassFilter] = useState<string>('__ALL__')
+  // 批量调班目标班级
+  const [batchAssignTarget, setBatchAssignTarget] = useState<string>('')
+  const [batchAssigning, setBatchAssigning] = useState(false)
   // 导出格式：从 EAA 动态获取（fallback 到内置列表）
   // C-2 修复: fallback 列表必须与 EAA Rust 端 cmd_export 一致 (csv/jsonl/html)
   // 之前包含 json 和 markdown,EAA 不支持,选了会报"未知导出格式"错误
@@ -70,12 +76,12 @@ export function StudentsPage() {
     variant?: 'default' | 'danger'
   }>({ open: false, message: '', onConfirm: () => {} })
 
-  // 加载学生列表
+  // 加载学生列表 (过滤掉已删除学生 status=Deleted,避免软删除学生干扰列表)
   const loadStudents = useCallback(async () => {
     try {
       const result = await getAPI().eaa.listStudents()
       if (result.success && result.data?.students) {
-        setStudents(result.data.students)
+        setStudents(result.data.students.filter((s) => s.status !== 'Deleted'))
       }
     } catch (err) {
       console.error('[Students] Failed to load:', err)
@@ -146,12 +152,24 @@ export function StudentsPage() {
     if (!newStudentName.trim()) return
     try {
       const result = await getAPI().eaa.addStudent(newStudentName.trim())
+      // 若选择了班级,则同时将该学生调入班级 (addStudent 不支持直接带 class_id,用 class.assign 串行同步)
+      if (result.success && newStudentClassId) {
+        try {
+          await getAPI().class.assign({
+            class_id: newStudentClassId,
+            student_names: [newStudentName.trim()],
+          })
+        } catch (assignErr) {
+          console.warn('[Students] addStudent 后分配班级失败:', assignErr)
+        }
+      }
       setActionMessageAuto(
         result.success
           ? `${t('status.success')}: ${newStudentName}`
           : `${t('status.failed')}: ${getErrorMessage(result)}`,
       )
       setNewStudentName('')
+      setNewStudentClassId('')
       setAddingStudent(false)
       loadStudents()
     } catch {
@@ -214,6 +232,47 @@ export function StudentsPage() {
   const exitSelectMode = () => {
     setSelectMode(false)
     setSelectedNames(new Set())
+    setBatchAssignTarget('')
+  }
+
+  // 批量调班：将选中学生分入指定班级
+  const handleBatchAssign = () => {
+    const names = Array.from(selectedNames)
+    if (names.length === 0 || !batchAssignTarget) return
+    const targetClass = classList.find((c) => c.class_id === batchAssignTarget)
+    setConfirmState({
+      open: true,
+      message: `确认将选中的 ${names.length} 名学生调入「${targetClass?.name ?? batchAssignTarget}」?`,
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, open: false }))
+        setBatchAssigning(true)
+        try {
+          const res = await getAPI().class.assign({
+            class_id: batchAssignTarget,
+            student_names: names,
+          })
+          if (!res.success) {
+            toast.error(`调班失败: ${res.error ?? '未知错误'}`)
+          } else {
+            const assigned = res.assigned ?? 0
+            const failed = res.failed ?? []
+            if (failed.length === 0) {
+              toast.success(`成功调入 ${assigned} 名学生`)
+            } else {
+              toast.warning(
+                `调入 ${assigned} 名, 失败 ${failed.length} 名: ${failed.slice(0, 3).join('; ')}`,
+              )
+            }
+          }
+          exitSelectMode()
+          await loadStudents()
+        } catch (err) {
+          toast.error(`调班异常: ${err instanceof Error ? err.message : String(err)}`)
+        } finally {
+          setBatchAssigning(false)
+        }
+      },
+    })
   }
 
   // 批量删除选中学生（使用自定义确认对话框，danger 变体）
@@ -328,8 +387,24 @@ export function StudentsPage() {
     [classList],
   )
 
-  // 过滤：搜索 + 按已存档班级隐藏
+  // class_id → 班级名称 映射（用于表格显示）
+  const classIdToName = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const c of classList) m[c.class_id] = c.name
+    return m
+  }, [classList])
+
+  // 活跃班级列表（用于筛选下拉 + 批量调班目标下拉）
+  const activeClassList = useMemo(() => classList.filter((c) => !c.archived), [classList])
+
+  // 过滤：班级筛选 + 搜索 + 按已存档班级隐藏
   const filtered = students.filter((s) => {
+    // 班级筛选
+    if (classFilter === '__NONE__') {
+      if (s.class_id) return false
+    } else if (classFilter !== '__ALL__') {
+      if (s.class_id !== classFilter) return false
+    }
     // 默认隐藏已存档班级的学生（除非用户开启"显示已存档班级学生"）
     if (!showArchivedClass && s.class_id && archivedClassIds.has(s.class_id)) return false
     return (
@@ -356,7 +431,7 @@ export function StudentsPage() {
     <div className="h-full flex">
       {/* 左侧：学生列表 */}
       <div className={`flex flex-col transition-all ${selectedStudent ? 'w-[45%]' : 'w-full'}`}>
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 flex-wrap gap-2">
           <h1 className="text-xl font-bold">
             学生管理 ({students.length})
             {archivedHiddenCount > 0 && !showArchivedClass && (
@@ -365,7 +440,22 @@ export function StudentsPage() {
               </span>
             )}
           </h1>
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center flex-wrap">
+            {/* 班级筛选下拉 */}
+            <select
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              className="bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+              title="按班级筛选"
+            >
+              <option value="__ALL__">全部班级</option>
+              <option value="__NONE__">未分班</option>
+              {activeClassList.map((c) => (
+                <option key={c.id} value={c.class_id}>
+                  {c.name} ({c.class_id})
+                </option>
+              ))}
+            </select>
             <input
               type="text"
               value={search}
@@ -390,6 +480,28 @@ export function StudentsPage() {
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {t('page.students.batch.selected').replace('{0}', String(selectedNames.size))}
                 </span>
+                {/* 批量调班 */}
+                <select
+                  value={batchAssignTarget}
+                  onChange={(e) => setBatchAssignTarget(e.target.value)}
+                  className="bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                  title="选择目标班级"
+                >
+                  <option value="">调入班级...</option>
+                  {activeClassList.map((c) => (
+                    <option key={c.id} value={c.class_id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleBatchAssign}
+                  disabled={selectedNames.size === 0 || !batchAssignTarget || batchAssigning}
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg text-sm text-white transition-colors"
+                >
+                  {batchAssigning ? t('common.loading') : '调入'}
+                </button>
                 <button
                   type="button"
                   onClick={handleBatchDelete}
@@ -484,6 +596,18 @@ export function StudentsPage() {
               className="flex-1 bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm
                          focus:outline-none focus:border-blue-500"
             />
+            <select
+              value={newStudentClassId}
+              onChange={(e) => setNewStudentClassId(e.target.value)}
+              className="bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+            >
+              <option value="">不分班</option>
+              {activeClassList.map((c) => (
+                <option key={c.class_id} value={c.class_id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
             <button
               type="button"
               onClick={handleAddStudent}
@@ -493,7 +617,10 @@ export function StudentsPage() {
             </button>
             <button
               type="button"
-              onClick={() => setAddingStudent(false)}
+              onClick={() => {
+                setAddingStudent(false)
+                setNewStudentClassId('')
+              }}
               className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1.5 text-sm"
             >
               {t('common.cancel')}
@@ -526,6 +653,7 @@ export function StudentsPage() {
                     </th>
                   )}
                   <th className="text-left py-2 px-4">{t('page.students.col.name')}</th>
+                  <th className="text-left py-2 px-4">班级</th>
                   <th className="text-right py-2 px-4">{t('page.students.col.score')}</th>
                   <th className="text-right py-2 px-4">{t('page.students.col.change')}</th>
                   <th className="text-center py-2 px-4">{t('page.students.col.risk')}</th>
@@ -559,6 +687,15 @@ export function StudentsPage() {
                       </td>
                     )}
                     <td className="py-2.5 px-4 font-medium">{s.name}</td>
+                    <td className="py-2.5 px-4 text-xs text-gray-500 dark:text-gray-400">
+                      {s.class_id ? (
+                        <span className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                          {classIdToName[s.class_id] ?? s.class_id}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-600">未分班</span>
+                      )}
+                    </td>
                     <td className="py-2.5 px-4 text-right font-mono">{s.score.toFixed(1)}</td>
                     <td
                       className={`py-2.5 px-4 text-right font-mono text-xs ${
