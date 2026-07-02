@@ -212,11 +212,10 @@ class DBService {
         note TEXT,
         archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)),
         created_at INTEGER NOT NULL,
-        archived_at INTEGER
+        archived_at INTEGER,
+        teacher TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_classes_archived ON classes(archived);
-      -- arch-class-1: 班主任字段（v0.1 增量迁移，幂等）
-      ALTER TABLE classes ADD COLUMN teacher TEXT;
     `)
   }
 
