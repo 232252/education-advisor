@@ -190,8 +190,11 @@ pub fn cmd_ranking(n: usize, output: OutputMode) -> Result<(), AppError> {
         OutputMode::Json => {
             let ranking: Vec<serde_json::Value> = sorted.iter().take(take_n).enumerate().map(|(i, (eid, score))| {
                 let name = ctx.id_to_name.get(eid.as_str()).map(|s| s.as_str()).unwrap_or("?");
+                // 包含 class_id 以便前端能按班级过滤排行榜
+                let class_id = ctx.entities.entities.get(eid.as_str())
+                    .and_then(|e| e.class_id.clone());
                 serde_json::json!({
-                    "rank": i + 1, "name": name, "entity_id": eid,
+                    "rank": i + 1, "name": name, "entity_id": eid, "class_id": class_id,
                     "score": score, "delta": **score - BASE_SCORE, "risk": risk_level(**score),
                 })
             }).collect();
@@ -681,11 +684,15 @@ pub fn cmd_summary(since: Option<&str>, until: Option<&str>, output: OutputMode)
     deltas.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
     let top_gainers: Vec<serde_json::Value> = deltas.iter().take(5).map(|(eid, d)| {
         let name = ctx.id_to_name.get(eid.as_str()).map(|s| s.as_str()).unwrap_or("?");
-        serde_json::json!({"name":name,"delta":d})
+        let class_id = ctx.entities.entities.get(eid.as_str())
+            .and_then(|e| e.class_id.clone());
+        serde_json::json!({"name":name,"entity_id":eid,"class_id":class_id,"delta":d})
     }).collect();
     let top_losers: Vec<serde_json::Value> = deltas.iter().rev().take(5).map(|(eid, d)| {
         let name = ctx.id_to_name.get(eid.as_str()).map(|s| s.as_str()).unwrap_or("?");
-        serde_json::json!({"name":name,"delta":d})
+        let class_id = ctx.entities.entities.get(eid.as_str())
+            .and_then(|e| e.class_id.clone());
+        serde_json::json!({"name":name,"entity_id":eid,"class_id":class_id,"delta":d})
     }).collect();
 
     match output {
