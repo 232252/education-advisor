@@ -159,6 +159,7 @@ export function registerAIHandlers(win: BrowserWindow) {
   })
 
   // ----- 对话持久化: 保存消息 -----
+  // R4 修复: timestamp 字段可选,未提供时默认 Date.now(),避免 NOT NULL 约束失败
   ipcMain.handle(
     IPC.IPC_CHAT_SAVE_MESSAGE,
     async (
@@ -169,7 +170,7 @@ export function registerAIHandlers(win: BrowserWindow) {
         content: string
         thinking?: string
         toolCalls?: string
-        timestamp: number
+        timestamp?: number
         provider?: string
         model?: string
         tokenInput?: number
@@ -177,7 +178,9 @@ export function registerAIHandlers(win: BrowserWindow) {
         cost?: number
       },
     ) => {
-      const id = dbService.saveChatMessage(msg)
+      // 健壮性: 若调用方未传 timestamp,自动填充当前时间
+      const enrichedMsg = { ...msg, timestamp: msg.timestamp ?? Date.now() }
+      const id = dbService.saveChatMessage(enrichedMsg)
       return { success: id >= 0, id }
     },
   )
