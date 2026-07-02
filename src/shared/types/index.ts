@@ -131,7 +131,7 @@ export interface RiskThresholds {
 export type EAARiskLevel = '低' | '中' | '高' | '极高'
 
 /** EAA 实体状态 */
-export type EAAEntityStatus = 'Active' | 'Transferred' | 'Suspended'
+export type EAAEntityStatus = 'Active' | 'Transferred' | 'Suspended' | 'Deleted'
 
 /** EAA 事件类型（Debug 格式） */
 export type EAAEventType = 'ConductDeduct' | 'ConductBonus'
@@ -407,6 +407,8 @@ export interface SetStudentMetaParams {
   group?: string
   role?: string
   classId?: string
+  /** 若为 true,清除 class_id (优先级高于 classId) */
+  clearClassId?: boolean
 }
 
 /** EAA 命令的通用结果包装（来自 eaa-bridge） */
