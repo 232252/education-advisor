@@ -117,6 +117,14 @@ function tokenizeQuery(query: string): string[] {
   return tokens
 }
 
+/**
+ * 供 class-handlers 等其他模块调用,使 listStudents 缓存失效。
+ * 用于调班(class.assign)等直接调 eaaBridge.execute 而不走 IPC 的场景。
+ */
+export function invalidateStudentsCacheExternal(): void {
+  ipcMain.emit('__invalidate_students_cache')
+}
+
 export function registerEAAHandlers(_win: BrowserWindow) {
   // ----- info: 系统信息 -----
   ipcMain.handle(IPC.IPC_EAA_INFO, async () => {
@@ -259,15 +267,41 @@ export function registerEAAHandlers(_win: BrowserWindow) {
   })
 
   // ----- list-students: 列出所有学生 -----
+  // 性能优化: 缓存结果 3 秒,避免 Dashboard / Classes / Students 同时挂载时
+  // 重复 spawn EAA 子进程(每次 spawn 约 200-500ms)。写操作(添加/删除/调班)
+  // 完成后调用 invalidateStudentsCache() 让缓存失效,确保数据一致性。
+  let studentsCache: { data: unknown; ts: number } | null = null
+  const STUDENTS_CACHE_TTL_MS = 3_000
+
   ipcMain.handle(IPC.IPC_EAA_LIST_STUDENTS, async () => {
-    return eaaBridge.execute({ command: 'list-students', args: [] })
+    const now = Date.now()
+    if (studentsCache && now - studentsCache.ts < STUDENTS_CACHE_TTL_MS) {
+      return studentsCache.data
+    }
+    const result = await eaaBridge.execute({ command: 'list-students', args: [] })
+    if (result && typeof result === 'object' && (result as { success?: boolean }).success) {
+      studentsCache = { data: result, ts: now }
+    }
+    return result
+  })
+
+  /** 写操作完成后调用,清空 listStudents 缓存 */
+  function invalidateStudentsCache(): void {
+    studentsCache = null
+  }
+
+  // 供 invalidateStudentsCacheExternal 跨模块调用
+  ipcMain.on('__invalidate_students_cache', () => {
+    studentsCache = null
   })
 
   // ----- add-student: 添加学生 -----
   // 注意: 不产生 JSON 输出
   ipcMain.handle(IPC.IPC_EAA_ADD_STUDENT, async (_e, name: string) => {
     const safeName = sanitizeName(name, 'name')
-    return eaaBridge.execute({ command: 'add-student', args: [safeName] })
+    const result = await eaaBridge.execute({ command: 'add-student', args: [safeName] })
+    invalidateStudentsCache()
+    return result
   })
 
   // ----- delete-student: 删除学生（P1-15 二次确认） -----
@@ -292,7 +326,9 @@ export function registerEAAHandlers(_win: BrowserWindow) {
       if (options.reason) {
         args.push('--reason', sanitizeName(options.reason, 'reason'))
       }
-      return eaaBridge.execute({ command: 'delete-student', args })
+      const result = await eaaBridge.execute({ command: 'delete-student', args })
+      invalidateStudentsCache()
+      return result
     },
   )
 
@@ -309,7 +345,9 @@ export function registerEAAHandlers(_win: BrowserWindow) {
     } else if (params.classId) {
       args.push('--class-id', sanitizeClassId(params.classId))
     }
-    return eaaBridge.execute({ command: 'set-student-meta', args })
+    const result = await eaaBridge.execute({ command: 'set-student-meta', args })
+    invalidateStudentsCache()
+    return result
   })
 
   // ----- import: 批量导入学生 -----
@@ -323,7 +361,9 @@ export function registerEAAHandlers(_win: BrowserWindow) {
       if (filePath.includes('\0')) {
         throw new Error('filePath contains null bytes')
       }
-      return await eaaBridge.execute({ command: 'import', args: [filePath] })
+      const result = await eaaBridge.execute({ command: 'import', args: [filePath] })
+      invalidateStudentsCache()
+      return result
     } finally {
       stop()
     }

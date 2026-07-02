@@ -136,3 +136,8 @@ bun.lockb
 .tmp/*
 # Rust build artifacts (Cargo.lock IS committed, like package-lock.json)
 core/**/target/
+
+# 临时数据/构建
+data/
+core/eaa-cli/data/
+resources/eaa-binaries/linux-x64/
