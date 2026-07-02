@@ -221,12 +221,10 @@ export class EAABridge {
       )
     }
 
-    if (app.isPackaged) {
-      return path.join(process.resourcesPath, 'eaa-binaries', dirName, binName)
-    }
-
-    // 开发模式：先找 resources/eaa-binaries
-    const resourcePath = path.join(
+    // 优先检查 dev 路径(项目根 resources/eaa-binaries/) — 即使 app.isPackaged 为 true,
+    // 用 `electron .` 启动 packaged-asar 之外的项目时,app.isPackaged 不可靠,
+    // 此时 process.resourcesPath 指向 electron 自带的 resources 目录,而非项目 resources/。
+    const devResourcePath = path.join(
       __dirname,
       '..',
       '..',
@@ -235,7 +233,13 @@ export class EAABridge {
       dirName,
       binName,
     )
-    if (fs.existsSync(resourcePath)) return resourcePath
+    if (fs.existsSync(devResourcePath)) return devResourcePath
+
+    // Packaged 模式:用 process.resourcesPath/eaa-binaries/
+    if (app.isPackaged) {
+      const packagedPath = path.join(process.resourcesPath, 'eaa-binaries', dirName, binName)
+      if (fs.existsSync(packagedPath)) return packagedPath
+    }
 
     // 回退：直接链接 education-advisor 的编译产物
     const fallbackPath = path.join(
@@ -253,7 +257,7 @@ export class EAABridge {
     if (fs.existsSync(fallbackPath)) return fallbackPath
 
     throw new Error(
-      `EAA binary not found for ${platform}-${arch} (expected at ${resourcePath} or ${fallbackPath}). ` +
+      `EAA binary not found for ${platform}-${arch} (expected at ${devResourcePath} or ${fallbackPath}). ` +
         `Please run 'npm run build:eaa' or download the binary from the releases page.`,
     )
   }
@@ -756,13 +760,16 @@ export class EAABridge {
   /**
    * 从 `eaa export --help` 输出中解析支持的格式。
    * 帮助文本通常包含类似 "导出格式: csv(默认), jsonl, html" 的描述。
+   *
+   * R29-2 修复: 之前 knownFormats 包含 'json', 但 EAA Rust 二进制实际不支持 json 导出
+   * (cmd_export 只支持 csv/jsonl/html)。帮助文本中可能出现 "JSON" 字样(如描述 jsonl 时),
+   * 导致误判。现在只检测静态列表中已确认支持的格式, 避免误报。
    */
   private parseExportFormatsFromHelp(helpText: string): string[] {
-    const knownFormats = ['csv', 'jsonl', 'json', 'html', 'markdown', 'xml', 'tsv', 'txt']
     const found: string[] = []
 
-    // 在帮助文本中搜索已知格式关键词（全词匹配）
-    for (const fmt of knownFormats) {
+    // 只检测静态列表中已确认支持的格式, 不猜测新格式
+    for (const fmt of SUPPORTED_EXPORT_FORMATS) {
       // 使用 word boundary 确保不匹配子串（如 "csv" 不匹配 "csvfile"）
       const regex = new RegExp(`\\b${fmt}\\b`, 'i')
       if (regex.test(helpText)) {

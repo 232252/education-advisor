@@ -13,6 +13,21 @@ import { settingsService } from '../services/settings-service'
 import { updateTray } from '../services/tray-service'
 import { log, setLogLevel } from '../utils/logger'
 
+/**
+ * 枚举字段校验表 (Bug R28-1 修复)
+ * 对 UI 中使用 <select> 组件的字段,限制为合法的枚举值。
+ * 防止 settings.set 接受任意字符串(如 "INVALID_THEME_XYZ")导致配置损坏。
+ */
+const ENUM_VALIDATORS: Record<string, readonly string[]> = {
+  'general.theme': ['dark', 'light', 'system'],
+  'general.language': ['zh-CN', 'en-US', 'zh', 'en'],
+  'general.closeBehavior': ['ask', 'tray', 'exit'],
+  'general.logLevel': ['debug', 'info', 'warn', 'error', 'off'],
+  'chat.steeringMode': ['all', 'one-at-a-time'],
+  'chat.followUpMode': ['all', 'one-at-a-time'],
+  'chat.thinkingLevel': ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'],
+}
+
 export function registerSettingsHandlers(_win: BrowserWindow) {
   // 启动时同步 autoStart 设置到系统
   const currentSettings = settingsService.getSettings()
@@ -37,6 +52,13 @@ export function registerSettingsHandlers(_win: BrowserWindow) {
       keystoreService.setSecret('feishu-app-secret', value)
       log('info', 'settings', 'feishu.appSecret saved to keystore (encrypted)')
       return { success: true }
+    }
+
+    // Bug R28-1 修复: 枚举字段校验,拒绝非法值
+    const allowedValues = ENUM_VALIDATORS[path]
+    if (allowedValues && typeof value === 'string' && !allowedValues.includes(value)) {
+      log('warn', 'settings', `Rejected invalid enum value for ${path}: ${value} (allowed: ${allowedValues.join(', ')})`)
+      return { success: false, error: `Invalid value "${value}" for ${path}. Allowed: ${allowedValues.join(', ')}` }
     }
 
     settingsService.update(path, value)

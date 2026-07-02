@@ -221,6 +221,7 @@ export function ChatPage() {
 
   return (
     <div className="flex h-full">
+      <h1 style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>{t('page.chat.title')}</h1>
       {/* 左侧会话列表 */}
       <div className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col bg-gray-50/50 dark:bg-gray-800/50">
         {/* 顶部操作区 */}

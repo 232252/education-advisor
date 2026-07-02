@@ -75,8 +75,14 @@ export function registerCronHandlers(win: BrowserWindow) {
   })
 
   // P1-38 修复:await runNow() 并捕获错误,避免误导前端
+  // R3 修复: 不存在的 task 应返回 failure,而非 "Task execution completed"
   ipcMain.handle(IPC.IPC_CRON_RUN_NOW, async (_e, id: string) => {
     try {
+      // 先检查任务是否存在,executeTask 对不存在 id 静默 return 会导致误导性 "completed" 消息
+      const exists = cronService.listTasks().some((t) => t.id === id)
+      if (!exists) {
+        return { success: false, message: `Task not found: ${id}` }
+      }
       await cronService.runNow(id)
       return { success: true, message: 'Task execution completed' }
     } catch (err) {

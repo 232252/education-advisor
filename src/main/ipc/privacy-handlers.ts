@@ -85,7 +85,16 @@ export function registerPrivacyHandlers(_win: BrowserWindow) {
   })
 
   // ----- enable: 启用脱敏（使用内存中已缓存的密码） -----
+  // R30-1 修复: lock 状态下(无密码)不应允许 enable, 防止隐私保护失效
   ipcMain.handle(IPC.IPC_PRIVACY_ENABLE, async () => {
+    if (!eaaBridge.hasPrivacyPassword()) {
+      return {
+        success: false,
+        data: '隐私引擎已锁定,请先输入密码解锁后再启用脱敏',
+        stderr: 'Privacy engine is locked, password required',
+        exitCode: 1,
+      }
+    }
     return eaaBridge.execute({ command: 'privacy', args: ['enable'] })
   })
 
