@@ -213,6 +213,10 @@ export function registerEAAHandlers(_win: BrowserWindow) {
     if (!dateRe.test(start) || !dateRe.test(end)) {
       throw new Error('start/end must be YYYY-MM-DD format')
     }
+    // R3 修复: 校验 start <= end,避免 Rust CLI 静默返回 null 造成前端困惑
+    if (start > end) {
+      throw new Error(`start (${start}) must not be later than end (${end})`)
+    }
     const args: string[] = [start, end]
     if (limit !== undefined && limit > 0) {
       args.push('--limit', String(Math.min(1000, Math.floor(limit))))
@@ -294,12 +298,17 @@ export function registerEAAHandlers(_win: BrowserWindow) {
 
   // ----- set-student-meta: 设置学生属性 -----
   // 注意: 不产生 JSON 输出
+  // 支持 --clear-class-id 标志 (优先级高于 --class-id)
   ipcMain.handle(IPC.IPC_EAA_SET_STUDENT_META, async (_e, params: SetStudentMetaParams) => {
     const safeName = sanitizeName(params.name, 'name')
     const args: string[] = [safeName]
     if (params.group) args.push('--group', sanitizeName(params.group, 'group'))
     if (params.role) args.push('--role', sanitizeName(params.role, 'role'))
-    if (params.classId) args.push('--class-id', sanitizeClassId(params.classId))
+    if (params.clearClassId) {
+      args.push('--clear-class-id')
+    } else if (params.classId) {
+      args.push('--class-id', sanitizeClassId(params.classId))
+    }
     return eaaBridge.execute({ command: 'set-student-meta', args })
   })
 
