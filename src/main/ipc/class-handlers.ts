@@ -11,6 +11,7 @@ import type {
 } from '../../shared/types'
 import { classService } from '../services/class-service'
 import { eaaBridge } from '../services/eaa-bridge'
+import { invalidateStudentsCacheExternal } from './eaa-handlers'
 
 /** 复用 eaa-handlers 的 sanitize 思路：剥离不可见字符、限制长度。
  *  班级/学生名保持与 EAA 协议一致以避免 IPC 参数异常。 */
@@ -163,6 +164,8 @@ export function registerClassHandlers() {
           failed.push(`${name}: ${res.stderr || '未知错误'}`)
         }
       }
+      // 调班后让 listStudents 缓存失效,下一次加载看到新班级
+      invalidateStudentsCacheExternal()
       return { success: true, assigned, failed }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)

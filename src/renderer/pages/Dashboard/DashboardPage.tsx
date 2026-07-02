@@ -809,12 +809,12 @@ export function DashboardPage() {
                   type="button"
                   key={r.entity_id}
                   onClick={() => navigate(`/students?entity_id=${encodeURIComponent(r.entity_id)}`)}
-                  title={t('page.dashboard.chart.top10')}
-                  className="w-full text-left flex items-center justify-between text-xs p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer bg-transparent border-0"
+                  title={`${r.name} · ${(typeof r.score === 'number' ? r.score : 0).toFixed(1)}`}
+                  className="w-full text-left flex items-center justify-between gap-2 text-xs p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer bg-transparent border-0 min-w-0"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     <span
-                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                      className={`w-6 h-6 flex-shrink-0 rounded-full flex items-center justify-center text-xs font-bold
                     ${
                       r.rank === 1
                         ? 'bg-yellow-400 text-white shadow-lg shadow-yellow-400/30'
@@ -827,9 +827,11 @@ export function DashboardPage() {
                     >
                       {r.rank}
                     </span>
-                    <span className="text-gray-700 dark:text-gray-200 font-medium">{r.name}</span>
+                    <span className="text-gray-700 dark:text-gray-200 font-medium truncate min-w-0">
+                      {r.name}
+                    </span>
                   </div>
-                  <span className="font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+                  <span className="font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded flex-shrink-0">
                     {(typeof r.score === 'number' ? r.score : 0).toFixed(1)}
                   </span>
                 </button>
@@ -883,10 +885,12 @@ export function DashboardPage() {
                   {classPeriodSummary.top_gainers.slice(0, 3).map((g) => (
                     <div
                       key={g.name}
-                      className="flex justify-between py-1 border-b border-gray-100 dark:border-gray-700/50 last:border-0"
+                      className="flex justify-between gap-2 py-1 border-b border-gray-100 dark:border-gray-700/50 last:border-0 min-w-0"
                     >
-                      <span className="text-gray-600 dark:text-gray-300">{g.name}</span>
-                      <span className="text-green-500 dark:text-green-400 font-mono font-medium">
+                      <span className="text-gray-600 dark:text-gray-300 truncate min-w-0 flex-1">
+                        {g.name}
+                      </span>
+                      <span className="text-green-500 dark:text-green-400 font-mono font-medium flex-shrink-0">
                         +{g.delta.toFixed(1)}
                       </span>
                     </div>
@@ -901,10 +905,12 @@ export function DashboardPage() {
                   {classPeriodSummary.top_losers.slice(0, 3).map((l) => (
                     <div
                       key={l.name}
-                      className="flex justify-between py-1 border-b border-gray-100 dark:border-gray-700/50 last:border-0"
+                      className="flex justify-between gap-2 py-1 border-b border-gray-100 dark:border-gray-700/50 last:border-0 min-w-0"
                     >
-                      <span className="text-gray-600 dark:text-gray-300">{l.name}</span>
-                      <span className="text-red-500 dark:text-red-400 font-mono font-medium">
+                      <span className="text-gray-600 dark:text-gray-300 truncate min-w-0 flex-1">
+                        {l.name}
+                      </span>
+                      <span className="text-red-500 dark:text-red-400 font-mono font-medium flex-shrink-0">
                         {l.delta.toFixed(1)}
                       </span>
                     </div>
