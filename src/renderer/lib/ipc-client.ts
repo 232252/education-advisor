@@ -136,6 +136,8 @@ interface WindowAPI {
     summary: (since?: string, until?: string) => Promise<EAAResult<EAASummaryData>>
     dashboard: (outputDir?: string) => Promise<EAAResult<string>>
     exportFormats: () => Promise<string[]>
+    /** 清空 EAA 读缓存（刷新按钮调用，使下次读取重新拉取最新数据） */
+    invalidateCache: () => Promise<{ success: boolean }>
   }
   privacy: {
     init: (password: string, autoScan?: boolean) => Promise<EAAResult>
@@ -203,6 +205,15 @@ interface WindowAPI {
     removeStudent: (
       params: ClassRemoveStudentParams,
     ) => Promise<{ success: boolean; error?: string }>
+    /** 调班进度事件订阅，返回取消订阅函数。data: { current, total, assigned, lastName } */
+    onAssignProgress: (
+      callback: (data: {
+        current: number
+        total: number
+        assigned: number
+        lastName: string
+      }) => void,
+    ) => () => void
   }
   chat: {
     saveMessage: (msg: {

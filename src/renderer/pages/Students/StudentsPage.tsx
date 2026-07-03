@@ -101,6 +101,16 @@ export function StudentsPage() {
     }
   }, [])
 
+  // 手动刷新：先清空 EAA 读缓存，再重新加载（强制重新拉取最新数据）
+  const refreshStudents = useCallback(async () => {
+    try {
+      await getAPI().eaa.invalidateCache()
+    } catch {
+      /* 清缓存失败不阻塞 */
+    }
+    await loadStudents()
+  }, [loadStudents])
+
   // 加载导出格式（从 EAA 获取支持列表，失败时使用 fallback）
   useEffect(() => {
     let cancelled = false
@@ -568,7 +578,7 @@ export function StudentsPage() {
             </div>
             <button
               type="button"
-              onClick={loadStudents}
+              onClick={refreshStudents}
               className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1.5 rounded-lg text-sm transition-colors"
             >
               {t('common.refresh')}
