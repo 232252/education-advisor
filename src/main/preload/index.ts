@@ -191,6 +191,8 @@ contextBridge.exposeInMainWorld('api', {
     dashboard: (outputDir?: string) => ipcRenderer.invoke(IPC.IPC_EAA_DASHBOARD, outputDir),
     // [r] 获取 EAA 支持的导出格式列表(不调用二进制,从静态配置返回)
     exportFormats: () => ipcRenderer.invoke(IPC.IPC_EAA_EXPORT_FORMATS),
+    // 清空 EAA 读缓存（刷新按钮调用，使下次读取重新拉取最新数据）
+    invalidateCache: () => ipcRenderer.invoke(IPC.IPC_EAA_INVALIDATE_CACHE),
   },
 
   // ----- 隐私引擎 -----
@@ -321,6 +323,14 @@ contextBridge.exposeInMainWorld('api', {
     assign: (params: unknown) => ipcRenderer.invoke(IPC.IPC_CLASS_ASSIGN, params),
     // [w] 调班：把学生移出班级（清空 class_id）
     removeStudent: (params: unknown) => ipcRenderer.invoke(IPC.IPC_CLASS_REMOVE, params),
+    // [event] 调班进度（主进程串行 spawn 较慢，实时推送 current/total/assigned/lastName）
+    onAssignProgress: (callback: (data: unknown) => void) => {
+      const handler = (_e: unknown, data: unknown) => callback(data)
+      ipcRenderer.on(IPC.IPC_CLASS_ASSIGN_PROGRESS, handler)
+      return () => {
+        ipcRenderer.removeListener(IPC.IPC_CLASS_ASSIGN_PROGRESS, handler)
+      }
+    },
   },
 
   // ----- 对话持久化 -----
