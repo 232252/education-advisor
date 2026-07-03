@@ -1,7 +1,8 @@
-import type { AssistantMessage, AssistantMessageEvent, ImageContent, Message, Model, SimpleStreamOptions, streamSimple, TextContent, Tool, ToolResultMessage } from "@earendil-works/pi-ai";
+import type { Api, AssistantMessage, AssistantMessageEvent, AssistantMessageEventStream, Context, ImageContent, Message, Model, SimpleStreamOptions, TextContent, Tool, ToolResultMessage } from "@earendil-works/pi-ai";
 import type { Static, TSchema } from "typebox";
 /**
- * Stream function used by the agent loop.
+ * Stream function used by the agent loop. `Models.streamSimple` satisfies
+ * this shape.
  *
  * Contract:
  * - Must not throw or return a rejected promise for request/model/runtime failures.
@@ -9,7 +10,7 @@ import type { Static, TSchema } from "typebox";
  * - Failures must be encoded in the returned stream via protocol events and a
  *   final AssistantMessage with stopReason "error" or "aborted" and errorMessage.
  */
-export type StreamFn = (...args: Parameters<typeof streamSimple>) => ReturnType<typeof streamSimple> | Promise<ReturnType<typeof streamSimple>>;
+export type StreamFn = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AssistantMessageEventStream | Promise<AssistantMessageEventStream>;
 /**
  * Configuration for how tool calls from a single assistant message are executed.
  *
@@ -313,7 +314,12 @@ export interface AgentToolResult<T> {
      */
     terminate?: boolean;
 }
-/** Callback used by tools to stream partial execution updates. */
+/**
+ * Callback used by tools to stream partial execution updates.
+ *
+ * The callback is scoped to the current `execute()` invocation. Calls made after
+ * the tool promise settles are ignored.
+ */
 export type AgentToolUpdateCallback<T = any> = (partialResult: AgentToolResult<T>) => void;
 /** Tool definition used by the agent runtime. */
 export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = any> extends Tool<TParameters> {

@@ -1,19 +1,21 @@
-export type OAuthDeviceCodePollResult = {
+type OAuthDeviceCodeIncompletePollResult = {
     status: "pending";
 } | {
     status: "slow_down";
 } | {
-    status: "complete";
-    accessToken: string;
-} | {
     status: "failed";
     message: string;
 };
-export type OAuthDeviceCodePollOptions = {
+export type OAuthDeviceCodePollResult<T> = OAuthDeviceCodeIncompletePollResult | {
+    status: "complete";
+    value: T;
+};
+export type OAuthDeviceCodePollOptions<T> = {
     intervalSeconds?: number;
     expiresInSeconds?: number;
-    poll: () => Promise<OAuthDeviceCodePollResult>;
+    poll: () => Promise<OAuthDeviceCodePollResult<T>>;
     signal?: AbortSignal;
 };
-export declare function pollOAuthDeviceCodeFlow(options: OAuthDeviceCodePollOptions): Promise<string>;
+export declare function pollOAuthDeviceCodeFlow<T>(options: OAuthDeviceCodePollOptions<T>): Promise<T>;
+export {};
 //# sourceMappingURL=device-code.d.ts.map

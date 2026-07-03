@@ -1,6 +1,7 @@
 /**
  * GitHub Copilot OAuth flow
  */
+import type { OAuthAuth } from "../../auth/types.ts";
 import type { OAuthCredentials, OAuthDeviceCodeInfo, OAuthProviderInterface } from "./types.ts";
 export declare function normalizeDomain(input: string): string | null;
 export declare function getGitHubCopilotBaseUrl(token?: string, enterpriseDomain?: string): string;
@@ -26,5 +27,6 @@ export declare function loginGitHubCopilot(options: {
     onProgress?: (message: string) => void;
     signal?: AbortSignal;
 }): Promise<OAuthCredentials>;
+export declare const githubCopilotOAuth: OAuthAuth;
 export declare const githubCopilotOAuthProvider: OAuthProviderInterface;
 //# sourceMappingURL=github-copilot.d.ts.map
