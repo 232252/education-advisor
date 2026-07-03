@@ -12,6 +12,8 @@ export interface ProviderInfo {
   modelCount: number
   customBaseUrl?: string
   hidden?: boolean
+  /** 该 provider 下存在 $0 免费（input+output 均 0 成本）模型 */
+  hasFreeModels?: boolean
 }
 
 export interface ModelInfo {

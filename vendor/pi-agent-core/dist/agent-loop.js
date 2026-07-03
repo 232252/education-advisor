@@ -2,7 +2,7 @@
  * Agent loop that works with AgentMessage throughout.
  * Transforms to Message[] only at the LLM call boundary.
  */
-import { EventStream, streamSimple, validateToolArguments, } from "@earendil-works/pi-ai";
+import { EventStream, streamSimple, validateToolArguments, } from "@earendil-works/pi-ai/compat";
 /**
  * Start an agent loop with a new prompt message.
  * The prompt is added to the context and events are emitted for it.
@@ -415,8 +415,11 @@ async function prepareToolCall(currentContext, assistantMessage, toolCall, confi
 }
 async function executePreparedToolCall(prepared, signal, emit) {
     const updateEvents = [];
+    let acceptingUpdates = true;
     try {
         const result = await prepared.tool.execute(prepared.toolCall.id, prepared.args, signal, (partialResult) => {
+            if (!acceptingUpdates)
+                return;
             updateEvents.push(Promise.resolve(emit({
                 type: "tool_execution_update",
                 toolCallId: prepared.toolCall.id,
@@ -425,15 +428,20 @@ async function executePreparedToolCall(prepared, signal, emit) {
                 partialResult,
             })));
         });
+        acceptingUpdates = false;
         await Promise.all(updateEvents);
         return { result, isError: false };
     }
     catch (error) {
+        acceptingUpdates = false;
         await Promise.all(updateEvents);
         return {
             result: createErrorToolResult(error instanceof Error ? error.message : String(error)),
             isError: true,
         };
+    }
+    finally {
+        acceptingUpdates = false;
     }
 }
 async function finalizeExecutedToolCall(currentContext, assistantMessage, prepared, executed, config, signal) {

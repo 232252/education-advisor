@@ -4,6 +4,7 @@
  * NOTE: This module uses Node.js http.createServer for the OAuth callback server.
  * It is only intended for CLI use, not browser environments.
  */
+import type { OAuthAuth } from "../../auth/types.ts";
 import type { OAuthCredentials, OAuthPrompt, OAuthProviderInterface } from "./types.ts";
 /**
  * Login with Anthropic OAuth (authorization code + PKCE)
@@ -21,5 +22,6 @@ export declare function loginAnthropic(options: {
  * Refresh Anthropic OAuth token
  */
 export declare function refreshAnthropicToken(refreshToken: string): Promise<OAuthCredentials>;
+export declare const anthropicOAuth: OAuthAuth;
 export declare const anthropicOAuthProvider: OAuthProviderInterface;
 //# sourceMappingURL=anthropic.d.ts.map

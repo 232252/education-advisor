@@ -531,6 +531,11 @@ function ProviderCard({
               已配置
             </span>
           )}
+          {p.hasFreeModels && (
+            <span className="text-xs bg-blue-500/20 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
+              含免费模型
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-500 dark:text-gray-400">{p.modelCount} 个模型</span>
