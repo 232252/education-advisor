@@ -384,5 +384,11 @@ export function registerEAAHandlers(_win: BrowserWindow) {
     return await eaaBridge.getSupportedExportFormats()
   })
 
+  // 清空 EAA 读缓存：刷新按钮调用，使下次读取重新 spawn 拉取最新数据
+  ipcMain.handle(IPC.IPC_EAA_INVALIDATE_CACHE, () => {
+    eaaBridge.invalidateReadCache()
+    return { success: true }
+  })
+
   console.log('[IPC] EAA handlers registered (21 commands + export-formats)')
 }
