@@ -5,7 +5,7 @@
 // =============================================================
 
 import type { ClassEntity, EAARiskLevel, EAAStudent } from '@shared/types'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
@@ -307,6 +307,20 @@ function AssignTab({
   const { t } = useT()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [assigning, setAssigning] = useState(false)
+  // 批量分入进度（主进程串行 spawn 逐个写入 EAA，较慢，需实时显示）
+  const [progress, setProgress] = useState<{ current: number; total: number; lastName: string }>({
+    current: 0,
+    total: 0,
+    lastName: '',
+  })
+
+  // 订阅主进程推送的分入进度事件；组件卸载时取消订阅
+  useEffect(() => {
+    const unsubscribe = getAPI().class.onAssignProgress((data) => {
+      setProgress({ current: data.current, total: data.total, lastName: data.lastName })
+    })
+    return unsubscribe
+  }, [])
 
   const toggle = (name: string) => {
     setSelected((prev) => {
@@ -329,6 +343,7 @@ function AssignTab({
     const names = Array.from(selected)
     if (names.length === 0 || assigning) return
     setAssigning(true)
+    setProgress({ current: 0, total: names.length, lastName: '' })
     try {
       const res = await getAPI().class.assign({
         class_id: classEntity.class_id,
@@ -381,8 +396,28 @@ function AssignTab({
       {assigning ? (
         <div className="py-8 text-center text-sm text-blue-600 dark:text-blue-400">
           {t('page.classes.profile.assign.processing')
-            .replace('{0}', '0')
-            .replace('{1}', String(selected.size))}
+            .replace('{0}', String(progress.current))
+            .replace('{1}', String(progress.total || selected.size))}
+          {progress.total > 0 && (
+            <span className="ml-1">({Math.round((progress.current / progress.total) * 100)}%)</span>
+          )}
+          {progress.lastName && (
+            <div className="mt-2 text-xs text-gray-400 dark:text-gray-500 truncate">
+              {progress.lastName}
+            </div>
+          )}
+          {/* 进度条 */}
+          {progress.total > 0 && (
+            <div className="mt-3 mx-auto max-w-xs h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 transition-all duration-200"
+                style={{ width: `${(progress.current / progress.total) * 100}%` }}
+              />
+            </div>
+          )}
+          <div className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+            {t('page.classes.profile.assign.slowHint', '正在逐个写入，请耐心等待…')}
+          </div>
         </div>
       ) : (
         <>

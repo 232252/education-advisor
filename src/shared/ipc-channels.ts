@@ -54,6 +54,8 @@ export const IPC_EAA_DOCTOR = 'eaa:doctor'
 export const IPC_EAA_SUMMARY = 'eaa:summary'
 export const IPC_EAA_DASHBOARD = 'eaa:dashboard'
 export const IPC_EAA_EXPORT_FORMATS = 'eaa:export-formats'
+// 清空 EAA 读缓存（「刷新」按钮调用，确保下次读取重新 spawn 拉取最新数据）
+export const IPC_EAA_INVALIDATE_CACHE = 'eaa:invalidate-cache'
 // ===== 隐私引擎 =====
 export const IPC_PRIVACY_INIT = 'privacy:init'
 export const IPC_PRIVACY_LOAD = 'privacy:load'
@@ -113,6 +115,8 @@ export const IPC_CLASS_DELETE = 'class:delete'
 // 调班：批量分入班级 / 单个移出班级（联动 EAA set-student-meta）
 export const IPC_CLASS_ASSIGN = 'class:assign'
 export const IPC_CLASS_REMOVE = 'class:remove'
+// 调班进度事件（主进程 → 渲染进程，串行 spawn 较慢，需实时反馈避免误以为卡死）
+export const IPC_CLASS_ASSIGN_PROGRESS = 'class:assign-progress'
 
 // ===== 对话持久化 =====
 export const IPC_CHAT_SAVE_MESSAGE = 'chat:save-message'

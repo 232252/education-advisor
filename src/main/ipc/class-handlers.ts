@@ -140,7 +140,9 @@ export function registerClassHandlers() {
 
   // [w] 调班：把多个学生分入某班级（批量设置 EAA class_id）
   // EAA 写命令经 writeQueue 串行化，循环调用安全但较慢（N 次 spawn）。
-  ipcMain.handle(IPC.IPC_CLASS_ASSIGN, async (_e, params: ClassAssignParams) => {
+  // 因 spawn 串行且每次都要读写 entities.json，大批量（如数百人）耗时较长，
+  // 故在循环中通过 webContents.send 实时推送进度，避免前端长时间无反馈。
+  ipcMain.handle(IPC.IPC_CLASS_ASSIGN, async (e, params: ClassAssignParams) => {
     if (!params || typeof params !== 'object') {
       return { success: false, error: 'params must be an object' }
     }
@@ -149,10 +151,24 @@ export function registerClassHandlers() {
       if (!Array.isArray(params.student_names) || params.student_names.length === 0) {
         return { success: false, error: 'student_names must be a non-empty array' }
       }
+      const names = params.student_names.map((n) => String(n))
+      const total = names.length
       const failed: string[] = []
       let assigned = 0
-      for (const rawName of params.student_names) {
-        const name = sanitizeName(String(rawName), 'student_name')
+      let current = 0
+      const sendProgress = (current: number, total: number, assigned: number, lastName: string) => {
+        try {
+          if (!e.sender.isDestroyed()) {
+            e.sender.send(IPC.IPC_CLASS_ASSIGN_PROGRESS, { current, total, assigned, lastName })
+          }
+        } catch {
+          /* 渲染进程可能已卸载，忽略 */
+        }
+      }
+      // 开始前先发一次 0/total，让前端立即进入「处理中」状态
+      sendProgress(0, total, 0, '')
+      for (const rawName of names) {
+        const name = sanitizeName(rawName, 'student_name')
         const res = await eaaBridge.execute({
           command: 'set-student-meta',
           args: [name, '--class-id', classId],
@@ -162,6 +178,9 @@ export function registerClassHandlers() {
         } else {
           failed.push(`${name}: ${res.stderr || '未知错误'}`)
         }
+        current += 1
+        // 每处理完一个就推送进度
+        sendProgress(current, total, assigned, name)
       }
       return { success: true, assigned, failed }
     } catch (err) {
