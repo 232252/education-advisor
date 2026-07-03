@@ -19,7 +19,7 @@ import {
   type ModelThinkingLevel,
   streamSimple,
   type ThinkingLevel,
-} from '@earendil-works/pi-ai'
+} from '@earendil-works/pi-ai/compat'
 import type { ModelInfo, ProviderInfo, StreamEvent, TestConnectionResult } from '../../shared/types'
 import { logChat } from '../utils/logger'
 import { compactAgentMessages, compactChatMessagesSimple } from './compaction-helper'
@@ -110,6 +110,10 @@ class PiAIService {
       const keystoreKey = keystoreService.getApiKey(id)
       const envKey = getEnvApiKey(id)
       const hasApiKey = !!(keystoreKey || envKey)
+      // 检测免费模型：input + output 均 0 成本（如 zai 全系、opencode 的 *-free、kimi-coding）
+      const hasFreeModels = models.some(
+        (m) => (m.cost?.input ?? 0) === 0 && (m.cost?.output ?? 0) === 0,
+      )
 
       return {
         id,
@@ -117,11 +121,19 @@ class PiAIService {
         supportsOAuth: OAUTH_PROVIDERS.has(id),
         hasApiKey,
         modelCount: filteredModels.length,
+        hasFreeModels,
         // 若 enabledModels 把所有 model 都过滤掉了,标 disabled 提示用户
         hidden:
           blacklist.includes(id) ||
           (enabledModels.length > 0 && filteredModels.length === 0 && models.length > 0),
       }
+    })
+
+    // 排序：免费模型 provider 优先（让用户更容易发现 zai/opencode/kimi 等免费选项）
+    results.sort((a, b) => {
+      if (a.hasFreeModels !== b.hasFreeModels) return a.hasFreeModels ? -1 : 1
+      if (a.hasApiKey !== b.hasApiKey) return a.hasApiKey ? -1 : 1 // 已配置的靠前
+      return a.name.localeCompare(b.name)
     })
 
     const configured = results.filter((p) => p.hasApiKey && p.modelCount > 0)

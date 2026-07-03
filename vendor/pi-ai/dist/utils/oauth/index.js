@@ -12,7 +12,7 @@ export * from "./device-code.js";
 // GitHub Copilot
 export { getGitHubCopilotBaseUrl, githubCopilotOAuthProvider, loginGitHubCopilot, normalizeDomain, refreshGitHubCopilotToken, } from "./github-copilot.js";
 // OpenAI Codex (ChatGPT OAuth)
-export { loginOpenAICodex, openaiCodexOAuthProvider, refreshOpenAICodexToken } from "./openai-codex.js";
+export { loginOpenAICodex, loginOpenAICodexDeviceCode, OPENAI_CODEX_BROWSER_LOGIN_METHOD, OPENAI_CODEX_DEVICE_CODE_LOGIN_METHOD, openaiCodexOAuthProvider, refreshOpenAICodexToken, } from "./openai-codex.js";
 export * from "./types.js";
 // ============================================================================
 // Provider Registry

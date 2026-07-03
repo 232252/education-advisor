@@ -1,5 +1,5 @@
-import { type ImageContent, type Message, type SimpleStreamOptions, type ThinkingBudgets, type Transport } from "@earendil-works/pi-ai";
-import type { AfterToolCallContext, AfterToolCallResult, AgentEvent, AgentLoopTurnUpdate, AgentMessage, AgentState, BeforeToolCallContext, BeforeToolCallResult, QueueMode, StreamFn, ToolExecutionMode } from "./types.ts";
+import { type ImageContent, type Message, type SimpleStreamOptions, type ThinkingBudgets, type Transport } from "@earendil-works/pi-ai/compat";
+import type { AfterToolCallContext, AfterToolCallResult, AgentEvent, AgentLoopTurnUpdate, AgentMessage, AgentState, BeforeToolCallContext, BeforeToolCallResult, PrepareNextTurnContext, QueueMode, StreamFn, ToolExecutionMode } from "./types.ts";
 export type { QueueMode } from "./types.ts";
 /** Options for constructing an {@link Agent}. */
 export interface AgentOptions {
@@ -13,6 +13,7 @@ export interface AgentOptions {
     beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;
     afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;
     prepareNextTurn?: (signal?: AbortSignal) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
+    prepareNextTurnWithContext?: (context: PrepareNextTurnContext, signal?: AbortSignal) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
     steeringMode?: QueueMode;
     followUpMode?: QueueMode;
     sessionId?: string;
@@ -41,6 +42,7 @@ export declare class Agent {
     beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;
     afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;
     prepareNextTurn?: (signal?: AbortSignal) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
+    prepareNextTurnWithContext?: (context: PrepareNextTurnContext, signal?: AbortSignal) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
     private activeRun?;
     /** Session identifier forwarded to providers for cache-aware backends. */
     sessionId?: string;

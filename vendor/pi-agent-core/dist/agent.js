@@ -1,4 +1,4 @@
-import { streamSimple, } from "@earendil-works/pi-ai";
+import { streamSimple, } from "@earendil-works/pi-ai/compat";
 import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
 function defaultConvertToLlm(messages) {
     return messages.filter((message) => message.role === "user" || message.role === "assistant" || message.role === "toolResult");
@@ -97,6 +97,7 @@ export class Agent {
     beforeToolCall;
     afterToolCall;
     prepareNextTurn;
+    prepareNextTurnWithContext;
     activeRun;
     /** Session identifier forwarded to providers for cache-aware backends. */
     sessionId;
@@ -119,6 +120,7 @@ export class Agent {
         this.beforeToolCall = options.beforeToolCall;
         this.afterToolCall = options.afterToolCall;
         this.prepareNextTurn = options.prepareNextTurn;
+        this.prepareNextTurnWithContext = options.prepareNextTurnWithContext;
         this.steeringQueue = new PendingMessageQueue(options.steeringMode ?? "one-at-a-time");
         this.followUpQueue = new PendingMessageQueue(options.followUpMode ?? "one-at-a-time");
         this.sessionId = options.sessionId;
@@ -289,7 +291,14 @@ export class Agent {
             toolExecution: this.toolExecution,
             beforeToolCall: this.beforeToolCall,
             afterToolCall: this.afterToolCall,
-            prepareNextTurn: this.prepareNextTurn ? async () => await this.prepareNextTurn?.(this.signal) : undefined,
+            prepareNextTurn: this.prepareNextTurnWithContext || this.prepareNextTurn
+                ? async (context) => {
+                    if (this.prepareNextTurnWithContext) {
+                        return await this.prepareNextTurnWithContext(context, this.signal);
+                    }
+                    return await this.prepareNextTurn?.(this.signal);
+                }
+                : undefined,
             convertToLlm: this.convertToLlm,
             transformContext: this.transformContext,
             getApiKey: this.getApiKey,

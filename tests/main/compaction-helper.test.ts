@@ -6,12 +6,13 @@
 // =============================================================
 
 import type { AgentMessage, CompactionSettings } from '@earendil-works/pi-agent-core'
-import type { Api, Model } from '@earendil-works/pi-ai'
+import type { Api, Model } from '@earendil-works/pi-ai/compat'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock SDK 的 generateSummary / estimateContextTokens
+// 0.80.3 适配：压缩路径改用 completeSimple（替代旧 generateSummary）
+// Mock completeSimple / estimateContextTokens
 const mocks = vi.hoisted(() => ({
-  generateSummary: vi.fn(),
+  completeSimple: vi.fn(),
   estimateContextTokens: vi.fn(() => ({ tokens: 0 })),
 }))
 
@@ -21,8 +22,17 @@ vi.mock('@earendil-works/pi-agent-core', async () => {
   )
   return {
     ...actual,
-    generateSummary: mocks.generateSummary,
     estimateContextTokens: mocks.estimateContextTokens,
+  }
+})
+
+vi.mock('@earendil-works/pi-ai/compat', async () => {
+  const actual = await vi.importActual<typeof import('@earendil-works/pi-ai/compat')>(
+    '@earendil-works/pi-ai/compat',
+  )
+  return {
+    ...actual,
+    completeSimple: mocks.completeSimple,
   }
 })
 
@@ -224,22 +234,22 @@ describe('compactChatMessagesSimple', () => {
 
 describe('compactAgentMessages', () => {
   beforeEach(() => {
-    mocks.generateSummary.mockReset()
+    mocks.completeSimple.mockReset()
     mocks.estimateContextTokens.mockReset()
     mocks.estimateContextTokens.mockImplementation(() => ({ tokens: 0 }))
   })
 
-  it('messages.length <= 2 时应原样返回(不调 generateSummary)', async () => {
+  it('messages.length <= 2 时应原样返回(不调 completeSimple)', async () => {
     const messages: AgentMessage[] = [
       { role: 'user', content: 'hi', timestamp: 1 } as unknown as AgentMessage,
       { role: 'assistant', content: 'hello', timestamp: 2 } as unknown as AgentMessage,
     ]
     const result = await compactAgentMessages(messages, mockModel, defaultSettings, 'fake-key')
     expect(result).toBe(messages)
-    expect(mocks.generateSummary).not.toHaveBeenCalled()
+    expect(mocks.completeSimple).not.toHaveBeenCalled()
   })
 
-  it('shouldCompact=false 时应原样返回(不调 generateSummary)', async () => {
+  it('shouldCompact=false 时应原样返回(不调 completeSimple)', async () => {
     // 短消息,不超阈值
     const messages: AgentMessage[] = [
       { role: 'user', content: 'hi', timestamp: 1 } as unknown as AgentMessage,
@@ -248,7 +258,7 @@ describe('compactAgentMessages', () => {
     ]
     const result = await compactAgentMessages(messages, mockModel, defaultSettings, 'fake-key')
     expect(result).toBe(messages)
-    expect(mocks.generateSummary).not.toHaveBeenCalled()
+    expect(mocks.completeSimple).not.toHaveBeenCalled()
   })
 
   it('enabled=false 时即使超阈值也不压缩', async () => {
@@ -261,28 +271,25 @@ describe('compactAgentMessages', () => {
     const settings: CompactionSettings = { ...defaultSettings, enabled: false }
     const result = await compactAgentMessages(messages, mockModel, settings, 'fake-key')
     expect(result).toBe(messages)
-    expect(mocks.generateSummary).not.toHaveBeenCalled()
+    expect(mocks.completeSimple).not.toHaveBeenCalled()
   })
 
-  it('generateSummary 失败时应原样返回(降级保护)', async () => {
+  it('completeSimple 失败时应原样返回(降级保护)', async () => {
     // 超阈值
     const longContent = 'a'.repeat(10000)
     const messages: AgentMessage[] = [
       { role: 'user', content: longContent, timestamp: 1 } as unknown as AgentMessage,
       { role: 'assistant', content: longContent, timestamp: 2 } as unknown as AgentMessage,
-      { role: 'user', content: 'recent', timestamp: 3 } as unknown as AgentMessage,
+      { role: 'user', content: longContent, timestamp: 3 } as unknown as AgentMessage,
     ]
-    mocks.generateSummary.mockResolvedValue({
-      ok: false,
-      error: { message: 'API timeout' },
-    })
+    mocks.completeSimple.mockRejectedValue(new Error('API timeout'))
 
     const result = await compactAgentMessages(messages, mockModel, defaultSettings, 'fake-key')
     expect(result).toBe(messages) // 失败时返回原始消息
-    expect(mocks.generateSummary).toHaveBeenCalledTimes(1)
+    expect(mocks.completeSimple).toHaveBeenCalledTimes(1)
   })
 
-  it('generateSummary 成功时应返回 [summary, ...recent]', async () => {
+  it('completeSimple 成功时应返回 [summary, ...recent]', async () => {
     const longContent = 'a'.repeat(10000)
     const recentContent = 'recent short'
     const messages: AgentMessage[] = [
@@ -290,9 +297,10 @@ describe('compactAgentMessages', () => {
       { role: 'assistant', content: longContent, timestamp: 2 } as unknown as AgentMessage,
       { role: 'user', content: recentContent, timestamp: 3 } as unknown as AgentMessage,
     ]
-    mocks.generateSummary.mockResolvedValue({
-      ok: true,
-      value: '这是摘要文本',
+    mocks.completeSimple.mockResolvedValue({
+      role: 'assistant',
+      content: '这是摘要文本',
+      timestamp: 1,
     })
 
     const result = await compactAgentMessages(messages, mockModel, defaultSettings, 'fake-key')
@@ -312,22 +320,23 @@ describe('compactAgentMessages', () => {
     }
     expect(firstText).toContain('对话历史压缩')
     expect(firstText).toContain('这是摘要文本')
-    expect(mocks.generateSummary).toHaveBeenCalledTimes(1)
+    expect(mocks.completeSimple).toHaveBeenCalledTimes(1)
   })
 
-  it('应将 apiKey 传给 generateSummary', async () => {
+  it('应将 apiKey 传给 completeSimple', async () => {
     const longContent = 'a'.repeat(10000)
     const messages: AgentMessage[] = [
       { role: 'user', content: longContent, timestamp: 1 } as unknown as AgentMessage,
       { role: 'assistant', content: longContent, timestamp: 2 } as unknown as AgentMessage,
       { role: 'user', content: 'recent', timestamp: 3 } as unknown as AgentMessage,
     ]
-    mocks.generateSummary.mockResolvedValue({ ok: true, value: '摘要' })
+    mocks.completeSimple.mockResolvedValue({ role: 'assistant', content: '摘要', timestamp: 1 })
 
     await compactAgentMessages(messages, mockModel, defaultSettings, 'my-api-key-12345')
-    const callArgs = mocks.generateSummary.mock.calls[0]
-    // generateSummary(oldMessages, model, reserveTokens, apiKey, ...)
-    expect(callArgs[3]).toBe('my-api-key-12345')
+    const callArgs = mocks.completeSimple.mock.calls[0]
+    // completeSimple(model, context, options) — options 是第 3 个参数 (index 2)
+    const options = callArgs[2] as { apiKey?: string }
+    expect(options.apiKey).toBe('my-api-key-12345')
   })
 
   it('oldMessages 为空时应原样返回', async () => {
@@ -347,12 +356,12 @@ describe('compactAgentMessages', () => {
       reserveTokens: 0,
       keepRecentTokens: 100000, // 极大,所有消息都算 recent
     }
-    mocks.generateSummary.mockResolvedValue({ ok: true, value: '摘要' })
+    mocks.completeSimple.mockResolvedValue({ role: 'assistant', content: '摘要', timestamp: 1 })
 
     const result = await compactAgentMessages(messages, tinyModel, settings, 'fake-key')
     // oldMessages 为空,直接返回 messages
     expect(result).toBe(messages)
-    expect(mocks.generateSummary).not.toHaveBeenCalled()
+    expect(mocks.completeSimple).not.toHaveBeenCalled()
   })
 
   it('应支持 AbortSignal 传递', async () => {
@@ -362,7 +371,7 @@ describe('compactAgentMessages', () => {
       { role: 'assistant', content: longContent, timestamp: 2 } as unknown as AgentMessage,
       { role: 'user', content: 'recent', timestamp: 3 } as unknown as AgentMessage,
     ]
-    mocks.generateSummary.mockResolvedValue({ ok: true, value: '摘要' })
+    mocks.completeSimple.mockResolvedValue({ role: 'assistant', content: '摘要', timestamp: 1 })
     const controller = new AbortController()
 
     await compactAgentMessages(
@@ -372,9 +381,9 @@ describe('compactAgentMessages', () => {
       'fake-key',
       controller.signal,
     )
-    const callArgs = mocks.generateSummary.mock.calls[0]
-    // generateSummary(oldMessages, model, reserveTokens, apiKey, undefined, signal, ...)
-    // signal 在第 6 个参数位 (index 5)
-    expect(callArgs[5]).toBe(controller.signal)
+    const callArgs = mocks.completeSimple.mock.calls[0]
+    // completeSimple(model, context, options) — options.signal 在第 3 个参数 (index 2)
+    const options = callArgs[2] as { signal?: AbortSignal }
+    expect(options.signal).toBe(controller.signal)
   })
 })

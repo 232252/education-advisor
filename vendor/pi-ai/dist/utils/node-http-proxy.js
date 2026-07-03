@@ -1,5 +1,4 @@
-import { HttpProxyAgent } from "http-proxy-agent";
-import { HttpsProxyAgent } from "https-proxy-agent";
+import { getProviderEnvValue } from "./provider-env.js";
 const DEFAULT_PROXY_PORTS = {
     ftp: 21,
     gopher: 70,
@@ -8,9 +7,14 @@ const DEFAULT_PROXY_PORTS = {
     ws: 80,
     wss: 443,
 };
-export const UNSUPPORTED_PROXY_PROTOCOL_MESSAGE = "Unsupported proxy protocol. SOCKS and PAC proxy URLs are not supported; use an HTTP or HTTPS proxy URL.";
-function getProxyEnv(key) {
-    return process.env[key.toLowerCase()] || process.env[key.toUpperCase()] || "";
+function getProxyEnv(key, env) {
+    const lowercaseKey = key.toLowerCase();
+    const uppercaseKey = key.toUpperCase();
+    return (env?.[lowercaseKey] ||
+        env?.[uppercaseKey] ||
+        getProviderEnvValue(lowercaseKey) ||
+        getProviderEnvValue(uppercaseKey) ||
+        "");
 }
 function parseProxyTargetUrl(targetUrl) {
     if (targetUrl instanceof URL) {
@@ -23,8 +27,8 @@ function parseProxyTargetUrl(targetUrl) {
         return undefined;
     }
 }
-function shouldProxyHostname(hostname, port) {
-    const noProxy = getProxyEnv("no_proxy").toLowerCase();
+function shouldProxyHostname(hostname, port, env) {
+    const noProxy = getProxyEnv("no_proxy", env).toLowerCase();
     if (!noProxy) {
         return true;
     }
@@ -50,7 +54,7 @@ function shouldProxyHostname(hostname, port) {
         return !hostname.endsWith(proxyHostname);
     });
 }
-function getProxyForUrl(targetUrl) {
+function getProxyForUrl(targetUrl, env) {
     const parsedUrl = parseProxyTargetUrl(targetUrl);
     if (!parsedUrl?.protocol || !parsedUrl.host) {
         return "";
@@ -58,17 +62,18 @@ function getProxyForUrl(targetUrl) {
     const protocol = parsedUrl.protocol.split(":", 1)[0];
     const hostname = parsedUrl.host.replace(/:\d*$/, "");
     const port = Number.parseInt(parsedUrl.port, 10) || DEFAULT_PROXY_PORTS[protocol] || 0;
-    if (!shouldProxyHostname(hostname, port)) {
+    if (!shouldProxyHostname(hostname, port, env)) {
         return "";
     }
-    let proxy = getProxyEnv(`${protocol}_proxy`) || getProxyEnv("all_proxy");
+    let proxy = getProxyEnv(`${protocol}_proxy`, env) || getProxyEnv("all_proxy", env);
     if (proxy && !proxy.includes("://")) {
         proxy = `${protocol}://${proxy}`;
     }
     return proxy;
 }
-export function resolveHttpProxyUrlForTarget(targetUrl) {
-    const proxy = getProxyForUrl(targetUrl);
+export const UNSUPPORTED_PROXY_PROTOCOL_MESSAGE = "Unsupported proxy protocol. SOCKS and PAC proxy URLs are not supported; use an HTTP or HTTPS proxy URL.";
+export function resolveHttpProxyUrlForTarget(targetUrl, env) {
+    const proxy = getProxyForUrl(targetUrl, env);
     if (!proxy) {
         return undefined;
     }
@@ -83,15 +88,5 @@ export function resolveHttpProxyUrlForTarget(targetUrl) {
         throw new Error(`${UNSUPPORTED_PROXY_PROTOCOL_MESSAGE} Got ${proxyUrl.protocol}`);
     }
     return proxyUrl;
-}
-export function createHttpProxyAgentsForTarget(targetUrl) {
-    const proxyUrl = resolveHttpProxyUrlForTarget(targetUrl);
-    if (!proxyUrl) {
-        return undefined;
-    }
-    return {
-        httpAgent: new HttpProxyAgent(proxyUrl),
-        httpsAgent: new HttpsProxyAgent(proxyUrl),
-    };
 }
 //# sourceMappingURL=node-http-proxy.js.map

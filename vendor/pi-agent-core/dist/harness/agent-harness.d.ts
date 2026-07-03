@@ -1,9 +1,10 @@
-import { type AssistantMessage, type ImageContent, type Model } from "@earendil-works/pi-ai";
+import type { AssistantMessage, ImageContent, Model, Models } from "@earendil-works/pi-ai";
 import type { AgentMessage, AgentTool, QueueMode, ThinkingLevel } from "../types.ts";
 import type { AbortResult, AgentHarnessEvent, AgentHarnessEventResultMap, AgentHarnessOptions, AgentHarnessOwnEvent, AgentHarnessResources, AgentHarnessStreamOptions, ExecutionEnv, NavigateTreeResult, PromptTemplate, Skill } from "./types.ts";
 export declare class AgentHarness<TSkill extends Skill = Skill, TPromptTemplate extends PromptTemplate = PromptTemplate, TTool extends AgentTool = AgentTool> {
     readonly env: ExecutionEnv;
     private session;
+    readonly models: Models;
     private phase;
     private runAbortController?;
     private runPromise?;
@@ -12,7 +13,6 @@ export declare class AgentHarness<TSkill extends Skill = Skill, TPromptTemplate 
     private thinkingLevel;
     private systemPrompt;
     private streamOptions;
-    private getApiKeyAndHeaders?;
     private resources;
     private tools;
     private activeToolNames;
@@ -36,6 +36,7 @@ export declare class AgentHarness<TSkill extends Skill = Skill, TPromptTemplate 
     private createStreamFn;
     private drainQueuedMessages;
     private createLoopConfig;
+    private validateUniqueNames;
     private validateToolNames;
     private flushPendingSessionWrites;
     private handleAgentEvent;
@@ -69,9 +70,12 @@ export declare class AgentHarness<TSkill extends Skill = Skill, TPromptTemplate 
         label?: string;
     }): Promise<NavigateTreeResult>;
     getModel(): Model<any>;
-    getThinkingLevel(): ThinkingLevel;
     setModel(model: Model<any>): Promise<void>;
+    getThinkingLevel(): ThinkingLevel;
     setThinkingLevel(level: ThinkingLevel): Promise<void>;
+    getTools(): TTool[];
+    setTools(tools: TTool[], activeToolNames?: string[]): Promise<void>;
+    getActiveTools(): TTool[];
     setActiveTools(toolNames: string[]): Promise<void>;
     getSteeringMode(): QueueMode;
     setSteeringMode(mode: QueueMode): Promise<void>;
@@ -81,7 +85,6 @@ export declare class AgentHarness<TSkill extends Skill = Skill, TPromptTemplate 
     setResources(resources: AgentHarnessResources<TSkill, TPromptTemplate>): Promise<void>;
     getStreamOptions(): AgentHarnessStreamOptions;
     setStreamOptions(streamOptions: AgentHarnessStreamOptions): Promise<void>;
-    setTools(tools: TTool[], activeToolNames?: string[]): Promise<void>;
     abort(): Promise<AbortResult>;
     waitForIdle(): Promise<void>;
     subscribe(listener: (event: AgentHarnessEvent<TSkill, TPromptTemplate>, signal?: AbortSignal) => Promise<void> | void): () => void;

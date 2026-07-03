@@ -1,4 +1,4 @@
-import type { Model } from "@earendil-works/pi-ai";
+import type { Model, Models } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "../../types.ts";
 import type { BranchSummaryResult, Session, SessionTreeEntry } from "../types.ts";
 import { BranchSummaryError, type Result } from "../types.ts";
@@ -29,12 +29,10 @@ export interface CollectEntriesResult {
 }
 /** Options for generating a branch summary. */
 export interface GenerateBranchSummaryOptions {
+    /** Provider collection the summarization request goes through; owns auth resolution. */
+    models: Models;
     /** Model used for summarization. */
     model: Model<any>;
-    /** API key forwarded to the provider. */
-    apiKey: string;
-    /** Optional request headers forwarded to the provider. */
-    headers?: Record<string, string>;
     /** Abort signal for the summarization request. */
     signal: AbortSignal;
     /** Optional instructions appended to or replacing the default prompt. */

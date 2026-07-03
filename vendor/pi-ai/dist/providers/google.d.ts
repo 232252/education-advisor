@@ -1,13 +1,3 @@
-import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
-import type { GoogleThinkingLevel } from "./google-shared.ts";
-export interface GoogleOptions extends StreamOptions {
-    toolChoice?: "auto" | "none" | "any";
-    thinking?: {
-        enabled: boolean;
-        budgetTokens?: number;
-        level?: GoogleThinkingLevel;
-    };
-}
-export declare const streamGoogle: StreamFunction<"google-generative-ai", GoogleOptions>;
-export declare const streamSimpleGoogle: StreamFunction<"google-generative-ai", SimpleStreamOptions>;
+import { type Provider } from "../models.ts";
+export declare function googleProvider(): Provider<"google-generative-ai">;
 //# sourceMappingURL=google.d.ts.map
