@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
+import { LocalModelsSection } from './LocalModelsSection'
 import { toast } from '../../stores/toastStore'
 
 // 格式化 token 成本（美元/百万 token）
@@ -342,6 +343,8 @@ export function ModelsPage() {
           </button>
         </div>
       </div>
+
+      <LocalModelsSection />
 
       {loading ? (
         <div className="text-center text-gray-400 dark:text-gray-500 py-12">加载中...</div>

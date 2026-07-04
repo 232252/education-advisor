@@ -35,6 +35,9 @@ import type {
   SetStudentMetaParams,
   Skill,
   StreamEvent,
+  OllamaModelInfo,
+  OllamaPullProgressInfo,
+  OllamaStatusInfo,
   StudentProfileData,
   TestConnectionResult,
   UnifiedSettings,
@@ -86,6 +89,16 @@ interface WindowAPI {
       baseUrl?: string
     }) => Promise<{ success: boolean }>
     onStream: (callback: (event: StreamEvent) => void) => () => void
+  }
+  // 本地模型 (Ollama)
+  ollama: {
+    detect: () => Promise<OllamaStatusInfo>
+    startServe: () => Promise<{ success: boolean }>
+    stopServe: () => Promise<{ success: boolean }>
+    listModels: () => Promise<OllamaModelInfo[]>
+    pullModel: (modelName: string) => Promise<{ success: boolean; error?: string }>
+    deleteModel: (modelName: string) => Promise<{ success: boolean; error?: string }>
+    onPullProgress: (callback: (info: OllamaPullProgressInfo) => void) => () => void
   }
   agent: {
     list: () => Promise<AgentListItem[]>
