@@ -10,12 +10,14 @@ import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../../stores/toastStore'
 
 // 推荐模型列表(与主进程 RECOMMENDED_MODELS 保持一致,这里内联用于 UI)
+// 按硬件需求分级: CPU入门 → CPU进阶 → GPU/大内存
 const RECOMMENDED = [
   {
     tag: 'qwen3:1.7b',
     name: 'Qwen3 1.7B',
     size: '~1 GB',
     chinese: '优秀',
+    tier: 'CPU入门',
     desc: '阿里通义千问3代,1.7B参数,CPU上速度极快,中文优秀。入门首选。',
     manual: [
       { label: 'HuggingFace', url: 'https://huggingface.co/unsloth/Qwen3-1.7B-GGUF' },
@@ -27,6 +29,7 @@ const RECOMMENDED = [
     name: 'Qwen3 4B',
     size: '~2.5 GB',
     chinese: '优秀',
+    tier: 'CPU进阶',
     desc: '质量与速度的最佳平衡,中文优秀,适合稍好的CPU。',
     manual: [
       { label: 'HuggingFace', url: 'https://huggingface.co/unsloth/Qwen3-4B-GGUF' },
@@ -38,6 +41,7 @@ const RECOMMENDED = [
     name: 'Qwen2.5 3B',
     size: '~2 GB',
     chinese: '优秀',
+    tier: 'CPU进阶',
     desc: '成熟稳定,中文优秀,CPU推理速度快。',
     manual: [
       { label: 'HuggingFace', url: 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF' },
@@ -45,10 +49,23 @@ const RECOMMENDED = [
     ],
   },
   {
+    tag: 'qwen3.6:35b-a3b',
+    name: 'Qwen3.6 35B-A3B',
+    size: '~20 GB',
+    chinese: '优秀',
+    tier: 'GPU/大内存',
+    desc: 'Qwen最新3.6代,MoE架构(35B总参/3B激活),agentic coding和推理大幅升级。需≥16GB内存或GPU。',
+    manual: [
+      { label: 'HuggingFace', url: 'https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF' },
+      { label: 'ModelScope', url: 'https://modelscope.cn/models/Qwen/Qwen3.6-35B-A3B-GGUF' },
+    ],
+  },
+  {
     tag: 'gemma3:2b',
     name: 'Gemma 3 2B',
     size: '~1.5 GB',
     chinese: '一般',
+    tier: 'CPU入门',
     desc: 'Google Gemma3 2B,体积极小,CPU极速,中文一般。',
     manual: [
       { label: 'HuggingFace', url: 'https://huggingface.co/google/gemma-3-2b-it-qat-q4_0-gguf' },
@@ -229,6 +246,17 @@ export function LocalModelsSection() {
                         {m.name}
                       </span>
                       <span className="ml-2 text-[10px] text-gray-400">{m.size}</span>
+                      <span
+                        className={`ml-1 text-[10px] px-1 py-0.5 rounded ${
+                          m.tier === 'GPU/大内存'
+                            ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
+                            : m.tier === 'CPU进阶'
+                              ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                              : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                        }`}
+                      >
+                        {m.tier}
+                      </span>
                       <span
                         className={`ml-1 text-[10px] px-1 py-0.5 rounded ${
                           m.chinese === '优秀'
