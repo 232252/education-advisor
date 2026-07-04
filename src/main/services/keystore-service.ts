@@ -134,6 +134,10 @@ class KeystoreService {
   /**
    * 设置 API key。setApiKey 是同步返回（写入磁盘是异步 fire-and-forget），
    * 这样调用方不用 await，但数据丢失风险已被原子 rename 缓解。
+   *
+   * 竞态修复: 如果 load() 尚未完成,先写入 cache 但延迟 save(),
+   * 等 load() 完成后再 save()——避免 load() 的 cache.clear()/reload
+   * 覆盖刚写入的 key。
    */
   setApiKey(provider: string, apiKey: string): void {
     if (typeof provider !== 'string' || provider.length === 0) {
@@ -144,13 +148,13 @@ class KeystoreService {
     }
     this.cache.set(provider, apiKey)
     this._lastError = null
-    // fire-and-forget：失败时只记录，不阻塞
-    void this.save()
+    // 等 load() 完成后再 save(),避免 load 的 reload 覆盖刚写的 key
+    void this._ready.then(() => this.save())
   }
 
   deleteApiKey(provider: string): void {
     this.cache.delete(provider)
-    void this.save()
+    void this._ready.then(() => this.save())
   }
 
   /** 列出已保存的 provider 名称（不含 key 内容，排除内部 secret） */
@@ -170,13 +174,13 @@ class KeystoreService {
     }
     this.cache.set(`__secret__:${key}`, value)
     this._lastError = null
-    void this.save()
+    void this._ready.then(() => this.save())
   }
 
   /** 删除通用密钥 */
   deleteSecret(key: string): void {
     this.cache.delete(`__secret__:${key}`)
-    void this.save()
+    void this._ready.then(() => this.save())
   }
 
   /** 检查 DPAPI / 平台安全存储是否可用 */

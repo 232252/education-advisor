@@ -127,6 +127,11 @@ export const IPC_FEISHU_BITABLE = 'feishu:bitable'
 export const IPC_FEISHU_SEND = 'feishu:send'
 export const IPC_FEISHU_STATUS = 'feishu:status'
 export const IPC_FEISHU_SYNC_NOW = 'feishu:sync-now'
+// 飞书长连接机器人:启动/停止/状态查询 + 状态推送(主→渲染)
+export const IPC_FEISHU_BOT_START = 'feishu:bot-start'
+export const IPC_FEISHU_BOT_STOP = 'feishu:bot-stop'
+export const IPC_FEISHU_BOT_STATUS = 'feishu:bot-status'
+export const IPC_FEISHU_BOT_STATUS_UPDATE = 'feishu:bot-status-update'
 
 // ===== 日志 =====
 // arch-P0-1 修复：原硬编码字符串，迁入共享常量
