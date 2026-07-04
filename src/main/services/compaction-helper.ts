@@ -10,7 +10,11 @@
 // =============================================================
 
 import type { AgentMessage, CompactionSettings } from '@earendil-works/pi-agent-core'
-import { convertToLlm, estimateContextTokens, serializeConversation } from '@earendil-works/pi-agent-core'
+import {
+  convertToLlm,
+  estimateContextTokens,
+  serializeConversation,
+} from '@earendil-works/pi-agent-core'
 import type { Api, Model } from '@earendil-works/pi-ai/compat'
 import { completeSimple, getEnvApiKey } from '@earendil-works/pi-ai/compat'
 
@@ -116,7 +120,11 @@ async function generateSummaryInline(
     const assistant = await completeSimple(
       model,
       { messages: [{ role: 'user', content: promptText, timestamp: Date.now() }] },
-      { apiKey, maxTokens: Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens || 2048), signal },
+      {
+        apiKey,
+        maxTokens: Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens || 2048),
+        signal,
+      },
     )
     // AssistantMessage.content 可能是 string 或内容块数组
     const c = assistant.content
@@ -129,7 +137,10 @@ async function generateSummaryInline(
     }
     return String(c ?? '') || null
   } catch (err) {
-    console.warn('[Compaction] generateSummaryInline failed:', err instanceof Error ? err.message : err)
+    console.warn(
+      '[Compaction] generateSummaryInline failed:',
+      err instanceof Error ? err.message : err,
+    )
     return null
   }
 }
