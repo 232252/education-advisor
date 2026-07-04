@@ -39,6 +39,11 @@ export function registerSettingsHandlers(win: BrowserWindow) {
    * 若 appId 被清空则停止。实现"保存即生效"，无需重启 app。
    */
   const reconnectFeishuBot = async () => {
+    // 用户手动停止后,不自动重连(只有保存新 appId/secret 或手动点"连接"才重启)
+    if (feishuBotService.isUserStopped()) {
+      log('info', 'settings', 'feishu bot skipped reconnect (user stopped)')
+      return
+    }
     const s = settingsService.getSettings()
     const secret = keystoreService.getSecret('feishu-app-secret')
     if (s.feishu.appId && secret) {
