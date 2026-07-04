@@ -160,6 +160,8 @@
   "settings.theme.dark": "Dark",
   "settings.theme.light": "Light",
   "settings.theme.system": "Follow System",
+  "theme.toggle.toLight": "Switch to light theme",
+  "theme.toggle.toDark": "Switch to dark theme",
   "settings.language": "Language",
   "settings.language.desc": "UI language, partial text needs restart",
   "settings.language.zh": "中文",

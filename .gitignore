@@ -136,3 +136,6 @@ bun.lockb
 .tmp/*
 # Rust build artifacts (Cargo.lock IS committed, like package-lock.json)
 core/**/target/
+
+# Agent 运行时输出产物
+data_archive/agent_outputs/
