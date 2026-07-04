@@ -28,6 +28,7 @@ import type {
   EAATagDetailData,
   EAATagListData,
   EAAValidateData,
+  FeishuBotStatusInfo,
   ModelInfo,
   PrivacyMapping,
   ProviderInfo,
@@ -263,6 +264,15 @@ interface WindowAPI {
       tableId: string,
       fields: Record<string, unknown>,
     ) => Promise<{ success: boolean; skipped?: string; recordId?: string; error?: string }>
+    // 飞书长连接机器人
+    botStart: () => Promise<{
+      success: boolean
+      error?: string
+      status?: FeishuBotStatusInfo
+    }>
+    botStop: () => Promise<{ success: boolean; status?: FeishuBotStatusInfo }>
+    botStatus: () => Promise<FeishuBotStatusInfo>
+    onBotStatusUpdate: (callback: (info: FeishuBotStatusInfo) => void) => () => void
   }
   sys: {
     openDialog: (options: unknown) => Promise<unknown>

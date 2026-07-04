@@ -10,6 +10,8 @@ import { debug } from '../shared/debug'
 import { registerAllHandlers } from './ipc/index'
 import { cronService } from './services/cron-service'
 import { dbService } from './services/db-service'
+import { feishuBotService } from './services/feishu-bot-service'
+import { keystoreService } from './services/keystore-service'
 import { settingsService } from './services/settings-service'
 import { destroyTray, getTrayStatus, initTray, resolveIconPath } from './services/tray-service'
 import { updateService } from './services/update-service'
@@ -165,6 +167,21 @@ app.whenReady().then(async () => {
   // 注册飞书 Bitable 定时同步任务
   cronService.registerBitableSync()
 
+  // 若已配置飞书 appId + appSecret，自动启动长连接机器人
+  // 长连接模式无需公网地址，启动后即可在飞书里与机器人对话
+  try {
+    const s = settingsService.getSettings()
+    const secret = keystoreService.getSecret('feishu-app-secret')
+    if (s.feishu.appId && secret) {
+      feishuBotService.start(s.feishu.appId, secret, win).catch((err) => {
+        log('warn', 'main', `feishu bot auto-start failed: ${err}`)
+      })
+      log('info', 'main', `feishu bot auto-starting, appId=${s.feishu.appId}`)
+    }
+  } catch (err) {
+    log('warn', 'main', `feishu bot auto-start skipped: ${err}`)
+  }
+
   // 外部链接在系统浏览器中打开
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
@@ -263,6 +280,8 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   isQuitting = true
   destroyTray()
+  // 退出时断开飞书长连接，避免悬挂的 WebSocket
+  feishuBotService.stop().catch(() => {})
 })
 
 // 安全：阻止导航到外部页面

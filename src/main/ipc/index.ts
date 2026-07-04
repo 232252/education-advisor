@@ -29,7 +29,7 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerSysHandlers(win)
   registerProfileHandlers()
   registerLogHandlers()
-  registerFeishuHandlers()
+  registerFeishuHandlers(win)
   registerClassHandlers()
 
   // 初始化 EAA Bridge（创建数据目录、复制 reason-codes、doctor 健康检查）
