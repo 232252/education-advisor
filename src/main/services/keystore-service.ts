@@ -137,7 +137,7 @@ class KeystoreService {
    *
    * 竞态修复: 如果 load() 尚未完成,先写入 cache 但延迟 save(),
    * 等 load() 完成后再 save()——避免 load() 的 cache.clear()/reload
-   * 覆盖刚写入的 key。
+   * 覆盖刚写入的 key。立即 +1 _pendingWrites 让 flush() 能正确等待。
    */
   setApiKey(provider: string, apiKey: string): void {
     if (typeof provider !== 'string' || provider.length === 0) {
@@ -148,13 +148,23 @@ class KeystoreService {
     }
     this.cache.set(provider, apiKey)
     this._lastError = null
-    // 等 load() 完成后再 save(),避免 load 的 reload 覆盖刚写的 key
-    void this._ready.then(() => this.save())
+    // 立即标记有待写入,让 flush() 能等到完成
+    this._pendingWrites++
+    void this._ready.then(() => {
+      this.save().finally(() => {
+        this._pendingWrites--
+      })
+    })
   }
 
   deleteApiKey(provider: string): void {
     this.cache.delete(provider)
-    void this._ready.then(() => this.save())
+    this._pendingWrites++
+    void this._ready.then(() => {
+      this.save().finally(() => {
+        this._pendingWrites--
+      })
+    })
   }
 
   /** 列出已保存的 provider 名称（不含 key 内容，排除内部 secret） */
@@ -174,13 +184,23 @@ class KeystoreService {
     }
     this.cache.set(`__secret__:${key}`, value)
     this._lastError = null
-    void this._ready.then(() => this.save())
+    this._pendingWrites++
+    void this._ready.then(() => {
+      this.save().finally(() => {
+        this._pendingWrites--
+      })
+    })
   }
 
   /** 删除通用密钥 */
   deleteSecret(key: string): void {
     this.cache.delete(`__secret__:${key}`)
-    void this._ready.then(() => this.save())
+    this._pendingWrites++
+    void this._ready.then(() => {
+      this.save().finally(() => {
+        this._pendingWrites--
+      })
+    })
   }
 
   /** 检查 DPAPI / 平台安全存储是否可用 */
