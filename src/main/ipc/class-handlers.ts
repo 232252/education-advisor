@@ -101,14 +101,16 @@ export function registerClassHandlers() {
       try {
         // eaaBridge.execute() 返回 EAAResult { success, data, stderr, exitCode }
         // list-students 命令的学生列表在 data.students 中
-        const listRes = await eaaBridge.execute<{ students?: Array<{ name: string; class_id?: string | null }> }>({ command: 'list-students', args: [] })
+        const listRes = await eaaBridge.execute<{
+          students?: Array<{ name: string; class_id?: string | null }>
+        }>({ command: 'list-students', args: [] })
         const students = listRes?.data?.students ?? []
         const toClear = students.filter((s) => s.class_id === result.classId)
         console.log('[Class] cascade cleanup:', {
           classId: result.classId,
           totalStudents: students.length,
           toClearCount: toClear.length,
-          sampleStudents: students.slice(0, 3).map(s => ({ name: s.name, class_id: s.class_id })),
+          sampleStudents: students.slice(0, 3).map((s) => ({ name: s.name, class_id: s.class_id })),
           listSuccess: listRes?.success,
           listExitCode: listRes?.exitCode,
         })
