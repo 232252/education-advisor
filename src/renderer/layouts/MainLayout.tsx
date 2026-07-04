@@ -4,6 +4,7 @@
 
 import { useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { ThemeToggle } from '../components/ThemeToggle'
 import { useT } from '../i18n'
 import { useAgentStore } from '../stores/agentStore'
 
@@ -78,6 +79,10 @@ export function MainLayout() {
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+          <ThemeToggle />
         </div>
       </aside>
 
