@@ -387,5 +387,18 @@ contextBridge.exposeInMainWorld('api', {
     // [w] T4: 手动触发一次 bitable 同步(graceful 降级)
     syncNow: (appId: string, appToken: string, tableId: string, fields: Record<string, unknown>) =>
       ipcRenderer.invoke(IPC.IPC_FEISHU_SYNC_NOW, appId, appToken, tableId, fields),
+    // ===== 飿书长连接机器人 =====
+    // [w] 启动长连接(appId 从 settings 读, appSecret 从 keystore 读)
+    botStart: () => ipcRenderer.invoke(IPC.IPC_FEISHU_BOT_START),
+    // [w] 停止长连接
+    botStop: () => ipcRenderer.invoke(IPC.IPC_FEISHU_BOT_STOP),
+    // [r] 查询机器人当前状态
+    botStatus: () => ipcRenderer.invoke(IPC.IPC_FEISHU_BOT_STATUS),
+    // [r] 订阅机器人状态变化(返回取消订阅函数)
+    onBotStatusUpdate: (callback: (info: unknown) => void) => {
+      const listener = (_e: unknown, info: unknown) => callback(info)
+      ipcRenderer.on(IPC.IPC_FEISHU_BOT_STATUS_UPDATE, listener)
+      return () => ipcRenderer.removeListener(IPC.IPC_FEISHU_BOT_STATUS_UPDATE, listener)
+    },
   },
 })

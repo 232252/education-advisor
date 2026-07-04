@@ -63,6 +63,7 @@
   "dependencies": {
     "@earendil-works/pi-agent-core": "file:./vendor/pi-agent-core",
     "@earendil-works/pi-ai": "file:./vendor/pi-ai",
+    "@larksuiteoapi/node-sdk": "^1.68.0",
     "better-sqlite3": "^11.7.0",
     "chokidar": "^4.0.3",
     "cross-spawn": "^7.0.6",
