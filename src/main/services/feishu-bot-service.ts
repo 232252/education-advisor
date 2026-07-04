@@ -131,6 +131,8 @@ class FeishuBotService extends EventEmitter {
   private connectedAt?: number
   /** 运行中的消息处理计数,用于诊断并发 */
   private processingCount = 0
+  /** 用户手动停止标志:阻止"保存即重连"自动重启 */
+  private userStopped = false
 
   constructor() {
     super()
@@ -155,6 +157,8 @@ class FeishuBotService extends EventEmitter {
    * @param win       主窗口(用于 agentService.runAgent 的状态推送)
    */
   async start(appId: string, appSecret: string, win: BrowserWindow | null): Promise<void> {
+    // 用户手动启动,清除停止标志
+    this.userStopped = false
     // 已在运行且 appId 相同 → 跳过
     if (this.client && this.currentAppId === appId && this.currentStatus === 'connected') {
       log('info', 'feishu-bot', `already connected with appId=${appId}, skip`)
@@ -299,16 +303,29 @@ class FeishuBotService extends EventEmitter {
 
   /** 停止长连接 */
   async stop(): Promise<void> {
+    this.userStopped = true
     this.stopStatusPolling()
-    // WSClient 没有公开的 stop 方法,置空引用让 GC 回收。
-    // SDK 内部会在连接断开时自行清理;重新 start 会创建新实例。
+    // 主动关闭 WSClient 的底层 WebSocket 连接(force 模式立即断开),
+    // 避免置 null 后后台重连线程继续触发 onReady/onReconnecting 回调。
+    if (this.client) {
+      try {
+        this.client.close({ force: true })
+      } catch (err) {
+        log('warn', 'feishu-bot', `close error: ${err}`)
+      }
+    }
     this.client = null
     this.sdkClient = null
     this.connectedAt = undefined
     if (this.currentStatus !== 'idle') {
       this.setStatus('idle')
     }
-    log('info', 'feishu-bot', 'stopped')
+    log('info', 'feishu-bot', 'stopped (user-initiated)')
+  }
+
+  /** 用户是否手动停止了(用于阻止"保存即重连"自动重启) */
+  isUserStopped(): boolean {
+    return this.userStopped
   }
 
   /**
