@@ -137,12 +137,19 @@ async function main() {
   // start→stop (connecting 也算启动成功,WSClient 握手需要时间)
   const startR = await c.eval("(async()=>{var r=await window.api.feishu.botStart();return r.success||r.status?.status})()")
   ok('飞书bot可启动', startR === true || startR === 'connecting' || startR === 'connected', startR)
-  await wait(2000)
-  await c.eval('(async()=>{await window.api.feishu.botStop()})')
+  // 等 bot 真正连上再 stop(避免 connecting 中 stop 导致时序问题)
+  const connectedOk = await pollFor(async () => {
+    const st = await c.eval("(async()=>{var s=await window.api.feishu.botStatus();return s.status})()")
+    return st === 'connected' ? true : null
+  }, { timeout: 10000, interval: 2000 })
+  console.log('    bot连接状态:', connectedOk ? 'connected' : '未连上')
+  const stopRet = await c.eval("(async()=>{var r=await window.api.feishu.botStop();return JSON.stringify(r)})()")
+  console.log('    botStop返回:', stopRet)
   const stopDone = await pollFor(async () => {
     const st = await c.eval("(async()=>{var s=await window.api.feishu.botStatus();return s.status})()")
+    console.log('    poll状态:', st)
     return st === 'idle' ? true : null
-  }, { timeout: 8000, interval: 1000 })
+  }, { timeout: 15000, interval: 2000 })
   ok('飞书bot可停止', stopDone !== null)
   // test连接
   const ft = await c.eval("(async()=>{var s=await window.api.settings.get();var r=await window.api.feishu.test(s.feishu.appId);return r.success})()")
