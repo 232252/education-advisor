@@ -174,6 +174,9 @@ async function main() {
 
   // ===== G. Agent连续运行(2次,轮询等完成) =====
   console.log('\n[G] Agent连续运行')
+  // 先确保 main 不在运行(避免上一个测试套件的状态泄漏)
+  await c.eval("(async()=>{try{await window.api.agent.abort('main')}catch(e){}})()")
+  await wait(2000)
   // 第一次
   await c.eval("(async()=>{await window.api.agent.runManual('main','回复:1')})()")
   const h1len = await pollFor(async () => {
