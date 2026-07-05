@@ -90,6 +90,28 @@ contextBridge.exposeInMainWorld('api', {
     },
   },
 
+  // ----- 本地模型 (Ollama) -----
+  ollama: {
+    // [r] 检测 ollama 是否可用
+    detect: () => ipcRenderer.invoke(IPC.IPC_OLLAMA_DETECT),
+    // [w] 启动 ollama serve
+    startServe: () => ipcRenderer.invoke(IPC.IPC_OLLAMA_START_SERVE),
+    // [w] 停止 ollama serve
+    stopServe: () => ipcRenderer.invoke(IPC.IPC_OLLAMA_STOP_SERVE),
+    // [r] 列出已安装模型
+    listModels: () => ipcRenderer.invoke(IPC.IPC_OLLAMA_LIST_MODELS),
+    // [w] 下载模型(进度通过 onPullProgress 推送)
+    pullModel: (modelName: string) => ipcRenderer.invoke(IPC.IPC_OLLAMA_PULL_MODEL, modelName),
+    // [w] 删除模型
+    deleteModel: (modelName: string) => ipcRenderer.invoke(IPC.IPC_OLLAMA_DELETE_MODEL, modelName),
+    // [r] 订阅下载进度(返回取消订阅函数)
+    onPullProgress: (callback: (info: unknown) => void) => {
+      const listener = (_e: unknown, info: unknown) => callback(info)
+      ipcRenderer.on(IPC.IPC_OLLAMA_PULL_PROGRESS, listener)
+      return () => ipcRenderer.removeListener(IPC.IPC_OLLAMA_PULL_PROGRESS, listener)
+    },
+  },
+
   // ----- Agent -----
   agent: {
     // [r] 列出所有 agent
@@ -387,5 +409,18 @@ contextBridge.exposeInMainWorld('api', {
     // [w] T4: 手动触发一次 bitable 同步(graceful 降级)
     syncNow: (appId: string, appToken: string, tableId: string, fields: Record<string, unknown>) =>
       ipcRenderer.invoke(IPC.IPC_FEISHU_SYNC_NOW, appId, appToken, tableId, fields),
+    // ===== 飿书长连接机器人 =====
+    // [w] 启动长连接(appId 从 settings 读, appSecret 从 keystore 读)
+    botStart: () => ipcRenderer.invoke(IPC.IPC_FEISHU_BOT_START),
+    // [w] 停止长连接
+    botStop: () => ipcRenderer.invoke(IPC.IPC_FEISHU_BOT_STOP),
+    // [r] 查询机器人当前状态
+    botStatus: () => ipcRenderer.invoke(IPC.IPC_FEISHU_BOT_STATUS),
+    // [r] 订阅机器人状态变化(返回取消订阅函数)
+    onBotStatusUpdate: (callback: (info: unknown) => void) => {
+      const listener = (_e: unknown, info: unknown) => callback(info)
+      ipcRenderer.on(IPC.IPC_FEISHU_BOT_STATUS_UPDATE, listener)
+      return () => ipcRenderer.removeListener(IPC.IPC_FEISHU_BOT_STATUS_UPDATE, listener)
+    },
   },
 })

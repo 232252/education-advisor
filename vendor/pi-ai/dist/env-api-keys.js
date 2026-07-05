@@ -26,40 +26,13 @@ if (typeof process !== "undefined" && (process.versions?.node || process.version
         _join = m.join;
     });
 }
-let _procEnvCache = null;
-/**
- * Fallback for https://github.com/oven-sh/bun/issues/27802
- * Bun compiled binaries have an empty `process.env` inside sandbox
- * environments on Linux. We can recover the env from `/proc/self/environ`.
- */
-function getProcEnv(key) {
-    if (!process.versions?.bun)
-        return undefined;
-    if (typeof process === "undefined")
-        return undefined;
-    // If process.env already has entries, the bug is not triggered.
-    if (Object.keys(process.env).length > 0)
-        return undefined;
-    if (_procEnvCache === null) {
-        _procEnvCache = new Map();
-        try {
-            const { readFileSync } = require("node:fs");
-            const data = readFileSync("/proc/self/environ", "utf-8");
-            for (const entry of data.split("\0")) {
-                const idx = entry.indexOf("=");
-                if (idx > 0) {
-                    _procEnvCache.set(entry.slice(0, idx), entry.slice(idx + 1));
-                }
-            }
-        }
-        catch {
-            // /proc/self/environ may not be readable.
-        }
-    }
-    return _procEnvCache.get(key);
-}
+import { getProviderEnvValue } from "./utils/provider-env.js";
 let cachedVertexAdcCredentialsExists = null;
-function hasVertexAdcCredentials() {
+function hasVertexAdcCredentials(env) {
+    const explicitCredentialsPath = env?.GOOGLE_APPLICATION_CREDENTIALS;
+    if (explicitCredentialsPath) {
+        return _existsSync ? _existsSync(explicitCredentialsPath) : false;
+    }
     if (cachedVertexAdcCredentialsExists === null) {
         // If node modules haven't loaded yet (async import race at startup),
         // return false WITHOUT caching so the next call retries once they're ready.
@@ -73,7 +46,7 @@ function hasVertexAdcCredentials() {
             return false;
         }
         // Check GOOGLE_APPLICATION_CREDENTIALS env var first (standard way)
-        const gacPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || getProcEnv("GOOGLE_APPLICATION_CREDENTIALS");
+        const gacPath = getProviderEnvValue("GOOGLE_APPLICATION_CREDENTIALS", env);
         if (gacPath) {
             cachedVertexAdcCredentialsExists = _existsSync(gacPath);
         }
@@ -93,8 +66,10 @@ function getApiKeyEnvVars(provider) {
         return ["ANTHROPIC_OAUTH_TOKEN", "ANTHROPIC_API_KEY"];
     }
     const envMap = {
+        "ant-ling": "ANT_LING_API_KEY",
         openai: "OPENAI_API_KEY",
         "azure-openai-responses": "AZURE_OPENAI_API_KEY",
+        nvidia: "NVIDIA_API_KEY",
         deepseek: "DEEPSEEK_API_KEY",
         google: "GEMINI_API_KEY",
         "google-vertex": "GOOGLE_CLOUD_API_KEY",
@@ -104,6 +79,7 @@ function getApiKeyEnvVars(provider) {
         openrouter: "OPENROUTER_API_KEY",
         "vercel-ai-gateway": "AI_GATEWAY_API_KEY",
         zai: "ZAI_API_KEY",
+        "zai-coding-cn": "ZAI_CODING_CN_API_KEY",
         mistral: "MISTRAL_API_KEY",
         minimax: "MINIMAX_API_KEY",
         "minimax-cn": "MINIMAX_CN_API_KEY",
@@ -125,27 +101,24 @@ function getApiKeyEnvVars(provider) {
     const envVar = envMap[provider];
     return envVar ? [envVar] : undefined;
 }
-export function findEnvKeys(provider) {
+export function findEnvKeys(provider, env) {
     const envVars = getApiKeyEnvVars(provider);
     if (!envVars)
         return undefined;
-    const found = envVars.filter((envVar) => !!process.env[envVar] || !!getProcEnv(envVar));
+    const found = envVars.filter((envVar) => !!getProviderEnvValue(envVar, env));
     return found.length > 0 ? found : undefined;
 }
-export function getEnvApiKey(provider) {
-    const envKeys = findEnvKeys(provider);
+export function getEnvApiKey(provider, env) {
+    const envKeys = findEnvKeys(provider, env);
     if (envKeys?.[0]) {
-        return process.env[envKeys[0]] || getProcEnv(envKeys[0]);
+        return getProviderEnvValue(envKeys[0], env);
     }
     // Vertex AI supports either an explicit API key or Application Default Credentials.
     // Auth is configured via `gcloud auth application-default login`.
     if (provider === "google-vertex") {
-        const hasCredentials = hasVertexAdcCredentials();
-        const hasProject = !!(process.env.GOOGLE_CLOUD_PROJECT ||
-            process.env.GCLOUD_PROJECT ||
-            getProcEnv("GOOGLE_CLOUD_PROJECT") ||
-            getProcEnv("GCLOUD_PROJECT"));
-        const hasLocation = !!(process.env.GOOGLE_CLOUD_LOCATION || getProcEnv("GOOGLE_CLOUD_LOCATION"));
+        const hasCredentials = hasVertexAdcCredentials(env);
+        const hasProject = !!(getProviderEnvValue("GOOGLE_CLOUD_PROJECT", env) || getProviderEnvValue("GCLOUD_PROJECT", env));
+        const hasLocation = !!getProviderEnvValue("GOOGLE_CLOUD_LOCATION", env);
         if (hasCredentials && hasProject && hasLocation) {
             return "<authenticated>";
         }
@@ -158,18 +131,12 @@ export function getEnvApiKey(provider) {
         // 4. AWS_CONTAINER_CREDENTIALS_RELATIVE_URI - ECS task roles
         // 5. AWS_CONTAINER_CREDENTIALS_FULL_URI - ECS task roles (full URI)
         // 6. AWS_WEB_IDENTITY_TOKEN_FILE - IRSA (IAM Roles for Service Accounts)
-        if (process.env.AWS_PROFILE ||
-            (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) ||
-            process.env.AWS_BEARER_TOKEN_BEDROCK ||
-            process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI ||
-            process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI ||
-            process.env.AWS_WEB_IDENTITY_TOKEN_FILE ||
-            getProcEnv("AWS_PROFILE") ||
-            (getProcEnv("AWS_ACCESS_KEY_ID") && getProcEnv("AWS_SECRET_ACCESS_KEY")) ||
-            getProcEnv("AWS_BEARER_TOKEN_BEDROCK") ||
-            getProcEnv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") ||
-            getProcEnv("AWS_CONTAINER_CREDENTIALS_FULL_URI") ||
-            getProcEnv("AWS_WEB_IDENTITY_TOKEN_FILE")) {
+        if (getProviderEnvValue("AWS_PROFILE", env) ||
+            (getProviderEnvValue("AWS_ACCESS_KEY_ID", env) && getProviderEnvValue("AWS_SECRET_ACCESS_KEY", env)) ||
+            getProviderEnvValue("AWS_BEARER_TOKEN_BEDROCK", env) ||
+            getProviderEnvValue("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", env) ||
+            getProviderEnvValue("AWS_CONTAINER_CREDENTIALS_FULL_URI", env) ||
+            getProviderEnvValue("AWS_WEB_IDENTITY_TOKEN_FILE", env)) {
             return "<authenticated>";
         }
     }

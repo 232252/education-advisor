@@ -3,6 +3,7 @@ import { SessionError } from "../types.js";
 export function buildSessionContext(pathEntries) {
     let thinkingLevel = "off";
     let model = null;
+    let activeToolNames = null;
     let compaction = null;
     for (const entry of pathEntries) {
         if (entry.type === "thinking_level_change") {
@@ -13,6 +14,9 @@ export function buildSessionContext(pathEntries) {
         }
         else if (entry.type === "message" && entry.message.role === "assistant") {
             model = { provider: entry.message.provider, modelId: entry.message.model };
+        }
+        else if (entry.type === "active_tools_change") {
+            activeToolNames = [...entry.activeToolNames];
         }
         else if (entry.type === "compaction") {
             compaction = entry;
@@ -50,7 +54,7 @@ export function buildSessionContext(pathEntries) {
             appendMessage(entry);
         }
     }
-    return { messages, thinkingLevel, model };
+    return { messages, thinkingLevel, model, activeToolNames };
 }
 export class Session {
     storage;
@@ -118,6 +122,15 @@ export class Session {
             modelId,
         });
     }
+    async appendActiveToolsChange(activeToolNames) {
+        return this.appendTypedEntry({
+            type: "active_tools_change",
+            id: await this.storage.createEntryId(),
+            parentId: await this.storage.getLeafId(),
+            timestamp: new Date().toISOString(),
+            activeToolNames: [...activeToolNames],
+        });
+    }
     async appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromHook) {
         return this.appendTypedEntry({
             type: "compaction",
@@ -167,12 +180,13 @@ export class Session {
         });
     }
     async appendSessionName(name) {
+        const sanitizedName = name.replace(/[\r\n]+/g, " ").trim();
         return this.appendTypedEntry({
             type: "session_info",
             id: await this.storage.createEntryId(),
             parentId: await this.storage.getLeafId(),
             timestamp: new Date().toISOString(),
-            name: name.trim(),
+            name: sanitizedName,
         });
     }
     async moveTo(entryId, summary) {

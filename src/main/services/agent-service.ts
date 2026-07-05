@@ -24,8 +24,8 @@ import type {
   ThinkingLevel,
 } from '@earendil-works/pi-agent-core'
 import { Agent } from '@earendil-works/pi-agent-core'
-import type { Api, Model } from '@earendil-works/pi-ai'
-import { getEnvApiKey, getModel, getModels, getProviders } from '@earendil-works/pi-ai'
+import type { Api, Model } from '@earendil-works/pi-ai/compat'
+import { getEnvApiKey, getModel, getModels, getProviders } from '@earendil-works/pi-ai/compat'
 import { app, type BrowserWindow } from 'electron'
 import yaml from 'yaml'
 

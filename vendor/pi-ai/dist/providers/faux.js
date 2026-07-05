@@ -1,4 +1,4 @@
-import { registerApiProvider, unregisterApiProviders } from "../api-registry.js";
+import { createProvider } from "../models.js";
 import { createAssistantMessageEventStream } from "../utils/event-stream.js";
 const DEFAULT_API = "faux";
 const DEFAULT_PROVIDER = "faux";
@@ -276,10 +276,9 @@ async function streamWithDeltas(stream, message, minTokenSize, maxTokenSize, tok
     stream.push({ type: "done", reason: message.stopReason, message });
     stream.end(message);
 }
-export function registerFauxProvider(options = {}) {
+export function createFauxCore(options) {
     const api = options.api ?? randomId(DEFAULT_API);
     const provider = options.provider ?? DEFAULT_PROVIDER;
-    const sourceId = randomId("faux-provider");
     const minTokenSize = Math.max(1, Math.min(options.tokenSize?.min ?? DEFAULT_MIN_TOKEN_SIZE, options.tokenSize?.max ?? DEFAULT_MAX_TOKEN_SIZE));
     const maxTokenSize = Math.max(minTokenSize, options.tokenSize?.max ?? DEFAULT_MAX_TOKEN_SIZE);
     let pendingResponses = [];
@@ -339,7 +338,6 @@ export function registerFauxProvider(options = {}) {
         return outer;
     };
     const streamSimple = (streamModel, context, streamOptions) => stream(streamModel, context, streamOptions);
-    registerApiProvider({ api, stream, streamSimple }, sourceId);
     function getModel(requestedModelId) {
         if (!requestedModelId) {
             return models[0];
@@ -348,7 +346,10 @@ export function registerFauxProvider(options = {}) {
     }
     return {
         api,
+        provider,
         models,
+        stream,
+        streamSimple,
         getModel,
         state,
         setResponses(responses) {
@@ -360,9 +361,35 @@ export function registerFauxProvider(options = {}) {
         getPendingResponseCount() {
             return pendingResponses.length;
         },
-        unregister() {
-            unregisterApiProviders(sourceId);
-        },
+    };
+}
+/**
+ * Faux provider for tests built on explicit `Models` collections:
+ *
+ * ```ts
+ * const faux = fauxProvider();
+ * const models = createModels();
+ * models.setProvider(faux.provider);
+ * faux.setResponses([fauxAssistantMessage("hi")]);
+ * ```
+ */
+export function fauxProvider(options = {}) {
+    const core = createFauxCore(options);
+    const provider = createProvider({
+        id: core.provider,
+        auth: { apiKey: { name: "Faux", resolve: async () => ({ auth: {} }) } },
+        models: core.models,
+        api: { stream: core.stream, streamSimple: core.streamSimple },
+    });
+    return {
+        provider,
+        api: core.api,
+        models: core.models,
+        getModel: core.getModel,
+        state: core.state,
+        setResponses: core.setResponses,
+        appendResponses: core.appendResponses,
+        getPendingResponseCount: core.getPendingResponseCount,
     };
 }
 //# sourceMappingURL=faux.js.map

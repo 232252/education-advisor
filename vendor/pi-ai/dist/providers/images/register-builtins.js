@@ -12,13 +12,13 @@ function createLazyLoadErrorImages(model, error) {
     };
 }
 function loadOpenRouterImagesProviderModule() {
-    openRouterImagesProviderModulePromise ||= import("./openrouter.js").then((module) => module);
+    openRouterImagesProviderModulePromise ||= import("../../api/openrouter-images.js").then((module) => module);
     return openRouterImagesProviderModulePromise;
 }
 export const generateImagesOpenRouter = async (model, context, options) => {
     try {
         const module = await loadOpenRouterImagesProviderModule();
-        return await module.generateImagesOpenRouter(model, context, options);
+        return await module.generateImages(model, context, options);
     }
     catch (error) {
         return createLazyLoadErrorImages(model, error);

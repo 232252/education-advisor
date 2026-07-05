@@ -1,4 +1,5 @@
-import type { AssistantMessage, Context, Model, StreamOptions, TextContent, ThinkingContent, ToolCall } from "../types.ts";
+import { type Provider } from "../models.ts";
+import type { AssistantMessage, Context, Model, SimpleStreamOptions, StreamFunction, StreamOptions, TextContent, ThinkingContent, ToolCall } from "../types.ts";
 export interface FauxModelDefinition {
     id: string;
     name?: string;
@@ -52,5 +53,45 @@ export interface FauxProviderRegistration {
     getPendingResponseCount: () => number;
     unregister: () => void;
 }
-export declare function registerFauxProvider(options?: RegisterFauxProviderOptions): FauxProviderRegistration;
+export interface FauxProviderHandle {
+    provider: Provider;
+    api: string;
+    models: [Model<string>, ...Model<string>[]];
+    getModel(): Model<string>;
+    getModel(modelId: string): Model<string> | undefined;
+    state: {
+        callCount: number;
+    };
+    setResponses: (responses: FauxResponseStep[]) => void;
+    appendResponses: (responses: FauxResponseStep[]) => void;
+    getPendingResponseCount: () => number;
+}
+export declare function createFauxCore(options: RegisterFauxProviderOptions): {
+    api: string;
+    provider: string;
+    models: [Model<string>, ...Model<string>[]];
+    stream: StreamFunction<string, StreamOptions>;
+    streamSimple: StreamFunction<string, SimpleStreamOptions>;
+    getModel: {
+        (): Model<string>;
+        (requestedModelId: string): Model<string> | undefined;
+    };
+    state: {
+        callCount: number;
+    };
+    setResponses(responses: FauxResponseStep[]): void;
+    appendResponses(responses: FauxResponseStep[]): void;
+    getPendingResponseCount(): number;
+};
+/**
+ * Faux provider for tests built on explicit `Models` collections:
+ *
+ * ```ts
+ * const faux = fauxProvider();
+ * const models = createModels();
+ * models.setProvider(faux.provider);
+ * faux.setResponses([fauxAssistantMessage("hi")]);
+ * ```
+ */
+export declare function fauxProvider(options?: RegisterFauxProviderOptions): FauxProviderHandle;
 //# sourceMappingURL=faux.d.ts.map

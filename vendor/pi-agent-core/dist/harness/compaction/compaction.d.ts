@@ -1,4 +1,4 @@
-import type { Model, Usage } from "@earendil-works/pi-ai";
+import type { Model, Models, Usage } from "@earendil-works/pi-ai";
 import type { AgentMessage, ThinkingLevel } from "../../types.ts";
 import { CompactionError, type Result, type SessionTreeEntry } from "../types.ts";
 import { type FileOperations } from "./utils.ts";
@@ -33,7 +33,7 @@ export interface CompactionSettings {
 export declare const DEFAULT_COMPACTION_SETTINGS: CompactionSettings;
 /** Calculate total context tokens from provider usage. */
 export declare function calculateContextTokens(usage: Usage): number;
-/** Return usage from the last successful assistant message in session entries. */
+/** Return usage from the last valid assistant message in session entries. */
 export declare function getLastAssistantUsage(entries: SessionTreeEntry[]): Usage | undefined;
 /** Estimated context-token usage for a message list. */
 export interface ContextUsageEstimate {
@@ -65,9 +65,9 @@ export interface CutPointResult {
 }
 /** Find the compaction cut point that keeps approximately the requested recent-token budget. */
 export declare function findCutPoint(entries: SessionTreeEntry[], startIndex: number, endIndex: number, keepRecentTokens: number): CutPointResult;
-export declare const SUMMARIZATION_SYSTEM_PROMPT = "You are a context summarization assistant. Your task is to read a conversation between a user and an AI coding assistant, then produce a structured summary following the exact format specified.\n\nDo NOT continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured summary.";
+export declare const SUMMARIZATION_SYSTEM_PROMPT = "You are a context summarization assistant. Your task is to read a conversation between a user and an AI assistant, then produce a structured summary following the exact format specified.\n\nDo NOT continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured summary.";
 /** Generate or update a conversation summary for compaction. */
-export declare function generateSummary(currentMessages: AgentMessage[], model: Model<any>, reserveTokens: number, apiKey: string, headers?: Record<string, string>, signal?: AbortSignal, customInstructions?: string, previousSummary?: string, thinkingLevel?: ThinkingLevel): Promise<Result<string, CompactionError>>;
+export declare function generateSummary(currentMessages: AgentMessage[], models: Models, model: Model<any>, reserveTokens: number, signal?: AbortSignal, customInstructions?: string, previousSummary?: string, thinkingLevel?: ThinkingLevel): Promise<Result<string, CompactionError>>;
 /** Prepared inputs for a compaction run. */
 export interface CompactionPreparation {
     /** Entry id where retained history starts. */
@@ -91,5 +91,5 @@ export interface CompactionPreparation {
 export declare function prepareCompaction(pathEntries: SessionTreeEntry[], settings: CompactionSettings): Result<CompactionPreparation | undefined, CompactionError>;
 export { serializeConversation } from "./utils.ts";
 /** Generate compaction summary data from prepared session history. */
-export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel): Promise<Result<CompactionResult, CompactionError>>;
+export declare function compact(preparation: CompactionPreparation, models: Models, model: Model<any>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel): Promise<Result<CompactionResult, CompactionError>>;
 //# sourceMappingURL=compaction.d.ts.map

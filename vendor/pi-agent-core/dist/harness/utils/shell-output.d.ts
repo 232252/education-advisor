@@ -1,5 +1,5 @@
-import { type ExecutionEnv, type ExecutionEnvExecOptions, ExecutionError, type Result } from "../types.ts";
-export interface ShellCaptureOptions extends Omit<ExecutionEnvExecOptions, "onStdout" | "onStderr"> {
+import { type ExecutionEnv, ExecutionError, type Result, type ShellExecOptions } from "../types.ts";
+export interface ShellCaptureOptions extends Omit<ShellExecOptions, "onStdout" | "onStderr"> {
     onChunk?: (chunk: string) => void;
 }
 export interface ShellCaptureResult {

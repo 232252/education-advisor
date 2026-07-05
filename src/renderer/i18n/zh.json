@@ -160,6 +160,8 @@
   "settings.theme.dark": "深色",
   "settings.theme.light": "浅色",
   "settings.theme.system": "跟随系统",
+  "theme.toggle.toLight": "切换到浅色主题",
+  "theme.toggle.toDark": "切换到深色主题",
   "settings.language": "语言",
   "settings.language.desc": "界面语言,需重启部分文案生效",
   "settings.language.zh": "中文",

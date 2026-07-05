@@ -1,7 +1,7 @@
 /**
  * GitHub Copilot OAuth flow
  */
-import { getModels } from "../../models.js";
+import { GITHUB_COPILOT_MODELS } from "../../providers/github-copilot.models.js";
 import { pollOAuthDeviceCodeFlow } from "./device-code.js";
 const decode = (s) => atob(s);
 const CLIENT_ID = decode("SXYxLmI1MDdhMDhjODdlY2ZlOTg=");
@@ -11,6 +11,7 @@ const COPILOT_HEADERS = {
     "Editor-Plugin-Version": "copilot-chat/0.35.0",
     "Copilot-Integration-Id": "vscode-chat",
 };
+const COPILOT_API_VERSION = "2026-06-01";
 export function normalizeDomain(input) {
     const trimmed = input.trim();
     if (!trimmed)
@@ -56,6 +57,43 @@ export function getGitHubCopilotBaseUrl(token, enterpriseDomain) {
         return `https://copilot-api.${enterpriseDomain}`;
     return "https://api.individual.githubcopilot.com";
 }
+function asRecord(value) {
+    return value && typeof value === "object" ? value : undefined;
+}
+function isSelectableCopilotModel(item) {
+    const policy = asRecord(item.policy);
+    const capabilities = asRecord(item.capabilities);
+    const supports = asRecord(capabilities?.supports);
+    return item.model_picker_enabled === true && policy?.state !== "disabled" && supports?.tool_calls !== false;
+}
+function parseAvailableCopilotModelIds(raw) {
+    const data = asRecord(raw)?.data;
+    if (!Array.isArray(data)) {
+        throw new Error("Invalid Copilot models response");
+    }
+    const ids = [];
+    for (const rawItem of data) {
+        const item = asRecord(rawItem);
+        const id = item?.id;
+        if (typeof id === "string" && item && isSelectableCopilotModel(item)) {
+            ids.push(id);
+        }
+    }
+    return ids;
+}
+async function fetchAvailableGitHubCopilotModelIds(copilotToken, enterpriseDomain) {
+    const baseUrl = getGitHubCopilotBaseUrl(copilotToken, enterpriseDomain);
+    const raw = await fetchJson(`${baseUrl}/models`, {
+        headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${copilotToken}`,
+            ...COPILOT_HEADERS,
+            "X-GitHub-Api-Version": COPILOT_API_VERSION,
+        },
+        signal: AbortSignal.timeout(5000),
+    });
+    return parseAvailableCopilotModelIds(raw);
+}
 async function fetchJson(url, init) {
     const response = await fetch(url, init);
     if (!response.ok) {
@@ -93,10 +131,22 @@ async function startDeviceFlow(domain) {
         typeof expiresIn !== "number") {
         throw new Error("Invalid device code response fields");
     }
+    // The verification URI is opened in the user's browser and to prevent `open` from
+    // opening an executable or similar, we force it to be a URL.
+    let parsedUri;
+    try {
+        parsedUri = new URL(verificationUri);
+    }
+    catch {
+        throw new Error("Untrusted verification_uri in device code response");
+    }
+    if (parsedUri.protocol !== "https:" && parsedUri.protocol !== "http:") {
+        throw new Error("Untrusted verification_uri in device code response");
+    }
     return {
         device_code: deviceCode,
         user_code: userCode,
-        verification_uri: verificationUri,
+        verification_uri: parsedUri.href,
         interval,
         expires_in: expiresIn,
     };
@@ -122,7 +172,7 @@ async function pollForGitHubAccessToken(domain, device, signal) {
                 }),
             });
             if (raw && typeof raw === "object" && typeof raw.access_token === "string") {
-                return { status: "complete", accessToken: raw.access_token };
+                return { status: "complete", value: raw.access_token };
             }
             if (raw && typeof raw === "object" && typeof raw.error === "string") {
                 const { error, error_description: description } = raw;
@@ -139,10 +189,7 @@ async function pollForGitHubAccessToken(domain, device, signal) {
         },
     });
 }
-/**
- * Refresh GitHub Copilot token
- */
-export async function refreshGitHubCopilotToken(refreshToken, enterpriseDomain) {
+async function refreshGitHubCopilotAccessToken(refreshToken, enterpriseDomain) {
     const domain = enterpriseDomain || "github.com";
     const urls = getUrls(domain);
     const raw = await fetchJson(urls.copilotTokenUrl, {
@@ -165,6 +212,16 @@ export async function refreshGitHubCopilotToken(refreshToken, enterpriseDomain) 
         access: token,
         expires: expiresAt * 1000 - 5 * 60 * 1000,
         enterpriseUrl: enterpriseDomain,
+    };
+}
+/**
+ * Refresh GitHub Copilot token
+ */
+export async function refreshGitHubCopilotToken(refreshToken, enterpriseDomain) {
+    const credentials = await refreshGitHubCopilotAccessToken(refreshToken, enterpriseDomain);
+    return {
+        ...credentials,
+        availableModelIds: await fetchAvailableGitHubCopilotModelIds(credentials.access, enterpriseDomain),
     };
 }
 /**
@@ -197,7 +254,7 @@ async function enableGitHubCopilotModel(token, modelId, enterpriseDomain) {
  * Called after successful login to ensure all models are available.
  */
 async function enableAllGitHubCopilotModels(token, enterpriseDomain, onProgress) {
-    const models = getModels("github-copilot");
+    const models = Object.values(GITHUB_COPILOT_MODELS);
     await Promise.all(models.map(async (model) => {
         const success = await enableGitHubCopilotModel(token, model.id, enterpriseDomain);
         onProgress?.(model.id, success);
@@ -234,12 +291,48 @@ export async function loginGitHubCopilot(options) {
         expiresInSeconds: device.expires_in,
     });
     const githubAccessToken = await pollForGitHubAccessToken(domain, device, options.signal);
-    const credentials = await refreshGitHubCopilotToken(githubAccessToken, enterpriseDomain ?? undefined);
+    const credentials = await refreshGitHubCopilotAccessToken(githubAccessToken, enterpriseDomain ?? undefined);
     // Enable all models after successful login
     options.onProgress?.("Enabling models...");
     await enableAllGitHubCopilotModels(credentials.access, enterpriseDomain ?? undefined);
-    return credentials;
+    // Fetch availability after policy enable so newly enabled models are included,
+    // while unavailable models are still filtered out.
+    return {
+        ...credentials,
+        availableModelIds: await fetchAvailableGitHubCopilotModelIds(credentials.access, enterpriseDomain ?? undefined),
+    };
 }
+function copilotEnterpriseDomain(credential) {
+    const enterpriseUrl = credential.enterpriseUrl;
+    if (typeof enterpriseUrl !== "string" || !enterpriseUrl)
+        return undefined;
+    return normalizeDomain(enterpriseUrl) ?? undefined;
+}
+export const githubCopilotOAuth = {
+    name: "GitHub Copilot",
+    async login(callbacks) {
+        const credentials = await loginGitHubCopilot({
+            onDeviceCode: (info) => callbacks.notify({ type: "device_code", ...info }),
+            onPrompt: (prompt) => callbacks.prompt({ type: "text", message: prompt.message, placeholder: prompt.placeholder }),
+            onProgress: (message) => callbacks.notify({ type: "progress", message }),
+            signal: callbacks.signal,
+        });
+        return { ...credentials, type: "oauth" };
+    },
+    async refresh(credential) {
+        return {
+            ...(await refreshGitHubCopilotToken(credential.refresh, copilotEnterpriseDomain(credential))),
+            type: "oauth",
+        };
+    },
+    /** Per-credential baseUrl from the token's proxy endpoint replaces the old `modifyModels` rewriting. */
+    async toAuth(credential) {
+        return {
+            apiKey: credential.access,
+            baseUrl: getGitHubCopilotBaseUrl(credential.access, copilotEnterpriseDomain(credential)),
+        };
+    },
+};
 export const githubCopilotOAuthProvider = {
     id: "github-copilot",
     name: "GitHub Copilot",
@@ -262,7 +355,16 @@ export const githubCopilotOAuthProvider = {
         const creds = credentials;
         const domain = creds.enterpriseUrl ? (normalizeDomain(creds.enterpriseUrl) ?? undefined) : undefined;
         const baseUrl = getGitHubCopilotBaseUrl(creds.access, domain);
-        return models.map((m) => (m.provider === "github-copilot" ? { ...m, baseUrl } : m));
+        // Older stored Pi auth entries do not have account-specific model IDs yet;
+        // keep their existing generated-catalog behavior until the next refresh/login.
+        const availableModelIds = "availableModelIds" in creds ? new Set(creds.availableModelIds) : undefined;
+        return models.flatMap((m) => {
+            if (m.provider !== "github-copilot")
+                return [m];
+            if (availableModelIds && !availableModelIds.has(m.id))
+                return [];
+            return [{ ...m, baseUrl }];
+        });
     },
 };
 //# sourceMappingURL=github-copilot.js.map

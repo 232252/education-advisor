@@ -10,9 +10,13 @@
 // =============================================================
 
 import type { AgentMessage, CompactionSettings } from '@earendil-works/pi-agent-core'
-import { estimateContextTokens, generateSummary } from '@earendil-works/pi-agent-core'
-import type { Api, Model } from '@earendil-works/pi-ai'
-import { completeSimple, getEnvApiKey } from '@earendil-works/pi-ai'
+import {
+  convertToLlm,
+  estimateContextTokens,
+  serializeConversation,
+} from '@earendil-works/pi-agent-core'
+import type { Api, Model } from '@earendil-works/pi-ai/compat'
+import { completeSimple, getEnvApiKey } from '@earendil-works/pi-ai/compat'
 
 /**
  * 压缩阈值结果
@@ -87,6 +91,57 @@ export function evaluateCompaction(
     shouldCompact: settings.enabled && tokens > threshold,
     contextTokens: tokens,
     threshold,
+  }
+}
+
+/**
+ * 0.80.3 适配：用 compat 层 completeSimple 生成对话摘要。
+ * 替代 SDK generateSummary（0.80.3 改为需要 Models 注册表）。
+ * 行为等价：把 oldMessages 序列化后让模型产出结构化摘要。
+ * 失败返回 null，调用方据此跳过压缩（不破坏 Agent 运行）。
+ */
+async function generateSummaryInline(
+  oldMessages: AgentMessage[],
+  model: Model<Api>,
+  apiKey: string,
+  reserveTokens: number,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  // 复用 SDK 的序列化工具，保证与原 generateSummary 行为一致
+  const llmMessages = convertToLlm(oldMessages)
+  const conversationText = serializeConversation(llmMessages)
+
+  const promptText =
+    `<conversation>\n${conversationText}\n</conversation>\n\n` +
+    '请对以上对话生成一份结构化摘要：保留关键决策、已完成的任务、未解决的问题和重要上下文。' +
+    '用简洁的要点列出，便于后续对话继续。只输出摘要本身。'
+
+  try {
+    const assistant = await completeSimple(
+      model,
+      { messages: [{ role: 'user', content: promptText, timestamp: Date.now() }] },
+      {
+        apiKey,
+        maxTokens: Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens || 2048),
+        signal,
+      },
+    )
+    // AssistantMessage.content 可能是 string 或内容块数组
+    const c = assistant.content
+    if (typeof c === 'string') return c || null
+    if (Array.isArray(c)) {
+      const text = c
+        .map((b) => (typeof b === 'object' && b !== null && 'text' in b ? String(b.text) : ''))
+        .join('')
+      return text || null
+    }
+    return String(c ?? '') || null
+  } catch (err) {
+    console.warn(
+      '[Compaction] generateSummaryInline failed:',
+      err instanceof Error ? err.message : err,
+    )
+    return null
   }
 }
 
@@ -167,25 +222,21 @@ export async function compactAgentMessages(
 
   if (oldMessages.length === 0) return messages
 
-  // 调用 SDK generateSummary
-  const result = await generateSummary(
+  // 0.80.3 升级适配：SDK 的 generateSummary 改为需要 Models 注册表（新鉴权架构），
+  // 与本应用基于 apiKey 的旧链路不兼容。这里用 compat 层的 completeSimple
+  // 自行生成摘要，行为等价、鉴权沿用 apiKey 透传。
+  const summaryText = await generateSummaryInline(
     oldMessages,
     model,
-    settings.reserveTokens,
     apiKey,
-    undefined,
+    settings.reserveTokens,
     signal,
-    undefined,
-    undefined,
-    undefined,
   )
 
-  if (!result.ok) {
-    console.warn(`[Compaction] Summary generation failed: ${result.error.message}, skipping`)
+  if (!summaryText) {
+    console.warn(`[Compaction] Summary generation failed, skipping`)
     return messages
   }
-
-  const summaryText = result.value
   console.log(
     `[Compaction] Generated ${summaryText.length} chars summary for ${oldMessages.length} old messages, ` +
       `kept ${recentMessages.length} recent messages (${recentTokens} tokens)`,
@@ -248,4 +299,5 @@ export function compactChatMessagesSimple(
 }
 
 // Re-export SDK 工具,方便其他模块统一引用
-export { completeSimple, estimateContextTokens, generateSummary, getEnvApiKey }
+// 注：generateSummary 在 0.80.3 改为需要 Models 注册表，本模块改用 generateSummaryInline 替代
+export { completeSimple, convertToLlm, estimateContextTokens, getEnvApiKey, serializeConversation }

@@ -1,15 +1,3 @@
-import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
-import type { GoogleThinkingLevel } from "./google-shared.ts";
-export interface GoogleVertexOptions extends StreamOptions {
-    toolChoice?: "auto" | "none" | "any";
-    thinking?: {
-        enabled: boolean;
-        budgetTokens?: number;
-        level?: GoogleThinkingLevel;
-    };
-    project?: string;
-    location?: string;
-}
-export declare const streamGoogleVertex: StreamFunction<"google-vertex", GoogleVertexOptions>;
-export declare const streamSimpleGoogleVertex: StreamFunction<"google-vertex", SimpleStreamOptions>;
+import { type Provider } from "../models.ts";
+export declare function googleVertexProvider(): Provider<"google-vertex">;
 //# sourceMappingURL=google-vertex.d.ts.map
