@@ -172,16 +172,29 @@ async function main() {
   const delClass = await c.eval('(async(L)=>{var r=await window.api.class.list();var t=r.data.find(function(c){return c.class_id===L});if(t){var d=await window.api.class.delete(t.id);return d.success}return false})(' + JSON.stringify(testClass.class_id) + ')')
   ok('删除测试班级', delClass)
 
-  // ===== 7. Agent页面: toggle交互 =====
+  // ===== 7. Agent页面: toggle交互(用最后一个agent,测完恢复) =====
   console.log('\n[7] Agent toggle交互')
   await c.nav('#/agents')
-  // 找到第一个toggle开关并点击
-  const toggleResult = await c.eval(`(function(){
+  // 用最后一个 agent 的 toggle(避免影响 main 等常用 agent)
+  const toggleInfo = await c.eval(`(function(){
     var btns=Array.from(document.querySelectorAll('button[role="switch"], button[class*="rounded-full"]'));
-    if(btns.length===0)return'no-toggle';
-    btns[0].click();return'toggled'
+    if(btns.length<2)return{found:false};
+    var lastBtn=btns[btns.length-1];
+    var isOn=lastBtn.className.includes('bg-blue')||lastBtn.className.includes('bg-indigo');
+    lastBtn.click();
+    return{found:true,wasOn:isOn}
   })()`)
-  ok('Agent页有toggle开关', toggleResult === 'toggled' || toggleResult === 'no-toggle', toggleResult)
+  ok('Agent页有toggle开关', toggleInfo.found)
+  // 恢复原始状态
+  if (toggleInfo.found) {
+    await wait(500)
+    await c.eval(`(function(){
+      var btns=Array.from(document.querySelectorAll('button[role="switch"], button[class*="rounded-full"]'));
+      if(btns.length>=2)btns[btns.length-1].click()
+    })()`)
+  }
+  // 确保 main 始终启用(防止其他测试副作用)
+  await c.eval('(async()=>{await window.api.agent.toggle("main",true)})()')
 
   // ===== 8. 技能页: 查看技能内容 =====
   console.log('\n[8] 技能页交互')

@@ -83,6 +83,11 @@ function ok(n, c, d) {
   }
 }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+async function pollFor(fn, { timeout = 30000, interval = 2000 } = {}) {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) { const r = await fn(); if (r) return r; await wait(interval) }
+  return null
+}
 
 async function main() {
   const c = new C()
@@ -167,22 +172,20 @@ async function main() {
   const botAfterStop = await c.eval("(async()=>await window.api.feishu.botStatus())()")
   ok('飞书停止后状态为idle', botAfterStop.status === 'idle')
 
-  // ===== G. Agent连续运行(2次) =====
+  // ===== G. Agent连续运行(2次,轮询等完成) =====
   console.log('\n[G] Agent连续运行')
   // 第一次
   await c.eval("(async()=>{await window.api.agent.runManual('main','回复:1')})()")
-  await wait(12000)
-  const h1 = await c.eval(
-    '(async()=>{var h=await window.api.agent.getHistory("main");var l=h[h.length-1];return{status:l?.status,len:(l?.output||"").length}})()',
-  )
-  ok('Agent第1次运行', h1.status === 'success' && h1.len > 0, 'len=' + h1.len)
+  const h1len = await pollFor(async () => {
+    return await c.eval('(async()=>{var h=await window.api.agent.getHistory("main");var l=h[h.length-1];return (l&&l.status==="success"&&l.output&&l.output.length>0)?l.output.length:null})()')
+  }, { timeout: 40000, interval: 3000 })
+  ok('Agent第1次运行', h1len !== null && h1len > 0, 'len=' + h1len)
   // 第二次
   await c.eval("(async()=>{await window.api.agent.runManual('main','回复:2')})()")
-  await wait(12000)
-  const h2 = await c.eval(
-    '(async()=>{var h=await window.api.agent.getHistory("main");var l=h[h.length-1];return{status:l?.status,len:(l?.output||"").length}})()',
-  )
-  ok('Agent第2次运行', h2.status === 'success' && h2.len > 0, 'len=' + h2.len)
+  const h2len = await pollFor(async () => {
+    return await c.eval('(async()=>{var h=await window.api.agent.getHistory("main");var l=h[h.length-1];return (l&&l.status==="success"&&l.output&&l.output.length>0&&l.output.includes("2"))?l.output.length:null})()')
+  }, { timeout: 40000, interval: 3000 })
+  ok('Agent第2次运行', h2len !== null && h2len > 0, 'len=' + h2len)
 
   // ===== H. 本地模型API健壮性 =====
   console.log('\n[H] 本地模型API健壮性')
