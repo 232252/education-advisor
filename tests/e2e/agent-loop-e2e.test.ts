@@ -19,9 +19,9 @@ import type {
   AssistantMessageEvent,
 } from '@earendil-works/pi-agent-core'
 import { Agent } from '@earendil-works/pi-agent-core'
-import { EventStream } from '@earendil-works/pi-ai'
-import type { Api, Model } from '@earendil-works/pi-ai'
-import { getModel } from '@earendil-works/pi-ai'
+import { EventStream } from '@earendil-works/pi-ai/compat'
+import type { Api, Model } from '@earendil-works/pi-ai/compat'
+import { getModel } from '@earendil-works/pi-ai/compat'
 
 // =============================================================
 // 工具

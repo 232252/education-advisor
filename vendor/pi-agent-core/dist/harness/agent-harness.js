@@ -1,4 +1,3 @@
-import { streamSimple, } from "@earendil-works/pi-ai";
 import { runAgentLoop } from "../agent-loop.js";
 import { collectEntriesForBranchSummary, generateBranchSummary } from "./compaction/branch-summarization.js";
 import { compact, DEFAULT_COMPACTION_SETTINGS, prepareCompaction } from "./compaction/compaction.js";
@@ -39,16 +38,15 @@ function cloneStreamOptions(streamOptions) {
         metadata: streamOptions?.metadata ? { ...streamOptions.metadata } : undefined,
     };
 }
-function mergeHeaders(...headers) {
-    const merged = {};
-    let hasHeaders = false;
-    for (const entry of headers) {
-        if (!entry)
-            continue;
-        Object.assign(merged, entry);
-        hasHeaders = true;
+function findDuplicateNames(names) {
+    const seen = new Set();
+    const duplicates = new Set();
+    for (const name of names) {
+        if (seen.has(name))
+            duplicates.add(name);
+        seen.add(name);
     }
-    return hasHeaders ? merged : undefined;
+    return [...duplicates];
 }
 function applyStreamOptionsPatch(base, patch) {
     const result = cloneStreamOptions(base);
@@ -115,6 +113,7 @@ function normalizeHookError(error) {
 export class AgentHarness {
     env;
     session;
+    models;
     phase = "idle";
     runAbortController;
     runPromise;
@@ -123,7 +122,6 @@ export class AgentHarness {
     thinkingLevel;
     systemPrompt;
     streamOptions;
-    getApiKeyAndHeaders;
     resources;
     tools = new Map();
     activeToolNames;
@@ -136,16 +134,21 @@ export class AgentHarness {
     constructor(options) {
         this.env = options.env;
         this.session = options.session;
+        this.models = options.models;
         this.resources = options.resources ?? {};
         this.streamOptions = cloneStreamOptions(options.streamOptions);
         this.systemPrompt = options.systemPrompt;
-        this.getApiKeyAndHeaders = options.getApiKeyAndHeaders;
+        this.validateUniqueNames((options.tools ?? []).map((tool) => tool.name), "Duplicate tool name(s)");
         for (const tool of options.tools ?? []) {
             this.tools.set(tool.name, tool);
         }
         this.model = options.model;
         this.thinkingLevel = options.thinkingLevel ?? "off";
-        this.activeToolNames = options.activeToolNames ?? (options.tools ?? []).map((tool) => tool.name);
+        this.activeToolNames = options.activeToolNames
+            ? [...options.activeToolNames]
+            : (options.tools ?? []).map((tool) => tool.name);
+        this.validateUniqueNames(this.activeToolNames, "Duplicate active tool name(s)");
+        this.validateToolNames(this.activeToolNames);
         this.steeringQueueMode = options.steeringMode ?? "one-at-a-time";
         this.followUpQueueMode = options.followUpMode ?? "one-at-a-time";
     }
@@ -293,13 +296,9 @@ export class AgentHarness {
     createStreamFn(getTurnState) {
         return async (model, context, streamOptions) => {
             const turnState = getTurnState();
-            const auth = await this.getApiKeyAndHeaders?.(model);
-            const snapshotOptions = {
-                ...turnState.streamOptions,
-                headers: mergeHeaders(turnState.streamOptions.headers, auth?.headers),
-            };
+            const snapshotOptions = { ...turnState.streamOptions };
             const requestOptions = await this.emitBeforeProviderRequest(model, turnState.sessionId, snapshotOptions);
-            return streamSimple(model, context, {
+            return this.models.streamSimple(model, context, {
                 cacheRetention: requestOptions.cacheRetention,
                 headers: requestOptions.headers,
                 maxRetries: requestOptions.maxRetries,
@@ -315,7 +314,6 @@ export class AgentHarness {
                 sessionId: turnState.sessionId,
                 timeoutMs: requestOptions.timeoutMs,
                 transport: requestOptions.transport,
-                apiKey: auth?.apiKey,
             });
         };
     }
@@ -379,7 +377,13 @@ export class AgentHarness {
             getFollowUpMessages: async () => this.drainQueuedMessages(this.followUpQueue, this.followUpQueueMode),
         };
     }
+    validateUniqueNames(names, message) {
+        const duplicates = findDuplicateNames(names);
+        if (duplicates.length > 0)
+            throw new AgentHarnessError("invalid_argument", `${message}: ${duplicates.join(", ")}`);
+    }
     validateToolNames(toolNames, tools = this.tools) {
+        this.validateUniqueNames(toolNames, "Duplicate active tool name(s)");
         const missing = toolNames.filter((name) => !tools.has(name));
         if (missing.length > 0)
             throw new AgentHarnessError("invalid_argument", `Unknown tool(s): ${missing.join(", ")}`);
@@ -395,6 +399,9 @@ export class AgentHarness {
             }
             else if (write.type === "thinking_level_change") {
                 await this.session.appendThinkingLevelChange(write.thinkingLevel);
+            }
+            else if (write.type === "active_tools_change") {
+                await this.session.appendActiveToolsChange(write.activeToolNames);
             }
             else if (write.type === "custom") {
                 await this.session.appendCustomEntry(write.customType, write.data);
@@ -608,9 +615,6 @@ export class AgentHarness {
             const model = this.model;
             if (!model)
                 throw new AgentHarnessError("invalid_state", "No model set for compaction");
-            const auth = await this.getApiKeyAndHeaders?.(model);
-            if (!auth)
-                throw new AgentHarnessError("auth", "No auth available for compaction");
             const branchEntries = await this.session.getBranch();
             const preparationResult = prepareCompaction(branchEntries, DEFAULT_COMPACTION_SETTINGS);
             if (!preparationResult.ok)
@@ -630,7 +634,7 @@ export class AgentHarness {
             const provided = hookResult?.compaction;
             const compactResult = provided
                 ? { ok: true, value: provided }
-                : await compact(preparation, model, auth.apiKey, auth.headers, customInstructions, undefined, this.thinkingLevel);
+                : await compact(preparation, this.models, model, customInstructions, undefined, this.thinkingLevel);
             if (!compactResult.ok)
                 throw compactResult.error;
             const result = compactResult.value;
@@ -681,13 +685,9 @@ export class AgentHarness {
                 const model = this.model;
                 if (!model)
                     throw new AgentHarnessError("invalid_state", "No model set for branch summary");
-                const auth = await this.getApiKeyAndHeaders?.(model);
-                if (!auth)
-                    throw new AgentHarnessError("auth", "No auth available for branch summary");
                 const branchSummary = await generateBranchSummary(entries, {
+                    models: this.models,
                     model,
-                    apiKey: auth.apiKey,
-                    headers: auth.headers,
                     signal: new AbortController().signal,
                     customInstructions: hookResult?.customInstructions ?? options?.customInstructions,
                     replaceInstructions: hookResult?.replaceInstructions ?? options?.replaceInstructions,
@@ -756,9 +756,6 @@ export class AgentHarness {
     getModel() {
         return this.model;
     }
-    getThinkingLevel() {
-        return this.thinkingLevel;
-    }
     async setModel(model) {
         try {
             const previousModel = this.model;
@@ -769,11 +766,14 @@ export class AgentHarness {
                 this.pendingSessionWrites.push({ type: "model_change", provider: model.provider, modelId: model.id });
             }
             this.model = model;
-            await this.emitOwn({ type: "model_select", model, previousModel, source: "set" });
+            await this.emitOwn({ type: "model_update", model, previousModel, source: "set" });
         }
         catch (error) {
             throw normalizeHarnessError(error, "session");
         }
+    }
+    getThinkingLevel() {
+        return this.thinkingLevel;
     }
     async setThinkingLevel(level) {
         try {
@@ -785,16 +785,67 @@ export class AgentHarness {
                 this.pendingSessionWrites.push({ type: "thinking_level_change", thinkingLevel: level });
             }
             this.thinkingLevel = level;
-            await this.emitOwn({ type: "thinking_level_select", level, previousLevel });
+            await this.emitOwn({ type: "thinking_level_update", level, previousLevel });
         }
         catch (error) {
             throw normalizeHarnessError(error, "session");
         }
     }
+    getTools() {
+        return [...this.tools.values()];
+    }
+    async setTools(tools, activeToolNames) {
+        try {
+            this.validateUniqueNames(tools.map((tool) => tool.name), "Duplicate tool name(s)");
+            const nextTools = new Map(tools.map((tool) => [tool.name, tool]));
+            const nextActiveToolNames = activeToolNames ? [...activeToolNames] : this.activeToolNames;
+            this.validateToolNames(nextActiveToolNames, nextTools);
+            const previousToolNames = [...this.tools.keys()];
+            const previousActiveToolNames = [...this.activeToolNames];
+            if (this.phase === "idle") {
+                await this.session.appendActiveToolsChange(nextActiveToolNames);
+            }
+            else {
+                this.pendingSessionWrites.push({ type: "active_tools_change", activeToolNames: [...nextActiveToolNames] });
+            }
+            this.tools = nextTools;
+            this.activeToolNames = [...nextActiveToolNames];
+            await this.emitOwn({
+                type: "tools_update",
+                toolNames: [...this.tools.keys()],
+                previousToolNames,
+                activeToolNames: [...this.activeToolNames],
+                previousActiveToolNames,
+                source: "set",
+            });
+        }
+        catch (error) {
+            throw normalizeHarnessError(error, "invalid_argument");
+        }
+    }
+    getActiveTools() {
+        return this.activeToolNames.map((name) => this.tools.get(name));
+    }
     async setActiveTools(toolNames) {
         try {
             this.validateToolNames(toolNames);
+            const previousToolNames = [...this.tools.keys()];
+            const previousActiveToolNames = [...this.activeToolNames];
+            if (this.phase === "idle") {
+                await this.session.appendActiveToolsChange(toolNames);
+            }
+            else {
+                this.pendingSessionWrites.push({ type: "active_tools_change", activeToolNames: [...toolNames] });
+            }
             this.activeToolNames = [...toolNames];
+            await this.emitOwn({
+                type: "tools_update",
+                toolNames: [...this.tools.keys()],
+                previousToolNames,
+                activeToolNames: [...this.activeToolNames],
+                previousActiveToolNames,
+                source: "set",
+            });
         }
         catch (error) {
             throw normalizeHarnessError(error, "invalid_argument");
@@ -831,18 +882,6 @@ export class AgentHarness {
     }
     async setStreamOptions(streamOptions) {
         this.streamOptions = cloneStreamOptions(streamOptions);
-    }
-    async setTools(tools, activeToolNames) {
-        try {
-            const nextTools = new Map(tools.map((tool) => [tool.name, tool]));
-            const nextActiveToolNames = activeToolNames ? [...activeToolNames] : this.activeToolNames;
-            this.validateToolNames(nextActiveToolNames, nextTools);
-            this.tools = nextTools;
-            this.activeToolNames = [...nextActiveToolNames];
-        }
-        catch (error) {
-            throw normalizeHarnessError(error, "invalid_argument");
-        }
     }
     async abort() {
         const clearedSteer = [...this.steerQueue];

@@ -12,6 +12,8 @@ export interface ProviderInfo {
   modelCount: number
   customBaseUrl?: string
   hidden?: boolean
+  /** 该 provider 下存在 $0 免费（input+output 均 0 成本）模型 */
+  hasFreeModels?: boolean
 }
 
 export interface ModelInfo {
@@ -596,3 +598,49 @@ export interface ConnectionTestParams {
   apiKey: string
   baseUrl?: string
 }
+
+// ===== 飞书长连接机器人状态 =====
+export type FeishuBotStatus = 'idle' | 'connecting' | 'connected' | 'error'
+
+export interface FeishuBotStatusInfo {
+  status: FeishuBotStatus
+  appId?: string
+  /** 上次错误信息(status === 'error' 时有值) */
+  error?: string
+  /** 已连接的时间戳(ms),status === 'connected' 时有值 */
+  connectedAt?: number
+  /** 正在处理的消息数(诊断用) */
+  processingCount?: number
+}
+
+// ===== 本地模型 (Ollama) =====
+export interface OllamaModelInfo {
+  name: string
+  size: number
+  details?: {
+    family?: string
+    parameter_size?: string
+    quantization_level?: string
+  }
+}
+
+export interface OllamaStatusInfo {
+  /** 二进制是否可用(系统安装或打包) */
+  available: boolean
+  /** serve 是否在运行 */
+  serveRunning: boolean
+  /** 二进制路径(诊断用) */
+  binaryPath?: string
+}
+
+export interface OllamaPullProgressInfo {
+  /** 模型名 */
+  model: string
+  /** 状态: pulling / success / error */
+  status: string
+  /** 已下载字节 */
+  completed?: number
+  /** 总字节 */
+  total?: number
+}
+
