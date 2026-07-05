@@ -1,4 +1,4 @@
-import { ExecutionError, err, ok, toError, } from "../types.js";
+import { ExecutionError, err, ok, toError } from "../types.js";
 import { DEFAULT_MAX_BYTES, truncateTail } from "./truncate.js";
 function toExecutionError(error) {
     if (error instanceof ExecutionError)

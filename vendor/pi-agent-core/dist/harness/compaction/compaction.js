@@ -1,4 +1,3 @@
-import { completeSimple } from "@earendil-works/pi-ai";
 import { convertToLlm, createBranchSummaryMessage, createCompactionSummaryMessage, createCustomMessage, } from "../messages.js";
 import { buildSessionContext } from "../session/session.js";
 import { CompactionError, err, ok } from "../types.js";
@@ -66,13 +65,16 @@ export function calculateContextTokens(usage) {
 function getAssistantUsage(msg) {
     if (msg.role === "assistant" && "usage" in msg) {
         const assistantMsg = msg;
-        if (assistantMsg.stopReason !== "aborted" && assistantMsg.stopReason !== "error" && assistantMsg.usage) {
+        if (assistantMsg.stopReason !== "aborted" &&
+            assistantMsg.stopReason !== "error" &&
+            assistantMsg.usage &&
+            calculateContextTokens(assistantMsg.usage) > 0) {
             return assistantMsg.usage;
         }
     }
     return undefined;
 }
-/** Return usage from the last successful assistant message in session entries. */
+/** Return usage from the last valid assistant message in session entries. */
 export function getLastAssistantUsage(entries) {
     for (let i = entries.length - 1; i >= 0; i--) {
         const entry = entries[i];
@@ -125,22 +127,28 @@ export function shouldCompact(contextTokens, contextWindow, settings) {
         return false;
     return contextTokens > contextWindow - settings.reserveTokens;
 }
+const ESTIMATED_IMAGE_CHARS = 4800;
+function estimateTextAndImageContentChars(content) {
+    if (typeof content === "string") {
+        return content.length;
+    }
+    let chars = 0;
+    for (const block of content) {
+        if (block.type === "text" && block.text) {
+            chars += block.text.length;
+        }
+        else if (block.type === "image") {
+            chars += ESTIMATED_IMAGE_CHARS;
+        }
+    }
+    return chars;
+}
 /** Estimate token count for one message using a conservative character heuristic. */
 export function estimateTokens(message) {
     let chars = 0;
     switch (message.role) {
         case "user": {
-            const content = message.content;
-            if (typeof content === "string") {
-                chars = content.length;
-            }
-            else if (Array.isArray(content)) {
-                for (const block of content) {
-                    if (block.type === "text" && block.text) {
-                        chars += block.text.length;
-                    }
-                }
-            }
+            chars = estimateTextAndImageContentChars(message.content);
             return Math.ceil(chars / 4);
         }
         case "assistant": {
@@ -160,19 +168,7 @@ export function estimateTokens(message) {
         }
         case "custom":
         case "toolResult": {
-            if (typeof message.content === "string") {
-                chars = message.content.length;
-            }
-            else {
-                for (const block of message.content) {
-                    if (block.type === "text" && block.text) {
-                        chars += block.text.length;
-                    }
-                    if (block.type === "image") {
-                        chars += 4800;
-                    }
-                }
-            }
+            chars = estimateTextAndImageContentChars(message.content);
             return Math.ceil(chars / 4);
         }
         case "bashExecution": {
@@ -210,6 +206,7 @@ function findValidCutPoints(entries, startIndex, endIndex) {
             }
             case "thinking_level_change":
             case "model_change":
+            case "active_tools_change":
             case "compaction":
             case "branch_summary":
             case "custom":
@@ -284,7 +281,7 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
         isSplitTurn: !isUserMessage && turnStartIndex !== -1,
     };
 }
-export const SUMMARIZATION_SYSTEM_PROMPT = `You are a context summarization assistant. Your task is to read a conversation between a user and an AI coding assistant, then produce a structured summary following the exact format specified.
+export const SUMMARIZATION_SYSTEM_PROMPT = `You are a context summarization assistant. Your task is to read a conversation between a user and an AI assistant, then produce a structured summary following the exact format specified.
 
 Do NOT continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured summary.`;
 const SUMMARIZATION_PROMPT = `The messages above are a conversation to summarize. Create a structured context checkpoint summary that another LLM will use to continue the work.
@@ -358,7 +355,7 @@ Use this EXACT format:
 
 Keep each section concise. Preserve exact file paths, function names, and error messages.`;
 /** Generate or update a conversation summary for compaction. */
-export async function generateSummary(currentMessages, model, reserveTokens, apiKey, headers, signal, customInstructions, previousSummary, thinkingLevel) {
+export async function generateSummary(currentMessages, models, model, reserveTokens, signal, customInstructions, previousSummary, thinkingLevel) {
     const maxTokens = Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY);
     let basePrompt = previousSummary ? UPDATE_SUMMARIZATION_PROMPT : SUMMARIZATION_PROMPT;
     if (customInstructions) {
@@ -379,9 +376,9 @@ export async function generateSummary(currentMessages, model, reserveTokens, api
         },
     ];
     const completionOptions = model.reasoning && thinkingLevel && thinkingLevel !== "off"
-        ? { maxTokens, signal, apiKey, headers, reasoning: thinkingLevel }
-        : { maxTokens, signal, apiKey, headers };
-    const response = await completeSimple(model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, completionOptions);
+        ? { maxTokens, signal, reasoning: thinkingLevel }
+        : { maxTokens, signal };
+    const response = await models.completeSimple(model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, completionOptions);
     if (response.stopReason === "aborted") {
         return err(new CompactionError("aborted", response.errorMessage || "Summarization aborted"));
     }
@@ -470,7 +467,7 @@ Summarize the prefix to provide context for the retained suffix:
 Be concise. Focus on what's needed to understand the kept suffix.`;
 export { serializeConversation } from "./utils.js";
 /** Generate compaction summary data from prepared session history. */
-export async function compact(preparation, model, apiKey, headers, customInstructions, signal, thinkingLevel) {
+export async function compact(preparation, models, model, customInstructions, signal, thinkingLevel) {
     const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = preparation;
     if (!firstKeptEntryId) {
         return err(new CompactionError("invalid_session", "First kept entry has no UUID - session may need migration"));
@@ -479,9 +476,9 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
     if (isSplitTurn && turnPrefixMessages.length > 0) {
         const [historyResult, turnPrefixResult] = await Promise.all([
             messagesToSummarize.length > 0
-                ? generateSummary(messagesToSummarize, model, settings.reserveTokens, apiKey, headers, signal, customInstructions, previousSummary, thinkingLevel)
+                ? generateSummary(messagesToSummarize, models, model, settings.reserveTokens, signal, customInstructions, previousSummary, thinkingLevel)
                 : Promise.resolve(ok("No prior history.")),
-            generateTurnPrefixSummary(turnPrefixMessages, model, settings.reserveTokens, apiKey, headers, signal, thinkingLevel),
+            generateTurnPrefixSummary(turnPrefixMessages, models, model, settings.reserveTokens, signal, thinkingLevel),
         ]);
         if (!historyResult.ok)
             return err(historyResult.error);
@@ -490,7 +487,7 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
         summary = `${historyResult.value}\n\n---\n\n**Turn Context (split turn):**\n\n${turnPrefixResult.value}`;
     }
     else {
-        const summaryResult = await generateSummary(messagesToSummarize, model, settings.reserveTokens, apiKey, headers, signal, customInstructions, previousSummary, thinkingLevel);
+        const summaryResult = await generateSummary(messagesToSummarize, models, model, settings.reserveTokens, signal, customInstructions, previousSummary, thinkingLevel);
         if (!summaryResult.ok)
             return err(summaryResult.error);
         summary = summaryResult.value;
@@ -504,7 +501,7 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
         details: { readFiles, modifiedFiles },
     });
 }
-async function generateTurnPrefixSummary(messages, model, reserveTokens, apiKey, headers, signal, thinkingLevel) {
+async function generateTurnPrefixSummary(messages, models, model, reserveTokens, signal, thinkingLevel) {
     const maxTokens = Math.min(Math.floor(0.5 * reserveTokens), model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY);
     const llmMessages = convertToLlm(messages);
     const conversationText = serializeConversation(llmMessages);
@@ -516,9 +513,9 @@ async function generateTurnPrefixSummary(messages, model, reserveTokens, apiKey,
             timestamp: Date.now(),
         },
     ];
-    const response = await completeSimple(model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, model.reasoning && thinkingLevel && thinkingLevel !== "off"
-        ? { maxTokens, signal, apiKey, headers, reasoning: thinkingLevel }
-        : { maxTokens, signal, apiKey, headers });
+    const response = await models.completeSimple(model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, model.reasoning && thinkingLevel && thinkingLevel !== "off"
+        ? { maxTokens, signal, reasoning: thinkingLevel }
+        : { maxTokens, signal });
     if (response.stopReason === "aborted") {
         return err(new CompactionError("aborted", response.errorMessage || "Turn prefix summarization aborted"));
     }

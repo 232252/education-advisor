@@ -18,6 +18,7 @@ export declare class Session<TMetadata extends SessionMetadata = SessionMetadata
     appendMessage(message: AgentMessage): Promise<string>;
     appendThinkingLevelChange(thinkingLevel: string): Promise<string>;
     appendModelChange(provider: string, modelId: string): Promise<string>;
+    appendActiveToolsChange(activeToolNames: string[]): Promise<string>;
     appendCompaction<T = unknown>(summary: string, firstKeptEntryId: string, tokensBefore: number, details?: T, fromHook?: boolean): Promise<string>;
     appendCustomEntry(customType: string, data?: unknown): Promise<string>;
     appendCustomMessageEntry<T = unknown>(customType: string, content: string | (TextContent | ImageContent)[], display: boolean, details?: T): Promise<string>;

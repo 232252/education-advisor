@@ -8,6 +8,7 @@
 
 import { app, type BrowserWindow, ipcMain } from 'electron'
 import * as IPC from '../../shared/ipc-channels'
+import { feishuBotService } from '../services/feishu-bot-service'
 import { keystoreService } from '../services/keystore-service'
 import { settingsService } from '../services/settings-service'
 import { updateTray } from '../services/tray-service'
@@ -28,10 +29,32 @@ const ENUM_VALIDATORS: Record<string, readonly string[]> = {
   'chat.thinkingLevel': ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'],
 }
 
-export function registerSettingsHandlers(_win: BrowserWindow) {
+export function registerSettingsHandlers(win: BrowserWindow) {
   // 启动时同步 autoStart 设置到系统
   const currentSettings = settingsService.getSettings()
   app.setLoginItemSettings({ openAtLogin: currentSettings.general.autoStart })
+
+  /**
+   * 飞书 appId 或 appSecret 变化后，若两者均已配置则重连长连接机器人；
+   * 若 appId 被清空则停止。实现"保存即生效"，无需重启 app。
+   */
+  const reconnectFeishuBot = async () => {
+    // 用户手动停止后,不自动重连(只有保存新 appId/secret 或手动点"连接"才重启)
+    if (feishuBotService.isUserStopped()) {
+      log('info', 'settings', 'feishu bot skipped reconnect (user stopped)')
+      return
+    }
+    const s = settingsService.getSettings()
+    const secret = keystoreService.getSecret('feishu-app-secret')
+    if (s.feishu.appId && secret) {
+      // start 内部已做幂等：若 appId 相同且已连接则跳过
+      await feishuBotService.start(s.feishu.appId, secret, win).catch((err) => {
+        log('warn', 'settings', `feishu bot reconnect failed: ${err}`)
+      })
+    } else {
+      await feishuBotService.stop().catch(() => {})
+    }
+  }
 
   ipcMain.handle(IPC.IPC_SETTINGS_GET, async () => {
     const settings = settingsService.getSettings()
@@ -51,14 +74,23 @@ export function registerSettingsHandlers(_win: BrowserWindow) {
       }
       keystoreService.setSecret('feishu-app-secret', value)
       log('info', 'settings', 'feishu.appSecret saved to keystore (encrypted)')
+      // 保存即重连：appSecret 变了，用新密钥重启长连接
+      await reconnectFeishuBot()
       return { success: true }
     }
 
     // Bug R28-1 修复: 枚举字段校验,拒绝非法值
     const allowedValues = ENUM_VALIDATORS[path]
     if (allowedValues && typeof value === 'string' && !allowedValues.includes(value)) {
-      log('warn', 'settings', `Rejected invalid enum value for ${path}: ${value} (allowed: ${allowedValues.join(', ')})`)
-      return { success: false, error: `Invalid value "${value}" for ${path}. Allowed: ${allowedValues.join(', ')}` }
+      log(
+        'warn',
+        'settings',
+        `Rejected invalid enum value for ${path}: ${value} (allowed: ${allowedValues.join(', ')})`,
+      )
+      return {
+        success: false,
+        error: `Invalid value "${value}" for ${path}. Allowed: ${allowedValues.join(', ')}`,
+      }
     }
 
     settingsService.update(path, value)
@@ -71,6 +103,11 @@ export function registerSettingsHandlers(_win: BrowserWindow) {
     // 托盘:实时创建/销毁(原版只启动时读一次,改了不生效)
     if (path === 'general.minimizeToTray' && typeof value === 'boolean') {
       updateTray(value)
+    }
+
+    // 飞书 appId 变化：保存即重连长连接(appSecret 从 keystore 读取)
+    if (path === 'feishu.appId') {
+      await reconnectFeishuBot()
     }
 
     // T5: 日志级别:实时切换
@@ -91,6 +128,8 @@ export function registerSettingsHandlers(_win: BrowserWindow) {
     settingsService.reset()
     // 重置时也清除 keystore 中的飞书密钥
     keystoreService.deleteSecret('feishu-app-secret')
+    // 重置后停止飞书长连接
+    await feishuBotService.stop().catch(() => {})
     // 重置后也要同步 autoStart(默认 false)
     app.setLoginItemSettings({ openAtLogin: false })
     // 重置后也重建托盘

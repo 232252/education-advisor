@@ -9,8 +9,8 @@ import type {
   EAAInfoData,
   EAARankItem,
   EAAStatsData,
-  EAASummaryData,
   EAAStudent,
+  EAASummaryData,
   EAATagDetailData,
   EAATagListData,
   EAAValidateData,
@@ -214,7 +214,11 @@ export function DashboardPage() {
 
       // 加载全局事件 (用于按班级过滤事件原因分布/周期摘要)
       const rangeRes = results[7]
-      if (rangeRes.status === 'fulfilled' && rangeRes.value.success && rangeRes.value.data?.events) {
+      if (
+        rangeRes.status === 'fulfilled' &&
+        rangeRes.value.success &&
+        rangeRes.value.data?.events
+      ) {
         setAllEvents(rangeRes.value.data.events)
       }
 
@@ -237,13 +241,6 @@ export function DashboardPage() {
   useEffect(() => {
     loadData()
   }, [loadData])
-
-  // class_id → 班级名称 映射
-  const classIdToName = useMemo(() => {
-    const m: Record<string, string> = {}
-    for (const c of classList) m[c.class_id] = c.name
-    return m
-  }, [classList])
 
   // 活跃班级列表
   const activeClassList = useMemo(() => classList.filter((c) => !c.archived), [classList])
@@ -284,7 +281,7 @@ export function DashboardPage() {
     return {
       total: students.length,
       avgScore: students.length > 0 ? totalScore / students.length : 0,
-      highRisk: riskCount['极高'] + riskCount['高'],
+      highRisk: riskCount.极高 + riskCount.高,
       riskDistribution: riskCount,
     }
   }, [allStudents, classFilter])
@@ -400,7 +397,7 @@ export function DashboardPage() {
         teacher: c.teacher ?? '-',
         studentCount: students.length,
         avgScore: students.length > 0 ? totalScore / students.length : 0,
-        highRisk: riskCount['极高'] + riskCount['高'],
+        highRisk: riskCount.极高 + riskCount.高,
         riskDistribution: riskCount,
       }
     })
@@ -511,17 +508,32 @@ export function DashboardPage() {
               </thead>
               <tbody>
                 {classComparison.map((c) => (
-                  <tr key={c.classId} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <tr
+                    key={c.classId}
+                    className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                  >
                     <td className="py-2 px-3 font-medium">{c.className}</td>
                     <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{c.grade}</td>
                     <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{c.teacher}</td>
                     <td className="py-2 px-3 text-center font-mono">{c.studentCount}</td>
                     <td className="py-2 px-3 text-center font-mono">{c.avgScore.toFixed(1)}</td>
-                    <td className={`py-2 px-3 text-center font-mono ${c.highRisk > 0 ? 'text-red-500 dark:text-red-400 font-bold' : ''}`}>{c.highRisk}</td>
-                    <td className="py-2 px-3 text-center text-red-500 dark:text-red-400">{c.riskDistribution['极高']}</td>
-                    <td className="py-2 px-3 text-center text-orange-500 dark:text-orange-400">{c.riskDistribution['高']}</td>
-                    <td className="py-2 px-3 text-center text-yellow-500 dark:text-yellow-400">{c.riskDistribution['中']}</td>
-                    <td className="py-2 px-3 text-center text-green-500 dark:text-green-400">{c.riskDistribution['低']}</td>
+                    <td
+                      className={`py-2 px-3 text-center font-mono ${c.highRisk > 0 ? 'text-red-500 dark:text-red-400 font-bold' : ''}`}
+                    >
+                      {c.highRisk}
+                    </td>
+                    <td className="py-2 px-3 text-center text-red-500 dark:text-red-400">
+                      {c.riskDistribution.极高}
+                    </td>
+                    <td className="py-2 px-3 text-center text-orange-500 dark:text-orange-400">
+                      {c.riskDistribution.高}
+                    </td>
+                    <td className="py-2 px-3 text-center text-yellow-500 dark:text-yellow-400">
+                      {c.riskDistribution.中}
+                    </td>
+                    <td className="py-2 px-3 text-center text-green-500 dark:text-green-400">
+                      {c.riskDistribution.低}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -530,7 +542,9 @@ export function DashboardPage() {
 
           {/* 双班级对比选择器 */}
           <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">双班级详细对比</h4>
+            <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+              双班级详细对比
+            </h4>
             <div className="flex items-center gap-3 flex-wrap">
               <select
                 value={compareClassA}
@@ -539,7 +553,9 @@ export function DashboardPage() {
               >
                 <option value="">选择班级 A...</option>
                 {activeClassList.map((c) => (
-                  <option key={c.id} value={c.class_id}>{c.name}</option>
+                  <option key={c.id} value={c.class_id}>
+                    {c.name}
+                  </option>
                 ))}
               </select>
               <span className="text-gray-400">VS</span>
@@ -550,23 +566,53 @@ export function DashboardPage() {
               >
                 <option value="">选择班级 B...</option>
                 {activeClassList.map((c) => (
-                  <option key={c.id} value={c.class_id}>{c.name}</option>
+                  <option key={c.id} value={c.class_id}>
+                    {c.name}
+                  </option>
                 ))}
               </select>
             </div>
             {compareDataA && compareDataB && (
               <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[compareDataA, compareDataB].map((d, i) => (
-                  <div key={i} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                {[compareDataA, compareDataB].map((d) => (
+                  <div
+                    key={d.className}
+                    className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700"
+                  >
                     <h5 className="font-semibold text-sm mb-2">{d.className}</h5>
                     <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
-                      <div className="flex justify-between"><span>学生数</span><span className="font-mono">{d.studentCount}</span></div>
-                      <div className="flex justify-between"><span>平均分</span><span className="font-mono">{d.avgScore.toFixed(1)}</span></div>
-                      <div className="flex justify-between"><span>高风险</span><span className={`font-mono ${d.highRisk > 0 ? 'text-red-500 font-bold' : ''}`}>{d.highRisk}</span></div>
-                      <div className="flex justify-between"><span>极高</span><span className="font-mono text-red-500">{d.riskDistribution['极高']}</span></div>
-                      <div className="flex justify-between"><span>高</span><span className="font-mono text-orange-500">{d.riskDistribution['高']}</span></div>
-                      <div className="flex justify-between"><span>中</span><span className="font-mono text-yellow-500">{d.riskDistribution['中']}</span></div>
-                      <div className="flex justify-between"><span>低</span><span className="font-mono text-green-500">{d.riskDistribution['低']}</span></div>
+                      <div className="flex justify-between">
+                        <span>学生数</span>
+                        <span className="font-mono">{d.studentCount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>平均分</span>
+                        <span className="font-mono">{d.avgScore.toFixed(1)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>高风险</span>
+                        <span
+                          className={`font-mono ${d.highRisk > 0 ? 'text-red-500 font-bold' : ''}`}
+                        >
+                          {d.highRisk}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>极高</span>
+                        <span className="font-mono text-red-500">{d.riskDistribution.极高}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>高</span>
+                        <span className="font-mono text-orange-500">{d.riskDistribution.高}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>中</span>
+                        <span className="font-mono text-yellow-500">{d.riskDistribution.中}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>低</span>
+                        <span className="font-mono text-green-500">{d.riskDistribution.低}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -598,7 +644,11 @@ export function DashboardPage() {
         />
         <StatCard
           title={t('page.dashboard.stat.scoreChange')}
-          value={classFilter === '__ALL__' ? (s?.total_delta?.toFixed(1) ?? '-') : classStats.avgScore.toFixed(1)}
+          value={
+            classFilter === '__ALL__'
+              ? (s?.total_delta?.toFixed(1) ?? '-')
+              : classStats.avgScore.toFixed(1)
+          }
           color="purple"
           icon="📊"
         />
