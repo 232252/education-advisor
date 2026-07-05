@@ -28,12 +28,16 @@ import type {
   EAATagDetailData,
   EAATagListData,
   EAAValidateData,
+  FeishuBotStatusInfo,
   ModelInfo,
   PrivacyMapping,
   ProviderInfo,
   SetStudentMetaParams,
   Skill,
   StreamEvent,
+  OllamaModelInfo,
+  OllamaPullProgressInfo,
+  OllamaStatusInfo,
   StudentProfileData,
   TestConnectionResult,
   UnifiedSettings,
@@ -85,6 +89,16 @@ interface WindowAPI {
       baseUrl?: string
     }) => Promise<{ success: boolean }>
     onStream: (callback: (event: StreamEvent) => void) => () => void
+  }
+  // 本地模型 (Ollama)
+  ollama: {
+    detect: () => Promise<OllamaStatusInfo>
+    startServe: () => Promise<{ success: boolean }>
+    stopServe: () => Promise<{ success: boolean }>
+    listModels: () => Promise<OllamaModelInfo[]>
+    pullModel: (modelName: string) => Promise<{ success: boolean; error?: string }>
+    deleteModel: (modelName: string) => Promise<{ success: boolean; error?: string }>
+    onPullProgress: (callback: (info: OllamaPullProgressInfo) => void) => () => void
   }
   agent: {
     list: () => Promise<AgentListItem[]>
@@ -263,6 +277,15 @@ interface WindowAPI {
       tableId: string,
       fields: Record<string, unknown>,
     ) => Promise<{ success: boolean; skipped?: string; recordId?: string; error?: string }>
+    // 飞书长连接机器人
+    botStart: () => Promise<{
+      success: boolean
+      error?: string
+      status?: FeishuBotStatusInfo
+    }>
+    botStop: () => Promise<{ success: boolean; status?: FeishuBotStatusInfo }>
+    botStatus: () => Promise<FeishuBotStatusInfo>
+    onBotStatusUpdate: (callback: (info: FeishuBotStatusInfo) => void) => () => void
   }
   sys: {
     openDialog: (options: unknown) => Promise<unknown>

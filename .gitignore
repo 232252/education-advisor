@@ -141,3 +141,6 @@ core/**/target/
 data/
 core/eaa-cli/data/
 resources/eaa-binaries/linux-x64/
+
+# Agent 运行时输出产物
+data_archive/agent_outputs/

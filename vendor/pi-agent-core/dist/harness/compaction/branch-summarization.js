@@ -1,4 +1,3 @@
-import { completeSimple } from "@earendil-works/pi-ai";
 import { convertToLlm, createBranchSummaryMessage, createCompactionSummaryMessage, createCustomMessage, } from "../messages.js";
 import { BranchSummaryError, err, ok, SessionError } from "../types.js";
 import { estimateTokens, SUMMARIZATION_SYSTEM_PROMPT } from "./compaction.js";
@@ -43,6 +42,7 @@ function getMessageFromEntry(entry) {
             return createCompactionSummaryMessage(entry.summary, entry.tokensBefore, entry.timestamp);
         case "thinking_level_change":
         case "model_change":
+        case "active_tools_change":
         case "custom":
         case "label":
         case "session_info":
@@ -124,7 +124,7 @@ Use this EXACT format:
 Keep each section concise. Preserve exact file paths, function names, and error messages.`;
 /** Generate a summary for abandoned branch entries. */
 export async function generateBranchSummary(entries, options) {
-    const { model, apiKey, headers, signal, customInstructions, replaceInstructions, reserveTokens = 16384 } = options;
+    const { models, model, signal, customInstructions, replaceInstructions, reserveTokens = 16384 } = options;
     const contextWindow = model.contextWindow || 128000;
     const tokenBudget = contextWindow - reserveTokens;
     const { messages, fileOps } = prepareBranchEntries(entries, tokenBudget);
@@ -151,7 +151,7 @@ export async function generateBranchSummary(entries, options) {
             timestamp: Date.now(),
         },
     ];
-    const response = await completeSimple(model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, { apiKey, headers, signal, maxTokens: 2048 });
+    const response = await models.completeSimple(model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, { signal, maxTokens: 2048 });
     if (response.stopReason === "aborted") {
         return err(new BranchSummaryError("aborted", response.errorMessage || "Branch summary aborted"));
     }

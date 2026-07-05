@@ -19,11 +19,12 @@ import {
   type ModelThinkingLevel,
   streamSimple,
   type ThinkingLevel,
-} from '@earendil-works/pi-ai'
+} from '@earendil-works/pi-ai/compat'
 import type { ModelInfo, ProviderInfo, StreamEvent, TestConnectionResult } from '../../shared/types'
 import { logChat } from '../utils/logger'
 import { compactAgentMessages, compactChatMessagesSimple } from './compaction-helper'
 import { keystoreService } from './keystore-service'
+import { KEYLESS_PROVIDERS, OLLAMA_OPENAI_BASE_URL, ollamaService } from './ollama-service'
 import { settingsService } from './settings-service'
 
 // OAuth 支持的 provider 列表
@@ -102,7 +103,7 @@ class PiAIService {
     console.log(`[PiAI] Keystore has keys for: [${keystoreProviders.join(', ')}]`)
     console.log(`[PiAI] Env API keys found for: [${envKeyProviders.join(', ')}]`)
 
-    const results = providerIds.map((id) => {
+    const results: ProviderInfo[] = providerIds.map((id) => {
       const models = this.safeGetModels(id)
       // ✅ 应用 enabledModels 过滤:若白名单非空,只保留白名单里的 model
       const filteredModels =
@@ -110,6 +111,10 @@ class PiAIService {
       const keystoreKey = keystoreService.getApiKey(id)
       const envKey = getEnvApiKey(id)
       const hasApiKey = !!(keystoreKey || envKey)
+      // 检测免费模型：input + output 均 0 成本（如 zai 全系、opencode 的 *-free、kimi-coding）
+      const hasFreeModels = models.some(
+        (m) => (m.cost?.input ?? 0) === 0 && (m.cost?.output ?? 0) === 0,
+      )
 
       return {
         id,
@@ -117,11 +122,42 @@ class PiAIService {
         supportsOAuth: OAUTH_PROVIDERS.has(id),
         hasApiKey,
         modelCount: filteredModels.length,
+        hasFreeModels,
         // 若 enabledModels 把所有 model 都过滤掉了,标 disabled 提示用户
         hidden:
           blacklist.includes(id) ||
           (enabledModels.length > 0 && filteredModels.length === 0 && models.length > 0),
       }
+    })
+
+    // 注入本地 Ollama provider(如果可用)
+    try {
+      const ollamaAvailable = await ollamaService.detect()
+      if (ollamaAvailable) {
+        const serveRunning = await ollamaService.isServeRunning()
+        const ollamaModels = serveRunning ? await ollamaService.listModels() : []
+        results.push({
+          id: 'ollama',
+          name: '本地模型 (Ollama)',
+          supportsOAuth: false,
+          hasApiKey: true, // keyless,但标记为 true 让排序和选择逻辑正常工作
+          modelCount: ollamaModels.length,
+          hasFreeModels: true, // 本地模型永远免费
+          hidden: false,
+        })
+        console.log(
+          `[PiAI] Ollama provider injected: available=${ollamaAvailable} models=${ollamaModels.length}`,
+        )
+      }
+    } catch (err) {
+      console.log(`[PiAI] Ollama detection skipped: ${err}`)
+    }
+
+    // 排序：免费模型 provider 优先（让用户更容易发现 zai/opencode/kimi 等免费选项）
+    results.sort((a, b) => {
+      if (a.hasFreeModels !== b.hasFreeModels) return a.hasFreeModels ? -1 : 1
+      if (a.hasApiKey !== b.hasApiKey) return a.hasApiKey ? -1 : 1 // 已配置的靠前
+      return a.name.localeCompare(b.name)
     })
 
     const configured = results.filter((p) => p.hasApiKey && p.modelCount > 0)
@@ -161,7 +197,9 @@ class PiAIService {
       const resolvedApiKey =
         apiKey ?? keystoreService.getApiKey(providerId) ?? getEnvApiKey(providerId)
 
-      if (resolvedBaseUrl && resolvedApiKey) {
+      // 本地/keyless provider(如 ollama)不需要 apiKey,只要 baseUrl 就能查模型
+      const isKeyless = KEYLESS_PROVIDERS.has(providerId)
+      if (resolvedBaseUrl && (resolvedApiKey || isKeyless)) {
         // 跳过已知 /models 端点不可用的 provider
         if (this.failedOnlineFetch.has(providerId)) {
           console.log(`[PiAI] Skipping online model fetch for ${providerId} (previously failed)`)
@@ -473,7 +511,10 @@ class PiAIService {
       }
       return
     }
-    const apiKey = keystoreService.getApiKey(params.providerId) ?? getEnvApiKey(params.providerId)
+    const isLocalKeyless = KEYLESS_PROVIDERS.has(params.providerId)
+    const apiKey = isLocalKeyless
+      ? 'local-no-key-needed'
+      : (keystoreService.getApiKey(params.providerId) ?? getEnvApiKey(params.providerId))
 
     if (!apiKey) {
       yield {
@@ -803,6 +844,26 @@ class PiAIService {
       if (found) return found
     } catch {
       // 静态注册表找不到，继续回退
+    }
+
+    // 1b. 本地 Ollama 模型: 不在静态注册表里,直接构造
+    if (providerId === 'ollama') {
+      const model = {
+        id: modelId,
+        name: modelId,
+        api: 'openai-completions' as Api,
+        provider: 'ollama' as unknown as Model<Api>['provider'],
+        baseUrl: OLLAMA_OPENAI_BASE_URL,
+        reasoning: false,
+        input: ['text'],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 32768,
+        maxTokens: 4096,
+      } as Model<Api>
+      console.log(
+        `[PiAI] Resolved Ollama model: ${modelId} (openai-compat at ${OLLAMA_OPENAI_BASE_URL})`,
+      )
+      return model
     }
 
     // 2. 回退：从自定义模型设置中构造 Model<Api> 兼容对象

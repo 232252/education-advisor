@@ -90,7 +90,37 @@ export declare const IMAGE_MODELS: {
                 cacheWrite: number;
             };
         };
+        readonly "google/gemini-3-pro-image": {
+            id: string;
+            name: string;
+            api: "openrouter-images";
+            provider: string;
+            baseUrl: string;
+            input: ("image" | "text")[];
+            output: ("image" | "text")[];
+            cost: {
+                input: number;
+                output: number;
+                cacheRead: number;
+                cacheWrite: number;
+            };
+        };
         readonly "google/gemini-3-pro-image-preview": {
+            id: string;
+            name: string;
+            api: "openrouter-images";
+            provider: string;
+            baseUrl: string;
+            input: ("image" | "text")[];
+            output: ("image" | "text")[];
+            cost: {
+                input: number;
+                output: number;
+                cacheRead: number;
+                cacheWrite: number;
+            };
+        };
+        readonly "google/gemini-3.1-flash-image": {
             id: string;
             name: string;
             api: "openrouter-images";
@@ -113,6 +143,36 @@ export declare const IMAGE_MODELS: {
             baseUrl: string;
             input: ("image" | "text")[];
             output: ("image" | "text")[];
+            cost: {
+                input: number;
+                output: number;
+                cacheRead: number;
+                cacheWrite: number;
+            };
+        };
+        readonly "google/gemini-3.1-flash-lite-image": {
+            id: string;
+            name: string;
+            api: "openrouter-images";
+            provider: string;
+            baseUrl: string;
+            input: ("image" | "text")[];
+            output: ("image" | "text")[];
+            cost: {
+                input: number;
+                output: number;
+                cacheRead: number;
+                cacheWrite: number;
+            };
+        };
+        readonly "microsoft/mai-image-2.5": {
+            id: string;
+            name: string;
+            api: "openrouter-images";
+            provider: string;
+            baseUrl: string;
+            input: ("image" | "text")[];
+            output: "image"[];
             cost: {
                 input: number;
                 output: number;
@@ -158,6 +218,51 @@ export declare const IMAGE_MODELS: {
             baseUrl: string;
             input: ("image" | "text")[];
             output: ("image" | "text")[];
+            cost: {
+                input: number;
+                output: number;
+                cacheRead: number;
+                cacheWrite: number;
+            };
+        };
+        readonly "openai/gpt-image-1": {
+            id: string;
+            name: string;
+            api: "openrouter-images";
+            provider: string;
+            baseUrl: string;
+            input: ("image" | "text")[];
+            output: "image"[];
+            cost: {
+                input: number;
+                output: number;
+                cacheRead: number;
+                cacheWrite: number;
+            };
+        };
+        readonly "openai/gpt-image-1-mini": {
+            id: string;
+            name: string;
+            api: "openrouter-images";
+            provider: string;
+            baseUrl: string;
+            input: ("image" | "text")[];
+            output: "image"[];
+            cost: {
+                input: number;
+                output: number;
+                cacheRead: number;
+                cacheWrite: number;
+            };
+        };
+        readonly "openai/gpt-image-2": {
+            id: string;
+            name: string;
+            api: "openrouter-images";
+            provider: string;
+            baseUrl: string;
+            input: ("image" | "text")[];
+            output: "image"[];
             cost: {
                 input: number;
                 output: number;
@@ -360,36 +465,6 @@ export declare const IMAGE_MODELS: {
                 cacheWrite: number;
             };
         };
-        readonly "sourceful/riverflow-v2-fast-preview": {
-            id: string;
-            name: string;
-            api: "openrouter-images";
-            provider: string;
-            baseUrl: string;
-            input: ("image" | "text")[];
-            output: "image"[];
-            cost: {
-                input: number;
-                output: number;
-                cacheRead: number;
-                cacheWrite: number;
-            };
-        };
-        readonly "sourceful/riverflow-v2-max-preview": {
-            id: string;
-            name: string;
-            api: "openrouter-images";
-            provider: string;
-            baseUrl: string;
-            input: ("image" | "text")[];
-            output: "image"[];
-            cost: {
-                input: number;
-                output: number;
-                cacheRead: number;
-                cacheWrite: number;
-            };
-        };
         readonly "sourceful/riverflow-v2-pro": {
             id: string;
             name: string;
@@ -405,7 +480,22 @@ export declare const IMAGE_MODELS: {
                 cacheWrite: number;
             };
         };
-        readonly "sourceful/riverflow-v2-standard-preview": {
+        readonly "sourceful/riverflow-v2.5-fast": {
+            id: string;
+            name: string;
+            api: "openrouter-images";
+            provider: string;
+            baseUrl: string;
+            input: ("image" | "text")[];
+            output: "image"[];
+            cost: {
+                input: number;
+                output: number;
+                cacheRead: number;
+                cacheWrite: number;
+            };
+        };
+        readonly "sourceful/riverflow-v2.5-pro": {
             id: string;
             name: string;
             api: "openrouter-images";

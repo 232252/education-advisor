@@ -16,6 +16,16 @@ export const IPC_AI_ADD_CUSTOM_MODEL = 'ai:add-custom-model'
 export const IPC_AI_DEL_CUSTOM_MODEL = 'ai:del-custom-model'
 export const IPC_AI_UPDATE_CUSTOM_MODEL = 'ai:update-custom-model'
 
+// ===== 本地模型 (Ollama) =====
+export const IPC_OLLAMA_DETECT = 'ollama:detect'
+export const IPC_OLLAMA_START_SERVE = 'ollama:start-serve'
+export const IPC_OLLAMA_STOP_SERVE = 'ollama:stop-serve'
+export const IPC_OLLAMA_LIST_MODELS = 'ollama:list-models'
+export const IPC_OLLAMA_PULL_MODEL = 'ollama:pull-model'
+export const IPC_OLLAMA_DELETE_MODEL = 'ollama:delete-model'
+// 主→渲染: 下载进度推送
+export const IPC_OLLAMA_PULL_PROGRESS = 'ollama:pull-progress'
+
 // ===== Agent =====
 export const IPC_AGENT_LIST = 'agent:list'
 export const IPC_AGENT_GET = 'agent:get'
@@ -127,6 +137,11 @@ export const IPC_FEISHU_BITABLE = 'feishu:bitable'
 export const IPC_FEISHU_SEND = 'feishu:send'
 export const IPC_FEISHU_STATUS = 'feishu:status'
 export const IPC_FEISHU_SYNC_NOW = 'feishu:sync-now'
+// 飞书长连接机器人:启动/停止/状态查询 + 状态推送(主→渲染)
+export const IPC_FEISHU_BOT_START = 'feishu:bot-start'
+export const IPC_FEISHU_BOT_STOP = 'feishu:bot-stop'
+export const IPC_FEISHU_BOT_STATUS = 'feishu:bot-status'
+export const IPC_FEISHU_BOT_STATUS_UPDATE = 'feishu:bot-status-update'
 
 // ===== 日志 =====
 // arch-P0-1 修复：原硬编码字符串，迁入共享常量
