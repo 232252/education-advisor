@@ -5,6 +5,7 @@
 // 因此与 SettingsPage 的下拉框以及 useTheme hook 完全联动。
 // =============================================================
 
+import { Moon, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useT } from '../i18n'
 import { getAPI } from '../lib/ipc-client'
@@ -60,46 +61,14 @@ export function ThemeToggle() {
       title={label}
       className="flex items-center gap-2 w-full px-3 py-2 text-xs rounded-lg
         text-gray-500 dark:text-gray-400
-        hover:bg-gray-100 dark:hover:bg-gray-800
+        hover:bg-gray-100 dark:hover:bg-white/[0.06]
         hover:text-gray-700 dark:hover:text-gray-200
-        transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+        transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
     >
       {isDark ? (
-        // 太阳图标 — 当前深色,点击切到浅色
-        <svg
-          className="w-4 h-4 text-amber-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-          role="img"
-          aria-hidden="true"
-        >
-          <title>{label}</title>
-          <circle cx="12" cy="12" r="4" />
-          <path
-            strokeLinecap="round"
-            d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"
-          />
-        </svg>
+        <Sun size={16} strokeWidth={2} className="text-amber-400" aria-hidden="true" />
       ) : (
-        // 月亮图标 — 当前浅色,点击切到深色
-        <svg
-          className="w-4 h-4 text-indigo-500"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-          role="img"
-          aria-hidden="true"
-        >
-          <title>{label}</title>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"
-          />
-        </svg>
+        <Moon size={16} strokeWidth={2} className="text-indigo-500" aria-hidden="true" />
       )}
       <span>{isDark ? t('settings.theme.light') : t('settings.theme.dark')}</span>
     </button>

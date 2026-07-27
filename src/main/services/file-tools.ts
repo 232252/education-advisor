@@ -18,6 +18,35 @@ function textResult(text: string): AgentToolResult<unknown> {
   }
 }
 
+/**
+ * L-3 修复: 校验 encoding 参数是否为 Node.js 支持的 BufferEncoding。
+ * 防止用户传入无效编码导致 fs.readFile 运行时抛错。
+ */
+const VALID_ENCODINGS = new Set<BufferEncoding>([
+  'utf-8',
+  'utf8',
+  'utf-16le',
+  'utf16le',
+  'latin1',
+  'binary',
+  'ascii',
+  'base64',
+  'base64url',
+  'hex',
+  'ucs-2',
+  'ucs2',
+])
+
+function resolveEncoding(encoding: string | undefined): BufferEncoding {
+  if (!encoding) return 'utf-8'
+  const lower = encoding.toLowerCase()
+  if (VALID_ENCODINGS.has(lower as BufferEncoding)) {
+    return lower as BufferEncoding
+  }
+  // gbk/gb2312 等 Node.js 原生不支持的编码,fallback 到 utf-8
+  return 'utf-8'
+}
+
 // =============================================================
 // 安全限制
 // =============================================================
@@ -48,7 +77,7 @@ async function checkFileSize(filePath: string): Promise<void> {
  * 拒绝包含 ".." 路径段的输入；调用方应在 path.resolve 之前对原始入参调用本函数
  * @param filePath 待校验的原始路径（来自外部参数）
  */
-function validateFilePath(filePath: string): void {
+export function validateFilePath(filePath: string): void {
   if (typeof filePath !== 'string' || filePath.length === 0) {
     throw new Error('路径不能为空')
   }
@@ -97,7 +126,7 @@ export const readFileTool: AgentTool<typeof readFileParams> = {
 
     await checkFileSize(resolvedPath)
 
-    const encoding = (params.encoding as BufferEncoding) || 'utf-8'
+    const encoding = resolveEncoding(params.encoding) // L-3 修复: 安全解析编码
     let content: string
     try {
       content = await fsp.readFile(resolvedPath, encoding)

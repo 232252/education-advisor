@@ -581,23 +581,47 @@ export class EAABridge {
       const proc = spawn(this.binaryPath as string, args, {
         cwd: this.dataDir,
         env,
-        timeout: cmd.timeout ?? 30_000,
+        // 不使用 spawn 自带 timeout(仅发 SIGTERM),改用手动管理支持 SIGKILL 升级
         windowsHide: true,
       })
 
+      // 修复: 超时后 SIGTERM → 3秒后 SIGKILL 升级,防止子进程成为孤儿
+      const timeoutMs = cmd.timeout ?? 30_000
+      let sigkillHandle: ReturnType<typeof setTimeout> | null = null
+      const timeoutHandle = setTimeout(() => {
+        try {
+          proc.kill('SIGTERM')
+        } catch {
+          /* already exited */
+        }
+        // 3 秒后升级到 SIGKILL,确保进程被强制终止
+        sigkillHandle = setTimeout(() => {
+          try {
+            proc.kill('SIGKILL')
+          } catch {
+            /* already exited */
+          }
+        }, 3000)
+      }, timeoutMs)
+
       // MEDIUM 修复: stdout/stderr 设置 50MB/10MB 累积上限,溢出时截断并 kill 子进程,防止 OOM
+      // 重要: 用 Buffer 累积而非字符串拼接。多字节 UTF-8 字符(如中文学生名)可能被
+      // 拆分到两个 data chunk 上,逐 chunk toString() 会产生 U+FFFD 替换符,破坏 JSON。
       const MAX_STDOUT_BYTES = 50 * 1024 * 1024
       const MAX_STDERR_BYTES = 10 * 1024 * 1024
-      let stdout = ''
-      let stderr = ''
+      const stdoutChunks: Buffer[] = []
+      const stderrChunks: Buffer[] = []
+      let stdoutBytes = 0
+      let stderrBytes = 0
       let stdoutTruncated = false
       let stderrTruncated = false
 
       proc.stdout?.on('data', (chunk: Buffer) => {
         if (stdoutTruncated) return
-        stdout += chunk.toString()
-        if (Buffer.byteLength(stdout) > MAX_STDOUT_BYTES) {
-          stdout += '\n[... stdout truncated at 50MB ...]'
+        stdoutChunks.push(chunk)
+        stdoutBytes += chunk.length
+        if (stdoutBytes > MAX_STDOUT_BYTES) {
+          stdoutChunks.push(Buffer.from('\n[... stdout truncated at 50MB ...]'))
           stdoutTruncated = true
           try {
             proc.kill('SIGTERM')
@@ -608,9 +632,10 @@ export class EAABridge {
       })
       proc.stderr?.on('data', (chunk: Buffer) => {
         if (stderrTruncated) return
-        stderr += chunk.toString()
-        if (Buffer.byteLength(stderr) > MAX_STDERR_BYTES) {
-          stderr += '\n[... stderr truncated at 10MB ...]'
+        stderrChunks.push(chunk)
+        stderrBytes += chunk.length
+        if (stderrBytes > MAX_STDERR_BYTES) {
+          stderrChunks.push(Buffer.from('\n[... stderr truncated at 10MB ...]'))
           stderrTruncated = true
           try {
             proc.kill('SIGTERM')
@@ -621,8 +646,14 @@ export class EAABridge {
       })
 
       proc.on('close', (code) => {
+        clearTimeout(timeoutHandle)
+        if (sigkillHandle) clearTimeout(sigkillHandle)
         const exitCode = code ?? -1
         const success = exitCode === 0
+
+        // 合并 Buffer 后一次性解码为字符串，避免多字节字符被拆分到不同 chunk
+        const stdout = Buffer.concat(stdoutChunks).toString('utf8')
+        const stderr = Buffer.concat(stderrChunks).toString('utf8')
 
         if (debug.eaa) {
           const elapsed = Date.now() - startTime
@@ -663,6 +694,10 @@ export class EAABridge {
       })
 
       proc.on('error', (err) => {
+        clearTimeout(timeoutHandle)
+        // M-7 修复: 清理 stream listeners,防止 error 后仍接收数据造成资源泄漏
+        proc.stdout?.removeAllListeners('data')
+        proc.stderr?.removeAllListeners('data')
         if (debug.eaa) {
           console.error('[debug:eaa] spawn error', {
             command: cmd.command,

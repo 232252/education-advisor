@@ -12,8 +12,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 
-// ---------- eaa 真实调用 ----------
-const EAA_BIN = join(__dirname, '..', '..', 'resources', 'eaa-binaries', 'linux-x64', 'eaa')
+// ---------- eaa 真实调用（跨平台） ----------
+const _dirName = process.platform === 'win32' ? 'win32-x64' : process.platform === 'darwin' ? (process.arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64') : 'linux-x64'
+const _binName = process.platform === 'win32' ? 'eaa.exe' : 'eaa'
+const EAA_BIN = join(__dirname, '..', '..', 'resources', 'eaa-binaries', _dirName, _binName)
 const TEST_ROOT = mkdtempSync(join(tmpdir(), 'eaa-pages-'))
 const TEST_DATA = join(TEST_ROOT, 'data')
 const SCHEMA_SRC = join(__dirname, '..', '..', 'core', 'eaa-cli', 'schema', 'reason_codes.json')
@@ -83,11 +85,48 @@ const mockApi = {
     }),
     ranking: vi.fn(async (n: number) => {
       const r = await eaaRun(['ranking', String(n), '-O', 'json'])
-      return { success: true, data: JSON.parse(r) }
+      const data = JSON.parse(r) as {
+        ranking: Array<{ rank: number; name: string; entity_id: string; class_id?: string | null; score: number }>
+      }
+      // 增强: 用 listStudents 的 class_id 填充 ranking (与 IPC handler 逻辑一致)
+      try {
+        const studentsRaw = await eaaRun(['list-students', '-O', 'json'])
+        const students = JSON.parse(studentsRaw) as {
+          students: Array<{ entity_id: string; class_id?: string | null }>
+        }
+        const classIdMap: Record<string, string | null> = {}
+        for (const s of students.students) {
+          classIdMap[s.entity_id] = s.class_id ?? null
+        }
+        for (const item of data.ranking) {
+          item.class_id = classIdMap[item.entity_id] ?? null
+        }
+      } catch { /* enrichment failure is non-fatal */ }
+      return { success: true, data }
     }),
     summary: vi.fn(async () => {
       const r = await eaaRun(['summary', '-O', 'json'])
-      return { success: true, data: JSON.parse(r) }
+      const data = JSON.parse(r) as Record<string, unknown>
+      // 增强: 用 listStudents 的 class_id 填充 top_gainers/top_losers
+      try {
+        const studentsRaw = await eaaRun(['list-students', '-O', 'json'])
+        const students = JSON.parse(studentsRaw) as {
+          students: Array<{ name: string; class_id?: string | null }>
+        }
+        const nameToClassId: Record<string, string | null> = {}
+        for (const s of students.students) {
+          nameToClassId[s.name] = s.class_id ?? null
+        }
+        for (const group of ['top_gainers', 'top_losers'] as const) {
+          const items = data[group]
+          if (Array.isArray(items)) {
+            for (const item of items as Array<{ name: string; class_id?: string | null }>) {
+              item.class_id = nameToClassId[item.name] ?? null
+            }
+          }
+        }
+      } catch { /* enrichment failure is non-fatal */ }
+      return { success: true, data }
     }),
     stats: vi.fn(async () => {
       const r = await eaaRun(['info', '-O', 'json'])

@@ -94,6 +94,7 @@ class DBService {
     countChatMessages?: Statement
     getSessionTitle?: Statement
     upsertChatSession?: Statement
+    upsertSessionMeta?: Statement
     listChatSessions?: Statement
     // 班级管理
     insertClass?: Statement
@@ -165,6 +166,8 @@ class DBService {
       );
       CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
       CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON chat_messages(timestamp);
+      -- OPT-3: 复合索引,避免 SELECT...WHERE session_id=? ORDER BY timestamp 的额外排序
+      CREATE INDEX IF NOT EXISTS idx_chat_messages_session_time ON chat_messages(session_id, timestamp);
 
       CREATE TABLE IF NOT EXISTS chat_sessions (
         id TEXT PRIMARY KEY,
@@ -192,6 +195,8 @@ class DBService {
       );
       CREATE INDEX IF NOT EXISTS idx_agent_executions_agent_id ON agent_executions(agent_id);
       CREATE INDEX IF NOT EXISTS idx_agent_executions_started_at ON agent_executions(started_at);
+      -- OPT-3: 复合索引,避免 WHERE agent_id=? ORDER BY started_at DESC 的额外排序
+      CREATE INDEX IF NOT EXISTS idx_agent_executions_agent_started ON agent_executions(agent_id, started_at DESC);
 
       CREATE TABLE IF NOT EXISTS cron_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -203,6 +208,8 @@ class DBService {
       );
       CREATE INDEX IF NOT EXISTS idx_cron_logs_task_id ON cron_logs(task_id);
       CREATE INDEX IF NOT EXISTS idx_cron_logs_timestamp ON cron_logs(timestamp);
+      -- OPT-3: 复合索引,避免 WHERE task_id=? ORDER BY timestamp DESC 的额外排序
+      CREATE INDEX IF NOT EXISTS idx_cron_logs_task_time ON cron_logs(task_id, timestamp DESC);
 
       CREATE TABLE IF NOT EXISTS classes (
         id TEXT PRIMARY KEY,
@@ -288,6 +295,15 @@ class DBService {
         title = COALESCE(NULLIF(@title, ''), chat_sessions.title),
         updated_at = @updated_at,
         message_count = @message_count
+    `)
+    // 预编译 syncSessionMeta 语句 (增量更新 message_count,避免每次 saveChatMessage 都 prepare)
+    this.stmts.upsertSessionMeta = this.db.prepare(`
+      INSERT INTO chat_sessions (id, title, provider, model, created_at, updated_at, message_count)
+      VALUES (?, ?, NULL, ?, ?, ?, 1)
+      ON CONFLICT(id) DO UPDATE SET
+        model = COALESCE(NULLIF(?, ''), chat_sessions.model),
+        updated_at = ?,
+        message_count = chat_sessions.message_count + 1
     `)
     this.stmts.listChatSessions = this.db.prepare(`
       SELECT * FROM chat_sessions ORDER BY updated_at DESC
@@ -480,24 +496,22 @@ class DBService {
     }
   }
 
-  /** 同步 chat_sessions 元数据（消息计数、更新时间、模型） */
+  /** 同步 chat_sessions 元数据（消息计数、更新时间、模型）
+   *  PERF 优化: 用增量更新 message_count = message_count + 1 替代 COUNT 查询,
+   *  避免每次 saveChatMessage 都执行全表扫描 COUNT */
   private syncSessionMeta(sessionId: string, model?: string, timestamp?: number): void {
-    if (!this._ready || !this.stmts.upsertChatSession || !this.stmts.countChatMessages) return
+    if (!this._ready || !this.stmts.upsertSessionMeta) return
     try {
-      const cntRow = this.stmts.countChatMessages.get(sessionId) as { cnt: number } | undefined
-      const messageCount = cntRow?.cnt ?? 0
-      // 尝试获取已有标题，保留原值
-      const titleRow = this.stmts.getSessionTitle?.get(sessionId) as { title: string } | undefined
-      const title = titleRow?.title ?? `对话 ${new Date().toLocaleString()}`
-      this.stmts.upsertChatSession.run({
-        id: sessionId,
-        title,
-        provider: null,
-        model: model ?? null,
-        created_at: timestamp ?? Date.now(),
-        updated_at: timestamp ?? Date.now(),
-        message_count: messageCount,
-      })
+      // 使用预编译语句,避免每次 saveChatMessage 都重新 prepare SQL
+      this.stmts.upsertSessionMeta.run(
+        sessionId,
+        `对话 ${new Date().toLocaleString()}`,
+        model ?? null,
+        timestamp ?? Date.now(),
+        timestamp ?? Date.now(),
+        model ?? null,
+        timestamp ?? Date.now(),
+      )
     } catch (err) {
       console.error('[DB] syncSessionMeta failed:', err)
     }
@@ -515,18 +529,19 @@ class DBService {
     }
   }
 
-  /** Delete all messages for a chat session AND the session record itself */
+  /** Delete all messages for a chat session AND the session record itself
+   *  修复: 两步删除用事务包裹,保证原子性(要么全删,要么全不删) */
   deleteChatSession(sessionId: string): boolean {
-    if (!this._ready) return false
+    if (!this._ready || !this.db) return false
     try {
-      // 先删消息
-      if (this.stmts.deleteChatSession) {
-        this.stmts.deleteChatSession.run(sessionId)
-      }
-      // 再删会话记录
-      if (this.stmts.deleteChatSessionMeta) {
-        this.stmts.deleteChatSessionMeta.run(sessionId)
-      }
+      const delMsgs = this.stmts.deleteChatSession
+      const delMeta = this.stmts.deleteChatSessionMeta
+      if (!delMsgs || !delMeta) return false
+      // 事务保证原子性: 消息和会话记录要么同时删除,要么同时保留
+      this.db.transaction(() => {
+        delMsgs.run(sessionId)
+        delMeta.run(sessionId)
+      })()
       return true
     } catch (err) {
       this._lastError = err instanceof Error ? err.message : String(err)
@@ -689,29 +704,27 @@ class DBService {
    *  - 每次最多删除 10000 条,防止长时间阻塞 */
   cleanupOldData(maxAgeDays = 90, batchSize = 10000): void {
     if (!this._ready || !this.db) return
+    // M-8 修复: 捕获 db 引用到局部变量,避免事务内可选链返回 undefined 导致 .get()/.run() 抛 TypeError
+    const db = this.db
     const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000
     try {
-      const tx = this.db.transaction(() => {
+      const tx = db.transaction(() => {
         // 先查数量,避免不必要的 DELETE
-        const msgCount = this.db
-          ?.prepare('SELECT COUNT(*) as n FROM chat_messages WHERE timestamp < ?')
+        const msgCount = db
+          .prepare('SELECT COUNT(*) as n FROM chat_messages WHERE timestamp < ?')
           .get(cutoff) as { n: number }
         if (msgCount.n > 0) {
-          this.db
-            ?.prepare(
-              'DELETE FROM chat_messages WHERE rowid IN (SELECT rowid FROM chat_messages WHERE timestamp < ? LIMIT ?)',
-            )
-            .run(cutoff, batchSize)
+          db.prepare(
+            'DELETE FROM chat_messages WHERE rowid IN (SELECT rowid FROM chat_messages WHERE timestamp < ? LIMIT ?)',
+          ).run(cutoff, batchSize)
         }
-        const execCount = this.db
-          ?.prepare('SELECT COUNT(*) as n FROM agent_executions WHERE started_at < ?')
+        const execCount = db
+          .prepare('SELECT COUNT(*) as n FROM agent_executions WHERE started_at < ?')
           .get(cutoff) as { n: number }
         if (execCount.n > 0) {
-          this.db
-            ?.prepare(
-              'DELETE FROM agent_executions WHERE rowid IN (SELECT rowid FROM agent_executions WHERE started_at < ? LIMIT ?)',
-            )
-            .run(cutoff, batchSize)
+          db.prepare(
+            'DELETE FROM agent_executions WHERE rowid IN (SELECT rowid FROM agent_executions WHERE started_at < ? LIMIT ?)',
+          ).run(cutoff, batchSize)
         }
       })
       tx()

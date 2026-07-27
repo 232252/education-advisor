@@ -29,10 +29,14 @@ class CronService {
   private logs: CronLogEntry[] = []
   /** 持久化日志路径（追加写入避免频繁重写） */
   private logFilePath: string
+  /** 用户任务持久化路径（R87 BUG-1 修复：补齐 cron.user.json 持久化） */
+  private userTasksFilePath: string
   /** 日志写入节流 */
   private logWriteTimer: NodeJS.Timeout | null = null
   /** 待写入的日志缓冲 */
   private logBuffer: CronLogEntry[] = []
+  /** 用户任务写入节流（避免 addTask 高频调用时每次都落盘） */
+  private userTasksWriteTimer: NodeJS.Timeout | null = null
   private mainWindow: BrowserWindow | null = null
   /** H-2.3 修复: per-task 执行锁,防止 runNow 与 cron 定时同时触发同一任务造成竞态 */
   private runningTasks: Set<string> = new Set()
@@ -44,6 +48,92 @@ class CronService {
 
   constructor() {
     this.logFilePath = path.join(app.getPath('userData'), 'cron-logs.jsonl')
+    this.userTasksFilePath = path.join(app.getPath('userData'), 'cron.user.json')
+  }
+
+  /** 判断是否为用户任务（非系统任务）。系统任务包括 agent-schedule-* 和 feishu-bitable-sync */
+  private isUserTask(id: string): boolean {
+    return !id.startsWith('agent-schedule-') && id !== 'feishu-bitable-sync'
+  }
+
+  /**
+   * R87 BUG-1 修复：启动时从 cron.user.json 恢复用户任务
+   * 仅恢复用户创建的任务（系统任务由 registerBitableSync / syncAgentSchedules 重建）
+   */
+  async loadUserTasks(): Promise<void> {
+    try {
+      await fsp.access(this.userTasksFilePath, fs.constants.F_OK)
+    } catch {
+      // 文件不存在（首次启动或旧版本），无需恢复
+      return
+    }
+    try {
+      const content = await fsp.readFile(this.userTasksFilePath, 'utf-8')
+      const parsed = JSON.parse(content) as { tasks?: CronTask[] }
+      if (!parsed || !Array.isArray(parsed.tasks)) {
+        log('warn', 'cron', 'cron.user.json 格式错误，跳过恢复')
+        return
+      }
+      let restored = 0
+      for (const task of parsed.tasks) {
+        if (!task || typeof task.id !== 'string' || !this.isUserTask(task.id)) continue
+        // 不直接复用旧 id，避免与当前会话冲突；用 addTask 重新生成 id
+        // 但保留 expression/name/agentId/prompt/enabled/modelTier 等业务字段
+        try {
+          const newId = this.addTask({
+            name: task.name,
+            agentId: task.agentId,
+            expression: task.expression,
+            prompt: task.prompt,
+            enabled: task.enabled ?? true,
+            modelTier: task.modelTier,
+          })
+          // 恢复 lastRunAt/lastStatus（如果存在）
+          if (task.lastRunAt || task.lastStatus) {
+            const t = this.tasks.get(newId)
+            if (t) {
+              if (task.lastRunAt) t.lastRunAt = task.lastRunAt
+              if (task.lastStatus) t.lastStatus = task.lastStatus
+            }
+          }
+          restored++
+        } catch (err) {
+          log('warn', 'cron', `恢复任务 "${task.name}" 失败: ${err}`)
+        }
+      }
+      log('info', 'cron', `cron.user.json 恢复了 ${restored} 个用户任务`)
+    } catch (err) {
+      console.warn('[CronService] Failed to load persisted user tasks:', err)
+    }
+  }
+
+  /**
+   * R87 BUG-1 修复：将用户任务持久化到 cron.user.json
+   * 使用节流避免高频写盘；shutdown 时立即 flush
+   */
+  private persistUserTasksDebounced(): void {
+    if (this.userTasksWriteTimer) return
+    this.userTasksWriteTimer = setTimeout(() => {
+      this.userTasksWriteTimer = null
+      void this.persistUserTasksNow()
+    }, 500)
+  }
+
+  /** 立即落盘（graceful shutdown 调用） */
+  async persistUserTasksNow(): Promise<void> {
+    const userTasks: CronTask[] = []
+    for (const [id, task] of this.tasks) {
+      if (this.isUserTask(id)) userTasks.push(task)
+    }
+    try {
+      const json = JSON.stringify({ tasks: userTasks, savedAt: Date.now() }, null, 2)
+      // 原子写：tmp + rename（与 profile-service 一致策略）
+      const tmpPath = `${this.userTasksFilePath}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
+      await fsp.writeFile(tmpPath, json, 'utf-8')
+      await fsp.rename(tmpPath, this.userTasksFilePath)
+    } catch (err) {
+      console.error('[CronService] Failed to persist user tasks:', err)
+    }
   }
 
   setMainWindow(win: BrowserWindow) {
@@ -81,6 +171,8 @@ class CronService {
     const fullTask: CronTask = { ...task, id }
     this.tasks.set(id, fullTask)
     this.schedule(id, fullTask)
+    // R87 BUG-1 修复：用户任务落盘
+    this.persistUserTasksDebounced()
     return id
   }
 
@@ -93,6 +185,8 @@ class CronService {
     Object.assign(task, patch)
     this.schedule(id, task)
 
+    // R87 BUG-1 修复：用户任务更新后落盘
+    if (this.isUserTask(id)) this.persistUserTasksDebounced()
     return { success: true }
   }
 
@@ -101,6 +195,8 @@ class CronService {
     this.unschedule(id)
     this.tasks.delete(id)
     this.nextRunAt.delete(id)
+    // R87 BUG-1 修复：用户任务删除后落盘
+    if (this.isUserTask(id)) this.persistUserTasksDebounced()
     return { success: true }
   }
 
@@ -117,6 +213,8 @@ class CronService {
       this.unschedule(id)
     }
 
+    // R87 BUG-1 修复：用户任务状态变更后落盘
+    if (this.isUserTask(id)) this.persistUserTasksDebounced()
     return { success: true }
   }
 
@@ -180,6 +278,7 @@ class CronService {
   }
 
   /** T4: 执行一次 bitable 同步(graceful 降级) */
+  // M-3 修复: 添加 30 秒总超时,防止网络 hang 导致 cron 任务卡死
   async executeBitableSync(): Promise<{
     success: boolean
     skipped?: string
@@ -210,7 +309,24 @@ class CronService {
         level: 'info',
         message: 'periodic bitable sync heartbeat',
       }
-      return await syncBitableNow(appId, appSecret, appToken, tableId, fields)
+      // M-3 修复: 30 秒总超时,防止 getTenantToken + addBitableRecord 累计 hang
+      const BITABLE_SYNC_TIMEOUT_MS = 30_000
+      let timeoutHandle: NodeJS.Timeout | undefined
+      try {
+        const result = await Promise.race([
+          syncBitableNow(appId, appSecret, appToken, tableId, fields),
+          new Promise<{ success: false; error: string }>((resolve) => {
+            timeoutHandle = setTimeout(
+              () => resolve({ success: false, error: 'bitable sync timed out (30s)' }),
+              BITABLE_SYNC_TIMEOUT_MS,
+            )
+          }),
+        ])
+        return result
+      } finally {
+        // R131 修复: 成功路径下主动 clearTimeout,避免 timer 持有 resolve 闭包泄漏 (参考 mcp-client-pool.ts:159-173 R5-1 修复)
+        if (timeoutHandle) clearTimeout(timeoutHandle)
+      }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : String(err) }
     }
@@ -321,7 +437,14 @@ class CronService {
   }
 
   private unschedule(id: string) {
-    this.scheduledJobs.get(id)?.stop()
+    const job = this.scheduledJobs.get(id)
+    if (job) {
+      try {
+        // R131 修复: 显式移除 scheduled 事件监听器, 避免频繁更新 cron 表达式时累积监听器
+        job.removeAllListeners('scheduled')
+      } catch {}
+      job.stop()
+    }
     this.scheduledJobs.delete(id)
     this.nextRunAt.delete(id)
   }
@@ -431,7 +554,9 @@ class CronService {
     }, 500)
   }
 
-  /** 立即 flush 日志（graceful shutdown） */
+  /** 立即 flush 日志（graceful shutdown）
+   *  修复: 写入失败时恢复日志到 buffer 前部,避免日志数据丢失
+   *  修复: 文件超过 5MB 时自动轮转,只保留最近 1000 条 */
   async flushLogs(): Promise<void> {
     if (this.logBuffer.length === 0) return
     const toWrite = this.logBuffer
@@ -439,8 +564,27 @@ class CronService {
     try {
       const lines = `${toWrite.map((e) => JSON.stringify(e)).join('\n')}\n`
       await fsp.appendFile(this.logFilePath, lines, 'utf-8')
+      // 日志轮转: 文件超过 5MB 时截断为最近 1000 条
+      try {
+        const stat = await fsp.stat(this.logFilePath)
+        if (stat.size > 5 * 1024 * 1024) {
+          const content = await fsp.readFile(this.logFilePath, 'utf-8')
+          const allLines = content.split('\n').filter((l) => l.trim().length > 0)
+          const recent = allLines.slice(-1000)
+          await fsp.writeFile(this.logFilePath, `${recent.join('\n')}\n`, 'utf-8')
+          log('info', 'cron', `log file rotated: ${allLines.length} -> ${recent.length} entries`)
+        }
+      } catch {
+        // 轮转失败不影响主流程
+      }
     } catch (err) {
       console.error('[CronService] Failed to persist logs:', err)
+      // 写入失败时恢复日志到 buffer 前部,下次 flush 会重试
+      // 限制 buffer 上限防止无限增长(磁盘满等持续失败场景)
+      this.logBuffer.unshift(...toWrite)
+      if (this.logBuffer.length > 500) {
+        this.logBuffer = this.logBuffer.slice(-500)
+      }
     }
   }
 
@@ -450,7 +594,11 @@ class CronService {
       clearTimeout(this.logWriteTimer)
       this.logWriteTimer = null
     }
-    await this.flushLogs()
+    if (this.userTasksWriteTimer) {
+      clearTimeout(this.userTasksWriteTimer)
+      this.userTasksWriteTimer = null
+    }
+    await Promise.all([this.flushLogs(), this.persistUserTasksNow()])
     for (const [, job] of this.scheduledJobs) {
       job.stop()
     }

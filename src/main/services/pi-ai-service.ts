@@ -7,7 +7,6 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import {
   type Api,
   type AssistantMessage,
-  type AssistantMessageEvent,
   type Context,
   completeSimple,
   getEnvApiKey,
@@ -23,8 +22,10 @@ import {
 import type { ModelInfo, ProviderInfo, StreamEvent, TestConnectionResult } from '../../shared/types'
 import { logChat } from '../utils/logger'
 import { compactAgentMessages, compactChatMessagesSimple } from './compaction-helper'
+import { TtlLruCache } from './eaa-cache'
 import { keystoreService } from './keystore-service'
 import { KEYLESS_PROVIDERS, OLLAMA_OPENAI_BASE_URL, ollamaService } from './ollama-service'
+import { dedupeModels, isRetryableError, mapEvent, selectCheapestModel } from './pi-ai-helpers'
 import { settingsService } from './settings-service'
 
 // OAuth 支持的 provider 列表
@@ -75,8 +76,27 @@ const PROVIDER_NAMES: Record<string, string> = {
 
 class PiAIService {
   private abortController: AbortController | null = null
-  // 缓存在线模型获取失败的 provider，避免重复请求已知不支持 /models 端点的 provider
-  private failedOnlineFetch = new Set<string>()
+  /**
+   * 缓存在线模型获取失败的 provider，避免重复请求已知不支持 /models 端点的 provider
+   * OPT-1 优化: 改为 Map<providerId, expireAt> 带 TTL(5 分钟),
+   * 防止瞬时网络抖动导致 provider 被永久拉黑(需重启 app 才能重试)
+   */
+  private failedOnlineFetch = new Map<string, number>()
+  /** OPT-1: 失败缓存 TTL — 5 分钟后允许重试 */
+  private static readonly FAILED_FETCH_TTL_MS = 5 * 60 * 1000
+  /**
+   * M-5 修复: 正在进行中的在线模型获取 Promise,按 providerId 去重。
+   * 多个并发 fetchProviderModels 调用同一 provider 时复用同一个 in-flight Promise,
+   * 避免竞态:多个调用同时跳过 failedOnlineFetch 检查并重复发起 fetch。
+   */
+  private fetchModelsInFlight = new Map<string, Promise<ModelInfo[]>>()
+  /**
+   * R136 优化: listModels 结果缓存 (TTL 30s, 容量 32 providers)
+   * Models 页展开/刷新、Chat/Agent 运行时的模型解析都调用 listModels,
+   * 缓存避免反复重建 (静态 + 自定义 + 在线) 合并列表。
+   * API Key / 自定义模型变更时主动失效。
+   */
+  private modelsCache = new TtlLruCache<ModelInfo[]>({ ttlMs: 30_000, maxEntries: 32 })
 
   // ===========================================================
   // Provider 管理
@@ -170,7 +190,114 @@ class PiAIService {
 
   /** 列出指定 Provider 的所有模型（综合静态 + 自定义 + 在线获取） */
   async listModels(providerId: string): Promise<ModelInfo[]> {
-    return this.listAllKnownModels(providerId)
+    // R136 优化: TTL 缓存,避免每次都重建合并列表
+    const cached = this.modelsCache.get(providerId)
+    if (cached) return cached
+    const result = await this.listAllKnownModels(providerId)
+    this.modelsCache.set(providerId, result)
+    return result
+  }
+
+  /**
+   * M-5 修复: 内部方法 — 实际发起在线模型获取请求。
+   * 使用 in-flight Promise 去重:多个并发调用同一 providerId 时复用同一个 Promise,
+   * 避免竞态(多个调用同时跳过 failedOnlineFetch 检查并重复发起 fetch)。
+   */
+  private async fetchOnlineModels(
+    providerId: string,
+    resolvedBaseUrl: string,
+    resolvedApiKey: string | undefined,
+    models: Model<Api>[],
+    sampleModel: Model<Api>,
+  ): Promise<ModelInfo[]> {
+    // 已知失败的 provider 直接跳过 (OPT-1: 带 TTL,过期后允许重试)
+    const failedExpiry = this.failedOnlineFetch.get(providerId)
+    if (failedExpiry && failedExpiry > Date.now()) {
+      console.log(
+        `[PiAI] Skipping online model fetch for ${providerId} (previously failed, retry in ${Math.ceil((failedExpiry - Date.now()) / 1000)}s)`,
+      )
+      return []
+    }
+    // OPT-1: 过期条目清理
+    if (failedExpiry) {
+      this.failedOnlineFetch.delete(providerId)
+    }
+    // M-5 修复: 如果已有 in-flight Promise,复用它
+    const existing = this.fetchModelsInFlight.get(providerId)
+    if (existing) {
+      console.log(`[PiAI] Reusing in-flight online model fetch for ${providerId}`)
+      return existing
+    }
+    // 创建新的 in-flight Promise
+    const promise = this.doFetchOnlineModels(
+      providerId,
+      resolvedBaseUrl,
+      resolvedApiKey,
+      models,
+      sampleModel,
+    ).finally(() => {
+      this.fetchModelsInFlight.delete(providerId)
+    })
+    this.fetchModelsInFlight.set(providerId, promise)
+    return promise
+  }
+
+  /** M-5 修复: 实际执行 fetch 的内部方法 */
+  private async doFetchOnlineModels(
+    providerId: string,
+    resolvedBaseUrl: string,
+    resolvedApiKey: string | undefined,
+    models: Model<Api>[],
+    sampleModel: Model<Api>,
+  ): Promise<ModelInfo[]> {
+    try {
+      const modelsUrl = `${resolvedBaseUrl.replace(/\/+$/, '')}/models`
+      const response = await fetch(modelsUrl, {
+        headers: { Authorization: `Bearer ${resolvedApiKey}` },
+        signal: AbortSignal.timeout(10000),
+      })
+      if (response.ok) {
+        const data = (await response.json()) as {
+          data?: Array<{ id: string; object?: string }>
+        }
+        if (data?.data && Array.isArray(data.data)) {
+          const onlineModels = data.data.map((m) => {
+            // H-8 修复: 不再硬编码 contextWindow: 32768 / maxOutputTokens: 4096
+            // 优先从 provider 的静态模型中查找同 id 模型获取真实参数,
+            // 找不到才用保守默认值
+            const staticMatch = models.find((sm) => sm.id === m.id)
+            return {
+              id: m.id,
+              name: m.id,
+              providerId,
+              api: sampleModel.api as string,
+              contextWindow: staticMatch?.contextWindow ?? 32768,
+              maxOutputTokens: staticMatch?.maxTokens ?? 4096,
+              costPerInputToken: staticMatch?.cost.input ?? 0,
+              costPerOutputToken: staticMatch?.cost.output ?? 0,
+              costCacheRead: staticMatch?.cost.cacheRead ?? 0,
+              costCacheWrite: staticMatch?.cost.cacheWrite ?? 0,
+              supportsReasoning: staticMatch?.reasoning ?? false,
+              baseUrl: resolvedBaseUrl,
+            }
+          })
+          console.log(`[PiAI] Fetched ${onlineModels.length} models online from ${providerId}`)
+          return onlineModels
+        }
+      } else {
+        console.warn(
+          `[PiAI] Online model fetch for ${providerId} returned ${response.status}, caching as failed`,
+        )
+        this.failedOnlineFetch.set(providerId, Date.now() + PiAIService.FAILED_FETCH_TTL_MS)
+      }
+    } catch (err) {
+      console.warn(
+        `[PiAI] Failed to fetch models online for ${providerId}:`,
+        err instanceof Error ? err.message : String(err),
+      )
+      this.failedOnlineFetch.set(providerId, Date.now() + PiAIService.FAILED_FETCH_TTL_MS)
+    }
+    return []
   }
 
   /**
@@ -200,59 +327,15 @@ class PiAIService {
       // 本地/keyless provider(如 ollama)不需要 apiKey,只要 baseUrl 就能查模型
       const isKeyless = KEYLESS_PROVIDERS.has(providerId)
       if (resolvedBaseUrl && (resolvedApiKey || isKeyless)) {
-        // 跳过已知 /models 端点不可用的 provider
-        if (this.failedOnlineFetch.has(providerId)) {
-          console.log(`[PiAI] Skipping online model fetch for ${providerId} (previously failed)`)
-        } else {
-          try {
-            const modelsUrl = `${resolvedBaseUrl.replace(/\/+$/, '')}/models`
-            const response = await fetch(modelsUrl, {
-              headers: { Authorization: `Bearer ${resolvedApiKey}` },
-              signal: AbortSignal.timeout(10000),
-            })
-            if (response.ok) {
-              const data = (await response.json()) as {
-                data?: Array<{ id: string; object?: string }>
-              }
-              if (data?.data && Array.isArray(data.data)) {
-                onlineModels = data.data.map((m) => {
-                  // H-8 修复: 不再硬编码 contextWindow: 32768 / maxOutputTokens: 4096
-                  // 优先从 provider 的静态模型中查找同 id 模型获取真实参数,
-                  // 找不到才用保守默认值
-                  const staticMatch = models.find((sm) => sm.id === m.id)
-                  return {
-                    id: m.id,
-                    name: m.id,
-                    providerId,
-                    api: sampleModel.api as string,
-                    contextWindow: staticMatch?.contextWindow ?? 32768,
-                    maxOutputTokens: staticMatch?.maxTokens ?? 4096,
-                    costPerInputToken: staticMatch?.cost.input ?? 0,
-                    costPerOutputToken: staticMatch?.cost.output ?? 0,
-                    costCacheRead: staticMatch?.cost.cacheRead ?? 0,
-                    costCacheWrite: staticMatch?.cost.cacheWrite ?? 0,
-                    supportsReasoning: staticMatch?.reasoning ?? false,
-                    baseUrl: resolvedBaseUrl,
-                  }
-                })
-                console.log(
-                  `[PiAI] Fetched ${onlineModels.length} models online from ${providerId}`,
-                )
-              }
-            } else {
-              console.warn(
-                `[PiAI] Online model fetch for ${providerId} returned ${response.status}, caching as failed`,
-              )
-              this.failedOnlineFetch.add(providerId)
-            }
-          } catch (err) {
-            console.warn(
-              `[PiAI] Failed to fetch models online for ${providerId}:`,
-              err instanceof Error ? err.message : String(err),
-            )
-            this.failedOnlineFetch.add(providerId)
-          }
-        }
+        // M-5 修复: 使用 in-flight Promise 去重并发调用
+        // 多个并发 fetchProviderModels 会复用同一个在线获取 Promise
+        onlineModels = await this.fetchOnlineModels(
+          providerId,
+          resolvedBaseUrl,
+          resolvedApiKey,
+          models,
+          sampleModel,
+        )
       }
     }
 
@@ -295,7 +378,7 @@ class PiAIService {
       isCustom: true,
     }))
 
-    return this.dedupeModels([...staticInfos, ...onlineModels, ...customInfos])
+    return dedupeModels([...staticInfos, ...onlineModels, ...customInfos])
   }
 
   /** 综合获取所有已知模型：静态 + 自定义 + 在线 */
@@ -345,6 +428,8 @@ class PiAIService {
 
     const updated = [...filtered, entry]
     settingsService.setCustomModels(providerId, updated)
+    // R136: 自定义模型变更,失效 listModels 缓存
+    this.modelsCache.delete(providerId)
     console.log(
       `[PiAI] Added custom model "${model.id}" to ${providerId} (total: ${updated.length})`,
     )
@@ -373,6 +458,8 @@ class PiAIService {
     const filtered = existing.filter((m) => m.id !== modelId)
     if (filtered.length === existing.length) return false
     settingsService.setCustomModels(providerId, filtered)
+    // R136: 自定义模型变更,失效 listModels 缓存
+    this.modelsCache.delete(providerId)
     console.log(`[PiAI] Removed custom model "${modelId}" from ${providerId}`)
     return true
   }
@@ -411,19 +498,13 @@ class PiAIService {
       baseUrl: updates.baseUrl ?? current.baseUrl,
     }
     settingsService.setCustomModels(providerId, updated)
+    // R136: 自定义模型变更,失效 listModels 缓存
+    this.modelsCache.delete(providerId)
     console.log(`[PiAI] Updated custom model "${modelId}" in ${providerId}:`, Object.keys(updates))
     return true
   }
 
-  /** 按 id 去重模型列表（保留第一个） */
-  private dedupeModels(models: ModelInfo[]): ModelInfo[] {
-    const seen = new Set<string>()
-    return models.filter((m) => {
-      if (seen.has(m.id)) return false
-      seen.add(m.id)
-      return true
-    })
-  }
+  /** 按 id 去重模型列表 — 已委托到 ./pi-ai-helpers.ts dedupeModels */
 
   // ===========================================================
   // 连接测试
@@ -448,7 +529,7 @@ class PiAIService {
     }
 
     // 选择最便宜的模型做测试
-    const testModel = this.selectCheapestModel(models)
+    const testModel = selectCheapestModel(models)
 
     try {
       const context: Context = {
@@ -501,6 +582,36 @@ class PiAIService {
     thinking?: ModelThinkingLevel
     maxTokens?: number
   }): AsyncGenerator<StreamEvent> {
+    // ✅ [Settings wiring] 读取 models.retry.* 配置 (R132 修复: 前置读取,
+    // 使所有 error 路径(包括 model-not-found / no-api-key / empty-messages)
+    // 都能附带 retry 元信息,保证渲染端 UI 一致性)
+    // 默认值:enabled=true / maxRetries=3 / baseDelayMs=1000 / providerTimeoutMs=60000
+    let retryEnabled = true
+    let maxRetries = 3
+    let baseDelayMs = 1000
+    let providerTimeoutMs = 60000
+    try {
+      const r = settingsService.getSettings().models?.retry
+      if (r) {
+        if (typeof r.enabled === 'boolean') retryEnabled = r.enabled
+        if (typeof r.maxRetries === 'number' && r.maxRetries >= 0) maxRetries = r.maxRetries
+        if (typeof r.baseDelayMs === 'number' && r.baseDelayMs > 0) baseDelayMs = r.baseDelayMs
+        if (typeof r.providerTimeoutMs === 'number' && r.providerTimeoutMs > 0) {
+          providerTimeoutMs = r.providerTimeoutMs
+        }
+      }
+    } catch (err) {
+      console.warn('[PiAI] Failed to read models.retry.* from settings:', err)
+    }
+    /** 构造 retry 元信息对象,附在 error 事件上供渲染端决定是否显示重试按钮 */
+    const buildRetryInfo = (retryable: boolean) => ({
+      enabled: retryEnabled,
+      maxRetries,
+      baseDelayMs,
+      providerTimeoutMs,
+      shouldRetry: retryable && retryEnabled && maxRetries > 0,
+    })
+
     // 解析模型
     const model = this.resolveModel(params.providerId, params.modelId)
     if (!model) {
@@ -508,6 +619,7 @@ class PiAIService {
         type: 'error',
         message: `Model not found: ${params.providerId}/${params.modelId}`,
         retryable: false,
+        retry: buildRetryInfo(false),
       }
       return
     }
@@ -521,6 +633,7 @@ class PiAIService {
         type: 'error',
         message: `No API key for provider: ${params.providerId}`,
         retryable: false,
+        retry: buildRetryInfo(false),
       }
       return
     }
@@ -550,9 +663,10 @@ class PiAIService {
       (m) => m.role === 'user' || m.role === 'assistant',
     )
 
-    // 边界：params.messages 为空时直接返回
-    if (params.messages.length === 0) {
-      yield { type: 'error', message: 'No messages to send', retryable: false }
+    // 边界：conversationMessages 为空时直接返回 (不能仅检查 params.messages,
+    // 因为可能只含 system/tool 消息,过滤后为空)
+    if (conversationMessages.length === 0) {
+      yield { type: 'error', message: 'No messages to send', retryable: false, retry: buildRetryInfo(false) }
       return
     }
 
@@ -714,32 +828,14 @@ class PiAIService {
 
     yield { type: 'start', model: model.id, provider: model.provider }
 
-    // ✅ [Settings wiring] 读取 models.retry.* 配置
-    // 默认值:enabled=true / maxRetries=3 / baseDelayMs=1000 / providerTimeoutMs=60000
+    // 注: retry 配置已在函数开头读取 (R132 修复: 前置以使所有 error 路径都附带 retry 元信息)
     // 注: streamSimple 返回的 AsyncIterable 一旦被消费无法复用,
     // 所以"完整自动重试"需重构为函数式 streamSimple(每次重试重建),不在本次范围。
     // 此处仅:(1) 读 settings 让配置项不再是死字段
     //       (2) 错误事件附带 retry 元信息,渲染端可选择手工重试
-    let retryEnabled = true
-    let maxRetries = 3
-    let baseDelayMs = 1000
-    let providerTimeoutMs = 60000
-    try {
-      const r = settingsService.getSettings().models?.retry
-      if (r) {
-        if (typeof r.enabled === 'boolean') retryEnabled = r.enabled
-        if (typeof r.maxRetries === 'number' && r.maxRetries >= 0) maxRetries = r.maxRetries
-        if (typeof r.baseDelayMs === 'number' && r.baseDelayMs > 0) baseDelayMs = r.baseDelayMs
-        if (typeof r.providerTimeoutMs === 'number' && r.providerTimeoutMs > 0) {
-          providerTimeoutMs = r.providerTimeoutMs
-        }
-      }
-      console.log(
-        `[PiAI] retry policy: enabled=${retryEnabled} maxRetries=${maxRetries} baseDelay=${baseDelayMs}ms timeout=${providerTimeoutMs}ms`,
-      )
-    } catch (err) {
-      console.warn('[PiAI] Failed to read models.retry.* from settings:', err)
-    }
+    console.log(
+      `[PiAI] retry policy: enabled=${retryEnabled} maxRetries=${maxRetries} baseDelay=${baseDelayMs}ms timeout=${providerTimeoutMs}ms`,
+    )
 
     try {
       // T2: AI 流事件全量落盘(chat.conversationLogging 关闭时跳过)
@@ -751,7 +847,7 @@ class PiAIService {
       }
 
       for await (const event of stream) {
-        const mapped = this.mapEvent(event)
+        const mapped = mapEvent(event)
         if (mapped) {
           if (conversationLogging) {
             logChat('event', { type: mapped.type, ...(mapped as object) })
@@ -761,28 +857,13 @@ class PiAIService {
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
-      const retryable =
-        message.includes('timeout') ||
-        message.includes('network') ||
-        message.includes('429') ||
-        message.includes('500') ||
-        message.includes('502') ||
-        message.includes('503') ||
-        message.includes('504') ||
-        message.includes('ECONNRESET') ||
-        message.includes('ECONNREFUSED')
+      const retryable = isRetryableError(message)
       // 把 retry 配置附在 error 事件,渲染端可基于此做手动重试
       yield {
         type: 'error',
         message,
         retryable,
-        retry: {
-          enabled: retryEnabled,
-          maxRetries,
-          baseDelayMs,
-          providerTimeoutMs,
-          shouldRetry: retryable && retryEnabled && maxRetries > 0,
-        },
+        retry: buildRetryInfo(retryable),
       }
     } finally {
       // Critical 4.1 修复: 只清理自己创建的 controller,避免覆盖另一个并发 chatStream 的 controller
@@ -806,10 +887,18 @@ class PiAIService {
 
   setApiKey(providerId: string, apiKey: string) {
     keystoreService.setApiKey(providerId, apiKey)
+    // OPT-1: API key 变更后清除失败缓存,允许重新尝试在线模型获取
+    this.failedOnlineFetch.delete(providerId)
+    // R136: API key 变更可能影响在线模型列表,失效缓存
+    this.modelsCache.delete(providerId)
   }
 
   deleteApiKey(providerId: string) {
     keystoreService.deleteApiKey(providerId)
+    // OPT-1: API key 删除后清除失败缓存
+    this.failedOnlineFetch.delete(providerId)
+    // R136: API key 删除后在线模型列表会变化,失效缓存
+    this.modelsCache.delete(providerId)
   }
 
   getApiKey(providerId: string): string | undefined {
@@ -960,95 +1049,15 @@ class PiAIService {
     }
   }
 
-  /** 选择最便宜的模型用于连接测试 */
-  private selectCheapestModel(models: Model<Api>[]): Model<Api> {
-    if (models.length === 0) {
-      throw new Error('selectCheapestModel: empty model list')
-    }
-    const score = (m: Model<Api>): number => {
-      const input = Number.isFinite(m.cost?.input) ? m.cost.input : Number.POSITIVE_INFINITY
-      const output = Number.isFinite(m.cost?.output) ? m.cost.output : Number.POSITIVE_INFINITY
-      return input + output
-    }
-    return models.reduce((cheapest, m) => (score(m) < score(cheapest) ? m : cheapest))
-  }
-
-  /** 将 pi-ai 的 AssistantMessageEvent 映射为前端的 StreamEvent */
-  private mapEvent(event: AssistantMessageEvent): StreamEvent | null {
-    switch (event.type) {
-      case 'start':
-        // start 已在 chatStream 中手动 yield
-        return null
-
-      case 'text_start':
-        return { type: 'text_start' }
-
-      case 'text_delta':
-        return { type: 'text_delta', delta: event.delta }
-
-      case 'text_end':
-        return { type: 'text_end' }
-
-      case 'thinking_start':
-        return { type: 'thinking_start' }
-
-      case 'thinking_delta':
-        return { type: 'thinking_delta', delta: event.delta }
-
-      case 'thinking_end':
-        return { type: 'thinking_end' }
-
-      case 'toolcall_start': {
-        const tc = this.extractPartialToolCall(event.partial, event.contentIndex)
-        return tc ? { type: 'toolcall_start', id: tc.id, name: tc.name } : null
-      }
-
-      case 'toolcall_delta':
-        return { type: 'toolcall_delta', id: '', argsDelta: event.delta }
-
-      case 'toolcall_end':
-        return { type: 'toolcall_end', id: event.toolCall.id }
-
-      case 'done': {
-        const msg = event.message
-        const usage = msg.usage
-        return {
-          type: 'done',
-          usage: {
-            inputTokens: usage?.input ?? 0,
-            outputTokens: usage?.output ?? 0,
-            cacheReadTokens: usage?.cacheRead ?? 0,
-            cacheWriteTokens: usage?.cacheWrite ?? 0,
-          },
-          cost: usage?.cost?.total ?? 0,
-        }
-      }
-
-      case 'error': {
-        const msg = event.error
-        return {
-          type: 'error',
-          message: msg.errorMessage ?? 'Unknown error',
-          retryable: event.reason === 'aborted',
-        }
-      }
-
-      default:
-        return null
-    }
-  }
-
-  /** 从 partial AssistantMessage 中提取 toolCall 信息 */
-  private extractPartialToolCall(
-    partial: AssistantMessage,
-    contentIndex: number,
-  ): { id: string; name: string } | null {
-    const block = partial.content[contentIndex]
-    if (block && block.type === 'toolCall') {
-      return { id: block.id, name: block.name }
-    }
-    return null
-  }
+  // ===========================================================
+  // 以下纯函数已迁移到 ./pi-ai-helpers.ts:
+  //   - dedupeModels: 按 id 去重模型列表
+  //   - selectCheapestModel: 选择成本最低的模型(用于连接测试)
+  //   - mapEvent: pi-ai AssistantMessageEvent → 前端 StreamEvent
+  //   - extractPartialToolCall: 从 partial AssistantMessage 提取 toolCall
+  //   - isRetryableError: 判定错误是否可重试(网络/限流/5xx)
+  // 这些函数无 I/O、无单例状态,可被 Vitest 直接单元测试。
+  // ===========================================================
 
   // ===========================================================
   // 对话压缩 (Feature J)

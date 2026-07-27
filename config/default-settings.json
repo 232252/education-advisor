@@ -5,11 +5,15 @@
     "theme": "dark",
     "language": "zh-CN",
     "autoUpdate": true,
+    "updateUrl": "",
     "telemetry": false,
     "logLevel": "info",
     "autoStart": false,
     "minimizeToTray": true,
-    "closeBehavior": "ask"
+    "closeBehavior": "ask",
+    "timezone": "Asia/Shanghai",
+    "agentTimeoutMins": 5,
+    "maxConcurrentCronTasks": 5
   },
   "models": {
     "defaultProvider": "",
@@ -37,6 +41,9 @@
     "showImages": true,
     "maxTokens": 4096,
     "thinkingLevel": "medium"
+  },
+  "mcp": {
+    "enabled": false
   },
   "privacy": {
     "enabled": false,

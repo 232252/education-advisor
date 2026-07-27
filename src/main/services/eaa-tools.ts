@@ -39,7 +39,7 @@ function extractData<T = unknown>(data: T | null, fallback = '(无数据)'): T |
  * 检查单个参数值是否安全
  * 拒绝：控制字符、shell 元字符、以 -- 开头的值（防止参数注入）
  */
-function sanitizeArg(arg: string): void {
+export function sanitizeArg(arg: string): void {
   // 拒绝控制字符（保留 \t \n \r）
   for (const ch of arg) {
     const code = ch.charCodeAt(0)
@@ -87,7 +87,11 @@ export function tokenizeQuery(query: string): string[] {
       inQuotes = !inQuotes
       continue
     }
-    if (ch === ' ' && !inQuotes) {
+    // 所有 ASCII 空白(空格/tab/newline/cr 等)都视作分隔符,
+    // 避免 "张三\n迟到" 被误解析成单个 token "张三\n迟到" 导致搜索失败。
+    const isWhitespace =
+      ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r' || ch === '\f' || ch === '\v'
+    if (isWhitespace && !inQuotes) {
       if (current.length > 0) {
         tokens.push(current)
         current = ''
@@ -250,6 +254,16 @@ export const rankingTool: AgentTool<typeof rankingParams> = {
   description: '查看操行分排行榜（默认前 10 名）',
   parameters: rankingParams,
   execute: async (_toolCallId, params) => {
+    // R86 软发现-1 修复：校验 n 类型，拒绝 NaN/Infinity/非正数/非数字
+    // 之前 ranking(-1/NaN/1e10/'abc') 全部返回 success（EAA 端容忍任意 n 并回退到 full ranking）
+    if (
+      params.n !== undefined &&
+      (typeof params.n !== 'number' || !Number.isFinite(params.n) || params.n <= 0)
+    ) {
+      throw new Error(
+        `参数 n 必须是正整数,收到: ${JSON.stringify(params.n)}`,
+      )
+    }
     const args = params.n ? [String(params.n)] : []
     const result = await eaaBridge.execute({ command: 'ranking', args })
     if (!result.success) {

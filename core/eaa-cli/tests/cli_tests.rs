@@ -50,7 +50,7 @@ fn test_version() {
     let mut cmd = Command::cargo_bin("eaa").unwrap();
     cmd.arg("--version")
         .assert()
-        .stdout(predicate::str::contains("eaa 3.1.2"));
+        .stdout(predicate::str::contains("eaa 3.2"));
 }
 
 #[test]
@@ -111,10 +111,14 @@ fn test_revert_protection() {
         .args(["add", "李四", "TEST_DEDUCT", "--delta", "-2", "--note", "test"])
         .assert().success();
 
-    // Get event id
-    let events: Vec<serde_json::Value> = serde_json::from_str(
-        &fs::read_to_string(data_dir.join("events/events.json")).unwrap()
-    ).unwrap();
+    // Get event id (CLI 写入 events.jsonl, 旧 events.json 不再更新)
+    let jsonl_path = data_dir.join("events/events.jsonl");
+    let events: Vec<serde_json::Value> = fs::read_to_string(&jsonl_path)
+        .unwrap()
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
     let original_id = events[0]["event_id"].as_str().unwrap();
 
     // Revert it
@@ -124,9 +128,12 @@ fn test_revert_protection() {
         .assert().success();
 
     // Get revert event id
-    let events2: Vec<serde_json::Value> = serde_json::from_str(
-        &fs::read_to_string(data_dir.join("events/events.json")).unwrap()
-    ).unwrap();
+    let events2: Vec<serde_json::Value> = fs::read_to_string(&jsonl_path)
+        .unwrap()
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
     let revert_id = events2[1]["event_id"].as_str().unwrap();
 
     // Try to revert the revert - should fail

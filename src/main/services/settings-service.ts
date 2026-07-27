@@ -29,6 +29,9 @@ const DEFAULT_SETTINGS: UnifiedSettings = {
     closeBehavior: 'ask',
     // H-4 修复: cron 调度时区默认值
     timezone: 'Asia/Shanghai',
+    // R57-3 H2/H3 修复: cron 资源限制配置(可被用户修改)
+    agentTimeoutMins: 5, // agent 执行超时(分钟),-1 表示不限
+    maxConcurrentCronTasks: 5, // cron 任务最大并发数
   },
   models: {
     defaultProvider: '',
@@ -79,6 +82,10 @@ const DEFAULT_SETTINGS: UnifiedSettings = {
     shellPath: '',
     sessionDir: '',
     httpIdleTimeoutMs: 120000,
+  },
+  mcp: {
+    // MCP 集成 feature flag (默认 false,关闭时 McpService 进入 no-op 模式)
+    enabled: false,
   },
   shortcuts: {
     'chat.new': 'Ctrl+N',
@@ -193,6 +200,13 @@ class SettingsService {
     if (keys.some((k) => k.length === 0)) {
       throw new Error(`dotPath contains empty segment: ${dotPath}`)
     }
+    // L-9 修复: 防止原型链污染 — 拒绝 __proto__ / constructor / prototype 作为 key
+    const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype'])
+    for (const k of keys) {
+      if (dangerousKeys.has(k)) {
+        throw new Error(`dotPath contains dangerous key '${k}': ${dotPath}`)
+      }
+    }
 
     // RISK 修复 + CONCERN 修复: 基本类型校验,防止 JSON.stringify 抛错或数据污染
     // 拒绝 undefined / null / function / symbol / bigint
@@ -289,7 +303,8 @@ class SettingsService {
       do {
         this._needsResave = false
         const json = JSON.stringify(this.settings, null, 2)
-        const tmpPath = `${this.settingsPath}.tmp`
+        // 修复: 使用唯一临时文件名避免 Windows 上 writeFile+rename 的竞态条件
+        const tmpPath = `${this.settingsPath}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
         // 确保目录存在
         await fsp.mkdir(path.dirname(this.settingsPath), { recursive: true })
         await fsp.writeFile(tmpPath, json, 'utf-8')

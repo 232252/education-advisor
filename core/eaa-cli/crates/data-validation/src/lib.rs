@@ -182,7 +182,7 @@ impl DataValidator {
         None
     }
     
-    fn validate_with_eaa(&self, input: &str, trace_id: &str) -> Option<ValidationResult> {
+    fn validate_with_eaa(&self, _input: &str, trace_id: &str) -> Option<ValidationResult> {
         log::debug!("eaa-cli validation for trace_id: {}", trace_id);
         None
     }

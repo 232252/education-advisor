@@ -30,9 +30,12 @@ export function useLocalStorage<T>(
           window.localStorage.setItem(key, JSON.stringify(next))
         } catch (err) {
           console.warn(`[useLocalStorage] Failed to write '${key}':`, err)
+          // M-5 修复: setItem 失败时不更新内存状态,保持内存与 localStorage 一致
+          return prev
         }
         // 触发 storage 事件,跨标签页同步
-        window.dispatchEvent(new StorageEvent('storage', { key }))
+        // M-5 修复: 添加 newValue 字段,让监听者能正确解析新值
+        window.dispatchEvent(new StorageEvent('storage', { key, newValue: JSON.stringify(next) }))
         return next
       })
     },

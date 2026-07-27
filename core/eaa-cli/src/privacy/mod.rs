@@ -89,7 +89,6 @@ pub struct PrivacyEngine {
     reverse: HashMap<String, HashMap<String, String>>,
     cipher: Option<Aes256Gcm>,
     mapping_path: PathBuf,
-    nonce: [u8; 12],
 }
 
 impl Default for PrivacyEngine {
@@ -100,13 +99,16 @@ impl Default for PrivacyEngine {
             reverse: HashMap::new(),
             cipher: None,
             mapping_path: PathBuf::new(),
-            nonce: [0u8; 12],
         }
     }
 }
 
 impl PrivacyEngine {
     /// 初始化新引擎
+    ///
+    /// R8 / 3A 修复: 若 mapping.enc 已存在则拒绝(返回 AlreadyInitialized),
+    /// 防止静默覆盖已有的真名↔别名映射导致不可逆数据丢失。
+    /// 调用方需要显式调用 reset 才能清空。
     pub fn init(&mut self, data_dir: &PathBuf, password: &str) -> Result<(), PrivacyError> {
         let key = derive_key(password);
         self.cipher = Some(
@@ -115,7 +117,13 @@ impl PrivacyEngine {
         );
         self.mapping_path = data_dir.join("privacy").join("mapping.enc");
         std::fs::create_dir_all(self.mapping_path.parent().unwrap())?;
-        self.nonce = generate_nonce();
+        // R8 / 3A 防护: 已存在则拒绝,避免静默覆盖真实映射数据
+        if self.mapping_path.exists() {
+            return Err(PrivacyError::AlreadyInitialized(format!(
+                "privacy mapping already exists at {}; use reset() explicitly to wipe",
+                self.mapping_path.display()
+            )));
+        }
         // 清空映射
         self.forward.clear();
         self.reverse.clear();
@@ -174,6 +182,7 @@ impl PrivacyEngine {
     }
 
     /// 检查引擎是否已初始化（映射文件存在）
+    #[allow(dead_code)]
     pub fn is_initialized(data_dir: &PathBuf) -> bool {
         data_dir.join("privacy").join("mapping.enc").exists()
     }
@@ -188,13 +197,18 @@ impl PrivacyEngine {
         };
         let json = serde_json::to_string(&table)
             .map_err(|e| PrivacyError::Serialize(e.to_string()))?;
+        // 每次加密生成新 nonce（AES-GCM 安全要求：同一 key 下 nonce 不可重复）
+        let nonce = generate_nonce();
         let encrypted = cipher
-            .encrypt(Nonce::from_slice(&self.nonce), json.as_bytes())
+            .encrypt(Nonce::from_slice(&nonce), json.as_bytes())
             .map_err(|e| PrivacyError::Crypto(e.to_string()))?;
         let mut out = Vec::with_capacity(12 + encrypted.len());
-        out.extend_from_slice(&self.nonce);
+        out.extend_from_slice(&nonce);
         out.extend_from_slice(&encrypted);
-        std::fs::write(&self.mapping_path, &out)?;
+        // 原子写: tmp + rename，防止崩溃导致 mapping.enc 损坏
+        let tmp_path = self.mapping_path.with_extension("enc.tmp");
+        std::fs::write(&tmp_path, &out)?;
+        std::fs::rename(&tmp_path, &self.mapping_path)?;
         Ok(())
     }
 
@@ -344,28 +358,27 @@ impl PrivacyEngine {
 }
 
 /// 从密码派生256位AES密钥
+/// PBKDF2 密钥派生（100,000 次迭代 + 固定应用盐）
+/// 安全性远优于单次 SHA-256：GPU 暴力破解速度降低 10 万倍
 fn derive_key(password: &str) -> [u8; 32] {
     use sha2::{Digest, Sha256};
+    // 应用级固定盐：防止跨应用彩虹表攻击
+    let app_salt = b"education-advisor-privacy-v1-salt";
+    // 先对密码做一次 SHA-256 确保输入长度一致
     let mut hasher = Sha256::new();
     Digest::update(&mut hasher, password.as_bytes());
-    let result: [u8; 32] = Digest::finalize(hasher).into();
-    result
+    let pw_hash: [u8; 32] = Digest::finalize(hasher).into();
+    // PBKDF2-HMAC-SHA256, 100,000 次迭代
+    let mut key = [0u8; 32];
+    pbkdf2::pbkdf2_hmac::<Sha256>(&pw_hash, app_salt, 100_000, &mut key);
+    key
 }
 
-/// 生成12字节nonce（基于时间戳+进程ID）
+/// 生成12字节随机nonce（使用 CSPRNG）
 fn generate_nonce() -> [u8; 12] {
-    use sha2::{Digest, Sha256};
-    let mut h = Sha256::new();
-    Digest::update(&mut h, chrono::Utc::now().to_rfc3339().as_bytes());
-    Digest::update(&mut h, std::process::id().to_le_bytes());
-    Digest::update(&mut h, &std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos()
-        .to_le_bytes());
-    let hash: [u8; 32] = Digest::finalize(h).into();
+    use rand::RngCore;
     let mut nonce = [0u8; 12];
-    nonce.copy_from_slice(&hash[..12]);
+    rand::rngs::OsRng.fill_bytes(&mut nonce);
     nonce
 }
 
@@ -386,6 +399,10 @@ pub enum PrivacyError {
     NotInitialized,
     #[error("IO错误: {0}")]
     Io(String),
+    /// R8 / 3A: 隐私引擎已初始化(mapping.enc 已存在),init 拒绝静默覆盖
+    /// 调用方需显式 reset() 才能清空已有映射
+    #[error("隐私引擎已初始化: {0}")]
+    AlreadyInitialized(String),
 }
 
 impl From<std::io::Error> for PrivacyError {

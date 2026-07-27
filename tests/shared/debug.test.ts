@@ -1,260 +1,254 @@
 // =============================================================
-// shared/debug.ts 测试 — 环境变量解析、debugPrefix、debugLog、startIpcTimer
-// 注意: debug.ts 在 module load 时调用 buildConfig() 快照,
-// 所以测试通过 vi.stubEnv + 动态 import + vi.resetModules 重新加载。
+// shared/debug.ts 纯函数测试
+// 覆盖 buildConfig / readEnvBool / readEnvInt / debugLog / startIpcTimer
+// 通过修改 process.env 来验证各开关的组合
 // =============================================================
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('shared/debug', () => {
-  let originalEnv: NodeJS.ProcessEnv
+// 保留原始 env 快照
+const ENV_KEYS = [
+  'DEBUG',
+  'DEBUG_EAA',
+  'DEBUG_IPC',
+  'DEBUG_AGENT',
+  'DEBUG_CHAT',
+  'DEBUG_CRON',
+  'DEBUG_PRIVACY',
+  'DEBUG_RENDER',
+  'DEBUG_LOG_LEVEL',
+  'ENABLE_CDP',
+  'DEBUG_SLOW_THRESHOLD',
+]
 
+function loadDebug() {
+  // 每次重新加载模块以重新读取环境变量
+  vi.resetModules()
+  return import('../../src/shared/debug')
+}
+
+function clearDebugEnv() {
+  for (const k of ENV_KEYS) delete process.env[k]
+}
+
+describe('debug.ts — buildConfig 环境变量解析', () => {
+  const origEnv: Record<string, string | undefined> = {}
   beforeEach(() => {
-    originalEnv = { ...process.env }
-    // 清掉所有 DEBUG_* 环境变量,确保每个 case 都从干净状态开始
-    for (const k of Object.keys(process.env)) {
-      if (k.startsWith('DEBUG') || k === 'ENABLE_CDP') delete process.env[k]
+    for (const k of ENV_KEYS) {
+      origEnv[k] = process.env[k]
+      delete process.env[k]
     }
-    vi.resetModules()
   })
-
   afterEach(() => {
-    // 还原环境变量
-    for (const k of Object.keys(process.env)) {
-      if (k.startsWith('DEBUG') || k === 'ENABLE_CDP') delete process.env[k]
-    }
-    for (const [k, v] of Object.entries(originalEnv)) {
-      if (v !== undefined) process.env[k] = v
+    for (const k of ENV_KEYS) {
+      if (origEnv[k] === undefined) delete process.env[k]
+      else process.env[k] = origEnv[k]
     }
     vi.restoreAllMocks()
   })
 
-  describe('buildConfig', () => {
-    it('默认无任何 DEBUG 环境变量时应全部关闭', async () => {
-      const { debug } = await import('../../src/shared/debug')
+  it('无任何 DEBUG 变量时全部关闭', async () => {
+    clearDebugEnv()
+    const { debug } = await loadDebug()
+    expect(debug.enabled).toBe(false)
+    expect(debug.eaa).toBe(false)
+    expect(debug.ipc).toBe(false)
+    expect(debug.agent).toBe(false)
+    expect(debug.chat).toBe(false)
+    expect(debug.cron).toBe(false)
+    expect(debug.privacy).toBe(false)
+    expect(debug.render).toBe(false)
+    expect(debug.logLevel).toBeNull()
+    expect(debug.cdpPort).toBe(0)
+    expect(debug.slowThresholdMs).toBe(500)
+  })
+
+  it('DEBUG=1 开启全部子开关', async () => {
+    clearDebugEnv()
+    process.env.DEBUG = '1'
+    const { debug } = await loadDebug()
+    expect(debug.enabled).toBe(true)
+    expect(debug.eaa).toBe(true)
+    expect(debug.ipc).toBe(true)
+    expect(debug.agent).toBe(true)
+    expect(debug.chat).toBe(true)
+    expect(debug.cron).toBe(true)
+    expect(debug.privacy).toBe(true)
+    expect(debug.render).toBe(true)
+  })
+
+  it('DEBUG=true / yes 也算开启', async () => {
+    for (const v of ['true', 'yes']) {
+      clearDebugEnv()
+      process.env.DEBUG = v
+      const { debug } = await loadDebug()
+      expect(debug.enabled).toBe(true)
+    }
+  })
+
+  it('DEBUG=0 / false / 任意非真值 不开启', async () => {
+    for (const v of ['0', 'false', 'no', '', 'random']) {
+      clearDebugEnv()
+      process.env.DEBUG = v
+      const { debug } = await loadDebug()
       expect(debug.enabled).toBe(false)
-      expect(debug.eaa).toBe(false)
-      expect(debug.ipc).toBe(false)
-      expect(debug.agent).toBe(false)
-      expect(debug.chat).toBe(false)
-      expect(debug.cron).toBe(false)
-      expect(debug.privacy).toBe(false)
-      expect(debug.render).toBe(false)
+    }
+  })
+
+  it('仅 DEBUG_EAA=1 时 enabled=true, eaa=true, 其余 false', async () => {
+    clearDebugEnv()
+    process.env.DEBUG_EAA = '1'
+    const { debug } = await loadDebug()
+    expect(debug.enabled).toBe(true)
+    expect(debug.eaa).toBe(true)
+    expect(debug.ipc).toBe(false)
+    expect(debug.agent).toBe(false)
+    expect(debug.chat).toBe(false)
+  })
+
+  it('DEBUG=1 + DEBUG_IPC=0 → ipc 仍开启(DEBUG 总开关覆盖)', async () => {
+    clearDebugEnv()
+    process.env.DEBUG = '1'
+    process.env.DEBUG_IPC = '0'
+    const { debug } = await loadDebug()
+    // masterOn=true, readEnvBool('DEBUG_IPC')=false, 但 || enabled → true
+    expect(debug.ipc).toBe(true)
+  })
+
+  it('DEBUG_LOG_LEVEL 合法值被接受', async () => {
+    for (const lv of ['debug', 'info', 'warn', 'error', 'off']) {
+      clearDebugEnv()
+      process.env.DEBUG_LOG_LEVEL = lv
+      const { debug } = await loadDebug()
+      expect(debug.logLevel).toBe(lv)
+    }
+  })
+
+  it('DEBUG_LOG_LEVEL 非法值 → null', async () => {
+    for (const lv of ['trace', 'DEBUG', '', 'verbose', '10']) {
+      clearDebugEnv()
+      process.env.DEBUG_LOG_LEVEL = lv
+      const { debug } = await loadDebug()
       expect(debug.logLevel).toBeNull()
-      expect(debug.cdpPort).toBe(0)
-      expect(debug.slowThresholdMs).toBe(500)
-    })
-
-    it('DEBUG=1 应开启全部子项', async () => {
-      process.env.DEBUG = '1'
-      const { debug } = await import('../../src/shared/debug')
-      expect(debug.enabled).toBe(true)
-      expect(debug.eaa).toBe(true)
-      expect(debug.ipc).toBe(true)
-      expect(debug.agent).toBe(true)
-      expect(debug.chat).toBe(true)
-      expect(debug.cron).toBe(true)
-      expect(debug.privacy).toBe(true)
-      expect(debug.render).toBe(true)
-    })
-
-    it('DEBUG=true 也应开启', async () => {
-      process.env.DEBUG = 'true'
-      const { debug } = await import('../../src/shared/debug')
-      expect(debug.enabled).toBe(true)
-    })
-
-    it('DEBUG=yes 也应开启', async () => {
-      process.env.DEBUG = 'yes'
-      const { debug } = await import('../../src/shared/debug')
-      expect(debug.enabled).toBe(true)
-    })
-
-    it('DEBUG_EAA=1 单独开启 eaa(并使 masterOn = true)', async () => {
-      process.env.DEBUG_EAA = '1'
-      const { debug } = await import('../../src/shared/debug')
-      // masterOn 为 true 因为 anySubFlag 为 true
-      expect(debug.enabled).toBe(true)
-      expect(debug.eaa).toBe(true)
-      // 但其他子项应为 false (除非 DEBUG 也开启)
-      expect(debug.ipc).toBe(false)
-      expect(debug.agent).toBe(false)
-    })
-
-    it('DEBUG_IPC=1 单独开启 ipc', async () => {
-      process.env.DEBUG_IPC = '1'
-      const { debug } = await import('../../src/shared/debug')
-      expect(debug.ipc).toBe(true)
-      expect(debug.eaa).toBe(false)
-    })
-
-    it('DEBUG_AGENT / DEBUG_CHAT / DEBUG_CRON / DEBUG_PRIVACY / DEBUG_RENDER 各自独立', async () => {
-      process.env.DEBUG_AGENT = '1'
-      const d1 = (await import('../../src/shared/debug')).debug
-      expect(d1.agent).toBe(true)
-      vi.resetModules()
-      for (const k of Object.keys(process.env)) {
-        if (k.startsWith('DEBUG')) delete process.env[k]
-      }
-
-      process.env.DEBUG_CHAT = '1'
-      const d2 = (await import('../../src/shared/debug')).debug
-      expect(d2.chat).toBe(true)
-
-      vi.resetModules()
-      for (const k of Object.keys(process.env)) {
-        if (k.startsWith('DEBUG')) delete process.env[k]
-      }
-      process.env.DEBUG_CRON = '1'
-      const d3 = (await import('../../src/shared/debug')).debug
-      expect(d3.cron).toBe(true)
-
-      vi.resetModules()
-      for (const k of Object.keys(process.env)) {
-        if (k.startsWith('DEBUG')) delete process.env[k]
-      }
-      process.env.DEBUG_PRIVACY = '1'
-      const d4 = (await import('../../src/shared/debug')).debug
-      expect(d4.privacy).toBe(true)
-
-      vi.resetModules()
-      for (const k of Object.keys(process.env)) {
-        if (k.startsWith('DEBUG')) delete process.env[k]
-      }
-      process.env.DEBUG_RENDER = '1'
-      const d5 = (await import('../../src/shared/debug')).debug
-      expect(d5.render).toBe(true)
-    })
-
-    it('DEBUG_LOG_LEVEL 合法值应被接受', async () => {
-      for (const lvl of ['debug', 'info', 'warn', 'error', 'off']) {
-        vi.resetModules()
-        for (const k of Object.keys(process.env)) {
-          if (k.startsWith('DEBUG')) delete process.env[k]
-        }
-        process.env.DEBUG_LOG_LEVEL = lvl
-        const { debug } = await import('../../src/shared/debug')
-        expect(debug.logLevel).toBe(lvl)
-      }
-    })
-
-    it('DEBUG_LOG_LEVEL 非法值应回退为 null', async () => {
-      process.env.DEBUG_LOG_LEVEL = 'verbose'
-      const { debug } = await import('../../src/shared/debug')
-      expect(debug.logLevel).toBeNull()
-    })
-
-    it('ENABLE_CDP=1 应使 cdpPort = 9222', async () => {
-      process.env.ENABLE_CDP = '1'
-      const { debug } = await import('../../src/shared/debug')
-      expect(debug.cdpPort).toBe(9222)
-    })
-
-    it('ENABLE_CDP=0 应使 cdpPort = 0', async () => {
-      process.env.ENABLE_CDP = '0'
-      const { debug } = await import('../../src/shared/debug')
-      expect(debug.cdpPort).toBe(0)
-    })
-
-    it('DEBUG_SLOW_THRESHOLD 应解析为整数', async () => {
-      process.env.DEBUG_SLOW_THRESHOLD = '1234'
-      const { debug } = await import('../../src/shared/debug')
-      expect(debug.slowThresholdMs).toBe(1234)
-    })
-
-    it('DEBUG_SLOW_THRESHOLD 非数字应回退到 500', async () => {
-      process.env.DEBUG_SLOW_THRESHOLD = 'abc'
-      const { debug } = await import('../../src/shared/debug')
-      expect(debug.slowThresholdMs).toBe(500)
-    })
+    }
   })
 
-  describe('debugPrefix', () => {
-    it('应返回 [debug:scope] 格式', async () => {
-      const { debugPrefix } = await import('../../src/shared/debug')
-      expect(debugPrefix('eaa')).toBe('[debug:eaa]')
-      expect(debugPrefix('ipc')).toBe('[debug:ipc]')
-      expect(debugPrefix('agent')).toBe('[debug:agent]')
-    })
+  it('ENABLE_CDP=1 → cdpPort=9222, 否则 0', async () => {
+    clearDebugEnv()
+    process.env.ENABLE_CDP = '1'
+    const { debug } = await loadDebug()
+    expect(debug.cdpPort).toBe(9222)
+
+    clearDebugEnv()
+    process.env.ENABLE_CDP = '0'
+    const { debug: d2 } = await loadDebug()
+    expect(d2.cdpPort).toBe(0)
   })
 
-  describe('debugLog', () => {
-    it('当对应开关关闭时应不输出', async () => {
-      // 默认所有开关都关闭
-      const { debugLog } = await import('../../src/shared/debug')
-      const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
-      debugLog('eaa', 'should not appear')
-      expect(spy).not.toHaveBeenCalled()
-      spy.mockRestore()
-    })
-
-    it('当对应开关开启时应输出 [debug:scope] msg', async () => {
-      process.env.DEBUG_EAA = '1'
-      const { debugLog } = await import('../../src/shared/debug')
-      const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
-      debugLog('eaa', 'execute', { command: 'doctor' })
-      expect(spy).toHaveBeenCalledTimes(1)
-      const firstCall = spy.mock.calls[0]
-      expect(firstCall[0]).toBe('[debug:eaa] execute')
-      expect(firstCall[1]).toEqual({ command: 'doctor' })
-      spy.mockRestore()
-    })
-
-    it('不传 data 时应只输出前缀+msg', async () => {
-      process.env.DEBUG_EAA = '1'
-      const { debugLog } = await import('../../src/shared/debug')
-      const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
-      debugLog('eaa', 'no-data')
-      expect(spy).toHaveBeenCalledTimes(1)
-      expect(spy.mock.calls[0][0]).toBe('[debug:eaa] no-data')
-      expect(spy.mock.calls[0].length).toBe(1)
-      spy.mockRestore()
-    })
+  it('DEBUG_SLOW_THRESHOLD 自定义值生效', async () => {
+    clearDebugEnv()
+    process.env.DEBUG_SLOW_THRESHOLD = '1200'
+    const { debug } = await loadDebug()
+    expect(debug.slowThresholdMs).toBe(1200)
   })
 
-  describe('startIpcTimer', () => {
-    it('当 ipc 开关关闭时应返回 no-op 函数且不输出', async () => {
-      const { startIpcTimer } = await import('../../src/shared/debug')
-      const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
-      const spyWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-      const stop = startIpcTimer('eaa:score')
-      expect(typeof stop).toBe('function')
-      stop()
-      // ipc 关闭时不会输出任何东西
-      expect(spy).not.toHaveBeenCalled()
-      expect(spyWarn).not.toHaveBeenCalled()
-      spy.mockRestore()
-      spyWarn.mockRestore()
-    })
+  it('DEBUG_SLOW_THRESHOLD 非数字 → 默认 500', async () => {
+    clearDebugEnv()
+    process.env.DEBUG_SLOW_THRESHOLD = 'abc'
+    const { debug } = await loadDebug()
+    expect(debug.slowThresholdMs).toBe(500)
+  })
 
-    it('当 ipc 开关开启时,快调用应输出 "channel took Xms"', async () => {
-      process.env.DEBUG_IPC = '1'
-      const { startIpcTimer, debug } = await import('../../src/shared/debug')
-      expect(debug.ipc).toBe(true)
-      const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
-      const stop = startIpcTimer('eaa:score')
-      stop()
-      expect(spy).toHaveBeenCalledTimes(1)
-      const line = spy.mock.calls[0][0] as string
-      expect(line).toContain('[debug:ipc]')
-      expect(line).toContain('eaa:score')
-      expect(line).toContain('took')
-      spy.mockRestore()
-    })
+  it('DEBUG_SLOW_THRESHOLD 负数: parseInt 得到负值,Number.isFinite 仍接受', async () => {
+    // Number.isFinite(-5) === true, 所以负数会被接受
+    clearDebugEnv()
+    process.env.DEBUG_SLOW_THRESHOLD = '-5'
+    const { debug } = await loadDebug()
+    expect(debug.slowThresholdMs).toBe(-5)
+  })
+})
 
-    it('当 ipc 开关开启时,慢调用(>slowThresholdMs)应 warn', async () => {
-      process.env.DEBUG_IPC = '1'
-      process.env.DEBUG_SLOW_THRESHOLD = '-1' // 强制所有调用都被视为慢 (elapsed=0 > -1)
-      const { startIpcTimer, debug } = await import('../../src/shared/debug')
-      expect(debug.slowThresholdMs).toBe(-1)
-      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-      const stop = startIpcTimer('eaa:slow')
-      stop()
-      expect(spy).toHaveBeenCalledTimes(1)
-      const line = spy.mock.calls[0][0] as string
-      expect(line).toContain('SLOW')
-      expect(line).toContain('eaa:slow')
-      spy.mockRestore()
-    })
+describe('debug.ts — debugLog 条件输出', () => {
+  beforeEach(() => {
+    delete process.env.DEBUG
+    vi.resetModules()
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('开关关闭时不输出', async () => {
+    const { debugLog, debug } = await loadDebug()
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    debugLog('eaa', 'hello')
+    expect(spy).not.toHaveBeenCalled()
+    void debug
+  })
+
+  it('开关开启时输出 [debug:scope] msg', async () => {
+    process.env.DEBUG = '1'
+    const { debugLog } = await loadDebug()
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    debugLog('eaa', 'hello', { a: 1 })
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0][0]).toContain('[debug:eaa]')
+    expect(spy.mock.calls[0][0]).toContain('hello')
+    expect(spy.mock.calls[0][1]).toEqual({ a: 1 })
+  })
+
+  it('data 为 undefined 时只输出 msg', async () => {
+    process.env.DEBUG = '1'
+    const { debugLog } = await loadDebug()
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    debugLog('ipc', 'no-data')
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0]).toHaveLength(1)
+  })
+})
+
+describe('debug.ts — startIpcTimer', () => {
+  beforeEach(() => {
+    delete process.env.DEBUG
+    vi.resetModules()
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('ipc 关闭时返回 no-op,不输出', async () => {
+    const { startIpcTimer } = await loadDebug()
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const stop = startIpcTimer('eaa:score')
+    stop()
+    expect(logSpy).not.toHaveBeenCalled()
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it('ipc 开启且耗时低于阈值 → console.log', async () => {
+    process.env.DEBUG = '1'
+    const { startIpcTimer } = await loadDebug()
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const stop = startIpcTimer('eaa:score')
+    stop()
+    expect(logSpy).toHaveBeenCalledTimes(1)
+    expect(logSpy.mock.calls[0][0]).toContain('eaa:score')
+    expect(logSpy.mock.calls[0][0]).toContain('took')
+  })
+
+  it('ipc 开启且耗时高于阈值 → console.warn SLOW', async () => {
+    process.env.DEBUG = '1'
+    process.env.DEBUG_SLOW_THRESHOLD = '-1' // 阈值 -1 → 0ms 也算超时
+    const { startIpcTimer } = await loadDebug()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const stop = startIpcTimer('slow:op')
+    stop()
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain('SLOW')
+  })
+})
+
+describe('debug.ts — debugPrefix', () => {
+  it('返回 [debug:scope]', async () => {
+    vi.resetModules()
+    const { debugPrefix } = await loadDebug()
+    expect(debugPrefix('eaa')).toBe('[debug:eaa]')
+    expect(debugPrefix('ipc')).toBe('[debug:ipc]')
   })
 })

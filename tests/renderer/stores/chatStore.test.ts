@@ -122,6 +122,8 @@ describe('chatStore', () => {
       useChatStore.getState().handleStreamEvent({ type: 'start', model: 'm', provider: 'p' })
       useChatStore.getState().handleStreamEvent({ type: 'text_delta', delta: 'Hello ' })
       useChatStore.getState().handleStreamEvent({ type: 'text_delta', delta: 'World' })
+      // flush delta 批处理 (50ms 批处理优化)
+      useChatStore.getState().flushDeltas()
       const last = useChatStore.getState().messages[0]
       expect(last.content).toBe('Hello World')
     })
@@ -157,6 +159,8 @@ describe('chatStore', () => {
       useChatStore.getState().handleStreamEvent({ type: 'start', model: 'm', provider: 'p' })
       useChatStore.getState().handleStreamEvent({ type: 'thinking_start' })
       useChatStore.getState().handleStreamEvent({ type: 'thinking_delta', delta: 'thinking...' })
+      // flush delta 批处理 (50ms 批处理优化)
+      useChatStore.getState().flushDeltas()
       const last = useChatStore.getState().messages[0]
       expect(last.thinking).toBe('thinking...')
     })
@@ -263,6 +267,8 @@ describe('chatStore', () => {
         status: 'running',
         output: 'agent output',
       })
+      // flush delta 批处理 (50ms 批处理优化)
+      useChatStore.getState().flushDeltas()
       const s = useChatStore.getState()
       expect(s.isStreaming).toBe(true)
       expect(s.messages).toHaveLength(1)

@@ -71,13 +71,11 @@ describe('tokenizeQuery', () => {
     expect(tokenizeQuery('user123 42')).toEqual(['user123', '42'])
   })
 
-  it('混合空白 \\t\\n 不会产生空 token', () => {
-    // 实现是按 char 判断 ch === ' '，其他空白不视作分隔符
-    // 这里 tab / newline 会原样进入 token
-    const result = tokenizeQuery('\t\n')
-    // 期望：[\t, \n] 还是 [] 取决于实现。源码实现：ch !== '"' 且 ch !== ' ' 时进入 current
-    // 所以 \t 和 \n 都会被加入 current，末尾一次性 push
-    // 但此 case 仅作为不抛错的烟雾测试
-    expect(Array.isArray(result)).toBe(true)
+  it('混合空白 \\t\\n 应被视作分隔符(不产生空 token)', () => {
+    // 修复后: 所有 ASCII 空白都作为分隔符
+    // "a\\tb\\nc" → ["a", "b", "c"]
+    expect(tokenizeQuery('a\tb\nc')).toEqual(['a', 'b', 'c'])
+    // 纯空白 → []
+    expect(tokenizeQuery('\t\n')).toEqual([])
   })
 })

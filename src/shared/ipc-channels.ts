@@ -22,6 +22,7 @@ export const IPC_OLLAMA_START_SERVE = 'ollama:start-serve'
 export const IPC_OLLAMA_STOP_SERVE = 'ollama:stop-serve'
 export const IPC_OLLAMA_LIST_MODELS = 'ollama:list-models'
 export const IPC_OLLAMA_PULL_MODEL = 'ollama:pull-model'
+export const IPC_OLLAMA_CANCEL_PULL = 'ollama:cancel-pull'
 export const IPC_OLLAMA_DELETE_MODEL = 'ollama:delete-model'
 // 主→渲染: 下载进度推送
 export const IPC_OLLAMA_PULL_PROGRESS = 'ollama:pull-progress'
@@ -64,6 +65,8 @@ export const IPC_EAA_DOCTOR = 'eaa:doctor'
 export const IPC_EAA_SUMMARY = 'eaa:summary'
 export const IPC_EAA_DASHBOARD = 'eaa:dashboard'
 export const IPC_EAA_EXPORT_FORMATS = 'eaa:export-formats'
+// 清空 EAA 读缓存（「刷新」按钮调用，确保下次读取重新 spawn 拉取最新数据）
+export const IPC_EAA_INVALIDATE_CACHE = 'eaa:invalidate-cache'
 // ===== 隐私引擎 =====
 export const IPC_PRIVACY_INIT = 'privacy:init'
 export const IPC_PRIVACY_LOAD = 'privacy:load'
@@ -77,6 +80,7 @@ export const IPC_PRIVACY_FILTER = 'privacy:filter'
 export const IPC_PRIVACY_DRYRUN = 'privacy:dryrun'
 export const IPC_PRIVACY_BACKUP = 'privacy:backup'
 export const IPC_PRIVACY_LOCK = 'privacy:lock'
+export const IPC_PRIVACY_UNLOCK = 'privacy:unlock'
 export const IPC_PRIVACY_STATUS = 'privacy:status'
 
 // ===== 定时任务 =====
@@ -94,6 +98,16 @@ export const IPC_SKILL_LIST = 'skill:list'
 export const IPC_SKILL_GET = 'skill:get'
 export const IPC_SKILL_SAVE = 'skill:save'
 export const IPC_SKILL_DELETE = 'skill:delete'
+
+// ===== MCP (Model Context Protocol) =====
+export const IPC_MCP_LIST = 'mcp:list'
+export const IPC_MCP_CONNECT = 'mcp:connect'
+export const IPC_MCP_DISCONNECT = 'mcp:disconnect'
+export const IPC_MCP_LIST_TOOLS = 'mcp:list-tools'
+export const IPC_MCP_TEST = 'mcp:test'
+export const IPC_MCP_ADD = 'mcp:add'
+export const IPC_MCP_UPDATE = 'mcp:update'
+export const IPC_MCP_REMOVE = 'mcp:remove'
 
 // ===== 设置 =====
 export const IPC_SETTINGS_GET = 'settings:get'
@@ -113,6 +127,18 @@ export const IPC_SYS_READ_FILE = 'sys:read-file'
 export const IPC_PROFILE_GET = 'profile:get'
 export const IPC_PROFILE_SET = 'profile:set'
 
+// ===== 学业管理 (Academics) =====
+export const IPC_ACADEMIC_GET_CONFIG = 'academic:get-config'
+export const IPC_ACADEMIC_SET_CONFIG = 'academic:set-config'
+export const IPC_ACADEMIC_LIST_EXAMS = 'academic:list-exams'
+export const IPC_ACADEMIC_CREATE_EXAM = 'academic:create-exam'
+export const IPC_ACADEMIC_DELETE_EXAM = 'academic:delete-exam'
+export const IPC_ACADEMIC_GET_GRADES = 'academic:get-grades'
+export const IPC_ACADEMIC_SET_GRADE = 'academic:set-grade'
+export const IPC_ACADEMIC_BATCH_SET_GRADES = 'academic:batch-set-grades'
+export const IPC_ACADEMIC_GET_CLASS_GRADES = 'academic:get-class-grades'
+export const IPC_ACADEMIC_ANALYZE_PAPER = 'academic:analyze-paper'
+
 // ===== 班级管理（本地：存档/删除） =====
 export const IPC_CLASS_LIST = 'class:list'
 export const IPC_CLASS_CREATE = 'class:create'
@@ -123,6 +149,8 @@ export const IPC_CLASS_DELETE = 'class:delete'
 // 调班：批量分入班级 / 单个移出班级（联动 EAA set-student-meta）
 export const IPC_CLASS_ASSIGN = 'class:assign'
 export const IPC_CLASS_REMOVE = 'class:remove'
+// 调班进度事件（主进程 -> 渲染进程，串行 spawn 较慢时实时推送）
+export const IPC_CLASS_ASSIGN_PROGRESS = 'class:assign-progress'
 
 // ===== 对话持久化 =====
 export const IPC_CHAT_SAVE_MESSAGE = 'chat:save-message'

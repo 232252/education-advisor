@@ -102,6 +102,8 @@ contextBridge.exposeInMainWorld('api', {
     listModels: () => ipcRenderer.invoke(IPC.IPC_OLLAMA_LIST_MODELS),
     // [w] 下载模型(进度通过 onPullProgress 推送)
     pullModel: (modelName: string) => ipcRenderer.invoke(IPC.IPC_OLLAMA_PULL_MODEL, modelName),
+    // [w] 取消正在进行的下载 (M-1 修复)
+    cancelPull: () => ipcRenderer.invoke(IPC.IPC_OLLAMA_CANCEL_PULL),
     // [w] 删除模型
     deleteModel: (modelName: string) => ipcRenderer.invoke(IPC.IPC_OLLAMA_DELETE_MODEL, modelName),
     // [r] 订阅下载进度(返回取消订阅函数)
@@ -213,6 +215,8 @@ contextBridge.exposeInMainWorld('api', {
     dashboard: (outputDir?: string) => ipcRenderer.invoke(IPC.IPC_EAA_DASHBOARD, outputDir),
     // [r] 获取 EAA 支持的导出格式列表(不调用二进制,从静态配置返回)
     exportFormats: () => ipcRenderer.invoke(IPC.IPC_EAA_EXPORT_FORMATS),
+    // [w] 清空 EAA 读缓存(刷新按钮调用,下次读取重新 spawn 拉取最新数据)
+    invalidateCache: () => ipcRenderer.invoke(IPC.IPC_EAA_INVALIDATE_CACHE),
   },
 
   // ----- 隐私引擎 -----
@@ -244,6 +248,8 @@ contextBridge.exposeInMainWorld('api', {
     backup: (destPath: string) => ipcRenderer.invoke(IPC.IPC_PRIVACY_BACKUP, destPath),
     // [w] 锁定(清空主进程内存中的密码,后续隐私操作需重新输入密码)
     lock: () => ipcRenderer.invoke(IPC.IPC_PRIVACY_LOCK),
+    // [w] 解锁(重新输入密码,校验后缓存到主进程内存)
+    unlock: (password: string) => ipcRenderer.invoke(IPC.IPC_PRIVACY_UNLOCK, password),
     // [r] 查询隐私引擎状态(是否已加载密码,不返回密码本身)
     status: () => ipcRenderer.invoke(IPC.IPC_PRIVACY_STATUS),
   },
@@ -296,6 +302,27 @@ contextBridge.exposeInMainWorld('api', {
     reset: () => ipcRenderer.invoke(IPC.IPC_SETTINGS_RESET),
   },
 
+  // ----- MCP (Model Context Protocol) -----
+  mcp: {
+    // [r] 列出所有配置的 MCP server 及连接状态
+    list: () => ipcRenderer.invoke(IPC.IPC_MCP_LIST),
+    // [w] 手动连接指定 MCP server
+    connect: (serverId: string) => ipcRenderer.invoke(IPC.IPC_MCP_CONNECT, serverId),
+    // [w] 断开指定 MCP server
+    disconnect: (serverId: string) => ipcRenderer.invoke(IPC.IPC_MCP_DISCONNECT, serverId),
+    // [r] 列出指定 MCP server 的工具
+    listTools: (serverId: string) => ipcRenderer.invoke(IPC.IPC_MCP_LIST_TOOLS, serverId),
+    // [c] 测试 MCP server 连通性
+    test: (serverId: string) => ipcRenderer.invoke(IPC.IPC_MCP_TEST, serverId),
+    // [w] 新增 MCP server (写入 mcp.user.yaml)
+    add: (config: unknown) => ipcRenderer.invoke(IPC.IPC_MCP_ADD, config),
+    // [w] 更新 MCP server (用户级直接改 / 全局级复制覆盖)
+    update: (serverId: string, patch: unknown) =>
+      ipcRenderer.invoke(IPC.IPC_MCP_UPDATE, serverId, patch),
+    // [w] 删除 MCP server (纯用户级 / 覆盖项恢复全局默认)
+    remove: (serverId: string) => ipcRenderer.invoke(IPC.IPC_MCP_REMOVE, serverId),
+  },
+
   // ----- 系统 -----
   sys: {
     // [r] 打开文件选择对话框
@@ -325,6 +352,34 @@ contextBridge.exposeInMainWorld('api', {
     set: (name: string, data: unknown) => ipcRenderer.invoke(IPC.IPC_PROFILE_SET, name, data),
   },
 
+  // ----- 学业管理 (Academics) -----
+  academic: {
+    // [r] 读取学业配置(科目定义/考试类型)
+    getConfig: () => ipcRenderer.invoke(IPC.IPC_ACADEMIC_GET_CONFIG),
+    // [w] 写入学业配置
+    setConfig: (config: unknown) => ipcRenderer.invoke(IPC.IPC_ACADEMIC_SET_CONFIG, config),
+    // [r] 列出考试(可选按学期过滤)
+    listExams: (semester?: string) => ipcRenderer.invoke(IPC.IPC_ACADEMIC_LIST_EXAMS, semester),
+    // [w] 新建考试
+    createExam: (exam: unknown) => ipcRenderer.invoke(IPC.IPC_ACADEMIC_CREATE_EXAM, exam),
+    // [c] 删除考试(级联删除成绩) — UI 层应二次确认
+    deleteExam: (examId: string) => ipcRenderer.invoke(IPC.IPC_ACADEMIC_DELETE_EXAM, examId),
+    // [r] 读取学生全部成绩
+    getGrades: (studentName: string) =>
+      ipcRenderer.invoke(IPC.IPC_ACADEMIC_GET_GRADES, studentName),
+    // [w] 设置单条成绩(upsert)
+    setGrade: (record: unknown) => ipcRenderer.invoke(IPC.IPC_ACADEMIC_SET_GRADE, record),
+    // [w] 批量设置成绩
+    batchSetGrades: (records: unknown) =>
+      ipcRenderer.invoke(IPC.IPC_ACADEMIC_BATCH_SET_GRADES, records),
+    // [r] 读取班级成绩(参数: studentNames[], examId, subjectId?)
+    getClassGrades: (studentNames: string[], examId: string, subjectId?: string) =>
+      ipcRenderer.invoke(IPC.IPC_ACADEMIC_GET_CLASS_GRADES, studentNames, examId, subjectId),
+    // [r] 试卷分析(占位,后续接入 AI/OCR)
+    analyzePaper: (filePath: string, examId?: string, subjectId?: string) =>
+      ipcRenderer.invoke(IPC.IPC_ACADEMIC_ANALYZE_PAPER, filePath, examId, subjectId),
+  },
+
   // ----- 班级管理（本地：存档/删除） -----
   class: {
     // [r] 列出所有班级
@@ -343,6 +398,14 @@ contextBridge.exposeInMainWorld('api', {
     assign: (params: unknown) => ipcRenderer.invoke(IPC.IPC_CLASS_ASSIGN, params),
     // [w] 调班：把学生移出班级（清空 class_id）
     removeStudent: (params: unknown) => ipcRenderer.invoke(IPC.IPC_CLASS_REMOVE, params),
+    // [event] 调班进度（主进程串行 spawn 较慢，实时推送 current/total/assigned/lastName）
+    onAssignProgress: (callback: (data: unknown) => void) => {
+      const handler = (_e: unknown, data: unknown) => callback(data)
+      ipcRenderer.on(IPC.IPC_CLASS_ASSIGN_PROGRESS, handler)
+      return () => {
+        ipcRenderer.removeListener(IPC.IPC_CLASS_ASSIGN_PROGRESS, handler)
+      }
+    },
   },
 
   // ----- 对话持久化 -----

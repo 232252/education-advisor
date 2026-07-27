@@ -11,42 +11,69 @@
   --bg-primary: #ffffff;
   --bg-secondary: #f3f4f6;
   --bg-tertiary: #e5e7eb;
+  --bg-elevated: #ffffff;
   --text-primary: #111827;
   --text-secondary: #4b5563;
   --text-muted: #9ca3af;
   --border-color: #e5e7eb;
+  --border-subtle: #f3f4f6;
+  --accent-color: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-muted: rgba(59, 130, 246, 0.1);
   --scrollbar-thumb: #d1d5db;
   --scrollbar-thumb-hover: #9ca3af;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
   --prose-pre-bg: #f1f5f9;
   --prose-pre-border: #e2e8f0;
 }
 .dark {
-  --bg-primary: #111827;
-  --bg-secondary: #1f2937;
-  --bg-tertiary: #374151;
+  --bg-primary: #0f1117;
+  --bg-secondary: #161920;
+  --bg-tertiary: #1a1e28;
+  --bg-elevated: #1e222c;
   --text-primary: #f3f4f6;
   --text-secondary: #d1d5db;
   --text-muted: #6b7280;
-  --border-color: #374151;
-  --scrollbar-thumb: #4b5563;
-  --scrollbar-thumb-hover: #6b7280;
-  --prose-pre-bg: #1e293b;
-  --prose-pre-border: #334155;
+  --border-color: rgba(255, 255, 255, 0.06);
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --accent-color: #60a5fa;
+  --accent-hover: #3b82f6;
+  --accent-muted: rgba(96, 165, 250, 0.12);
+  --scrollbar-thumb: #2a2f3a;
+  --scrollbar-thumb-hover: #3a4050;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  --prose-pre-bg: #1a1e28;
+  --prose-pre-border: rgba(255, 255, 255, 0.08);
 }
 
 /* 自定义滚动条 */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border-radius: 4px;
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+/* 滚动条仅在悬停时显示 */
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  transition: background 0.2s;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+}
+*:hover::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
 }
 
@@ -54,7 +81,127 @@
 body {
   font-family: "Inter", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   overflow: hidden; /* Electron 窗口不需要 body 滚动 */
+}
+
+/* 数据对齐：等宽数字 */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── 动画关键帧 ─── */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ─── 动画工具类 ─── */
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out both;
+}
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out both;
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s ease-out both;
+}
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out both;
+}
+
+/* ─── Stagger 延迟（列表入场） ─── */
+.stagger-1 { animation-delay: 30ms; }
+.stagger-2 { animation-delay: 60ms; }
+.stagger-3 { animation-delay: 90ms; }
+.stagger-4 { animation-delay: 120ms; }
+.stagger-5 { animation-delay: 150ms; }
+.stagger-6 { animation-delay: 180ms; }
+
+/* ─── 焦点环 ─── */
+/* 组件内直接使用 Tailwind: focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-[#0f1117] */
+
+/* ─── 卡片阴影工具类 ─── */
+@layer utilities {
+  .shadow-card {
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 2px 8px rgba(15, 23, 42, 0.04);
+  }
+  .shadow-card-hover {
+    box-shadow:
+      0 4px 12px rgba(15, 23, 42, 0.08),
+      0 8px 24px rgba(15, 23, 42, 0.06);
+  }
+  .dark .shadow-card {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.2),
+      0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+  .dark .shadow-card-hover {
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.3),
+      0 8px 24px rgba(0, 0, 0, 0.25);
+  }
+}
+
+/* ─── 文本选择 ─── */
+::selection {
+  background: rgba(59, 130, 246, 0.2);
+}
+.dark ::selection {
+  background: rgba(96, 165, 250, 0.25);
+}
+
+/* ─── 全局过渡 ─── */
+*,
+*::before,
+*::after {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Markdown 代码块 */
@@ -68,4 +215,18 @@ body {
 .prose code {
   font-family: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
   font-size: 0.875rem;
+}
+
+/* ─── 页面路由切换入场 ─── */
+.page-enter {
+  animation: slide-up 0.2s ease-out both;
+}
+
+/* ─── 无障碍：减少动画 ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

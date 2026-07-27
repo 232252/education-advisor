@@ -95,6 +95,8 @@ export interface AgentConfig {
   schedule: string[]
   capabilities: string[]
   riskThresholds?: RiskThresholds
+  /** MCP 集成:该 Agent 启用的全局 MCP server ID 列表 */
+  mcpServers?: string[]
 }
 
 export interface AgentListItem extends AgentConfig {
@@ -242,6 +244,8 @@ export interface EAARankItem {
   score: number
   delta: number
   risk: EAARiskLevel
+  /** IPC handler 增强字段: 从 listStudents 关联获取 */
+  class_id?: string | null
 }
 
 /** ranking 命令的完整 JSON 输出 */
@@ -366,8 +370,8 @@ export interface EAASummaryData {
   }
   risk_distribution: Record<EAARiskLevel, number>
   top_reason_codes: Array<{ code: string; count: number }>
-  top_gainers: Array<{ name: string; delta: number }>
-  top_losers: Array<{ name: string; delta: number }>
+  top_gainers: Array<{ name: string; delta: number; class_id?: string | null }>
+  top_losers: Array<{ name: string; delta: number; class_id?: string | null }>
 }
 
 /** add-event 的输入参数（前端 -> 后端） */
@@ -458,7 +462,8 @@ export interface CronTask {
   enabled: boolean
   modelTier: 'high_quality' | 'low_cost'
   lastRunAt?: number
-  lastStatus?: 'success' | 'error' | 'timeout'
+  /** R57-3 H3: 新增 skipped_concurrent_limit; R57-3 H1: 新增 pending(恢复时初始态) */
+  lastStatus?: 'success' | 'error' | 'timeout' | 'skipped_concurrent_limit' | 'pending'
   nextRunAt?: number
 }
 
@@ -467,7 +472,8 @@ export interface CronLogEntry {
   agentId: string
   timestamp: number
   durationMs: number
-  status: 'success' | 'error' | 'timeout'
+  /** R57-3 H3: 新增 skipped_concurrent_limit(并发上限跳过时记录) */
+  status: 'success' | 'error' | 'timeout' | 'skipped_concurrent_limit'
   error?: string
 }
 
@@ -479,6 +485,55 @@ export interface Skill {
   content: string
   source: 'user' | 'project'
   filePath: string
+  /** MCP 集成:技能级临时 MCP server 配置(激活时加载,结束时清理) */
+  mcpServers?: McpServerConfig[]
+}
+
+// ===== MCP (Model Context Protocol) =====
+
+export type McpTransport = 'stdio' | 'sse' | 'websocket'
+
+export interface McpServerConfig {
+  id: string
+  name: string
+  description?: string
+  enabled: boolean
+  transport: McpTransport
+  /** stdio 传输:要执行的命令 */
+  command?: string
+  /** stdio 传输:命令参数 */
+  args?: string[]
+  /** stdio 传输:环境变量 */
+  env?: Record<string, string>
+  /** sse/websocket 传输:服务器 URL */
+  url?: string
+  /** sse/websocket 传输:HTTP 请求头 */
+  headers?: Record<string, string>
+  /** 覆盖来源标记:用户级覆盖了某个全局同 id server 时标记,remove 时据此恢复全局默认 */
+  overrides?: 'global'
+  /** 配置来源(运行时注入,不持久化):global 只读 / user 可改 */
+  source?: 'global' | 'user'
+}
+
+export interface McpTool {
+  serverId: string
+  name: string
+  description: string
+  /** JSON Schema 格式的参数定义 */
+  inputSchema: object
+}
+
+export interface McpServerStatus {
+  id: string
+  name: string
+  connected: boolean
+  toolCount: number
+  lastError?: string
+  transport: McpTransport
+  /** 配置来源:全局只读 / 用户级可改 */
+  source: 'global' | 'user'
+  /** 是否启用(透传给前端显示开关) */
+  enabled: boolean
 }
 
 // ===== 设置 =====
@@ -498,6 +553,10 @@ export interface UnifiedSettings {
     closeBehavior: 'ask' | 'tray' | 'exit'
     /** H-4 修复: cron 调度时区(IANA 标识符,如 Asia/Shanghai) */
     timezone: string
+    /** R57-3 H2: agent 执行超时(分钟),-1 表示不限,默认 5 */
+    agentTimeoutMins: number
+    /** R57-3 H3: cron 任务最大并发数,默认 5 */
+    maxConcurrentCronTasks: number
   }
   models: {
     defaultProvider: string
@@ -562,8 +621,90 @@ export interface UnifiedSettings {
     sessionDir: string
     httpIdleTimeoutMs: number
   }
+  mcp: {
+    /** MCP 集成 feature flag (默认 false,关闭时 McpService 进入 no-op 模式) */
+    enabled: boolean
+  }
   shortcuts: Record<string, string>
 }
+
+// ===== 学业管理 (Academics) =====
+
+/** 考试类型 */
+export type ExamType = 'monthly' | 'midterm' | 'final' | 'quiz' | 'test' | 'mock' | 'other'
+
+/** 科目分类 */
+export type SubjectCategory = 'core' | 'science' | 'arts' | 'pe' | 'art' | 'other'
+
+/** 科目定义 */
+export interface SubjectDef {
+  id: string
+  name: string
+  category: SubjectCategory
+  fullMark: number
+  /** 是否为主科(语数英) */
+  isCore?: boolean
+}
+
+/** 考试定义 */
+export interface ExamDef {
+  id: string
+  name: string
+  type: ExamType
+  date: string
+  semester: string
+  scope?: string
+  /** 包含的科目ID列表 */
+  subjects: string[]
+  createdAt: string
+}
+
+/** 试卷分析结果 (占位结构,后续接入 AI/OCR) */
+export interface PaperAnalysisResult {
+  filePath: string
+  fileName: string
+  fileType: string
+  examId: string | null
+  subjectId: string | null
+  questionScores: number[]
+  analysis: string
+  analyzedAt: string
+}
+
+/** 成绩记录 (单个学生在单场考试的单科成绩) */
+export interface GradeRecord {
+  examId: string
+  subjectId: string
+  studentName: string
+  /** 分数; null 表示缺考 */
+  score: number | null
+  fullMark: number
+  /** 班级排名(可选) */
+  classRank?: number
+  /** 年级排名(可选) */
+  gradeRank?: number
+  /** 班级平均分(可选,用于对比) */
+  classAverage?: number
+  /** 年级平均分(可选) */
+  gradeAverage?: number
+  note?: string
+  /** 试卷分析结果 */
+  paperAnalysis?: {
+    questionScores?: number[]
+    analysis?: string
+    analyzedAt?: string
+  }
+  updatedAt: string
+}
+
+/** 学业配置 */
+export interface AcademicConfig {
+  subjects: SubjectDef[]
+  defaultExamTypes: { value: ExamType; label: string }[]
+}
+
+/** 成绩录入模式 */
+export type GradeEntryMode = 'single-subject' | 'all-subjects'
 
 // ===== 学生扩展档案 =====
 
@@ -643,4 +784,3 @@ export interface OllamaPullProgressInfo {
   /** 总字节 */
   total?: number
 }
-

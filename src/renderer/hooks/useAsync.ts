@@ -23,6 +23,7 @@ export function useAsync<T, Args extends unknown[] = []>(
   })
   const mounted = useRef(true)
   const fnRef = useRef(fn)
+  const reqIdRef = useRef(0)
   fnRef.current = fn
 
   useEffect(() => {
@@ -34,14 +35,20 @@ export function useAsync<T, Args extends unknown[] = []>(
 
   const run = useCallback(
     async (...args: Args) => {
+      const reqId = ++reqIdRef.current
       setState({ data: undefined, error: undefined, loading: true })
       try {
         const data = await fnRef.current(...args)
-        if (mounted.current) setState({ data, error: undefined, loading: false })
+        // 仅当此次调用仍是最新请求时才更新状态，避免竞态覆盖
+        if (mounted.current && reqId === reqIdRef.current) {
+          setState({ data, error: undefined, loading: false })
+        }
         return data
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err))
-        if (mounted.current) setState({ data: undefined, error, loading: false })
+        if (mounted.current && reqId === reqIdRef.current) {
+          setState({ data: undefined, error, loading: false })
+        }
         throw error
       }
     },
@@ -51,7 +58,9 @@ export function useAsync<T, Args extends unknown[] = []>(
 
   // 首次挂载自动执行
   useEffect(() => {
-    void run(...([] as unknown as Args))
+    // .catch(() => {}) 防止 fn 抛错时 unhandled rejection 警告
+    // 错误已通过 setState 传递给 UI，rethrow 仅供 run() 调用方可选捕获
+    void run(...([] as unknown as Args)).catch(() => {})
     // biome-ignore lint/correctness/useExhaustiveDependencies: 用户控制 deps
   }, deps)
 

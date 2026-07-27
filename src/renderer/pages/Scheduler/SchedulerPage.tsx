@@ -3,104 +3,15 @@
 // =============================================================
 
 import type { AgentListItem, CronLogEntry, CronTask } from '@shared/types'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { EmptyState } from '../../components/EmptyState'
+import { PageHeader } from '../../components/PageHeader'
 import { useT } from '../../i18n'
+import { CRON_PRESETS, validateCron } from '../../lib/cron-utils'
 import { getAPI } from '../../lib/ipc-client'
+import { btnStyle, cn, INPUT_BASE, INPUT_INVALID } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
-
-// =============================================================
-// Cron 表达式前端基本格式校验 (不依赖 IPC, 输入时实时反馈)
-//  格式: minute hour day-of-month month day-of-week
-//  支持: * / - , 数字, */n, a-b/n
-// =============================================================
-
-interface CronValidationResult {
-  valid: boolean
-  error?: string
-}
-
-const CRON_FIELD_RANGES = [
-  { name: '分钟', min: 0, max: 59 },
-  { name: '小时', min: 0, max: 23 },
-  { name: '日', min: 1, max: 31 },
-  { name: '月', min: 1, max: 12 },
-  { name: '周', min: 0, max: 7 }, // 0 和 7 都是周日
-] as const
-
-function validateCronField(
-  field: string,
-  range: { name: string; min: number; max: number },
-): string | null {
-  if (field === '*') return null
-  const subFields = field.split(',')
-  for (const sub of subFields) {
-    if (sub === '') return `空字段 "${field}"`
-    // 处理 */n
-    if (sub.startsWith('*/')) {
-      const step = Number.parseInt(sub.slice(2), 10)
-      if (Number.isNaN(step) || step < 1) return `步长 "${sub}" 无效`
-      continue
-    }
-    // 处理 a-b 或 a-b/n
-    const rangeMatch = sub.match(/^(\d+)-(\d+)(?:\/(\d+))?$/)
-    if (rangeMatch) {
-      const [, startStr, endStr, stepStr] = rangeMatch
-      const start = Number.parseInt(startStr, 10)
-      const end = Number.parseInt(endStr, 10)
-      const effectiveMaxStart = range.name === '周' && start === 7 ? 7 : range.max
-      const effectiveMaxEnd = range.name === '周' && end === 7 ? 7 : range.max
-      if (start < range.min || start > effectiveMaxStart)
-        return `${start} 超出范围 ${range.min}-${range.max}`
-      if (end < range.min || end > effectiveMaxEnd)
-        return `${end} 超出范围 ${range.min}-${range.max}`
-      if (stepStr) {
-        const step = Number.parseInt(stepStr, 10)
-        if (step < 1) return `步长 ${step} 无效`
-      }
-      continue
-    }
-    // 处理纯数字
-    const num = Number.parseInt(sub, 10)
-    if (Number.isNaN(num)) return `"${sub}" 不是有效数字`
-    // 周的特殊处理: 0 和 7 都表示周日
-    const effectiveMax = range.name === '周' && num === 7 ? 7 : range.max
-    if (num < range.min || num > effectiveMax) return `${num} 超出范围 ${range.min}-${range.max}`
-  }
-  return null
-}
-
-/** 基本 cron 表达式校验 — 5 段格式 + 每段范围检查
- *  支持宏表达式 (@daily, @hourly 等,与 node-cron 兼容) */
-const CRON_MACROS: Record<string, string> = {
-  '@yearly': '0 0 1 1 *',
-  '@annually': '0 0 1 1 *',
-  '@monthly': '0 0 1 * *',
-  '@weekly': '0 0 * * 0',
-  '@daily': '0 0 * * *',
-  '@midnight': '0 0 * * *',
-  '@hourly': '0 * * * *',
-}
-
-function validateCron(expr: string): CronValidationResult {
-  if (!expr || typeof expr !== 'string') return { valid: false, error: '表达式不能为空' }
-  // 宏表达式支持 (@daily 等与 node-cron 兼容)
-  const macroKey = expr.trim().toLowerCase()
-  if (macroKey.startsWith('@')) {
-    if (macroKey in CRON_MACROS) return { valid: true }
-    return {
-      valid: false,
-      error: `未知宏表达式: ${expr} (支持: @yearly/@monthly/@weekly/@daily/@hourly)`,
-    }
-  }
-  const parts = expr.trim().split(/\s+/)
-  if (parts.length !== 5) return { valid: false, error: '需要 5 段: 分 时 日 月 周' }
-  for (let i = 0; i < 5; i++) {
-    const err = validateCronField(parts[i], CRON_FIELD_RANGES[i])
-    if (err) return { valid: false, error: `${CRON_FIELD_RANGES[i].name}: ${err}` }
-  }
-  return { valid: true }
-}
 
 export function SchedulerPage() {
   const [tasks, setTasks] = useState<CronTask[]>([])
@@ -144,11 +55,11 @@ export function SchedulerPage() {
       }
     } catch (err) {
       console.error('[Scheduler] Failed to load:', err)
-      toast.error('加载定时任务失败')
+      toast.error(t('toast.scheduler.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   // P2-3: 用 loadDataRef 包装 loadData,listener 回调里调用最新版本,避免闭包过期
   const loadDataRef = useRef(loadData)
@@ -161,11 +72,12 @@ export function SchedulerPage() {
   //       editingTaskId 指向的任务在 tasks 中找不到,editingTask=null → isEditing=false,
   //       表单会显示"新建"而非"编辑",提交时调用 onCreate 会创建重复任务。
   // 修复: tasks 变化时检查 editingTaskId 是否仍存在,失效则清除并关闭表单。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: t is stable from useT()
   useEffect(() => {
     if (editingTaskId && !tasks.find((t) => t.id === editingTaskId)) {
       setEditingTaskId(null)
       setShowForm(false)
-      toast.warning('编辑的任务已不存在,表单已关闭')
+      toast.warning(t('toast.scheduler.taskGone'))
     }
   }, [tasks, editingTaskId])
 
@@ -195,7 +107,7 @@ export function SchedulerPage() {
       loadData()
     } catch (err) {
       console.error('[Scheduler] Toggle failed:', err)
-      toast.error('切换任务状态失败')
+      toast.error(t('toast.scheduler.toggleFailed'))
     }
   }
 
@@ -211,7 +123,7 @@ export function SchedulerPage() {
       }, 2000)
     } catch (err) {
       console.error('[Scheduler] Run now failed:', err)
-      toast.error('立即执行任务失败')
+      toast.error(t('toast.scheduler.runNowFailed'))
     }
   }
 
@@ -226,7 +138,7 @@ export function SchedulerPage() {
           loadData()
         } catch (err) {
           console.error('[Scheduler] Remove failed:', err)
-          toast.error('删除任务失败')
+          toast.error(t('toast.scheduler.deleteFailed'))
         } finally {
           setConfirmState((prev) => ({ ...prev, open: false }))
         }
@@ -241,7 +153,7 @@ export function SchedulerPage() {
       loadData()
     } catch (err) {
       console.error('[Scheduler] Create failed:', err)
-      toast.error('创建任务失败')
+      toast.error(t('toast.scheduler.createFailed'))
     }
   }
 
@@ -253,43 +165,43 @@ export function SchedulerPage() {
         setShowForm(false)
         setEditingTaskId(null)
         loadData()
-        toast.success('任务已更新')
+        toast.success(t('toast.scheduler.taskUpdated'))
       } else {
-        toast.error('更新任务失败')
+        toast.error(t('toast.scheduler.updateFailed'))
       }
     } catch (err) {
       console.error('[Scheduler] Edit failed:', err)
-      toast.error('更新任务失败')
+      toast.error(t('toast.scheduler.updateFailed'))
     }
   }
 
   const selectedLogs = selectedTaskId ? logs.filter((l) => l.taskId === selectedTaskId) : logs
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col animate-fade-in">
       {/* 头部 */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        <h1 className="text-xl font-bold">{t('page.scheduler.title')}</h1>
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={loadData}
-            className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1.5 rounded-lg text-sm transition-colors"
-          >
-            刷新
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingTaskId(null)
-              setShowForm(!showForm)
-            }}
-            className="bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg text-sm transition-colors"
-          >
-            {showForm ? '取消' : '+ 新增任务'}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title={t('page.scheduler.title')}
+        subtitle="管理 Agent 定时调度"
+        size="md"
+        actions={
+          <>
+            <button type="button" onClick={loadData} className={btnStyle('secondary')}>
+              刷新
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingTaskId(null)
+                setShowForm(!showForm)
+              }}
+              className={btnStyle(showForm ? 'secondary' : 'primary')}
+            >
+              {showForm ? '取消' : '+ 新增任务'}
+            </button>
+          </>
+        }
+      />
 
       {/* 新建/编辑表单 */}
       {showForm && (
@@ -313,15 +225,13 @@ export function SchedulerPage() {
       ) : (
         <div className="flex-1 flex overflow-hidden">
           {/* 左侧：任务列表 */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2 border-r border-gray-200 dark:border-gray-700">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 border-r border-gray-200 dark:border-white/[0.06]">
             {tasks.length === 0 ? (
-              <div className="text-center text-gray-400 dark:text-gray-500 py-8 text-sm">
-                暂无定时任务
-                <br />
-                <span className="text-xs text-gray-400 dark:text-gray-600">
-                  点击"新增任务"或在 Agent 配置中设置 schedule
-                </span>
-              </div>
+              <EmptyState
+                icon="⏰"
+                title="暂无定时任务"
+                description="点击「新增任务」或在 Agent 配置中设置 schedule"
+              />
             ) : (
               tasks.map((task) => (
                 <TaskCard
@@ -344,16 +254,14 @@ export function SchedulerPage() {
 
           {/* 右侧：执行日志 */}
           <div className="w-96 overflow-y-auto">
-            <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="p-3 border-b border-gray-200 dark:border-white/[0.06]">
               <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">
                 {selectedTaskId ? '任务执行日志' : '全部执行日志'}
               </h3>
             </div>
             <div className="p-3 space-y-1">
               {selectedLogs.length === 0 ? (
-                <div className="text-gray-400 dark:text-gray-600 text-xs text-center py-4">
-                  暂无日志
-                </div>
+                <EmptyState icon="📋" title="暂无日志" className="py-4" />
               ) : (
                 [...selectedLogs]
                   .reverse()
@@ -398,7 +306,7 @@ interface TaskCardProps {
   onEdit: (id: string) => void
 }
 
-function TaskCard({
+const TaskCard = memo(function TaskCard({
   task,
   agents,
   selected,
@@ -437,7 +345,6 @@ function TaskCard({
   }
 
   return (
-    // biome-ignore lint/a11y/useSemanticElements: 用 div 作为可点击卡片, 保持卡片视觉一致性
     <div
       role="button"
       tabIndex={0}
@@ -448,8 +355,8 @@ function TaskCard({
           onSelect()
         }
       }}
-      className={`bg-gray-50 border rounded-xl px-4 py-3 cursor-pointer transition-colors dark:bg-gray-800
-        ${selected ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}`}
+      className={`bg-gray-50 border rounded-xl px-4 py-3 cursor-pointer transition-colors dark:bg-[#1a1e28]
+        ${selected ? 'border-blue-500' : 'border-gray-200 dark:border-white/[0.06] hover:border-gray-300 dark:hover:border-white/[0.1]'}`}
     >
       <div className="flex items-center gap-3">
         {/* 开关 */}
@@ -507,7 +414,7 @@ function TaskCard({
               e.stopPropagation()
               onRunNow(task.id)
             }}
-            className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-2.5 py-1 rounded-lg text-xs transition-colors"
+            className={btnStyle('secondary')}
           >
             执行
           </button>
@@ -518,7 +425,7 @@ function TaskCard({
                 e.stopPropagation()
                 onEdit(task.id)
               }}
-              className="bg-gray-200 hover:bg-blue-600 dark:bg-gray-700 dark:hover:bg-blue-700 px-2.5 py-1 rounded-lg text-xs transition-colors"
+              className={btnStyle('secondary')}
             >
               编辑
             </button>
@@ -530,7 +437,7 @@ function TaskCard({
                 e.stopPropagation()
                 onRemove(task.id)
               }}
-              className="bg-gray-200 hover:bg-red-600 dark:bg-gray-700 dark:hover:bg-red-700 px-2.5 py-1 rounded-lg text-xs transition-colors"
+              className={btnStyle('danger')}
             >
               删除
             </button>
@@ -540,22 +447,22 @@ function TaskCard({
 
       {/* 展开显示 prompt */}
       {selected && (
-        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-white/[0.06]">
           <div className="text-xs text-gray-400 dark:text-gray-500 mb-1">执行指令:</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-900 rounded px-3 py-2 font-mono">
+          <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-[#1a1e28] rounded px-3 py-2 font-mono">
             {task.prompt}
           </div>
         </div>
       )}
     </div>
   )
-}
+})
 
 // =============================================================
 // 执行日志条目
 // =============================================================
 
-function LogEntry({ log }: { log: CronLogEntry }) {
+const LogEntry = memo(function LogEntry({ log }: { log: CronLogEntry }) {
   const time = new Date(log.timestamp)
   const timeStr = `${time.getHours()}:${String(time.getMinutes()).padStart(2, '0')}:${String(time.getSeconds()).padStart(2, '0')}`
 
@@ -588,7 +495,7 @@ function LogEntry({ log }: { log: CronLogEntry }) {
       )}
     </div>
   )
-}
+})
 
 // =============================================================
 // 新建任务表单
@@ -604,6 +511,7 @@ interface NewTaskFormProps {
 }
 
 function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewTaskFormProps) {
+  const { t } = useT()
   const isEditing = editingTask !== null
   const [name, setName] = useState(editingTask?.name ?? '')
   const [agentId, setAgentId] = useState(editingTask?.agentId ?? agents[0]?.id ?? '')
@@ -633,6 +541,7 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
   // LOW 修复: 编辑模式下,若 editingTask.agentId 不在 agents 列表中(已被删除),
   // 自动回退到第一个可用 agent 并提示用户,避免提交时使用无效 agentId。
   // 也覆盖 agents 列表异步加载完成后 agentId 仍指向已删除 agent 的场景。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: t is stable from useT()
   useEffect(() => {
     if (agents.length === 0) return
     if (agentId && agents.find((a) => a.id === agentId)) return
@@ -641,7 +550,7 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
     if (fallback && fallback !== agentId) {
       setAgentId(fallback)
       if (isEditing) {
-        toast.warning('原 Agent 已删除,已回退到第一个可用 Agent')
+        toast.warning(t('toast.scheduler.agentGone'))
       }
     }
   }, [agents, agentId, isEditing])
@@ -650,13 +559,7 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
   const cronValidation = validateCron(expression)
   const isCronValid = cronValidation.valid
 
-  const presets = [
-    { label: '每天早上 9 点', value: '0 9 * * *' },
-    { label: '每天下午 2 点', value: '0 14 * * *' },
-    { label: '每周一 9 点', value: '0 9 * * 1' },
-    { label: '每 30 分钟', value: '*/30 * * * *' },
-    { label: '每小时', value: '0 * * * *' },
-  ]
+  const presets = CRON_PRESETS
 
   const handleSubmit = () => {
     if (!name.trim() || !agentId || !expression.trim() || !prompt.trim()) return
@@ -686,7 +589,7 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
   }
 
   return (
-    <div className="border-b border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/50">
+    <div className="border-b border-gray-200 dark:border-white/[0.06] p-4 bg-gray-50 dark:bg-[#1a1e28]">
       <h3 className="text-sm font-medium mb-3">{isEditing ? '编辑定时任务' : '新建定时任务'}</h3>
 
       <div className="grid grid-cols-2 gap-3">
@@ -703,7 +606,7 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="例: 每日巡检"
-            className="w-full bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+            className={cn('w-full', INPUT_BASE)}
           />
         </div>
 
@@ -719,7 +622,7 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
             id="task-agent"
             value={agentId}
             onChange={(e) => setAgentId(e.target.value)}
-            className="w-full bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+            className={cn('w-full', INPUT_BASE)}
           >
             {agents.map((a) => (
               <option key={a.id} value={a.id}>
@@ -744,8 +647,7 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
             onChange={(e) => setExpression(e.target.value)}
             placeholder="* * * * *"
             aria-invalid={!isCronValid}
-            className={`w-full bg-white border rounded px-3 py-1.5 text-sm font-mono focus:outline-none
-              ${isCronValid ? 'border-gray-300 dark:bg-gray-900 dark:border-gray-600 focus:border-blue-500' : 'border-red-400 dark:border-red-500 dark:bg-gray-900 focus:border-red-500'}`}
+            className={cn('w-full font-mono', isCronValid ? INPUT_BASE : INPUT_INVALID)}
           />
           <div className="flex gap-1 mt-1.5 flex-wrap">
             {presets.map((p) => (
@@ -754,7 +656,7 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
                 key={p.value}
                 onClick={() => setExpression(p.value)}
                 className={`text-[10px] px-2 py-0.5 rounded-lg transition-colors
-                  ${expression === p.value ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+                  ${expression === p.value ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/[0.08]'}`}
               >
                 {p.label}
               </button>
@@ -775,7 +677,6 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
         <div>
           <span className="text-xs text-gray-400 dark:text-gray-500 block mb-1">模型</span>
           <div className="flex gap-2" role="radiogroup" aria-label="模型层级">
-            {/* biome-ignore lint/a11y/useSemanticElements: 用 button 模拟 radio 以保持视觉一致性 */}
             <button
               type="button"
               role="radio"
@@ -786,7 +687,6 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
             >
               低成本
             </button>
-            {/* biome-ignore lint/a11y/useSemanticElements: 用 button 模拟 radio 以保持视觉一致性 */}
             <button
               type="button"
               role="radio"
@@ -815,18 +715,13 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Agent 每次执行时收到的指令..."
           rows={2}
-          className="w-full bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-600 rounded px-3 py-2 text-sm resize-none
-            focus:outline-none focus:border-blue-500"
+          className={cn('w-full resize-none', INPUT_BASE)}
         />
       </div>
 
       {/* 按钮 */}
       <div className="flex justify-end gap-2 mt-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-4 py-1.5 rounded-lg text-sm transition-colors"
-        >
+        <button type="button" onClick={onCancel} className={btnStyle('secondary')}>
           取消
         </button>
         <button
@@ -835,7 +730,7 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
           disabled={
             !name.trim() || !agentId || !expression.trim() || !prompt.trim() || !isCronValid
           }
-          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 px-4 py-1.5 rounded-lg text-sm transition-colors"
+          className={btnStyle('primary')}
         >
           {isEditing ? '保存' : '创建'}
         </button>

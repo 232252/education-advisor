@@ -21,6 +21,7 @@ import {
   createDefaultRouter,
   type FeishuCommandRouter,
 } from './feishu-command-router'
+import { extractText } from './feishu-message-utils'
 
 export type BotStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
@@ -71,6 +72,7 @@ async function fetchRequest<T>(opts: FetchOpts): Promise<T> {
     method,
     headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
     body: opts.data !== undefined ? JSON.stringify(opts.data) : undefined,
+    signal: AbortSignal.timeout(15000), // 15s 超时,防止飞书服务器无响应时请求无限挂起
   })
   const text = await res.text()
   try {
@@ -136,6 +138,8 @@ class FeishuBotService extends EventEmitter {
 
   constructor() {
     super()
+    // L-8 修复: 提高 maxListeners 上限,避免多模块监听 'status' 事件时触发 MaxListenersExceededWarning
+    this.setMaxListeners(20)
     this.router = createDefaultRouter()
   }
 
@@ -347,7 +351,8 @@ class FeishuBotService extends EventEmitter {
     }
 
     // 解析消息文本(content 是 JSON 字符串: {"text":"@_user_1 你好"})
-    const text = this.extractText(msg.content, msg.mentions ?? [])
+    // R6-7 修复:使用 feishu-message-utils.extractText 防止原型链污染
+    const text = extractText(msg.content, msg.mentions ?? [])
     if (!text || text.trim().length === 0) return
 
     this.processingCount++
@@ -374,31 +379,6 @@ class FeishuBotService extends EventEmitter {
     } finally {
       this.processingCount--
     }
-  }
-
-  /**
-   * 从飞书消息 content 中提取纯文本,并去掉 @机器人 的占位符。
-   * @param content   JSON 字符串,如 {"text":"@_user_1 你好"}
-   * @param mentions  @信息数组,key 是占位符(如 @_user_1)
-   */
-  private extractText(content: string, mentions: Array<{ key: string; name: string }>): string {
-    let raw: string
-    try {
-      const parsed = JSON.parse(content) as { text?: string }
-      raw = parsed.text ?? ''
-    } catch {
-      // content 不是合法 JSON,直接用原始字符串
-      raw = content
-    }
-    if (!raw) return ''
-    // 去掉 @机器人 占位符(@_user_1 等),保留其余文本
-    let cleaned = raw
-    for (const m of mentions) {
-      if (m.key) {
-        cleaned = cleaned.split(m.key).join('')
-      }
-    }
-    return cleaned.trim()
   }
 
   /**
