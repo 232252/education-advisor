@@ -31,38 +31,90 @@ function getFeishuSecret(): string {
   return keystoreService.getSecret('feishu-app-secret') ?? ''
 }
 
+/** M-9 修复: 记录上次注册的 status handler,只移除自己的监听器,不影响外部监听器 */
+let prevStatusHandler: ((info: unknown) => void) | null = null
+
 export function registerFeishuHandlers(win: BrowserWindow): void {
   // 机器人状态变化时推送给渲染进程(设置页徽章实时更新)
-  feishuBotService.on('status', (info) => {
+  // M-9 修复: 只移除自己注册的 listener,不影响外部监听器
+  if (prevStatusHandler) {
+    feishuBotService.off('status', prevStatusHandler)
+  }
+  const statusHandler = (info: unknown) => {
     if (!win.isDestroyed()) {
       win.webContents.send(IPC.IPC_FEISHU_BOT_STATUS_UPDATE, info)
     }
-  })
+  }
+  prevStatusHandler = statusHandler
+  feishuBotService.on('status', statusHandler)
 
+  // H-5 修复: 加 try-catch
   ipcMain.handle(IPC.IPC_FEISHU_TEST, async (_e, appId: string) => {
-    const appSecret = getFeishuSecret()
-    log('info', 'feishu', `test connection, appId=${appId.slice(0, 8)}...`)
-    return testConnection(appId, appSecret)
+    if (typeof appId !== 'string' || appId.length === 0) {
+      return { success: false, error: 'appId must be a non-empty string' }
+    }
+    try {
+      const appSecret = getFeishuSecret()
+      log('info', 'feishu', `test connection, appId=${appId.slice(0, 8)}...`)
+      return await testConnection(appId, appSecret)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] feishu:test failed for "${appId}":`, msg)
+      return { success: false, error: msg }
+    }
   })
 
+  // H-5 修复: 加 try-catch
   ipcMain.handle(IPC.IPC_FEISHU_BITABLE, async (_e, appId: string, appToken: string) => {
-    const appSecret = getFeishuSecret()
-    log('info', 'feishu', `list bitable tables, appToken=${appToken}`)
-    return listBitableTables(appId, appSecret, appToken)
+    if (typeof appId !== 'string' || typeof appToken !== 'string') {
+      return { success: false, error: 'appId and appToken must be strings' }
+    }
+    try {
+      const appSecret = getFeishuSecret()
+      log('info', 'feishu', `list bitable tables, appToken=${appToken}`)
+      return await listBitableTables(appId, appSecret, appToken)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] feishu:bitable failed for "${appToken}":`, msg)
+      return { success: false, error: msg }
+    }
   })
 
+  // H-5 修复: 加 try-catch
   ipcMain.handle(
     IPC.IPC_FEISHU_SEND,
     async (_e, appId: string, userOpenId: string, text: string) => {
-      const appSecret = getFeishuSecret()
-      log('info', 'feishu', `send text to ${userOpenId}, len=${text.length}`)
-      return sendTextMessage(appId, appSecret, userOpenId, text)
+      if (typeof appId !== 'string' || typeof userOpenId !== 'string' || typeof text !== 'string') {
+        return { success: false, error: 'appId, userOpenId, and text must be strings' }
+      }
+      if (text.length === 0) {
+        return { success: false, error: 'text must not be empty' }
+      }
+      try {
+        const appSecret = getFeishuSecret()
+        log('info', 'feishu', `send text to ${userOpenId}, len=${text.length}`)
+        return await sendTextMessage(appId, appSecret, userOpenId, text)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error(`[IPC] feishu:send failed for "${userOpenId}":`, msg)
+        return { success: false, error: msg }
+      }
     },
   )
 
-  ipcMain.handle(IPC.IPC_FEISHU_STATUS, async () => feishuInfo())
+  // H-5 修复: 加 try-catch
+  ipcMain.handle(IPC.IPC_FEISHU_STATUS, async () => {
+    try {
+      return feishuInfo()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[IPC] feishu:status failed:', msg)
+      return { success: false, error: msg }
+    }
+  })
 
   // T4: 手动触发一次 bitable 同步(graceful 降级)
+  // H-5 修复: 加 try-catch
   ipcMain.handle(
     IPC.IPC_FEISHU_SYNC_NOW,
     async (
@@ -72,42 +124,71 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
       tableId: string,
       fields: Record<string, unknown>,
     ) => {
-      const appSecret = getFeishuSecret()
-      log('info', 'feishu', `sync-now trigger, appToken=${appToken} tableId=${tableId}`)
-      const result = await syncBitableNow(appId, appSecret, appToken, tableId, fields)
-      if (result.skipped) {
-        log('warn', 'feishu', `bitable sync skipped: ${result.skipped}`)
-      } else if (result.success) {
-        log('info', 'feishu', `bitable sync ok, recordId=${result.recordId}`)
-      } else {
-        log('warn', 'feishu', `bitable sync failed: ${result.error}`)
+      try {
+        const appSecret = getFeishuSecret()
+        log('info', 'feishu', `sync-now trigger, appToken=${appToken} tableId=${tableId}`)
+        const result = await syncBitableNow(appId, appSecret, appToken, tableId, fields)
+        if (result.skipped) {
+          log('warn', 'feishu', `bitable sync skipped: ${result.skipped}`)
+        } else if (result.success) {
+          log('info', 'feishu', `bitable sync ok, recordId=${result.recordId}`)
+        } else {
+          log('warn', 'feishu', `bitable sync failed: ${result.error}`)
+        }
+        return result
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('[IPC] feishu:sync-now failed:', msg)
+        return { success: false, error: msg }
       }
-      return result
     },
   )
 
   // ===== 飿书长连接机器人 =====
   // 启动:从 settings 读 appId + keystore 读 appSecret,启动长连接
+  // H-5 修复: 加 try-catch
   ipcMain.handle(IPC.IPC_FEISHU_BOT_START, async () => {
-    const settings = settingsService.getSettings()
-    const appId = settings.feishu.appId
-    const appSecret = getFeishuSecret()
-    if (!appId || !appSecret) {
-      return { success: false, error: '请先填写 App ID 和 App Secret 并保存' }
+    try {
+      const settings = settingsService.getSettings()
+      const appId = settings.feishu.appId
+      const appSecret = getFeishuSecret()
+      if (!appId || !appSecret) {
+        return { success: false, error: '请先填写 App ID 和 App Secret 并保存' }
+      }
+      await feishuBotService.start(appId, appSecret, win)
+      const status = feishuBotService.getStatus()
+      return { success: status.status === 'connected', status }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[IPC] feishu:bot-start failed:', msg)
+      return { success: false, error: msg }
     }
-    await feishuBotService.start(appId, appSecret, win)
-    const status = feishuBotService.getStatus()
-    return { success: status.status === 'connected', status }
   })
 
   // 停止
+  // H-5 修复: 加 try-catch
   ipcMain.handle(IPC.IPC_FEISHU_BOT_STOP, async () => {
-    await feishuBotService.stop()
-    return { success: true, status: feishuBotService.getStatus() }
+    try {
+      await feishuBotService.stop()
+      return { success: true, status: feishuBotService.getStatus() }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[IPC] feishu:bot-stop failed:', msg)
+      return { success: false, error: msg, status: feishuBotService.getStatus() }
+    }
   })
 
   // 查询状态
-  ipcMain.handle(IPC.IPC_FEISHU_BOT_STATUS, async () => feishuBotService.getStatus())
+  // H-5 修复: 加 try-catch
+  ipcMain.handle(IPC.IPC_FEISHU_BOT_STATUS, async () => {
+    try {
+      return feishuBotService.getStatus()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[IPC] feishu:bot-status failed:', msg)
+      return { status: 'unknown', error: msg }
+    }
+  })
 
   log('info', 'feishu-handlers', 'Feishu IPC handlers registered (appSecret from keystore)')
 }

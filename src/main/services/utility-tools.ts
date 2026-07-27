@@ -57,7 +57,22 @@ export const getCurrentTimeTool: AgentTool<typeof currentTimeParams> = {
     })
     const formatted = formatter.format(now)
 
-    const dayOfWeek = now.getDay()
+    // 修复: 使用指定时区计算星期几,而非 now.getDay()(系统时区)
+    // 否则当 tz 与系统时区不同时,星期几和是否周末可能不正确
+    const weekdayStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      weekday: 'short',
+    }).format(now)
+    const weekdayMap: Record<string, number> = {
+      Sun: 0,
+      Mon: 1,
+      Tue: 2,
+      Wed: 3,
+      Thu: 4,
+      Fri: 5,
+      Sat: 6,
+    }
+    const dayOfWeek = weekdayMap[weekdayStr] ?? now.getDay()
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
 
     // ISO 格式
@@ -101,7 +116,10 @@ function safeEval(expr: string): number {
   // 白名单检查：只允许数字、运算符、括号、空格、小数点、百分号
   // 以及 Math.abs, Math.round, Math.ceil, Math.floor, Math.sqrt, Math.pow, Math.min, Math.max
   const allowedPattern = /^[\d+\-*/().,%\s]+$/
-  const mathFuncPattern = /\b(Math\.(abs|round|ceil|floor|sqrt|pow|min|max|log|log2|log10))\b/
+  // 注意:必须使用 'g' 标志,否则多组 Math.xxx 调用只会替换第一组,
+  // 剩余的 Math.xxx 会被 allowedPattern 判定为含字母字符而错误拒绝。
+  // 例: Math.min(1,2) + Math.max(3,4) 需要 g 标志才能全部替换为 0。
+  const mathFuncPattern = /\b(Math\.(abs|round|ceil|floor|sqrt|pow|min|max|log|log2|log10))\b/g
 
   // 先移除合法的 Math.xxx 调用再检查
   const withoutMath = cleaned.replace(mathFuncPattern, '0')
@@ -113,8 +131,14 @@ function safeEval(expr: string): number {
   // 将百分号转为除法
   cleaned = cleaned.replace(/(\d+\.?\d*)%/g, '($1/100)')
 
-  // 安全检查：不允许连续的运算符（如 ++, --, +-）
-  if (/[+\-*/]{2,}/.test(cleaned.replace(/\s/g, '').replace(/\(-/g, '(0-'))) {
+  // 安全检查：不允许连续的运算符（如 ++, --, **）
+  // 但要允许一元负号: "100 + -5"、"3 * -2"、"5 - -1" 中的 +-/ *-/ --/ /- 是合法的。
+  // 先归一化:把 "运算符 + 一元减" 折叠掉,再检查是否还有连续运算符。
+  const opsForCheck = cleaned
+    .replace(/\s/g, '')
+    .replace(/\(-/g, '(0-')
+    .replace(/[+\-*/]-/g, (m) => m[0])
+  if (/[+\-*/]{2,}/.test(opsForCheck)) {
     throw new Error('表达式包含连续运算符，请检查语法')
   }
 

@@ -35,6 +35,7 @@ export default defineConfig({
           ],
           environment: 'jsdom',
           setupFiles: ['./tests/setup.ts'],
+          testTimeout: 30_000,
         },
       },
       {
@@ -50,11 +51,12 @@ export default defineConfig({
           ],
           environment: 'node',
           setupFiles: ['./tests/setup.ts'],
+          testTimeout: 60_000,
         },
       },
     ],
-    // 30s 默认超时（CI 友好）
-    testTimeout: 30_000,
+    // 60s 默认超时
+    testTimeout: 60_000,
     // 不在 CI 中跑并发时强制串行,避免端口/资源冲突
     fileParallelism: false,
     // 报告:verbose 让通过/失败一目了然

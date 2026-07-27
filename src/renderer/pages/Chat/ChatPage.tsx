@@ -2,11 +2,13 @@
 // 对话页面 — 纯 Agent 模式 (Agent 选择器 + 模型配置常驻显示)
 // =============================================================
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { EmptyState } from '../../components/EmptyState'
 import { ModelSelector } from '../../components/ModelSelector'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
+import { btnStyle, cn } from '../../lib/ui-utils'
 import { useAgentStore } from '../../stores/agentStore'
 import { useChatStore } from '../../stores/chatStore'
 import { toast } from '../../stores/toastStore'
@@ -139,7 +141,7 @@ export function ChatPage() {
     setInput('')
 
     if (!selectedAgentId) {
-      toast.warning('请先选择一个 Agent')
+      toast.warning(t('toast.chat.selectAgentFirst'))
       return
     }
 
@@ -185,7 +187,7 @@ export function ChatPage() {
       await getAPI().agent.runManual(selectedAgentId, finalText, history)
     } catch (err) {
       console.error('[Chat] Agent run failed:', err)
-      toast.error('启动 Agent 失败')
+      toast.error(t('toast.agents.runFailed'))
     }
   }
 
@@ -200,7 +202,7 @@ export function ChatPage() {
   const canSend = !!hasAgent
 
   // 可用的 Agent 列表（仅启用的）
-  const enabledAgents = agents.filter((a) => a.enabled)
+  const enabledAgents = useMemo(() => agents.filter((a) => a.enabled), [agents])
 
   // 停止按钮的处理
   const handleStop = () => {
@@ -220,7 +222,7 @@ export function ChatPage() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full animate-fade-in">
       <h1
         style={{
           position: 'absolute',
@@ -237,13 +239,13 @@ export function ChatPage() {
         {t('page.chat.title')}
       </h1>
       {/* 左侧会话列表 */}
-      <div className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col bg-gray-50/50 dark:bg-gray-800/50">
+      <div className="w-64 flex-shrink-0 border-r border-gray-200/60 dark:border-white/[0.06] flex flex-col bg-gray-50/80 dark:bg-[#1a1e28]">
         {/* 顶部操作区 */}
-        <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-3 border-b border-gray-200/60 dark:border-white/[0.06]">
           <button
             type="button"
             onClick={() => createSession()}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className={cn('w-full', btnStyle('primary'))}
           >
             + {t('page.chat.newConversation')}
           </button>
@@ -252,18 +254,16 @@ export function ChatPage() {
         {/* 会话列表 */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {sessions.length === 0 ? (
-            <div className="text-gray-400 dark:text-gray-500 text-xs text-center py-8">
-              {t('page.chat.empty.title')}
-            </div>
+            <EmptyState icon="💬" title={t('page.chat.empty.title')} className="py-10" />
           ) : (
             sessions.map((session) => (
               <div
                 key={session.id}
-                className={`group relative flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors
+                className={`group relative flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200
                   ${
                     session.id === sessionId
-                      ? 'bg-blue-600/20 border border-blue-500/40'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-700/50 border border-transparent'
+                      ? 'bg-blue-50 dark:bg-blue-500/[0.1] border border-blue-200/60 dark:border-blue-500/20 shadow-sm'
+                      : 'hover:bg-gray-100 dark:hover:bg-white/[0.04] border border-transparent'
                   }`}
               >
                 <button
@@ -290,6 +290,7 @@ export function ChatPage() {
                   }}
                   className="opacity-0 group-hover:opacity-100 ml-2 text-gray-400 hover:text-red-500 transition-all text-xs"
                   title={t('common.delete')}
+                  aria-label="删除对话"
                 >
                   ×
                 </button>
@@ -302,14 +303,14 @@ export function ChatPage() {
       {/* 主对话区域 */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* 顶部工具栏 — 纯 Agent 模式: Agent 选择器 + 模型配置 + 思考级别 常驻显示 */}
-        <div className="flex items-center justify-between px-6 py-2 border-b border-gray-200 dark:border-gray-700/50 flex-wrap gap-2">
+        <div className="flex items-center justify-between px-6 py-2 border-b border-gray-200/60 dark:border-white/[0.06] flex-wrap gap-2">
           <div className="flex items-center gap-3 flex-wrap">
             {/* Agent 选择器 — 常驻显示 */}
             <select
               value={selectedAgentId}
               onChange={(e) => setSelectedAgent(e.target.value)}
-              className="bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-lg px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300
-                         focus:outline-none focus:border-purple-500 min-w-[160px]"
+              className="bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300
+                         focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-transparent min-w-[160px] transition-colors"
               title="选择 Agent"
             >
               {enabledAgents.map((a) => (
@@ -320,7 +321,7 @@ export function ChatPage() {
             </select>
 
             {/* 分隔线 */}
-            <div className="h-4 w-px bg-gray-300 dark:bg-gray-600" />
+            <div className="h-4 w-px bg-gray-200 dark:bg-white/[0.08]" />
 
             {/* 模型配置 — 常驻显示 */}
             <ModelSelector
@@ -333,8 +334,8 @@ export function ChatPage() {
             <select
               value={thinkingLevel}
               onChange={handleThinkingLevelChange}
-              className="bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs text-gray-600 dark:text-gray-300
-                         focus:outline-none focus:border-blue-500"
+              className="bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-gray-600 dark:text-gray-300
+                         focus:outline-none focus:border-blue-500 transition-colors"
               title="思考级别"
             >
               <option value="off">思考 关</option>
@@ -348,7 +349,8 @@ export function ChatPage() {
           <button
             type="button"
             onClick={clearMessages}
-            className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className={btnStyle('ghost')}
+            aria-label="清空当前会话显示"
             title="清空当前会话显示(不删除会话)"
           >
             清空
@@ -364,17 +366,14 @@ export function ChatPage() {
         />
 
         {/* 消息区 */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/30 dark:bg-transparent">
           {messages.length === 0 && (
-            <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
-              <div className="text-center">
-                <div className="text-4xl mb-4">💬</div>
-                <div className="text-lg">开始对话</div>
-                <div className="text-sm mt-2">
-                  {canSend ? '输入消息即可开始' : '请先选择一个 Agent'}
-                </div>
-              </div>
-            </div>
+            <EmptyState
+              icon={<span className="text-3xl">💬</span>}
+              title="开始对话"
+              description={canSend ? '输入消息即可开始' : '请先选择一个 Agent'}
+              className="h-full"
+            />
           )}
 
           {messages.map((msg, i) => (
@@ -392,8 +391,8 @@ export function ChatPage() {
                 className={`max-w-[70%] rounded-2xl px-4 py-3 text-sm leading-relaxed
                   ${
                     msg.role === 'user'
-                      ? 'bg-blue-600 text-white rounded-br-md'
-                      : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100 rounded-bl-md border border-gray-200 dark:border-gray-700'
+                      ? 'bg-blue-600 text-white rounded-br-md shadow-md shadow-blue-500/15'
+                      : 'bg-white text-gray-800 dark:bg-[#1a1e28] dark:text-gray-100 rounded-bl-md border border-gray-200/70 dark:border-white/[0.06] shadow-sm'
                   }`}
               >
                 {/* 工具调用（放顶部） */}
@@ -429,7 +428,7 @@ export function ChatPage() {
                     <summary className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300">
                       思考过程
                     </summary>
-                    <div className="mt-1 text-xs text-gray-400 dark:text-gray-500 whitespace-pre-wrap pl-2 border-l border-gray-300 dark:border-gray-700">
+                    <div className="mt-1 text-xs text-gray-400 dark:text-gray-500 whitespace-pre-wrap pl-2 border-l border-gray-300 dark:border-white/[0.06]">
                       {msg.thinking}
                     </div>
                   </details>
@@ -454,14 +453,14 @@ export function ChatPage() {
         </div>
 
         {/* 输入区 */}
-        <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4">
+        <div className="border-t border-gray-200/60 dark:border-white/[0.06] px-6 py-4 bg-white/80 dark:bg-[#1a1e28]/80 backdrop-blur-sm">
           {!canSend && (
             <div className="text-xs text-amber-500 dark:text-amber-400 mb-2 text-center">
               正在加载 Agent 列表...
             </div>
           )}
           <div className="flex gap-3">
-            <div className="flex-1 flex flex-col gap-2 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-600 rounded-xl px-3 py-2 focus-within:border-blue-500 dark:focus-within:border-blue-400 transition-colors">
+            <div className="flex-1 flex flex-col gap-2 bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08] rounded-xl px-3 py-2 focus-within:border-blue-500 dark:focus-within:border-blue-400/60 transition-all duration-200 shadow-sm">
               {/* 已上传文件列表 */}
               {uploadedFiles.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-1">
@@ -479,6 +478,7 @@ export function ChatPage() {
                         onClick={() => setUploadedFiles((prev) => prev.filter((_, i) => i !== idx))}
                         className="text-blue-500 hover:text-blue-700 dark:hover:text-blue-200 ml-0.5"
                         title="移除"
+                        aria-label="移除文件"
                       >
                         ×
                       </button>
@@ -553,10 +553,11 @@ export function ChatPage() {
                       )
                     } catch (err) {
                       console.error('[Chat] File upload failed:', err)
-                      toast.error('选择文件失败')
+                      toast.error(t('toast.chat.fileSelectFailed'))
                     }
                   }}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0 p-1"
+                  className={cn(btnStyle('secondary'), 'flex-shrink-0')}
+                  aria-label="上传文件"
                   title="上传文件 (文本/代码/图片, 最大 10MB)"
                 >
                   <svg
@@ -591,13 +592,12 @@ export function ChatPage() {
             <button
               type="button"
               onClick={isStreaming ? handleStop : handleSend}
-              className={`px-6 py-3 rounded-lg text-sm font-medium transition-colors self-end
-                ${
-                  isStreaming
-                    ? 'bg-red-600 hover:bg-red-700 text-white'
-                    : 'bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50'
-                }`}
+              className={cn(
+                isStreaming ? btnStyle('danger') : btnStyle('primary'),
+                'self-end px-6 py-3',
+              )}
               disabled={!isStreaming && (!input.trim() || !canSend)}
+              aria-label={isStreaming ? '停止' : '发送'}
             >
               {isStreaming ? '停止' : '发送'}
             </button>
@@ -658,7 +658,7 @@ function ContextStatusBar({
   const barColor = pct < 60 ? 'bg-green-500' : pct < thresholdPct ? 'bg-yellow-500' : 'bg-red-500'
   const fmtK = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K` : `${n}`)
   return (
-    <div className="px-6 py-2 border-b border-gray-200 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/30">
+    <div className="px-6 py-2 border-b border-gray-200/60 dark:border-white/[0.06] bg-gray-50/50 dark:bg-[#1a1e28]/50">
       <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400">
         <div className="flex items-center gap-1.5">
           <span className="font-medium text-gray-700 dark:text-gray-300">上下文</span>
@@ -703,9 +703,9 @@ function ContextStatusBar({
         </div>
       </div>
       {/* 进度条 — 显示 contextWindow 使用率 + 压缩阈值线 */}
-      <div className="relative mt-1.5 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+      <div className="relative mt-1.5 h-1.5 bg-gray-200 dark:bg-white/[0.06] rounded-full overflow-hidden">
         <div
-          className={`absolute inset-y-0 left-0 ${barColor} transition-all duration-300`}
+          className={`absolute inset-y-0 left-0 ${barColor} rounded-full transition-all duration-300`}
           style={{ width: `${pct}%` }}
         />
         {modelContext > 0 && (

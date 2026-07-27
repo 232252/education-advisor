@@ -57,6 +57,7 @@ interface ChatState {
   addMessage: (msg: ChatMessage) => void
   appendStreamDelta: (delta: string) => void
   appendThinkingDelta: (delta: string) => void
+  flushDeltas: () => void
   handleStreamEvent: (event: StreamEvent) => void
   handleAgentEvent: (data: AgentBridgeEvent) => void
   setModel: (provider: string, model: string) => void
@@ -78,8 +79,33 @@ interface ChatState {
 
 /** CONCERN 修复: 切走 agent 期间的 pending output 缓存,切回时合并
  *  避免 R-1 修复引入的"切走期间文本丢失"问题
- *  使用模块级变量而非 Zustand 状态,避免不必要的 re-render */
+ *  使用模块级变量而非 Zustand 状态,避免不必要的 re-render
+ *  L-10 修复: 限制最大条目数,防止 agent 崩溃且不发事件时内存泄漏 */
+const MAX_PENDING_AGENTS = 10
 const pendingAgentOutputs = new Map<string, string[]>()
+
+/** HIGH 1.4 修复: saveMessage 失败时给用户可见反馈(节流,避免连续失败刷屏)
+ *  之前只有 console.warn,用户完全无感知,刷新后才发现消息丢失 */
+let lastSaveWarnTs = 0
+const SAVE_WARN_THROTTLE_MS = 10_000
+function warnSaveFailed(context: string, err: unknown): void {
+  console.warn(`[chatStore] saveMessage failed (${context})`, err)
+  const now = Date.now()
+  if (now - lastSaveWarnTs >= SAVE_WARN_THROTTLE_MS) {
+    lastSaveWarnTs = now
+    toast.warning('消息保存失败,可能影响历史记录,请查看日志', 6000)
+  }
+}
+
+/** 竞态修复: loadSessions 请求令牌，防止快速切换时旧响应覆盖新数据 */
+let loadSessionsReqId = 0
+
+/** PERF 优化: 流式 delta 批处理,减少高频 set() 调用和数组复制
+ *  每 50ms 批量 flush 一次到 Zustand,避免每个 delta 都触发 re-render 和数组复制 */
+let deltaBatch: string[] = []
+let deltaBatchTimer: ReturnType<typeof setTimeout> | null = null
+let deltaBatchThinking: string[] = []
+let deltaBatchThinkingTimer: ReturnType<typeof setTimeout> | null = null
 
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
@@ -112,31 +138,100 @@ export const useChatStore = create<ChatState>((set, get) => ({
           thinking: msg.thinking,
           timestamp: msg.timestamp,
         })
-        .catch((err) => {
-          console.warn('[chatStore] saveMessage failed (user)', err)
-        })
+        .catch((err) => warnSaveFailed('user', err))
     }
   },
 
-  appendStreamDelta: (delta) =>
-    set((s) => {
-      const msgs = [...s.messages]
-      const last = msgs[msgs.length - 1]
-      if (last?.role === 'assistant') {
-        msgs[msgs.length - 1] = { ...last, content: last.content + delta }
-      }
-      return { messages: msgs }
-    }),
+  appendStreamDelta: (delta) => {
+    deltaBatch.push(delta)
+    if (deltaBatchTimer) return
+    deltaBatchTimer = setTimeout(() => {
+      deltaBatchTimer = null
+      const combined = deltaBatch.join('')
+      deltaBatch = []
+      if (!combined) return
+      set((s) => {
+        const msgs = s.messages
+        const last = msgs[msgs.length - 1]
+        if (last?.role === 'assistant') {
+          // 只替换最后一条消息,避免复制整个数组
+          return {
+            messages: Object.assign([...msgs], {
+              [msgs.length - 1]: { ...last, content: last.content + combined },
+            }),
+          }
+        }
+        return {}
+      })
+    }, 50)
+  },
 
-  appendThinkingDelta: (delta) =>
-    set((s) => {
-      const msgs = [...s.messages]
-      const last = msgs[msgs.length - 1]
-      if (last?.role === 'assistant') {
-        msgs[msgs.length - 1] = { ...last, thinking: (last.thinking ?? '') + delta }
+  appendThinkingDelta: (delta) => {
+    deltaBatchThinking.push(delta)
+    if (deltaBatchThinkingTimer) return
+    deltaBatchThinkingTimer = setTimeout(() => {
+      deltaBatchThinkingTimer = null
+      const combined = deltaBatchThinking.join('')
+      deltaBatchThinking = []
+      if (!combined) return
+      set((s) => {
+        const msgs = s.messages
+        const last = msgs[msgs.length - 1]
+        if (last?.role === 'assistant') {
+          return {
+            messages: Object.assign([...msgs], {
+              [msgs.length - 1]: { ...last, thinking: (last.thinking ?? '') + combined },
+            }),
+          }
+        }
+        return {}
+      })
+    }, 50)
+  },
+
+  /** 立即 flush 所有待处理的 delta 批处理 (在 done/error/text_end 时调用) */
+  flushDeltas: () => {
+    if (deltaBatchTimer) {
+      clearTimeout(deltaBatchTimer)
+      deltaBatchTimer = null
+      const combined = deltaBatch.join('')
+      deltaBatch = []
+      if (combined) {
+        set((s) => {
+          const msgs = s.messages
+          const last = msgs[msgs.length - 1]
+          if (last?.role === 'assistant') {
+            return {
+              messages: Object.assign([...msgs], {
+                [msgs.length - 1]: { ...last, content: last.content + combined },
+              }),
+            }
+          }
+          return {}
+        })
       }
-      return { messages: msgs }
-    }),
+    }
+    if (deltaBatchThinkingTimer) {
+      clearTimeout(deltaBatchThinkingTimer)
+      deltaBatchThinkingTimer = null
+      const combined = deltaBatchThinking.join('')
+      deltaBatchThinking = []
+      if (combined) {
+        set((s) => {
+          const msgs = s.messages
+          const last = msgs[msgs.length - 1]
+          if (last?.role === 'assistant') {
+            return {
+              messages: Object.assign([...msgs], {
+                [msgs.length - 1]: { ...last, thinking: (last.thinking ?? '') + combined },
+              }),
+            }
+          }
+          return {}
+        })
+      }
+    }
+  },
 
   handleStreamEvent: (event) => {
     const state = get()
@@ -159,6 +254,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         break
 
       case 'text_end':
+        // flush 待处理的 delta,确保 text_end 时消息内容完整
+        state.flushDeltas()
         {
           const msgs = get().messages
           const lastMsg = msgs[msgs.length - 1]
@@ -173,9 +270,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 provider: get().currentProvider || undefined,
                 model: get().currentModel || undefined,
               })
-              .catch((err) => {
-                console.warn('[chatStore] saveMessage failed (assistant stream)', err)
-              })
+              .catch((err) => warnSaveFailed('assistant stream', err))
           }
         }
         break
@@ -228,6 +323,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         break
 
       case 'done':
+        // flush 待处理的 delta,确保流结束时最终内容已写入
+        state.flushDeltas()
         set({
           isStreaming: false,
           isThinking: false,
@@ -237,6 +334,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         break
 
       case 'error':
+        // flush 待处理的 delta,确保错误前的内容已写入
+        state.flushDeltas()
         set({ isStreaming: false, isThinking: false })
         state.addMessage({
           role: 'assistant',
@@ -342,6 +441,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const buf = pendingAgentOutputs.get(data.agentId) ?? []
         buf.push(data.output)
         pendingAgentOutputs.set(data.agentId, buf)
+        // L-10 修复: 限制最大缓存条目数,删除最旧的条目
+        if (pendingAgentOutputs.size > MAX_PENDING_AGENTS) {
+          const firstKey = pendingAgentOutputs.keys().next().value
+          if (firstKey) pendingAgentOutputs.delete(firstKey)
+        }
       }
       // R-1 修复: 移除 isStreaming 条件 — 即使 isStreaming 已被 setSelectedAgent 重置为 false,
       // 终止事件(idle/error)仍需清理 streamingAgentId,否则后续同 agent 的新流会误判为"复用"
@@ -459,9 +563,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               provider: `agent:${data.agentId}`,
               model: data.agentId,
             })
-            .catch((err) => {
-              console.warn('[chatStore] saveMessage failed (agent)', err)
-            })
+            .catch((err) => warnSaveFailed('agent', err))
         }
         const usage: TokenUsage = data.result?.tokenUsage || {
           inputTokens: 0,
@@ -489,9 +591,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           const lastMsg = msgs[msgs.length - 1]
           if (!state.isStreaming || !lastMsg || lastMsg.role !== 'assistant') {
             // streaming 未开始,或最后消息不是 assistant → 新建一条承载错误
-            if (!state.isStreaming) {
-              set({ isStreaming: true })
-            }
+            // 注意: 不必先 set isStreaming:true,因为 addMessage 不依赖它,
+            // 且紧随其后会把 isStreaming 置 false,避免 UI 出现一帧的"加载中"闪烁。
             state.addMessage({
               role: 'assistant',
               content: `**错误:** ${data.error}`,
@@ -512,6 +613,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // C-3 修复: clearMessages 只清空当前显示,不删除会话数据
     // 之前调 chat.deleteSession(sid) 会把整个会话从 DB 删除,导致用户数据丢失
     // 用户若想删除会话,应使用侧边栏每个会话项右侧的 × 按钮(调 deleteSession)
+    // L-10 配套: 同步清理 pending agent 缓存,避免切换会话后旧缓存残留导致内存泄漏
+    pendingAgentOutputs.clear()
     set({ messages: [], lastUsage: null, lastCost: 0 })
   },
 
@@ -574,6 +677,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       lastCost: 0,
       historyLoaded: false,
     }))
+    // L-10 配套: 新建会话时清理 pending agent 缓存,避免旧会话的残留缓存污染新会话
+    pendingAgentOutputs.clear()
     // H-1 修复: 持久化空会话到 DB,避免用户创建会话后未发消息就刷新导致会话丢失
     // 通过写入一条 system 角色的占位消息触发 syncSessionMeta 创建 session 记录
     // loadHistory 时会加载这条消息,但因 role='system' 且 content 为空,UI 不渲染
@@ -585,7 +690,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         timestamp: Date.now(),
       })
       .catch((err) => {
-        console.warn('[chatStore] createSession persist failed', err)
+        // 修复: 提升为 error 级别并通知用户,会话未落盘刷新后会丢失
+        console.error('[chatStore] createSession persist failed', err)
+        toast.error('会话创建未能保存,刷新后可能丢失')
       })
   },
 
@@ -627,8 +734,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   loadSessions: async () => {
+    const reqId = ++loadSessionsReqId
     try {
       const result = await getAPI().chat.listSessions()
+      // 竞态保护: 快速切换会话时旧请求返回后不覆盖新数据
+      if (reqId !== loadSessionsReqId) return
       if (result.success && result.sessions) {
         const dbSessions: ChatSession[] = result.sessions
           // HIGH 修复: 对 DB 返回的 session 做运行时校验,避免非法记录污染 sessions 数组
@@ -650,6 +760,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const dbIds = new Set(dbSessions.map((s) => s.id))
         const localOnly = localSessions.filter((s) => !dbIds.has(s.id))
         const merged = [...dbSessions, ...localOnly]
+        if (reqId !== loadSessionsReqId) return
         set({ sessions: merged })
         // 如果没有会话，自动创建一个
         if (merged.length === 0) {
@@ -657,6 +768,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       }
     } catch (err) {
+      if (reqId !== loadSessionsReqId) return
       console.warn('[chatStore] loadSessions failed', err)
     }
   },

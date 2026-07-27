@@ -8,8 +8,18 @@
 // =============================================================
 
 import { useEffect, useState } from 'react'
+import { Card } from '../../components/Card'
+import { PageHeader } from '../../components/PageHeader'
 import { useT } from '../../i18n'
 import { getAPI, getErrorMessage } from '../../lib/ipc-client'
+import {
+  INPUT_BASE,
+  TABLE_TD,
+  TABLE_TH,
+  TABLE_ROW,
+  btnStyle,
+  cn,
+} from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
 
 export function PrivacyPage() {
@@ -55,7 +65,7 @@ export function PrivacyPage() {
 
   const handleInit = async () => {
     if (!initPassword || initPassword.length < 4) {
-      toast.warning('密码至少 4 位')
+      toast.warning(t('toast.privacy.passwordTooShort'))
       return
     }
     try {
@@ -106,7 +116,7 @@ export function PrivacyPage() {
       }
     } catch (err) {
       console.error('[Privacy] Failed to load:', err)
-      toast.error('加载加密映射表失败')
+      toast.error(t('toast.privacy.loadMapFailed'))
     }
   }
 
@@ -118,10 +128,10 @@ export function PrivacyPage() {
       setIsLoaded(false)
       setIsInitialized(false)
       setMappings([])
-      toast.success('已锁定隐私引擎')
+      toast.success(t('toast.privacy.locked'))
     } catch (err) {
       console.error('[Privacy] Lock failed:', err)
-      toast.error('锁定失败')
+      toast.error(t('toast.privacy.lockFailed'))
     }
   }
 
@@ -139,7 +149,7 @@ export function PrivacyPage() {
       }
     } catch (err) {
       console.error('[Privacy] Preview failed:', err)
-      toast.error('脱敏预览失败')
+      toast.error(t('toast.privacy.previewFailed'))
     }
   }
 
@@ -156,13 +166,13 @@ export function PrivacyPage() {
       if (!filePath) return
       const result = await getAPI().privacy.backup(filePath)
       if (result.success) {
-        toast.success('备份成功')
+        toast.success(t('toast.privacy.backupSuccess'))
       } else {
         toast.error(`备份失败: ${getErrorMessage(result)}`)
       }
     } catch (err) {
       console.error('[Privacy] Backup failed:', err)
-      toast.error('备份失败')
+      toast.error(t('toast.privacy.backupFailed'))
     }
   }
 
@@ -170,7 +180,7 @@ export function PrivacyPage() {
   const handleAddEntity = async () => {
     const name = newEntityName.trim()
     if (!name) {
-      toast.warning('请输入实体名称')
+      toast.warning(t('toast.privacy.enterEntityName'))
       return
     }
     // CONCERN 修复 + MEDIUM 修复: 前端重复实体预检,避免无意义的 IPC 调用
@@ -192,7 +202,7 @@ export function PrivacyPage() {
     try {
       const result = await getAPI().privacy.add(newEntityType, name)
       if (result.success) {
-        toast.success('实体添加成功,可继续添加')
+        toast.success(t('toast.privacy.entityAdded'))
         setNewEntityName('')
         setNewEntityType('person') // CONCERN 修复: 成功后重置类型为默认值
         // LOW 修复: 不关闭表单,允许用户连续添加多个实体。
@@ -215,228 +225,238 @@ export function PrivacyPage() {
       }
     } catch (err) {
       console.error('[Privacy] Add entity failed:', err)
-      toast.error('添加实体失败')
+      toast.error(t('toast.privacy.addEntityFailed'))
     } finally {
       setAdding(false)
     }
   }
 
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t('page.privacy.title')}</h1>
-        {unlocked && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-green-500 dark:text-green-400">● 已解锁</span>
-            <button
-              type="button"
-              onClick={handleLock}
-              className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1.5 rounded-lg text-sm transition-colors"
-            >
-              🔒 锁定
-            </button>
+    <div className="h-full overflow-y-auto animate-fade-in">
+      <PageHeader
+        title={t('page.privacy.title')}
+        size="md"
+        actions={
+          unlocked ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-green-500 dark:text-green-400">● 已解锁</span>
+              <button
+                type="button"
+                onClick={handleLock}
+                aria-label="锁定隐私引擎"
+                className={btnStyle('secondary')}
+              >
+                🔒 锁定
+              </button>
+            </div>
+          ) : undefined
+        }
+      />
+
+      <div className="p-6 space-y-6">
+        {/* 初始化引导（首次使用） */}
+        {!isInitialized && (
+          <div className="bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 rounded-xl p-5">
+            <h2 className="font-semibold mb-2">{t('page.privacy.init.title')}</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              设置一个加密密码来保护学生隐私数据。初始化后，所有敏感信息将自动脱敏处理。
+              密码仅在本次传输,主进程在内存中保留,关闭软件或点击"锁定"后将清空。
+            </p>
+            <div className="flex gap-3 items-center">
+              <input
+                type="password"
+                value={initPassword}
+                onChange={(e) => setInitPassword(e.target.value)}
+                placeholder="设置隐私密码（至少 4 位）..."
+                className={cn('flex-1', INPUT_BASE)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleInit()
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleInit}
+                disabled={initPassword.length < 4}
+                aria-label="初始化隐私引擎"
+                className={btnStyle('primary')}
+              >
+                初始化
+              </button>
+            </div>
           </div>
         )}
-      </div>
 
-      {/* 初始化引导（首次使用） */}
-      {!isInitialized && (
-        <div className="bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 rounded-xl p-5">
-          <h2 className="font-semibold mb-2">{t('page.privacy.init.title')}</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-            设置一个加密密码来保护学生隐私数据。初始化后，所有敏感信息将自动脱敏处理。
-            密码仅在本次传输,主进程在内存中保留,关闭软件或点击"锁定"后将清空。
-          </p>
+        {/* 密码与加载 */}
+        <Card padding="md" className="bg-gray-50 dark:bg-[#1a1e28]">
+          <h2 className="font-semibold mb-3">加密映射表</h2>
           <div className="flex gap-3 items-center">
             <input
               type="password"
-              value={initPassword}
-              onChange={(e) => setInitPassword(e.target.value)}
-              placeholder="设置隐私密码（至少 4 位）..."
-              className="flex-1 bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-600 rounded-lg px-3 py-2 text-sm
-                         focus:outline-none focus:border-blue-500"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleInit()
-              }}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="输入隐私密码..."
+              className={cn('flex-1', INPUT_BASE)}
             />
             <button
               type="button"
-              onClick={handleInit}
-              disabled={initPassword.length < 4}
-              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+              onClick={handleLoad}
+              aria-label="加载映射表"
+              className={btnStyle('primary')}
             >
-              初始化
+              加载映射表
+            </button>
+            <button
+              type="button"
+              onClick={handleBackup}
+              disabled={!isLoaded}
+              aria-label="备份映射表"
+              className={btnStyle('secondary')}
+            >
+              备份
             </button>
           </div>
-        </div>
-      )}
+          {isLoaded && (
+            <div className="mt-3 text-sm text-green-500 dark:text-green-400">
+              已加载 {mappings.length} 条映射记录
+            </div>
+          )}
+        </Card>
 
-      {/* 密码与加载 */}
-      <div className="bg-gray-50 border border-gray-200 dark:bg-gray-800 dark:border-gray-700 rounded-xl p-5">
-        <h2 className="font-semibold mb-3">加密映射表</h2>
-        <div className="flex gap-3 items-center">
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="输入隐私密码..."
-            className="flex-1 bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-600 rounded-lg px-3 py-2 text-sm
-                       focus:outline-none focus:border-blue-500"
+        {/* 添加实体 */}
+        {isLoaded && (
+          <Card padding="md" className="bg-gray-50 dark:bg-[#1a1e28]">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold">添加实体</h2>
+              <button
+                type="button"
+                onClick={() => setShowAddForm((v) => !v)}
+                aria-label={showAddForm ? '取消添加实体' : '添加实体'}
+                className={btnStyle('primary')}
+              >
+                {showAddForm ? '取消' : '+ 添加实体'}
+              </button>
+            </div>
+            {showAddForm && (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="sm:w-52">
+                  <label
+                    htmlFor="new-entity-type"
+                    className="block text-xs text-gray-500 dark:text-gray-400 mb-1"
+                  >
+                    实体类型
+                  </label>
+                  <select
+                    id="new-entity-type"
+                    value={newEntityType}
+                    onChange={(e) => setNewEntityType(e.target.value)}
+                    className={cn('w-full', INPUT_BASE)}
+                  >
+                    <option value="person">人物 (学生/教师/家长)</option>
+                    <option value="student_id">学号</option>
+                    <option value="id_card">身份证号</option>
+                    <option value="phone">电话</option>
+                    <option value="email">邮箱</option>
+                    <option value="place">地点</option>
+                    <option value="org">组织 (学校/班级)</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label
+                    htmlFor="new-entity-name"
+                    className="block text-xs text-gray-500 dark:text-gray-400 mb-1"
+                  >
+                    实体名称 (必填)
+                  </label>
+                  <input
+                    id="new-entity-name"
+                    type="text"
+                    value={newEntityName}
+                    onChange={(e) => setNewEntityName(e.target.value)}
+                    placeholder="输入实体名称 (如:张三)..."
+                    className={cn('w-full', INPUT_BASE)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !adding) handleAddEntity()
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddEntity}
+                  disabled={adding || !newEntityName.trim()}
+                  aria-label="确认添加实体"
+                  className={btnStyle('primary')}
+                >
+                  {adding ? '添加中...' : '确认添加'}
+                </button>
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* 映射表 */}
+        {isLoaded && mappings.length > 0 && (
+          <Card padding="md" className="bg-gray-50 dark:bg-[#1a1e28]">
+            <h2 className="font-semibold mb-3">映射表</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className={TABLE_TH}>类型</th>
+                    <th className={TABLE_TH}>化名</th>
+                    <th className={TABLE_TH}>真名</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mappings.slice(0, 50).map((m) => (
+                    // P2-7: 组合 stable key(entityType + pseudonym)
+                    <tr
+                      key={`${m.entityType}-${m.pseudonym}`}
+                      className={TABLE_ROW}
+                    >
+                      <td className={cn(TABLE_TD, 'text-gray-500 dark:text-gray-400')}>
+                        {m.entityType}
+                      </td>
+                      <td className={cn(TABLE_TD, 'font-mono text-blue-500 dark:text-blue-400')}>
+                        {m.pseudonym}
+                      </td>
+                      <td className={TABLE_TD}>{m.realName}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {mappings.length > 50 && (
+              <div className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                显示前 50 条，共 {mappings.length} 条
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* 脱敏预览 */}
+        <Card padding="md" className="bg-gray-50 dark:bg-[#1a1e28]">
+          <h2 className="font-semibold mb-3">脱敏预览</h2>
+          <textarea
+            value={previewInput}
+            onChange={(e) => setPreviewInput(e.target.value)}
+            placeholder="输入包含学生姓名的文本，查看脱敏效果..."
+            rows={3}
+            className={cn('w-full resize-none mb-3', INPUT_BASE)}
           />
           <button
             type="button"
-            onClick={handleLoad}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm transition-colors"
+            onClick={handlePreview}
+            aria-label="测试脱敏"
+            className={btnStyle('primary')}
           >
-            加载映射表
+            测试脱敏
           </button>
-          <button
-            type="button"
-            onClick={handleBackup}
-            disabled={!isLoaded}
-            className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            备份
-          </button>
-        </div>
-        {isLoaded && (
-          <div className="mt-3 text-sm text-green-500 dark:text-green-400">
-            已加载 {mappings.length} 条映射记录
-          </div>
-        )}
-      </div>
-
-      {/* 添加实体 */}
-      {isLoaded && (
-        <div className="bg-gray-50 border border-gray-200 dark:bg-gray-800 dark:border-gray-700 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold">添加实体</h2>
-            <button
-              type="button"
-              onClick={() => setShowAddForm((v) => !v)}
-              className="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg text-sm transition-colors"
-            >
-              {showAddForm ? '取消' : '+ 添加实体'}
-            </button>
-          </div>
-          {showAddForm && (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="sm:w-52">
-                <label
-                  htmlFor="new-entity-type"
-                  className="block text-xs text-gray-500 dark:text-gray-400 mb-1"
-                >
-                  实体类型
-                </label>
-                <select
-                  id="new-entity-type"
-                  value={newEntityType}
-                  onChange={(e) => setNewEntityType(e.target.value)}
-                  className="w-full bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-600 rounded-lg px-3 py-2 text-sm
-                             focus:outline-none focus:border-blue-500"
-                >
-                  <option value="person">人物 (学生/教师/家长)</option>
-                  <option value="student_id">学号</option>
-                  <option value="id_card">身份证号</option>
-                  <option value="phone">电话</option>
-                  <option value="email">邮箱</option>
-                  <option value="place">地点</option>
-                  <option value="org">组织 (学校/班级)</option>
-                </select>
-              </div>
-              <div className="flex-1">
-                <label
-                  htmlFor="new-entity-name"
-                  className="block text-xs text-gray-500 dark:text-gray-400 mb-1"
-                >
-                  实体名称 (必填)
-                </label>
-                <input
-                  id="new-entity-name"
-                  type="text"
-                  value={newEntityName}
-                  onChange={(e) => setNewEntityName(e.target.value)}
-                  placeholder="输入实体名称 (如:张三)..."
-                  className="w-full bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-600 rounded-lg px-3 py-2 text-sm
-                             focus:outline-none focus:border-blue-500"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !adding) handleAddEntity()
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={handleAddEntity}
-                disabled={adding || !newEntityName.trim()}
-                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm transition-colors
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {adding ? '添加中...' : '确认添加'}
-              </button>
-            </div>
+          {previewResult && (
+            <pre className="mt-3 bg-gray-100 dark:bg-[#1e222c] rounded-lg p-3 text-sm font-mono text-gray-600 dark:text-gray-300 overflow-x-auto">
+              {previewResult}
+            </pre>
           )}
-        </div>
-      )}
-
-      {/* 映射表 */}
-      {isLoaded && mappings.length > 0 && (
-        <div className="bg-gray-50 border border-gray-200 dark:bg-gray-800 dark:border-gray-700 rounded-xl p-5">
-          <h2 className="font-semibold mb-3">映射表</h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400">
-                <th className="text-left py-2 px-3">类型</th>
-                <th className="text-left py-2 px-3">化名</th>
-                <th className="text-left py-2 px-3">真名</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mappings.slice(0, 50).map((m) => (
-                // P2-7: 组合 stable key(entityType + pseudonym)
-                <tr
-                  key={`${m.entityType}-${m.pseudonym}`}
-                  className="border-b border-gray-100 dark:border-gray-800"
-                >
-                  <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{m.entityType}</td>
-                  <td className="py-2 px-3 font-mono text-blue-500 dark:text-blue-400">
-                    {m.pseudonym}
-                  </td>
-                  <td className="py-2 px-3">{m.realName}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {mappings.length > 50 && (
-            <div className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-              显示前 50 条，共 {mappings.length} 条
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 脱敏预览 */}
-      <div className="bg-gray-50 border border-gray-200 dark:bg-gray-800 dark:border-gray-700 rounded-xl p-5">
-        <h2 className="font-semibold mb-3">脱敏预览</h2>
-        <textarea
-          value={previewInput}
-          onChange={(e) => setPreviewInput(e.target.value)}
-          placeholder="输入包含学生姓名的文本，查看脱敏效果..."
-          rows={3}
-          className="w-full bg-white border border-gray-300 dark:bg-gray-900 dark:border-gray-600 rounded-lg px-3 py-2 text-sm
-                     focus:outline-none focus:border-blue-500 resize-none mb-3"
-        />
-        <button
-          type="button"
-          onClick={handlePreview}
-          className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm transition-colors"
-        >
-          测试脱敏
-        </button>
-        {previewResult && (
-          <pre className="mt-3 bg-gray-100 dark:bg-gray-900 rounded-lg p-3 text-sm font-mono text-gray-600 dark:text-gray-300 overflow-x-auto">
-            {previewResult}
-          </pre>
-        )}
+        </Card>
       </div>
     </div>
   )

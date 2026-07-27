@@ -1,9 +1,11 @@
 // =============================================================
 // Student Profile Service — 学生扩展档案存储
 // 存储于 eaa-data/profiles/{name}.json
+// H-11 修复: get/set/update 改为异步,避免同步 fs 阻塞主进程事件循环
 // =============================================================
 
-import fs from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
+import { open, readFile, rename } from 'node:fs/promises'
 import path from 'node:path'
 import { app } from 'electron'
 import type { StudentProfileData } from '../../shared/types'
@@ -13,9 +15,9 @@ class ProfileService {
 
   constructor() {
     this.profilesDir = path.join(app.getPath('userData'), 'eaa-data', 'profiles')
-    // 确保目录存在
-    if (!fs.existsSync(this.profilesDir)) {
-      fs.mkdirSync(this.profilesDir, { recursive: true })
+    // 确保目录存在 (同步,仅启动时执行一次)
+    if (!existsSync(this.profilesDir)) {
+      mkdirSync(this.profilesDir, { recursive: true })
     }
   }
 
@@ -26,27 +28,36 @@ class ProfileService {
   }
 
   /** 读取学生扩展档案 */
-  get(name: string): StudentProfileData {
+  // H-11 修复: 改为异步,避免阻塞主进程
+  async get(name: string): Promise<StudentProfileData> {
     const filePath = this.profilePath(name)
-    if (!fs.existsSync(filePath)) {
-      return {}
-    }
     try {
-      const content = fs.readFileSync(filePath, 'utf-8')
+      const content = await readFile(filePath, 'utf-8')
       return JSON.parse(content) as StudentProfileData
     } catch {
+      // 文件不存在(ENOENT)或 JSON 解析失败时返回空对象
       return {}
     }
   }
 
   /** 写入学生扩展档案（全量覆盖） */
-  set(name: string, data: StudentProfileData): { success: boolean; error?: string } {
+  // H-11 修复: 改为异步,避免阻塞主进程
+  // 修复: 使用唯一临时文件名避免 Windows 上 writeFile+rename 的竞态条件
+  // 修复: 通过单个 fd 写入+fsync 确保数据落盘后再 rename (避免 Windows 缓存导致读到旧数据)
+  async set(name: string, data: StudentProfileData): Promise<{ success: boolean; error?: string }> {
     try {
       const filePath = this.profilePath(name)
-      const tmpPath = `${filePath}.tmp`
+      const tmpPath = `${filePath}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
       const json = JSON.stringify(data, null, 2)
-      fs.writeFileSync(tmpPath, json, 'utf-8')
-      fs.renameSync(tmpPath, filePath)
+      // 用 'w' 模式打开,通过 fd 写入 + fsync,确保数据落盘后再 rename
+      const fd = await open(tmpPath, 'w')
+      try {
+        await fd.writeFile(json, 'utf-8')
+        await fd.sync()
+      } finally {
+        await fd.close()
+      }
+      await rename(tmpPath, filePath)
       return { success: true }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -55,8 +66,12 @@ class ProfileService {
   }
 
   /** 部分更新学生扩展档案（合并） */
-  update(name: string, patch: Partial<StudentProfileData>): { success: boolean; error?: string } {
-    const existing = this.get(name)
+  // H-11 修复: 改为异步
+  async update(
+    name: string,
+    patch: Partial<StudentProfileData>,
+  ): Promise<{ success: boolean; error?: string }> {
+    const existing = await this.get(name)
     const merged = { ...existing, ...patch }
     return this.set(name, merged)
   }

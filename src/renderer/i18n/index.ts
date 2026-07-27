@@ -45,7 +45,19 @@ export function setLang(lang: Lang): void {
     } catch {
       /* ignore */
     }
+    // 同步 <html lang> 属性, 避免静态 "zh-CN" 不随 i18n 切换更新
+    // (zh -> "zh-CN", en -> "en" 保持 BCP47 合规)
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en'
+    }
     window.dispatchEvent(new CustomEvent('i18n-changed', { detail: lang }))
+  }
+}
+
+/** 应用启动时同步 <html lang> 到当前语言 (修复静态 "zh-CN" 不更新问题) */
+export function initHtmlLang(): void {
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : 'en'
   }
 }
 
@@ -59,7 +71,17 @@ export function useT(): { t: (key: string, fallback?: string) => string; lang: L
   useEffect(() => {
     const handler = (e: Event) => {
       const next = (e as CustomEvent).detail as Lang
-      if (next === 'zh' || next === 'en') setLangState(next)
+      if (next === 'zh' || next === 'en') {
+        // 防御性同步: 确保事件触发(即使不经 setLang)时模块级 currentLang 也更新
+        // 否则 t() 闭包会读取旧 currentLang, 导致切换后内容不变
+        currentLang = next
+        // 同步 <html lang> 属性, 与 setLang()/initHtmlLang() 保持一致
+        // (zh -> "zh-CN", en -> "en" 保持 BCP47 合规)
+        if (typeof document !== 'undefined') {
+          document.documentElement.lang = next === 'zh' ? 'zh-CN' : 'en'
+        }
+        setLangState(next)
+      }
     }
     window.addEventListener('i18n-changed', handler)
     return () => window.removeEventListener('i18n-changed', handler)
