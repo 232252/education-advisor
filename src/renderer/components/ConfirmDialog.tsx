@@ -64,13 +64,13 @@ export function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onCancel()
       }}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-96 max-w-[90vw] p-5"
+        className="bg-white dark:bg-[#1e222c] rounded-xl shadow-xl border border-gray-200/50 dark:border-white/[0.08] w-96 max-w-[90vw] p-5 animate-scale-in"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"

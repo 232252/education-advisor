@@ -5,39 +5,35 @@
 // =============================================================
 
 import type { ClassEntity, EAARiskLevel, EAAStudent } from '@shared/types'
-import { useMemo, useState } from 'react'
-import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { useEffect, useMemo, useState } from 'react'
+import { EmptyState } from '../../components/EmptyState'
+import { PageHeader } from '../../components/PageHeader'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
+import { btnStyle, cn, INPUT_BASE, riskColor, TABLE_ROW, TABLE_STICKY_HEAD, TABLE_TD, TABLE_TH } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
 
 interface ClassProfileProps {
   classEntity: ClassEntity
   /** 全量学生列表（由父组件传入，按 class_id 在本组件内过滤） */
   allStudents: EAAStudent[]
+  /** 其他可用班级列表（非存档、非当前班），用于转班 */
+  allClasses: ClassEntity[]
   onClose: () => void
   onRefresh: () => void
 }
 
 type TabId = 'overview' | 'students' | 'assign'
 
-/** 风险等级颜色（与 StudentsPage 保持一致） */
-function riskColor(risk: EAARiskLevel): string {
-  switch (risk) {
-    case '低':
-      return 'text-green-500 dark:text-green-400'
-    case '中':
-      return 'text-yellow-500 dark:text-yellow-400'
-    case '高':
-      return 'text-orange-500 dark:text-orange-400'
-    case '极高':
-      return 'text-red-500 dark:text-red-400 font-bold'
-  }
-}
-
 const RISK_ORDER: Record<EAARiskLevel, number> = { 极高: 0, 高: 1, 中: 2, 低: 3 }
 
-export function ClassProfile({ classEntity, allStudents, onClose, onRefresh }: ClassProfileProps) {
+export function ClassProfile({
+  classEntity,
+  allStudents,
+  allClasses,
+  onClose,
+  onRefresh,
+}: ClassProfileProps) {
   const { t } = useT()
   const [tab, setTab] = useState<TabId>('overview')
 
@@ -55,53 +51,50 @@ export function ClassProfile({ classEntity, allStudents, onClose, onRefresh }: C
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [allStudents, classEntity.class_id])
 
-  const tabs: { id: TabId; label: string }[] = [
-    { id: 'overview', label: t('page.classes.profile.tabOverview') },
-    { id: 'students', label: `${t('page.classes.profile.tabStudents')} (${classStudents.length})` },
-    { id: 'assign', label: t('page.classes.profile.tabAssign') },
-  ]
+  // tabs memo 化（含动态计数，但只在 classStudents.length 变化时重建）
+  const tabs = useMemo<{ id: TabId; label: string }[]>(
+    () => [
+      { id: 'overview', label: t('page.classes.profile.tabOverview') },
+      {
+        id: 'students',
+        label: `${t('page.classes.profile.tabStudents')} (${classStudents.length})`,
+      },
+      { id: 'assign', label: t('page.classes.profile.tabAssign') },
+    ],
+    [t, classStudents.length],
+  )
 
   const created = new Date(classEntity.created_at)
   const createdStr = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}-${String(created.getDate()).padStart(2, '0')}`
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-900">
+    <div className="h-full flex flex-col bg-white dark:bg-[#0f1117]">
       {/* 头部 */}
-      <div className="flex-shrink-0 px-5 py-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-start justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold truncate">{classEntity.name}</h2>
-              {classEntity.archived && (
-                <span className="inline-block px-2 py-0.5 text-xs rounded bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
-                  {t('page.classes.status.archived')}
-                </span>
-              )}
-            </div>
-            <div className="mt-1 flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500">
-              <span className="font-mono">{classEntity.class_id}</span>
-              <span>·</span>
-              <span>
-                {t('page.classes.profile.studentCount').replace(
-                  '{0}',
-                  String(classStudents.length),
-                )}
+      <PageHeader
+        title={classEntity.name}
+        subtitle={`${classEntity.class_id} · ${t('page.classes.profile.studentCount').replace('{0}', String(classStudents.length))}`}
+        size="sm"
+        actions={
+          <>
+            {classEntity.archived && (
+              <span className="inline-block px-2 py-0.5 text-xs rounded bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                {t('page.classes.status.archived')}
               </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-lg leading-none px-1"
-            aria-label="close"
-          >
-            ×
-          </button>
-        </div>
-      </div>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="关闭"
+              className={btnStyle('ghost')}
+            >
+              ×
+            </button>
+          </>
+        }
+      />
 
       {/* Tab 导航 */}
-      <div className="flex-shrink-0 flex border-b border-gray-200 dark:border-gray-700 px-3 gap-1">
+      <div className="flex-shrink-0 flex border-b border-gray-200 dark:border-white/[0.06] px-3 gap-1">
         {tabs.map((tb) => (
           <button
             key={tb.id}
@@ -128,7 +121,7 @@ export function ClassProfile({ classEntity, allStudents, onClose, onRefresh }: C
           />
         )}
         {tab === 'students' && (
-          <StudentsTab classEntity={classEntity} students={classStudents} onRefresh={onRefresh} />
+          <StudentsTab students={classStudents} otherClasses={allClasses} onRefresh={onRefresh} />
         )}
         {tab === 'assign' && (
           <AssignTab
@@ -153,14 +146,17 @@ function OverviewTab({
   studentCount: number
 }) {
   const { t } = useT()
-  const rows: { label: string; value: string }[] = [
-    { label: t('page.classes.profile.field.classId'), value: classEntity.class_id },
-    { label: t('page.classes.col.name'), value: classEntity.name },
-    { label: t('page.classes.profile.field.grade'), value: classEntity.grade || '-' },
-    { label: t('page.classes.profile.field.teacher'), value: classEntity.teacher || '-' },
-    { label: t('page.classes.profile.studentCount'), value: String(studentCount) },
-    { label: t('page.classes.profile.field.createdAt'), value: createdStr },
-  ]
+  const rows = useMemo<{ label: string; value: string }[]>(
+    () => [
+      { label: t('page.classes.profile.field.classId'), value: classEntity.class_id },
+      { label: t('page.classes.col.name'), value: classEntity.name },
+      { label: t('page.classes.profile.field.grade'), value: classEntity.grade || '-' },
+      { label: t('page.classes.profile.field.teacher'), value: classEntity.teacher || '-' },
+      { label: t('page.classes.profile.studentCount'), value: String(studentCount) },
+      { label: t('page.classes.profile.field.createdAt'), value: createdStr },
+    ],
+    [t, classEntity, studentCount, createdStr],
+  )
   return (
     <div className="space-y-3">
       {rows.map((r) => (
@@ -187,109 +183,124 @@ function OverviewTab({
 
 // -------------------- 学生名单 Tab --------------------
 function StudentsTab({
-  classEntity,
   students,
+  otherClasses,
   onRefresh,
 }: {
-  classEntity: ClassEntity
   students: EAAStudent[]
+  otherClasses: ClassEntity[]
   onRefresh: () => void
 }) {
   const { t } = useT()
-  const [confirm, setConfirm] = useState<{ open: boolean; student?: EAAStudent }>({ open: false })
+  // 转班状态: 正在转班的学生名 → 选中的目标 class_id
+  const [transferTarget, setTransferTarget] = useState<Record<string, string>>({})
+  const [transferring, setTransferring] = useState<string | null>(null)
 
-  const handleRemove = (student: EAAStudent) => {
-    setConfirm({ open: true, student })
-  }
-
-  const doRemove = async () => {
-    const student = confirm.student
-    setConfirm({ open: false })
-    if (!student) return
-    try {
-      const res = await getAPI().class.removeStudent({ student_name: student.name })
-      if (!res.success) {
-        toast.error(t('page.classes.profile.remove.failed').replace('{0}', res.error ?? ''))
-        return
-      }
-      toast.success(t('page.classes.profile.remove.success').replace('{0}', student.name))
-      onRefresh()
-    } catch (err) {
-      toast.error(
-        t('page.classes.profile.remove.failed').replace(
-          '{0}',
-          err instanceof Error ? err.message : String(err),
-        ),
-      )
+  const handleTransfer = async (studentName: string) => {
+    const targetClassId = transferTarget[studentName]
+    if (!targetClassId) {
+      toast.warning('请先选择目标班级')
+      return
     }
+    setTransferring(studentName)
+    try {
+      const res = await getAPI().class.assign({
+        class_id: targetClassId,
+        student_names: [studentName],
+      })
+      if (res.success) {
+        toast.success(`已将「${studentName}」转出`)
+        setTransferTarget((prev) => {
+          const next = { ...prev }
+          delete next[studentName]
+          return next
+        })
+        onRefresh()
+      } else {
+        toast.error(`转班失败: ${res.failed?.join(', ') || '未知错误'}`)
+      }
+    } catch (err) {
+      toast.error(`转班失败: ${err instanceof Error ? err.message : String(err)}`)
+    }
+    setTransferring(null)
   }
 
   if (students.length === 0) {
     return (
-      <div className="text-center text-sm text-gray-400 py-12">
-        {t('page.classes.profile.noStudents')}
-      </div>
+      <EmptyState
+        icon="👥"
+        title={t('page.classes.profile.noStudents')}
+      />
     )
   }
 
   return (
     <div>
+      {otherClasses.length === 0 && (
+        <div className="px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-xs">
+          ⚠ 没有其他可用班级，如需转班请先创建新班级
+        </div>
+      )}
       <table className="w-full text-sm">
-        <thead className="sticky top-0 bg-white dark:bg-gray-900">
-          <tr className="text-left text-xs text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
-            <th className="py-2 px-2 font-medium">{t('page.classes.profile.col.name')}</th>
-            <th className="py-2 px-2 font-medium">{t('page.classes.profile.col.risk')}</th>
-            <th className="py-2 px-2 font-medium text-center">
+        <thead className={TABLE_STICKY_HEAD}>
+          <tr>
+            <th className={TABLE_TH}>{t('page.classes.profile.col.name')}</th>
+            <th className={TABLE_TH}>{t('page.classes.profile.col.risk')}</th>
+            <th className={cn(TABLE_TH, 'text-center')}>
               {t('page.classes.profile.col.score')}
             </th>
-            <th className="py-2 px-2 font-medium text-center">
+            <th className={cn(TABLE_TH, 'text-center')}>
               {t('page.classes.profile.col.events')}
             </th>
-            <th className="py-2 px-2 font-medium">{t('page.classes.profile.col.roles')}</th>
-            <th className="py-2 px-2 font-medium text-center">
+            <th className={TABLE_TH}>{t('page.classes.profile.col.roles')}</th>
+            <th className={cn(TABLE_TH, 'text-center')}>
               {t('page.classes.profile.col.action')}
             </th>
           </tr>
         </thead>
         <tbody>
           {students.map((s) => (
-            <tr key={s.entity_id} className="border-b border-gray-100 dark:border-gray-800">
-              <td className="py-2 px-2 font-medium">{s.name}</td>
-              <td className={`py-2 px-2 ${riskColor(s.risk)}`}>{s.risk}</td>
-              <td className="py-2 px-2 text-center text-gray-500 dark:text-gray-400">{s.score}</td>
-              <td className="py-2 px-2 text-center text-gray-500 dark:text-gray-400">
+            <tr key={s.entity_id} className={TABLE_ROW}>
+              <td className={cn(TABLE_TD, 'font-medium')}>{s.name}</td>
+              <td className={cn(TABLE_TD, riskColor(s.risk))}>{s.risk}</td>
+              <td className={cn(TABLE_TD, 'text-center text-gray-500 dark:text-gray-400')}>{s.score}</td>
+              <td className={cn(TABLE_TD, 'text-center text-gray-500 dark:text-gray-400')}>
                 {s.events_count}
               </td>
-              <td className="py-2 px-2 text-xs text-gray-400 dark:text-gray-500">
+              <td className={cn(TABLE_TD, 'text-xs text-gray-400 dark:text-gray-500')}>
                 {s.roles.length > 0 ? s.roles.join(', ') : '-'}
               </td>
-              <td className="py-2 px-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => handleRemove(s)}
-                  className="text-xs text-red-400/70 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                >
-                  {t('page.classes.profile.remove')}
-                </button>
+              <td className={cn(TABLE_TD, 'text-center')}>
+                <div className="flex items-center gap-1 justify-center">
+                  <select
+                    value={transferTarget[s.name] ?? ''}
+                    onChange={(e) =>
+                      setTransferTarget((prev) => ({ ...prev, [s.name]: e.target.value }))
+                    }
+                    disabled={otherClasses.length === 0}
+                    className={cn('w-full', INPUT_BASE)}
+                  >
+                    <option value="">目标班</option>
+                    {otherClasses.map((c) => (
+                      <option key={c.class_id} value={c.class_id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => handleTransfer(s.name)}
+                    disabled={!transferTarget[s.name] || transferring === s.name}
+                    className="text-xs text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 disabled:text-gray-300 dark:disabled:text-gray-600 transition-colors"
+                  >
+                    {transferring === s.name ? '...' : '转班'}
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <ConfirmDialog
-        open={confirm.open}
-        title={t('page.classes.profile.remove')}
-        message={
-          confirm.student
-            ? t('page.classes.profile.remove.confirm')
-                .replace('{0}', confirm.student.name)
-                .replace('{1}', classEntity.name)
-            : ''
-        }
-        variant="danger"
-        onCancel={() => setConfirm({ open: false })}
-        onConfirm={doRemove}
-      />
     </div>
   )
 }
@@ -307,6 +318,20 @@ function AssignTab({
   const { t } = useT()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [assigning, setAssigning] = useState(false)
+  // 批量分入进度（主进程串行 spawn 逐个写入 EAA，较慢，需实时显示）
+  const [progress, setProgress] = useState<{ current: number; total: number; lastName: string }>({
+    current: 0,
+    total: 0,
+    lastName: '',
+  })
+
+  // 订阅主进程推送的分入进度事件；组件卸载时取消订阅
+  useEffect(() => {
+    const unsubscribe = getAPI().class.onAssignProgress((data) => {
+      setProgress({ current: data.current, total: data.total, lastName: data.lastName })
+    })
+    return unsubscribe
+  }, [])
 
   const toggle = (name: string) => {
     setSelected((prev) => {
@@ -329,6 +354,7 @@ function AssignTab({
     const names = Array.from(selected)
     if (names.length === 0 || assigning) return
     setAssigning(true)
+    setProgress({ current: 0, total: names.length, lastName: '' })
     try {
       const res = await getAPI().class.assign({
         class_id: classEntity.class_id,
@@ -366,9 +392,10 @@ function AssignTab({
 
   if (assignable.length === 0) {
     return (
-      <div className="text-center text-sm text-gray-400 py-12">
-        {t('page.classes.profile.assign.empty')}
-      </div>
+      <EmptyState
+        icon="✅"
+        title={t('page.classes.profile.assign.empty')}
+      />
     )
   }
 
@@ -381,12 +408,32 @@ function AssignTab({
       {assigning ? (
         <div className="py-8 text-center text-sm text-blue-600 dark:text-blue-400">
           {t('page.classes.profile.assign.processing')
-            .replace('{0}', '0')
-            .replace('{1}', String(selected.size))}
+            .replace('{0}', String(progress.current))
+            .replace('{1}', String(progress.total || selected.size))}
+          {progress.total > 0 && (
+            <span className="ml-1">({Math.round((progress.current / progress.total) * 100)}%)</span>
+          )}
+          {progress.lastName && (
+            <div className="mt-2 text-xs text-gray-400 dark:text-gray-500 truncate">
+              {progress.lastName}
+            </div>
+          )}
+          {/* 进度条 */}
+          {progress.total > 0 && (
+            <div className="mt-3 mx-auto max-w-xs h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 transition-all duration-200"
+                style={{ width: `${(progress.current / progress.total) * 100}%` }}
+              />
+            </div>
+          )}
+          <div className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+            {t('page.classes.profile.assign.slowHint', '正在逐个写入，请耐心等待…')}
+          </div>
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200 dark:border-white/[0.06]">
             <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
               <input
                 type="checkbox"
@@ -401,7 +448,7 @@ function AssignTab({
             {assignable.map((s) => (
               <label
                 key={s.entity_id}
-                className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
+                className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-white/[0.03] cursor-pointer"
               >
                 <input
                   type="checkbox"
@@ -421,7 +468,8 @@ function AssignTab({
               type="button"
               onClick={handleAssign}
               disabled={selected.size === 0}
-              className="px-4 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label={t('page.classes.profile.assign.confirm')}
+              className={btnStyle('primary')}
             >
               {t('page.classes.profile.assign.confirm')} ({selected.size})
             </button>

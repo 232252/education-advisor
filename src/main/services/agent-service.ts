@@ -14,7 +14,6 @@
 // =============================================================
 
 import fs from 'node:fs'
-import fsp from 'node:fs/promises'
 import path from 'node:path'
 import type {
   AgentEvent,
@@ -24,8 +23,6 @@ import type {
   ThinkingLevel,
 } from '@earendil-works/pi-agent-core'
 import { Agent } from '@earendil-works/pi-agent-core'
-import type { Api, Model } from '@earendil-works/pi-ai/compat'
-import { getEnvApiKey, getModel, getModels, getProviders } from '@earendil-works/pi-ai/compat'
 import { app, type BrowserWindow } from 'electron'
 import yaml from 'yaml'
 
@@ -37,12 +34,21 @@ import type {
   AgentListItem,
   AgentStatus,
 } from '../../shared/types'
+import {
+  MAX_CONTINUATIONS,
+  MIN_OUTPUT_CHARS,
+  MIN_TURN_COUNT,
+  resolveApiKey,
+  selectModel,
+} from './agent-model-selector'
+import { AgentScheduler, type SchedulableAgent } from './agent-scheduler'
 import { compactAgentMessages } from './compaction-helper'
 import { cronService } from './cron-service'
 import { dbService } from './db-service'
 import { getToolsByCapability } from './eaa-tools'
 import { allFileTools } from './file-tools'
-import { keystoreService } from './keystore-service'
+import { mcpService } from './mcp-service'
+import { getMcpToolsForAgent } from './mcp-tools'
 import { settingsService } from './settings-service'
 import { skillService } from './skill-service'
 import { allUtilityTools } from './utility-tools'
@@ -58,22 +64,7 @@ interface RunningAgent {
   startedAt: number
 }
 
-/** agent → cron task id 列表的映射（用于聚合 nextRunAt） */
-type AgentScheduleMap = Map<string, string[]>
-
-/** 用户对 agents.yaml 的覆盖（enabled/name/description/modelTier/capabilities 均可被覆盖） */
-interface UserAgentOverride {
-  enabled?: boolean
-  name?: string
-  description?: string
-  modelTier?: 'high_quality' | 'low_cost'
-  capabilities?: string[]
-}
-
 const WAIT_FOR_IDLE_TIMEOUT_MS = 5 * 60_000 // 5 分钟
-const MAX_CONTINUATIONS = 5 // 模型提前结束时最多续跑次数
-const MIN_OUTPUT_CHARS = 200 // 输出少于此字符时触发续跑
-const MIN_TURN_COUNT = 3 // 轮次少于此数时触发续跑
 
 // =============================================================
 // 内部工具函数
@@ -98,23 +89,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   })
 }
 
-/** 防御性 NaN guard：cost 字段可能为 undefined 或非有限数 */
-function safeCostScore(m: Model<Api>): number {
-  const input = Number.isFinite(m.cost?.input) ? m.cost.input : Number.POSITIVE_INFINITY
-  const output = Number.isFinite(m.cost?.output) ? m.cost.output : Number.POSITIVE_INFINITY
-  return input + output
-}
-
 class AgentService {
   private agents: Map<string, AgentConfig> = new Map()
   private agentsDir: string
   private configDir: string
-  private userOverrides: Map<string, UserAgentOverride> = new Map()
-  private userOverridesPath: string
+  private scheduler: AgentScheduler
   private agentStatus: Map<string, AgentStatus> = new Map()
   private executionHistory: Map<string, AgentExecution[]> = new Map()
   private runningAgents: Map<string, RunningAgent> = new Map()
-  private agentScheduleTasks: AgentScheduleMap = new Map()
 
   constructor() {
     // 注意: app.isPackaged 在用 `electron .` 启动时可能返回 true（不可靠）。
@@ -127,12 +109,14 @@ class AgentService {
     const prodConfigDir = path.join(process.resourcesPath, 'config')
     this.configDir = fs.existsSync(devConfigDir) ? devConfigDir : prodConfigDir
 
-    this.userOverridesPath = path.join(app.getPath('userData'), 'agents.user.yaml')
+    // 调度器持有 userOverrides + agentScheduleTasks(从本类抽出,逻辑零修改)
+    const userOverridesPath = path.join(app.getPath('userData'), 'agents.user.yaml')
+    this.scheduler = new AgentScheduler(userOverridesPath)
   }
 
   /** 初始化：加载 Agent、注册 cron 调度、桥接执行函数 */
   async init(_win: BrowserWindow): Promise<void> {
-    await this.loadUserOverrides()
+    await this.scheduler.loadUserOverrides()
     await this.loadAgents()
 
     // 将 runAgent 注册给 cron service，作为定时任务的执行入口
@@ -141,90 +125,27 @@ class AgentService {
     // 将 agent 的 schedule 字段同步为 cron 任务
     this.syncSchedules()
 
+    // MCP 集成:初始化 MCP service(加载 mcp.yaml,feature flag 关闭时进入 no-op)
+    try {
+      await mcpService.init()
+    } catch (err) {
+      console.warn('[AgentService] MCP service init failed (non-blocking):', err)
+    }
+
     console.log(`[AgentService] Initialized with ${this.agents.size} agents`)
   }
 
-  /** 同步 agent schedule 到 cron（同时记录 agent → task 映射，P1-1 准备） */
+  /** 同步 agent schedule 到 cron(委托给 scheduler,过滤后传入精简结构) */
   private syncSchedules() {
-    const agents = Array.from(this.agents.values())
+    const agents: SchedulableAgent[] = Array.from(this.agents.values())
       .filter((a) => a.enabled && a.schedule.length > 0)
       .map((a) => ({ id: a.id, name: a.name, schedule: a.schedule, modelTier: a.modelTier }))
-
-    const taskIds = cronService.syncAgentSchedules(agents)
-    this.agentScheduleTasks = taskIds
+    this.scheduler.syncSchedules(agents)
   }
 
   // ===========================================================
   // 配置管理
   // ===========================================================
-
-  /** 加载 user overrides（独立 yaml，保留主 yaml 注释） */
-  private async loadUserOverrides(): Promise<void> {
-    try {
-      await fsp.access(this.userOverridesPath, fs.constants.F_OK)
-    } catch {
-      return
-    }
-    try {
-      const content = await fsp.readFile(this.userOverridesPath, 'utf-8')
-      const parsed = yaml.parse(content)
-      const list =
-        parsed && typeof parsed === 'object' && Array.isArray(parsed.agents) ? parsed.agents : []
-      for (const a of list) {
-        if (a && typeof a.id === 'string') {
-          const override: UserAgentOverride = {}
-          if (typeof a.enabled === 'boolean') override.enabled = a.enabled
-          if (typeof a.name === 'string') override.name = a.name
-          if (typeof a.description === 'string') override.description = a.description
-          if (a.modelTier === 'high_quality' || a.modelTier === 'low_cost')
-            override.modelTier = a.modelTier
-          if (Array.isArray(a.capabilities)) override.capabilities = a.capabilities
-          this.userOverrides.set(a.id, override)
-        }
-      }
-      console.log(`[AgentService] Loaded ${this.userOverrides.size} user overrides`)
-    } catch (err) {
-      console.warn('[AgentService] Failed to load user overrides:', err)
-    }
-  }
-
-  /** 持久化 user overrides（写回 agents.user.yaml） */
-  private async persistUserOverrides(): Promise<void> {
-    const list = Array.from(this.userOverrides.entries())
-      .filter(([, v]) => v && Object.keys(v).length > 0)
-      .map(([id, v]) => {
-        const entry: {
-          id: string
-          enabled?: boolean
-          name?: string
-          description?: string
-          modelTier?: 'high_quality' | 'low_cost'
-          capabilities?: string[]
-        } = { id }
-        if (typeof v.enabled === 'boolean') entry.enabled = v.enabled
-        if (typeof v.name === 'string') entry.name = v.name
-        if (typeof v.description === 'string') entry.description = v.description
-        if (v.modelTier === 'high_quality' || v.modelTier === 'low_cost')
-          entry.modelTier = v.modelTier
-        if (Array.isArray(v.capabilities)) entry.capabilities = v.capabilities
-        return entry
-      })
-    const payload = `\
-# Education Advisor Agent 用户覆盖配置
-# 此文件由 UI 自动生成,主配置文件 config/agents.yaml 不会被修改
-# 仅记录用户在 UI 中改过的字段（enabled/name/description/modelTier/capabilities）
-# 删除此文件可重置所有覆盖
-${yaml.stringify({ agents: list })}
-`
-    const tmpPath = `${this.userOverridesPath}.tmp`
-    try {
-      await fsp.mkdir(path.dirname(this.userOverridesPath), { recursive: true })
-      await fsp.writeFile(tmpPath, payload, 'utf-8')
-      await fsp.rename(tmpPath, this.userOverridesPath)
-    } catch (err) {
-      console.error('[AgentService] Failed to persist user overrides:', err)
-    }
-  }
 
   /** 从 agents.yaml 加载 Agent 配置（叠加 user overrides） */
   async loadAgents(): Promise<void> {
@@ -243,7 +164,7 @@ ${yaml.stringify({ agents: list })}
       for (const a of agentList) {
         // 防御单条数据畸形：必须有字符串 id
         if (!a || typeof a.id !== 'string') continue
-        const override = this.userOverrides.get(a.id)
+        const override = this.scheduler.getOverride(a.id)
         const config: AgentConfig = {
           id: a.id,
           name: override?.name ?? a.name ?? a.id,
@@ -254,6 +175,10 @@ ${yaml.stringify({ agents: list })}
           schedule: a.schedule?.cron ?? [],
           capabilities: override?.capabilities ?? a.capabilities ?? [],
           riskThresholds: a.risk_thresholds,
+          // R8-1 修复: 映射 yaml 的 mcp_servers → AgentConfig.mcpServers
+          // 之前此字段在加载时丢失,导致 agent 永远拿不到 MCP 工具
+          // R6-1: override 优先(用户在 UI 配的 agent↔MCP 连接覆盖主配置)
+          mcpServers: override?.mcpServers ?? a.mcp_servers,
         }
         this.agents.set(config.id, config)
         this.agentStatus.set(config.id, 'idle')
@@ -266,22 +191,6 @@ ${yaml.stringify({ agents: list })}
     }
   }
 
-  /** 聚合 agent 下次执行时间（取所有 schedule 中最早的 ISO 时间戳） */
-  private getNextRunAt(agentId: string): number | undefined {
-    const taskIds = this.agentScheduleTasks.get(agentId)
-    if (!taskIds || taskIds.length === 0) return undefined
-    let earliest: number | undefined
-    for (const id of taskIds) {
-      const iso = cronService.getNextRunAt(id)
-      if (!iso) continue
-      const ts = new Date(iso).getTime()
-      if (Number.isFinite(ts) && (earliest === undefined || ts < earliest)) {
-        earliest = ts
-      }
-    }
-    return earliest
-  }
-
   /** 列出所有 Agent */
   listAgents(): AgentListItem[] {
     return Array.from(this.agents.values()).map((config) => {
@@ -291,7 +200,7 @@ ${yaml.stringify({ agents: list })}
         ...config,
         status: this.agentStatus.get(config.id) ?? 'idle',
         lastRunAt: lastExec?.startedAt,
-        nextRunAt: this.getNextRunAt(config.id),
+        nextRunAt: this.scheduler.getNextRunAt(config.id),
       }
     })
   }
@@ -311,7 +220,7 @@ ${yaml.stringify({ agents: list })}
       rulesContent: this.getRules(id),
       executionHistory: history,
       lastRunAt: lastExec?.startedAt,
-      nextRunAt: this.getNextRunAt(id),
+      nextRunAt: this.scheduler.getNextRunAt(id),
     }
   }
 
@@ -320,27 +229,52 @@ ${yaml.stringify({ agents: list })}
     const config = this.agents.get(id)
     if (!config) return { success: false, error: 'Agent not found' }
     config.enabled = enabled
-    this.userOverrides.set(id, { ...(this.userOverrides.get(id) ?? {}), enabled })
-    void this.persistUserOverrides()
+    this.scheduler.setOverride(id, { enabled })
+    void this.scheduler.persistUserOverrides()
     // 重新同步 schedule:disable 的 agent 对应 cron 任务会被停用
     this.syncSchedules()
     return { success: true }
   }
 
-  /** 更新 Agent 配置（name, description, modelTier, capabilities 等） */
+  /** 更新 Agent 配置（name, description, modelTier, capabilities, mcpServers 等） */
   updateAgent(
     id: string,
-    patch: Partial<Pick<AgentConfig, 'name' | 'description' | 'modelTier' | 'capabilities'>>,
+    patch: Partial<
+      Pick<AgentConfig, 'name' | 'description' | 'modelTier' | 'capabilities' | 'mcpServers'>
+    >,
   ): { success: boolean; error?: string } {
     const config = this.agents.get(id)
     if (!config) return { success: false, error: 'Agent not found' }
     if (patch.name !== undefined) config.name = patch.name
     if (patch.description !== undefined) config.description = patch.description
     if (patch.modelTier !== undefined) config.modelTier = patch.modelTier
-    if (patch.capabilities !== undefined) config.capabilities = patch.capabilities
-    // 持久化到 user overrides
-    this.userOverrides.set(id, { ...(this.userOverrides.get(id) ?? {}), ...patch })
-    void this.persistUserOverrides()
+    if (patch.capabilities !== undefined) {
+      // 校验 capabilities 必须是字符串数组,防止非数组值导致 getToolsByCapability 崩溃
+      if (!Array.isArray(patch.capabilities)) {
+        return { success: false, error: 'capabilities must be an array of strings' }
+      }
+      const validCaps = patch.capabilities.filter((c) => typeof c === 'string')
+      if (validCaps.length !== patch.capabilities.length) {
+        return { success: false, error: 'capabilities must contain only strings' }
+      }
+      config.capabilities = validCaps
+    }
+    // R6-1: 支持通过 updateAgent 配置 agent 级 MCP server 引用。
+    // 此前 mcpServers 只能手编 config/agents.yaml,UI 完全无法接线 agent↔MCP,
+    // 导致 MCP 功能对终端用户实际不可用(管道正确但无入口)。
+    if (patch.mcpServers !== undefined) {
+      if (!Array.isArray(patch.mcpServers)) {
+        return { success: false, error: 'mcpServers must be an array of strings' }
+      }
+      const validIds = patch.mcpServers.filter((s) => typeof s === 'string')
+      if (validIds.length !== patch.mcpServers.length) {
+        return { success: false, error: 'mcpServers must contain only strings' }
+      }
+      config.mcpServers = validIds
+    }
+    // 持久化到 user overrides(委托给 scheduler)
+    this.scheduler.setOverride(id, patch)
+    void this.scheduler.persistUserOverrides()
     this.syncSchedules()
     return { success: true }
   }
@@ -360,7 +294,16 @@ ${yaml.stringify({ agents: list })}
     return fs.existsSync(soulPath) ? fs.readFileSync(soulPath, 'utf-8') : ''
   }
 
+  /**
+   * 写入 Agent SOUL.md
+   * R78 修复: 校验 agent 必须存在于已加载配置中,避免对任意 id 创建目录并返回 success,
+   * 此前 setSoul('nonexistent-xxx', '...') 会创建 agents/nonexistent-xxx/SOUL.md 并返回 success,
+   * 导致脏目录和前端误判。
+   */
   setSoul(id: string, content: string) {
+    if (!this.agents.has(id)) {
+      return { success: false, error: `Agent not found: ${id}` }
+    }
     const safeId = this.validateAgentId(id)
     const soulPath = path.join(this.agentsDir, safeId, 'SOUL.md')
     fs.mkdirSync(path.dirname(soulPath), { recursive: true })
@@ -374,7 +317,11 @@ ${yaml.stringify({ agents: list })}
     return fs.existsSync(rulesPath) ? fs.readFileSync(rulesPath, 'utf-8') : ''
   }
 
+  /** R78 修复: 同 setSoul,写入前校验 agent 是否存在 */
   setRules(id: string, content: string) {
+    if (!this.agents.has(id)) {
+      return { success: false, error: `Agent not found: ${id}` }
+    }
     const safeId = this.validateAgentId(id)
     const rulesPath = path.join(this.agentsDir, safeId, 'AGENTS.md')
     fs.mkdirSync(path.dirname(rulesPath), { recursive: true })
@@ -405,220 +352,35 @@ ${yaml.stringify({ agents: list })}
   }
 
   // ===========================================================
-  // 模型选择
+  // 模型选择 — 已委托到 ./agent-model-selector.ts
+  // (selectModel / resolveApiKey / hasApiKey / resolveCustomModel / safeCostScore)
+  // 这些函数只读 settingsService/keystoreService 单例 + pi-ai 静态注册表,
+  // 不依赖 AgentService 的 this 状态,可纯函数测试。
   // ===========================================================
-
-  /** 检查指定 provider 是否配置了可用的 API key */
-  private hasApiKey(provider: string): boolean {
-    return !!(keystoreService.getApiKey(provider) || getEnvApiKey(provider))
-  }
-
-  /** 从 settings 自定义模型中构造 Model<Api> 兼容对象（与 pi-ai-service.resolveModel 逻辑一致） */
-  private resolveCustomModel(providerId: string, modelId: string): Model<Api> | undefined {
-    const settings = settingsService.getSettings()
-    const customModels = settings.models.customModels?.[providerId]
-    if (!customModels || customModels.length === 0) return undefined
-
-    const custom = customModels.find((m) => m.id === modelId)
-    if (!custom) return undefined
-
-    // 从 provider 静态模型获取默认 api 和 baseUrl
-    let defaultApi = 'openai-completions'
-    let defaultBaseUrl = ''
-    try {
-      const staticModels = getModels(providerId as Parameters<typeof getModels>[0])
-      if (staticModels.length > 0) {
-        defaultApi = staticModels[0].api
-        defaultBaseUrl = staticModels[0].baseUrl
-      }
-    } catch (err) {
-      // provider 不在静态注册表，使用默认值
-      console.warn(
-        `[AgentService] getModels threw for provider "${providerId}" (custom provider expected):`,
-        err instanceof Error ? err.message : err,
-      )
-    }
-
-    const model: Model<Api> = {
-      id: custom.id,
-      name: custom.name,
-      api: (custom.api ?? defaultApi) as Api,
-      provider: providerId as Model<Api>['provider'],
-      baseUrl: custom.baseUrl ?? defaultBaseUrl,
-      reasoning: custom.supportsReasoning ?? false,
-      input: ['text'],
-      cost: {
-        input: custom.costPerInputToken ?? 0,
-        output: custom.costPerOutputToken ?? 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-      },
-      // 修复 Bug-1: 真正透传用户填的 contextWindow
-      // 1) 用户填了 → 用用户的 (log 标 from settings)
-      // 2) 用户没填 → 默认 900K (与 SettingsPage 对齐)
-      // 3) 最后才 32768
-      contextWindow:
-        typeof custom.contextWindow === 'number' && custom.contextWindow > 0
-          ? custom.contextWindow
-          : 900000,
-      maxTokens: custom.maxOutputTokens ?? 4096,
-    }
-
-    console.log(
-      `[AgentService] Resolved custom model: ${providerId}/${modelId} (api: ${model.api}, baseUrl: ${model.baseUrl}, contextWindow: ${model.contextWindow} ${typeof custom.contextWindow === 'number' ? '(from settings)' : '(default 900K)'})`,
-    )
-    return model
-  }
-
-  /**
-   * 根据 modelTier 选择模型(支持自定义 provider + API key 验证)
-   * 修复 Bug-1: 用户的 defaultProvider + defaultModel(含 900K contextWindow 等自定义)必须能传过来
-   * 之前 tier 路径不读 defaultModel, 选了 tier 标签但用了 static 注册表的 model(默认 32K)
-   */
-  private selectModel(tier: 'high_quality' | 'low_cost'): Model<Api> {
-    const settings = settingsService.getSettings()
-    const providerId = settings.models.defaultProvider
-    // 优先 defaultModel(用户在 Models 页面选的那个,含自定义 900K contextWindow)
-    // 然后是 tier 对应的 highQualityModel/lowCostModel
-    let modelId = settings.models.defaultModel
-    if (!modelId) {
-      modelId =
-        tier === 'high_quality' ? settings.models.highQualityModel : settings.models.lowCostModel
-    }
-
-    console.log(
-      `[AgentService] selectModel: tier=${tier} provider=${providerId} model=${modelId} (using defaultModel first to inherit user's selected model contextWindow)`,
-    )
-
-    // 1. 尝试使用配置的具体模型（静态注册表 + 自定义模型回退）
-    if (modelId && providerId && this.hasApiKey(providerId)) {
-      // 1a. 静态注册表（注意：getModel 找不到时返回 undefined，不抛异常）
-      const staticModel = getModel(
-        providerId as Parameters<typeof getModel>[0],
-        modelId as Parameters<typeof getModel>[1],
-      )
-      if (staticModel) {
-        console.log(`[AgentService] selectModel: using static model ${providerId}/${modelId}`)
-        return staticModel
-      }
-      // 1b. 自定义模型（settings.models.customModels）
-      const custom = this.resolveCustomModel(providerId, modelId)
-      if (custom) {
-        console.log(`[AgentService] selectModel: using custom model ${providerId}/${modelId}`)
-        return custom
-      }
-    } else if (modelId && providerId) {
-      console.log(
-        `[AgentService] selectModel: configured provider ${providerId} has no API key, skipping`,
-      )
-    }
-
-    // 2. 尝试默认 provider 的任意可用模型（含自定义模型）
-    if (providerId && this.hasApiKey(providerId)) {
-      // 2a. 静态模型
-      try {
-        const models = getModels(providerId as Parameters<typeof getModels>[0])
-        if (models.length > 0) {
-          const selected =
-            tier === 'high_quality'
-              ? models.reduce((best, m) => (safeCostScore(m) > safeCostScore(best) ? m : best))
-              : models.reduce((cheapest, m) =>
-                  safeCostScore(m) < safeCostScore(cheapest) ? m : cheapest,
-                )
-          console.log(
-            `[AgentService] selectModel: using provider ${providerId} auto-selected ${selected.id}`,
-          )
-          return selected
-        }
-      } catch (err) {
-        // 静态模型查找失败（如自定义 provider），继续尝试自定义模型
-        console.warn(
-          `[AgentService] getModels threw for default provider "${providerId}" (will try custom models):`,
-          err instanceof Error ? err.message : err,
-        )
-      }
-
-      // 2b. 自定义模型列表
-      const customModels = settings.models.customModels?.[providerId]
-      if (customModels && customModels.length > 0) {
-        const cm = customModels[0]
-        const resolved = this.resolveCustomModel(providerId, cm.id)
-        if (resolved) {
-          console.log(`[AgentService] selectModel: using first custom model ${providerId}/${cm.id}`)
-          return resolved
-        }
-      }
-    }
-
-    // 3. 遍历所有已配置 API key 的 provider（静态 + 自定义）
-    console.log('[AgentService] selectModel: falling back to scanning all providers with API keys')
-    const allProviderIds = getProviders()
-    for (const pid of allProviderIds) {
-      if (!this.hasApiKey(pid)) continue
-      // 3a. 先尝试静态模型
-      try {
-        const models = getModels(pid as Parameters<typeof getModels>[0])
-        if (models.length > 0) {
-          const selected =
-            tier === 'high_quality'
-              ? models.reduce((best, m) => (safeCostScore(m) > safeCostScore(best) ? m : best))
-              : models.reduce((cheapest, m) =>
-                  safeCostScore(m) < safeCostScore(cheapest) ? m : cheapest,
-                )
-          console.log(`[AgentService] selectModel: fallback to ${pid}/${selected.id}`)
-          return selected
-        }
-      } catch (err) {
-        // continue — 该 provider 可能是自定义 provider,静态注册表查不到
-        console.warn(
-          `[AgentService] getModels threw for provider "${pid}" during fallback scan:`,
-          err instanceof Error ? err.message : err,
-        )
-      }
-
-      // 3b. 也检查该 provider 的自定义模型
-      const customModels = settings.models.customModels?.[pid]
-      if (customModels && customModels.length > 0) {
-        const cm = customModels[0]
-        const resolved = this.resolveCustomModel(pid, cm.id)
-        if (resolved) {
-          console.log(`[AgentService] selectModel: fallback to custom ${pid}/${cm.id}`)
-          return resolved
-        }
-      }
-    }
-
-    // 4. 最终回退：尝试常见模型（仅当有对应 API key 时）
-    const fallbacks: Array<[string, string]> = [
-      ['anthropic', 'claude-sonnet-4-20250514'],
-      ['openai', 'gpt-4o-mini'],
-      ['deepseek', 'deepseek-chat'],
-    ]
-    for (const [p, m] of fallbacks) {
-      if (!this.hasApiKey(p)) continue
-      const model = getModel(
-        p as Parameters<typeof getModel>[0],
-        m as Parameters<typeof getModel>[1],
-      )
-      if (model) {
-        console.log(`[AgentService] selectModel: last-resort fallback to ${p}/${m}`)
-        return model
-      }
-    }
-
-    throw new Error(
-      'No model available with a configured API key. Please add an API key in Model Management.',
-    )
-  }
-
-  /** 获取 API Key */
-  private resolveApiKey(provider: string): string | undefined {
-    return keystoreService.getApiKey(provider) ?? getEnvApiKey(provider) ?? undefined
-  }
 
   // ===========================================================
   // Agent 执行 — 接入 pi-agent-core
   // ===========================================================
+
+  /**
+   * 构造 Agent 运行时工具集(EAA + 文件 + 实用工具 + MCP)
+   *
+   * MCP 集成:合并三层配置(全局 mcp.yaml + Agent 级 mcpServers + 技能级临时 server)
+   * MCP 未启用或无配置时返回空数组,不影响现有工具
+   */
+  private async buildAgentTools(
+    config: AgentConfig,
+    id: string,
+    // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
+  ): Promise<AgentTool<any>[]> {
+    const mcpTools = await getMcpToolsForAgent(id, config.mcpServers)
+    return [
+      ...getToolsByCapability(config.capabilities),
+      ...allFileTools, // 文件工具（read_file, read_excel, write_excel, write_csv, list_dir）
+      ...allUtilityTools, // 实用工具（get_current_time, calculate）
+      ...mcpTools, // MCP 工具(动态注入,工具名前缀 mcp_<serverId>_)
+    ]
+  }
 
   /** 手动运行 Agent（通过 pi-agent-core Agent 类） */
   async runAgent(
@@ -649,19 +411,15 @@ ${yaml.stringify({ agents: list })}
     }
 
     // 选择模型
-    const model = this.selectModel(config.modelTier)
-    const apiKeyResolved = this.resolveApiKey(model.provider)
+    const model = selectModel(config.modelTier)
+    const apiKeyResolved = resolveApiKey(model.provider)
     console.log(
       `[AgentService] runAgent(${id}) model selected: ${model.provider}/${model.id} (api: ${model.api}, baseUrl: ${model.baseUrl}, apiKey: ${apiKeyResolved ? '***present***' : 'MISSING'})`,
     )
 
-    // 选择工具
+    // 选择工具(三层 MCP 合并,抽出为 buildAgentTools 方法)
     // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
-    const tools: AgentTool<any>[] = [
-      ...getToolsByCapability(config.capabilities),
-      ...allFileTools, // 文件工具（read_file, read_excel, write_excel, write_csv, list_dir）
-      ...allUtilityTools, // 实用工具（get_current_time, calculate）
-    ]
+    const tools: AgentTool<any>[] = await this.buildAgentTools(config, id)
 
     // ✅ [Settings wiring] 读取 chat.* 设置
     // steeringMode/followUpMode/showImages 没有运行时 API 等价物,注入到 system prompt 顶部
@@ -742,7 +500,28 @@ ${yaml.stringify({ agents: list })}
       if (messages.length <= 2) {
         return messages
       }
-      const key = this.resolveApiKey(model.provider) ?? getEnvApiKey(model.provider)
+      // R136 优化: 廉价预检查 — 字符总数 / 4 < 阈值 * 0.8 时跳过完整扫描
+      // 避免每轮都对全部消息做 O(N) token 估算(常见于会话初期)
+      const threshold = model.contextWindow - compactionSettings.reserveTokens
+      let quickChars = 0
+      for (let i = 0; i < messages.length; i++) {
+        const m = messages[i]
+        if (!m) continue
+        const content = (m as { content?: unknown }).content
+        if (typeof content === 'string') quickChars += content.length
+        else if (Array.isArray(content)) {
+          for (const b of content as Array<{ type?: string; text?: string; thinking?: string }>) {
+            if (b?.type === 'text' && b.text) quickChars += b.text.length
+            else if (b?.type === 'thinking' && b.thinking) quickChars += b.thinking.length
+          }
+        }
+        // 提前退出: 已超阈值 * 0.8 就停止统计, 进入完整评估
+        if (quickChars / 4 > threshold * 0.8) break
+      }
+      if (quickChars / 4 < threshold * 0.8) {
+        return messages
+      }
+      const key = resolveApiKey(model.provider)
       if (!key) {
         console.warn('[AgentService] compaction skipped: no API key for', model.provider)
         return messages
@@ -778,7 +557,7 @@ ${yaml.stringify({ agents: list })}
         // ✅ 从模型定义中读取 maxTokens 作为单次输出上限
         // (pi-agent-core 会根据 model.maxTokens 向 LLM 请求对应数量的 token)
       },
-      getApiKey: (provider: string) => this.resolveApiKey(provider),
+      getApiKey: (provider: string) => resolveApiKey(provider),
       transformContext,
     })
 
@@ -797,8 +576,9 @@ ${yaml.stringify({ agents: list })}
     let turnCount = 0
     let toolCallCount = 0
 
-    // 记录执行到 DB
-    const dbExecId = dbService.recordExecutionStart(id, prompt)
+    // M-4 修复: 声明 dbExecId 在 try 外(供 catch 使用),赋值移入 try 内
+    // 之前 recordExecutionStart 在 try-catch 外,若 DB 抛错会导致 agent 状态卡死、unsubscribe 泄漏
+    let dbExecId = -1
 
     // 订阅事件，转发到渲染进程 + 收集诊断信息
     const unsubscribe = agent.subscribe((event: AgentEvent) => {
@@ -901,6 +681,8 @@ ${yaml.stringify({ agents: list })}
     }
 
     try {
+      // M-4 修复: recordExecutionStart 移入 try 块,DB 抛错时走 catch 清理流程
+      dbExecId = dbService.recordExecutionStart(id, prompt)
       // MEDIUM 修复: running 状态设置移入 try 块,避免 setup 阶段抛错导致状态永久卡死
       this.agentStatus.set(id, 'running')
       this.sendStatus(win, id, 'running')
@@ -923,6 +705,7 @@ ${yaml.stringify({ agents: list })}
         !abortController.signal.aborted
       ) {
         continuationCount++
+        const prevOutputLen = outputText.length
         const remainingTasks = Math.max(0, MIN_TURN_COUNT - turnCount)
         const contPrompt =
           `[系统指令] 你的回复过早结束。你只完成了 ${turnCount} 轮操作，输出了 ${outputText.length} 个字符。` +
@@ -931,13 +714,21 @@ ${yaml.stringify({ agents: list })}
         console.log(
           `[AgentService] runAgent(${id}) continuation #${continuationCount}: turns=${turnCount} outputLen=${outputText.length}`,
         )
-        turnCount = 0
+        // 修复: 不再重置 turnCount 为 0,保留累积轮次以正确判断续跑条件
+        const prevTurnCount = turnCount
         await agent.prompt(contPrompt)
         await withTimeout(
           agent.waitForIdle(),
           WAIT_FOR_IDLE_TIMEOUT_MS,
           `Agent waitForIdle(${id}) cont#${continuationCount}`,
         )
+        // 如果本轮输出没有增长且轮次没有增加,说明模型已无法继续,提前退出避免浪费 API 调用
+        if (outputText.length <= prevOutputLen && turnCount <= prevTurnCount) {
+          console.log(
+            `[AgentService] runAgent(${id}) continuation #${continuationCount} no progress (outputLen: ${prevOutputLen}→${outputText.length}, turns: ${prevTurnCount}→${turnCount}), stopping early`,
+          )
+          break
+        }
         console.log(
           `[AgentService] runAgent(${id}) cont#${continuationCount} done: turns=${turnCount} outputLen=${outputText.length}`,
         )
@@ -1021,6 +812,17 @@ ${yaml.stringify({ agents: list })}
       }
       // abort 路径: 不在此处发状态事件,由 abortAgent 统一发送 idle + aborted: true
     } finally {
+      // 修复: finally 块中 abort,确保 agent 异常退出(如 waitForIdle 超时)后
+      // 不再继续消耗 API token。abort() 是幂等的,已被 abortAgent 调用过时再调是 no-op。
+      // 必须在 catch 块处理完之后再 abort(catch 中检查 isAborted 区分 abort 和真实 error)。
+      if (!abortController.signal.aborted) {
+        abortController.abort()
+        try {
+          await agent.abort()
+        } catch {
+          /* agent.abort 可能因已停止而抛错,忽略 */
+        }
+      }
       unsubscribe()
       this.runningAgents.delete(id)
     }

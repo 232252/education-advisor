@@ -10,21 +10,44 @@ import { agentService } from '../services/agent-service'
 
 export function registerAgentHandlers(win: BrowserWindow) {
   // 列出所有 Agent
+  // H-1 修复: 加 try-catch,防止 agentService 抛错时渲染进程收到 raw rejection
   ipcMain.handle(IPC.IPC_AGENT_LIST, async () => {
-    return agentService.listAgents()
+    try {
+      return agentService.listAgents()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[IPC] agent:list failed:', msg)
+      return { success: false, error: msg, agents: [] }
+    }
   })
 
   // 获取 Agent 详情
+  // H-1 修复: 加 try-catch
   ipcMain.handle(IPC.IPC_AGENT_GET, async (_e, id: string) => {
-    return agentService.getAgent(id)
+    try {
+      return agentService.getAgent(id)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] agent:get failed for "${id}":`, msg)
+      return { success: false, error: msg }
+    }
   })
 
   // 启用/禁用 Agent
+  // H-1 修复: 加 try-catch
   ipcMain.handle(IPC.IPC_AGENT_TOGGLE, async (_e, id: string, enabled: boolean) => {
-    return agentService.toggleAgent(id, enabled)
+    try {
+      return agentService.toggleAgent(id, enabled)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] agent:toggle failed for "${id}":`, msg)
+      return { success: false, error: msg }
+    }
   })
 
   // 更新 Agent 配置
+  // PERF: 成功时直接返回最新 list + detail,避免前端再发 2 次 IPC (agent:list + agent:get)
+  // H-1 修复: service 调用加 try-catch
   ipcMain.handle(IPC.IPC_AGENT_UPDATE, async (_e, id: string, patch: unknown) => {
     if (!id || typeof id !== 'string') {
       return { success: false, error: 'id must be a non-empty string' }
@@ -32,38 +55,93 @@ export function registerAgentHandlers(win: BrowserWindow) {
     if (!patch || typeof patch !== 'object') {
       return { success: false, error: 'patch must be a non-null object' }
     }
-    return agentService.updateAgent(
-      id,
-      patch as Partial<Pick<AgentConfig, 'name' | 'description' | 'modelTier' | 'capabilities'>>,
-    )
+    try {
+      const result = agentService.updateAgent(
+        id,
+        patch as Partial<
+          Pick<AgentConfig, 'name' | 'description' | 'modelTier' | 'capabilities' | 'mcpServers'>
+        >,
+      )
+      if (result.success) {
+        // 附带最新 list + detail,前端可省略 2 次 IPC
+        const agents = agentService.listAgents()
+        const detail = await agentService.getAgent(id)
+        return { success: true, agents, detail }
+      }
+      return result
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] agent:update failed for "${id}":`, msg)
+      return { success: false, error: msg }
+    }
   })
 
   // 读取 SOUL.md
+  // H-1 修复: 加 try-catch
   ipcMain.handle(IPC.IPC_AGENT_GET_SOUL, async (_e, id: string) => {
-    return agentService.getSoul(id)
+    try {
+      return agentService.getSoul(id)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] agent:get-soul failed for "${id}":`, msg)
+      return { success: false, error: msg }
+    }
   })
 
   // 写入 SOUL.md
   // R3 修复: 验证 content 类型,避免 fs.writeFile 抛 raw TypeError
+  // PERF: 成功时附带最新 detail,避免前端再发 1 次 IPC (agent:get)
+  // H-1 修复: service 调用加 try-catch
   ipcMain.handle(IPC.IPC_AGENT_SET_SOUL, async (_e, id: string, content: string) => {
     if (typeof id !== 'string' || typeof content !== 'string') {
       return { success: false, error: 'id and content must be strings' }
     }
-    return agentService.setSoul(id, content)
+    try {
+      const result = agentService.setSoul(id, content)
+      if (result.success) {
+        const detail = await agentService.getAgent(id)
+        return { success: true, detail }
+      }
+      return result
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] agent:set-soul failed for "${id}":`, msg)
+      return { success: false, error: msg }
+    }
   })
 
   // 读取 AGENTS.md
+  // H-1 修复: 加 try-catch
   ipcMain.handle(IPC.IPC_AGENT_GET_RULES, async (_e, id: string) => {
-    return agentService.getRules(id)
+    try {
+      return agentService.getRules(id)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] agent:get-rules failed for "${id}":`, msg)
+      return { success: false, error: msg }
+    }
   })
 
   // 写入 AGENTS.md
   // R3 修复: 验证 content 类型,避免 fs.writeFile 抛 raw TypeError
+  // PERF: 成功时附带最新 detail,避免前端再发 1 次 IPC (agent:get)
+  // H-1 修复: service 调用加 try-catch
   ipcMain.handle(IPC.IPC_AGENT_SET_RULES, async (_e, id: string, content: string) => {
     if (typeof id !== 'string' || typeof content !== 'string') {
       return { success: false, error: 'id and content must be strings' }
     }
-    return agentService.setRules(id, content)
+    try {
+      const result = agentService.setRules(id, content)
+      if (result.success) {
+        const detail = await agentService.getAgent(id)
+        return { success: true, detail }
+      }
+      return result
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] agent:set-rules failed for "${id}":`, msg)
+      return { success: false, error: msg }
+    }
   })
 
   // 手动触发 Agent — 异步执行，通过 AGENT_STATUS_UPDATE 推送进度
@@ -118,8 +196,15 @@ export function registerAgentHandlers(win: BrowserWindow) {
   })
 
   // 获取执行历史
+  // H-1 修复: 加 try-catch
   ipcMain.handle(IPC.IPC_AGENT_GET_HISTORY, async (_e, id: string) => {
-    return agentService.getHistory(id)
+    try {
+      return agentService.getHistory(id)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] agent:get-history failed for "${id}":`, msg)
+      return { success: false, error: msg, history: [] }
+    }
   })
 
   console.log('[IPC] Agent handlers registered (pi-agent-core integrated)')

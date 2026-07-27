@@ -1,0 +1,42 @@
+# MCP Server 全局配置
+# 所有可用的 MCP server 在此定义,Agent 和技能通过 server_id 引用
+# 环境变量插值: ${VAR} 语法在加载时自动替换为 process.env[VAR]
+#
+# Agent 级启用: 在 config/agents.yaml 中为 Agent 添加 mcp_servers: [server_id, ...]
+# 技能级临时 server: 在 skills/<name>/SKILL.md frontmatter 中声明 mcp_servers
+#
+# 安全屏障复用:
+#   - 路径参数走 validateFilePath() (14 个敏感路径黑名单)
+#   - 字符串参数走 sanitizeArg() (shell 元字符过滤)
+#
+# 启用示例(取消注释并修改路径即可):
+#
+# servers:
+#   - id: filesystem
+#     name: 文件系统工具
+#     description: 提供文件读写目录操作能力
+#     enabled: true
+#     transport: stdio
+#     command: npx
+#     args:
+#       - "-y"
+#       - "@modelcontextprotocol/server-filesystem"
+#       - "/allowed/path"
+#
+#   - id: web-search
+#     name: 网页搜索
+#     description: 提供网络搜索能力
+#     enabled: true
+#     transport: sse
+#     url: "https://search-mcp.example.com/sse"
+#     headers:
+#       Authorization: "Bearer ${MCP_SEARCH_TOKEN}"
+#
+#   - id: database
+#     name: 数据库工具
+#     description: 提供数据库查询能力
+#     enabled: true
+#     transport: websocket
+#     url: "ws://localhost:8080/mcp"
+
+servers: []

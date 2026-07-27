@@ -5,6 +5,7 @@
 import type { BrowserWindow } from 'electron'
 import { agentService } from '../services/agent-service'
 import { eaaBridge } from '../services/eaa-bridge'
+import { registerAcademicHandlers } from './academic-handlers'
 import { registerAgentHandlers } from './agent-handlers'
 import { registerAIHandlers } from './ai-handlers'
 import { registerClassHandlers } from './class-handlers'
@@ -12,6 +13,7 @@ import { registerCronHandlers } from './cron-handlers'
 import { registerEAAHandlers } from './eaa-handlers'
 import { registerFeishuHandlers } from './feishu-handlers'
 import { registerLogHandlers } from './log-handlers'
+import { registerMcpHandlers } from './mcp-handlers'
 import { registerOllamaHandlers } from './ollama-handlers'
 import { registerPrivacyHandlers } from './privacy-handlers'
 import { registerProfileHandlers } from './profile-handlers'
@@ -33,6 +35,8 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerFeishuHandlers(win)
   registerOllamaHandlers(win)
   registerClassHandlers()
+  registerMcpHandlers(win)
+  registerAcademicHandlers()
 
   // 初始化 EAA Bridge（创建数据目录、复制 reason-codes、doctor 健康检查）
   const eaaStatus = await eaaBridge.initialize()
