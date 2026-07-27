@@ -3,6 +3,7 @@
 // =============================================================
 
 import type {
+  AcademicConfig,
   AddEventParams,
   AgentDetail,
   AgentListItem,
@@ -28,16 +29,21 @@ import type {
   EAATagDetailData,
   EAATagListData,
   EAAValidateData,
+  ExamDef,
   FeishuBotStatusInfo,
+  GradeRecord,
+  McpServerConfig,
+  McpServerStatus,
+  McpTool,
   ModelInfo,
+  OllamaModelInfo,
+  OllamaPullProgressInfo,
+  OllamaStatusInfo,
   PrivacyMapping,
   ProviderInfo,
   SetStudentMetaParams,
   Skill,
   StreamEvent,
-  OllamaModelInfo,
-  OllamaPullProgressInfo,
-  OllamaStatusInfo,
   StudentProfileData,
   TestConnectionResult,
   UnifiedSettings,
@@ -111,6 +117,7 @@ interface WindowAPI {
         description: string
         modelTier: 'high_quality' | 'low_cost'
         capabilities: string[]
+        mcpServers: string[]
       }>,
     ) => Promise<{ success: boolean; error?: string }>
     getSoul: (id: string) => Promise<string>
@@ -150,6 +157,7 @@ interface WindowAPI {
     summary: (since?: string, until?: string) => Promise<EAAResult<EAASummaryData>>
     dashboard: (outputDir?: string) => Promise<EAAResult<string>>
     exportFormats: () => Promise<string[]>
+    invalidateCache: () => Promise<{ success: boolean }>
   }
   privacy: {
     init: (password: string, autoScan?: boolean) => Promise<EAAResult>
@@ -164,6 +172,7 @@ interface WindowAPI {
     dryrun: (text: string) => Promise<EAAResult>
     backup: (destPath: string) => Promise<EAAResult>
     lock: () => Promise<{ success: boolean }>
+    unlock: (password: string) => Promise<EAAResult<string>>
     status: () => Promise<{ unlocked: boolean }>
   }
   cron: {
@@ -187,12 +196,59 @@ interface WindowAPI {
     set: (path: string, value: unknown) => Promise<{ success: boolean }>
     reset: () => Promise<{ success: boolean }>
   }
+  mcp: {
+    list: () => Promise<{ success: boolean; servers: McpServerStatus[]; error?: string }>
+    connect: (serverId: string) => Promise<{ success: boolean; error?: string }>
+    disconnect: (serverId: string) => Promise<{ success: boolean; error?: string }>
+    listTools: (serverId: string) => Promise<{ success: boolean; tools: McpTool[]; error?: string }>
+    test: (serverId: string) => Promise<{ success: boolean; toolCount: number; error?: string }>
+    add: (config: McpServerConfig) => Promise<{ success: boolean; error?: string }>
+    update: (
+      serverId: string,
+      patch: Partial<McpServerConfig>,
+    ) => Promise<{ success: boolean; error?: string }>
+    remove: (serverId: string) => Promise<{ success: boolean; error?: string }>
+  }
   profile: {
     get: (name: string) => Promise<{ success: boolean; data: StudentProfileData }>
     set: (
       name: string,
       data: Partial<StudentProfileData>,
     ) => Promise<{ success: boolean; error?: string }>
+  }
+  academic: {
+    getConfig: () => Promise<{ success: boolean; data?: AcademicConfig; error?: string }>
+    setConfig: (config: AcademicConfig) => Promise<{ success: boolean; error?: string }>
+    listExams: (
+      semester?: string,
+    ) => Promise<{ success: boolean; data?: ExamDef[]; error?: string }>
+    createExam: (
+      exam: Omit<ExamDef, 'id' | 'createdAt'>,
+    ) => Promise<{ success: boolean; data?: ExamDef; error?: string }>
+    deleteExam: (examId: string) => Promise<{ success: boolean; error?: string }>
+    getGrades: (
+      studentName: string,
+    ) => Promise<{ success: boolean; data?: GradeRecord[]; error?: string }>
+    setGrade: (
+      record: Omit<GradeRecord, 'updatedAt'>,
+    ) => Promise<{ success: boolean; data?: GradeRecord; error?: string }>
+    batchSetGrades: (
+      records: Omit<GradeRecord, 'updatedAt'>[],
+    ) => Promise<{ success: boolean; data?: number; error?: string }>
+    getClassGrades: (
+      studentNames: string[],
+      examId: string,
+      subjectId?: string,
+    ) => Promise<{
+      success: boolean
+      data?: Record<string, GradeRecord[]>
+      error?: string
+    }>
+    analyzePaper: (
+      filePath: string,
+      examId?: string,
+      subjectId?: string,
+    ) => Promise<{ success: boolean; data?: unknown; error?: string }>
   }
   class: {
     list: () => Promise<{ success: boolean; data: ClassEntity[]; error?: string }>
@@ -217,6 +273,15 @@ interface WindowAPI {
     removeStudent: (
       params: ClassRemoveStudentParams,
     ) => Promise<{ success: boolean; error?: string }>
+    /** 调班进度事件订阅，返回取消订阅函数。data: { current, total, assigned, lastName } */
+    onAssignProgress: (
+      callback: (data: {
+        current: number
+        total: number
+        assigned: number
+        lastName: string
+      }) => void,
+    ) => () => void
   }
   chat: {
     saveMessage: (msg: {

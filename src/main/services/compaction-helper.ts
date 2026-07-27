@@ -43,7 +43,9 @@ export function evaluateCompaction(
 ): CompactionDecision {
   // 防御性: SDK 的 estimateContextTokens 对 null/object content 会抛错
   // 我们先过滤掉非标准的 content 类型,保证不会崩
+  // R132 修复: 同时过滤 undefined/null 元素 (SDK 在 error turn 时可能产生 undefined 元素)
   const safeMessages = messages.filter((m) => {
+    if (!m) return false
     const c = (m as { content?: unknown }).content
     return c === null || c === undefined || typeof c === 'string' || Array.isArray(c)
   })
@@ -58,6 +60,7 @@ export function evaluateCompaction(
   // 兜底估算: 字符总数 / 4 (1 token ≈ 4 字符, 跟 SDK 内部策略一致)
   let charEstimate = 0
   for (const m of messages) {
+    if (!m) continue // R132 修复: 跳过 undefined/null 元素
     const content = (m as { content?: unknown }).content
     if (typeof content === 'string') charEstimate += content.length
     else if (Array.isArray(content)) {
@@ -160,10 +163,13 @@ export async function compactAgentMessages(
   apiKey: string,
   signal?: AbortSignal,
 ): Promise<AgentMessage[]> {
-  if (messages.length <= 2) return messages
+  // R132 修复: 过滤掉 undefined/null 元素 (SDK 在 error turn 时可能产生 undefined 元素,
+  // 导致 evaluateCompaction 的 filter 回调 / convertToLlm 崩溃)
+  const cleanMessages = messages.filter((m) => m != null)
+  if (cleanMessages.length <= 2) return cleanMessages
 
-  const decision = evaluateCompaction(messages, model, settings)
-  if (!decision.shouldCompact) return messages
+  const decision = evaluateCompaction(cleanMessages, model, settings)
+  if (!decision.shouldCompact) return cleanMessages
 
   console.log(
     `[Compaction] Triggered: ${decision.contextTokens} tokens > ${decision.threshold} threshold ` +
@@ -172,11 +178,12 @@ export async function compactAgentMessages(
 
   // 找到 splitIndex:从尾部向前累计 token,达到 keepRecentTokens 时停止
   let recentTokens = 0
-  let splitIndex = messages.length
+  let splitIndex = cleanMessages.length
   // 简化版 estimateTokens (与 SDK 内部策略一致:字符数 / 4)
   // 注意:AgentMessage 是联合类型,部分成员(如 BashExecutionMessage)没有 content 字段,
   // 这里用宽松收窄,只处理有 content 字段的成员
   const estimateOne = (m: AgentMessage): number => {
+    if (!m) return 0 // R132 修复: 跳过 undefined/null 元素
     const content = (m as { content?: unknown }).content
     let chars = 0
     if (typeof content === 'string') {
@@ -207,20 +214,20 @@ export async function compactAgentMessages(
     return Math.ceil(chars / 4)
   }
 
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const t = estimateOne(messages[i])
+  for (let i = cleanMessages.length - 1; i >= 0; i--) {
+    const t = estimateOne(cleanMessages[i])
     if (recentTokens + t > settings.keepRecentTokens) break
     recentTokens += t
     splitIndex = i
   }
 
   // 至少保留最后 1 条
-  if (splitIndex >= messages.length) splitIndex = messages.length - 1
+  if (splitIndex >= cleanMessages.length) splitIndex = cleanMessages.length - 1
 
-  const oldMessages = messages.slice(0, splitIndex)
-  const recentMessages = messages.slice(splitIndex)
+  const oldMessages = cleanMessages.slice(0, splitIndex)
+  const recentMessages = cleanMessages.slice(splitIndex)
 
-  if (oldMessages.length === 0) return messages
+  if (oldMessages.length === 0) return cleanMessages
 
   // 0.80.3 升级适配：SDK 的 generateSummary 改为需要 Models 注册表（新鉴权架构），
   // 与本应用基于 apiKey 的旧链路不兼容。这里用 compat 层的 completeSimple
@@ -235,7 +242,7 @@ export async function compactAgentMessages(
 
   if (!summaryText) {
     console.warn(`[Compaction] Summary generation failed, skipping`)
-    return messages
+    return cleanMessages
   }
   console.log(
     `[Compaction] Generated ${summaryText.length} chars summary for ${oldMessages.length} old messages, ` +
@@ -243,16 +250,17 @@ export async function compactAgentMessages(
   )
 
   // 构造 summary 作为 user 消息(自定义类型 compactionSummary)
-  const summaryMessage: AgentMessage = {
-    role: 'user',
+  // L-5 修复: 移除不安全的 as unknown as 双重断言,用类型安全的构造方式
+  const summaryMessage = {
+    role: 'user' as const,
     content: [
       {
-        type: 'text',
+        type: 'text' as const,
         text: `[对话历史压缩] 之前 ${oldMessages.length} 条消息已被压缩为以下摘要:\n\n${summaryText}`,
       },
     ],
     timestamp: Date.now(),
-  } as unknown as AgentMessage
+  } as AgentMessage
 
   return [summaryMessage, ...recentMessages]
 }
@@ -268,24 +276,26 @@ export function compactChatMessagesSimple(
   reserveTokens: number,
   keepRecentTokens: number,
 ): Array<{ role: string; content: string }> {
-  if (messages.length <= 2) return messages
+  // R132 修复: 防御性过滤 undefined/null 元素
+  const clean = messages.filter((m) => m && typeof m.content === 'string')
+  if (clean.length <= 2) return clean
   const estimateOne = (s: string) => Math.ceil(s.length / 3)
-  const totalTokens = messages.reduce((s, m) => s + estimateOne(m.content), 0)
+  const totalTokens = clean.reduce((s, m) => s + estimateOne(m.content), 0)
   const threshold = maxTokens - reserveTokens
-  if (totalTokens <= threshold) return messages
+  if (totalTokens <= threshold) return clean
 
   let recentTokens = 0
-  let splitIndex = messages.length
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const t = estimateOne(messages[i].content)
+  let splitIndex = clean.length
+  for (let i = clean.length - 1; i >= 0; i--) {
+    const t = estimateOne(clean[i].content)
     if (recentTokens + t > keepRecentTokens) break
     recentTokens += t
     splitIndex = i
   }
-  if (splitIndex >= messages.length) splitIndex = messages.length - 1
-  const oldMessages = messages.slice(0, splitIndex)
-  const recentMessages = messages.slice(splitIndex)
-  if (oldMessages.length === 0) return messages
+  if (splitIndex >= clean.length) splitIndex = clean.length - 1
+  const oldMessages = clean.slice(0, splitIndex)
+  const recentMessages = clean.slice(splitIndex)
+  if (oldMessages.length === 0) return clean
   const oldTokens = oldMessages.reduce((s, m) => s + estimateOne(m.content), 0)
   const summary =
     `[对话历史压缩] 之前 ${oldMessages.length} 条消息(约 ${oldTokens} tokens)已被压缩:\n` +

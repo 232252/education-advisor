@@ -25,6 +25,12 @@ let logsDir: string = path.join(app.getPath('userData'), 'logs')
 let writeCounter = 0
 /** 上次轮转检查的时间戳(毫秒),最少间隔 1 小时避免频繁检查 */
 let lastRotateCheck = 0
+/**
+ * L-7 修复: 轮转操作 in-flight 标志,防止并发调用同时执行轮转。
+ * 多个 writeLine 调用可能同时触发 rotateLogsIfNeeded,
+ * 使用 Promise 去重确保只有一个轮转操作在执行。
+ */
+let rotateInFlight: Promise<void> | null = null
 
 function ensureDir(): void {
   try {
@@ -47,15 +53,26 @@ function shouldLog(level: LogLevel): boolean {
  * H-8 修复: 日志轮转 — 删除超过 LOG_RETENTION_DAYS 天的旧日志文件
  * 通过文件名中的日期判断(而非 mtime),因为文件可能被备份恢复导致 mtime 不准
  * 采用懒清理策略: 每 ROTATE_CHECK_INTERVAL 次写入且距上次检查 >1 小时才触发
+ * L-7 修复: 使用 in-flight Promise 防止并发调用同时执行轮转
  */
 async function rotateLogsIfNeeded(): Promise<void> {
   const now = Date.now()
   // 最少间隔 1 小时
   if (now - lastRotateCheck < 3_600_000) return
+  // L-7 修复: 如果已有轮转在进行中,复用该 Promise(不重复执行)
+  if (rotateInFlight) return rotateInFlight
   lastRotateCheck = now
+  rotateInFlight = doRotateLogs().finally(() => {
+    rotateInFlight = null
+  })
+  return rotateInFlight
+}
+
+/** L-7 修复: 实际执行轮转的内部方法 */
+async function doRotateLogs(): Promise<void> {
   try {
     const files = await fsp.readdir(logsDir)
-    const cutoff = new Date(now - LOG_RETENTION_DAYS * 24 * 3_600_000)
+    const cutoff = new Date(Date.now() - LOG_RETENTION_DAYS * 24 * 3_600_000)
     for (const f of files) {
       if (!f.endsWith('.log')) continue
       // 从文件名提取日期: main-2026-01-15.log → 2026-01-15
@@ -108,34 +125,45 @@ function stringify(v: unknown): string {
 }
 
 /** 初始化 — 从 settings.logLevel 读取 + 劫持 console */
+// 避免重复 initLogger 时层层包裹(double-wrap)导致每条日志被重复写入多次。
+// 实现: 给我们的 wrapper 打标签(固定字符串 key,跨模块重载可识别)并保存原始引用,
+// 再次 initLogger 时先取回原始(未包裹)的 console 方法再重新包裹,保证始终只有一层。
+const LOGGER_ORIG_KEY = '__loggerOrigFn'
+type TaggedFn = ((...args: unknown[]) => void) & {
+  [LOGGER_ORIG_KEY]?: (...args: unknown[]) => void
+}
+
+function getBuiltin(fn: (...args: unknown[]) => void): (...args: unknown[]) => void {
+  const tagged = fn as TaggedFn
+  // 如果已被我们包裹,取回它委托的原始函数
+  return tagged[LOGGER_ORIG_KEY] ?? fn.bind(console)
+}
+
 export function initLogger(level: LogLevel, dir?: string): void {
   currentLevel = level
   if (dir) logsDir = dir
   ensureDir()
-  const origDebug = console.debug.bind(console)
-  const origInfo = console.info.bind(console)
-  const origWarn = console.warn.bind(console)
-  const origError = console.error.bind(console)
-  console.debug = (...args: unknown[]) => {
-    origDebug(...args)
-    if (shouldLog('debug'))
-      void writeLine('main', fmt('debug', 'console', args.map(stringify).join(' ')))
+  const origDebug = getBuiltin(console.debug as (...args: unknown[]) => void)
+  const origInfo = getBuiltin(console.info as (...args: unknown[]) => void)
+  const origWarn = getBuiltin(console.warn as (...args: unknown[]) => void)
+  const origError = getBuiltin(console.error as (...args: unknown[]) => void)
+
+  const wrap = (
+    orig: (...args: unknown[]) => void,
+    lvl: LogLevel,
+  ): ((...args: unknown[]) => void) => {
+    const wrapper: (...args: unknown[]) => void = (...args: unknown[]) => {
+      orig(...args)
+      if (shouldLog(lvl)) void writeLine('main', fmt(lvl, 'console', args.map(stringify).join(' ')))
+    }
+    ;(wrapper as TaggedFn)[LOGGER_ORIG_KEY] = orig
+    return wrapper
   }
-  console.info = (...args: unknown[]) => {
-    origInfo(...args)
-    if (shouldLog('info'))
-      void writeLine('main', fmt('info', 'console', args.map(stringify).join(' ')))
-  }
-  console.warn = (...args: unknown[]) => {
-    origWarn(...args)
-    if (shouldLog('warn'))
-      void writeLine('main', fmt('warn', 'console', args.map(stringify).join(' ')))
-  }
-  console.error = (...args: unknown[]) => {
-    origError(...args)
-    if (shouldLog('error'))
-      void writeLine('main', fmt('error', 'console', args.map(stringify).join(' ')))
-  }
+
+  console.debug = wrap(origDebug, 'debug')
+  console.info = wrap(origInfo, 'info')
+  console.warn = wrap(origWarn, 'warn')
+  console.error = wrap(origError, 'error')
 }
 
 /** 运行时切换 level */
@@ -247,19 +275,70 @@ export async function searchLog(name: string, query: string, lines = 200): Promi
     .join('\n')
 }
 
-/** T3: 导出日志到指定路径(返回写出字节数) */
+/** T3: 导出日志到指定路径(返回写出字节数)
+ *  H-3 修复: 对 targetPath 做安全约束,防止渲染进程被攻破后覆盖任意系统文件 */
 export async function exportLog(name: string, targetPath: string): Promise<number> {
   try {
     // See readLogTail for why we use path.relative rather than startsWith.
     const file = path.resolve(logsDir, name)
     const rel = path.relative(logsDir, file)
     if (rel.startsWith('..') || path.isAbsolute(rel)) return 0
+    // H-3: targetPath 安全校验
+    if (typeof targetPath !== 'string' || targetPath.length === 0) return 0
+    if (targetPath.includes('\0')) return 0
+    // 拒绝路径中包含 .. 段(路径穿越)
+    const targetSegments = targetPath.split(/[\\/]/)
+    if (targetSegments.includes('..')) return 0
+    // 必须是绝对路径(防止相对路径写到意外位置)
+    if (!path.isAbsolute(targetPath)) return 0
+    // 拒绝写入到系统关键目录(防止覆盖系统文件)
+    const sysBlockedPrefixes = getSystemBlockedPrefixes()
+    const normalizedTarget = path.normalize(targetPath)
+    for (const blocked of sysBlockedPrefixes) {
+      if (
+        normalizedTarget === blocked ||
+        normalizedTarget.startsWith(blocked + path.sep) ||
+        normalizedTarget.startsWith(`${blocked}/`)
+      ) {
+        return 0
+      }
+    }
     const content = await fsp.readFile(file, 'utf-8')
     await fsp.writeFile(targetPath, content, 'utf-8')
     return Buffer.byteLength(content, 'utf-8')
   } catch {
     return 0
   }
+}
+
+/** H-3: 返回系统关键目录列表(导出到这些路径会破坏系统) */
+function getSystemBlockedPrefixes(): string[] {
+  const home = process.env.HOME || process.env.USERPROFILE || ''
+  const prefixes: string[] = []
+  if (process.platform === 'win32') {
+    prefixes.push('C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', 'C:\\ProgramData')
+    if (home) {
+      prefixes.push(
+        path.join(
+          home,
+          'AppData',
+          'Roaming',
+          'Microsoft',
+          'Windows',
+          'Start Menu',
+          'Programs',
+          'Startup',
+        ),
+      )
+    }
+  } else {
+    // Unix-like (linux / macOS)
+    prefixes.push('/etc', '/usr', '/bin', '/sbin', '/boot', '/var', '/sys', '/dev', '/proc')
+    if (home) {
+      prefixes.push(path.join(home, '.ssh'))
+    }
+  }
+  return prefixes
 }
 
 /** 清空所有日志 */

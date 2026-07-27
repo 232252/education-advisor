@@ -1,6 +1,7 @@
 // =============================================================
 // Profile Service 测试 — 学生扩展档案存储
 // 覆盖：get/set/update、路径遍历防护、原子写入
+// H-11 修复: 方法改为 async,测试同步更新为 await
 // =============================================================
 
 import fsp from 'node:fs/promises'
@@ -50,49 +51,49 @@ describe('profileService', () => {
     }
   })
 
-  it('get 不存在应返回空对象', () => {
-    expect(profileService.get('nonexistent')).toEqual({})
+  it('get 不存在应返回空对象', async () => {
+    expect(await profileService.get('nonexistent')).toEqual({})
   })
 
-  it('set + get 应往返一致', () => {
+  it('set + get 应往返一致', async () => {
     const data = { nickname: '小张', note: '学习委员' }
-    const result = profileService.set('student-a', data)
+    const result = await profileService.set('student-a', data)
     expect(result.success).toBe(true)
-    const got = profileService.get('student-a')
+    const got = await profileService.get('student-a')
     expect(got).toEqual(data)
   })
 
-  it('update 应合并（不覆盖）现有字段', () => {
-    profileService.set('student-b', { a: 1, b: 2 })
-    profileService.update('student-b', { b: 3, c: 4 })
-    const got = profileService.get('student-b')
+  it('update 应合并（不覆盖）现有字段', async () => {
+    await profileService.set('student-b', { a: 1, b: 2 })
+    await profileService.update('student-b', { b: 3, c: 4 })
+    const got = await profileService.get('student-b')
     expect(got).toEqual({ a: 1, b: 3, c: 4 })
   })
 
-  it('update 不存在的 key 应创建', () => {
-    profileService.update('student-c', { newField: 'hello' })
-    const got = profileService.get('student-c')
+  it('update 不存在的 key 应创建', async () => {
+    await profileService.update('student-c', { newField: 'hello' })
+    const got = await profileService.get('student-c')
     expect(got).toEqual({ newField: 'hello' })
   })
 
-  it('路径遍历防护：恶意名称应被清理', () => {
+  it('路径遍历防护：恶意名称应被清理', async () => {
     // profileService 用正则替换不安全字符
-    profileService.set('../../../etc/passwd', { test: 1 })
-    const got = profileService.get('../../../etc/passwd')
+    await profileService.set('../../../etc/passwd', { test: 1 })
+    const got = await profileService.get('../../../etc/passwd')
     expect(got).toEqual({ test: 1 })
     // 实际写入目录应在 profiles 下,不在 etc
     // （这个测试只是验证不抛错并能正确 round-trip）
   })
 
-  it('中文姓名应正确处理', () => {
-    profileService.set('张三', { class: '高三一班' })
-    const got = profileService.get('张三')
+  it('中文姓名应正确处理', async () => {
+    await profileService.set('张三', { class: '高三一班' })
+    const got = await profileService.get('张三')
     expect(got).toEqual({ class: '高三一班' })
   })
 
-  it('特殊字符应被替换为下划线', () => {
-    profileService.set('a/b\\c:d', { x: 1 })
-    const got = profileService.get('a/b\\c:d')
+  it('特殊字符应被替换为下划线', async () => {
+    await profileService.set('a/b\\c:d', { x: 1 })
+    const got = await profileService.get('a/b\\c:d')
     expect(got).toEqual({ x: 1 })
   })
 })

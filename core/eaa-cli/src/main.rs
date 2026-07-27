@@ -10,7 +10,7 @@ mod types;
 mod validation;
 
 #[derive(Parser)]
-#[command(name = "eaa", about = "EAA 事件溯源操行分系统 v3.1.2", version)]
+#[command(name = "eaa", about = "EAA 事件溯源操行分系统 v3.2.5", version)]
 struct Cli {
     /// 输出格式: text(默认) 或 json
     #[arg(short = 'O', long, global = true, default_value = "text")]
@@ -80,8 +80,11 @@ enum Commands {
         #[arg(long, default_value = "100")]
         limit: usize,
     },
-    /// 列出所有学生
-    ListStudents,
+    /// 列出所有学生（默认排除已软删除学生，加 --include-deleted 可查看全部）
+    ListStudents {
+        #[arg(long, default_value_t = false)]
+        include_deleted: bool,
+    },
     /// 添加新学生
     AddStudent { name: String },
     /// 删除学生（保留历史事件，标记归档）
@@ -106,7 +109,13 @@ enum Commands {
         output_file: Option<String>,
     },
     /// 环境健康检查
-    Doctor,
+    Doctor {
+        /// [v3.2.8] 修复检测到的孤儿有效事件 (软删除已删除学生的有效事件)
+        #[arg(long)]
+        fix: bool,
+    },
+    /// [v3.1.9] 重建所有缓存 (scores + event_stats + daily_dedup)
+    RebuildCache,
     /// 隐私脱敏引擎 (PII Shield)
     Privacy {
         #[command(subcommand)]
@@ -170,43 +179,49 @@ fn get_data_dir() -> std::path::PathBuf {
         .unwrap_or_else(|_| std::path::PathBuf::from("./data"))
 }
 
-fn main() -> Result<(), AppError> {
+fn main() {
     let cli = Cli::parse();
     let output = parse_output(&cli.output);
 
-    match &cli.command {
-        Commands::Privacy { sub } => return handle_privacy(sub),
-        Commands::Info => cmd_info(output)?,
-        Commands::Score { name } => cmd_score(name, output)?,
-        Commands::Validate => cmd_validate(output)?,
-        Commands::Replay => cmd_replay(output)?,
-        Commands::History { name } => cmd_history(name, output)?,
-        Commands::Ranking { n } => cmd_ranking(*n, output)?,
+    let result = match &cli.command {
+        Commands::Privacy { sub } => handle_privacy(sub),
+        Commands::Info => cmd_info(output),
+        Commands::Score { name } => cmd_score(name, output),
+        Commands::Validate => cmd_validate(output),
+        Commands::Replay => cmd_replay(output),
+        Commands::History { name } => cmd_history(name, output),
+        Commands::Ranking { n } => cmd_ranking(*n, output),
         Commands::Add { name, reason_code, tags, delta, note, operator, dry_run, force } =>
-            cmd_add(name, reason_code, tags, *delta, note, operator.as_deref(), *dry_run, *force)?,
+            cmd_add(name, reason_code, tags, *delta, note, operator.as_deref(), *dry_run, *force, output),
         Commands::Revert { event_id, reason, operator, dry_run } =>
-            cmd_revert(event_id, reason, operator.as_deref(), *dry_run)?,
-        Commands::Codes => cmd_codes(output)?,
-        Commands::Search { query, limit } => cmd_search(&query.join(" "), *limit, output)?,
-        Commands::Stats => cmd_stats(output)?,
-        Commands::Tag { tag } => cmd_tag(tag, output)?,
-        Commands::Range { start, end, limit } => cmd_range(start, end, *limit, output)?,
-        Commands::ListStudents => cmd_list_students(output)?,
-        Commands::AddStudent { name } => cmd_add_student(name)?,
+            cmd_revert(event_id, reason, operator.as_deref(), *dry_run, output),
+        Commands::Codes => cmd_codes(output),
+        Commands::Search { query, limit } => cmd_search(&query.join(" "), *limit, output),
+        Commands::Stats => cmd_stats(output),
+        Commands::Tag { tag } => cmd_tag(tag, output),
+        Commands::Range { start, end, limit } => cmd_range(start, end, *limit, output),
+        Commands::ListStudents { include_deleted } => cmd_list_students(output, *include_deleted),
+        Commands::AddStudent { name } => cmd_add_student(name),
         Commands::DeleteStudent { name, confirm, reason, dry_run } =>
-            cmd_delete_student(name, *confirm, reason, *dry_run)?,
-        Commands::Import { file } => cmd_import(file)?,
+            cmd_delete_student(name, *confirm, reason, *dry_run),
+        Commands::Import { file } => cmd_import(file),
         Commands::Export { format, output_file } =>
-            cmd_export(format, output_file.as_deref())?,
-        Commands::Doctor => cmd_doctor(output)?,
+            cmd_export(format, output_file.as_deref()),
+        Commands::Doctor { fix } => cmd_doctor(output, *fix),
+        Commands::RebuildCache => cmd_rebuild_cache(output),
         Commands::Summary { since, until } =>
-            cmd_summary(since.as_deref(), until.as_deref(), output)?,
+            cmd_summary(since.as_deref(), until.as_deref(), output),
         Commands::SetStudentMeta { name, group, role, class_id, clear_class_id } =>
-            cmd_set_student_meta(name, group.as_deref(), role.as_deref(), class_id.as_deref(), *clear_class_id)?,
+            cmd_set_student_meta(name, group.as_deref(), role.as_deref(), class_id.as_deref(), *clear_class_id),
         Commands::Dashboard { output_dir, open } =>
-            cmd_dashboard(output_dir.as_deref(), *open)?,
+            cmd_dashboard(output_dir.as_deref(), *open),
+    };
+
+    if let Err(e) = result {
+        // v3.2.0: 用 Display 格式输出错误 (之前用 Debug 格式, 显示为 EventNotFound("..."))
+        eprintln!("错误: {}", e);
+        std::process::exit(1);
     }
-    Ok(())
 }
 
 fn load_engine(data_dir: &std::path::PathBuf, password: &str) -> Result<PrivacyEngine, String> {
@@ -281,18 +296,22 @@ fn handle_privacy(cmd: &PrivacyCmd) -> Result<(), AppError> {
         PrivacyCmd::Anonymize { text } => {
             let pwd = std::env::var("EAA_PRIVACY_PASSWORD").unwrap_or_default();
             if pwd.is_empty() { println!("{}", text); return Ok(()); }
+            // R81 安全修复: load_engine 失败时 (如密码错误/解密失败) 必须返回错误,
+            // 不能静默返回原文 — 否则 PII 会未经脱敏直接输出,造成隐私泄露。
+            // (与 Filter/DryRun 的错误处理保持一致)
             match load_engine(&data_dir, &pwd) {
                 Ok(engine) => println!("{}", engine.anonymize(text)),
-                Err(_) => println!("{}", text),
+                Err(e) => println!("❌ {}", e),
             }
             Ok(())
         }
         PrivacyCmd::Deanonymize { text } => {
             let pwd = std::env::var("EAA_PRIVACY_PASSWORD").unwrap_or_default();
             if pwd.is_empty() { println!("{}", text); return Ok(()); }
+            // R81 安全修复: 同 Anonymize, load_engine 失败时返回错误而非静默返回原文
             match load_engine(&data_dir, &pwd) {
                 Ok(engine) => println!("{}", engine.deanonymize(text)),
-                Err(_) => println!("{}", text),
+                Err(e) => println!("❌ {}", e),
             }
             Ok(())
         }

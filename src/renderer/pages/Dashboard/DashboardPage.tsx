@@ -2,50 +2,39 @@
 // 仪表盘页面 — ECharts 数据可视化 + 统计卡片
 // =============================================================
 
-import type {
-  ClassEntity,
-  EAADoctorData,
-  EAAEventRecord,
-  EAAInfoData,
-  EAARankItem,
-  EAAStatsData,
-  EAAStudent,
-  EAASummaryData,
-  EAATagDetailData,
-  EAATagListData,
-  EAAValidateData,
-} from '@shared/types'
-import { BarChart, PieChart } from 'echarts/charts'
-import {
-  GridComponent,
-  LegendComponent,
-  TitleComponent,
-  TooltipComponent,
-} from 'echarts/components'
-import * as echarts from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
+import type { EAADoctorData, EAAStudent, EAAValidateData } from '@shared/types'
 import ReactEChartsCore from 'echarts-for-react/lib/core'
+import {
+  AlertTriangle,
+  BarChart3,
+  CheckCircle2,
+  FileOutput,
+  RefreshCw,
+  Trophy,
+  Undo2,
+  Users,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Card } from '../../components/Card'
+import { EmptyState } from '../../components/EmptyState'
+import { PageHeader } from '../../components/PageHeader'
+import { PageSkeleton } from '../../components/Skeleton'
+import { useChartTheme } from '../../hooks/useChartTheme'
 import { useTheme } from '../../hooks/useTheme'
 import { useT } from '../../i18n'
+import { echarts } from '../../lib/echarts-setup'
 import { getAPI } from '../../lib/ipc-client'
+import { btnStyle, cn, INPUT_BASE, TABLE_ROW, TABLE_TD, TABLE_TH } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
-
-// MEDIUM 修复: 类型守卫,区分 EAATagListData 和 EAATagDetailData,避免不安全的 as 断言
-function isTagListData(d: EAATagListData | EAATagDetailData): d is EAATagListData {
-  return Array.isArray((d as EAATagListData).tags)
-}
-
-echarts.use([
-  BarChart,
-  PieChart,
-  GridComponent,
-  TooltipComponent,
-  LegendComponent,
-  TitleComponent,
-  CanvasRenderer,
-])
+import { DashboardStatCard } from './components/DashboardStatCard'
+import {
+  computeClassComparison,
+  computePeriodSummary,
+  computeReasonDistribution,
+  computeScoreIntervals,
+} from './dashboard-stats'
+import { useDashboardData } from './hooks/useDashboardData'
 
 // 原因码 → 中文标签映射
 const REASON_CODE_LABELS: Record<string, string> = {
@@ -73,174 +62,55 @@ const REASON_CODE_LABELS: Record<string, string> = {
   LAB_CLEAN_UP: '实验室未清理',
 }
 
-// 渐变色配色方案
-const GRADIENT_COLORS = {
-  blue: {
-    from: '#3b82f6',
-    to: '#1d4ed8',
-    bg: 'from-blue-500/10 to-blue-600/5',
-    border: 'border-blue-500/20',
-    text: 'text-blue-600 dark:text-blue-400',
-    shadow: 'shadow-blue-500/10',
-  },
-  green: {
-    from: '#22c55e',
-    to: '#15803d',
-    bg: 'from-green-500/10 to-green-600/5',
-    border: 'border-green-500/20',
-    text: 'text-green-600 dark:text-green-400',
-    shadow: 'shadow-green-500/10',
-  },
-  yellow: {
-    from: '#eab308',
-    to: '#a16207',
-    bg: 'from-yellow-500/10 to-yellow-600/5',
-    border: 'border-yellow-500/20',
-    text: 'text-yellow-600 dark:text-yellow-400',
-    shadow: 'shadow-yellow-500/10',
-  },
-  purple: {
-    from: '#a855f7',
-    to: '#7e22ce',
-    bg: 'from-purple-500/10 to-purple-600/5',
-    border: 'border-purple-500/20',
-    text: 'text-purple-600 dark:text-purple-400',
-    shadow: 'shadow-purple-500/10',
-  },
-  red: {
-    from: '#ef4444',
-    to: '#b91c1c',
-    bg: 'from-red-500/10 to-red-600/5',
-    border: 'border-red-500/20',
-    text: 'text-red-600 dark:text-red-400',
-    shadow: 'shadow-red-500/10',
-  },
-}
+// 分数分布排序: 极高 → 高 → 中 → 低
+const SCORE_ORDER = ['极高(<60)', '高(60-80)', '中(80-100)', '低(>=100)']
+
+// 颜色辅助：按风险等级取色（模块级常量化，避免 render 中重复三元判断）
+const riskColorOf = (name: string) =>
+  name === '极高' ? '#ef4444' : name === '高' ? '#f97316' : name === '中' ? '#eab308' : '#22c55e'
 
 export function DashboardPage() {
   const { t } = useT()
   const navigate = useNavigate()
-  const [stats, setStats] = useState<EAAStatsData | null>(null)
-  const [summary, setSummary] = useState<EAASummaryData | null>(null)
-  const [ranking, setRanking] = useState<EAARankItem[]>([])
-  const [allEvents, setAllEvents] = useState<EAAEventRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  // 系统管理 & 诊断
-  const [eaaInfo, setEaaInfo] = useState<EAAInfoData | null>(null)
+  // 8 路并行数据加载统一交给 useDashboardData（封装 useMultiLoader + IPC 解包）
+  const {
+    stats,
+    summary,
+    ranking,
+    eaaInfo,
+    tagData,
+    allStudents,
+    classList,
+    allEvents,
+    loading,
+    errors,
+    reload,
+  } = useDashboardData()
+  // 系统管理 & 诊断（仅本页使用的局部状态）
   const [doctorData, setDoctorData] = useState<EAADoctorData | null>(null)
   const [doctorRunning, setDoctorRunning] = useState(false)
   const [validateData, setValidateData] = useState<EAAValidateData | null>(null)
   const [validateRunning, setValidateRunning] = useState(false)
-  const [tagData, setTagData] = useState<EAATagListData | null>(null)
-  // 班级筛选: 加载全量学生 + 班级列表, 支持按班级过滤排行/统计
-  const [allStudents, setAllStudents] = useState<EAAStudent[]>([])
-  const [classList, setClassList] = useState<ClassEntity[]>([])
   const [classFilter, setClassFilter] = useState<string>('__ALL__')
   const [compareMode, setCompareMode] = useState(false)
   const [compareClassA, setCompareClassA] = useState<string>('')
   const [compareClassB, setCompareClassB] = useState<string>('')
   const theme = useTheme()
   const isDark = theme === 'dark'
-  const axisColor = isDark ? '#9ca3af' : '#6b7280'
-  const gridColor = isDark ? '#1f2937' : '#e5e7eb'
-  const labelColor = isDark ? '#d1d5db' : '#374151'
-  const legendColor = isDark ? '#9ca3af' : '#6b7280'
+  const chartTheme = useChartTheme()
 
-  const loadData = useCallback(async () => {
-    try {
-      // 使用 allSettled: 单个 EAA 命令失败不阻塞其他数据加载
-      // 例如 eaa.tag() 失败时,stats/ranking 仍能正常显示
-      const results = await Promise.allSettled([
-        getAPI().eaa.stats(),
-        getAPI().eaa.summary(),
-        getAPI().eaa.ranking(10),
-        getAPI().eaa.info(),
-        getAPI().eaa.tag(),
-        getAPI().eaa.listStudents(),
-        getAPI().class.list(),
-        // 拉取半年内全局事件 (用于按班级过滤事件原因分布/周期摘要)
-        getAPI().eaa.range(
-          new Date(Date.now() - 180 * 24 * 3600 * 1000).toISOString().slice(0, 10),
-          new Date().toISOString().slice(0, 10),
-          5000,
-        ),
-      ])
-
-      // 逐个处理结果,保持类型安全
-      const statsRes = results[0]
-      if (statsRes.status === 'fulfilled' && statsRes.value.success && statsRes.value.data) {
-        setStats(statsRes.value.data)
-      }
-
-      const summaryRes = results[1]
-      if (summaryRes.status === 'fulfilled' && summaryRes.value.success && summaryRes.value.data) {
-        setSummary(summaryRes.value.data)
-      }
-
-      const rankingRes = results[2]
-      if (
-        rankingRes.status === 'fulfilled' &&
-        rankingRes.value.success &&
-        rankingRes.value.data?.ranking
-      ) {
-        setRanking(rankingRes.value.data.ranking)
-      }
-
-      const infoRes = results[3]
-      if (infoRes.status === 'fulfilled' && infoRes.value.success && infoRes.value.data) {
-        setEaaInfo(infoRes.value.data)
-      }
-
-      const tagRes = results[4]
-      if (tagRes.status === 'fulfilled' && tagRes.value.success && tagRes.value.data) {
-        // MEDIUM 修复: 用类型守卫替代 as 断言,确保 data 确实是 EAATagListData
-        if (isTagListData(tagRes.value.data)) {
-          setTagData(tagRes.value.data)
-        }
-      }
-
-      // 加载全量学生列表 (用于按班级过滤排行/统计)
-      // 过滤掉已删除学生 (status=Deleted),避免软删除学生干扰仪表盘统计
-      const stuRes = results[5]
-      if (stuRes.status === 'fulfilled' && stuRes.value.success && stuRes.value.data?.students) {
-        setAllStudents(stuRes.value.data.students.filter((s) => s.status !== 'Deleted'))
-      }
-
-      // 加载班级列表
-      const clsRes = results[6]
-      if (clsRes.status === 'fulfilled' && clsRes.value.success && clsRes.value.data) {
-        setClassList(clsRes.value.data)
-      }
-
-      // 加载全局事件 (用于按班级过滤事件原因分布/周期摘要)
-      const rangeRes = results[7]
-      if (
-        rangeRes.status === 'fulfilled' &&
-        rangeRes.value.success &&
-        rangeRes.value.data?.events
-      ) {
-        setAllEvents(rangeRes.value.data.events)
-      }
-
-      // 记录失败的部分到控制台,便于调试
-      const failed = results.filter((r) => r.status === 'rejected')
-      if (failed.length > 0) {
-        console.warn(
-          `[Dashboard] ${failed.length}/${results.length} EAA calls failed:`,
-          failed.map((r) => String((r as PromiseRejectedResult).reason)),
-        )
-      }
-    } catch (err) {
-      console.error('[Dashboard] Failed to load:', err)
-      toast.error(t('error.unknown'))
-    } finally {
-      setLoading(false)
-    }
-  }, [t])
-
+  // 记录失败的部分到控制台,便于调试（与原 loadData 行为一致：仅 console.warn，不弹 toast）
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    if (!loading && Object.keys(errors).length > 0) {
+      const failed = Object.keys(errors)
+      console.warn(`[Dashboard] ${failed.length} fetches failed:`, failed)
+    }
+  }, [loading, errors])
+
+  // 手动刷新：重新加载数据（Electron 版本无 invalidateCache，直接 reload）
+  const handleRefresh = useCallback(() => {
+    reload()
+  }, [reload])
 
   // 活跃班级列表
   const activeClassList = useMemo(() => classList.filter((c) => !c.archived), [classList])
@@ -293,22 +163,11 @@ export function DashboardPage() {
     return allStudents.filter((s) => s.class_id === classFilter)
   }, [allStudents, classFilter])
 
-  // 按班级过滤后的分数分布 (区间定义与 stats.score_intervals 保持一致)
-  const classScoreIntervals = useMemo(() => {
-    const buckets: Record<string, number> = {
-      '极高(<60)': 0,
-      '高(60-80)': 0,
-      '中(80-100)': 0,
-      '低(>=100)': 0,
-    }
-    for (const s of filteredStudents) {
-      if (s.score < 60) buckets['极高(<60)']++
-      else if (s.score < 80) buckets['高(60-80)']++
-      else if (s.score < 100) buckets['中(80-100)']++
-      else buckets['低(>=100)']++
-    }
-    return buckets
-  }, [filteredStudents])
+  // 按班级过滤后的分数分布（逻辑提取到 dashboard-stats.ts）
+  const classScoreIntervals = useMemo(
+    () => computeScoreIntervals(filteredStudents),
+    [filteredStudents],
+  )
 
   // 按班级过滤后的事件集合 (基于 entityIdToClassId 映射)
   const filteredEvents = useMemo(() => {
@@ -327,81 +186,28 @@ export function DashboardPage() {
     return m
   }, [allStudents])
 
-  // 按班级过滤后的事件原因分布
-  const classReasonDist = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const e of filteredEvents) {
-      const code = e.reason_code || 'UNKNOWN'
-      counts[code] = (counts[code] ?? 0) + 1
-    }
-    return Object.entries(counts)
-      .map(([code, count]) => ({ code, count }))
-      .sort((a, b) => b.count - a.count)
-  }, [filteredEvents])
+  // 按班级过滤后的事件原因分布（逻辑提取到 dashboard-stats.ts）
+  const classReasonDist = useMemo(() => computeReasonDistribution(filteredEvents), [filteredEvents])
 
-  // 按班级过滤后的周期摘要 (事件计数 + top_gainers/losers)
-  const classPeriodSummary = useMemo(() => {
-    let bonusCount = 0
-    let deductCount = 0
-    let bonusTotal = 0
-    let deductTotal = 0
-    const deltaByEntity: Record<string, number> = {}
-    for (const e of filteredEvents) {
-      const d = e.score_delta
-      if (d > 0) {
-        bonusCount++
-        bonusTotal += d
-      } else if (d < 0) {
-        deductCount++
-        deductTotal += d
-      }
-      deltaByEntity[e.entity_id] = (deltaByEntity[e.entity_id] ?? 0) + d
-    }
-    const gainers = Object.entries(deltaByEntity)
-      .filter(([, d]) => d > 0)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([eid, d]) => ({ name: entityIdToName[eid] ?? eid, delta: d }))
-    const losers = Object.entries(deltaByEntity)
-      .filter(([, d]) => d < 0)
-      .sort((a, b) => a[1] - b[1])
-      .slice(0, 3)
-      .map(([eid, d]) => ({ name: entityIdToName[eid] ?? eid, delta: d }))
-    return {
-      events: {
-        total: filteredEvents.length,
-        bonus_count: bonusCount,
-        deduct_count: deductCount,
-        bonus_total: bonusTotal,
-        deduct_total: deductTotal,
-      },
-      top_gainers: gainers,
-      top_losers: losers,
-    }
-  }, [filteredEvents, entityIdToName])
+  // 按班级过滤后的周期摘要 (事件计数 + top_gainers/losers，逻辑提取到 dashboard-stats.ts)
+  const classPeriodSummary = useMemo(
+    () => computePeriodSummary(filteredEvents, entityIdToName),
+    [filteredEvents, entityIdToName],
+  )
 
-  // 班级对比数据: 每个班级的学生数/平均分/高风险数
-  const classComparison = useMemo(() => {
-    return activeClassList.map((c) => {
-      const students = allStudents.filter((s) => s.class_id === c.class_id)
-      const riskCount = { 极高: 0, 高: 0, 中: 0, 低: 0 }
-      let totalScore = 0
-      for (const s of students) {
-        riskCount[s.risk] = (riskCount[s.risk] ?? 0) + 1
-        totalScore += s.score
-      }
-      return {
-        classId: c.class_id,
-        className: c.name,
-        grade: c.grade ?? '-',
-        teacher: c.teacher ?? '-',
-        studentCount: students.length,
-        avgScore: students.length > 0 ? totalScore / students.length : 0,
-        highRisk: riskCount.极高 + riskCount.高,
-        riskDistribution: riskCount,
-      }
-    })
-  }, [activeClassList, allStudents])
+  // 班级对比数据: 每个班级的学生数/平均分/高风险数（逻辑提取到 dashboard-stats.ts）
+  const classComparison = useMemo(
+    () =>
+      computeClassComparison(activeClassList, allStudents).map((c) => {
+        const cls = activeClassList.find((x) => x.class_id === c.classId)
+        return {
+          ...c,
+          grade: cls?.grade ?? '-',
+          teacher: cls?.teacher ?? '-',
+        }
+      }),
+    [activeClassList, allStudents],
+  )
 
   // 双班级对比数据
   const compareDataA = useMemo(() => {
@@ -413,125 +219,230 @@ export function DashboardPage() {
     return classComparison.find((c) => c.classId === compareClassB) ?? null
   }, [classComparison, compareClassB])
 
+  // 分数分布: 使用按班级过滤后的 classScoreIntervals (而非全局 stats.score_intervals)
+  const scoreIntervals = classScoreIntervals
+  // 按风险等级排序：极高 → 高 → 中 → 低 (SCORE_ORDER 已提升为模块常量)
+  const sortedScoreKeys = useMemo(
+    () => SCORE_ORDER.filter((k) => k in scoreIntervals),
+    [scoreIntervals],
+  )
+
+  // ECharts option memo 化 — 避免每次渲染重建大对象触发 echarts 重绘
+  // 注意: 必须在 if (loading) return 之前调用, 以遵守 React Hooks 规则
+  const scoreChartOption = useMemo(
+    () => ({
+      animation: true,
+      animationDuration: 800,
+      animationEasing: 'cubicOut' as const,
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: isDark ? '#1f2937' : '#fff',
+        borderColor: isDark ? '#374151' : '#e5e7eb',
+        textStyle: { color: isDark ? '#d1d5db' : '#374151' },
+      },
+      grid: { left: 8, right: 8, top: 8, bottom: 28, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: sortedScoreKeys,
+        axisLabel: { color: chartTheme.legendColor, fontSize: 11, rotate: 0 },
+        axisLine: { lineStyle: { color: chartTheme.gridColor } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: chartTheme.legendColor },
+        splitLine: { lineStyle: { color: chartTheme.gridColor, type: 'dashed' } },
+      },
+      series: [
+        {
+          type: 'bar',
+          data: Object.entries(scoreIntervals).map(([label, count]) => ({
+            value: count,
+            itemStyle: {
+              borderRadius: [6, 6, 0, 0],
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                {
+                  offset: 0,
+                  color: label.includes('极高')
+                    ? '#ef4444'
+                    : label.includes('低')
+                      ? '#f97316'
+                      : label.includes('中')
+                        ? '#eab308'
+                        : '#22c55e',
+                },
+                {
+                  offset: 1,
+                  color: label.includes('极高')
+                    ? '#dc2626'
+                    : label.includes('低')
+                      ? '#ea580c'
+                      : label.includes('中')
+                        ? '#ca8a04'
+                        : '#16a34a',
+                },
+              ]),
+            },
+          })),
+          barWidth: '50%',
+          emphasis: {
+            itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.2)' },
+          },
+        },
+      ],
+    }),
+    [scoreIntervals, sortedScoreKeys, isDark, chartTheme],
+  )
+
+  const riskChartOption = useMemo(
+    () => ({
+      animation: true,
+      animationDuration: 1000,
+      animationEasing: 'elasticOut' as const,
+      tooltip: {
+        trigger: 'item',
+        formatter: '{b}: {c} 人 ({d}%)',
+        backgroundColor: isDark ? '#1f2937' : '#fff',
+        borderColor: isDark ? '#374151' : '#e5e7eb',
+        textStyle: { color: isDark ? '#d1d5db' : '#374151' },
+      },
+      legend: { bottom: 0, textStyle: { color: chartTheme.legendColor, fontSize: 11 } },
+      series: [
+        {
+          type: 'pie',
+          radius: ['45%', '70%'],
+          center: ['50%', '45%'],
+          label: { color: chartTheme.axisLabelColor, fontSize: 11 },
+          emphasis: {
+            label: { fontSize: 14, fontWeight: 'bold' },
+            itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.3)' },
+          },
+          data: classStats.riskDistribution
+            ? Object.entries(classStats.riskDistribution).map(([name, value]) => ({
+                name,
+                value,
+                itemStyle: { color: riskColorOf(name) },
+              }))
+            : [],
+        },
+      ],
+    }),
+    [classStats.riskDistribution, isDark, chartTheme],
+  )
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
-        {t('common.loading')}
+      <div className="h-full overflow-y-auto bg-gray-50/50 dark:bg-[#0f1117]">
+        <PageHeader
+          title={t('page.dashboard.title')}
+          subtitle={t('page.dashboard.subtitle')}
+          size="md"
+        />
+        <PageSkeleton />
       </div>
     )
   }
 
   const s = stats?.summary
-  // 分数分布: 使用按班级过滤后的 classScoreIntervals (而非全局 stats.score_intervals)
-  const scoreIntervals = classScoreIntervals
-  // 按风险等级排序：极高 → 高 → 中 → 低
-  const SCORE_ORDER = ['极高(<60)', '高(60-80)', '中(80-100)', '低(>=100)']
-  const sortedScoreKeys = SCORE_ORDER.filter((k) => k in scoreIntervals)
 
   return (
-    <div className="h-full overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            {t('page.dashboard.title')}
-          </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {t('page.dashboard.subtitle')}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* 班级筛选 */}
-          <select
-            value={classFilter}
-            onChange={(e) => setClassFilter(e.target.value)}
-            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-            title="按班级筛选数据"
-          >
-            <option value="__ALL__">全部班级</option>
-            <option value="__NONE__">未分班</option>
-            {activeClassList.map((c) => (
-              <option key={c.id} value={c.class_id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          {/* 班级对比模式开关 */}
-          <button
-            type="button"
-            onClick={() => setCompareMode(!compareMode)}
-            className={`px-3 py-2 rounded-lg text-sm border transition-all ${
-              compareMode
-                ? 'bg-purple-600 text-white border-purple-600'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-            title="班级对比模式"
-          >
-            📊 班级对比
-          </button>
-          <button
-            type="button"
-            onClick={loadData}
-            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700
-                       px-4 py-2 rounded-lg text-sm transition-all duration-200 shadow-sm hover:shadow-md"
-          >
-            🔄 {t('page.dashboard.refresh')}
-          </button>
-        </div>
-      </div>
-
+    <div className="h-full overflow-y-auto bg-gray-50/50 dark:bg-[#0f1117]">
+      <PageHeader
+        title={t('page.dashboard.title')}
+        subtitle={t('page.dashboard.subtitle')}
+        size="md"
+        actions={
+          <>
+            {/* 班级筛选 */}
+            <select
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              className={INPUT_BASE}
+              title="按班级筛选数据"
+              aria-label="按班级筛选数据"
+            >
+              <option value="__ALL__">全部班级</option>
+              <option value="__NONE__">未分班</option>
+              {activeClassList.map((c) => (
+                <option key={c.id} value={c.class_id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {/* 班级对比模式开关 */}
+            <button
+              type="button"
+              onClick={() => setCompareMode(!compareMode)}
+              className={btnStyle(compareMode ? 'primary' : 'secondary')}
+              title="班级对比模式"
+              aria-label="班级对比模式"
+            >
+              班级对比
+            </button>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className={btnStyle('ghost')}
+              aria-label="刷新数据"
+            >
+              {t('page.dashboard.refresh')}
+            </button>
+          </>
+        }
+      />
+      <div className="p-6 space-y-6">
       {/* 班级对比模式: 显示对比表格 */}
       {compareMode && (
-        <div className="mb-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg overflow-x-auto">
+        <Card padding="md" className="shadow-card animate-slide-up overflow-x-auto">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-violet-500"></span>
             班级对比总览
           </h3>
           {classComparison.length === 0 ? (
-            <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-4">
-              暂无班级数据
-            </div>
+            <EmptyState icon="🏫" title="暂无班级数据" className="py-6" />
           ) : (
             <table className="w-full text-sm min-w-[600px]">
               <thead>
-                <tr className="text-left text-xs text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
-                  <th className="py-2 px-3 font-medium">班级</th>
-                  <th className="py-2 px-3 font-medium">年级</th>
-                  <th className="py-2 px-3 font-medium">班主任</th>
-                  <th className="py-2 px-3 font-medium text-center">学生数</th>
-                  <th className="py-2 px-3 font-medium text-center">平均分</th>
-                  <th className="py-2 px-3 font-medium text-center">高风险</th>
-                  <th className="py-2 px-3 font-medium text-center">极高</th>
-                  <th className="py-2 px-3 font-medium text-center">高</th>
-                  <th className="py-2 px-3 font-medium text-center">中</th>
-                  <th className="py-2 px-3 font-medium text-center">低</th>
+                <tr>
+                  <th className={TABLE_TH}>班级</th>
+                  <th className={TABLE_TH}>年级</th>
+                  <th className={TABLE_TH}>班主任</th>
+                  <th className={cn(TABLE_TH, 'text-center')}>学生数</th>
+                  <th className={cn(TABLE_TH, 'text-center')}>平均分</th>
+                  <th className={cn(TABLE_TH, 'text-center')}>高风险</th>
+                  <th className={cn(TABLE_TH, 'text-center')}>极高</th>
+                  <th className={cn(TABLE_TH, 'text-center')}>高</th>
+                  <th className={cn(TABLE_TH, 'text-center')}>中</th>
+                  <th className={cn(TABLE_TH, 'text-center')}>低</th>
                 </tr>
               </thead>
               <tbody>
                 {classComparison.map((c) => (
-                  <tr
-                    key={c.classId}
-                    className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                  >
-                    <td className="py-2 px-3 font-medium">{c.className}</td>
-                    <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{c.grade}</td>
-                    <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{c.teacher}</td>
-                    <td className="py-2 px-3 text-center font-mono">{c.studentCount}</td>
-                    <td className="py-2 px-3 text-center font-mono">{c.avgScore.toFixed(1)}</td>
+                  <tr key={c.classId} className={TABLE_ROW}>
+                    <td className={cn(TABLE_TD, 'font-medium')}>{c.className}</td>
+                    <td className={cn(TABLE_TD, 'text-gray-500 dark:text-gray-400')}>{c.grade}</td>
+                    <td className={cn(TABLE_TD, 'text-gray-500 dark:text-gray-400')}>{c.teacher}</td>
+                    <td className={cn(TABLE_TD, 'text-center font-mono')}>{c.studentCount}</td>
+                    <td className={cn(TABLE_TD, 'text-center font-mono')}>{c.avgScore.toFixed(1)}</td>
                     <td
-                      className={`py-2 px-3 text-center font-mono ${c.highRisk > 0 ? 'text-red-500 dark:text-red-400 font-bold' : ''}`}
+                      className={cn(
+                        TABLE_TD,
+                        'text-center font-mono',
+                        c.highRisk > 0 && 'text-red-500 dark:text-red-400 font-bold',
+                      )}
                     >
                       {c.highRisk}
                     </td>
-                    <td className="py-2 px-3 text-center text-red-500 dark:text-red-400">
+                    <td className={cn(TABLE_TD, 'text-center text-red-500 dark:text-red-400')}>
                       {c.riskDistribution.极高}
                     </td>
-                    <td className="py-2 px-3 text-center text-orange-500 dark:text-orange-400">
+                    <td className={cn(TABLE_TD, 'text-center text-orange-500 dark:text-orange-400')}>
                       {c.riskDistribution.高}
                     </td>
-                    <td className="py-2 px-3 text-center text-yellow-500 dark:text-yellow-400">
+                    <td className={cn(TABLE_TD, 'text-center text-yellow-500 dark:text-yellow-400')}>
                       {c.riskDistribution.中}
                     </td>
-                    <td className="py-2 px-3 text-center text-green-500 dark:text-green-400">
+                    <td className={cn(TABLE_TD, 'text-center text-green-500 dark:text-green-400')}>
                       {c.riskDistribution.低}
                     </td>
                   </tr>
@@ -541,7 +452,7 @@ export function DashboardPage() {
           )}
 
           {/* 双班级对比选择器 */}
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-white/[0.06]">
             <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
               双班级详细对比
             </h4>
@@ -549,7 +460,8 @@ export function DashboardPage() {
               <select
                 value={compareClassA}
                 onChange={(e) => setCompareClassA(e.target.value)}
-                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm"
+                className={INPUT_BASE}
+                aria-label="选择对比班级 A"
               >
                 <option value="">选择班级 A...</option>
                 {activeClassList.map((c) => (
@@ -558,11 +470,12 @@ export function DashboardPage() {
                   </option>
                 ))}
               </select>
-              <span className="text-gray-400">VS</span>
+              <span className="text-gray-400 dark:text-gray-500 text-xs font-medium">VS</span>
               <select
                 value={compareClassB}
                 onChange={(e) => setCompareClassB(e.target.value)}
-                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm"
+                className={INPUT_BASE}
+                aria-label="选择对比班级 B"
               >
                 <option value="">选择班级 B...</option>
                 {activeClassList.map((c) => (
@@ -577,7 +490,7 @@ export function DashboardPage() {
                 {[compareDataA, compareDataB].map((d) => (
                   <div
                     key={d.className}
-                    className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700"
+                    className="bg-gray-50/80 dark:bg-white/[0.03] rounded-xl p-4 border border-gray-100 dark:border-white/[0.06]"
                   >
                     <h5 className="font-semibold text-sm mb-2">{d.className}</h5>
                     <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
@@ -619,30 +532,30 @@ export function DashboardPage() {
               </div>
             )}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* 概览卡片 — 按班级筛选时显示班级数据 */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-        <StatCard
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <DashboardStatCard
           title={classFilter === '__ALL__' ? t('page.dashboard.stat.students') : '班级学生'}
           value={classStats.total}
           color="blue"
-          icon="👥"
+          icon={Users}
         />
-        <StatCard
+        <DashboardStatCard
           title={t('page.dashboard.stat.events')}
           value={classPeriodSummary.events.total}
           color="green"
-          icon="✅"
+          icon={CheckCircle2}
         />
-        <StatCard
+        <DashboardStatCard
           title={t('page.dashboard.stat.revoked')}
           value={s?.reverted_events ?? 0}
           color="yellow"
-          icon="↩️"
+          icon={Undo2}
         />
-        <StatCard
+        <DashboardStatCard
           title={t('page.dashboard.stat.scoreChange')}
           value={
             classFilter === '__ALL__'
@@ -650,166 +563,47 @@ export function DashboardPage() {
               : classStats.avgScore.toFixed(1)
           }
           color="purple"
-          icon="📊"
+          icon={BarChart3}
         />
-        <StatCard
+        <DashboardStatCard
           title={t('page.dashboard.stat.highRisk')}
           value={classStats.highRisk}
           color="red"
-          icon="⚠️"
+          icon={AlertTriangle}
         />
       </div>
 
       {/* 图表区 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 分数分布柱状图 */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <Card padding="md" className="shadow-card hover:shadow-card-hover transition-shadow duration-300">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
             {t('page.dashboard.chart.scoreDist')}
           </h3>
-          <ReactEChartsCore
-            echarts={echarts}
-            style={{ height: 260 }}
-            option={{
-              animation: true,
-              animationDuration: 800,
-              animationEasing: 'cubicOut',
-              tooltip: {
-                trigger: 'axis',
-                backgroundColor: isDark ? '#1f2937' : '#fff',
-                borderColor: isDark ? '#374151' : '#e5e7eb',
-                textStyle: { color: isDark ? '#d1d5db' : '#374151' },
-              },
-              grid: { left: 8, right: 8, top: 8, bottom: 28, containLabel: true },
-              xAxis: {
-                type: 'category',
-                data: sortedScoreKeys,
-                axisLabel: { color: axisColor, fontSize: 11, rotate: 0 },
-                axisLine: { lineStyle: { color: gridColor } },
-                axisTick: { show: false },
-              },
-              yAxis: {
-                type: 'value',
-                axisLabel: { color: axisColor },
-                splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
-              },
-              series: [
-                {
-                  type: 'bar',
-                  data: Object.entries(scoreIntervals).map(([label, count]) => ({
-                    value: count,
-                    itemStyle: {
-                      borderRadius: [6, 6, 0, 0],
-                      color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                        {
-                          offset: 0,
-                          color: label.includes('极高')
-                            ? '#ef4444'
-                            : label.includes('低')
-                              ? '#f97316'
-                              : label.includes('中')
-                                ? '#eab308'
-                                : '#22c55e',
-                        },
-                        {
-                          offset: 1,
-                          color: label.includes('极高')
-                            ? '#dc2626'
-                            : label.includes('低')
-                              ? '#ea580c'
-                              : label.includes('中')
-                                ? '#ca8a04'
-                                : '#16a34a',
-                        },
-                      ]),
-                    },
-                  })),
-                  barWidth: '50%',
-                  emphasis: {
-                    itemStyle: {
-                      shadowBlur: 10,
-                      shadowOffsetX: 0,
-                      shadowColor: 'rgba(0,0,0,0.2)',
-                    },
-                  },
-                },
-              ],
-            }}
-          />
-        </div>
+          <ReactEChartsCore echarts={echarts} style={{ height: 260 }} option={scoreChartOption} />
+        </Card>
 
         {/* 风险等级饼图 */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <Card padding="md" className="shadow-card hover:shadow-card-hover transition-shadow duration-300">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
             {t('page.dashboard.chart.riskDist')}
           </h3>
           {classStats.riskDistribution ? (
-            <ReactEChartsCore
-              echarts={echarts}
-              style={{ height: 260 }}
-              option={{
-                animation: true,
-                animationDuration: 1000,
-                animationEasing: 'elasticOut',
-                tooltip: {
-                  trigger: 'item',
-                  formatter: '{b}: {c} 人 ({d}%)',
-                  backgroundColor: isDark ? '#1f2937' : '#fff',
-                  borderColor: isDark ? '#374151' : '#e5e7eb',
-                  textStyle: { color: isDark ? '#d1d5db' : '#374151' },
-                },
-                legend: {
-                  bottom: 0,
-                  textStyle: { color: legendColor, fontSize: 11 },
-                },
-                series: [
-                  {
-                    type: 'pie',
-                    radius: ['45%', '70%'],
-                    center: ['50%', '45%'],
-                    label: { color: labelColor, fontSize: 11 },
-                    emphasis: {
-                      label: { fontSize: 14, fontWeight: 'bold' },
-                      itemStyle: {
-                        shadowBlur: 10,
-                        shadowOffsetX: 0,
-                        shadowColor: 'rgba(0,0,0,0.3)',
-                      },
-                    },
-                    data: Object.entries(classStats.riskDistribution).map(([name, value]) => ({
-                      name,
-                      value,
-                      itemStyle: {
-                        color:
-                          name === '极高'
-                            ? '#ef4444'
-                            : name === '高'
-                              ? '#f97316'
-                              : name === '中'
-                                ? '#eab308'
-                                : '#22c55e',
-                      },
-                    })),
-                  },
-                ],
-              }}
-            />
+            <ReactEChartsCore echarts={echarts} style={{ height: 260 }} option={riskChartOption} />
           ) : (
-            <div className="flex items-center justify-center h-[260px] text-gray-400 dark:text-gray-500 text-sm">
-              暂无数据
-            </div>
+            <EmptyState icon="📊" title="暂无数据" className="py-6" />
           )}
-        </div>
+        </Card>
       </div>
 
       {/* 下半部分 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 原因码分布 */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <Card padding="md" className="shadow-card hover:shadow-card-hover transition-shadow duration-300">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-500"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
             {t('page.dashboard.chart.eventReason')}
           </h3>
           <div className="space-y-2">
@@ -835,24 +629,20 @@ export function DashboardPage() {
                 </span>
               </div>
             )) ?? (
-              <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-6">
-                暂无数据
-              </div>
+              <EmptyState icon="📋" title="暂无数据" className="py-6" />
             )}
           </div>
-        </div>
+        </Card>
 
         {/* 排行榜 */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <Card padding="md" className="shadow-card hover:shadow-card-hover transition-shadow duration-300">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
             {t('page.dashboard.chart.top10')}
           </h3>
           <div className="space-y-2">
             {filteredRanking.length === 0 ? (
-              <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-6">
-                暂无排行数据
-              </div>
+              <EmptyState icon="🏆" title="暂无排行数据" className="py-6" />
             ) : (
               filteredRanking.slice(0, 10).map((r) => (
                 <button
@@ -888,12 +678,12 @@ export function DashboardPage() {
               ))
             )}
           </div>
-        </div>
+        </Card>
 
         {/* 周期摘要 */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <Card padding="md" className="shadow-card hover:shadow-card-hover transition-shadow duration-300">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-pink-500"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-pink-500"></span>
             周期摘要
             {summary?.period?.since && (
               <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal ml-1">
@@ -929,13 +719,13 @@ export function DashboardPage() {
               </div>
               {classPeriodSummary.top_gainers.length > 0 && (
                 <div>
-                  <div className="text-gray-500 dark:text-gray-400 mb-2 font-medium">
-                    🏆 进步最快
+                  <div className="text-gray-500 dark:text-gray-400 mb-2 font-medium flex items-center gap-1.5">
+                    <Trophy size={12} className="text-yellow-500" /> 进步最快
                   </div>
                   {classPeriodSummary.top_gainers.slice(0, 3).map((g) => (
                     <div
                       key={g.name}
-                      className="flex justify-between gap-2 py-1 border-b border-gray-100 dark:border-gray-700/50 last:border-0 min-w-0"
+                      className="flex justify-between gap-2 py-1 border-b border-gray-100 dark:border-white/[0.04] last:border-0 min-w-0"
                     >
                       <span className="text-gray-600 dark:text-gray-300 truncate min-w-0 flex-1">
                         {g.name}
@@ -949,13 +739,13 @@ export function DashboardPage() {
               )}
               {classPeriodSummary.top_losers.length > 0 && (
                 <div>
-                  <div className="text-gray-500 dark:text-gray-400 mb-2 font-medium">
-                    ⚠️ 退步最快
+                  <div className="text-gray-500 dark:text-gray-400 mb-2 font-medium flex items-center gap-1.5">
+                    <AlertTriangle size={12} className="text-red-400" /> 退步最快
                   </div>
                   {classPeriodSummary.top_losers.slice(0, 3).map((l) => (
                     <div
                       key={l.name}
-                      className="flex justify-between gap-2 py-1 border-b border-gray-100 dark:border-gray-700/50 last:border-0 min-w-0"
+                      className="flex justify-between gap-2 py-1 border-b border-gray-100 dark:border-white/[0.04] last:border-0 min-w-0"
                     >
                       <span className="text-gray-600 dark:text-gray-300 truncate min-w-0 flex-1">
                         {l.name}
@@ -969,27 +759,25 @@ export function DashboardPage() {
               )}
             </div>
           ) : (
-            <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-6">
-              暂无数据
-            </div>
+            <EmptyState icon="📅" title="暂无数据" className="py-6" />
           )}
-        </div>
+        </Card>
       </div>
 
       {/* 系统管理 & 诊断 */}
-      <div className="mb-6">
+      <div>
         <div className="flex items-center gap-2 mb-4">
-          <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
-          <h2 className="text-lg font-bold text-gray-700 dark:text-gray-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
+          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight">
             {t('page.dashboard.sysmgmt.title')}
           </h2>
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* EAA 系统信息 */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg">
+        <Card padding="md" className="shadow-card">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
             {t('page.dashboard.sysmgmt.info')}
           </h3>
           {eaaInfo ? (
@@ -1021,16 +809,14 @@ export function DashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="text-gray-400 dark:text-gray-500 text-xs text-center py-4">
-              {t('page.dashboard.sysmgmt.noData')}
-            </div>
+            <EmptyState icon="📭" title={t('page.dashboard.sysmgmt.noData')} className="py-4" />
           )}
-        </div>
+        </Card>
 
         {/* 健康检查 */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg">
+        <Card padding="md" className="shadow-card">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-500"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
             {t('page.dashboard.sysmgmt.doctor')}
           </h3>
           <div className="mb-3">
@@ -1049,7 +835,8 @@ export function DashboardPage() {
                 }
               }}
               disabled={doctorRunning}
-              className="text-xs px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={btnStyle('primary')}
+              aria-label={t('page.dashboard.sysmgmt.doctor.run')}
             >
               {doctorRunning
                 ? t('page.dashboard.sysmgmt.doctor.running')
@@ -1103,16 +890,14 @@ export function DashboardPage() {
               )}
             </div>
           ) : (
-            <div className="text-gray-400 dark:text-gray-500 text-xs text-center py-2">
-              {t('page.dashboard.sysmgmt.noData')}
-            </div>
+            <EmptyState icon="📭" title={t('page.dashboard.sysmgmt.noData')} className="py-4" />
           )}
-        </div>
+        </Card>
 
         {/* 数据验证 */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg">
+        <Card padding="md" className="shadow-card">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
             {t('page.dashboard.sysmgmt.validate')}
           </h3>
           <div className="mb-3">
@@ -1131,7 +916,8 @@ export function DashboardPage() {
                 }
               }}
               disabled={validateRunning}
-              className="text-xs px-3 py-1.5 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={btnStyle('primary')}
+              aria-label={t('page.dashboard.sysmgmt.validate.run')}
             >
               {validateRunning
                 ? t('page.dashboard.sysmgmt.validate.running')
@@ -1189,19 +975,17 @@ export function DashboardPage() {
               )}
             </div>
           ) : (
-            <div className="text-gray-400 dark:text-gray-500 text-xs text-center py-2">
-              {t('page.dashboard.sysmgmt.noData')}
-            </div>
+            <EmptyState icon="📭" title={t('page.dashboard.sysmgmt.noData')} className="py-4" />
           )}
-        </div>
+        </Card>
       </div>
 
       {/* 标签概览 + 操作按钮区 */}
-      <div className="grid grid-cols-3 gap-6 mt-6">
+      <div className="grid grid-cols-3 gap-6">
         {/* 标签概览 */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg">
+        <Card padding="md" className="shadow-card">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
             {t('page.dashboard.sysmgmt.tags')}
           </h3>
           {tagData && tagData.tags.length > 0 ? (
@@ -1216,16 +1000,14 @@ export function DashboardPage() {
               ))}
             </div>
           ) : (
-            <div className="text-gray-400 dark:text-gray-500 text-xs text-center py-4">
-              {t('page.dashboard.sysmgmt.noData')}
-            </div>
+            <EmptyState icon="🏷️" title={t('page.dashboard.sysmgmt.noData')} className="py-4" />
           )}
-        </div>
+        </Card>
 
         {/* 操作按钮区 */}
-        <div className="col-span-2 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-lg">
+        <Card padding="md" className="col-span-2 shadow-card">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
             {t('common.action', '维护工具')}
           </h3>
           <div className="space-y-3">
@@ -1241,9 +1023,10 @@ export function DashboardPage() {
                     toast.error(t('error.unknown'))
                   }
                 }}
-                className="text-xs px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                className={btnStyle('primary')}
+                aria-label={t('page.dashboard.sysmgmt.replay')}
               >
-                🔄 {t('page.dashboard.sysmgmt.replay')}
+                <RefreshCw size={12} strokeWidth={2} /> {t('page.dashboard.sysmgmt.replay')}
               </button>
               <button
                 type="button"
@@ -1261,56 +1044,16 @@ export function DashboardPage() {
                     toast.error(t('error.unknown'))
                   }
                 }}
-                className="text-xs px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 text-white transition-colors"
+                className={btnStyle('secondary')}
+                aria-label="导出 HTML 仪表盘"
               >
-                📊 导出 HTML 仪表盘
+                <FileOutput size={12} strokeWidth={2} /> 导出 HTML 仪表盘
               </button>
             </div>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
-  )
-}
-
-// =============================================================
-// 统计卡片组件 — 渐变色 + 阴影 + hover 效果
-// =============================================================
-
-function StatCard({
-  title,
-  value,
-  color,
-  icon,
-}: {
-  title: string
-  value: string | number
-  color: string
-  icon: string
-}) {
-  const c = GRADIENT_COLORS[color as keyof typeof GRADIENT_COLORS] ?? GRADIENT_COLORS.blue
-  return (
-    <div
-      className={`relative overflow-hidden rounded-2xl border ${c.border} bg-gradient-to-br ${c.bg}
-                  p-5 shadow-lg ${c.shadow} hover:shadow-xl hover:-translate-y-0.5
-                  transition-all duration-300 cursor-default group`}
-    >
-      {/* 装饰性渐变圆 */}
-      <div
-        className="absolute -top-4 -right-4 w-20 h-20 rounded-full opacity-20 group-hover:opacity-30 transition-opacity"
-        style={{ background: `linear-gradient(135deg, ${c.from}, ${c.to})` }}
-      />
-      <div className="relative z-10">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">{title}</span>
-          <span className="text-lg">{icon}</span>
-        </div>
-        <div className={`text-3xl font-bold ${c.text}`}>{value}</div>
-        <div
-          className="mt-2 h-1 rounded-full w-0 group-hover:w-full transition-all duration-500"
-          style={{ background: `linear-gradient(90deg, ${c.from}, ${c.to})` }}
-        />
-      </div>
     </div>
   )
 }

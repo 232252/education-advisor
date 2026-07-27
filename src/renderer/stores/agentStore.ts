@@ -7,6 +7,59 @@ import { create } from 'zustand'
 import { getAPI } from '../lib/ipc-client'
 import { toast } from './toastStore'
 
+/** 修复: selectAgent 请求令牌,防止快速切换 Agent 时旧响应覆盖新数据 */
+let _selectAgentReqId = 0
+
+/**
+ * PERF: 流式 delta 批处理 — 把高频 text_delta 合并到 50ms 一次 set(),
+ * 避免每个 delta 触发一次 Zustand 状态更新和组件重渲染。
+ * 仿 chatStore 的 deltaBatch 机制。
+ */
+let _liveOutputBatch: string[] = []
+let _liveOutputTimer: ReturnType<typeof setTimeout> | null = null
+const LIVE_OUTPUT_BATCH_MS = 50
+// R95 修复: 限制 liveOutput 最大字符数 (1MB),防止长 agent 运行导致内存无界增长
+const LIVE_OUTPUT_MAX_CHARS = 1_000_000
+
+function _flushLiveOutput(set: (fn: (s: AgentState) => Partial<AgentState>) => void): void {
+  if (_liveOutputTimer) {
+    clearTimeout(_liveOutputTimer)
+    _liveOutputTimer = null
+  }
+  if (_liveOutputBatch.length === 0) return
+  const combined = _liveOutputBatch.join('')
+  _liveOutputBatch = []
+  if (!combined) return
+  set((s) => {
+    const next = s.liveOutput + combined
+    // 超过上限时保留尾部 (最新输出),截断头部
+    if (next.length > LIVE_OUTPUT_MAX_CHARS) {
+      return {
+        liveOutput: `\n…[输出已截断,仅保留最近 ${LIVE_OUTPUT_MAX_CHARS} 字符]\n${next.slice(-LIVE_OUTPUT_MAX_CHARS)}`,
+      }
+    }
+    return { liveOutput: next }
+  })
+}
+
+/** 立即刷新批处理 — 用于状态切换(running→idle/error)前确保输出完整 */
+function _flushLiveOutputNow(set: (fn: (s: AgentState) => Partial<AgentState>) => void): void {
+  _flushLiveOutput(set)
+}
+
+function _appendLiveOutput(
+  delta: string,
+  set: (fn: (s: AgentState) => Partial<AgentState>) => void,
+): void {
+  if (!delta) return
+  _liveOutputBatch.push(delta)
+  if (_liveOutputTimer) return
+  _liveOutputTimer = setTimeout(() => {
+    _liveOutputTimer = null
+    _flushLiveOutput(set)
+  }, LIVE_OUTPUT_BATCH_MS)
+}
+
 interface AgentStatusUpdate {
   agentId: string
   status: string
@@ -39,6 +92,7 @@ interface AgentState {
       description: string
       modelTier: 'high_quality' | 'low_cost'
       capabilities: string[]
+      mcpServers: string[]
     }>,
   ) => Promise<void>
   selectAgent: (id: string | null) => Promise<void>
@@ -99,8 +153,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const listeners = get()._statusListeners
     listeners.add(fn)
     return () => {
-      // 删除时复制一份,避免迭代过程中变更原 Set
-      const next = new Set(listeners)
+      // 修复: 读取最新的 _statusListeners,而非闭包捕获的旧引用
+      // 避免 unsubscribe A 后 unsubscribe B 把 A 重新加回 Set
+      const current = get()._statusListeners
+      const next = new Set(current)
       next.delete(fn)
       set({ _statusListeners: next })
     }
@@ -110,17 +166,35 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const { selectedAgentId } = get()
 
     // 更新 agent列表中的状态
-    set((s) => ({
-      agents: s.agents.map((a) =>
-        a.id === data.agentId ? { ...a, status: data.status as AgentListItem['status'] } : a,
-      ),
-    }))
+    // OPT-4: 跳过状态未变化的 agent,避免无条件重建数组引用导致不必要的重渲染
+    set((s) => {
+      const existing = s.agents.find((a) => a.id === data.agentId)
+      if (!existing || existing.status === (data.status as AgentListItem['status'])) {
+        return {} // 状态未变,不触发更新
+      }
+      return {
+        agents: s.agents.map((a) =>
+          a.id === data.agentId ? { ...a, status: data.status as AgentListItem['status'] } : a,
+        ),
+      }
+    })
 
     // 如果是当前选中的 agent,追加输出
     if (data.agentId === selectedAgentId) {
-      //追加实时输出
+      // 状态切换前先 flush 待处理的 delta,确保输出完整
+      // (running→idle/error / 错误追加 / result 追加 等场景都需要先 flush)
+      const needFlush =
+        data.status === 'idle' ||
+        data.status === 'error' ||
+        !!data.error ||
+        !!data.result
+      if (needFlush) {
+        _flushLiveOutputNow(set)
+      }
+
+      //追加实时输出(批处理)
       if (data.output) {
-        set((s) => ({ liveOutput: s.liveOutput + data.output }))
+        _appendLiveOutput(data.output, set)
       }
 
       //记录工具调用
@@ -215,12 +289,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         toast.error(result.error || '更新 Agent 失败')
         return
       }
-      // 刷新列表和详情
-      const agents = await getAPI().agent.list()
-      set({ agents })
+      // PERF: IPC_AGENT_UPDATE 已返回 agents + detail,无需再发 2 次 IPC
+      const { agents, detail } = result as {
+        success: boolean
+        error?: string
+        agents?: AgentListItem[]
+        detail?: AgentDetail | null
+      }
+      if (agents) set({ agents })
       const { selectedAgentId } = get()
-      if (selectedAgentId === id) {
-        const detail = await getAPI().agent.get(id)
+      if (selectedAgentId === id && detail !== undefined) {
         set({ selectedDetail: detail })
       }
       toast.success('Agent 配置已更新')
@@ -232,6 +310,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   selectAgent: async (id) => {
+    // PERF: 切换 agent 前先 flush 旧 agent 的批处理缓冲,避免丢失输出
+    _flushLiveOutputNow(set)
     if (!id) {
       set({
         selectedAgentId: null,
@@ -243,6 +323,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       })
       return
     }
+    // 修复: 请求令牌防止竞态(快速切换 Agent 时旧响应覆盖新数据)
+    const reqId = ++_selectAgentReqId
     set({
       selectedAgentId: id,
       detailLoading: true,
@@ -253,11 +335,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     })
     try {
       const detail = await getAPI().agent.get(id)
-      set({ selectedDetail: detail, detailLoading: false })
+      // 仅当这是最新请求时才更新,避免快速切换 A→B 时 A 的响应覆盖 B
+      if (reqId === _selectAgentReqId) {
+        set({ selectedDetail: detail, detailLoading: false })
+      }
     } catch (err) {
-      // Medium 修复: 不再静默吞错,记录错误日志便于排查
       console.error('[agentStore] selectAgent get detail failed:', err)
-      set({ detailLoading: false })
+      if (reqId === _selectAgentReqId) {
+        set({ detailLoading: false })
+      }
     }
   },
 
@@ -277,6 +363,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   runAgent: async (id, prompt) => {
+    // PERF: 启动新 run 前先 flush 旧输出并清空批处理缓冲
+    _flushLiveOutputNow(set)
+    _liveOutputBatch = []
     set({
       liveOutput: '',
       liveToolCalls: [],
@@ -327,6 +416,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
 
-  clearOutput: () =>
-    set({ liveOutput: '', liveToolCalls: [], lastExecution: null, lastError: null }),
+  clearOutput: () => {
+    // PERF: 清理批处理缓冲,避免遗留的 timer 在 clear 后再次 set
+    if (_liveOutputTimer) {
+      clearTimeout(_liveOutputTimer)
+      _liveOutputTimer = null
+    }
+    _liveOutputBatch = []
+    set({ liveOutput: '', liveToolCalls: [], lastExecution: null, lastError: null })
+  },
 }))
