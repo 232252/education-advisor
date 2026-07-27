@@ -1,0 +1,67 @@
+{
+  "general": {
+    "dataDir": "",
+    "defaultOperator": "班主任",
+    "theme": "dark",
+    "language": "zh-CN",
+    "autoUpdate": true,
+    "telemetry": false,
+    "logLevel": "info",
+    "autoStart": false,
+    "minimizeToTray": true,
+    "closeBehavior": "ask"
+  },
+  "models": {
+    "defaultProvider": "",
+    "defaultModel": "",
+    "highQualityModel": "",
+    "lowCostModel": "",
+    "enabledModels": [],
+    "transport": "auto",
+    "cacheRetention": "none",
+    "retry": {
+      "enabled": true,
+      "maxRetries": 3,
+      "baseDelayMs": 1000,
+      "providerTimeoutMs": 60000
+    }
+  },
+  "chat": {
+    "compaction": {
+      "enabled": true,
+      "reserveTokens": 8000,
+      "keepRecentTokens": 16000
+    },
+    "steeringMode": "all",
+    "followUpMode": "all",
+    "showImages": true,
+    "maxTokens": 4096
+  },
+  "privacy": {
+    "enabled": false,
+    "autoAnonymize": false
+  },
+  "feishu": {
+    "appId": "",
+    "appSecret": "",
+    "userOpenId": "",
+    "bitableSync": {
+      "enabled": false,
+      "syncInterval": "0 */6 * * *"
+    }
+  },
+  "advanced": {
+    "shellPath": "",
+    "sessionDir": "",
+    "httpIdleTimeoutMs": 120000
+  },
+  "shortcuts": {
+    "chat.new": "Ctrl+N",
+    "chat.send": "Enter",
+    "chat.abort": "Escape",
+    "nav.agents": "Ctrl+Shift+A",
+    "nav.models": "Ctrl+Shift+M",
+    "nav.settings": "Ctrl+,",
+    "nav.scheduler": "Ctrl+Shift+T"
+  }
+}
