@@ -49,6 +49,11 @@ export interface OllamaPullProgress {
 class OllamaService {
   private serveProcess: ReturnType<typeof spawn> | null = null
   private _available: boolean | null = null
+  /**
+   * M-1 修复: 当前 pull 操作的 AbortController,用于支持取消下载。
+   * null 表示没有正在进行的 pull 操作。
+   */
+  private pullAbortController: AbortController | null = null
 
   /**
    * 解析 ollama 二进制路径。
@@ -127,11 +132,18 @@ class OllamaService {
       const platform = process.platform
       const cmd = platform === 'win32' ? 'where' : 'which'
       const proc = spawn(cmd, ['ollama'], { stdio: 'pipe', shell: false })
-      proc.on('error', () => resolve(false))
-      proc.on('exit', (code) => resolve(code === 0))
-      setTimeout(() => {
+      let settled = false
+      const done = (result: boolean) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        resolve(result)
+      }
+      proc.on('error', () => done(false))
+      proc.on('exit', (code) => done(code === 0))
+      const timer = setTimeout(() => {
         if (!proc.killed) proc.kill()
-        resolve(false)
+        done(false)
       }, HEALTH_TIMEOUT_MS)
     })
   }
@@ -167,6 +179,11 @@ class OllamaService {
         detached: false,
         windowsHide: true,
       })
+      // 消费 stdout/stderr 防止管道缓冲区满导致子进程挂起
+      this.serveProcess.stdout?.on('data', () => {})
+      this.serveProcess.stderr?.on('data', (d) => {
+        log('debug', 'ollama', `serve stderr: ${d.toString().trim()}`)
+      })
       this.serveProcess.on('error', (err) => {
         log('error', 'ollama', `serve process error: ${err.message}`)
         this.serveProcess = null
@@ -193,8 +210,16 @@ class OllamaService {
   /** 停止 ollama serve(仅停止我们启动的子进程) */
   stopServe(): void {
     if (this.serveProcess && !this.serveProcess.killed) {
-      this.serveProcess.kill()
-      log('info', 'ollama', 'serve stopped')
+      // L-2 修复: 检查 kill() 返回值,失败时记录警告(可能权限不足或进程已退出)
+      const killed = this.serveProcess.kill()
+      if (killed) {
+        log('info', 'ollama', 'serve stopped')
+      } else {
+        log('warn', 'ollama', 'failed to kill serve process (may require manual cleanup)')
+      }
+      // 销毁 stdout/stderr 流释放资源
+      this.serveProcess.stdout?.destroy()
+      this.serveProcess.stderr?.destroy()
     }
     this.serveProcess = null
   }
@@ -218,6 +243,7 @@ class OllamaService {
 
   /**
    * 下载(pull)一个模型,流式返回进度。
+   * M-1 修复: 使用 AbortController 支持取消下载(通过 cancelPull())。
    * @param modelName 模型名,如 "qwen3:1.7b"
    * @param onProgress 进度回调
    */
@@ -225,11 +251,15 @@ class OllamaService {
     modelName: string,
     onProgress: (p: OllamaPullProgress) => void,
   ): Promise<{ success: boolean; error?: string }> {
+    // M-1 修复: 创建 AbortController,fetch + reader.read() 都受其控制
+    this.pullAbortController = new AbortController()
+    const { signal } = this.pullAbortController
     try {
       const res = await fetch(`${OLLAMA_BASE_URL}/api/pull`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: modelName, stream: true }),
+        signal,
       })
       if (!res.ok || !res.body) {
         return { success: false, error: `HTTP ${res.status}` }
@@ -258,8 +288,26 @@ class OllamaService {
       }
       return { success }
     } catch (err) {
+      // M-1 修复: abort 触发的 AbortError 视为用户取消,返回特定消息
+      if (signal.aborted) {
+        return { success: false, error: 'cancelled' }
+      }
       const msg = err instanceof Error ? err.message : String(err)
       return { success: false, error: msg }
+    } finally {
+      this.pullAbortController = null
+    }
+  }
+
+  /**
+   * M-1 修复: 取消正在进行的 pull 操作。
+   * 如果没有正在进行的 pull,则无操作。
+   */
+  cancelPull(): void {
+    if (this.pullAbortController) {
+      this.pullAbortController.abort()
+      this.pullAbortController = null
+      log('info', 'ollama', 'pull cancelled by user')
     }
   }
 
@@ -270,6 +318,7 @@ class OllamaService {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: modelName }),
+        signal: AbortSignal.timeout(30000), // 30s 超时,删除大模型可能耗时
       })
       return { success: res.ok }
     } catch (err) {

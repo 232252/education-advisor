@@ -28,7 +28,7 @@ interface UpdateInfo {
  * - pre-release 标识按字母数字顺序逐段比较 (按 . 分段)
  * - 纯数字段按数值比较,非数字段按字符串比较;数字段优先级低于非数字段
  */
-function compareSemver(a: string, b: string): number {
+export function compareSemver(a: string, b: string): number {
   // 移除 v 前缀,按首个 '-' 分离主版本号与 pre-release 标识
   const cleanA = a.replace(/^v/, '')
   const cleanB = b.replace(/^v/, '')
@@ -62,6 +62,10 @@ function compareSemver(a: string, b: string): number {
   for (let i = 0; i < len; i++) {
     const partA = prePartsA[i] ?? ''
     const partB = prePartsB[i] ?? ''
+    // semver 规范: 若所有前置段都相等,则 pre-release 字段更多的版本优先级更高。
+    // 例: 1.0.0-beta.1 > 1.0.0-beta
+    if (partA === '' && partB !== '') return -1
+    if (partB === '' && partA !== '') return 1
     if (partA === partB) continue
 
     const numA = Number(partA)
@@ -89,15 +93,40 @@ function fetchLatestRelease(repoUrl: string): Promise<{
   published_at: string
 }> {
   return new Promise((resolve, reject) => {
+    // M-2 修复: settled flag 防止 timeout 后 req.destroy() 触发 error 事件导致双重 reject
+    let settled = false
+    const safeResolve = (v: {
+      tag_name: string
+      html_url: string
+      body: string
+      published_at: string
+    }) => {
+      if (!settled) {
+        settled = true
+        resolve(v)
+      }
+    }
+    const safeReject = (e: Error) => {
+      if (!settled) {
+        settled = true
+        reject(e)
+      }
+    }
+
     // 从 repo URL 提取 owner/repo
     // 支持格式: https://github.com/owner/repo 或 owner/repo
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/)
     if (!match) {
-      reject(new Error(`Invalid GitHub repo URL: ${repoUrl}`))
+      safeReject(new Error(`Invalid GitHub repo URL: ${repoUrl}`))
       return
     }
     const [, owner, repo] = match
     const cleanRepo = repo.replace(/\.git$/, '')
+    // L-1 修复: 验证 owner/repo 只含合法字符(字母数字/连字符/下划线/点),防止 URL 注入
+    if (!/^[A-Za-z0-9._-]+$/.test(owner) || !/^[A-Za-z0-9._-]+$/.test(cleanRepo)) {
+      safeReject(new Error(`Invalid GitHub owner/repo in URL: ${repoUrl}`))
+      return
+    }
     const apiUrl = `https://api.github.com/repos/${owner}/${cleanRepo}/releases/latest`
 
     // 保存 res 引用,以便在超时时清理响应流,防止资源泄漏
@@ -114,7 +143,7 @@ function fetchLatestRelease(repoUrl: string): Promise<{
       (response) => {
         res = response
         if (res.statusCode !== 200) {
-          reject(new Error(`GitHub API returned ${res.statusCode}`))
+          safeReject(new Error(`GitHub API returned ${res.statusCode}`))
           res.resume()
           return
         }
@@ -125,19 +154,19 @@ function fetchLatestRelease(repoUrl: string): Promise<{
         })
         res.on('end', () => {
           try {
-            resolve(JSON.parse(data))
+            safeResolve(JSON.parse(data))
           } catch (err) {
-            reject(new Error(`Failed to parse GitHub API response: ${err}`))
+            safeReject(new Error(`Failed to parse GitHub API response: ${err}`))
           }
         })
       },
     )
-    req.on('error', reject)
+    req.on('error', (err) => safeReject(err))
     req.on('timeout', () => {
       // 超时时同时清理响应流和请求,防止资源泄漏
       res?.destroy()
       req.destroy()
-      reject(new Error('Request timed out'))
+      safeReject(new Error('Request timed out'))
     })
   })
 }
