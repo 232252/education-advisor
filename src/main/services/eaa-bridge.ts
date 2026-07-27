@@ -17,6 +17,8 @@ export interface EAACommand {
   timeout?: number
   /** 显式指定是否需要 JSON 输出；不指定则按命令名自动判断 */
   jsonOutput?: boolean
+  /** 强制跳过读缓存、重新 spawn 拉取（用于「刷新」按钮） */
+  forceRefresh?: boolean
 }
 
 /**
@@ -141,6 +143,28 @@ export class EAABridge {
    * 读命令(JSON_COMPATIBLE_COMMANDS)不需串行化,可直接并发 spawn。
    */
   private writeQueue: Promise<void> = Promise.resolve()
+  /**
+   * 读命令结果缓存（TTL 制）。
+   * EAA 读命令每次都要 spawn 一个新进程并重新解析磁盘上的 entities/events JSON，
+   * 切换页面时反复拉取造成明显卡顿（仪表盘一次 7 个 spawn、学生页 1 个）。
+   * 读命令命中缓存即直接返回，写命令（含 forceRefresh）清除整个缓存。
+   * key = `${command}:${args.join(' ')}`，value = { result, expireAt }。
+   */
+  private readCache = new Map<string, { result: EAAResult; expireAt: number }>()
+  /** 读缓存有效期（毫秒）。10 秒：足以覆盖页面来回切换，写操作即时失效。 */
+  private static readonly READ_CACHE_TTL = 10_000
+  /** 超过此条数的读缓存视为异常增长，清空并告警（防止内存泄漏）。 */
+  private static readonly READ_CACHE_MAX = 64
+
+  /** 生成读缓存键 */
+  private readCacheKey(cmd: EAACommand): string {
+    return `${cmd.command}:${cmd.args.join(' ')}`
+  }
+
+  /** 清空读缓存（供「刷新」按钮调用，确保下次读取重新拉取） */
+  invalidateReadCache(): void {
+    this.readCache.clear()
+  }
   /**
    * RISK 7 修复: 需要串行化的写命令集合(基于 TEXT_OUTPUT_COMMANDS 中会修改数据的命令)。
    * doctor/list/get/query 等读命令不在此集合中,可并发执行。
@@ -499,6 +523,13 @@ export class EAABridge {
     // RISK 7 修复 + MEDIUM 修复: 写命令串行化,避免 EAA 二进制并发写 JSON 文件丢数据
     const isWrite = EAABridge.WRITE_COMMANDS.has(cmd.command)
     if (!isWrite) {
+      // 读命令缓存：命中且未过期则直接返回，避免重复 spawn（切页面秒开）
+      if (!cmd.forceRefresh) {
+        const cached = this.readCache.get(this.readCacheKey(cmd))
+        if (cached && cached.expireAt > Date.now()) {
+          return cached.result as EAAResult<T>
+        }
+      }
       // MEDIUM 修复: 读命令等待当前活跃写完成,避免读到写期间的不一致 JSON
       // 注意: 只 await 当前 writeQueue 快照,不把自己加入队列(读命令之间仍可并发)
       // 若 await 期间有新写命令进入,新写命令会接到 writeQueue 尾部,
@@ -506,9 +537,18 @@ export class EAABridge {
       // 这是可接受的:读命令获得的是"调用时刻 + 排队中的写完成"后的快照,
       // 符合"调用前已提交的写操作对本次读可见"的语义。
       await this.writeQueue
-      return this._doExecute<T>(cmd)
+      const result = await this._doExecute<T>(cmd)
+      // 仅缓存成功结果（失败重试更有意义）
+      if (result.success) {
+        const key = this.readCacheKey(cmd)
+        if (this.readCache.size >= EAABridge.READ_CACHE_MAX) this.readCache.clear()
+        this.readCache.set(key, { result, expireAt: Date.now() + EAABridge.READ_CACHE_TTL })
+      }
+      return result
     }
 
+    // 写命令: 先清读缓存（数据已变更，旧缓存不再有效）
+    if (this.readCache.size > 0) this.readCache.clear()
     // 写命令: 通过 writeQueue Promise 链串行化
     // 每次将一个待触发的 runPromise 接到队列尾部,等待前一个队列完成后才执行本次,
     // 执行结束(无论成功失败)后 resolve runPromise 以放行下一个写命令。
