@@ -1,7 +1,6 @@
 import type { McpServerConfig } from '@shared/types'
 import { useId } from 'react'
 import { useT } from '../../../i18n'
-import { CARD_BASE } from '../../../lib/ui-utils'
 import { MCP_PRESETS } from '../mcp-presets'
 
 interface PresetTemplatesProps {
@@ -23,7 +22,7 @@ export function PresetTemplates({ onSelect, onCancel }: PresetTemplatesProps) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white dark:bg-[#1a1e28] rounded-lg p-6 w-full max-w-md"
+        className="bg-white dark:bg-surface-tertiary rounded-lg p-6 w-full max-w-md"
       >
         <h2 id={titleId} className="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">
           {t('page.mcp.preset.title')}

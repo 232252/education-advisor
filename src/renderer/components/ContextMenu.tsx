@@ -286,7 +286,7 @@ export function ContextMenu() {
   return (
     <div
       ref={menuRef}
-      className="fixed z-[80] min-w-[160px] py-1 bg-white dark:bg-[#1a1e28] border border-gray-200 dark:border-white/[0.06] rounded-lg shadow-xl select-none"
+      className="fixed z-[80] min-w-[160px] py-1 bg-white dark:bg-surface-tertiary border border-gray-200 dark:border-white/[0.06] rounded-lg shadow-xl select-none"
       style={{ left: adjustedX, top: adjustedY, width: menuWidth }}
       role="menu"
     >

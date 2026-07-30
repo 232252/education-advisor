@@ -171,9 +171,10 @@ describe('btnStyle', () => {
       expect(cls).toContain('disabled:opacity-50')
     }
   })
-  it('所有变体含 focus ring', () => {
+  it('所有变体含 focus ring (focus-visible)', () => {
+    // 实现演进: 用 focus-visible:ring 替代 focus:ring
     for (const variant of ['primary', 'secondary', 'danger', 'ghost'] as const) {
-      expect(btnStyle(variant)).toContain('focus:ring')
+      expect(btnStyle(variant)).toMatch(/focus(?:-visible)?:ring/)
     }
   })
 })

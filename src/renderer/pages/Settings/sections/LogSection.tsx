@@ -119,7 +119,7 @@ export function LogSection({
                   setLogContent(content)
                 }
               }}
-              className="bg-gray-50 dark:bg-[#1e222c] border border-gray-300 dark:border-white/[0.08] rounded-lg px-1.5 py-1 text-[10px] text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+              className="bg-gray-50 dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded-lg px-1.5 py-1 text-[10px] text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
             >
               <option value="all">全部</option>
               <option value="debug">Debug</option>
@@ -139,7 +139,7 @@ export function LogSection({
               // H-9 修复: 300ms 防抖,避免每次按键都触发 IPC 搜索导致卡顿
               debouncedRunSearch(v, selectedLog)
             }}
-            className="flex-1 min-w-[120px] bg-gray-50 dark:bg-[#1e222c] border border-gray-300 dark:border-white/[0.08] rounded-lg px-2.5 py-1 text-[10px] text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+            className="flex-1 min-w-[120px] bg-gray-50 dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded-lg px-2.5 py-1 text-[10px] text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
           />
 
           <button
@@ -204,7 +204,7 @@ export function LogSection({
         )}
 
         {logContent && (
-          <pre className="bg-gray-50 dark:bg-[#1a1e28]/60 border border-gray-200 dark:border-white/[0.06] rounded-lg p-3 text-[10px] text-gray-700 dark:text-gray-300 max-h-64 overflow-y-auto font-mono whitespace-pre-wrap leading-relaxed">
+          <pre className="bg-gray-50 dark:bg-surface-tertiary/60 border border-gray-200 dark:border-white/[0.06] rounded-lg p-3 text-[10px] text-gray-700 dark:text-gray-300 max-h-64 overflow-y-auto font-mono whitespace-pre-wrap leading-relaxed">
             {logContent}
           </pre>
         )}

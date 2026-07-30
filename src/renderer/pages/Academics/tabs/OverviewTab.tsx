@@ -4,7 +4,8 @@
 // =============================================================
 
 import type { ExamDef, GradeRecord, SubjectDef } from '@shared/types'
-import ReactEChartsCore from 'echarts-for-react/lib/core'
+import ReactEChartsCore from 'echarts-for-react/esm/core'
+import { BookOpen, Target, TrendingUp } from 'lucide-react'
 import { useMemo } from 'react'
 import { Badge } from '../../../components/Badge'
 import { Card } from '../../../components/Card'
@@ -266,7 +267,7 @@ export function OverviewTab({
   if (grades.length === 0) {
     return (
       <EmptyState
-        icon="📚"
+        icon={<BookOpen size={28} />}
         title="暂无成绩数据"
         description={`${studentName} 还没有任何成绩记录,请先在"考试管理"中创建考试,然后在"成绩录入"中录入成绩`}
       />
@@ -286,7 +287,11 @@ export function OverviewTab({
           {sortedExamsWithGrades.length > 0 ? (
             <ReactEChartsCore echarts={echarts} style={{ height: 300 }} option={trendChartOption} />
           ) : (
-            <EmptyState icon="📈" title="暂无趋势数据" className="h-[300px] py-0" />
+            <EmptyState
+              icon={<TrendingUp size={28} />}
+              title="暂无趋势数据"
+              className="h-[300px] py-0"
+            />
           )}
         </Card>
 
@@ -312,7 +317,7 @@ export function OverviewTab({
           {radarChartOption ? (
             <ReactEChartsCore echarts={echarts} style={{ height: 260 }} option={radarChartOption} />
           ) : (
-            <EmptyState icon="🎯" title="暂无数据" className="h-[260px] py-0" />
+            <EmptyState icon={<Target size={28} />} title="暂无数据" className="h-[260px] py-0" />
           )}
         </Card>
       </div>

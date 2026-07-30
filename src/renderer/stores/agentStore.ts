@@ -184,10 +184,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       // 状态切换前先 flush 待处理的 delta,确保输出完整
       // (running→idle/error / 错误追加 / result 追加 等场景都需要先 flush)
       const needFlush =
-        data.status === 'idle' ||
-        data.status === 'error' ||
-        !!data.error ||
-        !!data.result
+        data.status === 'idle' || data.status === 'error' || !!data.error || !!data.result
       if (needFlush) {
         _flushLiveOutputNow(set)
       }
