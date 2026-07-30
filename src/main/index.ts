@@ -8,8 +8,10 @@ import path from 'node:path'
 import { app, BrowserWindow, dialog, nativeImage, net, protocol, shell } from 'electron'
 import { debug } from '../shared/debug'
 import { registerAllHandlers } from './ipc/index'
+import { agentService } from './services/agent-service'
 import { cronService } from './services/cron-service'
 import { dbService } from './services/db-service'
+import { eaaBridge } from './services/eaa-bridge'
 import { feishuBotService } from './services/feishu-bot-service'
 import { keystoreService } from './services/keystore-service'
 import { ollamaService } from './services/ollama-service'
@@ -465,6 +467,9 @@ app.on('before-quit', () => {
   feishuBotService.stop().catch(() => {})
   // 退出时停止 ollama serve 子进程，避免孤儿进程占用端口
   ollamaService.stopServe()
+  // P1-10: 终止 in-flight EAA 子进程 + 清空读缓存 + 清空隐私密码
+  // 同步操作, 放在 before-quit 避免阻塞 will-quit 的异步清理链
+  eaaBridge.shutdown()
 })
 
 // H-1 修复: 应用退出前 flush settings/keystore 待写数据,避免数据丢失
@@ -485,6 +490,11 @@ app.on('will-quit', (event) => {
     }),
     dbService.close().catch((err) => {
       log('warn', 'main', `db close failed on quit: ${err}`)
+    }),
+    // P1-10: 优雅关闭 agent 服务(abort 运行中的 agent + 销毁 MCP 连接)
+    // 内部含 5 秒超时, 不会阻塞退出
+    agentService.shutdown().catch((err) => {
+      log('warn', 'main', `agent service shutdown failed on quit: ${err}`)
     }),
   ]).finally(() => {
     app.exit(0)

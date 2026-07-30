@@ -77,24 +77,40 @@ async function main() {
   const svg = readFileSync(SVG_PATH)
 
   // Rasterize each size.
-  // 清晰度优化:
-  //  - 小尺寸(≤48)禁用 palette 量化,避免颜色精度损失导致发灰/模糊;
-  //    用较低 compressionLevel 减少压缩伪影(小图本就很小,无需激进压缩)。
-  //  - 大尺寸用 palette 提升压缩效率,compressionLevel 9。
-  //  - density 768(v2 从 384 提升) 让矢量曲线/渐变在缩放时保留更多细节,边缘更锐利。
+  // 清晰度优化 (v3, 2026-07-30 进一步提升):
+  //  - density 768: 矢量曲线/渐变在缩放时保留更多细节(density 1536 会超 pixel limit)
+  //  - 小尺寸(≤48)先渲染 4x 再用 Lanczos3 降采样, 消除锯齿、边缘更锐利
+  //  - 全尺寸禁用 palette 量化, 保留完整 RGBA
+  //  - compressionLevel: 小图用 6 减少压缩伪影, 大图用 9
   const buffers = []
   for (const size of SIZES) {
     const small = size <= 48
-    const buf = await sharp(svg, { density: 768 })
-      .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .png({
-        compressionLevel: small ? 6 : 9,
-        palette: false, // 全尺寸保留完整 RGBA,不再对任何尺寸做调色板量化
-        quality: 100,
-      })
-      .toBuffer()
-    buffers.push(buf)
-    console.log(`  ${size}×${size}  →  ${buf.length} bytes`)
+    if (small) {
+      // 4x 超采样 + Lanczos3 降采样
+      const hi = size * 4
+      const buf = await sharp(svg, { density: 768 })
+        .resize(hi, hi, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .png({ compressionLevel: 9, palette: false, quality: 100 })
+        .toBuffer()
+        .then((h) =>
+          sharp(h)
+            .resize(size, size, { kernel: 'lanczos3' })
+            .png({ compressionLevel: 6, palette: false, quality: 100 })
+            .toBuffer(),
+        )
+      buffers.push(buf)
+    } else {
+      const buf = await sharp(svg, { density: 768 })
+        .resize(size, size, {
+          fit: 'contain',
+          kernel: 'lanczos3',
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        })
+        .png({ compressionLevel: 9, palette: false, quality: 100 })
+        .toBuffer()
+      buffers.push(buf)
+    }
+    console.log(`  ${size}×${size}  →  ${buffers[buffers.length - 1].length} bytes`)
   }
 
   // Save the 256/512/1024 PNGs for macOS / Linux.
@@ -107,11 +123,11 @@ async function main() {
   }
   writeFileSync(PNG_256, buffers[SIZES.indexOf(256)])
   writeFileSync(PNG_512, await sharp(svg, { density: 1024 })
-    .resize(512, 512).png({ compressionLevel: 9, palette: false }).toBuffer())
+    .resize(512, 512, { kernel: 'lanczos3' }).png({ compressionLevel: 9, palette: false }).toBuffer())
   writeFileSync(PNG_1024, await sharp(svg, { density: 1024 })
-    .resize(1024, 1024).png({ compressionLevel: 9, palette: false }).toBuffer())
+    .resize(1024, 1024, { kernel: 'lanczos3' }).png({ compressionLevel: 9, palette: false }).toBuffer())
   writeFileSync(PNG_PATH, await sharp(svg, { density: 1024 })
-    .resize(512, 512).png({ compressionLevel: 9, palette: false }).toBuffer())
+    .resize(512, 512, { kernel: 'lanczos3' }).png({ compressionLevel: 9, palette: false }).toBuffer())
   console.log(`Wrote ${PNG_PATH} (512×512)`)
 
   // Build the .ico (PNG-in-ICO, hand-rolled).

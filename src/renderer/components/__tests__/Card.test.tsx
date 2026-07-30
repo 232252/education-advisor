@@ -17,14 +17,14 @@ describe('Card — 基本', () => {
     expect((container.firstChild as HTMLElement).tagName).toBe('DIV')
   })
 
-  it('含 rounded-xl', () => {
+  it('含 rounded-2xl (v4 大圆角)', () => {
     const { container } = render(<Card>x</Card>)
-    expect((container.firstChild as HTMLElement).className).toContain('rounded-xl')
+    expect((container.firstChild as HTMLElement).className).toContain('rounded-2xl')
   })
 
-  it('含 border', () => {
+  it('无边框 (v4 弥散阴影替代边框)', () => {
     const { container } = render(<Card>x</Card>)
-    expect((container.firstChild as HTMLElement).className).toContain('border')
+    expect((container.firstChild as HTMLElement).className).not.toContain('border')
   })
 
   it('含 bg-white', () => {
@@ -116,7 +116,7 @@ describe('Card — className 合并', () => {
     const { container } = render(<Card className="extra">x</Card>)
     const cls = (container.firstChild as HTMLElement).className
     expect(cls).toContain('extra')
-    expect(cls).toContain('rounded-xl')
+    expect(cls).toContain('rounded-2xl')
   })
 })
 
