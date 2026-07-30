@@ -6,7 +6,7 @@ const OUT = process.argv[2] || process.env.TEMP + '/cdp-interact'
 fs.mkdirSync(OUT, { recursive: true })
 
 async function getPageTarget() {
-  const res = await fetch('http://localhost:9222/json')
+  const res = await fetch(`http://localhost:${process.env.EA_CDP_PORT || '9222'}/json`)
   const targets = await res.json()
   const page = targets.find((t) => t.type === 'page' && !t.url.startsWith('devtools'))
   if (!page) throw new Error('no page target')
