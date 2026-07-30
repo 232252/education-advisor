@@ -1080,6 +1080,52 @@ class AgentService {
     this.executionHistory.set(id, history)
   }
 
+  /**
+   * 应用退出时的优雅关闭:
+   *   1. abort 所有正在运行的 agent(停止 LLM 调用 + 释放 pi-agent-core 资源)
+   *   2. 清空排队队列(避免退出后排队任务出队执行,引用已销毁的 BrowserWindow)
+   *   3. 销毁 MCP service(断开所有 MCP server 连接 + 杀掉 stdio 子进程)
+   *
+   * 此前 before-quit/will-quit 未调用本方法, 退出时:
+   *   - 运行中的 agent 继续消耗 API token 直到进程被 OS 强杀
+   *   - 排队任务可能出队执行, 引用已销毁的 win 导致 sendStatus 抛错
+   *   - MCP stdio 子进程成为孤儿(Node 进程退出后子进程不自动终止)
+   *
+   * 超时保护: 整体 5 秒超时, 避免 abort/waitForIdle hang 阻塞退出。
+   */
+  async shutdown(): Promise<void> {
+    const runningIds = Array.from(this.runningAgents.keys())
+    if (runningIds.length > 0) {
+      console.log(`[AgentService] shutdown: aborting ${runningIds.length} running agent(s)`)
+    }
+    // 清空所有排队队列(代数 +1 让出队任务放弃执行)
+    for (const id of this.runQueueDepths.keys()) {
+      this.runQueueGenerations.set(id, (this.runQueueGenerations.get(id) ?? 0) + 1)
+      this.runQueueDepths.delete(id)
+    }
+    // 并发 abort 所有运行中的 agent, 每个 2 秒超时(复用 abortAgent 内部 waitForIdle 超时)
+    const abortPromises = runningIds.map((id) =>
+      this.abortAgent(id).catch((err) => {
+        console.warn(`[AgentService] shutdown: abort ${id} failed:`, err)
+      }),
+    )
+    // 整体 5 秒超时兜底, 防止某个 agent.abort() hang 阻塞退出
+    await withTimeout(Promise.all(abortPromises), 5000, 'AgentService.shutdown abortAll').catch(
+      () => {
+        console.warn('[AgentService] shutdown: abortAll timed out after 5s, forcing cleanup')
+      },
+    )
+    this.runningAgents.clear()
+
+    // 销毁 MCP service(断开连接 + 杀 stdio 子进程)
+    try {
+      await mcpService.destroy()
+    } catch (err) {
+      console.warn('[AgentService] shutdown: mcpService.destroy failed:', err)
+    }
+    console.log('[AgentService] shutdown complete')
+  }
+
   /** 统一发送 agent 状态更新到渲染进程 */
   private sendStatus(
     win: BrowserWindow | undefined,

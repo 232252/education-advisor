@@ -337,7 +337,7 @@ export function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="h-full overflow-y-auto bg-gray-50/50 dark:bg-surface-primary">
+      <div className="h-full overflow-y-auto bg-canvas">
         <PageHeader
           title={t('page.dashboard.title')}
           subtitle={t('page.dashboard.subtitle')}
@@ -351,7 +351,7 @@ export function DashboardPage() {
   const s = stats?.summary
 
   return (
-    <div className="h-full overflow-y-auto bg-gray-50/50 dark:bg-surface-primary">
+    <div className="h-full overflow-y-auto bg-canvas">
       <PageHeader
         title={t('page.dashboard.title')}
         subtitle={t('page.dashboard.subtitle')}
