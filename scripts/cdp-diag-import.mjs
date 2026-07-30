@@ -1,6 +1,6 @@
 // 诊断: 在运行中的应用内动态导入各模块,检查默认导出解析为什么
 // 用法: node scripts/cdp-eval-module.mjs
-const CDP_HTTP = 'http://localhost:9222'
+const CDP_HTTP = `http://localhost:${process.env.EA_CDP_PORT || '9222'}`
 
 async function getPage() {
   const res = await fetch(`${CDP_HTTP}/json`)
