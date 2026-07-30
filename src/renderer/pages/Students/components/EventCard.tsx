@@ -26,7 +26,7 @@ export function EventCard({
       className={cn(
         'rounded-xl border p-3.5 transition-all',
         event.reverted
-          ? 'bg-gray-50 dark:bg-[#1a1e28]/50 opacity-60 border-gray-100 dark:border-white/[0.06]'
+          ? 'bg-gray-50 dark:bg-surface-tertiary/50 opacity-60 border-gray-100 dark:border-white/[0.06]'
           : `${CARD_BASE} shadow-sm hover:shadow-md`,
       )}
     >

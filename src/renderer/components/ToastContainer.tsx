@@ -4,14 +4,16 @@
 // 位置:屏幕右上角,堆叠展示,自动消失
 // =============================================================
 
+import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { type ToastType, useToastStore } from '../stores/toastStore'
 import './ToastContainer.css'
 
-const ICONS: Record<ToastType, string> = {
-  info: 'ℹ',
-  success: '✓',
-  error: '✕',
-  warning: '⚠',
+const ICONS: Record<ToastType, ReactNode> = {
+  info: <Info size={14} strokeWidth={2.5} />,
+  success: <CheckCircle2 size={14} strokeWidth={2.5} />,
+  error: <XCircle size={14} strokeWidth={2.5} />,
+  warning: <AlertTriangle size={14} strokeWidth={2.5} />,
 }
 
 export function ToastContainer() {

@@ -1,11 +1,11 @@
 // =============================================================
 // Electron 主进程入口
-// 技术方向：Electron 33 + Node.js 22
+// 技术方向：Electron 43 + Node.js 24.18 (Chromium 150)
 // =============================================================
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { app, BrowserWindow, dialog, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, nativeImage, net, protocol, shell } from 'electron'
 import { debug } from '../shared/debug'
 import { registerAllHandlers } from './ipc/index'
 import { cronService } from './services/cron-service'
@@ -14,6 +14,7 @@ import { feishuBotService } from './services/feishu-bot-service'
 import { keystoreService } from './services/keystore-service'
 import { ollamaService } from './services/ollama-service'
 import { settingsService } from './services/settings-service'
+import { syncNativeTheme } from './services/theme-service'
 import { destroyTray, getTrayStatus, initTray, resolveIconPath } from './services/tray-service'
 import { updateService } from './services/update-service'
 import { initLogger, log } from './utils/logger'
@@ -32,6 +33,8 @@ process.on('unhandledRejection', (reason) => {
   if (stack) console.error(stack)
 })
 process.on('uncaughtException', (err) => {
+  // Ignore EPIPE errors from broken stdout pipe (common when running as subprocess)
+  if (err && (err as Error).message?.includes('EPIPE')) return
   console.error('[main] Uncaught exception:', err.message, err.stack)
 })
 
@@ -54,8 +57,11 @@ protocol.registerSchemesAsPrivileged([
 // 测试阶段默认开启(用户指示: "直接开着吧,真正到要用就是说生产级别的时候再关闭掉")
 // 生产环境(packed)强制关闭，无论 ENABLE_CDP 设置如何
 // R70 修复: 增加详细诊断日志 + 允许通过 ENABLE_CDP=1 显式强制开启 (即使 isPackaged=true)
-console.log(`[Main] CDP check: isPackaged=${app.isPackaged}, ENABLE_CDP=${JSON.stringify(process.env.ENABLE_CDP)}`)
-const cdpEnabled = (!app.isPackaged && process.env.ENABLE_CDP !== '0') || process.env.ENABLE_CDP === '1'
+console.log(
+  `[Main] CDP check: isPackaged=${app.isPackaged}, ENABLE_CDP=${JSON.stringify(process.env.ENABLE_CDP)}`,
+)
+const cdpEnabled =
+  (!app.isPackaged && process.env.ENABLE_CDP !== '0') || process.env.ENABLE_CDP === '1'
 if (cdpEnabled) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
   app.commandLine.appendSwitch('remote-allow-origins', 'http://localhost:9222')
@@ -90,55 +96,133 @@ function handleWindowClose(win: BrowserWindow, event: Electron.Event): void {
   const behavior = settings.general.closeBehavior
 
   switch (behavior) {
-    case 'tray':
-      event.preventDefault()
-      win.hide()
+    case 'tray': {
+      // 防御: 托盘不存在时(图标缺失或 minimizeToTray 被关闭)不能隐藏窗口,
+      // 否则应用会"消失"且无法恢复 — 回退到询问对话框
+      const { exists: trayAlive } = getTrayStatus()
+      if (trayAlive) {
+        event.preventDefault()
+        win.hide()
+      } else {
+        // 托盘不可用,弹出询问对话框
+        event.preventDefault()
+        showCloseDialog(win)
+      }
       break
+    }
 
     case 'exit':
-      isQuitting = true
+      // B6-1: 若飞书机器人正在运行,退出会断开其长连接(影响"远程访问")。
+      // 先同步阻止关闭,再异步确认。
+      event.preventDefault()
+      confirmQuitIfNeeded(win)
       break
+
     default: {
       // 同步阻止关闭，然后异步弹对话框
       event.preventDefault()
-      dialog
-        .showMessageBox(win, {
-          type: 'question',
-          title: '关闭窗口',
-          message: '您希望如何处理？',
-          buttons: ['最小化到托盘', '直接退出', '取消'],
-          defaultId: 0,
-          cancelId: 2,
-          checkboxLabel: '记住选择',
-          checkboxChecked: false,
-        })
-        .then((result) => {
-          const buttonIndex = result.response
-          const remember = result.checkboxChecked
-
-          if (buttonIndex === 2) {
-            // 取消 — 什么都不做
-            return
-          }
-
-          if (remember) {
-            const newBehavior = buttonIndex === 0 ? 'tray' : 'exit'
-            settingsService.update('general.closeBehavior', newBehavior)
-          }
-
-          if (buttonIndex === 0) {
-            win.hide()
-          } else {
-            isQuitting = true
-            app.quit()
-          }
-        })
-        .catch(() => {
-          /* dialog cancelled or error */
-        })
+      showCloseDialog(win)
       break
     }
   }
+}
+
+/** 关闭行为询问对话框（closeBehavior='ask' 或托盘不可用时的回退） */
+function showCloseDialog(win: BrowserWindow): void {
+  dialog
+    .showMessageBox(win, {
+      type: 'question',
+      title: '关闭窗口',
+      message: '您希望如何处理？',
+      buttons: ['最小化到托盘', '直接退出', '取消'],
+      defaultId: 0,
+      cancelId: 2,
+      checkboxLabel: '记住选择',
+      checkboxChecked: false,
+    })
+    .then((result) => {
+      const buttonIndex = result.response
+      const remember = result.checkboxChecked
+
+      if (buttonIndex === 2) {
+        // 取消 — 什么都不做
+        return
+      }
+
+      if (remember) {
+        const newBehavior = buttonIndex === 0 ? 'tray' : 'exit'
+        settingsService.update('general.closeBehavior', newBehavior)
+      }
+
+      if (buttonIndex === 0) {
+        // 若托盘不可用则直接退出,不能隐藏到不存在的托盘
+        const { exists: trayAlive } = getTrayStatus()
+        if (trayAlive) {
+          win.hide()
+        } else {
+          isQuitting = true
+          app.quit()
+        }
+      } else {
+        isQuitting = true
+        app.quit()
+      }
+    })
+    .catch(() => {
+      /* dialog cancelled or error */
+    })
+}
+
+/**
+ * B6-1: 真正退出前,若飞书机器人处于连接/连接中状态,弹确认框提醒用户
+ * 退出会断开飞书长连接(导致无法再从飞书远程对话)。
+ * bot 未运行时直接退出,不打扰用户。
+ */
+function confirmQuitIfNeeded(win: BrowserWindow): void {
+  let botActive = false
+  try {
+    const st = feishuBotService.getStatus().status
+    botActive = st === 'connected' || st === 'connecting'
+  } catch {
+    botActive = false
+  }
+  if (!botActive) {
+    isQuitting = true
+    app.quit()
+    return
+  }
+  dialog
+    .showMessageBox(win, {
+      type: 'warning',
+      title: '飞书机器人正在运行',
+      message: '退出应用将断开飞书机器人的长连接，您将无法再从飞书远程对话。',
+      buttons: ['最小化到托盘(保持运行)', '仍然退出', '取消'],
+      defaultId: 0,
+      cancelId: 2,
+    })
+    .then((result) => {
+      if (result.response === 2) return // 取消
+      if (result.response === 0) {
+        // 最小化到托盘:若托盘可用则隐藏,否则提示无法最小化
+        const { exists: trayAlive } = getTrayStatus()
+        if (trayAlive) {
+          win.hide()
+        } else {
+          dialog.showMessageBox(win, {
+            type: 'info',
+            message: '当前未启用托盘图标，无法最小化到后台。已在“设置”中为您启用最小化到托盘。',
+            buttons: ['知道了'],
+          })
+          settingsService.update('general.minimizeToTray', true)
+        }
+      } else {
+        isQuitting = true
+        app.quit()
+      }
+    })
+    .catch(() => {
+      /* dialog cancelled */
+    })
 }
 
 // =============================================================
@@ -167,12 +251,47 @@ app
       `Logger initialized at level=${initialLogLevel}${debug.logLevel ? ' (from DEBUG_LOG_LEVEL)' : ''}`,
     )
 
+    // 适配 Electron 39/40: 记录硬件加速状态,便于诊断渲染/性能问题
+    // app.isHardwareAccelerationEnabled() 在 E39 引入,做防御性检测兼容旧版。
+    // 类型断言:已安装的 electron 类型(E33)可能尚未声明该方法,运行时用 typeof 守卫。
+    const appWithHwAccel = app as typeof app & { isHardwareAccelerationEnabled?: () => boolean }
+    if (typeof appWithHwAccel.isHardwareAccelerationEnabled === 'function') {
+      log(
+        'info',
+        'main',
+        `Hardware acceleration: ${appWithHwAccel.isHardwareAccelerationEnabled() ? 'enabled' : 'disabled'}`,
+      )
+    }
+
+    // 适配 Electron 33/36: 同步 settings.general.theme 到 nativeTheme,
+    // 让原生 UI (托盘菜单/系统对话框) 明暗跟随 app 设置
+    syncNativeTheme()
+
     // P2-4: 初始化 SQLite,失败不阻塞主流程
     await dbService.init()
 
     const iconPath = resolveIconPath()
     if (!iconPath) {
       console.warn('[Main] No icon found, using Electron default')
+    }
+    // 清晰度优化: 直接传 ICO 路径(而非 NativeImage), Windows 会保留 ICO 内全部尺寸帧
+    // (16/24/32/48/64/128/256), 标题栏/任务栏/Alt-Tab 各场景自动选最佳帧, 不再整体缩放。
+    // ICO 缺失时回退 PNG NativeImage。
+    let appIcon: string | Electron.NativeImage | undefined
+    if (iconPath) {
+      if (iconPath.toLowerCase().endsWith('.ico')) {
+        appIcon = iconPath
+        console.log(`[Main] Window icon: ${iconPath} (multi-frame ICO)`)
+      } else {
+        appIcon = nativeImage.createFromPath(iconPath)
+        console.log(
+          `[Main] Window icon: ${iconPath} (${appIcon.getSize().width}x${appIcon.getSize().height})`,
+        )
+        if (appIcon.isEmpty()) {
+          console.warn('[Main] Icon loaded but empty, falling back to default')
+          appIcon = undefined
+        }
+      }
     }
 
     const win = new BrowserWindow({
@@ -181,7 +300,7 @@ app
       minWidth: 1024,
       minHeight: 640,
       title: 'Education Advisor',
-      ...(iconPath ? { icon: iconPath } : {}),
+      ...(appIcon ? { icon: appIcon } : {}),
       webPreferences: {
         // P0-2 修复: 启动期断言 preload 存在，支持 .js/.cjs/.mjs 扩展名
         preload: (() => {
@@ -218,7 +337,8 @@ app
       const s = settingsService.getSettings()
       const secret = keystoreService.getSecret('feishu-app-secret')
       if (s.feishu.appId && secret) {
-        feishuBotService.start(s.feishu.appId, secret, win).catch((err) => {
+        const feishuDomain = s.feishu.domain === 'lark' ? 'lark' : 'feishu'
+        feishuBotService.start(s.feishu.appId, secret, win, feishuDomain).catch((err) => {
           log('warn', 'main', `feishu bot auto-start failed: ${err}`)
         })
         log('info', 'main', `feishu bot auto-starting, appId=${s.feishu.appId}`)
@@ -297,6 +417,8 @@ app
 
     // 初始化完成后显示窗口
     win.once('ready-to-show', () => {
+      // 双重保险: 在 show 前再次设置图标,确保 Windows 任务栏正确显示
+      if (appIcon) win.setIcon(appIcon)
       win.show()
     })
 

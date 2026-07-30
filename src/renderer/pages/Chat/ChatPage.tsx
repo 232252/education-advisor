@@ -2,6 +2,7 @@
 // 对话页面 — 纯 Agent 模式 (Agent 选择器 + 模型配置常驻显示)
 // =============================================================
 
+import { MessageSquare, Paperclip } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
@@ -239,7 +240,7 @@ export function ChatPage() {
         {t('page.chat.title')}
       </h1>
       {/* 左侧会话列表 */}
-      <div className="w-64 flex-shrink-0 border-r border-gray-200/60 dark:border-white/[0.06] flex flex-col bg-gray-50/80 dark:bg-[#1a1e28]">
+      <div className="w-64 flex-shrink-0 border-r border-gray-200/60 dark:border-white/[0.06] flex flex-col bg-gray-50/80 dark:bg-surface-tertiary">
         {/* 顶部操作区 */}
         <div className="p-3 border-b border-gray-200/60 dark:border-white/[0.06]">
           <button
@@ -254,7 +255,11 @@ export function ChatPage() {
         {/* 会话列表 */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {sessions.length === 0 ? (
-            <EmptyState icon="💬" title={t('page.chat.empty.title')} className="py-10" />
+            <EmptyState
+              icon={<MessageSquare size={28} />}
+              title={t('page.chat.empty.title')}
+              className="py-10"
+            />
           ) : (
             sessions.map((session) => (
               <div
@@ -288,7 +293,7 @@ export function ChatPage() {
                     e.stopPropagation()
                     setPendingDeleteSessionId(session.id)
                   }}
-                  className="opacity-0 group-hover:opacity-100 ml-2 text-gray-400 hover:text-red-500 transition-all text-xs"
+                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 ml-2 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 transition-all text-xs"
                   title={t('common.delete')}
                   aria-label="删除对话"
                 >
@@ -309,7 +314,7 @@ export function ChatPage() {
             <select
               value={selectedAgentId}
               onChange={(e) => setSelectedAgent(e.target.value)}
-              className="bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300
+              className="bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300
                          focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-transparent min-w-[160px] transition-colors"
               title="选择 Agent"
             >
@@ -334,7 +339,7 @@ export function ChatPage() {
             <select
               value={thinkingLevel}
               onChange={handleThinkingLevelChange}
-              className="bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-gray-600 dark:text-gray-300
+              className="bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-gray-600 dark:text-gray-300
                          focus:outline-none focus:border-blue-500 transition-colors"
               title="思考级别"
             >
@@ -392,7 +397,7 @@ export function ChatPage() {
                   ${
                     msg.role === 'user'
                       ? 'bg-blue-600 text-white rounded-br-md shadow-md shadow-blue-500/15'
-                      : 'bg-white text-gray-800 dark:bg-[#1a1e28] dark:text-gray-100 rounded-bl-md border border-gray-200/70 dark:border-white/[0.06] shadow-sm'
+                      : 'bg-white text-gray-800 dark:bg-surface-tertiary dark:text-gray-100 rounded-bl-md border border-gray-200/70 dark:border-white/[0.06] shadow-sm'
                   }`}
               >
                 {/* 工具调用（放顶部） */}
@@ -453,14 +458,14 @@ export function ChatPage() {
         </div>
 
         {/* 输入区 */}
-        <div className="border-t border-gray-200/60 dark:border-white/[0.06] px-6 py-4 bg-white/80 dark:bg-[#1a1e28]/80 backdrop-blur-sm">
+        <div className="border-t border-gray-200/60 dark:border-white/[0.06] px-6 py-4 bg-white/80 dark:bg-surface-tertiary/80 backdrop-blur-sm">
           {!canSend && (
             <div className="text-xs text-amber-500 dark:text-amber-400 mb-2 text-center">
               正在加载 Agent 列表...
             </div>
           )}
           <div className="flex gap-3">
-            <div className="flex-1 flex flex-col gap-2 bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08] rounded-xl px-3 py-2 focus-within:border-blue-500 dark:focus-within:border-blue-400/60 transition-all duration-200 shadow-sm">
+            <div className="flex-1 flex flex-col gap-2 bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-xl px-3 py-2 focus-within:border-blue-500 dark:focus-within:border-blue-400/60 transition-all duration-200 shadow-sm">
               {/* 已上传文件列表 */}
               {uploadedFiles.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-1">
@@ -469,8 +474,9 @@ export function ChatPage() {
                       key={f.path || `${f.name}-${idx}`}
                       className="flex items-center gap-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-md px-2 py-1 text-[11px]"
                     >
+                      <Paperclip size={14} className="flex-shrink-0" />
                       <span className="truncate max-w-[160px]" title={f.path}>
-                        📎 {f.name}
+                        {f.name}
                       </span>
                       <span className="text-[10px] opacity-70">{(f.size / 1024).toFixed(1)}KB</span>
                       <button
@@ -658,7 +664,7 @@ function ContextStatusBar({
   const barColor = pct < 60 ? 'bg-green-500' : pct < thresholdPct ? 'bg-yellow-500' : 'bg-red-500'
   const fmtK = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K` : `${n}`)
   return (
-    <div className="px-6 py-2 border-b border-gray-200/60 dark:border-white/[0.06] bg-gray-50/50 dark:bg-[#1a1e28]/50">
+    <div className="px-6 py-2 border-b border-gray-200/60 dark:border-white/[0.06] bg-gray-50/50 dark:bg-surface-tertiary/50">
       <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400">
         <div className="flex items-center gap-1.5">
           <span className="font-medium text-gray-700 dark:text-gray-300">上下文</span>

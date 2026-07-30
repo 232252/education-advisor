@@ -6,6 +6,7 @@ import { type BrowserWindow, ipcMain } from 'electron'
 import cron from 'node-cron'
 import * as IPC from '../../shared/ipc-channels'
 import type { CronTask } from '../../shared/types'
+import { agentService } from '../services/agent-service'
 import { cronService } from '../services/cron-service'
 
 export function registerCronHandlers(win: BrowserWindow) {
@@ -37,6 +38,9 @@ export function registerCronHandlers(win: BrowserWindow) {
   // 拒绝畸形数据(空对象/缺失 name/expression 等)
   // H-3 修复:增加 cron 表达式语法校验,防止无效表达式进入调度器
   // H-3 修复:校验失败返回结构化错误而非抛出
+  // R151 修复: node-cron.validate() 对超长字段数(7/9 等)误返回 true,
+  // 额外校验字段数为 5 或 6(标准 5 字段 + 扩展带秒 6 字段)
+  // R151 修复: 校验 agentId 非空字符串,防止空 agentId 任务进入调度器
   ipcMain.handle(IPC.IPC_CRON_ADD, async (_e, task: unknown) => {
     if (!task || typeof task !== 'object') {
       return { success: false, error: 'task must be a non-null object' }
@@ -48,9 +52,28 @@ export function registerCronHandlers(win: BrowserWindow) {
     if (typeof t.expression !== 'string' || t.expression.length === 0) {
       return { success: false, error: 'task.expression must be a non-empty string' }
     }
+    // R151 修复: 校验 cron 表达式字段数(5 或 6),拒绝 node-cron 误接受的 7+ 字段
+    const fieldCount = t.expression.trim().split(/\s+/).length
+    if (fieldCount < 5 || fieldCount > 6) {
+      return {
+        success: false,
+        error: `task.expression "${t.expression}" 字段数 ${fieldCount} 非法,cron 表达式应为 5 或 6 字段`,
+      }
+    }
     // H-3 修复:校验 cron 表达式语法,拒绝如 "*/foo * * * *" 等畸形表达式
     if (!cron.validate(t.expression)) {
       return { success: false, error: `task.expression "${t.expression}" 不是合法的 cron 表达式` }
+    }
+    // R151 修复: 校验 agentId 非空字符串(调度执行需要有效 agent)
+    if (typeof t.agentId !== 'string' || t.agentId.length === 0) {
+      return { success: false, error: 'task.agentId must be a non-empty string' }
+    }
+    // R155 修复: 校验 agentId 实际存在,防止引用不存在 agent 的任务进入调度器
+    if (!agentService.hasAgent(t.agentId)) {
+      return {
+        success: false,
+        error: `task.agentId "${t.agentId}" 不存在,请使用 agent.list 查看可用 agent`,
+      }
     }
     try {
       const id = cronService.addTask(task as Omit<CronTask, 'id'>)
@@ -72,15 +95,37 @@ export function registerCronHandlers(win: BrowserWindow) {
     }
     // 排除 id 字段,防止 id 被篡改
     const { id: _ignored, ...safePatch } = patch as Record<string, unknown>
-    if (
-      typeof safePatch.expression === 'string' &&
-      safePatch.expression.length > 0 &&
-      !cron.validate(safePatch.expression)
-    ) {
-      return {
-        success: false,
-        error: `expression "${safePatch.expression}" 不是合法的 cron 表达式`,
+    if (typeof safePatch.expression === 'string' && safePatch.expression.length > 0) {
+      // R151 修复: 校验字段数(同 add)
+      const fc = safePatch.expression.trim().split(/\s+/).length
+      if (fc < 5 || fc > 6) {
+        return {
+          success: false,
+          error: `expression "${safePatch.expression}" 字段数 ${fc} 非法,应为 5 或 6 字段`,
+        }
       }
+      if (!cron.validate(safePatch.expression)) {
+        return {
+          success: false,
+          error: `expression "${safePatch.expression}" 不是合法的 cron 表达式`,
+        }
+      }
+    }
+    // R151 修复: update 中若包含 agentId,也需校验非空
+    if (
+      'agentId' in safePatch &&
+      (typeof safePatch.agentId !== 'string' || safePatch.agentId.length === 0)
+    ) {
+      return { success: false, error: 'agentId must be a non-empty string' }
+    }
+    // R155 修复: update 中若包含 agentId,也需校验存在性
+    if (
+      'agentId' in safePatch &&
+      typeof safePatch.agentId === 'string' &&
+      safePatch.agentId.length > 0 &&
+      !agentService.hasAgent(safePatch.agentId)
+    ) {
+      return { success: false, error: `agentId "${safePatch.agentId}" 不存在` }
     }
     try {
       return cronService.updateTask(id, safePatch as Partial<CronTask>)

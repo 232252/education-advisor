@@ -9,12 +9,13 @@
 import { app, type BrowserWindow, ipcMain } from 'electron'
 import * as IPC from '../../shared/ipc-channels'
 import type { UnifiedSettings } from '../../shared/types'
+import { TtlLruCache } from '../services/eaa-cache'
 import { feishuBotService } from '../services/feishu-bot-service'
 import { keystoreService } from '../services/keystore-service'
 import { settingsService } from '../services/settings-service'
+import { syncNativeTheme } from '../services/theme-service'
 import { updateTray } from '../services/tray-service'
 import { log, setLogLevel } from '../utils/logger'
-import { TtlLruCache } from '../services/eaa-cache'
 
 /**
  * PERF: settings:get 响应缓存
@@ -49,16 +50,15 @@ export function registerSettingsHandlers(win: BrowserWindow) {
    * 若 appId 被清空则停止。实现"保存即生效"，无需重启 app。
    */
   const reconnectFeishuBot = async () => {
-    // 用户手动停止后,不自动重连(只有保存新 appId/secret 或手动点"连接"才重启)
-    if (feishuBotService.isUserStopped()) {
-      log('info', 'settings', 'feishu bot skipped reconnect (user stopped)')
-      return
-    }
+    // M3 修复: 本函数仅在用户保存 appId/appSecret 时触发,本身就是明确的连接意图,
+    // 不再因 userStopped(曾手动点"停止")而跳过 — 此前保存新凭证后机器人不会自动连,
+    // 必须再手动点一次"连接"才生效
     const s = settingsService.getSettings()
     const secret = keystoreService.getSecret('feishu-app-secret')
     if (s.feishu.appId && secret) {
       // start 内部已做幂等：若 appId 相同且已连接则跳过
-      await feishuBotService.start(s.feishu.appId, secret, win).catch((err) => {
+      const feishuDomain = s.feishu.domain === 'lark' ? 'lark' : 'feishu'
+      await feishuBotService.start(s.feishu.appId, secret, win, feishuDomain).catch((err) => {
         log('warn', 'settings', `feishu bot reconnect failed: ${err}`)
       })
     } else {
@@ -144,6 +144,12 @@ export function registerSettingsHandlers(win: BrowserWindow) {
         log('info', 'settings', `logLevel changed to ${value}`)
       }
 
+      // 适配 Electron 33/36: 主题变化时同步到 nativeTheme,
+      // 让原生 UI (托盘菜单/系统对话框) 实时跟随
+      if (path === 'general.theme') {
+        syncNativeTheme()
+      }
+
       // T5: 对话日志开关变化
       if (path === 'chat.conversationLogging' && typeof value === 'boolean') {
         log('info', 'settings', `chat.conversationLogging changed to ${value}`)
@@ -169,11 +175,13 @@ export function registerSettingsHandlers(win: BrowserWindow) {
       await feishuBotService.stop().catch(() => {})
       // 重置后也要同步 autoStart(默认 false)
       app.setLoginItemSettings({ openAtLogin: false })
-      // 重置后也重建托盘
+      // 重置后也要重建托盘
       const newSettings = settingsService.getSettings()
       updateTray(newSettings.general.minimizeToTray)
       // T5: 重置后恢复 logLevel
       setLogLevel(newSettings.general.logLevel)
+      // 适配 Electron 33/36: 重置后同步 nativeTheme 到默认主题
+      syncNativeTheme()
       log('info', 'settings', `settings reset; logLevel=${newSettings.general.logLevel}`)
       return { success: true }
     } catch (err: unknown) {

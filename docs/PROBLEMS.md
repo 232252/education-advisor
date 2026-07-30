@@ -2427,3 +2427,337 @@ R132 通过 10 角度适配测试覆盖 AI 调用循环全链路。发现并修�
 
 R134 通过 11 角度集成测试覆盖 MCP / Privacy / Log 三大系统，**未发现应用层 BUG**。三系统的 CRUD、安全校验、锁机制、密码校验、路径遍历防护、SSRF 防护、危险命令防护均工作正常。2 个失败项均为测试脚本自身 BUG（渲染进程误用 require / typeof 双重包装），已修复后 53/53 全部通过。
 
+---
+
+## R135 综合测试 + EAA os error 5 根因定位（2026-07-28）
+
+### R135 测试范围
+
+复用 R153 综合测试脚本（14 个 Phase），针对 R134 遗留的 3 类问题做修复验证：
+1. 主题切换 light→system 假阴性（测试断言查错指示器）
+2. Agent 4 个 tab 选择器错误（`[class*="item"]` 误匹配侧边栏 NavLink）
+3. EAA os error 5（R152 修复无效）
+
+### R135-1 主题切换 light→system 假阴性 ✅ (测试 BUG 修复)
+
+**根因**：`localStorage['theme-pref']` 存的是 **effective（已解析）主题**，永远不是 `'system'`。当 OS=light 时，`system` 解析为 `light`，所以 pref 仍是 `'light'`。这是 `useTheme.ts:27` 的设计如此（供 index.html FOUC 脚本使用）。
+
+**真正的偏好** `settings.general.theme` 是正确保存为 `'system'` 的，完整链路：`GeneralSection.tsx` onChange → `settings.set('general.theme', 'system')` → `settings-handlers.ts` 枚举校验通过 → `settings-service.ts` 落盘 → `syncNativeTheme()` 同步 nativeTheme。
+
+**修复**（`scripts/cdp-r153-comprehensive-test.mjs`）：`light→system` 断言从检查 `localStorage` 改为检查 `window.api.settings.get().then(s => s.general.theme)`。
+
+### R135-2 Agent 4 个 tab 选择器错误 ✅ (测试 BUG 修复)
+
+**根因**：测试用 `[class*="card"], [class*="item"], [class*="row"]` 查找 agent 卡片，但：
+- Agent 卡片 className 不含 "card"/"item"/"row"
+- `[class*="item"]` 误匹配了侧边栏 NavLink（Tailwind `items-center` class 含 "item" 子串）
+- NavLink 文本 "Agent" 匹配了 `t.includes('agent')` 过滤条件
+- `.find()` 返回侧边栏 NavLink，点击它只是导航到 `#/agents`（已在当前页，无操作）
+- `selectAgent()` 从未执行 → `AgentDetailPanel` 未渲染 → tab 按钮不存在 → 4 个 tab 全部 `clicked=false`
+
+**正确实现**（`AgentsPage.tsx:79-80`）：agent 卡片有 `role="button"` 和 `tabIndex={0}`，是最可靠的 selector。
+
+**修复**（`scripts/cdp-r153-comprehensive-test.mjs`）：
+1. agent 选择器从 `[class*="card"], [class*="item"]...` 改为 `[role="button"][tabindex="0"]`
+2. 点击后用 `waitForSelector` 轮询等待 tab 按钮出现（`selectAgent` 走 IPC 异步加载）
+3. tab 按钮通过文本精确匹配 `(t.textContent||'').trim() === '配置'`
+
+### R135-3 EAA os error 5 真因定位 🔴 (环境限制,非代码 BUG)
+
+**R152 修复无效**：`cleanupStaleLock` 的 60s 阈值远大于 EAA <1s 执行时间，stale lock 永远不被清理；重试依赖 `cleaned=true` 但永远 false。
+
+**R135 强化修复**（`src/main/services/eaa-bridge.ts`）：
+1. 阈值从 60s 降到 5s（EAA 单次执行 <1s，5s 余量足够）
+2. 重试不依赖 `cleanupStaleLock` 返回值（Defender 拦截时 lock 文件可能不存在）
+3. 加 100ms 延迟后重试最多 2 次（覆盖 Defender 扫描窗口）
+
+**但 R135 修复仍无效**：通过 PowerShell 直接跑 EAA 二进制，发现真因是 **TRAE 沙箱拦截**：
+```
+TRAE Sandbox Error: hit restricted
+  Not allow operate files: C:\Users\sq199\AppData\Roaming\Education Advisor\eaa-data\.lock
+  Hint: You can configure sandbox rules via Settings -> Conversation -> Custom Sandbox Configuration.
+```
+
+**关键证据**：
+- PowerShell 设 `EAA_DATA_DIR` 后直接跑 EAA 成功（events: 34910）— EAA 本身没问题
+- 顺序 7 次调用全部失败（exit=1, outLen=34, err=True）— 不是并发问题
+- 并发 7 次调用全部失败 — 不是 Defender 拦截
+- 错误信息明确指向 `.lock` 文件 — TRAE 沙箱规则禁止写
+
+**结论**：EAA 在 TRAE 沙箱内运行时，沙箱规则禁止 EAA 进程创建/写 `.lock` 文件，导致所有需要 lock 的命令（list-students/stats/ranking 等）全部失败。这是**环境限制**，不是代码 BUG。
+
+**修复建议**（待用户决策）：
+1. **配置 TRAE 沙箱规则**：在 `Settings -> Conversation -> Custom Sandbox Configuration` 允许 EAA 写 `%APPDATA%/Education Advisor/eaa-data/.lock`
+2. **修改 EAA 数据目录**：把 `dataDir` 改到 TRAE 沙箱允许的位置（如项目目录下 `./eaa-data`）
+3. **修改 EAA Rust 端**：不用 `.lock` 文件做互斥（重大改动，不推荐）
+
+### R135-4 R135 强化修复的副作用评估
+
+R135 对 eaa-bridge.ts 的修改（降阈值 + 不依赖 cleaned + 加重试）在**非沙箱环境**下是正确的改进：
+- 5s 阈值更符合 EAA 实际执行时间
+- 不依赖 cleaned 的重试更健壮（覆盖 Defender 拦截场景）
+- 100ms 延迟 + 2 次重试平衡了速度与成功率
+
+在 TRAE 沙箱环境下，这些修改无害但也无效（沙箱拦截是永久的）。建议保留这些改进。
+
+### R135 总体结论
+
+| Phase | 测试项 | R153 | R135 | 变化 |
+|---|---|---|---|---|
+| 1-2 | UI 遍历 + Settings | 18/18 | 18/18 | — |
+| 3 | 主题切换 | 2/3 | 3/3 | +1 (修复断言) |
+| 4-5 | Academics/Skills tab | 7/7 | 7/7 | — |
+| 6 | Agents tab | 3/7 | 7/7 | +4 (修复选择器) |
+| 7 | Scheduler | 2/2 | 2/2 | — |
+| 8 | EAA 只读 | 3/7 | 3/7 | — (沙箱限制) |
+| 9 | Agent 接口 | 2/2 | 2/2 | — |
+| 10 | Settings 校验 | 2/2 | 2/2 | — |
+| 11 | Cron 生命周期 | 4/4 | 4/4 | — |
+| 12 | 内存 | 1/1 | 1/1 | — |
+| 13 | 渲染 | 2/2 | 2/2 | — |
+| 14 | 控制台错误 | 2/2 | 2/2 | — |
+| **总计** | | **49/58** | **54/58** | **+5** |
+
+**剩余 4 个失败全是 EAA os error 5**，根因是 TRAE 沙箱拦截 `.lock` 文件，非代码 BUG。修复了 2 个测试脚本 BUG（主题断言 + Agent tab 选择器），强化了 eaa-bridge.ts 的重试逻辑（对非沙箱环境有益）。
+
+---
+
+## R155-R161 综合功能测试（2026-07-28）
+
+Electron 43 / Chromium 150 升级后的全面功能回归测试。
+
+| 轮次 | 范围 | 结果 |
+|---|---|---|
+| R155 | AI/Skills/EAA 完整性 | ✅ 全通过 |
+| R156 | Agent/DB/Class/Log/Profile CRUD | ✅ 全通过 |
+| R157 | Academic/Sys/AIModel 管理 | ✅ 全通过 |
+| R158 | Privacy/Log/Settings 验证 | ✅ 全通过 |
+| R159 | EAA/MCP 生命周期 | ✅ 全通过 |
+| R160 | Agent/Cron/Export 参数校验 | ✅ 全通过(修复 2 个测试脚本 BUG:变量名冲突 + getSoul 返回类型) |
+| R161 | Storage/Memory/Routing 验证 | ✅ 全通过(修复测试期望:settings.set 未知路径抛异常 + 原型链污染防护) |
+
+---
+
+## R162 并发操作 + 竞态条件 + 边界条件测试（2026-07-28）
+
+验证并发场景下的数据一致性和边界条件处理。
+
+| Phase | 测试项 | 结果 |
+|---|---|---|
+| 1 | 10x 并发读(agent.list/settings.get/eaa.ranking) | ✅ 全部成功 + 返回一致 |
+| 2 | 5x 并发写(chat.saveMessage 不同/同会话) | ✅ 全部成功 + id 唯一 |
+| 3 | 缓存竞态(settings.set + settings.get 并发) | ✅ 全部成功 + 最终状态合法 |
+| 4 | Cron 一致性(3x cron.add 并发 + list 验证) | ✅ 全部成功 + id 唯一 |
+| 5 | EAA 名称 sanitize 边界(12 项:空/超长/路径穿越/Shell元字符/控制字符) | ✅ 全部正确拦截/接受 |
+| 6 | EAA 查询边界(超长查询/非法日期/极端n值) | ✅ 全部优雅处理 |
+| 7 | 并发 addStudent + deleteStudent | ✅ 全部成功 + 数据一致 |
+
+**总计: 38/38 通过。** 修复 2 个测试脚本 BUG:
+1. `eaa.range start>end` 测试期望错误(handler 按 R3 修复拒绝 start>end,返回 success=false 是正确行为)
+2. `listStudents()` 返回对象数组(每个对象有 `name` 字段),不是字符串数组,`s.startsWith` → `s.name.startsWith`
+
+---
+
+## R163 主题切换稳定性 + nativeTheme 同步 + FOUC 防护验证（2026-07-28）
+
+验证 Electron 43 / Chromium 150 升级后主题系统的完整性。
+
+| Phase | 测试项 | 结果 |
+|---|---|---|
+| 1 | 初始状态(<html>.dark class + localStorage + body 背景色) | ✅ |
+| 2 | dark → light 切换(class 移除 + localStorage=light + body 背景变白) | ✅ |
+| 3 | light → dark 切换(class 添加 + localStorage=dark + body 背景变深) | ✅ |
+| 4 | dark → system 切换(class 匹配系统偏好 + 设置持久化) | ✅ |
+| 5 | 10 轮 dark ⇄ light 切换稳定性 | ✅ 全部正确同步 |
+| 6 | 快速连续 5 次切换(竞态测试) | ✅ 最终状态正确 |
+| 7 | ThemeToggle 模拟切换(light→dark→light) | ✅ |
+| 8 | FOUC 防护(localStorage 缓存一致性 + 模拟脚本逻辑) | ✅ |
+| 9 | 非法主题值(purple/空字符串)被拒绝 | ✅ |
+| 10 | Chromium 150 bug 回归(body 背景色 dark≠light + 可重复) | ✅ |
+| 11 | 原始主题恢复 | ✅ |
+
+**总计: 30/30 通过。** 关键发现:
+- CDP `Runtime.evaluate` 跨调用时 `getComputedStyle` 有布局缓存,需 `requestAnimationFrame` 两帧等待 + `getBoundingClientRect` 强制 reflow 才能读到最新值
+- Chromium 150 主题切换 bug 已修复:dark=rgb(17,24,39) gray-900,light=rgb(255,255,255) white,可重复稳定
+- FOUC 防护脚本正确:localStorage 缓存生效主题(dark/light),index.html 内联脚本在 React 前读取并应用
+
+
+## R164 UI 遍历 — 所有页面/路由/按钮渲染验证（2026-07-28）
+
+验证 Electron 43 / Chromium 150 升级后全部 12 个页面的渲染完整性。
+
+| Phase | 测试项 | 结果 |
+|---|---|---|
+| 1 | 12 个页面全部渲染非空白(dashboard/chat/students/classes/academics/agents/models/skills/scheduler/privacy/settings/welcome) | ✅ |
+| 1 | 所有页面懒加载完成(非 Suspense fallback) | ✅ |
+| 1 | 所有页面有可交互元素(按钮/输入框) | ✅ |
+| 1 | 所有页面无 console.error | ✅ |
+| 2 | 11 个侧边栏导航高亮正确(aria-current="page") | ✅ |
+| 3 | Academics 4 个 Tab 检测+切换(成绩总览/考试管理/成绩录入/成绩对比) | ✅ |
+| 4 | Skills 3 个 Tab 检测+切换(技能/MCP/插件) | ✅ |
+| 5 | 未知路由重定向到 /dashboard | ✅ |
+| 5 | 根路径 / 重定向到 /dashboard | ✅ |
+| 6 | Settings 7 个 Section 标题(通用/对话/MCP集成/飞书/诊断&维护/日志查看/关于) | ✅ |
+| 7 | DOM 节点数合理(3433 < 5000) | ✅ |
+| 7 | JS 堆内存合理(22MB < 200MB) | ✅ |
+
+**总计: 73/73 通过。** 关键修复:
+- Welcome 页无 `<main>` 标签:回退到 `div[class*="main-content"]` 或 `#root > div`
+- 侧边栏激活态:React Router NavLink 自动添加 `aria-current="page"`,替代类选择器
+- Academics 自定义 Tab(无 `role="tab"`):通过容器特征(`div.flex.gap-1.px-6.py-2.border-b`)和文本内容识别
+- Settings section 解析:添加 try-catch 和类型检查防止 JSON 解析错误
+
+## R165 快捷键 + i18n 完整性验证（2026-07-28）
+
+验证 i18n 国际化系统和快捷键设置的完整性。
+
+### i18n 单元测试
+- 18/18 通过(zh/en 字典 key 一致性、无空值、无占位符、值质量、命名空间存在性)
+
+### CDP 运行时测试
+
+| Phase | 测试项 | 结果 |
+|---|---|---|
+| 1 | 初始语言状态可读取(lang=zh, htmlLang=zh-CN) | ✅ |
+| 1 | 中文模式下侧边栏有中文文本(仪表盘) | ✅ |
+| 1 | 切换到英文后 localStorage=en | ✅ |
+| 1 | 切换到英文后 `<html lang>`="en" | ✅ |
+| 1 | 英文模式下侧边栏文本已更新(Dashboard) | ✅ |
+| 1 | 英文模式下文本与中文不同 | ✅ |
+| 1 | 英文模式下无原始 i18n key 残留 | ✅ |
+| 2 | UI 中无 i18n key fallback 残留(缺失翻译) | ✅ |
+| 2 | 所有侧边栏导航项已翻译(非 key 格式) | ✅ |
+| 3 | settings.get() 成功(返回 8 个顶层 key) | ✅ |
+| 3 | shortcuts 包含所有预期 key (7/7) | ✅ |
+| 3 | 所有快捷键值为非空字符串 | ✅ |
+| 3 | chat.new=Ctrl+N, chat.send=Enter, chat.abort=Escape | ✅ |
+| 3 | settings.set 点号 key 可执行(设计限制:解释为路径) | ✅ |
+| 3 | 设计限制验证: 点号 key set 后 shortcuts["chat.new"] 未被修改 | ✅ |
+| 3 | 恢复默认 shortcuts 后值正确 | ✅ |
+| 4 | 切回中文后 localStorage=zh | ✅ |
+| 4 | 切回中文后 `<html lang>`="zh-CN" | ✅ |
+| 4 | 切回中文后侧边栏恢复中文(仪表盘) | ✅ |
+| 5 | 中文模式 4 个关键页面渲染正常(dashboard/settings/students/agents) | ✅ |
+| 5 | 6 次快速切换后最终状态=zh | ✅ |
+| 5 | 6 次快速切换后页面仍正常渲染 | ✅ |
+| 5 | i18n 切换过程中无 console.error | ✅ |
+
+**总计: 29/29 通过。** 关键发现:
+- i18n 系统完整:zh/en 字典 key 一致,语言切换实时更新 UI,`<html lang>` 同步,localStorage 持久化
+- 快捷键设计限制确认:`settings.set` 使用点号分隔路径,含点号的 shortcut key(如 "chat.new")无法单独设置,只能通过整体设置 shortcuts 对象更新
+- 语言快速切换(6 次)稳定性验证通过,无竞态问题
+- 修复了测试脚本中的正则误报(i18n key 残留检测需匹配独立 token + 点号分隔)
+
+## R166 数据导出 + 文件操作完整性验证（2026-07-28）
+
+验证数据导出、文件操作和路径遍历防护的完整性。
+
+| Phase | 测试项 | 结果 |
+|---|---|---|
+| 1 | EAA 导出格式列表(3 种: csv/jsonl/html) | ✅ |
+| 1 | CSV/JSONL/HTML 导出到临时目录 | ✅ |
+| 1 | 非法格式 exe 被拒绝 | ✅ |
+| 1 | 路径遍历 (..) 被拒绝 | ✅ |
+| 1 | null bytes 路径被拒绝 | ✅ |
+| 1 | 非法扩展名 .exe 被拒绝 | ✅ |
+| 2 | log.list() 成功(当前无日志文件) | ✅ |
+| 3 | openExternal(https:) 合法 URL 可执行 | ✅ |
+| 3 | openExternal(file:) 恶意协议被拒绝 | ✅ |
+| 3 | openExternal(javascript:) 协议被拒绝 | ✅ |
+| 3 | getPath("home") 返回路径 | ✅ |
+| 3 | getPath("invalidPath123") 非法名称被拒绝 | ✅ |
+| 3 | readFile 路径遍历 (..) 被拒绝 | ✅ |
+| 3 | readFile null bytes 被拒绝 | ✅ |
+| 4 | 导入 .csv 文件被拒绝(仅允许 .json/.jsonl) | ✅ |
+| 4 | 导入路径遍历 (..) 被拒绝 | ✅ |
+| 5 | 隐私备份路径遍历 (..) 被拒绝 | ✅ |
+| 5 | 隐私备份 null bytes 被拒绝 | ✅ |
+| 6 | Dashboard 路径遍历 (..) 被拒绝 | ✅ |
+
+**总计: 23/23 通过。** 关键发现:
+- EAA 导出支持 3 种格式:csv, jsonl, html(不支持 json)
+- 路径遍历防护全覆盖:EAA 导出/导入、日志导出、隐私备份、readFile、Dashboard 均拒绝 `..` 路径段
+- 协议白名单:openExternal 仅允许 https: 和 mailto:,拒绝 file:/javascript: 等恶意协议
+- 扩展名白名单:导出仅允许 .csv/.jsonl/.html/.json/.txt,导入仅允许 .json/.jsonl
+- null bytes 防护:所有文件操作路径均拒绝 null bytes(防 C 字符串截断攻击)
+- getPath 枚举校验:仅允许 home/appData/userData 等预定义名称
+
+## R167 EAA 数据完整性 + 缓存失效验证（2026-07-28）
+
+验证 EAA 数据一致性、缓存失效机制、事件链完整性。
+
+| Phase | 测试项 | 结果 |
+|---|---|---|
+| 0 | 清理残留 R167Test 学生 | ✅ cleaned=1 |
+| 1 | eaa.info() 成功 (version=3.2.5) | ✅ |
+| 1 | eaa.ranking(10) 成功 (count=10) | ✅ |
+| 1 | eaa.score() 与 ranking 一致 (score=121) | ✅ |
+| 1 | score 缓存命中(第二次调用一致) | ✅ |
+| 2 | 添加测试学生 + 获取初始 score=100 | ✅ |
+| 2 | 添加正分事件(delta=+5, CLASS_COMMITTEE) | ✅ |
+| 2 | add-event 后 score 缓存已失效(100→105) | ✅ |
+| 2 | add-event 后 score 增加 5 | ✅ |
+| 5 | history() 成功 (events=1) | ✅ |
+| 5 | history 包含刚添加的事件(note 匹配) | ✅ |
+| 6 | search() 能找到测试学生 | ✅ |
+| 6 | search 结果包含测试事件 | ✅ |
+| 4 | revert-event 成功 | ✅ |
+| 4 | revert 后 score 缓存已失效(105→100) | ✅ |
+| 4 | revert 后 score 减 5 | ✅ |
+| 7 | ranking 按 score 降序排列 | ✅ |
+| 3 | delete-student 成功 | ✅ |
+| 3 | delete-student 后 listStudents 缓存已失效(removed) | ✅ |
+| 3 | delete-student 后 score 缓存已失效(status=Deleted) | ✅ |
+
+**总计: 22/22 通过。** 关键发现:
+- EAA 采用**软删除**:删除后学生记录仍存在,`status="Deleted"`,score 重置为 100
+- `listStudents()` 过滤掉已删除学生;`score()` 对已删除学生返回 `status:"Deleted"`(非错误)
+- 缓存失效机制正确:`invalidateStudentsCache()` 清空 scoreCache/rankingCache/studentsCache/staticCache
+- score 缓存预填充:ranking 数据自动预热 scoreCache,后续 score 调用 0.2ms(避免 spawn EAA ~95ms)
+- 事件链完整:addEvent→history→revertEvent 链路数据一致
+- 排序正确:ranking 严格按 score 降序
+
+## R168 Agent 生命周期 + AI Agent 数据调用验证（2026-07-28）
+
+验证 Agent 完整生命周期: list/get/toggle/update/getSoul/setSoul/getRules/setRules/runManual/abort/getHistory + 安全防护。
+
+| Phase | 测试项 | 结果 |
+|---|---|---|
+| 1 | agent.list() 成功 (count=18, 字段完整) | ✅ |
+| 1 | 所有 agent status/modelTier/capabilities/schedule 合法 | ✅ |
+| 2 | agent.get(id) 详情含 soulContent/rulesContent/executionHistory | ✅ |
+| 2 | agent.get(不存在 id) 返回 null | ✅ |
+| 2 | agent.get(null) 类型校验返回 null (R150) | ✅ |
+| 3 | setSoul/getSoul roundtrip(写入→读取→恢复) | ✅ |
+| 3 | getSoul(不存在 id) 返回空字符串 | ✅ |
+| 4 | setRules/getRules roundtrip(写入→读取→恢复) | ✅ |
+| 5 | toggle 启停 + list 联动 + 持久化恢复 | ✅ |
+| 6 | update(description) 成功 + 返回附带 agents 列表 | ✅ |
+| 6 | update(capabilities=非数组) 被拒绝 | ✅ |
+| 6 | update(capabilities=[score,history,ranking]) 成功 | ✅ |
+| 6 | update(不存在 id) 被拒绝 | ✅ |
+| 7 | getHistory(id) 成功 (count=6) | ✅ |
+| 7 | getHistory(不存在 id) 返回空数组 | ✅ |
+| 8 | abort(未运行 agent) 返回 success=false | ✅ |
+| 9 | setSoul(路径遍历 id `../../../etc/passwd`) 被拒绝 | ✅ |
+| 9 | setSoul(大写字母 id) 被拒绝 (validateAgentId 正则) | ✅ |
+| 9 | setSoul(特殊字符 id `agent;rm -rf /`) 被拒绝 | ✅ |
+| 9 | setSoul(空 id) 被拒绝 | ✅ |
+| 10 | runManual fire-and-forget 成功 (status: running→idle) | ✅ |
+| 10 | 收到 2 个 status update (running + idle) | ✅ |
+| 10 | runManual(不存在 id) 被拒绝 | ✅ |
+| 10 | runManual(空/null prompt) 被拒绝 | ✅ |
+| 11 | 5 个 agent capabilities 全部合法 | ✅ |
+| 11 | 存在 read capability 的 agent (main) | ✅ |
+| 12 | onStatusUpdate 返回取消订阅函数 | ✅ |
+| 12 | 5 次订阅+取消不泄漏 | ✅ |
+
+**总计: 55/55 通过。** 关键发现:
+- **18 个 agent**(比预期 16 多 2 个),全部 idle 状态,字段完整
+- **runManual 实际成功执行**(running→idle,非 error):说明应用有可用 LLM API key
+- **状态流转正确**:runManual 推送 running → idle,符合 fire-and-forget 设计
+- **路径遍历防护**:`validateAgentId` 正则 `^[a-z0-9_-]+$` 拦截大写/特殊字符/路径遍历
+- **类型校验**:capabilities 非数组被拒绝,null id 返回 null(R150 修复)
+- **executionHistory 内存存储**:main agent 有 6 条历史(非持久化,重启后清空)
+- **update 联动返回**:成功时附带 agents 列表,避免前端额外 2 次 IPC
+- **onStatusUpdate 不泄漏**:多次订阅+取消正常,返回 unsubscribe 函数

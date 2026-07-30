@@ -247,7 +247,7 @@ export function SkillsTab() {
     >
       <h1 style={SR_ONLY_STYLE}>{t('page.skills.title')}</h1>
       {/* 左侧技能列表 */}
-      <div className="w-72 flex-shrink-0 border-r border-gray-200 dark:border-white/[0.06] flex flex-col bg-gray-50/30 dark:bg-[#1a1e28]/30">
+      <div className="w-72 flex-shrink-0 border-r border-gray-200 dark:border-white/[0.06] flex flex-col bg-gray-50/30 dark:bg-surface-tertiary/30">
         <div className="p-3 border-b border-gray-200 dark:border-white/[0.06] space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-sm text-gray-700 dark:text-gray-200">
@@ -421,7 +421,7 @@ export function SkillsTab() {
         {selected ? (
           <>
             {/* 编辑器头部 */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-white/[0.06] bg-gray-50/50 dark:bg-[#1a1e28]/50">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-white/[0.06] bg-gray-50/50 dark:bg-surface-tertiary/50">
               <div className="flex items-center gap-3 min-w-0">
                 {editingName && selected.source === 'user' ? (
                   <input
@@ -529,7 +529,7 @@ export function SkillsTab() {
                 setEditContent(e.target.value)
                 setDirty(true)
               }}
-              className="flex-1 bg-white text-gray-700 dark:bg-[#0f1117] dark:text-gray-300 p-5 text-sm font-mono resize-none
+              className="flex-1 bg-white text-gray-700 dark:bg-surface-primary dark:text-gray-300 p-5 text-sm font-mono resize-none
                 focus:outline-none placeholder:text-gray-400 dark:placeholder:text-gray-600 leading-relaxed"
               spellCheck={false}
               placeholder={t('page.skills.editorPlaceholder')}
@@ -537,7 +537,7 @@ export function SkillsTab() {
             />
 
             {/* 底部状态栏 */}
-            <div className="px-4 py-1.5 border-t border-gray-100 dark:border-gray-800 text-[10px] text-gray-400 dark:text-gray-600 flex items-center justify-between bg-gray-50/50 dark:bg-[#1a1e28]/50">
+            <div className="px-4 py-1.5 border-t border-gray-100 dark:border-gray-800 text-[10px] text-gray-400 dark:text-gray-600 flex items-center justify-between bg-gray-50/50 dark:bg-surface-tertiary/50">
               <span>
                 {t('page.skills.statusLines')
                   .replace('{lines}', String(editContent.split('\n').length))

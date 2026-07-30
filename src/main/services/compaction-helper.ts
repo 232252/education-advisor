@@ -165,7 +165,11 @@ export async function compactAgentMessages(
 ): Promise<AgentMessage[]> {
   // R132 修复: 过滤掉 undefined/null 元素 (SDK 在 error turn 时可能产生 undefined 元素,
   // 导致 evaluateCompaction 的 filter 回调 / convertToLlm 崩溃)
-  const cleanMessages = messages.filter((m) => m != null)
+  // 优化: 若没有过滤掉任何元素,直接复用原数组引用,避免无谓拷贝 (也让"原样返回"语义精确)
+  const cleanMessages =
+    messages.length === 0 || messages.every((m) => m != null)
+      ? messages
+      : messages.filter((m) => m != null)
   if (cleanMessages.length <= 2) return cleanMessages
 
   const decision = evaluateCompaction(cleanMessages, model, settings)

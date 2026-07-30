@@ -2,7 +2,7 @@
   "general": {
     "dataDir": "",
     "defaultOperator": "班主任",
-    "theme": "dark",
+    "theme": "light",
     "language": "zh-CN",
     "autoUpdate": true,
     "updateUrl": "",
@@ -50,6 +50,7 @@
     "autoAnonymize": false
   },
   "feishu": {
+    "domain": "feishu",
     "appId": "",
     "appSecret": "",
     "userOpenId": "",

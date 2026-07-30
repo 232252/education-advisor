@@ -12,14 +12,7 @@ import { Card } from '../../components/Card'
 import { PageHeader } from '../../components/PageHeader'
 import { useT } from '../../i18n'
 import { getAPI, getErrorMessage } from '../../lib/ipc-client'
-import {
-  INPUT_BASE,
-  TABLE_TD,
-  TABLE_TH,
-  TABLE_ROW,
-  btnStyle,
-  cn,
-} from '../../lib/ui-utils'
+import { btnStyle, cn, INPUT_BASE, TABLE_ROW, TABLE_TD, TABLE_TH } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
 
 export function PrivacyPage() {
@@ -287,7 +280,7 @@ export function PrivacyPage() {
         )}
 
         {/* 密码与加载 */}
-        <Card padding="md" className="bg-gray-50 dark:bg-[#1a1e28]">
+        <Card padding="md" className="bg-gray-50 dark:bg-surface-tertiary">
           <h2 className="font-semibold mb-3">加密映射表</h2>
           <div className="flex gap-3 items-center">
             <input
@@ -324,7 +317,7 @@ export function PrivacyPage() {
 
         {/* 添加实体 */}
         {isLoaded && (
-          <Card padding="md" className="bg-gray-50 dark:bg-[#1a1e28]">
+          <Card padding="md" className="bg-gray-50 dark:bg-surface-tertiary">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold">添加实体</h2>
               <button
@@ -395,7 +388,7 @@ export function PrivacyPage() {
 
         {/* 映射表 */}
         {isLoaded && mappings.length > 0 && (
-          <Card padding="md" className="bg-gray-50 dark:bg-[#1a1e28]">
+          <Card padding="md" className="bg-gray-50 dark:bg-surface-tertiary">
             <h2 className="font-semibold mb-3">映射表</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -409,10 +402,7 @@ export function PrivacyPage() {
                 <tbody>
                   {mappings.slice(0, 50).map((m) => (
                     // P2-7: 组合 stable key(entityType + pseudonym)
-                    <tr
-                      key={`${m.entityType}-${m.pseudonym}`}
-                      className={TABLE_ROW}
-                    >
+                    <tr key={`${m.entityType}-${m.pseudonym}`} className={TABLE_ROW}>
                       <td className={cn(TABLE_TD, 'text-gray-500 dark:text-gray-400')}>
                         {m.entityType}
                       </td>
@@ -434,7 +424,7 @@ export function PrivacyPage() {
         )}
 
         {/* 脱敏预览 */}
-        <Card padding="md" className="bg-gray-50 dark:bg-[#1a1e28]">
+        <Card padding="md" className="bg-gray-50 dark:bg-surface-tertiary">
           <h2 className="font-semibold mb-3">脱敏预览</h2>
           <textarea
             value={previewInput}
@@ -452,7 +442,7 @@ export function PrivacyPage() {
             测试脱敏
           </button>
           {previewResult && (
-            <pre className="mt-3 bg-gray-100 dark:bg-[#1e222c] rounded-lg p-3 text-sm font-mono text-gray-600 dark:text-gray-300 overflow-x-auto">
+            <pre className="mt-3 bg-gray-100 dark:bg-surface-elevated rounded-lg p-3 text-sm font-mono text-gray-600 dark:text-gray-300 overflow-x-auto">
               {previewResult}
             </pre>
           )}

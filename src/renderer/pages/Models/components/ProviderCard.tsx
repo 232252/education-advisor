@@ -64,7 +64,7 @@ export const ProviderCard = memo(function ProviderCard({
     <div
       className={cn(
         CARD_BASE,
-        'bg-gray-50 dark:bg-[#1e222c] transition-colors',
+        'bg-gray-50 dark:bg-surface-elevated transition-colors',
         expanded ? 'border-blue-500/50' : '',
       )}
     >
@@ -210,7 +210,7 @@ export const ProviderCard = memo(function ProviderCard({
             ) : models.length === 0 ? (
               <EmptyState icon="📦" title="暂无模型" className="py-3" />
             ) : (
-              <div className="bg-gray-100 dark:bg-[#1a1e28] rounded-lg overflow-hidden">
+              <div className="bg-gray-100 dark:bg-surface-tertiary rounded-lg overflow-hidden">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-white/[0.06] text-gray-500 dark:text-gray-400">

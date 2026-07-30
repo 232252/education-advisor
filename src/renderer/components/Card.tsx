@@ -38,11 +38,11 @@ export function Card({
   return (
     <div
       className={cn(
-        'rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-[#1a1e28] shadow-sm',
+        'rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary shadow-sm',
         paddingMap[padding],
         shadow && 'shadow-card',
         interactive &&
-          'transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 hover:border-gray-300 dark:hover:border-white/[0.12] cursor-pointer',
+          'transition-all duration-200 hover:shadow-xl hover:-translate-y-1 hover:border-blue-300/60 dark:hover:border-blue-500/30 cursor-pointer',
         onClick && 'cursor-pointer',
         className,
       )}

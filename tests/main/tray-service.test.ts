@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('electron', () => ({
   app: { quit: vi.fn(), getPath: vi.fn(() => tmpRoot) },
   Menu: { buildFromTemplate: vi.fn(() => ({})) },
-  Tray: vi.fn(() => mocks.trayInstance),
+  Tray: vi.fn(function () { return mocks.trayInstance }),
   nativeImage: {
     createFromPath: vi.fn(() => ({ resize: vi.fn(() => ({})) })),
     createEmpty: vi.fn(() => ({})),

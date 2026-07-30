@@ -36,25 +36,25 @@ describe('ToastContainer — 单条 toast', () => {
     expect(screen.getByText('信息消息')).toBeDefined()
   })
 
-  it('显示 success toast(含 ✓ 图标)', () => {
+  it('显示 success toast(含 CircleCheck 图标)', () => {
     useToastStore.getState().push({ message: '操作成功', type: 'success' })
-    render(<ToastContainer />)
+    const { container } = render(<ToastContainer />)
     expect(screen.getByText('操作成功')).toBeDefined()
-    expect(screen.getByText('✓')).toBeDefined()
+    expect(container.querySelector('.toast-icon svg.lucide-circle-check')).not.toBeNull()
   })
 
-  it('显示 error toast(含 ✕ 图标)', () => {
+  it('显示 error toast(含 CircleX 图标)', () => {
     useToastStore.getState().push({ message: '操作失败', type: 'error' })
-    render(<ToastContainer />)
+    const { container } = render(<ToastContainer />)
     expect(screen.getByText('操作失败')).toBeDefined()
-    expect(screen.getByText('✕')).toBeDefined()
+    expect(container.querySelector('.toast-icon svg.lucide-circle-x')).not.toBeNull()
   })
 
-  it('显示 warning toast(含 ⚠ 图标)', () => {
+  it('显示 warning toast(含 TriangleAlert 图标)', () => {
     useToastStore.getState().push({ message: '警告消息', type: 'warning' })
-    render(<ToastContainer />)
+    const { container } = render(<ToastContainer />)
     expect(screen.getByText('警告消息')).toBeDefined()
-    expect(screen.getByText('⚠')).toBeDefined()
+    expect(container.querySelector('.toast-icon svg.lucide-triangle-alert')).not.toBeNull()
   })
 
   it('info toast 有 role="status"', () => {
@@ -145,31 +145,32 @@ describe('ToastContainer — accessibility', () => {
 
   it('图标有 aria-hidden', () => {
     useToastStore.getState().push({ message: 'msg', type: 'info' })
-    render(<ToastContainer />)
-    const icon = screen.getByText('ℹ')
-    expect(icon.getAttribute('aria-hidden')).toBe('true')
+    const { container } = render(<ToastContainer />)
+    const icon = container.querySelector('.toast-icon')
+    expect(icon).not.toBeNull()
+    expect(icon?.getAttribute('aria-hidden')).toBe('true')
   })
 })
 
 describe('ToastContainer — 图标映射', () => {
-  it('info → ℹ', () => {
+  it('info → Info 图标', () => {
     useToastStore.getState().push({ message: 'x', type: 'info' })
-    render(<ToastContainer />)
-    expect(screen.getByText('ℹ')).toBeDefined()
+    const { container } = render(<ToastContainer />)
+    expect(container.querySelector('.toast-icon svg.lucide-info')).not.toBeNull()
   })
-  it('success → ✓', () => {
+  it('success → CircleCheck 图标', () => {
     useToastStore.getState().push({ message: 'x', type: 'success' })
-    render(<ToastContainer />)
-    expect(screen.getByText('✓')).toBeDefined()
+    const { container } = render(<ToastContainer />)
+    expect(container.querySelector('.toast-icon svg.lucide-circle-check')).not.toBeNull()
   })
-  it('error → ✕', () => {
+  it('error → CircleX 图标', () => {
     useToastStore.getState().push({ message: 'x', type: 'error' })
-    render(<ToastContainer />)
-    expect(screen.getByText('✕')).toBeDefined()
+    const { container } = render(<ToastContainer />)
+    expect(container.querySelector('.toast-icon svg.lucide-circle-x')).not.toBeNull()
   })
-  it('warning → ⚠', () => {
+  it('warning → TriangleAlert 图标', () => {
     useToastStore.getState().push({ message: 'x', type: 'warning' })
-    render(<ToastContainer />)
-    expect(screen.getByText('⚠')).toBeDefined()
+    const { container } = render(<ToastContainer />)
+    expect(container.querySelector('.toast-icon svg.lucide-triangle-alert')).not.toBeNull()
   })
 })

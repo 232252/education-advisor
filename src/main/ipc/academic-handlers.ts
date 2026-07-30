@@ -159,11 +159,7 @@ export function registerAcademicHandlers(): void {
         for (const s of exam.subjects) {
           if (typeof s === 'string') {
             normalizedSubjects.push(s)
-          } else if (
-            s &&
-            typeof s === 'object' &&
-            typeof (s as { id?: unknown }).id === 'string'
-          ) {
+          } else if (s && typeof s === 'object' && typeof (s as { id?: unknown }).id === 'string') {
             // 容错: 接受 {id, name, fullMark} 形式, 提取 id
             normalizedSubjects.push((s as { id: string }).id)
           } else {

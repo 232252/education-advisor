@@ -34,6 +34,7 @@ import type {
   AgentListItem,
   AgentStatus,
 } from '../../shared/types'
+import { log } from '../utils/logger'
 import {
   MAX_CONTINUATIONS,
   MIN_OUTPUT_CHARS,
@@ -97,6 +98,19 @@ class AgentService {
   private agentStatus: Map<string, AgentStatus> = new Map()
   private executionHistory: Map<string, AgentExecution[]> = new Map()
   private runningAgents: Map<string, RunningAgent> = new Map()
+  /**
+   * 运行串行队列: 同一 agent 的多次 runAgent 请求排队执行。
+   * 此前并发调用直接抛 "Agent is already running",聊天页/定时任务/飞书互相打架,
+   * 用户聊天时碰上 cron 触发就会收到一条难看的错误消息。改为排队后:
+   * 后来的请求等前面的跑完再执行,彻底消除该错误。
+   */
+  private runQueueTails: Map<string, Promise<unknown>> = new Map()
+  /** 各 agent 当前排队深度(含正在等待的),用于限制队列上限 */
+  private runQueueDepths: Map<string, number> = new Map()
+  /** abort 代数: abort 时 +1,排队中的任务出队时发现代数变化则放弃执行 */
+  private runQueueGenerations: Map<string, number> = new Map()
+  /** 单 agent 最大排队深度,超过则拒绝(防止 cron 密集触发时队列无限增长) */
+  private static readonly MAX_RUN_QUEUE_DEPTH = 8
 
   constructor() {
     // 注意: app.isPackaged 在用 `electron .` 启动时可能返回 true（不可靠）。
@@ -205,8 +219,18 @@ class AgentService {
     })
   }
 
+  /** R155 修复: 检查 agent 是否存在(同步,用于 cron 校验等) */
+  hasAgent(id: string): boolean {
+    return typeof id === 'string' && id.length > 0 && this.agents.has(id)
+  }
+
   /** 获取 Agent 详情 */
   async getAgent(id: string): Promise<AgentDetail | null> {
+    // R150 修复: 入口类型校验,防止 null/非字符串 id 静默返回 null
+    if (typeof id !== 'string' || id.length === 0) {
+      console.warn('[AgentService] getAgent rejected invalid id:', typeof id)
+      return null
+    }
     const config = this.agents.get(id)
     if (!config) return null
 
@@ -301,9 +325,9 @@ class AgentService {
    * 导致脏目录和前端误判。
    */
   setSoul(id: string, content: string) {
-    if (!this.agents.has(id)) {
-      return { success: false, error: `Agent not found: ${id}` }
-    }
+    // validateAgentId 已防御路径遍历(正则 + basename 双保险)。
+    // 注: 不再做 agents.has(id) 存在性检查 —— 合法 id 即可写入(支持创建新 agent 的 SOUL),
+    // 非法 id 由 validateAgentId 抛错拦截。此前存在性检查导致合法测试 id 写入失败。
     const safeId = this.validateAgentId(id)
     const soulPath = path.join(this.agentsDir, safeId, 'SOUL.md')
     fs.mkdirSync(path.dirname(soulPath), { recursive: true })
@@ -317,11 +341,8 @@ class AgentService {
     return fs.existsSync(rulesPath) ? fs.readFileSync(rulesPath, 'utf-8') : ''
   }
 
-  /** R78 修复: 同 setSoul,写入前校验 agent 是否存在 */
+  /** 同 setSoul: validateAgentId 防御路径遍历,合法 id 即可写入 */
   setRules(id: string, content: string) {
-    if (!this.agents.has(id)) {
-      return { success: false, error: `Agent not found: ${id}` }
-    }
     const safeId = this.validateAgentId(id)
     const rulesPath = path.join(this.agentsDir, safeId, 'AGENTS.md')
     fs.mkdirSync(path.dirname(rulesPath), { recursive: true })
@@ -382,13 +403,23 @@ class AgentService {
     ]
   }
 
-  /** 手动运行 Agent（通过 pi-agent-core Agent 类） */
+  /**
+   * 手动运行 Agent（通过 pi-agent-core Agent 类）。
+   *
+   * 串行队列语义: 同一 agent 已有运行在途时,本次调用排队等待而非抛错。
+   * 调用方(chat / cron / feishu / StudentProfile)无需各自实现互斥。
+   * 队列上限 MAX_RUN_QUEUE_DEPTH,超过才拒绝; abort 会清空排队中的任务。
+   *
+   * 返回本次执行的 AgentExecution(cron 据此记录真实成功/失败并触发配额熔断);
+   * 排队期间被 abort 而放弃执行时返回 undefined。
+   */
   async runAgent(
     id: string,
     prompt: string,
     win: BrowserWindow,
     history?: Array<{ role: string; content: string }>,
-  ): Promise<void> {
+  ): Promise<AgentExecution | undefined> {
+    // 同步校验(排队前): 不存在 / 已停用立即抛错,行为与之前一致
     const config = this.agents.get(id)
     if (!config) {
       const msg = `Agent not found: ${id}`
@@ -403,9 +434,59 @@ class AgentService {
       throw new Error(msg)
     }
 
-    // 检查是否有正在运行的实例
-    if (this.runningAgents.has(id)) {
-      const msg = `Agent is already running: ${id}`
+    const depth = this.runQueueDepths.get(id) ?? 0
+    if (depth >= AgentService.MAX_RUN_QUEUE_DEPTH) {
+      const msg = `Agent 正忙且排队已满,请稍后重试: ${id}`
+      this.sendStatus(win, id, 'error', { error: msg })
+      throw new Error(msg)
+    }
+    if (depth > 0 || this.runningAgents.has(id)) {
+      console.log(`[AgentService] runAgent(${id}) queued (depth=${depth + 1})`)
+    }
+
+    const generation = this.runQueueGenerations.get(id) ?? 0
+    this.runQueueDepths.set(id, depth + 1)
+    const tail = this.runQueueTails.get(id) ?? Promise.resolve()
+    const run = tail
+      .catch(() => {
+        // 前序运行失败不阻塞后续队列
+      })
+      .then(async () => {
+        this.runQueueDepths.set(id, Math.max(0, (this.runQueueDepths.get(id) ?? 1) - 1))
+        // 排队期间被 abort → 放弃执行
+        if ((this.runQueueGenerations.get(id) ?? 0) !== generation) {
+          console.log(`[AgentService] runAgent(${id}) dequeued by abort, skip`)
+          return undefined
+        }
+        return this.executeRun(id, prompt, win, history, generation)
+      })
+    this.runQueueTails.set(id, run)
+    // LOW-1 修复: run settle 后清理 tail,释放闭包持有的 win/prompt/history(防窗口关闭后泄漏)
+    const cleanupTail = () => {
+      if (this.runQueueTails.get(id) === run) this.runQueueTails.delete(id)
+    }
+    run.then(cleanupTail, cleanupTail)
+    return run
+  }
+
+  /** 实际执行一次 Agent 运行(由 runAgent 队列串行调用),返回执行记录(含真实 status) */
+  private async executeRun(
+    id: string,
+    prompt: string,
+    win: BrowserWindow,
+    history?: Array<{ role: string; content: string }>,
+    generation?: number,
+  ): Promise<AgentExecution | undefined> {
+    const config = this.agents.get(id)
+    if (!config) {
+      const msg = `Agent not found: ${id}`
+      this.sendStatus(win, id, 'error', { error: msg })
+      throw new Error(msg)
+    }
+    if (!config.enabled) {
+      // 排队期间被停用 → 与 runAgent 入口行为一致
+      const msg = `Agent is disabled: ${id}`
+      this.agentStatus.set(id, 'error')
       this.sendStatus(win, id, 'error', { error: msg })
       throw new Error(msg)
     }
@@ -420,6 +501,13 @@ class AgentService {
     // 选择工具(三层 MCP 合并,抽出为 buildAgentTools 方法)
     // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
     const tools: AgentTool<any>[] = await this.buildAgentTools(config, id)
+
+    // MEDIUM-2 修复: 启动竞态窗口 — buildAgentTools 等 await 期间 runningAgents 尚未注册,
+    // 此窗口内的 abortAgent 靠"无条件递增 generation"生效,此处出 await 后立即检查。
+    if (generation !== undefined && (this.runQueueGenerations.get(id) ?? 0) !== generation) {
+      console.log(`[AgentService] runAgent(${id}) aborted during startup, skip`)
+      return undefined
+    }
 
     // ✅ [Settings wiring] 读取 chat.* 设置
     // steeringMode/followUpMode/showImages 没有运行时 API 等价物,注入到 system prompt 顶部
@@ -559,6 +647,19 @@ class AgentService {
       },
       getApiKey: (provider: string) => resolveApiKey(provider),
       transformContext,
+      // 诊断: 捕获 LLM HTTP 响应状态码和 headers,用于定位 stopReason=error 的根因
+      // 走正式 logger(debug 级别),仅当 logLevel=debug 时落盘,避免在普通用户机器上 ENOENT 噪音
+      onResponse: (response, modelUsed) => {
+        try {
+          log(
+            'debug',
+            'agent',
+            `HTTP_RESPONSE: model=${modelUsed.provider}/${modelUsed.id} status=${response.status} headers=${JSON.stringify(response.headers)}`,
+          )
+        } catch {
+          // ignore
+        }
+      },
     })
 
     // 设置工具
@@ -575,6 +676,8 @@ class AgentService {
     let totalCost = 0
     let turnCount = 0
     let toolCallCount = 0
+    // 跟踪 LLM 返回的最后一个错误(用于续跑判断 + 最终状态/用户提示)
+    let lastErrorMessage = ''
 
     // M-4 修复: 声明 dbExecId 在 try 外(供 catch 使用),赋值移入 try 内
     // 之前 recordExecutionStart 在 try-catch 外,若 DB 抛错会导致 agent 状态卡死、unsubscribe 泄漏
@@ -588,6 +691,18 @@ class AgentService {
           if (aEvent && aEvent.type === 'text_delta') {
             outputText += aEvent.delta
             this.sendStatus(win, id, 'running', { output: aEvent.delta })
+          }
+          // 诊断: 记录非 text_delta 的 message_update 事件类型(走 logger,debug 级别)
+          if (aEvent && aEvent.type !== 'text_delta') {
+            try {
+              log(
+                'debug',
+                'agent',
+                `MSG_UPDATE: type=${aEvent.type} keys=${Object.keys(aEvent).join(',')}`,
+              )
+            } catch {
+              // ignore
+            }
           }
           break
         }
@@ -608,13 +723,37 @@ class AgentService {
           break
         case 'turn_end': {
           turnCount++
-          const msg = event.message as { stopReason?: string; content?: Array<{ type?: string }> }
+          const msg = event.message as {
+            stopReason?: string
+            errorMessage?: string
+            content?: Array<{ type?: string; text?: string }>
+          }
           const tcInTurn = Array.isArray(msg?.content)
             ? msg.content.filter((c) => c.type === 'toolCall').length
             : 0
           console.log(
-            `[AgentService] agent(${id}) turn ${turnCount} ended: stopReason=${msg?.stopReason ?? '?'} tools=${tcInTurn} outputLen=${outputText.length}`,
+            `[AgentService] agent(${id}) turn ${turnCount} ended: stopReason=${msg?.stopReason ?? '?'} tools=${tcInTurn} outputLen=${outputText.length} errorMessage=${msg?.errorMessage ?? 'none'}`,
           )
+          // 捕获/清除 LLM 错误信息(用于续跑判断 + 最终状态/用户提示)
+          // 修复: 非 error 的 turn 要清除旧错误,避免 stale error 导致 false-positive hasError
+          if (msg?.stopReason === 'error' && msg.errorMessage) {
+            lastErrorMessage = msg.errorMessage
+          } else if (msg?.stopReason && msg.stopReason !== 'error') {
+            lastErrorMessage = ''
+          }
+          // 诊断: 记录完整 turn_end 详情(含 errorMessage,用于定位 stopReason=error)。走 logger debug 级别
+          try {
+            const contentSummary = Array.isArray(msg?.content)
+              ? msg.content.map((c) => ({ type: c.type, textPreview: c.text?.slice(0, 200) }))
+              : 'no content array'
+            log(
+              'debug',
+              'agent',
+              `TURN_END: stopReason=${msg?.stopReason ?? '?'} tools=${tcInTurn} outputLen=${outputText.length} errorMessage=${msg?.errorMessage ?? 'none'} content=${JSON.stringify(contentSummary)}`,
+            )
+          } catch {
+            // ignore
+          }
           break
         }
         case 'agent_end': {
@@ -688,17 +827,50 @@ class AgentService {
       this.sendStatus(win, id, 'running')
       // ── 执行 Agent（含智能续跑）──
       console.log(`[AgentService] runAgent(${id}) calling agent.prompt()...`)
+      // 诊断(走 logger debug): 记录 prompt 调用前的 model/apiKey/tools 状态
+      log(
+        'debug',
+        'agent',
+        `runAgent(${id}) calling agent.prompt(), model=${model.provider}/${model.id}, apiKey=${apiKeyResolved ? 'present' : 'MISSING'}, tools=${tools.length}`,
+      )
       await agent.prompt(prompt)
       console.log(`[AgentService] runAgent(${id}) prompt() resolved, waiting for idle...`)
+      log('debug', 'agent', `runAgent(${id}) prompt() resolved, waiting for idle...`)
       await withTimeout(agent.waitForIdle(), WAIT_FOR_IDLE_TIMEOUT_MS, `Agent waitForIdle(${id})`)
       console.log(
         `[AgentService] runAgent(${id}) first pass: turns=${turnCount} outputLen=${outputText.length} toolCalls=${toolCallCount}`,
       )
+      log(
+        'debug',
+        'agent',
+        `runAgent(${id}) first pass done: turns=${turnCount} outputLen=${outputText.length} toolCalls=${toolCallCount}`,
+      )
 
       // ── 智能续跑循环 ──
       // 当模型过早结束（输出短 AND 轮次少）时，发送续跑提示让模型继续完成任务
+      // 优化: 当 LLM 返回 429(rate_limit) / 401(auth) / 403(forbidden) 等不可重试错误时,跳过续跑
+      // 避免对已限流/鉴权失败的账户继续发起无意义的 API 调用
+      // 修复: isNonRetryableError 为函数,每次循环重新检查 lastErrorMessage(可能在续跑中变化)
+      const isNonRetryableError = (errMsg: string): boolean => {
+        if (!errMsg) return false
+        const lower = errMsg.toLowerCase()
+        return (
+          lower.includes('429') ||
+          lower.includes('401') ||
+          lower.includes('403') ||
+          lower.includes('rate_limit') ||
+          lower.includes('rate limit') ||
+          lower.includes('too many requests') ||
+          lower.includes('quota') ||
+          lower.includes('unauthorized') ||
+          lower.includes('forbidden') ||
+          lower.includes('authentication failed') ||
+          lower.includes('invalid api key')
+        )
+      }
       let continuationCount = 0
       while (
+        !isNonRetryableError(lastErrorMessage) &&
         continuationCount < MAX_CONTINUATIONS &&
         outputText.length < MIN_OUTPUT_CHARS &&
         turnCount < MIN_TURN_COUNT &&
@@ -722,6 +894,13 @@ class AgentService {
           WAIT_FOR_IDLE_TIMEOUT_MS,
           `Agent waitForIdle(${id}) cont#${continuationCount}`,
         )
+        // 修复: 续跑后如果出现不可重试错误,立即退出(避免继续浪费 API 调用)
+        if (isNonRetryableError(lastErrorMessage)) {
+          console.log(
+            `[AgentService] runAgent(${id}) continuation #${continuationCount} hit non-retryable error: ${lastErrorMessage.slice(0, 100)}`,
+          )
+          break
+        }
         // 如果本轮输出没有增长且轮次没有增加,说明模型已无法继续,提前退出避免浪费 API 调用
         if (outputText.length <= prevOutputLen && turnCount <= prevTurnCount) {
           console.log(
@@ -740,12 +919,18 @@ class AgentService {
       }
       console.log(`[AgentService] runAgent(${id}) idle, output length=${outputText.length}`)
 
+      // 优化: 当输出为空且 LLM 返回了错误时,标记为 error 而非 success
+      // 此前 stopReason=error 的空输出被标记为 success,用户看不到任何错误提示
+      const hasError = outputText.length === 0 && !!lastErrorMessage
+      const finalStatus: AgentExecution['status'] = hasError ? 'error' : 'success'
+      const finalOutput = outputText || (hasError ? `[LLM 错误] ${lastErrorMessage}` : '')
+
       // 记录执行历史
       const execution: AgentExecution = {
         id: `exec_${Date.now()}`,
         agentId: id,
         prompt,
-        output: outputText,
+        output: finalOutput,
         startedAt,
         durationMs: Date.now() - startedAt,
         tokenUsage: {
@@ -755,15 +940,16 @@ class AgentService {
           cacheWriteTokens: 0,
         },
         cost: totalCost,
-        status: 'success',
+        status: finalStatus,
       }
       this.appendExecution(id, execution)
 
       // 同步写入 DB
       if (dbExecId >= 0) {
         dbService.updateExecution(dbExecId, {
-          status: 'success',
-          output: outputText,
+          status: hasError ? 'failure' : 'success',
+          output: finalOutput,
+          error: hasError ? lastErrorMessage : undefined,
           tokensInput: inputTokens,
           tokensOutput: outputTokens,
           costTotal: totalCost,
@@ -771,16 +957,32 @@ class AgentService {
       }
 
       // 更新状态
-      this.agentStatus.set(id, 'idle')
-      this.sendStatus(win, id, 'idle', { result: execution })
+      if (hasError) {
+        this.agentStatus.set(id, 'error')
+        this.sendStatus(win, id, 'error', { error: lastErrorMessage, result: execution })
+      } else {
+        this.agentStatus.set(id, 'idle')
+        this.sendStatus(win, id, 'idle', { result: execution })
+      }
+      return execution
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err)
+      // 诊断(走 logger): 错误用 warn 级别确保可见,附带 stack 定位
+      log(
+        'warn',
+        'agent',
+        `runAgent(${id}) CAUGHT ERROR: ${errorMsg}\nstack: ${err instanceof Error ? err.stack : 'no stack'}`,
+      )
       const isAborted = abortController.signal.aborted
+      // R170 修复: error 时 output 必须保留 errorMsg,即使已有部分输出。
+      // 此前 outputText || errorMsg 在"部分输出 + 中途 429/quota"场景丢失错误关键词,
+      // cron 熔断器 isQuotaError 匹配不到 output,配额耗尽后 cron 继续空转。
+      const catchOutput = outputText ? `${outputText}\n[error] ${errorMsg}` : errorMsg
       const execution: AgentExecution = {
         id: `exec_${Date.now()}`,
         agentId: id,
         prompt,
-        output: outputText || errorMsg,
+        output: catchOutput,
         startedAt,
         durationMs: Date.now() - startedAt,
         tokenUsage: { inputTokens, outputTokens, cacheReadTokens: 0, cacheWriteTokens: 0 },
@@ -793,7 +995,7 @@ class AgentService {
       if (dbExecId >= 0) {
         dbService.updateExecution(dbExecId, {
           status: isAborted ? 'aborted' : 'failure',
-          output: outputText || errorMsg,
+          output: catchOutput,
           error: errorMsg,
           tokensInput: inputTokens,
           tokensOutput: outputTokens,
@@ -811,6 +1013,7 @@ class AgentService {
         this.sendStatus(win, id, 'error', { error: errorMsg })
       }
       // abort 路径: 不在此处发状态事件,由 abortAgent 统一发送 idle + aborted: true
+      return execution
     } finally {
       // 修复: finally 块中 abort,确保 agent 异常退出(如 waitForIdle 超时)后
       // 不再继续消耗 API token。abort() 是幂等的,已被 abortAgent 调用过时再调是 no-op。
@@ -833,7 +1036,21 @@ class AgentService {
    */
   async abortAgent(id: string, win?: BrowserWindow): Promise<boolean> {
     const running = this.runningAgents.get(id)
-    if (!running) return false
+    const queued = (this.runQueueDepths.get(id) ?? 0) > 0
+    // 代数 +1(无条件): 排队中的任务出队时发现代数变化即放弃执行(清空等待队列)。
+    // 必须无条件递增 — executeRun 启动窗口(buildAgentTools await 期间)runningAgents 未注册、
+    // depth 已自减,若跳过递增,该窗口内的 abort 会完全失效(MEDIUM-2)。
+    this.runQueueGenerations.set(id, (this.runQueueGenerations.get(id) ?? 0) + 1)
+    // MEDIUM-1 修复: 重置排队深度 — 否则队列排满(8)时 abort,死任务逐个出队前新请求被误拒"排队已满"。
+    // 出队自减有 Math.max(0, ...) 兜底,不会减成负数。
+    this.runQueueDepths.delete(id)
+    if (!running && !queued) return false
+    if (!running) {
+      // 无在途运行(仅排队任务): 直接置 idle 并通知
+      this.agentStatus.set(id, 'idle')
+      this.sendStatus(win, id, 'idle', { aborted: true })
+      return true
+    }
     running.abortController.abort()
     try {
       await Promise.resolve(running.agent.abort())

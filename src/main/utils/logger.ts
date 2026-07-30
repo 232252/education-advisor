@@ -143,6 +143,33 @@ export function initLogger(level: LogLevel, dir?: string): void {
   currentLevel = level
   if (dir) logsDir = dir
   ensureDir()
+  // DIAGNOSTIC: synchronous write to verify file system access
+  try {
+    fs.writeFileSync(
+      path.join(logsDir, 'init-diagnostic.log'),
+      `[${new Date().toISOString()}] initLogger called, level=${level}, logsDir=${logsDir}\n`,
+      { flag: 'a' },
+    )
+  } catch {
+    // If this fails, we need to know
+  }
+  // Suppress EPIPE errors on stdout/stderr. When running as a subprocess with a
+  // broken pipe, writes to stdout emit async 'error' events that become uncaught
+  // exceptions. Adding a no-op 'error' listener prevents this.
+  try {
+    process.stdout?.on?.('error', () => {})
+  } catch {
+    /* ignore */
+  }
+  try {
+    process.stderr?.on?.('error', () => {})
+  } catch {
+    /* ignore */
+  }
+  // Bug fix: console.log is a separate function reference from console.info in Node.js.
+  // Previously only console.info/warn/error/debug were wrapped, so all console.log calls
+  // throughout the codebase bypassed the file logger entirely. Now wrap console.log too.
+  const origLog = getBuiltin(console.log as (...args: unknown[]) => void)
   const origDebug = getBuiltin(console.debug as (...args: unknown[]) => void)
   const origInfo = getBuiltin(console.info as (...args: unknown[]) => void)
   const origWarn = getBuiltin(console.warn as (...args: unknown[]) => void)
@@ -153,13 +180,22 @@ export function initLogger(level: LogLevel, dir?: string): void {
     lvl: LogLevel,
   ): ((...args: unknown[]) => void) => {
     const wrapper: (...args: unknown[]) => void = (...args: unknown[]) => {
-      orig(...args)
+      // Write to file FIRST, then call orig (stdout). If stdout pipe is broken
+      // (EPIPE when running as a subprocess), orig() throws and the file write
+      // would be skipped. By writing to file first, logs are always persisted.
+      // orig() is wrapped in try-catch to prevent uncaught EPIPE exceptions.
       if (shouldLog(lvl)) void writeLine('main', fmt(lvl, 'console', args.map(stringify).join(' ')))
+      try {
+        orig(...args)
+      } catch {
+        /* EPIPE or other stdout errors — file write already happened */
+      }
     }
     ;(wrapper as TaggedFn)[LOGGER_ORIG_KEY] = orig
     return wrapper
   }
 
+  console.log = wrap(origLog, 'info')
   console.debug = wrap(origDebug, 'debug')
   console.info = wrap(origInfo, 'info')
   console.warn = wrap(origWarn, 'warn')

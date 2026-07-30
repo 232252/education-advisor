@@ -1,10 +1,64 @@
 /* =============================================================
-   全局样式 — Tailwind CSS 入口
+   全局样式 — Tailwind CSS v4 入口
+   v4 改用 @import "tailwindcss" 取代 @tailwind 三行指令；
+   darkMode:'class' 改用 @custom-variant；
+   theme 配置改用 @theme(CSS-first)。
    ============================================================= */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* darkMode: 'class' 的 v4 等价写法 —— 由 .dark 类驱动而非 prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---- Tailwind v4 主题(@theme)----
+   将原 tailwind.config.js 的 theme.extend 迁移为 CSS 变量。
+   - 颜色:risk / agent / surface / Tailwind 内置色板
+   - 字体:font-mono
+   - 阴影:shadow-card*
+   - 动画/关键帧:fade-in / slide-up / slide-in-right / scale-in
+   - 过渡时长:fast / normal / slow
+   注意:v4 不再支持 <alpha-value> 占位符。surface 色依赖运行时 CSS 变量
+   (--bg-rgb-x)实现深浅色切换,v4 写法:直接定义颜色值,Tailwind 会为
+   bg-surface-x/NN 透明度变体生成正确的 rgb(... / NN%) 规则。
+*/
+@theme {
+  /* 风险等级色板 */
+  --color-risk-low: #22c55e;
+  --color-risk-medium: #f59e0b;
+  --color-risk-high: #ef4444;
+  --color-risk-extreme: #7f1d1d;
+
+  /* Agent 状态色 */
+  --color-agent-idle: #6b7280;
+  --color-agent-running: #3b82f6;
+  --color-agent-error: #ef4444;
+
+  /* 语义化表面色 —— 用 RGB 通道变量,支持 bg-surface-x/NN 透明度变体。
+     v4 中以 var(--bg-rgb-x) 形式定义,Tailwind 会生成
+     rgb(var(--color-surface-x) / opacity) 规则。 */
+  --color-surface-primary: rgb(var(--bg-rgb-primary));
+  --color-surface-secondary: rgb(var(--bg-rgb-secondary));
+  --color-surface-tertiary: rgb(var(--bg-rgb-tertiary));
+  --color-surface-elevated: rgb(var(--bg-rgb-elevated));
+
+  /* 等宽字体 */
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
+
+  /* 卡片阴影:shadow-card / shadow-card-hover / shadow-card-lg
+     保留在下方 @layer utilities 手动定义(含 .dark 深色变体),
+     不在此用 --shadow-* 声明,避免与手动定义重复冲突。 */
+
+  /* 动画 —— v4 通过 --animate-* 变量自动生成 animate-* 工具类,
+     并关联到下方同名 @keyframes。 */
+  --animate-fade-in: fade-in 0.25s ease-out both;
+  --animate-slide-up: slide-up 0.3s ease-out both;
+  --animate-slide-in-right: slide-in-right 0.25s ease-out both;
+  --animate-scale-in: scale-in 0.2s ease-out both;
+}
+
+/* v4 关键帧需在 @theme 之外用标准 @keyframes 定义,Tailwind 通过
+   --animate-* 变量名自动关联到 animate-* 工具类。上面的 @theme 已声明
+   --animate-*,下方 @keyframes 提供实现(本文件后面已有同名定义)。 */
 
 /* 主题色彩变量 */
 :root {
@@ -12,6 +66,11 @@
   --bg-secondary: #f3f4f6;
   --bg-tertiary: #e5e7eb;
   --bg-elevated: #ffffff;
+  /* RGB 通道形式(供 Tailwind surface 斜杠透明度变体使用),与上方 hex 同步 */
+  --bg-rgb-primary: 255 255 255;
+  --bg-rgb-secondary: 243 244 246;
+  --bg-rgb-tertiary: 229 231 235;
+  --bg-rgb-elevated: 255 255 255;
   --text-primary: #111827;
   --text-secondary: #4b5563;
   --text-muted: #9ca3af;
@@ -33,6 +92,11 @@
   --bg-secondary: #161920;
   --bg-tertiary: #1a1e28;
   --bg-elevated: #1e222c;
+  /* RGB 通道形式(供 Tailwind surface 斜杠透明度变体使用),与上方 hex 同步 */
+  --bg-rgb-primary: 15 17 23;
+  --bg-rgb-secondary: 22 25 32;
+  --bg-rgb-tertiary: 26 30 40;
+  --bg-rgb-elevated: 30 34 44;
   --text-primary: #f3f4f6;
   --text-secondary: #d1d5db;
   --text-muted: #6b7280;
@@ -153,14 +217,29 @@ body {
 .animate-scale-in {
   animation: scale-in 0.2s ease-out both;
 }
+.animate-shimmer {
+  animation: shimmer 1.5s linear infinite;
+}
 
 /* ─── Stagger 延迟（列表入场） ─── */
-.stagger-1 { animation-delay: 30ms; }
-.stagger-2 { animation-delay: 60ms; }
-.stagger-3 { animation-delay: 90ms; }
-.stagger-4 { animation-delay: 120ms; }
-.stagger-5 { animation-delay: 150ms; }
-.stagger-6 { animation-delay: 180ms; }
+.stagger-1 {
+  animation-delay: 30ms;
+}
+.stagger-2 {
+  animation-delay: 60ms;
+}
+.stagger-3 {
+  animation-delay: 90ms;
+}
+.stagger-4 {
+  animation-delay: 120ms;
+}
+.stagger-5 {
+  animation-delay: 150ms;
+}
+.stagger-6 {
+  animation-delay: 180ms;
+}
 
 /* ─── 焦点环 ─── */
 /* 组件内直接使用 Tailwind: focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-[#0f1117] */
@@ -224,9 +303,14 @@ body {
 
 /* ─── 无障碍：减少动画 ─── */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: 无障碍强制覆盖所有动画 */
     animation-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: 无障碍强制覆盖所有动画 */
     animation-iteration-count: 1 !important;
+    /* biome-ignore lint/complexity/noImportantStyles: 无障碍强制覆盖所有过渡 */
     transition-duration: 0.01ms !important;
   }
 }

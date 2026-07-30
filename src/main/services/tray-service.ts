@@ -45,14 +45,30 @@ function showWindow(): void {
   }
 }
 
-function createTrayInstance(iconPath: string | undefined): Tray | null {
-  let trayIcon: Electron.NativeImage
-  if (iconPath) {
-    const img = nativeImage.createFromPath(iconPath)
-    trayIcon = img.resize({ width: 16, height: 16 })
-  } else {
-    trayIcon = nativeImage.createEmpty()
+function loadTrayIcon(iconPath: string | undefined): Electron.NativeImage {
+  if (!iconPath) return nativeImage.createEmpty()
+  const dir = path.dirname(iconPath)
+  // 清晰度优化: 用 build-icon 按目标尺寸栅格化的独立帧构建多分辨率 NativeImage,
+  // 16px@1x + 32px@2x, 高 DPI (150%/200% 缩放) 下托盘图标依然锐利。
+  const p16 = path.join(dir, 'icon-16.png')
+  const p32 = path.join(dir, 'icon-32.png')
+  const has16 = fs.existsSync(p16)
+  const has32 = fs.existsSync(p32)
+  if (has16 || has32) {
+    const img = nativeImage.createEmpty()
+    if (has16) img.addRepresentation({ scaleFactor: 1, buffer: fs.readFileSync(p16) })
+    if (has32) img.addRepresentation({ scaleFactor: 2, buffer: fs.readFileSync(p32) })
+    return img
   }
+  // 回退: 单帧 PNG/ICO 缩到 16 (best 质量插值)
+  const pngCandidate = iconPath.replace(/\.ico$/, '.png')
+  const loadPath =
+    pngCandidate !== iconPath && fs.existsSync(pngCandidate) ? pngCandidate : iconPath
+  return nativeImage.createFromPath(loadPath).resize({ width: 16, height: 16, quality: 'best' })
+}
+
+function createTrayInstance(iconPath: string | undefined): Tray | null {
+  const trayIcon = loadTrayIcon(iconPath)
 
   const t = new Tray(trayIcon)
   t.setToolTip('Education Advisor')

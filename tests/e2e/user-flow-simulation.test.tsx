@@ -66,11 +66,16 @@ function eaaRun(args: string[]): Promise<string> {
 }
 
 async function resetEaa() {
-  // 清理可能残留的 .lock 文件
-  const lockFile = join(TEST_DATA, '.lock')
-  if (existsSync(lockFile)) {
-    try { rmSync(lockFile) } catch { /* ignore */ }
+  // 完整重置: eaa 实际存储是 events/events.jsonl + entities/*.cache.json + logs/,
+  // 只重写 3 个种子文件会残留 scores 缓存和 jsonl 事件, 产生"幽灵实体"(name="?")
+  // 污染后续 ranking (低分学生被挤出 top10 默认窗口)。删整个 data 目录再重建。
+  try {
+    rmSync(TEST_DATA, { recursive: true, force: true })
+  } catch {
+    /* ignore */
   }
+  mkdirSync(join(TEST_DATA, 'entities'), { recursive: true })
+  mkdirSync(join(TEST_DATA, 'events'), { recursive: true })
   writeFileSync(join(TEST_DATA, 'entities', 'entities.json'), '{"entities":{}}')
   writeFileSync(join(TEST_DATA, 'entities', 'name_index.json'), '{}')
   writeFileSync(join(TEST_DATA, 'events', 'events.json'), '[]')
@@ -115,6 +120,19 @@ function randomClass(): { class_id: string; name: string; grade: string; teacher
     grade,
     teacher: randomPick(TEACHER_FAMILIES) + '老师',
   }
+}
+
+/** 生成 count 个 class_id 互不相同的班级 (randomClass 组合空间有限会撞号) */
+function randomClasses(count: number): Array<{ class_id: string; name: string; grade: string; teacher: string }> {
+  const seen = new Set<string>()
+  const out: Array<{ class_id: string; name: string; grade: string; teacher: string }> = []
+  while (out.length < count) {
+    const c = randomClass()
+    if (seen.has(c.class_id)) continue
+    seen.add(c.class_id)
+    out.push(c)
+  }
+  return out
 }
 
 const REASON_CODES = [
@@ -201,8 +219,14 @@ const mockApi = {
         return { success: false, error: String(e) }
       }
     }),
-    ranking: vi.fn(async (n: number) => {
-      const r = JSON.parse(await eaaRun(['ranking', String(n), '-O', 'json'])) as {
+    ranking: vi.fn(async (n?: number) => {
+      // 与修复后的真实 IPC handler 一致: 不传 n 时显式传大 N 拉全量排行
+      // (EAA CLI `ranking [N]` 默认 N=10, 不是全量)
+      const args =
+        n !== undefined && n > 0
+          ? ['ranking', String(n), '-O', 'json']
+          : ['ranking', '100000', '-O', 'json']
+      const r = JSON.parse(await eaaRun(args)) as {
         ranking: Array<{ rank: number; name: string; entity_id: string; class_id?: string | null; score: number }>
       }
       // 增强: 用 listStudents 的 class_id 填充 ranking (与 IPC handler 逻辑一致)
@@ -391,7 +415,9 @@ async function userClickRefresh() {
 
 async function userSelectClassCompare(classA: string, classB: string) {
   // 用户在 Dashboard 点 "班级对比" → 选 A 班 → 选 B 班
-  const r = (await mockApi.eaa.ranking(10)) as {
+  // 与修复后的 Dashboard 行为一致: 拉全量排行再按班级过滤
+  // (旧逻辑 ranking(10)+过滤会丢掉 top10 之外班级的学生)
+  const r = (await mockApi.eaa.ranking()) as {
     data: { ranking: Array<{ name: string; class_id: string | null; score: number }> }
   }
   const a = r.data.ranking.filter((x) => x.class_id === classA)
@@ -426,7 +452,7 @@ afterAll(() => {
 
 describe('用户按键流模拟：班级管理（创建 3 班 + 全流程）', () => {
   it('场景 1: 随机创建 3 个班级', async () => {
-    const classes = [randomClass(), randomClass(), randomClass()]
+    const classes = randomClasses(3)
     for (const cls of classes) {
       await userClickCreateClass(cls)
     }
@@ -443,7 +469,7 @@ describe('用户按键流模拟：班级管理（创建 3 班 + 全流程）', (
 
   it('场景 2: 随机创建 3 班 + 模拟 30 个学生 + 分配到 3 班', async () => {
     // 1. 创建 3 班
-    const classes = [randomClass(), randomClass(), randomClass()]
+    const classes = randomClasses(3)
     for (const cls of classes) await userClickCreateClass(cls)
 
     // 2. 加 30 学生
@@ -540,7 +566,7 @@ describe('用户按键流模拟：学生管理（班级筛选 + 批量 + 调班�
   let classes: Array<{ class_id: string }>
 
   beforeEach(async () => {
-    classes = [randomClass(), randomClass(), randomClass()]
+    classes = randomClasses(3)
     for (const cls of classes) await userClickCreateClass(cls)
     for (let i = 1; i <= 15; i++) {
       await userClickAddStudent(`学生筛选测试${i}号`)
@@ -597,9 +623,9 @@ describe('用户按键流模拟：学生管理（班级筛选 + 批量 + 调班�
 
 describe('用户按键流模拟：仪表盘班级对比 + 排行榜', () => {
   it('场景 8: 班级对比模式：双班数据完整性', async () => {
-    // 1. 创建 2 班
-    const cls1 = randomClass()
-    const cls2 = randomClass()
+    // 1. 创建 2 班 (randomClasses 保证 class_id 不撞号; 撞号时 a/b 过滤的是同一个班,
+    //    avgA===avgB 恒等 → 断言必挂)
+    const [cls1, cls2] = randomClasses(2)
     await userClickCreateClass(cls1)
     await userClickCreateClass(cls2)
     // 2. 各加 3 学生
@@ -645,7 +671,7 @@ describe('用户按键流模拟：仪表盘班级对比 + 排行榜', () => {
 describe('用户按键流模拟：压力 + 长时间', () => {
   it('场景 10: 50 轮随机操作 — 班级/学生/事件混合', async () => {
     // 创建 3 班
-    const classes = [randomClass(), randomClass(), randomClass()]
+    const classes = randomClasses(3)
     for (const cls of classes) await userClickCreateClass(cls)
     const t0 = Date.now()
 
@@ -729,7 +755,7 @@ describe('用户按键流模拟：压力 + 长时间', () => {
 
   it('场景 12: 100 次仪表盘刷新 + 班级筛选切换', { timeout: 60000 }, async () => {
     // 创建 3 班 + 30 学生
-    const classes = [randomClass(), randomClass(), randomClass()]
+    const classes = randomClasses(3)
     for (const cls of classes) await userClickCreateClass(cls)
     for (let i = 0; i < 30; i++) {
       await userClickAddStudent(`刷新测试${i}`)
@@ -788,8 +814,7 @@ describe('用户报告 Bug 验证（数据流层）', () => {
   })
 
   it('Bug 2: 仪表盘班级对比空 — ranking 包含 class_id，可正确过滤', async () => {
-    const cls1 = randomClass()
-    const cls2 = randomClass()
+    const [cls1, cls2] = randomClasses(2)
     await userClickCreateClass(cls1)
     await userClickCreateClass(cls2)
     for (const name of ['A', 'B', 'C']) {
@@ -829,8 +854,9 @@ describe('用户报告 Bug 验证（数据流层）', () => {
     expect(rankingIdx).toBeGreaterThan(0)
     expect(periodIdx).toBeGreaterThan(0)
     // 检查 truncate 在两个部分都用了
-    const rankingPart = content.slice(rankingIdx, rankingIdx + 1500)
-    const periodPart = content.slice(periodIdx, periodIdx + 1500)
+    // 注意: 排行榜标记含奖牌条件样式, 源码较长, 窗口需覆盖到 name span (truncate 在其上)
+    const rankingPart = content.slice(rankingIdx, rankingIdx + 3000)
+    const periodPart = content.slice(periodIdx, periodIdx + 3000)
     expect(rankingPart).toContain('truncate')
     expect(rankingPart).toContain('min-w-0')
     expect(periodPart).toContain('truncate')
@@ -852,7 +878,7 @@ describe('用户报告 Bug 验证（数据流层）', () => {
 describe('长时间持续运行（无时间限制，按用户要求）', () => {
   it('场景 14: 3 分钟持续随机操作，验证稳定性', async () => {
     // 创建 3 班
-    const classes = [randomClass(), randomClass(), randomClass()]
+    const classes = randomClasses(3)
     for (const cls of classes) await userClickCreateClass(cls)
 
     const startTime = Date.now()

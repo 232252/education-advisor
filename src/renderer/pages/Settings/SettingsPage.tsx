@@ -17,7 +17,7 @@ import { PageHeader } from '../../components/PageHeader'
 import { useConfirmDialog } from '../../hooks/useConfirmDialog'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
-import { cn, INPUT_BASE, btnStyle } from '../../lib/ui-utils'
+import { btnStyle, cn, INPUT_BASE } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
 import {
   AboutSection,
@@ -245,95 +245,94 @@ export function SettingsPage() {
       />
 
       <div className="p-6 space-y-5">
+        {/* ===== 通用 ===== */}
+        <GeneralSection settings={settings} onSave={handleSave} />
 
-      {/* ===== 通用 ===== */}
-      <GeneralSection settings={settings} onSave={handleSave} />
+        {/* ===== 对话 ===== */}
+        <ChatSection settings={settings} onSave={handleSave} />
 
-      {/* ===== 对话 ===== */}
-      <ChatSection settings={settings} onSave={handleSave} />
+        {/* ===== MCP (education-advisor 特有 feature flag) ===== */}
+        <McpSection settings={settings} onSave={handleSave} />
 
-      {/* ===== MCP (education-advisor 特有 feature flag) ===== */}
-      <McpSection settings={settings} onSave={handleSave} />
+        {/* ===== 飞书 ===== */}
+        <FeishuSection
+          settings={settings}
+          onSave={handleSave}
+          botStatus={botStatus}
+          feishuTestStatus={feishuTestStatus}
+          feishuTestInfo={feishuTestInfo}
+          setFeishuTestStatus={setFeishuTestStatus}
+          setFeishuTestInfo={setFeishuTestInfo}
+          bitableAppToken={bitableAppToken}
+          setBitableAppToken={setBitableAppToken}
+          bitableListStatus={bitableListStatus}
+          dispatchBitList={dispatchBitList}
+          bitableListInfo={bitableListInfo}
+          setBitableListInfo={setBitableListInfo}
+        />
 
-      {/* ===== 飞书 ===== */}
-      <FeishuSection
-        settings={settings}
-        onSave={handleSave}
-        botStatus={botStatus}
-        feishuTestStatus={feishuTestStatus}
-        feishuTestInfo={feishuTestInfo}
-        setFeishuTestStatus={setFeishuTestStatus}
-        setFeishuTestInfo={setFeishuTestInfo}
-        bitableAppToken={bitableAppToken}
-        setBitableAppToken={setBitableAppToken}
-        bitableListStatus={bitableListStatus}
-        dispatchBitList={dispatchBitList}
-        bitableListInfo={bitableListInfo}
-        setBitableListInfo={setBitableListInfo}
-      />
+        {/* ===== 诊断 & 维护 ===== */}
+        <DiagnosticSection
+          doctorStatus={doctorStatus}
+          doctorResult={doctorResult}
+          setDoctorStatus={setDoctorStatus}
+          setDoctorResult={setDoctorResult}
+          validateStatus={validateStatus}
+          validateResult={validateResult}
+          setValidateStatus={setValidateStatus}
+          setValidateResult={setValidateResult}
+        />
 
-      {/* ===== 诊断 & 维护 ===== */}
-      <DiagnosticSection
-        doctorStatus={doctorStatus}
-        doctorResult={doctorResult}
-        setDoctorStatus={setDoctorStatus}
-        setDoctorResult={setDoctorResult}
-        validateStatus={validateStatus}
-        validateResult={validateResult}
-        setValidateStatus={setValidateStatus}
-        setValidateResult={setValidateResult}
-      />
+        {/* ===== 日志查看 ===== */}
+        <LogSection
+          logFiles={logFiles}
+          logContent={logContent}
+          selectedLog={selectedLog}
+          logLevelFilter={logLevelFilter}
+          logSearchQuery={logSearchQuery}
+          setLogFiles={setLogFiles}
+          setLogContent={setLogContent}
+          setSelectedLog={setSelectedLog}
+          setLogLevelFilter={setLogLevelFilter}
+          setLogSearchQuery={setLogSearchQuery}
+          onClearLogsRequest={() => clearLogsConfirm.open()}
+        />
 
-      {/* ===== 日志查看 ===== */}
-      <LogSection
-        logFiles={logFiles}
-        logContent={logContent}
-        selectedLog={selectedLog}
-        logLevelFilter={logLevelFilter}
-        logSearchQuery={logSearchQuery}
-        setLogFiles={setLogFiles}
-        setLogContent={setLogContent}
-        setSelectedLog={setSelectedLog}
-        setLogLevelFilter={setLogLevelFilter}
-        setLogSearchQuery={setLogSearchQuery}
-        onClearLogsRequest={() => clearLogsConfirm.open()}
-      />
+        {/* ===== 关于 ===== */}
+        <AboutSection />
 
-      {/* ===== 关于 ===== */}
-      <AboutSection />
-
-      <ConfirmDialog
-        open={resetConfirm.isOpen}
-        title={t('settings.reset')}
-        message={t('settings.reset.confirm')}
-        onConfirm={async () => {
-          resetConfirm.close()
-          await executeReset()
-        }}
-        onCancel={resetConfirm.close}
-      />
-      <ConfirmDialog
-        open={clearLogsConfirm.isOpen}
-        title="清空日志"
-        message="清空所有日志文件?"
-        variant="danger"
-        onConfirm={async () => {
-          clearLogsConfirm.close()
-          try {
-            await getAPI().log.clear()
-            setLogFiles([])
-            setLogContent('')
-            setSelectedLog('')
-            setLogSearchQuery('')
-            setLogLevelFilter('all')
-            toast.success(t('toast.settings.logsCleared'))
-          } catch (err) {
-            console.error('[Settings] log.clear failed:', err)
-            toast.error(t('toast.settings.clearLogsFailed'))
-          }
-        }}
-        onCancel={clearLogsConfirm.close}
-      />
+        <ConfirmDialog
+          open={resetConfirm.isOpen}
+          title={t('settings.reset')}
+          message={t('settings.reset.confirm')}
+          onConfirm={async () => {
+            resetConfirm.close()
+            await executeReset()
+          }}
+          onCancel={resetConfirm.close}
+        />
+        <ConfirmDialog
+          open={clearLogsConfirm.isOpen}
+          title="清空日志"
+          message="清空所有日志文件?"
+          variant="danger"
+          onConfirm={async () => {
+            clearLogsConfirm.close()
+            try {
+              await getAPI().log.clear()
+              setLogFiles([])
+              setLogContent('')
+              setSelectedLog('')
+              setLogSearchQuery('')
+              setLogLevelFilter('all')
+              toast.success(t('toast.settings.logsCleared'))
+            } catch (err) {
+              console.error('[Settings] log.clear failed:', err)
+              toast.error(t('toast.settings.clearLogsFailed'))
+            }
+          }}
+          onCancel={clearLogsConfirm.close}
+        />
       </div>
     </div>
   )

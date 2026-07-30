@@ -179,20 +179,20 @@ export function EventsTab({
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
           placeholder="搜索事件..."
-          className="flex-1 min-w-[140px] bg-gray-50 dark:bg-[#0f1117] border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+          className="flex-1 min-w-[140px] bg-gray-50 dark:bg-surface-primary border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 placeholder:text-gray-400 dark:placeholder:text-gray-500"
         />
         <input
           type="date"
           value={dateStart}
           onChange={(e) => handleDateChange(e.target.value, dateEnd)}
-          className="bg-gray-50 dark:bg-[#0f1117] border border-gray-300 dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 text-gray-700 dark:text-gray-300"
+          className="bg-gray-50 dark:bg-surface-primary border border-gray-300 dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 text-gray-700 dark:text-gray-300"
         />
         <span className="text-xs text-gray-400 dark:text-gray-500">至</span>
         <input
           type="date"
           value={dateEnd}
           onChange={(e) => handleDateChange(dateStart, e.target.value)}
-          className="bg-gray-50 dark:bg-[#0f1117] border border-gray-300 dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 text-gray-700 dark:text-gray-300"
+          className="bg-gray-50 dark:bg-surface-primary border border-gray-300 dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 text-gray-700 dark:text-gray-300"
         />
         {isSearchMode && (
           <button

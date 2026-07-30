@@ -17,6 +17,7 @@ vi.mock('electron', () => ({
 
 import {
   allEAATools,
+  dangerousEAATools,
   getToolsByCapability,
   addEventTool,
   addStudentTool,
@@ -29,23 +30,39 @@ import {
   codesTool,
   summaryTool,
   rangeTool,
+  setStudentMetaTool,
+  revertEventTool,
+  tagTool,
+  deleteStudentTool,
 } from '../../src/main/services/eaa-tools'
 
 describe('getToolsByCapability — 通配符', () => {
-  it('"all" 返回全部 11 个工具', () => {
+  it('"all" 返回全部安全工具(14个,不含删除)', () => {
     const tools = getToolsByCapability(['all'])
     expect(tools.length).toBe(allEAATools.length)
     expect(new Set(tools).size).toBe(allEAATools.length)
+    // GAP-1: 'all' 不应包含危险删除工具
+    expect(tools).not.toContain(deleteStudentTool)
   })
 
-  it('"*" 同样返回全部', () => {
+  it('"*" 同样返回全部安全工具', () => {
     const tools = getToolsByCapability(['*'])
     expect(tools.length).toBe(allEAATools.length)
+    expect(tools).not.toContain(deleteStudentTool)
   })
 
   it('大小写不敏感: ALL / All 也匹配', () => {
     expect(getToolsByCapability(['ALL']).length).toBe(allEAATools.length)
     expect(getToolsByCapability(['All']).length).toBe(allEAATools.length)
+  })
+
+  it('GAP-1 安全: 即使 all + delete 同时声明,删除工具仍需显式 delete 才出现', () => {
+    // all 单独不含删除
+    expect(getToolsByCapability(['all'])).not.toContain(deleteStudentTool)
+    // 显式 delete 才获得
+    const withDelete = getToolsByCapability(['all', 'delete'])
+    expect(withDelete).toContain(deleteStudentTool)
+    expect(withDelete.filter((t) => t === deleteStudentTool)).toHaveLength(1)
   })
 })
 
@@ -83,10 +100,22 @@ describe('getToolsByCapability — 单项 capability', () => {
   it('range → [rangeTool]', () => {
     expect(getToolsByCapability(['range'])).toEqual([rangeTool])
   })
+  it('set_student_meta → [setStudentMetaTool]', () => {
+    expect(getToolsByCapability(['set_student_meta'])).toEqual([setStudentMetaTool])
+  })
+  it('revert → [revertEventTool]', () => {
+    expect(getToolsByCapability(['revert'])).toEqual([revertEventTool])
+  })
+  it('tag → [tagTool]', () => {
+    expect(getToolsByCapability(['tag'])).toEqual([tagTool])
+  })
+  it('delete → [deleteStudentTool]', () => {
+    expect(getToolsByCapability(['delete'])).toEqual([deleteStudentTool])
+  })
 })
 
 describe('getToolsByCapability — read / write 分组', () => {
-  it('read 返回所有只读工具(不含 add_event/add_student)', () => {
+  it('read 返回所有只读工具(含 tag,不含写操作)', () => {
     const tools = getToolsByCapability(['read'])
     const names = tools.map((t) => t.name)
     expect(names).toContain('eaa_score')
@@ -98,19 +127,26 @@ describe('getToolsByCapability — read / write 分组', () => {
     expect(names).toContain('eaa_codes')
     expect(names).toContain('eaa_summary')
     expect(names).toContain('eaa_range')
+    expect(names).toContain('eaa_tag') // GAP-1: tag 归入只读
     expect(names).not.toContain('eaa_add_event')
     expect(names).not.toContain('eaa_add_student')
-    expect(tools.length).toBe(9)
+    expect(names).not.toContain('eaa_set_student_meta')
+    expect(names).not.toContain('eaa_revert_event')
+    expect(tools.length).toBe(10)
   })
 
-  it('write 返回 add_event + add_student', () => {
+  it('write 返回 add_event + add_student + set_student_meta + revert', () => {
     const tools = getToolsByCapability(['write'])
-    expect(tools).toEqual([addEventTool, addStudentTool])
+    expect(tools).toEqual([addEventTool, addStudentTool, setStudentMetaTool, revertEventTool])
+    // 危险的 delete 不在 write 里
+    expect(tools).not.toContain(deleteStudentTool)
   })
 
   it('read + write 应去重并合并', () => {
     const tools = getToolsByCapability(['read', 'write'])
-    expect(tools.length).toBe(11) // 全部
+    // read(10) + write(4 个,均不在 read 中) = 14 (不含 delete)
+    expect(tools.length).toBe(14)
+    expect(tools).not.toContain(deleteStudentTool)
   })
 })
 
@@ -122,7 +158,7 @@ describe('getToolsByCapability — 组合 / 边界', () => {
 
   it('read + 单项 → 去重(单项已在 read 中)', () => {
     const tools = getToolsByCapability(['read', 'ranking'])
-    expect(tools.length).toBe(9) // ranking 已在 read 中
+    expect(tools.length).toBe(10) // ranking 已在 read 中,read 共 10 个
   })
 
   it('未知 capability → 空数组', () => {
@@ -145,9 +181,14 @@ describe('getToolsByCapability — 组合 / 边界', () => {
 })
 
 describe('allEAATools — 集合完整性', () => {
-  it('应包含全部 11 个工具,且 name 唯一', () => {
-    expect(allEAATools.length).toBe(11)
+  it('应包含全部 14 个安全工具,且 name 唯一', () => {
+    expect(allEAATools.length).toBe(14)
     const names = allEAATools.map((t) => t.name)
-    expect(new Set(names).size).toBe(11)
+    expect(new Set(names).size).toBe(14)
+  })
+
+  it('dangerousEAATools 仅含删除工具', () => {
+    expect(dangerousEAATools).toEqual([deleteStudentTool])
+    expect(allEAATools).not.toContain(deleteStudentTool)
   })
 })

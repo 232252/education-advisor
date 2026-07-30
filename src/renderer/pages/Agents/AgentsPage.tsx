@@ -3,6 +3,7 @@
 // =============================================================
 
 import type { AgentDetail, AgentExecution } from '@shared/types'
+import { AlertTriangle, ArrowLeft, Bot, ClipboardList, Hourglass } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
@@ -40,7 +41,7 @@ export function AgentsPage() {
   return (
     <div className="h-full flex animate-fade-in">
       {/* 左侧：Agent 列表 */}
-      <div className="w-80 border-r border-gray-200/60 dark:border-white/[0.06] flex flex-col bg-gray-50/50 dark:bg-[#1a1e28]">
+      <div className="w-80 border-r border-gray-200/60 dark:border-white/[0.06] flex flex-col bg-gray-50/50 dark:bg-surface-tertiary">
         <PageHeader
           title={t('page.agents.title')}
           size="md"
@@ -58,10 +59,10 @@ export function AgentsPage() {
 
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {loading ? (
-            <EmptyState icon="⏳" title={t('common.loading')} />
+            <EmptyState icon={<Hourglass size={28} />} title={t('common.loading')} />
           ) : agents.length === 0 ? (
             <EmptyState
-              icon="🤖"
+              icon={<Bot size={28} />}
               title={`${t('common.none')} Agent`}
               description="config/agents.yaml"
             />
@@ -139,9 +140,9 @@ export function AgentsPage() {
       {/* 右侧：Agent 详情 */}
       <div className="flex-1 flex flex-col">
         {!selectedAgentId ? (
-          <EmptyState icon="👈" title="选择左侧 Agent 查看详情" />
+          <EmptyState icon={<ArrowLeft size={28} />} title="选择左侧 Agent 查看详情" />
         ) : detailLoading ? (
-          <EmptyState icon="⏳" title="加载中..." />
+          <EmptyState icon={<Hourglass size={28} />} title="加载中..." />
         ) : selectedDetail ? (
           <AgentDetailPanel
             detail={selectedDetail}
@@ -152,7 +153,7 @@ export function AgentsPage() {
             onUpdate={updateAgent}
           />
         ) : (
-          <EmptyState icon="⚠️" title="加载失败" />
+          <EmptyState icon={<AlertTriangle size={28} />} title="加载失败" />
         )}
       </div>
     </div>
@@ -263,12 +264,7 @@ const AgentDetailPanel = memo(function AgentDetailPanel({
       <div className="flex-1 overflow-hidden">
         {tab === 'config' && <ConfigTab detail={detail} onUpdate={onUpdate} />}
         {tab === 'run' && (
-          <RunTab
-            agentId={detail.id}
-            enabled={detail.enabled}
-            onRun={onRun}
-            onAbort={onAbort}
-          />
+          <RunTab agentId={detail.id} enabled={detail.enabled} onRun={onRun} onAbort={onAbort} />
         )}
         {tab === 'soul' && (
           <EditorTab
@@ -304,12 +300,7 @@ interface RunTabProps {
   onAbort: (id: string) => Promise<void>
 }
 
-function RunTab({
-  agentId,
-  enabled,
-  onRun,
-  onAbort,
-}: RunTabProps) {
+function RunTab({ agentId, enabled, onRun, onAbort }: RunTabProps) {
   // 细粒度 selector: 只订阅本 Tab 需要的流式状态
   const liveOutput = useAgentStore((s) => s.liveOutput)
   const liveToolCalls = useAgentStore((s) => s.liveToolCalls)
@@ -348,7 +339,7 @@ function RunTab({
             }}
             disabled={isRunning || !enabled}
             placeholder={enabled ? '输入指令或问题...' : 'Agent 已禁用'}
-            className="flex-1 bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08] rounded-lg px-4 py-2 text-sm
+            className="flex-1 bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-4 py-2 text-sm
               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow disabled:opacity-50"
           />
           {isRunning ? (
@@ -383,7 +374,7 @@ function RunTab({
               // 用 tool name + args hash 组合 stable key, 避免 index 重建
               <div
                 key={`${tc.name}-${tc.time}-${JSON.stringify(tc.args).slice(0, 32)}`}
-                className="text-xs bg-gray-50 border border-gray-200 dark:bg-[#1e222c] dark:border-white/[0.06] rounded px-3 py-1.5 font-mono"
+                className="text-xs bg-gray-50 border border-gray-200 dark:bg-surface-elevated dark:border-white/[0.06] rounded px-3 py-1.5 font-mono"
               >
                 <span className="text-blue-500 dark:text-blue-400">{tc.name}</span>
                 <span className="text-gray-400 dark:text-gray-500 ml-2">
@@ -473,7 +464,7 @@ function EditorTab({ content, placeholder, onSave }: EditorTabProps) {
           setDirty(true)
         }}
         placeholder={placeholder}
-        className="flex-1 w-full bg-white text-gray-700 dark:bg-[#1a1e28] dark:text-gray-300 p-4 text-sm font-mono resize-none
+        className="flex-1 w-full bg-white text-gray-700 dark:bg-surface-tertiary dark:text-gray-300 p-4 text-sm font-mono resize-none
           focus:outline-none placeholder:text-gray-400 dark:placeholder:text-gray-600"
       />
     </div>
@@ -486,7 +477,7 @@ function EditorTab({ content, placeholder, onSave }: EditorTabProps) {
 
 function HistoryTab({ executions }: { executions: AgentExecution[] }) {
   if (executions.length === 0) {
-    return <EmptyState icon="📋" title="暂无执行记录" />
+    return <EmptyState icon={<ClipboardList size={28} />} title="暂无执行记录" />
   }
 
   // 按时间倒序
@@ -522,11 +513,10 @@ const HistoryRow = memo(function HistoryRow({ exec }: { exec: AgentExecution }) 
 
   return (
     <>
-      <tr
-        onClick={() => setExpanded(!expanded)}
-        className={cn(TABLE_ROW, 'cursor-pointer')}
-      >
-        <td className={cn(TABLE_TD, 'text-gray-500 dark:text-gray-400 whitespace-nowrap')}>{timeStr}</td>
+      <tr onClick={() => setExpanded(!expanded)} className={cn(TABLE_ROW, 'cursor-pointer')}>
+        <td className={cn(TABLE_TD, 'text-gray-500 dark:text-gray-400 whitespace-nowrap')}>
+          {timeStr}
+        </td>
         <td className={TABLE_TD}>
           <span
             className={`text-xs px-1.5 py-0.5 rounded ${
@@ -675,7 +665,7 @@ function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
               setName(e.target.value)
               markDirty()
             }}
-            className="w-full bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm
+            className="w-full bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm
               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
           />
         </div>
@@ -696,7 +686,7 @@ function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
               markDirty()
             }}
             rows={3}
-            className="w-full bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm resize-none
+            className="w-full bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm resize-none
               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
           />
         </div>
@@ -716,7 +706,7 @@ function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
               className={`flex-1 px-3 py-2 rounded-lg text-sm transition-colors border ${
                 modelTier === 'low_cost'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-[#1e222c] text-gray-600 dark:text-gray-300 border-gray-300 dark:border-white/[0.08] hover:border-blue-400'
+                  : 'bg-white dark:bg-surface-elevated text-gray-600 dark:text-gray-300 border-gray-300 dark:border-white/[0.08] hover:border-blue-400'
               }`}
             >
               低成本
@@ -730,7 +720,7 @@ function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
               className={`flex-1 px-3 py-2 rounded-lg text-sm transition-colors border ${
                 modelTier === 'high_quality'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-[#1e222c] text-gray-600 dark:text-gray-300 border-gray-300 dark:border-white/[0.08] hover:border-blue-400'
+                  : 'bg-white dark:bg-surface-elevated text-gray-600 dark:text-gray-300 border-gray-300 dark:border-white/[0.08] hover:border-blue-400'
               }`}
             >
               高质量

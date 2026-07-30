@@ -101,12 +101,8 @@ export function registerEAAHandlers(_win: BrowserWindow) {
     const stop = startIpcTimer('eaa:ranking')
     try {
       // R86 软发现-1 修复：IPC 层也做参数校验，与 eaa-tools.ts rankingTool 保持一致
-      // 之前 ranking(-1/NaN/1e10/'abc') 全部返回 success（fall back 到 full ranking）
-      // 现在拒绝非数字 / NaN / Infinity / 负数；undefined 和 0 视为"全部"，正整数正常处理
-      if (
-        n !== undefined &&
-        (typeof n !== 'number' || !Number.isFinite(n) || n < 0)
-      ) {
+      // 拒绝非数字 / NaN / Infinity / 负数；undefined 和 0 视为"全部"，正整数正常处理
+      if (n !== undefined && (typeof n !== 'number' || !Number.isFinite(n) || n < 0)) {
         return {
           success: false,
           error: `参数 n 必须是非负有限数,收到: ${JSON.stringify(n)}`,
@@ -122,9 +118,13 @@ export function registerEAAHandlers(_win: BrowserWindow) {
       ) {
         return rankingCache.data
       }
+      // 关键修复: EAA CLI `ranking [N]` 默认 N=10, 且 N=0 返回空(均非"全量")。
+      // IPC 契约是 undefined/0 = 全量, 因此显式传一个覆盖任何现实规模的大 N。
+      // 此前传 [] 导致 Dashboard 班级过滤只能看到全校 top10 内的学生(班级对比无数据)。
+      const RANKING_ALL_N = '100000'
       const result = await eaaBridge.execute({
         command: 'ranking',
-        args: n !== undefined && n > 0 ? [String(Math.min(1000, Math.floor(n)))] : [],
+        args: n !== undefined && n > 0 ? [String(Math.min(1000, Math.floor(n)))] : [RANKING_ALL_N],
       })
       // class_id 已由 EAA CLI 返回,无需额外填充
       // 性能优化: 用 ranking 数据预填充 scoreCache

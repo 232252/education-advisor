@@ -5,6 +5,7 @@
 // =============================================================
 
 import { useEffect, useRef } from 'react'
+import { btnStyle } from '../lib/ui-utils'
 
 interface ConfirmDialogProps {
   /** 是否显示对话框 */
@@ -70,7 +71,7 @@ export function ConfirmDialog({
       }}
     >
       <div
-        className="bg-white dark:bg-[#1e222c] rounded-xl shadow-xl border border-gray-200/50 dark:border-white/[0.08] w-96 max-w-[90vw] p-5 animate-scale-in"
+        className="bg-white dark:bg-surface-elevated rounded-xl shadow-xl border border-gray-200/50 dark:border-white/[0.08] w-96 max-w-[90vw] p-5 animate-scale-in"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
@@ -91,11 +92,7 @@ export function ConfirmDialog({
           {message}
         </p>
         <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
+          <button type="button" onClick={onCancel} className={btnStyle('secondary')}>
             {cancelText}
           </button>
           <button

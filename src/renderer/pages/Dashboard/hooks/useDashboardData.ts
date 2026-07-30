@@ -29,7 +29,10 @@ export function useDashboardData() {
       return r.success && r.data ? r.data : null
     },
     ranking: async (): Promise<EAARankItem[]> => {
-      const r = await getAPI().eaa.ranking(10)
+      // 拉全量排行(不传 n), 由前端按班级过滤后再 slice(0,10) 展示。
+      // 修复: 之前 ranking(10) 只取全校前10, 班级过滤在 top10 之外的学生全部丢失,
+      // 导致"班级对比/班级筛选看不到数据"(数据越多越明显)。
+      const r = await getAPI().eaa.ranking()
       return r.success && r.data?.ranking ? r.data.ranking : []
     },
     eaaInfo: async (): Promise<EAAInfoData | null> => {

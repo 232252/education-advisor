@@ -4,7 +4,7 @@
 // =============================================================
 
 import type { EAAHistoryData, EAAStudent, EAAStudentScore } from '@shared/types'
-import ReactEChartsCore from 'echarts-for-react/lib/core'
+import ReactEChartsCore from 'echarts-for-react/esm/core'
 import { useMemo } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
 import { useChartTheme } from '../../../hooks/useChartTheme'

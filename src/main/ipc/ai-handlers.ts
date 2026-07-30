@@ -266,10 +266,7 @@ export function registerAIHandlers(win: BrowserWindow) {
     ) => {
       try {
         // R78: 参数校验 — providerId/modelId 必须为非空字符串
-        if (
-          typeof params?.providerId !== 'string' ||
-          params.providerId.trim().length === 0
-        ) {
+        if (typeof params?.providerId !== 'string' || params.providerId.trim().length === 0) {
           return { success: false, error: 'providerId is required and must be a non-empty string' }
         }
         if (typeof params?.modelId !== 'string' || params.modelId.trim().length === 0) {

@@ -107,9 +107,10 @@ describe('ui-utils', () => {
       }
     })
 
-    it('所有变体都包含 focus:ring', () => {
+    it('所有变体都包含 focus ring (focus-visible)', () => {
+      // 实现演进: 用 focus-visible:ring 替代 focus:ring (键盘导航显示,鼠标点击不显示)
       for (const v of ['primary', 'secondary', 'danger', 'ghost'] as const) {
-        expect(btnStyle(v)).toContain('focus:ring')
+        expect(btnStyle(v)).toMatch(/focus(?:-visible)?:ring/)
       }
     })
   })

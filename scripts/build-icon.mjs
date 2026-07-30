@@ -77,24 +77,41 @@ async function main() {
   const svg = readFileSync(SVG_PATH)
 
   // Rasterize each size.
+  // 清晰度优化:
+  //  - 小尺寸(≤48)禁用 palette 量化,避免颜色精度损失导致发灰/模糊;
+  //    用较低 compressionLevel 减少压缩伪影(小图本就很小,无需激进压缩)。
+  //  - 大尺寸用 palette 提升压缩效率,compressionLevel 9。
+  //  - density 768(v2 从 384 提升) 让矢量曲线/渐变在缩放时保留更多细节,边缘更锐利。
   const buffers = []
   for (const size of SIZES) {
-    const buf = await sharp(svg, { density: 384 })
+    const small = size <= 48
+    const buf = await sharp(svg, { density: 768 })
       .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .png({ compressionLevel: 9, palette: size <= 32 })
+      .png({
+        compressionLevel: small ? 6 : 9,
+        palette: false, // 全尺寸保留完整 RGBA,不再对任何尺寸做调色板量化
+        quality: 100,
+      })
       .toBuffer()
     buffers.push(buf)
     console.log(`  ${size}×${size}  →  ${buf.length} bytes`)
   }
 
   // Save the 256/512/1024 PNGs for macOS / Linux.
+  // 高清 PNG: density 提到 72*4=288 已足够,但用更高 density(512)让细节更锐利。
+  // 同时把每个 ICO 帧导出为独立 PNG (icon-16..icon-256), 供运行时按需取精确尺寸:
+  //  - 托盘图标用 16@1x + 32@2x 多分辨率 NativeImage, 高 DPI 下不模糊
+  //  - 每个帧都是直接从 SVG 按目标尺寸栅格化, 比从 512 缩小更清晰
+  for (let i = 0; i < SIZES.length; i++) {
+    writeFileSync(join(ROOT, 'resources', `icon-${SIZES[i]}.png`), buffers[i])
+  }
   writeFileSync(PNG_256, buffers[SIZES.indexOf(256)])
-  writeFileSync(PNG_512, await sharp(svg, { density: 384 })
-    .resize(512, 512).png({ compressionLevel: 9 }).toBuffer())
-  writeFileSync(PNG_1024, await sharp(svg, { density: 384 })
-    .resize(1024, 1024).png({ compressionLevel: 9 }).toBuffer())
-  writeFileSync(PNG_PATH, await sharp(svg, { density: 384 })
-    .resize(512, 512).png({ compressionLevel: 9 }).toBuffer())
+  writeFileSync(PNG_512, await sharp(svg, { density: 1024 })
+    .resize(512, 512).png({ compressionLevel: 9, palette: false }).toBuffer())
+  writeFileSync(PNG_1024, await sharp(svg, { density: 1024 })
+    .resize(1024, 1024).png({ compressionLevel: 9, palette: false }).toBuffer())
+  writeFileSync(PNG_PATH, await sharp(svg, { density: 1024 })
+    .resize(512, 512).png({ compressionLevel: 9, palette: false }).toBuffer())
   console.log(`Wrote ${PNG_PATH} (512×512)`)
 
   // Build the .ico (PNG-in-ICO, hand-rolled).

@@ -53,6 +53,13 @@ export type StreamEvent =
   | { type: 'tool_result'; id: string; result: string; isError: boolean }
   | { type: 'done'; usage: TokenUsage; cost: number }
   | { type: 'error'; message: string; retryable: boolean; retry?: RetryPolicyInfo }
+  | {
+      type: 'retry'
+      attempt: number
+      maxRetries: number
+      delayMs: number
+      reason: string
+    }
 
 /** 重试策略信息(从 settings.models.retry.* 读,附在 error 事件上供渲染端展示) */
 export interface RetryPolicyInfo {
@@ -462,8 +469,15 @@ export interface CronTask {
   enabled: boolean
   modelTier: 'high_quality' | 'low_cost'
   lastRunAt?: number
-  /** R57-3 H3: 新增 skipped_concurrent_limit; R57-3 H1: 新增 pending(恢复时初始态) */
-  lastStatus?: 'success' | 'error' | 'timeout' | 'skipped_concurrent_limit' | 'pending'
+  /** R57-3 H3: 新增 skipped_concurrent_limit; R57-3 H1: 新增 pending(恢复时初始态)
+   *  circuit-breaker: 连续配额类错误(429/quota)熔断后,cron 触发被跳过 */
+  lastStatus?:
+    | 'success'
+    | 'error'
+    | 'timeout'
+    | 'skipped_concurrent_limit'
+    | 'skipped_circuit_breaker'
+    | 'pending'
   nextRunAt?: number
 }
 
@@ -472,8 +486,9 @@ export interface CronLogEntry {
   agentId: string
   timestamp: number
   durationMs: number
-  /** R57-3 H3: 新增 skipped_concurrent_limit(并发上限跳过时记录) */
-  status: 'success' | 'error' | 'timeout' | 'skipped_concurrent_limit'
+  /** R57-3 H3: 新增 skipped_concurrent_limit(并发上限跳过时记录)
+   *  circuit-breaker: 熔断跳过时记录 */
+  status: 'success' | 'error' | 'timeout' | 'skipped_concurrent_limit' | 'skipped_circuit_breaker'
   error?: string
 }
 
@@ -606,6 +621,8 @@ export interface UnifiedSettings {
     autoAnonymize: boolean
   }
   feishu: {
+    /** 域名版本: 'feishu' 国内版(open.feishu.cn) / 'lark' 国际版(open.larksuite.com) */
+    domain: 'feishu' | 'lark'
     appId: string
     appSecret: string
     userOpenId: string

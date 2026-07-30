@@ -73,6 +73,16 @@ function eaaRun(args: string[], opts: { json?: boolean; timeout?: number } = {})
 
 /** 重置 eaa 数据（清空学生和事件） */
 function resetEaaData(): void {
+  // 完整重置: eaa 实际存储是 events/events.jsonl + entities/*.cache.json + logs/,
+  // 只重写 3 个种子文件会残留 scores 缓存和 jsonl 事件, 产生"幽灵实体"(name="?")
+  // 污染后续 ranking。直接删整个 data 目录再重建种子结构。
+  try {
+    rmSync(TEST_DATA, { recursive: true, force: true })
+  } catch {
+    /* ignore */
+  }
+  mkdirSync(join(TEST_DATA, 'entities'), { recursive: true })
+  mkdirSync(join(TEST_DATA, 'events'), { recursive: true })
   writeFileSync(join(TEST_DATA, 'entities', 'entities.json'), '{"entities":{}}')
   writeFileSync(join(TEST_DATA, 'entities', 'name_index.json'), '{}')
   writeFileSync(join(TEST_DATA, 'events', 'events.json'), '[]')
@@ -159,8 +169,14 @@ const mockApi = {
         return { success: false, error: String(e) }
       }
     }),
-    ranking: vi.fn(async (n: number) => {
-      const r = (await eaaRun(['ranking', String(n), '-O', 'json'], { json: true })) as {
+    ranking: vi.fn(async (n?: number) => {
+      // 与修复后的真实 IPC handler 一致: 不传 n 时显式传大 N 拉全量排行
+      // (EAA CLI `ranking [N]` 默认 N=10, 不是全量)
+      const args =
+        n !== undefined && n > 0
+          ? ['ranking', String(n), '-O', 'json']
+          : ['ranking', '100000', '-O', 'json']
+      const r = (await eaaRun(args, { json: true })) as {
         ranking: Array<{ rank: number; name: string; entity_id: string; class_id?: string | null; score: number }>
       }
       // 增强: 用 listStudents 的 class_id 填充 ranking (与 IPC handler 逻辑一致)
@@ -488,7 +504,8 @@ describe('业务场景 E2E: 班级 + 学生 + 仪表盘', () => {
     })
 
     it('按 class_id 过滤 ranking 应能正确分组（用户关键场景）', async () => {
-      const r = (await mockApi.eaa.ranking(10)) as { data: { ranking: Array<{ name: string; class_id: string | null; score: number }> } }
+      // 与修复后的 Dashboard 行为一致: 拉全量排行再按班级过滤
+      const r = (await mockApi.eaa.ranking()) as { data: { ranking: Array<{ name: string; class_id: string | null; score: number }> } }
       const ranking = r.data.ranking
 
       // 模拟 React classFilter 逻辑

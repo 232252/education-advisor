@@ -14,7 +14,16 @@ import { PageHeader } from '../../components/PageHeader'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
-import { btnStyle, CARD_BASE, cn, INPUT_BASE, TABLE_ROW, TABLE_STICKY_HEAD, TABLE_TD, TABLE_TH } from '../../lib/ui-utils'
+import {
+  btnStyle,
+  CARD_BASE,
+  cn,
+  INPUT_BASE,
+  TABLE_ROW,
+  TABLE_STICKY_HEAD,
+  TABLE_TD,
+  TABLE_TH,
+} from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
 import { ClassProfile } from './ClassProfile'
 import { computeAutoClassId } from './class-id'
@@ -417,13 +426,9 @@ export function ClassesPage() {
                   <th className={TABLE_TH}>{t('page.classes.col.name')}</th>
                   <th className={TABLE_TH}>{t('page.classes.col.grade')}</th>
                   <th className={TABLE_TH}>{t('page.classes.col.teacher')}</th>
-                  <th className={cn(TABLE_TH, 'text-center')}>
-                    {t('page.classes.col.students')}
-                  </th>
+                  <th className={cn(TABLE_TH, 'text-center')}>{t('page.classes.col.students')}</th>
                   <th className={TABLE_TH}>{t('page.classes.col.status')}</th>
-                  <th className={cn(TABLE_TH, 'text-center')}>
-                    {t('page.classes.col.action')}
-                  </th>
+                  <th className={cn(TABLE_TH, 'text-center')}>{t('page.classes.col.action')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -440,7 +445,9 @@ export function ClassesPage() {
                       selectedClass?.id === c.id && 'bg-blue-600/10 border-l-2 border-l-blue-400',
                     )}
                   >
-                    <td className={cn(TABLE_TD, 'font-mono text-xs text-gray-600 dark:text-gray-300')}>
+                    <td
+                      className={cn(TABLE_TD, 'font-mono text-xs text-gray-600 dark:text-gray-300')}
+                    >
                       {c.class_id}
                     </td>
                     <td className={cn(TABLE_TD, 'font-medium')}>{c.name}</td>
@@ -568,7 +575,11 @@ export function ClassesPage() {
                   onChange={(e) => onClassIdChange(e.target.value)}
                   disabled={!!editingId}
                   placeholder="G7-3"
-                  className={cn('w-full', INPUT_BASE, 'disabled:opacity-50 disabled:cursor-not-allowed')}
+                  className={cn(
+                    'w-full',
+                    INPUT_BASE,
+                    'disabled:opacity-50 disabled:cursor-not-allowed',
+                  )}
                 />
                 <span className="block text-xs text-gray-400 mt-0.5">
                   {autoClassId && !editingId

@@ -31,7 +31,7 @@ export function EmptyState({ icon, title, description, action, className }: Empt
           {typeof icon === 'string' ? (
             <span className="text-5xl drop-shadow-sm">{icon}</span>
           ) : (
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#1e222c] dark:to-[#161920] ring-1 ring-gray-200/60 dark:ring-white/[0.06] flex items-center justify-center text-gray-400 dark:text-gray-500">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-surface-elevated dark:to-surface-secondary ring-1 ring-gray-200/60 dark:ring-white/[0.06] flex items-center justify-center text-gray-400 dark:text-gray-500">
               {icon}
             </div>
           )}

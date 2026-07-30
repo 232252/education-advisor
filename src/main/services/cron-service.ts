@@ -13,14 +13,38 @@ import path from 'node:path'
 import { app, type BrowserWindow } from 'electron'
 import cron from 'node-cron'
 import * as IPC from '../../shared/ipc-channels'
-import type { CronLogEntry, CronTask } from '../../shared/types'
+import type { AgentExecution, CronLogEntry, CronTask } from '../../shared/types'
 import { log } from '../utils/logger'
 import { syncBitableNow } from './feishu-service'
 import { keystoreService } from './keystore-service'
 import { settingsService } from './settings-service'
 
+/**
+ * 判断 5 字段 cron 表达式是否"过于激进"(触发间隔 < minMinutes 分钟)。
+ * 用于防止 bitable 同步等系统任务被配置成每秒/每分钟执行,导致 LLM/API 成本失控。
+ *
+ * 策略: 解析分钟字段,若为星号(每分钟)或"星号斜杠 N"步进(N < minMinutes)则判定为激进。
+ * 仅做保守下限判断,不覆盖所有边界情况——足够拦截最常见的危险配置。
+ */
+export function isTooAggressiveCron(expr: string, minMinutes = 5): boolean {
+  const fields = expr.trim().split(/\s+/)
+  if (fields.length < 5) return false
+  const minuteField = fields[0]
+  // `*` = 每分钟
+  if (minuteField === '*') return true
+  // `*/N` = 每 N 分钟
+  const stepMatch = minuteField.match(/^\*\/(\d+)$/)
+  if (stepMatch) {
+    const step = Number(stepMatch[1])
+    return Number.isFinite(step) && step < minMinutes
+  }
+  return false
+}
+
 class CronService {
   private static readonly MAX_USER_TASKS = 100
+  /** circuit-breaker: 连续配额类错误达此阈值后,暂停该任务的 cron 触发 */
+  private static readonly CIRCUIT_BREAKER_THRESHOLD = 3
 
   private tasks: Map<string, CronTask> = new Map()
   private scheduledJobs: Map<string, cron.ScheduledTask> = new Map()
@@ -40,10 +64,15 @@ class CronService {
   private mainWindow: BrowserWindow | null = null
   /** H-2.3 修复: per-task 执行锁,防止 runNow 与 cron 定时同时触发同一任务造成竞态 */
   private runningTasks: Set<string> = new Set()
+  /** circuit-breaker: per-task 连续失败计数 + 熔断状态
+   *  修复 Agent 调度配额耗尽后空转 —— 配额(429/quota)耗尽时,后续 cron 触发持续失败空转。
+   *  达阈值后跳过 cron 触发;runNow 手动触发绕过熔断(成功则重置)。
+   *  纯内存,不持久化(重启给配额恢复一次重新尝试的机会)。 */
+  private circuitBreaker: Map<string, { consecutiveFails: number; tripped: boolean }> = new Map()
 
   /** 延迟注入，避免循环依赖 */
   private agentRunner:
-    | ((agentId: string, prompt: string, win: BrowserWindow) => Promise<void>)
+    | ((agentId: string, prompt: string, win: BrowserWindow) => Promise<AgentExecution | undefined>)
     | null = null
 
   constructor() {
@@ -129,7 +158,14 @@ class CronService {
       const json = JSON.stringify({ tasks: userTasks, savedAt: Date.now() }, null, 2)
       // 原子写：tmp + rename（与 profile-service 一致策略）
       const tmpPath = `${this.userTasksFilePath}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
-      await fsp.writeFile(tmpPath, json, 'utf-8')
+      // A6 修复: fd 写入 + fsync 确保任务落盘后再 rename (与 settings/keystore 一致)
+      const fd = await fsp.open(tmpPath, 'w')
+      try {
+        await fd.writeFile(json, 'utf-8')
+        await fd.sync()
+      } finally {
+        await fd.close()
+      }
       await fsp.rename(tmpPath, this.userTasksFilePath)
     } catch (err) {
       console.error('[CronService] Failed to persist user tasks:', err)
@@ -141,7 +177,13 @@ class CronService {
   }
 
   /** 注入 agent 执行函数（由 agent-service 在初始化时调用） */
-  setAgentRunner(fn: (agentId: string, prompt: string, win: BrowserWindow) => Promise<void>) {
+  setAgentRunner(
+    fn: (
+      agentId: string,
+      prompt: string,
+      win: BrowserWindow,
+    ) => Promise<AgentExecution | undefined>,
+  ) {
     this.agentRunner = fn
   }
 
@@ -192,9 +234,15 @@ class CronService {
 
   /** 删除任务 */
   removeTask(id: string) {
+    // R169 修复: removeTask 对不存在的任务返回 success:true,与 toggleTask 行为不一致
+    // 此前 removeTask('non-existent') 返回 {success:true},导致前端误以为删除成功
+    if (!this.tasks.has(id)) {
+      return { success: false, error: 'Task not found' }
+    }
     this.unschedule(id)
     this.tasks.delete(id)
     this.nextRunAt.delete(id)
+    this.resetCircuitBreaker(id)
     // R87 BUG-1 修复：用户任务删除后落盘
     if (this.isUserTask(id)) this.persistUserTasksDebounced()
     return { success: true }
@@ -209,6 +257,8 @@ class CronService {
 
     if (enabled) {
       this.schedule(id, task)
+      // circuit-breaker: 重新启用任务时重置熔断,给用户"关掉再开"的恢复手段
+      this.resetCircuitBreaker(id)
     } else {
       this.unschedule(id)
     }
@@ -218,9 +268,17 @@ class CronService {
     return { success: true }
   }
 
-  /** 立即执行任务 */
+  /** 立即执行任务（手动触发，绕过熔断；成功则重置熔断状态） */
   async runNow(id: string) {
-    await this.executeTask(id)
+    await this.executeTask(id, 'manual')
+  }
+
+  /**
+   * 模拟 cron 定时触发执行（供测试与外部调度器使用）。
+   * 与 cron 回调走同一路径，受熔断器约束。
+   */
+  async triggerScheduled(id: string) {
+    await this.executeTask(id, 'cron')
   }
 
   /** 获取执行日志 */
@@ -243,13 +301,34 @@ class CronService {
       // syncInterval 可能是 cron 表达式(包含空格)或分钟数
       let expr: string
       if (typeof intervalRaw === 'string' && intervalRaw.trim().split(/\s+/).length >= 5) {
-        // 已经是完整的 cron 表达式（5 字段），直接使用
-        expr = intervalRaw
+        // 已经是完整的 cron 表达式（5 字段）。B6-2 修复: 必须通过 node-cron 校验,
+        // 否则任意 "a b c d e" 或 "* * * * *" 都会被当作合法 cron,导致无限/错误调度。
+        const candidate = intervalRaw.trim()
+        if (!cron.validate(candidate)) {
+          log(
+            'warn',
+            'cron',
+            `bitableSync.syncInterval='${candidate}' 不是合法 cron 表达式,回退到默认 6 小时`,
+          )
+          expr = '0 */6 * * *'
+        } else if (isTooAggressiveCron(candidate)) {
+          // B6-2 修复: 拒绝过于激进的调度(如每秒/每分钟),防止 bitable 同步+LLM 成本失控
+          log(
+            'warn',
+            'cron',
+            `bitableSync.syncInterval='${candidate}' 过于激进(< 5 分钟),已放宽到每 5 分钟以控制成本`,
+          )
+          expr = '*/5 * * * *'
+        } else {
+          expr = candidate
+        }
       } else {
         // 视为分钟数，转换为 cron 表达式
         const minutes = typeof intervalRaw === 'number' ? intervalRaw : Number(intervalRaw) || 360
         if (minutes < 60) {
-          expr = `*/${Math.max(1, Math.round(minutes))} * * * *`
+          // B6-2: 分钟数模式下也强制不低于 5 分钟
+          const safeMinutes = Math.max(5, Math.round(minutes))
+          expr = `*/${safeMinutes} * * * *`
         } else {
           const hours = Math.max(1, Math.round(minutes / 60))
           expr = `0 */${Math.min(23, hours)} * * *`
@@ -293,6 +372,8 @@ class CronService {
       const appId = s.feishu.appId ?? ''
       // appSecret 从 keystore 加密存储读取
       const appSecret = keystoreService.getSecret('feishu-app-secret') ?? ''
+      // 域名版本: 国内版 feishu / 国际版 lark
+      const domain = s.feishu.domain ?? 'feishu'
       // C-1 修复: 从 settings 读取 bitableAppToken 和 bitableTableId,
       // 不再用 userOpenId 占位 + tableId 硬编码 'log'
       const appToken = s.feishu.bitableAppToken ?? ''
@@ -314,7 +395,7 @@ class CronService {
       let timeoutHandle: NodeJS.Timeout | undefined
       try {
         const result = await Promise.race([
-          syncBitableNow(appId, appSecret, appToken, tableId, fields),
+          syncBitableNow(appId, appSecret, appToken, tableId, fields, domain),
           new Promise<{ success: false; error: string }>((resolve) => {
             timeoutHandle = setTimeout(
               () => resolve({ success: false, error: 'bitable sync timed out (30s)' }),
@@ -424,7 +505,7 @@ class CronService {
     } catch (err) {
       console.warn('[CronService] Failed to read timezone from settings, using default:', err)
     }
-    const job = cron.schedule(task.expression, () => this.executeTask(id), {
+    const job = cron.schedule(task.expression, () => this.executeTask(id, 'cron'), {
       timezone,
     })
     this.scheduledJobs.set(id, job)
@@ -450,11 +531,39 @@ class CronService {
   }
 
   /** 执行任务 — Critical 2.2 修复: __feishu__ 路由到 executeBitableSync 而非 agentRunner
-   *  High 2.3 修复: per-task 锁防止 runNow + cron 定时并发执行同一任务 */
-  private async executeTask(taskId: string) {
+   *  High 2.3 修复: per-task 锁防止 runNow + cron 定时并发执行同一任务
+   *  circuit-breaker: source='cron' 受熔断约束(连续配额错误后跳过);source='manual' 绕过熔断 */
+  private async executeTask(taskId: string, source: 'cron' | 'manual' = 'cron') {
     const task = this.tasks.get(taskId)
     if (!task) return
     if (!this.mainWindow) return
+
+    // circuit-breaker: cron 触发时若已熔断,跳过执行(避免配额耗尽后持续空转)
+    // runNow(manual) 绕过此检查 —— 用户主动操作应执行,成功则顺带重置熔断
+    if (source === 'cron' && this.isCircuitTripped(taskId)) {
+      const timestamp = Date.now()
+      task.lastRunAt = timestamp
+      task.lastStatus = 'skipped_circuit_breaker'
+      log(
+        'warn',
+        'cron',
+        `Task ${taskId} skipped (circuit breaker tripped after ${CronService.CIRCUIT_BREAKER_THRESHOLD} consecutive quota errors); run manually or toggle off/on to reset`,
+      )
+      this.pushLog({
+        taskId,
+        agentId: task.agentId,
+        timestamp,
+        durationMs: 0,
+        status: 'skipped_circuit_breaker',
+        error: '配额类错误连续失败,熔断保护已触发',
+      })
+      this.mainWindow?.webContents.send(IPC.IPC_CRON_STATUS_UPDATE, {
+        taskId,
+        lastRunAt: task.lastRunAt,
+        lastStatus: task.lastStatus,
+      })
+      return
+    }
 
     // High 2.3 修复: per-task 锁,避免 runNow + cron 同时触发同一任务
     if (this.runningTasks.has(taskId)) {
@@ -488,6 +597,7 @@ class CronService {
         } else {
           task.lastRunAt = timestamp
           task.lastStatus = 'success'
+          this.recordTaskSuccess(taskId)
           this.pushLog({
             taskId,
             agentId: task.agentId,
@@ -497,23 +607,50 @@ class CronService {
           })
         }
       } else if (this.agentRunner) {
-        await this.agentRunner(task.agentId, task.prompt, this.mainWindow)
+        // R169 修复: runAgent 内部吞错(经状态事件上报),不再仅凭"未抛错"记 success。
+        // 改为依据返回的 AgentExecution.status 记日志;error 时投喂熔断器(429/quota)。
+        // undefined = 排队期间被 abort 放弃执行,记 error(skipped)。
+        const execution = await this.agentRunner(task.agentId, task.prompt, this.mainWindow)
         task.lastRunAt = timestamp
-        task.lastStatus = 'success'
+        if (execution && execution.status === 'success') {
+          task.lastStatus = 'success'
+          // circuit-breaker: 成功执行重置失败计数(含 runNow 手动成功恢复熔断)
+          this.recordTaskSuccess(taskId)
 
-        this.pushLog({
-          taskId,
-          agentId: task.agentId,
-          timestamp,
-          durationMs: Date.now() - startTime,
-          status: 'success',
-        })
+          this.pushLog({
+            taskId,
+            agentId: task.agentId,
+            timestamp,
+            durationMs: Date.now() - startTime,
+            status: 'success',
+          })
+        } else {
+          // R170: errMsg 截断 — 失败时 execution.output 可能含上千字部分输出,全量进内存日志+JSONL 会膨胀
+          const rawErr = execution
+            ? execution.output || `agent 执行失败(status=${execution.status})`
+            : '执行被中止(排队期间 abort)'
+          const errMsg = rawErr.length > 500 ? `${rawErr.slice(0, 500)}…` : rawErr
+          task.lastStatus = 'error'
+          this.recordTaskFailure(taskId, errMsg)
+
+          this.pushLog({
+            taskId,
+            agentId: task.agentId,
+            timestamp,
+            durationMs: Date.now() - startTime,
+            status: 'error',
+            error: errMsg,
+          })
+        }
       } else {
         console.warn(`[CronService] Agent runner not set, skipping task ${taskId}`)
       }
     } catch (err: unknown) {
       task.lastRunAt = timestamp
       task.lastStatus = 'error'
+      const errMsg = err instanceof Error ? err.message : String(err)
+      // circuit-breaker: 仅配额类错误(429/quota/rate_limit)累计,普通错误(网络抖动等)不熔断
+      this.recordTaskFailure(taskId, errMsg)
 
       this.pushLog({
         taskId,
@@ -521,7 +658,7 @@ class CronService {
         timestamp,
         durationMs: Date.now() - startTime,
         status: 'error',
-        error: err instanceof Error ? err.message : String(err),
+        error: errMsg,
       })
     } finally {
       // High 2.3: 释放 per-task 锁
@@ -533,6 +670,61 @@ class CronService {
         lastStatus: task.lastStatus,
       })
     }
+  }
+
+  // ===========================================================
+  // circuit-breaker 内部方法
+  // ===========================================================
+
+  /** 判断错误是否为配额类(持续会失败,值得熔断)。与 agent-service.ts isNonRetryableError 关键词对齐。 */
+  private isQuotaError(msg: string): boolean {
+    if (!msg) return false
+    const lower = msg.toLowerCase()
+    return (
+      lower.includes('429') ||
+      lower.includes('rate_limit') ||
+      lower.includes('rate limit') ||
+      lower.includes('too many requests') ||
+      lower.includes('quota') ||
+      lower.includes('用量上限') ||
+      lower.includes('配额')
+    )
+  }
+
+  /** 记录任务失败:仅配额类错误累加计数,达阈值则熔断 */
+  private recordTaskFailure(taskId: string, errMsg: string): void {
+    if (!this.isQuotaError(errMsg)) return
+    const state = this.circuitBreaker.get(taskId) ?? { consecutiveFails: 0, tripped: false }
+    state.consecutiveFails += 1
+    if (state.consecutiveFails >= CronService.CIRCUIT_BREAKER_THRESHOLD && !state.tripped) {
+      state.tripped = true
+      log(
+        'warn',
+        'cron',
+        `Task ${taskId} circuit breaker TRIPPED after ${state.consecutiveFails} consecutive quota errors; subsequent cron triggers will be skipped until a manual run succeeds or the task is toggled`,
+      )
+    }
+    this.circuitBreaker.set(taskId, state)
+  }
+
+  /** 记录任务成功:清零失败计数,解除熔断 */
+  private recordTaskSuccess(taskId: string): void {
+    const state = this.circuitBreaker.get(taskId)
+    if (!state) return
+    if (state.tripped || state.consecutiveFails > 0) {
+      log('info', 'cron', `Task ${taskId} circuit breaker reset (successful execution)`)
+    }
+    this.circuitBreaker.delete(taskId)
+  }
+
+  /** 查询任务是否已熔断 */
+  private isCircuitTripped(taskId: string): boolean {
+    return this.circuitBreaker.get(taskId)?.tripped === true
+  }
+
+  /** 重置任务熔断状态(供 toggleTask 关再开时调用,给用户手动恢复手段) */
+  private resetCircuitBreaker(taskId: string): void {
+    this.circuitBreaker.delete(taskId)
   }
 
   private pushLog(entry: CronLogEntry) {

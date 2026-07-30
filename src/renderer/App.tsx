@@ -56,11 +56,11 @@ function RouteFallback() {
         <div className="animate-pulse rounded-md bg-gray-200 dark:bg-white/[0.06] h-8 w-1/2" />
         <div className="animate-pulse rounded-md bg-gray-200 dark:bg-white/[0.06] h-3 w-2/3" />
         <div className="grid grid-cols-2 gap-4 mt-6">
-          <div className="animate-pulse rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-[#1a1e28] p-5 space-y-3">
+          <div className="animate-pulse rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary p-5 space-y-3">
             <div className="animate-pulse rounded-md bg-gray-200 dark:bg-white/[0.06] h-4 w-1/3" />
             <div className="animate-pulse rounded-md bg-gray-200 dark:bg-white/[0.06] h-8 w-1/2" />
           </div>
-          <div className="animate-pulse rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-[#1a1e28] p-5 space-y-3">
+          <div className="animate-pulse rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary p-5 space-y-3">
             <div className="animate-pulse rounded-md bg-gray-200 dark:bg-white/[0.06] h-4 w-1/3" />
             <div className="animate-pulse rounded-md bg-gray-200 dark:bg-white/[0.06] h-8 w-1/2" />
           </div>

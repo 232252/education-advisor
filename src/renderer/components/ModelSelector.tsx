@@ -157,11 +157,11 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08] rounded-lg px-3 py-1.5
+        className="flex items-center gap-1.5 bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-3 py-1.5
                    text-xs text-gray-600 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500 transition-colors max-w-[280px] truncate"
       >
         <svg
-          className="w-3.5 h-3.5 flex-shrink-0 text-gray-500 dark:text-gray-400"
+          className="w-4 h-4 flex-shrink-0 text-gray-500 dark:text-gray-400"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -178,7 +178,7 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
         </svg>
         <span className="truncate">{displayText}</span>
         <svg
-          className={`w-3 h-3 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -192,7 +192,7 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
 
       {open && (
         <div
-          className="absolute top-full left-0 mt-2 w-[480px] max-h-[400px] bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08]
+          className="absolute top-full left-0 mt-2 w-[480px] max-h-[400px] bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08]
                         rounded-xl shadow-2xl overflow-hidden z-50"
         >
           <div className="flex h-[400px]">

@@ -32,7 +32,7 @@ export function riskBgColor(risk: EAARiskLevel | string): string {
     case '极高':
       return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
     default:
-      return 'bg-gray-100 dark:bg-[#1e222c] text-gray-600 dark:text-gray-400'
+      return 'bg-gray-100 dark:bg-surface-elevated text-gray-600 dark:text-gray-400'
   }
 }
 
@@ -95,33 +95,33 @@ export function rankDeltaColor(delta: number | null | undefined): string {
 
 /** 统一卡片样式 */
 export const CARD_BASE =
-  'rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-[#1a1e28] shadow-sm'
+  'rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary shadow-sm'
 
 export const CARD_INTERACTIVE = `${CARD_BASE} transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 hover:border-gray-300 dark:hover:border-white/[0.12]`
 
 /** 统一输入框样式 */
 export const INPUT_BASE =
-  'rounded-lg border border-gray-300 dark:border-white/[0.08] bg-white dark:bg-[#1e222c] text-sm text-gray-900 dark:text-gray-100 px-3 py-2 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-transparent focus:bg-white dark:focus:bg-[#22262f]'
+  'rounded-lg border border-gray-300 dark:border-white/[0.08] bg-white dark:bg-surface-elevated text-sm text-gray-900 dark:text-gray-100 px-3 py-2 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-transparent focus:bg-white dark:focus:bg-[#22262f]'
 
 /** 紧凑型输入框 (Settings 表单 / 内联编辑场景, text-xs 字号) */
 export const INPUT_SM =
-  'rounded-lg border border-gray-300 dark:border-white/[0.08] bg-white dark:bg-[#1e222c] text-xs text-gray-900 dark:text-gray-100 px-2.5 py-1.5 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-transparent focus:bg-white dark:focus:bg-[#22262f]'
+  'rounded-lg border border-gray-300 dark:border-white/[0.08] bg-white dark:bg-surface-elevated text-xs text-gray-900 dark:text-gray-100 px-2.5 py-1.5 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-transparent focus:bg-white dark:focus:bg-[#22262f]'
 
 /** 校验失败的输入框样式 (与 INPUT_BASE 等价但使用红色边框 + 红色 ring) */
 export const INPUT_INVALID =
-  'rounded-lg border border-red-400 dark:border-red-500 bg-white dark:bg-[#1e222c] text-sm text-gray-900 dark:text-gray-100 px-3 py-2 transition-all focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-transparent'
+  'rounded-lg border border-red-400 dark:border-red-500 bg-white dark:bg-surface-elevated text-sm text-gray-900 dark:text-gray-100 px-3 py-2 transition-all focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-transparent'
 
 /** 统一按钮样式 (使用 focus-visible 提升无障碍体验) */
 export function btnStyle(
   variant: 'primary' | 'secondary' | 'danger' | 'ghost' = 'primary',
 ): string {
   const base =
-    'inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-[#0f1117] disabled:opacity-50 disabled:cursor-not-allowed'
+    'inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-primary disabled:opacity-50 disabled:cursor-not-allowed'
   switch (variant) {
     case 'primary':
       return `${base} bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white focus-visible:ring-blue-500 active:scale-[0.97] shadow-sm hover:shadow`
     case 'secondary':
-      return `${base} bg-gray-100 dark:bg-[#1e222c] hover:bg-gray-200 dark:hover:bg-white/[0.08] text-gray-700 dark:text-gray-300 focus-visible:ring-gray-400 border border-gray-200 dark:border-white/[0.08]`
+      return `${base} bg-gray-100 dark:bg-surface-elevated hover:bg-gray-200 dark:hover:bg-white/[0.08] text-gray-700 dark:text-gray-300 focus-visible:ring-gray-400 border border-gray-200 dark:border-white/[0.08]`
     case 'danger':
       return `${base} bg-red-600 hover:bg-red-700 active:bg-red-800 text-white focus-visible:ring-red-500 active:scale-[0.97] shadow-sm hover:shadow`
     case 'ghost':
@@ -134,12 +134,12 @@ export function iconBtnStyle(
   variant: 'primary' | 'secondary' | 'danger' | 'ghost' = 'ghost',
 ): string {
   const base =
-    'inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-[#0f1117] disabled:opacity-50 disabled:cursor-not-allowed'
+    'inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-primary disabled:opacity-50 disabled:cursor-not-allowed'
   switch (variant) {
     case 'primary':
       return `${base} bg-blue-600 hover:bg-blue-700 text-white focus-visible:ring-blue-500`
     case 'secondary':
-      return `${base} bg-gray-100 dark:bg-[#1e222c] hover:bg-gray-200 dark:hover:bg-white/[0.08] text-gray-700 dark:text-gray-300 focus-visible:ring-gray-400 border border-gray-200 dark:border-white/[0.08]`
+      return `${base} bg-gray-100 dark:bg-surface-elevated hover:bg-gray-200 dark:hover:bg-white/[0.08] text-gray-700 dark:text-gray-300 focus-visible:ring-gray-400 border border-gray-200 dark:border-white/[0.08]`
     case 'danger':
       return `${base} bg-red-600 hover:bg-red-700 text-white focus-visible:ring-red-500`
     case 'ghost':
@@ -153,13 +153,13 @@ export const TABLE_TH =
 export const TABLE_TD = 'py-2.5 px-3 text-sm'
 export const TABLE_ROW =
   'border-b border-gray-100 dark:border-white/[0.06] hover:bg-blue-50/40 dark:hover:bg-white/[0.03] transition-colors'
-export const TABLE_STICKY_HEAD = 'sticky top-0 bg-white dark:bg-[#1a1e28] z-10'
+export const TABLE_STICKY_HEAD = 'sticky top-0 bg-white dark:bg-surface-tertiary z-10'
 
 /** ─── 页面头部统一样式常量 ─── */
 export const PAGE_HEADER_BASE =
   'flex items-center justify-between border-b border-gray-200 dark:border-white/[0.06] bg-gradient-to-r from-transparent to-gray-50/50 dark:to-white/[0.02] px-6 py-4 flex-shrink-0'
 export const PAGE_HEADER_STICKY =
-  'sticky top-0 z-10 bg-white/80 dark:bg-[#1a1e28]/80 backdrop-blur border-b border-gray-200 dark:border-white/[0.06] px-6 py-4'
+  'sticky top-0 z-10 bg-white/80 dark:bg-surface-tertiary/80 backdrop-blur border-b border-gray-200 dark:border-white/[0.06] px-6 py-4'
 export const PAGE_TITLE_BASE = 'font-bold tracking-tight text-gray-900 dark:text-white'
 
 /** 统一 badge 样式 */
@@ -177,6 +177,6 @@ export function badgeStyle(
     case 'danger':
       return `${base} bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400`
     case 'neutral':
-      return `${base} bg-gray-100 dark:bg-[#1e222c] text-gray-600 dark:text-gray-400`
+      return `${base} bg-gray-100 dark:bg-surface-elevated text-gray-600 dark:text-gray-400`
   }
 }

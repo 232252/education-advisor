@@ -3,6 +3,7 @@ import { resolve } from 'path'
 
 // 主进程 Vite 配置
 // 将 TypeScript 编译为 Node.js 可执行的 JS
+// 适配 Electron 43 (Node.js 24.18 / Chromium 150)
 export default defineConfig({
   build: {
     ssr: true,
@@ -23,7 +24,7 @@ export default defineConfig({
         'cross-spawn',
       ],
     },
-    target: 'node22',
+    target: 'node24',
     minify: false,
     // Sourcemaps reference files outside the app dir (../pi/packages/*/dist)
     // which electron-builder's asar check rejects. Disabled for packaging.

@@ -9,12 +9,12 @@ import {
   CalendarClock,
   GraduationCap,
   LayoutDashboard,
+  type LucideIcon,
   MessageSquare,
   NotebookPen,
   Settings,
   ShieldCheck,
   Users,
-  type LucideIcon,
 } from 'lucide-react'
 import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
@@ -59,22 +59,22 @@ export function MainLayout() {
   const runningCount = agents.filter((a) => a.status === 'running').length
 
   return (
-    <div className="flex h-screen bg-gray-50 text-gray-900 dark:bg-[#0f1117] dark:text-gray-100">
+    <div className="flex h-screen bg-gray-50 text-gray-900 dark:bg-surface-primary dark:text-gray-100">
       {/* ── 侧边栏 ── */}
-      <aside className="w-56 flex-shrink-0 border-r border-gray-200/60 dark:border-white/[0.06] flex flex-col bg-white/80 dark:bg-[#161920]/90 backdrop-blur-xl">
+      <aside className="w-60 flex-shrink-0 border-r border-gray-200/60 dark:border-white/[0.06] flex flex-col bg-white/80 dark:bg-surface-secondary/90 backdrop-blur-xl">
         {/* Logo */}
         <div className="h-16 flex items-center px-5 border-b border-gray-200/60 dark:border-white/[0.06]">
           <div className="flex items-center gap-3">
             <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-blue-500/25 ring-1 ring-white/30 dark:ring-white/10">
               E
-              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-[#161920]" />
+              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-surface-secondary" />
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-bold tracking-tight text-gray-900 dark:text-white leading-tight">
-                Education Advisor
+                {t('app.name', 'Education Advisor')}
               </span>
               <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium tracking-wide">
-                智能教育管理助手
+                {t('app.tagline', '智能教育管理助手')}
               </span>
             </div>
           </div>
@@ -109,8 +109,8 @@ export function MainLayout() {
                       aria-hidden="true"
                     />
                     <Icon
-                      size={17}
-                      strokeWidth={isActive ? 2.2 : 1.8}
+                      size={19}
+                      strokeWidth={isActive ? 2.4 : 2.0}
                       className="flex-shrink-0 transition-all duration-200"
                     />
                     <span className="truncate">{t(item.labelKey)}</span>
@@ -125,12 +125,12 @@ export function MainLayout() {
         <div className="border-t border-gray-200/60 dark:border-white/[0.06] px-4 py-3">
           <div className="flex items-center justify-between mb-2.5">
             <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest font-semibold">
-              Agents
+              {t('sidebar.agents', 'Agents')}
             </span>
             {runningCount > 0 && (
               <span className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded-full ring-1 ring-blue-500/20">
                 <span className="w-1 h-1 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse" />
-                {runningCount} 运行中
+                {runningCount} {t('sidebar.running', '运行中')}
               </span>
             )}
           </div>

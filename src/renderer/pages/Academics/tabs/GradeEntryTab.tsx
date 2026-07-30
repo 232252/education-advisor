@@ -18,7 +18,7 @@ import { Card } from '../../../components/Card'
 import { EmptyState } from '../../../components/EmptyState'
 import { useT } from '../../../i18n'
 import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
-import { cn, INPUT_BASE, btnStyle } from '../../../lib/ui-utils'
+import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
 import { useChatStore } from '../../../stores/chatStore'
 import { toast } from '../../../stores/toastStore'
 import {
@@ -592,7 +592,7 @@ export function GradeEntryTab({
           <button
             type="button"
             onClick={() => setShowQuickCreate(false)}
-            className="bg-gray-100 dark:bg-[#1a1e28] hover:bg-gray-200 dark:hover:bg-white/[0.06] text-gray-600 dark:text-gray-400 px-4 py-2 rounded-lg text-sm transition-colors"
+            className="bg-gray-100 dark:bg-surface-tertiary hover:bg-gray-200 dark:hover:bg-white/[0.06] text-gray-600 dark:text-gray-400 px-4 py-2 rounded-lg text-sm transition-colors"
           >
             取消
           </button>
@@ -606,7 +606,7 @@ export function GradeEntryTab({
       {/* 模式切换 + AI 录入入口 */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-gray-500 dark:text-gray-400">录入模式:</span>
-        <div className="flex bg-gray-100 dark:bg-[#1a1e28] rounded-lg p-0.5">
+        <div className="flex bg-gray-100 dark:bg-surface-tertiary rounded-lg p-0.5">
           <button
             type="button"
             onClick={() => setMode('single-subject')}
@@ -639,7 +639,7 @@ export function GradeEntryTab({
             'ml-auto px-3 py-1.5 rounded-md text-xs transition-colors border',
             showAIEntry
               ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700'
-              : 'bg-gray-100 dark:bg-[#1a1e28] text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/[0.06] border-transparent',
+              : 'bg-gray-100 dark:bg-surface-tertiary text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/[0.06] border-transparent',
           )}
           title="粘贴成绩文本,AI 自动解析并填充"
         >
@@ -673,7 +673,7 @@ export function GradeEntryTab({
             onChange={(e) => setAiInputText(e.target.value)}
             placeholder={'粘贴成绩文本,例如:\n张三 85\n李四 92\n王五 78分\n赵六 88 排名3'}
             rows={6}
-            className="w-full bg-gray-50 dark:bg-[#0f1117] border border-gray-200 dark:border-white/[0.06] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500 font-mono"
+            className="w-full bg-gray-50 dark:bg-surface-primary border border-gray-200 dark:border-white/[0.06] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500 font-mono"
             disabled={aiParsing}
           />
           <div className="flex items-center gap-2 mt-2">
@@ -753,7 +753,7 @@ export function GradeEntryTab({
                   value={examNameInput}
                   onChange={(e) => setExamNameInput(e.target.value)}
                   placeholder="输入考试名称(可选),留空保存时自动创建"
-                  className="flex-1 bg-gray-50 dark:bg-[#0f1117] border border-gray-200 dark:border-white/[0.06] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                  className="flex-1 bg-gray-50 dark:bg-surface-primary border border-gray-200 dark:border-white/[0.06] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
                 />
               )}
             </div>
@@ -875,7 +875,7 @@ export function GradeEntryTab({
                               min="0"
                               max={subjectMap[selectedSubjectId]?.fullMark}
                               step="0.5"
-                              className="w-20 text-center bg-gray-50 dark:bg-[#0f1117] border border-gray-200 dark:border-white/[0.06] rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+                              className="w-20 text-center bg-gray-50 dark:bg-surface-primary border border-gray-200 dark:border-white/[0.06] rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
                             />
                           </td>
                           <td className="py-2 px-3 text-center">
@@ -885,7 +885,7 @@ export function GradeEntryTab({
                               onChange={(e) => updateSingleScore(s.name, 'rank', e.target.value)}
                               placeholder="-"
                               min="1"
-                              className="w-16 text-center bg-gray-50 dark:bg-[#0f1117] border border-gray-200 dark:border-white/[0.06] rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+                              className="w-16 text-center bg-gray-50 dark:bg-surface-primary border border-gray-200 dark:border-white/[0.06] rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
                             />
                           </td>
                         </tr>
@@ -947,7 +947,7 @@ export function GradeEntryTab({
                           min="0"
                           max={sub.fullMark}
                           step="0.5"
-                          className="w-20 text-center bg-gray-50 dark:bg-[#0f1117] border border-gray-200 dark:border-white/[0.06] rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+                          className="w-20 text-center bg-gray-50 dark:bg-surface-primary border border-gray-200 dark:border-white/[0.06] rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
                         />
                       </td>
                       <td className="py-2 px-3 text-center">
@@ -957,7 +957,7 @@ export function GradeEntryTab({
                           onChange={(e) => updateAllScore(sub.id, 'rank', e.target.value)}
                           placeholder="-"
                           min="1"
-                          className="w-16 text-center bg-gray-50 dark:bg-[#0f1117] border border-gray-200 dark:border-white/[0.06] rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+                          className="w-16 text-center bg-gray-50 dark:bg-surface-primary border border-gray-200 dark:border-white/[0.06] rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
                         />
                       </td>
                     </tr>

@@ -22,12 +22,18 @@ function applyTheme(effective: EffectiveTheme): void {
   } else {
     root.classList.remove('dark')
   }
+  // 缓存到 localStorage,供 index.html 内联脚本防 FOUC 读取
+  try {
+    localStorage.setItem('theme-pref', effective)
+  } catch {
+    /* localStorage 不可用时忽略 */
+  }
 }
 
 export function useTheme(): EffectiveTheme {
   const [effective, setEffective] = useState<EffectiveTheme>(() => {
-    // Default to dark until settings load
-    return 'dark'
+    // Default to light until settings load (与 settings-service / default-settings.json 默认一致)
+    return 'light'
   })
 
   const applyFromSetting = useCallback((setting: ThemeSetting) => {
@@ -45,7 +51,7 @@ export function useTheme(): EffectiveTheme {
     // Load theme from settings on mount
     let mounted = true
     // 缓存上次的 theme setting，避免系统主题变化时重复 IPC 调用
-    let cachedSetting: ThemeSetting = 'dark'
+    let cachedSetting: ThemeSetting = 'light'
 
     const loadTheme = async () => {
       try {
@@ -55,9 +61,9 @@ export function useTheme(): EffectiveTheme {
           applyFromSetting(cachedSetting)
         }
       } catch {
-        // Fallback to dark if settings load fails
+        // Fallback to light if settings load fails
         if (mounted) {
-          applyFromSetting('dark')
+          applyFromSetting('light')
         }
       }
     }

@@ -2,9 +2,9 @@
 // 技能工作台 — Tab 容器 (Skills / MCP / Plugins)
 // =============================================================
 
+import { PageHeader } from '../../components/PageHeader'
 import { useLocalStorage } from '../../hooks'
 import { useT } from '../../i18n'
-import { PageHeader } from '../../components/PageHeader'
 import { McpTab } from './tabs/McpTab'
 import { PluginsTab } from './tabs/PluginsTab'
 import { SkillsTab } from './tabs/SkillsTab'

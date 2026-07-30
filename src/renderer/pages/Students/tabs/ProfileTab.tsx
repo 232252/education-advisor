@@ -4,6 +4,16 @@
 // =============================================================
 
 import type { EAAStudent, StudentProfileData } from '@shared/types'
+import {
+  FileText,
+  GraduationCap,
+  HeartPulse,
+  Home,
+  Phone,
+  Settings,
+  Trophy,
+  User,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useAutoDismiss } from '../../../hooks/useAutoDismiss'
 import { getAPI } from '../../../lib/ipc-client'
@@ -74,7 +84,7 @@ export function ProfileTab({
       )}
 
       {/* 基础信息 */}
-      <ProfileSection title="基础信息" icon="👤">
+      <ProfileSection title="基础信息" icon={<User size={16} />}>
         <div className="grid grid-cols-2 gap-3">
           <ProfileField label="姓名" value={student.name} editing={false} />
           <ProfileField
@@ -115,7 +125,7 @@ export function ProfileTab({
       </ProfileSection>
 
       {/* 联系方式 */}
-      <ProfileSection title="联系方式" icon="📞">
+      <ProfileSection title="联系方式" icon={<Phone size={16} />}>
         <div className="grid grid-cols-2 gap-3">
           <ProfileField
             label="电话"
@@ -140,7 +150,7 @@ export function ProfileTab({
       </ProfileSection>
 
       {/* 家庭信息 */}
-      <ProfileSection title="家庭信息" icon="🏠">
+      <ProfileSection title="家庭信息" icon={<Home size={16} />}>
         <div className="grid grid-cols-2 gap-3">
           <ProfileField
             label="父亲姓名"
@@ -170,7 +180,7 @@ export function ProfileTab({
       </ProfileSection>
 
       {/* 健康信息 */}
-      <ProfileSection title="健康信息" icon="🏥">
+      <ProfileSection title="健康信息" icon={<HeartPulse size={16} />}>
         <div className="grid grid-cols-2 gap-3">
           <ProfileField
             label="血型"
@@ -197,7 +207,7 @@ export function ProfileTab({
       </ProfileSection>
 
       {/* 在校信息 */}
-      <ProfileSection title="在校信息" icon="🏫">
+      <ProfileSection title="在校信息" icon={<GraduationCap size={16} />}>
         <div className="grid grid-cols-2 gap-3">
           <ProfileField
             label="学号"
@@ -228,7 +238,7 @@ export function ProfileTab({
       </ProfileSection>
 
       {/* 奖惩记录 */}
-      <ProfileSection title="奖惩记录" icon="🏆">
+      <ProfileSection title="奖惩记录" icon={<Trophy size={16} />}>
         <div className="grid grid-cols-1 gap-3">
           <ProfileField
             label="荣誉称号"
@@ -250,7 +260,7 @@ export function ProfileTab({
       </ProfileSection>
 
       {/* 备注 */}
-      <ProfileSection title="备注" icon="📝">
+      <ProfileSection title="备注" icon={<FileText size={16} />}>
         <ProfileField
           label=""
           value={form.comments ?? ''}
@@ -262,7 +272,7 @@ export function ProfileTab({
       </ProfileSection>
 
       {/* EAA 元数据 */}
-      <ProfileSection title="EAA 系统数据" icon="⚙️">
+      <ProfileSection title="EAA 系统数据" icon={<Settings size={16} />}>
         <div className="grid grid-cols-2 gap-2 text-sm">
           <InfoRow label="分组" value={student.groups.join(', ') || '无'} />
           <InfoRow label="角色" value={student.roles.join(', ') || '无'} />

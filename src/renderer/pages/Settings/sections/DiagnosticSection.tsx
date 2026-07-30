@@ -79,7 +79,10 @@ export function DiagnosticSection({
               }
             }}
             disabled={doctorStatus === 'running'}
-            className={cn(btnStyle('secondary'), 'text-xs bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20')}
+            className={cn(
+              btnStyle('secondary'),
+              'text-xs bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20',
+            )}
           >
             {doctorStatus === 'running' ? '检查中...' : '运行检查'}
           </button>
@@ -147,7 +150,10 @@ export function DiagnosticSection({
               }
             }}
             disabled={validateStatus === 'running'}
-            className={cn(btnStyle('secondary'), 'text-xs bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20')}
+            className={cn(
+              btnStyle('secondary'),
+              'text-xs bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20',
+            )}
           >
             {validateStatus === 'running' ? '验证中...' : '验证'}
           </button>

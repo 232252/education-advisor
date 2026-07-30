@@ -10,7 +10,16 @@ import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
-import { btnStyle, cn, INPUT_BASE, riskColor, TABLE_ROW, TABLE_STICKY_HEAD, TABLE_TD, TABLE_TH } from '../../lib/ui-utils'
+import {
+  btnStyle,
+  cn,
+  INPUT_BASE,
+  riskColor,
+  TABLE_ROW,
+  TABLE_STICKY_HEAD,
+  TABLE_TD,
+  TABLE_TH,
+} from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
 
 interface ClassProfileProps {
@@ -68,7 +77,7 @@ export function ClassProfile({
   const createdStr = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}-${String(created.getDate()).padStart(2, '0')}`
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-[#0f1117]">
+    <div className="h-full flex flex-col bg-white dark:bg-surface-primary">
       {/* 头部 */}
       <PageHeader
         title={classEntity.name}
@@ -81,12 +90,7 @@ export function ClassProfile({
                 {t('page.classes.status.archived')}
               </span>
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="关闭"
-              className={btnStyle('ghost')}
-            >
+            <button type="button" onClick={onClose} aria-label="关闭" className={btnStyle('ghost')}>
               ×
             </button>
           </>
@@ -226,12 +230,7 @@ function StudentsTab({
   }
 
   if (students.length === 0) {
-    return (
-      <EmptyState
-        icon="👥"
-        title={t('page.classes.profile.noStudents')}
-      />
-    )
+    return <EmptyState icon="👥" title={t('page.classes.profile.noStudents')} />
   }
 
   return (
@@ -246,16 +245,10 @@ function StudentsTab({
           <tr>
             <th className={TABLE_TH}>{t('page.classes.profile.col.name')}</th>
             <th className={TABLE_TH}>{t('page.classes.profile.col.risk')}</th>
-            <th className={cn(TABLE_TH, 'text-center')}>
-              {t('page.classes.profile.col.score')}
-            </th>
-            <th className={cn(TABLE_TH, 'text-center')}>
-              {t('page.classes.profile.col.events')}
-            </th>
+            <th className={cn(TABLE_TH, 'text-center')}>{t('page.classes.profile.col.score')}</th>
+            <th className={cn(TABLE_TH, 'text-center')}>{t('page.classes.profile.col.events')}</th>
             <th className={TABLE_TH}>{t('page.classes.profile.col.roles')}</th>
-            <th className={cn(TABLE_TH, 'text-center')}>
-              {t('page.classes.profile.col.action')}
-            </th>
+            <th className={cn(TABLE_TH, 'text-center')}>{t('page.classes.profile.col.action')}</th>
           </tr>
         </thead>
         <tbody>
@@ -263,7 +256,9 @@ function StudentsTab({
             <tr key={s.entity_id} className={TABLE_ROW}>
               <td className={cn(TABLE_TD, 'font-medium')}>{s.name}</td>
               <td className={cn(TABLE_TD, riskColor(s.risk))}>{s.risk}</td>
-              <td className={cn(TABLE_TD, 'text-center text-gray-500 dark:text-gray-400')}>{s.score}</td>
+              <td className={cn(TABLE_TD, 'text-center text-gray-500 dark:text-gray-400')}>
+                {s.score}
+              </td>
               <td className={cn(TABLE_TD, 'text-center text-gray-500 dark:text-gray-400')}>
                 {s.events_count}
               </td>
@@ -391,12 +386,7 @@ function AssignTab({
   }
 
   if (assignable.length === 0) {
-    return (
-      <EmptyState
-        icon="✅"
-        title={t('page.classes.profile.assign.empty')}
-      />
-    )
+    return <EmptyState icon="✅" title={t('page.classes.profile.assign.empty')} />
   }
 
   return (

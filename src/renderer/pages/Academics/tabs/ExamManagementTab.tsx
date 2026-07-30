@@ -3,6 +3,7 @@
 // =============================================================
 
 import type { ExamDef, ExamType, SubjectDef } from '@shared/types'
+import { ClipboardList } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { Badge } from '../../../components/Badge'
 import { Card } from '../../../components/Card'
@@ -10,7 +11,7 @@ import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { EmptyState } from '../../../components/EmptyState'
 import { useT } from '../../../i18n'
 import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
-import { cn, INPUT_BASE, btnStyle } from '../../../lib/ui-utils'
+import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
 import {
   EXAM_TYPE_BADGE,
@@ -295,7 +296,7 @@ export function ExamManagementTab({
       {/* 考试列表 */}
       {sortedExams.length === 0 ? (
         <EmptyState
-          icon="📝"
+          icon={<ClipboardList size={28} />}
           title="暂无考试"
           description={'点击右上角「创建考试」按钮添加第一场考试'}
         />

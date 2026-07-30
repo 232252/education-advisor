@@ -56,6 +56,26 @@ function makeFakeWin() {
   } as unknown as import('electron').BrowserWindow
 }
 
+// R169: runAgent 现返回 AgentExecution | undefined;undefined 表示排队期间被 abort(记 error)。
+// 因此"成功" mock 必须返回 status:'success' 的 execution 对象。
+function makeExecution(
+  agentId: string,
+  status: 'success' | 'error' | 'timeout' = 'success',
+  output = 'ok',
+): import('../../src/shared/types').AgentExecution {
+  return {
+    id: `exec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    agentId,
+    prompt: 'x',
+    output,
+    startedAt: Date.now(),
+    durationMs: 1,
+    tokenUsage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    cost: 0,
+    status,
+  }
+}
+
 describe('cronService executeTask 补充', () => {
   beforeAll(async () => {
     await fsp.mkdir(tmpDir, { recursive: true })
@@ -80,7 +100,7 @@ describe('cronService executeTask 补充', () => {
 
   describe('runNow happy path', () => {
     it('设置 mainWindow + agentRunner 后 runNow 应执行 agent', async () => {
-      const runner = vi.fn(async () => undefined)
+      const runner = vi.fn(async () => makeExecution('test-agent'))
       cronService.setAgentRunner(runner)
       cronService.setMainWindow(makeFakeWin())
 
@@ -104,7 +124,7 @@ describe('cronService executeTask 补充', () => {
     })
 
     it('getLogs 应返回执行日志', async () => {
-      const runner = vi.fn(async () => undefined)
+      const runner = vi.fn(async () => makeExecution('log-agent'))
       cronService.setAgentRunner(runner)
       cronService.setMainWindow(makeFakeWin())
 
@@ -173,6 +193,7 @@ describe('cronService executeTask 补充', () => {
       const runner = vi.fn(async () => {
         callCount++
         await new Promise((r) => setTimeout(r, 100))
+        return makeExecution('lock-agent')
       })
       cronService.setAgentRunner(runner)
       cronService.setMainWindow(makeFakeWin())
@@ -193,8 +214,9 @@ describe('cronService executeTask 补充', () => {
     })
 
     it('不同任务可并发执行', async () => {
-      const runner = vi.fn(async (_id: string) => {
+      const runner = vi.fn(async (agentId: string) => {
         await new Promise((r) => setTimeout(r, 50))
+        return makeExecution(agentId)
       })
       cronService.setAgentRunner(runner)
       cronService.setMainWindow(makeFakeWin())
@@ -223,7 +245,7 @@ describe('cronService executeTask 补充', () => {
 
   describe('日志持久化', () => {
     it('flushLogs 应将日志写入 JSONL 文件', async () => {
-      const runner = vi.fn(async () => undefined)
+      const runner = vi.fn(async () => makeExecution('persist-agent'))
       cronService.setAgentRunner(runner)
       cronService.setMainWindow(makeFakeWin())
 
@@ -249,7 +271,7 @@ describe('cronService executeTask 补充', () => {
     })
 
     it('多次执行后日志累积且可按 taskId 过滤', async () => {
-      const runner = vi.fn(async () => undefined)
+      const runner = vi.fn(async (agentId: string) => makeExecution(agentId))
       cronService.setAgentRunner(runner)
       cronService.setMainWindow(makeFakeWin())
 
@@ -307,6 +329,202 @@ describe('cronService executeTask 补充', () => {
           modelTier: 'low_cost',
         }),
       ).toThrow(/limit/i)
+    })
+  })
+
+  // =============================================================
+  // 熔断器 (circuit breaker) — 修复 Agent 调度配额耗尽后空转
+  // 根因: 配额耗尽(429/rate_limit)后 cron 仍按时触发,每次都失败空转。
+  // 修复: 连续 N 次配额类错误后自动暂停该任务的 cron 触发。
+  // =============================================================
+  describe('熔断器 circuit breaker', () => {
+    it('连续 3 次配额类错误(429)后,第 4 次 cron 触发应被跳过', async () => {
+      // runner 每次都抛 429 配额错误
+      const runner = vi.fn(async () => {
+        throw new Error('429 rate_limit_error 已达到 Token Plan 用量上限')
+      })
+      cronService.setAgentRunner(runner)
+      cronService.setMainWindow(makeFakeWin())
+
+      const id = cronService.addTask({
+        name: '配额耗尽测试',
+        agentId: 'quota-agent',
+        expression: '0 9 * * *',
+        prompt: 'x',
+        enabled: true,
+        modelTier: 'low_cost',
+      })
+
+      // 连续 3 次 cron 触发,全部失败 (达阈值 3)
+      await cronService.triggerScheduled(id)
+      await cronService.triggerScheduled(id)
+      await cronService.triggerScheduled(id)
+      expect(runner).toHaveBeenCalledTimes(3)
+
+      // 第 4 次 cron 触发应被熔断跳过,不再调 runner
+      await cronService.triggerScheduled(id)
+      expect(runner).toHaveBeenCalledTimes(3) // 仍是 3,没增加
+
+      // lastStatus 应标记为熔断跳过
+      const task = cronService.listTasks().find((t) => t.id === id)
+      expect(task?.lastStatus).toBe('skipped_circuit_breaker')
+    })
+
+    it('熔断后 runNow 手动触发仍执行(绕过熔断)', async () => {
+      let callCount = 0
+      const runner = vi.fn(async () => {
+        callCount++
+        // 前 3 次抛配额错误触发熔断
+        if (callCount <= 3) {
+          throw new Error('rate_limit: quota exceeded')
+        }
+        return makeExecution('manual-agent')
+      })
+      cronService.setAgentRunner(runner)
+      cronService.setMainWindow(makeFakeWin())
+
+      const id = cronService.addTask({
+        name: '手动绕过测试',
+        agentId: 'manual-agent',
+        expression: '0 9 * * *',
+        prompt: 'x',
+        enabled: true,
+        modelTier: 'low_cost',
+      })
+
+      // 触发熔断
+      await cronService.triggerScheduled(id)
+      await cronService.triggerScheduled(id)
+      await cronService.triggerScheduled(id)
+      await cronService.triggerScheduled(id) // 第 4 次被跳过
+      expect(callCount).toBe(3)
+
+      // runNow 手动触发应绕过熔断,实际执行第 4 次
+      await cronService.runNow(id)
+      expect(callCount).toBe(4)
+    })
+
+    it('runNow 手动成功后熔断重置,后续 cron 触发恢复正常', async () => {
+      let callCount = 0
+      const runner = vi.fn(async () => {
+        callCount++
+        if (callCount <= 3) throw new Error('429 too many requests')
+        // 第 4 次起成功
+        return makeExecution('recover-agent')
+      })
+      cronService.setAgentRunner(runner)
+      cronService.setMainWindow(makeFakeWin())
+
+      const id = cronService.addTask({
+        name: '恢复测试',
+        agentId: 'recover-agent',
+        expression: '0 9 * * *',
+        prompt: 'x',
+        enabled: true,
+        modelTier: 'low_cost',
+      })
+
+      // 触发熔断 (3 次失败)
+      for (let i = 0; i < 3; i++) await cronService.triggerScheduled(id)
+      // 手动触发成功 -> 重置熔断
+      await cronService.runNow(id)
+      expect(callCount).toBe(4)
+
+      // 后续 cron 触发应恢复正常执行
+      await cronService.triggerScheduled(id)
+      expect(callCount).toBe(5)
+      const task = cronService.listTasks().find((t) => t.id === id)
+      expect(task?.lastStatus).toBe('success')
+    })
+
+    it('普通错误(非配额类)连续失败不触发熔断', async () => {
+      const runner = vi.fn(async () => {
+        throw new Error('network error: ECONNRESET')
+      })
+      cronService.setAgentRunner(runner)
+      cronService.setMainWindow(makeFakeWin())
+
+      const id = cronService.addTask({
+        name: '普通错误测试',
+        agentId: 'net-agent',
+        expression: '0 9 * * *',
+        prompt: 'x',
+        enabled: true,
+        modelTier: 'low_cost',
+      })
+
+      // 连续 4 次普通错误,不应熔断
+      for (let i = 0; i < 4; i++) await cronService.triggerScheduled(id)
+      expect(runner).toHaveBeenCalledTimes(4) // 全部执行了,没被跳过
+      const task = cronService.listTasks().find((t) => t.id === id)
+      expect(task?.lastStatus).toBe('error') // 不是 skipped_circuit_breaker
+    })
+
+    it('toggleTask 关再开重置熔断', async () => {
+      const runner = vi.fn(async () => {
+        throw new Error('429 quota')
+      })
+      cronService.setAgentRunner(runner)
+      cronService.setMainWindow(makeFakeWin())
+
+      const id = cronService.addTask({
+        name: 'toggle 恢复测试',
+        agentId: 'toggle-agent',
+        expression: '0 9 * * *',
+        prompt: 'x',
+        enabled: true,
+        modelTier: 'low_cost',
+      })
+
+      // 触发熔断
+      for (let i = 0; i < 3; i++) await cronService.triggerScheduled(id)
+      await cronService.triggerScheduled(id) // 被跳过
+      expect(runner).toHaveBeenCalledTimes(3)
+
+      // toggle 关再开 -> 重置熔断
+      cronService.toggleTask(id, false)
+      cronService.toggleTask(id, true)
+
+      // 再次 cron 触发应执行 (又会失败,但至少没被熔断跳过)
+      await cronService.triggerScheduled(id)
+      expect(runner).toHaveBeenCalledTimes(4)
+    })
+
+    it('成功执行清零失败计数(2失败+1成功+再失败,从1起算)', async () => {
+      let callCount = 0
+      const runner = vi.fn(async () => {
+        callCount++
+        // 第 1,2 次失败,第 3 次成功,第 4,5,6 次失败才触发熔断
+        if (callCount === 1 || callCount === 2) throw new Error('429 rate_limit')
+        if (callCount === 3) return makeExecution('reset-agent') // 成功
+        if (callCount >= 4) throw new Error('429 rate_limit')
+        return makeExecution('reset-agent')
+      })
+      cronService.setAgentRunner(runner)
+      cronService.setMainWindow(makeFakeWin())
+
+      const id = cronService.addTask({
+        name: '计数清零测试',
+        agentId: 'reset-agent',
+        expression: '0 9 * * *',
+        prompt: 'x',
+        enabled: true,
+        modelTier: 'low_cost',
+      })
+
+      // 2 次失败
+      await cronService.triggerScheduled(id)
+      await cronService.triggerScheduled(id)
+      // 1 次成功 -> 清零
+      await cronService.triggerScheduled(id)
+      // 再 2 次失败 (累计 2,未达阈值 3)
+      await cronService.triggerScheduled(id)
+      await cronService.triggerScheduled(id)
+      // 第 6 次:累计 3,触发熔断;第 7 次应被跳过
+      await cronService.triggerScheduled(id)
+      expect(callCount).toBe(6)
+      await cronService.triggerScheduled(id)
+      expect(callCount).toBe(6) // 第 7 次被跳过
     })
   })
 })

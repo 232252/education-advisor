@@ -40,7 +40,7 @@ export function PageHeader({
       className={cn(
         'flex items-center justify-between px-6 py-4 flex-shrink-0 border-b border-gray-200/80 dark:border-white/[0.06]',
         sticky &&
-          'sticky top-0 z-10 bg-white/85 dark:bg-[#1a1e28]/85 backdrop-blur-md shadow-[0_1px_0_rgba(15,23,42,0.04)] dark:shadow-none',
+          'sticky top-0 z-10 bg-white/85 dark:bg-surface-tertiary/85 backdrop-blur-md shadow-[0_1px_0_rgba(15,23,42,0.04)] dark:shadow-none',
         className,
       )}
     >
@@ -50,20 +50,17 @@ export function PageHeader({
             'tracking-tight text-gray-900 dark:text-white truncate',
             titleSizeMap[size],
           )}
+          title={title}
         >
           {title}
         </h1>
         {subtitle && (
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate" title={subtitle}>
             {subtitle}
           </p>
         )}
       </div>
-      {actions && (
-        <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-          {actions}
-        </div>
-      )}
+      {actions && <div className="flex items-center gap-2 flex-shrink-0 ml-4">{actions}</div>}
     </div>
   )
 }

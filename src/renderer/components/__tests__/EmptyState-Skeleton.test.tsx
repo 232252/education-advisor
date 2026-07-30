@@ -39,7 +39,7 @@ describe('EmptyState — 基本', () => {
 describe('EmptyState — icon', () => {
   it('字符串 icon → emoji 渲染', () => {
     const { container } = render(<EmptyState title="标题" icon="📭" />)
-    const emojiSpan = container.querySelector('.text-4xl')
+    const emojiSpan = container.querySelector('.text-5xl')
     expect(emojiSpan).toBeDefined()
     expect(emojiSpan?.textContent).toBe('📭')
   })
@@ -88,9 +88,9 @@ describe('Skeleton — 基本', () => {
     expect((container.firstChild as HTMLElement).tagName).toBe('DIV')
   })
 
-  it('含 animate-pulse', () => {
+  it('含 shimmer 动画', () => {
     const { container } = render(<Skeleton />)
-    expect((container.firstChild as HTMLElement).className).toContain('animate-pulse')
+    expect((container.firstChild as HTMLElement).className).toContain('animate-shimmer')
   })
 
   it('含 rounded-md', () => {
@@ -98,9 +98,9 @@ describe('Skeleton — 基本', () => {
     expect((container.firstChild as HTMLElement).className).toContain('rounded-md')
   })
 
-  it('含 bg-gray-200', () => {
+  it('含 shimmer 渐变背景', () => {
     const { container } = render(<Skeleton />)
-    expect((container.firstChild as HTMLElement).className).toContain('bg-gray-200')
+    expect((container.firstChild as HTMLElement).className).toContain('linear-gradient')
   })
 
   it('自定义 className 附加', () => {
@@ -109,14 +109,14 @@ describe('Skeleton — 基本', () => {
     expect(el.className).toContain('h-4')
     expect(el.className).toContain('w-full')
     // Still has base classes
-    expect(el.className).toContain('animate-pulse')
+    expect(el.className).toContain('animate-shimmer')
   })
 })
 
 describe('CardSkeleton', () => {
   it('渲染多个 Skeleton 行', () => {
     const { container } = render(<CardSkeleton />)
-    const skeletons = container.querySelectorAll('.animate-pulse')
+    const skeletons = container.querySelectorAll('.animate-shimmer')
     // CardSkeleton has 3 Skeleton children
     expect(skeletons.length).toBe(3)
   })
@@ -132,25 +132,25 @@ describe('TableSkeleton', () => {
   it('默认 5 行 4 列', () => {
     const { container } = render(<TableSkeleton />)
     // Header: 4 skeletons, Rows: 5 * 4 = 20 skeletons, total = 24
-    const skeletons = container.querySelectorAll('.animate-pulse')
+    const skeletons = container.querySelectorAll('.animate-shimmer')
     expect(skeletons.length).toBe(4 + 5 * 4) // 24
   })
 
   it('自定义 rows 和 cols', () => {
     const { container } = render(<TableSkeleton rows={3} cols={2} />)
-    const skeletons = container.querySelectorAll('.animate-pulse')
+    const skeletons = container.querySelectorAll('.animate-shimmer')
     expect(skeletons.length).toBe(2 + 3 * 2) // 8
   })
 
   it('rows=0 只有表头', () => {
     const { container } = render(<TableSkeleton rows={0} cols={3} />)
-    const skeletons = container.querySelectorAll('.animate-pulse')
+    const skeletons = container.querySelectorAll('.animate-shimmer')
     expect(skeletons.length).toBe(3) // header only
   })
 
   it('cols=1 单列', () => {
     const { container } = render(<TableSkeleton rows={2} cols={1} />)
-    const skeletons = container.querySelectorAll('.animate-pulse')
+    const skeletons = container.querySelectorAll('.animate-shimmer')
     expect(skeletons.length).toBe(1 + 2 * 1) // 3
   })
 })
@@ -160,7 +160,7 @@ describe('PageSkeleton', () => {
     const { container } = render(<PageSkeleton />)
     // PageSkeleton: 5 stat CardSkeletons + 2 chart CardSkeletons = 7
     // Each CardSkeleton has 3 inner Skeletons = 21 total
-    const skeletons = container.querySelectorAll('.animate-pulse')
+    const skeletons = container.querySelectorAll('.animate-shimmer')
     expect(skeletons.length).toBe(7 * 3) // 21
   })
 

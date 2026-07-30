@@ -11,6 +11,17 @@
 // =============================================================
 
 import type { ExamType, GradeRecord, SubjectDef } from '@shared/types'
+import type { LucideIcon } from 'lucide-react'
+import {
+  ArrowLeft,
+  BarChart3,
+  ClipboardList,
+  GraduationCap,
+  PencilLine,
+  Search,
+  TrendingUp,
+  Users,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
@@ -57,11 +68,11 @@ const DEFAULT_EXAM_TYPES: Array<{ value: ExamType; label: string }> = [
 
 type AcademicsTab = 'overview' | 'exams' | 'entry' | 'compare'
 
-const TAB_LIST: Array<{ id: AcademicsTab; label: string; icon: string }> = [
-  { id: 'overview', label: '成绩总览', icon: '📊' },
-  { id: 'exams', label: '考试管理', icon: '📝' },
-  { id: 'entry', label: '成绩录入', icon: '✏️' },
-  { id: 'compare', label: '成绩对比', icon: '📈' },
+const TAB_LIST: Array<{ id: AcademicsTab; label: string; icon: LucideIcon }> = [
+  { id: 'overview', label: '成绩总览', icon: BarChart3 },
+  { id: 'exams', label: '考试管理', icon: ClipboardList },
+  { id: 'entry', label: '成绩录入', icon: PencilLine },
+  { id: 'compare', label: '成绩对比', icon: TrendingUp },
 ]
 
 export function AcademicsPage() {
@@ -215,12 +226,12 @@ export function AcademicsPage() {
   }
 
   return (
-    <div className="flex h-full bg-gray-50 dark:bg-[#0f1117]">
+    <div className="flex h-full bg-gray-50 dark:bg-surface-primary">
       {/* ===== 左侧: 学生列表 ===== */}
-      <aside className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-white/[0.06] bg-white dark:bg-[#1a1e28] flex flex-col">
+      <aside className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary flex flex-col">
         <div className="p-3 border-b border-gray-200 dark:border-white/[0.06]">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2 flex items-center gap-1.5">
-            <span>👥</span>
+            <Users size={16} className="text-gray-400 dark:text-gray-500" />
             <span>学生列表</span>
             <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 font-normal">
               {filteredStudents.length}
@@ -251,16 +262,17 @@ export function AcademicsPage() {
                 placeholder="搜索学生..."
                 className={cn('w-full', INPUT_BASE, 'pl-8')}
               />
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-                🔍
-              </span>
+              <Search
+                size={16}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+              />
             </div>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           {filteredStudents.length === 0 ? (
             <EmptyState
-              icon="🎓"
+              icon={<GraduationCap size={28} />}
               title={searchQuery || classFilter !== '__ALL__' ? '未找到匹配的学生' : '暂无学生'}
               className="py-12"
             />
@@ -350,7 +362,7 @@ export function AcademicsPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300',
               )}
             >
-              <span className="mr-1.5">{tab.icon}</span>
+              <tab.icon className="mr-1.5 inline-block h-4 w-4 align-[-2px]" aria-hidden />
               {tab.label}
             </button>
           ))}
@@ -361,7 +373,7 @@ export function AcademicsPage() {
           {/* compare tab 是全班对比功能,不依赖 selectedStudent;exams tab 也独立 */}
           {!selectedStudent && activeTab !== 'exams' && activeTab !== 'compare' ? (
             <EmptyState
-              icon="👈"
+              icon={<ArrowLeft size={28} />}
               title="请先选择学生"
               description="从左侧学生列表中选择一个学生以查看学业详情"
             />

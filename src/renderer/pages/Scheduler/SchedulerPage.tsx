@@ -3,6 +3,7 @@
 // =============================================================
 
 import type { AgentListItem, CronLogEntry, CronTask } from '@shared/types'
+import { ClipboardList, Clock } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
@@ -228,7 +229,7 @@ export function SchedulerPage() {
           <div className="flex-1 overflow-y-auto p-4 space-y-2 border-r border-gray-200 dark:border-white/[0.06]">
             {tasks.length === 0 ? (
               <EmptyState
-                icon="⏰"
+                icon={<Clock size={28} />}
                 title="暂无定时任务"
                 description="点击「新增任务」或在 Agent 配置中设置 schedule"
               />
@@ -261,7 +262,7 @@ export function SchedulerPage() {
             </div>
             <div className="p-3 space-y-1">
               {selectedLogs.length === 0 ? (
-                <EmptyState icon="📋" title="暂无日志" className="py-4" />
+                <EmptyState icon={<ClipboardList size={28} />} title="暂无日志" className="py-4" />
               ) : (
                 [...selectedLogs]
                   .reverse()
@@ -326,6 +327,8 @@ const TaskCard = memo(function TaskCard({
         return '失败'
       case 'timeout':
         return '超时'
+      case 'skipped_circuit_breaker':
+        return '已暂停(配额熔断)'
       default:
         return ''
     }
@@ -339,6 +342,8 @@ const TaskCard = memo(function TaskCard({
         return 'text-red-500 dark:text-red-400'
       case 'timeout':
         return 'text-yellow-500 dark:text-yellow-400'
+      case 'skipped_circuit_breaker':
+        return 'text-orange-500 dark:text-orange-400'
       default:
         return 'text-gray-400 dark:text-gray-600'
     }
@@ -355,7 +360,7 @@ const TaskCard = memo(function TaskCard({
           onSelect()
         }
       }}
-      className={`bg-gray-50 border rounded-xl px-4 py-3 cursor-pointer transition-colors dark:bg-[#1a1e28]
+      className={`bg-gray-50 border rounded-xl px-4 py-3 cursor-pointer transition-colors dark:bg-surface-tertiary
         ${selected ? 'border-blue-500' : 'border-gray-200 dark:border-white/[0.06] hover:border-gray-300 dark:hover:border-white/[0.1]'}`}
     >
       <div className="flex items-center gap-3">
@@ -449,7 +454,7 @@ const TaskCard = memo(function TaskCard({
       {selected && (
         <div className="mt-3 pt-3 border-t border-gray-200 dark:border-white/[0.06]">
           <div className="text-xs text-gray-400 dark:text-gray-500 mb-1">执行指令:</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-[#1a1e28] rounded px-3 py-2 font-mono">
+          <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-surface-tertiary rounded px-3 py-2 font-mono">
             {task.prompt}
           </div>
         </div>
@@ -589,7 +594,7 @@ function NewTaskForm({ agents, editingTask, onCreate, onUpdate, onCancel }: NewT
   }
 
   return (
-    <div className="border-b border-gray-200 dark:border-white/[0.06] p-4 bg-gray-50 dark:bg-[#1a1e28]">
+    <div className="border-b border-gray-200 dark:border-white/[0.06] p-4 bg-gray-50 dark:bg-surface-tertiary">
       <h3 className="text-sm font-medium mb-3">{isEditing ? '编辑定时任务' : '新建定时任务'}</h3>
 
       <div className="grid grid-cols-2 gap-3">

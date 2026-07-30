@@ -23,7 +23,7 @@ export function ProfileField({
   spanFull?: boolean
 }) {
   const baseClass =
-    'w-full bg-gray-50 dark:bg-[#0f1117] border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors'
+    'w-full bg-gray-50 dark:bg-surface-primary border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors'
   return (
     <div className={spanFull ? 'col-span-2' : ''}>
       {label && (

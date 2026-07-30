@@ -43,11 +43,12 @@ describe('useTheme — 初始加载', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 
-  it('settings 加载失败 → 回退到 dark', async () => {
+  it('settings 加载失败 → 回退到 light', async () => {
     window.api.settings.get = vi.fn().mockRejectedValue(new Error('network'))
     const { result } = renderHook(() => useTheme())
-    await waitFor(() => expect(result.current).toBe('dark'))
-    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    // R169 起回退默认 light(与 settings-service / index.html 防 FOUC 一致)
+    await waitFor(() => expect(result.current).toBe('light'))
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 })
 
@@ -108,9 +109,10 @@ describe('useTheme — dark class 管理', () => {
 })
 
 describe('useTheme — 默认值', () => {
-  it('mount 前默认 dark', () => {
+  it('mount 前默认 light', () => {
     ;(window.api.settings.get as unknown) = vi.fn(() => new Promise(() => {}))
     const { result } = renderHook(() => useTheme())
-    expect(result.current).toBe('dark')
+    // R169 起挂载前默认 light(白主题默认,黑主题可切换)
+    expect(result.current).toBe('light')
   })
 })

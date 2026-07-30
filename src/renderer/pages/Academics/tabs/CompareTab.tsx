@@ -11,7 +11,8 @@ import type {
   GradeRecord,
   SubjectDef,
 } from '@shared/types'
-import ReactEChartsCore from 'echarts-for-react/lib/core'
+import ReactEChartsCore from 'echarts-for-react/esm/core'
+import { Inbox, TrendingUp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card } from '../../../components/Card'
 import { DeltaBadge } from '../../../components/DeltaBadge'
@@ -213,7 +214,7 @@ export function CompareTab({ students, classList, subjects, exams }: CompareTabP
         <CardSkeleton />
       ) : !canCompare ? (
         <EmptyState
-          icon="📈"
+          icon={<TrendingUp size={28} />}
           title="选择两场考试进行对比"
           description={
             sortedExams.length < 2
@@ -224,7 +225,11 @@ export function CompareTab({ students, classList, subjects, exams }: CompareTabP
           }
         />
       ) : studentComparisons.length === 0 ? (
-        <EmptyState icon="📭" title="暂无对比数据" description="所选班级在两次考试中均无成绩记录" />
+        <EmptyState
+          icon={<Inbox size={28} />}
+          title="暂无对比数据"
+          description="所选班级在两次考试中均无成绩记录"
+        />
       ) : (
         <>
           {/* 汇总卡片 */}
@@ -323,17 +328,24 @@ export function CompareTab({ students, classList, subjects, exams }: CompareTabP
                 </thead>
                 <tbody>
                   {studentComparisons.map((sc) => (
-                    <tr
-                      key={sc.studentName}
-                      className={TABLE_ROW}
-                    >
+                    <tr key={sc.studentName} className={TABLE_ROW}>
                       <td className={cn(TABLE_TD, 'text-gray-700 dark:text-gray-300')}>
                         {sc.studentName}
                       </td>
-                      <td className={cn(TABLE_TD, 'text-center font-mono text-gray-600 dark:text-gray-300')}>
+                      <td
+                        className={cn(
+                          TABLE_TD,
+                          'text-center font-mono text-gray-600 dark:text-gray-300',
+                        )}
+                      >
                         {sc.totalScoreA ?? '-'}
                       </td>
-                      <td className={cn(TABLE_TD, 'text-center font-mono text-gray-600 dark:text-gray-300')}>
+                      <td
+                        className={cn(
+                          TABLE_TD,
+                          'text-center font-mono text-gray-600 dark:text-gray-300',
+                        )}
+                      >
                         {sc.totalScoreB ?? '-'}
                       </td>
                       <td className={cn(TABLE_TD, 'text-center')}>

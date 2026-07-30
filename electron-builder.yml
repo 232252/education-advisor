@@ -14,6 +14,15 @@ files:
   - node_modules/**/*
 
 extraResources:
+  - from: resources/icon.ico
+    to: icon.ico
+  - from: resources/icon.png
+    to: icon.png
+  # 托盘多分辨率帧 (16@1x / 32@2x), 高 DPI 下托盘图标清晰
+  - from: resources/icon-16.png
+    to: icon-16.png
+  - from: resources/icon-32.png
+    to: icon-32.png
   - from: resources/eaa-binaries/
     to: eaa-binaries/
     filter: ["**/*"]

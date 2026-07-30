@@ -106,14 +106,54 @@ class DBService {
   } = {}
 
   /**
+   * R155 修复: 开发模式下 TRAE Sandbox 阻止写入 %APPDATA%,
+   * 导致 SQLite 初始化失败、chat 持久化/agent 历史/cron 日志全部静默 no-op。
+   * 与 eaa-bridge.resolveDataDir() 同模式: 开发模式重定向到项目根 .app-data/。
+   */
+  private resolveDbPath(): string {
+    const userData = app.getPath('userData')
+    const legacyPath = path.join(userData, 'workstation.db')
+    const resourcesPath = process.resourcesPath || ''
+    const isRealPackaged =
+      !resourcesPath.includes('node_modules') && !resourcesPath.includes('electron')
+
+    if (isRealPackaged) {
+      return legacyPath
+    }
+
+    // 开发模式: 项目根 .app-data/workstation.db
+    const projectRoot = path.resolve(__dirname, '..', '..')
+    const devDir = path.join(projectRoot, '.app-data')
+    const devPath = path.join(devDir, 'workstation.db')
+
+    // 迁移旧数据(如果存在且新路径不存在)
+    if (fs.existsSync(legacyPath) && !fs.existsSync(devPath)) {
+      try {
+        fs.mkdirSync(devDir, { recursive: true })
+        fs.copyFileSync(legacyPath, devPath)
+        // WAL/SHM 临时文件也尝试迁移(可能不存在)
+        for (const ext of ['-wal', '-shm']) {
+          const src = legacyPath + ext
+          if (fs.existsSync(src)) fs.copyFileSync(src, devPath + ext)
+        }
+        console.log(`[DB] R155: Migrated DB from "${legacyPath}" to "${devPath}"`)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.warn('[DB] R155: Migration failed, starting fresh:', msg)
+      }
+    }
+
+    return devPath
+  }
+
+  /**
    * 异步初始化。必须在 app.whenReady() 之后调用。
    * 失败不抛异常,降级为 in-memory disabled 模式。
    */
   async init(): Promise<void> {
     if (this._ready) return
     try {
-      const userData = app.getPath('userData')
-      this.dbPath = path.join(userData, 'workstation.db')
+      this.dbPath = this.resolveDbPath()
       await fsp.mkdir(path.dirname(this.dbPath), { recursive: true })
 
       // 动态 require,允许失败降级
@@ -389,7 +429,8 @@ class DBService {
         fields.costTotal !== undefined && Number.isFinite(fields.costTotal)
           ? fields.costTotal
           : null
-      this.stmts.updateExecution.run({
+      // 修复: 检查 changes,对不存在的 id 返回 false (此前 UPDATE 不匹配行不报错,误返回 true)
+      const result = this.stmts.updateExecution.run({
         id,
         finished_at: Date.now(),
         status: fields.status,
@@ -399,7 +440,7 @@ class DBService {
         tokens_output: fields.tokensOutput ?? null,
         cost_total: cost,
       })
-      return true
+      return (result.changes ?? 0) > 0
     } catch (err) {
       this._lastError = err instanceof Error ? err.message : String(err)
       console.error('[DB] updateExecution failed:', this._lastError)

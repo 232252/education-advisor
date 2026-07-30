@@ -295,14 +295,32 @@ export function registerPrivacyHandlers(_win: BrowserWindow) {
 
   // ----- unlock: 解锁隐私引擎（重新输入密码，校验后缓存到内存） -----
   // R37-2 修复: 新增 unlock handler，之前 lock 后无解锁路径，privacy.unlock() 返回空对象
-  // 解锁逻辑：校验密码长度格式后缓存到内存，真正校验密码正确性由后续 EAA CLI 命令执行
-  // （若密码错误，下一次 anonymize 等命令会返回 EAA CLI 的错误）
+  // R140 安全修复: 旧实现仅校验密码长度格式后就缓存到内存,不验证密码正确性,
+  //   导致任意密码(满足 4-128 字符)都能"解锁",privacy.status() 误报 unlocked=true。
+  //   现在通过 `eaa privacy load` 验证密码后才缓存,密码错误则不缓存。
   ipcMain.handle(IPC.IPC_PRIVACY_UNLOCK, async (_e: IpcMainInvokeEvent, password: string) => {
     try {
       const pwd = validatePassword(password)
+      // 先临时缓存密码,再调用 `eaa privacy load` 验证
+      // load 命令会用 EAA_PRIVACY_PASSWORD 环境变量尝试解密隐私映射,
+      // 密码错误或映射不存在都会返回失败
       eaaBridge.setPrivacyPassword(pwd)
-      return { success: true, data: '隐私引擎已解锁' }
+      const result = await eaaBridge.execute({ command: 'privacy', args: ['load', pwd] })
+      const isRealSuccess =
+        result.success && !(typeof result.data === 'string' && result.data.startsWith('❌'))
+      if (isRealSuccess) {
+        return { success: true, data: '隐私引擎已解锁' }
+      }
+      // 验证失败: 清除临时缓存的密码,避免 status 误报 unlocked=true
+      eaaBridge.clearPrivacyPassword()
+      const errMsg =
+        typeof result.data === 'string' && result.data.length > 0
+          ? result.data
+          : result.stderr || '密码错误,解锁失败'
+      return { success: false, data: errMsg }
     } catch (err) {
+      // validatePassword 抛错时确保不残留密码
+      eaaBridge.clearPrivacyPassword()
       return {
         success: false,
         data: err instanceof Error ? err.message : '解锁失败，密码格式不合法',
