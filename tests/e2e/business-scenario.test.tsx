@@ -42,7 +42,7 @@ if (existsSync(SCHEMA_SRC)) {
   writeFileSync(join(TEST_ROOT, 'schema', 'reason_codes.json'), readFileSync(SCHEMA_SRC))
 }
 
-function eaaRun(args: string[], opts: { json?: boolean; timeout?: number } = {}): Promise<unknown> {
+function eaaRunOnce(args: string[], opts: { json?: boolean; timeout?: number } = {}): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const proc = spawn(EAA_BIN, args, {
       env: { ...process.env, EAA_DATA_DIR: TEST_DATA },
@@ -69,6 +69,31 @@ function eaaRun(args: string[], opts: { json?: boolean; timeout?: number } = {})
       }
     })
   })
+}
+
+/**
+ * eaaRun 带重试 — 并发进程争用文件锁时 eaa 可能 exit 0 但 stdout 为空，
+ * 或 JSON 解析失败。自动重试最多 3 次，每次退避递增。
+ */
+async function eaaRun(args: string[], opts: { json?: boolean; timeout?: number } = {}): Promise<unknown> {
+  const MAX_RETRIES = 3
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await eaaRunOnce(args, opts)
+    } catch (err) {
+      const msg = String(err)
+      const isTransient =
+        msg.includes('not JSON') ||
+        msg.includes('Unexpected end of JSON') ||
+        msg.includes('exit')
+      if (attempt < MAX_RETRIES && isTransient) {
+        await new Promise((r) => setTimeout(r, 80 * (attempt + 1)))
+        continue
+      }
+      throw err
+    }
+  }
+  throw new Error(`eaa ${args[0]} failed after ${MAX_RETRIES + 1} attempts`)
 }
 
 /** 重置 eaa 数据（清空学生和事件） */

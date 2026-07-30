@@ -226,7 +226,7 @@ export function AcademicsPage() {
   }
 
   return (
-    <div className="flex h-full bg-gray-50 dark:bg-surface-primary">
+    <div className="flex h-full bg-canvas">
       {/* ===== 左侧: 学生列表 ===== */}
       <aside className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary flex flex-col">
         <div className="p-3 border-b border-gray-200 dark:border-white/[0.06]">

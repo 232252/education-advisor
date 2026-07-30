@@ -21,7 +21,15 @@ export default defineConfig({
       'src/**/*.{test,spec}.{ts,tsx}',
       'tests/**/*.{test,spec}.{ts,tsx}',
     ],
-    exclude: ['node_modules', 'dist', 'release', '**/*.d.ts'],
+    exclude: [
+      'node_modules',
+      'dist',
+      'release',
+      '**/*.d.ts',
+      // 10 分钟持续压力测试，仅按需单独运行（npm run test:stress），
+      // 不进入默认 `npm test`，避免拖慢日常回归。
+      'tests/e2e/stress-long.test.tsx',
+    ],
     // 用 projects 区分 renderer (jsdom) 和 main (node)
     projects: [
       {
@@ -49,6 +57,7 @@ export default defineConfig({
             'tests/shared/**/*.{test,spec}.{ts,tsx}',
             'tests/e2e/**/*.{test,spec}.{ts,tsx}',
           ],
+          exclude: ['tests/e2e/stress-long.test.tsx'],
           environment: 'node',
           setupFiles: ['./tests/setup.ts'],
           testTimeout: 60_000,

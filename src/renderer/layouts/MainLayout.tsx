@@ -59,7 +59,7 @@ export function MainLayout() {
   const runningCount = agents.filter((a) => a.status === 'running').length
 
   return (
-    <div className="flex h-screen bg-gray-50 text-gray-900 dark:bg-surface-primary dark:text-gray-100">
+    <div className="flex h-screen bg-canvas text-gray-900 dark:text-gray-100">
       {/* ── 侧边栏 ── */}
       <aside className="w-60 flex-shrink-0 border-r border-gray-200/60 dark:border-white/[0.06] flex flex-col bg-white/80 dark:bg-surface-secondary/90 backdrop-blur-xl">
         {/* Logo */}

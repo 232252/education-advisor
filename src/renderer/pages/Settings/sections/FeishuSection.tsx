@@ -63,6 +63,11 @@ export function FeishuSection({
     overall: 'pass' | 'fail'
   } | null>(null)
 
+  // 飞书凭证配置状态: appId 已填 + secret 已保存到 keystore(占位符 '__keystore__')
+  const hasAppId = !!settings.feishu.appId
+  const secretSavedToKeystore = settings.feishu.appSecret === '__keystore__'
+  const isConfigured = hasAppId && secretSavedToKeystore
+
   const handleDiagnose = async () => {
     setDiagnosing(true)
     setDiagnoseResult(null)
@@ -101,9 +106,11 @@ export function FeishuSection({
               ? '连接中...'
               : botStatus?.status === 'error'
                 ? `连接失败${botStatus.error ? ` · ${botStatus.error}` : ''}`
-                : !settings.feishu.appId || settings.feishu.appSecret !== '__keystore__'
-                  ? '未配置 · 请先填写 App ID 和 App Secret'
-                  : '未连接'}
+                : !hasAppId
+                  ? '未配置 · 请填写 App ID 和 App Secret 并保存'
+                  : !secretSavedToKeystore
+                    ? '未保存 · 请点击下方"保存"按钮将凭证写入本地加密存储'
+                    : '未连接'}
         </span>
         {botStatus?.status === 'connected' &&
           botStatus.processingCount &&
@@ -125,8 +132,15 @@ export function FeishuSection({
           <button
             type="button"
             onClick={() => getAPI().feishu.botStart()}
-            disabled={!settings.feishu.appId || settings.feishu.appSecret !== '__keystore__'}
-            className="text-[10px] px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 transition-colors"
+            disabled={!isConfigured}
+            title={
+              !hasAppId
+                ? '请先填写 App ID'
+                : !secretSavedToKeystore
+                  ? '请先点击"保存"按钮,将 App Secret 加密存储到本地'
+                  : '启动飞书长连接机器人'
+            }
+            className="text-[10px] px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             连接
           </button>
@@ -249,7 +263,7 @@ export function FeishuSection({
           <li>「权限管理」开启:im:message、im:message:send_as_bot</li>
           <li>创建版本并发布(企业自建应用需管理员审核通过)</li>
         </ol>
-        配好后点上方「连接」,即可在飞书里直接对话,发 /help 查看命令。
+        配好后点下方「保存」按钮,再点上方「连接」,即可在飞书里直接对话,发 /help 查看命令。
       </div>
 
       {/* 网络诊断:排查远程访问连接问题 */}

@@ -155,6 +155,13 @@ export class EAABridge {
   private static readonly READ_CACHE_TTL = 10_000
   /** 超过此条数的读缓存视为异常增长，清空并告警（防止内存泄漏）。 */
   private static readonly READ_CACHE_MAX = 64
+  /**
+   * P1-10: 活跃子进程注册表。
+   * EAA 是 spawn-per-command, 进程短生命周期, 但应用退出时若有 in-flight 进程,
+   * 退出后这些子进程可能成为孤儿(Windows 不自动 kill), 并持有 .lock 文件
+   * 导致下次启动时 stale lock 阻塞。shutdown() 时遍历此 Set 终止所有 in-flight 进程。
+   */
+  private activeProcesses: Set<ReturnType<typeof spawn>> = new Set()
 
   /** 生成读缓存键 */
   private readCacheKey(cmd: EAACommand): string {
@@ -732,6 +739,21 @@ export class EAABridge {
           if (result.success || !result.stderr || !result.stderr.includes('os error 5')) break
         }
       }
+      // P1-9 修复: JSON 命令并发文件锁竞争时 stdout 可能为空(退出码 0 但无输出)。
+      // _doExecute 已把这种情况标记为 success=false + stderr 含 [EAA_EMPTY_STDOUT]。
+      // 这里对读命令做最多 2 次重试, 退避递增 80ms*(attempt+1) 以错开并发峰值。
+      if (!result.success && result.stderr && result.stderr.includes('[EAA_EMPTY_STDOUT]')) {
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          await this.delay(80 * (attempt + 1))
+          console.warn(
+            `[EAA] Retrying read "${cmd.command}" (attempt ${attempt}/2) after empty stdout`,
+          )
+          result = await this._doExecute<T>(cmd)
+          if (result.success || !result.stderr || !result.stderr.includes('[EAA_EMPTY_STDOUT]')) {
+            break
+          }
+        }
+      }
       // 仅缓存成功结果（失败重试更有意义）
       if (result.success) {
         const key = this.readCacheKey(cmd)
@@ -772,6 +794,19 @@ export class EAABridge {
           )
           result = await run()
           if (result.success || !result.stderr || !result.stderr.includes('os error 5')) break
+        }
+      }
+      // P1-9 修复: 写命令若返回空 stdout(JSON 命令)同样重试
+      if (!result.success && result.stderr && result.stderr.includes('[EAA_EMPTY_STDOUT]')) {
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          await this.delay(80 * (attempt + 1))
+          console.warn(
+            `[EAA] Retrying write "${cmd.command}" (attempt ${attempt}/2) after empty stdout`,
+          )
+          result = await run()
+          if (result.success || !result.stderr || !result.stderr.includes('[EAA_EMPTY_STDOUT]')) {
+            break
+          }
         }
       }
       return result
@@ -834,6 +869,9 @@ export class EAABridge {
         // 不使用 spawn 自带 timeout(仅发 SIGTERM),改用手动管理支持 SIGKILL 升级
         windowsHide: true,
       })
+
+      // P1-10: 注册到活跃进程表, 供 shutdown() 终止
+      this.activeProcesses.add(proc)
 
       // 修复: 超时后 SIGTERM → 3秒后 SIGKILL 升级,防止子进程成为孤儿
       const timeoutMs = cmd.timeout ?? 30_000
@@ -898,6 +936,7 @@ export class EAABridge {
       proc.on('close', (code) => {
         clearTimeout(timeoutHandle)
         if (sigkillHandle) clearTimeout(sigkillHandle)
+        this.activeProcesses.delete(proc)
         const exitCode = code ?? -1
         const success = exitCode === 0
 
@@ -923,6 +962,16 @@ export class EAABridge {
 
         // 解析 stdout：仅当追加了 --output json 时尝试 JSON.parse
         if (args.includes('--output') && args.includes('json')) {
+          // P1-9 修复: 并发文件锁竞争时 eaa 二进制可能退出码 0 但 stdout 为空。
+          // 此时 JSON.parse('') 抛错, 旧逻辑把 success 保持为 true 并返回 data: null,
+          // 导致上层工具误判为"成功但无数据"。这里把"空 stdout + 退出码 0"标记为可重试失败,
+          // 用 stderr 携带 EAA_EMPTY_STDOUT 标记, execute() 会据此触发重试。
+          // 注: 仅在 exitCode === 0 时标记, exitCode != 0 的失败已正确反映无需重试。
+          if (success && stdout.trim() === '') {
+            const retryHint = stderr.trim() ? `${stderr}\n[EAA_EMPTY_STDOUT]` : '[EAA_EMPTY_STDOUT]'
+            resolve({ success: false, data: null, stderr: retryHint, exitCode })
+            return
+          }
           try {
             const value = JSON.parse(stdout) as T
             resolve({ success, data: value, stderr, exitCode })
@@ -945,6 +994,7 @@ export class EAABridge {
 
       proc.on('error', (err) => {
         clearTimeout(timeoutHandle)
+        this.activeProcesses.delete(proc)
         // M-7 修复: 清理 stream listeners,防止 error 后仍接收数据造成资源泄漏
         proc.stdout?.removeAllListeners('data')
         proc.stderr?.removeAllListeners('data')
@@ -1078,6 +1128,32 @@ export class EAABridge {
   /** 是否已初始化 */
   isInitialized(): boolean {
     return this.initialized
+  }
+
+  /**
+   * P1-10: 应用退出时的优雅关闭。
+   *   1. 终止所有 in-flight EAA 子进程(SIGTERM → 不等待, 退出进程自然结束)
+   *      避免退出后子进程成为孤儿并持有 .lock 文件
+   *   2. 清空读缓存(释放内存)
+   *   3. 清空隐私密码(安全)
+   *
+   * EAA 是 spawn-per-command, 进程短生命周期, 通常退出时已无 in-flight 进程。
+   * 但若退出时恰好有 agent 在调用 EAA 工具, 这些进程需要被显式终止。
+   */
+  shutdown(): void {
+    if (this.activeProcesses.size > 0) {
+      console.log(`[EAA] shutdown: terminating ${this.activeProcesses.size} in-flight process(es)`)
+      for (const proc of this.activeProcesses) {
+        try {
+          proc.kill('SIGTERM')
+        } catch {
+          /* already exited */
+        }
+      }
+      this.activeProcesses.clear()
+    }
+    this.readCache.clear()
+    this.clearPrivacyPassword()
   }
 }
 

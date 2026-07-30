@@ -30,7 +30,7 @@ if (existsSync(SCHEMA_SRC)) {
   writeFileSync(join(TEST_ROOT, 'schema', 'reason_codes.json'), readFileSync(SCHEMA_SRC))
 }
 
-function eaaRun(args: string[]): Promise<string> {
+function eaaRunOnce(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn(EAA_BIN, args, {
       env: { ...process.env, EAA_DATA_DIR: TEST_DATA },
@@ -46,6 +46,28 @@ function eaaRun(args: string[]): Promise<string> {
       resolve(out)
     })
   })
+}
+
+/** eaaRun 带重试 — 并发争用文件锁时 eaa 可能 exit 0 但 stdout 为空。自动重试 3 次。 */
+async function eaaRun(args: string[]): Promise<string> {
+  const MAX_RETRIES = 3
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const out = await eaaRunOnce(args)
+      if (out.trim() === '' && attempt < MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, 80 * (attempt + 1)))
+        continue
+      }
+      return out
+    } catch (err) {
+      if (attempt < MAX_RETRIES && String(err).includes('exit')) {
+        await new Promise((r) => setTimeout(r, 80 * (attempt + 1)))
+        continue
+      }
+      throw err
+    }
+  }
+  throw new Error(`eaa ${args[0]} failed after ${MAX_RETRIES + 1} attempts`)
 }
 
 // ---------- Mock getAPI（指向真实 eaa） ----------

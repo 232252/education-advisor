@@ -11,7 +11,7 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { app, type BrowserWindow } from 'electron'
-import cron from 'node-cron'
+import cron, { type ScheduledTask } from 'node-cron'
 import * as IPC from '../../shared/ipc-channels'
 import type { AgentExecution, CronLogEntry, CronTask } from '../../shared/types'
 import { log } from '../utils/logger'
@@ -47,7 +47,7 @@ class CronService {
   private static readonly CIRCUIT_BREAKER_THRESHOLD = 3
 
   private tasks: Map<string, CronTask> = new Map()
-  private scheduledJobs: Map<string, cron.ScheduledTask> = new Map()
+  private scheduledJobs: Map<string, ScheduledTask> = new Map()
   /** 下次执行时间 ISO 字符串 */
   private nextRunAt: Map<string, string> = new Map()
   private logs: CronLogEntry[] = []
@@ -509,21 +509,19 @@ class CronService {
       timezone,
     })
     this.scheduledJobs.set(id, job)
-    // 监听 scheduled 事件更新 nextRunAt（P1-8）
-    job.on('scheduled', (next: Date) => {
+    // node-cron v4 移除了 'scheduled' 事件, 改用 getNextRun() 同步读取下次执行时间 (P1-8)
+    const next = job.getNextRun()
+    if (next) {
       this.nextRunAt.set(id, next.toISOString())
-    })
-    // 初始估算：1 分钟后（保守值，会被 scheduled 事件覆盖）
-    this.nextRunAt.set(id, new Date(Date.now() + 60_000).toISOString())
+    } else {
+      // 保守回退: 1 分钟后
+      this.nextRunAt.set(id, new Date(Date.now() + 60_000).toISOString())
+    }
   }
 
   private unschedule(id: string) {
     const job = this.scheduledJobs.get(id)
     if (job) {
-      try {
-        // R131 修复: 显式移除 scheduled 事件监听器, 避免频繁更新 cron 表达式时累积监听器
-        job.removeAllListeners('scheduled')
-      } catch {}
       job.stop()
     }
     this.scheduledJobs.delete(id)
