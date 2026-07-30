@@ -19,7 +19,7 @@ const variantMap = {
   success: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
   warning: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
   danger: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
-  neutral: 'bg-gray-100 dark:bg-[#1e222c] text-gray-600 dark:text-gray-400',
+  neutral: 'bg-gray-100 dark:bg-surface-elevated text-gray-600 dark:text-gray-400',
 }
 
 export function Badge({ children, variant = 'neutral', className }: BadgeProps) {

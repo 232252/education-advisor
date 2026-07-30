@@ -343,6 +343,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
           timestamp: Date.now(),
         })
         break
+
+      case 'retry':
+        // GAP-2: 自动重试进行中。保持流式状态(isStreaming 不变),给用户可见反馈。
+        // flush 已有 delta,追加一条临时"重试中"提示。
+        state.flushDeltas()
+        set({ isThinking: true })
+        state.addMessage({
+          role: 'assistant',
+          content: `⏳ 请求出错，正在自动重试（第 ${event.attempt}/${event.maxRetries} 次，${Math.round(event.delayMs / 100) / 10}s 后）…\n> 原因: ${event.reason}`,
+          timestamp: Date.now(),
+        })
+        break
     }
   },
 

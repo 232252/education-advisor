@@ -51,9 +51,9 @@ describe('Card — padding 变体', () => {
     expect((container.firstChild as HTMLElement).className).toContain('p-3')
   })
 
-  it('padding="lg" → p-6', () => {
+  it('padding="lg" → p-7', () => {
     const { container } = render(<Card padding="lg">x</Card>)
-    expect((container.firstChild as HTMLElement).className).toContain('p-6')
+    expect((container.firstChild as HTMLElement).className).toContain('p-7')
   })
 
   it('不同 padding 互斥(sm 不含 md)', () => {

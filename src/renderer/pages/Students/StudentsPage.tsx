@@ -4,6 +4,7 @@
 // =============================================================
 
 import type { ClassEntity, EAAStudent } from '@shared/types'
+import { Users } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
@@ -359,7 +360,6 @@ export function StudentsPage() {
     }
     document.addEventListener('ctx-menu-action', handler)
     return () => document.removeEventListener('ctx-menu-action', handler)
-    // biome-ignore lint/correctness/useExhaustiveDependencies: handleDeleteStudent is a stable event handler; Tauri biome 2.5.5+ does not flag this
   }, [students, handleDeleteStudent])
 
   // PERF: filtered 的最新引用 — 让 toggleSelectAll 可以 useCallback([]) 稳定引用
@@ -642,7 +642,7 @@ export function StudentsPage() {
                   📤 导出
                 </button>
                 {exportMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 bg-white dark:bg-[#1a1e28] border border-gray-200 dark:border-white/[0.06] rounded-lg shadow-lg z-50 min-w-[120px] animate-scale-in overflow-hidden">
+                  <div className="absolute right-0 top-full mt-1 bg-white dark:bg-surface-tertiary border border-gray-200 dark:border-white/[0.06] rounded-lg shadow-lg z-50 min-w-[120px] animate-scale-in overflow-hidden">
                     {exportFormats.map((fmt) => (
                       <button
                         type="button"
@@ -668,12 +668,12 @@ export function StudentsPage() {
           }
         />
         {/* 筛选与批量操作工具栏 */}
-        <div className="flex items-center gap-2 flex-wrap px-6 py-3 border-b border-gray-200 dark:border-white/[0.06] bg-gray-50/50 dark:bg-[#1a1e28]/30">
+        <div className="flex items-center gap-2 flex-wrap px-6 py-3 border-b border-gray-200 dark:border-white/[0.06] bg-gray-50/50 dark:bg-surface-tertiary/30">
           {/* 班级筛选下拉 */}
           <select
             value={classFilter}
             onChange={(e) => setClassFilter(e.target.value)}
-            className="bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+            className="bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             title="按班级筛选"
           >
             <option value="__ALL__">全部班级</option>
@@ -711,7 +711,7 @@ export function StudentsPage() {
               <select
                 value={batchAssignTarget}
                 onChange={(e) => setBatchAssignTarget(e.target.value)}
-                className="bg-white border border-gray-300 dark:bg-[#1e222c] dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                className="bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500"
                 title="选择目标班级"
               >
                 <option value="">调入班级...</option>
@@ -770,7 +770,7 @@ export function StudentsPage() {
 
         {/* 添加学生表单 (班级必填) */}
         {addingStudent && (
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-white/[0.06] bg-gray-50 dark:bg-[#1a1e28]/50 flex gap-2 items-center animate-slide-up">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-white/[0.06] bg-gray-50 dark:bg-surface-tertiary/50 flex gap-2 items-center animate-slide-up">
             {activeClassList.length === 0 ? (
               <div className="flex-1 text-sm text-amber-600 dark:text-amber-400 py-1">
                 ⚠ 请先在「班级」页面创建班级，学生必须归属于某个班级
@@ -829,7 +829,7 @@ export function StudentsPage() {
             <TableSkeleton rows={8} cols={8} />
           ) : sorted.length === 0 ? (
             <EmptyState
-              icon="👥"
+              icon={<Users size={28} />}
               title={t('page.students.empty')}
               description="尝试调整筛选条件或添加新学生"
             />

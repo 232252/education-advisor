@@ -18,7 +18,8 @@ const DEFAULT_SETTINGS: UnifiedSettings = {
   general: {
     dataDir: '',
     defaultOperator: '',
-    theme: 'dark',
+    // R169: 默认浅色(与 config/default-settings.json 及用户偏好一致),深色可在设置中切换
+    theme: 'light',
     language: 'zh-CN',
     autoUpdate: true,
     updateUrl: '',
@@ -68,6 +69,8 @@ const DEFAULT_SETTINGS: UnifiedSettings = {
     autoAnonymize: false,
   },
   feishu: {
+    // 域名版本: 'feishu' 国内版 / 'lark' 国际版(open.larksuite.com)
+    domain: 'feishu',
     appId: '',
     appSecret: '',
     userOpenId: '',
@@ -247,6 +250,26 @@ class SettingsService {
       }
     }
 
+    // R150 修复: 基于 DEFAULT_SETTINGS 的类型校验
+    // 防止传入与 schema 不符的类型(如 general.autoStart = 'yes' 字符串)
+    // 原有逻辑只拒绝 undefined/null/function/symbol/bigint,但未校验
+    // value 类型是否与默认值一致,导致 boolean 字段可被写入字符串
+    const defaultValue = probe
+    if (defaultValue !== null && defaultValue !== undefined) {
+      const defaultIsArray = Array.isArray(defaultValue)
+      const valueIsArray = Array.isArray(value)
+      if (defaultIsArray !== valueIsArray) {
+        throw new Error(
+          `Type mismatch for ${dotPath}: expected ${defaultIsArray ? 'array' : 'non-array'}, got ${valueIsArray ? 'array' : 'non-array'}`,
+        )
+      }
+      const defaultType = typeof defaultValue
+      const valueType = typeof value
+      if (defaultType !== valueType) {
+        throw new Error(`Type mismatch for ${dotPath}: expected ${defaultType}, got ${valueType}`)
+      }
+    }
+
     // 防御性遍历：中间节点为 undefined 时跳过（P1-27）
     let obj: Record<string, unknown> = this.settings as unknown as Record<string, unknown>
     for (let i = 0; i < keys.length - 1; i++) {
@@ -307,7 +330,15 @@ class SettingsService {
         const tmpPath = `${this.settingsPath}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
         // 确保目录存在
         await fsp.mkdir(path.dirname(this.settingsPath), { recursive: true })
-        await fsp.writeFile(tmpPath, json, 'utf-8')
+        // A6 修复: 通过单个 fd 写入 + fsync 确保数据落盘后再 rename,
+        // 避免 Windows 文件缓存在 SIGKILL/断电时丢失刚 rename 的设置 (R4 同类问题)
+        const fd = await fsp.open(tmpPath, 'w')
+        try {
+          await fd.writeFile(json, 'utf-8')
+          await fd.sync()
+        } finally {
+          await fd.close()
+        }
         await fsp.rename(tmpPath, this.settingsPath)
         this._lastError = null
       } while (this._needsResave)

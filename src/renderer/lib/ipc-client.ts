@@ -351,6 +351,19 @@ interface WindowAPI {
     botStop: () => Promise<{ success: boolean; status?: FeishuBotStatusInfo }>
     botStatus: () => Promise<FeishuBotStatusInfo>
     onBotStatusUpdate: (callback: (info: FeishuBotStatusInfo) => void) => () => void
+    diagnose: () => Promise<{
+      steps: Array<{
+        name: string
+        status: 'pass' | 'fail' | 'skip'
+        latencyMs?: number
+        detail: string
+        suggestion?: string
+      }>
+      overall: 'pass' | 'fail'
+      domain: string
+      timestamp: number
+      error?: string
+    }>
   }
   sys: {
     openDialog: (options: unknown) => Promise<unknown>

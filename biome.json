@@ -48,6 +48,11 @@
             "noUnknownAtRules": "off"
           }
         }
+      },
+      "css": {
+        "parser": {
+          "tailwindDirectives": true
+        }
       }
     }
   ]

@@ -8,7 +8,7 @@ import type { EAAHistoryEvent } from '@shared/types'
 export function EventMiniCard({ event }: { event: EAAHistoryEvent }) {
   const isBonus = event.score_delta > 0
   return (
-    <div className="flex items-center justify-between text-sm p-2.5 bg-gray-50 dark:bg-[#1a1e28]/50 rounded-lg border border-gray-100 dark:border-white/[0.06]">
+    <div className="flex items-center justify-between text-sm p-2.5 bg-gray-50 dark:bg-surface-tertiary/50 rounded-lg border border-gray-100 dark:border-white/[0.06]">
       <div className="flex items-center gap-2 min-w-0">
         <span className={`font-mono font-bold ${isBonus ? 'text-green-500' : 'text-red-500'}`}>
           {isBonus ? '+' : ''}

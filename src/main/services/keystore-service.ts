@@ -97,7 +97,14 @@ class KeystoreService {
         // 原子写入:先写临时文件再 rename,避免崩溃导致 keystore.enc 损坏
         // tmp 文件名加随机后缀,即使并发也不会互相覆盖(双重防御)
         const tmpPath = `${this.keyStorePath}.tmp.${process.pid}.${Date.now()}`
-        await fsp.writeFile(tmpPath, encrypted)
+        // A6 修复: fd 写入 + fsync 确保密钥落盘后再 rename (与 settings 一致)
+        const fd = await fsp.open(tmpPath, 'w')
+        try {
+          await fd.writeFile(encrypted)
+          await fd.sync()
+        } finally {
+          await fd.close()
+        }
         await fsp.rename(tmpPath, this.keyStorePath)
       } while (this._needsResave)
     } catch (err) {

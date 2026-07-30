@@ -299,112 +299,112 @@ export function ModelsPage() {
           <EmptyState icon="⏳" title="加载中..." />
         ) : (
           <div className="space-y-6">
-          {/* 默认模型配置面板 */}
-          <DefaultModelConfig
-            providers={providers}
-            modelsMap={modelsMap}
-            modelsLoading={modelsLoading}
-            onRefreshModels={refreshModels}
-          />
+            {/* 默认模型配置面板 */}
+            <DefaultModelConfig
+              providers={providers}
+              modelsMap={modelsMap}
+              modelsLoading={modelsLoading}
+              onRefreshModels={refreshModels}
+            />
 
-          {/* 已配置的 Providers */}
-          {configuredProviders.length > 0 && (
-            <div>
-              <h2 className="text-sm font-medium text-green-500 dark:text-green-400 uppercase tracking-wider mb-3">
-                已配置 ({configuredProviders.length})
-              </h2>
-              <div className="space-y-2">
-                {configuredProviders.map((p) => (
-                  <ProviderCard
-                    key={p.id}
-                    provider={p}
-                    expanded={expandedProvider === p.id}
-                    models={modelsMap[p.id] ?? EMPTY_MODELS}
-                    modelsLoading={modelsLoading[p.id] ?? false}
-                    apiKeyInput={apiKeyInputs[p.id] ?? ''}
-                    testResult={testResults[p.id]}
-                    onExpand={handleExpand}
-                    onApiKeyChange={handleApiKeyChange}
-                    onTest={handleTestConnection}
-                    onDeleteKey={handleDeleteApiKey}
-                    onOAuthLogin={handleOAuthLogin}
-                    onRefreshModels={refreshModels}
-                    onHideProvider={handleHideProvider}
-                    onAddCustomModel={handleAddCustomModel}
-                    onUpdateCustomModel={handleUpdateCustomModel}
-                    onDeleteCustomModel={handleDeleteCustomModel}
-                    refreshTime={refreshTime[p.id] ?? 0}
-                  />
-                ))}
+            {/* 已配置的 Providers */}
+            {configuredProviders.length > 0 && (
+              <div>
+                <h2 className="text-sm font-medium text-green-500 dark:text-green-400 uppercase tracking-wider mb-3">
+                  已配置 ({configuredProviders.length})
+                </h2>
+                <div className="space-y-2">
+                  {configuredProviders.map((p) => (
+                    <ProviderCard
+                      key={p.id}
+                      provider={p}
+                      expanded={expandedProvider === p.id}
+                      models={modelsMap[p.id] ?? EMPTY_MODELS}
+                      modelsLoading={modelsLoading[p.id] ?? false}
+                      apiKeyInput={apiKeyInputs[p.id] ?? ''}
+                      testResult={testResults[p.id]}
+                      onExpand={handleExpand}
+                      onApiKeyChange={handleApiKeyChange}
+                      onTest={handleTestConnection}
+                      onDeleteKey={handleDeleteApiKey}
+                      onOAuthLogin={handleOAuthLogin}
+                      onRefreshModels={refreshModels}
+                      onHideProvider={handleHideProvider}
+                      onAddCustomModel={handleAddCustomModel}
+                      onUpdateCustomModel={handleUpdateCustomModel}
+                      onDeleteCustomModel={handleDeleteCustomModel}
+                      refreshTime={refreshTime[p.id] ?? 0}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* 未配置的 Providers */}
-          {unconfiguredProviders.length > 0 && (
-            <div>
-              <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                未配置 ({unconfiguredProviders.length})
-              </h2>
-              <div className="space-y-2">
-                {unconfiguredProviders.map((p) => (
-                  <ProviderCard
-                    key={p.id}
-                    provider={p}
-                    expanded={expandedProvider === p.id}
-                    models={modelsMap[p.id] ?? EMPTY_MODELS}
-                    modelsLoading={modelsLoading[p.id] ?? false}
-                    apiKeyInput={apiKeyInputs[p.id] ?? ''}
-                    testResult={testResults[p.id]}
-                    onExpand={handleExpand}
-                    onApiKeyChange={handleApiKeyChange}
-                    onTest={handleTestConnection}
-                    onDeleteKey={handleDeleteApiKey}
-                    onOAuthLogin={handleOAuthLogin}
-                    onHideProvider={handleHideProvider}
-                    onAddCustomModel={handleAddCustomModel}
-                    onUpdateCustomModel={handleUpdateCustomModel}
-                    onDeleteCustomModel={handleDeleteCustomModel}
-                    refreshTime={refreshTime[p.id] ?? 0}
-                  />
-                ))}
+            {/* 未配置的 Providers */}
+            {unconfiguredProviders.length > 0 && (
+              <div>
+                <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                  未配置 ({unconfiguredProviders.length})
+                </h2>
+                <div className="space-y-2">
+                  {unconfiguredProviders.map((p) => (
+                    <ProviderCard
+                      key={p.id}
+                      provider={p}
+                      expanded={expandedProvider === p.id}
+                      models={modelsMap[p.id] ?? EMPTY_MODELS}
+                      modelsLoading={modelsLoading[p.id] ?? false}
+                      apiKeyInput={apiKeyInputs[p.id] ?? ''}
+                      testResult={testResults[p.id]}
+                      onExpand={handleExpand}
+                      onApiKeyChange={handleApiKeyChange}
+                      onTest={handleTestConnection}
+                      onDeleteKey={handleDeleteApiKey}
+                      onOAuthLogin={handleOAuthLogin}
+                      onHideProvider={handleHideProvider}
+                      onAddCustomModel={handleAddCustomModel}
+                      onUpdateCustomModel={handleUpdateCustomModel}
+                      onDeleteCustomModel={handleDeleteCustomModel}
+                      refreshTime={refreshTime[p.id] ?? 0}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* 已隐藏的 Providers */}
-          {hiddenProviders.length > 0 && (
-            <div>
-              <h2 className="text-sm font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-                已隐藏 ({hiddenProviders.length})
-              </h2>
-              <div className="space-y-1">
-                {hiddenProviders.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between px-4 py-2 rounded-lg bg-gray-100 dark:bg-[#1a1e28] opacity-60"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500 dark:text-gray-400">{p.name}</span>
-                      <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                        {p.modelCount} models
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleUnhideProvider(p.id)}
-                      aria-label="取消隐藏"
-                      className={btnStyle('ghost')}
+            {/* 已隐藏的 Providers */}
+            {hiddenProviders.length > 0 && (
+              <div>
+                <h2 className="text-sm font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
+                  已隐藏 ({hiddenProviders.length})
+                </h2>
+                <div className="space-y-1">
+                  {hiddenProviders.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between px-4 py-2 rounded-lg bg-gray-100 dark:bg-surface-tertiary opacity-60"
                     >
-                      取消隐藏
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">{p.name}</span>
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                          {p.modelCount} models
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleUnhideProvider(p.id)}
+                        aria-label="取消隐藏"
+                        className={btnStyle('ghost')}
+                      >
+                        取消隐藏
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

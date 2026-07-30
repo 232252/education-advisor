@@ -20,7 +20,17 @@ class SkillService {
 
   constructor() {
     // 用户级: ~/.education-advisor/skills/
-    this.userSkillsDir = path.join(app.getPath('userData'), 'skills')
+    // R155 修复: 开发模式下 TRAE Sandbox 阻止写入 %APPDATA%,
+    // 与 db-service/eaa-bridge 同模式: 开发模式重定向到项目根 .app-data/skills/
+    const resourcesPath = process.resourcesPath || ''
+    const isRealPackaged =
+      !resourcesPath.includes('node_modules') && !resourcesPath.includes('electron')
+    if (isRealPackaged) {
+      this.userSkillsDir = path.join(app.getPath('userData'), 'skills')
+    } else {
+      const projectRoot = path.resolve(__dirname, '..', '..')
+      this.userSkillsDir = path.join(projectRoot, '.app-data', 'skills')
+    }
     // 项目级: resources/skills/ (打包后) 或项目根目录 skills/ (开发)
     // app.isPackaged 在 `electron .` 启动时不可靠，优先检查 dev 路径
     const devSkillsDir = path.join(__dirname, '..', '..', 'skills')

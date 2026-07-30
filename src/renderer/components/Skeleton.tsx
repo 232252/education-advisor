@@ -11,13 +11,20 @@ interface SkeletonProps {
 
 /** 单行骨架屏 */
 export function Skeleton({ className }: SkeletonProps) {
-  return <div className={cn('animate-pulse rounded-md bg-gray-200 dark:bg-white/[0.06]', className)} />
+  return (
+    <div
+      className={cn(
+        'rounded-md bg-[linear-gradient(90deg,#e5e7eb_25%,#f3f4f6_50%,#e5e7eb_75%)] dark:bg-[linear-gradient(90deg,rgba(255,255,255,0.06)_25%,rgba(255,255,255,0.12)_50%,rgba(255,255,255,0.06)_75%)] bg-[length:200%_100%] animate-shimmer',
+        className,
+      )}
+    />
+  )
 }
 
 /** 卡片骨架屏 */
 export function CardSkeleton() {
   return (
-    <div className="rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-[#1a1e28] p-5 space-y-3">
+    <div className="rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary p-5 space-y-3">
       <Skeleton className="h-4 w-1/3" />
       <Skeleton className="h-8 w-1/2" />
       <Skeleton className="h-3 w-2/3" />
