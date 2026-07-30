@@ -6,6 +6,7 @@
 // =============================================================
 
 import type { FeishuBotStatusInfo, UnifiedSettings } from '@shared/types'
+import { useState } from 'react'
 import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { cn, INPUT_INVALID, INPUT_SM } from '../../../lib/ui-utils'
@@ -50,11 +51,38 @@ export function FeishuSection({
   setBitableListInfo,
 }: FeishuSectionProps) {
   const { t } = useT()
+  const [diagnosing, setDiagnosing] = useState(false)
+  const [diagnoseResult, setDiagnoseResult] = useState<{
+    steps: Array<{
+      name: string
+      status: 'pass' | 'fail' | 'skip'
+      latencyMs?: number
+      detail: string
+      suggestion?: string
+    }>
+    overall: 'pass' | 'fail'
+  } | null>(null)
+
+  const handleDiagnose = async () => {
+    setDiagnosing(true)
+    setDiagnoseResult(null)
+    try {
+      const result = await getAPI().feishu.diagnose()
+      setDiagnoseResult(result)
+    } catch {
+      setDiagnoseResult({
+        steps: [],
+        overall: 'fail',
+      })
+    } finally {
+      setDiagnosing(false)
+    }
+  }
 
   return (
     <Section title={t('settings.section.feishu')}>
       {/* 连接状态徽章:实时反映长连接机器人状态 */}
-      <div className="px-5 py-3 flex items-center gap-2 bg-gray-50 dark:bg-[#1e222c]/40 border-b border-gray-200 dark:border-white/[0.06]/60">
+      <div className="px-5 py-3 flex items-center gap-2 bg-gray-50 dark:bg-surface-elevated/40 border-b border-gray-200 dark:border-white/[0.06]/60">
         <span
           className={`w-2 h-2 rounded-full ${
             botStatus?.status === 'connected'
@@ -73,7 +101,9 @@ export function FeishuSection({
               ? '连接中...'
               : botStatus?.status === 'error'
                 ? `连接失败${botStatus.error ? ` · ${botStatus.error}` : ''}`
-                : '未连接'}
+                : !settings.feishu.appId || settings.feishu.appSecret !== '__keystore__'
+                  ? '未配置 · 请先填写 App ID 和 App Secret'
+                  : '未连接'}
         </span>
         {botStatus?.status === 'connected' &&
           botStatus.processingCount &&
@@ -102,6 +132,21 @@ export function FeishuSection({
           </button>
         )}
       </div>
+
+      <SettingRow
+        label={t('settings.feishu.domain')}
+        path="feishu.domain"
+        description={t('settings.feishu.domain.desc')}
+      >
+        <select
+          value={settings.feishu.domain}
+          onChange={(e) => onSave('feishu.domain', e.target.value)}
+          className={cn(INPUT_SM, 'w-48')}
+        >
+          <option value="feishu">{t('settings.feishu.domainFeishu')}</option>
+          <option value="lark">{t('settings.feishu.domainLark')}</option>
+        </select>
+      </SettingRow>
 
       <SettingRow
         label="App ID"
@@ -180,22 +225,100 @@ export function FeishuSection({
       {/* 配置指引:首次使用必读,告知飞书后台需开启的权限与事件 */}
       <div className="px-5 py-3 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-t border-gray-200 dark:border-white/[0.06]/60">
         <div className="font-medium text-blue-600 dark:text-blue-400 mb-1">首次使用飞书对话</div>
+        <div className="mb-1 text-emerald-600 dark:text-emerald-400">
+          采用长连接模式:无需公网 IP、无需内网穿透,本机在任意网络(含家庭/校园网)都能远程收发消息。
+        </div>
         填好 App ID 和 App Secret 后,还需在
         <a
-          href="https://open.feishu.cn"
+          href={
+            settings.feishu.domain === 'lark'
+              ? 'https://open.larksuite.com'
+              : 'https://open.feishu.cn'
+          }
           target="_blank"
           rel="noreferrer"
           className="text-blue-500 dark:text-blue-400 underline mx-0.5"
         >
-          飞书开放平台
+          {settings.feishu.domain === 'lark' ? 'Lark Open Platform' : '飞书开放平台'}
         </a>
         后台为该应用:
         <ol className="list-decimal ml-4 mt-1 space-y-0.5">
+          <li>「应用能力」→ 启用「机器人」能力</li>
           <li>「事件与回调」→ 订阅方式选「使用长连接接收事件」</li>
           <li>添加事件「接收消息 v2.0」(im.message.receive_v1)</li>
           <li>「权限管理」开启:im:message、im:message:send_as_bot</li>
+          <li>创建版本并发布(企业自建应用需管理员审核通过)</li>
         </ol>
         配好后点上方「连接」,即可在飞书里直接对话,发 /help 查看命令。
+      </div>
+
+      {/* 网络诊断:排查远程访问连接问题 */}
+      <div className="px-5 py-3 border-t border-gray-200 dark:border-white/[0.06]/60">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">网络诊断</span>
+          <button
+            type="button"
+            onClick={handleDiagnose}
+            disabled={diagnosing}
+            className="text-[10px] px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+          >
+            {diagnosing ? '诊断中...' : '开始诊断'}
+          </button>
+          {diagnoseResult && !diagnosing && (
+            <span
+              className={`text-[10px] font-medium ${
+                diagnoseResult.overall === 'pass'
+                  ? 'text-emerald-500 dark:text-emerald-400'
+                  : 'text-rose-500 dark:text-rose-400'
+              }`}
+            >
+              {diagnoseResult.overall === 'pass' ? '✓ 全部通过' : '✗ 存在问题'}
+            </span>
+          )}
+        </div>
+        {diagnoseResult && diagnoseResult.steps.length > 0 && (
+          <div className="space-y-1.5">
+            {diagnoseResult.steps.map((step) => (
+              <div
+                key={`diagnose-${step.name}`}
+                className="flex items-start gap-2 text-[11px] leading-relaxed"
+              >
+                <span
+                  className={`flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                    step.status === 'pass'
+                      ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+                      : step.status === 'fail'
+                        ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
+                        : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
+                  }`}
+                >
+                  {step.status === 'pass' ? '✓' : step.status === 'fail' ? '✗' : '-'}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-600 dark:text-gray-300">
+                      {step.name}
+                    </span>
+                    {step.latencyMs !== undefined && (
+                      <span className="text-gray-400 dark:text-gray-500">{step.latencyMs}ms</span>
+                    )}
+                  </div>
+                  <div className="text-gray-500 dark:text-gray-400">{step.detail}</div>
+                  {step.suggestion && (
+                    <div className="text-amber-600 dark:text-amber-400 mt-0.5">
+                      建议: {step.suggestion}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {diagnoseResult && diagnoseResult.steps.length === 0 && (
+          <div className="text-[11px] text-rose-500 dark:text-rose-400">
+            诊断失败,请检查应用日志
+          </div>
+        )}
       </div>
 
       {/* 高级:Bitable 同步等不常用配置,默认收起 */}

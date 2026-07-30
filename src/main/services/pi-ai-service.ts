@@ -519,6 +519,12 @@ class PiAIService {
     const start = Date.now()
     const models = this.safeGetModels(providerId)
 
+    // R169 修复: 当调用方未显式传入 apiKey 时,回退到 keystore / 环境变量
+    // 此前 testConnection('minimax-cn', '') 返回 "No API key" 即使 keystore 已存储 key,
+    // 导致用户在 Models 页面点击"测试"按钮时(输入框为空)无法测试已配置的 provider
+    const resolvedApiKey =
+      apiKey || keystoreService.getApiKey(providerId) || getEnvApiKey(providerId)
+
     if (models.length === 0) {
       return {
         success: false,
@@ -531,13 +537,22 @@ class PiAIService {
     // 选择最便宜的模型做测试
     const testModel = selectCheapestModel(models)
 
+    if (!resolvedApiKey) {
+      return {
+        success: false,
+        latencyMs: Date.now() - start,
+        model: testModel.id,
+        error: `No API key for provider: ${providerId}`,
+      }
+    }
+
     try {
       const context: Context = {
         messages: [{ role: 'user', content: 'ping', timestamp: Date.now() }],
       }
 
       const result = await completeSimple(testModel, context, {
-        apiKey,
+        apiKey: resolvedApiKey,
         maxTokens: 5,
       })
 
@@ -666,7 +681,12 @@ class PiAIService {
     // 边界：conversationMessages 为空时直接返回 (不能仅检查 params.messages,
     // 因为可能只含 system/tool 消息,过滤后为空)
     if (conversationMessages.length === 0) {
-      yield { type: 'error', message: 'No messages to send', retryable: false, retry: buildRetryInfo(false) }
+      yield {
+        type: 'error',
+        message: 'No messages to send',
+        retryable: false,
+        retry: buildRetryInfo(false),
+      }
       return
     }
 
@@ -819,51 +839,79 @@ class PiAIService {
     // 发起流式请求
     // 修复 Bug-1: 之前用 params.maxTokens ?? defaultMaxTokens (4096) 覆盖了 model.maxTokens
     // 现在用 effectiveOutputMax (max(model.maxTokens, params.maxTokens ?? defaultMaxTokens))
-    const stream = streamSimple(model, context, {
-      apiKey,
-      reasoning,
-      maxTokens: effectiveOutputMax,
-      signal: myController.signal,
-    })
+    // GAP-2 修复: 改为函数式创建,使自动重试能重建 stream(async iterable 消费后不可复用)。
+    const createStream = () =>
+      streamSimple(model, context, {
+        apiKey,
+        reasoning,
+        maxTokens: effectiveOutputMax,
+        signal: myController.signal,
+      })
 
     yield { type: 'start', model: model.id, provider: model.provider }
 
     // 注: retry 配置已在函数开头读取 (R132 修复: 前置以使所有 error 路径都附带 retry 元信息)
-    // 注: streamSimple 返回的 AsyncIterable 一旦被消费无法复用,
-    // 所以"完整自动重试"需重构为函数式 streamSimple(每次重试重建),不在本次范围。
-    // 此处仅:(1) 读 settings 让配置项不再是死字段
-    //       (2) 错误事件附带 retry 元信息,渲染端可选择手工重试
+    // GAP-2: 实现真实的自动重试。策略: 在向用户输出任何 token 之前(即 yieldedAny=false)遇到
+    // retryable 错误时,按指数退避重建 stream 重试;一旦已输出 token 则不再重试(避免重复输出)。
     console.log(
       `[PiAI] retry policy: enabled=${retryEnabled} maxRetries=${maxRetries} baseDelay=${baseDelayMs}ms timeout=${providerTimeoutMs}ms`,
     )
 
+    // T2: AI 流事件全量落盘(chat.conversationLogging 关闭时跳过)
+    let conversationLogging = true
     try {
-      // T2: AI 流事件全量落盘(chat.conversationLogging 关闭时跳过)
-      let conversationLogging = true
-      try {
-        conversationLogging = settingsService.getSettings().chat?.conversationLogging !== false
-      } catch {
-        /* 默认 true */
-      }
+      conversationLogging = settingsService.getSettings().chat?.conversationLogging !== false
+    } catch {
+      /* 默认 true */
+    }
 
-      for await (const event of stream) {
-        const mapped = mapEvent(event)
-        if (mapped) {
-          if (conversationLogging) {
-            logChat('event', { type: mapped.type, ...(mapped as object) })
+    try {
+      let attempt = 0
+      let yieldedAny = false // 是否已向用户 yield 过事件(一旦 true 就不能重试)
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        let stream: ReturnType<typeof createStream>
+        try {
+          stream = createStream()
+          for await (const event of stream) {
+            const mapped = mapEvent(event)
+            if (mapped) {
+              yieldedAny = true
+              if (conversationLogging) {
+                logChat('event', { type: mapped.type, ...(mapped as object) })
+              }
+              yield mapped
+            }
           }
-          yield mapped
+          break // 正常消费完毕,退出重试循环
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err)
+          const retryable = isRetryableError(message)
+          // GAP-2: 仅当 (a)开启了重试 (b)错误可重试 (c)尚未向用户输出任何 token (d)未超最大次数 时自动重试
+          const canAutoRetry =
+            retryEnabled &&
+            retryable &&
+            !yieldedAny &&
+            attempt < maxRetries &&
+            !myController.signal.aborted
+          if (!canAutoRetry) {
+            yield {
+              type: 'error',
+              message,
+              retryable,
+              retry: buildRetryInfo(retryable),
+            }
+            break
+          }
+          // 指数退避: baseDelay * 2^attempt (+ 小 jitter)
+          const delay = baseDelayMs * 2 ** attempt + Math.floor(Math.random() * 100)
+          attempt++
+          console.log(
+            `[PiAI] auto-retry attempt ${attempt}/${maxRetries} after ${delay}ms (error: ${message})`,
+          )
+          yield { type: 'retry', attempt, maxRetries, delayMs: delay, reason: message }
+          await new Promise((resolve) => setTimeout(resolve, delay))
         }
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
-      const retryable = isRetryableError(message)
-      // 把 retry 配置附在 error 事件,渲染端可基于此做手动重试
-      yield {
-        type: 'error',
-        message,
-        retryable,
-        retry: buildRetryInfo(retryable),
       }
     } finally {
       // Critical 4.1 修复: 只清理自己创建的 controller,避免覆盖另一个并发 chatStream 的 controller

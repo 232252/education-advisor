@@ -356,7 +356,7 @@ export function McpTab() {
       ) : (
         <div className="flex-1 flex min-h-0">
           {/* 左侧服务器列表 */}
-          <div className="w-72 flex-shrink-0 border-r border-gray-200 dark:border-white/[0.06] flex flex-col bg-gray-50/30 dark:bg-[#1a1e28]/30">
+          <div className="w-72 flex-shrink-0 border-r border-gray-200 dark:border-white/[0.06] flex flex-col bg-gray-50/30 dark:bg-surface-tertiary/30">
             <div className="p-3 border-b border-gray-200 dark:border-white/[0.06] space-y-2">
               <button
                 type="button"
@@ -379,12 +379,9 @@ export function McpTab() {
             </div>
             <div className="flex-1 overflow-auto">
               {servers.length === 0 ? (
-                <div className="p-4">
-                  <EmptyState
-                    icon="🔌"
-                    title={t('page.mcp.empty.title')}
-                    description={t('page.mcp.empty.hint')}
-                  />
+                // 左侧列表空时仅显示紧凑提示,完整空状态由右侧详情区展示(避免双份)
+                <div className="px-3 py-4 text-center text-xs text-gray-400 dark:text-gray-500">
+                  {t('page.mcp.empty.title')}
                 </div>
               ) : (
                 <ul>

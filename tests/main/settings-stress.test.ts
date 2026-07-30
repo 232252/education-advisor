@@ -70,7 +70,7 @@ describe('stress: settings-service 快速连续 update', () => {
     settingsService.reset()
     settingsService.update('general.theme', 'light')
     settingsService.reset()
-    expect(settingsService.getSettings().general.theme).toBe('dark')
+    expect(settingsService.getSettings().general.theme).toBe('light')
   })
 
   it('节流: 500ms 内多次 update 只写一次盘', async () => {

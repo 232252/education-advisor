@@ -4,6 +4,8 @@
 // =============================================================
 
 import type { EAAStudent } from '@shared/types'
+import type { LucideIcon } from 'lucide-react'
+import { BarChart3, BookOpen, Bot, ClipboardList, History } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { PageHeader } from '../../components/PageHeader'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
@@ -26,12 +28,12 @@ interface StudentProfileProps {
 type TabId = 'overview' | 'profile' | 'events' | 'academics' | 'ai'
 
 // 模块级常量 — StudentProfile 的 tabs 固定不变
-const STUDENT_PROFILE_TABS: Array<{ id: TabId; label: string; icon: string }> = [
-  { id: 'overview', label: '概览', icon: '📊' },
-  { id: 'profile', label: '档案', icon: '📋' },
-  { id: 'events', label: '事件', icon: '📝' },
-  { id: 'academics', label: '学业', icon: '📚' },
-  { id: 'ai', label: 'AI分析', icon: '🤖' },
+const STUDENT_PROFILE_TABS: Array<{ id: TabId; label: string; icon: LucideIcon }> = [
+  { id: 'overview', label: '概览', icon: BarChart3 },
+  { id: 'profile', label: '档案', icon: ClipboardList },
+  { id: 'events', label: '事件', icon: History },
+  { id: 'academics', label: '学业', icon: BookOpen },
+  { id: 'ai', label: 'AI分析', icon: Bot },
 ]
 
 export function StudentProfile({ student, onClose, onRefresh }: StudentProfileProps) {
@@ -123,7 +125,8 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
       }
       if (mountedRef.current) setAiMessageAuto('AI 分析完成')
     } catch (err) {
-      if (mountedRef.current) setAiMessageAuto(`分析失败: ${err instanceof Error ? err.message : String(err)}`)
+      if (mountedRef.current)
+        setAiMessageAuto(`分析失败: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       unsub()
       if (mountedRef.current) setAiRunning(false)
@@ -167,7 +170,8 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
       }
       if (mountedRef.current) setAiMessageAuto('AI 分析完成')
     } catch (err) {
-      if (mountedRef.current) setAiMessageAuto(`分析失败: ${err instanceof Error ? err.message : String(err)}`)
+      if (mountedRef.current)
+        setAiMessageAuto(`分析失败: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       unsub()
       if (mountedRef.current) setAiRunning(false)
@@ -210,7 +214,7 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
   // tabs 已提升为模块级常量 STUDENT_PROFILE_TABS
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-[#0f1117]">
+    <div className="h-full flex flex-col bg-white dark:bg-surface-primary">
       {/* 头部 */}
       <PageHeader
         size="sm"
@@ -256,7 +260,7 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
         }
       />
       {/* 学生概要信息条 */}
-      <div className="flex items-center gap-2 px-6 py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50/50 dark:bg-[#1a1e28]/50">
+      <div className="flex items-center gap-2 px-6 py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50/50 dark:bg-surface-tertiary/50">
         <span className={riskColor(student.risk)}>风险: {student.risk}</span>
         <span className="text-gray-300 dark:text-gray-600">|</span>
         <span>
@@ -289,7 +293,7 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
       )}
 
       {/* 选项卡导航 */}
-      <div className="flex border-b border-gray-200 dark:border-white/[0.06] px-4 bg-gray-50/50 dark:bg-[#1a1e28]/50">
+      <div className="flex border-b border-gray-200 dark:border-white/[0.06] px-4 bg-gray-50/50 dark:bg-surface-tertiary/50">
         {STUDENT_PROFILE_TABS.map((tab) => (
           <button
             type="button"
@@ -302,7 +306,7 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300')
             }
           >
-            <span className="mr-1.5">{tab.icon}</span>
+            <tab.icon className="mr-1.5 inline-block h-4 w-4 align-[-2px]" aria-hidden />
             {tab.label}
           </button>
         ))}

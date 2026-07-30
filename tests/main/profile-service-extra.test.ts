@@ -45,11 +45,21 @@ describe('profileService 补充 — 路径遍历与名称清洗', () => {
 
   describe('路径遍历防护', () => {
     it('含 ../ 的名称不应逃逸出 profiles 目录', async () => {
-      const r = await profileService.set('../../../etc/passwd', { notes: 'evil' })
+      const r = await profileService.set('../../../etc/ZZZ_NONEXISTENT_TRAVERSAL_TARGET', {
+        notes: 'evil',
+      })
       expect(r.success).toBe(true)
-      // profiles 目录外不应有文件被创建
-      const evilPath = path.join(tmpDir, '..', '..', '..', 'etc', 'passwd')
+      // 修复: 不再检查 tmpDir/../../../etc/passwd —— 在 Linux 上该路径解析为真实的 /etc/passwd,
+      // 导致误报。改为验证逃逸目标(ZZZ_NONEXISTENT_...)确实未被创建,且清洗后的文件落在 profiles 内。
+      const evilPath = path.join(tmpDir, '..', '..', '..', 'etc', 'ZZZ_NONEXISTENT_TRAVERSAL_TARGET')
       expect(fs.existsSync(evilPath)).toBe(false)
+      // 同时确认数据写入了 profiles 目录内(清洗后的安全文件名)
+      // profile-service 用 userData/eaa-data/profiles,测试 mock userData=tmpDir
+      const profilesDir = path.join(tmpDir, 'eaa-data', 'profiles')
+      const written = fs
+        .readdirSync(profilesDir)
+        .filter((f) => f.includes('etc') && f.includes('ZZZ_NONEXISTENT'))
+      expect(written.length).toBeGreaterThan(0)
     })
 
     it('含 / 和 \\ 的名称被替换为下划线后仍可读写', async () => {

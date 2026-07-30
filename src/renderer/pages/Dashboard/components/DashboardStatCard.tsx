@@ -57,11 +57,13 @@ export const DashboardStatCard = memo(function DashboardStatCard({
   value,
   color,
   icon: Icon,
+  className,
 }: {
   title: string
   value: string | number
   color: string
   icon: LucideIcon
+  className?: string
 }) {
   const c = GRADIENT_COLORS[color as keyof typeof GRADIENT_COLORS] ?? GRADIENT_COLORS.blue
   return (
@@ -69,7 +71,7 @@ export const DashboardStatCard = memo(function DashboardStatCard({
       padding="md"
       className={`relative overflow-hidden bg-gradient-to-br ${c.bg} ${c.border}
                   shadow-card hover:shadow-card-hover hover:-translate-y-0.5
-                  transition-all duration-200 cursor-default group`}
+                  transition-all duration-200 cursor-default group ${className ?? ''}`}
     >
       {/* 装饰性渐变圆 */}
       <div
@@ -83,8 +85,8 @@ export const DashboardStatCard = memo(function DashboardStatCard({
             {title}
           </span>
           <Icon
-            size={16}
-            strokeWidth={1.8}
+            size={18}
+            strokeWidth={2.0}
             className={`${c.text} opacity-70 group-hover:opacity-100 transition-opacity duration-200`}
             aria-label={title}
           />

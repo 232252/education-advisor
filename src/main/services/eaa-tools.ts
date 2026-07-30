@@ -260,9 +260,7 @@ export const rankingTool: AgentTool<typeof rankingParams> = {
       params.n !== undefined &&
       (typeof params.n !== 'number' || !Number.isFinite(params.n) || params.n <= 0)
     ) {
-      throw new Error(
-        `参数 n 必须是正整数,收到: ${JSON.stringify(params.n)}`,
-      )
+      throw new Error(`参数 n 必须是正整数,收到: ${JSON.stringify(params.n)}`)
     }
     const args = params.n ? [String(params.n)] : []
     const result = await eaaBridge.execute({ command: 'ranking', args })
@@ -366,10 +364,131 @@ export const rangeTool: AgentTool<typeof rangeParams> = {
 }
 
 // =============================================================
+// GAP-1 补全：以下工具让 Agent 覆盖渲染端已有的数据操作能力
+// 12. 设置学生属性 (班级/组别/角色) — 对应 eaa:set-student-meta
+// 13. 撤销操行事件 — 对应 eaa:revert-event
+// 14. 标签查询 — 对应 eaa:tag
+// 15. 删除学生 — 对应 eaa:delete-student (危险操作,归入独立 delete capability)
+// =============================================================
+
+const setStudentMetaParams = Type.Object({
+  name: Type.String({ description: '学生姓名' }),
+  classId: Type.Optional(Type.String({ description: '班级 ID（如 7-3）。设置后学生会归属该班级' })),
+  clearClassId: Type.Optional(
+    Type.Boolean({ description: '设为 true 清除班级归属（优先级高于 classId）' }),
+  ),
+  group: Type.Optional(Type.String({ description: '组别（如 第1组）' })),
+  role: Type.Optional(Type.String({ description: '角色（如 班长、学习委员）' })),
+})
+
+export const setStudentMetaTool: AgentTool<typeof setStudentMetaParams> = {
+  name: 'eaa_set_student_meta',
+  label: '设置学生属性',
+  description: '修改学生属性：班级归属、组别、角色。用于学生分班、调组、任命班干部等场景',
+  parameters: setStudentMetaParams,
+  execute: async (_toolCallId, params) => {
+    const values: string[] = [params.name]
+    const flags: string[] = []
+    if (params.clearClassId) {
+      flags.push('--clear-class-id')
+    } else if (params.classId) {
+      flags.push('--class-id', params.classId)
+    }
+    if (params.group) flags.push('--group', params.group)
+    if (params.role) flags.push('--role', params.role)
+    // 若除姓名外未提供任何字段,视为无操作,避免无意义调用
+    if (flags.length === 0) {
+      return textResult(`未提供任何待修改属性 (${params.name}),已跳过`)
+    }
+    const result = await safeExecute('set-student-meta', values, flags)
+    if (!result.success) {
+      throw new Error(`设置学生属性失败: ${getErrorMessage(result)}`)
+    }
+    // 撤销缓存(与 eaa-handlers 保持一致)
+    eaaBridge.invalidateReadCache()
+    return textResult(`学生属性已更新: ${params.name}`)
+  },
+}
+
+const revertEventParams = Type.Object({
+  event_id: Type.String({
+    description: '要撤销的事件 ID（可从 eaa_history / eaa_search 结果获取）',
+  }),
+  reason: Type.String({ description: '撤销原因（简短说明）' }),
+})
+
+export const revertEventTool: AgentTool<typeof revertEventParams> = {
+  name: 'eaa_revert_event',
+  label: '撤销操行事件',
+  description:
+    '撤销一条已存在的操行事件（加分/扣分），需提供事件 ID 和撤销原因。会回退该事件对分数的影响',
+  parameters: revertEventParams,
+  execute: async (_toolCallId, params) => {
+    const result = await safeExecute('revert', [params.event_id, '--reason', params.reason])
+    if (!result.success) {
+      throw new Error(`撤销事件失败: ${getErrorMessage(result)}`)
+    }
+    eaaBridge.invalidateReadCache()
+    return textResult(`事件 ${params.event_id} 已撤销 (原因: ${params.reason})`)
+  },
+}
+
+const tagParams = Type.Object({
+  tag: Type.Optional(Type.String({ description: '标签名。不填则列出所有已知标签' })),
+})
+
+export const tagTool: AgentTool<typeof tagParams> = {
+  name: 'eaa_tag',
+  label: '标签查询',
+  description: '按标签查询学生/事件，或不带参数列出所有可用标签',
+  parameters: tagParams,
+  execute: async (_toolCallId, params) => {
+    const values = params.tag ? [params.tag] : []
+    const result = await safeExecute('tag', values)
+    if (!result.success) {
+      throw new Error(`标签查询失败: ${getErrorMessage(result)}`)
+    }
+    return jsonResult(
+      extractData(result.data),
+      params.tag ? `标签 "${params.tag}" 的结果` : '所有标签',
+    )
+  },
+}
+
+const deleteStudentParams = Type.Object({
+  name: Type.String({ description: '要删除的学生姓名（危险操作，不可恢复）' }),
+  confirm: Type.Boolean({
+    description: '必须为 true 才会执行删除。用于防止 Agent 误删',
+  }),
+})
+
+export const deleteStudentTool: AgentTool<typeof deleteStudentParams> = {
+  name: 'eaa_delete_student',
+  label: '删除学生',
+  description:
+    '从操行系统中永久删除一名学生及其所有事件记录。不可恢复！必须将 confirm 设为 true 才会执行',
+  parameters: deleteStudentParams,
+  execute: async (_toolCallId, params) => {
+    if (!params.confirm) {
+      throw new Error('删除学生需要显式确认：请将 confirm 参数设为 true')
+    }
+    const result = await safeExecute('delete-student', [params.name])
+    if (!result.success) {
+      throw new Error(`删除学生失败: ${getErrorMessage(result)}`)
+    }
+    eaaBridge.invalidateReadCache()
+    return textResult(`学生已删除: ${params.name}`)
+  },
+}
+
+// =============================================================
 // 导出：按能力分组的工具集
 // =============================================================
 
-/** 全部 EAA 工具 */
+/**
+ * 安全工具集：不含删除操作，用于 'all'/'*' capability 和大多数 Agent。
+ * deleteStudentTool 是危险操作，必须显式声明 'delete' capability 才能获得。
+ */
 export const allEAATools: AnyAgentTool[] = [
   queryScoreTool,
   addEventTool,
@@ -382,7 +501,13 @@ export const allEAATools: AnyAgentTool[] = [
   summaryTool,
   addStudentTool,
   rangeTool,
+  setStudentMetaTool,
+  revertEventTool,
+  tagTool,
 ]
+
+/** 危险工具集：仅在 Agent 显式声明 'delete' capability 时才暴露 */
+export const dangerousEAATools: AnyAgentTool[] = [deleteStudentTool]
 
 // biome-ignore lint/suspicious/noExplicitAny: 异构工具集合，TSchema 约束不兼容 unknown
 type AnyAgentTool = AgentTool<any>
@@ -390,7 +515,18 @@ type AnyAgentTool = AgentTool<any>
 /** 按 capability 名称匹配工具 */
 export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
   const capSet = new Set(capabilities.map((c) => c.toLowerCase()))
-  if (capSet.has('all') || capSet.has('*')) return allEAATools
+
+  const tools = new Set<AnyAgentTool>()
+
+  // 'all' / '*' 授予安全工具全集(不含删除)
+  if (capSet.has('all') || capSet.has('*')) {
+    for (const t of allEAATools) tools.add(t)
+  }
+
+  // 'delete' 是独立危险 capability,即使配了 'all' 也必须显式声明才获得删除工具
+  if (capSet.has('delete')) {
+    for (const t of dangerousEAATools) tools.add(t)
+  }
 
   const mapping: Record<string, AnyAgentTool[]> = {
     score: [queryScoreTool],
@@ -404,6 +540,10 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
     summary: [summaryTool],
     add_student: [addStudentTool],
     range: [rangeTool],
+    set_student_meta: [setStudentMetaTool],
+    revert: [revertEventTool],
+    tag: [tagTool],
+    delete: [deleteStudentTool],
     read: [
       queryScoreTool,
       historyTool,
@@ -414,11 +554,11 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
       codesTool,
       summaryTool,
       rangeTool,
+      tagTool,
     ],
-    write: [addEventTool, addStudentTool],
+    write: [addEventTool, addStudentTool, setStudentMetaTool, revertEventTool],
   }
 
-  const tools = new Set<AnyAgentTool>()
   for (const cap of capSet) {
     const matched = mapping[cap]
     if (matched) {

@@ -9,7 +9,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useAutoDismiss } from '../../../hooks/useAutoDismiss'
 import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
-import { CARD_BASE, INPUT_BASE, btnStyle, cn } from '../../../lib/ui-utils'
+import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
 
 // 格式化 token 成本（美元/百万 token）
@@ -181,7 +181,7 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
   const lqModelInfo = currentModels.find((m) => m.id === lowCostModel)
 
   return (
-    <div className="bg-gray-50 dark:bg-[#1e222c] border border-gray-200 dark:border-white/[0.06] rounded-xl p-5">
+    <div className="bg-gray-50 dark:bg-surface-elevated border border-gray-200 dark:border-white/[0.06] rounded-xl p-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-lg">默认模型配置</h2>
@@ -251,7 +251,7 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
                   value={hqDropdownValue}
                   onChange={(e) => handleHQDropdown(e.target.value)}
                   disabled={currentModels.length === 0}
-                  className="bg-white dark:bg-[#1a1e28] border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm w-80
+                  className="bg-white dark:bg-surface-tertiary border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm w-80
                              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow disabled:opacity-50"
                 >
                   <option value="">请选择...</option>
@@ -307,7 +307,7 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
                   value={lqDropdownValue}
                   onChange={(e) => handleLQDropdown(e.target.value)}
                   disabled={currentModels.length === 0}
-                  className="bg-white dark:bg-[#1a1e28] border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm w-80
+                  className="bg-white dark:bg-surface-tertiary border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm w-80
                              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow disabled:opacity-50"
                 >
                   <option value="">请选择...</option>
