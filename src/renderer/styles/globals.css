@@ -244,27 +244,39 @@ body {
 /* ─── 焦点环 ─── */
 /* 组件内直接使用 Tailwind: focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-[#0f1117] */
 
-/* ─── 卡片阴影工具类 ─── */
+/* ─── 卡片阴影工具类 (v4 premium: 弥散阴影, 更大 blur, 无边框) ─── */
 @layer utilities {
+  /* v4 主画布渐变背景 — 卡片自然"漂浮"效果 */
+  .bg-canvas {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.06), transparent),
+      linear-gradient(180deg, #f5f7fc 0%, #eef2f9 100%);
+  }
+  .dark .bg-canvas {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.04), transparent),
+      linear-gradient(180deg, #0f1117 0%, #161a24 100%);
+  }
+
   .shadow-card {
     box-shadow:
-      0 1px 2px rgba(15, 23, 42, 0.04),
-      0 2px 8px rgba(15, 23, 42, 0.04);
+      0 2px 4px rgba(15, 23, 42, 0.03),
+      0 8px 32px rgba(15, 23, 42, 0.08);
   }
   .shadow-card-hover {
     box-shadow:
-      0 4px 12px rgba(15, 23, 42, 0.08),
-      0 8px 24px rgba(15, 23, 42, 0.06);
+      0 4px 8px rgba(15, 23, 42, 0.06),
+      0 12px 48px rgba(15, 23, 42, 0.1);
   }
   .dark .shadow-card {
     box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.2),
-      0 2px 8px rgba(0, 0, 0, 0.15);
+      0 2px 4px rgba(0, 0, 0, 0.15),
+      0 8px 32px rgba(0, 0, 0, 0.2);
   }
   .dark .shadow-card-hover {
     box-shadow:
-      0 4px 12px rgba(0, 0, 0, 0.3),
-      0 8px 24px rgba(0, 0, 0, 0.25);
+      0 4px 8px rgba(0, 0, 0, 0.25),
+      0 12px 48px rgba(0, 0, 0, 0.3);
   }
 }
 
