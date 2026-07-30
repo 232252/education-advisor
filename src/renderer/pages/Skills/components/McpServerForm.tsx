@@ -303,12 +303,20 @@ function FormField({
   const errorId = `${fieldId}-err`
   const hintId = `${fieldId}-hint`
   // children 约定是单个 input/select/textarea;用 cloneElement 注入 id 和 aria-* 关联
-  const child = cloneElement(children as React.ReactElement, {
-    id: fieldId,
-    'aria-invalid': error ? true : undefined,
-    'aria-describedby':
-      [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined,
-  })
+  // React 19 类型: 需显式声明可注入的 props,否则 cloneElement 报 unknown 属性
+  const child = cloneElement(
+    children as React.ReactElement<{
+      id?: string
+      'aria-invalid'?: boolean
+      'aria-describedby'?: string
+    }>,
+    {
+      id: fieldId,
+      'aria-invalid': error ? true : undefined,
+      'aria-describedby':
+        [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined,
+    },
+  )
   return (
     <div>
       <label

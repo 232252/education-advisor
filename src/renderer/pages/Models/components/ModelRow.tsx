@@ -64,7 +64,7 @@ export const ModelRow = memo(function ModelRow({
             <select
               value={editForm.api ?? ''}
               onChange={(e) => onEditFormChange({ ...editForm, api: e.target.value })}
-              className="bg-white dark:bg-[#1e222c] border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] font-mono w-full"
+              className="bg-white dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] font-mono w-full"
             >
               <option value="openai-completions">openai-completions</option>
               <option value="openai-responses">openai-responses</option>
@@ -78,7 +78,7 @@ export const ModelRow = memo(function ModelRow({
               type="number"
               value={editForm.contextWindow ?? ''}
               onChange={(e) => onEditFormChange({ ...editForm, contextWindow: e.target.value })}
-              className="bg-white dark:bg-[#1e222c] border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] font-mono w-full text-right"
+              className="bg-white dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] font-mono w-full text-right"
             />
           </td>
           <td className="px-3 py-2">
@@ -86,7 +86,7 @@ export const ModelRow = memo(function ModelRow({
               type="number"
               value={editForm.maxOutputTokens ?? ''}
               onChange={(e) => onEditFormChange({ ...editForm, maxOutputTokens: e.target.value })}
-              className="bg-white dark:bg-[#1e222c] border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] font-mono w-full text-right"
+              className="bg-white dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] font-mono w-full text-right"
             />
           </td>
           <td className="px-3 py-2">
@@ -95,7 +95,7 @@ export const ModelRow = memo(function ModelRow({
               step="0.0000001"
               value={editForm.costPerInputToken ?? ''}
               onChange={(e) => onEditFormChange({ ...editForm, costPerInputToken: e.target.value })}
-              className="bg-white dark:bg-[#1e222c] border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] font-mono w-full text-right"
+              className="bg-white dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] font-mono w-full text-right"
             />
           </td>
           <td className="px-3 py-2">
@@ -106,14 +106,14 @@ export const ModelRow = memo(function ModelRow({
               onChange={(e) =>
                 onEditFormChange({ ...editForm, costPerOutputToken: e.target.value })
               }
-              className="bg-white dark:bg-[#1e222c] border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] font-mono w-full text-right"
+              className="bg-white dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] font-mono w-full text-right"
             />
           </td>
           <td className="px-3 py-2 text-center">
             <select
               value={editForm.supportsReasoning ?? 'false'}
               onChange={(e) => onEditFormChange({ ...editForm, supportsReasoning: e.target.value })}
-              className="bg-white dark:bg-[#1e222c] border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] w-full"
+              className="bg-white dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] w-full"
             >
               <option value="true">R</option>
               <option value="false">-</option>
@@ -150,7 +150,7 @@ export const ModelRow = memo(function ModelRow({
                 value={editForm.baseUrl ?? ''}
                 onChange={(e) => onEditFormChange({ ...editForm, baseUrl: e.target.value })}
                 placeholder="留空使用 Provider 默认值"
-                className="flex-1 bg-white dark:bg-[#1e222c] border border-gray-300 dark:border-white/[0.08] rounded px-2 py-0.5 text-[10px] font-mono"
+                className="flex-1 bg-white dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded px-2 py-0.5 text-[10px] font-mono"
               />
             </div>
           </td>

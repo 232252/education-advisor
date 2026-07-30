@@ -34,7 +34,7 @@ export default defineConfig({
         },
       },
     },
-    target: 'chrome130',
+    target: 'chrome150',
     // See vite.config.main.ts for why sourcemap is disabled here.
     sourcemap: false,
   },

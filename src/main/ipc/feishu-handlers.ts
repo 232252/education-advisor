@@ -12,10 +12,12 @@
 // =============================================================
 
 import type { BrowserWindow } from 'electron'
-import { ipcMain } from 'electron'
+import { ipcMain, Notification } from 'electron'
 import * as IPC from '../../shared/ipc-channels'
 import { feishuBotService } from '../services/feishu-bot-service'
 import {
+  diagnoseConnection,
+  type FeishuDomain,
   feishuInfo,
   listBitableTables,
   sendTextMessage,
@@ -31,6 +33,12 @@ function getFeishuSecret(): string {
   return keystoreService.getSecret('feishu-app-secret') ?? ''
 }
 
+/** 内部辅助：从 settings 读取飞书域名版本(默认国内版 feishu) */
+function getFeishuDomain(): FeishuDomain {
+  const domain = settingsService.getSettings().feishu.domain
+  return domain === 'lark' ? 'lark' : 'feishu'
+}
+
 /** M-9 修复: 记录上次注册的 status handler,只移除自己的监听器,不影响外部监听器 */
 let prevStatusHandler: ((info: unknown) => void) | null = null
 
@@ -40,10 +48,35 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
   if (prevStatusHandler) {
     feishuBotService.off('status', prevStatusHandler)
   }
+  // B6-5 修复: 跟踪上一次状态,仅在转入 error 时弹一次系统通知,避免重复打扰
+  let lastBotStatus: string | undefined
   const statusHandler = (info: unknown) => {
     if (!win.isDestroyed()) {
       win.webContents.send(IPC.IPC_FEISHU_BOT_STATUS_UPDATE, info)
     }
+    // B6-5: 飞书连接失败时发系统通知,让用户即使不在设置页也能察觉
+    const statusInfo = info as { status?: string; error?: string }
+    const cur = statusInfo?.status
+    if (cur === 'error' && lastBotStatus !== 'error') {
+      try {
+        if (Notification.isSupported()) {
+          const n = new Notification({
+            title: '飞书机器人连接失败',
+            body: statusInfo?.error
+              ? `原因: ${String(statusInfo.error).slice(0, 120)}`
+              : '请检查 appId/appSecret 及事件订阅配置',
+            silent: false,
+          })
+          n.on('click', () => {
+            if (!win.isDestroyed()) win.show()
+          })
+          n.show()
+        }
+      } catch {
+        // 通知失败不影响主流程
+      }
+    }
+    lastBotStatus = cur
   }
   prevStatusHandler = statusHandler
   feishuBotService.on('status', statusHandler)
@@ -56,7 +89,7 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
     try {
       const appSecret = getFeishuSecret()
       log('info', 'feishu', `test connection, appId=${appId.slice(0, 8)}...`)
-      return await testConnection(appId, appSecret)
+      return await testConnection(appId, appSecret, getFeishuDomain())
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[IPC] feishu:test failed for "${appId}":`, msg)
@@ -72,7 +105,7 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
     try {
       const appSecret = getFeishuSecret()
       log('info', 'feishu', `list bitable tables, appToken=${appToken}`)
-      return await listBitableTables(appId, appSecret, appToken)
+      return await listBitableTables(appId, appSecret, appToken, getFeishuDomain())
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[IPC] feishu:bitable failed for "${appToken}":`, msg)
@@ -93,7 +126,7 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
       try {
         const appSecret = getFeishuSecret()
         log('info', 'feishu', `send text to ${userOpenId}, len=${text.length}`)
-        return await sendTextMessage(appId, appSecret, userOpenId, text)
+        return await sendTextMessage(appId, appSecret, userOpenId, text, getFeishuDomain())
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
         console.error(`[IPC] feishu:send failed for "${userOpenId}":`, msg)
@@ -127,7 +160,14 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
       try {
         const appSecret = getFeishuSecret()
         log('info', 'feishu', `sync-now trigger, appToken=${appToken} tableId=${tableId}`)
-        const result = await syncBitableNow(appId, appSecret, appToken, tableId, fields)
+        const result = await syncBitableNow(
+          appId,
+          appSecret,
+          appToken,
+          tableId,
+          fields,
+          getFeishuDomain(),
+        )
         if (result.skipped) {
           log('warn', 'feishu', `bitable sync skipped: ${result.skipped}`)
         } else if (result.success) {
@@ -155,7 +195,7 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
       if (!appId || !appSecret) {
         return { success: false, error: '请先填写 App ID 和 App Secret 并保存' }
       }
-      await feishuBotService.start(appId, appSecret, win)
+      await feishuBotService.start(appId, appSecret, win, getFeishuDomain())
       const status = feishuBotService.getStatus()
       return { success: status.status === 'connected', status }
     } catch (err: unknown) {
@@ -187,6 +227,32 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[IPC] feishu:bot-status failed:', msg)
       return { status: 'unknown', error: msg }
+    }
+  })
+
+  // 网络诊断:检测 DNS/HTTPS/鉴权/WebSocket 端点,排查远程访问问题
+  ipcMain.handle(IPC.IPC_FEISHU_DIAGNOSE, async () => {
+    try {
+      const settings = settingsService.getSettings()
+      const appId = settings.feishu.appId
+      const appSecret = getFeishuSecret()
+      const domain = getFeishuDomain()
+      log(
+        'info',
+        'feishu',
+        `diagnose connection, domain=${domain}, appId=${appId ? `${appId.slice(0, 8)}...` : '(none)'}`,
+      )
+      return await diagnoseConnection(appId, appSecret, domain)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[IPC] feishu:diagnose failed:', msg)
+      return {
+        steps: [],
+        overall: 'fail',
+        domain: getFeishuDomain(),
+        timestamp: Date.now(),
+        error: msg,
+      }
     }
   })
 

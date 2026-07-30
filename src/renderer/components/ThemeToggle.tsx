@@ -66,9 +66,9 @@ export function ThemeToggle() {
         transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
     >
       {isDark ? (
-        <Sun size={16} strokeWidth={2} className="text-amber-400" aria-hidden="true" />
+        <Sun size={18} strokeWidth={2.2} className="text-amber-400" aria-hidden="true" />
       ) : (
-        <Moon size={16} strokeWidth={2} className="text-indigo-500" aria-hidden="true" />
+        <Moon size={18} strokeWidth={2.2} className="text-indigo-500" aria-hidden="true" />
       )}
       <span>{isDark ? t('settings.theme.light') : t('settings.theme.dark')}</span>
     </button>

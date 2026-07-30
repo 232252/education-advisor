@@ -113,7 +113,10 @@ describe('settingsService.update — 超长字符串 / 对象深度', () => {
     for (let i = 0; i < 9; i++) {
       obj = { nested: obj }
     }
-    expect(() => settingsService.update('general.dataDir', obj as unknown as string)).not.toThrow()
+    // chat.compaction 默认是对象字段,类型校验通过; 深度 10 应被接受
+    expect(() =>
+      settingsService.update('chat.compaction', obj as unknown as typeof obj),
+    ).not.toThrow()
   })
 
   it('深度计算应识别数组为单层', () => {
@@ -190,12 +193,12 @@ describe('settingsService.setCustomModels — 校验', () => {
 describe('settingsService — DEFAULT_SETTINGS 不被污染', () => {
   it('多次 update/reset 后,默认值保持不变', () => {
     settingsService.reset()
-    settingsService.update('general.theme', 'light')
+    settingsService.update('general.theme', 'dark')
     settingsService.update('general.language', 'en-US')
     settingsService.reset()
     const s = settingsService.getSettings()
-    // reset 后应回到默认
-    expect(s.general.theme).toBe('dark')
+    // reset 后应回到默认(R169 起默认为 light)
+    expect(s.general.theme).toBe('light')
     expect(s.general.language).toBe('zh-CN')
   })
 })

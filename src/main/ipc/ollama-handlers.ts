@@ -11,9 +11,9 @@
 import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
 import * as IPC from '../../shared/ipc-channels'
+import { TtlLruCache } from '../services/eaa-cache'
 import { ollamaService } from '../services/ollama-service'
 import { log } from '../utils/logger'
-import { TtlLruCache } from '../services/eaa-cache'
 
 /**
  * PERF: ollama:detect 和 ollama:list-models 缓存

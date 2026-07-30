@@ -4,7 +4,7 @@
 // =============================================================
 
 import type { EAAEventRecord, ExamDef, GradeRecord } from '@shared/types'
-import ReactEChartsCore from 'echarts-for-react/lib/core'
+import ReactEChartsCore from 'echarts-for-react/esm/core'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DeltaBadge } from '../../../components/DeltaBadge'
 import { EmptyState } from '../../../components/EmptyState'
@@ -408,7 +408,7 @@ export function AcademicsTab({
               onChange={(e) => setCompareExamAId(e.target.value)}
               className={cn(
                 'text-xs rounded-lg border border-gray-300 dark:border-white/[0.08]',
-                'bg-white dark:bg-[#0f1117] text-gray-700 dark:text-gray-300 px-2 py-1',
+                'bg-white dark:bg-surface-primary text-gray-700 dark:text-gray-300 px-2 py-1',
               )}
             >
               <option value="">选择考试 A</option>
@@ -424,7 +424,7 @@ export function AcademicsTab({
               onChange={(e) => setCompareExamBId(e.target.value)}
               className={cn(
                 'text-xs rounded-lg border border-gray-300 dark:border-white/[0.08]',
-                'bg-white dark:bg-[#0f1117] text-gray-700 dark:text-gray-300 px-2 py-1',
+                'bg-white dark:bg-surface-primary text-gray-700 dark:text-gray-300 px-2 py-1',
               )}
             >
               <option value="">选择考试 B</option>
