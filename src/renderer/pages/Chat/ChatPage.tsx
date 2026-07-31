@@ -465,7 +465,7 @@ export function ChatPage() {
             </div>
           )}
           <div className="flex gap-3">
-            <div className="flex-1 flex flex-col gap-2 bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-xl px-3 py-2 focus-within:border-blue-500 dark:focus-within:border-blue-400/60 transition-all duration-200 shadow-sm">
+            <div className="flex-1 flex flex-col gap-2 bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-xl px-3 py-2 focus-within:border-blue-500 dark:focus-within:border-blue-400/60 focus-within:ring-2 focus-within:ring-blue-500/15 dark:focus-within:ring-blue-400/10 transition-all duration-200 shadow-sm">
               {/* 已上传文件列表 */}
               {uploadedFiles.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-1">

@@ -276,18 +276,30 @@ app
     if (!iconPath) {
       console.warn('[Main] No icon found, using Electron default')
     }
-    // 清晰度优化: 直接传 ICO 路径(而非 NativeImage), Windows 会保留 ICO 内全部尺寸帧
+    // 清晰度优化: Windows 直接传 ICO 路径(而非 NativeImage), 保留 ICO 内全部尺寸帧
     // (16/24/32/48/64/128/256), 标题栏/任务栏/Alt-Tab 各场景自动选最佳帧, 不再整体缩放。
-    // ICO 缺失时回退 PNG NativeImage。
+    // Linux/macOS 适配: 传 .ico 路径给 BrowserWindow 会导致 Electron SIGSEGV 崩溃
+    // (Chromium 无法解码 ICO), 必须改用 nativeImage 从高分辨率 PNG 加载。
     let appIcon: string | Electron.NativeImage | undefined
     if (iconPath) {
-      if (iconPath.toLowerCase().endsWith('.ico')) {
+      const isIco = iconPath.toLowerCase().endsWith('.ico')
+      if (isIco && process.platform === 'win32') {
         appIcon = iconPath
         console.log(`[Main] Window icon: ${iconPath} (multi-frame ICO)`)
       } else {
-        appIcon = nativeImage.createFromPath(iconPath)
+        // 非 Windows: 优先同目录高分辨率 PNG 帧, 其次 icon.png, 最后原路径(可能已是 PNG)
+        const dir = path.dirname(iconPath)
+        const pngCandidates = [
+          path.join(dir, 'icon-512.png'),
+          path.join(dir, 'icon-256.png'),
+          path.join(dir, 'icon.png'),
+          ...(isIco ? [] : [iconPath]),
+        ]
+        const pngPath = pngCandidates.find((p) => p !== iconPath && fs.existsSync(p))
+        const loadPath = pngPath ?? (isIco ? '' : iconPath)
+        appIcon = loadPath ? nativeImage.createFromPath(loadPath) : nativeImage.createEmpty()
         console.log(
-          `[Main] Window icon: ${iconPath} (${appIcon.getSize().width}x${appIcon.getSize().height})`,
+          `[Main] Window icon: ${loadPath || '(none)'} (${appIcon.getSize().width}x${appIcon.getSize().height}, platform=${process.platform})`,
         )
         if (appIcon.isEmpty()) {
           console.warn('[Main] Icon loaded but empty, falling back to default')
@@ -356,7 +368,14 @@ app
     })
 
     // 读取设置，按需创建系统托盘(委托给 tray-service)
-    initTray(win)
+    // Linux headless/无托盘环境: new Tray 会抛异常, 捕获后降级为无托盘模式, 不阻塞启动
+    try {
+      initTray(win)
+    } catch (err) {
+      console.warn(
+        `[Main] Tray init failed, degraded to no-tray mode: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
 
     // 启动后延迟检查更新（避免启动卡顿）
     // L-6 修复: 保存 timer 引用,退出时清理

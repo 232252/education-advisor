@@ -2,7 +2,7 @@
 // Cron Service — 定时任务调度器
 // 通过 node-cron 驱动 Agent 定时执行
 // 修复：
-//   P1-8: 记录 nextRunAt（监听 node-cron 'scheduled' 事件 + 初始估算）
+//   P1-8: 记录 nextRunAt（node-cron v4 getNextRun() + 执行后刷新）
 //   P1-9: 日志改为异步持久化到磁盘（同时保留内存 1000 条上限）
 //   P1-10: 取消的 agent 在 finally 块清理
 // =============================================================
@@ -509,20 +509,25 @@ class CronService {
       timezone,
     })
     this.scheduledJobs.set(id, job)
-    // node-cron v4 移除了 'scheduled' 事件, 改用 getNextRun() 同步读取下次执行时间 (P1-8)
-    const next = job.getNextRun()
-    if (next) {
-      this.nextRunAt.set(id, next.toISOString())
-    } else {
-      // 保守回退: 1 分钟后
-      this.nextRunAt.set(id, new Date(Date.now() + 60_000).toISOString())
+    // node-cron v4: 用 getNextRun() 取代 v3 的 'scheduled' 事件获取下次运行时间,
+    // 并在每次执行结束后刷新(P1-8 nextRunAt 记录)
+    const refreshNextRun = () => {
+      const next = job.getNextRun()
+      this.nextRunAt.set(id, (next ?? new Date(Date.now() + 60_000)).toISOString())
     }
+    job.on('execution:finished', refreshNextRun)
+    job.on('execution:failed', refreshNextRun)
+    refreshNextRun()
   }
 
   private unschedule(id: string) {
     const job = this.scheduledJobs.get(id)
     if (job) {
-      job.stop()
+      // node-cron v4: destroy() 彻底移除任务并清理其全部监听器/定时器
+      // (v3 时代需手动 removeAllListeners 防累积, v4 destroy 一站式处理)
+      try {
+        void job.destroy()
+      } catch {}
     }
     this.scheduledJobs.delete(id)
     this.nextRunAt.delete(id)
@@ -790,7 +795,7 @@ class CronService {
     }
     await Promise.all([this.flushLogs(), this.persistUserTasksNow()])
     for (const [, job] of this.scheduledJobs) {
-      job.stop()
+      void job.destroy()
     }
   }
 }

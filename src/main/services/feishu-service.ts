@@ -463,16 +463,14 @@ export async function diagnoseConnection(
   }
 }
 
-/** DNS 解析辅助:用 fetch 间接检测域名可解析性 */
+/** DNS 解析辅助:用 Node 原生 dns.lookup 真实解析,返回 IP 地址(失败返回 null)。
+ *  修复:旧实现用 fetch HEAD 探测 + .catch(() => null) 吞掉所有错误,
+ *  导致 DNS 失败也永远返回 'resolved'(诊断假阳性,用户无法定位 DNS 问题)。 */
 async function resolveHostname(hostname: string): Promise<string | null> {
   try {
-    // 利用 fetch 到一个已知路径,若 DNS 失败会抛 ENOTFOUND
-    await fetch(`https://${hostname}/favicon.ico`, {
-      method: 'HEAD',
-      signal: AbortSignal.timeout(8000),
-    }).catch(() => null)
-    // 没抛错说明 DNS 解析成功
-    return 'resolved'
+    const { lookup } = await import('node:dns/promises')
+    const { address } = await lookup(hostname, { verbatim: true })
+    return address
   } catch {
     return null
   }

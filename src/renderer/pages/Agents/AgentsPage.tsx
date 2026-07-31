@@ -57,7 +57,7 @@ export function AgentsPage() {
           }
         />
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
           {loading ? (
             <EmptyState icon={<Hourglass size={28} />} title={t('common.loading')} />
           ) : agents.length === 0 ? (
@@ -79,15 +79,30 @@ export function AgentsPage() {
                 }}
                 role="button"
                 tabIndex={0}
-                className={`w-full text-left p-3 rounded-lg transition-all duration-200 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/50
+                className={`w-full text-left px-3.5 py-3 rounded-xl transition-all duration-200 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/50
                   ${
                     selectedAgentId === agent.id
-                      ? 'bg-blue-50 dark:bg-blue-500/[0.1] border-blue-500/50 dark:border-blue-500/30'
+                      ? 'bg-blue-50 dark:bg-blue-500/[0.1] border-blue-500/50 dark:border-blue-500/30 shadow-sm'
                       : CARD_INTERACTIVE
                   }`}
               >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-sm">{agent.name}</span>
+                <div className="flex items-center gap-2.5">
+                  {/* 状态色 avatar: 提供视觉锚点, 弱化纯文本列表的拥挤感 */}
+                  <span
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0
+                      ${
+                        agent.status === 'running'
+                          ? 'bg-blue-100 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                          : agent.status === 'error'
+                            ? 'bg-red-100 dark:bg-red-500/15 text-red-500 dark:text-red-400'
+                            : agent.enabled
+                              ? 'bg-green-100 dark:bg-green-500/15 text-green-600 dark:text-green-400'
+                              : 'bg-gray-100 dark:bg-white/[0.06] text-gray-400 dark:text-gray-500'
+                      }`}
+                  >
+                    <Bot size={16} />
+                  </span>
+                  <span className="font-medium text-sm truncate flex-1">{agent.name}</span>
                   <button
                     type="button"
                     role="switch"
@@ -97,19 +112,19 @@ export function AgentsPage() {
                       e.stopPropagation()
                       toggleAgent(agent.id, !agent.enabled)
                     }}
-                    className={`relative w-8 h-4 rounded-full transition-colors inline-block flex-shrink-0
+                    className={`relative w-9 h-5 rounded-full transition-colors inline-block flex-shrink-0
                       ${agent.enabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}`}
                   >
                     <span
-                      className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform inline-block
-                        ${agent.enabled ? 'left-4' : 'left-0.5'}`}
+                      className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform inline-block
+                        ${agent.enabled ? 'left-[18px]' : 'left-0.5'}`}
                     />
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1.5 pl-[42px]">
                   {agent.description || agent.role}
                 </p>
-                <div className="flex items-center gap-2 mt-2 text-[11px]">
+                <div className="flex items-center gap-2 mt-2 pl-[42px] text-[11px]">
                   <span
                     className={`w-1.5 h-1.5 rounded-full inline-block
                       ${agent.status === 'running' ? 'bg-blue-400 animate-pulse' : ''}
@@ -127,7 +142,14 @@ export function AgentsPage() {
                           ? '就绪'
                           : '已停用'}
                   </span>
-                  <span className="text-gray-400 dark:text-gray-600 ml-auto">
+                  <span
+                    className={`ml-auto px-1.5 py-px rounded-full text-[10px] font-medium
+                      ${
+                        agent.modelTier === 'high_quality'
+                          ? 'bg-violet-100 dark:bg-violet-500/15 text-violet-600 dark:text-violet-400'
+                          : 'bg-gray-100 dark:bg-white/[0.06] text-gray-500 dark:text-gray-400'
+                      }`}
+                  >
                     {agent.modelTier === 'high_quality' ? '高质量' : '低成本'}
                   </span>
                 </div>
@@ -140,7 +162,11 @@ export function AgentsPage() {
       {/* 右侧：Agent 详情 */}
       <div className="flex-1 flex flex-col">
         {!selectedAgentId ? (
-          <EmptyState icon={<ArrowLeft size={28} />} title="选择左侧 Agent 查看详情" />
+          <EmptyState
+            icon={<ArrowLeft size={28} />}
+            title="选择左侧 Agent 查看详情"
+            description="每个 Agent 都有独立的角色定位、模型档位与定时任务。点击左侧卡片即可查看配置、运行记录与自定义提示词。"
+          />
         ) : detailLoading ? (
           <EmptyState icon={<Hourglass size={28} />} title="加载中..." />
         ) : selectedDetail ? (

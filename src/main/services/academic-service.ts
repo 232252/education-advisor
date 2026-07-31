@@ -226,11 +226,6 @@ class AcademicService {
     ) {
       throw new Error(`setGrade: score 必须是有限数字或 null,收到 ${typeof record.score}`)
     }
-    if (record.score !== null && record.fullMark > 0) {
-      if (record.score < 0 || record.score > record.fullMark) {
-        throw new Error(`setGrade: score ${record.score} 超出范围 [0, ${record.fullMark}]`)
-      }
-    }
     const exams = await this.listExams()
     const exam = exams.find((e) => e.id === record.examId)
     if (!exam) {
@@ -240,6 +235,17 @@ class AcademicService {
       throw new Error(
         `setGrade: 科目 ${record.subjectId} 不属于考试 ${record.examId}(${exam.name})`,
       )
+    }
+    // 分数范围校验: 优先用调用方传入的 fullMark, 缺失时从科目配置自动推导。
+    // 修复前依赖 record.fullMark(渲染层通常不传), 校验被 `undefined > 0` 跳过,
+    // 越界分数(如 9999)会被静默接受。
+    if (record.score !== null) {
+      const config = await this.getConfig()
+      const subject = config.subjects.find((s) => s.id === record.subjectId)
+      const fullMark = record.fullMark ?? subject?.fullMark ?? 0
+      if (fullMark > 0 && (record.score < 0 || record.score > fullMark)) {
+        throw new Error(`setGrade: score ${record.score} 超出范围 [0, ${fullMark}]`)
+      }
     }
     return this.withGradeLock(record.studentName, async () => {
       const existing = await this.getGrades(record.studentName)
@@ -264,6 +270,9 @@ class AcademicService {
     }
     const exams = await this.listExams()
     const examMap = new Map(exams.map((e) => [e.id, e]))
+    // 分数范围校验用: 科目 → fullMark 映射(调用方通常不传 fullMark)
+    const config = await this.getConfig()
+    const fullMarkBySubject = new Map(config.subjects.map((s) => [s.id, s.fullMark] as const))
     for (const [i, r] of records.entries()) {
       if (!r.examId || typeof r.examId !== 'string') {
         throw new Error(`batchSetGrades: records[${i}].examId 必须是非空字符串`)
@@ -274,10 +283,14 @@ class AcademicService {
       if (r.score !== null && (typeof r.score !== 'number' || !Number.isFinite(r.score))) {
         throw new Error(`batchSetGrades: records[${i}].score 必须是有限数字或 null`)
       }
-      if (r.score !== null && r.fullMark > 0 && (r.score < 0 || r.score > r.fullMark)) {
-        throw new Error(
-          `batchSetGrades: records[${i}].score ${r.score} 超出范围 [0, ${r.fullMark}]`,
-        )
+      // 同 setGrade: fullMark 缺失时从科目配置推导, 越界分数(如 9999)必须被拒
+      if (r.score !== null) {
+        const fullMark = r.fullMark ?? fullMarkBySubject.get(r.subjectId) ?? 0
+        if (fullMark > 0 && (r.score < 0 || r.score > fullMark)) {
+          throw new Error(
+            `batchSetGrades: records[${i}].score ${r.score} 超出范围 [0, ${fullMark}]`,
+          )
+        }
       }
       const exam = examMap.get(r.examId)
       if (!exam) {

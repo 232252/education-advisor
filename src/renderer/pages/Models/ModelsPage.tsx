@@ -93,7 +93,13 @@ export function ModelsPage() {
           }))
           loadProviders()
         } else {
-          setTestResults((p) => ({ ...p, [providerId]: `失败: ${result.error}` }))
+          // 防御: provider SDK 的错误信息可能是对象, 统一转字符串避免 UI 显示 "[object Object]"
+          setTestResults((p) => ({
+            ...p,
+            [providerId]: `失败: ${
+              typeof result.error === 'string' ? result.error : JSON.stringify(result.error)
+            }`,
+          }))
         }
       } catch {
         setTestResults((p) => ({ ...p, [providerId]: '连接错误' }))

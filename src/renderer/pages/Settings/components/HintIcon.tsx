@@ -3,6 +3,8 @@
 // 与 SettingsFieldHint 字典耦合,仅在 Settings 页使用
 // =============================================================
 
+import { Info } from 'lucide-react'
+
 // 字段提示信息（鼠标悬停显示）
 // 所有字段已实现,不再需要 status 状态标识
 const FIELD_HINT: Record<string, string> = {
@@ -35,12 +37,12 @@ export function HintIcon({ path }: { path: string }) {
   if (!hint) return null
   return (
     <span
-      className="text-[10px] text-gray-400 dark:text-gray-500 cursor-help"
+      className="inline-flex items-center justify-center text-gray-400 dark:text-gray-500 cursor-help transition-colors hover:text-blue-500 dark:hover:text-blue-400"
       title={hint}
       role="img"
       aria-label="提示"
     >
-      ⓘ
+      <Info size={13} strokeWidth={2.2} />
     </span>
   )
 }

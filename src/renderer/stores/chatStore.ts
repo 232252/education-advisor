@@ -5,6 +5,7 @@
 // 支持双模式: 直接对话 (direct) / Agent 模式 (agent)
 // =============================================================
 
+import { formatLlmError } from '@shared/llm-error'
 import type { ChatMessage, StreamEvent, TokenUsage } from '@shared/types'
 import { create } from 'zustand'
 import { getAPI } from '../lib/ipc-client'
@@ -339,7 +340,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ isStreaming: false, isThinking: false })
         state.addMessage({
           role: 'assistant',
-          content: `**错误:** ${event.message}`,
+          content: `**错误:** ${formatLlmError(event.message)}`,
           timestamp: Date.now(),
         })
         break
@@ -607,12 +608,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // 且紧随其后会把 isStreaming 置 false,避免 UI 出现一帧的"加载中"闪烁。
             state.addMessage({
               role: 'assistant',
-              content: `**错误:** ${data.error}`,
+              content: `**错误:** ${formatLlmError(data.error)}`,
               timestamp: Date.now(),
             })
           } else {
             // 最后消息是 assistant → 追加错误信息
-            get().appendStreamDelta(`\n\n**错误:** ${data.error}`)
+            get().appendStreamDelta(`\n\n**错误:** ${formatLlmError(data.error)}`)
           }
         }
         set({ isStreaming: false, isThinking: false, streamingAgentId: null })

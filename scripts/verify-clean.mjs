@@ -1,0 +1,18 @@
+import WebSocket from 'ws'
+const page = (await (await fetch('http://localhost:9222/json')).json()).find((t) => t.type === 'page')
+const ws = new WebSocket(page.webSocketDebuggerUrl)
+await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej) })
+let id = 0; const pending = new Map()
+ws.on('message', (d) => { const m = JSON.parse(d.toString()); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id) } })
+const send = (method, params = {}, timeout = 40000) => new Promise((res, rej) => { const mid = ++id; const t = setTimeout(() => { pending.delete(mid); rej(new Error('timeout')) }, timeout); pending.set(mid, (m) => { clearTimeout(t); res(m) }); ws.send(JSON.stringify({ id: mid, method, params })) })
+const evl = async (expr) => { const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }); if (r.result?.exceptionDetails) return { __error: (r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text).slice(0, 300) }; return r.result?.result?.value }
+const T = (name, ok, detail) => console.log(`${ok ? '✓' : '✗'} ${name}: ${String(detail).slice(0, 250)}`)
+const students = await evl(`(async()=>{ const r = await api.eaa.listStudents({}); return r.data?.students?.length ?? 0 })()`)
+T('学生列表(应为18)', students === 18, `count=${students}`)
+const ranking = await evl(`(async()=>{ const r = await api.eaa.ranking(10); const list = r.data?.ranking ?? r.data ?? []; return list.map(x => x.name) })()`)
+T('排行榜无测试残留', !ranking.some(n => /^r\d|stress|batch|conc|e2e|test/i.test(n)), JSON.stringify(ranking))
+const dash = await evl(`(async()=>{ const r = await api.eaa.dashboard(); return r.success })()`)
+T('dashboard 生成', dash === true, '')
+const doctor = await evl(`(async()=>{ const r = await api.eaa.doctor(); return r.data?.healthy })()`)
+T('doctor 健康', doctor === true, String(doctor))
+ws.close(); process.exit(0)

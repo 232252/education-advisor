@@ -91,7 +91,15 @@ export const DashboardStatCard = memo(function DashboardStatCard({
             aria-label={title}
           />
         </div>
-        <div className={`text-2xl font-bold tracking-tight ${c.text}`}>{value}</div>
+        {/* 数值: 卡片主题色渐变文字(而非纯色), 视觉更精致 */}
+        <div
+          className="text-2xl font-bold tracking-tight bg-clip-text text-transparent"
+          style={{
+            backgroundImage: `linear-gradient(135deg, ${c.from} 0%, ${c.to} 100%)`,
+          }}
+        >
+          {value}
+        </div>
         <div
           className="mt-2 h-[3px] rounded-full w-0 group-hover:w-full transition-all duration-500 ease-out"
           style={{ background: `linear-gradient(90deg, ${c.from}, ${c.to})` }}

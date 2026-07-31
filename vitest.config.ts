@@ -8,6 +8,8 @@ import { defineConfig } from 'vitest/config'
 import path from 'node:path'
 
 export default defineConfig({
+  // 注意: Vitest 4 的 projects 模式不会继承顶层 resolve.alias,
+  // 别名必须在每个 project 内重复声明(否则 @shared/* 等值导入在测试中解析失败)。
   resolve: {
     alias: {
       '@main': path.resolve(__dirname, 'src/main'),
@@ -34,6 +36,13 @@ export default defineConfig({
     projects: [
       {
         // 渲染进程 hook 测试
+        resolve: {
+          alias: {
+            '@main': path.resolve(__dirname, 'src/main'),
+            '@renderer': path.resolve(__dirname, 'src/renderer'),
+            '@shared': path.resolve(__dirname, 'src/shared'),
+          },
+        },
         test: {
           name: 'renderer',
           globals: true,
@@ -48,6 +57,13 @@ export default defineConfig({
       },
       {
         // 主进程 service + shared 测试
+        resolve: {
+          alias: {
+            '@main': path.resolve(__dirname, 'src/main'),
+            '@renderer': path.resolve(__dirname, 'src/renderer'),
+            '@shared': path.resolve(__dirname, 'src/shared'),
+          },
+        },
         test: {
           name: 'main',
           globals: true,

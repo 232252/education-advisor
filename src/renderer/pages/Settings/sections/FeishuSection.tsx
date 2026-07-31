@@ -211,7 +211,12 @@ export function FeishuSection({
                   )
                 } else {
                   setFeishuTestStatus('error')
-                  setFeishuTestInfo(`连接失败 · ${result.error}`)
+                  // 防御: 错误信息可能是对象, 统一转字符串避免 UI 显示 "[object Object]"
+                  setFeishuTestInfo(
+                    `连接失败 · ${
+                      typeof result.error === 'string' ? result.error : JSON.stringify(result.error)
+                    }`,
+                  )
                 }
               }}
               disabled={feishuTestStatus === 'testing'}
