@@ -1,7 +1,7 @@
 // CDP page checker — navigates to each route, checks for errors, reports status
 import WebSocket from 'ws'
 
-const CDP_HTTP = 'http://localhost:9222'
+const CDP_HTTP = `http://localhost:${process.env.EA_CDP_PORT || '9222'}`
 const PAGES = ['dashboard', 'chat', 'students', 'classes', 'academics', 'agents', 'models', 'skills', 'scheduler', 'privacy', 'settings']
 
 async function getPageTarget() {
