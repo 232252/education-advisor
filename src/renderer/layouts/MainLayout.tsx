@@ -65,9 +65,14 @@ export function MainLayout() {
         {/* Logo */}
         <div className="h-16 flex items-center px-5 border-b border-gray-200/60 dark:border-white/[0.06]">
           <div className="flex items-center gap-3">
-            <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-blue-500/25 ring-1 ring-white/30 dark:ring-white/10">
+            <div className="relative w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-blue-500/30 ring-1 ring-white/30 dark:ring-white/10 transition-transform duration-200 group-hover:scale-105">
               E
               <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-surface-secondary" />
+              {/* 顶部微光, 增强立体感 */}
+              <span
+                className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/25 to-transparent opacity-40 pointer-events-none"
+                aria-hidden="true"
+              />
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-bold tracking-tight text-gray-900 dark:text-white leading-tight">
@@ -93,17 +98,17 @@ export function MainLayout() {
                     'group relative flex items-center gap-3 px-3 py-2 text-[13px] font-medium rounded-lg transition-all duration-200',
                     'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40',
                     isActive
-                      ? 'bg-blue-50 dark:bg-blue-500/[0.12] text-blue-700 dark:text-blue-400 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.12)] dark:shadow-[inset_0_0_0_1px_rgba(96,165,250,0.15)]'
+                      ? 'bg-gradient-to-r from-blue-500/[0.12] to-indigo-500/[0.06] text-blue-700 dark:text-blue-400 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.15)] dark:shadow-[inset_0_0_0_1px_rgba(96,165,250,0.18)]'
                       : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.05] hover:text-gray-800 dark:hover:text-gray-200',
                   )
                 }
               >
                 {({ isActive }) => (
                   <>
-                    {/* 左侧高亮指示条 — 激活时显示 */}
+                    {/* 左侧高亮指示条 — 激活时显示(品牌渐变) */}
                     <span
                       className={cn(
-                        'absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-blue-500 dark:bg-blue-400 transition-all duration-200',
+                        'absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-gradient-to-b from-blue-500 to-indigo-500 dark:from-blue-400 dark:to-indigo-400 transition-all duration-200',
                         isActive ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0',
                       )}
                       aria-hidden="true"

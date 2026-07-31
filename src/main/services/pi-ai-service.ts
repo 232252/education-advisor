@@ -840,13 +840,40 @@ class PiAIService {
     // 修复 Bug-1: 之前用 params.maxTokens ?? defaultMaxTokens (4096) 覆盖了 model.maxTokens
     // 现在用 effectiveOutputMax (max(model.maxTokens, params.maxTokens ?? defaultMaxTokens))
     // GAP-2 修复: 改为函数式创建,使自动重试能重建 stream(async iterable 消费后不可复用)。
-    const createStream = () =>
-      streamSimple(model, context, {
+    // R-TIMEOUT 修复: providerTimeoutMs 真正应用到请求 —— 作为"首字节超时"。
+    //   修复前该值只进日志,provider 挂起(不返回任何数据)时聊天会无限等待。
+    //   现在: 超时内无任何事件 → abort 并抛含 'timeout' 的错误 → 进入 isRetryableError 自动重试;
+    //   收到首个事件后立即取消计时(长生成不受影响)。
+    const createStream = () => {
+      const streamAbort = new AbortController()
+      let firstByteTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+        streamAbort.abort(
+          new Error(`Provider connection timeout (${providerTimeoutMs}ms 无响应, 已触发自动重试)`),
+        )
+      }, providerTimeoutMs)
+      const onOuterAbort = () => streamAbort.abort()
+      myController.signal.addEventListener('abort', onOuterAbort, { once: true })
+      const iter = streamSimple(model, context, {
         apiKey,
         reasoning,
         maxTokens: effectiveOutputMax,
-        signal: myController.signal,
+        signal: streamAbort.signal,
       })
+      return (async function* () {
+        try {
+          for await (const evt of iter) {
+            if (firstByteTimer) {
+              clearTimeout(firstByteTimer)
+              firstByteTimer = null
+            }
+            yield evt
+          }
+        } finally {
+          if (firstByteTimer) clearTimeout(firstByteTimer)
+          myController.signal.removeEventListener('abort', onOuterAbort)
+        }
+      })()
+    }
 
     yield { type: 'start', model: model.id, provider: model.provider }
 
