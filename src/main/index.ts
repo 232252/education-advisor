@@ -65,9 +65,11 @@ console.log(
 const cdpEnabled =
   (!app.isPackaged && process.env.ENABLE_CDP !== '0') || process.env.ENABLE_CDP === '1'
 if (cdpEnabled) {
-  app.commandLine.appendSwitch('remote-debugging-port', '9222')
-  app.commandLine.appendSwitch('remote-allow-origins', 'http://localhost:9222')
-  console.log('[Main] CDP enabled at http://localhost:9222 (set ENABLE_CDP=0 to disable)')
+  // 端口可通过 EA_CDP_PORT 覆盖(默认 9222),避免与本机其他 CDP 实例冲突
+  const cdpPort = process.env.EA_CDP_PORT || '9222'
+  app.commandLine.appendSwitch('remote-debugging-port', cdpPort)
+  app.commandLine.appendSwitch('remote-allow-origins', `http://localhost:${cdpPort}`)
+  console.log(`[Main] CDP enabled at http://localhost:${cdpPort} (set ENABLE_CDP=0 to disable)`)
 } else {
   console.log('[Main] CDP disabled (app.isPackaged or ENABLE_CDP=0)')
 }
