@@ -6,7 +6,7 @@
 //   node scripts/cdp-eval.mjs --await "<async js expression>"
 import WebSocket from 'ws'
 
-const CDP_HTTP = 'http://localhost:9222'
+const CDP_HTTP = `http://localhost:${process.env.EA_CDP_PORT || '9222'}`
 
 async function getPageTarget() {
   const res = await fetch(`${CDP_HTTP}/json`)
