@@ -77,44 +77,39 @@ async function main() {
   const svg = readFileSync(SVG_PATH)
 
   // Rasterize each size.
-  // 清晰度优化 (v3, 2026-07-30 进一步提升):
-  //  - density 768: 矢量曲线/渐变在缩放时保留更多细节(density 1536 会超 pixel limit)
-  //  - 小尺寸(≤48)先渲染 4x 再用 Lanczos3 降采样, 消除锯齿、边缘更锐利
-  //  - 全尺寸禁用 palette 量化, 保留完整 RGBA
-  //  - compressionLevel: 小图用 6 减少压缩伪影, 大图用 9
+  // 清晰度优化 (v4):
+  //  - 超采样: 每个目标尺寸从 ~4x 源位图缩小 (lanczos3), 边缘抗锯齿显著优于 1:1 栅格化。
+  //    density 是 DPI 语义: 1024 viewBox 下 sourcePx = 1024 * density/72。
+  //    源边长钳制在 [256, 4096], 避免超出 sharp 像素上限 (29127px @ density 2048 的教训)。
+  //  - 小尺寸(≤48)加轻微 sharpen 抵消缩小软化; 禁用 palette 量化避免发灰。
+  //  - 大尺寸 compressionLevel 9。
+  const SVG_UNITS = 1024
+  const densityFor = (sourcePx) => (sourcePx / SVG_UNITS) * 72
+  const sourceFor = (size) => Math.min(Math.max(size * 4, 256), 4096)
+  const rasterize = (size) =>
+    sharp(svg, { density: densityFor(sourceFor(size)) }).resize(size, size, {
+      fit: 'contain',
+      kernel: 'lanczos3',
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
   const buffers = []
   for (const size of SIZES) {
     const small = size <= 48
-    if (small) {
-      // 4x 超采样 + Lanczos3 降采样
-      const hi = size * 4
-      const buf = await sharp(svg, { density: 768 })
-        .resize(hi, hi, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-        .png({ compressionLevel: 9, palette: false, quality: 100 })
-        .toBuffer()
-        .then((h) =>
-          sharp(h)
-            .resize(size, size, { kernel: 'lanczos3' })
-            .png({ compressionLevel: 6, palette: false, quality: 100 })
-            .toBuffer(),
-        )
-      buffers.push(buf)
-    } else {
-      const buf = await sharp(svg, { density: 768 })
-        .resize(size, size, {
-          fit: 'contain',
-          kernel: 'lanczos3',
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
-        })
-        .png({ compressionLevel: 9, palette: false, quality: 100 })
-        .toBuffer()
-      buffers.push(buf)
-    }
-    console.log(`  ${size}×${size}  →  ${buffers[buffers.length - 1].length} bytes`)
+    let pipeline = rasterize(size)
+    if (small) pipeline = pipeline.sharpen({ sigma: 0.6, m1: 0.8, m2: 0.3 })
+    const buf = await pipeline
+      .png({
+        compressionLevel: small ? 6 : 9,
+        palette: false, // 全尺寸保留完整 RGBA,不再对任何尺寸做调色板量化
+        quality: 100,
+      })
+      .toBuffer()
+    buffers.push(buf)
+    console.log(`  ${size}×${size}  →  ${buf.length} bytes`)
   }
 
   // Save the 256/512/1024 PNGs for macOS / Linux.
-  // 高清 PNG: density 提到 72*4=288 已足够,但用更高 density(512)让细节更锐利。
+  // 高清 PNG: v4 同样走 rasterize() 的 4x 超采样管线。
   // 同时把每个 ICO 帧导出为独立 PNG (icon-16..icon-256), 供运行时按需取精确尺寸:
   //  - 托盘图标用 16@1x + 32@2x 多分辨率 NativeImage, 高 DPI 下不模糊
   //  - 每个帧都是直接从 SVG 按目标尺寸栅格化, 比从 512 缩小更清晰
@@ -122,12 +117,9 @@ async function main() {
     writeFileSync(join(ROOT, 'resources', `icon-${SIZES[i]}.png`), buffers[i])
   }
   writeFileSync(PNG_256, buffers[SIZES.indexOf(256)])
-  writeFileSync(PNG_512, await sharp(svg, { density: 1024 })
-    .resize(512, 512, { kernel: 'lanczos3' }).png({ compressionLevel: 9, palette: false }).toBuffer())
-  writeFileSync(PNG_1024, await sharp(svg, { density: 1024 })
-    .resize(1024, 1024, { kernel: 'lanczos3' }).png({ compressionLevel: 9, palette: false }).toBuffer())
-  writeFileSync(PNG_PATH, await sharp(svg, { density: 1024 })
-    .resize(512, 512, { kernel: 'lanczos3' }).png({ compressionLevel: 9, palette: false }).toBuffer())
+  writeFileSync(PNG_512, await rasterize(512).png({ compressionLevel: 9, palette: false }).toBuffer())
+  writeFileSync(PNG_1024, await rasterize(1024).png({ compressionLevel: 9, palette: false }).toBuffer())
+  writeFileSync(PNG_PATH, await rasterize(512).png({ compressionLevel: 9, palette: false }).toBuffer())
   console.log(`Wrote ${PNG_PATH} (512×512)`)
 
   // Build the .ico (PNG-in-ICO, hand-rolled).
