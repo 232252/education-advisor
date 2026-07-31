@@ -13,6 +13,7 @@
 import { EventEmitter } from 'node:events'
 import * as lark from '@larksuiteoapi/node-sdk'
 import { type BrowserWindow, powerMonitor } from 'electron'
+import { formatLlmError } from '../../shared/llm-error'
 import { log } from '../utils/logger'
 import { agentService } from './agent-service'
 import { eaaBridge, getErrorMessage } from './eaa-bridge'
@@ -618,7 +619,8 @@ class FeishuBotService extends EventEmitter {
       const execution = await agentService.runAgent(target.id, prompt, win as BrowserWindow)
       if (!execution) return '(执行已被中止)'
       if (execution.status !== 'success') {
-        return `Agent 执行出错: ${execution.output || '未知错误'}`
+        // 美化原始 provider 错误(如 "429 {...JSON...}"),远程用户看到的是可读文本
+        return `Agent 执行出错: ${formatLlmError(execution.output || '未知错误')}`
       }
       return execution.output || '(Agent 返回空内容)'
     } catch (err) {
