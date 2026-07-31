@@ -101,7 +101,7 @@
     "electron-builder": "^26.15.3",
     "jsdom": "^30.0.1",
     "postcss": "^8.4.49",
-    "rcedit": "^5.0.1",
+    "rcedit": "^5.0.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
