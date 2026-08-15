@@ -3,15 +3,9 @@
 // 时间、计算、编码等基础能力
 // =============================================================
 
-import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
-
-function textResult(text: string): AgentToolResult<unknown> {
-  return {
-    content: [{ type: 'text' as const, text }],
-    details: {},
-  }
-}
+import { textResult } from './eaa/tools/shared'
 
 // =============================================================
 // Schema 定义

@@ -134,12 +134,13 @@ describe('eaa-tools: safeExecute / sanitizeArg', () => {
   })
 
   it('addEventTool 中 student_name="--xxx" 也应抛错', async () => {
+  // F2 后 addEventTool 走 buildAddEventArgs(统一 sanitize),错误消息为统一版英文文案
   await expect(
   addEventTool.execute('tc', {
   student_name: '--evil',
   reason_code: 'LATE',
   }),
-  ).rejects.toThrow(/以 -- 开头/)
+  ).rejects.toThrow(/cannot start with --/)
   expect(bridge.execute).not.toHaveBeenCalled()
   })
  })
@@ -169,18 +170,30 @@ describe('eaa-tools: safeExecute / sanitizeArg', () => {
 
  // -------- flags跳过 sanitize --------
  describe('flags 参数（程序硬编码）跳过 sanitize', () => {
- it('"--from=2024-01-01" 通过 addEventTool 不抛错（来自 --delta 等内置 flags路径）', async () => {
- // 这里测试 addEventTool 因为它通过 flags传 "--delta" 等
- // 同时 flags路径走的是同样的 safeExecute(values, flags)，但 flags 不 sanitize
- await addEventTool.execute('tc', {
+ it('note="--from=2024-01-01" 通过 addEventTool 应抛错（F2 统一后与 IPC eaa:add-event 行为一致）', async () => {
+ // F2 修复: addEventTool 改走 buildAddEventArgs 统一组装,
+ // note 属于用户提供值(非程序硬编码 flag),以 -- 开头会被 sanitizeFreeText 拒绝,
+ // 与 IPC eaa:add-event 的既有安全行为一致(旧"flags 跳过 sanitize"路径已废除)
+ await expect(
+ addEventTool.execute('tc', {
  student_name: '张三',
  reason_code: 'LATE',
  delta: -5,
  note: '--from=2024-01-01',
+ }),
+ ).rejects.toThrow(/cannot start with --/)
+ expect(bridge.execute).not.toHaveBeenCalled()
+ })
+
+ it('addEventTool 合法参数经 buildAddEventArgs 组装后传给 eaaBridge(含 --delta/--note)', async () => {
+ await addEventTool.execute('tc', {
+ student_name: '张三',
+ reason_code: 'LATE',
+ delta: -5,
+ note: '迟到说明',
  })
  expect(bridge.execute).toHaveBeenCalledTimes(1)
  const call = bridge.execute.mock.calls[0][0]
- // values 部分应被 sanitize 后传入（合法）
  expect(call.command).toBe('add')
  expect(call.args[0]).toBe('张三')
  expect(call.args[1]).toBe('LATE')
@@ -188,7 +201,7 @@ describe('eaa-tools: safeExecute / sanitizeArg', () => {
  expect(call.args).toContain('--delta')
  expect(call.args).toContain('-5')
  expect(call.args).toContain('--note')
- expect(call.args).toContain('--from=2024-01-01')
+ expect(call.args).toContain('迟到说明')
  })
 
  it('historyTool传入合法 name 直接转给 eaaBridge', async () => {

@@ -14,7 +14,7 @@ export interface MistralOptions extends StreamOptions {
     reasoningEffort?: MistralReasoningEffort;
 }
 /**
- * Stream responses from Mistral using `chat.stream`.
+ * Stream responses from the native Mistral Chat Completions endpoint.
  */
 export declare const stream: StreamFunction<"mistral-conversations", MistralOptions>;
 /**

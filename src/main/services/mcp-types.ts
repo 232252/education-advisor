@@ -5,7 +5,7 @@
 // =============================================================
 
 import type { ChildProcess } from 'node:child_process'
-import type { McpServerConfig, McpTool } from '../../shared/types'
+import type { McpServerConfig, McpTool } from '@shared/types'
 import { isSafeMcpUrl } from './mcp-helpers'
 
 /** MCP 工具调用结果(兼容 MCP 协议) */

@@ -4,6 +4,7 @@ import { openAIResponsesApi } from "../api/openai-responses.lazy.js";
 import { createProvider } from "../models.js";
 import { CLOUDFLARE_AI_GATEWAY_MODELS } from "./cloudflare-ai-gateway.models.js";
 import { cloudflareAIGatewayAuth } from "./cloudflare-auth.js";
+import { cloudflareStreams } from "./cloudflare-stream.js";
 export function cloudflareAIGatewayProvider() {
     return createProvider({
         id: "cloudflare-ai-gateway",
@@ -11,9 +12,9 @@ export function cloudflareAIGatewayProvider() {
         auth: { apiKey: cloudflareAIGatewayAuth() },
         models: Object.values(CLOUDFLARE_AI_GATEWAY_MODELS),
         api: {
-            "anthropic-messages": anthropicMessagesApi(),
-            "openai-completions": openAICompletionsApi(),
-            "openai-responses": openAIResponsesApi(),
+            "anthropic-messages": cloudflareStreams(anthropicMessagesApi()),
+            "openai-completions": cloudflareStreams(openAICompletionsApi()),
+            "openai-responses": cloudflareStreams(openAIResponsesApi()),
         },
     });
 }

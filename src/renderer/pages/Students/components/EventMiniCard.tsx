@@ -14,7 +14,7 @@ export function EventMiniCard({ event }: { event: EAAHistoryEvent }) {
           {isBonus ? '+' : ''}
           {event.score_delta.toFixed(1)}
         </span>
-        <span className="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded font-mono">
+        <span className="text-[10px] bg-gray-200 dark:bg-surface-elevated px-1.5 py-0.5 rounded font-mono">
           {event.reason_code}
         </span>
         {event.note && (

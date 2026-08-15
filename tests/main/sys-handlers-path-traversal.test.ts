@@ -53,7 +53,7 @@ vi.mock('../../src/main/services/update-service', () => ({
 }))
 
 import { registerSysHandlers } from '../../src/main/ipc/sys-handlers'
-import * as IPC from '../../src/shared/ipc-channels'
+import * as IPC from '@shared/ipc-channels'
 
 describe('H-2: IPC_SYS_READ_FILE 路径穿越防御', () => {
   beforeAll(() => {

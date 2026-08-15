@@ -11,8 +11,8 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import type { Skill } from '@shared/types'
 import { app } from 'electron'
-import type { Skill } from '../../shared/types'
 
 class SkillService {
   private userSkillsDir: string

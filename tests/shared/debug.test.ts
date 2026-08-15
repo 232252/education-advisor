@@ -24,7 +24,7 @@ const ENV_KEYS = [
 function loadDebug() {
   // 每次重新加载模块以重新读取环境变量
   vi.resetModules()
-  return import('../../src/shared/debug')
+  return import('@shared/debug')
 }
 
 function clearDebugEnv() {

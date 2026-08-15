@@ -32,20 +32,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const T = (name, ok, detail) => console.log(`${ok ? '✓' : '✗'} ${name}: ${detail}`)
 
 await send('Runtime.enable')
-// 1. EAA 写入链路: 添加事件
+// 1. EAA 写入链路: 添加学生 + 事件 (签名对照 preload: addStudent(name:string), addEvent({studentName,reasonCode,delta?,note?}))
 const studentName = `test-e2e-${Date.now()}`
-const addStudent = await evl(`(async()=>{try{return await api.eaa.addStudent({name:'${studentName}'})}catch(e){return {err:String(e.message)}}})()`)
+const addStudent = await evl(`(async()=>{try{return await api.eaa.addStudent('${studentName}')}catch(e){return {err:String(e.message)}}})()`)
 T('eaa.addStudent', addStudent.success === true || addStudent.entity_id, JSON.stringify(addStudent).slice(0, 200))
 
-const addEvent = await evl(`(async()=>{try{return await api.eaa.addEvent({name:'${studentName}', code:'CLASS_MONITOR', note:'e2e test', delta:10})}catch(e){return {err:String(e.message)}}})()`)
+const addEvent = await evl(`(async()=>{try{return await api.eaa.addEvent({studentName:'${studentName}', reasonCode:'CLASS_COMMITTEE', note:'e2e test', delta:5})}catch(e){return {err:String(e.message)}}})()`)
 T('eaa.addEvent', addEvent.success === true, JSON.stringify(addEvent).slice(0, 200))
 
-// 2. 验证可查回
-const found = await evl(`(async()=>{try{const r=await api.eaa.search({query:'${studentName}'}); return r}catch(e){return {err:String(e.message)}}})()`)
+// 2. 验证可查回 (search 签名: search(query:string, limit?))
+const found = await evl(`(async()=>{try{const r=await api.eaa.search('${studentName}'); return r}catch(e){return {err:String(e.message)}}})()`)
 T('eaa.search 回查', found.success === true && JSON.stringify(found).includes(studentName), JSON.stringify(found).slice(0, 250))
 
 // 3. 非法 reasonCode 应被拒
-const badEvent = await evl(`(async()=>{try{return await api.eaa.addEvent({name:'${studentName}', code:'NOT_A_REAL_CODE', note:'bad', delta:10})}catch(e){return {err:String(e.message)}}})()`)
+const badEvent = await evl(`(async()=>{try{return await api.eaa.addEvent({studentName:'${studentName}', reasonCode:'NOT_A_REAL_CODE', note:'bad', delta:10})}catch(e){return {err:String(e.message)}}})()`)
 T('eaa.addEvent 非法码拒绝', badEvent.success === false, JSON.stringify(badEvent).slice(0, 200))
 
 // 4. Agent 运行(无 API Key 时应优雅报错而非崩溃)
@@ -60,25 +60,25 @@ T('feishu.botStart 非法appId', botStart.success === false, JSON.stringify(botS
 const botStart2 = await evl(`(async()=>{try{return await api.feishu.botStart({appId:'cli_a1b2c3d4e5f6a7b8', appSecret:'wrong-secret-0000'})}catch(e){return {err:String(e.message)}}})()`)
 T('feishu.botStart 错误凭证', botStart2.success === false, JSON.stringify(botStart2).slice(0, 250))
 
-// 7. 飞书 diagnose 网络诊断
+// 7. 飞书 diagnose 网络诊断 (返回 {steps, overall:'pass'|'fail', ...}, 无 success 包装)
 const diag = await evl(`(async()=>{try{return await api.feishu.diagnose()}catch(e){return {err:String(e.message)}}})()`)
-T('feishu.diagnose', diag.success === true, JSON.stringify(diag.data || diag).slice(0, 350))
+T('feishu.diagnose', diag && diag.overall !== 'fail' && !diag?.err, JSON.stringify(diag?.steps ? {overall:diag.overall, steps:diag.steps.map(s=>`${s.name}:${s.status}`)} : diag).slice(0, 350))
 
 // 8. 飞书 bot-stop 幂等
 const botStop = await evl(`(async()=>{try{return await api.feishu.botStop()}catch(e){return {err:String(e.message)}}})()`)
 T('feishu.botStop 幂等', botStop.success === true, JSON.stringify(botStop).slice(0, 150))
 
-// 9. cron 添加用户任务 → 持久化验证
-const cronId = `test-cron-${Date.now()}`
-const cronAdd = await evl(`(async()=>{try{return await api.cron.add({id:'${cronId}', name:'e2e cron', agentId:'class-monitor', expression:'0 */30 * * * *', prompt:'test'})}catch(e){return {err:String(e.message)}}})()`)
+// 9. cron 添加用户任务 → 持久化验证 (add 返回自动生成的 id, list/remove 用该 id; remove(id:string))
+const cronAdd = await evl(`(async()=>{try{return await api.cron.add({name:'e2e cron', agentId:'class-monitor', expression:'0 */30 * * * *', prompt:'test'})}catch(e){return {err:String(e.message)}}})()`)
 T('cron.add', cronAdd.success === true, JSON.stringify(cronAdd).slice(0, 200))
-const cronList = await evl(`(async()=>{try{const r=await api.cron.list(); return r.some(t=>t.id==='${cronId}')}catch(e){return {err:String(e.message)}}})()`)
-T('cron.list 包含新任务', cronList === true, String(cronList))
-const cronRemove = await evl(`(async()=>{try{return await api.cron.remove({id:'${cronId}'})}catch(e){return {err:String(e.message)}}})()`)
+const newCronId = cronAdd.id
+const cronList = await evl(`(async()=>{try{const r=await api.cron.list(); return r.some(t=>t.id===${JSON.stringify(newCronId)})}catch(e){return {err:String(e.message)}}})()`)
+T('cron.list 包含新任务', cronList === true, `${newCronId} => ${cronList}`)
+const cronRemove = await evl(`(async()=>{try{return await api.cron.remove(${JSON.stringify(newCronId)})}catch(e){return {err:String(e.message)}}})()`)
 T('cron.remove', cronRemove.success === true, JSON.stringify(cronRemove).slice(0, 150))
 
 // 10. 非法 cron 表达式应被拒
-const cronBad = await evl(`(async()=>{try{return await api.cron.add({id:'x', name:'x', agentId:'class-monitor', expression:'NOT CRON', prompt:'x'})}catch(e){return {err:String(e.message)}}})()`)
+const cronBad = await evl(`(async()=>{try{return await api.cron.add({name:'x', agentId:'class-monitor', expression:'NOT CRON', prompt:'x'})}catch(e){return {err:String(e.message)}}})()`)
 T('cron.add 非法表达式拒绝', cronBad.success === false, JSON.stringify(cronBad).slice(0, 200))
 
 // 11. 设置写入: theme 切换
@@ -89,12 +89,16 @@ T('settings.get 回读 theme', getTheme === 'light', String(getTheme))
 // 还原 dark
 await evl(`api.settings.set('general.theme','dark')`)
 
-// 12. 班级 CRUD
-const clsId = `test-cls-${Date.now()}`
-const clsAdd = await evl(`(async()=>{try{return await api.class.create({classId:'${clsId}', name:'测试班级-e2e', grade:'高一', teacher:'测试老师'})}catch(e){return {err:String(e.message)}}})()`)
+// 12. 班级 CRUD (create 传 class_id snake_case, 返回 data.id(UUID); delete(id:string) 用 UUID)
+const clsId = `testcls.${Date.now()}`
+const clsAdd = await evl(`(async()=>{try{return await api.class.create({class_id:'${clsId}', name:'测试班级-e2e', grade:'高一', teacher:'测试老师'})}catch(e){return {err:String(e.message)}}})()`)
 T('class.create', clsAdd.success === true, JSON.stringify(clsAdd).slice(0, 150))
-const clsDel = await evl(`(async()=>{try{return await api.class.delete({classId:'${clsId}'})}catch(e){return {err:String(e.message)}}})()`)
+const newClassUuid = clsAdd.data?.id
+const clsDel = await evl(`(async()=>{try{return await api.class.delete(${JSON.stringify(newClassUuid)})}catch(e){return {err:String(e.message)}}})()`)
 T('class.delete', clsDel.success === true, JSON.stringify(clsDel).slice(0, 150))
+
+// 13. 清理本脚本创建的测试学生 (软删, 保留事件)
+await evl(`(async()=>{try{return await api.eaa.deleteStudent('${studentName}', 'e2e cleanup')}catch(e){return {err:String(e.message)}}})()`)
 
 console.log('=== console errors ===')
 console.log(consoleErrors.slice(0, 15).join('\n') || '(none)')

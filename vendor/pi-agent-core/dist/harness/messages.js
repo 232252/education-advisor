@@ -33,7 +33,7 @@ export function createBranchSummaryMessage(summary, fromId, timestamp) {
         role: "branchSummary",
         summary,
         fromId,
-        timestamp: new Date(timestamp).getTime(),
+        timestamp: typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime(),
     };
 }
 export function createCompactionSummaryMessage(summary, tokensBefore, timestamp) {
@@ -41,7 +41,7 @@ export function createCompactionSummaryMessage(summary, tokensBefore, timestamp)
         role: "compactionSummary",
         summary,
         tokensBefore,
-        timestamp: new Date(timestamp).getTime(),
+        timestamp: typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime(),
     };
 }
 export function createCustomMessage(customType, content, display, details, timestamp) {
@@ -51,7 +51,7 @@ export function createCustomMessage(customType, content, display, details, times
         content,
         display,
         details,
-        timestamp: new Date(timestamp).getTime(),
+        timestamp: typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime(),
     };
 }
 export function convertToLlm(messages) {
