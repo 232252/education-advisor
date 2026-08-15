@@ -14,6 +14,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const _dirName = process.platform === 'win32' ? 'win32-x64' : process.platform === 'darwin' ? (process.arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64') : 'linux-x64'
 const _binName = process.platform === 'win32' ? 'eaa.exe' : 'eaa'
 const EAA_BIN = join(__dirname, '..', '..', 'resources', 'eaa-binaries', _dirName, _binName)
+// 平台二进制缺失(如 macOS 无 darwin 构建)时整组跳过,避免 CI 误报 ENOENT
+const describeE2E = existsSync(EAA_BIN) ? describe : describe.skip
 const TEST_ROOT = mkdtempSync(join(tmpdir(), 'eaa-stress-'))
 const TEST_DATA = join(TEST_ROOT, 'data')
 const SCHEMA_SRC = join(__dirname, '..', '..', 'core', 'eaa-cli', 'schema', 'reason_codes.json')
@@ -65,7 +67,7 @@ beforeEach(async () => {
   await resetEaa()
 })
 
-describe('持续压力测试（容器内 10 分钟）', () => {
+describeE2E('持续压力测试（容器内 10 分钟）', () => {
   it('10 分钟持续混合操作（班级/学生/事件/查询/筛选）', async () => {
     const mockApi = {
       eaa: {
