@@ -11,7 +11,7 @@
 // 导致所有 MCP server 连接失败,因此值得单独测试覆盖。
 // =============================================================
 
-import type { McpServerConfig } from '../../shared/types'
+import type { McpServerConfig } from '@shared/types'
 
 /**
  * 环境变量插值: ${VAR} 或 ${env.VAR} → process.env[VAR]

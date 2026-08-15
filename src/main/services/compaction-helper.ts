@@ -31,6 +31,16 @@ export interface CompactionDecision {
 }
 
 /**
+ * reserveTokens 自适应上限(Bug-2 修复,原为 pi-ai/streaming.ts 与 agent/execution.ts 双份实现):
+ * 上限取 contextWindow 的 10%,下限 4096。
+ * 之前直接用 settings.chat.compaction.reserveTokens 死值 8000:
+ * contextWindow=900K 时相对太小,model.contextWindow=32K 时相对太大。
+ */
+export function computeAdaptiveReserve(reserveTokens: number, contextWindow: number): number {
+  return Math.max(4096, Math.min(reserveTokens, Math.floor(contextWindow * 0.1)))
+}
+
+/**
  * 评估当前消息列表是否需要压缩
  * - 优先用 SDK 的 token 估算(基于 provider usage 数据,可能为 0)
  * - 兜底:用消息字符总数除以 4(SDK 默认字符/token 比例)作为估算

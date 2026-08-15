@@ -6,8 +6,8 @@
 // 获取目标路径后再调用 exportLog。
 // =============================================================
 
+import * as IPC from '@shared/ipc-channels'
 import { dialog, ipcMain } from 'electron'
-import * as IPC from '../../shared/ipc-channels'
 import type { LogLevel } from '../utils/logger'
 import {
   clearAllLogs,
@@ -78,15 +78,6 @@ export function registerLogHandlers(): void {
       }
     },
   )
-
-  ipcMain.handle(IPC.IPC_LOG_EXPORT, async (_event, sourcePath: string, destPath: string) => {
-    try {
-      return await exportLog(sourcePath, destPath)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      throw new Error(`exportLog 失败: ${msg}`)
-    }
-  })
 
   ipcMain.handle(IPC.IPC_LOG_EXPORT_DIALOG, async (_event, sourceName: string) => {
     try {

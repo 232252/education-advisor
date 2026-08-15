@@ -2,11 +2,13 @@ import type { AssistantMessage } from "../types.ts";
 /**
  * Check if an assistant message represents a context overflow error.
  *
- * This handles two cases:
+ * This handles three cases:
  * 1. Error-based overflow: Most providers return stopReason "error" with a
  *    specific error message pattern.
  * 2. Silent overflow: Some providers accept overflow requests and return
  *    successfully. For these, we check if usage.input exceeds the context window.
+ * 3. Length-stop overflow: Xiaomi MiMo can return "length" with zero output when
+ *    the input fills the context window.
  *
  * ## Reliability by Provider
  *
@@ -24,6 +26,8 @@ import type { AssistantMessage } from "../types.ts";
  * - llama.cpp: "exceeds the available context size"
  * - LM Studio: "greater than the context length"
  * - Kimi For Coding: "exceeded model token limit: X (requested: Y)"
+ * - DS4: "Prompt has X tokens, but the configured context size is Y tokens"
+ * - DashScope/Qwen: "Range of input length should be [1, X]"
  *
  * **Unreliable detection:**
  * - z.ai: Sometimes accepts overflow silently (detectable via usage.input > contextWindow),
@@ -50,6 +54,13 @@ import type { AssistantMessage } from "../types.ts";
  * @returns true if the message indicates a context overflow
  */
 export declare function isContextOverflow(message: AssistantMessage, contextWindow?: number): boolean;
+/**
+ * Check whether a length stop ended below the caller or model's intended output limit.
+ * Such responses may be caused by context pressure or provider-side truncation, so callers
+ * can make one bounded compact-and-retry attempt. `desiredMaxOutput` must be the original
+ * limit before any context-based clamping.
+ */
+export declare function isRecoverableLength(message: AssistantMessage, desiredMaxOutput: number): boolean;
 /**
  * Get the overflow patterns for testing purposes.
  */

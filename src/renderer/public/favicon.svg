@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    Education Advisor — app icon (v2, 2026-07-30 清晰度重构)
+    设计目标:
+      1. 16/32px 小尺寸仍清晰 —— 全部笔画加粗(网络线 34,书脊 14,页线 26),
+         节点加大,元素更少更聚焦。
+      2. 现代化 —— 品牌渐变底(蓝→靛,与应用内 Logo 一致),微高光增层次。
+      3. 高对比 —— 纯白书 + 亮青网络 + 琥珀核心点,深底上全部可辨。
+    色板:
+      背景渐变  #3B82F6 → #4F46E5 (blue-500 → indigo-600)
+      网络/节点 #22D3EE (cyan-400, 深色底上高亮)
+      核心点    #FBBF24 (amber-400)
+      书页      #FFFFFF / #DBEAFE (blue-100)
+  -->
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#4F46E5"/>
+    </linearGradient>
+    <!-- 顶部微高光,提升立体感(很弱,不影响扁平风格) -->
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.14"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 圆角矩形背景(渐变 + 高光层) -->
+  <rect x="0" y="0" width="1024" height="1024" rx="220" ry="220" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="220" ry="220" fill="url(#sheen)"/>
+
+  <!-- ===== 多智能体网络(上半,加粗加大) ===== -->
+  <g stroke="#22D3EE" stroke-width="34" stroke-linecap="round" fill="none" opacity="0.95">
+    <line x1="322" y1="330" x2="702" y2="330"/>
+    <line x1="322" y1="330" x2="512" y2="196"/>
+    <line x1="702" y1="330" x2="512" y2="196"/>
+    <line x1="512" y1="196" x2="512" y2="430"/>
+  </g>
+  <g>
+    <circle cx="322" cy="330" r="72" fill="#22D3EE"/>
+    <circle cx="702" cy="330" r="72" fill="#22D3EE"/>
+    <circle cx="512" cy="196" r="72" fill="#22D3EE"/>
+    <!-- 琥珀核心节点(网络焦点) -->
+    <circle cx="512" cy="430" r="52" fill="#FBBF24"/>
+  </g>
+
+  <!-- ===== 打开的书(下半,放大加粗) ===== -->
+  <g>
+    <!-- 左页 -->
+    <path d="M 176 610
+             L 512 566
+             L 512 836
+             L 176 884
+             Z"
+          fill="#FFFFFF"/>
+    <!-- 右页(微蓝阴影制造立体) -->
+    <path d="M 848 610
+             L 512 566
+             L 512 836
+             L 848 884
+             Z"
+          fill="#DBEAFE"/>
+    <!-- 书脊(中缝折痕) -->
+    <line x1="512" y1="566" x2="512" y2="836"
+          stroke="#1E3A8A" stroke-width="14" stroke-linecap="round"/>
+    <!-- 页线(加粗到小尺寸可见,品牌靛蓝,适中透明) -->
+    <g stroke="#1E3A8A" stroke-width="26" stroke-linecap="round" opacity="0.28">
+      <line x1="244" y1="680" x2="444" y2="654"/>
+      <line x1="244" y1="742" x2="444" y2="716"/>
+      <line x1="580" y1="654" x2="780" y2="680"/>
+      <line x1="580" y1="716" x2="780" y2="742"/>
+    </g>
+  </g>
+</svg>

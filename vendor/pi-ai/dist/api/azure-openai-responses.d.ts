@@ -1,6 +1,6 @@
 import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
 export interface AzureOpenAIResponsesOptions extends StreamOptions {
-    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh";
+    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
     reasoningSummary?: "auto" | "detailed" | "concise" | null;
     azureApiVersion?: string;
     azureResourceName?: string;

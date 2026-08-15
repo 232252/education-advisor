@@ -1,5 +1,6 @@
-import { convertToLlm, createBranchSummaryMessage, createCompactionSummaryMessage, createCustomMessage, } from "../messages.js";
-import { buildSessionContext } from "../session/session.js";
+import { contentText, retryAssistantCall, uuidv7, } from "@earendil-works/pi-ai";
+import { convertToLlm, createBranchSummaryMessage, createCompactionSummaryMessage } from "../messages.js";
+import { buildSessionContext } from "../session/context.js";
 import { CompactionError, err, ok } from "../types.js";
 import { computeFileLists, createFileOps, extractFileOpsFromMessage, formatFileOperations, serializeConversation, } from "./utils.js";
 function safeJsonStringify(value) {
@@ -14,7 +15,7 @@ function extractFileOperations(messages, entries, prevCompactionIndex) {
     const fileOps = createFileOps();
     if (prevCompactionIndex >= 0) {
         const prevCompaction = entries[prevCompactionIndex];
-        if (!prevCompaction.fromHook && prevCompaction.details) {
+        if (prevCompaction.details) {
             const details = prevCompaction.details;
             if (Array.isArray(details.readFiles)) {
                 for (const f of details.readFiles)
@@ -35,9 +36,6 @@ function getMessageFromEntry(entry) {
     if (entry.type === "message") {
         return entry.message;
     }
-    if (entry.type === "custom_message") {
-        return createCustomMessage(entry.customType, entry.content, entry.display, entry.details, entry.timestamp);
-    }
     if (entry.type === "branch_summary") {
         return createBranchSummaryMessage(entry.summary, entry.fromId, entry.timestamp);
     }
@@ -51,6 +49,37 @@ function getMessageFromEntryForCompaction(entry) {
         return undefined;
     }
     return getMessageFromEntry(entry);
+}
+export async function completeSimpleWithRetries(models, model, context, options, retry, callbacks) {
+    // Summaries are standalone requests, so isolate routing and avoid cache writes that cannot be reused.
+    const requestOptions = {
+        ...options,
+        cacheRetention: "none",
+        sessionId: uuidv7(),
+    };
+    return retryAssistantCall(() => models.completeSimple(model, context, requestOptions), retry, requestOptions.signal, callbacks);
+}
+function combineUsage(first, second) {
+    return {
+        input: first.input + second.input,
+        output: first.output + second.output,
+        cacheRead: first.cacheRead + second.cacheRead,
+        cacheWrite: first.cacheWrite + second.cacheWrite,
+        ...(first.cacheWrite1h !== undefined || second.cacheWrite1h !== undefined
+            ? { cacheWrite1h: (first.cacheWrite1h ?? 0) + (second.cacheWrite1h ?? 0) }
+            : {}),
+        ...(first.reasoning !== undefined || second.reasoning !== undefined
+            ? { reasoning: (first.reasoning ?? 0) + (second.reasoning ?? 0) }
+            : {}),
+        totalTokens: first.totalTokens + second.totalTokens,
+        cost: {
+            input: first.cost.input + second.cost.input,
+            output: first.cost.output + second.cost.output,
+            cacheRead: first.cost.cacheRead + second.cost.cacheRead,
+            cacheWrite: first.cost.cacheWrite + second.cost.cacheWrite,
+            total: first.cost.total + second.cost.total,
+        },
+    };
 }
 /** Default compaction settings used by the harness. */
 export const DEFAULT_COMPACTION_SETTINGS = {
@@ -210,15 +239,10 @@ function findValidCutPoints(entries, startIndex, endIndex) {
             case "compaction":
             case "branch_summary":
             case "custom":
-            case "custom_message":
-            case "label":
-            case "session_info":
-            case "leaf":
                 break;
         }
-        if (entry.type === "branch_summary" || entry.type === "custom_message") {
+        if (entry.type === "branch_summary")
             cutPoints.push(i);
-        }
     }
     return cutPoints;
 }
@@ -226,7 +250,7 @@ function findValidCutPoints(entries, startIndex, endIndex) {
 export function findTurnStartIndex(entries, entryIndex, startIndex) {
     for (let i = entryIndex; i >= startIndex; i--) {
         const entry = entries[i];
-        if (entry.type === "branch_summary" || entry.type === "custom_message") {
+        if (entry.type === "branch_summary") {
             return i;
         }
         if (entry.type === "message") {
@@ -355,7 +379,12 @@ Use this EXACT format:
 
 Keep each section concise. Preserve exact file paths, function names, and error messages.`;
 /** Generate or update a conversation summary for compaction. */
-export async function generateSummary(currentMessages, models, model, reserveTokens, signal, customInstructions, previousSummary, thinkingLevel) {
+export async function generateSummary(currentMessages, models, model, reserveTokens, signal, customInstructions, previousSummary, thinkingLevel, retry, callbacks) {
+    const result = await generateSummaryWithUsage(currentMessages, models, model, reserveTokens, signal, customInstructions, previousSummary, thinkingLevel, retry, callbacks);
+    return result.ok ? ok(result.value.text) : err(result.error);
+}
+/** Generate or update a conversation summary and return its provider usage. */
+export async function generateSummaryWithUsage(currentMessages, models, model, reserveTokens, signal, customInstructions, previousSummary, thinkingLevel, retry, callbacks) {
     const maxTokens = Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY);
     let basePrompt = previousSummary ? UPDATE_SUMMARIZATION_PROMPT : SUMMARIZATION_PROMPT;
     if (customInstructions) {
@@ -378,18 +407,15 @@ export async function generateSummary(currentMessages, models, model, reserveTok
     const completionOptions = model.reasoning && thinkingLevel && thinkingLevel !== "off"
         ? { maxTokens, signal, reasoning: thinkingLevel }
         : { maxTokens, signal };
-    const response = await models.completeSimple(model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, completionOptions);
+    const response = await completeSimpleWithRetries(models, model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, completionOptions, retry, callbacks);
     if (response.stopReason === "aborted") {
         return err(new CompactionError("aborted", response.errorMessage || "Summarization aborted"));
     }
     if (response.stopReason === "error") {
         return err(new CompactionError("summarization_failed", `Summarization failed: ${response.errorMessage || "Unknown error"}`));
     }
-    const textContent = response.content
-        .filter((c) => c.type === "text")
-        .map((c) => c.text)
-        .join("\n");
-    return ok(textContent);
+    const textContent = contentText(response.content);
+    return ok({ text: textContent, usage: response.usage });
 }
 /** Prepare session entries for compaction, or return undefined when compaction is not applicable. */
 export function prepareCompaction(pathEntries, settings) {
@@ -404,35 +430,43 @@ export function prepareCompaction(pathEntries, settings) {
         }
     }
     let previousSummary;
-    let boundaryStart = 0;
+    let compactableEntries = pathEntries;
     if (prevCompactionIndex >= 0) {
         const prevCompaction = pathEntries[prevCompactionIndex];
         previousSummary = prevCompaction.summary;
-        const firstKeptEntryIndex = pathEntries.findIndex((entry) => entry.id === prevCompaction.firstKeptEntryId);
-        boundaryStart = firstKeptEntryIndex >= 0 ? firstKeptEntryIndex : prevCompactionIndex + 1;
+        const virtualRetainedEntries = prevCompaction.retainedTail.map((message, index) => ({
+            type: "message",
+            id: `${prevCompaction.id}:retained:${index}`,
+            parentId: index === 0 ? prevCompaction.id : `${prevCompaction.id}:retained:${index - 1}`,
+            seq: prevCompaction.seq,
+            timestamp: message.timestamp,
+            message,
+        }));
+        compactableEntries = [...virtualRetainedEntries, ...pathEntries.slice(prevCompactionIndex + 1)];
     }
-    const boundaryEnd = pathEntries.length;
+    const boundaryEnd = compactableEntries.length;
     const tokensBefore = estimateContextTokens(buildSessionContext(pathEntries).messages).tokens;
-    const cutPoint = findCutPoint(pathEntries, boundaryStart, boundaryEnd, settings.keepRecentTokens);
-    const firstKeptEntry = pathEntries[cutPoint.firstKeptEntryIndex];
-    if (!firstKeptEntry?.id) {
-        return err(new CompactionError("invalid_session", "First kept entry has no UUID - session may need migration"));
-    }
-    const firstKeptEntryId = firstKeptEntry.id;
+    const cutPoint = findCutPoint(compactableEntries, 0, boundaryEnd, settings.keepRecentTokens);
     const historyEnd = cutPoint.isSplitTurn ? cutPoint.turnStartIndex : cutPoint.firstKeptEntryIndex;
     const messagesToSummarize = [];
-    for (let i = boundaryStart; i < historyEnd; i++) {
-        const msg = getMessageFromEntryForCompaction(pathEntries[i]);
+    for (let i = 0; i < historyEnd; i++) {
+        const msg = getMessageFromEntryForCompaction(compactableEntries[i]);
         if (msg)
             messagesToSummarize.push(msg);
     }
     const turnPrefixMessages = [];
     if (cutPoint.isSplitTurn) {
         for (let i = cutPoint.turnStartIndex; i < cutPoint.firstKeptEntryIndex; i++) {
-            const msg = getMessageFromEntryForCompaction(pathEntries[i]);
+            const msg = getMessageFromEntryForCompaction(compactableEntries[i]);
             if (msg)
                 turnPrefixMessages.push(msg);
         }
+    }
+    const retainedTail = [];
+    for (let i = cutPoint.firstKeptEntryIndex; i < boundaryEnd; i++) {
+        const msg = getMessageFromEntryForCompaction(compactableEntries[i]);
+        if (msg)
+            retainedTail.push(msg);
     }
     const fileOps = extractFileOperations(messagesToSummarize, pathEntries, prevCompactionIndex);
     if (cutPoint.isSplitTurn) {
@@ -441,9 +475,9 @@ export function prepareCompaction(pathEntries, settings) {
         }
     }
     return ok({
-        firstKeptEntryId,
         messagesToSummarize,
         turnPrefixMessages,
+        retainedTail,
         isSplitTurn: cutPoint.isSplitTurn,
         tokensBefore,
         previousSummary,
@@ -467,41 +501,46 @@ Summarize the prefix to provide context for the retained suffix:
 Be concise. Focus on what's needed to understand the kept suffix.`;
 export { serializeConversation } from "./utils.js";
 /** Generate compaction summary data from prepared session history. */
-export async function compact(preparation, models, model, customInstructions, signal, thinkingLevel) {
-    const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = preparation;
-    if (!firstKeptEntryId) {
-        return err(new CompactionError("invalid_session", "First kept entry has no UUID - session may need migration"));
-    }
+export async function compact(preparation, models, model, customInstructions, signal, thinkingLevel, retry, callbacks) {
+    const { messagesToSummarize, turnPrefixMessages, retainedTail, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = preparation;
     let summary;
+    let summaryUsage;
     if (isSplitTurn && turnPrefixMessages.length > 0) {
-        const [historyResult, turnPrefixResult] = await Promise.all([
-            messagesToSummarize.length > 0
-                ? generateSummary(messagesToSummarize, models, model, settings.reserveTokens, signal, customInstructions, previousSummary, thinkingLevel)
-                : Promise.resolve(ok("No prior history.")),
-            generateTurnPrefixSummary(turnPrefixMessages, models, model, settings.reserveTokens, signal, thinkingLevel),
-        ]);
-        if (!historyResult.ok)
-            return err(historyResult.error);
+        let historyText = "No prior history.";
+        let historyUsage;
+        if (messagesToSummarize.length > 0) {
+            const historyResult = await generateSummaryWithUsage(messagesToSummarize, models, model, settings.reserveTokens, signal, customInstructions, previousSummary, thinkingLevel, retry, callbacks);
+            if (!historyResult.ok)
+                return err(historyResult.error);
+            historyText = historyResult.value.text;
+            historyUsage = historyResult.value.usage;
+        }
+        const turnPrefixResult = await generateTurnPrefixSummary(turnPrefixMessages, models, model, settings.reserveTokens, signal, thinkingLevel, retry, callbacks);
         if (!turnPrefixResult.ok)
             return err(turnPrefixResult.error);
-        summary = `${historyResult.value}\n\n---\n\n**Turn Context (split turn):**\n\n${turnPrefixResult.value}`;
+        summary = `${historyText}\n\n---\n\n**Turn Context (split turn):**\n\n${turnPrefixResult.value.text}`;
+        summaryUsage = historyUsage
+            ? combineUsage(historyUsage, turnPrefixResult.value.usage)
+            : turnPrefixResult.value.usage;
     }
     else {
-        const summaryResult = await generateSummary(messagesToSummarize, models, model, settings.reserveTokens, signal, customInstructions, previousSummary, thinkingLevel);
+        const summaryResult = await generateSummaryWithUsage(messagesToSummarize, models, model, settings.reserveTokens, signal, customInstructions, previousSummary, thinkingLevel, retry, callbacks);
         if (!summaryResult.ok)
             return err(summaryResult.error);
-        summary = summaryResult.value;
+        summary = summaryResult.value.text;
+        summaryUsage = summaryResult.value.usage;
     }
     const { readFiles, modifiedFiles } = computeFileLists(fileOps);
     summary += formatFileOperations(readFiles, modifiedFiles);
     return ok({
         summary,
-        firstKeptEntryId,
         tokensBefore,
+        usage: summaryUsage,
+        retainedTail,
         details: { readFiles, modifiedFiles },
     });
 }
-async function generateTurnPrefixSummary(messages, models, model, reserveTokens, signal, thinkingLevel) {
+async function generateTurnPrefixSummary(messages, models, model, reserveTokens, signal, thinkingLevel, retry, callbacks) {
     const maxTokens = Math.min(Math.floor(0.5 * reserveTokens), model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY);
     const llmMessages = convertToLlm(messages);
     const conversationText = serializeConversation(llmMessages);
@@ -513,18 +552,19 @@ async function generateTurnPrefixSummary(messages, models, model, reserveTokens,
             timestamp: Date.now(),
         },
     ];
-    const response = await models.completeSimple(model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, model.reasoning && thinkingLevel && thinkingLevel !== "off"
+    const completionOptions = model.reasoning && thinkingLevel && thinkingLevel !== "off"
         ? { maxTokens, signal, reasoning: thinkingLevel }
-        : { maxTokens, signal });
+        : { maxTokens, signal };
+    const response = await completeSimpleWithRetries(models, model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, completionOptions, retry, callbacks);
     if (response.stopReason === "aborted") {
         return err(new CompactionError("aborted", response.errorMessage || "Turn prefix summarization aborted"));
     }
     if (response.stopReason === "error") {
         return err(new CompactionError("summarization_failed", `Turn prefix summarization failed: ${response.errorMessage || "Unknown error"}`));
     }
-    return ok(response.content
-        .filter((c) => c.type === "text")
-        .map((c) => c.text)
-        .join("\n"));
+    return ok({
+        text: contentText(response.content),
+        usage: response.usage,
+    });
 }
 //# sourceMappingURL=compaction.js.map

@@ -2,10 +2,10 @@
 // 定时任务 IPC 处理器
 // =============================================================
 
+import * as IPC from '@shared/ipc-channels'
+import type { CronTask } from '@shared/types'
 import { type BrowserWindow, ipcMain } from 'electron'
 import cron from 'node-cron'
-import * as IPC from '../../shared/ipc-channels'
-import type { CronTask } from '../../shared/types'
 import { agentService } from '../services/agent-service'
 import { cronService } from '../services/cron-service'
 
@@ -177,13 +177,14 @@ export function registerCronHandlers(win: BrowserWindow) {
   })
 
   // H-3 修复: 加 try-catch
+  // F3 修复: catch 返回 [](renderer 契约是 CronLogEntry[]),此前的 {success:false,...} 对象与类型不符
   ipcMain.handle(IPC.IPC_CRON_GET_LOGS, async (_e, taskId?: string) => {
     try {
       return cronService.getLogs(taskId)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[IPC] cron:get-logs failed for "${taskId ?? 'all'}":`, msg)
-      return { success: false, error: msg, logs: [] }
+      return []
     }
   })
 

@@ -32,6 +32,7 @@ vi.mock('@earendil-works/pi-ai/compat', () => ({
   getModel: vi.fn(),
   getModels: vi.fn(() => []),
   getProviders: vi.fn(() => []),
+  streamSimple: vi.fn(),
 }))
 vi.mock('./compaction-helper', () => ({ compactAgentMessages: vi.fn() }))
 vi.mock('./cron-service', () => ({

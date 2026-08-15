@@ -14,7 +14,13 @@ export interface ChartTheme {
   gridColor: string
   /** 图例文字色 */
   legendColor: string
-  /** 数据系列色板（固定 8 色，与原页面一致） */
+  /** tooltip 背景色 */
+  tooltipBg: string
+  /** tooltip 边框色 */
+  tooltipBorder: string
+  /** tooltip 文字色 */
+  tooltipText: string
+  /** 数据系列色板（品牌蓝-靛-紫-青-绿系，与应用渐变 Logo 呼应） */
   palette: string[]
   /** 可直接展开进 ECharts option 的 axis 配置 */
   axisOption: { xAxis: Record<string, unknown>; yAxis: Record<string, unknown> }
@@ -22,17 +28,29 @@ export interface ChartTheme {
   gridOption: { borderColor: string }
   /** 可直接展开进 ECharts option 的 legend 配置 */
   legendOption: { textStyle: { color: string } }
+  /** 可直接展开进 ECharts option 的 tooltip 配置（毛玻璃 + 圆角 + 阴影） */
+  tooltipOption: {
+    backgroundColor: string
+    borderColor: string
+    borderWidth: number
+    textStyle: { color: string; fontSize: number }
+    padding: number[]
+    borderRadius: number
+    extraCssText: string
+  }
 }
 
+// 品牌色板：蓝 → 靛 → 紫 → 青 → 绿 → 琥珀 → 橙 → 红
+// 与 AppLogo / MainLayout 渐变（blue→indigo→violet）呼应，替代 ECharts 默认色
 const PALETTE = [
-  '#5470c6',
-  '#91cc75',
-  '#fac858',
-  '#ee6666',
-  '#73c0de',
-  '#3ba272',
-  '#fc8452',
-  '#9a60fd',
+  '#3b82f6', // blue-500
+  '#6366f1', // indigo-500
+  '#8b5cf6', // violet-500
+  '#06b6d4', // cyan-500
+  '#22c55e', // green-500
+  '#eab308', // yellow-500
+  '#f97316', // orange-500
+  '#ef4444', // red-500
 ]
 
 export function useChartTheme(): ChartTheme {
@@ -45,10 +63,16 @@ export function useChartTheme(): ChartTheme {
     const axisLabelColor = isDark ? '#d1d5db' : '#374151'
     const gridColor = isDark ? '#1f2937' : '#e5e7eb'
     const legendColor = isDark ? '#9ca3af' : '#6b7280'
+    const tooltipBg = isDark ? 'rgba(30, 34, 42, 0.92)' : 'rgba(255, 255, 255, 0.96)'
+    const tooltipBorder = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)'
+    const tooltipText = isDark ? '#e5e7eb' : '#1f2937'
     return {
       axisLabelColor,
       gridColor,
       legendColor,
+      tooltipBg,
+      tooltipBorder,
+      tooltipText,
       palette: PALETTE,
       axisOption: {
         xAxis: {
@@ -64,6 +88,16 @@ export function useChartTheme(): ChartTheme {
       },
       gridOption: { borderColor: gridColor },
       legendOption: { textStyle: { color: legendColor } },
+      tooltipOption: {
+        backgroundColor: tooltipBg,
+        borderColor: tooltipBorder,
+        borderWidth: 1,
+        textStyle: { color: tooltipText, fontSize: 12 },
+        padding: [8, 12],
+        borderRadius: 10,
+        extraCssText:
+          'backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 8px 24px rgba(0,0,0,0.18);',
+      },
     }
   }, [isDark])
 }

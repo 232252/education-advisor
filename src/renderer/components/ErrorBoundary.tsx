@@ -4,6 +4,7 @@
 // =============================================================
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Button } from './Button'
 
 interface Props {
   children: ReactNode
@@ -69,13 +70,9 @@ export class ErrorBoundary extends Component<Props, State> {
         <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mb-4">
           {this.state.error?.message || '发生了未知错误'}
         </p>
-        <button
-          type="button"
-          onClick={() => this.setState({ hasError: false, error: null })}
-          className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-        >
+        <Button size="lg" onClick={() => this.setState({ hasError: false, error: null })}>
           重试
-        </button>
+        </Button>
       </div>
     )
   }

@@ -14,9 +14,9 @@
 //   - 这里只提供管理接口,不直接调用工具(工具调用由 Agent 运行时触发)
 // =============================================================
 
+import * as IPC from '@shared/ipc-channels'
+import type { McpServerConfig } from '@shared/types'
 import { type BrowserWindow, type IpcMainInvokeEvent, ipcMain } from 'electron'
-import * as IPC from '../../shared/ipc-channels'
-import type { McpServerConfig } from '../../shared/types'
 import { mcpService } from '../services/mcp-service'
 
 /** 校验 serverId 格式(防注入) */
