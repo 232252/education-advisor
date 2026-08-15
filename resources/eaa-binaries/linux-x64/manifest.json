@@ -1,0 +1,7 @@
+{
+  "built_at": "2026-07-28T04:35:59.045Z",
+  "platform": "linux-x64",
+  "binary": "eaa",
+  "cargo_version": "cargo 1.97.1 (c980f4866 2026-06-30)",
+  "source": "core/eaa-cli (本地源码编译)"
+}

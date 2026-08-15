@@ -149,10 +149,9 @@ bun.lockb
 # Rust build artifacts (Cargo.lock IS committed, like package-lock.json)
 core/**/target/
 
-# 临时数据/构建
-data/
+# 临时数据/构建(锚定根目录,不误伤 vendor/pi-ai/dist/providers/data 模型数据)
+/data/
 core/eaa-cli/data/
-resources/eaa-binaries/linux-x64/
 
 # R154: 开发模式下 EAA 数据目录(TRAE Sandbox workaround)
 # 自动从 %APPDATA%/Education Advisor/eaa-data 迁移而来
