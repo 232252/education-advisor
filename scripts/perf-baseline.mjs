@@ -1,6 +1,25 @@
 // 性能基线: 内存/堆/DOM节点/路由切换耗时
+// 需要已启动且开启 CDP 的 Electron 实例(本地 npm run dev,端口 9222)。
+// CI 无头环境没有 Electron 实例,优雅跳过(exit 0)避免误报失败。
 import WebSocket from 'ws'
-const page = (await (await fetch('http://localhost:9222/json')).json()).find((t) => t.type === 'page')
+
+async function fetchTargets() {
+  try {
+    const r = await fetch('http://localhost:9222/json')
+    if (!r.ok) return null
+    return await r.json()
+  } catch {
+    return null
+  }
+}
+const targets = await fetchTargets()
+if (!targets || targets.length === 0) {
+  console.log(
+    '[perf-baseline] no CDP target at localhost:9222 — skipping (headless CI). Run `npm run dev` locally to collect metrics.',
+  )
+  process.exit(0)
+}
+const page = targets.find((t) => t.type === 'page')
 const ws = new WebSocket(page.webSocketDebuggerUrl)
 await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej) })
 let id = 0; const pending = new Map()
