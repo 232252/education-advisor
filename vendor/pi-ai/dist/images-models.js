@@ -69,11 +69,12 @@ class ImagesModelsImpl {
         // providers into rejections, and allSettled captures all of them.
         await Promise.allSettled(Array.from(this.providers.values(), async (entry) => entry.refreshModels?.()));
     }
-    async getAuth(model) {
-        const provider = this.providers.get(model.provider);
+    async getAuth(providerOrModel, overrides) {
+        const providerId = typeof providerOrModel === "string" ? providerOrModel : providerOrModel.provider;
+        const provider = this.providers.get(providerId);
         if (!provider)
             return undefined;
-        return resolveProviderAuth(provider, model, this.credentials, this.authContext);
+        return resolveProviderAuth(provider, this.credentials, this.authContext, overrides);
     }
     async generateImages(model, context, options) {
         try {
@@ -81,9 +82,10 @@ class ImagesModelsImpl {
             if (!provider) {
                 throw new ModelsError("provider", `Unknown provider: ${model.provider}`);
             }
-            const resolution = await resolveProviderAuth(provider, model, this.credentials, this.authContext, {
+            const resolution = await this.getAuth(model, {
                 apiKey: options?.apiKey,
                 env: options?.env,
+                signal: options?.signal,
             });
             const auth = resolution?.auth;
             if (!auth) {

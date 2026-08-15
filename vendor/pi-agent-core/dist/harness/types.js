@@ -72,23 +72,4 @@ export class BranchSummaryError extends Error {
         this.code = code;
     }
 }
-/** Error thrown by session storage, repositories, and session tree operations. */
-export class SessionError extends Error {
-    /** Session subsystem error code. */
-    code;
-    constructor(code, message, cause) {
-        super(message, cause === undefined ? undefined : { cause });
-        this.name = "SessionError";
-        this.code = code;
-    }
-}
-/** Public AgentHarness failure with a stable top-level classification. */
-export class AgentHarnessError extends Error {
-    code;
-    constructor(code, message, cause) {
-        super(message, cause === undefined ? undefined : { cause });
-        this.name = "AgentHarnessError";
-        this.code = code;
-    }
-}
 //# sourceMappingURL=types.js.map

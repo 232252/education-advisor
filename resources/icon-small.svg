@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    Education Advisor — app icon (SMALL-SIZE variant, ≤48px)
+    专用小尺寸版: 16/24/32/48px 下保证所有笔画 ≥ 1.3px 物理像素。
+    设计取舍:
+      1. 网络简化为单个三角形(3节点 + 3连线),去掉中间纵向线(16px 下不可见)
+      2. 所有 stroke-width ≥ 90 (16px 下 ≈ 1.4px, 32px 下 ≈ 2.8px)
+      3. 节点半径加大到 r=92 (16px 直径 ≈ 2.9px)
+      4. 书的页线去掉(16px 下与书脊挤在一起反而糊),只保留书脊
+      5. 书页加粗描边形成清晰轮廓
+    色板与 icon.svg 完全一致,保证品牌统一。
+  -->
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#4F46E5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 圆角矩形背景 -->
+  <rect x="0" y="0" width="1024" height="1024" rx="240" ry="240" fill="url(#bg)"/>
+
+  <!-- ===== 多智能体网络(简化三角形,加粗) ===== -->
+  <g stroke="#22D3EE" stroke-width="90" stroke-linecap="round" fill="none" opacity="0.95">
+    <line x1="332" y1="350" x2="692" y2="350"/>
+    <line x1="332" y1="350" x2="512" y2="200"/>
+    <line x1="692" y1="350" x2="512" y2="200"/>
+  </g>
+  <g>
+    <circle cx="332" cy="350" r="92" fill="#22D3EE"/>
+    <circle cx="692" cy="350" r="92" fill="#22D3EE"/>
+    <circle cx="512" cy="200" r="92" fill="#22D3EE"/>
+    <!-- 琥珀核心焦点 -->
+    <circle cx="512" cy="430" r="68" fill="#FBBF24"/>
+  </g>
+
+  <!-- ===== 打开的书(加粗轮廓,去掉小尺寸不可见的页线) ===== -->
+  <g>
+    <!-- 左页(白) + 右页(浅蓝) -->
+    <path d="M 176 610 L 512 566 L 512 836 L 176 884 Z" fill="#FFFFFF"/>
+    <path d="M 848 610 L 512 566 L 512 836 L 848 884 Z" fill="#DBEAFE"/>
+    <!-- 书脊(加粗到 16px 可见) -->
+    <line x1="512" y1="566" x2="512" y2="836"
+          stroke="#1E3A8A" stroke-width="90" stroke-linecap="round"/>
+    <!-- 书的轮廓描边(小尺寸下强化边界) -->
+    <path d="M 176 610 L 512 566 L 848 610 L 848 884 L 512 836 L 176 884 Z"
+          fill="none" stroke="#1E3A8A" stroke-width="20" stroke-linejoin="round" opacity="0.35"/>
+  </g>
+</svg>

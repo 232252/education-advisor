@@ -5,9 +5,11 @@ import { amazonBedrockProvider } from "./amazon-bedrock.js";
 import { antLingProvider } from "./ant-ling.js";
 import { anthropicProvider } from "./anthropic.js";
 import { azureOpenAIResponsesProvider } from "./azure-openai-responses.js";
+import { basetenProvider } from "./baseten.js";
 import { cerebrasProvider } from "./cerebras.js";
 import { cloudflareAIGatewayProvider } from "./cloudflare-ai-gateway.js";
 import { cloudflareWorkersAIProvider } from "./cloudflare-workers-ai.js";
+import modelDataManifest from "./data/.manifest.json" with { type: "json" };
 import { deepseekProvider } from "./deepseek.js";
 import { fireworksProvider } from "./fireworks.js";
 import { githubCopilotProvider } from "./github-copilot.js";
@@ -28,6 +30,10 @@ import { opencodeProvider } from "./opencode.js";
 import { opencodeGoProvider } from "./opencode-go.js";
 import { openrouterProvider } from "./openrouter.js";
 import { openrouterImagesProvider } from "./openrouter-images.js";
+import { qwenTokenPlanProvider } from "./qwen-token-plan.js";
+import { qwenTokenPlanCnProvider } from "./qwen-token-plan-cn.js";
+import { qwenTokenPlanIndividualProvider } from "./qwen-token-plan-individual.js";
+import { radiusProvider } from "./radius.js";
 import { togetherProvider } from "./together.js";
 import { vercelAIGatewayProvider } from "./vercel-ai-gateway.js";
 import { xaiProvider } from "./xai.js";
@@ -37,6 +43,7 @@ import { xiaomiTokenPlanCnProvider } from "./xiaomi-token-plan-cn.js";
 import { xiaomiTokenPlanSgpProvider } from "./xiaomi-token-plan-sgp.js";
 import { zaiProvider } from "./zai.js";
 import { zaiCodingCnProvider } from "./zai-coding-cn.js";
+export { radiusProvider };
 /** Typed read of the generated built-in catalog. */
 export function getBuiltinModel(provider, modelId) {
     const models = MODELS[provider];
@@ -44,6 +51,11 @@ export function getBuiltinModel(provider, modelId) {
 }
 export function getBuiltinProviders() {
     return Object.keys(MODELS);
+}
+/** Generation timestamp shared by all built-in provider catalogs. */
+export function getBuiltinModelDataGeneratedAt() {
+    const generatedAt = Date.parse(modelDataManifest.generatedAt);
+    return Number.isNaN(generatedAt) ? undefined : generatedAt;
 }
 export function getBuiltinModels(provider) {
     const models = MODELS[provider];
@@ -58,6 +70,7 @@ export function builtinProviders() {
         antLingProvider(),
         anthropicProvider(),
         azureOpenAIResponsesProvider(),
+        basetenProvider(),
         cerebrasProvider(),
         cloudflareAIGatewayProvider(),
         cloudflareWorkersAIProvider(),
@@ -80,6 +93,10 @@ export function builtinProviders() {
         opencodeProvider(),
         opencodeGoProvider(),
         openrouterProvider(),
+        qwenTokenPlanProvider(),
+        qwenTokenPlanCnProvider(),
+        qwenTokenPlanIndividualProvider(),
+        radiusProvider(),
         togetherProvider(),
         vercelAIGatewayProvider(),
         xaiProvider(),

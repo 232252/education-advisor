@@ -62,7 +62,7 @@ function makeExecution(
   agentId: string,
   status: 'success' | 'error' | 'timeout' = 'success',
   output = 'ok',
-): import('../../src/shared/types').AgentExecution {
+): import('@shared/types').AgentExecution {
   return {
     id: `exec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     agentId,

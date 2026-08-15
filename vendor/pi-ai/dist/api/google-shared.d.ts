@@ -2,7 +2,7 @@
  * Shared utilities for Google Generative AI and Google Vertex providers.
  */
 import { type Content, FinishReason, FunctionCallingConfigMode, type Part } from "@google/genai";
-import type { Context, Model, StopReason, Tool } from "../types.ts";
+import type { Context, Model, StopReason, StreamOptions, Tool } from "../types.ts";
 type GoogleApiType = "google-generative-ai" | "google-vertex";
 /**
  * Thinking level for Gemini 3 models.
@@ -51,13 +51,14 @@ export declare function convertMessages<T extends GoogleApiType>(model: Model<T>
  * field instead (OpenAPI 3.03 Schema). This is needed for Cloud Code Assist with Claude
  * models, where the API translates `parameters` into Anthropic's `input_schema`.
  */
-export declare function convertTools(tools: Tool[], useParameters?: boolean): {
+export declare function convertTools(tools: Tool[], useParameters?: boolean, supportsStrictMode?: boolean): {
     functionDeclarations: Record<string, unknown>[];
 }[] | undefined;
-/**
- * Map tool choice string to Gemini FunctionCallingConfigMode.
- */
+/** Gemini 3+ enforces required function parameters in validated tool-calling modes. */
+export declare function supportsGoogleStrictToolSampling(modelId: string): boolean;
+/** Map tool choice string to Gemini FunctionCallingConfigMode. */
 export declare function mapToolChoice(choice: string): FunctionCallingConfigMode;
+export declare function resolveGoogleFunctionCallingMode(tools: Tool[], toolChoice: string | undefined, supportsStrictMode: boolean): FunctionCallingConfigMode | undefined;
 /**
  * Map Gemini FinishReason to our StopReason.
  */
@@ -66,5 +67,15 @@ export declare function mapStopReason(reason: FinishReason): StopReason;
  * Map string finish reason to our StopReason (for raw API responses).
  */
 export declare function mapStopReasonString(reason: string): StopReason;
+/**
+ * Run a Google GenAI SDK request with the shared provider retry policy
+ * (408/409/429/5xx with backoff, honoring retry-after), mirroring how the
+ * Anthropic and OpenAI adapters wrap their initial request in
+ * retryProviderRequest. The SDK's ApiError has a `status` property but no
+ * `headers` property, and retryProviderRequest only retries errors that carry
+ * both, so normalize the error by adding the missing `headers` before
+ * rethrowing.
+ */
+export declare function retryGoogleRequest<T>(request: () => Promise<T>, options?: Pick<StreamOptions, "maxRetries" | "maxRetryDelayMs" | "signal">): Promise<T>;
 export {};
 //# sourceMappingURL=google-shared.d.ts.map

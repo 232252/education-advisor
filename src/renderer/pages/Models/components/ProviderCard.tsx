@@ -150,7 +150,7 @@ export const ProviderCard = memo(function ProviderCard({
                 <button
                   type="button"
                   onClick={() => onOAuthLogin?.(p.id)}
-                  className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-white/[0.08] px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap"
+                  className="bg-gray-200 hover:bg-gray-300 dark:bg-surface-elevated dark:hover:bg-white/[0.08] px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap"
                   title="打开 provider 的 API Key 管理页面"
                 >
                   OAuth 登录

@@ -1,13 +1,44 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { constants, createReadStream } from "node:fs";
-import { access, appendFile, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile, } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { access, appendFile, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, writeFile, } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { basename, isAbsolute, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
+import { fileURLToPath } from "node:url";
 import { ExecutionError, err, FileError, ok, toError, } from "../types.js";
+const MAX_TIMEOUT_MS = 2_147_483_647;
+const MAX_TIMEOUT_SECONDS = MAX_TIMEOUT_MS / 1000;
+const EXIT_STDIO_GRACE_MS = 100;
+function resolveTimeoutMs(timeout) {
+    if (timeout === undefined)
+        return ok(undefined);
+    if (!Number.isFinite(timeout) || timeout <= 0) {
+        return err(new ExecutionError("timeout", "Invalid timeout: must be a finite number of seconds"));
+    }
+    const timeoutMs = timeout * 1000;
+    if (timeoutMs > MAX_TIMEOUT_MS) {
+        return err(new ExecutionError("timeout", `Invalid timeout: maximum is ${MAX_TIMEOUT_SECONDS} seconds`));
+    }
+    return ok(timeoutMs);
+}
 function resolvePath(cwd, path) {
-    return isAbsolute(path) ? path : resolve(cwd, path);
+    let normalized = path;
+    if (normalized === "~") {
+        normalized = homedir();
+    }
+    else if (normalized.startsWith("~/") || (process.platform === "win32" && normalized.startsWith("~\\"))) {
+        normalized = join(homedir(), normalized.slice(2));
+    }
+    else if (normalized.startsWith("file://")) {
+        try {
+            normalized = fileURLToPath(normalized);
+        }
+        catch {
+            // Keep malformed URLs as ordinary paths so filesystem methods preserve their non-throwing contract.
+        }
+    }
+    return isAbsolute(normalized) ? resolve(normalized) : resolve(cwd, normalized);
 }
 function fileKindFromStats(stats) {
     if (stats.isFile())
@@ -23,7 +54,7 @@ function fileInfoFromStats(path, stats) {
     if (!kind)
         return err(new FileError("invalid", "Unsupported file type", path));
     return ok({
-        name: path.replace(/\/+$/, "").split("/").pop() ?? path,
+        name: basename(path),
         path,
         kind,
         size: stats.size,
@@ -33,13 +64,15 @@ function fileInfoFromStats(path, stats) {
 function isNodeError(error) {
     return error instanceof Error && "code" in error;
 }
-function toFileError(error, path) {
+function toFileError(error, fallbackPath) {
     if (error instanceof FileError)
         return error;
     const cause = toError(error);
-    if (isNodeError(error)) {
-        const message = error.message;
-        switch (error.code) {
+    const nodeError = isNodeError(error) ? error : undefined;
+    const path = typeof nodeError?.path === "string" ? nodeError.path : fallbackPath;
+    if (nodeError) {
+        const message = nodeError.message;
+        switch (nodeError.code) {
             case "ABORT_ERR":
                 return new FileError("aborted", message, path, cause);
             case "ENOENT":
@@ -141,7 +174,11 @@ async function getShellConfig(customShellPath) {
         if (bashOnPath) {
             return ok(getBashShellConfig(bashOnPath));
         }
-        return err(new ExecutionError("shell_unavailable", "No bash shell found"));
+        return err(new ExecutionError("shell_unavailable", `No bash shell found. Options:\n` +
+            `  1. Install Git for Windows: https://git-scm.com/download/win\n` +
+            `  2. Add your bash to PATH (Cygwin, MSYS2, etc.)\n` +
+            "  3. Configure an explicit shellPath\n\n" +
+            `Searched Git Bash in:\n${candidates.map((path) => `  ${path}`).join("\n")}`));
     }
     if (await pathExists("/bin/bash")) {
         return ok(getBashShellConfig("/bin/bash"));
@@ -152,7 +189,9 @@ async function getShellConfig(customShellPath) {
     }
     return ok({ shell: "sh", args: ["-c"] });
 }
-function getShellEnv(baseEnv, extraEnv) {
+function getShellEnv(baseEnv, extraEnv, inheritEnv = true) {
+    if (!inheritEnv)
+        return { ...extraEnv };
     return {
         ...process.env,
         ...baseEnv,
@@ -185,10 +224,84 @@ function killProcessTree(pid) {
         }
     }
 }
+function waitForChildProcess(child) {
+    return new Promise((resolvePromise, reject) => {
+        let settled = false;
+        let exited = false;
+        let exitCode = null;
+        let postExitTimer;
+        let stdoutEnded = child.stdout === null;
+        let stderrEnded = child.stderr === null;
+        const cleanup = () => {
+            if (postExitTimer)
+                clearTimeout(postExitTimer);
+            child.removeListener("error", onError);
+            child.removeListener("exit", onExit);
+            child.removeListener("close", onClose);
+            child.stdout?.removeListener("end", onStdoutEnd);
+            child.stderr?.removeListener("end", onStderrEnd);
+            child.stdout?.removeListener("data", onData);
+            child.stderr?.removeListener("data", onData);
+        };
+        const finalize = (code) => {
+            if (settled)
+                return;
+            settled = true;
+            cleanup();
+            child.stdout?.destroy();
+            child.stderr?.destroy();
+            resolvePromise(code);
+        };
+        const maybeFinalizeAfterExit = () => {
+            if (exited && stdoutEnded && stderrEnded)
+                finalize(exitCode);
+        };
+        const armIdleTimer = () => {
+            if (postExitTimer)
+                clearTimeout(postExitTimer);
+            postExitTimer = setTimeout(() => finalize(exitCode), EXIT_STDIO_GRACE_MS);
+        };
+        const onData = () => {
+            if (exited && !settled)
+                armIdleTimer();
+        };
+        const onStdoutEnd = () => {
+            stdoutEnded = true;
+            maybeFinalizeAfterExit();
+        };
+        const onStderrEnd = () => {
+            stderrEnded = true;
+            maybeFinalizeAfterExit();
+        };
+        const onError = (error) => {
+            if (settled)
+                return;
+            settled = true;
+            cleanup();
+            reject(error);
+        };
+        const onExit = (code) => {
+            exited = true;
+            exitCode = code;
+            maybeFinalizeAfterExit();
+            if (!settled)
+                armIdleTimer();
+        };
+        const onClose = (code) => finalize(code);
+        child.stdout?.once("end", onStdoutEnd);
+        child.stderr?.once("end", onStderrEnd);
+        child.stdout?.on("data", onData);
+        child.stderr?.on("data", onData);
+        child.once("error", onError);
+        child.once("exit", onExit);
+        child.once("close", onClose);
+    });
+}
 export class NodeExecutionEnv {
     cwd;
     shellPath;
     shellEnv;
+    activeChildPids = new Set();
     constructor(options) {
         this.cwd = options.cwd;
         this.shellPath = options.shellPath;
@@ -203,10 +316,21 @@ export class NodeExecutionEnv {
     async exec(command, options) {
         if (options?.abortSignal?.aborted)
             return err(new ExecutionError("aborted", "aborted"));
+        const timeoutMsResult = resolveTimeoutMs(options?.timeout);
+        if (!timeoutMsResult.ok)
+            return err(timeoutMsResult.error);
+        const timeoutMs = timeoutMsResult.value;
         const cwd = options?.cwd ? resolvePath(this.cwd, options.cwd) : this.cwd;
         const shellConfig = await getShellConfig(this.shellPath);
         if (!shellConfig.ok)
             return shellConfig;
+        try {
+            await access(cwd, constants.F_OK);
+        }
+        catch (error) {
+            const cause = toError(error);
+            return err(new ExecutionError("spawn_error", `Working directory does not exist: ${cwd}\nCannot execute bash commands.`, cause));
+        }
         return await new Promise((resolvePromise) => {
             let stdout = "";
             let stderr = "";
@@ -225,6 +349,8 @@ export class NodeExecutionEnv {
                     clearTimeout(timeoutId);
                 if (options?.abortSignal)
                     options.abortSignal.removeEventListener("abort", onAbort);
+                if (child?.pid)
+                    this.activeChildPids.delete(child.pid);
                 if (settled)
                     return;
                 settled = true;
@@ -235,10 +361,12 @@ export class NodeExecutionEnv {
                 child = spawn(shellConfig.value.shell, commandFromStdin ? shellConfig.value.args : [...shellConfig.value.args, command], {
                     cwd,
                     detached: process.platform !== "win32",
-                    env: getShellEnv(this.shellEnv, options?.env),
+                    env: getShellEnv(this.shellEnv, options?.env, options?.inheritEnv),
                     stdio: [commandFromStdin ? "pipe" : "ignore", "pipe", "pipe"],
                     windowsHide: true,
                 });
+                if (child.pid)
+                    this.activeChildPids.add(child.pid);
                 if (commandFromStdin) {
                     child.stdin?.on("error", () => { });
                     child.stdin?.end(command);
@@ -250,13 +378,13 @@ export class NodeExecutionEnv {
                 return;
             }
             timeoutId =
-                typeof options?.timeout === "number"
+                timeoutMs !== undefined
                     ? setTimeout(() => {
                         timedOut = true;
                         if (child?.pid) {
                             killProcessTree(child.pid);
                         }
-                    }, options.timeout * 1000)
+                    }, timeoutMs)
                     : undefined;
             if (options?.abortSignal) {
                 if (options.abortSignal.aborted) {
@@ -290,10 +418,7 @@ export class NodeExecutionEnv {
                     onAbort();
                 }
             });
-            child.on("error", (error) => {
-                settle(err(new ExecutionError("spawn_error", error.message, error)));
-            });
-            child.on("close", (code) => {
+            void waitForChildProcess(child).then((code) => {
                 if (callbackError) {
                     settle(err(callbackError));
                     return;
@@ -307,7 +432,7 @@ export class NodeExecutionEnv {
                     return;
                 }
                 settle(ok({ stdout, stderr, exitCode: code ?? 0 }));
-            });
+            }, (error) => settle(err(new ExecutionError("spawn_error", error.message, error))));
         });
     }
     async readTextFile(path, abortSignal) {
@@ -394,6 +519,20 @@ export class NodeExecutionEnv {
         }
         catch (error) {
             return err(toFileError(error, resolved));
+        }
+    }
+    async renameFile(sourcePath, destinationPath, abortSignal) {
+        const source = resolvePath(this.cwd, sourcePath);
+        const destination = resolvePath(this.cwd, destinationPath);
+        const aborted = abortResult(abortSignal, destination);
+        if (aborted)
+            return aborted;
+        try {
+            await rename(source, destination);
+            return ok(undefined);
+        }
+        catch (error) {
+            return err(toFileError(error, source));
         }
     }
     async fileInfo(path) {
@@ -492,7 +631,9 @@ export class NodeExecutionEnv {
         }
     }
     async cleanup() {
-        // nothing to clean up for the local node implementation
+        for (const pid of this.activeChildPids)
+            killProcessTree(pid);
+        this.activeChildPids.clear();
     }
 }
 //# sourceMappingURL=nodejs.js.map
