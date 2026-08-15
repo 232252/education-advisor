@@ -2,6 +2,7 @@ import { calculateCost } from "../models.js";
 import { shortHash } from "../utils/hash.js";
 import { parseStreamingJson } from "../utils/json-parse.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+import { appendGrammarToolInputJsonDelta, getGrammarToolInput, getJsonSchemaToolParameters, resolveGrammarConstrainedSampling, resolveJsonSchemaStrictSampling, } from "./constrained-sampling.js";
 import { transformMessages } from "./transform-messages.js";
 // =============================================================================
 // Utilities
@@ -31,11 +32,35 @@ function parseTextSignature(signature) {
     }
     return { id: signature };
 }
+function convertToolResultOutput(model, content) {
+    const textResult = content
+        .filter((c) => c.type === "text")
+        .map((c) => c.text)
+        .join("\n");
+    const images = content.filter((c) => c.type === "image");
+    const hasText = textResult.length > 0;
+    if (images.length === 0 || !model.input.includes("image")) {
+        return sanitizeSurrogates(hasText ? textResult : images.length > 0 ? "(see attached image)" : "(no tool output)");
+    }
+    const output = [];
+    if (hasText) {
+        output.push({ type: "input_text", text: sanitizeSurrogates(textResult) });
+    }
+    for (const image of images) {
+        output.push({
+            type: "input_image",
+            detail: "auto",
+            image_url: `data:${image.mimeType};base64,${image.data}`,
+        });
+    }
+    return output;
+}
 // =============================================================================
 // Message conversion
 // =============================================================================
 export function convertResponsesMessages(model, context, allowedToolCallProviders, options) {
     const messages = [];
+    const loadedToolNames = new Set();
     const normalizeIdPart = (part) => {
         const sanitized = part.replace(/[^a-zA-Z0-9_-]/g, "_");
         const normalized = sanitized.length > 64 ? sanitized.slice(0, 64) : sanitized;
@@ -104,9 +129,9 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
         else if (msg.role === "assistant") {
             const output = [];
             const assistantMsg = msg;
-            const isDifferentModel = assistantMsg.model !== model.id &&
-                assistantMsg.provider === model.provider &&
-                assistantMsg.api === model.api;
+            const isSameProviderAndApi = assistantMsg.provider === model.provider && assistantMsg.api === model.api;
+            const isSameModel = isSameProviderAndApi && assistantMsg.model === model.id;
+            const isDifferentModel = isSameProviderAndApi && assistantMsg.model !== model.id;
             let textBlockIndex = 0;
             for (const block of msg.content) {
                 if (block.type === "thinking") {
@@ -140,20 +165,42 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                 else if (block.type === "toolCall") {
                     const toolCall = block;
                     const [callId, itemIdRaw] = toolCall.id.split("|");
+                    const customInputProperty = options?.grammarToolInputProperties?.get(toolCall.name);
                     let itemId = itemIdRaw;
                     // For different-model messages, set id to undefined to avoid pairing validation.
                     // OpenAI tracks which fc_xxx IDs were paired with rs_xxx reasoning items.
                     // By omitting the id, we avoid triggering that validation (like cross-provider does).
-                    if (isDifferentModel && itemId?.startsWith("fc_")) {
+                    // When replaying custom-tool calls as a function_call, also drop non-fc_* ids such as
+                    // ctc_* custom-tool ids because function_call item ids must be fc_*.
+                    if ((isDifferentModel && itemId?.startsWith("fc_")) ||
+                        (customInputProperty === undefined && !itemId?.startsWith("fc_"))) {
                         itemId = undefined;
                     }
-                    output.push({
-                        type: "function_call",
-                        id: itemId,
-                        call_id: callId,
-                        name: toolCall.name,
-                        arguments: JSON.stringify(toolCall.arguments),
-                    });
+                    const canReplayNamespace = isSameModel || options?.deferredTools?.has(toolCall.name) === true;
+                    if (customInputProperty !== undefined) {
+                        output.push({
+                            type: "custom_tool_call",
+                            id: itemId,
+                            call_id: callId,
+                            name: toolCall.name,
+                            input: sanitizeSurrogates(getGrammarToolInput(toolCall.name, toolCall.arguments, customInputProperty)),
+                            ...(canReplayNamespace && toolCall.namespace !== undefined
+                                ? { namespace: toolCall.namespace }
+                                : {}),
+                        });
+                    }
+                    else {
+                        output.push({
+                            type: "function_call",
+                            id: itemId,
+                            call_id: callId,
+                            name: toolCall.name,
+                            arguments: JSON.stringify(toolCall.arguments),
+                            ...(canReplayNamespace && toolCall.namespace !== undefined
+                                ? { namespace: toolCall.namespace }
+                                : {}),
+                        });
+                    }
                 }
             }
             if (output.length === 0)
@@ -161,41 +208,58 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
             messages.push(...output);
         }
         else if (msg.role === "toolResult") {
-            const textResult = msg.content
-                .filter((c) => c.type === "text")
-                .map((c) => c.text)
-                .join("\n");
-            const hasImages = msg.content.some((c) => c.type === "image");
-            const hasText = textResult.length > 0;
             const [callId] = msg.toolCallId.split("|");
-            let output;
-            if (hasImages && model.input.includes("image")) {
-                const contentParts = [];
-                if (hasText) {
-                    contentParts.push({
-                        type: "input_text",
-                        text: sanitizeSurrogates(textResult),
-                    });
-                }
-                for (const block of msg.content) {
-                    if (block.type === "image") {
-                        contentParts.push({
-                            type: "input_image",
-                            detail: "auto",
-                            image_url: `data:${block.mimeType};base64,${block.data}`,
-                        });
-                    }
-                }
-                output = contentParts;
+            const output = convertToolResultOutput(model, msg.content);
+            if (options?.grammarToolInputProperties?.has(msg.toolName)) {
+                messages.push({
+                    type: "custom_tool_call_output",
+                    call_id: callId,
+                    output,
+                });
             }
             else {
-                output = sanitizeSurrogates(hasText ? textResult : "(see attached image)");
+                messages.push({
+                    type: "function_call_output",
+                    call_id: callId,
+                    output,
+                });
             }
-            messages.push({
-                type: "function_call_output",
-                call_id: callId,
-                output,
-            });
+            const deferredTools = [];
+            for (const name of msg.addedToolNames ?? []) {
+                const tool = options?.deferredTools?.get(name);
+                if (!tool || loadedToolNames.has(name))
+                    continue;
+                loadedToolNames.add(name);
+                deferredTools.push(tool);
+            }
+            if (deferredTools.length > 0 && options?.deferredToolsMode === "additional-tools") {
+                messages.push({
+                    type: "additional_tools",
+                    role: "developer",
+                    tools: convertResponsesTools(deferredTools, options.toolOptions),
+                });
+            }
+            else if (deferredTools.length > 0 && options?.deferredToolsMode === "tool-search") {
+                const names = deferredTools.map((tool) => tool.name);
+                const searchCallId = `pi_tool_load_${shortHash(`${msg.toolCallId}:${names.join(",")}`)}`;
+                messages.push({
+                    type: "tool_search_call",
+                    call_id: searchCallId,
+                    execution: "client",
+                    status: "completed",
+                    arguments: { query: names.join(" "), limit: names.length },
+                });
+                messages.push({
+                    type: "tool_search_output",
+                    call_id: searchCallId,
+                    execution: "client",
+                    status: "completed",
+                    tools: convertResponsesTools(deferredTools, {
+                        ...options.toolOptions,
+                        deferLoading: true,
+                    }),
+                });
+            }
         }
         msgIndex++;
     }
@@ -205,21 +269,76 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
 // Tool conversion
 // =============================================================================
 export function convertResponsesTools(tools, options) {
-    const strict = options?.strict === undefined ? false : options.strict;
-    return tools.map((tool) => ({
-        type: "function",
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters, // TypeBox already generates JSON Schema
-        strict,
-    }));
+    const defaultStrict = options?.strict === undefined ? false : options.strict;
+    const supportsStrictMode = options?.supportsStrictMode ?? true;
+    const supportsOpenAIGrammarTools = options?.supportsOpenAIGrammarTools ?? false;
+    return tools.map((tool) => {
+        const grammar = resolveGrammarConstrainedSampling(tool, supportsOpenAIGrammarTools);
+        if (grammar) {
+            return {
+                type: "custom",
+                name: tool.name,
+                description: tool.description,
+                format: {
+                    type: "grammar",
+                    syntax: grammar.format,
+                    definition: grammar.definition,
+                },
+                ...(options?.deferLoading ? { defer_loading: true } : {}),
+            };
+        }
+        const constrainedStrict = resolveJsonSchemaStrictSampling(tool, supportsStrictMode);
+        const strict = constrainedStrict ?? defaultStrict;
+        const functionTool = {
+            type: "function",
+            name: tool.name,
+            description: tool.description,
+            parameters: getJsonSchemaToolParameters(tool, strict === true),
+            ...(options?.deferLoading ? { defer_loading: true } : {}),
+        };
+        if (supportsStrictMode) {
+            functionTool.strict = strict;
+        }
+        return functionTool;
+    });
+}
+function getCustomToolCallInput(block) {
+    const property = block.customInput?.property;
+    if (property === undefined)
+        return "";
+    const value = block.arguments[property];
+    return typeof value === "string" ? value : "";
+}
+function appendCustomToolCallInput(block, nextInput, close) {
+    const customInput = block.customInput;
+    if (!customInput)
+        return undefined;
+    const delta = appendGrammarToolInputJsonDelta(customInput.jsonBuffer, customInput.property, nextInput, close);
+    block.arguments = { [customInput.property]: nextInput };
+    return delta;
 }
 export async function processResponsesStream(openaiStream, output, stream, model, options) {
     let sawTerminalResponseEvent = false;
     const outputSlots = new Map();
+    const reasoningBlocksById = new Map();
+    const applyMessagePhaseStopReason = (item) => {
+        if (item.type === "message" && item.phase === "final_answer") {
+            output.stopReason = "stop";
+        }
+    };
     const getSlot = (outputIndex, type) => {
         const slot = outputSlots.get(outputIndex);
         return slot?.type === type ? slot : undefined;
+    };
+    const pushToolCallDelta = (slot, delta) => {
+        if (delta === undefined)
+            return;
+        stream.push({
+            type: "toolcall_delta",
+            contentIndex: slot.contentIndex,
+            delta,
+            partial: output,
+        });
     };
     const createSlot = (outputIndex, item) => {
         if (item.type === "reasoning") {
@@ -235,6 +354,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
             return slot;
         }
         if (item.type === "message") {
+            applyMessagePhaseStopReason(item);
             const block = { type: "text", text: "" };
             output.content.push(block);
             const slot = { type: "text", block, contentIndex: output.content.length - 1 };
@@ -248,7 +368,32 @@ export async function processResponsesStream(openaiStream, output, stream, model
                 id: `${item.call_id}|${item.id}`,
                 name: item.name,
                 arguments: {},
+                ...(item.namespace !== undefined ? { namespace: item.namespace } : {}),
                 partialJson: item.arguments || "",
+            };
+            output.content.push(block);
+            const slot = {
+                type: "toolCall",
+                block,
+                contentIndex: output.content.length - 1,
+            };
+            outputSlots.set(outputIndex, slot);
+            stream.push({ type: "toolcall_start", contentIndex: slot.contentIndex, partial: output });
+            return slot;
+        }
+        if (item.type === "custom_tool_call") {
+            const inputProperty = options?.grammarToolInputProperties?.get(item.name) ?? "input";
+            const input = item.input || "";
+            const block = {
+                type: "toolCall",
+                id: `${item.call_id}|${item.id}`,
+                name: item.name,
+                arguments: { [inputProperty]: input },
+                ...(item.namespace !== undefined ? { namespace: item.namespace } : {}),
+                customInput: {
+                    property: inputProperty,
+                    jsonBuffer: { input: "", started: false, closed: false },
+                },
             };
             output.content.push(block);
             const slot = {
@@ -265,19 +410,42 @@ export async function processResponsesStream(openaiStream, output, stream, model
     const getOrCreateSlot = (outputIndex, item) => {
         return outputSlots.get(outputIndex) ?? createSlot(outputIndex, item);
     };
+    // Azure OpenAI can omit reasoning.encrypted_content from response.output_item.done
+    // and provide it only in response.completed.response.output. Backfill the
+    // persisted reasoning signature from the terminal response to keep store:false
+    // multi-turn replay stateless. See https://github.com/earendil-works/pi/issues/6409.
+    const backfillReasoningSignatures = (responseOutput) => {
+        for (const item of responseOutput) {
+            if (item.type !== "reasoning" || !item.encrypted_content)
+                continue;
+            const block = reasoningBlocksById.get(item.id);
+            if (!block?.thinkingSignature)
+                continue;
+            const storedItem = JSON.parse(block.thinkingSignature);
+            if (storedItem.encrypted_content)
+                continue;
+            block.thinkingSignature = JSON.stringify({
+                ...storedItem,
+                encrypted_content: item.encrypted_content,
+            });
+        }
+    };
     const finalizeResponse = (response) => {
         sawTerminalResponseEvent = true;
+        backfillReasoningSignatures(response.output ?? []);
         if (response?.id) {
             output.responseId = response.id;
         }
         if (response?.usage) {
-            const cachedTokens = response.usage.input_tokens_details?.cached_tokens || 0;
+            const inputDetails = response.usage.input_tokens_details;
+            const cachedTokens = inputDetails?.cached_tokens || 0;
+            const cacheWriteTokens = inputDetails?.cache_write_tokens || 0;
             output.usage = {
-                // OpenAI includes cached tokens in input_tokens, so subtract to get non-cached input
-                input: (response.usage.input_tokens || 0) - cachedTokens,
+                // OpenAI includes cached and cache-write tokens in input_tokens, so subtract both.
+                input: Math.max(0, (response.usage.input_tokens || 0) - cachedTokens - cacheWriteTokens),
                 output: response.usage.output_tokens || 0,
                 cacheRead: cachedTokens,
-                cacheWrite: 0,
+                cacheWrite: cacheWriteTokens,
                 reasoning: response.usage.output_tokens_details?.reasoning_tokens || 0,
                 totalTokens: response.usage.total_tokens || 0,
                 cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
@@ -290,8 +458,15 @@ export async function processResponsesStream(openaiStream, output, stream, model
                 : (response?.service_tier ?? options.serviceTier);
             options.applyServiceTierPricing(output.usage, serviceTier);
         }
-        // Map status to stop reason
-        output.stopReason = mapStopReason(response?.status);
+        // Map status to stop reason. For incomplete responses, retain the provider's
+        // specific reason so max-output truncation and content filtering stay distinct.
+        const status = response?.status;
+        const incompleteDetails = response?.incomplete_details;
+        const incompleteReason = typeof incompleteDetails?.reason === "string" ? incompleteDetails.reason : undefined;
+        output.rawStopReason = incompleteReason ? `${status}.${incompleteReason}` : status;
+        const mappedStop = mapStopReason(status, incompleteReason);
+        output.stopReason = mappedStop.stopReason;
+        output.errorMessage = mappedStop.errorMessage;
         if (output.content.some((b) => b.type === "toolCall") && output.stopReason === "stop") {
             output.stopReason = "toolUse";
         }
@@ -365,44 +540,47 @@ export async function processResponsesStream(openaiStream, output, stream, model
         }
         else if (event.type === "response.function_call_arguments.delta") {
             const slot = getSlot(event.output_index, "toolCall");
-            if (!slot)
+            if (!slot || slot.block.partialJson === undefined)
                 continue;
             slot.block.partialJson += event.delta;
             slot.block.arguments = parseStreamingJson(slot.block.partialJson);
-            stream.push({
-                type: "toolcall_delta",
-                contentIndex: slot.contentIndex,
-                delta: event.delta,
-                partial: output,
-            });
+            pushToolCallDelta(slot, event.delta);
         }
         else if (event.type === "response.function_call_arguments.done") {
             const slot = getSlot(event.output_index, "toolCall");
-            if (!slot)
+            if (!slot || slot.block.partialJson === undefined)
                 continue;
             const previousPartialJson = slot.block.partialJson;
             slot.block.partialJson = event.arguments;
             slot.block.arguments = parseStreamingJson(slot.block.partialJson);
             if (event.arguments.startsWith(previousPartialJson)) {
                 const delta = event.arguments.slice(previousPartialJson.length);
-                if (delta.length > 0) {
-                    stream.push({
-                        type: "toolcall_delta",
-                        contentIndex: slot.contentIndex,
-                        delta,
-                        partial: output,
-                    });
-                }
+                if (delta.length > 0)
+                    pushToolCallDelta(slot, delta);
             }
+        }
+        else if (event.type === "response.custom_tool_call_input.delta") {
+            const slot = getSlot(event.output_index, "toolCall");
+            if (!slot || !slot.block.customInput)
+                continue;
+            pushToolCallDelta(slot, appendCustomToolCallInput(slot.block, getCustomToolCallInput(slot.block) + event.delta, false));
+        }
+        else if (event.type === "response.custom_tool_call_input.done") {
+            const slot = getSlot(event.output_index, "toolCall");
+            if (!slot || !slot.block.customInput)
+                continue;
+            pushToolCallDelta(slot, appendCustomToolCallInput(slot.block, event.input, true));
         }
         else if (event.type === "response.output_item.done") {
             const item = event.item;
+            applyMessagePhaseStopReason(item);
             const slot = getOrCreateSlot(event.output_index, item);
             if (item.type === "reasoning" && slot?.type === "thinking") {
                 const summaryText = item.summary?.map((s) => s.text).join("\n\n") || "";
                 const contentText = item.content?.map((c) => c.text).join("\n\n") || "";
                 slot.block.thinking = summaryText || contentText || slot.block.thinking;
                 slot.block.thinkingSignature = JSON.stringify(item);
+                reasoningBlocksById.set(item.id, slot.block);
                 stream.push({
                     type: "thinking_end",
                     contentIndex: slot.contentIndex,
@@ -422,11 +600,28 @@ export async function processResponsesStream(openaiStream, output, stream, model
                 });
                 outputSlots.delete(event.output_index);
             }
-            else if (item.type === "function_call" && slot?.type === "toolCall") {
+            else if (item.type === "function_call" &&
+                slot?.type === "toolCall" &&
+                slot.block.partialJson !== undefined) {
                 slot.block.arguments = parseStreamingJson(item.arguments || slot.block.partialJson || "{}");
+                if (item.namespace !== undefined)
+                    slot.block.namespace = item.namespace;
                 // Finalize in-place and strip the scratch buffer so replay only
                 // carries parsed arguments.
                 delete slot.block.partialJson;
+                stream.push({
+                    type: "toolcall_end",
+                    contentIndex: slot.contentIndex,
+                    toolCall: slot.block,
+                    partial: output,
+                });
+                outputSlots.delete(event.output_index);
+            }
+            else if (item.type === "custom_tool_call" && slot?.type === "toolCall" && slot.block.customInput) {
+                pushToolCallDelta(slot, appendCustomToolCallInput(slot.block, item.input ?? getCustomToolCallInput(slot.block), true));
+                if (item.namespace !== undefined)
+                    slot.block.namespace = item.namespace;
+                delete slot.block.customInput;
                 stream.push({
                     type: "toolcall_end",
                     contentIndex: slot.contentIndex,
@@ -444,6 +639,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
         }
         else if (event.type === "response.failed") {
             sawTerminalResponseEvent = true;
+            output.rawStopReason = event.response?.status;
             const error = event.response?.error;
             const details = event.response?.incomplete_details;
             const msg = error
@@ -458,21 +654,29 @@ export async function processResponsesStream(openaiStream, output, stream, model
         throw new Error("OpenAI Responses stream ended before a terminal response event");
     }
 }
-function mapStopReason(status) {
+function mapStopReason(status, incompleteReason) {
     if (!status)
-        return "stop";
+        return { stopReason: "stop" };
     switch (status) {
         case "completed":
-            return "stop";
+            return { stopReason: "stop" };
         case "incomplete":
-            return "length";
+            if (incompleteReason === "max_output_tokens") {
+                return { stopReason: "length" };
+            }
+            return {
+                stopReason: "error",
+                errorMessage: incompleteReason
+                    ? `Response incomplete: ${incompleteReason}`
+                    : "Response incomplete without a provider reason",
+            };
         case "failed":
         case "cancelled":
-            return "error";
+            return { stopReason: "error" };
         // These two are wonky ...
         case "in_progress":
         case "queued":
-            return "stop";
+            return { stopReason: "stop" };
         default: {
             const _exhaustive = status;
             throw new Error(`Unhandled stop reason: ${_exhaustive}`);

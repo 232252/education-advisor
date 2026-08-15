@@ -4,6 +4,7 @@ import { AMAZON_BEDROCK_MODELS } from "./providers/amazon-bedrock.models.js";
 import { ANT_LING_MODELS } from "./providers/ant-ling.models.js";
 import { ANTHROPIC_MODELS } from "./providers/anthropic.models.js";
 import { AZURE_OPENAI_RESPONSES_MODELS } from "./providers/azure-openai-responses.models.js";
+import { BASETEN_MODELS } from "./providers/baseten.models.js";
 import { CEREBRAS_MODELS } from "./providers/cerebras.models.js";
 import { CLOUDFLARE_AI_GATEWAY_MODELS } from "./providers/cloudflare-ai-gateway.models.js";
 import { CLOUDFLARE_WORKERS_AI_MODELS } from "./providers/cloudflare-workers-ai.models.js";
@@ -26,6 +27,9 @@ import { OPENAI_CODEX_MODELS } from "./providers/openai-codex.models.js";
 import { OPENCODE_MODELS } from "./providers/opencode.models.js";
 import { OPENCODE_GO_MODELS } from "./providers/opencode-go.models.js";
 import { OPENROUTER_MODELS } from "./providers/openrouter.models.js";
+import { QWEN_TOKEN_PLAN_MODELS } from "./providers/qwen-token-plan.models.js";
+import { QWEN_TOKEN_PLAN_CN_MODELS } from "./providers/qwen-token-plan-cn.models.js";
+import { QWEN_TOKEN_PLAN_INDIVIDUAL_MODELS } from "./providers/qwen-token-plan-individual.models.js";
 import { TOGETHER_MODELS } from "./providers/together.models.js";
 import { VERCEL_AI_GATEWAY_MODELS } from "./providers/vercel-ai-gateway.models.js";
 import { XAI_MODELS } from "./providers/xai.models.js";
@@ -40,6 +44,7 @@ export const MODELS = {
     "ant-ling": ANT_LING_MODELS,
     "anthropic": ANTHROPIC_MODELS,
     "azure-openai-responses": AZURE_OPENAI_RESPONSES_MODELS,
+    "baseten": BASETEN_MODELS,
     "cerebras": CEREBRAS_MODELS,
     "cloudflare-ai-gateway": CLOUDFLARE_AI_GATEWAY_MODELS,
     "cloudflare-workers-ai": CLOUDFLARE_WORKERS_AI_MODELS,
@@ -62,6 +67,9 @@ export const MODELS = {
     "opencode": OPENCODE_MODELS,
     "opencode-go": OPENCODE_GO_MODELS,
     "openrouter": OPENROUTER_MODELS,
+    "qwen-token-plan": QWEN_TOKEN_PLAN_MODELS,
+    "qwen-token-plan-cn": QWEN_TOKEN_PLAN_CN_MODELS,
+    "qwen-token-plan-individual": QWEN_TOKEN_PLAN_INDIVIDUAL_MODELS,
     "together": TOGETHER_MODELS,
     "vercel-ai-gateway": VERCEL_AI_GATEWAY_MODELS,
     "xai": XAI_MODELS,

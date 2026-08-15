@@ -8,11 +8,17 @@ export function clampMaxTokensToContext(model, context, maxTokens) {
     return Math.min(maxTokens, Math.max(MIN_MAX_TOKENS, available));
 }
 export function buildBaseOptions(model, context, options, apiKey) {
+    const samplingParams = model.samplingParams || options?.samplingParams
+        ? { ...model.samplingParams, ...options?.samplingParams }
+        : undefined;
     return {
         temperature: options?.temperature,
+        samplingParams,
         maxTokens: clampMaxTokensToContext(model, context, options?.maxTokens ?? model.maxTokens),
         signal: options?.signal,
+        telemetryContext: options?.telemetryContext,
         apiKey: apiKey || options?.apiKey,
+        fetch: options?.fetch,
         transport: options?.transport,
         cacheRetention: options?.cacheRetention,
         sessionId: options?.sessionId,
@@ -27,8 +33,10 @@ export function buildBaseOptions(model, context, options, apiKey) {
         env: options?.env,
     };
 }
+/** Tokens always left for the answer when a thinking budget shares the response ceiling. */
+export const MIN_ANSWER_TOKENS = 1024;
 export function clampReasoning(effort) {
-    return effort === "xhigh" ? "high" : effort;
+    return effort === "xhigh" || effort === "max" ? "high" : effort;
 }
 export function adjustMaxTokensForThinking(
 // Undefined means no explicit caller cap. Use the model cap and fit thinking inside it.
@@ -40,12 +48,11 @@ baseMaxTokens, modelMaxTokens, reasoningLevel, customBudgets) {
         high: 16384,
     };
     const budgets = { ...defaultBudgets, ...customBudgets };
-    const minOutputTokens = 1024;
     const level = clampReasoning(reasoningLevel);
     let thinkingBudget = budgets[level];
     const maxTokens = baseMaxTokens === undefined ? modelMaxTokens : Math.min(baseMaxTokens + thinkingBudget, modelMaxTokens);
     if (maxTokens <= thinkingBudget) {
-        thinkingBudget = Math.max(0, maxTokens - minOutputTokens);
+        thinkingBudget = Math.max(0, maxTokens - MIN_ANSWER_TOKENS);
     }
     return { maxTokens, thinkingBudget };
 }

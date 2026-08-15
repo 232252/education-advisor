@@ -172,7 +172,7 @@ describe('settingsService', () => {
     settingsService.reset()
     await settingsService.flush()
     const onDisk = JSON.parse(await fsp.readFile(path.join(tmpDir, 'settings.json'), 'utf-8'))
-    expect(onDisk.chat.maxTokens).toBe(32768) // 默认值
+    expect(onDisk.chat.maxTokens).toBe(4096) // 默认值(与 config/default-settings.json 一致)
   })
 
   it('回归：update 不应污染 DEFAULT_SETTINGS', () => {
@@ -187,7 +187,7 @@ describe('settingsService', () => {
     settingsService.reset()
     const s = settingsService.getSettings()
     expect(s.general.theme).toBe('light')
-    expect(s.chat.maxTokens).toBe(32768)
+    expect(s.chat.maxTokens).toBe(4096) // 与 config/default-settings.json 一致
     expect(s.models.defaultProvider).toBe('')
   })
 })

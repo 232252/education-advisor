@@ -27,13 +27,22 @@ export function EmptyState({ icon, title, description, action, className }: Empt
       )}
     >
       {icon && (
-        <div className="mb-4">
+        <div className="mb-4 relative">
           {typeof icon === 'string' ? (
             <span className="text-5xl drop-shadow-sm">{icon}</span>
           ) : (
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-surface-elevated dark:to-surface-secondary ring-1 ring-blue-100/70 dark:ring-white/[0.06] flex items-center justify-center text-blue-400/80 dark:text-blue-400/60 shadow-sm">
-              {icon}
-            </div>
+            <>
+              {/* 外层柔光晕: 在图标容器之前绘制(z-0), 被 .mb-4 relative 包裹创建层叠上下文,
+                  不会被祖先 Card/页面的不透明背景遮挡。容器半透明底叠加其上, 形成柔和光晕。 */}
+              <span
+                className="absolute inset-0 w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-400/25 to-indigo-400/15 blur-lg"
+                aria-hidden="true"
+              />
+              {/* 空状态图标容器: 品牌蓝渐变底, relative + z-10 确保在柔光晕之上 */}
+              <div className="relative z-10 w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 dark:from-blue-500/15 dark:to-indigo-500/15 ring-1 ring-blue-200/60 dark:ring-blue-400/20 flex items-center justify-center text-blue-500 dark:text-blue-400 shadow-sm shadow-blue-500/10">
+                {icon}
+              </div>
+            </>
           )}
         </div>
       )}

@@ -275,11 +275,15 @@ describe('compactAgentMessages', () => {
   })
 
   it('completeSimple 失败时应原样返回(降级保护)', async () => {
-    // 超阈值
+    // 超阈值。pi-agent-core 0.84 起 assistant.content 必须是块数组(serializeConversation 契约)
     const longContent = 'a'.repeat(10000)
     const messages: AgentMessage[] = [
       { role: 'user', content: longContent, timestamp: 1 } as unknown as AgentMessage,
-      { role: 'assistant', content: longContent, timestamp: 2 } as unknown as AgentMessage,
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: longContent }],
+        timestamp: 2,
+      } as unknown as AgentMessage,
       { role: 'user', content: longContent, timestamp: 3 } as unknown as AgentMessage,
     ]
     mocks.completeSimple.mockRejectedValue(new Error('API timeout'))
@@ -294,12 +298,16 @@ describe('compactAgentMessages', () => {
     const recentContent = 'recent short'
     const messages: AgentMessage[] = [
       { role: 'user', content: longContent, timestamp: 1 } as unknown as AgentMessage,
-      { role: 'assistant', content: longContent, timestamp: 2 } as unknown as AgentMessage,
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: longContent }],
+        timestamp: 2,
+      } as unknown as AgentMessage,
       { role: 'user', content: recentContent, timestamp: 3 } as unknown as AgentMessage,
     ]
     mocks.completeSimple.mockResolvedValue({
       role: 'assistant',
-      content: '这是摘要文本',
+      content: [{ type: 'text', text: '这是摘要文本' }],
       timestamp: 1,
     })
 
@@ -327,10 +335,18 @@ describe('compactAgentMessages', () => {
     const longContent = 'a'.repeat(10000)
     const messages: AgentMessage[] = [
       { role: 'user', content: longContent, timestamp: 1 } as unknown as AgentMessage,
-      { role: 'assistant', content: longContent, timestamp: 2 } as unknown as AgentMessage,
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: longContent }],
+        timestamp: 2,
+      } as unknown as AgentMessage,
       { role: 'user', content: 'recent', timestamp: 3 } as unknown as AgentMessage,
     ]
-    mocks.completeSimple.mockResolvedValue({ role: 'assistant', content: '摘要', timestamp: 1 })
+    mocks.completeSimple.mockResolvedValue({
+      role: 'assistant',
+      content: [{ type: 'text', text: '摘要' }],
+      timestamp: 1,
+    })
 
     await compactAgentMessages(messages, mockModel, defaultSettings, 'my-api-key-12345')
     const callArgs = mocks.completeSimple.mock.calls[0]
@@ -368,10 +384,18 @@ describe('compactAgentMessages', () => {
     const longContent = 'a'.repeat(10000)
     const messages: AgentMessage[] = [
       { role: 'user', content: longContent, timestamp: 1 } as unknown as AgentMessage,
-      { role: 'assistant', content: longContent, timestamp: 2 } as unknown as AgentMessage,
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: longContent }],
+        timestamp: 2,
+      } as unknown as AgentMessage,
       { role: 'user', content: 'recent', timestamp: 3 } as unknown as AgentMessage,
     ]
-    mocks.completeSimple.mockResolvedValue({ role: 'assistant', content: '摘要', timestamp: 1 })
+    mocks.completeSimple.mockResolvedValue({
+      role: 'assistant',
+      content: [{ type: 'text', text: '摘要' }],
+      timestamp: 1,
+    })
     const controller = new AbortController()
 
     await compactAgentMessages(

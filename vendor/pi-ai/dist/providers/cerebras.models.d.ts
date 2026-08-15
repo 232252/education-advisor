@@ -1,45 +1,4 @@
-export declare const CEREBRAS_MODELS: {
-    readonly "gpt-oss-120b": {
-        id: string;
-        name: string;
-        api: "openai-completions";
-        provider: string;
-        baseUrl: string;
-        compat: {
-            supportsStore: false;
-            supportsDeveloperRole: false;
-        };
-        reasoning: true;
-        input: "text"[];
-        cost: {
-            input: number;
-            output: number;
-            cacheRead: number;
-            cacheWrite: number;
-        };
-        contextWindow: number;
-        maxTokens: number;
-    };
-    readonly "zai-glm-4.7": {
-        id: string;
-        name: string;
-        api: "openai-completions";
-        provider: string;
-        baseUrl: string;
-        compat: {
-            supportsStore: false;
-            supportsDeveloperRole: false;
-        };
-        reasoning: true;
-        input: "text"[];
-        cost: {
-            input: number;
-            output: number;
-            cacheRead: number;
-            cacheWrite: number;
-        };
-        contextWindow: number;
-        maxTokens: number;
-    };
-};
+import values from "./data/cerebras.json";
+import { type ModelCatalog } from "../model-catalog.ts";
+export declare const CEREBRAS_MODELS: ModelCatalog<typeof values, "cerebras">;
 //# sourceMappingURL=cerebras.models.d.ts.map

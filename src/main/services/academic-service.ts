@@ -8,8 +8,8 @@
 
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import type { AcademicConfig, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
 import { app } from 'electron'
-import type { AcademicConfig, ExamDef, GradeRecord, SubjectDef } from '../../shared/types'
 import { atomicWrite } from '../utils/atomic-write'
 import { log } from '../utils/logger'
 
@@ -87,14 +87,6 @@ class AcademicService {
     } catch {
       return DEFAULT_CONFIG
     }
-  }
-
-  /** 写入学业配置 */
-  async setConfig(config: AcademicConfig): Promise<void> {
-    await this.ensureDir()
-    const json = JSON.stringify(config, null, 2)
-    await atomicWrite(this.configPath, json)
-    log('info', 'academic', `config updated (${config.subjects?.length ?? 0} subjects)`)
   }
 
   // ===== Exams =====
@@ -207,60 +199,6 @@ class AcademicService {
       ),
     )
     return run
-  }
-
-  /** 设置单条成绩(upsert by examId + subjectId) */
-  async setGrade(record: Omit<GradeRecord, 'updatedAt'>): Promise<GradeRecord> {
-    if (!record.examId || typeof record.examId !== 'string') {
-      throw new Error('setGrade: examId 必须是非空字符串')
-    }
-    if (!record.subjectId || typeof record.subjectId !== 'string') {
-      throw new Error('setGrade: subjectId 必须是非空字符串')
-    }
-    if (!record.studentName || typeof record.studentName !== 'string') {
-      throw new Error('setGrade: studentName 必须是非空字符串')
-    }
-    if (
-      record.score !== null &&
-      (typeof record.score !== 'number' || !Number.isFinite(record.score))
-    ) {
-      throw new Error(`setGrade: score 必须是有限数字或 null,收到 ${typeof record.score}`)
-    }
-    const exams = await this.listExams()
-    const exam = exams.find((e) => e.id === record.examId)
-    if (!exam) {
-      throw new Error(`setGrade: 考试不存在: ${record.examId}`)
-    }
-    if (exam.subjects.length > 0 && !exam.subjects.includes(record.subjectId)) {
-      throw new Error(
-        `setGrade: 科目 ${record.subjectId} 不属于考试 ${record.examId}(${exam.name})`,
-      )
-    }
-    // 分数范围校验: 优先用调用方传入的 fullMark, 缺失时从科目配置自动推导。
-    // 修复前依赖 record.fullMark(渲染层通常不传), 校验被 `undefined > 0` 跳过,
-    // 越界分数(如 9999)会被静默接受。
-    if (record.score !== null) {
-      const config = await this.getConfig()
-      const subject = config.subjects.find((s) => s.id === record.subjectId)
-      const fullMark = record.fullMark ?? subject?.fullMark ?? 0
-      if (fullMark > 0 && (record.score < 0 || record.score > fullMark)) {
-        throw new Error(`setGrade: score ${record.score} 超出范围 [0, ${fullMark}]`)
-      }
-    }
-    return this.withGradeLock(record.studentName, async () => {
-      const existing = await this.getGrades(record.studentName)
-      const idx = existing.findIndex(
-        (g) => g.examId === record.examId && g.subjectId === record.subjectId,
-      )
-      const full: GradeRecord = { ...record, updatedAt: new Date().toISOString() }
-      if (idx >= 0) {
-        existing[idx] = full
-      } else {
-        existing.push(full)
-      }
-      await this.writeGrades(record.studentName, existing)
-      return full
-    })
   }
 
   /** 批量设置成绩(按学生分组,每个学生文件只读写一次) */

@@ -1,3 +1,4 @@
+import { contentText } from "@earendil-works/pi-ai";
 /** Create an empty file-operation accumulator. */
 export function createFileOps() {
     return {
@@ -78,24 +79,15 @@ export function serializeConversation(messages) {
     const parts = [];
     for (const msg of messages) {
         if (msg.role === "user") {
-            const content = typeof msg.content === "string"
-                ? msg.content
-                : msg.content
-                    .filter((c) => c.type === "text")
-                    .map((c) => c.text)
-                    .join("");
+            const content = contentText(msg.content, "");
             if (content)
                 parts.push(`[User]: ${content}`);
         }
         else if (msg.role === "assistant") {
-            const textParts = [];
             const thinkingParts = [];
             const toolCalls = [];
             for (const block of msg.content) {
-                if (block.type === "text") {
-                    textParts.push(block.text);
-                }
-                else if (block.type === "thinking") {
+                if (block.type === "thinking") {
                     thinkingParts.push(block.thinking);
                 }
                 else if (block.type === "toolCall") {
@@ -109,18 +101,15 @@ export function serializeConversation(messages) {
             if (thinkingParts.length > 0) {
                 parts.push(`[Assistant thinking]: ${thinkingParts.join("\n")}`);
             }
-            if (textParts.length > 0) {
-                parts.push(`[Assistant]: ${textParts.join("\n")}`);
+            if (msg.content.some((block) => block.type === "text")) {
+                parts.push(`[Assistant]: ${contentText(msg.content)}`);
             }
             if (toolCalls.length > 0) {
                 parts.push(`[Assistant tool calls]: ${toolCalls.join("; ")}`);
             }
         }
         else if (msg.role === "toolResult") {
-            const content = msg.content
-                .filter((c) => c.type === "text")
-                .map((c) => c.text)
-                .join("");
+            const content = contentText(msg.content, "");
             if (content) {
                 parts.push(`[Tool result]: ${truncateForSummary(content, TOOL_RESULT_MAX_CHARS)}`);
             }

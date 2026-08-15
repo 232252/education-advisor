@@ -1,3 +1,4 @@
+import { type AuthResolutionOverrides } from "./auth/resolve.ts";
 import type { AuthResult, ProviderAuth } from "./auth/types.ts";
 import type { CreateModelsOptions } from "./models.ts";
 import type { AssistantImages, ImagesApi, ImagesContext, ImagesModel, ImagesOptions, ProviderImages } from "./types.ts";
@@ -51,11 +52,12 @@ export interface ImagesModels {
      */
     refresh(provider?: string): Promise<void>;
     /**
-     * Resolve request auth for an image model. Same contract as
+     * Resolve request auth by provider id or image model. Same contract as
      * `Models.getAuth()`: undefined when unknown/unconfigured, rejects with
      * `ModelsError` ("oauth"/"auth") on real failures.
      */
-    getAuth(model: ImagesModel<ImagesApi>): Promise<AuthResult | undefined>;
+    getAuth(providerId: string, overrides?: AuthResolutionOverrides): Promise<AuthResult | undefined>;
+    getAuth(model: ImagesModel<ImagesApi>, overrides?: AuthResolutionOverrides): Promise<AuthResult | undefined>;
     /**
      * Generate images through the owning provider with auth resolved and
      * merged (explicit options win per field). Never rejects; failures are

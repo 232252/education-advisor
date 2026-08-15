@@ -5,7 +5,7 @@
 // =============================================================
 
 import { useEffect, useRef } from 'react'
-import { btnStyle } from '../lib/ui-utils'
+import { Button } from './Button'
 
 interface ConfirmDialogProps {
   /** 是否显示对话框 */
@@ -58,10 +58,7 @@ export function ConfirmDialog({
 
   if (!open) return null
 
-  const confirmBtnClass =
-    variant === 'danger'
-      ? 'bg-red-600 hover:bg-red-700 text-white'
-      : 'bg-blue-600 hover:bg-blue-700 text-white'
+  const confirmVariant = variant === 'danger' ? 'danger' : 'primary'
 
   return (
     <div
@@ -92,17 +89,12 @@ export function ConfirmDialog({
           {message}
         </p>
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onCancel} className={btnStyle('secondary')}>
+          <Button variant="secondary" size="sm" onClick={onCancel}>
             {cancelText}
-          </button>
-          <button
-            ref={confirmRef}
-            type="button"
-            onClick={onConfirm}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${confirmBtnClass}`}
-          >
+          </Button>
+          <Button ref={confirmRef} variant={confirmVariant} size="sm" onClick={onConfirm}>
             {confirmText}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

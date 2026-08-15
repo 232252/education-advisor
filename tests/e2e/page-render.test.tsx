@@ -308,12 +308,22 @@ describe('用户报告 Bug 验证（数据流层）', () => {
   })
 
   it('Bug 3: 排行榜缩窗口越界 — CSS 应包含 truncate', async () => {
-    // 这个 bug 已通过修改 DashboardPage.tsx 修复
+    // 这个 bug 已通过修改排行榜渲染组件修复（重构后位于 RankingCard.tsx）
     // 这里只验证修复点：CSS truncate 类存在
     const fs = await import('node:fs')
     const path = await import('node:path')
     const content = fs.readFileSync(
-      path.join(__dirname, '..', '..', 'src', 'renderer', 'pages', 'Dashboard', 'DashboardPage.tsx'),
+      path.join(
+        __dirname,
+        '..',
+        '..',
+        'src',
+        'renderer',
+        'pages',
+        'Dashboard',
+        'components',
+        'RankingCard.tsx',
+      ),
       'utf-8',
     )
     expect(content).toContain('truncate')

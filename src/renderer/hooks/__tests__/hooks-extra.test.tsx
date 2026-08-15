@@ -1,5 +1,5 @@
 // =============================================================
-// 渲染进程 hooks 测试: useThrottle / usePrevious / useInterval / useAsync
+// 渲染进程 hooks 测试: useInterval / useAsync
 // 这些 hook 此前零覆盖
 // =============================================================
 
@@ -7,105 +7,11 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAsync } from '../useAsync'
 import { useInterval } from '../useInterval'
-import { usePrevious } from '../usePrevious'
-import { useThrottle } from '../useThrottle'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
-})
-
-describe('useThrottle', () => {
-  it('首次渲染应立即返回当前值(leading edge)', () => {
-    const { result } = renderHook(({ val }) => useThrottle(val, 300), {
-      initialProps: { val: 'first' },
-    })
-    expect(result.current).toBe('first')
-  })
-
-  it('窗口内变化不更新,窗口结束后更新到最新值', () => {
-    const { result, rerender } = renderHook(({ val }) => useThrottle(val, 300), {
-      initialProps: { val: 0 },
-    })
-    expect(result.current).toBe(0)
-
-    // 窗口内连续变化
-    rerender({ val: 1 })
-    rerender({ val: 2 })
-    rerender({ val: 3 })
-    expect(result.current).toBe(0) // 仍未更新
-
-    // 推进时间到窗口结束
-    act(() => {
-      vi.advanceTimersByTime(300)
-    })
-    expect(result.current).toBe(3) // 更新到最新
-  })
-
-  it('窗口结束后下一次变化应立即更新', () => {
-    const { result, rerender } = renderHook(({ val }) => useThrottle(val, 100), {
-      initialProps: { val: 'a' },
-    })
-    // 推进超过窗口(初始 effect 会在 100ms 时触发 timer 更新 lastUpdated)
-    act(() => vi.advanceTimersByTime(200))
-
-    rerender({ val: 'b' })
-    expect(result.current).toBe('b') // remaining<=0 → 立即更新
-  })
-
-  it('卸载时清理 timer(无 warning)', () => {
-    const { result, rerender, unmount } = renderHook(({ val }) => useThrottle(val, 500), {
-      initialProps: { val: 1 },
-    })
-    rerender({ val: 2 })
-    expect(() => unmount()).not.toThrow()
-    void result
-  })
-
-  it('不变化的值不应触发更新', () => {
-    const { result, rerender } = renderHook(({ val }) => useThrottle(val, 100), {
-      initialProps: { val: 'same' },
-    })
-    act(() => vi.advanceTimersByTime(200))
-    rerender({ val: 'same' })
-    expect(result.current).toBe('same')
-  })
-})
-
-describe('usePrevious', () => {
-  it('首次渲染返回 undefined', () => {
-    const { result } = renderHook(({ val }) => usePrevious(val), { initialProps: { val: 10 } })
-    expect(result.current).toBeUndefined()
-  })
-
-  it('值变化后返回上一次的值', () => {
-    const { result, rerender } = renderHook(({ val }) => usePrevious(val), {
-      initialProps: { val: 'a' },
-    })
-    expect(result.current).toBeUndefined()
-    rerender({ val: 'b' })
-    expect(result.current).toBe('a')
-    rerender({ val: 'c' })
-    expect(result.current).toBe('b')
-  })
-
-  it('对象引用变化也生效', () => {
-    const { result, rerender } = renderHook(({ val }) => usePrevious(val), {
-      initialProps: { val: { n: 1 } },
-    })
-    rerender({ val: { n: 2 } })
-    expect(result.current).toEqual({ n: 1 })
-  })
-
-  it('保持相同原始值不变更时, prev === 当前值', () => {
-    const { result, rerender } = renderHook(({ val }) => usePrevious(val), {
-      initialProps: { val: 5 },
-    })
-    rerender({ val: 5 })
-    // 第二次渲染后,prev 应为上一次值 5
-    expect(result.current).toBe(5)
-  })
 })
 
 describe('useInterval', () => {

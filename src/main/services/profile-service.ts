@@ -7,8 +7,8 @@
 import { existsSync, mkdirSync } from 'node:fs'
 import { open, readFile, rename } from 'node:fs/promises'
 import path from 'node:path'
+import type { StudentProfileData } from '@shared/types'
 import { app } from 'electron'
-import type { StudentProfileData } from '../../shared/types'
 
 class ProfileService {
   private profilesDir: string

@@ -4,7 +4,7 @@ import { formatProviderError, normalizeProviderError } from "../utils/error-body
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { providerHeadersToRecord } from "../utils/headers.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
-import { convertMessages, convertTools, isThinkingPart, mapStopReason, mapToolChoice, retainThoughtSignature, } from "./google-shared.js";
+import { convertMessages, convertTools, isThinkingPart, mapStopReason, resolveGoogleFunctionCallingMode, retainThoughtSignature, retryGoogleRequest, supportsGoogleStrictToolSampling, } from "./google-shared.js";
 import { buildBaseOptions } from "./simple-options.js";
 // Counter for generating unique tool call IDs
 let toolCallCounter = 0;
@@ -25,10 +25,13 @@ export const stream = (model, context, options) => {
                 totalTokens: 0,
                 cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
             },
-            stopReason: "stop",
+            stopReason: "pending",
             timestamp: Date.now(),
         };
         try {
+            if (options?.fetch && options.fetch !== globalThis.fetch) {
+                throw new Error("Custom fetch is not supported by the Google Generative AI adapter");
+            }
             const apiKey = options?.apiKey;
             if (!apiKey) {
                 throw new Error(`No API key for provider: ${model.provider}`);
@@ -39,7 +42,7 @@ export const stream = (model, context, options) => {
             if (nextParams !== undefined) {
                 params = nextParams;
             }
-            const googleStream = await client.models.generateContentStream(params);
+            const googleStream = await retryGoogleRequest(() => client.models.generateContentStream(params), options);
             stream.push({ type: "start", partial: output });
             let currentBlock = null;
             const blocks = output.content;
@@ -152,8 +155,9 @@ export const stream = (model, context, options) => {
                     }
                 }
                 if (candidate?.finishReason) {
+                    output.rawStopReason = candidate.finishReason;
                     output.stopReason = mapStopReason(candidate.finishReason);
-                    if (output.content.some((b) => b.type === "toolCall")) {
+                    if (output.content.some((b) => b.type === "toolCall") && output.stopReason === "stop") {
                         output.stopReason = "toolUse";
                     }
                 }
@@ -197,8 +201,14 @@ export const stream = (model, context, options) => {
             if (options?.signal?.aborted) {
                 throw new Error("Request was aborted");
             }
+            if (output.stopReason === "pending") {
+                throw new Error("Google stream ended without a finish reason");
+            }
             if (output.stopReason === "aborted" || output.stopReason === "error") {
-                throw new Error("An unknown error occurred");
+                const errorMessage = output.rawStopReason
+                    ? `Provider stopped with: ${output.rawStopReason}`
+                    : "An unknown error occurred";
+                throw new Error(errorMessage);
             }
             stream.push({ type: "done", reason: output.stopReason, message: output });
             stream.end();
@@ -271,21 +281,21 @@ function buildParams(model, context, options = {}) {
     if (options.maxTokens !== undefined) {
         generationConfig.maxOutputTokens = options.maxTokens;
     }
+    const supportsStrictMode = supportsGoogleStrictToolSampling(model.id);
+    const functionCallingMode = context.tools?.length
+        ? resolveGoogleFunctionCallingMode(context.tools, options.toolChoice, supportsStrictMode)
+        : undefined;
     const config = {
         ...(Object.keys(generationConfig).length > 0 && generationConfig),
         ...(context.systemPrompt && { systemInstruction: sanitizeSurrogates(context.systemPrompt) }),
-        ...(context.tools && context.tools.length > 0 && { tools: convertTools(context.tools) }),
+        ...(context.tools &&
+            context.tools.length > 0 && {
+            tools: convertTools(context.tools, false, supportsStrictMode),
+        }),
+        ...(functionCallingMode !== undefined && {
+            toolConfig: { functionCallingConfig: { mode: functionCallingMode } },
+        }),
     };
-    if (context.tools && context.tools.length > 0 && options.toolChoice) {
-        config.toolConfig = {
-            functionCallingConfig: {
-                mode: mapToolChoice(options.toolChoice),
-            },
-        };
-    }
-    else {
-        config.toolConfig = undefined;
-    }
     if (options.thinking?.enabled && model.reasoning) {
         const thinkingConfig = { includeThoughts: true };
         if (options.thinking.level !== undefined) {

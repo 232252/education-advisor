@@ -4,6 +4,7 @@
 // =============================================================
 
 import type { EAAEventRecord, EAAHistoryEvent, EAAReasonCode } from '@shared/types'
+import { ClipboardList } from 'lucide-react'
 import { useState } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { EmptyState } from '../../../components/EmptyState'
@@ -160,7 +161,7 @@ export function EventsTab({
         'px-3 py-1 rounded-lg text-xs transition-colors ' +
         (active
           ? 'bg-blue-600 text-white shadow-sm'
-          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/[0.08]')
+          : 'bg-gray-100 dark:bg-surface-elevated text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/[0.08]')
       }
     >
       {label}
@@ -238,7 +239,7 @@ export function EventsTab({
           </div>
         ) : (
           <EmptyState
-            icon="📋"
+            icon={<ClipboardList className="h-6 w-6" />}
             title={isSearchMode ? '未找到匹配的事件' : '暂无事件记录'}
             className="py-12"
           />

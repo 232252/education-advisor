@@ -1,5 +1,5 @@
 // =============================================================
-// FeishuBotService — 飞书长连接机器人服务
+// FeishuBotService — 飞书长连接机器人服务(编排层)
 //
 // 使用 @larksuiteoapi/node-sdk 的 WSClient(长连接模式)接收飞书消息,
 // 无需公网地址/内网穿透。收到消息后:
@@ -8,134 +8,43 @@
 //
 // 状态通过 EventEmitter 推送('status' 事件),供设置页徽章实时显示。
 // 密钥从不持久化在本模块,每次 start 由调用方从 keystore 读取传入。
+//
+// 具体职责已拆分到 ./feishu-bot/ 子模块(纯重构,行为不变):
+//   types           — BotStatus / BotStatusInfo / FeishuMessageEvent
+//   constants       — 模块级常量(限流/去重/守护等)
+//   http-instance   — fetch 版 SDK HttpInstance + 域名 base
+//   credentials     — 启动前凭证预检(H1 防假连接)
+//   message-parsing — 入站消息解析与安全过滤
+//   message-queue   — 串行队列 + 排队深度限流(B6-4/H3)
+//   dedup-cache     — message_id 去重缓存(H3)
+//   command-context — 斜杠命令上下文构造(EAA + Agent 能力注入)
+//   agent-runner    — 默认 Agent 执行与回复收集
+//   reply           — 按消息 ID 回复(H2 业务返回码检查)
+// 本文件保留:连接生命周期(start/stop/重启/守护轮询/休眠唤醒)、
+// 事件分发注册、消息处理编排与状态机。
 // =============================================================
 
 import { EventEmitter } from 'node:events'
 import * as lark from '@larksuiteoapi/node-sdk'
 import { type BrowserWindow, powerMonitor } from 'electron'
-import { formatLlmError } from '../../shared/llm-error'
 import { log } from '../utils/logger'
-import { agentService } from './agent-service'
-import { eaaBridge, getErrorMessage } from './eaa-bridge'
+import { createCommandContext } from './feishu-bot/command-context'
+import { APP_ID_PATTERN, MAX_GUARD_ATTEMPTS } from './feishu-bot/constants'
+import { validateCredentials } from './feishu-bot/credentials'
+import { MessageDedupCache } from './feishu-bot/dedup-cache'
+import { fetchHttpInstance, setFeishuBase } from './feishu-bot/http-instance'
+import { parseIncomingMessage } from './feishu-bot/message-parsing'
+import { SerialMessageQueue } from './feishu-bot/message-queue'
+import { sendReply } from './feishu-bot/reply'
+import type { BotStatus, BotStatusInfo, FeishuMessageEvent } from './feishu-bot/types'
 import {
   type CommandContext,
   createDefaultRouter,
   type FeishuCommandRouter,
 } from './feishu-command-router'
-import { extractText } from './feishu-message-utils'
 import type { FeishuDomain } from './feishu-service'
 
-export type BotStatus = 'idle' | 'connecting' | 'connected' | 'error'
-
-export interface BotStatusInfo {
-  status: BotStatus
-  appId?: string
-  /** 上次错误信息(status === 'error' 时有值) */
-  error?: string
-  /** 已连接的时长(ms 时间戳),status === 'connected' 时有值 */
-  connectedAt?: number
-  /** 正在处理的消息数(诊断用) */
-  processingCount?: number
-  /** 排队中 + 处理中的消息总数(诊断用) */
-  pendingCount?: number
-}
-
-const DEFAULT_AGENT_ID = 'main'
-/** 飞书单条文本消息内容上限(字符),超出截断 */
-const REPLY_CHAR_LIMIT = 4000
-/** 飞书 App ID 格式(SDK 内部也按此校验,但仅打日志不抛错,会导致"假连接"永远停在连接中) */
-const APP_ID_PATTERN = /^cli_[0-9a-fA-F]{16}$/
-/** 待处理消息(排队中 + 处理中)上限,超出回"繁忙"并丢弃,防止队列无限增长 */
-const MAX_PENDING_MESSAGES = 16
-/** 已处理 message_id 去重缓存上限(飞书至少一次投递,ack 超时/网络抖动会重投) */
-const DEDUP_CACHE_SIZE = 500
-/** 守护重启最大连续尝试次数,超过则标记 error 等待人工介入 */
-const MAX_GUARD_ATTEMPTS = 8
-
-/**
- * fetch-based HTTP 实例,替代 SDK 默认的 axios。
- *
- * 必要性:axios 1.13.x 在 Node 22+/26 上存在兼容性 bug,部分 HTTPS 请求
- * 会返回 400(尤其是飞书长连接 endpoint /callback/ws/endpoint)。Node 内置的
- * fetch 没有此问题。这里实现 SDK 期望的 HttpInstance 接口(7 个方法),
- * 全部用 fetch 绕过 axios。
- */
-/**
- * 当前飞书域名 base,由 start() 根据 domain 设置(单例,同一时刻仅一个域名活跃)。
- * fetchRequest / validateCredentials 在调用时读取此值,故 start() 中先赋值再发请求。
- * - feishu: https://open.feishu.cn
- * - lark:   https://open.larksuite.com
- */
-let feishuBase = 'https://open.feishu.cn'
-
-interface FetchOpts {
-  url?: string
-  method?: string
-  headers?: Record<string, string>
-  data?: unknown
-  params?: Record<string, string>
-}
-
-async function fetchRequest<T>(opts: FetchOpts): Promise<T> {
-  let url = opts.url || ''
-  if (!url.startsWith('http')) {
-    url = `${feishuBase}${url}`
-  }
-  if (opts.params) {
-    const qs = new URLSearchParams(opts.params).toString()
-    url = `${url}${url.includes('?') ? '&' : '?'}${qs}`
-  }
-  const method = (opts.method || 'get').toUpperCase()
-  const res = await fetch(url, {
-    method,
-    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
-    body: opts.data !== undefined ? JSON.stringify(opts.data) : undefined,
-    signal: AbortSignal.timeout(15000), // 15s 超时,防止飞书服务器无响应时请求无限挂起
-  })
-  const text = await res.text()
-  try {
-    return JSON.parse(text) as T
-  } catch {
-    return text as unknown as T
-  }
-}
-
-const fetchHttpInstance = {
-  request: <T = unknown>(opts: FetchOpts) => fetchRequest<T>(opts),
-  get: <T = unknown>(url: string, opts?: FetchOpts) =>
-    fetchRequest<T>({ ...opts, url, method: 'get' }),
-  delete: <T = unknown>(url: string, opts?: FetchOpts) =>
-    fetchRequest<T>({ ...opts, url, method: 'delete' }),
-  head: <T = unknown>(url: string, opts?: FetchOpts) =>
-    fetchRequest<T>({ ...opts, url, method: 'head' }),
-  options: <T = unknown>(url: string, opts?: FetchOpts) =>
-    fetchRequest<T>({ ...opts, url, method: 'options' }),
-  post: <T = unknown>(url: string, data?: unknown, opts?: FetchOpts) =>
-    fetchRequest<T>({ ...opts, url, method: 'post', data }),
-  put: <T = unknown>(url: string, data?: unknown, opts?: FetchOpts) =>
-    fetchRequest<T>({ ...opts, url, method: 'put', data }),
-  patch: <T = unknown>(url: string, data?: unknown, opts?: FetchOpts) =>
-    fetchRequest<T>({ ...opts, url, method: 'patch', data }),
-}
-
-/**
- * im.message.receive_v1 事件的数据结构(内联定义,避免依赖 SDK 内部命名空间)。
- * 仅声明本模块用到的字段。
- */
-interface FeishuMessageEvent {
-  message?: {
-    message_id: string
-    chat_id: string
-    chat_type: string // 'p2p' | 'group'
-    message_type: string
-    content: string // JSON 字符串,如 {"text":"hello"}
-    mentions?: Array<{ key: string; name: string; id?: Record<string, string | undefined> }>
-  }
-  sender?: {
-    sender_id?: { open_id?: string; user_id?: string; union_id?: string }
-    sender_type?: string
-  }
-}
+export type { BotStatus, BotStatusInfo } from './feishu-bot/types'
 
 /**
  * 飞书机器人服务(单例)。
@@ -151,25 +60,22 @@ class FeishuBotService extends EventEmitter {
   private connectedAt?: number
   /** 运行中的消息处理计数,用于诊断并发 */
   private processingCount = 0
+  /** H3: 已处理 message_id 去重缓存(飞书至少一次投递,重投 id 相同) */
+  private dedup = new MessageDedupCache()
   /**
-   * B6-4 修复: 消息处理串行队列尾指针。
-   * 飞书消息可能并发到达,但底层 agentService.runAgent 对同一 agent 有"已在运行"守卫
-   * (会抛 "Agent is already running"),且共享的 getHistory 会让并发消息交叉拿到对方的回复。
-   * 用 Promise 链把消息处理串行化,彻底消除竞态。
+   * B6-4/H3: 消息处理串行队列 + 排队深度限流。
+   * 消息可能并发到达,用 Promise 链串行化消除竞态;超过上限回"繁忙"并丢弃。
    */
-  private messageQueueTail: Promise<void> = Promise.resolve()
+  private messageQueue = new SerialMessageQueue()
   /** 用户手动停止标志:阻止"保存即重连"自动重启与守护重启 */
   private userStopped = false
-  /** H3: 排队中 + 处理中的消息总数,配合 MAX_PENDING_MESSAGES 限流 */
-  private pendingMessages = 0
-  /** H3: 已处理 message_id 去重缓存(飞书至少一次投递,重投 id 相同) */
-  private seenMessageIds: Set<string> = new Set()
-  private seenMessageOrder: string[] = []
   /** M1/M4: 守护重启状态 — eventDispatcher 留存用于重连,attempts/退避控制 */
   private eventDispatcher: lark.EventDispatcher | null = null
   private guardAttempts = 0
   private nextGuardRetryAt = 0
   private restarting = false
+  private statusTimer: ReturnType<typeof setInterval> | null = null
+  private connectStartTime = 0
 
   constructor() {
     super()
@@ -186,7 +92,7 @@ class FeishuBotService extends EventEmitter {
       error: this.lastError,
       connectedAt: this.connectedAt,
       processingCount: this.processingCount,
-      pendingCount: this.pendingMessages,
+      pendingCount: this.messageQueue.pendingCount,
     }
   }
 
@@ -203,8 +109,8 @@ class FeishuBotService extends EventEmitter {
     win: BrowserWindow | null,
     domain: FeishuDomain = 'feishu',
   ): Promise<void> {
-    // 根据域名版本设置 base(单例:fetchRequest / validateCredentials 读取此模块级变量)
-    feishuBase = domain === 'lark' ? 'https://open.larksuite.com' : 'https://open.feishu.cn'
+    // 根据域名版本设置 base(单例:fetchRequest / validateCredentials 读取该模块级变量)
+    setFeishuBase(domain)
     // SDK 使用的 Domain 枚举
     const larkDomain = domain === 'lark' ? lark.Domain.Lark : lark.Domain.Feishu
     // 已在运行且 appId 相同 → 跳过
@@ -236,7 +142,7 @@ class FeishuBotService extends EventEmitter {
     this.setStatus('connecting')
 
     // H1 修复: 显式鉴权预检(tenant_access_token),错误凭证立即报错而非无限"连接中"
-    const credError = await this.validateCredentials(appId, appSecret)
+    const credError = await validateCredentials(appId, appSecret)
     if (credError) {
       this.setStatus('error', { error: credError })
       log('error', 'feishu-bot', `credential validation failed: ${credError}`)
@@ -246,17 +152,7 @@ class FeishuBotService extends EventEmitter {
     this.nextGuardRetryAt = 0
 
     // 构造命令上下文(注入 EAA + Agent 能力)
-    const ctx: CommandContext = {
-      runEAA: async (command, args = []) => {
-        return eaaBridge.execute({ command, args })
-      },
-      listAgents: () =>
-        agentService
-          .listAgents()
-          .filter((a) => a.enabled)
-          .map((a) => ({ id: a.id, name: a.name, description: a.description })),
-      runAgent: (prompt) => this.runAgentAndCollect(prompt, win),
-    }
+    const ctx = createCommandContext(win)
 
     // 事件分发器:注册消息接收事件(register 接收单个 handles 对象)
     const eventDispatcher = new lark.EventDispatcher({
@@ -267,32 +163,27 @@ class FeishuBotService extends EventEmitter {
         // agent 运行可达数分钟,阻塞 ack 会致飞书服务器超时重投(消息被重复处理)。
         const messageId = data.message?.message_id
         // H3 修复: 去重 — 飞书至少一次投递,重投的 message_id 相同,直接跳过
-        if (messageId && this.seenMessageIds.has(messageId)) {
+        if (messageId && this.dedup.has(messageId)) {
           log('info', 'feishu-bot', `duplicate message ${messageId}, skip`)
           return
         }
-        if (messageId) this.rememberMessageId(messageId)
+        if (messageId) this.dedup.remember(messageId)
 
         // H3 修复: 排队深度上限,防止突发消息撑爆内存/回复严重滞后
-        if (this.pendingMessages >= MAX_PENDING_MESSAGES) {
-          log('warn', 'feishu-bot', `pending queue full (${this.pendingMessages}), drop message`)
+        if (this.messageQueue.isFull()) {
+          log(
+            'warn',
+            'feishu-bot',
+            `pending queue full (${this.messageQueue.pendingCount}), drop message`,
+          )
           if (messageId) {
-            void this.reply(messageId, '当前消息处理繁忙,请稍后再发。').catch(() => {})
+            void sendReply(this.sdkClient, messageId, '当前消息处理繁忙,请稍后再发。').catch(
+              () => {},
+            )
           }
           return
         }
-        this.pendingMessages++
-        this.messageQueueTail = this.messageQueueTail
-          .catch(() => {})
-          .then(async () => {
-            try {
-              await this.handleMessage(data, ctx)
-            } catch (err) {
-              log('error', 'feishu-bot', `message handler error: ${err}`)
-            } finally {
-              this.pendingMessages--
-            }
-          })
+        this.messageQueue.enqueue(() => this.handleMessage(data, ctx))
         // 立即返回(不 await 队列),让 SDK 立刻 ack
       },
     })
@@ -370,37 +261,6 @@ class FeishuBotService extends EventEmitter {
     }
   }
 
-  /**
-   * H1 修复: 启动前校验 appId/appSecret 是否有效(请求 tenant_access_token)。
-   * SDK 的 WSClient 对非法凭证只会在后台无限重试,状态永远停在"连接中"(假连接)。
-   * 这里先做一次显式鉴权,失败立即给出明确错误。返回 null 表示凭证有效。
-   */
-  private async validateCredentials(appId: string, appSecret: string): Promise<string | null> {
-    try {
-      const res = await fetch(`${feishuBase}/open-apis/auth/v3/tenant_access_token/internal`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
-        signal: AbortSignal.timeout(10_000),
-      })
-      const data = (await res.json()) as { code?: number; msg?: string }
-      if (data.code === 0) return null
-      return `appId/appSecret 校验失败(code=${data.code}): ${data.msg ?? '未知错误'}`
-    } catch (err) {
-      return `凭证校验请求失败: ${err instanceof Error ? err.message : String(err)}`
-    }
-  }
-
-  /** H3: message_id 去重缓存(FIFO,上限 DEDUP_CACHE_SIZE) */
-  private rememberMessageId(id: string): void {
-    this.seenMessageIds.add(id)
-    this.seenMessageOrder.push(id)
-    if (this.seenMessageOrder.length > DEDUP_CACHE_SIZE) {
-      const oldest = this.seenMessageOrder.shift()
-      if (oldest) this.seenMessageIds.delete(oldest)
-    }
-  }
-
   /** M2: 系统从休眠唤醒时的处理 — 立即重建连接 */
   private readonly handleSystemResume = (): void => {
     if (!this.client || this.userStopped) return
@@ -458,8 +318,6 @@ class FeishuBotService extends EventEmitter {
    * - 捕获 onReady 之外的边角状态(如后台未配置时持续 connecting)
    * stop() 时清理。
    */
-  private statusTimer: ReturnType<typeof setInterval> | null = null
-  private connectStartTime = 0
   private startStatusPolling(): void {
     this.stopStatusPolling()
     this.connectStartTime = Date.now()
@@ -553,30 +411,15 @@ class FeishuBotService extends EventEmitter {
   }
 
   /**
-   * 处理一条收到的飞书消息。
-   * 安全过滤:只响应 P2P 私聊,或群里 @了机器人的消息。
+   * 处理一条收到的飞书消息(解析/安全过滤在 feishu-bot/message-parsing)。
+   * 先尝试斜杠命令;非命令转默认 Agent 对话,完成后回复。
    */
   private async handleMessage(data: FeishuMessageEvent, ctx: CommandContext): Promise<void> {
-    const msg = data.message
-    if (!msg) return
-
-    // 只处理文本消息(其它类型如图片/文件暂不支持)
-    if (msg.message_type !== 'text') return
-
-    // 安全过滤:群聊必须 @机器人;p2p 直接处理
-    const chatType = msg.chat_type
-    if (chatType !== 'p2p') {
-      const mentions = msg.mentions ?? []
-      if (mentions.length === 0) return // 群里没 @机器人,忽略
-    }
-
-    // 解析消息文本(content 是 JSON 字符串: {"text":"@_user_1 你好"})
-    // R6-7 修复:使用 feishu-message-utils.extractText 防止原型链污染
-    const text = extractText(msg.content, msg.mentions ?? [])
-    if (!text || text.trim().length === 0) return
+    const parsed = parseIncomingMessage(data)
+    if (!parsed) return
+    const { text, messageId, chatType } = parsed
 
     this.processingCount++
-    const messageId = msg.message_id
     log('info', 'feishu-bot', `recv [${chatType}] "${text.slice(0, 50)}"`)
 
     try {
@@ -594,76 +437,10 @@ class FeishuBotService extends EventEmitter {
       }
 
       if (reply && messageId) {
-        await this.reply(messageId, reply)
+        await sendReply(this.sdkClient, messageId, reply)
       }
     } finally {
       this.processingCount--
-    }
-  }
-
-  /**
-   * 运行默认 Agent 并收集完整回复文本。
-   * runAgent 直接返回本次执行的 AgentExecution(不再从 executionHistory 猜最后一条,
-   * 避免排队/并发时取到别的运行结果)。
-   */
-  private async runAgentAndCollect(prompt: string, win: BrowserWindow | null): Promise<string> {
-    // 选用默认 main agent;若不存在则用第一个 enabled 的 agent
-    const agents = agentService.listAgents().filter((a) => a.enabled)
-    const target = agents.find((a) => a.id === DEFAULT_AGENT_ID) ?? agents[0]
-    if (!target) {
-      return '当前没有可用的 Agent,请先在 Agent 管理中启用一个。'
-    }
-
-    try {
-      // win 可能为 null(无窗口场景);runAgent 内部 sendStatus 对 null/已销毁窗口是安全的
-      const execution = await agentService.runAgent(target.id, prompt, win as BrowserWindow)
-      if (!execution) return '(执行已被中止)'
-      if (execution.status !== 'success') {
-        // 美化原始 provider 错误(如 "429 {...JSON...}"),远程用户看到的是可读文本
-        return `Agent 执行出错: ${formatLlmError(execution.output || '未知错误')}`
-      }
-      return execution.output || '(Agent 返回空内容)'
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      log('error', 'feishu-bot', `agent run failed for ${target.id}: ${msg}`)
-      // runAgent 抛错时(如 agent disabled/排队已满)也尝试从 history 取错误输出
-      const history = agentService.getHistory(target.id)
-      const last = history[history.length - 1]
-      if (last?.output) return `执行失败: ${last.output}`
-      return `执行失败: ${msg}`
-    }
-  }
-
-  /** 按消息 ID 回复(用户在飞书看到的是对话流式回复) */
-  private async reply(messageId: string, text: string): Promise<void> {
-    if (!this.sdkClient) {
-      log('warn', 'feishu-bot', 'sdkClient missing, cannot reply')
-      return
-    }
-    const truncated =
-      text.length > REPLY_CHAR_LIMIT ? `${text.slice(0, REPLY_CHAR_LIMIT)}\n…(已截断)` : text
-    try {
-      // H2 修复: 检查飞书业务返回码 — 缺权限/限流/消息过期等失败会 resolve(code!==0)
-      // 而非 throw,此前一律记为"reply sent",失败被静默吞掉
-      const res = (await this.sdkClient.im.message.reply({
-        data: {
-          content: JSON.stringify({ text: truncated }),
-          msg_type: 'text',
-        },
-        path: { message_id: messageId },
-      })) as { code?: number; msg?: string }
-      if (res && typeof res.code === 'number' && res.code !== 0) {
-        log(
-          'error',
-          'feishu-bot',
-          `reply rejected by feishu: code=${res.code} msg=${res.msg ?? ''}`,
-        )
-        return
-      }
-      log('info', 'feishu-bot', `reply sent (${truncated.length} chars)`)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      log('error', 'feishu-bot', `reply failed: ${msg}`)
     }
   }
 
@@ -682,4 +459,4 @@ class FeishuBotService extends EventEmitter {
 export const feishuBotService = new FeishuBotService()
 
 // 重新导出错误信息工具,避免本模块外部调用方再 import eaa-bridge
-export { getErrorMessage }
+export { getErrorMessage } from './eaa-bridge'

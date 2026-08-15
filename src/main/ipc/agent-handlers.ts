@@ -2,22 +2,23 @@
 // Agent IPC 处理器
 // =============================================================
 
+import { startIpcTimer } from '@shared/debug'
+import * as IPC from '@shared/ipc-channels'
+import type { AgentConfig } from '@shared/types'
 import { type BrowserWindow, ipcMain } from 'electron'
-import { startIpcTimer } from '../../shared/debug'
-import * as IPC from '../../shared/ipc-channels'
-import type { AgentConfig } from '../../shared/types'
 import { agentService } from '../services/agent-service'
 
 export function registerAgentHandlers(win: BrowserWindow) {
   // 列出所有 Agent
   // H-1 修复: 加 try-catch,防止 agentService 抛错时渲染进程收到 raw rejection
+  // F3 修复: catch 返回 [](renderer 契约是 AgentListItem[]),此前的 {success:false,...} 对象与类型不符
   ipcMain.handle(IPC.IPC_AGENT_LIST, async () => {
     try {
       return agentService.listAgents()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[IPC] agent:list failed:', msg)
-      return { success: false, error: msg, agents: [] }
+      return []
     }
   })
 
@@ -76,18 +77,6 @@ export function registerAgentHandlers(win: BrowserWindow) {
     }
   })
 
-  // 读取 SOUL.md
-  // H-1 修复: 加 try-catch
-  ipcMain.handle(IPC.IPC_AGENT_GET_SOUL, async (_e, id: string) => {
-    try {
-      return agentService.getSoul(id)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] agent:get-soul failed for "${id}":`, msg)
-      return { success: false, error: msg }
-    }
-  })
-
   // 写入 SOUL.md
   // R3 修复: 验证 content 类型,避免 fs.writeFile 抛 raw TypeError
   // PERF: 成功时附带最新 detail,避免前端再发 1 次 IPC (agent:get)
@@ -106,18 +95,6 @@ export function registerAgentHandlers(win: BrowserWindow) {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[IPC] agent:set-soul failed for "${id}":`, msg)
-      return { success: false, error: msg }
-    }
-  })
-
-  // 读取 AGENTS.md
-  // H-1 修复: 加 try-catch
-  ipcMain.handle(IPC.IPC_AGENT_GET_RULES, async (_e, id: string) => {
-    try {
-      return agentService.getRules(id)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] agent:get-rules failed for "${id}":`, msg)
       return { success: false, error: msg }
     }
   })
@@ -197,13 +174,14 @@ export function registerAgentHandlers(win: BrowserWindow) {
 
   // 获取执行历史
   // H-1 修复: 加 try-catch
+  // F3 修复: catch 返回 [](renderer 契约是数组),此前的 {success:false,...} 对象与类型不符
   ipcMain.handle(IPC.IPC_AGENT_GET_HISTORY, async (_e, id: string) => {
     try {
       return agentService.getHistory(id)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[IPC] agent:get-history failed for "${id}":`, msg)
-      return { success: false, error: msg, history: [] }
+      return []
     }
   })
 

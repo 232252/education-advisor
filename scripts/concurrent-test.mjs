@@ -25,13 +25,18 @@ const r = await evl(`(async () => {
   const results = await Promise.all(writes)
   const writeOk = results.filter(r2 => r2.success).length
   // 验证每个学生都有 5 条事件
+  // history 返回结构: { success, data: { name, entity_id, events: [...], events_count, score, risk }, stderr, exitCode }
+  // 数组在 data.events（而非 data 顶层或 h.events）
   const checks = []
   for (const n of names) {
     const h = await api.eaa.history(n)
-    checks.push({ name: n, count: h.data?.length ?? h.events?.length ?? -1 })
+    checks.push({ name: n, count: h.data?.events?.length ?? -1 })
   }
   const allFive = checks.every(c => c.count === 5)
-  return { createdOk, writeOk, totalWrites: writes.length, allFive, checks: checks.slice(0, 3) }
+  // 测试完成自清理: 软删除所有测试学生,避免数据残留
+  const cleanup = await Promise.all(names.map(n => api.eaa.deleteStudent(n, '并发测试清理')))
+  const cleaned = cleanup.filter(c => c.success).length
+  return { createdOk, writeOk, totalWrites: writes.length, allFive, cleaned, checks: checks.slice(0, 3) }
 })()`, 120000)
 T('并发创建10学生', r.createdOk === 10, `created=${r.createdOk}/10`)
 T('并发50条事件写入', r.writeOk === 50, `ok=${r.writeOk}/${r.totalWrites}`)

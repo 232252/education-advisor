@@ -19,8 +19,8 @@
       "@main/*": ["./src/main/*"],
       "@renderer/*": ["./src/renderer/*"],
       "@shared/*": ["./src/shared/*"],
-      "@earendil-works/pi-ai": ["../pi/packages/ai/dist/index.d.ts"],
-      "@earendil-works/pi-agent-core": ["../pi/packages/agent/dist/index.d.ts"],
+      "@earendil-works/pi-ai": ["./vendor/pi-ai/dist/index.d.ts"],
+      "@earendil-works/pi-agent-core": ["./vendor/pi-agent-core/dist/index.d.ts"],
       "typebox": ["./node_modules/typebox/build/index.d.mts"]
     }
   },

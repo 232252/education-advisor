@@ -11,6 +11,8 @@
 //                     无法实例化),保持本模块可在 vitest 中直接测试。
 // =============================================================
 
+import { getErrorMessage } from './eaa/types'
+
 /**
  * EAA 命令执行结果(与 eaa-bridge 的 EAAResult 结构一致,此处内联定义
  * 以避免本模块引入 eaa-bridge 的 Electron 依赖)。
@@ -20,13 +22,6 @@ export interface EAAResultLike {
   data: unknown | null
   stderr: string
   exitCode: number
-}
-
-/** 从 EAA 结果中提取最有用的错误信息(优先 data,其次 stderr) */
-function getErrorMessage(result: EAAResultLike, fallback = '未知错误'): string {
-  if (typeof result.data === 'string' && result.data.length > 0) return result.data
-  if (result.stderr && result.stderr.length > 0) return result.stderr
-  return fallback
 }
 
 /** 命令解析结果 */

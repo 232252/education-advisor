@@ -1,34 +1,29 @@
 // =============================================================
 // 对话页面 — 纯 Agent 模式 (Agent 选择器 + 模型配置常驻显示)
+// 编排层：组合侧栏/工具栏/消息列表/输入区，持有状态与副作用
 // =============================================================
 
-import { MessageSquare, Paperclip } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { EmptyState } from '../../components/EmptyState'
-import { ModelSelector } from '../../components/ModelSelector'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
-import { btnStyle, cn } from '../../lib/ui-utils'
 import { useAgentStore } from '../../stores/agentStore'
 import { useChatStore } from '../../stores/chatStore'
 import { toast } from '../../stores/toastStore'
-
-// 上传文件元信息
-interface UploadedFile {
-  name: string
-  path: string
-  size: number
-  content: string
-  mimeType: string
-}
+import { ChatToolbar } from './components/ChatToolbar'
+import { Composer } from './components/Composer'
+import { ContextStatusBar } from './components/ContextStatusBar'
+import { MessageList } from './components/MessageList'
+import { SessionSidebar } from './components/SessionSidebar'
+import { useFileUpload } from './hooks/useFileUpload'
+import { buildFinalText } from './lib/chat-message'
 
 export function ChatPage() {
   const { t } = useT()
   const [input, setInput] = useState('')
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const messages = useChatStore((s) => s.messages)
   const isStreaming = useChatStore((s) => s.isStreaming)
   const currentProvider = useChatStore((s) => s.currentProvider)
@@ -41,7 +36,6 @@ export function ChatPage() {
   const sessionId = useChatStore((s) => s.sessionId)
   const sessions = useChatStore((s) => s.sessions)
   const selectedAgentId = useChatStore((s) => s.selectedAgentId)
-  const handleStreamEvent = useChatStore((s) => s.handleStreamEvent)
   const handleAgentEvent = useChatStore((s) => s.handleAgentEvent)
   const setModel = useChatStore((s) => s.setModel)
   const setThinkingLevel = useChatStore((s) => s.setThinkingLevel)
@@ -57,6 +51,9 @@ export function ChatPage() {
   const agents = useAgentStore((s) => s.agents)
   const fetchAgents = useAgentStore((s) => s.fetchAgents)
 
+  // 文件上传（选择/读取/移除已上传文件）
+  const { uploadedFiles, setUploadedFiles, handleUpload, removeFile } = useFileUpload()
+
   // 加载 agent 列表时自动选中第一个可用 agent（如教育参谋）
   useEffect(() => {
     fetchAgents()
@@ -68,15 +65,6 @@ export function ChatPage() {
       setSelectedAgent(enabledAgents[0].id)
     }
   }, [agents, selectedAgentId, setSelectedAgent])
-
-  // 订阅流式事件（直接对话模式 — 使用 ref 保证稳定引用）
-  const streamHandlerRef = useRef(handleStreamEvent)
-  streamHandlerRef.current = handleStreamEvent
-
-  useEffect(() => {
-    const unsub = getAPI().ai.onStream((event) => streamHandlerRef.current(event))
-    return unsub
-  }, [])
 
   // 订阅 Agent 状态事件（始终接收，桥接到 chatStore）
   // 修复双重订阅：不再独立调用 getAPI().agent.onStatusUpdate。
@@ -154,20 +142,7 @@ export function ChatPage() {
     }))
 
     // 拼接上传文件内容到消息文本
-    // 文件内容以结构化方式注入,让 Agent 能识别文件边界和元信息
-    let finalText = text
-    if (uploadedFiles.length > 0) {
-      const fileBlocks = uploadedFiles.map((f) => {
-        const sizeKb = (f.size / 1024).toFixed(1)
-        // 限制单文件内容长度 (32KB),避免上下文爆炸
-        const maxLen = 32 * 1024
-        const truncated = f.content.length > maxLen
-        const content = truncated ? f.content.slice(0, maxLen) : f.content
-        const truncationNote = truncated ? `\n[... 已截断,原始大小 ${sizeKb}KB ...]` : ''
-        return `--- 文件: ${f.name} (${sizeKb}KB, ${f.mimeType}) ---\n${content}${truncationNote}\n--- 文件结束 ---`
-      })
-      finalText = `${text}\n\n${fileBlocks.join('\n\n')}`
-    }
+    const finalText = buildFinalText(text, uploadedFiles)
 
     // 添加用户消息 (显示原始文本,但传给 Agent 的是 finalText)
     useChatStore.getState().addMessage({
@@ -213,15 +188,6 @@ export function ChatPage() {
     }
   }
 
-  // 格式化时间
-  const formatTime = (ts: number) => {
-    const d = new Date(ts)
-    const now = new Date()
-    const isToday = d.toDateString() === now.toDateString()
-    if (isToday) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
-  }
-
   return (
     <div className="flex h-full animate-fade-in">
       <h1
@@ -240,127 +206,28 @@ export function ChatPage() {
         {t('page.chat.title')}
       </h1>
       {/* 左侧会话列表 */}
-      <div className="w-64 flex-shrink-0 border-r border-gray-200/60 dark:border-white/[0.06] flex flex-col bg-gray-50/80 dark:bg-surface-tertiary">
-        {/* 顶部操作区 */}
-        <div className="p-3 border-b border-gray-200/60 dark:border-white/[0.06]">
-          <button
-            type="button"
-            onClick={() => createSession()}
-            className={cn('w-full', btnStyle('primary'))}
-          >
-            + {t('page.chat.newConversation')}
-          </button>
-        </div>
-
-        {/* 会话列表 */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {sessions.length === 0 ? (
-            <EmptyState
-              icon={<MessageSquare size={28} />}
-              title={t('page.chat.empty.title')}
-              className="py-10"
-            />
-          ) : (
-            sessions.map((session) => (
-              <div
-                key={session.id}
-                className={`group relative flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200
-                  ${
-                    session.id === sessionId
-                      ? 'bg-blue-50 dark:bg-blue-500/[0.1] border border-blue-200/60 dark:border-blue-500/20 shadow-sm'
-                      : 'hover:bg-gray-100 dark:hover:bg-white/[0.04] border border-transparent'
-                  }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => switchSession(session.id)}
-                  className="flex-1 min-w-0 text-left bg-transparent"
-                >
-                  <div className="text-sm font-medium truncate dark:text-gray-200">
-                    {session.title}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400 dark:text-gray-500">
-                    <span>{formatTime(session.createdAt)}</span>
-                    <span>·</span>
-                    <span>
-                      {session.messageCount} {t('common.info')}
-                    </span>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setPendingDeleteSessionId(session.id)
-                  }}
-                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 ml-2 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 transition-all text-xs"
-                  title={t('common.delete')}
-                  aria-label="删除对话"
-                >
-                  ×
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+      <SessionSidebar
+        sessions={sessions}
+        currentSessionId={sessionId}
+        onCreateSession={() => createSession()}
+        onSwitchSession={switchSession}
+        onRequestDelete={setPendingDeleteSessionId}
+      />
 
       {/* 主对话区域 */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* 顶部工具栏 — 纯 Agent 模式: Agent 选择器 + 模型配置 + 思考级别 常驻显示 */}
-        <div className="flex items-center justify-between px-6 py-2 border-b border-gray-200/60 dark:border-white/[0.06] flex-wrap gap-2">
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Agent 选择器 — 常驻显示 */}
-            <select
-              value={selectedAgentId}
-              onChange={(e) => setSelectedAgent(e.target.value)}
-              className="bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300
-                         focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-transparent min-w-[160px] transition-colors"
-              title="选择 Agent"
-            >
-              {enabledAgents.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} — {a.role}
-                </option>
-              ))}
-            </select>
-
-            {/* 分隔线 */}
-            <div className="h-4 w-px bg-gray-200 dark:bg-white/[0.08]" />
-
-            {/* 模型配置 — 常驻显示 */}
-            <ModelSelector
-              selectedProvider={currentProvider}
-              selectedModel={currentModel}
-              onSelect={handleModelSelect}
-            />
-
-            {/* 思考级别 — 常驻显示 */}
-            <select
-              value={thinkingLevel}
-              onChange={handleThinkingLevelChange}
-              className="bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-gray-600 dark:text-gray-300
-                         focus:outline-none focus:border-blue-500 transition-colors"
-              title="思考级别"
-            >
-              <option value="off">思考 关</option>
-              <option value="minimal">思考 最少</option>
-              <option value="low">思考 低</option>
-              <option value="medium">思考 中</option>
-              <option value="high">思考 高</option>
-              <option value="xhigh">思考 最高</option>
-            </select>
-          </div>
-          <button
-            type="button"
-            onClick={clearMessages}
-            className={btnStyle('ghost')}
-            aria-label="清空当前会话显示"
-            title="清空当前会话显示(不删除会话)"
-          >
-            清空
-          </button>
-        </div>
+        <ChatToolbar
+          enabledAgents={enabledAgents}
+          selectedAgentId={selectedAgentId}
+          onSelectAgent={setSelectedAgent}
+          thinkingLevel={thinkingLevel}
+          onThinkingLevelChange={handleThinkingLevelChange}
+          selectedProvider={currentProvider}
+          selectedModel={currentModel}
+          onModelSelect={handleModelSelect}
+          onClearMessages={clearMessages}
+        />
 
         {/* 上下文状态条 - 显示当前模型 contextWindow / 已用 token / 压缩进度 */}
         <ContextStatusBar
@@ -371,244 +238,32 @@ export function ChatPage() {
         />
 
         {/* 消息区 */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/30 dark:bg-transparent">
-          {messages.length === 0 && (
-            <EmptyState
-              icon={<span className="text-3xl">💬</span>}
-              title="开始对话"
-              description={canSend ? '输入消息即可开始' : '请先选择一个 Agent'}
-              className="h-full"
-            />
-          )}
-
-          {messages.map((msg, i) => (
-            // P2-7: 组合 stable key (role + 索引 + content 前 16 字符哈希)
-            // 优先用 msg.id/timestamp,缺失时降级到组合 key
-            <div
-              key={
-                (msg as { id?: string }).id
-                  ? `${(msg as { id?: string }).id}`
-                  : `${msg.role}-${i}-${msg.content.slice(0, 16)}`
-              }
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[70%] rounded-2xl px-4 py-3 text-sm leading-relaxed
-                  ${
-                    msg.role === 'user'
-                      ? 'bg-blue-600 text-white rounded-br-md shadow-md shadow-blue-500/15'
-                      : 'bg-white text-gray-800 dark:bg-surface-tertiary dark:text-gray-100 rounded-bl-md border border-gray-200/70 dark:border-white/[0.06] shadow-sm'
-                  }`}
-              >
-                {/* 工具调用（放顶部） */}
-                {msg.toolCalls && msg.toolCalls.length > 0 && (
-                  <div className="mb-2 space-y-1">
-                    {msg.toolCalls.map((tc) => (
-                      <div
-                        key={tc.id}
-                        className="text-xs bg-blue-100/50 dark:bg-blue-900/30 rounded px-2 py-1 font-mono"
-                      >
-                        <span className="text-blue-600 dark:text-blue-400 font-medium">
-                          {tc.name}
-                        </span>
-                        {tc.args && Object.keys(tc.args).length > 0 && (
-                          <span className="text-gray-500 dark:text-gray-400 ml-1">
-                            {JSON.stringify(tc.args)}
-                          </span>
-                        )}
-                        {tc.result && (
-                          <span
-                            className={`ml-1 ${tc.isError ? 'text-red-500 dark:text-red-400' : 'text-green-500 dark:text-green-400'}`}
-                          >
-                            {tc.isError ? '✗' : '✓'}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {/* 思考过程 */}
-                {msg.thinking && (
-                  <details className="mb-2">
-                    <summary className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300">
-                      思考过程
-                    </summary>
-                    <div className="mt-1 text-xs text-gray-400 dark:text-gray-500 whitespace-pre-wrap pl-2 border-l border-gray-300 dark:border-white/[0.06]">
-                      {msg.thinking}
-                    </div>
-                  </details>
-                )}
-                {/* 消息内容（放底部） */}
-                <div className="whitespace-pre-wrap">
-                  {msg.content ||
-                    (isStreaming && i === messages.length - 1 ? (
-                      <span className="inline-flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse" />
-                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse [animation-delay:0.2s]" />
-                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse [animation-delay:0.4s]" />
-                      </span>
-                    ) : (
-                      ''
-                    ))}
-                </div>
-              </div>
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
+        <MessageList
+          messages={messages}
+          isStreaming={isStreaming}
+          canSend={canSend}
+          messagesEndRef={messagesEndRef}
+        />
 
         {/* 输入区 */}
-        <div className="border-t border-gray-200/60 dark:border-white/[0.06] px-6 py-4 bg-white/80 dark:bg-surface-tertiary/80 backdrop-blur-sm">
-          {!canSend && (
-            <div className="text-xs text-amber-500 dark:text-amber-400 mb-2 text-center">
-              正在加载 Agent 列表...
-            </div>
-          )}
-          <div className="flex gap-3">
-            <div className="flex-1 flex flex-col gap-2 bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-xl px-3 py-2 focus-within:border-blue-500 dark:focus-within:border-blue-400/60 focus-within:ring-2 focus-within:ring-blue-500/15 dark:focus-within:ring-blue-400/10 transition-all duration-200 shadow-sm">
-              {/* 已上传文件列表 */}
-              {uploadedFiles.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-1">
-                  {uploadedFiles.map((f, idx) => (
-                    <div
-                      key={f.path || `${f.name}-${idx}`}
-                      className="flex items-center gap-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-md px-2 py-1 text-[11px]"
-                    >
-                      <Paperclip size={14} className="flex-shrink-0" />
-                      <span className="truncate max-w-[160px]" title={f.path}>
-                        {f.name}
-                      </span>
-                      <span className="text-[10px] opacity-70">{(f.size / 1024).toFixed(1)}KB</span>
-                      <button
-                        type="button"
-                        onClick={() => setUploadedFiles((prev) => prev.filter((_, i) => i !== idx))}
-                        className="text-blue-500 hover:text-blue-700 dark:hover:text-blue-200 ml-0.5"
-                        title="移除"
-                        aria-label="移除文件"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-end gap-2">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const result = (await getAPI().sys.openDialog({
-                        properties: ['openFile'],
-                        filters: [
-                          {
-                            name: '文本/代码/图片',
-                            extensions: [
-                              'txt',
-                              'md',
-                              'json',
-                              'yaml',
-                              'yml',
-                              'csv',
-                              'html',
-                              'xml',
-                              'js',
-                              'ts',
-                              'tsx',
-                              'jsx',
-                              'py',
-                              'rs',
-                              'go',
-                              'java',
-                              'c',
-                              'cpp',
-                              'h',
-                              'sh',
-                              'sql',
-                              'log',
-                              'png',
-                              'jpg',
-                              'jpeg',
-                              'gif',
-                              'svg',
-                              'webp',
-                            ],
-                          },
-                          { name: '所有文件', extensions: ['*'] },
-                        ],
-                      })) as { canceled: boolean; filePaths: string[] }
-                      if (result.canceled || result.filePaths.length === 0) return
-                      const filePath = result.filePaths[0]
-                      const fileName = filePath.split(/[/\\]/).pop() || filePath
-                      toast.info(`正在读取: ${fileName}`)
-                      // 真实读取文件内容
-                      const fileResult = await getAPI().sys.readFile(filePath)
-                      if (!fileResult.success || !fileResult.content) {
-                        toast.error(`读取失败: ${fileResult.error || '未知错误'}`)
-                        return
-                      }
-                      const uploaded: UploadedFile = {
-                        name: fileResult.name || fileName,
-                        path: filePath,
-                        size: fileResult.size || 0,
-                        content: fileResult.content,
-                        mimeType: fileResult.mimeType || 'application/octet-stream',
-                      }
-                      setUploadedFiles((prev) => [...prev, uploaded])
-                      toast.success(
-                        `已读取: ${uploaded.name} (${(uploaded.size / 1024).toFixed(1)}KB, ${uploaded.mimeType})`,
-                      )
-                    } catch (err) {
-                      console.error('[Chat] File upload failed:', err)
-                      toast.error(t('toast.chat.fileSelectFailed'))
-                    }
-                  }}
-                  className={cn(btnStyle('secondary'), 'flex-shrink-0')}
-                  aria-label="上传文件"
-                  title="上传文件 (文本/代码/图片, 最大 10MB)"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className="w-5 h-5"
-                    role="img"
-                    aria-label="上传文件"
-                  >
-                    <title>上传文件</title>
-                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
-                  </svg>
-                </button>
-                <textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={
-                    canSend
-                      ? `向 ${enabledAgents.find((a) => a.id === selectedAgentId)?.name ?? 'Agent'} 发送指令... (Enter 发送)`
-                      : '正在加载...'
-                  }
-                  rows={1}
-                  className="flex-1 bg-transparent border-0 text-sm focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 resize-none max-h-32 overflow-y-auto py-1"
-                  disabled={isStreaming || !canSend}
-                />
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={isStreaming ? handleStop : handleSend}
-              className={cn(
-                isStreaming ? btnStyle('danger') : btnStyle('primary'),
-                'self-end px-6 py-3',
-              )}
-              disabled={!isStreaming && (!input.trim() || !canSend)}
-              aria-label={isStreaming ? '停止' : '发送'}
-            >
-              {isStreaming ? '停止' : '发送'}
-            </button>
-          </div>
-        </div>
+        <Composer
+          input={input}
+          onInputChange={setInput}
+          inputRef={inputRef}
+          onKeyDown={handleKeyDown}
+          placeholder={
+            canSend
+              ? `向 ${enabledAgents.find((a) => a.id === selectedAgentId)?.name ?? 'Agent'} 发送指令... (Enter 发送)`
+              : '正在加载...'
+          }
+          isStreaming={isStreaming}
+          canSend={canSend}
+          uploadedFiles={uploadedFiles}
+          onUpload={handleUpload}
+          onRemoveFile={removeFile}
+          onSend={handleSend}
+          onStop={handleStop}
+        />
       </div>
       <ConfirmDialog
         open={pendingDeleteSessionId !== null}
@@ -623,105 +278,6 @@ export function ChatPage() {
         }}
         onCancel={() => setPendingDeleteSessionId(null)}
       />
-    </div>
-  )
-}
-
-/**
- * 上下文状态条 — 显示模型 contextWindow / 已用 token / 压缩阈值进度
- * 修复 Bug-1: 真正显示用户设置的 contextWindow (从 ai.listModels 拉的),
- *              不在 UI 硬编码 900K
- */
-interface ContextStatusBarProps {
-  modelContext: number
-  modelMaxOutput: number
-  lastUsage: {
-    inputTokens: number
-    outputTokens: number
-    cacheReadTokens: number
-    cacheWriteTokens: number
-  } | null
-  lastCost: number
-}
-
-function ContextStatusBar({
-  modelContext,
-  modelMaxOutput,
-  lastUsage,
-  lastCost,
-}: ContextStatusBarProps) {
-  // 压缩阈值(默认 90% = reserve 10%) — 跟主进程 compaction-helper 自适应策略一致
-  const reserve = modelContext > 0 ? Math.max(4096, Math.floor(modelContext * 0.1)) : 0
-  const threshold = modelContext - reserve
-  const used = lastUsage
-    ? (lastUsage.inputTokens ?? 0) +
-      (lastUsage.outputTokens ?? 0) +
-      (lastUsage.cacheReadTokens ?? 0)
-    : 0
-  const pct = modelContext > 0 ? Math.min(100, (used / modelContext) * 100) : 0
-  const thresholdPct = modelContext > 0 ? (threshold / modelContext) * 100 : 90
-  // 颜色: <60% 绿, 60-90% 黄, >90% 红(即将压缩)
-  const barColor = pct < 60 ? 'bg-green-500' : pct < thresholdPct ? 'bg-yellow-500' : 'bg-red-500'
-  const fmtK = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K` : `${n}`)
-  return (
-    <div className="px-6 py-2 border-b border-gray-200/60 dark:border-white/[0.06] bg-gray-50/50 dark:bg-surface-tertiary/50">
-      <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400">
-        <div className="flex items-center gap-1.5">
-          <span className="font-medium text-gray-700 dark:text-gray-300">上下文</span>
-          <span className="font-mono">{modelContext > 0 ? `${fmtK(modelContext)}` : '未设置'}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span>输出上限</span>
-          <span className="font-mono">{modelMaxOutput > 0 ? fmtK(modelMaxOutput) : '4K'}</span>
-        </div>
-        {lastUsage && (
-          <>
-            <div className="flex items-center gap-1.5">
-              <span>已用</span>
-              <span className="font-mono">
-                {fmtK(used)} ({pct.toFixed(1)}%)
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span>输入</span>
-              <span className="font-mono">{fmtK(lastUsage.inputTokens ?? 0)}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span>输出</span>
-              <span className="font-mono">{fmtK(lastUsage.outputTokens ?? 0)}</span>
-            </div>
-            {lastCost > 0 && (
-              <div className="flex items-center gap-1.5">
-                <span>费用</span>
-                <span className="font-mono">${lastCost.toFixed(4)}</span>
-              </div>
-            )}
-          </>
-        )}
-        <div className="ml-auto flex items-center gap-1.5 text-[10px]">
-          {pct >= thresholdPct ? (
-            <span className="text-red-500 font-medium">⚠ 即将压缩</span>
-          ) : pct >= 60 ? (
-            <span className="text-yellow-600 dark:text-yellow-400">接近阈值</span>
-          ) : (
-            <span className="text-green-600 dark:text-green-400">充裕</span>
-          )}
-        </div>
-      </div>
-      {/* 进度条 — 显示 contextWindow 使用率 + 压缩阈值线 */}
-      <div className="relative mt-1.5 h-1.5 bg-gray-200 dark:bg-white/[0.06] rounded-full overflow-hidden">
-        <div
-          className={`absolute inset-y-0 left-0 ${barColor} rounded-full transition-all duration-300`}
-          style={{ width: `${pct}%` }}
-        />
-        {modelContext > 0 && (
-          <div
-            className="absolute inset-y-0 w-px bg-gray-700 dark:bg-gray-300"
-            style={{ left: `${thresholdPct}%` }}
-            title={`压缩阈值 (${fmtK(threshold)} tokens)`}
-          />
-        )}
-      </div>
     </div>
   )
 }

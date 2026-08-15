@@ -172,7 +172,7 @@ export const ModelRow = memo(function ModelRow({
         )}
       </td>
       <td className="px-3 py-2">
-        <span className="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-300 font-mono text-[10px]">
+        <span className="bg-gray-200 dark:bg-surface-elevated px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-300 font-mono text-[10px]">
           {m.api}
         </span>
       </td>

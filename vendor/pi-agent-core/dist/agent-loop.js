@@ -2,7 +2,8 @@
  * Agent loop that works with AgentMessage throughout.
  * Transforms to Message[] only at the LLM call boundary.
  */
-import { EventStream, streamSimple, validateToolArguments, } from "@earendil-works/pi-ai/compat";
+import { EventStream, validateToolArguments, } from "@earendil-works/pi-ai";
+import { getDefaultStreamFn } from "./stream-fn.js";
 /**
  * Start an agent loop with a new prompt message.
  * The prompt is added to the context and events are emitted for it.
@@ -51,7 +52,7 @@ export async function runAgentLoop(prompts, context, config, emit, signal, strea
         await emit({ type: "message_start", message: prompt });
         await emit({ type: "message_end", message: prompt });
     }
-    await runLoop(currentContext, newMessages, config, signal, emit, streamFn);
+    await runLoop(currentContext, newMessages, config, signal, emit, streamFn ?? getDefaultStreamFn());
     return newMessages;
 }
 export async function runAgentLoopContinue(context, config, emit, signal, streamFn) {
@@ -65,7 +66,7 @@ export async function runAgentLoopContinue(context, config, emit, signal, stream
     const currentContext = { ...context };
     await emit({ type: "agent_start" });
     await emit({ type: "turn_start" });
-    await runLoop(currentContext, newMessages, config, signal, emit, streamFn);
+    await runLoop(currentContext, newMessages, config, signal, emit, streamFn ?? getDefaultStreamFn());
     return newMessages;
 }
 function createAgentStream() {
@@ -74,7 +75,7 @@ function createAgentStream() {
 /**
  * Main loop logic shared by agentLoop and agentLoopContinue.
  */
-async function runLoop(initialContext, newMessages, initialConfig, signal, emit, streamFn) {
+async function runLoop(initialContext, newMessages, initialConfig, signal, emit, streamFunction) {
     let currentContext = initialContext;
     let config = initialConfig;
     let firstTurn = true;
@@ -102,7 +103,7 @@ async function runLoop(initialContext, newMessages, initialConfig, signal, emit,
                 pendingMessages = [];
             }
             // Stream assistant response
-            const message = await streamAssistantResponse(currentContext, config, signal, emit, streamFn);
+            const message = await streamAssistantResponse(currentContext, config, signal, emit, streamFunction);
             newMessages.push(message);
             if (message.stopReason === "error" || message.stopReason === "aborted") {
                 await emit({ type: "turn_end", message, toolResults: [] });
@@ -114,7 +115,12 @@ async function runLoop(initialContext, newMessages, initialConfig, signal, emit,
             const toolResults = [];
             hasMoreToolCalls = false;
             if (toolCalls.length > 0) {
-                const executedToolBatch = await executeToolCalls(currentContext, message, config, signal, emit);
+                // A "length" stop means the output was cut off by the token limit, so
+                // every tool call in the message may carry truncated arguments. Fail
+                // them all instead of executing potentially borked calls.
+                const executedToolBatch = message.stopReason === "length"
+                    ? await failToolCallsFromTruncatedMessage(toolCalls, emit)
+                    : await executeToolCalls(currentContext, message, config, signal, emit);
                 toolResults.push(...executedToolBatch.messages);
                 hasMoreToolCalls = !executedToolBatch.terminate;
                 for (const result of toolResults) {
@@ -169,7 +175,7 @@ async function runLoop(initialContext, newMessages, initialConfig, signal, emit,
  * Stream an assistant response from the LLM.
  * This is where AgentMessage[] gets transformed to Message[] for the LLM.
  */
-async function streamAssistantResponse(context, config, signal, emit, streamFn) {
+async function streamAssistantResponse(context, config, signal, emit, streamFunction) {
     // Apply context transform if configured (AgentMessage[] → AgentMessage[])
     let messages = context.messages;
     if (config.transformContext) {
@@ -183,7 +189,6 @@ async function streamAssistantResponse(context, config, signal, emit, streamFn) 
         messages: llmMessages,
         tools: context.tools,
     };
-    const streamFunction = streamFn || streamSimple;
     // Resolve API key (important for expiring tokens)
     const resolvedApiKey = (config.getApiKey ? await config.getApiKey(config.model.provider) : undefined) || config.apiKey;
     const response = await streamFunction(config.model, llmContext, {
@@ -247,6 +252,34 @@ async function streamAssistantResponse(context, config, signal, emit, streamFn) 
     }
     await emit({ type: "message_end", message: finalMessage });
     return finalMessage;
+}
+/**
+ * Fail all tool calls from an assistant message that was truncated by the
+ * output token limit. Streamed tool-call arguments are finalized with a
+ * best-effort JSON salvage parser, so a truncated message can yield tool calls
+ * whose arguments parse and validate but are silently incomplete. None of them
+ * are safe to execute; report each as an error so the model can re-issue them.
+ */
+async function failToolCallsFromTruncatedMessage(toolCalls, emit) {
+    const messages = [];
+    for (const toolCall of toolCalls) {
+        await emit({
+            type: "tool_execution_start",
+            toolCallId: toolCall.id,
+            toolName: toolCall.name,
+            args: toolCall.arguments,
+        });
+        const finalized = {
+            toolCall,
+            result: createErrorToolResult(`Tool call "${toolCall.name}" was not executed: the response hit the output token limit, so its arguments may be truncated. Re-issue the tool call with complete arguments.`),
+            isError: true,
+        };
+        await emitToolExecutionEnd(finalized, emit);
+        const toolResultMessage = createToolResultMessage(finalized);
+        await emitToolResultMessage(toolResultMessage, emit);
+        messages.push(toolResultMessage);
+    }
+    return { messages, terminate: false };
 }
 /**
  * Execute tool calls from an assistant message.
@@ -384,9 +417,13 @@ async function prepareToolCall(currentContext, assistantMessage, toolCall, confi
                 };
             }
             if (beforeResult?.block) {
+                const result = createErrorToolResult(beforeResult.reason || "Tool execution was blocked");
+                if (beforeResult.terminate === true) {
+                    result.terminate = true;
+                }
                 return {
                     kind: "immediate",
-                    result: createErrorToolResult(beforeResult.reason || "Tool execution was blocked"),
+                    result,
                     isError: true,
                 };
             }
@@ -459,8 +496,10 @@ async function finalizeExecutedToolCall(currentContext, assistantMessage, prepar
             }, signal);
             if (afterResult) {
                 result = {
+                    ...result,
                     content: afterResult.content ?? result.content,
                     details: afterResult.details ?? result.details,
+                    usage: afterResult.usage ?? result.usage,
                     terminate: afterResult.terminate ?? result.terminate,
                 };
                 isError = afterResult.isError ?? isError;
@@ -497,8 +536,12 @@ function createToolResultMessage(finalized) {
         role: "toolResult",
         toolCallId: finalized.toolCall.id,
         toolName: finalized.toolCall.name,
-        content: finalized.result.content,
+        // Untyped tools (JS extensions) can return results without content; normalize
+        // so the null never enters session history or provider payloads.
+        content: finalized.result.content ?? [],
         details: finalized.result.details,
+        usage: finalized.result.usage,
+        ...(finalized.result.addedToolNames?.length ? { addedToolNames: finalized.result.addedToolNames } : {}),
         isError: finalized.isError,
         timestamp: Date.now(),
     };

@@ -44,8 +44,8 @@ declare module "../types.ts" {
     }
 }
 export declare function bashExecutionToText(msg: BashExecutionMessage): string;
-export declare function createBranchSummaryMessage(summary: string, fromId: string, timestamp: string): BranchSummaryMessage;
-export declare function createCompactionSummaryMessage(summary: string, tokensBefore: number, timestamp: string): CompactionSummaryMessage;
-export declare function createCustomMessage(customType: string, content: string | (TextContent | ImageContent)[], display: boolean, details: unknown | undefined, timestamp: string): CustomMessage;
+export declare function createBranchSummaryMessage(summary: string, fromId: string, timestamp: string | number): BranchSummaryMessage;
+export declare function createCompactionSummaryMessage(summary: string, tokensBefore: number, timestamp: string | number): CompactionSummaryMessage;
+export declare function createCustomMessage(customType: string, content: string | (TextContent | ImageContent)[], display: boolean, details: unknown | undefined, timestamp: string | number): CustomMessage;
 export declare function convertToLlm(messages: AgentMessage[]): Message[];
 //# sourceMappingURL=messages.d.ts.map

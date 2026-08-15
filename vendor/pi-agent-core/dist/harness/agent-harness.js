@@ -1,939 +1,252 @@
-import { runAgentLoop } from "../agent-loop.js";
-import { collectEntriesForBranchSummary, generateBranchSummary } from "./compaction/branch-summarization.js";
-import { compact, DEFAULT_COMPACTION_SETTINGS, prepareCompaction } from "./compaction/compaction.js";
-import { convertToLlm } from "./messages.js";
-import { formatPromptTemplateInvocation } from "./prompt-templates.js";
-import { formatSkillInvocation } from "./skills.js";
-import { AgentHarnessError, BranchSummaryError, CompactionError, SessionError, toError } from "./types.js";
-function createUserMessage(text, images) {
-    const content = [{ type: "text", text }];
-    if (images)
-        content.push(...images);
-    return { role: "user", content, timestamp: Date.now() };
+import { TaggedError } from "./result.js";
+export class LaneBusy extends TaggedError("LaneBusy") {
 }
-function createFailureMessage(model, error, aborted) {
-    return {
-        role: "assistant",
-        content: [{ type: "text", text: "" }],
-        api: model.api,
-        provider: model.provider,
-        model: model.id,
-        stopReason: aborted ? "aborted" : "error",
-        errorMessage: error instanceof Error ? error.message : String(error),
-        timestamp: Date.now(),
-        usage: {
-            input: 0,
-            output: 0,
-            cacheRead: 0,
-            cacheWrite: 0,
-            totalTokens: 0,
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-    };
+export class MissingIdentities extends TaggedError("MissingIdentities") {
 }
-function cloneStreamOptions(streamOptions) {
-    return {
-        ...streamOptions,
-        headers: streamOptions?.headers ? { ...streamOptions.headers } : undefined,
-        metadata: streamOptions?.metadata ? { ...streamOptions.metadata } : undefined,
-    };
+export class NoActiveRun extends TaggedError("NoActiveRun") {
 }
-function findDuplicateNames(names) {
-    const seen = new Set();
-    const duplicates = new Set();
-    for (const name of names) {
-        if (seen.has(name))
-            duplicates.add(name);
-        seen.add(name);
+export class NoActiveOperation extends TaggedError("NoActiveOperation") {
+}
+export class NothingToResume extends TaggedError("NothingToResume") {
+}
+export class InvalidMessage extends TaggedError("InvalidMessage") {
+}
+export class UnknownSkill extends TaggedError("UnknownSkill") {
+}
+export class UnknownTemplate extends TaggedError("UnknownTemplate") {
+}
+export class UnknownTarget extends TaggedError("UnknownTarget") {
+}
+export class UnknownQueueItem extends TaggedError("UnknownQueueItem") {
+}
+export class LaneExists extends TaggedError("LaneExists") {
+}
+export class InvalidLane extends TaggedError("InvalidLane") {
+}
+export class NothingToCompact extends TaggedError("NothingToCompact") {
+}
+export class Closed extends TaggedError("Closed") {
+}
+export class HarnessFault extends Error {
+    cause;
+    constructor(message, cause) {
+        super(message);
+        this.name = "HarnessFault";
+        this.cause = cause;
     }
-    return [...duplicates];
 }
-function applyStreamOptionsPatch(base, patch) {
-    const result = cloneStreamOptions(base);
-    if (!patch)
-        return result;
-    if (Object.hasOwn(patch, "transport"))
-        result.transport = patch.transport;
-    if (Object.hasOwn(patch, "timeoutMs"))
-        result.timeoutMs = patch.timeoutMs;
-    if (Object.hasOwn(patch, "maxRetries"))
-        result.maxRetries = patch.maxRetries;
-    if (Object.hasOwn(patch, "maxRetryDelayMs"))
-        result.maxRetryDelayMs = patch.maxRetryDelayMs;
-    if (Object.hasOwn(patch, "cacheRetention"))
-        result.cacheRetention = patch.cacheRetention;
-    if (Object.hasOwn(patch, "headers")) {
-        if (patch.headers === undefined) {
-            result.headers = undefined;
-        }
-        else {
-            const headers = { ...(result.headers ?? {}) };
-            for (const [key, value] of Object.entries(patch.headers)) {
-                if (value === undefined)
-                    delete headers[key];
-                else
-                    headers[key] = value;
-            }
-            result.headers = Object.keys(headers).length > 0 ? headers : undefined;
-        }
+export class HarnessClosed extends Error {
+    constructor() {
+        super("AgentHarness was closed while the operation was active");
+        this.name = "HarnessClosed";
     }
-    if (Object.hasOwn(patch, "metadata")) {
-        if (patch.metadata === undefined) {
-            result.metadata = undefined;
-        }
-        else {
-            const metadata = { ...(result.metadata ?? {}) };
-            for (const [key, value] of Object.entries(patch.metadata)) {
-                if (value === undefined)
-                    delete metadata[key];
-                else
-                    metadata[key] = value;
-            }
-            result.metadata = Object.keys(metadata).length > 0 ? metadata : undefined;
-        }
+}
+export class HarnessNotImplemented extends Error {
+    operation;
+    constructor(operation) {
+        super(`AgentHarness.${operation} is not implemented yet`);
+        this.name = "HarnessNotImplemented";
+        this.operation = operation;
     }
-    return result;
 }
-const SUBSCRIBER_EVENT_TYPE = "*";
-function normalizeHarnessError(error, fallbackCode) {
-    if (error instanceof AgentHarnessError)
-        return error;
-    const cause = toError(error);
-    if (cause instanceof SessionError)
-        return new AgentHarnessError("session", cause.message, cause);
-    if (cause instanceof CompactionError)
-        return new AgentHarnessError("compaction", cause.message, cause);
-    if (cause instanceof BranchSummaryError)
-        return new AgentHarnessError("branch_summary", cause.message, cause);
-    return new AgentHarnessError(fallbackCode, cause.message, cause);
-}
-function normalizeHookError(error) {
-    return normalizeHarnessError(error, "hook");
+class UnavailableRegistry {
+    operation;
+    isClosed;
+    constructor(operation, isClosed) {
+        this.operation = operation;
+        this.isClosed = isClosed;
+    }
+    on(_name, _handler, _options) {
+        throw this.isClosed() ? new HarnessClosed() : new HarnessNotImplemented(this.operation);
+    }
 }
 export class AgentHarness {
-    env;
+    name = "main";
     session;
-    models;
-    phase = "idle";
-    runAbortController;
-    runPromise;
-    pendingSessionWrites = [];
+    hooks;
+    events;
+    durableSession;
     model;
     thinkingLevel;
-    systemPrompt;
-    streamOptions;
-    resources;
-    tools = new Map();
     activeToolNames;
-    steerQueue = [];
-    steeringQueueMode;
-    followUpQueue = [];
-    followUpQueueMode;
-    nextTurnQueue = [];
-    handlers = new Map();
+    tools;
+    resources;
+    streamOptions;
+    retryPolicy;
+    compactionSettings;
+    steeringMode;
+    followUpMode;
+    closed = false;
     constructor(options) {
-        this.env = options.env;
+        this.durableSession = options.session;
         this.session = options.session;
-        this.models = options.models;
-        this.resources = options.resources ?? {};
-        this.streamOptions = cloneStreamOptions(options.streamOptions);
-        this.systemPrompt = options.systemPrompt;
-        this.validateUniqueNames((options.tools ?? []).map((tool) => tool.name), "Duplicate tool name(s)");
-        for (const tool of options.tools ?? []) {
-            this.tools.set(tool.name, tool);
-        }
+        this.hooks = new UnavailableRegistry("hooks.on", () => this.closed);
+        this.events = new UnavailableRegistry("events.on", () => this.closed);
         this.model = options.model;
         this.thinkingLevel = options.thinkingLevel ?? "off";
-        this.activeToolNames = options.activeToolNames
-            ? [...options.activeToolNames]
-            : (options.tools ?? []).map((tool) => tool.name);
-        this.validateUniqueNames(this.activeToolNames, "Duplicate active tool name(s)");
-        this.validateToolNames(this.activeToolNames);
-        this.steeringQueueMode = options.steeringMode ?? "one-at-a-time";
-        this.followUpQueueMode = options.followUpMode ?? "one-at-a-time";
-    }
-    getHandlers(type) {
-        return this.handlers.get(type);
-    }
-    async emitOwn(event, signal) {
-        for (const listener of this.getHandlers(SUBSCRIBER_EVENT_TYPE) ?? []) {
-            try {
-                await listener(event, signal);
-            }
-            catch (error) {
-                throw normalizeHookError(error);
-            }
-        }
-    }
-    async emitAny(event, signal) {
-        for (const listener of this.getHandlers(SUBSCRIBER_EVENT_TYPE) ?? []) {
-            try {
-                await listener(event, signal);
-            }
-            catch (error) {
-                throw normalizeHookError(error);
-            }
-        }
-    }
-    async emitHook(event) {
-        const handlers = this.getHandlers(event.type);
-        if (!handlers || handlers.size === 0)
-            return undefined;
-        let lastResult;
-        for (const handler of handlers) {
-            try {
-                const result = await handler(event);
-                if (result !== undefined) {
-                    lastResult = result;
-                }
-            }
-            catch (error) {
-                throw normalizeHookError(error);
-            }
-        }
-        return lastResult;
-    }
-    async emitBeforeProviderRequest(model, sessionId, streamOptions) {
-        const handlers = this.getHandlers("before_provider_request");
-        let current = cloneStreamOptions(streamOptions);
-        if (!handlers || handlers.size === 0)
-            return current;
-        for (const handler of handlers) {
-            try {
-                const result = await handler({
-                    type: "before_provider_request",
-                    model,
-                    sessionId,
-                    streamOptions: cloneStreamOptions(current),
-                });
-                if (result?.streamOptions) {
-                    current = applyStreamOptionsPatch(current, result.streamOptions);
-                }
-            }
-            catch (error) {
-                throw normalizeHookError(error);
-            }
-        }
-        return current;
-    }
-    async emitBeforeProviderPayload(model, payload) {
-        const handlers = this.getHandlers("before_provider_payload");
-        let current = payload;
-        if (!handlers || handlers.size === 0)
-            return current;
-        for (const handler of handlers) {
-            try {
-                const result = await handler({ type: "before_provider_payload", model, payload: current });
-                if (result !== undefined) {
-                    current = result.payload;
-                }
-            }
-            catch (error) {
-                throw normalizeHookError(error);
-            }
-        }
-        return current;
-    }
-    async emitQueueUpdate() {
-        await this.emitOwn({
-            type: "queue_update",
-            steer: [...this.steerQueue],
-            followUp: [...this.followUpQueue],
-            nextTurn: [...this.nextTurnQueue],
-        });
-    }
-    startRunPromise() {
-        let finish = () => { };
-        this.runPromise = new Promise((resolve) => {
-            finish = resolve;
-        });
-        return () => {
-            this.runPromise = undefined;
-            finish();
+        this.activeToolNames = [...(options.activeToolNames ?? options.tools?.map((tool) => tool.name) ?? [])];
+        this.tools = [...(options.tools ?? [])];
+        this.resources = {
+            skills: options.resources?.skills ? [...options.resources.skills] : undefined,
+            promptTemplates: options.resources?.promptTemplates ? [...options.resources.promptTemplates] : undefined,
         };
-    }
-    async createTurnState() {
-        const context = await this.session.buildContext();
-        const resources = this.getResources();
-        const sessionMetadata = await this.session.getMetadata();
-        const tools = [...this.tools.values()];
-        const activeTools = this.activeToolNames
-            .map((name) => this.tools.get(name))
-            .filter((tool) => tool !== undefined);
-        let systemPrompt = "You are a helpful assistant.";
-        if (typeof this.systemPrompt === "string") {
-            systemPrompt = this.systemPrompt;
-        }
-        else if (this.systemPrompt) {
-            systemPrompt = await this.systemPrompt({
-                env: this.env,
-                session: this.session,
-                model: this.model,
-                thinkingLevel: this.thinkingLevel,
-                activeTools,
-                resources,
-            });
-        }
-        return {
-            messages: context.messages,
-            resources,
-            streamOptions: cloneStreamOptions(this.streamOptions),
-            sessionId: sessionMetadata.id,
-            systemPrompt,
-            model: this.model,
-            thinkingLevel: this.thinkingLevel,
-            tools,
-            activeTools,
+        this.streamOptions = { ...(options.streamOptions ?? {}) };
+        this.retryPolicy = options.retry ?? { enabled: false, maxRetries: 0, baseDelayMs: 1000 };
+        this.compactionSettings = options.compaction ?? {
+            enabled: true,
+            reserveTokens: 16384,
+            keepRecentTokens: 20000,
         };
+        this.steeringMode = options.steeringMode ?? "one-at-a-time";
+        this.followUpMode = options.followUpMode ?? "one-at-a-time";
     }
-    createContext(turnState, systemPrompt) {
-        return {
-            systemPrompt: systemPrompt ?? turnState.systemPrompt,
-            messages: turnState.messages.slice(),
-            tools: turnState.activeTools.slice(),
-        };
+    static async create(options) {
+        const [record] = await options.session.findRecords({ limit: 1 });
+        if (record !== undefined)
+            throw new HarnessNotImplemented("create.restore");
+        return { harness: new AgentHarness(options), suspended: [] };
     }
-    createStreamFn(getTurnState) {
-        return async (model, context, streamOptions) => {
-            const turnState = getTurnState();
-            const snapshotOptions = { ...turnState.streamOptions };
-            const requestOptions = await this.emitBeforeProviderRequest(model, turnState.sessionId, snapshotOptions);
-            return this.models.streamSimple(model, context, {
-                cacheRetention: requestOptions.cacheRetention,
-                headers: requestOptions.headers,
-                maxRetries: requestOptions.maxRetries,
-                maxRetryDelayMs: requestOptions.maxRetryDelayMs,
-                metadata: requestOptions.metadata,
-                onPayload: async (payload) => await this.emitBeforeProviderPayload(model, payload),
-                onResponse: async (response) => {
-                    const headers = { ...response.headers };
-                    await this.emitOwn({ type: "after_provider_response", status: response.status, headers }, streamOptions?.signal);
-                },
-                reasoning: streamOptions?.reasoning,
-                signal: streamOptions?.signal,
-                sessionId: turnState.sessionId,
-                timeoutMs: requestOptions.timeoutMs,
-                transport: requestOptions.transport,
-            });
-        };
+    unavailable(operation) {
+        return Promise.reject(this.closed ? new HarnessClosed() : new HarnessNotImplemented(operation));
     }
-    async drainQueuedMessages(queue, mode) {
-        const messages = mode === "all" ? queue.splice(0) : queue.splice(0, 1);
-        if (messages.length === 0)
-            return messages;
-        try {
-            await this.emitQueueUpdate();
-            return messages;
-        }
-        catch (error) {
-            queue.unshift(...messages);
-            throw normalizeHookError(error);
-        }
+    async getLeafId() {
+        return this.durableSession.getLeafId();
     }
-    createLoopConfig(getTurnState, setTurnState) {
-        const turnState = getTurnState();
-        return {
-            model: turnState.model,
-            reasoning: turnState.thinkingLevel === "off" ? undefined : turnState.thinkingLevel,
-            convertToLlm,
-            transformContext: async (messages) => {
-                const result = await this.emitHook({ type: "context", messages: [...messages] });
-                return result?.messages ?? messages;
-            },
-            beforeToolCall: async ({ toolCall, args }) => {
-                const result = await this.emitHook({
-                    type: "tool_call",
-                    toolCallId: toolCall.id,
-                    toolName: toolCall.name,
-                    input: args,
-                });
-                return result ? { block: result.block, reason: result.reason } : undefined;
-            },
-            afterToolCall: async ({ toolCall, args, result, isError }) => {
-                const patch = await this.emitHook({
-                    type: "tool_result",
-                    toolCallId: toolCall.id,
-                    toolName: toolCall.name,
-                    input: args,
-                    content: result.content,
-                    details: result.details,
-                    isError,
-                });
-                return patch
-                    ? { content: patch.content, details: patch.details, isError: patch.isError, terminate: patch.terminate }
-                    : undefined;
-            },
-            prepareNextTurn: async () => {
-                await this.flushPendingSessionWrites();
-                const nextTurnState = await this.createTurnState();
-                setTurnState(nextTurnState);
-                return {
-                    context: this.createContext(nextTurnState),
-                    model: nextTurnState.model,
-                    thinkingLevel: nextTurnState.thinkingLevel,
-                };
-            },
-            getSteeringMessages: async () => this.drainQueuedMessages(this.steerQueue, this.steeringQueueMode),
-            getFollowUpMessages: async () => this.drainQueuedMessages(this.followUpQueue, this.followUpQueueMode),
-        };
+    async prompt(_input, _images) {
+        return this.unavailable("prompt");
     }
-    validateUniqueNames(names, message) {
-        const duplicates = findDuplicateNames(names);
-        if (duplicates.length > 0)
-            throw new AgentHarnessError("invalid_argument", `${message}: ${duplicates.join(", ")}`);
+    async skill(_name, _additionalInstructions) {
+        return this.unavailable("skill");
     }
-    validateToolNames(toolNames, tools = this.tools) {
-        this.validateUniqueNames(toolNames, "Duplicate active tool name(s)");
-        const missing = toolNames.filter((name) => !tools.has(name));
-        if (missing.length > 0)
-            throw new AgentHarnessError("invalid_argument", `Unknown tool(s): ${missing.join(", ")}`);
+    async promptFromTemplate(_name, _args) {
+        return this.unavailable("promptFromTemplate");
     }
-    async flushPendingSessionWrites() {
-        while (this.pendingSessionWrites.length > 0) {
-            const write = this.pendingSessionWrites[0];
-            if (write.type === "message") {
-                await this.session.appendMessage(write.message);
-            }
-            else if (write.type === "model_change") {
-                await this.session.appendModelChange(write.provider, write.modelId);
-            }
-            else if (write.type === "thinking_level_change") {
-                await this.session.appendThinkingLevelChange(write.thinkingLevel);
-            }
-            else if (write.type === "active_tools_change") {
-                await this.session.appendActiveToolsChange(write.activeToolNames);
-            }
-            else if (write.type === "custom") {
-                await this.session.appendCustomEntry(write.customType, write.data);
-            }
-            else if (write.type === "custom_message") {
-                await this.session.appendCustomMessageEntry(write.customType, write.content, write.display, write.details);
-            }
-            else if (write.type === "label") {
-                await this.session.appendLabel(write.targetId, write.label);
-            }
-            else if (write.type === "session_info") {
-                await this.session.appendSessionName(write.name ?? "");
-            }
-            else if (write.type === "leaf") {
-                await this.session.getStorage().setLeafId(write.targetId);
-            }
-            this.pendingSessionWrites.shift();
-        }
+    async compact(_options) {
+        return this.unavailable("compact");
     }
-    async handleAgentEvent(event, signal) {
-        if (event.type === "message_end") {
-            await this.session.appendMessage(event.message);
-            await this.emitAny(event, signal);
-            return;
-        }
-        if (event.type === "turn_end") {
-            let eventError;
-            try {
-                await this.emitAny(event, signal);
-            }
-            catch (error) {
-                eventError = error;
-            }
-            const hadPendingMutations = this.pendingSessionWrites.length > 0;
-            await this.flushPendingSessionWrites();
-            if (eventError)
-                throw eventError;
-            await this.emitOwn({ type: "save_point", hadPendingMutations });
-            return;
-        }
-        if (event.type === "agent_end") {
-            await this.flushPendingSessionWrites();
-            this.phase = "idle";
-            await this.emitAny(event, signal);
-            await this.emitOwn({ type: "settled", nextTurnCount: this.nextTurnQueue.length }, signal);
-            return;
-        }
-        await this.emitAny(event, signal);
+    async navigateTree(_targetId, _options) {
+        return this.unavailable("navigateTree");
     }
-    async emitRunFailure(model, error, aborted, signal) {
-        const failureMessage = createFailureMessage(model, error, aborted);
-        await this.handleAgentEvent({ type: "message_start", message: failureMessage }, signal);
-        await this.handleAgentEvent({ type: "message_end", message: failureMessage }, signal);
-        await this.handleAgentEvent({ type: "turn_end", message: failureMessage, toolResults: [] }, signal);
-        await this.handleAgentEvent({ type: "agent_end", messages: [failureMessage] }, signal);
-        return [failureMessage];
+    async resume() {
+        return this.unavailable("resume");
     }
-    async executeTurn(turnState, text, options) {
-        let activeTurnState = turnState;
-        let messages = [createUserMessage(text, options?.images)];
-        if (this.nextTurnQueue.length > 0) {
-            const queuedMessages = this.nextTurnQueue.splice(0);
-            try {
-                await this.emitQueueUpdate();
-            }
-            catch (error) {
-                this.nextTurnQueue.unshift(...queuedMessages);
-                throw normalizeHookError(error);
-            }
-            messages = [...queuedMessages, messages[0]];
-        }
-        const beforeResult = await this.emitHook({
-            type: "before_agent_start",
-            prompt: text,
-            images: options?.images,
-            systemPrompt: turnState.systemPrompt,
-            resources: turnState.resources,
-        });
-        if (beforeResult?.messages)
-            messages = [...messages, ...beforeResult.messages];
-        const abortController = new AbortController();
-        const getTurnState = () => activeTurnState;
-        const setTurnState = (nextTurnState) => {
-            activeTurnState = nextTurnState;
-        };
-        this.runAbortController = abortController;
-        const runResultPromise = (async () => {
-            try {
-                return await runAgentLoop(messages, this.createContext(turnState, beforeResult?.systemPrompt), this.createLoopConfig(getTurnState, setTurnState), (event) => this.handleAgentEvent(event, abortController.signal), abortController.signal, this.createStreamFn(getTurnState));
-            }
-            catch (error) {
-                try {
-                    return await this.emitRunFailure(activeTurnState.model, error, abortController.signal.aborted, abortController.signal);
-                }
-                catch (failureError) {
-                    const cause = new AggregateError([toError(error), toError(failureError)], "Agent run failed and failure reporting failed");
-                    throw new AgentHarnessError("unknown", cause.message, cause);
-                }
-            }
-        })();
-        try {
-            const newMessages = await runResultPromise;
-            for (let i = newMessages.length - 1; i >= 0; i--) {
-                const message = newMessages[i];
-                if (message.role === "assistant") {
-                    return message;
-                }
-            }
-            throw new AgentHarnessError("invalid_state", "AgentHarness prompt completed without an assistant message");
-        }
-        finally {
-            try {
-                await this.flushPendingSessionWrites();
-            }
-            finally {
-                this.runAbortController = undefined;
-            }
-        }
+    async abort() {
+        return this.unavailable("abort");
     }
-    async prompt(text, options) {
-        if (this.phase !== "idle")
-            throw new AgentHarnessError("busy", "AgentHarness is busy");
-        this.phase = "turn";
-        const finishRunPromise = this.startRunPromise();
-        try {
-            const turnState = await this.createTurnState();
-            return await this.executeTurn(turnState, text, options);
-        }
-        catch (error) {
-            this.phase = "idle";
-            throw normalizeHarnessError(error, "unknown");
-        }
-        finally {
-            finishRunPromise();
-        }
+    async steer(_input, _images) {
+        return this.unavailable("steer");
     }
-    async skill(name, additionalInstructions) {
-        if (this.phase !== "idle")
-            throw new AgentHarnessError("busy", "AgentHarness is busy");
-        this.phase = "turn";
-        const finishRunPromise = this.startRunPromise();
-        try {
-            const turnState = await this.createTurnState();
-            const skill = (turnState.resources.skills ?? []).find((candidate) => candidate.name === name);
-            if (!skill)
-                throw new AgentHarnessError("invalid_argument", `Unknown skill: ${name}`);
-            return await this.executeTurn(turnState, formatSkillInvocation(skill, additionalInstructions));
-        }
-        catch (error) {
-            this.phase = "idle";
-            throw normalizeHarnessError(error, "unknown");
-        }
-        finally {
-            finishRunPromise();
-        }
+    async followUp(_input, _images) {
+        return this.unavailable("followUp");
     }
-    async promptFromTemplate(name, args = []) {
-        if (this.phase !== "idle")
-            throw new AgentHarnessError("busy", "AgentHarness is busy");
-        this.phase = "turn";
-        const finishRunPromise = this.startRunPromise();
-        try {
-            const turnState = await this.createTurnState();
-            const template = (turnState.resources.promptTemplates ?? []).find((candidate) => candidate.name === name);
-            if (!template)
-                throw new AgentHarnessError("invalid_argument", `Unknown prompt template: ${name}`);
-            return await this.executeTurn(turnState, formatPromptTemplateInvocation(template, args));
-        }
-        catch (error) {
-            this.phase = "idle";
-            throw normalizeHarnessError(error, "unknown");
-        }
-        finally {
-            finishRunPromise();
-        }
+    async nextRun(_input, _images) {
+        return this.unavailable("nextRun");
     }
-    async steer(text, options) {
-        if (this.phase === "idle")
-            throw new AgentHarnessError("invalid_state", "Cannot steer while idle");
-        this.steerQueue.push(createUserMessage(text, options?.images));
-        await this.emitQueueUpdate();
+    async cancelQueued(_entryId) {
+        return this.unavailable("cancelQueued");
     }
-    async followUp(text, options) {
-        if (this.phase === "idle")
-            throw new AgentHarnessError("invalid_state", "Cannot follow up while idle");
-        this.followUpQueue.push(createUserMessage(text, options?.images));
-        await this.emitQueueUpdate();
+    async recordUsage(_usage, _options) {
+        return this.unavailable("recordUsage");
     }
-    async nextTurn(text, options) {
-        this.nextTurnQueue.push(createUserMessage(text, options?.images));
-        await this.emitQueueUpdate();
+    async waitForIdle() {
+        return this.unavailable("waitForIdle");
     }
-    async appendMessage(message) {
-        try {
-            if (this.phase === "idle") {
-                await this.session.appendMessage(message);
-            }
-            else {
-                this.pendingSessionWrites.push({ type: "message", message });
-            }
-        }
-        catch (error) {
-            throw normalizeHarnessError(error, "session");
-        }
+    async runWhenIdle(_callback) {
+        return this.unavailable("runWhenIdle");
     }
-    async compact(customInstructions) {
-        if (this.phase !== "idle")
-            throw new AgentHarnessError("busy", "compact() requires idle harness");
-        this.phase = "compaction";
-        try {
-            const model = this.model;
-            if (!model)
-                throw new AgentHarnessError("invalid_state", "No model set for compaction");
-            const branchEntries = await this.session.getBranch();
-            const preparationResult = prepareCompaction(branchEntries, DEFAULT_COMPACTION_SETTINGS);
-            if (!preparationResult.ok)
-                throw preparationResult.error;
-            const preparation = preparationResult.value;
-            if (!preparation)
-                throw new AgentHarnessError("compaction", "Nothing to compact");
-            const hookResult = await this.emitHook({
-                type: "session_before_compact",
-                preparation,
-                branchEntries,
-                customInstructions,
-                signal: new AbortController().signal,
-            });
-            if (hookResult?.cancel)
-                throw new AgentHarnessError("compaction", "Compaction cancelled");
-            const provided = hookResult?.compaction;
-            const compactResult = provided
-                ? { ok: true, value: provided }
-                : await compact(preparation, this.models, model, customInstructions, undefined, this.thinkingLevel);
-            if (!compactResult.ok)
-                throw compactResult.error;
-            const result = compactResult.value;
-            const entryId = await this.session.appendCompaction(result.summary, result.firstKeptEntryId, result.tokensBefore, result.details, provided !== undefined);
-            const entry = await this.session.getEntry(entryId);
-            if (entry?.type === "compaction") {
-                await this.emitOwn({ type: "session_compact", compactionEntry: entry, fromHook: provided !== undefined });
-            }
-            return result;
-        }
-        catch (error) {
-            throw normalizeHarnessError(error, "compaction");
-        }
-        finally {
-            this.phase = "idle";
-        }
+    async peekAction() {
+        return this.unavailable("peekAction");
     }
-    async navigateTree(targetId, options) {
-        if (this.phase !== "idle")
-            throw new AgentHarnessError("busy", "navigateTree() requires idle harness");
-        this.phase = "branch_summary";
-        try {
-            const oldLeafId = await this.session.getLeafId();
-            if (oldLeafId === targetId)
-                return { cancelled: false };
-            const targetEntry = await this.session.getEntry(targetId);
-            if (!targetEntry)
-                throw new AgentHarnessError("invalid_argument", `Entry ${targetId} not found`);
-            const { entries, commonAncestorId } = await collectEntriesForBranchSummary(this.session, oldLeafId, targetId);
-            const preparation = {
-                targetId,
-                oldLeafId,
-                commonAncestorId,
-                entriesToSummarize: entries,
-                userWantsSummary: options?.summarize ?? false,
-                customInstructions: options?.customInstructions,
-                replaceInstructions: options?.replaceInstructions,
-                label: options?.label,
-            };
-            const signal = new AbortController().signal;
-            const hookResult = await this.emitHook({ type: "session_before_tree", preparation, signal });
-            if (hookResult?.cancel)
-                return { cancelled: true };
-            let summaryEntry;
-            let summaryText = hookResult?.summary?.summary;
-            let summaryDetails = hookResult?.summary?.details;
-            if (!summaryText && options?.summarize && entries.length > 0) {
-                const model = this.model;
-                if (!model)
-                    throw new AgentHarnessError("invalid_state", "No model set for branch summary");
-                const branchSummary = await generateBranchSummary(entries, {
-                    models: this.models,
-                    model,
-                    signal: new AbortController().signal,
-                    customInstructions: hookResult?.customInstructions ?? options?.customInstructions,
-                    replaceInstructions: hookResult?.replaceInstructions ?? options?.replaceInstructions,
-                });
-                if (!branchSummary.ok) {
-                    if (branchSummary.error.code === "aborted")
-                        return { cancelled: true };
-                    throw new AgentHarnessError("branch_summary", branchSummary.error.message, branchSummary.error);
-                }
-                summaryText = branchSummary.value.summary;
-                summaryDetails = {
-                    readFiles: branchSummary.value.readFiles,
-                    modifiedFiles: branchSummary.value.modifiedFiles,
-                };
-            }
-            let editorText;
-            let newLeafId;
-            if (targetEntry.type === "message" && targetEntry.message.role === "user") {
-                newLeafId = targetEntry.parentId;
-                const content = targetEntry.message.content;
-                editorText =
-                    typeof content === "string"
-                        ? content
-                        : content
-                            .filter((c) => c.type === "text")
-                            .map((c) => c.text)
-                            .join("");
-            }
-            else if (targetEntry.type === "custom_message") {
-                newLeafId = targetEntry.parentId;
-                editorText =
-                    typeof targetEntry.content === "string"
-                        ? targetEntry.content
-                        : targetEntry.content
-                            .filter((c) => c.type === "text")
-                            .map((c) => c.text)
-                            .join("");
-            }
-            else {
-                newLeafId = targetId;
-            }
-            const summaryId = await this.session.moveTo(newLeafId, summaryText
-                ? { summary: summaryText, details: summaryDetails, fromHook: hookResult?.summary !== undefined }
-                : undefined);
-            if (summaryId) {
-                const entry = await this.session.getEntry(summaryId);
-                if (entry?.type === "branch_summary")
-                    summaryEntry = entry;
-            }
-            await this.emitOwn({
-                type: "session_tree",
-                newLeafId: await this.session.getLeafId(),
-                oldLeafId,
-                summaryEntry,
-                fromHook: hookResult?.summary !== undefined,
-            });
-            return { cancelled: false, editorText, summaryEntry };
-        }
-        catch (error) {
-            throw normalizeHarnessError(error, "branch_summary");
-        }
-        finally {
-            this.phase = "idle";
-        }
+    async executeAction() {
+        return this.unavailable("executeAction");
     }
-    getModel() {
+    async runToCompletion() {
+        return this.unavailable("runToCompletion");
+    }
+    async getModel() {
         return this.model;
     }
     async setModel(model) {
-        try {
-            const previousModel = this.model;
-            if (this.phase === "idle") {
-                await this.session.appendModelChange(model.provider, model.id);
-            }
-            else {
-                this.pendingSessionWrites.push({ type: "model_change", provider: model.provider, modelId: model.id });
-            }
-            this.model = model;
-            await this.emitOwn({ type: "model_update", model, previousModel, source: "set" });
-        }
-        catch (error) {
-            throw normalizeHarnessError(error, "session");
-        }
+        this.model = model;
     }
-    getThinkingLevel() {
+    async getThinkingLevel() {
         return this.thinkingLevel;
     }
     async setThinkingLevel(level) {
-        try {
-            const previousLevel = this.thinkingLevel;
-            if (this.phase === "idle") {
-                await this.session.appendThinkingLevelChange(level);
-            }
-            else {
-                this.pendingSessionWrites.push({ type: "thinking_level_change", thinkingLevel: level });
-            }
-            this.thinkingLevel = level;
-            await this.emitOwn({ type: "thinking_level_update", level, previousLevel });
-        }
-        catch (error) {
-            throw normalizeHarnessError(error, "session");
-        }
+        this.thinkingLevel = level;
     }
-    getTools() {
-        return [...this.tools.values()];
+    async getActiveTools() {
+        return [...this.activeToolNames];
     }
-    async setTools(tools, activeToolNames) {
-        try {
-            this.validateUniqueNames(tools.map((tool) => tool.name), "Duplicate tool name(s)");
-            const nextTools = new Map(tools.map((tool) => [tool.name, tool]));
-            const nextActiveToolNames = activeToolNames ? [...activeToolNames] : this.activeToolNames;
-            this.validateToolNames(nextActiveToolNames, nextTools);
-            const previousToolNames = [...this.tools.keys()];
-            const previousActiveToolNames = [...this.activeToolNames];
-            if (this.phase === "idle") {
-                await this.session.appendActiveToolsChange(nextActiveToolNames);
-            }
-            else {
-                this.pendingSessionWrites.push({ type: "active_tools_change", activeToolNames: [...nextActiveToolNames] });
-            }
-            this.tools = nextTools;
-            this.activeToolNames = [...nextActiveToolNames];
-            await this.emitOwn({
-                type: "tools_update",
-                toolNames: [...this.tools.keys()],
-                previousToolNames,
-                activeToolNames: [...this.activeToolNames],
-                previousActiveToolNames,
-                source: "set",
-            });
-        }
-        catch (error) {
-            throw normalizeHarnessError(error, "invalid_argument");
-        }
+    async setActiveTools(names) {
+        this.activeToolNames = [...names];
     }
-    getActiveTools() {
-        return this.activeToolNames.map((name) => this.tools.get(name));
+    async watch() {
+        return this.unavailable("watch");
     }
-    async setActiveTools(toolNames) {
-        try {
-            this.validateToolNames(toolNames);
-            const previousToolNames = [...this.tools.keys()];
-            const previousActiveToolNames = [...this.activeToolNames];
-            if (this.phase === "idle") {
-                await this.session.appendActiveToolsChange(toolNames);
-            }
-            else {
-                this.pendingSessionWrites.push({ type: "active_tools_change", activeToolNames: [...toolNames] });
-            }
-            this.activeToolNames = [...toolNames];
-            await this.emitOwn({
-                type: "tools_update",
-                toolNames: [...this.tools.keys()],
-                previousToolNames,
-                activeToolNames: [...this.activeToolNames],
-                previousActiveToolNames,
-                source: "set",
-            });
-        }
-        catch (error) {
-            throw normalizeHarnessError(error, "invalid_argument");
-        }
+    async lane(_name) {
+        return this.unavailable("lane");
     }
-    getSteeringMode() {
-        return this.steeringQueueMode;
+    async createLane(_name, _at) {
+        return this.unavailable("createLane");
     }
-    async setSteeringMode(mode) {
-        this.steeringQueueMode = mode;
+    async lanes() {
+        return this.unavailable("lanes");
     }
-    getFollowUpMode() {
-        return this.followUpQueueMode;
+    async getTools() {
+        return [...this.tools];
     }
-    async setFollowUpMode(mode) {
-        this.followUpQueueMode = mode;
+    async setTools(tools, activeNames) {
+        this.tools = [...tools];
+        this.activeToolNames = [...(activeNames ?? tools.map((tool) => tool.name))];
     }
-    getResources() {
+    async getResources() {
         return {
-            skills: this.resources.skills?.slice(),
-            promptTemplates: this.resources.promptTemplates?.slice(),
+            skills: this.resources.skills ? [...this.resources.skills] : undefined,
+            promptTemplates: this.resources.promptTemplates ? [...this.resources.promptTemplates] : undefined,
         };
     }
     async setResources(resources) {
-        const previousResources = this.getResources();
         this.resources = {
-            skills: resources.skills?.slice(),
-            promptTemplates: resources.promptTemplates?.slice(),
+            skills: resources.skills ? [...resources.skills] : undefined,
+            promptTemplates: resources.promptTemplates ? [...resources.promptTemplates] : undefined,
         };
-        await this.emitOwn({ type: "resources_update", resources: this.getResources(), previousResources });
     }
-    getStreamOptions() {
-        return cloneStreamOptions(this.streamOptions);
+    async getStreamOptions() {
+        return { ...this.streamOptions };
     }
-    async setStreamOptions(streamOptions) {
-        this.streamOptions = cloneStreamOptions(streamOptions);
+    async setStreamOptions(options) {
+        this.streamOptions = { ...options };
     }
-    async abort() {
-        const clearedSteer = [...this.steerQueue];
-        const clearedFollowUp = [...this.followUpQueue];
-        this.steerQueue = [];
-        this.followUpQueue = [];
-        this.runAbortController?.abort();
-        const errors = [];
-        try {
-            await this.emitQueueUpdate();
-        }
-        catch (error) {
-            errors.push(toError(error));
-        }
-        try {
-            await this.waitForIdle();
-        }
-        catch (error) {
-            errors.push(toError(error));
-        }
-        try {
-            await this.emitOwn({ type: "abort", clearedSteer, clearedFollowUp });
-        }
-        catch (error) {
-            errors.push(toError(error));
-        }
-        if (errors.length > 0) {
-            const cause = errors.length === 1 ? errors[0] : new AggregateError(errors, "Abort completed with errors");
-            throw normalizeHarnessError(cause, "hook");
-        }
-        return { clearedSteer, clearedFollowUp };
+    async getRetryPolicy() {
+        return { ...this.retryPolicy };
     }
-    async waitForIdle() {
-        await this.runPromise;
+    async setRetryPolicy(policy) {
+        this.retryPolicy = { ...policy };
     }
-    subscribe(listener) {
-        let handlers = this.handlers.get(SUBSCRIBER_EVENT_TYPE);
-        if (!handlers) {
-            handlers = new Set();
-            this.handlers.set(SUBSCRIBER_EVENT_TYPE, handlers);
-        }
-        handlers.add(listener);
-        return () => handlers.delete(listener);
+    async getCompactionSettings() {
+        return { ...this.compactionSettings };
     }
-    on(type, handler) {
-        let handlers = this.handlers.get(type);
-        if (!handlers) {
-            handlers = new Set();
-            this.handlers.set(type, handlers);
-        }
-        handlers.add(handler);
-        return () => handlers.delete(handler);
+    async setCompactionSettings(settings) {
+        this.compactionSettings = { ...settings };
+    }
+    async getSteeringMode() {
+        return this.steeringMode;
+    }
+    async setSteeringMode(mode) {
+        this.steeringMode = mode;
+    }
+    async getFollowUpMode() {
+        return this.followUpMode;
+    }
+    async setFollowUpMode(mode) {
+        this.followUpMode = mode;
+    }
+    async watchSession() {
+        return this.unavailable("watchSession");
+    }
+    async close() {
+        this.closed = true;
     }
 }
 //# sourceMappingURL=agent-harness.js.map

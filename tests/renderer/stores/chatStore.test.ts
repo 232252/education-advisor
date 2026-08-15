@@ -1,6 +1,6 @@
 // =============================================================
-// Chat Store 测试 — 流式事件处理、会话管理
-// 覆盖：handleStreamEvent、createSession、switchSession、deleteSession
+// Chat Store 测试 — 会话管理、Agent 事件桥接
+// 覆盖：createSession、switchSession、deleteSession、handleAgentEvent
 // =============================================================
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -65,7 +65,6 @@ describe('chatStore', () => {
       sessionId: 'default',
       historyLoaded: false,
       sessions: [],
-      chatMode: 'direct',
       selectedAgentId: '',
     })
   })
@@ -105,64 +104,6 @@ describe('chatStore', () => {
       const call = mockSaveMessage.mock.calls[0][0]
       expect(call.content).toBe('persist-me')
       expect(call.role).toBe('user')
-    })
-  })
-
-  describe('handleStreamEvent', () => {
-    it('start 事件应开始流式 + 添加空 assistant 消息', () => {
-      useChatStore.getState().handleStreamEvent({ type: 'start', model: 'm', provider: 'p' })
-      expect(useChatStore.getState().isStreaming).toBe(true)
-      const msgs = useChatStore.getState().messages
-      expect(msgs).toHaveLength(1)
-      expect(msgs[0].role).toBe('assistant')
-      expect(msgs[0].content).toBe('')
-    })
-
-    it('text_delta 应追加到最后的 assistant 消息', () => {
-      useChatStore.getState().handleStreamEvent({ type: 'start', model: 'm', provider: 'p' })
-      useChatStore.getState().handleStreamEvent({ type: 'text_delta', delta: 'Hello ' })
-      useChatStore.getState().handleStreamEvent({ type: 'text_delta', delta: 'World' })
-      // flush delta 批处理 (50ms 批处理优化)
-      useChatStore.getState().flushDeltas()
-      const last = useChatStore.getState().messages[0]
-      expect(last.content).toBe('Hello World')
-    })
-
-    it('done 事件应结束流式 + 记录 usage', () => {
-      useChatStore.getState().handleStreamEvent({ type: 'start', model: 'm', provider: 'p' })
-      useChatStore.getState().handleStreamEvent({ type: 'text_delta', delta: 'done content' })
-      useChatStore.getState().handleStreamEvent({
-        type: 'done',
-        usage: { inputTokens: 10, outputTokens: 20, cacheReadTokens: 0, cacheWriteTokens: 0 },
-        cost: 0.001,
-      })
-      const s = useChatStore.getState()
-      expect(s.isStreaming).toBe(false)
-      expect(s.lastUsage?.inputTokens).toBe(10)
-      expect(s.lastCost).toBe(0.001)
-    })
-
-    it('error 事件应添加错误消息 + 结束流式', () => {
-      useChatStore.getState().handleStreamEvent({ type: 'start', model: 'm', provider: 'p' })
-      useChatStore.getState().handleStreamEvent({
-        type: 'error',
-        message: 'connection lost',
-        retryable: false,
-      })
-      const s = useChatStore.getState()
-      expect(s.isStreaming).toBe(false)
-      const last = s.messages[s.messages.length - 1]
-      expect(last.content).toMatch(/错误.*connection lost/)
-    })
-
-    it('thinking_delta 应追加到 thinking 字段', () => {
-      useChatStore.getState().handleStreamEvent({ type: 'start', model: 'm', provider: 'p' })
-      useChatStore.getState().handleStreamEvent({ type: 'thinking_start' })
-      useChatStore.getState().handleStreamEvent({ type: 'thinking_delta', delta: 'thinking...' })
-      // flush delta 批处理 (50ms 批处理优化)
-      useChatStore.getState().flushDeltas()
-      const last = useChatStore.getState().messages[0]
-      expect(last.thinking).toBe('thinking...')
     })
   })
 

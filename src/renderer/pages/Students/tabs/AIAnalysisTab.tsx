@@ -4,6 +4,7 @@
 // =============================================================
 
 import type { AgentListItem } from '@shared/types'
+import { Bot } from 'lucide-react'
 import { useMemo } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
 import { btnStyle, CARD_BASE, cn } from '../../../lib/ui-utils'
@@ -113,7 +114,11 @@ export function AIAnalysisTab({
         </h5>
         <div className="space-y-1.5 max-h-48 overflow-y-auto">
           {enabledAgents.length === 0 ? (
-            <EmptyState icon="🤖" title="暂无可用 Agent" className="py-4" />
+            <EmptyState
+              icon={<Bot className="h-6 w-6" />}
+              title="暂无可用 Agent"
+              className="py-4"
+            />
           ) : (
             enabledAgents.map((agent) => (
               <div

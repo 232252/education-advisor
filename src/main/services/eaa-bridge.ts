@@ -1,118 +1,41 @@
 // =============================================================
-// EAA Bridge — Rust 子进程管理器
+// EAA Bridge — Rust 子进程管理器（编排层）
 // 负责与 eaa 二进制通信，解析 JSON 输出
 // 支持 Windows / macOS / Linux 平台自适应
 // 跨平台降级：二进制不可用时返回友好错误而非依赖 PATH
+//
+// 纯逻辑已按职责拆分到 ./eaa/ 子模块：
+//   eaa/types.ts               类型 + getErrorMessage + 导出格式常量
+//   eaa/command-classification.ts  命令分类 + 参数脱敏 + args 构建
+//   eaa/platform.ts            平台常量 + 二进制路径解析
+//   eaa/process-executor.ts    子进程 spawn/超时/输出捕获
+//   eaa/output-parser.ts       stdout 解析/错误归一化
+//   eaa/legacy-migration.ts    数据目录解析 + legacy 迁移
+// 本文件保留 EAABridge 编排层与全部公共 API（行为零变化）
 // =============================================================
 
 import fs from 'node:fs'
 import path from 'node:path'
-import spawn from 'cross-spawn'
+import { debug } from '@shared/debug'
+import type spawn from 'cross-spawn'
 import { app } from 'electron'
-import { debug } from '../../shared/debug'
+import { sanitizeArgsForLog, WRITE_COMMANDS } from './eaa/command-classification'
+import {
+  cleanupStaleLock,
+  convertReasonCodes,
+  ensureDataDirStructure,
+  resolveDataDir,
+} from './eaa/legacy-migration'
+import { parseExportFormatsFromHelp } from './eaa/output-parser'
+import { resolveBinaryPath } from './eaa/platform'
+import type { ProcessExecutorContext } from './eaa/process-executor'
+import { executeProcess } from './eaa/process-executor'
+import type { EAACommand, EAAResult } from './eaa/types'
+import { SUPPORTED_EXPORT_FORMATS } from './eaa/types'
 
-export interface EAACommand {
-  command: string
-  args: string[]
-  timeout?: number
-  /** 显式指定是否需要 JSON 输出；不指定则按命令名自动判断 */
-  jsonOutput?: boolean
-  /** 强制跳过读缓存、重新 spawn 拉取（用于「刷新」按钮） */
-  forceRefresh?: boolean
-}
-
-/**
- * EAAResult — 统一返回结构
- * JSON 命令：data 为解析后的对象
- * 文本命令：data 为原始字符串
- */
-export interface EAAResult<T = unknown> {
-  success: boolean
-  data: T | null
-  stderr: string
-  exitCode: number
-}
-
-/**
- * 从 EAAResult 中提取最有用的错误信息。
- * TEXT_OUTPUT_COMMANDS 失败时 CLI 的详细错误在 data（字符串）里，
- * JSON 命令失败时在 stderr 里。此函数按优先级选取。
- */
-export function getErrorMessage(result: EAAResult, fallback = '未知错误'): string {
-  if (typeof result.data === 'string' && result.data.length > 0) return result.data
-  if (result.stderr && result.stderr.length > 0) return result.stderr
-  return fallback
-}
-
-/** 已知会产生 JSON 输出的命令（其余命令如 add/revert/export/dashboard 等为文本输出） */
-const JSON_COMPATIBLE_COMMANDS = new Set<string>([
-  'doctor',
-  'list',
-  'get',
-  'query',
-  'search',
-  'stats',
-  'report',
-  'find',
-  'show',
-  'status',
-  'history',
-  'summary',
-  'ranking',
-  'info',
-  'score',
-  'validate',
-  'range',
-  'tag',
-  'codes',
-  'list-students',
-  'replay',
-])
-
-/** 已知会产生文本/文件输出的命令（不追加 --output json） */
-const TEXT_OUTPUT_COMMANDS = new Set<string>([
-  'export', // 输出 CSV/JSONL/HTML 文件
-  'dashboard', // 生成 HTML 文件
-  'serve', // 启动 HTTP 服务
-  'init', // 初始化
-  'config', // 配置
-  'privacy', // 隐私子命令（嵌套命令有自己的输出格式）
-  'add',
-  'revert',
-  'add-student',
-  'delete-student',
-  'set-student-meta',
-  'import',
-])
-
-/**
- * EAA CLI export 命令支持的导出格式（静态降级列表）。
- * 与 Rust 源码 core/eaa-cli/src/commands.rs 的 cmd_export() 同步：
- *   Rust 仅支持 csv / jsonl / html 三种格式。
- * 当 EAA 二进制可用时，getSupportedExportFormats() 会动态探测实际支持的格式，
- * 此常量仅作为二进制不可用或探测失败时的降级。
- */
-export const SUPPORTED_EXPORT_FORMATS = ['csv', 'jsonl', 'html'] as const
-export type ExportFormat = (typeof SUPPORTED_EXPORT_FORMATS)[number]
-
-/** 所有其他命令均视为 JSON 兼容命令，自动追加 --output json */
-
-// 平台 → 二进制目录名映射
-const PLATFORM_DIR: Record<string, string> = {
-  'win32-x64': 'win32-x64',
-  'win32-arm64': 'win32-x64', // ARM 回退到 x64
-  'darwin-x64': 'darwin-x64',
-  'darwin-arm64': 'darwin-arm64',
-  'linux-x64': 'linux-x64',
-  'linux-arm64': 'linux-arm64',
-}
-
-// 平台 → 可执行文件名
-const BINARY_NAME: Record<string, string> = {
-  win32: 'eaa.exe',
-  darwin: 'eaa',
-  linux: 'eaa',
-}
+// 类型、getErrorMessage、SUPPORTED_EXPORT_FORMATS、ExportFormat 由此 re-export,
+// 保证所有旧命名导入（eaaBridge/getErrorMessage/EAABridge 等）不变
+export * from './eaa/types'
 
 export class EAABridge {
   private binaryPath: string | null = null
@@ -163,6 +86,23 @@ export class EAABridge {
    */
   private activeProcesses: Set<ReturnType<typeof spawn>> = new Set()
 
+  /**
+   * F1: 写命令成功回调(可选)。
+   * Agent 工具(eaa/tools)与飞书 runEAA 直接调 eaaBridge.execute 写数据后,
+   * ipc 层的 studentsCache/rankingCache/scoreCache/staticCache 无法感知——
+   * 通过此桥接层钩子通知(零分层污染:ipc 层注册回调,bridge 不 import ipc)。
+   * 幂等:重复调用 onWriteCommand 覆盖前一个回调。
+   */
+  private writeListener?: () => void
+
+  /**
+   * F1: 注册写命令成功回调(如 ipc 层缓存失效)。
+   * 回调异常会被捕获并告警,不影响命令结果返回。
+   */
+  onWriteCommand(cb: () => void): void {
+    this.writeListener = cb
+  }
+
   /** 生成读缓存键 */
   private readCacheKey(cmd: EAACommand): string {
     return `${cmd.command}:${cmd.args.join(' ')}`
@@ -171,45 +111,6 @@ export class EAABridge {
   /** 清空读缓存（供「刷新」按钮调用，确保下次读取重新拉取） */
   invalidateReadCache(): void {
     this.readCache.clear()
-  }
-
-  /**
-   * R152 修复 + R135 强化: 清理 stale .lock 文件
-   * EAA Rust CLI 通过 .lock 文件做进程互斥,进程崩溃后 lock 残留
-   * 导致后续需要 cache 的命令(list-students/score/ranking 等)报
-   * "IO error: 拒绝访问 (os error 5)" (Windows ERROR_ACCESS_DENIED)
-   *
-   * R135 修正: 阈值从 60s 降到 5s
-   *   - EAA 是 spawn-per-command,单次执行通常 < 1s(参见 EAA_BRIDGE.md 性能章节)
-   *   - 60s 阈值远大于实际执行时间,stale lock 永远不会被清理
-   *   - 5s 阈值留 5x 余量,既能清理 stale lock,又不会误删活动 lock
-   *
-   * @returns true 表示已清理 stale lock
-   */
-  private cleanupStaleLock(): boolean {
-    const lockPath = path.join(this.dataDir, '.lock')
-    try {
-      if (!fs.existsSync(lockPath)) return false
-      const stat = fs.statSync(lockPath)
-      const ageMs = Date.now() - stat.mtimeMs
-      // 5 秒阈值: EAA 单次执行 < 1s,5s 余量足够
-      if (ageMs < 5_000) {
-        // 锁文件很新,可能是另一个 EAA 进程正在运行,不删除
-        return false
-      }
-      fs.unlinkSync(lockPath)
-      console.warn(
-        `[EAA] Cleaned stale .lock file (age=${Math.round(ageMs / 1000)}s, mtime=${stat.mtime.toISOString()})`,
-      )
-      return true
-    } catch (err) {
-      // 删除失败不阻塞,记录后继续(EAA 命令本身会报更详细的错误)
-      console.warn(
-        '[EAA] Failed to cleanup stale .lock:',
-        err instanceof Error ? err.message : String(err),
-      )
-      return false
-    }
   }
 
   /**
@@ -222,20 +123,9 @@ export class EAABridge {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
   /**
-   * RISK 7 修复: 需要串行化的写命令集合(基于 TEXT_OUTPUT_COMMANDS 中会修改数据的命令)。
-   * doctor/list/get/query 等读命令不在此集合中,可并发执行。
+   * RISK 7 修复: 需要串行化的写命令集合(WRITE_COMMANDS)已拆分到
+   * eaa/command-classification.ts(逻辑逐字保留)。
    */
-  private static readonly WRITE_COMMANDS = new Set<string>([
-    'add',
-    'add-student',
-    'delete-student',
-    'set-student-meta',
-    'revert',
-    'import',
-    'init',
-    'config',
-    'privacy',
-  ])
 
   /**
    * High 修复: 对包含敏感信息(密码)的命令参数做脱敏,避免泄露到日志文件。
@@ -253,217 +143,20 @@ export class EAABridge {
     args: readonly string[],
     includesCommand = false,
   ): string[] {
-    if (command !== 'privacy') return [...args]
-    // privacy 子命令结构:
-    //   includesCommand=false: [subcommand, ...args]  (cmd.args)
-    //   includesCommand=true:  [command, subcommand, ...args]  (full args)
-    const sub = includesCommand ? args[1] : args[0]
-    const PASSWORD_CMDS = new Set(['init', 'load', 'disable'])
-    if (!PASSWORD_CMDS.has(sub)) return [...args]
-    if (includesCommand) {
-      // full args: ['privacy', 'init', 'password', ...] → ['privacy', 'init', '***', ...]
-      if (args.length >= 3) {
-        return [args[0], args[1], '***', ...args.slice(3)]
-      }
-    } else {
-      // cmd.args: ['init', 'password', ...] → ['init', '***', ...]
-      if (args.length >= 2) {
-        return [args[0], '***', ...args.slice(2)]
-      }
-    }
-    return [...args]
+    return sanitizeArgsForLog(command, args, includesCommand)
   }
 
   constructor() {
-    this.dataDir = this.resolveDataDir()
+    // __dirname 在编排层求值后传参,保证子模块中项目根解析与拆分前一致
+    this.dataDir = resolveDataDir(__dirname)
     try {
-      this.binaryPath = this.resolveBinaryPath()
+      this.binaryPath = resolveBinaryPath(__dirname)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       this.binaryPath = null
       this.unavailableReason = msg
       console.error('[EAA] Binary unavailable at startup:', msg)
     }
-  }
-
-  /**
-   * R154 修复: 解析 EAA 数据目录路径。
-   *
-   * **背景**: TRAE Sandbox 拦截 `%APPDATA%/Education Advisor/eaa-data/.lock` 写入,
-   * 导致 EAA 子进程所有需要 cache 的读命令(stats/list-students/ranking 等)报
-   * "IO error: 拒绝访问 (os error 5)"。doctor 命令不写 .lock 所以能成功。
-   *
-   * **方案**:
-   * - **真正打包模式** (process.resourcesPath 不含 node_modules/electron):
-   *   用 `app.getPath('userData')/eaa-data`(生产环境无沙箱限制)
-   * - **开发模式** (npx electron . 或 electron .): 优先用项目目录下的 `.eaa-data`
-   *   (TRAE 沙箱 allowlist 包含项目根目录)
-   *   - 如果新位置不存在但旧位置有数据,自动迁移(递归复制)
-   *   - 如果新位置已存在,直接用
-   *   - schema 目录在 dataDir 父目录下,initialize() 会自动创建并填充
-   *
-   * **注意**: `app.isPackaged` 在用 `electron .` 启动时不可靠(可能返回 true),
-   * 参见 agent-service.ts:102 的同样问题。这里用 process.resourcesPath 判断更可靠。
-   *
-   * **数据迁移**: 一次性,迁移后旧位置保留(用户可手动清理)。
-   * 迁移失败不阻塞,记录后继续(会用空目录,EAA 会重建)。
-   */
-  private resolveDataDir(): string {
-    // 开发/测试/CI 覆盖入口: 若设置了 EAA_DATA_DIR 环境变量,直接使用该目录。
-    // 用于在不修改代码的情况下切换数据目录(如沙箱权限受限时指向可写位置)。
-    // 生产环境通常不设置此变量,走下方常规解析。
-    const envOverride = process.env.EAA_DATA_DIR
-    if (envOverride && envOverride.trim().length > 0) {
-      try {
-        fs.mkdirSync(envOverride, { recursive: true })
-        return envOverride
-      } catch (err) {
-        console.warn(
-          `[EAA] EAA_DATA_DIR override failed (${envOverride}): ${err}, falling back to default`,
-        )
-      }
-    }
-
-    const legacyDir = path.join(app.getPath('userData'), 'eaa-data')
-
-    // 检测是否为真正打包模式(process.resourcesPath 不含 node_modules/electron)
-    // 开发模式下 process.resourcesPath 类似:
-    //   C:\...\node_modules\electron\dist\resources
-    // 打包模式下 process.resourcesPath 类似:
-    //   C:\Users\...\AppData\Local\Programs\Education Advisor\resources
-    const resourcesPath = process.resourcesPath || ''
-    const isRealPackaged =
-      !resourcesPath.includes('node_modules') && !resourcesPath.includes('electron')
-
-    // 真正打包模式: 用 userData/eaa-data(生产环境无沙箱限制)
-    if (isRealPackaged) {
-      return legacyDir
-    }
-
-    // 开发模式: 用项目目录下的 .eaa-data
-    // __dirname 在编译后是 dist/main/,项目根是上两级
-    const projectRoot = path.resolve(__dirname, '..', '..')
-    const devDir = path.join(projectRoot, '.eaa-data')
-
-    // 如果 devDir 已存在且有 entities 子目录,直接用(已迁移过)
-    if (fs.existsSync(devDir) && fs.existsSync(path.join(devDir, 'entities'))) {
-      return devDir
-    }
-
-    // devDir 不存在或为空,检查是否需要从 legacyDir 迁移
-    if (fs.existsSync(legacyDir) && fs.existsSync(path.join(legacyDir, 'entities'))) {
-      try {
-        console.log(
-          `[EAA] R154: Migrating data from "${legacyDir}" to "${devDir}" (TRAE sandbox workaround)`,
-        )
-        fs.mkdirSync(devDir, { recursive: true })
-        // 递归复制 legacyDir → devDir
-        const copyDir = (src: string, dst: string) => {
-          if (!fs.existsSync(dst)) fs.mkdirSync(dst, { recursive: true })
-          for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-            const s = path.join(src, entry.name)
-            const d = path.join(dst, entry.name)
-            if (entry.isDirectory()) {
-              copyDir(s, d)
-            } else if (entry.isFile()) {
-              // 跳过 .lock 文件(可能是 stale lock)
-              if (entry.name === '.lock') continue
-              fs.copyFileSync(s, d)
-            }
-          }
-        }
-        copyDir(legacyDir, devDir)
-        console.log('[EAA] R154: Migration completed')
-
-        // R139 修复: 同时迁移 schema 目录。
-        // EAA Rust CLI get_schema_dir() 在 dataDir 的**父目录**中寻找 schema/reason_codes.json,
-        // 因此 schema 与 dataDir 是兄弟关系,不在 dataDir 内部,不会被上面的 copyDir 复制。
-        // - legacy dataDir:  %APPDATA%/Education Advisor/eaa-data
-        // - legacy schema:   %APPDATA%/Education Advisor/schema
-        // - dev dataDir:     <projectRoot>/.eaa-data
-        // - dev schema 需求: <projectRoot>/schema
-        const legacySchemaDir = path.join(path.dirname(legacyDir), 'schema')
-        const devSchemaDir = path.join(projectRoot, 'schema')
-        if (
-          fs.existsSync(legacySchemaDir) &&
-          fs.existsSync(path.join(legacySchemaDir, 'reason_codes.json')) &&
-          !fs.existsSync(path.join(devSchemaDir, 'reason_codes.json'))
-        ) {
-          try {
-            if (!fs.existsSync(devSchemaDir)) fs.mkdirSync(devSchemaDir, { recursive: true })
-            copyDir(legacySchemaDir, devSchemaDir)
-            console.log(
-              `[EAA] R139: Migrated schema from "${legacySchemaDir}" to "${devSchemaDir}"`,
-            )
-          } catch (schemaErr) {
-            // schema 迁移失败不阻塞,initialize() 会从 config/reason-codes.json 重建
-            const msg = schemaErr instanceof Error ? schemaErr.message : String(schemaErr)
-            console.warn('[EAA] R139: Schema migration failed (will retry in initialize()):', msg)
-          }
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        console.error('[EAA] R154: Migration failed, using empty dir:', msg)
-      }
-    }
-
-    return devDir
-  }
-
-  /** 平台自适应解析二进制路径（找不到时抛错，不回退到 PATH） */
-  private resolveBinaryPath(): string {
-    const platform = process.platform
-    const arch = process.arch
-    const platformKey = `${platform}-${arch}`
-    const dirName = PLATFORM_DIR[platformKey]
-    const binName = BINARY_NAME[platform]
-
-    if (!dirName || !binName) {
-      throw new Error(
-        `EAA binary not available for platform ${platform}-${arch}. ` +
-          `Supported: win32-x64, win32-arm64, darwin-x64, darwin-arm64, linux-x64, linux-arm64.`,
-      )
-    }
-
-    // 优先检查 dev 路径(项目根 resources/eaa-binaries/) — 即使 app.isPackaged 为 true,
-    // 用 `electron .` 启动 packaged-asar 之外的项目时,app.isPackaged 不可靠,
-    // 此时 process.resourcesPath 指向 electron 自带的 resources 目录,而非项目 resources/。
-    const devResourcePath = path.join(
-      __dirname,
-      '..',
-      '..',
-      'resources',
-      'eaa-binaries',
-      dirName,
-      binName,
-    )
-    if (fs.existsSync(devResourcePath)) return devResourcePath
-
-    // Packaged 模式:用 process.resourcesPath/eaa-binaries/
-    if (app.isPackaged) {
-      const packagedPath = path.join(process.resourcesPath, 'eaa-binaries', dirName, binName)
-      if (fs.existsSync(packagedPath)) return packagedPath
-    }
-
-    // 回退：直接链接 education-advisor 的编译产物
-    const fallbackPath = path.join(
-      __dirname,
-      '..',
-      '..',
-      '..',
-      'education-advisor',
-      'core',
-      'eaa-cli',
-      'target',
-      'release',
-      binName,
-    )
-    if (fs.existsSync(fallbackPath)) return fallbackPath
-
-    throw new Error(
-      `EAA binary not found for ${platform}-${arch} (expected at ${devResourcePath} or ${fallbackPath}). ` +
-        `Please run 'npm run build:eaa' or download the binary from the releases page.`,
-    )
   }
 
   /** 设置隐私引擎密码（通过环境变量传递） */
@@ -503,59 +196,8 @@ export class EAABridge {
     const parentDir = path.dirname(this.dataDir)
     const schemaDir = path.join(parentDir, 'schema')
     try {
-      // 确保数据目录存在
-      if (!fs.existsSync(this.dataDir)) {
-        fs.mkdirSync(this.dataDir, { recursive: true })
-      }
-
-      // 确保内部子目录结构存在（EAA Rust CLI 要求的固定布局）
-      const subDirs = ['entities', 'events', 'logs']
-      for (const sub of subDirs) {
-        const subPath = path.join(this.dataDir, sub)
-        if (!fs.existsSync(subPath)) {
-          fs.mkdirSync(subPath, { recursive: true })
-        }
-      }
-
-      // 确保核心数据文件存在（空结构）
-      const entitiesPath = path.join(this.dataDir, 'entities', 'entities.json')
-      if (!fs.existsSync(entitiesPath)) {
-        const emptyEntities = JSON.stringify(
-          {
-            version: '1.0',
-            base_score: 100.0,
-            entities: {},
-          },
-          null,
-          2,
-        )
-        fs.writeFileSync(entitiesPath, emptyEntities, 'utf-8')
-        console.log('[EAA] Created empty entities/entities.json')
-      }
-
-      const eventsPath = path.join(this.dataDir, 'events', 'events.json')
-      if (!fs.existsSync(eventsPath)) {
-        fs.writeFileSync(eventsPath, '[]', 'utf-8')
-        console.log('[EAA] Created empty events/events.json')
-      }
-
-      const nameIndexPath = path.join(this.dataDir, 'entities', 'name_index.json')
-      if (!fs.existsSync(nameIndexPath)) {
-        fs.writeFileSync(nameIndexPath, '{}', 'utf-8')
-        console.log('[EAA] Created empty entities/name_index.json')
-      }
-
-      // 确保 reason-codes 配置文件存在
-      if (!fs.existsSync(schemaDir)) {
-        fs.mkdirSync(schemaDir, { recursive: true })
-      }
-
-      // R152 修复: 清理 stale .lock 文件
-      // EAA Rust CLI 通过 .lock 文件做进程互斥,进程崩溃后 lock 残留
-      // 导致后续所有需要 cache 的命令(list-students/score/ranking/rebuild-cache)
-      // 报 "IO error: 拒绝访问 (os error 5)" (Windows ERROR_ACCESS_DENIED)
-      // EAA 进程是短生命周期的(spawn per command),初始化时不应有进程持有锁
-      this.cleanupStaleLock()
+      // 确保数据目录/内部结构存在 + 清理 stale .lock(逻辑拆分到 eaa/legacy-migration.ts)
+      ensureDataDirStructure(this.dataDir, schemaDir)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[EAA] Failed to initialize EAA data dir:', msg)
@@ -572,41 +214,7 @@ export class EAABridge {
     // 项目根 config/reason-codes.json 是 flat 格式: { CODE: { label, category, delta } }
     // Rust EAA CLI 期望嵌套格式: { version, codes: { CODE: { label, category, score_delta } } }
     // 转换: 读源 JSON -> 包装成 { version, codes: {...} } -> 复制到两处
-    const convertReasonCodes = (raw: string): string => {
-      try {
-        const parsed = JSON.parse(raw) as Record<string, unknown>
-        const pAny = parsed as { codes?: unknown; version?: unknown }
-        if (pAny.codes && typeof pAny.codes === 'object') {
-          return JSON.stringify(parsed, null, 2)
-        }
-        const out: {
-          version: string
-          codes: Record<string, { label: string; category: string; score_delta: number }>
-        } = { version: '1.0', codes: {} }
-        for (const [code, defAny] of Object.entries(parsed)) {
-          const def = defAny as {
-            label?: unknown
-            category?: unknown
-            delta?: unknown
-            score_delta?: unknown
-          }
-          if (!def || typeof def !== 'object') continue
-          out.codes[code] = {
-            label: typeof def.label === 'string' ? def.label : code,
-            category: typeof def.category === 'string' ? def.category : 'deduct',
-            score_delta:
-              typeof def.score_delta === 'number'
-                ? def.score_delta
-                : typeof def.delta === 'number'
-                  ? def.delta
-                  : 0,
-          }
-        }
-        return JSON.stringify(out, null, 2)
-      } catch {
-        return raw
-      }
-    }
+    // (转换逻辑拆分到 eaa/legacy-migration.ts 的 convertReasonCodes)
     const schemaCodesDst = path.join(schemaDir, 'reason_codes.json')
     if (fs.existsSync(codesSrc) && !fs.existsSync(schemaCodesDst)) {
       try {
@@ -672,15 +280,21 @@ export class EAABridge {
    *
    * RISK 7 修复: 写命令(WRITE_COMMANDS)通过 writeQueue 串行化,
    * 避免 EAA 二进制并发写 JSON 文件丢数据;读命令直接并发执行。
+   *
+   * F4: opts.signal 支持 AbortSignal(pi-agent-core 工具执行透传):
+   * 已 abort 则不 spawn 直接失败;执行中 abort 则 kill 子进程并返回 aborted。
    */
-  async execute<T = unknown>(cmd: EAACommand): Promise<EAAResult<T>> {
+  async execute<T = unknown>(
+    cmd: EAACommand,
+    opts?: { signal?: AbortSignal },
+  ): Promise<EAAResult<T>> {
     // High 1.1 修复: ENOENT 后 binaryPath 永久 null,此处尝试重新 resolve
     // 之前一旦发生 ENOENT(如二进制被杀软临时隔离),binaryPath 被置 null,
     // 即使二进制后来恢复,也必须重启 app 才能继续使用 EAA 功能。
     // 现在每次 execute 入口若 binaryPath 为 null,尝试重新 resolve 一次。
     if (!this.binaryPath) {
       try {
-        const recovered = this.resolveBinaryPath()
+        const recovered = resolveBinaryPath(__dirname)
         if (recovered) {
           this.binaryPath = recovered
           this.unavailableReason = null
@@ -708,7 +322,7 @@ export class EAABridge {
     }
 
     // RISK 7 修复 + MEDIUM 修复: 写命令串行化,避免 EAA 二进制并发写 JSON 文件丢数据
-    const isWrite = EAABridge.WRITE_COMMANDS.has(cmd.command)
+    const isWrite = WRITE_COMMANDS.has(cmd.command)
     if (!isWrite) {
       // 读命令缓存：命中且未过期则直接返回，避免重复 spawn（切页面秒开）
       if (!cmd.forceRefresh) {
@@ -724,18 +338,18 @@ export class EAABridge {
       // 这是可接受的:读命令获得的是"调用时刻 + 排队中的写完成"后的快照,
       // 符合"调用前已提交的写操作对本次读可见"的语义。
       await this.writeQueue
-      let result = await this._doExecute<T>(cmd)
+      let result = await this._doExecute<T>(cmd, opts?.signal)
       // R152 修复 + R135 强化: 如果读命令因 "os error 5"(Access Denied) 失败,
       // 不依赖 cleanupStaleLock 返回值(Defender 拦截时 lock 文件可能不存在或 mtime 很新),
       // 直接延迟 100ms 后重试一次。重试最多 2 次,覆盖 Defender 扫描窗口。
       if (!result.success && result.stderr && result.stderr.includes('os error 5')) {
-        this.cleanupStaleLock() // 尽力清理,不依赖返回值
+        cleanupStaleLock(this.dataDir) // 尽力清理,不依赖返回值
         for (let attempt = 1; attempt <= 2; attempt++) {
           await this.delay(EAABridge.OS_ERROR5_RETRY_DELAY_MS)
           console.warn(
             `[EAA] Retrying read "${cmd.command}" (attempt ${attempt}/2) after os error 5`,
           )
-          result = await this._doExecute<T>(cmd)
+          result = await this._doExecute<T>(cmd, opts?.signal)
           if (result.success || !result.stderr || !result.stderr.includes('os error 5')) break
         }
       }
@@ -748,8 +362,8 @@ export class EAABridge {
           console.warn(
             `[EAA] Retrying read "${cmd.command}" (attempt ${attempt}/2) after empty stdout`,
           )
-          result = await this._doExecute<T>(cmd)
-          if (result.success || !result.stderr || !result.stderr.includes('[EAA_EMPTY_STDOUT]')) {
+          result = await this._doExecute<T>(cmd, opts?.signal)
+          if (!result.success || !result.stderr?.includes('[EAA_EMPTY_STDOUT]')) {
             break
           }
         }
@@ -766,11 +380,11 @@ export class EAABridge {
     // 写命令: 先清读缓存（数据已变更，旧缓存不再有效）
     if (this.readCache.size > 0) this.readCache.clear()
     // 写命令前清理 stale lock(写命令也需要获取锁)
-    this.cleanupStaleLock()
+    cleanupStaleLock(this.dataDir)
     // 写命令: 通过 writeQueue Promise 链串行化
     // 每次将一个待触发的 runPromise 接到队列尾部,等待前一个队列完成后才执行本次,
     // 执行结束(无论成功失败)后 resolve runPromise 以放行下一个写命令。
-    const run = () => this._doExecute<T>(cmd)
+    const run = () => this._doExecute<T>(cmd, opts?.signal)
     let resolveRun!: () => void
     const runPromise = new Promise<void>((res) => {
       resolveRun = res
@@ -786,7 +400,7 @@ export class EAABridge {
       // R152 修复 + R135 强化: 写命令也可能因 "os error 5" 失败,
       // 不依赖 cleanupStaleLock 返回值,延迟后重试最多 2 次
       if (!result.success && result.stderr && result.stderr.includes('os error 5')) {
-        this.cleanupStaleLock()
+        cleanupStaleLock(this.dataDir)
         for (let attempt = 1; attempt <= 2; attempt++) {
           await this.delay(EAABridge.OS_ERROR5_RETRY_DELAY_MS)
           console.warn(
@@ -809,6 +423,18 @@ export class EAABridge {
           }
         }
       }
+      // F1: 写命令成功后通知监听方(如 ipc 层缓存失效)。
+      // try/catch 保证监听方异常不影响命令结果返回。
+      if (result.success) {
+        try {
+          this.writeListener?.()
+        } catch (err) {
+          console.warn(
+            '[EAA] write listener failed:',
+            err instanceof Error ? err.message : String(err),
+          )
+        }
+      }
       return result
     } finally {
       resolveRun()
@@ -819,205 +445,22 @@ export class EAABridge {
    * 实际执行 EAA 命令的子进程逻辑(从 execute 抽取)。
    * 调用前 execute 已完成 binaryPath 重新 resolve 和 unavailable 检查。
    * 写命令由 execute 通过 writeQueue 串行化后调用,读命令直接调用。
+   * (spawn/超时/输出捕获逻辑拆分到 eaa/process-executor.ts,逻辑逐字保留)
+   * F4: signal 透传给 process-executor(已 abort 不 spawn / 执行中 abort kill)
    */
-  private _doExecute<T = unknown>(cmd: EAACommand): Promise<EAAResult<T>> {
-    const startTime = debug.eaa ? Date.now() : 0
-
-    return new Promise((resolve) => {
-      // 根据命令名决定是否追加 --output json
-      let args: string[]
-      if (cmd.jsonOutput === true) {
-        args = [cmd.command, ...cmd.args, '--output', 'json']
-      } else if (cmd.jsonOutput === false) {
-        args = [cmd.command, ...cmd.args]
-      } else if (JSON_COMPATIBLE_COMMANDS.has(cmd.command)) {
-        args = [cmd.command, ...cmd.args, '--output', 'json']
-      } else if (TEXT_OUTPUT_COMMANDS.has(cmd.command)) {
-        args = [cmd.command, ...cmd.args]
-      } else {
-        // 未知命令：默认追加 --output json（所有 EAA 命令都支持全局 -O/--output 选项）
-        args = [cmd.command, ...cmd.args, '--output', 'json']
-      }
-
-      if (debug.eaa) {
-        // High 修复: privacy init/load/disable 命令的 args 中包含明文密码(位置参数),
-        // 直接打印会泄露到主进程日志文件,需要脱敏
-        // 注意: cmd.args 不含命令名(结构 ['init', 'password']),
-        //       args 含命令名(结构 ['privacy', 'init', 'password']),
-        //       两者都需要脱敏,但 sanitizeArgsForLog 需要区分
-        const safeArgs = EAABridge.sanitizeArgsForLog(cmd.command, cmd.args, false)
-        const safeFullArgs = EAABridge.sanitizeArgsForLog(cmd.command, args, true)
-        console.log('[debug:eaa] spawn', {
-          command: cmd.command,
-          args: safeArgs,
-          fullArgs: safeFullArgs,
-          timeout: cmd.timeout ?? 30_000,
-        })
-      }
-
-      const env: Record<string, string> = {
-        ...(process.env as Record<string, string>),
-        EAA_DATA_DIR: this.dataDir,
-      }
-      if (this.privacyPassword) {
-        env.EAA_PRIVACY_PASSWORD = this.privacyPassword
-      }
-
-      const proc = spawn(this.binaryPath as string, args, {
-        cwd: this.dataDir,
-        env,
-        // 不使用 spawn 自带 timeout(仅发 SIGTERM),改用手动管理支持 SIGKILL 升级
-        windowsHide: true,
-      })
-
-      // P1-10: 注册到活跃进程表, 供 shutdown() 终止
-      this.activeProcesses.add(proc)
-
-      // 修复: 超时后 SIGTERM → 3秒后 SIGKILL 升级,防止子进程成为孤儿
-      const timeoutMs = cmd.timeout ?? 30_000
-      let sigkillHandle: ReturnType<typeof setTimeout> | null = null
-      const timeoutHandle = setTimeout(() => {
-        try {
-          proc.kill('SIGTERM')
-        } catch {
-          /* already exited */
-        }
-        // 3 秒后升级到 SIGKILL,确保进程被强制终止
-        sigkillHandle = setTimeout(() => {
-          try {
-            proc.kill('SIGKILL')
-          } catch {
-            /* already exited */
-          }
-        }, 3000)
-      }, timeoutMs)
-
-      // MEDIUM 修复: stdout/stderr 设置 50MB/10MB 累积上限,溢出时截断并 kill 子进程,防止 OOM
-      // 重要: 用 Buffer 累积而非字符串拼接。多字节 UTF-8 字符(如中文学生名)可能被
-      // 拆分到两个 data chunk 上,逐 chunk toString() 会产生 U+FFFD 替换符,破坏 JSON。
-      const MAX_STDOUT_BYTES = 50 * 1024 * 1024
-      const MAX_STDERR_BYTES = 10 * 1024 * 1024
-      const stdoutChunks: Buffer[] = []
-      const stderrChunks: Buffer[] = []
-      let stdoutBytes = 0
-      let stderrBytes = 0
-      let stdoutTruncated = false
-      let stderrTruncated = false
-
-      proc.stdout?.on('data', (chunk: Buffer) => {
-        if (stdoutTruncated) return
-        stdoutChunks.push(chunk)
-        stdoutBytes += chunk.length
-        if (stdoutBytes > MAX_STDOUT_BYTES) {
-          stdoutChunks.push(Buffer.from('\n[... stdout truncated at 50MB ...]'))
-          stdoutTruncated = true
-          try {
-            proc.kill('SIGTERM')
-          } catch {
-            /* already exited */
-          }
-        }
-      })
-      proc.stderr?.on('data', (chunk: Buffer) => {
-        if (stderrTruncated) return
-        stderrChunks.push(chunk)
-        stderrBytes += chunk.length
-        if (stderrBytes > MAX_STDERR_BYTES) {
-          stderrChunks.push(Buffer.from('\n[... stderr truncated at 10MB ...]'))
-          stderrTruncated = true
-          try {
-            proc.kill('SIGTERM')
-          } catch {
-            /* already exited */
-          }
-        }
-      })
-
-      proc.on('close', (code) => {
-        clearTimeout(timeoutHandle)
-        if (sigkillHandle) clearTimeout(sigkillHandle)
-        this.activeProcesses.delete(proc)
-        const exitCode = code ?? -1
-        const success = exitCode === 0
-
-        // 合并 Buffer 后一次性解码为字符串，避免多字节字符被拆分到不同 chunk
-        const stdout = Buffer.concat(stdoutChunks).toString('utf8')
-        const stderr = Buffer.concat(stderrChunks).toString('utf8')
-
-        if (debug.eaa) {
-          const elapsed = Date.now() - startTime
-          const stdoutPreview =
-            stdout.length > 500 ? `${stdout.slice(0, 500)}... (${stdout.length} chars)` : stdout
-          const stderrPreview =
-            stderr.length > 500 ? `${stderr.slice(0, 500)}... (${stderr.length} chars)` : stderr
-          console.log('[debug:eaa] close', {
-            command: cmd.command,
-            exitCode,
-            success,
-            elapsedMs: elapsed,
-            stdoutPreview,
-            stderrPreview,
-          })
-        }
-
-        // 解析 stdout：仅当追加了 --output json 时尝试 JSON.parse
-        if (args.includes('--output') && args.includes('json')) {
-          // P1-9 修复: 并发文件锁竞争时 eaa 二进制可能退出码 0 但 stdout 为空。
-          // 此时 JSON.parse('') 抛错, 旧逻辑把 success 保持为 true 并返回 data: null,
-          // 导致上层工具误判为"成功但无数据"。这里把"空 stdout + 退出码 0"标记为可重试失败,
-          // 用 stderr 携带 EAA_EMPTY_STDOUT 标记, execute() 会据此触发重试。
-          // 注: 仅在 exitCode === 0 时标记, exitCode != 0 的失败已正确反映无需重试。
-          if (success && stdout.trim() === '') {
-            const retryHint = stderr.trim() ? `${stderr}\n[EAA_EMPTY_STDOUT]` : '[EAA_EMPTY_STDOUT]'
-            resolve({ success: false, data: null, stderr: retryHint, exitCode })
-            return
-          }
-          try {
-            const value = JSON.parse(stdout) as T
-            resolve({ success, data: value, stderr, exitCode })
-            return
-          } catch {
-            // JSON 解析失败：data 设为 null
-            resolve({ success, data: null, stderr, exitCode })
-            return
-          }
-        }
-
-        // 非 JSON 命令：直接返回原始文本作为 data
-        resolve({
-          success,
-          data: (stdout.trim() || stderr.trim()) as T | null,
-          stderr,
-          exitCode,
-        })
-      })
-
-      proc.on('error', (err) => {
-        clearTimeout(timeoutHandle)
-        this.activeProcesses.delete(proc)
-        // M-7 修复: 清理 stream listeners,防止 error 后仍接收数据造成资源泄漏
-        proc.stdout?.removeAllListeners('data')
-        proc.stderr?.removeAllListeners('data')
-        if (debug.eaa) {
-          console.error('[debug:eaa] spawn error', {
-            command: cmd.command,
-            error: err.message,
-            code: (err as NodeJS.ErrnoException).code,
-          })
-        }
-        // ENOENT 触发时更新 unavailable 状态
-        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-          this.unavailableReason = `EAA binary disappeared: ${err.message}`
-          this.binaryPath = null
-        }
-        resolve({
-          success: false,
-          data: null,
-          stderr: err.message,
-          exitCode: -1,
-        })
-      })
-    })
+  private _doExecute<T = unknown>(cmd: EAACommand, signal?: AbortSignal): Promise<EAAResult<T>> {
+    const ctx: ProcessExecutorContext = {
+      binaryPath: this.binaryPath as string,
+      dataDir: this.dataDir,
+      privacyPassword: this.privacyPassword,
+      activeProcesses: this.activeProcesses,
+      onBinaryDisappeared: (message) => {
+        this.unavailableReason = `EAA binary disappeared: ${message}`
+        this.binaryPath = null
+      },
+      signal,
+    }
+    return executeProcess<T>(cmd, ctx)
   }
 
   /** 获取数据目录路径 */
@@ -1063,7 +506,7 @@ export class EAABridge {
 
         if (result.success && typeof result.data === 'string') {
           const helpText = result.data
-          const formats = this.parseExportFormatsFromHelp(helpText)
+          const formats = parseExportFormatsFromHelp(helpText)
           if (formats.length > 0) {
             this.cachedExportFormats = formats
             if (debug.eaa) {
@@ -1090,34 +533,6 @@ export class EAABridge {
       // 探测完成后清空 in-flight(无论成功失败),后续调用走缓存或重新探测
       this.exportFormatsInFlight = null
     }
-  }
-
-  /**
-   * 从 `eaa export --help` 输出中解析支持的格式。
-   * 帮助文本通常包含类似 "导出格式: csv(默认), jsonl, html" 的描述。
-   *
-   * R29-2 修复: 之前 knownFormats 包含 'json', 但 EAA Rust 二进制实际不支持 json 导出
-   * (cmd_export 只支持 csv/jsonl/html)。帮助文本中可能出现 "JSON" 字样(如描述 jsonl 时),
-   * 导致误判。现在只检测静态列表中已确认支持的格式, 避免误报。
-   */
-  private parseExportFormatsFromHelp(helpText: string): string[] {
-    const found: string[] = []
-
-    // 只检测静态列表中已确认支持的格式, 不猜测新格式
-    for (const fmt of SUPPORTED_EXPORT_FORMATS) {
-      // 使用 word boundary 确保不匹配子串（如 "csv" 不匹配 "csvfile"）
-      const regex = new RegExp(`\\b${fmt}\\b`, 'i')
-      if (regex.test(helpText)) {
-        found.push(fmt)
-      }
-    }
-
-    // 确保至少包含静态列表中的格式（以防帮助文本格式变化）
-    for (const fmt of SUPPORTED_EXPORT_FORMATS) {
-      if (!found.includes(fmt)) found.push(fmt)
-    }
-
-    return found
   }
 
   /** 获取二进制路径（不可用时返回 null） */

@@ -43,6 +43,14 @@ function utf8ByteLength(content) {
     }
     return bytes;
 }
+function splitLinesForCounting(content) {
+    if (content.length === 0)
+        return [];
+    const lines = content.split("\n");
+    if (content.endsWith("\n"))
+        lines.pop();
+    return lines;
+}
 function replaceUnpairedSurrogates(content) {
     let output = "";
     for (let i = 0; i < content.length; i++) {
@@ -92,7 +100,7 @@ export function truncateHead(content, options = {}) {
     const maxLines = options.maxLines ?? DEFAULT_MAX_LINES;
     const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
     const totalBytes = utf8ByteLength(content);
-    const lines = content.split("\n");
+    const lines = splitLinesForCounting(content);
     const totalLines = lines.length;
     // Check if no truncation needed
     if (totalLines <= maxLines && totalBytes <= maxBytes) {
@@ -171,9 +179,7 @@ export function truncateTail(content, options = {}) {
     const maxLines = options.maxLines ?? DEFAULT_MAX_LINES;
     const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
     const totalBytes = utf8ByteLength(content);
-    const lines = content.split("\n");
-    if (lines.length > 1 && lines[lines.length - 1] === "")
-        lines.pop();
+    const lines = splitLinesForCounting(content);
     const totalLines = lines.length;
     // Check if no truncation needed
     if (totalLines <= maxLines && totalBytes <= maxBytes) {

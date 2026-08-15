@@ -1,8 +1,15 @@
-import type { Model, Models } from "@earendil-works/pi-ai";
+import { type Api, type Model, type Models, type RetryCallbacks, type RetryPolicy, type Usage } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "../../types.ts";
-import type { BranchSummaryResult, Session, SessionTreeEntry } from "../types.ts";
+import { type Entry, type Session } from "../session/index.ts";
 import { BranchSummaryError, type Result } from "../types.ts";
 import { type FileOperations } from "./utils.ts";
+/** Generated branch summary data ready to be persisted as a branch-summary entry. */
+export interface BranchSummaryResult {
+    summary: string;
+    usage?: Usage;
+    readFiles: string[];
+    modifiedFiles: string[];
+}
 /** File-operation details stored on generated branch summary entries. */
 export interface BranchSummaryDetails {
     /** Files read while exploring the summarized branch. */
@@ -23,7 +30,7 @@ export interface BranchPreparation {
 /** Entries selected for branch summarization. */
 export interface CollectEntriesResult {
     /** Entries to summarize in chronological order. */
-    entries: SessionTreeEntry[];
+    entries: Entry[];
     /** Deepest common ancestor between the previous leaf and target entry. */
     commonAncestorId: string | null;
 }
@@ -32,7 +39,7 @@ export interface GenerateBranchSummaryOptions {
     /** Provider collection the summarization request goes through; owns auth resolution. */
     models: Models;
     /** Model used for summarization. */
-    model: Model<any>;
+    model: Model<Api>;
     /** Abort signal for the summarization request. */
     signal: AbortSignal;
     /** Optional instructions appended to or replacing the default prompt. */
@@ -41,11 +48,15 @@ export interface GenerateBranchSummaryOptions {
     replaceInstructions?: boolean;
     /** Tokens reserved for prompt and model output. Defaults to 16384. */
     reserveTokens?: number;
+    /** Optional retry policy for transient summarization errors. */
+    retry?: RetryPolicy;
+    /** Optional callbacks for retry reporting. */
+    callbacks?: RetryCallbacks;
 }
 /** Collect entries that should be summarized before navigating to a different session tree entry. */
 export declare function collectEntriesForBranchSummary(session: Session, oldLeafId: string | null, targetId: string): Promise<CollectEntriesResult>;
 /** Prepare branch entries for summarization within an optional token budget. */
-export declare function prepareBranchEntries(entries: SessionTreeEntry[], tokenBudget?: number): BranchPreparation;
+export declare function prepareBranchEntries(entries: Entry[], tokenBudget?: number): BranchPreparation;
 /** Generate a summary for abandoned branch entries. */
-export declare function generateBranchSummary(entries: SessionTreeEntry[], options: GenerateBranchSummaryOptions): Promise<Result<BranchSummaryResult, BranchSummaryError>>;
+export declare function generateBranchSummary(entries: Entry[], options: GenerateBranchSummaryOptions): Promise<Result<BranchSummaryResult, BranchSummaryError>>;
 //# sourceMappingURL=branch-summarization.d.ts.map

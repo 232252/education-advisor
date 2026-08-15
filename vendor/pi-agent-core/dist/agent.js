@@ -1,5 +1,5 @@
-import { streamSimple, } from "@earendil-works/pi-ai/compat";
 import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
+import { getDefaultStreamFn } from "./stream-fn.js";
 function defaultConvertToLlm(messages) {
     return messages.filter((message) => message.role === "user" || message.role === "assistant" || message.role === "toolResult");
 }
@@ -90,12 +90,13 @@ export class Agent {
     followUpQueue;
     convertToLlm;
     transformContext;
-    streamFn;
+    streamFunction;
     getApiKey;
     onPayload;
     onResponse;
     beforeToolCall;
     afterToolCall;
+    shouldStopAfterTurn;
     prepareNextTurn;
     prepareNextTurnWithContext;
     activeRun;
@@ -109,25 +110,28 @@ export class Agent {
     maxRetryDelayMs;
     /** Tool execution strategy for assistant messages that contain multiple tool calls. */
     toolExecution;
-    constructor(options = {}) {
-        this._state = createMutableAgentState(options.initialState);
-        this.convertToLlm = options.convertToLlm ?? defaultConvertToLlm;
-        this.transformContext = options.transformContext;
-        this.streamFn = options.streamFn ?? streamSimple;
-        this.getApiKey = options.getApiKey;
-        this.onPayload = options.onPayload;
-        this.onResponse = options.onResponse;
-        this.beforeToolCall = options.beforeToolCall;
-        this.afterToolCall = options.afterToolCall;
-        this.prepareNextTurn = options.prepareNextTurn;
-        this.prepareNextTurnWithContext = options.prepareNextTurnWithContext;
-        this.steeringQueue = new PendingMessageQueue(options.steeringMode ?? "one-at-a-time");
-        this.followUpQueue = new PendingMessageQueue(options.followUpMode ?? "one-at-a-time");
-        this.sessionId = options.sessionId;
-        this.thinkingBudgets = options.thinkingBudgets;
-        this.transport = options.transport ?? "auto";
-        this.maxRetryDelayMs = options.maxRetryDelayMs;
-        this.toolExecution = options.toolExecution ?? "parallel";
+    constructor(options) {
+        // Older compiled consumers may omit options or streamFn even though the current API requires them.
+        const runtimeOptions = options ?? {};
+        this._state = createMutableAgentState(runtimeOptions.initialState);
+        this.convertToLlm = runtimeOptions.convertToLlm ?? defaultConvertToLlm;
+        this.transformContext = runtimeOptions.transformContext;
+        this.streamFunction = runtimeOptions.streamFn ?? getDefaultStreamFn();
+        this.getApiKey = runtimeOptions.getApiKey;
+        this.onPayload = runtimeOptions.onPayload;
+        this.onResponse = runtimeOptions.onResponse;
+        this.beforeToolCall = runtimeOptions.beforeToolCall;
+        this.afterToolCall = runtimeOptions.afterToolCall;
+        this.shouldStopAfterTurn = runtimeOptions.shouldStopAfterTurn;
+        this.prepareNextTurn = runtimeOptions.prepareNextTurn;
+        this.prepareNextTurnWithContext = runtimeOptions.prepareNextTurnWithContext;
+        this.steeringQueue = new PendingMessageQueue(runtimeOptions.steeringMode ?? "one-at-a-time");
+        this.followUpQueue = new PendingMessageQueue(runtimeOptions.followUpMode ?? "one-at-a-time");
+        this.sessionId = runtimeOptions.sessionId;
+        this.thinkingBudgets = runtimeOptions.thinkingBudgets;
+        this.transport = runtimeOptions.transport ?? "auto";
+        this.maxRetryDelayMs = runtimeOptions.maxRetryDelayMs;
+        this.toolExecution = runtimeOptions.toolExecution ?? "parallel";
     }
     /**
      * Subscribe to agent lifecycle events.
@@ -208,6 +212,9 @@ export class Agent {
     }
     /** Clear transcript state, runtime state, and queued messages. */
     reset() {
+        if (this.activeRun) {
+            throw new Error("Agent is already processing. Wait for completion before resetting.");
+        }
         this._state.messages = [];
         this._state.isStreaming = false;
         this._state.streamingMessage = undefined;
@@ -262,12 +269,12 @@ export class Agent {
     }
     async runPromptMessages(messages, options = {}) {
         await this.runWithLifecycle(async (signal) => {
-            await runAgentLoop(messages, this.createContextSnapshot(), this.createLoopConfig(options), (event) => this.processEvents(event), signal, this.streamFn);
+            await runAgentLoop(messages, this.createContextSnapshot(), this.createLoopConfig(options), (event) => this.processEvents(event), signal, this.streamFunction);
         });
     }
     async runContinuation() {
         await this.runWithLifecycle(async (signal) => {
-            await runAgentLoopContinue(this.createContextSnapshot(), this.createLoopConfig(), (event) => this.processEvents(event), signal, this.streamFn);
+            await runAgentLoopContinue(this.createContextSnapshot(), this.createLoopConfig(), (event) => this.processEvents(event), signal, this.streamFunction);
         });
     }
     createContextSnapshot() {
@@ -279,6 +286,7 @@ export class Agent {
     }
     createLoopConfig(options = {}) {
         let skipInitialSteeringPoll = options.skipInitialSteeringPoll === true;
+        const shouldStopAfterTurn = this.shouldStopAfterTurn;
         return {
             model: this._state.model,
             reasoning: this._state.thinkingLevel === "off" ? undefined : this._state.thinkingLevel,
@@ -291,6 +299,9 @@ export class Agent {
             toolExecution: this.toolExecution,
             beforeToolCall: this.beforeToolCall,
             afterToolCall: this.afterToolCall,
+            shouldStopAfterTurn: shouldStopAfterTurn
+                ? async (context) => await shouldStopAfterTurn(context, this.signal)
+                : undefined,
             prepareNextTurn: this.prepareNextTurnWithContext || this.prepareNextTurn
                 ? async (context) => {
                     if (this.prepareNextTurnWithContext) {

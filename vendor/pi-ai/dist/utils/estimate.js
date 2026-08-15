@@ -45,17 +45,25 @@ export function estimateMessageTokens(message) {
     return Math.ceil(chars / CHARS_PER_TOKEN);
 }
 function getLastAssistantUsageInfo(messages) {
-    for (let i = messages.length - 1; i >= 0; i--) {
+    let latestPrefixTimestamp = Number.NEGATIVE_INFINITY;
+    let usageInfo;
+    for (let i = 0; i < messages.length; i++) {
         const message = messages[i];
-        if (message.role !== "assistant")
-            continue;
-        const assistant = message;
-        if (assistant.stopReason === "aborted" || assistant.stopReason === "error")
-            continue;
-        if (calculateContextTokens(assistant.usage) > 0)
-            return { usage: assistant.usage, index: i };
+        if (message.role === "assistant") {
+            const assistant = message;
+            // A newer prefix message was inserted after this response (for example, a
+            // compaction summary), so its usage cannot describe the current prefix.
+            const usageAppliesToPrefix = assistant.timestamp >= latestPrefixTimestamp;
+            if (usageAppliesToPrefix &&
+                assistant.stopReason !== "aborted" &&
+                assistant.stopReason !== "error" &&
+                calculateContextTokens(assistant.usage) > 0) {
+                usageInfo = { usage: assistant.usage, index: i };
+            }
+        }
+        latestPrefixTimestamp = Math.max(latestPrefixTimestamp, message.timestamp);
     }
-    return undefined;
+    return usageInfo;
 }
 function estimateMessages(messages) {
     const usageInfo = getLastAssistantUsageInfo(messages);
@@ -72,6 +80,11 @@ function estimateMessages(messages) {
         tokens += estimateMessageTokens(message);
     return { tokens, usageTokens: 0, trailingTokens: tokens, lastUsageIndex: null };
 }
+function estimateToolsTokens(tools) {
+    if (!tools || tools.length === 0)
+        return 0;
+    return estimateTextTokens(safeJsonStringify(tools));
+}
 function isMessageArray(value) {
     return Array.isArray(value);
 }
@@ -79,12 +92,20 @@ export function estimateContextTokens(context) {
     if (isMessageArray(context))
         return estimateMessages(context);
     const estimate = estimateMessages(context.messages);
-    if (estimate.lastUsageIndex !== null)
-        return estimate;
-    let prefixTokens = context.systemPrompt ? estimateTextTokens(context.systemPrompt) : 0;
-    if (context.tools && context.tools.length > 0) {
-        prefixTokens += estimateTextTokens(safeJsonStringify(context.tools));
+    if (estimate.lastUsageIndex !== null) {
+        const addedNames = new Set(context.messages
+            .slice(estimate.lastUsageIndex + 1)
+            .filter((message) => message.role === "toolResult")
+            .flatMap((message) => message.addedToolNames ?? []));
+        const addedToolTokens = estimateToolsTokens(context.tools?.filter((tool) => addedNames.has(tool.name)));
+        return {
+            tokens: estimate.tokens + addedToolTokens,
+            usageTokens: estimate.usageTokens,
+            trailingTokens: estimate.trailingTokens + addedToolTokens,
+            lastUsageIndex: estimate.lastUsageIndex,
+        };
     }
+    const prefixTokens = (context.systemPrompt ? estimateTextTokens(context.systemPrompt) : 0) + estimateToolsTokens(context.tools);
     return {
         tokens: estimate.tokens + prefixTokens,
         usageTokens: estimate.usageTokens,

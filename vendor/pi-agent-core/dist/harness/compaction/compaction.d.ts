@@ -1,6 +1,7 @@
-import type { Model, Models, Usage } from "@earendil-works/pi-ai";
+import { type Api, type AssistantMessage, type Context, type Model, type Models, type RetryCallbacks, type RetryPolicy, type SimpleStreamOptions, type Usage } from "@earendil-works/pi-ai";
 import type { AgentMessage, ThinkingLevel } from "../../types.ts";
-import { CompactionError, type Result, type SessionTreeEntry } from "../types.ts";
+import type { Entry } from "../session/types.ts";
+import { CompactionError, type Result } from "../types.ts";
 import { type FileOperations } from "./utils.ts";
 /** File-operation details stored on generated compaction entries. */
 export interface CompactionDetails {
@@ -10,16 +11,19 @@ export interface CompactionDetails {
     modifiedFiles: string[];
 }
 /** Generated compaction data ready to be persisted as a compaction entry. */
-export interface CompactionResult<T = unknown> {
+export interface CompactResult<T = unknown> {
     /** Summary text that replaces compacted history in future context. */
     summary: string;
-    /** Entry id where retained history starts. */
-    firstKeptEntryId: string;
     /** Estimated context tokens before compaction. */
     tokensBefore: number;
+    /** Usage from the LLM call(s) that generated this summary, if available. */
+    usage?: Usage;
+    /** Retained recent messages stored directly on the compaction entry. */
+    retainedTail: AgentMessage[];
     /** Optional implementation-specific details stored with the compaction entry. */
     details?: T;
 }
+export declare function completeSimpleWithRetries(models: Models, model: Model<Api>, context: Context, options: SimpleStreamOptions, retry?: RetryPolicy, callbacks?: RetryCallbacks): Promise<AssistantMessage>;
 /** Compaction thresholds and retention settings. */
 export interface CompactionSettings {
     /** Enable automatic compaction decisions. */
@@ -34,7 +38,7 @@ export declare const DEFAULT_COMPACTION_SETTINGS: CompactionSettings;
 /** Calculate total context tokens from provider usage. */
 export declare function calculateContextTokens(usage: Usage): number;
 /** Return usage from the last valid assistant message in session entries. */
-export declare function getLastAssistantUsage(entries: SessionTreeEntry[]): Usage | undefined;
+export declare function getLastAssistantUsage(entries: Entry[]): Usage | undefined;
 /** Estimated context-token usage for a message list. */
 export interface ContextUsageEstimate {
     /** Estimated total context tokens. */
@@ -53,7 +57,7 @@ export declare function shouldCompact(contextTokens: number, contextWindow: numb
 /** Estimate token count for one message using a conservative character heuristic. */
 export declare function estimateTokens(message: AgentMessage): number;
 /** Find the user-visible message that starts the turn containing an entry. */
-export declare function findTurnStartIndex(entries: SessionTreeEntry[], entryIndex: number, startIndex: number): number;
+export declare function findTurnStartIndex(entries: Entry[], entryIndex: number, startIndex: number): number;
 /** Cut point selected for compaction. */
 export interface CutPointResult {
     /** Index of the first entry retained after compaction. */
@@ -64,18 +68,23 @@ export interface CutPointResult {
     isSplitTurn: boolean;
 }
 /** Find the compaction cut point that keeps approximately the requested recent-token budget. */
-export declare function findCutPoint(entries: SessionTreeEntry[], startIndex: number, endIndex: number, keepRecentTokens: number): CutPointResult;
+export declare function findCutPoint(entries: Entry[], startIndex: number, endIndex: number, keepRecentTokens: number): CutPointResult;
 export declare const SUMMARIZATION_SYSTEM_PROMPT = "You are a context summarization assistant. Your task is to read a conversation between a user and an AI assistant, then produce a structured summary following the exact format specified.\n\nDo NOT continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured summary.";
 /** Generate or update a conversation summary for compaction. */
-export declare function generateSummary(currentMessages: AgentMessage[], models: Models, model: Model<any>, reserveTokens: number, signal?: AbortSignal, customInstructions?: string, previousSummary?: string, thinkingLevel?: ThinkingLevel): Promise<Result<string, CompactionError>>;
+export declare function generateSummary(currentMessages: AgentMessage[], models: Models, model: Model<Api>, reserveTokens: number, signal?: AbortSignal, customInstructions?: string, previousSummary?: string, thinkingLevel?: ThinkingLevel, retry?: RetryPolicy, callbacks?: RetryCallbacks): Promise<Result<string, CompactionError>>;
+/** Generate or update a conversation summary and return its provider usage. */
+export declare function generateSummaryWithUsage(currentMessages: AgentMessage[], models: Models, model: Model<Api>, reserveTokens: number, signal?: AbortSignal, customInstructions?: string, previousSummary?: string, thinkingLevel?: ThinkingLevel, retry?: RetryPolicy, callbacks?: RetryCallbacks): Promise<Result<{
+    text: string;
+    usage: Usage;
+}, CompactionError>>;
 /** Prepared inputs for a compaction run. */
 export interface CompactionPreparation {
-    /** Entry id where retained history starts. */
-    firstKeptEntryId: string;
     /** Messages summarized into the history summary. */
     messagesToSummarize: AgentMessage[];
     /** Prefix messages summarized separately when compaction splits a turn. */
     turnPrefixMessages: AgentMessage[];
+    /** Recent messages retained after compaction and stored on the compaction entry. */
+    retainedTail: AgentMessage[];
     /** Whether compaction splits a turn. */
     isSplitTurn: boolean;
     /** Estimated context tokens before compaction. */
@@ -88,8 +97,8 @@ export interface CompactionPreparation {
     settings: CompactionSettings;
 }
 /** Prepare session entries for compaction, or return undefined when compaction is not applicable. */
-export declare function prepareCompaction(pathEntries: SessionTreeEntry[], settings: CompactionSettings): Result<CompactionPreparation | undefined, CompactionError>;
+export declare function prepareCompaction(pathEntries: Entry[], settings: CompactionSettings): Result<CompactionPreparation | undefined, CompactionError>;
 export { serializeConversation } from "./utils.ts";
 /** Generate compaction summary data from prepared session history. */
-export declare function compact(preparation: CompactionPreparation, models: Models, model: Model<any>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel): Promise<Result<CompactionResult, CompactionError>>;
+export declare function compact(preparation: CompactionPreparation, models: Models, model: Model<Api>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, retry?: RetryPolicy, callbacks?: RetryCallbacks): Promise<Result<CompactResult, CompactionError>>;
 //# sourceMappingURL=compaction.d.ts.map

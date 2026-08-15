@@ -863,22 +863,46 @@ describe('用户报告 Bug 验证（数据流层）', () => {
   })
 
   it('Bug 3: 排行榜/周期摘要响应式 — CSS 修复已包含', async () => {
-    // 验证 DashboardPage.tsx 含 truncate + min-w-0 修复
+    // 验证排行榜/周期摘要渲染组件（重构后拆分至 RankingCard.tsx / PeriodSummaryCard.tsx）
+    // 含 truncate + min-w-0 修复
     const fs = await import('node:fs')
-    const content = fs.readFileSync(
-      join(__dirname, '..', '..', 'src', 'renderer', 'pages', 'Dashboard', 'DashboardPage.tsx'),
+    const rankingContent = fs.readFileSync(
+      join(
+        __dirname,
+        '..',
+        '..',
+        'src',
+        'renderer',
+        'pages',
+        'Dashboard',
+        'components',
+        'RankingCard.tsx',
+      ),
       'utf-8',
     )
-    // 排行榜渲染入口
-    const rankingIdx = content.indexOf('filteredRanking.slice')
+    const periodContent = fs.readFileSync(
+      join(
+        __dirname,
+        '..',
+        '..',
+        'src',
+        'renderer',
+        'pages',
+        'Dashboard',
+        'components',
+        'PeriodSummaryCard.tsx',
+      ),
+      'utf-8',
+    )
+    // 排行榜渲染入口（RankingCard 接收 filteredRanking 作为 items）
+    const rankingIdx = rankingContent.indexOf('items.slice')
     // 周期摘要渲染入口（用更精确的 'top_gainers' 标志）
-    const periodIdx = content.indexOf('top_gainers.slice')
+    const periodIdx = periodContent.indexOf('top_gainers.slice')
     expect(rankingIdx).toBeGreaterThan(0)
     expect(periodIdx).toBeGreaterThan(0)
     // 检查 truncate 在两个部分都用了
-    // 注意: 排行榜标记含奖牌条件样式, 源码较长, 窗口需覆盖到 name span (truncate 在其上)
-    const rankingPart = content.slice(rankingIdx, rankingIdx + 3000)
-    const periodPart = content.slice(periodIdx, periodIdx + 3000)
+    const rankingPart = rankingContent.slice(rankingIdx, rankingIdx + 3000)
+    const periodPart = periodContent.slice(periodIdx, periodIdx + 3000)
     expect(rankingPart).toContain('truncate')
     expect(rankingPart).toContain('min-w-0')
     expect(periodPart).toContain('truncate')

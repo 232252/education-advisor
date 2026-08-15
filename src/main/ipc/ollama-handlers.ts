@@ -8,9 +8,9 @@
 // ollama:delete-model 删除模型
 // =============================================================
 
+import * as IPC from '@shared/ipc-channels'
 import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
-import * as IPC from '../../shared/ipc-channels'
 import { TtlLruCache } from '../services/eaa-cache'
 import { ollamaService } from '../services/ollama-service'
 import { log } from '../utils/logger'
@@ -129,19 +129,6 @@ export function registerOllamaHandlers(win: BrowserWindow): void {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[IPC] ollama:pull-model failed for "${modelName}":`, msg)
-      return { success: false, error: msg }
-    }
-  })
-
-  // 取消正在进行的下载
-  // M-1 修复: 支持 abort pullModel 流式操作
-  ipcMain.handle(IPC.IPC_OLLAMA_CANCEL_PULL, async () => {
-    try {
-      ollamaService.cancelPull()
-      return { success: true }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] ollama:cancel-pull failed:', msg)
       return { success: false, error: msg }
     }
   })

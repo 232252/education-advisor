@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Education Advisor</title>
+    <!-- 应用图标: SVG 优先(矢量最清晰),回退 ico(老浏览器/标签页),apple-touch(iOS 主屏) -->
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="./favicon.ico" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta name="theme-color" content="#3B82F6" />
     <script>
       // 防 FOUC: 在 React 渲染前根据 localStorage 缓存立即应用主题
       // 默认 light (app 默认主题),仅当缓存为 dark 时加 dark class;

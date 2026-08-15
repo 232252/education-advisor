@@ -44,6 +44,7 @@ export function fauxAssistantMessage(content, options = {}) {
         model: DEFAULT_MODEL_ID,
         usage: DEFAULT_USAGE,
         stopReason: options.stopReason ?? "stop",
+        deferred: options.deferred,
         errorMessage: options.errorMessage,
         responseId: options.responseId,
         timestamp: options.timestamp ?? Date.now(),
@@ -169,6 +170,19 @@ function cloneMessage(message, api, provider, modelId) {
         usage: cloned.usage ?? DEFAULT_USAGE,
     };
 }
+function createDeferredMessage(model, handle) {
+    return {
+        role: "assistant",
+        content: [],
+        api: model.api,
+        provider: model.provider,
+        model: model.id,
+        usage: DEFAULT_USAGE,
+        stopReason: "deferred",
+        deferred: handle,
+        timestamp: Date.now(),
+    };
+}
 function createErrorMessage(error, api, provider, modelId) {
     return {
         role: "assistant",
@@ -198,7 +212,7 @@ function scheduleChunk(chunk, tokensPerSecond) {
     return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 async function streamWithDeltas(stream, message, minTokenSize, maxTokenSize, tokensPerSecond, signal) {
-    const partial = { ...message, content: [] };
+    const partial = { ...message, content: [], stopReason: "pending" };
     if (signal?.aborted) {
         const aborted = createAbortedMessage(partial);
         stream.push({ type: "error", reason: "aborted", error: aborted });
@@ -268,6 +282,9 @@ async function streamWithDeltas(stream, message, minTokenSize, maxTokenSize, tok
         partial.content[index].arguments = block.arguments;
         stream.push({ type: "toolcall_end", contentIndex: index, toolCall: block, partial: { ...partial } });
     }
+    if (message.stopReason === "pending") {
+        throw new Error("Faux response ended without a stop reason");
+    }
     if (message.stopReason === "error" || message.stopReason === "aborted") {
         stream.push({ type: "error", reason: message.stopReason, error: message });
         stream.end(message);
@@ -283,8 +300,9 @@ export function createFauxCore(options) {
     const maxTokenSize = Math.max(minTokenSize, options.tokenSize?.max ?? DEFAULT_MAX_TOKEN_SIZE);
     let pendingResponses = [];
     const tokensPerSecond = options.tokensPerSecond;
-    const state = { callCount: 0 };
+    const state = { callCount: 0, deferredFetchCount: 0, cancelledDeferred: [] };
     const promptCache = new Map();
+    const deferredResponses = new Map();
     const modelDefinitions = options.models?.length
         ? options.models
         : [
@@ -310,6 +328,10 @@ export function createFauxCore(options) {
         contextWindow: definition.contextWindow ?? 128000,
         maxTokens: definition.maxTokens ?? 16384,
     }));
+    const resolveResponse = async (step, context, streamOptions, requestModel) => {
+        const resolved = typeof step === "function" ? await step(context, streamOptions, state, requestModel) : step;
+        return withUsageEstimate(cloneMessage(resolved, api, provider, requestModel.id), context, streamOptions, promptCache);
+    };
     const stream = (requestModel, context, streamOptions) => {
         const outer = createAssistantMessageEventStream();
         const step = pendingResponses.shift();
@@ -324,9 +346,27 @@ export function createFauxCore(options) {
                     outer.end(message);
                     return;
                 }
-                const resolved = typeof step === "function" ? await step(context, streamOptions, state, requestModel) : step;
-                let message = cloneMessage(resolved, api, provider, requestModel.id);
-                message = withUsageEstimate(message, context, streamOptions, promptCache);
+                if (streamOptions?.deferred) {
+                    const handle = {
+                        provider: requestModel.provider,
+                        modelId: requestModel.id,
+                        api: requestModel.api,
+                        id: randomId("deferred"),
+                        ...(options.deferred?.pollAfterMs !== undefined ? { pollAfterMs: options.deferred.pollAfterMs } : {}),
+                    };
+                    deferredResponses.set(handle.id, {
+                        handle,
+                        step,
+                        context,
+                        options: streamOptions,
+                        model: requestModel,
+                        pendingFetches: Math.max(0, Math.floor(options.deferred?.pendingFetches ?? 0)),
+                        cancelled: false,
+                    });
+                    await streamWithDeltas(outer, createDeferredMessage(requestModel, handle), minTokenSize, maxTokenSize, tokensPerSecond, streamOptions.signal);
+                    return;
+                }
+                const message = await resolveResponse(step, context, streamOptions, requestModel);
                 await streamWithDeltas(outer, message, minTokenSize, maxTokenSize, tokensPerSecond, streamOptions?.signal);
             }
             catch (error) {
@@ -338,6 +378,52 @@ export function createFauxCore(options) {
         return outer;
     };
     const streamSimple = (streamModel, context, streamOptions) => stream(streamModel, context, streamOptions);
+    const fetchDeferred = (requestModel, handle, fetchOptions) => {
+        const outer = createAssistantMessageEventStream();
+        state.deferredFetchCount++;
+        queueMicrotask(async () => {
+            try {
+                await fetchOptions?.onResponse?.({ status: 200, headers: {} }, requestModel);
+                const entry = deferredResponses.get(handle.id);
+                if (!entry ||
+                    entry.handle.provider !== handle.provider ||
+                    entry.handle.modelId !== handle.modelId ||
+                    entry.handle.api !== handle.api) {
+                    throw new Error(`Unknown faux deferred response: ${handle.id}`);
+                }
+                if (entry.cancelled)
+                    throw new Error(`Faux deferred response was cancelled: ${handle.id}`);
+                if (entry.pendingFetches > 0) {
+                    entry.pendingFetches--;
+                    await streamWithDeltas(outer, createDeferredMessage(requestModel, entry.handle), minTokenSize, maxTokenSize, tokensPerSecond, fetchOptions?.signal);
+                    return;
+                }
+                if (!entry.final) {
+                    const { deferred: _deferred, signal: _submissionSignal, onResponse: _submissionOnResponse, ...submissionOptions } = entry.options ?? {};
+                    try {
+                        entry.final = await resolveResponse(entry.step, entry.context, submissionOptions, entry.model);
+                    }
+                    catch (error) {
+                        entry.final = createErrorMessage(error, api, provider, entry.model.id);
+                    }
+                }
+                await streamWithDeltas(outer, entry.final, minTokenSize, maxTokenSize, tokensPerSecond, fetchOptions?.signal);
+            }
+            catch (error) {
+                const message = createErrorMessage(error, api, provider, requestModel.id);
+                outer.push({ type: "error", reason: "error", error: message });
+                outer.end(message);
+            }
+        });
+        return outer;
+    };
+    const cancelDeferred = async (requestModel, handle, cancelOptions) => {
+        state.cancelledDeferred.push(structuredClone(handle));
+        const entry = deferredResponses.get(handle.id);
+        if (entry)
+            entry.cancelled = true;
+        await cancelOptions?.onResponse?.({ status: 200, headers: {} }, requestModel);
+    };
     function getModel(requestedModelId) {
         if (!requestedModelId) {
             return models[0];
@@ -350,6 +436,8 @@ export function createFauxCore(options) {
         models,
         stream,
         streamSimple,
+        fetchDeferred,
+        cancelDeferred,
         getModel,
         state,
         setResponses(responses) {
@@ -379,7 +467,12 @@ export function fauxProvider(options = {}) {
         id: core.provider,
         auth: { apiKey: { name: "Faux", resolve: async () => ({ auth: {} }) } },
         models: core.models,
-        api: { stream: core.stream, streamSimple: core.streamSimple },
+        api: {
+            stream: core.stream,
+            streamSimple: core.streamSimple,
+            fetchDeferred: core.fetchDeferred,
+            cancelDeferred: core.cancelDeferred,
+        },
     });
     return {
         provider,

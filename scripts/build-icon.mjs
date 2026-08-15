@@ -21,6 +21,10 @@ import sharp from 'sharp'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 const SVG_PATH = join(ROOT, 'resources', 'icon.svg')
+// 小尺寸专用简化版 SVG: ≤48px 用更粗笔画(网络线 90,书脊 90,节点 r=92),
+// 保证 16px 下所有可见笔画 ≥ 1.3px 物理像素(精致版在 16px 下书脊仅 0.22px 不可见)。
+// 品牌色板与 icon.svg 完全一致,只是几何更粗更简。
+const SVG_SMALL_PATH = join(ROOT, 'resources', 'icon-small.svg')
 const ICO_PATH = join(ROOT, 'resources', 'icon.ico')
 const PNG_PATH = join(ROOT, 'resources', 'icon.png')
 const PNG_256 = join(ROOT, 'resources', 'icon-256.png')
@@ -31,6 +35,8 @@ const PNG_1024 = join(ROOT, 'resources', 'icon-1024.png')
 // ICONDIRENTRY; 0 means 256). Larger sizes are emitted as separate
 // PNGs for macOS / Linux.
 const SIZES = [16, 24, 32, 48, 64, 128, 256]
+// ≤48px 走小尺寸专用 SVG(笔画更粗更清晰); >48px 走精致版 SVG(细节更丰富)
+const SMALL_SIZE_THRESHOLD = 48
 
 function buildPngInIco(buffers) {
   // Each entry: 6 (ICONDIR) + 16*n (ICONDIRENTRYs) + sum of PNG sizes
@@ -75,9 +81,14 @@ function buildPngInIco(buffers) {
 async function main() {
   console.log(`Reading ${SVG_PATH}`)
   const svg = readFileSync(SVG_PATH)
+  console.log(`Reading ${SVG_SMALL_PATH}`)
+  const svgSmall = readFileSync(SVG_SMALL_PATH)
 
   // Rasterize each size.
-  // 清晰度优化 (v4):
+  // 清晰度优化 (v5):
+  //  - 双 SVG 策略: ≤SMALL_SIZE_THRESHOLD 用 icon-small.svg(笔画加粗,小尺寸清晰),
+  //    >阈值用 icon.svg(精致细节)。这是解决"16px 图标模糊"的核心——
+  //    单一 SVG 无法兼顾:精致版在 16px 下书脊 0.22px 不可见。
   //  - 超采样: 每个目标尺寸从 ~4x 源位图缩小 (lanczos3), 边缘抗锯齿显著优于 1:1 栅格化。
   //    density 是 DPI 语义: 1024 viewBox 下 sourcePx = 1024 * density/72。
   //    源边长钳制在 [256, 4096], 避免超出 sharp 像素上限 (29127px @ density 2048 的教训)。
@@ -86,16 +97,18 @@ async function main() {
   const SVG_UNITS = 1024
   const densityFor = (sourcePx) => (sourcePx / SVG_UNITS) * 72
   const sourceFor = (size) => Math.min(Math.max(size * 4, 256), 4096)
-  const rasterize = (size) =>
-    sharp(svg, { density: densityFor(sourceFor(size)) }).resize(size, size, {
+  const rasterize = (size, svgBuf) =>
+    sharp(svgBuf, { density: densityFor(sourceFor(size)) }).resize(size, size, {
       fit: 'contain',
       kernel: 'lanczos3',
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     })
   const buffers = []
   for (const size of SIZES) {
-    const small = size <= 48
-    let pipeline = rasterize(size)
+    const small = size <= SMALL_SIZE_THRESHOLD
+    // 关键: 小尺寸用粗笔画专用 SVG, 大尺寸用精致 SVG
+    const svgBuf = small ? svgSmall : svg
+    let pipeline = rasterize(size, svgBuf)
     if (small) pipeline = pipeline.sharpen({ sigma: 0.6, m1: 0.8, m2: 0.3 })
     const buf = await pipeline
       .png({
@@ -105,7 +118,7 @@ async function main() {
       })
       .toBuffer()
     buffers.push(buf)
-    console.log(`  ${size}×${size}  →  ${buf.length} bytes`)
+    console.log(`  ${size}×${size} ${small ? '(small-svg)' : '(full-svg)'} → ${buf.length} bytes`)
   }
 
   // Save the 256/512/1024 PNGs for macOS / Linux.
@@ -117,9 +130,10 @@ async function main() {
     writeFileSync(join(ROOT, 'resources', `icon-${SIZES[i]}.png`), buffers[i])
   }
   writeFileSync(PNG_256, buffers[SIZES.indexOf(256)])
-  writeFileSync(PNG_512, await rasterize(512).png({ compressionLevel: 9, palette: false }).toBuffer())
-  writeFileSync(PNG_1024, await rasterize(1024).png({ compressionLevel: 9, palette: false }).toBuffer())
-  writeFileSync(PNG_PATH, await rasterize(512).png({ compressionLevel: 9, palette: false }).toBuffer())
+  // 512/1024 用精致版 SVG(大尺寸需要细节,小尺寸专用版反而显粗糙)
+  writeFileSync(PNG_512, await rasterize(512, svg).png({ compressionLevel: 9, palette: false }).toBuffer())
+  writeFileSync(PNG_1024, await rasterize(1024, svg).png({ compressionLevel: 9, palette: false }).toBuffer())
+  writeFileSync(PNG_PATH, await rasterize(512, svg).png({ compressionLevel: 9, palette: false }).toBuffer())
   console.log(`Wrote ${PNG_PATH} (512×512)`)
 
   // Build the .ico (PNG-in-ICO, hand-rolled).

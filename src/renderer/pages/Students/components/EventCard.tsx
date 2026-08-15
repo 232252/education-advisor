@@ -4,6 +4,7 @@
 // =============================================================
 
 import type { EAAHistoryEvent } from '@shared/types'
+import { ChevronDown, ChevronUp, RotateCcw, StickyNote } from 'lucide-react'
 import { CARD_BASE, cn } from '../../../lib/ui-utils'
 
 export function EventCard({
@@ -49,7 +50,7 @@ export function EventCard({
             {isBonus ? '+' : ''}
             {event.score_delta.toFixed(1)}
           </span>
-          <span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full font-medium">
+          <span className="text-xs bg-gray-100 dark:bg-surface-elevated px-2 py-0.5 rounded-full font-medium">
             {reasonLabel ?? event.reason_code}
           </span>
           {event.reverted && (
@@ -60,12 +61,19 @@ export function EventCard({
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
           <span>{new Date(event.timestamp).toLocaleDateString()}</span>
-          <span className="text-gray-300 dark:text-gray-600">{expanded ? '▲' : '▼'}</span>
+          <span className="text-gray-300 dark:text-gray-600">
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </span>
         </div>
       </div>
       {expanded && (
         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/[0.06] text-xs space-y-1.5">
-          {event.note && <div className="text-gray-600 dark:text-gray-300">📝 {event.note}</div>}
+          {event.note && (
+            <div className="text-gray-600 dark:text-gray-300 flex items-start gap-1.5">
+              <StickyNote size={12} className="flex-shrink-0 mt-0.5 opacity-70" />
+              <span>{event.note}</span>
+            </div>
+          )}
           <div className="flex gap-4 text-gray-500 dark:text-gray-400">
             <span>
               累计: <span className="font-mono">{event.cumulative.toFixed(1)}</span>
@@ -81,9 +89,10 @@ export function EventCard({
                   e.stopPropagation()
                   onRevert()
                 }}
-                className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs font-medium transition-colors"
+                className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs font-medium transition-colors inline-flex items-center gap-1"
               >
-                ↩ 撤销此事件
+                <RotateCcw size={12} />
+                撤销此事件
               </button>
             </div>
           )}

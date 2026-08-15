@@ -3,6 +3,7 @@ import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { HttpProxyAgent } from "http-proxy-agent";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { calculateCost } from "../models.js";
+import { appendAssistantMessageDiagnostic } from "../utils/diagnostics.js";
 import { normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { providerHeadersToRecord } from "../utils/headers.js";
@@ -10,6 +11,7 @@ import { parseStreamingJson } from "../utils/json-parse.js";
 import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.js";
 import { adjustMaxTokensForThinking, buildBaseOptions, clampMaxTokensToContext, clampReasoning, } from "./simple-options.js";
 import { transformMessages } from "./transform-messages.js";
 const EMPTY_TEXT_PLACEHOLDER = "<empty>";
@@ -30,12 +32,18 @@ export const stream = (model, context, options = {}) => {
                 totalTokens: 0,
                 cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
             },
-            stopReason: "stop",
+            stopReason: "pending",
             timestamp: Date.now(),
         };
         const blocks = output.content;
+        // A profile explicitly configured through pi's auth flow (the `profile`
+        // option or scoped `AWS_PROFILE` on the stored credential's env) must win
+        // over ambient AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY. The SDK default
+        // chain already prefers a configured profile over env keys, but only when
+        // `credentials` is not set on the client config. See #6957.
+        const optionsProfile = options.profile || options.env?.AWS_PROFILE;
         const config = {
-            profile: options.profile || getProviderEnvValue("AWS_PROFILE", options.env),
+            profile: optionsProfile || getProviderEnvValue("AWS_PROFILE", options.env),
         };
         const configuredRegion = getConfiguredBedrockRegion(options);
         const hasAmbientConfiguredProfile = Boolean(getProviderEnvValue("AWS_PROFILE"));
@@ -49,7 +57,10 @@ export const stream = (model, context, options = {}) => {
         }
         // Resolve bearer token for Bedrock API key auth.
         const skipAuth = getProviderEnvValue("AWS_BEDROCK_SKIP_AUTH", options.env) === "1";
-        const bearerToken = options.bearerToken || getProviderEnvValue("AWS_BEARER_TOKEN_BEDROCK", options.env) || undefined;
+        const bearerToken = options.bearerToken ||
+            options.apiKey ||
+            getProviderEnvValue("AWS_BEARER_TOKEN_BEDROCK", options.env) ||
+            undefined;
         const useBearerToken = bearerToken !== undefined && !skipAuth;
         // in Node.js/Bun environment only
         if (typeof process !== "undefined" && (process.versions?.node || process.versions?.bun)) {
@@ -77,7 +88,7 @@ export const stream = (model, context, options = {}) => {
                 };
             }
             const credentials = getConfiguredBedrockCredentials(options.env);
-            if (!skipAuth && credentials) {
+            if (!skipAuth && credentials && !optionsProfile) {
                 config.credentials = credentials;
             }
             const proxyUrl = resolveHttpProxyUrlForTarget(model.baseUrl, options.env);
@@ -105,7 +116,11 @@ export const stream = (model, context, options = {}) => {
             config.token = { token: bearerToken };
             config.authSchemePreference = ["httpBearerAuth"];
         }
+        // Kept outside the try so the catch can still correlate a mid-stream failure:
+        // exceptions delivered as stream events carry no HTTP metadata of their own.
+        let responseRequestId;
         try {
+            const supportsStrictMode = model.compat?.supportsStrictMode ?? false;
             const client = new BedrockRuntimeClient(config);
             const customHeaders = providerHeadersToRecord(options.headers);
             if (customHeaders) {
@@ -121,7 +136,7 @@ export const stream = (model, context, options = {}) => {
                     ...(inferenceMaxTokens !== undefined && { maxTokens: inferenceMaxTokens }),
                     ...(options.temperature !== undefined && { temperature: options.temperature }),
                 },
-                toolConfig: convertToolConfig(context.tools, options.toolChoice),
+                toolConfig: convertToolConfig(context.tools, options.toolChoice, supportsStrictMode),
                 additionalModelRequestFields: buildAdditionalModelRequestFields(model, options),
                 ...(options.requestMetadata !== undefined && { requestMetadata: options.requestMetadata }),
             };
@@ -131,6 +146,7 @@ export const stream = (model, context, options = {}) => {
             }
             const command = new ConverseStreamCommand(commandInput);
             const response = await client.send(command, { abortSignal: options.signal });
+            responseRequestId = normalizeDiagnosticValue(response.$metadata.requestId);
             if (response.$metadata.httpStatusCode !== undefined) {
                 const responseHeaders = {};
                 if (response.$metadata.requestId) {
@@ -155,7 +171,12 @@ export const stream = (model, context, options = {}) => {
                     handleContentBlockStop(item.contentBlockStop, blocks, output, stream);
                 }
                 else if (item.messageStop) {
-                    output.stopReason = mapStopReason(item.messageStop.stopReason);
+                    output.rawStopReason = item.messageStop.stopReason;
+                    const { stopReason, errorMessage } = mapStopReason(item.messageStop.stopReason);
+                    output.stopReason = stopReason;
+                    if (errorMessage) {
+                        output.errorMessage = errorMessage;
+                    }
                 }
                 else if (item.metadata) {
                     handleMetadata(item.metadata, model, output);
@@ -179,8 +200,11 @@ export const stream = (model, context, options = {}) => {
             if (options.signal?.aborted) {
                 throw new Error("Request was aborted");
             }
+            if (output.stopReason === "pending") {
+                throw new Error("Bedrock stream ended without a stop reason");
+            }
             if (output.stopReason === "error" || output.stopReason === "aborted") {
-                throw new Error("An unknown error occurred");
+                throw new Error(output.errorMessage || "An unknown error occurred");
             }
             stream.push({ type: "done", reason: output.stopReason, message: output });
             stream.end();
@@ -193,6 +217,9 @@ export const stream = (model, context, options = {}) => {
             }
             output.stopReason = options.signal?.aborted ? "aborted" : "error";
             output.errorMessage = formatBedrockError(error);
+            if (output.stopReason === "error") {
+                appendBedrockFailureDiagnostic(output, error, responseRequestId);
+            }
             stream.push({ type: "error", reason: output.stopReason, error: output });
             stream.end();
         }
@@ -241,6 +268,46 @@ function formatBedrockError(error) {
         return `${prefix}: ${core}${dataRetentionHint}`;
     }
     return `${core}${dataRetentionHint}`;
+}
+/** Over-long header values are dropped rather than truncated: a truncated request id is not a request id. */
+const MAX_BEDROCK_DIAGNOSTIC_VALUE_CHARS = 200;
+function normalizeDiagnosticValue(value) {
+    if (typeof value !== "string")
+        return undefined;
+    const trimmed = value.trim();
+    if (trimmed.length === 0 || trimmed.length > MAX_BEDROCK_DIAGNOSTIC_VALUE_CHARS)
+        return undefined;
+    return trimmed;
+}
+/**
+ * The SDK puts the modeled code on `error.name` for service exceptions and unmodeled stream errors alike, so
+ * do not narrow to `BedrockRuntimeServiceException`. Modeled Bedrock errors all end in `Exception`, unlike
+ * transport names such as `TimeoutError`.
+ */
+function extractBedrockErrorCode(error) {
+    if (!(error instanceof Error) || !error.name.endsWith("Exception"))
+        return undefined;
+    return normalizeDiagnosticValue(error.name);
+}
+/**
+ * Structured metadata alongside `errorMessage`, which stays byte-identical because `isRetryableAssistantError`
+ * matches against it. Unknown fields are omitted, never guessed: a modeled mid-stream exception reaches us as
+ * a bare object literal, leaving only `fallbackRequestId`. `details` only, as the throw is not always `Error`.
+ */
+function appendBedrockFailureDiagnostic(output, error, fallbackRequestId) {
+    const metadata = error?.$metadata;
+    const details = {};
+    if (typeof metadata?.httpStatusCode === "number")
+        details.status = metadata.httpStatusCode;
+    const errorCode = extractBedrockErrorCode(error);
+    if (errorCode !== undefined)
+        details.errorCode = errorCode;
+    const requestId = normalizeDiagnosticValue(metadata?.requestId) ?? fallbackRequestId;
+    if (requestId !== undefined)
+        details.requestId = requestId;
+    if (Object.keys(details).length === 0)
+        return;
+    appendAssistantMessageDiagnostic(output, { type: "bedrock_response_failure", timestamp: Date.now(), details });
 }
 /**
  * Header keys that must never be overwritten by caller-supplied headers.
@@ -424,13 +491,18 @@ function supportsAdaptiveThinking(modelId, modelName) {
     return candidates.some((s) => s.includes("opus-4-6") ||
         s.includes("opus-4-7") ||
         s.includes("opus-4-8") ||
+        s.includes("opus-5") ||
         s.includes("sonnet-4-6") ||
         s.includes("sonnet-5") ||
         s.includes("fable-5"));
 }
 function supportsNativeXhighEffort(model) {
     const candidates = getModelMatchCandidates(model.id, model.name);
-    return candidates.some((s) => s.includes("opus-4-7") || s.includes("opus-4-8") || s.includes("fable-5"));
+    return candidates.some((s) => s.includes("opus-4-7") ||
+        s.includes("opus-4-8") ||
+        s.includes("opus-5") ||
+        s.includes("sonnet-5") ||
+        s.includes("fable-5"));
 }
 function mapThinkingLevelToEffort(model, level) {
     if (level === "xhigh" && supportsNativeXhighEffort(model))
@@ -479,7 +551,7 @@ function isAnthropicClaudeModel(model) {
 }
 /**
  * Check if the model supports prompt caching.
- * Supported: Claude 3.5 Haiku, Claude 3.7 Sonnet, Claude 4.x models
+ * Supported: Claude 3.5 Haiku, Claude 3.7 Sonnet, Claude 4.x models, Claude 5 models
  *
  * For base models and system-defined inference profiles the model ID / ARN
  * contains the model name, so we can decide locally.
@@ -499,6 +571,9 @@ function supportsPromptCaching(model, env) {
             return true;
         return false;
     }
+    // Claude 5 models (fable-5, opus-5, sonnet-5)
+    if (candidates.some((s) => s.includes("fable-5") || s.includes("opus-5") || s.includes("sonnet-5")))
+        return true;
     // Claude 4.x models (opus-4, sonnet-4, haiku-4)
     if (candidates.some((s) => s.includes("-4-")))
         return true;
@@ -543,6 +618,17 @@ function createNonBlankTextBlock(text) {
 }
 function createRequiredTextBlock(text) {
     return createNonBlankTextBlock(text) ?? { text: EMPTY_TEXT_PLACEHOLDER };
+}
+function sanitizeBedrockDocument(value) {
+    if (Array.isArray(value)) {
+        return value.map(sanitizeBedrockDocument);
+    }
+    if (value !== null && typeof value === "object") {
+        return Object.fromEntries(Object.entries(value)
+            .filter(([key]) => key.length > 0)
+            .map(([key, nestedValue]) => [key, sanitizeBedrockDocument(nestedValue)]));
+    }
+    return value;
 }
 function convertToolResultContent(content) {
     const result = [];
@@ -615,7 +701,7 @@ function convertMessages(context, model, cacheRetention, env) {
                         }
                         case "toolCall":
                             contentBlocks.push({
-                                toolUse: { toolUseId: c.id, name: c.name, input: c.arguments },
+                                toolUse: { toolUseId: c.id, name: c.name, input: sanitizeBedrockDocument(c.arguments) },
                             });
                             break;
                         case "thinking": {
@@ -718,16 +804,22 @@ function convertMessages(context, model, cacheRetention, env) {
     }
     return result;
 }
-function convertToolConfig(tools, toolChoice) {
-    if (!tools?.length || toolChoice === "none")
+function convertToolConfig(tools, toolChoice, supportsStrictMode) {
+    if (!tools?.length)
         return undefined;
-    const bedrockTools = tools.map((tool) => ({
-        toolSpec: {
-            name: tool.name,
-            description: tool.description,
-            inputSchema: { json: tool.parameters },
-        },
-    }));
+    if (toolChoice === "none")
+        return undefined;
+    const bedrockTools = tools.map((tool) => {
+        const strict = resolveJsonSchemaStrictSampling(tool, supportsStrictMode);
+        return {
+            toolSpec: {
+                name: tool.name,
+                description: tool.description,
+                inputSchema: { json: getJsonSchemaToolParameters(tool, strict) },
+                ...(strict === true ? { strict: true } : {}),
+            },
+        };
+    });
     let bedrockToolChoice;
     switch (toolChoice) {
         case "auto":
@@ -747,14 +839,16 @@ function mapStopReason(reason) {
     switch (reason) {
         case BedrockStopReason.END_TURN:
         case BedrockStopReason.STOP_SEQUENCE:
-            return "stop";
+            return { stopReason: "stop" };
         case BedrockStopReason.MAX_TOKENS:
         case BedrockStopReason.MODEL_CONTEXT_WINDOW_EXCEEDED:
-            return "length";
+            return { stopReason: "length" };
         case BedrockStopReason.TOOL_USE:
-            return "toolUse";
+            return { stopReason: "toolUse" };
         default:
-            return "error";
+            return reason
+                ? { stopReason: "error", errorMessage: `Provider stopped with: ${reason}` }
+                : { stopReason: "error" };
     }
 }
 function getConfiguredBedrockRegion(options) {
@@ -823,10 +917,11 @@ function buildAdditionalModelRequestFields(model, options) {
                     low: 2048,
                     medium: 8192,
                     high: 16384,
-                    xhigh: 16384, // Claude doesn't support xhigh, clamp to high
+                    xhigh: 16384, // Budget-based Claude clamps extended levels to high
+                    max: 16384,
                 };
-                // Custom budgets override defaults (xhigh not in ThinkingBudgets, use high)
-                const level = options.reasoning === "xhigh" ? "high" : options.reasoning;
+                // Custom budgets only cover token-based levels through high.
+                const level = options.reasoning === "xhigh" || options.reasoning === "max" ? "high" : options.reasoning;
                 const budget = options.thinkingBudgets?.[level] ?? defaultBudgets[options.reasoning];
                 return {
                     thinking: {

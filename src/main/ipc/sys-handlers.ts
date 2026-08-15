@@ -4,8 +4,8 @@
 
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { app, type BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
-import * as IPC from '../../shared/ipc-channels'
+import * as IPC from '@shared/ipc-channels'
+import { app, type BrowserWindow, dialog, ipcMain } from 'electron'
 import { updateService } from '../services/update-service'
 
 export function registerSysHandlers(win: BrowserWindow) {
@@ -34,33 +34,6 @@ export function registerSysHandlers(win: BrowserWindow) {
       return { canceled: true, filePath: '', error: msg } as Electron.SaveDialogReturnValue & {
         error: string
       }
-    }
-  })
-
-  // 在系统浏览器中打开链接
-  // MEDIUM 修复: openExternal 增加协议白名单(http/https/mailto),防止恶意协议执行
-  // H-8 修复: 加 try-catch,校验失败返回结构化错误
-  ipcMain.handle(IPC.IPC_SYS_OPEN_EXTERNAL, async (_e, url: string) => {
-    if (typeof url !== 'string' || url.length === 0) {
-      return { success: false, error: 'url must be a non-empty string' }
-    }
-    let parsed: URL
-    try {
-      parsed = new URL(url)
-    } catch {
-      return { success: false, error: `Invalid URL: ${url}` }
-    }
-    const ALLOWED_PROTOCOLS = new Set(['https:', 'mailto:'])
-    if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) {
-      return { success: false, error: `Disallowed protocol: ${parsed.protocol}` }
-    }
-    try {
-      await shell.openExternal(url)
-      return { success: true }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] sys:open-external failed for "${url}":`, msg)
-      return { success: false, error: msg }
     }
   })
 
@@ -127,21 +100,6 @@ export function registerSysHandlers(win: BrowserWindow) {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[IPC] sys:show-update-dialog failed:', msg)
-      return { success: false, error: msg }
-    }
-  })
-
-  // 系统通知
-  // H-8 修复: 加 try-catch
-  ipcMain.handle(IPC.IPC_SYS_NOTIFICATION, async (_e, title: string, body: string) => {
-    try {
-      if (Notification.isSupported()) {
-        new Notification({ title, body }).show()
-      }
-      return { success: true }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] sys:notification failed:', msg)
       return { success: false, error: msg }
     }
   })

@@ -41,10 +41,10 @@
   --color-surface-tertiary: rgb(var(--bg-rgb-tertiary));
   --color-surface-elevated: rgb(var(--bg-rgb-elevated));
 
-  /* 正文字体 —— 中英文混排: 西文 Inter 优先, 中文按平台优序回退 */
+  /* 正文字体 —— 中英文混排: 西文 Inter Variable 优先(已随应用打包), 中文按平台优序回退 */
   --font-sans:
-    "Inter", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Noto Sans CJK SC",
-    "Source Han Sans SC", -apple-system, BlinkMacSystemFont, sans-serif;
+    "Inter Variable", "Inter", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei",
+    "Noto Sans CJK SC", "Source Han Sans SC", -apple-system, BlinkMacSystemFont, sans-serif;
   /* 等宽字体 */
   --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
 
@@ -133,9 +133,9 @@
 ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
 }
-/* 滚动条仅在悬停时显示 */
+/* 滚动条: 默认半透明可见(提示可滚动), 悬停容器时变实心, 悬停 thumb 时更深 */
 *::-webkit-scrollbar-thumb {
-  background: transparent;
+  background: color-mix(in srgb, var(--scrollbar-thumb) 35%, transparent);
   transition: background 0.2s;
 }
 *:hover::-webkit-scrollbar-thumb {

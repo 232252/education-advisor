@@ -72,6 +72,13 @@ async function main() {
     console.error('Usage: node scripts/cdp-eval.mjs "<js expression>" [--await] [--timeout ms] [--file path]')
     process.exit(1)
   }
+  // --await 时把表达式包进 async IIFE：
+  // Runtime.evaluate 在非模块上下文执行，顶层 `await` 会抛 SyntaxError；
+  // 包成 (async()=>{ return (expr) })() 后，由 CDP 的 awaitPromise 等待结果。
+  // 若表达式已自带 async(如 (async()=>{...})() 或 ;-prefixed IIFE)，则不再包裹。
+  if (awaitPromise && !/\basync\b/.test(expression)) {
+    expression = `(async () => { return (${expression}); })()`
+  }
   try {
     const value = await evalInPage(expression, { awaitPromise, timeout })
     console.log(JSON.stringify(value, null, 2))

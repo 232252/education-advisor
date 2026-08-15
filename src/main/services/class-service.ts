@@ -12,7 +12,7 @@
 // =============================================================
 
 import { randomUUID } from 'node:crypto'
-import type { ClassEntity, ClassUpsertParams } from '../../shared/types'
+import type { ClassEntity, ClassUpsertParams } from '@shared/types'
 import type { ClassRecord } from './db-service'
 import { dbService } from './db-service'
 

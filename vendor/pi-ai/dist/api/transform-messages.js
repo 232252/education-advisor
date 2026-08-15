@@ -44,7 +44,10 @@ function downgradeUnsupportedImages(messages, model) {
 export function transformMessages(messages, model, normalizeToolCallId) {
     // Build a map of original tool call IDs to normalized IDs
     const toolCallIdMap = new Map();
-    const imageAwareMessages = downgradeUnsupportedImages(messages, model);
+    // Normalize null/undefined content from untyped callers (custom tools, hand-built
+    // histories, old session files) so downstream code can rely on the type contract.
+    const normalizedMessages = messages.map((msg) => (msg.content == null ? { ...msg, content: [] } : msg));
+    const imageAwareMessages = downgradeUnsupportedImages(normalizedMessages, model);
     // First pass: transform messages (unsupported image downgrade, thinking blocks, tool call ID normalization)
     const transformed = imageAwareMessages.map((msg) => {
         // User messages pass through unchanged

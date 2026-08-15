@@ -2,8 +2,8 @@
 // 技能 IPC 处理器
 // =============================================================
 
+import * as IPC from '@shared/ipc-channels'
 import { type BrowserWindow, ipcMain } from 'electron'
-import * as IPC from '../../shared/ipc-channels'
 import { skillService } from '../services/skill-service'
 
 export function registerSkillHandlers(_win: BrowserWindow) {

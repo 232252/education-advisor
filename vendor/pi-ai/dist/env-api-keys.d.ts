@@ -1,4 +1,7 @@
 import type { KnownProvider, ProviderEnv } from "./types.ts";
+export declare const ANTHROPIC_AUTH_TOKEN_ENV = "ANTHROPIC_AUTH_TOKEN";
+export declare const ANTHROPIC_OAUTH_TOKEN_ENV = "ANTHROPIC_OAUTH_TOKEN";
+export declare const ANTHROPIC_API_KEY_ENV = "ANTHROPIC_API_KEY";
 /**
  * Find configured environment variables that can provide an API key for a provider.
  *

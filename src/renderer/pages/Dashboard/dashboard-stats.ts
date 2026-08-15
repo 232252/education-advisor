@@ -15,6 +15,50 @@ export const SCORE_INTERVAL_LABELS = {
   LOW: '低(>=100)',
 } as const
 
+/** 分数分布展示排序: 极高 → 高 → 中 → 低 */
+export const SCORE_ORDER = ['极高(<60)', '高(60-80)', '中(80-100)', '低(>=100)']
+
+/** 班级筛选哨兵值：全部班级 / 未分班 */
+export const CLASS_FILTER_ALL = '__ALL__'
+export const CLASS_FILTER_NONE = '__NONE__'
+
+/**
+ * 判断实体所属班级是否命中当前班级筛选。
+ * 配合「entity_id → class_id」映射可过滤排行/事件等任意实体集合。
+ */
+export function matchesClassFilter(
+  entityClassId: string | null | undefined,
+  classFilter: string,
+): boolean {
+  if (classFilter === CLASS_FILTER_ALL) return true
+  if (classFilter === CLASS_FILTER_NONE) return !entityClassId
+  return entityClassId === classFilter
+}
+
+/** 班级筛选后学生集合的统计汇总 */
+export interface ClassStatsSummary {
+  total: number
+  avgScore: number
+  highRisk: number
+  riskDistribution: Record<string, number>
+}
+
+/** 计算学生集合的统计汇总：总数 / 平均分 / 高风险数 / 风险分布 */
+export function computeClassStats(students: EAAStudent[]): ClassStatsSummary {
+  const riskCount: Record<string, number> = { 极高: 0, 高: 0, 中: 0, 低: 0 }
+  let totalScore = 0
+  for (const s of students) {
+    riskCount[s.risk] = (riskCount[s.risk] ?? 0) + 1
+    totalScore += s.score
+  }
+  return {
+    total: students.length,
+    avgScore: students.length > 0 ? totalScore / students.length : 0,
+    highRisk: riskCount.极高 + riskCount.高,
+    riskDistribution: riskCount,
+  }
+}
+
 /**
  * 计算学生分数分布（4 桶）。
  * 区间：[0,60) / [60,80) / [80,100) / [100,+∞)

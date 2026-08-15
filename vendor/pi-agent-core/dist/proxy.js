@@ -38,6 +38,7 @@ class ProxyMessageEventStream extends EventStream {
 function buildProxyRequestOptions(options) {
     return {
         temperature: options.temperature,
+        samplingParams: options.samplingParams,
         maxTokens: options.maxTokens,
         reasoning: options.reasoning,
         cacheRetention: options.cacheRetention,
@@ -55,7 +56,7 @@ export function streamProxy(model, context, options) {
         // Initialize the partial message that we'll build up from events
         const partial = {
             role: "assistant",
-            stopReason: "stop",
+            stopReason: "pending",
             content: [],
             api: model.api,
             provider: model.provider,
@@ -249,6 +250,7 @@ function processProxyEvent(proxyEvent, partial) {
         case "toolcall_end": {
             const content = partial.content[proxyEvent.contentIndex];
             if (content?.type === "toolCall") {
+                Object.assign(content, proxyEvent.toolCall);
                 delete content.partialJson;
                 return {
                     type: "toolcall_end",

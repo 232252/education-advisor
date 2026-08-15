@@ -5,7 +5,7 @@
 // =============================================================
 
 import { describe, expect, it } from 'vitest'
-import * as IPC from '../../src/shared/ipc-channels'
+import * as IPC from '@shared/ipc-channels'
 
 describe('IPC Channels — 唯一性与格式', () => {
   const entries = Object.entries(IPC) as [string, string][]
@@ -101,7 +101,7 @@ describe('IPC Channels — 命名空间分组', () => {
 describe('IPC Channels — 关键常量存在性', () => {
   it('AI 聊天流相关通道存在', () => {
     expect(IPC.IPC_AI_CHAT_STREAM).toBeDefined()
-    expect(IPC.IPC_AI_CHAT_ABORT).toBeDefined()
+    expect(IPC.IPC_AI_CHAT).toBeDefined()
   })
 
   it('Agent 运行/状态通道存在', () => {

@@ -30,7 +30,7 @@ export async function loadPromptTemplates(env, paths) {
             diagnostics.push(...result.diagnostics);
         }
         else if (kind === "file" && info.name.endsWith(".md")) {
-            const result = await loadTemplateFromFile(env, info.path);
+            const result = await loadTemplateFromFile(env, info.path, info.name);
             if (result.promptTemplate)
                 promptTemplates.push(result.promptTemplate);
             diagnostics.push(...result.diagnostics);
@@ -80,14 +80,14 @@ async function loadTemplatesFromDir(env, dir) {
         const kind = await resolveKind(env, entry, diagnostics);
         if (kind !== "file" || !entry.name.endsWith(".md"))
             continue;
-        const result = await loadTemplateFromFile(env, entry.path);
+        const result = await loadTemplateFromFile(env, entry.path, entry.name);
         if (result.promptTemplate)
             promptTemplates.push(result.promptTemplate);
         diagnostics.push(...result.diagnostics);
     }
     return { promptTemplates, diagnostics };
 }
-async function loadTemplateFromFile(env, filePath) {
+async function loadTemplateFromFile(env, filePath, fileName) {
     const diagnostics = [];
     const rawContent = await env.readTextFile(filePath);
     if (!rawContent.ok) {
@@ -119,7 +119,7 @@ async function loadTemplateFromFile(env, filePath) {
     }
     return {
         promptTemplate: {
-            name: basenameEnvPath(filePath).replace(/\.md$/i, ""),
+            name: fileName.replace(/\.md$/i, ""),
             description,
             content: body,
         },
@@ -170,11 +170,6 @@ function parseFrontmatter(content) {
     catch (error) {
         return { ok: false, error: toError(error) };
     }
-}
-function basenameEnvPath(path) {
-    const normalized = path.replace(/\/+$/, "");
-    const slashIndex = normalized.lastIndexOf("/");
-    return slashIndex === -1 ? normalized : normalized.slice(slashIndex + 1);
 }
 /** Parse an argument string using simple shell-style single and double quotes. */
 export function parseCommandArgs(argsString) {

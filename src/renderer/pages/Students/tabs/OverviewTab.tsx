@@ -5,6 +5,7 @@
 
 import type { EAAHistoryData, EAAStudent, EAAStudentScore } from '@shared/types'
 import ReactEChartsCore from 'echarts-for-react/esm/core'
+import { ClipboardList } from 'lucide-react'
 import { useMemo } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
 import { useChartTheme } from '../../../hooks/useChartTheme'
@@ -123,7 +124,11 @@ export function OverviewTab({
       <div className={`${CARD_BASE} p-4 shadow-sm`}>
         <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">📋 最近事件</h4>
         {recentEvents.length === 0 ? (
-          <EmptyState icon="📋" title="暂无事件" className="py-4" />
+          <EmptyState
+            icon={<ClipboardList className="h-6 w-6" />}
+            title="暂无事件"
+            className="py-4"
+          />
         ) : (
           <div className="space-y-0">
             {recentEvents.map((evt, idx) => (
@@ -140,7 +145,7 @@ export function OverviewTab({
                     }
                   />
                   {idx < recentEvents.length - 1 && (
-                    <div className="w-0.5 flex-1 bg-gray-200 dark:bg-gray-700 my-0.5" />
+                    <div className="w-0.5 flex-1 bg-gray-200 dark:bg-surface-elevated my-0.5" />
                   )}
                 </div>
                 <div className="flex-1 pb-3">

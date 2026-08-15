@@ -62,6 +62,7 @@ vi.mock('@earendil-works/pi-agent-core', () => ({
 
 vi.mock('@earendil-works/pi-ai/compat', () => ({
   getEnvApiKey: vi.fn(() => 'test-key'),
+  streamSimple: vi.fn(),
   getModel: vi.fn(() => ({
     id: 'test-model',
     name: 'Test',

@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { AppLogo } from '../../components/AppLogo'
 
 export function WelcomePage() {
   const navigate = useNavigate()
@@ -97,8 +98,9 @@ export function WelcomePage() {
         }`}
       >
         <div className="max-w-5xl mx-auto flex items-center gap-3 text-white">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/20">
-            E
+          {/* 统一品牌标识: 与系统图标一致, 首屏即现且矢量锐利 */}
+          <div className="drop-shadow-lg shadow-blue-500/20">
+            <AppLogo size={40} showStatusDot={false} />
           </div>
           <div>
             <div className="text-lg font-bold tracking-tight">Education Advisor</div>

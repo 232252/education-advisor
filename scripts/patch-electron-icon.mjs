@@ -31,11 +31,11 @@ function main() {
 
   let rceditBin
   try {
-    const rceditPkg = require('rcedit')
-    // rcedit 包导出的 bin 路径
-    rceditBin = join(dirname(require.resolve('rcedit')), 'bin', 'rcedit-x64.exe')
+    // require.resolve('rcedit') 指向 lib/index.js, 向上一级即为包根目录
+    const pkgRoot = resolve(dirname(require.resolve('rcedit')), '..')
+    rceditBin = join(pkgRoot, 'bin', 'rcedit-x64.exe')
     if (!existsSync(rceditBin)) {
-      rceditBin = join(dirname(require.resolve('rcedit')), 'bin', 'rcedit.exe')
+      rceditBin = join(pkgRoot, 'bin', 'rcedit.exe')
     }
   } catch {
     console.log('[patch-electron-icon] rcedit not installed, skipping')

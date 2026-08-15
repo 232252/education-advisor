@@ -1,17 +1,18 @@
-import { type ImageContent, type Message, type SimpleStreamOptions, type ThinkingBudgets, type Transport } from "@earendil-works/pi-ai/compat";
-import type { AfterToolCallContext, AfterToolCallResult, AgentEvent, AgentLoopTurnUpdate, AgentMessage, AgentState, BeforeToolCallContext, BeforeToolCallResult, PrepareNextTurnContext, QueueMode, StreamFn, ToolExecutionMode } from "./types.ts";
+import type { ImageContent, Message, SimpleStreamOptions, ThinkingBudgets, Transport } from "@earendil-works/pi-ai";
+import type { AfterToolCallContext, AfterToolCallResult, AgentEvent, AgentLoopTurnUpdate, AgentMessage, AgentState, BeforeToolCallContext, BeforeToolCallResult, PrepareNextTurnContext, QueueMode, ShouldStopAfterTurnContext, StreamFn, ToolExecutionMode } from "./types.ts";
 export type { QueueMode } from "./types.ts";
 /** Options for constructing an {@link Agent}. */
 export interface AgentOptions {
     initialState?: Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
     convertToLlm?: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
     transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
-    streamFn?: StreamFn;
+    streamFn: StreamFn;
     getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
     onPayload?: SimpleStreamOptions["onPayload"];
     onResponse?: SimpleStreamOptions["onResponse"];
     beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;
     afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;
+    shouldStopAfterTurn?: (context: ShouldStopAfterTurnContext, signal?: AbortSignal) => boolean | Promise<boolean>;
     prepareNextTurn?: (signal?: AbortSignal) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
     prepareNextTurnWithContext?: (context: PrepareNextTurnContext, signal?: AbortSignal) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
     steeringMode?: QueueMode;
@@ -35,12 +36,13 @@ export declare class Agent {
     private readonly followUpQueue;
     convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
     transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
-    streamFn: StreamFn;
+    streamFunction: StreamFn;
     getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
     onPayload?: SimpleStreamOptions["onPayload"];
     onResponse?: SimpleStreamOptions["onResponse"];
     beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;
     afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;
+    shouldStopAfterTurn?: (context: ShouldStopAfterTurnContext, signal?: AbortSignal) => boolean | Promise<boolean>;
     prepareNextTurn?: (signal?: AbortSignal) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
     prepareNextTurnWithContext?: (context: PrepareNextTurnContext, signal?: AbortSignal) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
     private activeRun?;
@@ -54,7 +56,7 @@ export declare class Agent {
     maxRetryDelayMs?: number;
     /** Tool execution strategy for assistant messages that contain multiple tool calls. */
     toolExecution: ToolExecutionMode;
-    constructor(options?: AgentOptions);
+    constructor(options: AgentOptions);
     /**
      * Subscribe to agent lifecycle events.
      *

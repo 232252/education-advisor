@@ -13,9 +13,9 @@
 
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import type { McpServerConfig } from '@shared/types'
 import { app } from 'electron'
 import yaml from 'yaml'
-import type { McpServerConfig } from '../../shared/types'
 import { atomicWrite } from '../utils/atomic-write'
 import {
   deepInterpolate,

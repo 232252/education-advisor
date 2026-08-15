@@ -2,65 +2,34 @@
 // 学业管理页面 — 学生选择器 + 成绩总览 + 考试管理 + 成绩录入
 // 独立页面, 非学生档案内的 Tab
 //
-// 4 个 Tab 组件已抽出到 ./tabs/ 目录:
+// 4 个 Tab 组件在 ./tabs/ 目录:
 //   - CompareTab / OverviewTab / ExamManagementTab / GradeEntryTab
-// 多 Tab 共享的常量与纯函数位于 ./academics-shared.ts
-// 初始并行加载封装在 ./hooks/useAcademicsData.ts (基于 useMultiLoader)
-// 本文件仅保留: 主页面专属常量(DEFAULT_SUBJECTS/DEFAULT_EXAM_TYPES/TAB_LIST)
-//              + 主 AcademicsPage 组件
+// 本文件为编排层:
+//   - 初始并行加载 ./hooks/useAcademicsData.ts (基于 useMultiLoader)
+//   - 学生成绩按需加载 ./hooks/useStudentGrades.ts
+//   - 左侧学生列表 UI 在 ./components/StudentSidebar.tsx
+//   - 过滤/派生纯计算在 ./lib/academics-metrics.ts
+//   - 默认科目/考试类型在 ./lib/academics-defaults.ts
+//   - 多 Tab 共享的常量与纯函数位于 ./academics-shared.ts
 // =============================================================
 
-import type { ExamType, GradeRecord, SubjectDef } from '@shared/types'
+import type { SubjectDef } from '@shared/types'
 import type { LucideIcon } from 'lucide-react'
-import {
-  ArrowLeft,
-  BarChart3,
-  ClipboardList,
-  GraduationCap,
-  PencilLine,
-  Search,
-  TrendingUp,
-  Users,
-} from 'lucide-react'
+import { ArrowLeft, BarChart3, ClipboardList, PencilLine, TrendingUp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { PageSkeleton } from '../../components/Skeleton'
 import { useTabs } from '../../hooks/useTabs'
 import { useT } from '../../i18n'
-import { getAPI } from '../../lib/ipc-client'
+import { buildClassIdToNameMap } from '../../lib/class-utils'
 import { btnStyle, cn, INPUT_BASE } from '../../lib/ui-utils'
+import { StudentSidebar } from './components/StudentSidebar'
 import { useAcademicsData } from './hooks/useAcademicsData'
+import { useStudentGrades } from './hooks/useStudentGrades'
+import { DEFAULT_EXAM_TYPES, DEFAULT_SUBJECTS } from './lib/academics-defaults'
+import { extractSemesters, filterStudents } from './lib/academics-metrics'
 import { CompareTab, ExamManagementTab, GradeEntryTab, OverviewTab } from './tabs'
-
-// =============================================================
-// 模块级常量 — 避免每次渲染重建引用破坏 useMemo
-// =============================================================
-
-/** 默认科目集 (config 缺失时使用) — 覆盖全部 10 个科目 */
-const DEFAULT_SUBJECTS: SubjectDef[] = [
-  { id: 'chinese', name: '语文', category: 'core', fullMark: 150, isCore: true },
-  { id: 'math', name: '数学', category: 'core', fullMark: 150, isCore: true },
-  { id: 'english', name: '英语', category: 'core', fullMark: 150, isCore: true },
-  { id: 'physics', name: '物理', category: 'science', fullMark: 100 },
-  { id: 'chemistry', name: '化学', category: 'science', fullMark: 100 },
-  { id: 'biology', name: '生物', category: 'science', fullMark: 100 },
-  { id: 'politics', name: '政治', category: 'arts', fullMark: 100 },
-  { id: 'history', name: '历史', category: 'arts', fullMark: 100 },
-  { id: 'geography', name: '地理', category: 'arts', fullMark: 100 },
-  { id: 'pe', name: '体育', category: 'pe', fullMark: 100 },
-]
-
-/** 默认考试类型 — 与 ExamType 一一对应 */
-const DEFAULT_EXAM_TYPES: Array<{ value: ExamType; label: string }> = [
-  { value: 'monthly', label: '月考' },
-  { value: 'midterm', label: '期中' },
-  { value: 'final', label: '期末' },
-  { value: 'test', label: '平时测试' },
-  { value: 'quiz', label: '随堂测验' },
-  { value: 'mock', label: '模拟考试' },
-  { value: 'other', label: '其他' },
-]
 
 // =============================================================
 // 主组件
@@ -84,13 +53,14 @@ export function AcademicsPage() {
 
   // ===== 本地状态 =====
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
-  const [grades, setGrades] = useState<GradeRecord[]>([])
-  const [gradesLoading, setGradesLoading] = useState(false)
   // 原页面不持久化 activeTab (无 localStorage)，因此不传 storageKey
   const { active: activeTab, setActive: setActiveTab } = useTabs<AcademicsTab>('overview')
   const [searchQuery, setSearchQuery] = useState('')
   const [classFilter, setClassFilter] = useState<string>('__ALL__')
   const [semesterFilter, setSemesterFilter] = useState<string>('__ALL__')
+
+  // ===== 学生成绩 (依赖 selectedStudent, 按需加载) =====
+  const { grades, gradesLoading, reloadGrades } = useStudentGrades(selectedStudent)
 
   // ===== 派生数据 =====
 
@@ -114,38 +84,19 @@ export function AcademicsPage() {
   }, [subjects])
 
   /** 过滤后的学生列表 (按班级 + 搜索词) */
-  const filteredStudents = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    let list = students.filter((s) => s.status !== 'Deleted')
-    // 班级筛选
-    if (classFilter === '__NONE__') {
-      list = list.filter((s) => !s.class_id)
-    } else if (classFilter !== '__ALL__') {
-      list = list.filter((s) => s.class_id === classFilter)
-    }
-    if (q) {
-      list = list.filter((s) => s.name.toLowerCase().includes(q))
-    }
-    // 按姓名排序, 便于查找
-    return [...list].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
-  }, [students, searchQuery, classFilter])
+  const filteredStudents = useMemo(
+    () => filterStudents(students, classFilter, searchQuery),
+    [students, searchQuery, classFilter],
+  )
 
   /** 班级 ID → 班级名称 */
-  const classIdToName = useMemo(() => {
-    const m: Record<string, string> = {}
-    for (const c of classList) m[c.class_id] = c.name
-    return m
-  }, [classList])
+  const classIdToName = useMemo(() => buildClassIdToNameMap(classList), [classList])
 
   /** 活跃班级列表 (未存档) */
   const activeClassList = useMemo(() => classList.filter((c) => !c.archived), [classList])
 
   /** 学期列表 (从 exams 中提取去重) */
-  const semesterList = useMemo(() => {
-    const set = new Set<string>()
-    for (const e of exams) if (e.semester) set.add(e.semester)
-    return Array.from(set).sort().reverse()
-  }, [exams])
+  const semesterList = useMemo(() => extractSemesters(exams), [exams])
 
   /** 按学期过滤后的考试列表 */
   const filteredExams = useMemo(() => {
@@ -159,41 +110,11 @@ export function AcademicsPage() {
     [students, selectedStudent],
   )
 
-  // ===== 数据加载 =====
-
-  // loadGrades 单独维护：依赖 selectedStudent，按需触发，不并入初始并行加载
-  const loadGrades = useCallback(async (studentName: string) => {
-    if (!studentName) {
-      setGrades([])
-      return
-    }
-    setGradesLoading(true)
-    try {
-      const res = await getAPI().academic.getGrades(studentName)
-      if (res.success && res.data) {
-        setGrades(res.data)
-      } else {
-        setGrades([])
-      }
-    } catch (err) {
-      console.warn('[Academics] Failed to load grades:', err)
-      setGrades([])
-    } finally {
-      setGradesLoading(false)
-    }
-  }, [])
-
   // 默认选中第一个学生 — 原 loadInitialData 在每次成功拉取学生列表后均会重置选择,
   // 此处用 useEffect 监听 students 保持一致行为
   useEffect(() => {
     if (students.length > 0) setSelectedStudent(students[0].name)
   }, [students])
-
-  // 学生切换时重新加载成绩
-  useEffect(() => {
-    if (selectedStudent) loadGrades(selectedStudent)
-    else setGrades([])
-  }, [selectedStudent, loadGrades])
 
   // ===== 事件处理 =====
 
@@ -217,10 +138,6 @@ export function AcademicsPage() {
     }
   }, [reload])
 
-  const handleRefreshGrades = useCallback(() => {
-    if (selectedStudent) loadGrades(selectedStudent)
-  }, [selectedStudent, loadGrades])
-
   if (loading) {
     return <PageSkeleton />
   }
@@ -228,86 +145,17 @@ export function AcademicsPage() {
   return (
     <div className="flex h-full bg-canvas">
       {/* ===== 左侧: 学生列表 ===== */}
-      <aside className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary flex flex-col">
-        <div className="p-3 border-b border-gray-200 dark:border-white/[0.06]">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2 flex items-center gap-1.5">
-            <Users size={16} className="text-gray-400 dark:text-gray-500" />
-            <span>学生列表</span>
-            <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 font-normal">
-              {filteredStudents.length}
-            </span>
-          </h2>
-          <div className="space-y-2">
-            {/* 班级筛选 */}
-            <select
-              value={classFilter}
-              onChange={(e) => setClassFilter(e.target.value)}
-              className={cn('w-full', INPUT_BASE)}
-              title="按班级筛选"
-            >
-              <option value="__ALL__">全部班级</option>
-              <option value="__NONE__">未分班</option>
-              {activeClassList.map((c) => (
-                <option key={c.class_id} value={c.class_id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            {/* 搜索 */}
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜索学生..."
-                className={cn('w-full', INPUT_BASE, 'pl-8')}
-              />
-              <Search
-                size={16}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-              />
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {filteredStudents.length === 0 ? (
-            <EmptyState
-              icon={<GraduationCap size={28} />}
-              title={searchQuery || classFilter !== '__ALL__' ? '未找到匹配的学生' : '暂无学生'}
-              className="py-12"
-            />
-          ) : (
-            filteredStudents.map((s) => {
-              const clsName = s.class_id ? (classIdToName[s.class_id] ?? null) : null
-              return (
-                <button
-                  type="button"
-                  key={s.entity_id}
-                  onClick={() => handleSelectStudent(s.name)}
-                  className={cn(
-                    'w-full text-left px-3 py-2 flex items-center gap-2 text-sm transition-colors border-l-2',
-                    selectedStudent === s.name
-                      ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 text-blue-700 dark:text-blue-300 font-medium'
-                      : 'border-transparent hover:bg-gray-50 dark:hover:bg-white/[0.04] text-gray-700 dark:text-gray-300',
-                  )}
-                >
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                    {s.name[0]}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate">{s.name}</div>
-                    {clsName && (
-                      <div className="text-[10px] text-gray-400 dark:text-gray-500 truncate">
-                        {clsName}
-                      </div>
-                    )}
-                  </div>
-                </button>
-              )
-            })
-          )}
-        </div>
-      </aside>
+      <StudentSidebar
+        students={filteredStudents}
+        classFilter={classFilter}
+        onClassFilterChange={setClassFilter}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        activeClassList={activeClassList}
+        classIdToName={classIdToName}
+        selectedStudent={selectedStudent}
+        onSelectStudent={handleSelectStudent}
+      />
 
       {/* ===== 右侧: 学业详情 ===== */}
       <main className="flex-1 overflow-y-auto">
@@ -408,7 +256,7 @@ export function AcademicsPage() {
               exams={filteredExams}
               examTypes={examTypes}
               currentGrades={grades}
-              onSaved={handleRefreshGrades}
+              onSaved={reloadGrades}
               onExamCreated={handleRefreshExams}
             />
           )}
