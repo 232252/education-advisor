@@ -28,7 +28,7 @@ const tests = [
   ['eaa.info', `api.eaa.info()`],
   ['eaa.stats', `api.eaa.stats()`],
   ['eaa.listStudents', `api.eaa.listStudents({})`],
-  ['eaa.summary', `api.eaa.summary({})`],
+  ['eaa.summary', `api.eaa.summary()`],
   ['eaa.codes', `api.eaa.codes()`],
   ['eaa.doctor', `api.eaa.doctor()`],
   ['agent.list', `api.agent.list()`],

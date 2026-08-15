@@ -6,9 +6,10 @@
 //   - telemetry/autoUpdate 等"待实现"字段不报错(让 UI 安静保存)
 // =============================================================
 
+import * as IPC from '@shared/ipc-channels'
+import type { UnifiedSettings } from '@shared/types'
 import { app, type BrowserWindow, ipcMain } from 'electron'
-import * as IPC from '../../shared/ipc-channels'
-import type { UnifiedSettings } from '../../shared/types'
+import { cronService } from '../services/cron-service'
 import { TtlLruCache } from '../services/eaa-cache'
 import { feishuBotService } from '../services/feishu-bot-service'
 import { keystoreService } from '../services/keystore-service'
@@ -155,6 +156,13 @@ export function registerSettingsHandlers(win: BrowserWindow) {
         log('info', 'settings', `chat.conversationLogging changed to ${value}`)
       }
 
+      // F2 修复: bitableSync 开关/间隔变化后联动 cron 任务(保存即生效,无需重启)。
+      // registerBitableSync 已改为幂等 upsert: enabled → 按当前 syncInterval 重建;
+      // disabled → 移除既有 __feishu__ 任务。cron-service 不 import 本文件,无循环依赖。
+      if (path === 'feishu.bitableSync.enabled' || path === 'feishu.bitableSync.syncInterval') {
+        cronService.registerBitableSync()
+      }
+
       return { success: true }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -182,6 +190,8 @@ export function registerSettingsHandlers(win: BrowserWindow) {
       setLogLevel(newSettings.general.logLevel)
       // 适配 Electron 33/36: 重置后同步 nativeTheme 到默认主题
       syncNativeTheme()
+      // F2 修复: 重置后 bitableSync 回到默认关闭,联动移除既有 __feishu__ cron 任务
+      cronService.registerBitableSync()
       log('info', 'settings', `settings reset; logLevel=${newSettings.general.logLevel}`)
       return { success: true }
     } catch (err: unknown) {

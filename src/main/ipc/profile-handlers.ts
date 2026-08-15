@@ -2,11 +2,21 @@
 // Student Profile IPC 处理器
 // =============================================================
 
+import * as IPC from '@shared/ipc-channels'
+import type { StudentProfileData } from '@shared/types'
 import { ipcMain } from 'electron'
-import * as IPC from '../../shared/ipc-channels'
-import type { StudentProfileData } from '../../shared/types'
 import { profileService } from '../services/profile-service'
 
+/**
+ * 有意保留的本地变体,不与 utils/sanitize.ts 的统一 sanitizeName 合并:
+ * 本函数面向**文件名安全**(name 会被 profileService 拼接为 profiles/<name>.json),
+ * 与统一版(CLI 参数安全)语义不同 —
+ *   - 本版拒绝文件系统保留字符 : * ? " < > | (统一版不拒绝,Windows 文件名不允许)
+ *   - 本版仅拒绝 NUL 字节(统一版拒绝全部控制字符)
+ *   - 本版不拒绝 -- 前缀(文件名场景无害;统一版用于防 CLI flag 注入)
+ *   - 本版拒绝裸 "." / "..";统一版拒绝任何包含 ".." 的子串
+ * 替换为统一版会放过 Windows 保留字符导致路径拼接失败,故保留并注明差异。
+ */
 function sanitizeName(name: string): string {
   if (typeof name !== 'string' || name.trim().length === 0) {
     throw new Error('name must be a non-empty string')

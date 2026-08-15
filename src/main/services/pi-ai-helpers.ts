@@ -13,7 +13,7 @@ import type {
   AssistantMessageEvent,
   Model,
 } from '@earendil-works/pi-ai/compat'
-import type { ModelInfo, StreamEvent } from '../../shared/types'
+import type { ModelInfo, StreamEvent } from '@shared/types'
 
 /**
  * 按 id 去重模型列表(保留第一个出现)。

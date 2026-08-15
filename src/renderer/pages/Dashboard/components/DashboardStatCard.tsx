@@ -8,6 +8,16 @@ import type { LucideIcon } from 'lucide-react'
 import { memo } from 'react'
 import { Card } from '../../../components/Card'
 
+/** 统计数值格式化：数字与纯数字字符串加千分位(34922→34,922；"1234.5"→"1,234.5")，
+ *  非数字字符串(如 "10/18"、"未设置")保持不变。 */
+function formatStat(value: string | number): string {
+  if (typeof value === 'number') return value.toLocaleString('en-US')
+  const m = value.match(/^(-?)(\d+)(\.\d+)?$/)
+  if (!m) return value
+  const [, sign, intPart, dec = ''] = m
+  return `${sign}${Number.parseInt(intPart, 10).toLocaleString('en-US')}${dec}`
+}
+
 // 渐变色配色方案
 const GRADIENT_COLORS = {
   blue: {
@@ -91,14 +101,14 @@ export const DashboardStatCard = memo(function DashboardStatCard({
             aria-label={title}
           />
         </div>
-        {/* 数值: 卡片主题色渐变文字(而非纯色), 视觉更精致 */}
+        {/* 数值: 卡片主题色渐变文字(而非纯色), tabular-nums 等宽数字避免跳动, 视觉更精致 */}
         <div
-          className="text-2xl font-bold tracking-tight bg-clip-text text-transparent"
+          className="text-2xl font-bold tracking-tight tabular-nums bg-clip-text text-transparent"
           style={{
             backgroundImage: `linear-gradient(135deg, ${c.from} 0%, ${c.to} 100%)`,
           }}
         >
-          {value}
+          {formatStat(value)}
         </div>
         <div
           className="mt-2 h-[3px] rounded-full w-0 group-hover:w-full transition-all duration-500 ease-out"

@@ -2,7 +2,9 @@
  * Shared utilities for Google Generative AI and Google Vertex providers.
  */
 import { FinishReason, FunctionCallingConfigMode } from "@google/genai";
+import { retryProviderRequest } from "../utils/provider-retry.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.js";
 import { transformMessages } from "./transform-messages.js";
 /**
  * Determines whether a streamed Gemini `Part` should be treated as "thinking".
@@ -55,7 +57,10 @@ function resolveThoughtSignature(isSameProviderAndModel, signature) {
  * Models via Google APIs that require explicit tool call IDs in function calls/responses.
  */
 export function requiresToolCallId(modelId) {
-    return modelId.startsWith("claude-") || modelId.startsWith("gpt-oss-");
+    const geminiMajorVersion = getGeminiMajorVersion(modelId);
+    return (modelId.startsWith("claude-") ||
+        modelId.startsWith("gpt-oss-") ||
+        (geminiMajorVersion !== undefined && geminiMajorVersion >= 3));
 }
 function getGeminiMajorVersion(modelId) {
     const match = modelId.toLowerCase().match(/^gemini(?:-live)?-(\d+)/);
@@ -117,23 +122,27 @@ export function convertMessages(model, context) {
             const isSameProviderAndModel = msg.provider === model.provider && msg.model === model.id;
             for (const block of msg.content) {
                 if (block.type === "text") {
-                    // Skip empty text blocks
-                    if (!block.text || block.text.trim() === "")
-                        continue;
                     const thoughtSignature = resolveThoughtSignature(isSameProviderAndModel, block.textSignature);
+                    // Skip empty text blocks — unless they carry a thought signature. Gemini can attach
+                    // the signature to a part whose visible text is empty and requires it echoed back;
+                    // dropping it breaks the reasoning chain and the model intermittently ends mid-task
+                    // turns with a thought-only STOP (empty completion, no tool call).
+                    if ((!block.text || block.text.trim() === "") && !thoughtSignature)
+                        continue;
                     parts.push({
                         text: sanitizeSurrogates(block.text),
                         ...(thoughtSignature && { thoughtSignature }),
                     });
                 }
                 else if (block.type === "thinking") {
-                    // Skip empty thinking blocks
-                    if (!block.thinking || block.thinking.trim() === "")
-                        continue;
                     // Only keep as thinking block if same provider AND same model
                     // Otherwise convert to plain text (no tags to avoid model mimicking them)
                     if (isSameProviderAndModel) {
                         const thoughtSignature = resolveThoughtSignature(isSameProviderAndModel, block.thinkingSignature);
+                        // Same rule as text blocks: an empty thinking block is dropped only when it
+                        // carries no signature (mirrors the anthropic converter's handling).
+                        if ((!block.thinking || block.thinking.trim() === "") && !thoughtSignature)
+                            continue;
                         parts.push({
                             thought: true,
                             text: sanitizeSurrogates(block.thinking),
@@ -141,6 +150,9 @@ export function convertMessages(model, context) {
                         });
                     }
                     else {
+                        // Cross-provider/model: the signature is unusable, empty blocks stay dropped.
+                        if (!block.thinking || block.thinking.trim() === "")
+                            continue;
                         parts.push({
                             text: sanitizeSurrogates(block.thinking),
                         });
@@ -252,24 +264,31 @@ function sanitizeForOpenApi(schema) {
  * field instead (OpenAPI 3.03 Schema). This is needed for Cloud Code Assist with Claude
  * models, where the API translates `parameters` into Anthropic's `input_schema`.
  */
-export function convertTools(tools, useParameters = false) {
+export function convertTools(tools, useParameters = false, supportsStrictMode = true) {
     if (tools.length === 0)
         return undefined;
     return [
         {
-            functionDeclarations: tools.map((tool) => ({
-                name: tool.name,
-                description: tool.description,
-                ...(useParameters
-                    ? { parameters: sanitizeForOpenApi(tool.parameters) }
-                    : { parametersJsonSchema: tool.parameters }),
-            })),
+            functionDeclarations: tools.map((tool) => {
+                const strict = resolveJsonSchemaStrictSampling(tool, supportsStrictMode);
+                const parameters = getJsonSchemaToolParameters(tool, strict);
+                return {
+                    name: tool.name,
+                    description: tool.description,
+                    ...(useParameters
+                        ? { parameters: sanitizeForOpenApi(parameters) }
+                        : { parametersJsonSchema: parameters }),
+                };
+            }),
         },
     ];
 }
-/**
- * Map tool choice string to Gemini FunctionCallingConfigMode.
- */
+/** Gemini 3+ enforces required function parameters in validated tool-calling modes. */
+export function supportsGoogleStrictToolSampling(modelId) {
+    const majorVersion = getGeminiMajorVersion(modelId);
+    return majorVersion !== undefined && majorVersion >= 3;
+}
+/** Map tool choice string to Gemini FunctionCallingConfigMode. */
 export function mapToolChoice(choice) {
     switch (choice) {
         case "auto":
@@ -281,6 +300,16 @@ export function mapToolChoice(choice) {
         default:
             return FunctionCallingConfigMode.AUTO;
     }
+}
+export function resolveGoogleFunctionCallingMode(tools, toolChoice, supportsStrictMode) {
+    const useStrictMode = tools.some((tool) => resolveJsonSchemaStrictSampling(tool, supportsStrictMode) === true);
+    if (toolChoice === "none" || toolChoice === "any") {
+        return mapToolChoice(toolChoice);
+    }
+    if (useStrictMode) {
+        return FunctionCallingConfigMode.VALIDATED;
+    }
+    return toolChoice ? mapToolChoice(toolChoice) : undefined;
 }
 /**
  * Map Gemini FinishReason to our StopReason.
@@ -325,5 +354,31 @@ export function mapStopReasonString(reason) {
         default:
             return "error";
     }
+}
+/**
+ * Run a Google GenAI SDK request with the shared provider retry policy
+ * (408/409/429/5xx with backoff, honoring retry-after), mirroring how the
+ * Anthropic and OpenAI adapters wrap their initial request in
+ * retryProviderRequest. The SDK's ApiError has a `status` property but no
+ * `headers` property, and retryProviderRequest only retries errors that carry
+ * both, so normalize the error by adding the missing `headers` before
+ * rethrowing.
+ */
+export function retryGoogleRequest(request, options) {
+    return retryProviderRequest(async () => {
+        try {
+            return await request();
+        }
+        catch (error) {
+            if (error instanceof Error && "status" in error && !("headers" in error)) {
+                error.headers = undefined;
+            }
+            throw error;
+        }
+    }, {
+        maxRetries: options?.maxRetries,
+        maxRetryDelayMs: options?.maxRetryDelayMs,
+        signal: options?.signal,
+    });
 }
 //# sourceMappingURL=google-shared.js.map

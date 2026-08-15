@@ -9,6 +9,7 @@ export { useConfirmDialog } from './useConfirmDialog'
 export { useDebounce } from './useDebounce'
 export { useDebouncedCallback } from './useDebouncedCallback'
 export { useEventListener } from './useEventListener'
+export { useInterval } from './useInterval'
 export { useLocalStorage } from './useLocalStorage'
 export {
   type UseMultiLoaderOptions,

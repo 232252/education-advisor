@@ -2,7 +2,7 @@
  * Proxy stream function for apps that route LLM calls through a server.
  * The server manages auth and proxies requests to LLM providers.
  */
-import { type AssistantMessage, type AssistantMessageEvent, type Context, EventStream, type Model, type SimpleStreamOptions, type StopReason } from "@earendil-works/pi-ai";
+import { type AssistantMessage, type AssistantMessageEvent, type Context, EventStream, type Model, type SimpleStreamOptions, type StopReason, type ToolCall } from "@earendil-works/pi-ai";
 declare class ProxyMessageEventStream extends EventStream<AssistantMessageEvent, AssistantMessage> {
     constructor();
 }
@@ -45,6 +45,7 @@ export type ProxyAssistantMessageEvent = {
 } | {
     type: "toolcall_end";
     contentIndex: number;
+    toolCall: ToolCall;
 } | {
     type: "done";
     reason: Extract<StopReason, "stop" | "length" | "toolUse">;
@@ -55,7 +56,7 @@ export type ProxyAssistantMessageEvent = {
     errorMessage?: string;
     usage: AssistantMessage["usage"];
 };
-type ProxySerializableStreamOptions = Pick<SimpleStreamOptions, "temperature" | "maxTokens" | "reasoning" | "cacheRetention" | "sessionId" | "headers" | "metadata" | "transport" | "thinkingBudgets" | "maxRetryDelayMs">;
+type ProxySerializableStreamOptions = Pick<SimpleStreamOptions, "temperature" | "samplingParams" | "maxTokens" | "reasoning" | "cacheRetention" | "sessionId" | "headers" | "metadata" | "transport" | "thinkingBudgets" | "maxRetryDelayMs">;
 export interface ProxyStreamOptions extends ProxySerializableStreamOptions {
     /** Local abort signal for the proxy request */
     signal?: AbortSignal;
