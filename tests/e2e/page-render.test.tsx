@@ -16,6 +16,8 @@ import { spawn } from 'node:child_process'
 const _dirName = process.platform === 'win32' ? 'win32-x64' : process.platform === 'darwin' ? (process.arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64') : 'linux-x64'
 const _binName = process.platform === 'win32' ? 'eaa.exe' : 'eaa'
 const EAA_BIN = join(__dirname, '..', '..', 'resources', 'eaa-binaries', _dirName, _binName)
+// 平台二进制缺失(如 macOS 无 darwin 构建)时整组跳过,避免 CI 误报 ENOENT
+const describeE2E = existsSync(EAA_BIN) ? describe : describe.skip
 const TEST_ROOT = mkdtempSync(join(tmpdir(), 'eaa-pages-'))
 const TEST_DATA = join(TEST_ROOT, 'data')
 const SCHEMA_SRC = join(__dirname, '..', '..', 'core', 'eaa-cli', 'schema', 'reason_codes.json')
@@ -268,7 +270,7 @@ afterAll(() => {
 // 关键 Bug 验证（用户报告）
 // =============================================================
 
-describe('用户报告 Bug 验证（数据流层）', () => {
+describeE2E('用户报告 Bug 验证（数据流层）', () => {
   it('Bug 1: 班级学生数显示 0 — 实际 list-students 返回的 class_id 是正确的', async () => {
     // 模拟 ClassesPage 加载流程：getAPI().class.list() + getAPI().eaa.listStudents()
     const cls = (await mockApi.class.list()) as { data: Array<{ class_id: string; name: string }> }
@@ -345,7 +347,7 @@ describe('用户报告 Bug 验证（数据流层）', () => {
   })
 })
 
-describe('业务场景压力测试（容器内完整模拟）', () => {
+describeE2E('业务场景压力测试（容器内完整模拟）', () => {
   it('场景 A: 班级 → 学生 → 事件 → 排行榜 完整链路', async () => {
     // 1. 班级列表
     const cls = (await mockApi.class.list()) as { data: unknown[] }

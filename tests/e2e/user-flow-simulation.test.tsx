@@ -25,6 +25,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const _dirName = process.platform === 'win32' ? 'win32-x64' : process.platform === 'darwin' ? (process.arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64') : 'linux-x64'
 const _binName = process.platform === 'win32' ? 'eaa.exe' : 'eaa'
 const EAA_BIN = join(__dirname, '..', '..', 'resources', 'eaa-binaries', _dirName, _binName)
+// 平台二进制缺失(如 macOS 无 darwin 构建)时整组跳过,避免 CI 误报 ENOENT
+const describeE2E = existsSync(EAA_BIN) ? describe : describe.skip
 const TEST_ROOT = mkdtempSync(join(tmpdir(), 'eaa-userflow-'))
 const TEST_DATA = join(TEST_ROOT, 'data')
 const SCHEMA_SRC = join(
@@ -472,7 +474,7 @@ afterAll(() => {
   }
 })
 
-describe('用户按键流模拟：班级管理（创建 3 班 + 全流程）', () => {
+describeE2E('用户按键流模拟：班级管理（创建 3 班 + 全流程）', () => {
   it('场景 1: 随机创建 3 个班级', async () => {
     const classes = randomClasses(3)
     for (const cls of classes) {
@@ -584,7 +586,7 @@ describe('用户按键流模拟：班级管理（创建 3 班 + 全流程）', (
   })
 })
 
-describe('用户按键流模拟：学生管理（班级筛选 + 批量 + 调班）', () => {
+describeE2E('用户按键流模拟：学生管理（班级筛选 + 批量 + 调班）', () => {
   let classes: Array<{ class_id: string }>
 
   beforeEach(async () => {
@@ -643,7 +645,7 @@ describe('用户按键流模拟：学生管理（班级筛选 + 批量 + 调班�
   })
 })
 
-describe('用户按键流模拟：仪表盘班级对比 + 排行榜', () => {
+describeE2E('用户按键流模拟：仪表盘班级对比 + 排行榜', () => {
   it('场景 8: 班级对比模式：双班数据完整性', async () => {
     // 1. 创建 2 班 (randomClasses 保证 class_id 不撞号; 撞号时 a/b 过滤的是同一个班,
     //    avgA===avgB 恒等 → 断言必挂)
@@ -690,7 +692,7 @@ describe('用户按键流模拟：仪表盘班级对比 + 排行榜', () => {
   })
 })
 
-describe('用户按键流模拟：压力 + 长时间', () => {
+describeE2E('用户按键流模拟：压力 + 长时间', () => {
   it('场景 10: 50 轮随机操作 — 班级/学生/事件混合', async () => {
     // 创建 3 班
     const classes = randomClasses(3)
@@ -819,7 +821,7 @@ describe('用户按键流模拟：压力 + 长时间', () => {
   })
 })
 
-describe('用户报告 Bug 验证（数据流层）', () => {
+describeE2E('用户报告 Bug 验证（数据流层）', () => {
   it('Bug 1: 班级学生数列（之前显示 0）— 现已正确', async () => {
     const cls = randomClass()
     await userClickCreateClass(cls)
@@ -921,7 +923,7 @@ describe('用户报告 Bug 验证（数据流层）', () => {
   })
 })
 
-describe('长时间持续运行（无时间限制，按用户要求）', () => {
+describeE2E('长时间持续运行（无时间限制，按用户要求）', () => {
   it('场景 14: 3 分钟持续随机操作，验证稳定性', async () => {
     // 创建 3 班
     const classes = randomClasses(3)

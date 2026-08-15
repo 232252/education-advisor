@@ -25,6 +25,8 @@ import { MemoryRouter } from 'react-router-dom'
 const _dirName = process.platform === 'win32' ? 'win32-x64' : process.platform === 'darwin' ? (process.arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64') : 'linux-x64'
 const _binName = process.platform === 'win32' ? 'eaa.exe' : 'eaa'
 const EAA_BIN = join(__dirname, '..', '..', 'resources', 'eaa-binaries', _dirName, _binName)
+// 平台二进制缺失(如 macOS 无 darwin 构建)时整组跳过,避免 CI 误报 ENOENT
+const describeE2E = existsSync(EAA_BIN) ? describe : describe.skip
 // 使用带 schema 同级的目录结构（eaa 会在 dataDir 父目录找 schema）
 const TEST_ROOT = mkdtempSync(join(tmpdir(), 'eaa-e2e-'))
 const TEST_DATA = join(TEST_ROOT, 'data')
@@ -352,7 +354,7 @@ afterAll(() => {
 // 测试场景
 // =============================================================
 
-describe('业务场景 E2E: 班级 + 学生 + 仪表盘', () => {
+describeE2E('业务场景 E2E: 班级 + 学生 + 仪表盘', () => {
   describe('场景 1: 班级管理全流程', () => {
     it('应能创建 3 个班级并显示在列表中', async () => {
       // 1. 创建 3 班级
