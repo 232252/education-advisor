@@ -20,6 +20,8 @@ import { spawn } from 'node:child_process'
 const _dirName = process.platform === 'win32' ? 'win32-x64' : process.platform === 'darwin' ? (process.arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64') : 'linux-x64'
 const _binName = process.platform === 'win32' ? 'eaa.exe' : 'eaa'
 const EAA_BIN = join(__dirname, '..', '..', 'resources', 'eaa-binaries', _dirName, _binName)
+// 平台二进制缺失(如 macOS 无 darwin 构建)时整组跳过,避免 CI 误报 ENOENT
+const describeE2E = existsSync(EAA_BIN) ? describe : describe.skip
 const TEST_ROOT = mkdtempSync(join(tmpdir(), 'eaa-render-'))
 const TEST_DATA = join(TEST_ROOT, 'data')
 const SCHEMA_SRC = join(__dirname, '..', '..', 'core', 'eaa-cli', 'schema', 'reason_codes.json')
@@ -272,7 +274,7 @@ afterAll(() => {
 // 组件测试
 // =============================================================
 
-describe('组件渲染测试', () => {
+describeE2E('组件渲染测试', () => {
   it('EAA 数据流：ranking 应返回 class_id（用户报告关键 bug 已修）', async () => {
     const r = (await mockApi.eaa.ranking(10)) as {
       data: { ranking: Array<{ name: string; class_id: string | null; score: number }> }
