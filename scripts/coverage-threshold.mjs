@@ -30,11 +30,11 @@ const summary = JSON.parse(fs.readFileSync(SUMMARY_PATH, 'utf-8'))
 //
 // 架构重构(R2026-08)将大文件拆为 components/hooks/lib 独立文件后,
 // 文件粒度大增而测试尚未同步拆分迁移,overall functions 从 40% 降至 ~24%。
-// 临时下调 functions 至 20% 并保留 lines 10%,后续随测试补齐逐步回调。
+// 已按模块补齐 743 个测试(纯逻辑/hooks/main 服务层),现回调至 40%。
 const THRESHOLDS = {
   core: { lines: 60, functions: 60, statements: 60, branches: 50 },
   shared: { lines: 90, functions: 90, statements: 90, branches: 85 },
-  overall: { lines: 10, functions: 20, statements: 10, branches: 20 },
+  overall: { lines: 40, functions: 40, statements: 40, branches: 20 },
 }
 
 // 个别模块的单独阈值覆盖
