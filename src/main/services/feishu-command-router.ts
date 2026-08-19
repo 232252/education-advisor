@@ -11,18 +11,7 @@
 //                     无法实例化),保持本模块可在 vitest 中直接测试。
 // =============================================================
 
-import { getErrorMessage } from './eaa/types'
-
-/**
- * EAA 命令执行结果(与 eaa-bridge 的 EAAResult 结构一致,此处内联定义
- * 以避免本模块引入 eaa-bridge 的 Electron 依赖)。
- */
-export interface EAAResultLike {
-  success: boolean
-  data: unknown | null
-  stderr: string
-  exitCode: number
-}
+import { type EAAResult, getErrorMessage } from './eaa/types'
 
 /** 命令解析结果 */
 export interface ParsedCommand {
@@ -66,7 +55,7 @@ export function parseCommand(text: string): ParsedCommand | null {
  */
 export interface CommandContext {
   /** 执行 EAA 子命令(如 dashboard/score/ranking) */
-  runEAA: (command: string, args?: string[]) => Promise<EAAResultLike>
+  runEAA: (command: string, args?: string[]) => Promise<EAAResult>
   /** 列出可用 Agent */
   listAgents: () => Array<{ id: string; name: string; description?: string }>
   /** 用文本提示运行默认 Agent,返回完整回复文本 */
@@ -134,7 +123,7 @@ function truncate(text: string, limit = TEXT_PREVIEW_LIMIT): string {
   return `${text.slice(0, limit)}\n…(共 ${text.length} 字,已截断)`
 }
 
-function formatEAA(result: EAAResultLike): string {
+function formatEAA(result: EAAResult): string {
   if (!result.success) {
     return `执行失败: ${getErrorMessage(result)}`
   }

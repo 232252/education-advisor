@@ -4,13 +4,8 @@
 // =============================================================
 
 import { describe, expect, it, vi } from 'vitest'
-import {
-  type CommandContext,
-  createDefaultRouter,
-  type EAAResultLike,
-} from '../feishu-command-router'
-
-type EAAResult = EAAResultLike
+import type { EAAResult } from '../eaa/types'
+import { type CommandContext, createDefaultRouter } from '../feishu-command-router'
 
 function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext {
   return {

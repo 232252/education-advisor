@@ -1,4 +1,5 @@
 // =============================================================
+// @deprecated 请直接 import './mcp/pool'(本文件为兼容旧路径的 re-export shim)
 // MCP 连接池 — 兼容入口(re-export)
 // McpClientPool 类已整体迁移至 ./mcp/pool.ts(纯重构,行为零变化),
 // 其余实现按职责拆分到 ./mcp/ 目录:

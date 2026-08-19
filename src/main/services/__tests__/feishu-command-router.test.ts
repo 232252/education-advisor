@@ -3,16 +3,8 @@
 // =============================================================
 
 import { describe, expect, it, vi } from 'vitest'
-import {
-  type CommandContext,
-  createDefaultRouter,
-  type EAAResultLike,
-  parseCommand,
-} from '../feishu-command-router'
-
-// 由于 eaa-bridge 在 vitest 环境下可能无法直接 import(Electron 主进程依赖),
-// 这里用一个本地 EAAResult 兼容类型,避免引入真实 EAAResult。
-type EAAResult = EAAResultLike
+import type { EAAResult } from '../eaa/types'
+import { type CommandContext, createDefaultRouter, parseCommand } from '../feishu-command-router'
 
 function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext {
   return {

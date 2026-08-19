@@ -1,4 +1,5 @@
 // =============================================================
+// @deprecated 请直接 import '../services/eaa/reason-codes'(本文件为兼容旧路径的 re-export shim)
 // EAA 原因码 (reason-codes) 缓存 — re-export 统一实现
 // 权威实现已移至 src/main/services/eaa/reason-codes.ts(services 层的
 // addEventTool 参数组装也依赖它),本文件保持原路径与导出名不变
