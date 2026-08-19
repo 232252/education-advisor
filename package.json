@@ -62,6 +62,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
+    "doc:check": "node scripts/doc-stats.mjs --check",
+    "doc:stats": "node scripts/doc-stats.mjs --write",
     "clean": "rimraf dist release"
   },
   "dependencies": {

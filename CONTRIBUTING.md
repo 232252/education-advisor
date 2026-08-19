@@ -296,9 +296,10 @@ The two most important **directories** for a feature contributor are:
 
 ### File size
 
-- Soft cap at **500 lines per file**. The current exception is
-  `src/main/services/agent-service.ts` (1 031 lines) — it's on the
-  refactor list.
+- Soft cap at **500 lines per file**. `agent-service.ts` was previously the
+  exception (1 031 lines) and has since been split into
+  `src/main/services/agent/` slices. If you see a file growing past the cap
+  again, split it or open an issue.
 
 ### Naming
 
