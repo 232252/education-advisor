@@ -25,4 +25,6 @@ export interface SysAPI {
     content?: string
     error?: string
   }>
+  /** 重启应用(备份恢复后调用;成功后进程立即退出) */
+  restartApp: () => Promise<{ success: boolean; error?: string }>
 }

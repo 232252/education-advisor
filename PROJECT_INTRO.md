@@ -404,7 +404,7 @@ appends a student; a `delete_student` event soft-deletes (sets `active: false`).
 ### The reason-code schema
 
 The valid reason codes are defined in `config/reason-codes.json` (also shipped
-with the desktop app) and validated server-side. There are 24 codes today,
+with the desktop app) and validated server-side. There are 22 codes today,
 grouped into:
 
 - **Deduct** (11 codes, scores from −1 to −10)
@@ -568,7 +568,7 @@ It's a single text file, append-only, queryable.
 
 ## Deep dive: the desktop shell
 
-The desktop shell is Electron 33 + React 18 + TypeScript 5.7. This section
+The desktop shell is Electron 43 + React 19 + TypeScript 7. This section
 covers the architectural decisions that aren't obvious from reading the
 code.
 
@@ -654,7 +654,7 @@ over IPC events (`agent:status-update`, `cron:status-update`,
 | TypeScript compile (main) | Vite 6, `vite.config.main.ts` | `dist/main/index.js` + `dist/main/preload.js` |
 | TypeScript compile (renderer) | Vite 6, `vite.config.renderer.ts` | `dist/renderer/index.html` + assets |
 | Lint | Biome 2.3 | exit code |
-| Type check | TypeScript 5.7 | exit code |
+| Type check | TypeScript 7 | exit code |
 | Test | Vitest 3.2 | test report |
 | Package | electron-builder 25 | `release/*.exe` |
 

@@ -7,6 +7,7 @@ import path from 'node:path'
 import { debug } from '@shared/debug'
 import { app, BrowserWindow, net, protocol, shell } from 'electron'
 import { registerAllHandlers } from '../ipc/index'
+import { initAutoBackup } from '../services/backup-service'
 import { cronService } from '../services/cron-service'
 import { dbService } from '../services/db-service'
 import { feishuBotService } from '../services/feishu-bot-service'
@@ -72,6 +73,9 @@ export async function startApp(): Promise<void> {
 
   // 注册飞书 Bitable 定时同步任务
   cronService.registerBitableSync()
+
+  // 启动自动备份调度(每小时检查一次设置,到期则备份并清理旧备份)
+  initAutoBackup()
 
   // 若已配置飞书 appId + appSecret，自动启动长连接机器人
   // 长连接模式无需公网地址，启动后即可在飞书里与机器人对话

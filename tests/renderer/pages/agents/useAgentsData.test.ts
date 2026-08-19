@@ -4,12 +4,21 @@
 //       加载失败兜底 / 后续手动刷新
 // =============================================================
 
+import { createElement, type ReactNode } from 'react'
 import { act } from 'react'
 import { renderHook, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentListItem } from '@shared/types'
 import { useAgentsData } from '../../../../src/renderer/pages/Agents/hooks/useAgentsData'
 import { useAgentStore } from '../../../../src/renderer/stores/agentStore'
+
+// useAgentsData 使用 useSearchParams(全局搜索 agent_id 跳转),需要 Router 上下文
+function createWrapper() {
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return createElement(MemoryRouter, { initialEntries: ['/'] }, children)
+  }
+}
 
 // ---------- window.api mock ----------
 
@@ -66,7 +75,7 @@ describe('useAgentsData', () => {
   })
 
   it('挂载即拉取 Agent 列表', async () => {
-    const { result } = renderHook(() => useAgentsData())
+    const { result } = renderHook(() => useAgentsData(), { wrapper: createWrapper() })
 
     await waitFor(() => {
       expect(result.current.agents).toHaveLength(2)
@@ -76,7 +85,7 @@ describe('useAgentsData', () => {
   })
 
   it('透传 store 状态: selectedAgentId / detailLoading', async () => {
-    const { result } = renderHook(() => useAgentsData())
+    const { result } = renderHook(() => useAgentsData(), { wrapper: createWrapper() })
     await waitFor(() => {
       expect(result.current.agents).toHaveLength(2)
     })
@@ -91,7 +100,7 @@ describe('useAgentsData', () => {
   })
 
   it('返回的 actions 与 store 实现同源', async () => {
-    const { result } = renderHook(() => useAgentsData())
+    const { result } = renderHook(() => useAgentsData(), { wrapper: createWrapper() })
     await waitFor(() => {
       expect(result.current.agents).toHaveLength(2)
     })
@@ -109,7 +118,7 @@ describe('useAgentsData', () => {
 
   it('列表加载失败: agents 保持空且 loading 复位', async () => {
     apiMocks.agentList.mockRejectedValue(new Error('no agents'))
-    const { result } = renderHook(() => useAgentsData())
+    const { result } = renderHook(() => useAgentsData(), { wrapper: createWrapper() })
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false)
@@ -119,7 +128,7 @@ describe('useAgentsData', () => {
 
   it('可通过返回的 fetchAgents 手动刷新', async () => {
     apiMocks.agentList.mockResolvedValueOnce([])
-    const { result } = renderHook(() => useAgentsData())
+    const { result } = renderHook(() => useAgentsData(), { wrapper: createWrapper() })
 
     await waitFor(() => {
       expect(apiMocks.agentList).toHaveBeenCalledTimes(1)

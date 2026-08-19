@@ -104,6 +104,20 @@ export function registerSysHandlers(win: BrowserWindow) {
     }
   })
 
+  // 重启应用(备份恢复后数据文件已替换,需重启进程重新加载)
+  // app.exit 不会触发 will-quit 的 preventDefault 循环,与 activate 分支同模式
+  ipcMain.handle(IPC.IPC_SYS_RESTART_APP, async () => {
+    try {
+      app.relaunch()
+      app.exit(0)
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[IPC] sys:restart-app failed:', msg)
+      return { success: false, error: msg }
+    }
+  })
+
   // 读取文件内容 — 用于 ChatPage 文件上传
   // 安全限制:
   //   1. 文件大小上限 10MB (避免内存爆炸)

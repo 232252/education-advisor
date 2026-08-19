@@ -1,15 +1,26 @@
 // =============================================================
 // 学生档案组件 — 多选项卡详细视图
-// 选项卡: 概览 | 档案 | 事件 | 学业 | AI分析
+// 选项卡: 概览 | 档案 | 事件 | 学业 | AI分析 | 家校沟通
 // AI 运行逻辑提取至 hooks/useAgentAnalysis,
 // 事件过滤提取至 lib/event-filters
 // =============================================================
 
 import type { EAAStudent } from '@shared/types'
 import type { LucideIcon } from 'lucide-react'
-import { BarChart3, BookOpen, Bot, ClipboardList, History } from 'lucide-react'
+import {
+  BarChart3,
+  BookOpen,
+  Bot,
+  ClipboardList,
+  History,
+  MessageCircleHeart,
+  Printer,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { PageHeader } from '../../components/PageHeader'
+import { PrintOverlay } from '../../components/print/PrintOverlay'
+import { StudentReportDocument } from '../../components/print/StudentReportDocument'
+import { useStudentPrintData } from '../../components/print/useStudentPrintData'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useTheme } from '../../hooks/useTheme'
 import { btnStyle, cn, riskColor } from '../../lib/ui-utils'
@@ -17,7 +28,14 @@ import { AddEventInline } from './components'
 import { useAgentAnalysis } from './hooks/useAgentAnalysis'
 import { useStudentProfileData } from './hooks/useStudentProfileData'
 import { type EventScoreFilter, type EventTimeRange, filterEvents } from './lib/event-filters'
-import { AcademicsTab, AIAnalysisTab, EventsTab, OverviewTab, ProfileTab } from './tabs'
+import {
+  AcademicsTab,
+  AIAnalysisTab,
+  EventsTab,
+  HomeSchoolTab,
+  OverviewTab,
+  ProfileTab,
+} from './tabs'
 
 interface StudentProfileProps {
   student: EAAStudent
@@ -25,7 +43,7 @@ interface StudentProfileProps {
   onRefresh: () => void
 }
 
-type TabId = 'overview' | 'profile' | 'events' | 'academics' | 'ai'
+type TabId = 'overview' | 'profile' | 'events' | 'academics' | 'ai' | 'home_school'
 
 // 模块级常量 — StudentProfile 的 tabs 固定不变
 const STUDENT_PROFILE_TABS: Array<{ id: TabId; label: string; icon: LucideIcon }> = [
@@ -34,6 +52,7 @@ const STUDENT_PROFILE_TABS: Array<{ id: TabId; label: string; icon: LucideIcon }
   { id: 'events', label: '事件', icon: History },
   { id: 'academics', label: '学业', icon: BookOpen },
   { id: 'ai', label: 'AI分析', icon: Bot },
+  { id: 'home_school', label: '家校沟通', icon: MessageCircleHeart },
 ]
 
 export function StudentProfile({ student, onClose, onRefresh }: StudentProfileProps) {
@@ -64,6 +83,8 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [actionMsg, setActionMsg] = useState('')
   const setActionMsgAuto = useAutoDismiss<string>(setActionMsg, '')
+  // 打印/PDF 报告(按需加载成绩/考试/科目数据)
+  const printReport = useStudentPrintData(student)
   // 事件搜索/日期范围状态
   const [searchQuery, setSearchQuery] = useState('')
   const [dateStart, setDateStart] = useState('')
@@ -113,6 +134,17 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
               aria-label="AI 分析"
             >
               🤖 AI 分析
+            </button>
+            <button
+              type="button"
+              onClick={() => void printReport.openPrint()}
+              disabled={printReport.loading}
+              className={btnStyle('secondary')}
+              aria-label="打印报告"
+              title="打印 / 导出 PDF"
+            >
+              <Printer className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden />
+              {printReport.loading ? '加载中…' : '打印报告'}
             </button>
             <button
               type="button"
@@ -226,7 +258,32 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
             onSaveResult={saveAiResult}
           />
         )}
+        {activeTab === 'home_school' && (
+          <HomeSchoolTab
+            student={student}
+            score={score}
+            history={history}
+            profileData={profileData}
+            agents={agents}
+          />
+        )}
       </div>
+
+      {/* 打印/PDF 报告预览 */}
+      {printReport.open && printReport.data && (
+        <PrintOverlay title={`学生综合报告 — ${student.name}`} onClose={printReport.closePrint}>
+          <StudentReportDocument
+            studentName={student.name}
+            classId={student.class_id}
+            score={score}
+            profileData={profileData}
+            events={history?.events ?? []}
+            grades={printReport.data.grades}
+            exams={printReport.data.exams}
+            subjects={printReport.data.subjects}
+          />
+        </PrintOverlay>
+      )}
     </div>
   )
 }
