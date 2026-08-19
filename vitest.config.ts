@@ -75,11 +75,18 @@ export default defineConfig({
           ],
           exclude: [
             'tests/e2e/stress-long.test.tsx',
-            // 重度 UI 压力测试(用户按键流模拟)依赖本机真实 EAA 二进制,
-            // 在 release 流水线(尤其无二进制落盘的 Linux)上不稳定,用于本地 dogfood;
-            // 发布时跳过,本地 `npm run test` 行为不受影响。
+            // 依赖本机真实 EAA 二进制的 e2e 压力/渲染测试(用户按键流、业务场景、
+            // 组件渲染、页面渲染)。它们按"二进制存在则运行"判断,而 Linux 镜像上
+            // 的 EAA 二进制在流水线中不可靠,会阻塞发布;这些是本地 dogfood 测试,
+            // 发布时跳过,本地 `npm run test` 行为不受影响。mac 因缺 darwin 二进制
+            // 本就整组跳过、win 二进制正常,故仅对 Linux 有意义。
             ...(process.env.RELEASE_CI === '1'
-              ? ['tests/e2e/user-flow-simulation.test.tsx']
+              ? [
+                  'tests/e2e/user-flow-simulation.test.tsx',
+                  'tests/e2e/business-scenario.test.tsx',
+                  'tests/e2e/component-render.test.tsx',
+                  'tests/e2e/page-render.test.tsx',
+                ]
               : []),
           ],
           environment: 'node',
