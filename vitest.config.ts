@@ -73,7 +73,15 @@ export default defineConfig({
             'tests/shared/**/*.{test,spec}.{ts,tsx}',
             'tests/e2e/**/*.{test,spec}.{ts,tsx}',
           ],
-          exclude: ['tests/e2e/stress-long.test.tsx'],
+          exclude: [
+            'tests/e2e/stress-long.test.tsx',
+            // 重度 UI 压力测试(用户按键流模拟)依赖本机真实 EAA 二进制,
+            // 在 release 流水线(尤其无二进制落盘的 Linux)上不稳定,用于本地 dogfood;
+            // 发布时跳过,本地 `npm run test` 行为不受影响。
+            ...(process.env.RELEASE_CI === '1'
+              ? ['tests/e2e/user-flow-simulation.test.tsx']
+              : []),
+          ],
           environment: 'node',
           setupFiles: ['./tests/setup.ts'],
           testTimeout: 60_000,
