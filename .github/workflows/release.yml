@@ -6,8 +6,10 @@ on:
       - "v*.*.*"
 
 # Cancel in-progress runs for the same tag.
+# 组名带 -v2 后缀：历史上曾出现 run 卡死在 queued（无法 cancel/delete），
+# 改组名可绕开被卡死 run 占用的旧 concurrency 队列。
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-v2-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
