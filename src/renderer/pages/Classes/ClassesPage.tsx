@@ -9,6 +9,7 @@
 import type { ClassEntity } from '@shared/types'
 import { School } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
@@ -26,6 +27,20 @@ export function ClassesPage() {
   const { classes, allStudents, counts, loading, loadClasses } = useClassesData()
   const [selectedClass, setSelectedClass] = useState<ClassEntity | null>(null)
   const [showArchived, setShowArchived] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // 全局搜索(Ctrl+K)跳转: 班级列表加载完成后按 class_id 自动打开详情
+  useEffect(() => {
+    const targetId = searchParams.get('class_id')
+    if (!targetId || loading) return
+    if (classes.length === 0) {
+      setSearchParams({}, { replace: true })
+      return
+    }
+    const match = classes.find((c) => c.class_id === targetId || c.id === targetId)
+    setSearchParams({}, { replace: true })
+    if (match) setSelectedClass(match)
+  }, [classes, loading, searchParams, setSearchParams])
 
   const {
     formOpen,

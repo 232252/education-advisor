@@ -186,7 +186,7 @@ export function DashboardPage() {
         </div>
 
         {/* 标签概览 + 操作按钮区 */}
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <TagsOverviewCard tagData={tagData} />
           <MaintenanceActionsCard onReplay={replayEvents} onExportHtml={exportHtmlDashboard} />
         </div>

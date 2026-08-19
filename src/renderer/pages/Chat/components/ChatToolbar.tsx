@@ -4,6 +4,8 @@
 // =============================================================
 
 import type { AgentListItem } from '@shared/types'
+import { useState } from 'react'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { ModelSelector } from '../../../components/ModelSelector'
 import { btnStyle } from '../../../lib/ui-utils'
 
@@ -32,6 +34,7 @@ export function ChatToolbar({
   onModelSelect,
   onClearMessages,
 }: ChatToolbarProps) {
+  const [confirmClear, setConfirmClear] = useState(false)
   return (
     <div className="flex items-center justify-between px-6 py-2 border-b border-gray-200/60 dark:border-white/[0.06] flex-wrap gap-2">
       <div className="flex items-center gap-3 flex-wrap">
@@ -78,13 +81,26 @@ export function ChatToolbar({
       </div>
       <button
         type="button"
-        onClick={onClearMessages}
+        onClick={() => setConfirmClear(true)}
         className={btnStyle('ghost')}
         aria-label="清空当前会话显示"
         title="清空当前会话显示(不删除会话)"
       >
         清空
       </button>
+      {/* 清空为不可逆操作(仅会话数据保留),需二次确认 */}
+      <ConfirmDialog
+        open={confirmClear}
+        title="清空当前会话"
+        message="确定要清空当前会话的消息显示吗?该操作无法撤销(会话记录本身不会被删除)。"
+        confirmText="清空"
+        variant="danger"
+        onConfirm={() => {
+          setConfirmClear(false)
+          onClearMessages()
+        }}
+        onCancel={() => setConfirmClear(false)}
+      />
     </div>
   )
 }

@@ -45,7 +45,7 @@ export function RankingCard({
                       r.rank === 1
                         ? 'bg-yellow-400 text-white shadow-lg shadow-yellow-400/30'
                         : r.rank === 2
-                          ? 'bg-gray-300 text-gray-700 shadow-md'
+                          ? 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-100 shadow-md'
                           : r.rank === 3
                             ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
                             : 'bg-gray-100 dark:bg-surface-elevated text-gray-500 dark:text-gray-400'

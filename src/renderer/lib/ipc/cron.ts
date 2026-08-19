@@ -6,7 +6,7 @@ import type { CronLogEntry, CronTask } from '@shared/types'
 
 export interface CronAPI {
   list: () => Promise<CronTask[]>
-  add: (task: unknown) => Promise<string>
+  add: (task: unknown) => Promise<{ success: boolean; id?: string; error?: string }>
   update: (id: string, patch: unknown) => Promise<{ success: boolean }>
   remove: (id: string) => Promise<{ success: boolean }>
   toggle: (id: string, enabled: boolean) => Promise<{ success: boolean }>

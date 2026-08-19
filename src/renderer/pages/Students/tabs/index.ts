@@ -6,5 +6,6 @@
 export { AcademicsTab } from './AcademicsTab'
 export { AIAnalysisTab } from './AIAnalysisTab'
 export { EventsTab } from './EventsTab'
+export { HomeSchoolTab } from './HomeSchoolTab'
 export { OverviewTab } from './OverviewTab'
 export { ProfileTab } from './ProfileTab'

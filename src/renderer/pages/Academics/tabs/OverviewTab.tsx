@@ -5,10 +5,11 @@
 // =============================================================
 
 import type { ExamDef, GradeRecord, SubjectDef } from '@shared/types'
-import { BookOpen } from 'lucide-react'
+import { AlertTriangle, BookOpen, RotateCw } from 'lucide-react'
 import { useMemo } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
 import { CardSkeleton } from '../../../components/Skeleton'
+import { btnStyle } from '../../../lib/ui-utils'
 import {
   GradeTableCard,
   LatestRadarChartCard,
@@ -23,6 +24,10 @@ export interface OverviewTabProps {
   exams: ExamDef[]
   grades: GradeRecord[]
   gradesLoading: boolean
+  /** 成绩加载失败信息;非空时显示错误态而非"暂无成绩"空态 */
+  gradesError?: string | null
+  /** 错误态下的重试回调 */
+  onRetry?: () => void
 }
 
 export function OverviewTab({
@@ -31,6 +36,8 @@ export function OverviewTab({
   exams,
   grades,
   gradesLoading,
+  gradesError,
+  onRetry,
 }: OverviewTabProps) {
   /** 与成绩记录关联的有效考试 (按日期升序) */
   const sortedExamsWithGrades = useMemo(() => filterExamsWithGrades(exams, grades), [exams, grades])
@@ -48,6 +55,24 @@ export function OverviewTab({
         <CardSkeleton />
         <CardSkeleton />
       </div>
+    )
+  }
+
+  if (gradesError) {
+    return (
+      <EmptyState
+        icon={<AlertTriangle size={28} />}
+        title="成绩数据加载失败"
+        description={`${gradesError} — 数据可能存在但未能读取,请重试;若持续失败请检查数据目录或查看日志`}
+        action={
+          onRetry ? (
+            <button type="button" onClick={onRetry} className={btnStyle('primary')}>
+              <RotateCw size={14} aria-hidden />
+              重试
+            </button>
+          ) : undefined
+        }
+      />
     )
   }
 

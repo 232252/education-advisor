@@ -131,11 +131,21 @@ export function useSchedulerData() {
   }
 
   // 返回是否成功: 成功时由页面关闭表单(原页面 setShowForm 逻辑)
+  // cron:add 校验失败时返回 { success: false, error } 而非抛异常,必须检查 success
   const handleCreate = async (task: Omit<CronTask, 'id'>): Promise<boolean> => {
     try {
-      await getAPI().cron.add(task)
-      loadData()
-      return true
+      const result = await getAPI().cron.add(task)
+      if (result.success) {
+        loadData()
+        return true
+      }
+      console.error('[Scheduler] Create rejected:', result.error)
+      toast.error(
+        result.error
+          ? `${t('toast.scheduler.createFailed')}: ${result.error}`
+          : t('toast.scheduler.createFailed'),
+      )
+      return false
     } catch (err) {
       console.error('[Scheduler] Create failed:', err)
       toast.error(t('toast.scheduler.createFailed'))

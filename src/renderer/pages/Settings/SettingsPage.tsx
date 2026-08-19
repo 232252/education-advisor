@@ -22,6 +22,7 @@ import { toast } from '../../stores/toastStore'
 import {
   AboutSection,
   ChatSection,
+  DataSection,
   DiagnosticSection,
   FeishuSection,
   GeneralSection,
@@ -297,6 +298,9 @@ export function SettingsPage() {
           setLogSearchQuery={setLogSearchQuery}
           onClearLogsRequest={() => clearLogsConfirm.open()}
         />
+
+        {/* ===== 数据与备份 ===== */}
+        <DataSection settings={settings} onSave={handleSave} />
 
         {/* ===== 关于 ===== */}
         <AboutSection />

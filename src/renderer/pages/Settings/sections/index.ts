@@ -1,5 +1,6 @@
 export { AboutSection } from './AboutSection'
 export { ChatSection } from './ChatSection'
+export { DataSection } from './DataSection'
 export { DiagnosticSection } from './DiagnosticSection'
 export { FeishuSection } from './FeishuSection'
 export { GeneralSection } from './GeneralSection'

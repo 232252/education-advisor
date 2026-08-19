@@ -6,10 +6,11 @@
 // =============================================================
 
 import type { EAAEventRecord, ExamDef, GradeRecord } from '@shared/types'
-import { BookOpen } from 'lucide-react'
+import { AlertTriangle, BookOpen, RotateCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
 import { getAPI } from '../../../lib/ipc-client'
+import { btnStyle } from '../../../lib/ui-utils'
 import { ExamCompareCard } from '../components/academics/ExamCompareCard'
 import { ExamGradeCards } from '../components/academics/ExamGradeCards'
 import { SubjectAnalysisCard } from '../components/academics/SubjectAnalysisCard'
@@ -32,6 +33,8 @@ export function AcademicsTab({
   const [exams, setExams] = useState<ExamDef[]>([])
   const [grades, setGrades] = useState<GradeRecord[]>([])
   const [loading, setLoading] = useState(true)
+  /** 考试/成绩加载失败信息;非空时显示错误态,与"暂无成绩"空态区分 */
+  const [loadError, setLoadError] = useState<string | null>(null)
   // 考试对比状态
   const [compareExamAId, setCompareExamAId] = useState<string>('')
   const [compareExamBId, setCompareExamBId] = useState<string>('')
@@ -40,19 +43,40 @@ export function AcademicsTab({
   // 从学业模块加载考试列表和该学生成绩
   const loadData = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const [examRes, gradeRes] = await Promise.allSettled([
         getAPI().academic.listExams(),
         getAPI().academic.getGrades(studentName),
       ])
+      const errors: string[] = []
       if (examRes.status === 'fulfilled' && examRes.value.success && examRes.value.data) {
         setExams(examRes.value.data)
+      } else {
+        setExams([])
+        errors.push(
+          examRes.status === 'rejected'
+            ? `考试列表加载失败: ${String(examRes.reason)}`
+            : `考试列表加载失败: ${examRes.value.error ?? '未知错误'}`,
+        )
       }
       if (gradeRes.status === 'fulfilled' && gradeRes.value.success && gradeRes.value.data) {
         setGrades(gradeRes.value.data)
+      } else {
+        setGrades([])
+        errors.push(
+          gradeRes.status === 'rejected'
+            ? `成绩加载失败: ${String(gradeRes.reason)}`
+            : `成绩加载失败: ${gradeRes.value.error ?? '未知错误'}`,
+        )
+      }
+      if (errors.length > 0) {
+        console.warn('[StudentProfile.Academics] Load failed:', errors)
+        setLoadError(errors.join(';'))
       }
     } catch (err) {
       console.warn('[StudentProfile.Academics] Load failed:', err)
+      setLoadError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoading(false)
     }
@@ -125,6 +149,22 @@ export function AcademicsTab({
       <div className="flex items-center justify-center py-12 text-sm text-gray-400">
         加载学业数据...
       </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <EmptyState
+        icon={<AlertTriangle className="h-6 w-6" />}
+        title="学业数据加载失败"
+        description={`${loadError} — 数据可能存在但未能读取,请重试;若持续失败请检查数据目录或查看日志`}
+        action={
+          <button type="button" onClick={loadData} className={btnStyle('primary')}>
+            <RotateCw size={14} aria-hidden />
+            重试
+          </button>
+        }
+      />
     )
   }
 

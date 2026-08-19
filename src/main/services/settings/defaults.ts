@@ -27,4 +27,14 @@ export const DEFAULT_SETTINGS: UnifiedSettings = {
     // JSON 未收录的类型必需字段(SETTINGS_V2 新增)
     conversationLogging: true,
   },
+  backup: {
+    ...json.backup,
+    // JSON 未收录的类型必需字段
+    autoEnabled: false,
+    intervalHours: 24,
+    keep: 7,
+    // 0 = 从未自动备份。必须给默认值,否则 settingsService.update('backup.lastAutoAt')
+    // 的 dotPath 可达性校验(path 必须存在于 DEFAULT_SETTINGS)会拒绝写入
+    lastAutoAt: 0,
+  },
 }

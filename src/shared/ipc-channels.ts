@@ -110,6 +110,18 @@ export const IPC_SYS_SAVE_DIALOG = 'sys:save-dialog'
 export const IPC_SYS_GET_PATH = 'sys:get-path'
 export const IPC_SYS_CHECK_UPDATE = 'sys:check-update'
 export const IPC_SYS_READ_FILE = 'sys:read-file'
+// 重启应用(备份恢复后数据文件已替换,需重启进程重新加载)
+export const IPC_SYS_RESTART_APP = 'sys:restart-app'
+
+// ===== 数据备份/恢复 =====
+// 弹保存对话框 → 打包核心数据为 zip 写到用户选择的位置
+export const IPC_BACKUP_CREATE_DIALOG = 'backup:create-dialog'
+// 弹选择 zip 对话框 → 校验 manifest → 恢复前安全备份 → 替换数据文件(danger)
+export const IPC_BACKUP_RESTORE_DIALOG = 'backup:restore-dialog'
+// 列出 {userData}/backups/ 下的自动备份
+export const IPC_BACKUP_LIST_AUTO = 'backup:list-auto'
+// 删除一个自动备份文件
+export const IPC_BACKUP_DELETE_AUTO = 'backup:delete-auto'
 
 // ===== 学生档案 =====
 export const IPC_PROFILE_GET = 'profile:get'

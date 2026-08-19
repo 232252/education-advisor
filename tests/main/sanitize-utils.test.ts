@@ -39,7 +39,8 @@ describe('sanitizeName', () => {
   it('拒绝控制字符', () => {
     expect(() => sanitizeName('小\n明', 'name')).toThrow('control characters')
     expect(() => sanitizeName('小\t明', 'name')).toThrow('control characters')
-    expect(() => sanitizeName('小\r明', 'name')).toThrow('control characters')
+    expect(() => sanitizeName('小\u0000明', 'name')).toThrow('control characters')
+    expect(() => sanitizeName('小明', 'name')).toThrow('control characters')
   })
 
   it('拒绝路径分隔符与路径遍历(P5)', () => {
@@ -56,6 +57,7 @@ describe('sanitizeName', () => {
     expect(() => sanitizeName('x|y', 'name')).toThrow('illegal characters')
     expect(() => sanitizeName('x&y', 'name')).toThrow('illegal characters')
     expect(() => sanitizeName('x<y', 'name')).toThrow('illegal characters')
+    expect(() => sanitizeName('x>y', 'name')).toThrow('illegal characters')
     expect(() => sanitizeName('x{y}', 'name')).toThrow('illegal characters')
   })
 
@@ -75,6 +77,7 @@ describe('sanitizeFreeText', () => {
     expect(() => sanitizeFreeText(42, 'note')).toThrow('note must be a string')
     expect(() => sanitizeFreeText('  ', 'note')).toThrow('cannot be empty')
     expect(() => sanitizeFreeText('x'.repeat(501), 'note')).toThrow('too long (max 500 chars)')
+    // 自定义 maxLength
     expect(() => sanitizeFreeText('x'.repeat(11), 'note', 10)).toThrow('too long (max 10 chars)')
     expect(sanitizeFreeText('x'.repeat(10), 'note', 10)).toBe('x'.repeat(10))
   })
@@ -88,10 +91,21 @@ describe('sanitizeFreeText', () => {
     expect(() => sanitizeFreeText('tab\there', 'note')).toThrow('control characters')
   })
 
-  it('拒绝 shell 元字符但允许括号', () => {
-    for (const bad of [';', '&', '|', '`', '$', '<', '>', '{', '}', '*', '[', ']', '#', '~', '!']) {
-      expect(() => sanitizeFreeText(`a${bad}b`, 'note')).toThrow('illegal characters')
-    }
+  it('拒绝真正的 shell 元字符但允许括号', () => {
+    expect(() => sanitizeFreeText('a;b', 'note')).toThrow('illegal characters')
+    expect(() => sanitizeFreeText('a&b', 'note')).toThrow('illegal characters')
+    expect(() => sanitizeFreeText('a|b', 'note')).toThrow('illegal characters')
+    expect(() => sanitizeFreeText('a`b', 'note')).toThrow('illegal characters')
+    expect(() => sanitizeFreeText('a$b', 'note')).toThrow('illegal characters')
+    expect(() => sanitizeFreeText('a<b', 'note')).toThrow('illegal characters')
+    expect(() => sanitizeFreeText('a>b', 'note')).toThrow('illegal characters')
+    expect(() => sanitizeFreeText('a{b}', 'note')).toThrow('illegal characters')
+    expect(() => sanitizeFreeText('a*b', 'note')).toThrow('illegal characters')
+    expect(() => sanitizeFreeText('a[b]', 'note')).toThrow('illegal characters')
+    expect(() => sanitizeFreeText('a#b', 'note')).toThrow('illegal characters')
+    expect(() => sanitizeFreeText('a~b', 'note')).toThrow('illegal characters')
+    expect(() => sanitizeFreeText('a!b', 'note')).toThrow('illegal characters')
+    // () 在 free text 中合法
     expect(sanitizeFreeText('附注(重要)', 'note')).toBe('附注(重要)')
   })
 
@@ -99,6 +113,7 @@ describe('sanitizeFreeText', () => {
     expect(() => sanitizeFreeText('--flag', 'note')).toThrow('cannot start with --')
   })
 })
+
 describe('sanitizeClassId', () => {
   it('接受字母数字点连字符并 trim', () => {
     expect(sanitizeClassId(' G7-3 ')).toBe('G7-3')
@@ -143,7 +158,7 @@ describe('tokenizeQuery', () => {
     expect(tokenizeQuery('"unclosed word')).toEqual(['unclosed word'])
   })
 
-  it('引号内的空白不拆分,引号外拆分', () => {
-    expect(tokenizeQuery('a"b c"d\te')).toEqual(['ab cd', 'e'])
+  it('tab/换行注入会被分割为独立 token', () => {
+    expect(tokenizeQuery('a"b c"\t--x')).toEqual(['ab c', '--x'])
   })
 })

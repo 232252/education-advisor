@@ -90,8 +90,8 @@ binary is the **writer of record**.
 
 ### Process 1: Renderer (Chromium tab)
 
-- **Runtime**: Chromium 130 (bundled with Electron 33)
-- **Language**: TypeScript + React 18
+- **Runtime**: Chromium 150 (bundled with Electron 43)
+- **Language**: TypeScript + React 19
 - **Build tool**: Vite 6
 - **Entry**: `src/renderer/main.tsx` → `src/renderer/App.tsx`
 - **Sandbox**: `contextIsolation: true`, `nodeIntegration: false`,
@@ -107,9 +107,9 @@ The renderer has **zero direct access** to:
 Every operation that needs any of those goes through `window.api`,
 which is a thin proxy over `ipcRenderer.invoke`.
 
-### Process 2: Main (Node 22 + Electron 33)
+### Process 2: Main (Node 22 + Electron 43)
 
-- **Runtime**: Node 22 with Electron 33's hardened main process
+- **Runtime**: Node 22 with Electron 43's hardened main process
 - **Language**: TypeScript (compiled to CJS for Electron)
 - **Build tool**: Vite 6 (with `ssr: true` and `lib.entry` config)
 - **Entry**: `src/main/index.ts` (246 lines, reads end-to-end in 10 minutes)
@@ -327,7 +327,7 @@ is the simplest possible model and the easiest to reason about.
 | TypeScript compile (main) | Vite 6, `vite.config.main.ts` | `dist/main/index.js` + `dist/main/preload.js` | `npm run dev:main`, `npm run build` |
 | TypeScript compile (renderer) | Vite 6, `vite.config.renderer.ts` | `dist/renderer/index.html` + assets | `npm run dev:renderer`, `npm run build` |
 | Lint | Biome 2.3 | exit code | `npm run lint` |
-| Type check | TypeScript 5.7 | exit code | `npm run typecheck` |
+| Type check | TypeScript 7 | exit code | `npm run typecheck` |
 | Test | Vitest 3.2 | test report | `npm run test` |
 | Package | electron-builder 25 | `release/*.exe` | `npm run package` |
 

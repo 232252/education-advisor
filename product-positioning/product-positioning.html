@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Education Advisor · 产品定位书</title>
+<style>
+  @font-face { font-family: 'Outfit'; src: url('./_shared/fonts/Outfit-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+  @font-face { font-family: 'Outfit'; src: url('./_shared/fonts/Outfit-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+  @font-face { font-family: 'WorkSans'; src: url('./_shared/fonts/WorkSans-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+  @font-face { font-family: 'WorkSans'; src: url('./_shared/fonts/WorkSans-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+  @font-face { font-family: 'WorkSans'; src: url('./_shared/fonts/WorkSans-Italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
+  @font-face { font-family: 'JetBrainsMono'; src: url('./_shared/fonts/JetBrainsMono-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+
+  :root {
+    --bg: #faf8f4;
+    --bg2: #ffffff;
+    --ink: #272422;
+    --muted: #7a736a;
+    --rule: #e9e3d8;
+    --accent: #c2410c;
+    --accent-soft: #fff1e8;
+    --accent2: #0f766e;
+    --accent2-soft: #e8f5f3;
+    --shadow: 0 1px 2px rgba(80,60,40,.05), 0 8px 24px rgba(80,60,40,.07);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'WorkSans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 15.5px;
+    line-height: 1.78;
+  }
+  /* ambient gradient base */
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(900px 500px at 85% -5%, rgba(194,65,12,.07), transparent 60%),
+      radial-gradient(800px 520px at -10% 30%, rgba(15,118,110,.06), transparent 60%),
+      radial-gradient(700px 600px at 60% 110%, rgba(217,119,6,.05), transparent 60%);
+  }
+
+  h1, h2, h3, h4 { font-family: 'Outfit', 'PingFang SC', 'Microsoft YaHei', sans-serif; line-height: 1.3; }
+  code, .mono { font-family: 'JetBrainsMono', 'PingFang SC', 'Microsoft YaHei', monospace; font-size: .86em; }
+  code { background: #f3efe7; border: 1px solid var(--rule); border-radius: 4px; padding: 1px 6px; color: #9a3412; white-space: nowrap; }
+  a { color: var(--accent2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  strong { font-weight: 700; }
+  mark.key { background: none; color: var(--accent); font-weight: 600; padding: 0 1px; }
+
+  /* ---------- cover ---------- */
+  .cover {
+    position: relative; overflow: hidden;
+    padding: 72px 24px 56px; text-align: center;
+    border-bottom: 1px solid var(--rule);
+    background: linear-gradient(180deg, rgba(255,255,255,.65), rgba(255,255,255,.15));
+  }
+  .cover .kicker {
+    display: inline-block; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700;
+    letter-spacing: .22em; text-transform: uppercase; color: var(--accent);
+    border: 1px solid rgba(194,65,12,.35); border-radius: 999px; padding: 5px 18px;
+    background: rgba(255,255,255,.7);
+  }
+  .cover h1 {
+    font-size: clamp(40px, 7vw, 64px); font-weight: 700; margin: 26px 0 10px; letter-spacing: -.01em;
+    background: linear-gradient(120deg, #272422 30%, var(--accent));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .cover .subtitle { font-size: clamp(16px, 2.4vw, 20px); color: var(--ink); max-width: 720px; margin: 0 auto; font-weight: 600; }
+  .cover .subtitle small { display: block; font-weight: 400; color: var(--muted); font-size: .82em; margin-top: 6px; }
+  .cover .meta { margin-top: 26px; font-size: 13px; color: var(--muted); display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+  .cover .meta span { display: inline-flex; align-items: center; gap: 6px; }
+  .cover .meta b { color: var(--ink); font-weight: 600; }
+  .cover .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); opacity: .5; align-self: center; }
+  .cover .hero-wrap { max-width: 880px; margin: 40px auto 0; }
+  .cover .hero-wrap img {
+    width: 100%; border-radius: 14px; border: 1px solid var(--rule); box-shadow: var(--shadow); display: block;
+  }
+  .cover .hero-credit { font-size: 12px; color: var(--muted); margin-top: 10px; }
+
+  /* ---------- stats strip ---------- */
+  .stats-strip { max-width: 1080px; margin: -30px auto 0; padding: 0 24px; position: relative; z-index: 2; }
+  .stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  .stat-card {
+    background: rgba(255,255,255,.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--rule); border-radius: 12px; padding: 16px 10px; text-align: center; box-shadow: var(--shadow);
+  }
+  .stat-card .num { font-family: 'Outfit', sans-serif; font-size: 26px; font-weight: 700; color: var(--accent); line-height: 1.1; }
+  .stat-card .num small { font-size: 14px; font-weight: 700; }
+  .stat-card .label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ---------- layout ---------- */
+  .shell { max-width: 1280px; margin: 0 auto; padding: 48px 24px 80px; display: grid; grid-template-columns: 232px 1fr; gap: 48px; }
+  .toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; }
+  .toc h4 { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; font-weight: 700; }
+  .toc ol { list-style: none; }
+  .toc li { margin-bottom: 2px; }
+  .toc a {
+    display: block; padding: 7px 12px; border-radius: 8px; font-size: 13.5px; color: var(--muted);
+    border-left: 2px solid transparent; transition: all .15s ease;
+  }
+  .toc a:hover { color: var(--accent); background: rgba(194,65,12,.06); text-decoration: none; }
+  .toc a .no { font-family: 'Outfit', sans-serif; font-weight: 700; margin-right: 7px; color: rgba(194,65,12,.55); }
+  .main { min-width: 0; max-width: 860px; }
+
+  /* ---------- chapters ---------- */
+  .chapter { margin-bottom: 64px; scroll-margin-top: 24px; }
+  .chapter-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 8px; }
+  .chapter-head .no {
+    font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, var(--accent), #d97706); border-radius: 8px; padding: 3px 10px; white-space: nowrap;
+  }
+  .chapter-head h2 { font-size: 27px; font-weight: 700; letter-spacing: -.01em; }
+  .chapter-lead { color: var(--muted); font-size: 14.5px; margin-bottom: 24px; padding-bottom: 14px; border-bottom: 2px solid transparent;
+    border-image: linear-gradient(90deg, var(--accent), rgba(194,65,12,0)) 1; }
+  h3 { font-size: 18.5px; font-weight: 700; margin: 34px 0 12px; display: flex; align-items: center; gap: 9px; }
+  h3::before { content: ''; width: 4px; height: 17px; border-radius: 2px; background: linear-gradient(180deg, var(--accent), var(--accent2)); flex: none; }
+  h4 { font-size: 15.5px; font-weight: 700; margin: 22px 0 8px; color: var(--accent2); }
+  p { margin-bottom: 13px; }
+  ul, ol { padding-left: 22px; margin-bottom: 13px; }
+  li { margin-bottom: 6px; }
+  .subtle { color: var(--muted); font-size: 13.5px; }
+
+  /* ---------- components ---------- */
+  .card {
+    background: rgba(255,255,255,.82); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--rule); border-radius: 14px; padding: 22px 26px; margin: 18px 0; box-shadow: var(--shadow);
+  }
+  .card.teal { border-left: 4px solid var(--accent2); }
+  .card.orange { border-left: 4px solid var(--accent); }
+
+  .quote {
+    border-left: 4px solid var(--accent); background: rgba(255,241,232,.6);
+    padding: 18px 24px; border-radius: 0 12px 12px 0; margin: 20px 0; font-size: 16px;
+  }
+  .quote .who { display: block; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .quote em { font-style: italic; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 18px 0; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 18px 0; }
+  .mini-card {
+    background: rgba(255,255,255,.85); border: 1px solid var(--rule); border-radius: 12px; padding: 16px 18px;
+  }
+  .mini-card .t { font-weight: 700; font-size: 14.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .mini-card .t .chip { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+  .chip.orange { background: var(--accent-soft); color: var(--accent); }
+  .chip.teal { background: var(--accent2-soft); color: var(--accent2); }
+  .chip.gray { background: #f0ece4; color: var(--muted); }
+  .mini-card p, .mini-card ul { font-size: 13.5px; color: var(--muted); margin: 0; }
+  .mini-card ul { padding-left: 17px; }
+
+  .feature-list { list-style: none; padding: 0; margin: 12px 0; }
+  .feature-list li {
+    position: relative; padding: 7px 0 7px 30px; border-bottom: 1px dashed var(--rule); font-size: 14.5px; margin: 0;
+  }
+  .feature-list li:last-child { border-bottom: none; }
+  .feature-list li::before {
+    content: '✓'; position: absolute; left: 4px; top: 7px; width: 18px; height: 18px; border-radius: 6px;
+    background: var(--accent2-soft); color: var(--accent2); font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .feature-list li b { font-weight: 700; }
+  .feature-list li .sub { display: block; color: var(--muted); font-size: 13px; margin-top: 1px; }
+
+  .table-wrap { overflow-x: auto; overflow-y: auto; max-height: 620px; border: 1px solid var(--rule); border-radius: 12px; margin: 18px 0; background: #fff; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  thead th {
+    position: sticky; top: 0; background: #faf6ef; text-align: left; font-weight: 700; font-size: 12.5px;
+    padding: 11px 14px; border-bottom: 2px solid var(--rule); color: var(--ink); white-space: nowrap; z-index: 1;
+  }
+  tbody td { padding: 9px 14px; border-bottom: 1px solid #f0ece4; vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #fdf9f3; }
+  td .tag { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+  .tag.hi { background: var(--accent-soft); color: var(--accent); }
+  .tag.lo { background: var(--accent2-soft); color: var(--accent2); }
+  .tag.cron { background: #ede9fe; color: #6d28d9; }
+  .tag.manual { background: #f0ece4; color: var(--muted); }
+
+  /* charts & diagrams */
+  .figure { margin: 26px 0; }
+  .figure .fig-title { font-weight: 700; font-size: 14.5px; margin-bottom: 4px; }
+  .figure .fig-desc { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .figure .panel {
+    background: #fff; border: 1px solid var(--rule); border-radius: 12px; padding: 18px; box-shadow: var(--shadow);
+  }
+  .chart-host { width: 100%; min-height: 420px; }
+  .chart-host.short { min-height: 300px; }
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .chart-row .panel { display: flex; flex-direction: column; }
+  .chart-row .chart-host { min-height: 280px; }
+  .diagram pre.mermaid {
+    background: #fff; border: 1px solid var(--rule); border-radius: 12px; padding: 22px 14px;
+    display: flex; justify-content: center; overflow-x: auto; box-shadow: var(--shadow);
+  }
+  .diagram .mermaid svg { max-width: 100%; height: auto; }
+  figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; text-align: center; }
+
+  /* roadmap timeline */
+  .timeline { margin: 20px 0; padding-left: 26px; border-left: 2px solid var(--rule); }
+  .tl-item { position: relative; padding: 0 0 22px 18px; }
+  .tl-item::before {
+    content: ''; position: absolute; left: -33px; top: 5px; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--bg); border: 3px solid var(--accent);
+  }
+  .tl-item .tl-when { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 12.5px; color: var(--accent); letter-spacing: .04em; }
+  .tl-item .tl-title { font-weight: 700; font-size: 15px; margin: 2px 0 4px; }
+  .tl-item p { font-size: 13.5px; color: var(--muted); margin: 0; }
+
+  /* gap callouts */
+  .gap-item {
+    display: flex; gap: 14px; background: #fff; border: 1px solid var(--rule); border-left: 4px solid #d97706;
+    border-radius: 0 12px 12px 0; padding: 15px 18px; margin: 12px 0; box-shadow: var(--shadow);
+  }
+  .gap-item .n { font-family: 'Outfit', sans-serif; font-weight: 700; color: #d97706; font-size: 17px; flex: none; padding-top: 1px; }
+  .gap-item p { margin: 0; font-size: 14px; }
+  .gap-item p b { font-weight: 700; }
+
+  .verdict {
+    background: linear-gradient(135deg, rgba(15,118,110,.08), rgba(194,65,12,.08));
+    border: 1px solid var(--rule); border-radius: 14px; padding: 26px 30px; margin-top: 30px;
+  }
+  .verdict h3 { margin-top: 0; }
+  .verdict .big { font-size: 17px; font-weight: 700; }
+
+  /* footer */
+  footer { border-top: 1px solid var(--rule); margin-top: 30px; padding: 34px 24px 60px; background: rgba(255,255,255,.5); }
+  footer .sources { max-width: 860px; margin: 0 auto; }
+  footer .sources h2 { font-size: 17px; margin-bottom: 14px; }
+  footer .sources ol { padding-left: 1.2rem; font-size: 0.85rem; color: var(--muted); }
+  footer .sources li { margin-bottom: 0.5rem; overflow-wrap: break-word; word-break: break-all; }
+  footer .sources .src-title { color: var(--ink); word-break: normal; }
+  footer .sources .src-url { display: block; margin-top: 0.15rem; font-size: 0.82rem; color: var(--accent2); }
+  footer .foot-note { max-width: 860px; margin: 26px auto 0; font-size: 12.5px; color: var(--muted); text-align: center; }
+
+  sup a { color: var(--accent); text-decoration: none; font-size: 0.75em; font-weight: 600; }
+  sup a:hover { text-decoration: underline; }
+
+  /* responsive */
+  @media (max-width: 1020px) {
+    .stats-grid { grid-template-columns: repeat(3, 1fr); }
+    .shell { grid-template-columns: 1fr; gap: 0; }
+    .toc { position: static; max-height: none; margin-bottom: 34px; background: #fff; border: 1px solid var(--rule); border-radius: 12px; padding: 16px 18px; }
+    .toc ol { display: flex; flex-wrap: wrap; gap: 4px; }
+    .toc li { margin: 0; }
+    .toc a { border-left: none; font-size: 12.5px; padding: 5px 9px; background: #faf6ef; border-radius: 999px; }
+  }
+  @media (max-width: 720px) {
+    body { font-size: 15px; }
+    .grid-2, .grid-3, .chart-row { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .chapter-head h2 { font-size: 22px; }
+    .card { padding: 18px 16px; }
+  }
+  @media print {
+    body::before { display: none; }
+    .toc { display: none; }
+    .shell { display: block; padding: 0; }
+    .chapter { page-break-inside: avoid; }
+    .stats-strip { margin-top: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== COVER ==================== -->
+<header class="cover">
+  <span class="kicker">Product Positioning · 产品定位书</span>
+  <h1>Education Advisor</h1>
+  <p class="subtitle">
+    面向中国初高中班主任的<strong>本地优先</strong>多智能体教育管理桌面应用
+    <small>18 个专业 Agent · Rust 事件溯源数据引擎 · 隐私保护 PII 引擎 · 跨平台 LLM 编排</small>
+  </p>
+  <div class="meta">
+    <span>产品版本 <b>v0.1.0-rc.1</b></span><span class="dot"></span>
+    <span>文档性质 <b>全量代码调查 + 定位梳理</b></span><span class="dot"></span>
+    <span>成文日期 <b>2026-08-18</b></span>
+  </div>
+  <div class="hero-wrap">
+    <img src="assets/hero-cover_2240x1680.jpg" alt="Education Advisor 产品定位书封面插画">
+    <p class="hero-credit">班主任桌面驾驶舱：AI Agent 团队围绕本地数据协同工作</p>
+  </div>
+</header>
+
+<!-- ==================== STATS ==================== -->
+<div class="stats-strip">
+  <div class="stats-grid">
+    <div class="stat-card"><div class="num">18</div><div class="label">专业 AI Agent</div></div>
+    <div class="stat-card"><div class="num">12</div><div class="label">功能页面模块</div></div>
+    <div class="stat-card"><div class="num">≈125</div><div class="label">IPC 通道 · 16 域</div></div>
+    <div class="stat-card"><div class="num">22</div><div class="label">操行原因码</div></div>
+    <div class="stat-card"><div class="num">30<small>+</small></div><div class="label">LLM 提供商</div></div>
+    <div class="stat-card"><div class="num">112</div><div class="label">测试文件</div></div>
+  </div>
+</div>
+
+<div class="shell">
+
+<!-- ==================== TOC ==================== -->
+<nav class="toc">
+  <h4>目录</h4>
+  <ol>
+    <li><a href="#ch1"><span class="no">01</span>执行摘要</a></li>
+    <li><a href="#ch2"><span class="no">02</span>产品定位声明</a></li>
+    <li><a href="#ch3"><span class="no">03</span>目标用户与核心痛点</a></li>
+    <li><a href="#ch4"><span class="no">04</span>差异化卖点</a></li>
+    <li><a href="#ch5"><span class="no">05</span>系统架构总览</a></li>
+    <li><a href="#ch6"><span class="no">06</span>功能全景：应达到的功能</a></li>
+    <li><a href="#ch7"><span class="no">07</span>18 个 Agent 编制</a></li>
+    <li><a href="#ch8"><span class="no">08</span>质量与验收基线</a></li>
+    <li><a href="#ch9"><span class="no">09</span>产品规划蓝图</a></li>
+    <li><a href="#ch10"><span class="no">10</span>调查发现：文档与实现的偏差</a></li>
+  </ol>
+</nav>
+
+<main class="main">
+
+<!-- ==================== CH1 ==================== -->
+<section class="chapter" id="ch1">
+  <div class="chapter-head"><span class="no">01</span><h2>执行摘要</h2></div>
+  <p class="chapter-lead">本定位书基于对全部源代码（主进程 189 文件、渲染进程 280 文件）、配置体系与产品文档的全量调查写成，用于向产品负责人确认：这个产品是什么、为谁服务、应达到什么功能标准。</p>
+
+  <div class="quote">
+    Education Advisor 是一款<strong>面向中国初高中班主任的本地优先（local-first）多智能体教育管理桌面应用</strong>：它把班主任每天约 2 小时的操行记录、成绩统计、家长沟通与周报撰写等文书工作，交给 <strong>18 个分工明确、权限受控的 AI Agent</strong> 和一个 <strong>Rust 事件溯源数据引擎</strong>处理，同时保证学生数据不出本机、每个数字可审计、每个模型可替换。
+  </div>
+
+  <p>产品本质可以概括为三句话：</p>
+  <ul>
+    <li><strong>它是一个「班主任驾驶舱」</strong>——用桌面应用（Electron + React）承载 12 个功能页面，覆盖仪表盘、学生、班级、学业、对话、Agent、模型、技能、调度、隐私、设置全流程；</li>
+    <li><strong>它是一个「教学团队操作系统」</strong>——18 个 Agent 各司其职（操行录入、风险预警、周报撰写、心理监测、家校沟通……），由 cron 定时或手动触发，按能力（capability）分级授权读写本地数据；</li>
+    <li><strong>它不是聊天机器人</strong>——每一个输出数字都必须来自工具调用而非模型「心算」，每一次写操作都落为 append-only 事件，可撤销、可回放、可审计。</li>
+  </ul>
+
+  <div class="grid-3">
+    <div class="mini-card">
+      <div class="t">目标用户</div>
+      <p>中国初/高中班主任（单人单班为主，默认 52 人班规模）；扩展至年级组长、德育主任。</p>
+    </div>
+    <div class="mini-card">
+      <div class="t">核心价值</div>
+      <p>把每周 8–12 小时无教学价值的文书工作，压缩为「Agent 自动执行 + 班主任一键审阅」。</p>
+    </div>
+    <div class="mini-card">
+      <div class="t">信任基石</div>
+      <p>本地优先 + 事件溯源 + PII 加密。产品起源问题：「机器帮我，但不把记录从我手里夺走。」</p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== CH2 ==================== -->
+<section class="chapter" id="ch2">
+  <div class="chapter-head"><span class="no">02</span><h2>产品定位声明</h2></div>
+  <p class="chapter-lead">用经典定位句式（Geoffrey Moore 模板）陈述产品的市场位置，并界定产品「是」与「不是」什么。</p>
+
+  <h3>定位句式</h3>
+  <div class="card orange">
+    <p style="margin:0;font-size:15.5px;">
+      对于<strong>每天被操行记录、成绩统计、家长沟通、周报撰写占据大量时间、又对学生隐私高度敏感的中国初高中班主任</strong>，
+      Education Advisor 是一款<strong>本地优先的多智能体桌面工作台</strong>，
+      它可以<strong>把班级管理的记录、量化、分析、预警、报告全流程自动化，并保证每个数字可溯源、每条数据不出本机</strong>；
+      它不像<strong>通用 AI 聊天工具</strong>那样<em>会编造数字、无法审计、要求把学生隐私上传云端</em>。
+      我们的产品锚点是：<strong>每个数字来自工具调用、每个事件 append-only 可追溯、模型可随时换成 4B 本地小模型而系统照常工作</strong>。
+    </p>
+  </div>
+
+  <h3>产品性质界定</h3>
+  <div class="grid-2">
+    <div class="card teal">
+      <h4 style="margin-top:0;">它「是」什么</h4>
+      <ul class="feature-list">
+        <li><b>本地优先桌面工具</b><span class="sub">Electron 43 + React 19 + TypeScript，Windows 安装包/便携版开箱即用，数据存本机磁盘</span></li>
+        <li><b>多 Agent 教学团队操作系统</b><span class="sub">18 个角色化 Agent，SOUL.md 人格 + capability 权限 + cron 调度</span></li>
+        <li><b>班主任驾驶舱</b><span class="sub">12 个页面覆盖操行、学业、班级、对话、自动化、隐私、运维</span></li>
+        <li><b>开放模型层</b><span class="sub">30+ 云端 Provider + Ollama 本地模型 + 自定义 OpenAI 兼容端点</span></li>
+      </ul>
+    </div>
+    <div class="card orange">
+      <h4 style="margin-top:0;">它「不是」什么</h4>
+      <ul class="feature-list">
+        <li><b>不是聊天机器人</b><span class="sub">Agent 由工具约束，不是靠提示词祈祷；数字必须来自 eaa 工具调用</span></li>
+        <li><b>不是 SaaS / 多租户平台</b><span class="sub">ROADMAP 明确列为「不做」；数据所有权归教师个人</span></li>
+        <li><b>不是 LMS（学习管理系统）</b><span class="sub">不做教务排课、选课、成绩上报等学校级系统集成</span></li>
+        <li><b>不依赖特定大模型</b><span class="sub">AI 层无状态可替换：GPT-4o 换成 Qwen 4B，数据与流程不变</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>产品愿景</h3>
+  <p>让班主任从文书工作中解放，把时间还给教学与人——同时让每一个教育决策都有据可查。项目自我定义为「<strong>teaching-team operating system</strong>（教学团队操作系统）」，而非又一个 AI 套壳产品。</p>
+</section>
+
+<!-- ==================== CH3 ==================== -->
+<section class="chapter" id="ch3">
+  <div class="chapter-head"><span class="no">03</span><h2>目标用户与核心痛点</h2></div>
+  <p class="chapter-lead">产品的一切功能设计都锚定在一个具体的人与一个具体的时刻：晚上 11 点还在整理纸质操行记录的班主任。</p>
+
+  <div class="quote">
+    「我每天花 2 小时做记录和报告，机器能不能帮我，<em>但不把记录从我手里夺走</em>？」
+    <span class="who">—— 产品的起源问题（PROJECT_INTRO.md），来自一位真实班主任</span>
+  </div>
+
+  <h3>用户画像</h3>
+  <div class="grid-2">
+    <div class="mini-card">
+      <div class="t">核心用户：班主任 <span class="chip orange">主画像</span></div>
+      <ul>
+        <li>中国初/高中，单人单班为主，默认班级规模 52 人</li>
+        <li>日常以「+2 / −3」操行积分管理课堂与宿舍纪律</li>
+        <li>对学生隐私敏感，抵触把名单上传云端</li>
+        <li>非技术用户：需要安装即用、桌面级操作习惯</li>
+      </ul>
+    </div>
+    <div class="mini-card">
+      <div class="t">扩展用户：年级组长 / 德育主任 <span class="chip teal">次级</span></div>
+      <ul>
+        <li>需要跨班对比、年级汇总视角（Dashboard 班级对比模式）</li>
+        <li>飞书 Bitable 同步让教学团队共享同一份数据</li>
+        <li>家长只读 Web、教务处看板已列入 roadmap 后续版本</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>痛点量化（产品文档口径）</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>日常事务</th><th>耗时（文档估算）</th><th>产品应对</th></tr></thead>
+      <tbody>
+        <tr><td>操行积分记录</td><td>约 20 分钟/天</td><td>class-monitor Agent 录入 + 原因码体系自动计分；飞书机器人随时远程加分</td></tr>
+        <tr><td>家长沟通消息</td><td>约 30 分钟/天</td><td>home_school Agent 按常规/反馈/紧急三类模板生成通知，PII 按接收方过滤</td></tr>
+        <tr><td>班级周报</td><td>约 90 分钟/周</td><td>weekly-reporter Agent 周五 16:00 定时生成，governor 周日复盘</td></tr>
+        <tr><td>月度汇总与统计</td><td>约 2 小时/月</td><td>data-analyst + supervisor 定时多维分析，HTML 仪表盘一键导出</td></tr>
+        <tr><td><strong>合计</strong></td><td><strong>每周 8–12 小时</strong></td><td><strong>目标：压缩为「Agent 自动执行 + 一键审阅」</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>典型使用场景</h3>
+  <ul>
+    <li><strong>课间 30 秒</strong>：班主任对桌面应用（或飞书）说一句「张三 课堂讲话」，class-monitor 通过原因码记录 −2 分，事件即刻落盘；</li>
+    <li><strong>每日 21:00</strong>：psychology Agent 巡检事件历史，识别心理危机信号（只标记、不写入）；risk-alert 工作日 8:00 扫描高危学生；</li>
+    <li><strong>周五 16:00</strong>：weekly-reporter 自动起草班级操行周报，班主任审阅后导出或同步飞书；</li>
+    <li><strong>家长质疑时</strong>：事件日志 append-only + 哈希链 + 完整审计记录，随时拿出证据链。</li>
+  </ul>
+</section>
+
+<!-- ==================== CH4 ==================== -->
+<section class="chapter" id="ch4">
+  <div class="chapter-head"><span class="no">04</span><h2>差异化卖点</h2></div>
+  <p class="chapter-lead">产品文档明确了通用 chatbot 在教育场景的三个失败模式，本产品逐条对位设计了自己的护城河。</p>
+
+  <div class="grid-2">
+    <div class="mini-card">
+      <div class="t">1 · 不幻觉数字</div>
+      <p>所有 Agent 提示词遵守「小模型规则手册」：没有从工具读到的数据 = 不存在；禁止模型心算，每个数字必须来自 <code>eaa</code> 工具调用，输出经 JSON Schema 校验。</p>
+    </div>
+    <div class="mini-card">
+      <div class="t">2 · 完整审计链</div>
+      <p>事件日志 append-only、可选 SHA-256 哈希链防篡改；撤销 = 追加对冲事件而非删除。家长质疑时，证据链完整可回放。</p>
+    </div>
+    <div class="mini-card">
+      <div class="t">3 · 小模型可用</div>
+      <p>Agent 由工具与规则约束而非依赖模型智力——3–4B 参数模型（如 Qwen 4B 本地跑）系统照常工作，API 成本可降至零。</p>
+    </div>
+    <div class="mini-card">
+      <div class="t">4 · PII 本地加密</div>
+      <p>Rust PII 引擎用 AES-256-GCM 建「姓名→S_017」加密映射表；按接收方过滤（LLM 激进脱敏 / 家长只脱敏他人 / 教师本人直通），每次调用写审计日志。</p>
+    </div>
+    <div class="mini-card">
+      <div class="t">5 · 本地优先</div>
+      <p>Rust 事件引擎管理全部读写、文件锁与原子落盘；LLM 是唯一出网组件，且只见脱敏后的数据切片。</p>
+    </div>
+    <div class="mini-card">
+      <div class="t">6 · 成本可控</div>
+      <p>模型分层路由：18 个 Agent 中 14 个走低成本档、4 个走高质量档；产品宣称高质量+低成本组合下每班每天 API 费用 &lt; 1 元。</p>
+    </div>
+  </div>
+
+  <h3>七条设计原则（架构层的不可妥协项）</h3>
+  <div class="card teal">
+    <ol style="margin:0;font-size:14px;">
+      <li>Rust 侧永远是数据真源（single source of truth）</li>
+      <li>工具调用而非「感觉」——数字全部来自工具</li>
+      <li>append-only：事件无删除、无覆盖，只能 revert 对冲</li>
+      <li>PII 默认不出本机：加密 + 假名化 + 按接收方过滤</li>
+      <li>小模型大提示词：为 3–4B 模型设计，大模型只是更快</li>
+      <li>本地优先、云端可选：拔掉网线，记录照常工作</li>
+      <li>可复现构建：<code>npm ci → build → package</code> 产出字节级一致的安装包</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ==================== CH5 ==================== -->
+<section class="chapter" id="ch5">
+  <div class="chapter-head"><span class="no">05</span><h2>系统架构总览</h2></div>
+  <p class="chapter-lead">三进程架构：渲染进程零系统权限，主进程是唯一编排者，Rust CLI 是唯一数据写入者。安全边界经 7 份 ADR（架构决策记录）固化。</p>
+
+  <div class="figure diagram">
+    <div class="fig-title">图 1 · 三层架构与数据流</div>
+    <div class="fig-desc">渲染进程通过 contextBridge 暴露的 window.api（16 个命名空间）调用主进程；主进程经 JSON-RPC / HTTPS / WebSocket / 子进程 stdio 连接外部能力。</div>
+    <pre class="mermaid">
+flowchart TB
+    R["渲染进程 Renderer<br/>React 19 · Vite · Tailwind · Zustand×3<br/>12 页面 · 中英双语 · 亮/暗主题"]
+    M["主进程 Main · Electron 43 / Node 22<br/>IPC 层：16 命名空间 ≈125 通道（TypeBox 校验）<br/>服务层 115 文件：Agent 运行时 · Cron · MCP · Ollama · 飞书机器人 · SQLite"]
+    E1["eaa-cli（Rust 数据引擎）<br/>事件溯源 · 排行/校验/统计 · PII 引擎<br/>文件锁 + 原子写 · append-only"]
+    E2["pi-ai SDK → 30+ LLM Provider<br/>云端 API / Ollama 本地 / 自定义端点"]
+    E3["飞书 Feishu<br/>长连接机器人（8 个斜杠命令）<br/>Bitable 定时同步"]
+    E4["MCP Server<br/>stdio / SSE / WebSocket"]
+    R -- "contextBridge · window.api" --> M
+    M -- "spawn 子进程 · JSON over stdio · 文件锁" --> E1
+    M -- "HTTPS 流式（上下文自动压缩）" --> E2
+    M <-- "WebSocket 长连接 + OpenAPI" --> E3
+    M <-- "JSON-RPC（安全屏障：路径黑名单+参数消毒）" --> E4
+    </pre>
+  </div>
+
+  <h3>Agent 运行闭环（每轮 1–4 秒）</h3>
+  <div class="figure diagram">
+    <div class="fig-title">图 2 · Agent 执行循环</div>
+    <div class="fig-desc">系统提示词由人格文件、规则、技能、工具清单拼装；工具调用经能力校验与参数消毒后才抵达 Rust 引擎。</div>
+    <pre class="mermaid">
+flowchart LR
+    A["触发<br/>对话 / cron / 手动"] --> B["拼装系统提示词<br/>SOUL.md + AGENTS.md<br/>+ 小模型规则 + 技能 + 工具清单"]
+    B --> C["LLM 推理<br/>按档位路由模型"]
+    C --> D{"返回工具调用?"}
+    D -- 是 --> E["capability 权限校验<br/>+ 参数消毒（防注入/穿越）"]
+    E --> F["eaa-cli 执行<br/>写命令进串行队列"]
+    F --> G["事件校验落盘<br/>append-only"]
+    G --> C
+    D -- 否 --> H["流式回渲染进程<br/>token / 工具调用 / 思考全透明"]
+    H --> I["SQLite 记录执行历史<br/>耗时 · token · 费用"]
+    </pre>
+  </div>
+
+  <h3>代码体量（本次全量调查统计）</h3>
+  <div class="grid-3">
+    <div class="mini-card"><div class="t">主进程 <span class="chip gray">189 文件</span></div><p>服务层 115 + IPC 处理器 40 + preload 17；写命令串行队列、读缓存、熔断器等并发防护成体系。</p></div>
+    <div class="mini-card"><div class="t">渲染进程 <span class="chip gray">280 文件</span></div><p>12 页面模块（页面编排 + components + hooks + lib 三层惯例）、3 个 Zustand store、自研 i18n。</p></div>
+    <div class="mini-card"><div class="t">数据层 <span class="chip gray">双存储</span></div><p>Rust 事件引擎（JSON-Lines 事件日志 + 实体存储）+ SQLite（对话/执行历史/班级/cron 日志）。</p></div>
+  </div>
+</section>
+
+<!-- ==================== CH6 ==================== -->
+<section class="chapter" id="ch6">
+  <div class="chapter-head"><span class="no">06</span><h2>功能全景：应达到的功能</h2></div>
+  <p class="chapter-lead">以下按六大能力域陈述产品「应该达到的功能标准」——每一条都对应已实现的页面与服务代码，可直接作为验收清单。</p>
+
+  <h3>能力域 1 · 班级操行量化管理（产品核心）</h3>
+  <div class="card">
+    <p class="subtle" style="margin-bottom:6px;">承载页面：Dashboard / Students · 承载服务：eaa-bridge + Rust eaa-cli（24 个 IPC 通道）</p>
+    <ul class="feature-list">
+      <li><b>学生档案 CRUD 与批量管理</b><span class="sub">新增/删除（二次确认）/元数据设置（分组、职务、班级）；JSON 批量导入；CSV/JSONL/HTML/JSON/TXT 多格式导出</span></li>
+      <li><b>原因码体系计分</b><span class="sub">22 个内置原因码：11 个扣分（−1~−10）、6 个加分（+1~+10 含变量分）、1 个系统撤销码、4 个实验室专项码</span></li>
+      <li><b>事件记录与撤销</b><span class="sub">加扣分事件即时落盘；支持 dryRun 预演；撤销走 revert 对冲事件，绝不物理删除</span></li>
+      <li><b>多 维 检 索</b><span class="sub">按学生查分/查历史、关键词搜索、时间范围、标签过滤、Top-N 排行榜（含缓存与写后失效）</span></li>
+      <li><b>风险分级</b><span class="sub">操行分口径：< 60 极高 / 60–80 高 / 80–100 中 / ≥100 低；Agent 判定阈值统一为 85/93</span></li>
+      <li><b>统计与治理</b><span class="sub">数据统计、事件校验（validate）、健康检查（doctor）、全量重放排名（replay）、HTML 仪表盘导出</span></li>
+      <li><b>仪表盘</b><span class="sub">5 张统计卡（学生数/有效事件/撤销/分数变动或班级均分/高风险数）、分数分布与风险分布图、原因码 Top8、排行榜 Top10（点击直达学生档案）、周期涨跌摘要、全班级对比模式</span></li>
+    </ul>
+  </div>
+
+  <h3>能力域 2 · 学业成绩管理</h3>
+  <div class="card">
+    <p class="subtle" style="margin-bottom:6px;">承载页面：Academics / Students（学业 Tab）· 承载服务：academic-service（7 个 IPC 通道）</p>
+    <ul class="feature-list">
+      <li><b>科目与考试体系</b><span class="sub">默认 10 科目（语数英 150 分制 + 理化生政史地 100 分制 + 体育）、7 种考试类型，科目配置可自定义</span></li>
+      <li><b>考试管理</b><span class="sub">创建/快速创建/删除考试；删除级联清理成绩，防孤儿数据</span></li>
+      <li><b>成绩录入</b><span class="sub">单科/全科两种手工模式 + <strong>AI 智能录入</strong>（粘贴成绩文本 → LLM 流式解析 → 自动填充表格）；批量保存；按科目满分校验越界</span></li>
+      <li><b>成绩分析</b><span class="sub">成绩总览表、各科均分图、最新考试雷达图、跨考试趋势图、偏科分析</span></li>
+      <li><b>考试对比</b><span class="sub">任选两场考试/科目做全班对比：学生对比表 + 汇总卡 + 科目涨跌图</span></li>
+    </ul>
+  </div>
+
+  <h3>能力域 3 · 班级与学生 360° 管理</h3>
+  <div class="card">
+    <p class="subtle" style="margin-bottom:6px;">承载页面：Classes / Students · 承载服务：class-service + profile-service + EAA（16 个 IPC 通道）</p>
+    <ul class="feature-list">
+      <li><b>班级管理</b><span class="sub">班级 CRUD、编号按「年级+班号」自动生成、支持复制已有班级为模板</span></li>
+      <li><b>班级生命周期</b><span class="sub">存档（学生数据完整保留、可恢复）/ 恢复 / 删除三态；删除仅清本地记录不动学生数据</span></li>
+      <li><b>批量调班</b><span class="sub">勾选未分班/他班学生批量分入指定班，实时进度推送</span></li>
+      <li><b>学生 360° 档案（5 视图）</b><span class="sub">概览（指标卡+近 20 事件趋势线）、档案（基础/联系方式/家庭/健康/在校/奖惩编辑）、事件台账（搜索/筛选/撤销/补录）、学业成绩、AI 分析</span></li>
+      <li><b>批量操作</b><span class="sub">列表全选、批量调班、批量删除；右键桌面级菜单</span></li>
+    </ul>
+  </div>
+
+  <h3>能力域 4 · 多智能体 AI 能力</h3>
+  <div class="card">
+    <p class="subtle" style="margin-bottom:6px;">承载页面：Chat / Agents / Models / Students（AI 分析 Tab）· 承载服务：agent-service + pi-ai-service + ollama-service（28 个 IPC 通道）</p>
+    <ul class="feature-list">
+      <li><b>对话工作台</b><span class="sub">多会话管理（持久化）、任选 Agent + 模型 + 思考级别、文件附件（30+ 扩展名，10MB 上限）、流式输出、思考过程折叠展示、工具调用明细（参数+结果成败）、上下文状态条（token/费用/压缩进度）、中止生成</span></li>
+      <li><b>Agent 控制台</b><span class="sub">18 个 Agent 启停、配置编辑（名称/描述/模型档位/MCP 关联）、<strong>SOUL.md 与 AGENTS.md 在线编辑</strong>、手动试运行（流式+可中止）、执行历史（耗时/token/费用）</span></li>
+      <li><b>模型管理</b><span class="sub">30+ 云端 Provider：API Key 加密存储（DPAPI）、OAuth 登录、连接测试、模型列表拉取、自定义模型注册；Ollama 本地模型：检测/启停服务/推荐模型一键下载（实时进度）/删除；高质量+低成本双档位默认模型设置</span></li>
+      <li><b>学生 AI 分析</b><span class="sub">单学生勾选多 Agent 串行分析或一键全跑，输出按「操行总结/风险预警/行为模式/教育建议」分节，可保存结果</span></li>
+      <li><b>上下文工程</b><span class="sub">超阈值自动 LLM 摘要压缩（reserveTokens 8000 / keepRecentTokens 16000 可配）</span></li>
+    </ul>
+  </div>
+
+  <h3>能力域 5 · 自动化与扩展生态</h3>
+  <div class="card">
+    <p class="subtle" style="margin-bottom:6px;">承载页面：Scheduler / Skills（含 MCP 与插件中心）· 承载服务：cron-service + skill-service + mcp-service + feishu（28 个 IPC 通道）</p>
+    <ul class="feature-list">
+      <li><b>定时任务</b><span class="sub">cron 表达式实时校验 + 常用预设、任务启停/立即执行/编辑、执行日志（实时推送 + 持久化）、连续失败熔断器、并发执行锁</span></li>
+      <li><b>技能体系</b><span class="sub">Markdown 技能（提示词模板）编写/重命名/删除/文件导入；用户级与项目级双目录；运行时自动注入 Agent 系统提示词</span></li>
+      <li><b>MCP 接入</b><span class="sub">stdio/SSE/WebSocket 三种传输、服务器 CRUD + 连接测试 + 工具列表查看、内置模板（本地文件/网络搜索/SQLite）、安全屏障（14 个敏感路径黑名单 + shell 元字符过滤 + 5MB 结果上限）、agent 级与技能级配置叠加</span></li>
+      <li><b>飞书集成</b><span class="sub">长连接机器人（免公网）：8 个斜杠命令远程查分/排行/统计/触发 Agent，普通消息转默认 Agent 对话；Bitable 定时同步（默认每 6 小时幂等 upsert）；网络诊断（DNS→HTTPS→鉴权→WS 四步）</span></li>
+      <li><b>插件中心</b><span class="sub">MCP/技能/定时任务/飞书/本地模型五类能力聚合总览</span></li>
+    </ul>
+  </div>
+
+  <h3>能力域 6 · 隐私保护与系统运维</h3>
+  <div class="card">
+    <p class="subtle" style="margin-bottom:6px;">承载页面：Privacy / Settings · 承载服务：privacy session + keystore + settings + log + update + tray（24 个 IPC 通道）</p>
+    <ul class="feature-list">
+      <li><b>PII Shield</b><span class="sub">加密密码初始化/加载/锁定（密码仅经 IPC 传输一次，主进程内存持有）、加密映射表管理、脱敏预览（dryrun）、备份</span></li>
+      <li><b>按接收方过滤</b><span class="sub">LLM 激进脱敏 / 家长只脱敏其他学生 / 导出中等 / 教师本人直通；每次调用写审计日志</span></li>
+      <li><b>系统设置</b><span class="sub">主题（亮/暗/跟随系统）、语言（中/英）、开机自启、最小化到托盘、关闭行为三态、日志级别、自动更新与更新源</span></li>
+      <li><b>日志体系</b><span class="sub">main/chat/renderer 三类日志实时查看：级别过滤、防抖搜索、导出、清空；Agent 侧日志自动脱敏</span></li>
+      <li><b>诊断与更新</b><span class="sub">EAA 健康检查、数据完整性验证、更新检查（semver + GitHub Releases）、系统托盘、快捷键（Ctrl+1..9 切页）</span></li>
+      <li><b>安全边界</b><span class="sub">渲染进程零 Node 权限、IPC 输入 TypeBox 校验、命令注入/路径穿越/NUL 字节防护、文件读取 10MB 上限、CDP 生产强制关闭</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ==================== CH7 ==================== -->
+<section class="chapter" id="ch7">
+  <div class="chapter-head"><span class="no">07</span><h2>18 个 Agent 编制</h2></div>
+  <p class="chapter-lead">两组编制：12 个「参谋组」（v3.x CLI 版继承，咨询型、以读为主）+ 6 个「班务组」（桌面版新增，事务型、需要写权限）。每个 Agent 由 config/agents.yaml 注册，人格与规则在 agents/&lt;id&gt;/ 下的 Markdown 文件中。</p>
+
+  <div class="figure">
+    <div class="fig-title">图 3 · Agent 编制结构</div>
+    <div class="fig-desc">左：触发方式分布（13 个挂 cron 定时任务，5 个手动触发）；右：模型档位分布（4 个高质量档，14 个低成本档）。</div>
+    <div class="chart-row">
+      <div class="panel"><div id="chart-trigger" class="chart-host"></div></div>
+      <div class="panel"><div id="chart-tier" class="chart-host"></div></div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>名称</th><th>角色</th><th>触发</th><th>模型档</th><th>权限要点</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><b>main 教育参谋</b></td><td>主协调者，首次使用引导配置</td><td><span class="tag manual">手动</span></td><td><span class="tag hi">高质量</span></td><td>读全集 + 事件/学生写入</td></tr>
+        <tr><td>2</td><td><b>governor 督导</b></td><td>数据治理与督导复盘</td><td><span class="tag cron">cron ×7</span></td><td><span class="tag lo">低成本</span></td><td>只读 + 摘要</td></tr>
+        <tr><td>3</td><td><b>counselor 辅导员</b></td><td>学业日报 + 谈话计划</td><td><span class="tag cron">cron ×2</span></td><td><span class="tag lo">低成本</span></td><td>只读 + 事件写入</td></tr>
+        <tr><td>4</td><td><b>supervisor 督导汇总员</b></td><td>多维风险评估、综合督导报告</td><td><span class="tag cron">cron ×2</span></td><td><span class="tag lo">低成本</span></td><td>只读</td></tr>
+        <tr><td>5</td><td><b>validator 数据效验 AI</b></td><td>数据准确性/完整性/一致性校验（自喻「锦衣卫」）</td><td><span class="tag cron">cron ×4</span></td><td><span class="tag lo">低成本</span></td><td>只读</td></tr>
+        <tr><td>6</td><td><b>academic 学业分析师</b></td><td>六科成绩分析（语数英 1.5 权重）、补考管理</td><td><span class="tag cron">cron ×1</span></td><td><span class="tag hi">高质量</span></td><td>只读</td></tr>
+        <tr><td>7</td><td><b>psychology 心理危机监测员</b></td><td>五级心理预警（正常→紧急），自杀/自残信号识别</td><td><span class="tag cron">cron ×1</span></td><td><span class="tag lo">低成本</span></td><td>只读，「心理安全最后防线」<b>无写入权限</b></td></tr>
+        <tr><td>8</td><td><b>safety 安全检查员</b></td><td>实验室与校园安全周检</td><td><span class="tag cron">cron ×1</span></td><td><span class="tag lo">低成本</span></td><td>读 + 事件写入</td></tr>
+        <tr><td>9</td><td><b>home_school 家校沟通员</b></td><td>家长通知生成（常规/反馈/紧急三模板）</td><td><span class="tag cron">cron ×1</span></td><td><span class="tag lo">低成本</span></td><td>只读</td></tr>
+        <tr><td>10</td><td><b>research 科研助理</b></td><td>课题管理、论文数据、观点库</td><td><span class="tag cron">cron ×1</span></td><td><span class="tag lo">低成本</span></td><td>只读</td></tr>
+        <tr><td>11</td><td><b>executor 系统执行员</b></td><td>系统自维护、备份、错误修复</td><td><span class="tag cron">cron ×1</span></td><td><span class="tag lo">低成本</span></td><td>只读</td></tr>
+        <tr><td>12</td><td><b>bug-hunter Bug Hunter</b></td><td>代码质量守门员：复现、回归测试、fuzz，「不生产代码只审判代码」</td><td><span class="tag manual">手动</span></td><td><span class="tag lo">低成本</span></td><td>纯只读，不碰学生数据</td></tr>
+        <tr><td>13</td><td><b>class-monitor 班务助理</b></td><td>操行事件录入/查询（「最常用 agent」）</td><td><span class="tag manual">手动</span></td><td><span class="tag lo">低成本</span></td><td>读 + 事件写入</td></tr>
+        <tr><td>14</td><td><b>risk-alert 风险预警员</b></td><td>高危学生扫描（&lt;60 极高 / 60–80 高 / 80–100 中 / ≥100 低）</td><td><span class="tag cron">cron ×2</span></td><td><span class="tag lo">低成本</span></td><td>只读</td></tr>
+        <tr><td>15</td><td><b>data-analyst 数据分析师</b></td><td>多维统计分析（原因分布/趋势/排行）</td><td><span class="tag cron">cron ×1</span></td><td><span class="tag hi">高质量</span></td><td>只读</td></tr>
+        <tr><td>16</td><td><b>student-care 学生关怀员</b></td><td>正向激励，追踪加分与进步</td><td><span class="tag manual">手动</span></td><td><span class="tag lo">低成本</span></td><td>读全集 + 事件写入</td></tr>
+        <tr><td>17</td><td><b>discipline-officer 纪律管理员</b></td><td>严重违纪处分（抽烟 −10、实验室违规 −10 等）</td><td><span class="tag manual">手动</span></td><td><span class="tag lo">低成本</span></td><td>读全集 + 事件写入</td></tr>
+        <tr><td>18</td><td><b>weekly-reporter 周报撰写员</b></td><td>班级操行周报（「最贵的 agent」，周五 16:00）</td><td><span class="tag cron">cron ×1</span></td><td><span class="tag hi">高质量</span></td><td>只读</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="subtle">全员共同铁律：所有数据读写必须经 eaa CLI（禁止直改 JSON）；对外文件用 S_XXX 化名，推送给教师时经 <code>eaa privacy deanonymize</code> 还原真名；风险判定阈值统一 85/93。</p>
+</section>
+
+<!-- ==================== CH8 ==================== -->
+<section class="chapter" id="ch8">
+  <div class="chapter-head"><span class="no">08</span><h2>质量与验收基线</h2></div>
+  <p class="chapter-lead">产品应达到的不只是功能，还有一套可度量的质量标准——这是当前仓库已建立的门禁。</p>
+
+  <h3>功能面覆盖度</h3>
+  <div class="figure">
+    <div class="fig-title">图 4 · IPC 通道按命名空间分布（≈125 个通道）</div>
+    <div class="fig-desc">IPC 通道数量是后端功能面的直接度量：EAA 操行域一枝独秀（24），印证「操行量化是产品核心」的定位。</div>
+    <div class="panel"><div id="chart-ipc" class="chart-host"></div></div>
+  </div>
+
+  <h3>质量门禁</h3>
+  <div class="grid-2">
+    <div class="mini-card">
+      <div class="t">测试体系 <span class="chip teal">112 文件</span></div>
+      <ul>
+        <li>主进程测试约 80 个：eaa-bridge 写队列/重试、agent 运行时、cron 熔断、MCP、安全专项、fuzz 压测</li>
+        <li>渲染进程 hooks/页面测试约 26 个</li>
+        <li>E2E 6 个：agent 闭环、业务场景、页面渲染、长时压测、用户流程模拟</li>
+      </ul>
+    </div>
+    <div class="mini-card">
+      <div class="t">CI 门禁 <span class="chip orange">三平台</span></div>
+      <ul>
+        <li>typecheck + biome lint + vitest 全量</li>
+        <li>覆盖率门槛：行 ≥40%、函数 ≥40%（当前实绩：行 47.78% / 函数 46.51% / 语句 47.85% / 分支 34.61%）</li>
+        <li>GitHub + Gitee 双远端推送</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>成本与体验标准</h3>
+  <ul>
+    <li><strong>成本标准</strong>：高质量+低成本模型组合，每班每天 API 费用 &lt; 1 元人民币（文档口径）；极端情况可全 Ollama 本地化，边际成本为零；</li>
+    <li><strong>性能标准</strong>：Agent 单轮闭环 1–4 秒；排行榜缓存预热后查分从 95ms 降至 0.2ms；</li>
+    <li><strong>可靠性标准</strong>：写命令串行队列防丢数据、cron 熔断器防雪崩、SQLite WAL + 90 天自动清理、优雅退出（运行中 Agent 可中止 + 数据 flush）；</li>
+    <li><strong>安全标准</strong>：contextIsolation 全程开启、API Key 经 OS 级 DPAPI 加密、日志密码脱敏、外部链接走系统浏览器；</li>
+    <li><strong>构建标准</strong>：<code>npm ci → npm run build → npm run package</code> 在任意 Windows + Node 22 机器产出一致安装包（NSIS）与便携版。</li>
+  </ul>
+</section>
+
+<!-- ==================== CH9 ==================== -->
+<section class="chapter" id="ch9">
+  <div class="chapter-head"><span class="no">09</span><h2>产品规划蓝图</h2></div>
+  <p class="chapter-lead">ROADMAP 七大支柱（12–24 个月），当前处于 v0.1.0-rc.1，目标是 2027 Q4 的 v1.0「首个推荐生产使用版本」。</p>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-when">支柱 1 · v0.4.0（2026 Q3）</div>
+      <div class="tl-title">多班支持（呼声最高）</div>
+      <p>class_id 命名空间、跨班分析页、每班 Agent 提示词覆盖。</p>
+    </div>
+    <div class="tl-item">
+      <div class="tl-when">支柱 2 · v0.5–v0.6（2026 Q4–2027 Q1）</div>
+      <div class="tl-title">插件市场 + 移动伴侣</div>
+      <p>plugin.yaml 清单格式、签名插件注册表、vm 沙箱；React Native 只读伴侣 App（推送 + 手机审批）。</p>
+    </div>
+    <div class="tl-item">
+      <div class="tl-when">支柱 3 · v0.9.0</div>
+      <div class="tl-title">家长只读 Web + 跨平台对等</div>
+      <p>macOS 签名公证、Linux deb/AppImage、Windows ARM64；中期评估 Tauri 重写（安装包 85MB→15MB）。</p>
+    </div>
+    <div class="tl-item">
+      <div class="tl-when">支柱 4 · 持续演进</div>
+      <div class="tl-title">语音 + 端侧智能 + 隐私合规</div>
+      <p>Whisper.cpp 端侧转写、内置 4–7B 量化模型离线运行、季度合规报告生成器、差分隐私聚合报告。</p>
+    </div>
+    <div class="tl-item">
+      <div class="tl-when">v1.0.0（2027 Q4）</div>
+      <div class="tl-title">首个「推荐生产使用」版本</div>
+      <p>含教务处看板、教育成效证据（opt-in 遥测 + 案例研究 + 脱敏开放数据集）。</p>
+    </div>
+  </div>
+
+  <div class="card orange">
+    <h4 style="margin-top:0;">明确不做（边界即定位）</h4>
+    <p style="margin:0;">多租户 SaaS · LMS 集成 · 视频/图像分析 · 自训模型 · 移动优先重写。BACKLOG 中另有 14 个「考虑中」小项（Excel 批量导入学生、批量事件回滚、Agent 提示词版本化、每 Agent 成本上限等）。</p>
+  </div>
+</section>
+
+<!-- ==================== CH10 ==================== -->
+<section class="chapter" id="ch10">
+  <div class="chapter-head"><span class="no">10</span><h2>调查发现：文档与实现的偏差</h2></div>
+  <p class="chapter-lead">全量代码扫描中发现的「文档说」与「代码是」不一致之处——这些点需要产品负责人裁决，属于定位书应当如实呈现的部分。</p>
+
+  <div class="gap-item"><span class="n">1</span><p><b>main Agent 的人格文件为空。</b><code>agents/main/SOUL.md</code> 是空文件，完整提示词实际存放在平铺文件 <code>agents/main.md</code>（标注「Recovered from v0.1.0-rc.1」）。主协调 Agent 的人格加载依赖目录约定，需确认运行时取到的是哪一份。</p></div>
+  <div class="gap-item"><span class="n">2</span><p><b>8 个 AGENTS.md 内容完全相同。</b>academic、executor、home_school、psychology、research、safety、supervisor、validator 的 AGENTS.md 均为框架通用模板（讲工作区与记忆机制），并非各 Agent 专属规则；文档宣称的「SOUL + AGENTS 双文件定制」实际只有 SOUL 是专属的。</p></div>
+  <div class="gap-item"><span class="n">3</span><p><b>原因码数量不符。</b>PROJECT_INTRO 称 24 个原因码，<code>config/reason-codes.json</code> 实际 22 个（11 扣分 + 6 加分 + 1 系统 + 4 实验室）。</p></div>
+  <div class="gap-item"><span class="n">4</span><p><b>隐私引擎默认关闭。</b><code>config/default-settings.json</code> 中 <code>privacy.enabled: false</code>、<code>autoAnonymize: false</code>，与文档「隐私引擎默认常开」的表述不一致——对一款把隐私作为核心卖点的产品，这是定位层面需要澄清的选择。</p></div>
+  <div class="gap-item"><span class="n">5</span><p><b>IPC 通道统计口径不一。</b>SWARM_ARCHITECTURE.md 统计为 97 个通道，本次代码调查实测约 125 个（16 个命名空间）——文档滞后于代码。</p></div>
+  <div class="gap-item"><span class="n">6</span><p><b>技术栈版本描述滞后。</b>README 徽章写 React 18 / Electron 33 / TS 5.7，package.json 实际为 React 19.2 / Electron 43 / TS 7.0 / Vite 8 / Tailwind 4。</p></div>
+
+  <div class="verdict">
+    <h3>结论</h3>
+    <p class="big">Education Advisor 的定位是清晰且自洽的：<strong>一款本地优先、事件可审计、模型可替换的班主任多智能体桌面工作台</strong>，核心是操行量化管理，扩展面是学业分析与家校协同，护城河是「不幻觉数字 + 完整审计链 + PII 本地加密」。</p>
+    <p style="margin:10px 0 0;">代码实现与定位陈述总体高度吻合（功能面、架构、Agent 编制均有代码实证）；上述 6 处偏差属于文档滞后或个别配置选择，不影响定位成立，但建议在下一个版本收敛——尤其是隐私引擎默认开关与 main Agent 人格文件两处。</p>
+  </div>
+</section>
+
+</main>
+</div>
+
+<!-- ==================== FOOTER ==================== -->
+<footer>
+  <div class="sources">
+    <h2>调查依据（Sources）</h2>
+    <ol>
+      <li id="cite-1"><span class="src-title">PROJECT_INTRO.md — 项目介绍（874 行）：产品起源、目标用户、痛点量化、七条设计原则、版本史。</span><span class="src-url">本仓库根目录</span></li>
+      <li id="cite-2"><span class="src-title">README.md — 项目自述：架构速览、页面清单、快速开始。</span><span class="src-url">本仓库根目录</span></li>
+      <li id="cite-3"><span class="src-title">docs/ARCHITECTURE.md — 三进程架构权威参考与 Agent 运行闭环 19 步数据流。</span><span class="src-url">本仓库 docs/ 目录</span></li>
+      <li id="cite-4"><span class="src-title">SWARM_ARCHITECTURE.md — 蜂群架构：页面→Store→IPC→Handler→Service 全链路分析。</span><span class="src-url">本仓库根目录</span></li>
+      <li id="cite-5"><span class="src-title">docs/PRIVACY_ENGINE.md — PII 引擎设计（ADR-0005）：假名化、按接收方过滤、审计日志。</span><span class="src-url">本仓库 docs/ 目录</span></li>
+      <li id="cite-6"><span class="src-title">config/agents.yaml — 18 个 Agent 的权威注册表：角色、模型档位、capability、cron、风险阈值。</span><span class="src-url">本仓库 config/ 目录</span></li>
+      <li id="cite-7"><span class="src-title">config/SMALL_MODEL_RULES.md + config/reason-codes.json + config/default-settings.json — 小模型规则、22 个原因码、默认设置。</span><span class="src-url">本仓库 config/ 目录</span></li>
+      <li id="cite-8"><span class="src-title">ROADMAP.md / BACKLOG.md — 七大支柱规划、里程碑与「明确不做」边界。</span><span class="src-url">本仓库根目录</span></li>
+      <li id="cite-9"><span class="src-title">src/main/（189 文件）— 主进程源码：IPC 通道、服务层、eaa-bridge、Agent 运行时。</span><span class="src-url">本仓库源代码</span></li>
+      <li id="cite-10"><span class="src-title">src/renderer/（280 文件）— 渲染进程源码：12 个页面模块、Store、Hooks、i18n。</span><span class="src-url">本仓库源代码</span></li>
+      <li id="cite-11"><span class="src-title">package.json — 依赖与版本事实（React 19 / Electron 43 / TS 7）。</span><span class="src-url">本仓库根目录</span></li>
+      <li id="cite-12"><span class="src-title">tests/（112 文件）— 测试体系与覆盖率门禁事实来源。</span><span class="src-url">本仓库测试代码</span></li>
+    </ol>
+  </div>
+  <p class="foot-note">Education Advisor 产品定位书 · 基于全量代码调查 · 2026-08-18 · 仓库：<a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener">github.com/232252/education-advisor</a></p>
+</footer>
+
+<!-- REQUIRED: shared libraries -->
+<script src="./_shared/js/echarts.min.js"></script>
+<script src="./_shared/js/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose', flowchart: { curve: 'basis', htmlLabels: true } });
+</script>
+<script src="assets/charts.js"></script>
+</body>
+</html>

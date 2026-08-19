@@ -46,6 +46,9 @@
         "rules": {
           "suspicious": {
             "noUnknownAtRules": "off"
+          },
+          "complexity": {
+            "noImportantStyles": "off"
           }
         }
       },

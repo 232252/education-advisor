@@ -91,5 +91,15 @@ export interface UnifiedSettings {
     /** MCP 集成 feature flag (默认 false,关闭时 McpService 进入 no-op 模式) */
     enabled: boolean
   }
+  backup: {
+    /** 定时自动备份开关(默认 false) */
+    autoEnabled: boolean
+    /** 自动备份间隔(小时,默认 24) */
+    intervalHours: number
+    /** 自动备份保留份数(超出自动清理最旧的,默认 7) */
+    keep: number
+    /** 上次自动备份时间(epoch ms,从未备份为 undefined) */
+    lastAutoAt?: number
+  }
   shortcuts: Record<string, string>
 }
