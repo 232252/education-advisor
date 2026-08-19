@@ -60,7 +60,7 @@ export function AcademicsPage() {
   const [semesterFilter, setSemesterFilter] = useState<string>('__ALL__')
 
   // ===== 学生成绩 (依赖 selectedStudent, 按需加载) =====
-  const { grades, gradesLoading, reloadGrades } = useStudentGrades(selectedStudent)
+  const { grades, gradesLoading, gradesError, reloadGrades } = useStudentGrades(selectedStudent)
 
   // ===== 派生数据 =====
 
@@ -232,6 +232,8 @@ export function AcademicsPage() {
               exams={filteredExams}
               grades={grades}
               gradesLoading={gradesLoading}
+              gradesError={gradesError}
+              onRetry={reloadGrades}
             />
           ) : activeTab === 'exams' ? (
             <ExamManagementTab
@@ -239,6 +241,8 @@ export function AcademicsPage() {
               examTypes={examTypes}
               exams={exams}
               onRefresh={handleRefreshExams}
+              students={students}
+              classIdToName={classIdToName}
             />
           ) : activeTab === 'compare' ? (
             <CompareTab

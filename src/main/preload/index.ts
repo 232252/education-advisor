@@ -17,6 +17,7 @@ import { contextBridge } from 'electron'
 import { academicApi } from './api/academic'
 import { agentApi } from './api/agent'
 import { aiApi } from './api/ai'
+import { backupApi } from './api/backup'
 import { chatApi } from './api/chat'
 import { classApi } from './api/class'
 import { cronApi } from './api/cron'
@@ -79,6 +80,9 @@ contextBridge.exposeInMainWorld('api', {
 
   // ----- 日志系统 -----
   log: logApi,
+
+  // ----- 数据备份/恢复 -----
+  backup: backupApi,
 
   // ----- 飞书集成 -----
   feishu: feishuApi,

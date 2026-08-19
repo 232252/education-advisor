@@ -5,9 +5,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![Electron](https://img.shields.io/badge/electron-33-47848F?logo=electron&logoColor=white)](https://www.electronjs.org)
-[![TypeScript](https://img.shields.io/badge/typescript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![React](https://img.shields.io/badge/react-18-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![Electron](https://img.shields.io/badge/electron-43-47848F?logo=electron&logoColor=white)](https://www.electronjs.org)
+[![TypeScript](https://img.shields.io/badge/typescript-7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![React](https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![Rust backend](https://img.shields.io/badge/backend-Rust%20%2B%20eaa--cli-DEA584?logo=rust&logoColor=black)](https://github.com/232252/education-advisor)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
 [![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](./CODE_OF_CONDUCT.md)
@@ -40,7 +40,7 @@
 
 ## 🧭 What is this?
 
-**Education Advisor** is a **cross-platform desktop application** (Electron 33 + React 18 + TypeScript 5.7) — the **desktop upgrade** of [`education-advisor`](https://github.com/232252/education-advisor), the same open-source multi-agent system, now wrapped in a native-feeling UI. The previous v3.x release was a CLI-only Rust project; this v0.1.0 release is the same system, ported to a desktop GUI. The Rust `eaa-cli` is the data engine that powers it under the hood.
+**Education Advisor** is a **cross-platform desktop application** (Electron 43 + React 19 + TypeScript 7) — the **desktop upgrade** of [`education-advisor`](https://github.com/232252/education-advisor), the same open-source multi-agent system, now wrapped in a native-feeling UI. The previous v3.x release was a CLI-only Rust project; this v0.1.0 release is the same system, ported to a desktop GUI. The Rust `eaa-cli` is the data engine that powers it under the hood.
 
 In plain English:
 
@@ -108,14 +108,14 @@ Privacy is not a checkbox. The Rust PII engine builds a per-install **encrypted 
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                 Renderer (React 18 + Vite + Tailwind)            │
+│                 Renderer (React 19 + Vite + Tailwind)            │
 │  Dashboard · Chat · Students · Agents · Models · Skills · ...    │
 │  Zustand stores · i18n (zh/en) · 9 routes · 12 hooks             │
 └────────────────────────┬─────────────────────────────────────────┘
                          │  contextBridge  (window.api, 11 namespaces)
                          │  90+ IPC channels · 1 type-safe surface
 ┌────────────────────────▼─────────────────────────────────────────┐
-│                  Main (Node 22 + Electron 33)                    │
+│                  Main (Node 22 + Electron 43)                    │
 │                                                                  │
 │  11 IPC handlers ── 13 services ── 4 Zustand-like stores         │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────┐  │
@@ -285,7 +285,7 @@ education-advisor/
 │   │   ├── preload/         #   contextBridge bridge
 │   │   ├── utils/           #   logger, etc.
 │   │   └── index.ts         #   main entry
-│   ├── renderer/            # React 18 renderer (23 files)
+│   ├── renderer/            # React 19 renderer (23 files)
 │   │   ├── pages/           #   9 page modules
 │   │   ├── components/      #   shared UI
 │   │   ├── hooks/           #   12 custom hooks

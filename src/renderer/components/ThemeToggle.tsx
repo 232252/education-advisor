@@ -17,7 +17,7 @@ function readEffective(): EffectiveTheme {
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ iconOnly = false }: { iconOnly?: boolean }) {
   const { t } = useT()
   const [effective, setEffective] = useState<EffectiveTheme>(readEffective)
 
@@ -59,18 +59,18 @@ export function ThemeToggle() {
       onClick={toggle}
       aria-label={label}
       title={label}
-      className="flex items-center gap-2 w-full px-3 py-2 text-xs rounded-lg
-        text-gray-500 dark:text-gray-400
-        hover:bg-gray-100 dark:hover:bg-white/[0.06]
-        hover:text-gray-700 dark:hover:text-gray-200
-        transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+      className={
+        iconOnly
+          ? 'flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] hover:text-gray-700 dark:hover:text-gray-200 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40'
+          : 'flex items-center gap-2 w-full px-3 py-2 text-xs rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] hover:text-gray-700 dark:hover:text-gray-200 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40'
+      }
     >
       {isDark ? (
         <Sun size={18} strokeWidth={2.2} className="text-amber-400" aria-hidden="true" />
       ) : (
         <Moon size={18} strokeWidth={2.2} className="text-indigo-500" aria-hidden="true" />
       )}
-      <span>{isDark ? t('settings.theme.light') : t('settings.theme.dark')}</span>
+      {!iconOnly && <span>{isDark ? t('settings.theme.light') : t('settings.theme.dark')}</span>}
     </button>
   )
 }

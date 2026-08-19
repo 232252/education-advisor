@@ -45,6 +45,11 @@
   "mcp": {
     "enabled": false
   },
+  "backup": {
+    "autoEnabled": false,
+    "intervalHours": 24,
+    "keep": 7
+  },
   "privacy": {
     "enabled": false,
     "autoAnonymize": false

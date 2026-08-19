@@ -460,8 +460,10 @@ event log, or a slow disk.
 1. The EAA CLI is fast for the operations the agents typically
    use (`score`, `history`, `add_event`). If a specific
    operation is slow, it's likely the data volume.
-2. Archive old events: `eaa export --before 2025-01-01` and
-   `eaa prune --before 2025-01-01`.
+2. Note: the CLI does **not** provide a `prune` command — the
+   event log is append-only by design, so old events are never
+   deleted from the live log. There is also no date-range
+   export; `eaa export` exports the ranking only.
 3. If the disk is slow (HDD, network share), move the
    `userData/` directory to an SSD.
 
@@ -473,19 +475,25 @@ kill in the middle of an `fsync`.
 **Fix**:
 
 ```bash
-# 1. Validate the log
-eaa validate --deep
+# 1. Validate the log (from the app: Dashboard → 系统管理 → 数据验证,
+#    or on the command line)
+eaa validate
 
-# 2. If validation finds issues, repair
-eaa repair
+# 2. Check overall data-store health
+eaa doctor
 
-# 3. If repair can't recover, restore from the most recent
-#    backup
-eaa restore --from backup-2026-06-01
+# 3. If scores/statistics look wrong, rebuild them from the
+#    event log (append-only: the log itself is the source of truth)
+eaa replay
 ```
 
-The EAA CLI writes a snapshot to `userData/eaa-data/snapshots/`
-every 100 events. You can roll back to any snapshot.
+The event log is append-only and writes go through an atomic
+`tmp → fsync → rename` sequence, so partial writes are extremely
+rare; when they happen, `replay` recomputes all derived state
+(rankings, stats) from the intact portion of the log. There is
+no `repair` / `restore` / snapshot mechanism in the current CLI —
+for disaster recovery, keep external backups of the whole
+`userData/eaa-data/` directory.
 
 ---
 
