@@ -15,10 +15,20 @@ vi.mock('react-router-dom', async () => {
 })
 
 // mock agentStore（ Zustand selector 风格：useAgentStore(selector) → selector(state)）
-vi.mock('../../stores/agentStore', () => ({
-  useAgentStore: (selector: (s: unknown) => unknown) =>
-    selector({ agents: [], fetchAgents: () => Promise.resolve(), initStatusListener: () => {} }),
-}))
+// getState() 供 useNotificationListener 挂载时订阅 agent 状态总线
+vi.mock('../../stores/agentStore', () => {
+  const mockState = {
+    agents: [],
+    fetchAgents: () => Promise.resolve(),
+    initStatusListener: () => {},
+    subscribeStatus: () => () => {},
+  }
+  return {
+    useAgentStore: Object.assign((selector: (s: unknown) => unknown) => selector(mockState), {
+      getState: () => mockState,
+    }),
+  }
+})
 
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { MainLayout } from '../MainLayout'

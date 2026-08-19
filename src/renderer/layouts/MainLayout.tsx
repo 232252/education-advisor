@@ -2,53 +2,24 @@
 // 主布局 — 侧边栏导航 + 内容区
 // =============================================================
 
-import {
-  Blocks,
-  Bot,
-  Brain,
-  CalendarClock,
-  GraduationCap,
-  LayoutDashboard,
-  type LucideIcon,
-  MessageSquare,
-  NotebookPen,
-  PanelLeft,
-  PanelLeftClose,
-  Settings,
-  ShieldCheck,
-  Users,
-} from 'lucide-react'
+import { PanelLeft, PanelLeftClose, Search } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AppLogo } from '../components/AppLogo'
+import { CommandPalette } from '../components/command-palette/CommandPalette'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import { NotificationCenter } from '../components/notification/NotificationCenter'
+import { useNotificationListener } from '../components/notification/useNotificationListener'
+import { OnboardingWizard } from '../components/onboarding/OnboardingWizard'
 import { ThemeToggle } from '../components/ThemeToggle'
+import { NAV_ITEMS } from '../config/nav-items'
 import { useT } from '../i18n'
 import { cn } from '../lib/ui-utils'
 import { useAgentStore } from '../stores/agentStore'
+import { usePaletteStore } from '../stores/paletteStore'
 
 /** localStorage key for sidebar collapsed state */
 const SIDEBAR_COLLAPSED_KEY = 'ea.sidebar.collapsed'
-
-interface NavItem {
-  path: string
-  icon: LucideIcon
-  labelKey: string
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { path: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
-  { path: '/chat', icon: MessageSquare, labelKey: 'nav.chat' },
-  { path: '/students', icon: Users, labelKey: 'nav.students' },
-  { path: '/classes', icon: GraduationCap, labelKey: 'nav.classes' },
-  { path: '/academics', icon: NotebookPen, labelKey: 'nav.academics' },
-  { path: '/agents', icon: Bot, labelKey: 'nav.agents' },
-  { path: '/models', icon: Brain, labelKey: 'nav.models' },
-  { path: '/skills', icon: Blocks, labelKey: 'nav.skills' },
-  { path: '/scheduler', icon: CalendarClock, labelKey: 'nav.scheduler' },
-  { path: '/privacy', icon: ShieldCheck, labelKey: 'nav.privacy' },
-  { path: '/settings', icon: Settings, labelKey: 'nav.settings' },
-]
 
 export function MainLayout() {
   const { t } = useT()
@@ -78,10 +49,18 @@ export function MainLayout() {
     })
   }, [])
 
+  // 全局搜索命令面板 (Ctrl+K) — 侧边栏按钮入口,快捷键由 CommandPalette 自行监听
+  const togglePalette = useCallback(() => {
+    usePaletteStore.getState().toggle()
+  }, [])
+
   useEffect(() => {
     fetchAgents()
     initStatusListener()
   }, [fetchAgents, initStatusListener])
+
+  // 通知中心事件监听 — Agent 运行结果/定时任务状态 → 通知面板(全局挂载一次)
+  useNotificationListener()
 
   // 桌面级全局快捷键:
   //   Ctrl/Cmd+1..9 → 切换前 9 个导航项
@@ -175,6 +154,32 @@ export function MainLayout() {
 
         {/* 导航 */}
         <nav className={cn('flex-1 py-3 overflow-y-auto space-y-0.5', collapsed ? 'px-2' : 'px-3')}>
+          {/* 全局搜索入口 — 点击或 Ctrl+K 打开命令面板 */}
+          <button
+            type="button"
+            onClick={togglePalette}
+            aria-label={t('palette.trigger', '全局搜索')}
+            title={`${t('palette.trigger', '全局搜索')} (Ctrl+K)`}
+            className={cn(
+              'mb-2 flex items-center text-[13px] font-medium rounded-lg border border-gray-200/80 dark:border-white/[0.08]',
+              'bg-gray-50/80 dark:bg-white/[0.03] text-gray-400 dark:text-gray-500',
+              'hover:bg-gray-100 dark:hover:bg-white/[0.07] hover:text-gray-600 dark:hover:text-gray-300',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 transition-colors',
+              collapsed ? 'justify-center px-0 py-2.5' : 'gap-2.5 px-3 py-2',
+            )}
+          >
+            <Search size={16} className="flex-shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="truncate flex-1 text-left">
+                  {t('palette.triggerLabel', '搜索…')}
+                </span>
+                <kbd className="ml-auto font-mono text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/[0.06]">
+                  Ctrl K
+                </kbd>
+              </>
+            )}
+          </button>
           {NAV_ITEMS.map((item, idx) => {
             const Icon = item.icon
             const shortcut = idx < 9 ? idx + 1 : null
@@ -276,14 +281,20 @@ export function MainLayout() {
           </div>
         </div>
 
-        {/* 主题切换 */}
+        {/* 底部工具区: 通知中心 + 主题切换 (折叠态纵向堆叠,展开态横向排列) */}
         <div
           className={cn(
             'border-t border-gray-200/60 dark:border-white/[0.06]',
-            collapsed ? 'p-2 flex justify-center' : 'p-3',
+            collapsed ? 'p-2 flex flex-col items-center gap-1' : 'p-3 flex items-center gap-2',
           )}
         >
-          <ThemeToggle />
+          <NotificationCenter />
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <ThemeToggle />
+            </div>
+          )}
+          {collapsed && <ThemeToggle iconOnly />}
         </div>
       </aside>
 
@@ -295,6 +306,12 @@ export function MainLayout() {
           </div>
         </ErrorBoundary>
       </main>
+
+      {/* ── 全局搜索命令面板 (Ctrl+K) ── */}
+      <CommandPalette />
+
+      {/* ── 首次使用引导向导(检测: 无班级且未完成引导) ── */}
+      <OnboardingWizard />
     </div>
   )
 }

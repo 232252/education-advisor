@@ -293,7 +293,7 @@ describe('useSchedulerData', () => {
   // ---------- handleCreate ----------
 
   it('handleCreate 成功: 返回 true 并刷新', async () => {
-    apiMocks.cronAdd.mockResolvedValue('t2')
+    apiMocks.cronAdd.mockResolvedValue({ success: true, id: 't2' })
     const { result } = renderHook(() => useSchedulerData())
     await waitFor(() => {
       expect(result.current.loading).toBe(false)
@@ -316,6 +316,37 @@ describe('useSchedulerData', () => {
     await waitFor(() => {
       expect(apiMocks.cronList.mock.calls.length).toBe(before + 1)
     })
+  })
+
+  // 主进程 cron:add 校验失败时不抛异常,而是返回 { success: false, error },
+  // handleCreate 必须识别结构化失败并返回 false(而非静默假成功)
+  it('handleCreate 结构化拒绝(success:false): 返回 false + error toast + 不刷新', async () => {
+    apiMocks.cronAdd.mockResolvedValue({
+      success: false,
+      error: 'task.expression "bad" 不是合法的 cron 表达式',
+    })
+    const { result } = renderHook(() => useSchedulerData())
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+    const before = apiMocks.cronList.mock.calls.length
+
+    let ok = true
+    await act(async () => {
+      ok = await result.current.handleCreate({
+        name: 'x',
+        agentId: 'a1',
+        expression: 'bad',
+        prompt: 'p',
+        enabled: true,
+        modelTier: 'low_cost',
+      })
+    })
+
+    expect(ok).toBe(false)
+    expect(toastMocks.error).toHaveBeenCalledTimes(1)
+    expect(toastMocks.error.mock.calls[0][0]).toContain('不是合法的 cron 表达式')
+    expect(apiMocks.cronList.mock.calls.length).toBe(before)
   })
 
   it('handleCreate 失败: 返回 false 并 error toast', async () => {

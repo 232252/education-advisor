@@ -4,7 +4,9 @@
 // =============================================================
 
 import { FileOutput, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
 import { Card } from '../../../components/Card'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { useT } from '../../../i18n'
 import { btnStyle } from '../../../lib/ui-utils'
 
@@ -16,6 +18,7 @@ export function MaintenanceActionsCard({
   onExportHtml: () => void
 }) {
   const { t } = useT()
+  const [confirmReplay, setConfirmReplay] = useState(false)
   return (
     <Card padding="md" className="col-span-2 shadow-card">
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
@@ -26,7 +29,7 @@ export function MaintenanceActionsCard({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={onReplay}
+            onClick={() => setConfirmReplay(true)}
             className={btnStyle('primary')}
             aria-label={t('page.dashboard.sysmgmt.replay')}
           >
@@ -42,6 +45,18 @@ export function MaintenanceActionsCard({
           </button>
         </div>
       </div>
+      {/* 事件重放会基于全量事件重建排行榜/统计缓存,属批量写操作,需二次确认 */}
+      <ConfirmDialog
+        open={confirmReplay}
+        title={t('page.dashboard.sysmgmt.replay')}
+        message="事件重放将基于全部事件日志重建排行榜与统计缓存,耗时随事件数量增长。确定要继续吗?"
+        confirmText="开始重放"
+        onConfirm={() => {
+          setConfirmReplay(false)
+          onReplay()
+        }}
+        onCancel={() => setConfirmReplay(false)}
+      />
     </Card>
   )
 }
