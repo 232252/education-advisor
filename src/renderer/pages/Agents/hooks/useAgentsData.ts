@@ -3,6 +3,7 @@
 // =============================================================
 
 import { useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAgentStore } from '../../../stores/agentStore'
 
 export function useAgentsData() {
@@ -24,9 +25,24 @@ export function useAgentsData() {
   const saveSoul = useAgentStore((s) => s.saveSoul)
   const saveRules = useAgentStore((s) => s.saveRules)
 
+  const [searchParams, setSearchParams] = useSearchParams()
+
   useEffect(() => {
     fetchAgents()
   }, [fetchAgents])
+
+  // 全局搜索(Ctrl+K)跳转: agents 加载完成后按 agent_id 自动选中
+  useEffect(() => {
+    const targetId = searchParams.get('agent_id')
+    if (!targetId || loading) return
+    if (agents.length === 0) {
+      setSearchParams({}, { replace: true })
+      return
+    }
+    const match = agents.find((a) => a.id === targetId)
+    setSearchParams({}, { replace: true })
+    if (match) selectAgent(match.id)
+  }, [agents, loading, searchParams, setSearchParams, selectAgent])
 
   return {
     agents,

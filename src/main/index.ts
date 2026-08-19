@@ -13,6 +13,7 @@ import { app, protocol } from 'electron'
 import { startApp } from './bootstrap/app-lifecycle'
 import { mainState } from './bootstrap/state'
 import { agentService } from './services/agent-service'
+import { shutdownAutoBackup } from './services/backup-service'
 import { cronService } from './services/cron-service'
 import { dbService } from './services/db-service'
 import { eaaBridge } from './services/eaa-bridge'
@@ -127,6 +128,8 @@ app.on('before-quit', () => {
     mainState.updateCheckTimer = null
   }
   destroyTray()
+  // 停止自动备份调度,避免退出过程中触发备份
+  shutdownAutoBackup()
   // 退出时断开飞书长连接，避免悬挂的 WebSocket
   feishuBotService.stop().catch(() => {})
   // 退出时停止 ollama serve 子进程，避免孤儿进程占用端口

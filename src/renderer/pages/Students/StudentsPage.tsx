@@ -168,7 +168,8 @@ export function StudentsPage() {
             }}
           />
         )}
-        <div className="flex-1 overflow-y-auto">
+        {/* 双轴滚动兜底: 档案面板打开时左侧仅约 430px,9 列表格需横向滚动而非挤压换行 */}
+        <div className="flex-1 overflow-auto">
           {loading ? (
             <TableSkeleton rows={8} cols={8} />
           ) : sorted.length === 0 ? (
@@ -178,7 +179,7 @@ export function StudentsPage() {
               description="尝试调整筛选条件或添加新学生"
             />
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[680px]">
               <thead className={TABLE_STICKY_HEAD}>
                 <tr>
                   {selection.selectMode && (

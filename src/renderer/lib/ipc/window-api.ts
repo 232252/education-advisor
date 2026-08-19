@@ -5,6 +5,7 @@
 import type { AcademicAPI } from './academic'
 import type { AgentAPI } from './agent'
 import type { AiAPI } from './ai'
+import type { BackupAPI } from './backup'
 import type { ChatAPI } from './chat'
 import type { ClassAPI } from './class'
 import type { CronAPI } from './cron'
@@ -39,6 +40,8 @@ export interface WindowAPI {
   log: LogAPI
   // T7: 飞书集成 API (appSecret 从 keystore 读取，不再通过参数传递)
   feishu: FeishuAPI
+  // 全量数据备份/恢复
+  backup: BackupAPI
   sys: SysAPI
 }
 
