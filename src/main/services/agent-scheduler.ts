@@ -17,8 +17,9 @@ import yaml from 'yaml'
 import { atomicWrite } from '../utils/atomic-write'
 import { cronService } from './cron-service'
 
-// 注:UserAgentOverride 和 AgentScheduleMap 类型实际定义在 agent-service.ts 顶层,
-// 此处为避免循环依赖,在本文件内重新声明兼容类型。
+// 注:Override 代表"用户在某 Agent 上改过的字段"(全部可选,持久化到 agents.user.yaml),
+// 区别于 AgentConfig 的完整配置,因此定义为本模块私有类型,不重复声明外部类型;
+// ScheduleMap 为 agentId → cron 任务名 的映射。
 type Override = {
   enabled?: boolean
   name?: string
