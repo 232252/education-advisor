@@ -126,13 +126,15 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: installer-${{ matrix.target }}-${{ matrix.arch }}
+          # electron-builder.yml 将输出目录设为 release-v*（如 release-v11），
+          # 上传路径需与之匹配；缺失某种平台文件类型时不应中断工作流。
           path: |
-            release/*.exe
-            release/*.dmg
-            release/*.AppImage
-            release/*.deb
+            release-v*/*.exe
+            release-v*/*.dmg
+            release-v*/*.AppImage
+            release-v*/*.deb
           retention-days: 14
-          if-no-files-found: error
+          if-no-files-found: warn
 
   # ----------------------------------------------------------------
   # Publish the GitHub Release.
