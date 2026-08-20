@@ -3,12 +3,14 @@
 // 每个 Agent 执行时创建 Agent 实例，连接 EAA 工具集
 //
 // 结构说明(纯重构拆分,行为零变化):
-//   - agent/run-queue.ts       运行串行队列/abort 代数/WAIT_FOR_IDLE_TIMEOUT_MS
+//   - agent/run-queue.ts       运行串行队列/abort 代数
 //   - agent/execution.ts       单次执行流程(executeRun 本体,deps 注入)
 //   - agent/prompt-loading.ts  SOUL.md/AGENTS.md 读写 + id 校验
 //   - agent/status-tracking.ts 渲染进程状态事件派发
 //   - agent/timeout.ts         withTimeout 工具
 //   - agent/types.ts           RunningAgent/AgentExecutionDeps 类型
+//   - agent/tools.ts           运行时工具集构造(EAA/文件/实用/MCP) + Skill 段落
+//   - agent/config.ts          agents.yaml 条目 → AgentConfig 映射(叠加 override)
 // 本文件保留 AgentService 编排层: 配置管理/调度/init/shutdown/abortAgent。
 //
 // 修复记录:
@@ -24,7 +26,6 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import type { AgentTool } from '@earendil-works/pi-agent-core'
 import type {
   AgentConfig,
   AgentDetail,
@@ -34,20 +35,18 @@ import type {
 } from '@shared/types'
 import { app, type BrowserWindow } from 'electron'
 import yaml from 'yaml'
+import { buildAgentConfig, type RawAgentEntry } from './agent/config'
+import type { DelegateToolDeps } from './agent/delegate-tool'
 import { executeAgentRun } from './agent/execution'
-import { loadRules, loadSoul, saveRules, saveSoul } from './agent/prompt-loading'
+import { loadRules, loadSharedRules, loadSoul, saveRules, saveSoul } from './agent/prompt-loading'
 import { AgentRunQueue } from './agent/run-queue'
 import { sendAgentStatus } from './agent/status-tracking'
 import { withTimeout } from './agent/timeout'
+import { buildAgentTools, buildSkillsSection } from './agent/tools'
 import type { AgentExecutionDeps, RunningAgent } from './agent/types'
 import { AgentScheduler, type SchedulableAgent } from './agent-scheduler'
 import { cronService } from './cron-service'
-import { getToolsByCapability } from './eaa-tools'
-import { allFileTools } from './file-tools'
 import { mcpService } from './mcp-service'
-import { getMcpToolsForAgent } from './mcp-tools'
-import { skillService } from './skill-service'
-import { allUtilityTools } from './utility-tools'
 
 class AgentService {
   private agents: Map<string, AgentConfig> = new Map()
@@ -59,6 +58,8 @@ class AgentService {
   private runningAgents: Map<string, RunningAgent> = new Map()
   /** 运行串行队列(tails/depths/generations 状态与算法见 agent/run-queue.ts) */
   private readonly runQueue = new AgentRunQueue()
+  /** M32: 在途委托任务数(>0 时 delegate_to 拒绝新的委托,防嵌套/递归风暴) */
+  private activeDelegations = 0
 
   /** 队列 tail 只读视图(LOW-1 回归测试访问 runQueueTails) */
   get runQueueTails(): ReadonlyMap<string, Promise<unknown>> {
@@ -74,9 +75,28 @@ class AgentService {
     appendExecution: (id, execution) => this.appendExecution(id, execution),
     getSoulContent: (id) => this.getSoul(id),
     getRulesContent: (id) => this.getRules(id),
-    buildSkillsSection: () => this.buildSkillsSection(),
-    buildAgentTools: (config, id) => this.buildAgentTools(config, id),
+    getSharedRulesContent: () => this.getSharedRules(),
+    buildSkillsSection: () => buildSkillsSection(),
+    // M32: 传入 win + 委托桥接 — main 的工具集会注入 delegate_to(见 agent/tools.ts)
+    buildAgentTools: (config, id, win) => buildAgentTools(config, id, win, this.delegateBridge),
     isCurrentGeneration: (id, generation) => this.runQueue.isCurrentGeneration(id, generation),
+  }
+
+  /**
+   * M32: delegate_to 委托桥接(仅注入 main 的工具集,工具本体见 agent/delegate-tool.ts)。
+   * 递归拦截: runQueue 的 maxDepth 只限制单 agent 排队长度,拦不住"委托任务内
+   * 再委托"的递归链 — 故由 activeDelegations 在工具执行处显式拒绝。
+   */
+  private readonly delegateBridge: DelegateToolDeps = {
+    validateTarget: (targetId) => {
+      const config = this.agents.get(targetId)
+      if (!config) return `目标 Agent 不存在: ${targetId}`
+      if (!config.enabled) return `目标 Agent 已停用: ${targetId}`
+      return null
+    },
+    isDelegationInProgress: () => this.activeDelegations > 0,
+    runDelegatedTask: (targetId, task, win) => this.runDelegatedAgent(targetId, task, win),
+    abortDelegatedAgent: (targetId, win) => this.abortAgent(targetId, win),
   }
 
   constructor() {
@@ -140,27 +160,14 @@ class AgentService {
       const content = fs.readFileSync(yamlPath, 'utf-8')
       const parsed = yaml.parse(content)
       // 防御：parsed 可能为 null（空文件或 yaml.parse 返回 null）
-      const agentList = Array.isArray(parsed?.agents) ? parsed.agents : []
+      const agentList: RawAgentEntry[] = Array.isArray(parsed?.agents) ? parsed.agents : []
 
       for (const a of agentList) {
-        // 防御单条数据畸形：必须有字符串 id
+        // 防御单条数据畸形：必须有字符串 id(与 buildAgentConfig 内部校验一致)
         if (!a || typeof a.id !== 'string') continue
-        const override = this.scheduler.getOverride(a.id)
-        const config: AgentConfig = {
-          id: a.id,
-          name: override?.name ?? a.name ?? a.id,
-          role: a.role ?? '',
-          description: override?.description ?? a.description ?? '',
-          enabled: typeof override?.enabled === 'boolean' ? override.enabled : (a.enabled ?? true),
-          modelTier: override?.modelTier ?? a.model_tier ?? 'low_cost',
-          schedule: a.schedule?.cron ?? [],
-          capabilities: override?.capabilities ?? a.capabilities ?? [],
-          riskThresholds: a.risk_thresholds,
-          // R8-1 修复: 映射 yaml 的 mcp_servers → AgentConfig.mcpServers
-          // 之前此字段在加载时丢失,导致 agent 永远拿不到 MCP 工具
-          // R6-1: override 优先(用户在 UI 配的 agent↔MCP 连接覆盖主配置)
-          mcpServers: override?.mcpServers ?? a.mcp_servers,
-        }
+        // 单条条目 → AgentConfig 映射(含 override 叠加)见 agent/config.ts
+        const config = buildAgentConfig(a, this.scheduler.getOverride(a.id))
+        if (!config) continue
         this.agents.set(config.id, config)
         this.agentStatus.set(config.id, 'idle')
       }
@@ -291,6 +298,11 @@ class AgentService {
     return loadRules(this.agentsDir, id)
   }
 
+  /** 全角色公共规则(M10): agents/_shared/rules.md 单点维护 */
+  getSharedRules(): string {
+    return loadSharedRules(this.agentsDir)
+  }
+
   /** 同 setSoul: validateAgentId 防御路径遍历,合法 id 即可写入 */
   setRules(id: string, content: string) {
     return saveRules(this.agentsDir, id, content)
@@ -301,22 +313,8 @@ class AgentService {
   }
 
   // ===========================================================
-  // Skill 注入
+  // Skill 注入 — 已下沉到 agent/tools.ts buildSkillsSection
   // ===========================================================
-
-  /** 将所有可用 skill 格式化为 system prompt 段落 */
-  private buildSkillsSection(): string {
-    const skills = skillService.listSkills()
-    if (skills.length === 0) return ''
-
-    const entries = skills.map((s) => {
-      // 只输出名称和描述摘要，不注入完整内容（节省 token）
-      // Agent 可通过文件读取工具获取完整内容
-      return `### ${s.name}\n${s.description}`
-    })
-
-    return `\n--- 可用技能 ---\n${entries.join('\n\n')}`
-  }
 
   // ===========================================================
   // 模型选择 — 已委托到 ./agent-model-selector.ts
@@ -330,24 +328,9 @@ class AgentService {
   // ===========================================================
 
   /**
-   * 构造 Agent 运行时工具集(EAA + 文件 + 实用工具 + MCP)
-   *
-   * MCP 集成:合并三层配置(全局 mcp.yaml + Agent 级 mcpServers + 技能级临时 server)
-   * MCP 未启用或无配置时返回空数组,不影响现有工具
+   * 构造 Agent 运行时工具集 — 已下沉到 agent/tools.ts buildAgentTools
+   * (EAA + 文件 + 实用工具 + MCP 三层合并)
    */
-  private async buildAgentTools(
-    config: AgentConfig,
-    id: string,
-    // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
-  ): Promise<AgentTool<any>[]> {
-    const mcpTools = await getMcpToolsForAgent(id, config.mcpServers)
-    return [
-      ...getToolsByCapability(config.capabilities),
-      ...allFileTools, // 文件工具（read_file, read_excel, write_excel, write_csv, list_dir）
-      ...allUtilityTools, // 实用工具（get_current_time, calculate）
-      ...mcpTools, // MCP 工具(动态注入,工具名前缀 mcp_<serverId>_)
-    ]
-  }
 
   /**
    * 手动运行 Agent（通过 pi-agent-core Agent 类）。
@@ -405,6 +388,26 @@ class AgentService {
     generation?: number,
   ): Promise<AgentExecution | undefined> {
     return executeAgentRun(this.executionDeps, id, prompt, win, history, generation)
+  }
+
+  /**
+   * M32: 委托执行 — enqueue 目标 agent 的 runQueue 并等待完成。
+   * 复用现有队列(排队/串行/深度上限)、状态推送(win)与 agent 级超时;
+   * activeDelegations 计数供 delegate_to 工具拒绝嵌套/并行委托。
+   */
+  private async runDelegatedAgent(
+    targetId: string,
+    task: string,
+    win?: BrowserWindow,
+  ): Promise<AgentExecution | undefined> {
+    this.activeDelegations++
+    try {
+      // win 可能为 undefined(无窗口场景,仅出现在直接单测);
+      // runAgent 内部 sendStatus 对 null/已销毁窗口是安全的(与 feishu agent-runner 同模式)
+      return await this.runAgent(targetId, task, win as BrowserWindow)
+    } finally {
+      this.activeDelegations--
+    }
   }
 
   /** 中止正在运行的 Agent

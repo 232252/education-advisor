@@ -10,7 +10,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EAAStudent, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
 import { useGradeEntry } from '../../../../src/renderer/pages/Academics/hooks/useGradeEntry'
-import { useChatStore } from '../../../../src/renderer/stores/chatStore'
+import { useChatStore } from '../../../../src/renderer/stores/chat/store'
 import { toast } from '../../../../src/renderer/stores/toastStore'
 
 // ---------- 数据工厂 ----------

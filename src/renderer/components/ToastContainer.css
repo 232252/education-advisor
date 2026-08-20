@@ -1,6 +1,7 @@
 /* =============================================================
  * Toast 通知样式
  * 修复 P2-8: 屏幕右上角堆叠,4 种类型配色
+ * 颜色全部走 globals.css 的 --toast-* 语义变量(亮/暗值在那边切换)
  * ============================================================= */
 
 .toast-container {
@@ -23,7 +24,7 @@
   border-radius: 8px;
   font-size: 13px;
   line-height: 1.4;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--toast-shadow);
   pointer-events: auto;
   animation: toast-slide-in 200ms ease-out;
   border: 1px solid transparent;
@@ -75,70 +76,51 @@
 
 /* ---- info ---- */
 .toast-info {
-  background: #eff6ff;
-  color: #1e40af;
-  border-color: #bfdbfe;
+  background: var(--toast-info-bg);
+  color: var(--toast-info-text);
+  border-color: var(--toast-info-border);
 }
 .toast-info .toast-icon {
-  background: #3b82f6;
-  color: #fff;
+  background: var(--toast-info-icon-bg);
+  color: var(--toast-icon-color);
 }
 
 /* ---- success ---- */
 .toast-success {
-  background: #f0fdf4;
-  color: #166534;
-  border-color: #bbf7d0;
+  background: var(--toast-success-bg);
+  color: var(--toast-success-text);
+  border-color: var(--toast-success-border);
 }
 .toast-success .toast-icon {
-  background: #22c55e;
-  color: #fff;
+  background: var(--toast-success-icon-bg);
+  color: var(--toast-icon-color);
 }
 
 /* ---- error ---- */
 .toast-error {
-  background: #fef2f2;
-  color: #991b1b;
-  border-color: #fecaca;
+  background: var(--toast-error-bg);
+  color: var(--toast-error-text);
+  border-color: var(--toast-error-border);
 }
 .toast-error .toast-icon {
-  background: #ef4444;
-  color: #fff;
+  background: var(--toast-error-icon-bg);
+  color: var(--toast-icon-color);
 }
 
 /* ---- warning ---- */
 .toast-warning {
-  background: #fffbeb;
-  color: #92400e;
-  border-color: #fde68a;
+  background: var(--toast-warning-bg);
+  color: var(--toast-warning-text);
+  border-color: var(--toast-warning-border);
 }
 .toast-warning .toast-icon {
-  background: #f59e0b;
-  color: #fff;
+  background: var(--toast-warning-icon-bg);
+  color: var(--toast-icon-color);
 }
 
-/* ---- dark mode (Tailwind class 策略，非 prefers-color-scheme) ---- */
+/* ---- dark mode (Tailwind class 策略，非 prefers-color-scheme) ----
+   色值与阴影由 globals.css 的 .dark 变量重定义驱动自动切换,
+   此处仅保留暗色特有的毛玻璃滤镜 */
 .dark .toast {
   backdrop-filter: blur(12px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-}
-.dark .toast-info {
-  background: rgba(59, 130, 246, 0.12);
-  color: #93c5fd;
-  border-color: rgba(59, 130, 246, 0.2);
-}
-.dark .toast-success {
-  background: rgba(34, 197, 94, 0.12);
-  color: #86efac;
-  border-color: rgba(34, 197, 94, 0.2);
-}
-.dark .toast-error {
-  background: rgba(239, 68, 68, 0.12);
-  color: #fca5a5;
-  border-color: rgba(239, 68, 68, 0.2);
-}
-.dark .toast-warning {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fcd34d;
-  border-color: rgba(245, 158, 11, 0.2);
 }

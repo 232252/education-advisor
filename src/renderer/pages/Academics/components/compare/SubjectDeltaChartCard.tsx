@@ -1,14 +1,21 @@
 // =============================================================
 // 科目平均分变化柱状图卡 — 正=进步绿, 负=退步红
-// (option 构造内联不导出, 与 Dashboard 图表组件模式一致)
+// M21: 轴/网格/tooltip 样板收敛到 charts 共享层
+// (此前本图 tooltip 无主题、grid 留白自成一套,现统一);
+// 仅保留本图语义(正负着色 + 柱顶数值标签)。
 // =============================================================
 
-import ReactEChartsCore from 'echarts-for-react/esm/core'
 import { useMemo } from 'react'
-import { Card } from '../../../../components/Card'
-import { useChartTheme } from '../../../../hooks/useChartTheme'
-import { echarts } from '../../../../lib/echarts-setup'
-import type { ClassComparisonSummary } from '../../exam-comparison'
+import { ChartCard } from '../../../../components/charts/ChartCard'
+import {
+  axisTooltip,
+  categoryAxis,
+  containGrid,
+  valueAxis,
+} from '../../../../components/charts/option-builders'
+import { CHART_BRAND, useChartTheme } from '../../../../hooks/useChartTheme'
+import { useT } from '../../../../i18n'
+import type { ClassComparisonSummary } from '../../../../lib/academics'
 
 interface SubjectDeltaChartCardProps {
   /** 各科平均分变化 (summary.subjectDeltas) */
@@ -16,24 +23,23 @@ interface SubjectDeltaChartCardProps {
 }
 
 export function SubjectDeltaChartCard({ subjectDeltas }: SubjectDeltaChartCardProps) {
-  // 主题派生色：原 themeProps.axisColor 与 legendColor 同值，故 axisColor 复用 legendColor
-  const { gridColor, legendColor: axisColor } = useChartTheme()
+  const { t } = useT()
+  const chartTheme = useChartTheme()
 
   const option = useMemo(
     () => ({
-      tooltip: { trigger: 'axis', formatter: '{b}: {c} 分' },
-      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-      xAxis: {
-        type: 'category',
-        data: subjectDeltas.map((s) => s.subjectName),
-        axisLabel: { color: axisColor, fontSize: 11 },
-        axisLine: { lineStyle: { color: gridColor } },
-      },
-      yAxis: {
-        type: 'value',
-        axisLabel: { color: axisColor },
-        splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
-      },
+      animation: true,
+      animationDuration: 800,
+      tooltip: axisTooltip(chartTheme, {
+        formatter: (params: Array<{ name: string; value: number }>) =>
+          `${params[0].name}: ${params[0].value} ${t('page.academics.common.scoreUnit', '分')}`,
+      }),
+      grid: containGrid(28),
+      xAxis: categoryAxis(
+        subjectDeltas.map((s) => s.subjectName),
+        chartTheme,
+      ),
+      yAxis: valueAxis(chartTheme),
       series: [
         {
           type: 'bar',
@@ -46,19 +52,20 @@ export function SubjectDeltaChartCard({ subjectDeltas }: SubjectDeltaChartCardPr
             },
           })),
           barWidth: '40%',
-          label: { show: true, position: 'top', color: axisColor, fontSize: 10 },
+          label: { show: true, position: 'top', color: chartTheme.legendColor, fontSize: 10 },
         },
       ],
     }),
-    [subjectDeltas, axisColor, gridColor],
+    [subjectDeltas, chartTheme, t],
   )
 
   return (
-    <Card padding="sm">
-      <h5 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-3">
-        📊 各科目平均分变化
-      </h5>
-      <ReactEChartsCore echarts={echarts} style={{ height: 240 }} option={option} />
-    </Card>
+    <ChartCard
+      title={t('page.academics.chart.subjectDelta')}
+      dotColor={CHART_BRAND.blue}
+      height={240}
+      option={option}
+      padding="sm"
+    />
   )
 }

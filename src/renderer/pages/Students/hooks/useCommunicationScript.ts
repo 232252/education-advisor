@@ -7,8 +7,9 @@
 import type { AgentListItem, EAAHistoryEvent, EAAStudent, StudentProfileData } from '@shared/types'
 import { useRef, useState } from 'react'
 import { useAutoDismiss } from '../../../hooks/useAutoDismiss'
+import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
-import { useAgentStore } from '../../../stores/agentStore'
+import { useAgentStore } from '../../../stores/agent/store'
 import { buildCommunicationPrompt, type CommScenario, type CommTone } from '../lib/home-school'
 
 export function useCommunicationScript(
@@ -17,6 +18,7 @@ export function useCommunicationScript(
   profileData: StudentProfileData,
   agents: AgentListItem[],
 ) {
+  const { t } = useT()
   const mountedRef = useRef(true)
   const [running, setRunning] = useState(false)
   const [output, setOutput] = useState('')
@@ -35,7 +37,7 @@ export function useCommunicationScript(
 
   const generate = async () => {
     if (!effectiveAgentId) {
-      setMessageAuto('没有可用的 Agent，请先在「Agent」页启用')
+      setMessageAuto(t('page.students.comm.noAgentHint', '没有可用的 Agent，请先在「Agent」页启用'))
       return
     }
     const prompt = buildCommunicationPrompt({ student, events, profileData }, scenario, tone)
@@ -45,7 +47,7 @@ export function useCommunicationScript(
     const unsub = useAgentStore.getState().subscribeStatus((data) => {
       if (data.agentId !== effectiveAgentId) return
       if (data.output) setOutput((prev) => prev + data.output)
-      if (data.error) setOutput((prev) => `${prev}\n[错误] ${data.error}\n`)
+      if (data.error) setOutput((prev) => `${prev}\n[${t('common.error', '错误')}] ${data.error}\n`)
     })
 
     try {
@@ -54,11 +56,13 @@ export function useCommunicationScript(
       await new Promise((r) => setTimeout(r, 1500))
       if (mountedRef.current) {
         setGeneratedAt(Date.now())
-        setMessageAuto('话术已生成')
+        setMessageAuto(t('page.students.comm.generated', '话术已生成'))
       }
     } catch (err) {
       if (mountedRef.current)
-        setMessageAuto(`生成失败: ${err instanceof Error ? err.message : String(err)}`)
+        setMessageAuto(
+          `${t('page.students.comm.generateFailed', '生成失败')}: ${err instanceof Error ? err.message : String(err)}`,
+        )
     } finally {
       unsub()
       if (mountedRef.current) setRunning(false)

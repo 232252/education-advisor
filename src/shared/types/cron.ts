@@ -32,7 +32,9 @@ export interface CronLogEntry {
   durationMs: number
   /** R57-3 H3: 新增 skipped_concurrent_limit(并发上限跳过时记录)
    *  circuit-breaker: 熔断跳过时记录
-   *  F2 修复: 新增 skipped — bitableSync 返回 skipped 字段时记录(不算 error) */
+   *  F2 修复: 新增 skipped — bitableSync 返回 skipped 字段时记录(不算 error)
+   *  M35: 新增 skipped_missed — 错过调度补偿(系统睡眠/事件循环阻塞导致应跑槽位整体
+   *  被错过,补跑一次前先记录该槽位丢失) */
   status:
     | 'success'
     | 'error'
@@ -40,5 +42,6 @@ export interface CronLogEntry {
     | 'skipped'
     | 'skipped_concurrent_limit'
     | 'skipped_circuit_breaker'
+    | 'skipped_missed'
   error?: string
 }

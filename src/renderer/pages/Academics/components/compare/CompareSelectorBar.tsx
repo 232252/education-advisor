@@ -4,6 +4,7 @@
 
 import type { ClassEntity, ExamDef } from '@shared/types'
 import { Card } from '../../../../components/Card'
+import { useT } from '../../../../i18n'
 import { cn, INPUT_BASE } from '../../../../lib/ui-utils'
 
 interface CompareSelectorBarProps {
@@ -31,6 +32,8 @@ export function CompareSelectorBar({
   sortedExams,
   studentCount,
 }: CompareSelectorBarProps) {
+  const { t } = useT()
+
   return (
     <Card padding="sm">
       <div className="flex flex-wrap items-center gap-3">
@@ -39,8 +42,8 @@ export function CompareSelectorBar({
           onChange={(e) => onClassFilterChange(e.target.value)}
           className={cn(INPUT_BASE)}
         >
-          <option value="__ALL__">全部班级</option>
-          <option value="__NONE__">未分班</option>
+          <option value="__ALL__">{t('page.academics.class.all', '全部班级')}</option>
+          <option value="__NONE__">{t('page.classes.profile.unassigned', '未分班')}</option>
           {classList.map((c) => (
             <option key={c.class_id} value={c.class_id}>
               {c.name}
@@ -53,7 +56,7 @@ export function CompareSelectorBar({
           onChange={(e) => onExamAIdChange(e.target.value)}
           className={cn(INPUT_BASE)}
         >
-          <option value="">选择考试 A</option>
+          <option value="">{t('page.academics.compare.selectExamA', '选择考试 A')}</option>
           {sortedExams.map((e) => (
             <option key={e.id} value={e.id}>
               {e.name}（{e.date}）
@@ -66,14 +69,16 @@ export function CompareSelectorBar({
           onChange={(e) => onExamBIdChange(e.target.value)}
           className={cn(INPUT_BASE)}
         >
-          <option value="">选择考试 B</option>
+          <option value="">{t('page.academics.compare.selectExamB', '选择考试 B')}</option>
           {sortedExams.map((e) => (
             <option key={e.id} value={e.id}>
               {e.name}（{e.date}）
             </option>
           ))}
         </select>
-        <span className="text-xs text-gray-400 ml-auto">{studentCount} 名学生</span>
+        <span className="text-xs text-gray-400 ml-auto">
+          {studentCount} {t('page.academics.compare.studentUnit', '名学生')}
+        </span>
       </div>
     </Card>
   )

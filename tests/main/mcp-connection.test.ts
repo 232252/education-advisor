@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import type { McpServerConfig } from '@shared/types'
-import type { MCPClient } from '../../src/main/services/mcp-types'
+import type { MCPClient } from '../../src/main/services/mcp/types'
 
 const mocks = vi.hoisted(() => ({
   spawn: vi.fn(),

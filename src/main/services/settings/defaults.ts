@@ -33,6 +33,9 @@ export const DEFAULT_SETTINGS: UnifiedSettings = {
     autoEnabled: false,
     intervalHours: 24,
     keep: 7,
+    // M33: cron 驱动的定时自动备份(JSON 已收录,显式列出保持 schema 可见)
+    autoBackupEnabled: false,
+    autoBackupCron: '0 3 * * *',
     // 0 = 从未自动备份。必须给默认值,否则 settingsService.update('backup.lastAutoAt')
     // 的 dotPath 可达性校验(path 必须存在于 DEFAULT_SETTINGS)会拒绝写入
     lastAutoAt: 0,

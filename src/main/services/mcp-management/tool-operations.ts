@@ -9,7 +9,7 @@
 // =============================================================
 
 import type { McpServerConfig, McpTool } from '@shared/types'
-import type { McpCallResult } from '../mcp-types'
+import type { McpCallResult } from '../mcp/types'
 import { settingsService } from '../settings-service'
 import type { McpServiceContext } from './context'
 import { init } from './lifecycle'

@@ -4,6 +4,7 @@
 // =============================================================
 
 import { useState } from 'react'
+import { useT } from '../../../i18n'
 import { CARD_BASE } from '../../../lib/ui-utils'
 
 export interface SectionProps {
@@ -13,6 +14,7 @@ export interface SectionProps {
 }
 
 export function Section({ title, children, defaultOpen = true }: SectionProps) {
+  const { t } = useT()
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className={`${CARD_BASE} overflow-hidden`}>
@@ -29,9 +31,9 @@ export function Section({ title, children, defaultOpen = true }: SectionProps) {
           viewBox="0 0 24 24"
           stroke="currentColor"
           role="img"
-          aria-label="图标"
+          aria-label={t('page.settings.section.iconAria', '图标')}
         >
-          <title>图标</title>
+          <title>{t('page.settings.section.iconAria', '图标')}</title>
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>

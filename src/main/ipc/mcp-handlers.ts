@@ -10,7 +10,7 @@
 //
 // 安全说明:
 //   - 所有 serverId 参数做格式校验(只允许字母数字_-)
-//   - 实际工具调用通过 AgentTool.execute 走 mcp-tools.ts 的 sanitizeMcpArgs
+//   - 实际工具调用通过 AgentTool.execute 走 mcp-management/tools/sanitize.ts 的 sanitizeMcpArgs
 //   - 这里只提供管理接口,不直接调用工具(工具调用由 Agent 运行时触发)
 // =============================================================
 

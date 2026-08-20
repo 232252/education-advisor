@@ -2,16 +2,24 @@
 // 学生管理页面 — 纯编排层（逻辑在 hooks/, UI 在 components/, 纯函数在 lib/）
 // =============================================================
 import type { EAAStudent } from '@shared/types'
-import { Plus, Upload, Users } from 'lucide-react'
+import { Plus, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { TableSkeleton } from '../../components/Skeleton'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useT } from '../../i18n'
-import { btnStyle, cn, TABLE_STICKY_HEAD, TABLE_TH } from '../../lib/ui-utils'
-import { AddStudentForm, ExportMenu, StudentRow, StudentsToolbar } from './components'
+import { cn, TABLE_STICKY_HEAD, TABLE_TH } from '../../lib/ui-utils'
+import {
+  AddStudentForm,
+  ExcelImportDialog,
+  ExportMenu,
+  ImportMenu,
+  StudentRow,
+  StudentsToolbar,
+} from './components'
 import { useStudentActions } from './hooks/useStudentActions'
 import { useStudentList } from './hooks/useStudentList'
 import { useStudentSelection } from './hooks/useStudentSelection'
@@ -89,7 +97,7 @@ export function StudentsPage() {
       >
         <PageHeader
           size="md"
-          title={`学生管理 (${students.length})`}
+          title={`${t('page.students.title', '学生管理')} (${students.length})`}
           subtitle={
             archivedHiddenCount > 0 && !showArchivedClass
               ? t('page.students.archivedHidden').replace('{0}', String(archivedHiddenCount))
@@ -97,33 +105,26 @@ export function StudentsPage() {
           }
           actions={
             <>
-              <button
-                type="button"
+              <Button
                 onClick={() => setAddingStudent(!addingStudent)}
-                className={btnStyle('primary')}
-                aria-label="添加学生"
+                icon={<Plus size={14} strokeWidth={2.5} />}
+                aria-label={t('page.students.addStudent.aria', '添加学生')}
               >
-                <Plus size={14} strokeWidth={2.5} />
-                添加
-              </button>
-              <button
-                type="button"
-                onClick={actions.handleImport}
-                className={btnStyle('secondary')}
-                aria-label="导入"
-              >
-                <Upload size={14} />
-                导入
-              </button>
+                {t('page.students.add', '添加')}
+              </Button>
+              <ImportMenu
+                onImportJson={actions.handleImport}
+                onImportExcel={actions.handleImportExcel}
+                onDownloadTemplate={actions.handleDownloadExcelTemplate}
+              />
               <ExportMenu formats={exportFormats} onExport={actions.handleExport} />
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 onClick={refreshStudents}
-                className={btnStyle('secondary')}
                 aria-label={t('common.refresh')}
               >
                 {t('common.refresh')}
-              </button>
+              </Button>
             </>
           }
         />
@@ -176,7 +177,7 @@ export function StudentsPage() {
             <EmptyState
               icon={<Users size={28} />}
               title={t('page.students.empty')}
-              description="尝试调整筛选条件或添加新学生"
+              description={t('page.students.emptyHint', '尝试调整筛选条件或添加新学生')}
             />
           ) : (
             <table className="w-full text-sm min-w-[680px]">
@@ -194,7 +195,7 @@ export function StudentsPage() {
                     </th>
                   )}
                   <th className={TABLE_TH}>{t('page.students.col.name')}</th>
-                  <th className={TABLE_TH}>班级</th>
+                  <th className={TABLE_TH}>{t('page.students.col.class', '班级')}</th>
                   <th className={cn(TABLE_TH, 'text-right')}>{t('page.students.col.score')}</th>
                   <th className={cn(TABLE_TH, 'text-right')}>{t('page.students.col.change')}</th>
                   <th className={cn(TABLE_TH, 'text-center')}>{t('page.students.col.risk')}</th>
@@ -241,6 +242,16 @@ export function StudentsPage() {
         variant={actions.confirmState.variant}
         onConfirm={actions.confirmState.onConfirm}
         onCancel={() => actions.setConfirmState((prev) => ({ ...prev, open: false }))}
+      />
+      {/* Excel 批量导入：预览确认 + 进度 + 失败清单（M30） */}
+      <ExcelImportDialog
+        open={actions.excelImport.open}
+        preview={actions.excelImport.preview}
+        importing={actions.excelImport.importing}
+        progress={actions.excelImport.progress}
+        result={actions.excelImport.result}
+        onConfirm={actions.handleConfirmExcelImport}
+        onClose={actions.handleCloseExcelImport}
       />
     </div>
   )

@@ -6,6 +6,7 @@
 import { Sparkles } from 'lucide-react'
 import { Button } from '../../../../components/Button'
 import { Card } from '../../../../components/Card'
+import { useT } from '../../../../i18n'
 
 interface AIEntryPanelProps {
   aiInputText: string
@@ -28,11 +29,13 @@ export function AIEntryPanel({
   onParse,
   onClose,
 }: AIEntryPanelProps) {
+  const { t } = useT()
+
   return (
     <Card padding="md">
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-          🤖 AI 智能录入 — 粘贴文本,自动解析
+          🤖 {t('page.academics.ai.title', 'AI 智能录入 — 粘贴文本,自动解析')}
         </h4>
         <button
           type="button"
@@ -43,15 +46,21 @@ export function AIEntryPanel({
         </button>
       </div>
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-        支持多种格式: &ldquo;张三 85, 李四 92&rdquo;、表格文本、微信聊天记录等。
+        {t(
+          'page.academics.ai.formatsHint',
+          '支持多种格式: “张三 85, 李四 92”、表格文本、微信聊天记录等。',
+        )}
         {currentProvider && currentModel
-          ? ` 当前模型: ${currentProvider}/${currentModel}`
-          : ' ⚠️ 请先在"模型"页面配置 AI 模型'}
+          ? ` ${t('page.academics.ai.currentModelPrefix', '当前模型: ')}${currentProvider}/${currentModel}`
+          : ` ${t('page.academics.ai.modelRequiredHint', '⚠️ 请先在"模型"页面配置 AI 模型')}`}
       </p>
       <textarea
         value={aiInputText}
         onChange={(e) => onAiInputTextChange(e.target.value)}
-        placeholder={'粘贴成绩文本,例如:\n张三 85\n李四 92\n王五 78分\n赵六 88 排名3'}
+        placeholder={t(
+          'page.academics.ai.textareaPlaceholder',
+          '粘贴成绩文本,例如:\n张三 85\n李四 92\n王五 78分\n赵六 88 排名3',
+        )}
         rows={6}
         className="w-full bg-gray-50 dark:bg-surface-primary border border-gray-200 dark:border-white/[0.06] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500 font-mono"
         disabled={aiParsing}
@@ -65,7 +74,9 @@ export function AIEntryPanel({
           onClick={onParse}
           disabled={aiParsing || !aiInputText.trim() || !currentProvider || !currentModel}
         >
-          {aiParsing ? '解析中...' : 'AI 解析并填充'}
+          {aiParsing
+            ? t('page.academics.ai.parsingButton', '解析中...')
+            : t('page.academics.ai.parseAndFill', 'AI 解析并填充')}
         </Button>
         {aiProgress && (
           <span className="text-xs text-gray-500 dark:text-gray-400">{aiProgress}</span>
@@ -73,7 +84,11 @@ export function AIEntryPanel({
       </div>
       {!currentProvider && (
         <p className="text-xs text-amber-500 mt-2">
-          💡 未检测到 AI 模型配置。请先到&ldquo;模型&rdquo;页面选择并配置一个 AI 提供商。
+          💡{' '}
+          {t(
+            'page.academics.ai.noModelConfigured',
+            '未检测到 AI 模型配置。请先到“模型”页面选择并配置一个 AI 提供商。',
+          )}
         </p>
       )}
     </Card>

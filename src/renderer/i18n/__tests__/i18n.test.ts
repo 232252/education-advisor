@@ -2,6 +2,8 @@
 // i18n 测试 — 字典查找、lang 切换、localStorage 持久化
 // =============================================================
 
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import enDict from '../en.json'
 import zhDict from '../zh.json'
@@ -114,5 +116,56 @@ describe('i18n', () => {
 
     // 注: useT 是 React hook, 在 jsdom 中调用需要 React renderer
     // 实际渲染测试在组件层做,这里只验证 t 函数和 lang 状态机的正确性
+  })
+
+  // M24: 源码中所有 t('key', ...) 调用的 key 必须存在于 zh/en 字典,
+  // 防止后续迭代引入硬编码漂移(缺 key 时静默回退到 fallback,难以察觉)
+  describe('字典完整性', () => {
+    function collectUsedKeys(): Map<string, string[]> {
+      // jsdom 环境下 import.meta.url 非 file 协议,用 cwd(= 项目根)定位
+      const rendererDir = join(process.cwd(), 'src', 'renderer')
+      const files: string[] = []
+      const walk = (dir: string): void => {
+        for (const name of readdirSync(dir)) {
+          if (name === '__tests__' || name === 'node_modules') continue
+          const p = join(dir, name)
+          if (statSync(p).isDirectory()) walk(p)
+          else if (/\.tsx?$/.test(name) && !/\.test\./.test(name)) files.push(p)
+        }
+      }
+      walk(rendererDir)
+
+      const used = new Map<string, string[]>()
+      const re = /\bt\(\s*['"]([\w.-]+)['"]/g
+      for (const f of files) {
+        const lines = readFileSync(f, 'utf8').split('\n')
+        for (let i = 0; i < lines.length; i++) {
+          re.lastIndex = 0
+          let m: RegExpExecArray | null = re.exec(lines[i])
+          while (m !== null) {
+            const loc = `${f.split(/[\\/]/).slice(-2).join('/')}:${i + 1}`
+            const list = used.get(m[1]) ?? []
+            list.push(loc)
+            used.set(m[1], list)
+            m = re.exec(lines[i])
+          }
+        }
+      }
+      return used
+    }
+
+    it('源码使用的 key 应全部存在于 zh 字典', () => {
+      const used = collectUsedKeys()
+      // 健全性: 扫描应找到大量 key(字典被搬空或正则失效时兜底失败)
+      expect(used.size).toBeGreaterThan(500)
+      const missing = [...used.keys()].filter((k) => !(k in zhDict))
+      expect(missing, `missing in zh.json: ${missing.join(', ')}`).toEqual([])
+    })
+
+    it('源码使用的 key 应全部存在于 en 字典', () => {
+      const used = collectUsedKeys()
+      const missing = [...used.keys()].filter((k) => !(k in enDict))
+      expect(missing, `missing in en.json: ${missing.join(', ')}`).toEqual([])
+    })
   })
 })

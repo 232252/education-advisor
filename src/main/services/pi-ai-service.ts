@@ -3,36 +3,32 @@
 // 已接入 @earendil-works/pi-ai，零改动复用 30+ Provider
 //
 // 实现已按职责拆分到 ./pi-ai/ 子目录（纯重构,行为零变化）:
-//   - pi-ai/providers.ts    provider 常量表(OAUTH_PROVIDERS 等) + listProviders/oauthLogin
-//   - pi-ai/model-utils.ts  safeGetModels/resolveModel + 静态/自定义模型 ModelInfo 映射
-//   - pi-ai/model-fetch.ts  在线模型获取(失败 TTL 缓存 + in-flight 去重)
-//   - pi-ai/streaming.ts    流式对话(重试/首字节超时/abort/压缩)
+//   - pi-ai/providers.ts       provider 常量表(OAUTH_PROVIDERS 等) + listProviders/oauthLogin
+//   - pi-ai/model-utils.ts     safeGetModels/resolveModel + 静态/自定义模型 ModelInfo 映射
+//   - pi-ai/model-fetch.ts     在线模型获取(失败 TTL 缓存 + in-flight 去重)
+//   - pi-ai/streaming.ts       流式对话(重试/首字节超时/abort/压缩)
+//   - pi-ai/provider-models.ts fetchProviderModels(静态+keyless+在线+自定义 合并去重)
+//   - pi-ai/custom-models.ts   自定义模型 CRUD(settings.models.customModels)
+//   - pi-ai/connection-test.ts testConnection(最小请求验证 API Key)
 // 本文件保留 PiAIService 类骨架: 公共方法签名不变,委托子模块组合。
 // =============================================================
 
-import {
-  type Context,
-  completeSimple,
-  getEnvApiKey,
-  type ModelThinkingLevel,
-} from '@earendil-works/pi-ai/compat'
+import { getEnvApiKey, type ModelThinkingLevel } from '@earendil-works/pi-ai/compat'
 import type { ModelInfo, ProviderInfo, StreamEvent, TestConnectionResult } from '@shared/types'
 import { TtlLruCache } from './eaa-cache'
 import { keystoreService } from './keystore-service'
-// KEYLESS_PROVIDERS 从 ollama/constants 导入;ollamaService 在使用处动态导入
-// (ollama-service → detection 顶层 import electron,避免把 electron 拉进模块加载链)
-import { KEYLESS_PROVIDERS } from './ollama/constants'
-import { OnlineModelsFetcher } from './pi-ai/model-fetch'
+import { testProviderConnection } from './pi-ai/connection-test'
 import {
-  buildCustomModelInfos,
-  buildOllamaModel,
-  buildStaticModelInfos,
-  safeGetModels,
-} from './pi-ai/model-utils'
+  addCustomModelEntry,
+  type CustomModelInput,
+  type CustomModelUpdates,
+  removeCustomModelEntry,
+  updateCustomModelEntry,
+} from './pi-ai/custom-models'
+import { OnlineModelsFetcher } from './pi-ai/model-fetch'
+import { fetchProviderModels } from './pi-ai/provider-models'
 import { listProviders, oauthLogin } from './pi-ai/providers'
 import { ChatStreamRunner } from './pi-ai/streaming'
-import { dedupeModels, selectCheapestModel } from './pi-ai-helpers'
-import { settingsService } from './settings-service'
 
 // re-export 子模块公共 API(原定义于本文件,便于外部/测试直接导入)
 export { OAUTH_KEY_URLS, OAUTH_PROVIDERS, PROVIDER_NAMES } from './pi-ai/providers'
@@ -70,61 +66,15 @@ class PiAIService {
   }
 
   /**
-   * 从 API 在线获取模型列表
-   * - OpenAI 兼容 API: 调用 {baseUrl}/models
-   * - Anthropic 兼容 API: 暂返回静态列表
-   * - 合并用户自定义模型
+   * 从 API 在线获取模型列表 — 合并逻辑见 pi-ai/provider-models.ts
+   * (静态 + keyless 本地 + 在线 + 自定义,去重)
    */
   async fetchProviderModels(
     providerId: string,
     baseUrl?: string,
     apiKey?: string,
   ): Promise<ModelInfo[]> {
-    const models = safeGetModels(providerId)
-    const settings = settingsService.getSettings()
-    const customModels = settings.models.customModels?.[providerId] ?? []
-
-    // P0-1 修复: ollama 等本地 keyless provider 不在 pi-ai 静态注册表,
-    // safeGetModels 恒返回 [] → 此前合并结果恒为空(但 listProviders 显示真实 modelCount)。
-    // 改为调 ollamaService.listModels() 拉取本地已安装模型(serve 未运行时返回 []),
-    // 结果经 listModels() 的 modelsCache(TTL 30s)缓存。
-    let keylessInfos: ModelInfo[] = []
-    if (KEYLESS_PROVIDERS.has(providerId)) {
-      // 动态导入 ollamaService(见文件头注释)
-      const { ollamaService } = await import('./ollama-service')
-      const installed = await ollamaService.listModels()
-      keylessInfos = buildStaticModelInfos(installed.map((m) => buildOllamaModel(m.name)))
-    }
-
-    // 尝试在线获取模型列表（任何有 baseUrl + apiKey 的 provider 都尝试）
-    let onlineModels: ModelInfo[] = []
-
-    if (models.length > 0) {
-      const sampleModel = models[0]
-      const resolvedBaseUrl = baseUrl ?? sampleModel.baseUrl
-      const resolvedApiKey =
-        apiKey ?? keystoreService.getApiKey(providerId) ?? getEnvApiKey(providerId)
-
-      // 本地/keyless provider(如 ollama)不需要 apiKey,只要 baseUrl 就能查模型
-      const isKeyless = KEYLESS_PROVIDERS.has(providerId)
-      if (resolvedBaseUrl && (resolvedApiKey || isKeyless)) {
-        // M-5 修复: 使用 in-flight Promise 去重并发调用
-        // 多个并发 fetchProviderModels 会复用同一个在线获取 Promise
-        onlineModels = await this.onlineFetcher.fetchOnlineModels(
-          providerId,
-          resolvedBaseUrl,
-          resolvedApiKey,
-          models,
-          sampleModel,
-        )
-      }
-    }
-
-    // 合并：静态模型 + keyless 本地模型 + 在线模型 + 自定义模型（去重）
-    const staticInfos = buildStaticModelInfos(models)
-    const customInfos = buildCustomModelInfos(providerId, customModels, baseUrl)
-
-    return dedupeModels([...staticInfos, ...keylessInfos, ...onlineModels, ...customInfos])
+    return fetchProviderModels(providerId, this.onlineFetcher, baseUrl, apiKey)
   }
 
   /** 综合获取所有已知模型：静态 + 自定义 + 在线 */
@@ -132,128 +82,38 @@ class PiAIService {
     return this.fetchProviderModels(providerId)
   }
 
-  /** 添加自定义模型到指定 Provider */
-  addCustomModel(
-    providerId: string,
-    model: {
-      id: string
-      name?: string
-      contextWindow?: number
-      maxOutputTokens?: number
-      supportsReasoning?: boolean
-      costPerInputToken?: number
-      costPerOutputToken?: number
-      api?: string
-      baseUrl?: string
-    },
-  ): ModelInfo {
-    const settings = settingsService.getSettings()
-    const existing = settings.models.customModels?.[providerId] ?? []
-    // 去重：如果已存在同 id 则覆盖
-    const filtered = existing.filter((m) => m.id !== model.id)
-
-    // 推断 API 类型：从该 provider 的静态模型中获取，否则默认 openai-completions
-    const staticModels = safeGetModels(providerId)
-    const defaultApi = staticModels.length > 0 ? staticModels[0].api : 'openai-completions'
-    const defaultBaseUrl = staticModels.length > 0 ? staticModels[0].baseUrl : ''
-
-    const api = model.api ?? defaultApi
-    const baseUrl = model.baseUrl ?? defaultBaseUrl
-
-    const entry = {
-      id: model.id,
-      name: model.name ?? model.id,
-      contextWindow: model.contextWindow ?? 32768,
-      maxOutputTokens: model.maxOutputTokens ?? 4096,
-      supportsReasoning: model.supportsReasoning ?? false,
-      costPerInputToken: model.costPerInputToken ?? 0,
-      costPerOutputToken: model.costPerOutputToken ?? 0,
-      api: api as string,
-      baseUrl,
-    }
-
-    const updated = [...filtered, entry]
-    settingsService.setCustomModels(providerId, updated)
+  /** 添加自定义模型到指定 Provider — CRUD 逻辑见 pi-ai/custom-models.ts */
+  addCustomModel(providerId: string, model: CustomModelInput): ModelInfo {
+    const result = addCustomModelEntry(providerId, model)
     // R136: 自定义模型变更,失效 listModels 缓存
     this.modelsCache.delete(providerId)
-    console.log(
-      `[PiAI] Added custom model "${model.id}" to ${providerId} (total: ${updated.length})`,
-    )
-
-    return {
-      id: entry.id,
-      name: entry.name,
-      providerId,
-      api,
-      contextWindow: entry.contextWindow,
-      maxOutputTokens: entry.maxOutputTokens,
-      costPerInputToken: entry.costPerInputToken,
-      costPerOutputToken: entry.costPerOutputToken,
-      costCacheRead: 0,
-      costCacheWrite: 0,
-      supportsReasoning: entry.supportsReasoning,
-      baseUrl,
-      isCustom: true,
-    }
+    return result
   }
 
   /** 从指定 Provider 移除自定义模型 */
   removeCustomModel(providerId: string, modelId: string): boolean {
-    const settings = settingsService.getSettings()
-    const existing = settings.models.customModels?.[providerId] ?? []
-    const filtered = existing.filter((m) => m.id !== modelId)
-    if (filtered.length === existing.length) return false
-    settingsService.setCustomModels(providerId, filtered)
-    // R136: 自定义模型变更,失效 listModels 缓存
-    this.modelsCache.delete(providerId)
-    console.log(`[PiAI] Removed custom model "${modelId}" from ${providerId}`)
-    return true
+    const removed = removeCustomModelEntry(providerId, modelId)
+    if (removed) {
+      // R136: 自定义模型变更,失效 listModels 缓存
+      this.modelsCache.delete(providerId)
+    }
+    return removed
   }
 
   /** 更新自定义模型属性 */
-  updateCustomModel(
-    providerId: string,
-    modelId: string,
-    updates: {
-      name?: string
-      contextWindow?: number
-      maxOutputTokens?: number
-      supportsReasoning?: boolean
-      costPerInputToken?: number
-      costPerOutputToken?: number
-      api?: string
-      baseUrl?: string
-    },
-  ): boolean {
-    const settings = settingsService.getSettings()
-    const existing = settings.models.customModels?.[providerId] ?? []
-    const idx = existing.findIndex((m) => m.id === modelId)
-    if (idx === -1) return false
-
-    const current = existing[idx]
-    const updated = [...existing]
-    updated[idx] = {
-      ...current,
-      name: updates.name ?? current.name,
-      contextWindow: updates.contextWindow ?? current.contextWindow,
-      maxOutputTokens: updates.maxOutputTokens ?? current.maxOutputTokens,
-      supportsReasoning: updates.supportsReasoning ?? current.supportsReasoning,
-      costPerInputToken: updates.costPerInputToken ?? current.costPerInputToken,
-      costPerOutputToken: updates.costPerOutputToken ?? current.costPerOutputToken,
-      api: updates.api ?? current.api,
-      baseUrl: updates.baseUrl ?? current.baseUrl,
+  updateCustomModel(providerId: string, modelId: string, updates: CustomModelUpdates): boolean {
+    const updated = updateCustomModelEntry(providerId, modelId, updates)
+    if (updated) {
+      // R136: 自定义模型变更,失效 listModels 缓存
+      this.modelsCache.delete(providerId)
     }
-    settingsService.setCustomModels(providerId, updated)
-    // R136: 自定义模型变更,失效 listModels 缓存
-    this.modelsCache.delete(providerId)
-    console.log(`[PiAI] Updated custom model "${modelId}" in ${providerId}:`, Object.keys(updates))
-    return true
+    return updated
   }
 
   /** 按 id 去重模型列表 — 已委托到 ./pi-ai-helpers.ts dedupeModels */
 
   // ===========================================================
-  // 连接测试
+  // 连接测试 — 委托 pi-ai/connection-test.ts testProviderConnection
   // ===========================================================
 
   /** 测试 Provider 连接（发送一个最小请求验证 API Key） */
@@ -262,70 +122,7 @@ class PiAIService {
     apiKey: string,
     _baseUrl?: string,
   ): Promise<TestConnectionResult> {
-    const start = Date.now()
-    const models = safeGetModels(providerId)
-
-    // R169 修复: 当调用方未显式传入 apiKey 时,回退到 keystore / 环境变量
-    // 此前 testConnection('minimax-cn', '') 返回 "No API key" 即使 keystore 已存储 key,
-    // 导致用户在 Models 页面点击"测试"按钮时(输入框为空)无法测试已配置的 provider
-    const resolvedApiKey =
-      apiKey || keystoreService.getApiKey(providerId) || getEnvApiKey(providerId)
-
-    if (models.length === 0) {
-      return {
-        success: false,
-        latencyMs: Date.now() - start,
-        model: '',
-        error: `No models available for provider: ${providerId}`,
-      }
-    }
-
-    // 选择最便宜的模型做测试
-    const testModel = selectCheapestModel(models)
-
-    if (!resolvedApiKey) {
-      return {
-        success: false,
-        latencyMs: Date.now() - start,
-        model: testModel.id,
-        error: `No API key for provider: ${providerId}`,
-      }
-    }
-
-    try {
-      const context: Context = {
-        messages: [{ role: 'user', content: 'ping', timestamp: Date.now() }],
-      }
-
-      const result = await completeSimple(testModel, context, {
-        apiKey: resolvedApiKey,
-        maxTokens: 5,
-      })
-
-      const latencyMs = Date.now() - start
-
-      if (result.stopReason === 'error') {
-        return {
-          success: false,
-          latencyMs,
-          model: testModel.id,
-          error: result.errorMessage ?? 'Unknown error',
-        }
-      }
-
-      return {
-        success: true,
-        latencyMs,
-        model: testModel.id,
-      }
-    } catch (err: unknown) {
-      return {
-        success: false,
-        latencyMs: Date.now() - start,
-        model: testModel.id,
-        error: err instanceof Error ? err.message : String(err),
-      }
-    }
+    return testProviderConnection(providerId, apiKey, _baseUrl)
   }
 
   // ===========================================================

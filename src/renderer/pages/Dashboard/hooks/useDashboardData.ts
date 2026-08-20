@@ -16,7 +16,11 @@ import type {
 } from '@shared/types'
 import { useMemo } from 'react'
 import { useMultiLoader } from '../../../hooks/useMultiLoader'
+import { t } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
+import { useClassStore } from '../../../stores/class/store'
+import { useStudentStore } from '../../../stores/student/store'
+import { toast } from '../../../stores/toastStore'
 
 export function useDashboardData() {
   const { data, loading, errors, reload } = useMultiLoader({
@@ -48,14 +52,13 @@ export function useDashboardData() {
       return null
     },
     allStudents: async (): Promise<EAAStudent[]> => {
-      const r = await getAPI().eaa.listStudents()
-      return r.success && r.data?.students
-        ? r.data.students.filter((s) => s.status !== 'Deleted')
-        : []
+      // M20: 复用共享 studentStore — 与 Students/Classes/Academics 跨页共享(TTL 3s)
+      const students = await useStudentStore.getState().fetchStudents()
+      return students.filter((s) => s.status !== 'Deleted')
     },
     classList: async (): Promise<ClassEntity[]> => {
-      const r = await getAPI().class.list()
-      return r.success && r.data ? r.data : []
+      // M20: 复用共享 classStore
+      return useClassStore.getState().fetchClasses()
     },
     allEvents: async (): Promise<EAAEventRecord[]> => {
       const r = await getAPI().eaa.range(
@@ -63,6 +66,10 @@ export function useDashboardData() {
         new Date().toISOString().slice(0, 10),
         5000,
       )
+      // M10: range 结果达上限(limit 被截断为 1000)时提醒缩小日期范围
+      if (r.success && r.data?.truncated) {
+        toast.warning(t('toast.eaa.rangeTruncated'))
+      }
       return r.success && r.data?.events ? r.data.events : []
     },
   })
