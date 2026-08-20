@@ -7,8 +7,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
-import { useAgentStore } from '../../stores/agentStore'
-import { useChatStore } from '../../stores/chatStore'
+import { useAgentStore } from '../../stores/agent/store'
+import { useChatStore } from '../../stores/chat/store'
 import { toast } from '../../stores/toastStore'
 import { ChatToolbar } from './components/ChatToolbar'
 import { Composer } from './components/Composer'
@@ -47,17 +47,11 @@ export function ChatPage() {
   const deleteSession = useChatStore((s) => s.deleteSession)
   const loadSessions = useChatStore((s) => s.loadSessions)
 
-  // Agent 列表（从 agentStore 获取）
+  // Agent 列表（从 agentStore 获取;初始加载由 App 级 bootstrap 负责,见 App.tsx）
   const agents = useAgentStore((s) => s.agents)
-  const fetchAgents = useAgentStore((s) => s.fetchAgents)
 
   // 文件上传（选择/读取/移除已上传文件）
   const { uploadedFiles, setUploadedFiles, handleUpload, removeFile } = useFileUpload()
-
-  // 加载 agent 列表时自动选中第一个可用 agent（如教育参谋）
-  useEffect(() => {
-    fetchAgents()
-  }, [fetchAgents])
 
   useEffect(() => {
     const enabledAgents = agents.filter((a) => a.enabled)
@@ -149,7 +143,7 @@ export function ChatPage() {
       role: 'user',
       content:
         uploadedFiles.length > 0
-          ? `${text}\n\n[已附加 ${uploadedFiles.length} 个文件: ${uploadedFiles.map((f) => f.name).join(', ')}]`
+          ? `${text}\n\n[${t('page.chat.input.attachPrefix', '已附加')} ${uploadedFiles.length} ${t('page.chat.input.attachUnit', '个文件')}: ${uploadedFiles.map((f) => f.name).join(', ')}]`
           : text,
       timestamp: Date.now(),
     })
@@ -253,8 +247,8 @@ export function ChatPage() {
           onKeyDown={handleKeyDown}
           placeholder={
             canSend
-              ? `向 ${enabledAgents.find((a) => a.id === selectedAgentId)?.name ?? 'Agent'} 发送指令... (Enter 发送)`
-              : '正在加载...'
+              ? `${t('page.chat.input.sendTo', '向')} ${enabledAgents.find((a) => a.id === selectedAgentId)?.name ?? 'Agent'} ${t('page.chat.input.sendSuffix', '发送指令... (Enter 发送)')}`
+              : t('page.chat.input.loading', '正在加载...')
           }
           isStreaming={isStreaming}
           canSend={canSend}

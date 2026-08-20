@@ -31,7 +31,7 @@ vi.mock('electron', () => ({
   },
 }))
 
-const { McpConfigStore } = await import('../../src/main/services/mcp-config-store')
+const { McpConfigStore } = await import('../../src/main/services/mcp-management/config-store')
 
 const userYaml = path.join(tmpDir, 'userData', 'mcp.user.yaml')
 

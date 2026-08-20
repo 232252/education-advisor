@@ -11,7 +11,7 @@
 
 import type { AgentListItem } from '@shared/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAgentStore } from '../agentStore'
+import { useAgentStore } from '../agent/store'
 
 // --- 桩：模拟 window.api.agent.onStatusUpdate 的多订阅器容器 ---
 // 真实 IPC 通道行为：

@@ -11,7 +11,7 @@ import {
   EXAM_TYPE_LABEL,
   getCurrentSemester,
   sortByDateDesc,
-} from '../../../../src/renderer/pages/Academics/academics-shared'
+} from '../../../../src/renderer/lib/academics'
 import {
   DEFAULT_EXAM_TYPES,
   DEFAULT_SUBJECTS,

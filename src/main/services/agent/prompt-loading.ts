@@ -44,6 +44,15 @@ export function saveSoul(agentsDir: string, id: string, content: string): { succ
   return writePromptFile(agentsDir, id, 'SOUL.md', content)
 }
 
+/**
+ * 读取全角色公共规则(agents/_shared/rules.md),由 execution.ts 统一注入
+ * system prompt,消除 18 份 AGENTS.md 中逐字复制的公共段。
+ */
+export function loadSharedRules(agentsDir: string): string {
+  const filePath = path.join(agentsDir, '_shared', 'rules.md')
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : ''
+}
+
 export function loadRules(agentsDir: string, id: string): string {
   return readPromptFile(agentsDir, id, 'AGENTS.md')
 }

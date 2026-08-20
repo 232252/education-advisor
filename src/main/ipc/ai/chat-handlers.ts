@@ -7,7 +7,7 @@ import * as IPC from '@shared/ipc-channels'
 import type { StreamEvent } from '@shared/types'
 import { type BrowserWindow, ipcMain } from 'electron'
 import { piAIService } from '../../services/pi-ai-service'
-import { chatState } from './chat-state'
+import { chatState } from './state'
 
 export function registerAIChatHandlers(win: BrowserWindow): void {
   // ----- 流式对话 -----

@@ -5,11 +5,11 @@
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
-import type { AddEventParams } from '@shared/types'
+import type { AddEventParams, EAARangeData } from '@shared/types'
 import { ipcMain } from 'electron'
 import { eaaBridge } from '../../services/eaa-bridge'
-import { sanitizeFreeText, sanitizeName, tokenizeQuery } from '../eaa-sanitize'
-import { buildAddEventArgs, buildRangeArgs } from './commands'
+import { sanitizeFreeText, sanitizeName, tokenizeQuery } from '../../utils/sanitize'
+import { buildAddEventArgs, buildRangeArgs } from './params'
 
 export interface EventHandlersContext {
   /** 写操作完成后清空缓存(由 eaa-handlers.ts 提供) */
@@ -113,7 +113,20 @@ export function registerEventHandlers({ invalidateStudentsCache }: EventHandlers
       if (!built.ok) {
         return { success: false, error: built.error, stderr: built.error, exitCode: -1 }
       }
-      return await eaaBridge.execute({ command: 'range', args: built.args })
+      // M10: 有效 limit 与 buildRangeArgs 的截断逻辑一致;未传 limit 时取 Rust CLI 默认 1000
+      const effectiveLimit =
+        limit !== undefined && limit > 0 ? Math.min(1000, Math.floor(limit)) : 1000
+      const result = await eaaBridge.execute<EAARangeData>({ command: 'range', args: built.args })
+      // M10: 截断告警 — events 达到有效 limit 时附加 truncated: true,前端据此提示缩小日期范围
+      if (
+        result.success &&
+        result.data &&
+        Array.isArray(result.data.events) &&
+        result.data.events.length >= effectiveLimit
+      ) {
+        result.data.truncated = true
+      }
+      return result
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[IPC] eaa:range failed:', msg)

@@ -17,7 +17,7 @@ import {
   filterStudentNamesByClass,
   filterStudents,
   sortByDateAsc,
-} from '../../../../src/renderer/pages/Academics/lib/academics-metrics'
+} from '../../../../src/renderer/lib/academics'
 
 // ---------- 数据工厂 ----------
 

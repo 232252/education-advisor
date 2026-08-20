@@ -62,9 +62,7 @@
 - 缓存数据：`/data_archive/database/`
 
 ## 数据铁律
-- **所有数据读写必须通过 `eaa` CLI**，禁止直接操作 JSON 文件
-- 操行分查询：`eaa score <姓名>`
-- 事件查询：`eaa history <姓名>`、`eaa search <关键词>`
-- 数据校验：`eaa validate`、`eaa stats`
-- 新增/撤销事件：`eaa add`、`eaa revert`
-- 详见 `docs/CLI_REFERENCE.md` 和 `docs/SECURITY.md`
+- 操行数据一律通过系统提供的 EAA 工具读写，禁止直接操作数据文件
+- 操行分查询：`eaa_score`
+- 事件查询：`eaa_history`、`eaa_search`
+- 统计概览：`eaa_stats`、`eaa_summary`

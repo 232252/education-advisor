@@ -8,20 +8,23 @@
 import type { EAAEventRecord, ExamDef, GradeRecord } from '@shared/types'
 import { AlertTriangle, BookOpen, RotateCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button } from '../../../components/Button'
 import { EmptyState } from '../../../components/EmptyState'
-import { getAPI } from '../../../lib/ipc-client'
-import { btnStyle } from '../../../lib/ui-utils'
-import { ExamCompareCard } from '../components/academics/ExamCompareCard'
-import { ExamGradeCards } from '../components/academics/ExamGradeCards'
-import { SubjectAnalysisCard } from '../components/academics/SubjectAnalysisCard'
-import { TrendChart } from '../components/academics/TrendChart'
+import { CardSkeleton } from '../../../components/Skeleton'
+import { t } from '../../../i18n'
 import {
   analyzeSubjects,
   buildComparison,
   buildTrendData,
+  filterExamsWithGrades,
   groupGradesByExam,
-  sortExamsWithGrades,
-} from '../lib/academics-metrics'
+} from '../../../lib/academics'
+import { getAPI } from '../../../lib/ipc-client'
+import { toast } from '../../../stores/toastStore'
+import { ExamCompareCard } from '../components/academics/ExamCompareCard'
+import { ExamGradeCards } from '../components/academics/ExamGradeCards'
+import { SubjectAnalysisCard } from '../components/academics/SubjectAnalysisCard'
+import { TrendChart } from '../components/academics/TrendChart'
 
 export function AcademicsTab({
   studentName,
@@ -56,8 +59,8 @@ export function AcademicsTab({
         setExams([])
         errors.push(
           examRes.status === 'rejected'
-            ? `考试列表加载失败: ${String(examRes.reason)}`
-            : `考试列表加载失败: ${examRes.value.error ?? '未知错误'}`,
+            ? `${t('page.students.academics.examListLoadFailed', '考试列表加载失败')}: ${String(examRes.reason)}`
+            : `${t('page.students.academics.examListLoadFailed', '考试列表加载失败')}: ${examRes.value.error ?? t('error.unknown', '未知错误')}`,
         )
       }
       if (gradeRes.status === 'fulfilled' && gradeRes.value.success && gradeRes.value.data) {
@@ -66,8 +69,8 @@ export function AcademicsTab({
         setGrades([])
         errors.push(
           gradeRes.status === 'rejected'
-            ? `成绩加载失败: ${String(gradeRes.reason)}`
-            : `成绩加载失败: ${gradeRes.value.error ?? '未知错误'}`,
+            ? `${t('page.students.academics.gradesLoadFailed', '成绩加载失败')}: ${String(gradeRes.reason)}`
+            : `${t('page.students.academics.gradesLoadFailed', '成绩加载失败')}: ${gradeRes.value.error ?? t('error.unknown', '未知错误')}`,
         )
       }
       if (errors.length > 0) {
@@ -87,7 +90,7 @@ export function AcademicsTab({
   }, [loadData])
 
   // 按日期升序排列的考试 (有成绩的)
-  const sortedExams = useMemo(() => sortExamsWithGrades(exams, grades), [exams, grades])
+  const sortedExams = useMemo(() => filterExamsWithGrades(exams, grades), [exams, grades])
 
   // 成绩按考试分组: examId → GradeRecord[]
   const gradesByExam = useMemo(() => groupGradesByExam(grades), [grades])
@@ -116,6 +119,10 @@ export function AcademicsTab({
       .eaa.range(start, end, 1000)
       .then((res) => {
         if (!cancelled && res.success && res.data) {
+          // M10: range 结果达上限时提醒缩小日期范围
+          if (res.data.truncated) {
+            toast.warning(t('toast.eaa.rangeTruncated'))
+          }
           setConductEvents(res.data.events ?? [])
         } else if (!cancelled) {
           setConductEvents(null)
@@ -146,8 +153,9 @@ export function AcademicsTab({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-sm text-gray-400">
-        加载学业数据...
+      <div className="space-y-4">
+        <CardSkeleton />
+        <CardSkeleton />
       </div>
     )
   }
@@ -156,13 +164,12 @@ export function AcademicsTab({
     return (
       <EmptyState
         icon={<AlertTriangle className="h-6 w-6" />}
-        title="学业数据加载失败"
-        description={`${loadError} — 数据可能存在但未能读取,请重试;若持续失败请检查数据目录或查看日志`}
+        title={t('page.students.academics.loadFailed', '学业数据加载失败')}
+        description={`${loadError} — ${t('page.students.academics.loadFailedHint', '数据可能存在但未能读取,请重试;若持续失败请检查数据目录或查看日志')}`}
         action={
-          <button type="button" onClick={loadData} className={btnStyle('primary')}>
-            <RotateCw size={14} aria-hidden />
-            重试
-          </button>
+          <Button onClick={loadData} icon={<RotateCw size={14} aria-hidden />}>
+            {t('common.retry', '重试')}
+          </Button>
         }
       />
     )
@@ -172,8 +179,11 @@ export function AcademicsTab({
     return (
       <EmptyState
         icon={<BookOpen className="h-6 w-6" />}
-        title="暂无学业成绩"
-        description="请到「学业」页面录入考试成绩,数据将自动同步至此"
+        title={t('page.students.academics.empty', '暂无学业成绩')}
+        description={t(
+          'page.students.academics.emptyHint',
+          '请到「学业」页面录入考试成绩,数据将自动同步至此',
+        )}
       />
     )
   }
@@ -181,9 +191,12 @@ export function AcademicsTab({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">学业成绩</h4>
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {t('page.students.academics.title', '学业成绩')}
+        </h4>
         <span className="text-xs text-gray-400 dark:text-gray-500">
-          {grades.length} 条成绩 · {sortedExams.length} 场考试
+          {grades.length} {t('page.students.academics.gradeCount', '条成绩')} · {sortedExams.length}{' '}
+          {t('page.students.academics.examCount', '场考试')}
         </span>
       </div>
 

@@ -41,6 +41,45 @@ export function computeAdaptiveReserve(reserveTokens: number, contextWindow: num
 }
 
 /**
+ * M16 消重: 单条消息的字符数统计(text/thinking 原长 + image≈4800 + toolCall 序列化长度)。
+ * 此前 evaluateCompaction 的兜底估算与 compactAgentMessages 的 estimateOne
+ * 各自手写同一套规则,agent/execution.ts 的 quickChars 预检查是第三份变体——
+ * 现在三处共用本函数,规则升级(如调整 image 折算)只改一处。
+ */
+export function estimateMessageChars(m: AgentMessage | undefined | null): number {
+  if (!m) return 0
+  const content = (m as { content?: unknown }).content
+  let chars = 0
+  if (typeof content === 'string') return content.length
+  if (Array.isArray(content)) {
+    for (const raw of content) {
+      const b = raw as {
+        type?: string
+        text?: string
+        thinking?: string
+        name?: string
+        arguments?: unknown
+      }
+      if (b.type === 'text' && b.text) chars += b.text.length
+      else if (b.type === 'thinking' && b.thinking) chars += b.thinking.length
+      else if (b.type === 'image') chars += 4800
+      else if (b.type === 'toolCall')
+        chars += (b.name?.length ?? 0) + JSON.stringify(b.arguments ?? {}).length
+    }
+    return chars
+  }
+  if (typeof content === 'object' && content !== null) {
+    // bashExecution 等其他类型:粗略统计其序列化长度
+    try {
+      return JSON.stringify(content).length
+    } catch {
+      return 0
+    }
+  }
+  return 0
+}
+
+/**
  * 评估当前消息列表是否需要压缩
  * - 优先用 SDK 的 token 估算(基于 provider usage 数据,可能为 0)
  * - 兜底:用消息字符总数除以 4(SDK 默认字符/token 比例)作为估算
@@ -68,33 +107,10 @@ export function evaluateCompaction(
     console.warn('[Compaction] SDK estimateContextTokens failed, falling back:', err)
   }
   // 兜底估算: 字符总数 / 4 (1 token ≈ 4 字符, 跟 SDK 内部策略一致)
+  // (M16: 统计规则收敛到 estimateMessageChars,R132 null 跳过语义保留在函数内)
   let charEstimate = 0
   for (const m of messages) {
-    if (!m) continue // R132 修复: 跳过 undefined/null 元素
-    const content = (m as { content?: unknown }).content
-    if (typeof content === 'string') charEstimate += content.length
-    else if (Array.isArray(content)) {
-      for (const b of content) {
-        const r = b as {
-          type?: string
-          text?: string
-          thinking?: string
-          name?: string
-          arguments?: unknown
-        }
-        if (r.type === 'text' && r.text) charEstimate += r.text.length
-        else if (r.type === 'thinking' && r.thinking) charEstimate += r.thinking.length
-        else if (r.type === 'image') charEstimate += 4800
-        else if (r.type === 'toolCall')
-          charEstimate += (r.name?.length ?? 0) + JSON.stringify(r.arguments ?? {}).length
-      }
-    } else if (typeof content === 'object' && content !== null) {
-      try {
-        charEstimate += JSON.stringify(content).length
-      } catch {
-        /* ignore */
-      }
-    }
+    charEstimate += estimateMessageChars(m)
   }
   const charTokens = Math.ceil(charEstimate / 4)
   // 取较大值(SDK 估算在没 usage 时是 0,必须用 char 兜底)
@@ -194,39 +210,8 @@ export async function compactAgentMessages(
   let recentTokens = 0
   let splitIndex = cleanMessages.length
   // 简化版 estimateTokens (与 SDK 内部策略一致:字符数 / 4)
-  // 注意:AgentMessage 是联合类型,部分成员(如 BashExecutionMessage)没有 content 字段,
-  // 这里用宽松收窄,只处理有 content 字段的成员
-  const estimateOne = (m: AgentMessage): number => {
-    if (!m) return 0 // R132 修复: 跳过 undefined/null 元素
-    const content = (m as { content?: unknown }).content
-    let chars = 0
-    if (typeof content === 'string') {
-      chars = content.length
-    } else if (Array.isArray(content)) {
-      for (const raw of content) {
-        const b = raw as {
-          type?: string
-          text?: string
-          thinking?: string
-          name?: string
-          arguments?: unknown
-        }
-        if (b.type === 'text' && b.text) chars += b.text.length
-        else if (b.type === 'thinking' && b.thinking) chars += b.thinking.length
-        else if (b.type === 'image') chars += 4800
-        else if (b.type === 'toolCall')
-          chars += (b.name?.length ?? 0) + JSON.stringify(b.arguments ?? {}).length
-      }
-    } else if (typeof content === 'object' && content !== null) {
-      // bashExecution 等其他类型:粗略统计其序列化长度
-      try {
-        chars = JSON.stringify(content).length
-      } catch {
-        chars = 0
-      }
-    }
-    return Math.ceil(chars / 4)
-  }
+  // (M16: 统计规则收敛到 estimateMessageChars,null 跳过语义保留在函数内)
+  const estimateOne = (m: AgentMessage): number => Math.ceil(estimateMessageChars(m) / 4)
 
   for (let i = cleanMessages.length - 1; i >= 0; i--) {
     const t = estimateOne(cleanMessages[i])

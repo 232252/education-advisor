@@ -13,8 +13,8 @@
 
 import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
 import type { McpTool } from '@shared/types'
+import type { McpCallResult } from '../../mcp/types'
 import { mcpService } from '../../mcp-service'
-import type { McpCallResult } from '../../mcp-types'
 import { sanitizeMcpArgs } from './sanitize'
 import { type JsonSchema, jsonSchemaToTypebox } from './schema'
 

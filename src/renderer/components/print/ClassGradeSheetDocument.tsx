@@ -6,7 +6,7 @@
 
 import type { ExamDef, SubjectDef } from '@shared/types'
 import { useT } from '../../i18n'
-import { EXAM_TYPE_LABEL } from '../../pages/Academics/academics-shared'
+import { EXAM_TYPE_LABEL } from '../../lib/academics'
 import type { GradeSheetRow, SubjectStat } from './grade-sheet'
 
 function StatBox({ label, value }: { label: string; value: string }) {

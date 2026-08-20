@@ -6,7 +6,7 @@
 //   - chat-handlers.ts          流式对话 + 中止
 //   - persistence-handlers.ts   对话持久化(SQLite)
 //   - custom-model-handlers.ts  自定义模型管理
-//   - chat-state.ts             流式会话计数(chat/abort 共享)
+//   - state.ts                  流式会话计数(chat/abort 共享,M18 由 chat-state.ts 更名)
 // =============================================================
 
 import type { BrowserWindow } from 'electron'

@@ -49,6 +49,10 @@ vi.mock('../../src/main/services/update-service', () => ({
   updateService: {
     checkForUpdates: vi.fn(),
     showUpdateDialog: vi.fn(),
+    // M31: 下载/安装层新方法 (sys-handlers 注册进度推送 + 新 IPC handler)
+    setProgressListener: vi.fn(),
+    downloadUpdate: vi.fn(),
+    installUpdate: vi.fn(),
   },
 }))
 

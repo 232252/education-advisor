@@ -6,12 +6,7 @@
 // =============================================================
 
 import type { McpTool } from '@shared/types'
-import {
-  CALL_TIMEOUT_MS,
-  MAX_RESPONSE_SIZE,
-  type MCPClient,
-  type McpCallResult,
-} from '../mcp-types'
+import { CALL_TIMEOUT_MS, MAX_RESPONSE_SIZE, type MCPClient, type McpCallResult } from './types'
 
 /**
  * 发送 JSON-RPC 请求(stdio/websocket)

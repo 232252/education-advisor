@@ -90,6 +90,29 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
   --prose-pre-bg: #f1f5f9;
   --prose-pre-border: #e2e8f0;
+  /* Toast 通知语义色 —— 4 类型 × (背景/文字/边框/图标底色),值迁自
+     ToastContainer.css 亮色值(视觉零变化);暗色值见 .dark。
+     蓝/绿/红/黄为通知独立语义色,不复用通用 surface 变量。 */
+  --toast-info-bg: #eff6ff;
+  --toast-info-text: #1e40af;
+  --toast-info-border: #bfdbfe;
+  --toast-info-icon-bg: #3b82f6;
+  --toast-success-bg: #f0fdf4;
+  --toast-success-text: #166534;
+  --toast-success-border: #bbf7d0;
+  --toast-success-icon-bg: #22c55e;
+  --toast-error-bg: #fef2f2;
+  --toast-error-text: #991b1b;
+  --toast-error-border: #fecaca;
+  --toast-error-icon-bg: #ef4444;
+  --toast-warning-bg: #fffbeb;
+  --toast-warning-text: #92400e;
+  --toast-warning-border: #fde68a;
+  --toast-warning-icon-bg: #f59e0b;
+  /* Toast 图标前景色(四类型通用,明暗同值,故 .dark 不重定义) */
+  --toast-icon-color: #fff;
+  /* Toast 阴影(暗色更重,见 .dark) */
+  --toast-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 .dark {
   --bg-primary: #0f1117;
@@ -116,6 +139,25 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
   --prose-pre-bg: #1a1e28;
   --prose-pre-border: rgba(255, 255, 255, 0.08);
+  /* Toast 语义色 —— 暗色:主题色低透明底 + 浅色文字;
+     icon 底色沿用亮色值(原实现暗色未覆盖,视觉零变化)。 */
+  --toast-info-bg: rgba(59, 130, 246, 0.12);
+  --toast-info-text: #93c5fd;
+  --toast-info-border: rgba(59, 130, 246, 0.2);
+  --toast-info-icon-bg: #3b82f6;
+  --toast-success-bg: rgba(34, 197, 94, 0.12);
+  --toast-success-text: #86efac;
+  --toast-success-border: rgba(34, 197, 94, 0.2);
+  --toast-success-icon-bg: #22c55e;
+  --toast-error-bg: rgba(239, 68, 68, 0.12);
+  --toast-error-text: #fca5a5;
+  --toast-error-border: rgba(239, 68, 68, 0.2);
+  --toast-error-icon-bg: #ef4444;
+  --toast-warning-bg: rgba(245, 158, 11, 0.12);
+  --toast-warning-text: #fcd34d;
+  --toast-warning-border: rgba(245, 158, 11, 0.2);
+  --toast-warning-icon-bg: #f59e0b;
+  --toast-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 /* 自定义滚动条 */

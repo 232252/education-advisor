@@ -3,9 +3,10 @@
 // =============================================================
 
 import type { AgentListItem } from '@shared/types'
-import { Bot, Loader2 } from 'lucide-react'
+import { Bot } from 'lucide-react'
 import { EmptyState } from '../../../components/EmptyState'
 import { PageHeader } from '../../../components/PageHeader'
+import { Skeleton } from '../../../components/Skeleton'
 import { useT } from '../../../i18n'
 import { btnStyle, CARD_INTERACTIVE } from '../../../lib/ui-utils'
 import { getAgentStatusLabel, getModelTierLabel } from '../lib/agent-display'
@@ -35,7 +36,12 @@ export function AgentListSidebar({
         title={t('page.agents.title')}
         size="md"
         actions={
-          <button type="button" onClick={onRefresh} aria-label="刷新" className={btnStyle('ghost')}>
+          <button
+            type="button"
+            onClick={onRefresh}
+            aria-label={t('common.refresh', '刷新')}
+            className={btnStyle('ghost')}
+          >
             {t('page.agents.refresh')}
           </button>
         }
@@ -43,10 +49,21 @@ export function AgentListSidebar({
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
         {loading ? (
-          <EmptyState
-            icon={<Loader2 className="h-7 w-7 animate-spin" />}
-            title={t('common.loading')}
-          />
+          <div className="space-y-2.5">
+            {['sk-1', 'sk-2', 'sk-3', 'sk-4'].map((sk) => (
+              <div
+                key={sk}
+                className="px-3.5 py-3 rounded-xl border border-gray-200/70 dark:border-white/[0.06]"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Skeleton className="w-8 h-8 rounded-lg flex-shrink-0" />
+                  <Skeleton className="h-4 flex-1" />
+                  <Skeleton className="w-9 h-5 rounded-full flex-shrink-0" />
+                </div>
+                <Skeleton className="h-3 w-2/3 mt-2 ml-[42px]" />
+              </div>
+            ))}
+          </div>
         ) : agents.length === 0 ? (
           <EmptyState
             icon={<Bot size={28} />}
@@ -94,7 +111,11 @@ export function AgentListSidebar({
                   type="button"
                   role="switch"
                   aria-checked={agent.enabled}
-                  aria-label={agent.enabled ? `停用 ${agent.name}` : `启用 ${agent.name}`}
+                  aria-label={
+                    agent.enabled
+                      ? `${t('page.agents.list.disable', '停用')} ${agent.name}`
+                      : `${t('page.agents.list.enable', '启用')} ${agent.name}`
+                  }
                   onClick={(e) => {
                     e.stopPropagation()
                     onToggle(agent.id, !agent.enabled)

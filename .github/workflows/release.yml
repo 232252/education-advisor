@@ -135,11 +135,16 @@ jobs:
           name: installer-${{ matrix.target }}-${{ matrix.arch }}
           # electron-builder.yml 将输出目录设为 release-v*（如 release-v11），
           # 上传路径需与之匹配；缺失某种平台文件类型时不应中断工作流。
+          # M31 自动更新: latest*.yml 是 electron-updater 的更新清单
+          # (electron-builder 打 NSIS/AppImage 目标时自动生成,含安装包真实
+          # sha512);*.blockmap 供差量下载。缺失时自动更新完全失效。
           path: |
             release-v*/*.exe
             release-v*/*.dmg
             release-v*/*.AppImage
             release-v*/*.deb
+            release-v*/latest*.yml
+            release-v*/*.blockmap
           retention-days: 14
           if-no-files-found: warn
 
@@ -193,11 +198,15 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           generate_release_notes: true
+          # M31 自动更新: 客户端 electron-updater 依据 latest*.yml 发现新版本
+          # 并校验 sha512;blockmap 用于差量下载。必须作为 Release 资产发布。
           files: |
             artifacts/**/*.exe
             artifacts/**/*.dmg
             artifacts/**/*.AppImage
             artifacts/**/*.deb
+            artifacts/**/latest*.yml
+            artifacts/**/*.blockmap
             artifacts/SHA256SUMS
             artifacts/SHA256SUMS.sig
             artifacts/SHA256SUMS.pem
