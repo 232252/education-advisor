@@ -7,7 +7,8 @@ import type { ExamType, SubjectDef } from '@shared/types'
 import { Check } from 'lucide-react'
 import { Button } from '../../../../components/Button'
 import { Card } from '../../../../components/Card'
-import { btnStyle, cn, INPUT_BASE } from '../../../../lib/ui-utils'
+import { useT } from '../../../../i18n'
+import { cn, INPUT_BASE } from '../../../../lib/ui-utils'
 
 interface CreateExamFormCardProps {
   subjects: SubjectDef[]
@@ -52,24 +53,31 @@ export function CreateExamFormCard({
   onCreate,
   onCancel,
 }: CreateExamFormCardProps) {
+  const { t } = useT()
+
   return (
     <Card padding="md">
-      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-4">新建考试</h4>
+      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-4">
+        {t('page.academics.exams.createTitle', '新建考试')}
+      </h4>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div>
           <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            考试名称 <span className="text-red-500">*</span>
+            {t('page.academics.exams.nameLabel', '考试名称')}{' '}
+            <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
             value={formName}
             onChange={(e) => onFormNameChange(e.target.value)}
-            placeholder="如: 2025年期中考试"
+            placeholder={t('page.academics.exams.namePlaceholder', '如: 2025年期中考试')}
             className={cn(INPUT_BASE, 'w-full')}
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">考试类型</label>
+          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+            {t('page.academics.exams.typeLabel', '考试类型')}
+          </label>
           <select
             value={formType}
             onChange={(e) => onFormTypeChange(e.target.value as ExamType)}
@@ -77,13 +85,15 @@ export function CreateExamFormCard({
           >
             {examTypes.map((et) => (
               <option key={et.value} value={et.value}>
-                {et.label}
+                {t(`page.academics.examType.${et.value}`, et.label)}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">考试日期</label>
+          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+            {t('page.academics.exams.dateLabel', '考试日期')}
+          </label>
           <input
             type="date"
             value={formDate}
@@ -92,24 +102,26 @@ export function CreateExamFormCard({
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">学期</label>
+          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+            {t('print.gradeSheet.semester', '学期')}
+          </label>
           <input
             type="text"
             value={formSemester}
             onChange={(e) => onFormSemesterChange(e.target.value)}
-            placeholder="如: 2025-2026-1"
+            placeholder={t('page.academics.exams.semesterPlaceholder', '如: 2025-2026-1')}
             className={cn(INPUT_BASE, 'w-full')}
           />
         </div>
         <div className="md:col-span-2">
           <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            考试范围 (可选)
+            {t('page.academics.exams.scopeLabel', '考试范围')} ({t('common.optional', '可选')})
           </label>
           <input
             type="text"
             value={formScope}
             onChange={(e) => onFormScopeChange(e.target.value)}
-            placeholder="如: 第一单元 ~ 第三单元"
+            placeholder={t('page.academics.exams.scopePlaceholder', '如: 第一单元 ~ 第三单元')}
             className={cn(INPUT_BASE, 'w-full')}
           />
         </div>
@@ -119,8 +131,11 @@ export function CreateExamFormCard({
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs text-gray-500 dark:text-gray-400">
-            考试科目 <span className="text-red-500">*</span>
-            <span className="text-gray-400 ml-1">({formSubjects.size} 已选)</span>
+            {t('page.academics.exams.subjectsLabel', '考试科目')}{' '}
+            <span className="text-red-500">*</span>
+            <span className="text-gray-400 ml-1">
+              ({formSubjects.size} {t('page.academics.exams.selectedCount', '已选')})
+            </span>
           </label>
           <div className="flex gap-2">
             <button
@@ -128,7 +143,7 @@ export function CreateExamFormCard({
               onClick={onSelectAllSubjects}
               className="text-xs text-blue-500 hover:text-blue-600"
             >
-              全选
+              {t('page.academics.exams.selectAll', '全选')}
             </button>
             <span className="text-gray-300 dark:text-gray-600">|</span>
             <button
@@ -136,23 +151,20 @@ export function CreateExamFormCard({
               onClick={onClearSubjects}
               className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             >
-              清空
+              {t('page.academics.exams.clear', '清空')}
             </button>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {subjects.map((sub) => (
-            <button
-              type="button"
+            <Button
               key={sub.id}
+              variant={formSubjects.has(sub.id) ? 'primary' : 'secondary'}
+              className="text-xs"
               onClick={() => onToggleSubject(sub.id)}
-              className={cn(
-                btnStyle(formSubjects.has(sub.id) ? 'primary' : 'secondary'),
-                'text-xs',
-              )}
             >
               {sub.name}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -165,14 +177,16 @@ export function CreateExamFormCard({
           icon={!creating ? <Check className="h-4 w-4" /> : undefined}
           onClick={onCreate}
         >
-          {creating ? '创建中...' : '确认创建'}
+          {creating
+            ? t('page.academics.exams.creating', '创建中...')
+            : t('page.academics.exams.confirmCreate', '确认创建')}
         </Button>
         <button
           type="button"
           onClick={onCancel}
           className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-sm px-3"
         >
-          取消
+          {t('common.cancel', '取消')}
         </button>
       </div>
     </Card>

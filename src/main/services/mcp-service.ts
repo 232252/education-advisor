@@ -19,15 +19,15 @@
 // 安全屏障复用:
 //   - 路径参数走 validateFilePath()(14 个敏感路径黑名单)
 //   - 字符串参数走 sanitizeArg()(shell 元字符过滤)
-//   详见 mcp-tools.ts
+//   详见 mcp-management/tools/(M19: services/mcp-tools.ts 已删除)
 // =============================================================
 
 import type { McpServerConfig, McpServerStatus, McpTool } from '@shared/types'
+import type { McpCallResult } from './mcp/types'
 import { createMcpServiceContext, type McpServiceContext } from './mcp-management/context'
 import * as lifecycle from './mcp-management/lifecycle'
 import * as serverCrud from './mcp-management/server-crud'
 import * as toolOperations from './mcp-management/tool-operations'
-import type { McpCallResult } from './mcp-types'
 
 class McpService {
   private ctx: McpServiceContext = createMcpServiceContext()

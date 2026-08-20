@@ -30,6 +30,7 @@ import { privacyApi } from './api/privacy'
 import { profileApi } from './api/profile'
 import { settingsApi } from './api/settings'
 import { skillApi } from './api/skill'
+import { studentsApi } from './api/students'
 import { sysApi } from './api/sys'
 
 // =============================================================
@@ -74,6 +75,9 @@ contextBridge.exposeInMainWorld('api', {
 
   // ----- 班级管理（本地：存档/删除） -----
   class: classApi,
+
+  // ----- 学生 Excel 批量导入 -----
+  students: studentsApi,
 
   // ----- 对话持久化 -----
   chat: chatApi,

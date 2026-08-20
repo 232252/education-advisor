@@ -8,11 +8,15 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   dispatchEvent: vi.fn(),
+  on: vi.fn(),
+  removeListener: vi.fn(),
 }))
 
 vi.mock('electron', () => ({
   ipcRenderer: {
     invoke: mocks.invoke,
+    on: mocks.on,
+    removeListener: mocks.removeListener,
   },
 }))
 
@@ -45,6 +49,8 @@ describe('settingsApi / sysApi / skillApi / profileApi / privacyApi', () => {
     mocks.invoke.mockReset()
     mocks.invoke.mockResolvedValue(undefined)
     mocks.dispatchEvent.mockReset()
+    mocks.on.mockReset()
+    mocks.removeListener.mockReset()
   })
 
   // ===== settings =====
@@ -96,6 +102,34 @@ describe('settingsApi / sysApi / skillApi / profileApi / privacyApi', () => {
 
     void sysApi.readFile('C:/tmp/a.txt')
     expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_SYS_READ_FILE, 'C:/tmp/a.txt')
+  })
+
+  // ===== sys (M31 自动更新) =====
+  it('sys.downloadUpdate / installUpdate 走对应 IPC 通道', async () => {
+    void sysApi.downloadUpdate()
+    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_SYS_DOWNLOAD_UPDATE)
+
+    void sysApi.installUpdate()
+    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_SYS_INSTALL_UPDATE)
+  })
+
+  it('sys.onUpdateProgress 订阅/退订 update-progress 事件', () => {
+    mocks.on.mockReset()
+    mocks.removeListener.mockReset()
+    const cb = vi.fn()
+    const unsub = sysApi.onUpdateProgress(cb)
+
+    const [channel, listener] = mocks.on.mock.calls[0] as [
+      string,
+      (e: unknown, info: unknown) => void,
+    ]
+    expect(channel).toBe(IPC.IPC_SYS_UPDATE_PROGRESS)
+    // 事件到达时回调收到载荷
+    listener({}, { status: 'downloading', percent: 50 })
+    expect(cb).toHaveBeenCalledWith({ status: 'downloading', percent: 50 })
+
+    unsub()
+    expect(mocks.removeListener).toHaveBeenCalledWith(IPC.IPC_SYS_UPDATE_PROGRESS, listener)
   })
 
   // ===== skill =====

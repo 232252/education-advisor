@@ -69,7 +69,7 @@ vi.mock('../../src/main/services/eaa-bridge', () => ({
   eaaBridge: { execute: vi.fn() },
   getErrorMessage: vi.fn((r: { stderr?: string }) => r?.stderr ?? 'error'),
 }))
-vi.mock('../../src/main/services/feishu-command-router', () => ({
+vi.mock('../../src/main/services/feishu-bot/command-router', () => ({
   createDefaultRouter: () => ({ dispatch: mocks.dispatchMock }),
   CommandContext: {},
 }))

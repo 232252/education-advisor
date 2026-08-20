@@ -19,10 +19,10 @@ import type {
 } from '@shared/types'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '../../../i18n'
+import { getCurrentSemester, sortByDateDesc } from '../../../lib/academics'
 import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
-import { useChatStore } from '../../../stores/chatStore'
+import { useChatStore } from '../../../stores/chat/store'
 import { toast } from '../../../stores/toastStore'
-import { getCurrentSemester, sortByDateDesc } from '../academics-shared'
 import {
   buildAIGradeSystemPrompt,
   buildAllSaveRecords,
@@ -225,7 +225,9 @@ export function useGradeEntry({
     }
 
     // 3. 自动创建
-    const name = trimmedName || `快速录入 ${new Date().toISOString().slice(0, 10)}`
+    const name =
+      trimmedName ||
+      `${t('page.academics.entry.quickEntryPrefix', '快速录入')} ${new Date().toISOString().slice(0, 10)}`
     try {
       const res = await getAPI().academic.createExam({
         name,
@@ -265,7 +267,7 @@ export function useGradeEntry({
       return
     }
     setAiParsing(true)
-    setAiProgress('AI 解析中...')
+    setAiProgress(t('page.academics.ai.parsing', 'AI 解析中...'))
 
     const studentNames = getActiveStudentNames(students)
     const systemPrompt = buildAIGradeSystemPrompt(studentNames)
@@ -282,29 +284,35 @@ export function useGradeEntry({
         if (!mySessionId || event.sessionId !== mySessionId) return
         if (event.type === 'text_delta' && event.delta) {
           fullText += event.delta
-          setAiProgress(`已接收 ${fullText.length} 字符...`)
+          setAiProgress(
+            `${t('page.academics.ai.received', '已接收')} ${fullText.length} ${t('page.academics.ai.charsUnit', '字符...')}`,
+          )
         } else if (event.type === 'done') {
           streamDone = true
           const result = parseAIGradesText(fullText, studentNames)
           if (result.ok) {
             const newScores = result.scores
             setSingleScores((prev) => ({ ...prev, ...newScores }))
-            setAiProgress(`解析完成: 匹配 ${result.matched} 名学生`)
+            setAiProgress(
+              `${t('page.academics.ai.parseDonePrefix', '解析完成: 匹配')} ${result.matched} ${t('page.academics.ai.studentsUnit', '名学生')}`,
+            )
             toast.success(
               t('page.academics.toast.aiFilled').replace('{count}', String(result.matched)),
             )
           } else if (result.reason === 'format') {
-            setAiProgress('解析失败: AI 返回格式异常')
+            setAiProgress(t('page.academics.ai.parseFormatError', '解析失败: AI 返回格式异常'))
             toast.error(t('page.academics.toast.aiFormatError'))
           } else {
-            setAiProgress('解析失败: JSON 解析错误')
+            setAiProgress(t('page.academics.ai.parseJsonError', '解析失败: JSON 解析错误'))
             toast.error(t('page.academics.toast.aiParseFailed'))
           }
           setAiParsing(false)
         } else if (event.type === 'error') {
           streamDone = true
           setAiParsing(false)
-          setAiProgress(`错误: ${event.message ?? '未知错误'}`)
+          setAiProgress(
+            `${t('page.academics.ai.errorPrefix', '错误: ')}${event.message ?? t('error.unknown', '未知错误')}`,
+          )
           toast.error(
             t('page.academics.toast.aiErrorWithMessage').replace(
               '{message}',
@@ -330,7 +338,9 @@ export function useGradeEntry({
       mySessionId = res.sessionId ?? ''
     } catch (err) {
       setAiParsing(false)
-      setAiProgress(`调用失败: ${err instanceof Error ? err.message : String(err)}`)
+      setAiProgress(
+        `${t('page.academics.ai.callFailedPrefix', '调用失败: ')}${err instanceof Error ? err.message : String(err)}`,
+      )
       toast.error(
         t('page.academics.toast.aiCallFailed').replace(
           '{error}',
@@ -345,7 +355,7 @@ export function useGradeEntry({
         aiStreamTimerRef.current = null
         if (!streamDone) {
           setAiParsing(false)
-          setAiProgress('超时: AI 响应超时')
+          setAiProgress(t('page.academics.ai.timeout', '超时: AI 响应超时'))
         }
         unsub()
         aiStreamUnsubRef.current = null

@@ -334,11 +334,13 @@ describeE2E('用户报告 Bug 验证（数据流层）', () => {
   })
 
   it('Bug 4: 班级加载慢 — listStudents 应有缓存逻辑', async () => {
-    // 验证 eaa-handlers.ts 包含缓存代码
+    // 验证缓存实现文件包含缓存代码
+    // M18: listStudents/ranking handler 与缓存已迁入 eaa/handlers-system.ts
+    // (断言指向语义实现处,而非聚合入口 eaa-handlers.ts)
     const fs = await import('node:fs')
     const path = await import('node:path')
     const content = fs.readFileSync(
-      path.join(__dirname, '..', '..', 'src', 'main', 'ipc', 'eaa-handlers.ts'),
+      path.join(__dirname, '..', '..', 'src', 'main', 'ipc', 'eaa', 'handlers-system.ts'),
       'utf-8',
     )
     expect(content).toContain('studentsCache')

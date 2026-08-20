@@ -3,6 +3,7 @@
 // =============================================================
 
 import type { GradeEntryMode } from '@shared/types'
+import { useT } from '../../../../i18n'
 import { cn } from '../../../../lib/ui-utils'
 
 interface EntryModeBarProps {
@@ -18,9 +19,13 @@ export function EntryModeBar({
   showAIEntry,
   onToggleAIEntry,
 }: EntryModeBarProps) {
+  const { t } = useT()
+
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-xs text-gray-500 dark:text-gray-400">录入模式:</span>
+      <span className="text-xs text-gray-500 dark:text-gray-400">
+        {t('page.academics.entry.modeLabel', '录入模式:')}
+      </span>
       <div className="flex bg-gray-100 dark:bg-surface-tertiary rounded-lg p-0.5">
         <button
           type="button"
@@ -32,7 +37,7 @@ export function EntryModeBar({
               : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300',
           )}
         >
-          📝 单科录入 (科任老师)
+          📝 {t('page.academics.entry.singleSubject', '单科录入 (科任老师)')}
         </button>
         <button
           type="button"
@@ -44,7 +49,7 @@ export function EntryModeBar({
               : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300',
           )}
         >
-          📋 全科录入 (班主任)
+          📋 {t('page.academics.entry.allSubjects', '全科录入 (班主任)')}
         </button>
       </div>
       <button
@@ -56,9 +61,9 @@ export function EntryModeBar({
             ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-purple-300 dark:border-purple-700'
             : 'bg-gray-100 dark:bg-surface-tertiary text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/[0.06] border-transparent',
         )}
-        title="粘贴成绩文本,AI 自动解析并填充"
+        title={t('page.academics.entry.aiToggleTitle', '粘贴成绩文本,AI 自动解析并填充')}
       >
-        🤖 AI 智能录入
+        🤖 {t('page.academics.entry.aiEntry', 'AI 智能录入')}
       </button>
     </div>
   )

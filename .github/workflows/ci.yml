@@ -52,6 +52,14 @@ jobs:
         shell: bash
         run: npm run typecheck
 
+      - name: IPC contract static check
+        shell: bash
+        run: npm run ipc:contract
+
+      - name: Prompt lint
+        shell: bash
+        run: npm run prompt:lint
+
       - name: Doc stats drift check
         shell: bash
         run: node scripts/doc-stats.mjs --check
@@ -219,33 +227,8 @@ jobs:
           category: /language:${{ matrix.language }}
 
   # ----------------------------------------------------------------
-  # Auto-update manifest — runs on tagged releases.
+  # 注: 自动更新清单 (latest*.yml) 不在 CI 生成 —— CI 的 on.push.branches
+  # 过滤器不含 tag 触发,且 CI 不打包安装器。清单由 release.yml 打包时
+  # electron-builder 自动生成(含安装包真实 sha512),并随 Release 资产
+  # 发布 (M31, electron-updater 消费)。
   # ----------------------------------------------------------------
-  auto-update-manifest:
-    name: Generate auto-update manifest
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: quality-gates
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Generate manifest
-        shell: bash
-        run: |
-          # Build the latest.yml / latest-mac.yml / latest-linux.yml
-          # that electron-builder's auto-update expects.
-          node scripts/generate-update-manifest.mjs "${{ github.ref_name }}"
-
-      - name: Upload manifests
-        uses: actions/upload-artifact@v7
-        with:
-          name: update-manifests
-          path: |
-            latest.yml
-            latest-mac.yml
-            latest-linux.yml
-            release-notes.md
-          retention-days: 30

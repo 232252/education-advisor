@@ -3,6 +3,7 @@
 // (详情加载含竞态保护)
 // =============================================================
 
+import { t } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../toastStore'
 import { _flushLiveOutputNow } from './live-output'
@@ -76,7 +77,7 @@ export function createDetailSlice(
         set({ selectedDetail: detail })
       } catch (err) {
         console.error('[AgentStore] Failed to save SOUL:', err)
-        toast.error('保存 SOUL 失败')
+        toast.error(t('toast.agent.saveSoulFailed', '保存 SOUL 失败'))
         throw err
       }
     },
@@ -88,7 +89,7 @@ export function createDetailSlice(
         set({ selectedDetail: detail })
       } catch (err) {
         console.error('[AgentStore] Failed to save rules:', err)
-        toast.error('保存规则失败')
+        toast.error(t('toast.agent.saveRulesFailed', '保存规则失败'))
         throw err
       }
     },

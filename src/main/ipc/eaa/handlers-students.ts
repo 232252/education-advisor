@@ -10,8 +10,8 @@ import type { SetStudentMetaParams } from '@shared/types'
 import { ipcMain } from 'electron'
 import { eaaBridge } from '../../services/eaa-bridge'
 import type { TtlLruCache } from '../../services/eaa-cache'
-import { sanitizeFreeText, sanitizeName } from '../eaa-sanitize'
-import { buildSetStudentMetaArgs } from './commands'
+import { sanitizeFreeText, sanitizeName } from '../../utils/sanitize'
+import { buildSetStudentMetaArgs } from './params'
 
 export interface StudentHandlersContext {
   /** score/history 结果缓存(3s,按学生名缓存) */
@@ -117,7 +117,7 @@ export function registerStudentHandlers({
 
   // ----- set-student-meta: 设置学生属性 -----
   // 注意: 不产生 JSON 输出
-  // 支持 --clear-class-id 标志 (优先级高于 --class-id),参数组装见 eaa/commands.ts
+  // 支持 --clear-class-id 标志 (优先级高于 --class-id),参数组装见 eaa/params.ts
   ipcMain.handle(IPC.IPC_EAA_SET_STUDENT_META, async (_e, params: SetStudentMetaParams) => {
     try {
       const args = buildSetStudentMetaArgs(params)

@@ -20,7 +20,7 @@ export function useFileUpload() {
         properties: ['openFile'],
         filters: [
           {
-            name: '文本/代码/图片',
+            name: t('page.chat.upload.filterName', '文本/代码/图片'),
             extensions: [
               'txt',
               'md',
@@ -52,17 +52,19 @@ export function useFileUpload() {
               'webp',
             ],
           },
-          { name: '所有文件', extensions: ['*'] },
+          { name: t('page.chat.upload.allFiles', '所有文件'), extensions: ['*'] },
         ],
       })) as { canceled: boolean; filePaths: string[] }
       if (result.canceled || result.filePaths.length === 0) return
       const filePath = result.filePaths[0]
       const fileName = filePath.split(/[/\\]/).pop() || filePath
-      toast.info(`正在读取: ${fileName}`)
+      toast.info(`${t('toast.chat.readingFile', '正在读取')}: ${fileName}`)
       // 真实读取文件内容
       const fileResult = await getAPI().sys.readFile(filePath)
       if (!fileResult.success || !fileResult.content) {
-        toast.error(`读取失败: ${fileResult.error || '未知错误'}`)
+        toast.error(
+          `${t('toast.chat.readFailed', '读取失败')}: ${fileResult.error || t('error.unknown', '未知错误')}`,
+        )
         return
       }
       const uploaded: UploadedFile = {
@@ -74,7 +76,7 @@ export function useFileUpload() {
       }
       setUploadedFiles((prev) => [...prev, uploaded])
       toast.success(
-        `已读取: ${uploaded.name} (${(uploaded.size / 1024).toFixed(1)}KB, ${uploaded.mimeType})`,
+        `${t('toast.chat.readSuccess', '已读取')}: ${uploaded.name} (${(uploaded.size / 1024).toFixed(1)}KB, ${uploaded.mimeType})`,
       )
     } catch (err) {
       console.error('[Chat] File upload failed:', err)

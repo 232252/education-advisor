@@ -4,6 +4,7 @@
 // 重构: 领域逻辑拆分到 ./cron/ 子模块,本文件保留 CRUD 与执行编排:
 //   schedule-validation(表达式校验) task-persistence(用户任务+agent schedule)
 //   execution(熔断+日志+结果记录) bitable-sync(飞书同步) scheduler-binding(调度绑定)
+//   task-executor(executeTask 执行流程: 熔断检查/per-task 锁/路由/结果记录)
 // =============================================================
 
 import path from 'node:path'
@@ -11,24 +12,21 @@ import * as IPC from '@shared/ipc-channels'
 import type { AgentExecution, CronLogEntry, CronTask } from '@shared/types'
 import { app, type BrowserWindow } from 'electron'
 import type { ScheduledTask } from 'node-cron'
-import { log } from '../utils/logger'
+import { registerAutoBackupTask } from './cron/auto-backup-task'
+import { executeBitableSyncOnce, registerBitableSyncTask } from './cron/bitable-sync'
 import {
-  executeBitableSyncOnce,
-  registerBitableSyncTask,
-  runBitableSyncExecution,
-} from './cron/bitable-sync'
-import {
-  applyCircuitBreakerSkip,
-  applyTaskError,
-  CIRCUIT_BREAKER_THRESHOLD,
   CircuitBreakerRegistry,
   type CronLogBufferState,
   flushLogBuffer,
   pushLogEntry,
   readCronLogFile,
-  recordAgentRunOutcome,
 } from './cron/execution'
-import { scheduleCronJob, unscheduleCronJob } from './cron/scheduler-binding'
+import {
+  type SchedulerBindingState,
+  scheduleCronJob,
+  unscheduleCronJob,
+} from './cron/scheduler-binding'
+import { type AgentRunnerFn, executeCronTask } from './cron/task-executor'
 import {
   isUserTask,
   persistUserTasksFile,
@@ -65,9 +63,7 @@ class CronService {
   private circuitBreaker = new CircuitBreakerRegistry()
 
   /** 延迟注入，避免循环依赖 */
-  private agentRunner:
-    | ((agentId: string, prompt: string, win: BrowserWindow) => Promise<AgentExecution | undefined>)
-    | null = null
+  private agentRunner: AgentRunnerFn | null = null
 
   constructor() {
     this.logFilePath = path.join(app.getPath('userData'), 'cron-logs.jsonl')
@@ -228,6 +224,16 @@ class CronService {
     })
   }
 
+  /** M33: 注册定时自动备份任务(幂等 upsert 逻辑见 ./cron/auto-backup-task.ts) */
+  registerAutoBackup(): void {
+    registerAutoBackupTask({
+      tasks: this.tasks,
+      schedule: (id, task) => this.schedule(id, task),
+      unschedule: (id) => this.unschedule(id),
+      resetCircuitBreaker: (id) => this.circuitBreaker.reset(id),
+    })
+  }
+
   /** T4: 执行一次 bitable 同步(graceful 降级,30s 超时;见 ./cron/bitable-sync.ts) */
   async executeBitableSync(): Promise<{
     success: boolean
@@ -265,98 +271,49 @@ class CronService {
   // 内部方法
   // ===========================================================
 
-  /** 调度绑定(时区读取 + nextRunAt 刷新见 ./cron/scheduler-binding.ts) */
+  /** 调度绑定(时区读取 + nextRunAt 刷新 + M35 错过调度补偿见 ./cron/scheduler-binding.ts) */
   private schedule(id: string, task: CronTask) {
-    scheduleCronJob(
-      { scheduledJobs: this.scheduledJobs, nextRunAt: this.nextRunAt },
-      id,
-      task,
-      () => this.executeTask(id, 'cron'),
-    )
+    scheduleCronJob(this.bindingState(), id, task, () => this.executeTask(id, 'cron'))
   }
 
   private unschedule(id: string) {
-    unscheduleCronJob({ scheduledJobs: this.scheduledJobs, nextRunAt: this.nextRunAt }, id)
+    unscheduleCronJob(this.bindingState(), id)
   }
 
-  /** 执行任务 — Critical 2.2 修复: __feishu__ 路由到 executeBitableSync 而非 agentRunner
-   *  High 2.3 修复: per-task 锁防止 runNow + cron 定时并发执行同一任务
-   *  circuit-breaker: source='cron' 受熔断约束(连续配额错误后跳过);source='manual' 绕过熔断 */
+  /** 调度绑定状态视图(M35: runningTasks/pushLog 供错过调度补偿判定与 skipped_missed 日志记录) */
+  private bindingState(): SchedulerBindingState {
+    return {
+      scheduledJobs: this.scheduledJobs,
+      nextRunAt: this.nextRunAt,
+      runningTasks: this.runningTasks,
+      pushLog: (entry) => this.pushLog(entry),
+    }
+  }
+
+  /** 执行任务 — 执行流程本体见 ./cron/task-executor.ts(纯重构搬移,this 依赖经 ctx 注入)
+   *  Critical 2.2: __feishu__ 路由到 executeBitableSync;High 2.3: per-task 锁;
+   *  circuit-breaker: source='cron' 受熔断约束,source='manual' 绕过 */
   private async executeTask(taskId: string, source: 'cron' | 'manual' = 'cron') {
-    const task = this.tasks.get(taskId)
-    if (!task) return
-    if (!this.mainWindow) return
-
-    // circuit-breaker: cron 触发时若已熔断,跳过执行(避免配额耗尽后持续空转)
-    // runNow(manual) 绕过此检查 —— 用户主动操作应执行,成功则顺带重置熔断
-    if (source === 'cron' && this.circuitBreaker.isTripped(taskId)) {
-      log(
-        'warn',
-        'cron',
-        `Task ${taskId} skipped (circuit breaker tripped after ${CIRCUIT_BREAKER_THRESHOLD} consecutive quota errors); run manually or toggle off/on to reset`,
-      )
-      this.pushLog(applyCircuitBreakerSkip(task, taskId, Date.now()))
-      this.mainWindow?.webContents.send(IPC.IPC_CRON_STATUS_UPDATE, {
-        taskId,
-        lastRunAt: task.lastRunAt,
-        lastStatus: task.lastStatus,
-      })
-      return
-    }
-
-    // High 2.3 修复: per-task 锁,避免 runNow + cron 同时触发同一任务
-    if (this.runningTasks.has(taskId)) {
-      log('info', 'cron', `Task ${taskId} already running, skip this trigger`)
-      return
-    }
-    this.runningTasks.add(taskId)
-
-    const timestamp = Date.now()
-    const startTime = Date.now()
-
-    try {
-      // Critical 2.2 修复: __feishu__ 任务路由到 executeBitableSync(分支逻辑见 ./cron/bitable-sync.ts)
-      // 之前所有任务都调 agentRunner(task.agentId, ...),但 __feishu__ 不是真实 agentId,
-      // agentRunner('__feishu__', ...) 必然抛 "Agent not found",真正的 executeBitableSync 从未被调用
-      if (task.agentId === '__feishu__') {
-        await runBitableSyncExecution({
-          task,
-          taskId,
-          timestamp,
-          startTime,
-          recordSuccess: (id) => this.circuitBreaker.recordSuccess(id),
-          pushLog: (entry) => this.pushLog(entry),
-        })
-      } else if (this.agentRunner) {
-        const execution = await this.agentRunner(task.agentId, task.prompt, this.mainWindow)
-        recordAgentRunOutcome({
-          task,
-          taskId,
-          timestamp,
-          startTime,
-          execution,
-          circuitBreaker: this.circuitBreaker,
-          pushLog: (entry) => this.pushLog(entry),
-        })
-      } else {
-        console.warn(`[CronService] Agent runner not set, skipping task ${taskId}`)
-      }
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err)
-      // circuit-breaker: 仅配额类错误(429/quota/rate_limit)累计,普通错误(网络抖动等)不熔断
-      this.circuitBreaker.recordFailure(taskId, errMsg)
-      this.pushLog(applyTaskError(task, taskId, timestamp, startTime, errMsg))
-    } finally {
-      // High 2.3: 释放 per-task 锁
-      this.runningTasks.delete(taskId)
-      // 不管成功失败都发送状态更新（P1-10：被中止的 agent 也算完成了）
-      this.broadcastStatus(taskId, task)
-    }
+    await executeCronTask(
+      {
+        tasks: this.tasks,
+        mainWindow: this.mainWindow,
+        circuitBreaker: this.circuitBreaker,
+        runningTasks: this.runningTasks,
+        agentRunner: this.agentRunner,
+        pushLog: (entry) => this.pushLog(entry),
+        broadcastStatus: (id, task) => this.broadcastStatus(id, task),
+      },
+      taskId,
+      source,
+    )
   }
 
   /** 广播任务状态到渲染进程 */
   private broadcastStatus(taskId: string, task: CronTask) {
-    this.mainWindow?.webContents.send(IPC.IPC_CRON_STATUS_UPDATE, {
+    // M7 修复: send 前判 isDestroyed(与 agent 链路 sendAgentStatus 守卫模式对齐)
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return
+    this.mainWindow.webContents.send(IPC.IPC_CRON_STATUS_UPDATE, {
       taskId,
       lastRunAt: task.lastRunAt,
       lastStatus: task.lastStatus,

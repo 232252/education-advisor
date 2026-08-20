@@ -12,6 +12,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ClassEntity, EAAStudent } from '@shared/types'
 import { useStudentList } from '../../../../src/renderer/pages/Students/hooks/useStudentList'
+import { resetClassStoreForTest } from '../../../../src/renderer/stores/class/store'
+import { resetStudentStoreForTest } from '../../../../src/renderer/stores/student/store'
 
 // ---------- toast mock ----------
 
@@ -99,6 +101,10 @@ describe('useStudentList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     installApi()
+    // M20: 学生/班级数据在共享 store(模块级单例),用例间必须重置,
+    // 否则上一用例的 TTL 缓存会让下一用例跳过 fetch
+    resetStudentStoreForTest()
+    resetClassStoreForTest()
     apiMocks.listStudents.mockResolvedValue({
       success: true,
       data: { students: [s1, s2, s3], total: 3 },

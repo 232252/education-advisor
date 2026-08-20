@@ -17,18 +17,19 @@ import type { SubjectDef } from '@shared/types'
 import type { LucideIcon } from 'lucide-react'
 import { ArrowLeft, BarChart3, ClipboardList, PencilLine, TrendingUp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button } from '../../components/Button'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { PageSkeleton } from '../../components/Skeleton'
 import { useTabs } from '../../hooks/useTabs'
 import { useT } from '../../i18n'
+import { extractSemesters, filterStudents } from '../../lib/academics'
 import { buildClassIdToNameMap } from '../../lib/class-utils'
-import { btnStyle, cn, INPUT_BASE } from '../../lib/ui-utils'
+import { cn, INPUT_BASE } from '../../lib/ui-utils'
 import { StudentSidebar } from './components/StudentSidebar'
 import { useAcademicsData } from './hooks/useAcademicsData'
 import { useStudentGrades } from './hooks/useStudentGrades'
 import { DEFAULT_EXAM_TYPES, DEFAULT_SUBJECTS } from './lib/academics-defaults'
-import { extractSemesters, filterStudents } from './lib/academics-metrics'
 import { CompareTab, ExamManagementTab, GradeEntryTab, OverviewTab } from './tabs'
 
 // =============================================================
@@ -37,15 +38,15 @@ import { CompareTab, ExamManagementTab, GradeEntryTab, OverviewTab } from './tab
 
 type AcademicsTab = 'overview' | 'exams' | 'entry' | 'compare'
 
-const TAB_LIST: Array<{ id: AcademicsTab; label: string; icon: LucideIcon }> = [
-  { id: 'overview', label: '成绩总览', icon: BarChart3 },
-  { id: 'exams', label: '考试管理', icon: ClipboardList },
-  { id: 'entry', label: '成绩录入', icon: PencilLine },
-  { id: 'compare', label: '成绩对比', icon: TrendingUp },
-]
-
 export function AcademicsPage() {
   const { t } = useT()
+
+  const TAB_LIST: Array<{ id: AcademicsTab; label: string; icon: LucideIcon }> = [
+    { id: 'overview', label: t('page.academics.tab.overview', '成绩总览'), icon: BarChart3 },
+    { id: 'exams', label: t('page.academics.tab.exams', '考试管理'), icon: ClipboardList },
+    { id: 'entry', label: t('page.academics.tab.entry', '成绩录入'), icon: PencilLine },
+    { id: 'compare', label: t('page.academics.tab.compare', '成绩对比'), icon: TrendingUp },
+  ]
 
   // ===== 初始并行加载 (students / classList / config / exams) =====
   const { data: initialData, loading, reload } = useAcademicsData()
@@ -163,7 +164,9 @@ export function AcademicsPage() {
         <PageHeader
           title={t('page.academics.title', '学业管理')}
           subtitle={
-            selectedStudentObj ? `当前学生: ${selectedStudentObj.name}` : '请从左侧选择学生'
+            selectedStudentObj
+              ? `${t('page.academics.currentStudent', '当前学生: ')}${selectedStudentObj.name}`
+              : t('page.academics.selectStudentHint', '请从左侧选择学生')
           }
           size="md"
           sticky
@@ -174,24 +177,23 @@ export function AcademicsPage() {
                 value={semesterFilter}
                 onChange={(e) => setSemesterFilter(e.target.value)}
                 className={INPUT_BASE}
-                title="按学期筛选考试"
-                aria-label="按学期筛选考试"
+                title={t('page.academics.filterBySemester', '按学期筛选考试')}
+                aria-label={t('page.academics.filterBySemester', '按学期筛选考试')}
               >
-                <option value="__ALL__">全部学期</option>
+                <option value="__ALL__">{t('page.academics.allSemesters', '全部学期')}</option>
                 {semesterList.map((sem) => (
                   <option key={sem} value={sem}>
                     {sem}
                   </option>
                 ))}
               </select>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 onClick={reload}
-                className={btnStyle('secondary')}
-                aria-label="刷新考试列表"
+                aria-label={t('page.academics.refreshExamList', '刷新考试列表')}
               >
-                🔄 刷新
-              </button>
+                🔄 {t('common.refresh', '刷新')}
+              </Button>
             </>
           }
         />
@@ -222,8 +224,11 @@ export function AcademicsPage() {
           {!selectedStudent && activeTab !== 'exams' && activeTab !== 'compare' ? (
             <EmptyState
               icon={<ArrowLeft size={28} />}
-              title="请先选择学生"
-              description="从左侧学生列表中选择一个学生以查看学业详情"
+              title={t('page.academics.toast.selectStudent', '请先选择学生')}
+              description={t(
+                'page.academics.selectStudentFirstDesc',
+                '从左侧学生列表中选择一个学生以查看学业详情',
+              )}
             />
           ) : activeTab === 'overview' ? (
             <OverviewTab

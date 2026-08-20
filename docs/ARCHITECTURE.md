@@ -19,13 +19,13 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 | --- | --- |
 | 页面数 | 12 |
 | 路由数 | 14 |
-| IPC 通道数 | 130 |
-| Service 文件数 | 116 |
+| IPC 通道数 | 137 |
+| Service 文件数 | 133 |
 | IPC handler 文件数 | 41 |
 | Zustand store 模块数 | 7 |
-| Preload API 文件数 | 17 |
-| Shared 类型文件数 | 15 |
-| Renderer IPC 类型文件数 | 18 |
+| Preload API 文件数 | 18 |
+| Shared 类型文件数 | 16 |
+| Renderer IPC 类型文件数 | 19 |
 | Agent 数 | 18 |
 <!-- doc-stats:end -->
 
@@ -221,6 +221,31 @@ single point of trust.
 3. **One-way fire** — `ipcRenderer.send(channel, ...args)`. Used only
    for `log:write-renderer`, where the renderer is telling the main
    process "console.log happened".
+
+### How `src/main/ipc/` is organized
+
+Every IPC domain follows the same four rules (M18, enforced by
+convention and review):
+
+1. **One top-level `xxx-handlers.ts` entry per domain.** It only
+   aggregates `registerXxxHandlers()` calls plus one log line —
+   no handler logic, ≤ 40 lines (see `eaa-handlers.ts`).
+2. **Split into a subdirectory only when the domain grows past
+   ~150 lines or has ≥ 3 handler groups.** Domains hovering at
+   ~200 lines in a single file (sys / settings / cron / agent /
+   feishu) are intentionally not split yet — the churn cost
+   outweighs the benefit. Revisit when a domain passes ~300 lines.
+3. **Four file roles inside a domain subdirectory:**
+   `xxx-handlers.ts` (handler registration), `params.ts` (input
+   validation/assembly — must reuse `utils/sanitize.ts` or document
+   why the semantics differ, see `privacy/params.ts` and
+   `profile-handlers.ts` for the annotated-variant pattern),
+   `cache.ts` (cache creation/invalidation), and `state.ts`
+   (shared mutable state, e.g. `ai/state.ts`).
+4. **Tests assert against the implementation file, not the
+   aggregation entry.** A source-structure assertion should point
+   at where the code actually lives (e.g. `eaa/handlers-system.ts`),
+   so moving handler bodies never requires rewriting assertions.
 
 ---
 

@@ -4,7 +4,12 @@
 // =============================================================
 
 import { describe, expect, it } from 'vitest'
-import { sanitizeClassId, sanitizeFreeText, sanitizeName, tokenizeQuery } from '../eaa-sanitize'
+import {
+  sanitizeClassId,
+  sanitizeFreeText,
+  sanitizeName,
+  tokenizeQuery,
+} from '../../utils/sanitize'
 
 describe('sanitizeName - 正常用例', () => {
   it('保留中文名', () => {

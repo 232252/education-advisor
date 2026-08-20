@@ -8,7 +8,7 @@ import { startIpcTimer } from '@shared/debug'
 import * as IPC from '@shared/ipc-channels'
 import { ipcMain } from 'electron'
 import { eaaBridge } from '../../services/eaa-bridge'
-import { buildDashboardArgs, buildExportFileArgs, buildImportArgs } from './commands'
+import { buildDashboardArgs, buildExportFileArgs, buildImportArgs } from './params'
 
 export interface ExportHandlersContext {
   /** 写操作完成后清空缓存(由 eaa-handlers.ts 提供,import 导入学生后需失效) */
@@ -55,7 +55,12 @@ export function registerExportHandlers({ invalidateStudentsCache }: ExportHandle
       if (!built.ok) {
         return { success: false, error: built.error, stderr: built.error, exitCode: -1 }
       }
-      const result = await eaaBridge.execute({ command: 'import', args: built.args })
+      // M8 修复: import 大文件(几百学生×事件)在慢盘上可能超默认 30s,给专属 120s 超时
+      const result = await eaaBridge.execute({
+        command: 'import',
+        args: built.args,
+        timeout: 120_000,
+      })
       invalidateStudentsCache()
       return result
     } catch (err: unknown) {

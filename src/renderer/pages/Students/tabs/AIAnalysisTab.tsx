@@ -6,8 +6,10 @@
 import type { AgentListItem } from '@shared/types'
 import { Bot } from 'lucide-react'
 import { useMemo } from 'react'
+import { Button } from '../../../components/Button'
 import { EmptyState } from '../../../components/EmptyState'
-import { btnStyle, CARD_BASE, cn } from '../../../lib/ui-utils'
+import { useT } from '../../../i18n'
+import { CARD_BASE } from '../../../lib/ui-utils'
 
 export function AIAnalysisTab({
   agents,
@@ -32,13 +34,14 @@ export function AIAnalysisTab({
   aiSaved: boolean
   onSaveResult: () => void
 }) {
+  const { t } = useT()
   const enabledAgents = useMemo(() => agents.filter((a) => a.enabled), [agents])
 
   const sections = useMemo(() => {
     if (!output) return []
     const result: { title: string; content: string }[] = []
     const lines = output.split('\n')
-    let currentTitle = '分析输出'
+    let currentTitle = t('page.students.ai.output', '分析输出')
     let currentContent = ''
     for (const line of lines) {
       if (
@@ -63,41 +66,41 @@ export function AIAnalysisTab({
     if (currentContent.trim()) {
       result.push({ title: currentTitle, content: currentContent.trim() })
     }
-    return result.length > 0 ? result : [{ title: '分析输出', content: output }]
-  }, [output])
+    return result.length > 0
+      ? result
+      : [{ title: t('page.students.ai.output', '分析输出'), content: output }]
+  }, [output, t])
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">AI 分析</h4>
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {t('page.students.ai.title', 'AI 分析')}
+        </h4>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onRunSelected}
-            disabled={running || selectedAgents.size === 0}
-            className={btnStyle('primary')}
-          >
-            {running ? '运行中...' : `🚀 运行选中 (${selectedAgents.size})`}
-          </button>
+          <Button onClick={onRunSelected} disabled={running || selectedAgents.size === 0}>
+            {running
+              ? t('page.students.ai.running', '运行中...')
+              : `${t('page.students.ai.runSelected', '🚀 运行选中')} (${selectedAgents.size})`}
+          </Button>
           <button
             type="button"
             onClick={onRunAll}
             disabled={running || enabledAgents.length === 0}
             className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-[#0f1117] disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white focus-visible:ring-purple-500 active:scale-[0.97]"
           >
-            🤖 运行全部
+            {t('page.students.ai.runAll', '🤖 运行全部')}
           </button>
           {output && !running && (
-            <button
-              type="button"
+            <Button
+              variant={aiSaved ? 'secondary' : 'ghost'}
               onClick={onSaveResult}
-              className={cn(
-                btnStyle(aiSaved ? 'secondary' : 'ghost'),
-                aiSaved && 'text-green-600 dark:text-green-400',
-              )}
+              className={aiSaved ? 'text-green-600 dark:text-green-400' : undefined}
             >
-              {aiSaved ? '✅ 已保存' : '💾 保存结果'}
-            </button>
+              {aiSaved
+                ? t('page.students.ai.saved', '✅ 已保存')
+                : t('page.students.ai.save', '💾 保存结果')}
+            </Button>
           )}
         </div>
       </div>
@@ -110,13 +113,13 @@ export function AIAnalysisTab({
 
       <div className={`${CARD_BASE} p-4 shadow-sm`}>
         <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-          选择分析 Agent
+          {t('page.students.ai.selectAgent', '选择分析 Agent')}
         </h5>
         <div className="space-y-1.5 max-h-48 overflow-y-auto">
           {enabledAgents.length === 0 ? (
             <EmptyState
               icon={<Bot className="h-6 w-6" />}
-              title="暂无可用 Agent"
+              title={t('page.students.ai.noAgent', '暂无可用 Agent')}
               className="py-4"
             />
           ) : (
@@ -162,10 +165,10 @@ export function AIAnalysisTab({
                   }
                 >
                   {agent.status === 'idle'
-                    ? '待机'
+                    ? t('page.students.ai.agentIdle', '待机')
                     : agent.status === 'running'
-                      ? '运行中'
-                      : '错误'}
+                      ? t('page.students.ai.agentRunning', '运行中')
+                      : t('page.students.ai.agentError', '错误')}
                 </span>
               </div>
             ))
@@ -194,23 +197,28 @@ export function AIAnalysisTab({
 
       <div className="bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-800/50 dark:to-blue-900/10 rounded-xl border border-gray-200 dark:border-white/[0.06] p-4">
         <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-          📋 分析维度建议
+          {t('page.students.ai.dimensionSuggestions', '📋 分析维度建议')}
         </h5>
         <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
           <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>操行分数趋势分析
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+            {t('page.students.ai.dimScoreTrend', '操行分数趋势分析')}
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>风险等级评估与预警
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+            {t('page.students.ai.dimRiskWarning', '风险等级评估与预警')}
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>行为模式识别
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+            {t('page.students.ai.dimBehaviorPattern', '行为模式识别')}
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>学业与操行关联性分析
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+            {t('page.students.ai.dimAcademicCorrelation', '学业与操行关联性分析')}
           </div>
           <div className="flex items-center gap-1.5 col-span-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>个性化教育建议
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>
+            {t('page.students.ai.dimPersonalizedAdvice', '个性化教育建议')}
           </div>
         </div>
       </div>

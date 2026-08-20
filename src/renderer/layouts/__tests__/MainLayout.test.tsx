@@ -16,7 +16,7 @@ vi.mock('react-router-dom', async () => {
 
 // mock agentStore（ Zustand selector 风格：useAgentStore(selector) → selector(state)）
 // getState() 供 useNotificationListener 挂载时订阅 agent 状态总线
-vi.mock('../../stores/agentStore', () => {
+vi.mock('../../stores/agent/store', () => {
   const mockState = {
     agents: [],
     fetchAgents: () => Promise.resolve(),
@@ -133,7 +133,7 @@ describe('MainLayout — 可折叠侧边栏 (Ctrl+B)', () => {
     const aside = container.querySelector('aside')
     expect(aside?.className).toContain('w-[68px]')
     expect(aside?.className).not.toContain('w-60')
-    expect(localStorage.getItem('ea.sidebar.collapsed')).toBe('1')
+    expect(localStorage.getItem('ea.sidebar.collapsed')).toBe('true')
   })
 
   it('再次 Ctrl+B 恢复展开', () => {
@@ -144,7 +144,7 @@ describe('MainLayout — 可折叠侧边栏 (Ctrl+B)', () => {
     // 展开
     fireEvent.keyDown(window, { key: 'b', ctrlKey: true })
     expect(container.querySelector('aside')?.className).toContain('w-60')
-    expect(localStorage.getItem('ea.sidebar.collapsed')).toBe('0')
+    expect(localStorage.getItem('ea.sidebar.collapsed')).toBe('false')
   })
 
   it('Cmd+B (mac metaKey) 同样触发折叠', () => {

@@ -7,7 +7,7 @@
 import type { AgentStatusPayload, CronTask } from '@shared/types'
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAgentStore } from '../../../stores/agentStore'
+import { useAgentStore } from '../../../stores/agent/store'
 import { useNotificationStore } from '../../../stores/notificationStore'
 import { _resetCronNameCacheForTest, useNotificationListener } from '../useNotificationListener'
 

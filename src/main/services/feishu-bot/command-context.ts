@@ -6,8 +6,8 @@
 import type { BrowserWindow } from 'electron'
 import { agentService } from '../agent-service'
 import { eaaBridge } from '../eaa-bridge'
-import type { CommandContext } from '../feishu-command-router'
 import { runAgentAndCollect } from './agent-runner'
+import type { CommandContext } from './command-router'
 
 /** 构造命令上下文(注入 EAA + Agent 能力) */
 export function createCommandContext(win: BrowserWindow | null): CommandContext {

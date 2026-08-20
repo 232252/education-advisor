@@ -5,8 +5,9 @@
 import type { EAAStudent, ExamDef, GradeEntryMode, SubjectDef } from '@shared/types'
 import { Badge } from '../../../../components/Badge'
 import { Card } from '../../../../components/Card'
+import { useT } from '../../../../i18n'
+import { EXAM_TYPE_BADGE, EXAM_TYPE_LABEL } from '../../../../lib/academics'
 import { cn, INPUT_BASE } from '../../../../lib/ui-utils'
-import { EXAM_TYPE_BADGE, EXAM_TYPE_LABEL } from '../../academics-shared'
 
 interface EntrySelectorsCardProps {
   mode: GradeEntryMode
@@ -41,12 +42,17 @@ export function EntrySelectorsCard({
   students,
   selectedExam,
 }: EntrySelectorsCardProps) {
+  const { t } = useT()
+
   return (
     <Card padding="md">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
           <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            考试 <span className="text-gray-400 text-[10px]">(可选,留空自动创建)</span>
+            {t('print.studentReport.exam', '考试')}{' '}
+            <span className="text-gray-400 text-[10px]">
+              {t('page.academics.entry.examOptionalHint', '(可选,留空自动创建)')}
+            </span>
           </label>
           <div className="flex gap-1.5">
             {sortedExams.length > 0 ? (
@@ -59,7 +65,9 @@ export function EntrySelectorsCard({
                   }}
                   className={cn(INPUT_BASE, 'flex-1')}
                 >
-                  <option value="">— 不选,直接录入 —</option>
+                  <option value="">
+                    {t('page.academics.entry.noExamOption', '— 不选,直接录入 —')}
+                  </option>
                   {sortedExams.map((exam) => (
                     <option key={exam.id} value={exam.id}>
                       {exam.name} ({exam.date})
@@ -74,7 +82,7 @@ export function EntrySelectorsCard({
                     onSelectedExamIdChange('')
                   }}
                   list="exam-name-suggestions"
-                  placeholder="或输入新名称"
+                  placeholder={t('page.academics.entry.orInputNewName', '或输入新名称')}
                   className={cn(INPUT_BASE, 'flex-1')}
                 />
                 <datalist id="exam-name-suggestions">
@@ -86,7 +94,10 @@ export function EntrySelectorsCard({
                   type="button"
                   onClick={onOpenQuickCreate}
                   className="flex-shrink-0 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 px-2.5 rounded-lg text-sm transition-colors border border-blue-200 dark:border-blue-800"
-                  title="快速创建考试(设置类型/日期)"
+                  title={t(
+                    'page.academics.entry.quickCreateExamTitle',
+                    '快速创建考试(设置类型/日期)',
+                  )}
                 >
                   +
                 </button>
@@ -96,7 +107,10 @@ export function EntrySelectorsCard({
                 type="text"
                 value={examNameInput}
                 onChange={(e) => onExamNameInputChange(e.target.value)}
-                placeholder="输入考试名称(可选),留空保存时自动创建"
+                placeholder={t(
+                  'page.academics.entry.examNamePlaceholder',
+                  '输入考试名称(可选),留空保存时自动创建',
+                )}
                 className="flex-1 bg-gray-50 dark:bg-surface-primary border border-gray-200 dark:border-white/[0.06] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
               />
             )}
@@ -106,17 +120,19 @@ export function EntrySelectorsCard({
         {mode === 'single-subject' ? (
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              科目 <span className="text-red-500">*</span>
+              {t('print.parentReport.subject', '科目')} <span className="text-red-500">*</span>
             </label>
             <select
               value={selectedSubjectId}
               onChange={(e) => onSelectedSubjectIdChange(e.target.value)}
               className={cn(INPUT_BASE, 'w-full')}
             >
-              <option value="">请选择科目...</option>
+              <option value="">
+                {t('page.academics.entry.selectSubjectPlaceholder', '请选择科目...')}
+              </option>
               {subjects.map((sub) => (
                 <option key={sub.id} value={sub.id}>
-                  {sub.name} (满分 {sub.fullMark})
+                  {sub.name} ({t('print.parentReport.fullScore', '满分')} {sub.fullMark})
                 </option>
               ))}
             </select>
@@ -124,14 +140,16 @@ export function EntrySelectorsCard({
         ) : (
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              学生 <span className="text-red-500">*</span>
+              {t('page.academics.common.student', '学生')} <span className="text-red-500">*</span>
             </label>
             <select
               value={entryStudentName}
               onChange={(e) => onEntryStudentNameChange(e.target.value)}
               className={cn(INPUT_BASE, 'w-full')}
             >
-              <option value="">请选择学生...</option>
+              <option value="">
+                {t('page.academics.entry.selectStudentPlaceholder', '请选择学生...')}
+              </option>
               {students
                 .filter((s) => s.status !== 'Deleted')
                 .map((s) => (
@@ -147,12 +165,14 @@ export function EntrySelectorsCard({
           {selectedExam && (
             <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
               <div>
-                类型:{' '}
+                {t('print.studentReport.type', '类型')}:{' '}
                 <Badge variant={EXAM_TYPE_BADGE[selectedExam.type]}>
                   {EXAM_TYPE_LABEL[selectedExam.type]}
                 </Badge>
               </div>
-              <div>学期: {selectedExam.semester}</div>
+              <div>
+                {t('print.gradeSheet.semester', '学期')}: {selectedExam.semester}
+              </div>
             </div>
           )}
         </div>

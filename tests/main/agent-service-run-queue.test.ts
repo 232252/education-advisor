@@ -122,6 +122,10 @@ vi.mock('./settings-service', () => ({
         defaultModel: 'test-model',
         customModels: {},
       },
+      // M15: execution.ts 读取 general.agentTimeoutMins 作为 waitForIdle 超时
+      general: {
+        agentTimeoutMins: 5,
+      },
       chat: {
         thinkingLevel: 'medium',
         steeringMode: 'all',

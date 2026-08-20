@@ -15,9 +15,9 @@
 // =============================================================
 
 import type { McpServerConfig } from '@shared/types'
-import type { MCPClient } from '../mcp-types'
 import { connectTransport, disconnectClient } from './connection'
 import { callToolInternal, requestListTools } from './protocol'
+import type { MCPClient } from './types'
 
 export class McpClientPool {
   private clients: Map<string, MCPClient> = new Map()

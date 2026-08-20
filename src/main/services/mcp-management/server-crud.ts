@@ -12,8 +12,8 @@
 // =============================================================
 
 import type { McpServerConfig, McpServerStatus } from '@shared/types'
-import { isSafeMcpUrl, sanitizeObject, validateCommandSafe } from '../mcp-helpers'
 import type { McpServiceContext } from './context'
+import { isSafeMcpUrl, sanitizeObject, validateCommandSafe } from './helpers'
 
 /**
  * 列出所有配置的 server 及其状态

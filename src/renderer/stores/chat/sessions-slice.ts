@@ -2,6 +2,7 @@
 // 会话 slice — createSession / switchSession / deleteSession / loadSessions
 // =============================================================
 
+import { t } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../toastStore'
 import { pendingAgentOutputs } from './agent-pending'
@@ -92,7 +93,7 @@ export function createSessionsSlice(
         .chat.deleteSession(id)
         .catch((err) => {
           console.warn('[chatStore] deleteSession failed', err)
-          toast.error('删除会话失败,请查看日志')
+          toast.error(t('toast.chat.sessionDeleteFailed', '删除会话失败,请查看日志'))
         })
     },
 

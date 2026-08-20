@@ -6,6 +6,7 @@
 import type { ClassEntity, EAAStudent } from '@shared/types'
 import { GraduationCap, Search, Users } from 'lucide-react'
 import { EmptyState } from '../../../components/EmptyState'
+import { useT } from '../../../i18n'
 import { cn, INPUT_BASE } from '../../../lib/ui-utils'
 
 interface StudentSidebarProps {
@@ -34,12 +35,14 @@ export function StudentSidebar({
   selectedStudent,
   onSelectStudent,
 }: StudentSidebarProps) {
+  const { t } = useT()
+
   return (
     <aside className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary flex flex-col">
       <div className="p-3 border-b border-gray-200 dark:border-white/[0.06]">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2 flex items-center gap-1.5">
           <Users size={16} className="text-gray-400 dark:text-gray-500" />
-          <span>学生列表</span>
+          <span>{t('page.academics.sidebar.title', '学生列表')}</span>
           <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 font-normal">
             {students.length}
           </span>
@@ -50,10 +53,10 @@ export function StudentSidebar({
             value={classFilter}
             onChange={(e) => onClassFilterChange(e.target.value)}
             className={cn('w-full', INPUT_BASE)}
-            title="按班级筛选"
+            title={t('page.academics.sidebar.filterByClass', '按班级筛选')}
           >
-            <option value="__ALL__">全部班级</option>
-            <option value="__NONE__">未分班</option>
+            <option value="__ALL__">{t('page.academics.class.all', '全部班级')}</option>
+            <option value="__NONE__">{t('page.classes.profile.unassigned', '未分班')}</option>
             {activeClassList.map((c) => (
               <option key={c.class_id} value={c.class_id}>
                 {c.name}
@@ -66,7 +69,7 @@ export function StudentSidebar({
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchQueryChange(e.target.value)}
-              placeholder="搜索学生..."
+              placeholder={t('page.academics.sidebar.searchPlaceholder', '搜索学生...')}
               className={cn('w-full', INPUT_BASE, 'pl-8')}
             />
             <Search
@@ -80,7 +83,11 @@ export function StudentSidebar({
         {students.length === 0 ? (
           <EmptyState
             icon={<GraduationCap size={28} />}
-            title={searchQuery || classFilter !== '__ALL__' ? '未找到匹配的学生' : '暂无学生'}
+            title={
+              searchQuery || classFilter !== '__ALL__'
+                ? t('page.academics.sidebar.noMatch', '未找到匹配的学生')
+                : t('page.academics.sidebar.noStudents', '暂无学生')
+            }
             className="py-12"
           />
         ) : (

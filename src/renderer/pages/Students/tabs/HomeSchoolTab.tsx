@@ -13,11 +13,12 @@ import type {
 } from '@shared/types'
 import { Copy, MessageCircleHeart, PhoneCall, Printer, Sparkles } from 'lucide-react'
 import { useState } from 'react'
+import { Button } from '../../../components/Button'
 import { ParentReportDocument } from '../../../components/print/ParentReportDocument'
 import { PrintOverlay } from '../../../components/print/PrintOverlay'
 import { useStudentPrintData } from '../../../components/print/useStudentPrintData'
 import { useT } from '../../../i18n'
-import { btnStyle, cn } from '../../../lib/ui-utils'
+import { cn } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
 import { useCommunicationScript } from '../hooks/useCommunicationScript'
 import { COMM_SCENARIOS, COMM_TONES } from '../lib/home-school'
@@ -135,17 +136,15 @@ export function HomeSchoolTab({
               ))}
             </select>
           </label>
-          <button
-            type="button"
+          <Button
             onClick={() => void script.generate()}
             disabled={script.running || !script.agentId}
-            className={cn(btnStyle('primary'), 'flex items-center gap-1.5')}
+            icon={<Sparkles size={14} aria-hidden />}
           >
-            <Sparkles size={14} aria-hidden />
             {script.running
               ? t('homeSchool.generating', '生成中…')
               : t('homeSchool.generate', '生成话术')}
-          </button>
+          </Button>
         </div>
 
         {script.message && (
@@ -196,17 +195,16 @@ export function HomeSchoolTab({
           )}
         </p>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={() => void printReport.openPrint()}
             disabled={printReport.loading}
-            className={cn(btnStyle('secondary'), 'flex items-center gap-1.5')}
+            icon={<Printer size={14} aria-hidden />}
           >
-            <Printer size={14} aria-hidden />
             {printReport.loading
               ? t('common.loading', '加载中...')
               : t('homeSchool.parentReport.print', '打印家长版报告')}
-          </button>
+          </Button>
           <span className="text-[11px] text-gray-400 dark:text-gray-500">
             {t('homeSchool.parentReport.pdfHint', '打印对话框中选择「另存为 PDF」可导出 PDF')}
           </span>

@@ -5,9 +5,10 @@
 
 import type { AgentListItem } from '@shared/types'
 import { useState } from 'react'
+import { Button } from '../../../components/Button'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { ModelSelector } from '../../../components/ModelSelector'
-import { btnStyle } from '../../../lib/ui-utils'
+import { useT } from '../../../i18n'
 
 interface ChatToolbarProps {
   /** 可用 Agent 列表（仅启用的） */
@@ -35,6 +36,7 @@ export function ChatToolbar({
   onClearMessages,
 }: ChatToolbarProps) {
   const [confirmClear, setConfirmClear] = useState(false)
+  const { t } = useT()
   return (
     <div className="flex items-center justify-between px-6 py-2 border-b border-gray-200/60 dark:border-white/[0.06] flex-wrap gap-2">
       <div className="flex items-center gap-3 flex-wrap">
@@ -44,7 +46,7 @@ export function ChatToolbar({
           onChange={(e) => onSelectAgent(e.target.value)}
           className="bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300
                          focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-transparent min-w-[160px] transition-colors"
-          title="选择 Agent"
+          title={t('page.chat.toolbar.selectAgent', '选择 Agent')}
         >
           {enabledAgents.map((a) => (
             <option key={a.id} value={a.id}>
@@ -69,31 +71,45 @@ export function ChatToolbar({
           onChange={onThinkingLevelChange}
           className="bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-gray-600 dark:text-gray-300
                          focus:outline-none focus:border-blue-500 transition-colors"
-          title="思考级别"
+          title={t('page.chat.toolbar.thinkingLevel', '思考级别')}
         >
-          <option value="off">思考 关</option>
-          <option value="minimal">思考 最少</option>
-          <option value="low">思考 低</option>
-          <option value="medium">思考 中</option>
-          <option value="high">思考 高</option>
-          <option value="xhigh">思考 最高</option>
+          <option value="off">
+            {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.off', '关')}
+          </option>
+          <option value="minimal">
+            {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.minimal', '最少')}
+          </option>
+          <option value="low">
+            {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.low', '低')}
+          </option>
+          <option value="medium">
+            {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.medium', '中')}
+          </option>
+          <option value="high">
+            {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.high', '高')}
+          </option>
+          <option value="xhigh">
+            {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.xhigh', '最高')}
+          </option>
         </select>
       </div>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
         onClick={() => setConfirmClear(true)}
-        className={btnStyle('ghost')}
-        aria-label="清空当前会话显示"
-        title="清空当前会话显示(不删除会话)"
+        aria-label={t('page.chat.toolbar.clearAria', '清空当前会话显示')}
+        title={t('page.chat.toolbar.clearTitle', '清空当前会话显示(不删除会话)')}
       >
-        清空
-      </button>
+        {t('page.chat.toolbar.clear', '清空')}
+      </Button>
       {/* 清空为不可逆操作(仅会话数据保留),需二次确认 */}
       <ConfirmDialog
         open={confirmClear}
-        title="清空当前会话"
-        message="确定要清空当前会话的消息显示吗?该操作无法撤销(会话记录本身不会被删除)。"
-        confirmText="清空"
+        title={t('page.chat.toolbar.clearConfirmTitle', '清空当前会话')}
+        message={t(
+          'page.chat.toolbar.clearConfirmMessage',
+          '确定要清空当前会话的消息显示吗?该操作无法撤销(会话记录本身不会被删除)。',
+        )}
+        confirmText={t('page.chat.toolbar.clear', '清空')}
         variant="danger"
         onConfirm={() => {
           setConfirmClear(false)

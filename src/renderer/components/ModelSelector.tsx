@@ -4,6 +4,7 @@
 
 import type { ModelInfo, ProviderInfo } from '@shared/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useT } from '../i18n'
 import { getAPI } from '../lib/ipc-client'
 import { toast } from '../stores/toastStore'
 
@@ -14,6 +15,7 @@ interface ModelSelectorProps {
 }
 
 export function ModelSelector({ selectedProvider, selectedModel, onSelect }: ModelSelectorProps) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [models, setModels] = useState<Record<string, ModelInfo[]>>({})
@@ -149,8 +151,8 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
   const currentProvider = providers.find((p) => p.id === selectedProvider)
   const needsApiKey = currentProvider && !currentProvider.hasApiKey
   const displayText = currentModel
-    ? `${currentProvider?.name ?? selectedProvider} / ${currentModel.name}${needsApiKey ? ' (需配置 Key)' : ''}`
-    : selectedModel || '选择模型...'
+    ? `${currentProvider?.name ?? selectedProvider} / ${currentModel.name}${needsApiKey ? ` (${t('page.chat.modelSelector.needKey', '需配置 Key')})` : ''}`
+    : selectedModel || t('page.chat.modelSelector.placeholder', '选择模型...')
 
   return (
     <div className="relative" ref={panelRef}>
@@ -183,9 +185,9 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
           viewBox="0 0 24 24"
           stroke="currentColor"
           role="img"
-          aria-label={open ? '收起' : '展开'}
+          aria-label={open ? t('common.collapse', '收起') : t('common.expand', '展开')}
         >
-          <title>{open ? '收起' : '展开'}</title>
+          <title>{open ? t('common.collapse', '收起') : t('common.expand', '展开')}</title>
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -203,7 +205,7 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
               </div>
               {providers.length === 0 && (
                 <div className="px-3 py-4 text-center text-xs text-gray-400 dark:text-gray-500">
-                  无可用 Provider
+                  {t('page.chat.modelSelector.noProviders', '无可用 Provider')}
                 </div>
               )}
               {providers.map((p) => (
@@ -276,7 +278,7 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
                 ))
               ) : (
                 <div className="p-4 text-center text-gray-400 dark:text-gray-500 text-sm">
-                  选择一个 Provider 查看模型
+                  {t('page.chat.modelSelector.selectProvider', '选择一个 Provider 查看模型')}
                 </div>
               )}
             </div>

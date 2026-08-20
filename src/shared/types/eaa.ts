@@ -225,6 +225,8 @@ export interface EAARangeData {
   total: number
   showing: number
   events: EAAEventRecord[]
+  /** M10: events 达到有效 limit(默认 1000)时为 true,提示前端结果被截断,需缩小日期范围 */
+  truncated?: boolean
 }
 
 /** set-student-meta 的输入参数 */

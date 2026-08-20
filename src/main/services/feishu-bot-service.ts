@@ -29,19 +29,19 @@ import * as lark from '@larksuiteoapi/node-sdk'
 import { type BrowserWindow, powerMonitor } from 'electron'
 import { log } from '../utils/logger'
 import { createCommandContext } from './feishu-bot/command-context'
-import { APP_ID_PATTERN, MAX_GUARD_ATTEMPTS } from './feishu-bot/constants'
-import { validateCredentials } from './feishu-bot/credentials'
-import { MessageDedupCache } from './feishu-bot/dedup-cache'
-import { fetchHttpInstance, setFeishuBase } from './feishu-bot/http-instance'
-import { parseIncomingMessage } from './feishu-bot/message-parsing'
-import { SerialMessageQueue } from './feishu-bot/message-queue'
-import { sendReply } from './feishu-bot/reply'
-import type { BotStatus, BotStatusInfo, FeishuMessageEvent } from './feishu-bot/types'
 import {
   type CommandContext,
   createDefaultRouter,
   type FeishuCommandRouter,
-} from './feishu-command-router'
+} from './feishu-bot/command-router'
+import { APP_ID_PATTERN, MAX_GUARD_ATTEMPTS } from './feishu-bot/constants'
+import { validateCredentials } from './feishu-bot/credentials'
+import { MessageDedupCache } from './feishu-bot/dedup-cache'
+import { createMessageReceiveHandler } from './feishu-bot/event-handler'
+import { fetchHttpInstance, setFeishuBase } from './feishu-bot/http-instance'
+import { handleIncomingMessage } from './feishu-bot/message-handler'
+import { SerialMessageQueue } from './feishu-bot/message-queue'
+import type { BotStatus, BotStatusInfo, FeishuMessageEvent } from './feishu-bot/types'
 import type { FeishuDomain } from './feishu-service'
 
 export type { BotStatus, BotStatusInfo } from './feishu-bot/types'
@@ -155,37 +155,16 @@ class FeishuBotService extends EventEmitter {
     const ctx = createCommandContext(win)
 
     // 事件分发器:注册消息接收事件(register 接收单个 handles 对象)
+    // 回调逻辑(去重/排队限流/繁忙回复)见 feishu-bot/event-handler.ts
     const eventDispatcher = new lark.EventDispatcher({
       loggerLevel: lark.LoggerLevel.warn,
     }).register({
-      'im.message.receive_v1': (data: FeishuMessageEvent) => {
-        // H3 修复: 不在事件回调里 await 处理完成 — SDK 在 dispatcher.invoke 返回后才发 ack,
-        // agent 运行可达数分钟,阻塞 ack 会致飞书服务器超时重投(消息被重复处理)。
-        const messageId = data.message?.message_id
-        // H3 修复: 去重 — 飞书至少一次投递,重投的 message_id 相同,直接跳过
-        if (messageId && this.dedup.has(messageId)) {
-          log('info', 'feishu-bot', `duplicate message ${messageId}, skip`)
-          return
-        }
-        if (messageId) this.dedup.remember(messageId)
-
-        // H3 修复: 排队深度上限,防止突发消息撑爆内存/回复严重滞后
-        if (this.messageQueue.isFull()) {
-          log(
-            'warn',
-            'feishu-bot',
-            `pending queue full (${this.messageQueue.pendingCount}), drop message`,
-          )
-          if (messageId) {
-            void sendReply(this.sdkClient, messageId, '当前消息处理繁忙,请稍后再发。').catch(
-              () => {},
-            )
-          }
-          return
-        }
-        this.messageQueue.enqueue(() => this.handleMessage(data, ctx))
-        // 立即返回(不 await 队列),让 SDK 立刻 ack
-      },
+      'im.message.receive_v1': createMessageReceiveHandler({
+        dedup: this.dedup,
+        messageQueue: this.messageQueue,
+        getSdkClient: () => this.sdkClient,
+        handleMessage: (data) => this.handleMessage(data, ctx),
+      }),
     })
     // M1: 留存 dispatcher,守护重启时复用
     this.eventDispatcher = eventDispatcher
@@ -413,35 +392,23 @@ class FeishuBotService extends EventEmitter {
   /**
    * 处理一条收到的飞书消息(解析/安全过滤在 feishu-bot/message-parsing)。
    * 先尝试斜杠命令;非命令转默认 Agent 对话,完成后回复。
+   * 流程实现见 feishu-bot/message-handler.ts handleIncomingMessage。
    */
   private async handleMessage(data: FeishuMessageEvent, ctx: CommandContext): Promise<void> {
-    const parsed = parseIncomingMessage(data)
-    if (!parsed) return
-    const { text, messageId, chatType } = parsed
-
-    this.processingCount++
-    log('info', 'feishu-bot', `recv [${chatType}] "${text.slice(0, 50)}"`)
-
-    try {
-      // 先尝试斜杠命令;非命令转 Agent 对话
-      let reply: string | null
-      try {
-        reply = await this.router.dispatch(text, ctx)
-      } catch (err) {
-        reply = `命令处理出错: ${err instanceof Error ? err.message : String(err)}`
-      }
-
-      if (reply === null) {
-        // 普通对话 → 默认 Agent
-        reply = await ctx.runAgent(text)
-      }
-
-      if (reply && messageId) {
-        await sendReply(this.sdkClient, messageId, reply)
-      }
-    } finally {
-      this.processingCount--
-    }
+    await handleIncomingMessage(
+      {
+        router: this.router,
+        getSdkClient: () => this.sdkClient,
+        onProcessingStart: () => {
+          this.processingCount++
+        },
+        onProcessingEnd: () => {
+          this.processingCount--
+        },
+      },
+      data,
+      ctx,
+    )
   }
 
   /** 更新状态并广播(供设置页徽章订阅) */
@@ -457,6 +424,3 @@ class FeishuBotService extends EventEmitter {
 
 /** 飞书机器人服务单例 */
 export const feishuBotService = new FeishuBotService()
-
-// 重新导出错误信息工具,避免本模块外部调用方再 import eaa-bridge
-export { getErrorMessage } from './eaa-bridge'

@@ -7,7 +7,8 @@ import { ClipboardList, Printer } from 'lucide-react'
 import { Badge } from '../../../../components/Badge'
 import { Card } from '../../../../components/Card'
 import { EmptyState } from '../../../../components/EmptyState'
-import { EXAM_TYPE_BADGE, EXAM_TYPE_LABEL } from '../../academics-shared'
+import { useT } from '../../../../i18n'
+import { EXAM_TYPE_BADGE, EXAM_TYPE_LABEL } from '../../../../lib/academics'
 
 interface ExamCardGridProps {
   /** 按日期降序的考试列表 */
@@ -27,12 +28,17 @@ export function ExamCardGrid({
   onPrintSheet,
   printLoading = false,
 }: ExamCardGridProps) {
+  const { t } = useT()
+
   if (exams.length === 0) {
     return (
       <EmptyState
         icon={<ClipboardList size={28} />}
-        title="暂无考试"
-        description={'点击右上角「创建考试」按钮添加第一场考试'}
+        title={t('page.academics.exams.noExams', '暂无考试')}
+        description={t(
+          'page.academics.exams.noExamsDesc',
+          '点击右上角「创建考试」按钮添加第一场考试',
+        )}
       />
     )
   }
@@ -55,10 +61,18 @@ export function ExamCardGrid({
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
                   <div>📅 {exam.date}</div>
-                  <div>📚 学期: {exam.semester}</div>
-                  {exam.scope && <div>📖 范围: {exam.scope}</div>}
                   <div>
-                    📝 科目 ({examSubjects.length}): {examSubjects.join('、') || '无'}
+                    📚 {t('print.gradeSheet.semester', '学期')}: {exam.semester}
+                  </div>
+                  {exam.scope && (
+                    <div>
+                      📖 {t('page.academics.exams.scope', '范围')}: {exam.scope}
+                    </div>
+                  )}
+                  <div>
+                    📝 {t('print.parentReport.subject', '科目')} ({examSubjects.length}):{' '}
+                    {examSubjects.join(t('page.academics.common.listSeparator', '、')) ||
+                      t('common.none', '无')}
                   </div>
                 </div>
               </div>
@@ -67,19 +81,19 @@ export function ExamCardGrid({
                   type="button"
                   onClick={() => onDelete(exam)}
                   className="text-red-400 hover:text-red-600 dark:hover:text-red-400 text-xs px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                  title="删除考试"
+                  title={t('page.academics.exams.deleteExamTitle', '删除考试')}
                 >
-                  🗑 删除
+                  🗑 {t('common.delete', '删除')}
                 </button>
                 <button
                   type="button"
                   onClick={() => onPrintSheet(exam)}
                   disabled={printLoading}
                   className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="打印 / 导出 PDF"
+                  title={t('print.action', '打印 / 导出 PDF')}
                 >
                   <Printer size={12} />
-                  成绩单
+                  {t('print.gradeSheet.title', '成绩单')}
                 </button>
               </div>
             </div>

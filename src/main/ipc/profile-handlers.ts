@@ -6,6 +6,7 @@ import * as IPC from '@shared/ipc-channels'
 import type { StudentProfileData } from '@shared/types'
 import { ipcMain } from 'electron'
 import { profileService } from '../services/profile-service'
+import { stripInvisibleUnicode } from '../utils/sanitize'
 
 /**
  * 有意保留的本地变体,不与 utils/sanitize.ts 的统一 sanitizeName 合并:
@@ -24,10 +25,8 @@ function sanitizeName(name: string): string {
   if (name.length > 64) {
     throw new Error('name too long (max 64 chars)')
   }
-  // 剥离不可见 Unicode 字符，保留常见姓名符号
-  const cleaned = name
-    .replace(/[\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\uFFF9-\uFFFB]/g, '')
-    .trim()
+  // 剥离不可见 Unicode 字符，保留常见姓名符号(M17a: 复用统一原语)
+  const cleaned = stripInvisibleUnicode(name)
   if (cleaned.length === 0) {
     throw new Error('name is empty after cleaning')
   }

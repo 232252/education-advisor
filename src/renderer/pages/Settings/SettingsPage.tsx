@@ -12,7 +12,9 @@
 import type { FeishuBotStatusInfo, UnifiedSettings } from '@shared/types'
 import { useCallback, useEffect, useReducer, useState } from 'react'
 import DEFAULT_SETTINGS_JSON from '../../../../config/default-settings.json'
+import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { useConfirmDialog } from '../../hooks/useConfirmDialog'
 import { useT } from '../../i18n'
@@ -75,6 +77,8 @@ export function SettingsPage() {
   const [settings, setSettings] = useState<UnifiedSettings | null>(null)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  // M4 修复: 记录加载失败原因,配合下方错误态渲染 + 重试按钮
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [logFiles, setLogFiles] = useState<
     Array<{ stream: string; date: string; name: string; sizeBytes: number }>
   >([])
@@ -150,8 +154,12 @@ export function SettingsPage() {
       // C-4 修复: 从 settings 加载 bitableAppToken 到本地 state
       // 之前该字段只在本地 state,从未持久化,重启后丢失
       setBitableAppToken(merged.feishu?.bitableAppToken ?? '')
+      // M4 修复: 成功后清除错误态
+      setLoadError(null)
     } catch (err) {
       console.error('[Settings] Failed to load:', err)
+      // M4 修复: 记录失败原因供错误态展示(而非仅 toast 一闪而过)
+      setLoadError(err instanceof Error ? err.message : String(err))
       toast.error(t('settings.load.failed'))
     } finally {
       setLoading(false)
@@ -196,10 +204,27 @@ export function SettingsPage() {
     }
   }, [loadSettings, t])
 
-  if (loading || !settings) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400 text-sm">
         {t('common.loading')}
+      </div>
+    )
+  }
+
+  // M4 修复: 加载失败时显示错误态 + 重试按钮(此前永久停留"加载中"且无出口)
+  if (!settings) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <EmptyState
+          title={t('settings.load.failed')}
+          description={loadError ?? undefined}
+          action={
+            <Button variant="primary" size="sm" onClick={() => loadSettings()}>
+              {t('common.retry', '重试')}
+            </Button>
+          }
+        />
       </div>
     )
   }
@@ -224,9 +249,9 @@ export function SettingsPage() {
               }}
               className={cn(INPUT_BASE, 'px-1.5 py-0.5 text-[10px]')}
               title="UI Language"
-              aria-label="切换界面语言"
+              aria-label={t('page.settings.langSwitchAria', '切换界面语言')}
             >
-              <option value="zh">中文</option>
+              <option value="zh">{t('settings.language.zh', '中文')}</option>
               <option value="en">EN</option>
             </select>
             <button
@@ -317,8 +342,8 @@ export function SettingsPage() {
         />
         <ConfirmDialog
           open={clearLogsConfirm.isOpen}
-          title="清空日志"
-          message="清空所有日志文件?"
+          title={t('page.settings.logs.clearTitle', '清空日志')}
+          message={t('settings.logs.clear.confirm', '清空所有日志文件?')}
           variant="danger"
           onConfirm={async () => {
             clearLogsConfirm.close()

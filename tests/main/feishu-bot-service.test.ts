@@ -56,7 +56,7 @@ vi.mock('../../src/main/services/eaa-bridge', () => ({
   eaaBridge: { execute: mocks.eaaExecute },
   getErrorMessage: vi.fn((r: { stderr?: string }) => r?.stderr ?? 'error'),
 }))
-vi.mock('../../src/main/services/feishu-command-router', () => ({
+vi.mock('../../src/main/services/feishu-bot/command-router', () => ({
   createDefaultRouter: () => ({
     dispatch: vi.fn().mockResolvedValue(null),
   }),

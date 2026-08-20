@@ -9,7 +9,8 @@ import { useMemo } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { ClassGradeSheetDocument } from '../../../components/print/ClassGradeSheetDocument'
 import { PrintOverlay } from '../../../components/print/PrintOverlay'
-import { sortByDateDesc } from '../academics-shared'
+import { useT } from '../../../i18n'
+import { sortByDateDesc } from '../../../lib/academics'
 import { CreateExamFormCard, ExamCardGrid, ExamListHeader } from '../components/exam-mgmt'
 import { useExamGradeSheet } from '../hooks/useExamGradeSheet'
 import { useExamManagement } from '../hooks/useExamManagement'
@@ -33,6 +34,8 @@ export function ExamManagementTab({
   students,
   classIdToName,
 }: ExamManagementTabProps) {
+  const { t } = useT()
+
   const sortedExams = useMemo(() => sortByDateDesc(exams), [exams])
   const gradeSheet = useExamGradeSheet(students)
 
@@ -110,9 +113,12 @@ export function ExamManagementTab({
       {/* 删除确认对话框 */}
       <ConfirmDialog
         open={deleteConfirm.open}
-        title="删除考试"
-        message={`确定要删除考试"${deleteConfirm.exam?.name}"吗？相关成绩记录也将被删除,此操作不可恢复。`}
-        confirmText="删除"
+        title={t('page.academics.exams.deleteExamTitle', '删除考试')}
+        message={`${t('page.academics.exams.deleteConfirmPrefix', '确定要删除考试"')}${deleteConfirm.exam?.name}${t(
+          'page.academics.exams.deleteConfirmSuffix',
+          '"吗？相关成绩记录也将被删除,此操作不可恢复。',
+        )}`}
+        confirmText={t('common.delete', '删除')}
         variant="danger"
         onConfirm={executeDelete}
         onCancel={() => setDeleteConfirm({ open: false, exam: null })}
@@ -121,7 +127,7 @@ export function ExamManagementTab({
       {/* 班级成绩单打印预览 */}
       {gradeSheet.sheet && (
         <PrintOverlay
-          title={`成绩单 — ${gradeSheet.sheet.exam.name}`}
+          title={`${t('print.gradeSheet.title', '成绩单')} — ${gradeSheet.sheet.exam.name}`}
           onClose={gradeSheet.closeSheet}
         >
           <ClassGradeSheetDocument

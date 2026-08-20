@@ -6,9 +6,9 @@
 > [`good first issue`](https://github.com/232252/education-advisor/issues?q=is%3Aopen+label%3A%22good+first+issue%22)
 > workflow.
 >
-> **The full feature backlog is in
-> [`docs/features/`](./features/)** as standalone feature
-> briefs. This file is the at-a-glance summary.
+> This file is the complete backlog. `docs/features/` holds only a
+> brief template (`TEMPLATE.md`) for future feature write-ups;
+> no standalone briefs exist yet.
 
 ## Status legend
 

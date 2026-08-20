@@ -5,8 +5,10 @@
 
 import type { EAAReasonCode } from '@shared/types'
 import { useState } from 'react'
+import { Button } from '../../../components/Button'
+import { useT } from '../../../i18n'
 import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
-import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
+import { cn, INPUT_BASE } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
 
 export function AddEventInline({
@@ -18,6 +20,7 @@ export function AddEventInline({
   reasonCodes: EAAReasonCode[]
   onDone: () => void
 }) {
+  const { t } = useT()
   const [reasonCode, setReasonCode] = useState('')
   const [delta, setDelta] = useState('')
   const [note, setNote] = useState('')
@@ -36,10 +39,12 @@ export function AddEventInline({
       if (result.success) {
         onDone()
       } else {
-        toast.error(`添加失败: ${getErrorMessage(result)}`)
+        toast.error(`${t('toast.students.addEventFailed', '添加失败')}: ${getErrorMessage(result)}`)
       }
     } catch (err) {
-      toast.error(`提交失败: ${err instanceof Error ? err.message : String(err)}`)
+      toast.error(
+        `${t('toast.students.submitFailed', '提交失败')}: ${err instanceof Error ? err.message : String(err)}`,
+      )
     }
     setSubmitting(false)
   }
@@ -56,7 +61,7 @@ export function AddEventInline({
           }}
           className={cn(INPUT_BASE, 'col-span-2 px-2 py-2 text-sm')}
         >
-          <option value="">选择原因码...</option>
+          <option value="">{t('page.students.addEvent.selectReason', '选择原因码...')}</option>
           {reasonCodes.map((c) => (
             <option key={c.code} value={c.code}>
               {c.label} ({c.code}){' '}
@@ -68,7 +73,7 @@ export function AddEventInline({
           type="number"
           value={delta}
           onChange={(e) => setDelta(e.target.value)}
-          placeholder="分数"
+          placeholder={t('page.students.addEvent.scorePlaceholder', '分数')}
           step="0.5"
           className={cn(INPUT_BASE, 'px-2 py-2 text-sm')}
         />
@@ -77,24 +82,21 @@ export function AddEventInline({
         type="text"
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        placeholder="备注（可选）"
+        placeholder={t('page.students.addEvent.notePlaceholder', '备注（可选）')}
         className={cn(INPUT_BASE, 'w-full px-2 py-2 text-sm mb-2')}
       />
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting || !reasonCode}
-          className={cn(btnStyle('primary'), 'text-xs')}
-        >
-          {submitting ? '提交中...' : '确认添加'}
-        </button>
+        <Button onClick={handleSubmit} disabled={submitting || !reasonCode} className="text-xs">
+          {submitting
+            ? t('page.students.addEvent.submitting', '提交中...')
+            : t('page.students.addEvent.confirm', '确认添加')}
+        </Button>
         <button
           type="button"
           onClick={onDone}
           className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 text-xs px-2"
         >
-          取消
+          {t('common.cancel', '取消')}
         </button>
       </div>
     </div>

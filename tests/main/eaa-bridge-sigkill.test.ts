@@ -174,4 +174,42 @@ describe('EAA Bridge 超时后 SIGKILL 升级', () => {
 
     existsSpy.mockRestore()
   })
+
+  it('M14: abort 路径应发送 SIGTERM 并在 3 秒后升级 SIGKILL(孤儿检测)', async () => {
+    const proc = new MockChildProcess()
+    mocks.spawnImpl.mockImplementation(() => proc)
+    const existsSpy = mockExistsSyncForEaaBinary()
+
+    const { EAABridge } = await import('../../src/main/services/eaa-bridge')
+    const bridge = new EAABridge()
+
+    const controller = new AbortController()
+    const execPromise = bridge.execute(
+      { command: 'list', args: [], timeout: 30_000 },
+      { signal: controller.signal },
+    )
+
+    // 等待 spawn 完成
+    await new Promise((r) => setImmediate(r))
+
+    // 执行中 abort
+    controller.abort()
+
+    // abort 后 100ms: 子进程必须已被 kill(孤儿检测,不留存活子进程)
+    await new Promise((r) => setTimeout(r, 100))
+    expect(proc.killed).toBe(true)
+    expect(proc.killSignals).toContain('SIGTERM')
+
+    // 3 秒后升级 SIGKILL — 忽略 SIGTERM 的子进程也会被强制终止
+    await new Promise((r) => setTimeout(r, 3200))
+    expect(proc.killSignals).toContain('SIGKILL')
+
+    // 让进程 close,验证统一返回 aborted 失败结果
+    proc.emit('close', null)
+    const result = await execPromise
+    expect(result.success).toBe(false)
+    expect(result.stderr).toBe('aborted')
+
+    existsSpy.mockRestore()
+  }, 10_000)
 })

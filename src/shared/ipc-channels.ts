@@ -112,6 +112,13 @@ export const IPC_SYS_CHECK_UPDATE = 'sys:check-update'
 export const IPC_SYS_READ_FILE = 'sys:read-file'
 // 重启应用(备份恢复后数据文件已替换,需重启进程重新加载)
 export const IPC_SYS_RESTART_APP = 'sys:restart-app'
+// ===== 自动更新 (M31, electron-updater) =====
+// 触发下载新版本安装包(sha512 校验由 electron-updater 内置)
+export const IPC_SYS_DOWNLOAD_UPDATE = 'sys:download-update'
+// 下载完成后退出并运行安装器(NSIS)
+export const IPC_SYS_INSTALL_UPDATE = 'sys:install-update'
+// 主→渲染: 下载进度/完成/错误推送
+export const IPC_SYS_UPDATE_PROGRESS = 'sys:update-progress'
 
 // ===== 数据备份/恢复 =====
 // 弹保存对话框 → 打包核心数据为 zip 写到用户选择的位置
@@ -135,6 +142,16 @@ export const IPC_ACADEMIC_DELETE_EXAM = 'academic:delete-exam'
 export const IPC_ACADEMIC_GET_GRADES = 'academic:get-grades'
 export const IPC_ACADEMIC_BATCH_SET_GRADES = 'academic:batch-set-grades'
 export const IPC_ACADEMIC_GET_CLASS_GRADES = 'academic:get-class-grades'
+
+// ===== 学生 Excel 批量导入（M30，主进程解析不给 renderer 加 xlsx） =====
+// 解析 Excel 返回预览行数据 + 冲突检测（重名/已存在学生）
+export const IPC_STUDENTS_PARSE_EXCEL = 'students:parse-excel'
+// 确认后逐条 add-student 导入（class_name 解析为 class_id 时联动 set-student-meta）
+export const IPC_STUDENTS_IMPORT_EXCEL = 'students:import-excel'
+// 导入进度事件（主进程 -> 渲染进程，串行 spawn 较慢时实时推送）
+export const IPC_STUDENTS_IMPORT_PROGRESS = 'students:import-progress'
+// 生成 Excel 导入模板（xlsx 在 main 侧动态构造，路径来自已有保存对话框 IPC）
+export const IPC_STUDENTS_IMPORT_TEMPLATE = 'students:import-template'
 
 // ===== 班级管理（本地：存档/删除） =====
 export const IPC_CLASS_LIST = 'class:list'

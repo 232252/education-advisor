@@ -20,7 +20,6 @@ export default defineConfig({
         'electron',
         'better-sqlite3',
         'node-cron',
-        'chokidar',
         'cross-spawn',
       ],
     },

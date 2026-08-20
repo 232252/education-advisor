@@ -16,6 +16,8 @@ import type { AcademicConfig, ClassEntity, EAAStudent, ExamDef } from '@shared/t
 import { useMemo } from 'react'
 import { useMultiLoader } from '../../../hooks/useMultiLoader'
 import { getAPI } from '../../../lib/ipc-client'
+import { useClassStore } from '../../../stores/class/store'
+import { useStudentStore } from '../../../stores/student/store'
 
 export interface AcademicsInitialData {
   students: EAAStudent[]
@@ -32,17 +34,14 @@ export interface UseAcademicsDataResult {
 
 /** useMultiLoader fetcher 解包 IPC 结果；失败时 fetcher 抛错，由 hook 记入 errors */
 async function unwrapStudents(): Promise<EAAStudent[]> {
-  const res = await getAPI().eaa.listStudents()
-  if (res.success && res.data?.students) {
-    return res.data.students.filter((s) => s.status !== 'Deleted')
-  }
-  return []
+  // M20: 复用共享 studentStore — 与 Students/Classes/Dashboard 跨页共享(TTL 3s)
+  const students = await useStudentStore.getState().fetchStudents()
+  return students.filter((s) => s.status !== 'Deleted')
 }
 
 async function unwrapClassList(): Promise<ClassEntity[]> {
-  const res = await getAPI().class.list()
-  if (res.success && res.data) return res.data
-  return []
+  // M20: 复用共享 classStore
+  return useClassStore.getState().fetchClasses()
 }
 
 async function unwrapConfig(): Promise<AcademicConfig | null> {

@@ -20,6 +20,7 @@ import { registerPrivacyHandlers } from './privacy-handlers'
 import { registerProfileHandlers } from './profile-handlers'
 import { registerSettingsHandlers } from './settings-handlers'
 import { registerSkillHandlers } from './skill-handlers'
+import { registerStudentExcelHandlers } from './students/excel-import-handlers'
 import { registerSysHandlers } from './sys-handlers'
 
 export async function registerAllHandlers(win: BrowserWindow) {
@@ -36,6 +37,7 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerFeishuHandlers(win)
   registerOllamaHandlers(win)
   registerClassHandlers()
+  registerStudentExcelHandlers()
   registerMcpHandlers(win)
   registerAcademicHandlers()
   registerBackupHandlers(win)

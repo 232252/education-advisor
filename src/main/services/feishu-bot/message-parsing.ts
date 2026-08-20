@@ -3,7 +3,7 @@
 // 从 feishu-bot-service.ts 拆出(纯重构,行为不变)
 // =============================================================
 
-import { extractText } from '../feishu-message-utils'
+import { extractText } from '../feishu/message-utils'
 import type { FeishuMessageEvent } from './types'
 
 /** 解析后的入站消息(过滤规则已通过、文本已提取) */

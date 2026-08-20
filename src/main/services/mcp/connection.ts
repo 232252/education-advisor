@@ -8,9 +8,9 @@
 
 import { spawn } from 'node:child_process'
 import type { McpServerConfig } from '@shared/types'
-import { assertSafeMcpUrl, CONNECT_TIMEOUT_MS, type MCPClient } from '../mcp-types'
 import { handleJsonRpcMessage, sendJsonRpc, sendNotification } from './protocol'
 import { buildSpawnEnv, resolveSpawnCommand } from './spawn-env'
+import { assertSafeMcpUrl, CONNECT_TIMEOUT_MS, type MCPClient } from './types'
 
 /**
  * 根据传输方式连接

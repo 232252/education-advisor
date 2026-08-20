@@ -6,6 +6,7 @@ import type { SubjectDef } from '@shared/types'
 import { Save } from 'lucide-react'
 import { Button } from '../../../../components/Button'
 import { Card } from '../../../../components/Card'
+import { useT } from '../../../../i18n'
 import type { ScoreEntry } from '../../lib/grade-entry'
 
 interface AllSubjectsTableProps {
@@ -25,11 +26,13 @@ export function AllSubjectsTable({
   onSave,
   onUpdateScore,
 }: AllSubjectsTableProps) {
+  const { t } = useT()
+
   return (
     <Card padding="md">
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-          全科成绩录入 — {studentName}
+          {`${t('page.academics.entry.allSubjectsTitle', '全科成绩录入')} — ${studentName}`}
         </h4>
         <Button
           variant="success"
@@ -38,17 +41,25 @@ export function AllSubjectsTable({
           icon={!saving ? <Save className="h-3.5 w-3.5" /> : undefined}
           onClick={onSave}
         >
-          {saving ? '保存中...' : '保存成绩'}
+          {saving
+            ? t('page.academics.entry.saving', '保存中...')
+            : t('page.academics.entry.saveGrades', '保存成绩')}
         </Button>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-white/[0.06]">
-              <th className="py-2 px-3 font-medium">科目</th>
-              <th className="py-2 px-3 font-medium text-center">满分</th>
-              <th className="py-2 px-3 font-medium text-center">成绩</th>
-              <th className="py-2 px-3 font-medium text-center">班级排名</th>
+              <th className="py-2 px-3 font-medium">{t('print.parentReport.subject', '科目')}</th>
+              <th className="py-2 px-3 font-medium text-center">
+                {t('print.parentReport.fullScore', '满分')}
+              </th>
+              <th className="py-2 px-3 font-medium text-center">
+                {t('page.academics.common.score', '成绩')}
+              </th>
+              <th className="py-2 px-3 font-medium text-center">
+                {t('print.studentReport.classRank', '班级排名')}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -61,7 +72,11 @@ export function AllSubjectsTable({
                 >
                   <td className="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">
                     {sub.name}
-                    {sub.isCore && <span className="ml-1 text-[10px] text-blue-500">主科</span>}
+                    {sub.isCore && (
+                      <span className="ml-1 text-[10px] text-blue-500">
+                        {t('page.academics.common.coreSubject', '主科')}
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 px-3 text-center text-gray-400 dark:text-gray-500 font-mono">
                     {sub.fullMark}

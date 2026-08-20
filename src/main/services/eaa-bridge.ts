@@ -1,5 +1,5 @@
 // =============================================================
-// EAA Bridge — Rust 子进程管理器（编排层）
+// EAA Bridge — Rust 子进程管理器（薄编排层）
 // 负责与 eaa 二进制通信，解析 JSON 输出
 // 支持 Windows / macOS / Linux 平台自适应
 // 跨平台降级：二进制不可用时返回友好错误而非依赖 PATH
@@ -8,25 +8,29 @@
 //   eaa/types.ts               类型 + getErrorMessage + 导出格式常量
 //   eaa/command-classification.ts  命令分类 + 参数脱敏 + args 构建
 //   eaa/platform.ts            平台常量 + 二进制路径解析
+//   eaa/binary-discovery.ts    二进制重探测 + 读缓存 + 进程终止
+//   eaa/execution-policy.ts    瞬态失败重试策略(os error 5 / 空 stdout)
 //   eaa/process-executor.ts    子进程 spawn/超时/输出捕获
 //   eaa/output-parser.ts       stdout 解析/错误归一化
 //   eaa/legacy-migration.ts    数据目录解析 + legacy 迁移
+//   eaa/initialization.ts      reason-codes 转换复制 + doctor 检查
+//   eaa/export-formats.ts      export 格式动态探测
 // 本文件保留 EAABridge 编排层与全部公共 API（行为零变化）
 // =============================================================
 
-import fs from 'node:fs'
 import path from 'node:path'
 import { debug } from '@shared/debug'
 import type spawn from 'cross-spawn'
-import { app } from 'electron'
+import { ReadCache, shutdownActiveProcesses, tryResolveBinaryPath } from './eaa/binary-discovery'
 import { sanitizeArgsForLog, WRITE_COMMANDS } from './eaa/command-classification'
 import {
-  cleanupStaleLock,
-  convertReasonCodes,
-  ensureDataDirStructure,
-  resolveDataDir,
-} from './eaa/legacy-migration'
-import { parseExportFormatsFromHelp } from './eaa/output-parser'
+  EMPTY_STDOUT_RETRY_BASE_DELAY_MS,
+  OS_ERROR5_RETRY_DELAY_MS,
+  retryOnTransientFailure,
+} from './eaa/execution-policy'
+import { probeExportFormats } from './eaa/export-formats'
+import { resolveReasonCodesSource, runDoctorCheck, seedReasonCodes } from './eaa/initialization'
+import { cleanupStaleLock, ensureDataDirStructure, resolveDataDir } from './eaa/legacy-migration'
 import { resolveBinaryPath } from './eaa/platform'
 import type { ProcessExecutorContext } from './eaa/process-executor'
 import { executeProcess } from './eaa/process-executor'
@@ -54,11 +58,6 @@ export class EAABridge {
    * 立即返回失败而不调用 spawn()，避免产生难看的 ENOENT。
    */
   private unavailableReason: string | null = null
-  /**
-   * High 1.1 修复: ENOENT 后允许重新探测二进制路径。
-   * 之前 binaryPath 一旦被置 null,即使二进制被恢复也无法继续使用,
-   * 必须重启 app 才能恢复。现在每次 execute 入口都尝试重新 resolve。
-   */
 
   /**
    * RISK 7 修复: 写命令串行化队列。
@@ -67,17 +66,16 @@ export class EAABridge {
    */
   private writeQueue: Promise<void> = Promise.resolve()
   /**
-   * 读命令结果缓存（TTL 制）。
-   * EAA 读命令每次都要 spawn 一个新进程并重新解析磁盘上的 entities/events JSON，
-   * 切换页面时反复拉取造成明显卡顿（仪表盘一次 7 个 spawn、学生页 1 个）。
-   * 读命令命中缓存即直接返回，写命令（含 forceRefresh）清除整个缓存。
-   * key = `${command}:${args.join(' ')}`，value = { result, expireAt }。
+   * 读命令结果缓存（TTL 制,实现下沉到 eaa/binary-discovery.ts 的 ReadCache）。
+   * 写命令（含 forceRefresh）清除整个缓存。
    */
-  private readCache = new Map<string, { result: EAAResult; expireAt: number }>()
-  /** 读缓存有效期（毫秒）。10 秒：足以覆盖页面来回切换，写操作即时失效。 */
-  private static readonly READ_CACHE_TTL = 10_000
-  /** 超过此条数的读缓存视为异常增长，清空并告警（防止内存泄漏）。 */
-  private static readonly READ_CACHE_MAX = 64
+  private readCache = new ReadCache()
+  /**
+   * M13 修复: 写序号计数器。写命令开始(清缓存)时递增;
+   * 读命令 spawn 前记录快照,set 缓存前校验序号未变,
+   * 封住"读 in-flight 期间插队写 → 旧快照驻留缓存 10s"的竞态窗口。
+   */
+  private writeSeq = 0
   /**
    * P1-10: 活跃子进程注册表。
    * EAA 是 spawn-per-command, 进程短生命周期, 但应用退出时若有 in-flight 进程,
@@ -103,25 +101,11 @@ export class EAABridge {
     this.writeListener = cb
   }
 
-  /** 生成读缓存键 */
-  private readCacheKey(cmd: EAACommand): string {
-    return `${cmd.command}:${cmd.args.join(' ')}`
-  }
-
   /** 清空读缓存（供「刷新」按钮调用，确保下次读取重新拉取） */
   invalidateReadCache(): void {
     this.readCache.clear()
   }
 
-  /**
-   * R135 新增: 延迟 helper,用于 os error 5 重试前等待 Windows Defender/AV 释放文件
-   * Defender 实时扫描通常在 50-200ms 内完成,这里用 100ms 平衡速度与成功率
-   */
-  private static readonly OS_ERROR5_RETRY_DELAY_MS = 100
-
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
   /**
    * RISK 7 修复: 需要串行化的写命令集合(WRITE_COMMANDS)已拆分到
    * eaa/command-classification.ts(逻辑逐字保留)。
@@ -191,7 +175,7 @@ export class EAABridge {
   async initialize(): Promise<{ healthy: boolean; message: string }> {
     // RISK 3 修复: dataDir 只读时 fs 操作会抛异常阻塞 app 启动,
     // 这里用 try/catch 包裹所有目录/文件初始化操作,失败时降级返回 unhealthy。
-    // 注意: parentDir/schemaDir 在 try 外声明,因为后续 copyFileSync 段还要使用 schemaDir。
+    // 注意: parentDir/schemaDir 在 try 外声明,因为后续 seedReasonCodes 还要使用 schemaDir。
     // EAA Rust CLI get_schema_dir() 会在 dataDir 的**父目录**中寻找 schema/reason_codes.json
     const parentDir = path.dirname(this.dataDir)
     const schemaDir = path.join(parentDir, 'schema')
@@ -206,37 +190,13 @@ export class EAABridge {
       return { healthy: false, message: this.unavailableReason }
     }
 
-    const codesSrc = app.isPackaged
-      ? path.join(process.resourcesPath, 'config', 'reason-codes.json')
-      : path.join(__dirname, '..', '..', 'config', 'reason-codes.json')
-
-    // 转换并复制 reason-codes.json (P-fix: project flat schema -> Rust nested schema)
-    // 项目根 config/reason-codes.json 是 flat 格式: { CODE: { label, category, delta } }
-    // Rust EAA CLI 期望嵌套格式: { version, codes: { CODE: { label, category, score_delta } } }
-    // 转换: 读源 JSON -> 包装成 { version, codes: {...} } -> 复制到两处
-    // (转换逻辑拆分到 eaa/legacy-migration.ts 的 convertReasonCodes)
-    const schemaCodesDst = path.join(schemaDir, 'reason_codes.json')
-    if (fs.existsSync(codesSrc) && !fs.existsSync(schemaCodesDst)) {
-      try {
-        const converted = convertReasonCodes(fs.readFileSync(codesSrc, 'utf-8'))
-        fs.writeFileSync(schemaCodesDst, converted, 'utf-8')
-        console.log('[EAA] Converted + wrote reason-codes.json to schema dir')
-      } catch (err) {
-        console.warn('[EAA] Failed to write reason-codes.json to schema dir:', err)
-      }
-    }
-
-    // 也复制到数据目录（备用路径）
-    const codesDst = path.join(this.dataDir, 'reason_codes.json')
-    if (fs.existsSync(codesSrc) && !fs.existsSync(codesDst)) {
-      try {
-        const converted = convertReasonCodes(fs.readFileSync(codesSrc, 'utf-8'))
-        fs.writeFileSync(codesDst, converted, 'utf-8')
-        console.log('[EAA] Converted + wrote reason-codes.json to data dir')
-      } catch (err) {
-        console.warn('[EAA] Failed to write reason-codes.json:', err)
-      }
-    }
+    // 转换并复制 reason-codes.json 到 schema 目录与数据目录(逻辑拆分到 eaa/initialization.ts)
+    const codesSrc = resolveReasonCodesSource(__dirname)
+    seedReasonCodes(
+      codesSrc,
+      path.join(schemaDir, 'reason_codes.json'),
+      path.join(this.dataDir, 'reason_codes.json'),
+    )
 
     // 如果二进制不可用，跳过 doctor 直接返回降级状态
     if (!this.isAvailable()) {
@@ -248,27 +208,12 @@ export class EAABridge {
       }
     }
 
-    // 运行 doctor 健康检查
-    try {
-      const result = await this.execute({ command: 'doctor', args: [], timeout: 10_000 })
-      this.initialized = true
-      if (result.success) {
-        console.log('[EAA] Doctor check passed')
-        return { healthy: true, message: 'EAA ready' }
-      }
-      // doctor 可能因为数据为空而警告，但不影响使用
-      console.log(
-        '[EAA] Doctor warnings (non-fatal):',
-        result.stderr || JSON.stringify(result.data),
-      )
-      return { healthy: true, message: 'EAA ready (with warnings)' }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[EAA] Doctor check failed:', msg)
-      // 不阻塞启动——EAA 命令可能在后续成功
-      this.initialized = true
-      return { healthy: false, message: msg }
-    }
+    // 运行 doctor 健康检查(逻辑拆分到 eaa/initialization.ts)
+    const result = await runDoctorCheck(() =>
+      this.execute({ command: 'doctor', args: [], timeout: 10_000 }),
+    )
+    this.initialized = true
+    return result
   }
 
   /**
@@ -293,15 +238,11 @@ export class EAABridge {
     // 即使二进制后来恢复,也必须重启 app 才能继续使用 EAA 功能。
     // 现在每次 execute 入口若 binaryPath 为 null,尝试重新 resolve 一次。
     if (!this.binaryPath) {
-      try {
-        const recovered = resolveBinaryPath(__dirname)
-        if (recovered) {
-          this.binaryPath = recovered
-          this.unavailableReason = null
-          console.log('[EAA] Binary path recovered after re-resolve:', recovered)
-        }
-      } catch {
-        /* 重新 resolve 仍然失败,保持 null 状态 */
+      const recovered = tryResolveBinaryPath(__dirname)
+      if (recovered) {
+        this.binaryPath = recovered
+        this.unavailableReason = null
+        console.log('[EAA] Binary path recovered after re-resolve:', recovered)
       }
     }
 
@@ -326,9 +267,9 @@ export class EAABridge {
     if (!isWrite) {
       // 读命令缓存：命中且未过期则直接返回，避免重复 spawn（切页面秒开）
       if (!cmd.forceRefresh) {
-        const cached = this.readCache.get(this.readCacheKey(cmd))
-        if (cached && cached.expireAt > Date.now()) {
-          return cached.result as EAAResult<T>
+        const cached = this.readCache.get(ReadCache.key(cmd.command, cmd.args))
+        if (cached) {
+          return cached as EAAResult<T>
         }
       }
       // MEDIUM 修复: 读命令等待当前活跃写完成,避免读到写期间的不一致 JSON
@@ -338,47 +279,47 @@ export class EAABridge {
       // 这是可接受的:读命令获得的是"调用时刻 + 排队中的写完成"后的快照,
       // 符合"调用前已提交的写操作对本次读可见"的语义。
       await this.writeQueue
-      let result = await this._doExecute<T>(cmd, opts?.signal)
+      // M13: spawn 前记录写序号;set 缓存前若序号已变(读 in-flight 期间有写命令
+      // 插队并清了缓存),放弃 set——旧快照入缓存会驻留 10s,导致教师刚录入的
+      // 数据看板不更新。放弃 set 的代价只是下次读多 spawn 一次拿新数据。
+      const seqBefore = this.writeSeq
+      const run = () => this._doExecute<T>(cmd, opts?.signal)
+      let result = await run()
       // R152 修复 + R135 强化: 如果读命令因 "os error 5"(Access Denied) 失败,
       // 不依赖 cleanupStaleLock 返回值(Defender 拦截时 lock 文件可能不存在或 mtime 很新),
       // 直接延迟 100ms 后重试一次。重试最多 2 次,覆盖 Defender 扫描窗口。
       if (!result.success && result.stderr && result.stderr.includes('os error 5')) {
         cleanupStaleLock(this.dataDir) // 尽力清理,不依赖返回值
-        for (let attempt = 1; attempt <= 2; attempt++) {
-          await this.delay(EAABridge.OS_ERROR5_RETRY_DELAY_MS)
-          console.warn(
-            `[EAA] Retrying read "${cmd.command}" (attempt ${attempt}/2) after os error 5`,
-          )
-          result = await this._doExecute<T>(cmd, opts?.signal)
-          if (result.success || !result.stderr || !result.stderr.includes('os error 5')) break
-        }
+        result = await retryOnTransientFailure(
+          run,
+          (stderr) => stderr.includes('os error 5'),
+          () => OS_ERROR5_RETRY_DELAY_MS,
+          `read "${cmd.command}"`,
+        )
       }
       // P1-9 修复: JSON 命令并发文件锁竞争时 stdout 可能为空(退出码 0 但无输出)。
       // _doExecute 已把这种情况标记为 success=false + stderr 含 [EAA_EMPTY_STDOUT]。
       // 这里对读命令做最多 2 次重试, 退避递增 80ms*(attempt+1) 以错开并发峰值。
       if (!result.success && result.stderr && result.stderr.includes('[EAA_EMPTY_STDOUT]')) {
-        for (let attempt = 1; attempt <= 2; attempt++) {
-          await this.delay(80 * (attempt + 1))
-          console.warn(
-            `[EAA] Retrying read "${cmd.command}" (attempt ${attempt}/2) after empty stdout`,
-          )
-          result = await this._doExecute<T>(cmd, opts?.signal)
-          if (!result.success || !result.stderr?.includes('[EAA_EMPTY_STDOUT]')) {
-            break
-          }
-        }
+        result = await retryOnTransientFailure(
+          run,
+          (stderr) => stderr.includes('[EAA_EMPTY_STDOUT]'),
+          (attempt) => EMPTY_STDOUT_RETRY_BASE_DELAY_MS * (attempt + 1),
+          `read "${cmd.command}"`,
+        )
       }
-      // 仅缓存成功结果（失败重试更有意义）
-      if (result.success) {
-        const key = this.readCacheKey(cmd)
-        if (this.readCache.size >= EAABridge.READ_CACHE_MAX) this.readCache.clear()
-        this.readCache.set(key, { result, expireAt: Date.now() + EAABridge.READ_CACHE_TTL })
+      // 仅缓存成功结果（失败重试更有意义）;
+      // M13: 竞态窗口内(序号已变)放弃 set,避免旧快照驻留缓存
+      if (result.success && this.writeSeq === seqBefore) {
+        this.readCache.set(ReadCache.key(cmd.command, cmd.args), result)
       }
       return result
     }
 
     // 写命令: 先清读缓存（数据已变更，旧缓存不再有效）
     if (this.readCache.size > 0) this.readCache.clear()
+    // M13: 递增写序号,使所有 in-flight 读命令的缓存写入失效
+    this.writeSeq++
     // 写命令前清理 stale lock(写命令也需要获取锁)
     cleanupStaleLock(this.dataDir)
     // 写命令: 通过 writeQueue Promise 链串行化
@@ -401,27 +342,21 @@ export class EAABridge {
       // 不依赖 cleanupStaleLock 返回值,延迟后重试最多 2 次
       if (!result.success && result.stderr && result.stderr.includes('os error 5')) {
         cleanupStaleLock(this.dataDir)
-        for (let attempt = 1; attempt <= 2; attempt++) {
-          await this.delay(EAABridge.OS_ERROR5_RETRY_DELAY_MS)
-          console.warn(
-            `[EAA] Retrying write "${cmd.command}" (attempt ${attempt}/2) after os error 5`,
-          )
-          result = await run()
-          if (result.success || !result.stderr || !result.stderr.includes('os error 5')) break
-        }
+        result = await retryOnTransientFailure(
+          run,
+          (stderr) => stderr.includes('os error 5'),
+          () => OS_ERROR5_RETRY_DELAY_MS,
+          `write "${cmd.command}"`,
+        )
       }
       // P1-9 修复: 写命令若返回空 stdout(JSON 命令)同样重试
       if (!result.success && result.stderr && result.stderr.includes('[EAA_EMPTY_STDOUT]')) {
-        for (let attempt = 1; attempt <= 2; attempt++) {
-          await this.delay(80 * (attempt + 1))
-          console.warn(
-            `[EAA] Retrying write "${cmd.command}" (attempt ${attempt}/2) after empty stdout`,
-          )
-          result = await run()
-          if (result.success || !result.stderr || !result.stderr.includes('[EAA_EMPTY_STDOUT]')) {
-            break
-          }
-        }
+        result = await retryOnTransientFailure(
+          run,
+          (stderr) => stderr.includes('[EAA_EMPTY_STDOUT]'),
+          (attempt) => EMPTY_STDOUT_RETRY_BASE_DELAY_MS * (attempt + 1),
+          `write "${cmd.command}"`,
+        )
       }
       // F1: 写命令成功后通知监听方(如 ipc 层缓存失效)。
       // try/catch 保证监听方异常不影响命令结果返回。
@@ -479,6 +414,7 @@ export class EAABridge {
    * 这样当 EAA 升级新增格式时，前端无需改动即可自动适配。
    *
    * H-6 修复: 并发调用时复用 in-flight Promise,避免多次 spawn。
+   * (探测/解析逻辑拆分到 eaa/export-formats.ts,逻辑逐字保留)
    */
   async getSupportedExportFormats(): Promise<readonly string[]> {
     // 已缓存则直接返回
@@ -494,38 +430,18 @@ export class EAABridge {
 
     // H-6 修复: 把整个探测流程封装成 Promise 并存到 in-flight 字段,
     // 这样并发调用都会等待同一个 Promise 完成
-    this.exportFormatsInFlight = (async () => {
-      try {
-        // 运行 `eaa export --help`，不追加 --output json（--help 是 clap 内置）
-        const result = await this.execute({
-          command: 'export',
-          args: ['--help'],
-          jsonOutput: false,
-          timeout: 5_000,
-        })
-
-        if (result.success && typeof result.data === 'string') {
-          const helpText = result.data
-          const formats = parseExportFormatsFromHelp(helpText)
-          if (formats.length > 0) {
-            this.cachedExportFormats = formats
-            if (debug.eaa) {
-              console.log('[debug:eaa] dynamically detected export formats:', formats)
-            }
-            return formats
-          }
-        }
-      } catch (err) {
-        console.warn(
-          '[EAA] Failed to dynamically probe export formats, using static list:',
-          err instanceof Error ? err.message : String(err),
-        )
-      }
-
-      // 降级到静态列表
-      this.cachedExportFormats = SUPPORTED_EXPORT_FORMATS
-      return SUPPORTED_EXPORT_FORMATS
-    })()
+    this.exportFormatsInFlight = probeExportFormats(() =>
+      // 运行 `eaa export --help`，不追加 --output json（--help 是 clap 内置）
+      this.execute({
+        command: 'export',
+        args: ['--help'],
+        jsonOutput: false,
+        timeout: 5_000,
+      }),
+    ).then((formats) => {
+      this.cachedExportFormats = formats
+      return formats
+    })
 
     try {
       return await this.exportFormatsInFlight
@@ -551,22 +467,9 @@ export class EAABridge {
    *      避免退出后子进程成为孤儿并持有 .lock 文件
    *   2. 清空读缓存(释放内存)
    *   3. 清空隐私密码(安全)
-   *
-   * EAA 是 spawn-per-command, 进程短生命周期, 通常退出时已无 in-flight 进程。
-   * 但若退出时恰好有 agent 在调用 EAA 工具, 这些进程需要被显式终止。
    */
   shutdown(): void {
-    if (this.activeProcesses.size > 0) {
-      console.log(`[EAA] shutdown: terminating ${this.activeProcesses.size} in-flight process(es)`)
-      for (const proc of this.activeProcesses) {
-        try {
-          proc.kill('SIGTERM')
-        } catch {
-          /* already exited */
-        }
-      }
-      this.activeProcesses.clear()
-    }
+    shutdownActiveProcesses(this.activeProcesses)
     this.readCache.clear()
     this.clearPrivacyPassword()
   }

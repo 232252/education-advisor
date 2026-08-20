@@ -9,6 +9,14 @@ import { app, type BrowserWindow, dialog, ipcMain } from 'electron'
 import { updateService } from '../services/update-service'
 
 export function registerSysHandlers(win: BrowserWindow) {
+  // M31: 更新下载进度推送 (参考 ollama:pull-progress 模式:
+  // 主进程事件 → webContents.send,窗口销毁后静默跳过)
+  updateService.setProgressListener((p) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send(IPC.IPC_SYS_UPDATE_PROGRESS, p)
+    }
+  })
+
   // 打开文件选择对话框
   // H-8 修复: 加 try-catch
   ipcMain.handle(IPC.IPC_SYS_OPEN_DIALOG, async (_e, options: Electron.OpenDialogOptions) => {
@@ -101,6 +109,30 @@ export function registerSysHandlers(win: BrowserWindow) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[IPC] sys:show-update-dialog failed:', msg)
       return { success: false, error: msg }
+    }
+  })
+
+  // 下载更新 (M31: electron-updater,进度经 sys:update-progress 推送)
+  // H-8 修复: 加 try-catch
+  ipcMain.handle(IPC.IPC_SYS_DOWNLOAD_UPDATE, async () => {
+    try {
+      return await updateService.downloadUpdate()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[IPC] sys:download-update failed:', msg)
+      return { success: false, error: msg }
+    }
+  })
+
+  // 重启并安装已下载的更新 (M31;portable 版返回 portable 标记提示手动替换)
+  // H-8 修复: 加 try-catch
+  ipcMain.handle(IPC.IPC_SYS_INSTALL_UPDATE, async () => {
+    try {
+      return await updateService.installUpdate()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[IPC] sys:install-update failed:', msg)
+      return { success: false, portable: false, error: msg }
     }
   })
 

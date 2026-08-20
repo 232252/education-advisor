@@ -4,8 +4,9 @@
 
 import type { ClassEntity } from '@shared/types'
 import { AlertTriangle } from 'lucide-react'
+import { Button } from '../../../components/Button'
 import { useT } from '../../../i18n'
-import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
+import { cn, INPUT_BASE } from '../../../lib/ui-utils'
 
 interface AddStudentFormProps {
   /** 活跃班级列表（为空时显示"请先创建班级"空态） */
@@ -36,7 +37,10 @@ export function AddStudentForm({
       {activeClassList.length === 0 ? (
         <div className="flex-1 text-sm text-amber-600 dark:text-amber-400 py-1 flex items-center gap-1.5">
           <AlertTriangle size={14} className="flex-shrink-0" />
-          请先在「班级」页面创建班级，学生必须归属于某个班级
+          {t(
+            'page.students.addStudent.noClassHint',
+            '请先在「班级」页面创建班级，学生必须归属于某个班级',
+          )}
         </div>
       ) : (
         <>
@@ -55,32 +59,25 @@ export function AddStudentForm({
             onChange={(e) => onNewStudentClassIdChange(e.target.value)}
             className={INPUT_BASE}
           >
-            <option value="">选择班级 *</option>
+            <option value="">{t('page.students.addStudent.selectClass', '选择班级 *')}</option>
             {activeClassList.map((c) => (
               <option key={c.class_id} value={c.class_id}>
                 {c.name}
               </option>
             ))}
           </select>
-          <button
-            type="button"
+          <Button
             onClick={onConfirm}
             disabled={!newStudentClassId || !newStudentName.trim()}
-            className={btnStyle('primary')}
             aria-label={t('common.confirm')}
           >
             {t('common.confirm')}
-          </button>
+          </Button>
         </>
       )}
-      <button
-        type="button"
-        onClick={onCancel}
-        className={btnStyle('secondary')}
-        aria-label={t('common.cancel')}
-      >
+      <Button variant="secondary" onClick={onCancel} aria-label={t('common.cancel')}>
         {t('common.cancel')}
-      </button>
+      </Button>
     </div>
   )
 }

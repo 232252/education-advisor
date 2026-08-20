@@ -5,9 +5,10 @@
 // UI 块: components/ProviderGroup / HiddenProviderList
 // =============================================================
 
-import { Loader2 } from 'lucide-react'
-import { EmptyState } from '../../components/EmptyState'
+import { useCallback, useState } from 'react'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { PageHeader } from '../../components/PageHeader'
+import { CardSkeleton } from '../../components/Skeleton'
 import { useT } from '../../i18n'
 import { btnStyle, cn, INPUT_BASE } from '../../lib/ui-utils'
 import { DefaultModelConfig } from './components/DefaultModelConfig'
@@ -46,6 +47,31 @@ export function ModelsPage() {
     handleApiKeyChange,
   } = useModelsData()
 
+  // M3 修复: 删除 API Key / 删除自定义模型属危险操作,先经 ConfirmDialog 确认再执行
+  type PendingDelete =
+    | { type: 'apiKey'; providerId: string }
+    | { type: 'customModel'; providerId: string; modelId: string }
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+
+  const confirmDeleteApiKey = useCallback(
+    (providerId: string) => setPendingDelete({ type: 'apiKey', providerId }),
+    [],
+  )
+  const confirmDeleteCustomModel = useCallback(
+    (providerId: string, modelId: string) =>
+      setPendingDelete({ type: 'customModel', providerId, modelId }),
+    [],
+  )
+  const executePendingDelete = useCallback(() => {
+    if (!pendingDelete) return
+    if (pendingDelete.type === 'apiKey') {
+      handleDeleteApiKey(pendingDelete.providerId)
+    } else {
+      handleDeleteCustomModel(pendingDelete.providerId, pendingDelete.modelId)
+    }
+    setPendingDelete(null)
+  }, [pendingDelete, handleDeleteApiKey, handleDeleteCustomModel])
+
   return (
     <div className="h-full overflow-y-auto animate-fade-in">
       <PageHeader
@@ -75,7 +101,12 @@ export function ModelsPage() {
         <LocalModelsSection />
 
         {loading ? (
-          <EmptyState icon={<Loader2 className="h-6 w-6 animate-spin" />} title="加载中..." />
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: 骨架屏静态元素，不会重排序
+              <CardSkeleton key={`provider-${i}`} />
+            ))}
+          </div>
         ) : (
           <div className="space-y-6">
             {/* 默认模型配置面板 */}
@@ -101,13 +132,13 @@ export function ModelsPage() {
                 onExpand={handleExpand}
                 onApiKeyChange={handleApiKeyChange}
                 onTest={handleTestConnection}
-                onDeleteKey={handleDeleteApiKey}
+                onDeleteKey={confirmDeleteApiKey}
                 onOAuthLogin={handleOAuthLogin}
                 onRefreshModels={refreshModels}
                 onHideProvider={handleHideProvider}
                 onAddCustomModel={handleAddCustomModel}
                 onUpdateCustomModel={handleUpdateCustomModel}
-                onDeleteCustomModel={handleDeleteCustomModel}
+                onDeleteCustomModel={confirmDeleteCustomModel}
               />
             )}
 
@@ -126,13 +157,13 @@ export function ModelsPage() {
                 onExpand={handleExpand}
                 onApiKeyChange={handleApiKeyChange}
                 onTest={handleTestConnection}
-                onDeleteKey={handleDeleteApiKey}
+                onDeleteKey={confirmDeleteApiKey}
                 onOAuthLogin={handleOAuthLogin}
                 onRefreshModels={refreshModels}
                 onHideProvider={handleHideProvider}
                 onAddCustomModel={handleAddCustomModel}
                 onUpdateCustomModel={handleUpdateCustomModel}
-                onDeleteCustomModel={handleDeleteCustomModel}
+                onDeleteCustomModel={confirmDeleteCustomModel}
               />
             )}
 
@@ -143,6 +174,22 @@ export function ModelsPage() {
           </div>
         )}
       </div>
+
+      {/* M3: 危险删除操作确认框 */}
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={t('page.models.confirmDeleteTitle', '确认删除')}
+        message={
+          pendingDelete?.type === 'apiKey'
+            ? `${t('page.models.confirmDeleteApiKey', '将删除该 Provider 的 API Key，删除后需重新配置。')} (${pendingDelete.providerId})`
+            : pendingDelete?.type === 'customModel'
+              ? `${t('page.models.confirmDeleteModel', '将删除自定义模型，删除后需重新添加。')} (${pendingDelete.modelId})`
+              : ''
+        }
+        variant="danger"
+        onConfirm={executePendingDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }

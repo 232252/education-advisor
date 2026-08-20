@@ -4,6 +4,7 @@
 // =============================================================
 
 import { useCallback } from 'react'
+import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 
 // Bitable 列表状态机的状态/动作类型(与 SettingsPage 内 useReducer 对齐)
@@ -27,24 +28,29 @@ export function useBitableList({
   dispatchBitList,
   setBitableListInfo,
 }: UseBitableListParams) {
+  const { t } = useT()
   const handleListBitable = useCallback(async () => {
     if (!appId || !bitableAppToken) {
-      setBitableListInfo('请先填写 App ID 和 Bitable App Token')
+      setBitableListInfo(
+        t('page.settings.feishu.fillAppIdAndToken', '请先填写 App ID 和 Bitable App Token'),
+      )
       return
     }
-    setBitableListInfo('正在拉取...')
+    setBitableListInfo(t('page.settings.feishu.listingNow', '正在拉取...'))
     dispatchBitList({ type: 'LIST' })
     const result = await getAPI().feishu.listBitable(appId, bitableAppToken)
     if (result.success && result.tables) {
       dispatchBitList({ type: 'SUCCESS' })
       setBitableListInfo(
-        `找到 ${result.tables.length} 个表: ${result.tables.map((t) => t.name).join(', ')}`,
+        `${t('page.settings.feishu.foundTablesPrefix', '找到 ')}${result.tables.length}${t('page.settings.feishu.foundTablesInfix', ' 个表: ')}${result.tables.map((tb) => tb.name).join(', ')}`,
       )
     } else {
       dispatchBitList({ type: 'ERROR' })
-      setBitableListInfo(`拉取失败 · ${result.error || '未知错误'}`)
+      setBitableListInfo(
+        `${t('page.settings.feishu.listFailed', '拉取失败')} · ${result.error || t('error.unknown', '未知错误')}`,
+      )
     }
-  }, [appId, bitableAppToken, dispatchBitList, setBitableListInfo])
+  }, [appId, bitableAppToken, dispatchBitList, setBitableListInfo, t])
 
   return handleListBitable
 }

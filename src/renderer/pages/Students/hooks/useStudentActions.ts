@@ -1,16 +1,32 @@
 // =============================================================
 // useStudentActions — 学生动作域 hook
-// 封装 添加/删除/批量调班/批量删除/导入/导出 六个 handler,
+// 封装 添加/删除/批量调班/批量删除/导入(JSON+Excel)/导出 等 handler,
 // confirmState 确认对话框管理,以及右键菜单 ctx-menu-action 事件监听。
+// M30: Excel 批量导入(解析预览 → 确认导入 → 进度/失败清单)。
 // 依赖通过参数注入,返回所有 handler + confirmState + setConfirmState。
 // =============================================================
 
-import type { ClassEntity, EAAStudent } from '@shared/types'
+import type {
+  ClassEntity,
+  EAAStudent,
+  StudentImportPreview,
+  StudentImportProgress,
+  StudentImportResult,
+} from '@shared/types'
 import { useCallback, useEffect, useState } from 'react'
 import { useT } from '../../../i18n'
 import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
 import type { ConfirmState, OpenDialogResult, SaveDialogResult } from '../types'
+
+/** Excel 导入对话框状态（M30：解析预览 → 确认导入 → 结果/失败清单） */
+export interface ExcelImportState {
+  open: boolean
+  preview: StudentImportPreview | null
+  importing: boolean
+  progress: StudentImportProgress | null
+  result: StudentImportResult | null
+}
 
 interface UseStudentActionsOptions {
   /** 全部学生（右键菜单按姓名查找） */
@@ -65,12 +81,20 @@ export function useStudentActions({
     message: '',
     onConfirm: () => {},
   })
+  // Excel 导入对话框状态（M30）
+  const [excelImport, setExcelImport] = useState<ExcelImportState>({
+    open: false,
+    preview: null,
+    importing: false,
+    progress: null,
+    result: null,
+  })
 
   // 添加新学生 (班级必填: 学生必须归属于某个班级)
   const handleAddStudent = async () => {
     if (!newStudentName.trim()) return
     if (!newStudentClassId) {
-      setActionMessageAuto('请先选择班级')
+      setActionMessageAuto(t('page.students.addStudent.selectClassFirst', '请先选择班级'))
       return
     }
     try {
@@ -155,7 +179,9 @@ export function useStudentActions({
     const targetClass = classList.find((c) => c.class_id === batchAssignTarget)
     setConfirmState({
       open: true,
-      message: `确认将选中的 ${names.length} 名学生调入「${targetClass?.name ?? batchAssignTarget}」?`,
+      message: t('page.students.batch.assignConfirm', '确认将选中的 {0} 名学生调入「{1}」?')
+        .replace('{0}', String(names.length))
+        .replace('{1}', targetClass?.name ?? batchAssignTarget),
       onConfirm: async () => {
         setConfirmState((prev) => ({ ...prev, open: false }))
         setBatchAssigning(true)
@@ -173,14 +199,18 @@ export function useStudentActions({
               toast.success(t('toast.students.batchAssignSuccess').replace('{0}', String(assigned)))
             } else {
               toast.warning(
-                `调入 ${assigned} 名, 失败 ${failed.length} 名: ${failed.slice(0, 3).join('; ')}`,
+                `${t('page.students.batch.assignPartial', '调入 {0} 名, 失败 {1} 名')
+                  .replace('{0}', String(assigned))
+                  .replace('{1}', String(failed.length))}: ${failed.slice(0, 3).join('; ')}`,
               )
             }
           }
           exitSelectMode()
           await loadStudents()
         } catch (err) {
-          toast.error(`调班异常: ${err instanceof Error ? err.message : String(err)}`)
+          toast.error(
+            `${t('toast.students.assignException', '调班异常')}: ${err instanceof Error ? err.message : String(err)}`,
+          )
         } finally {
           setBatchAssigning(false)
         }
@@ -233,7 +263,7 @@ export function useStudentActions({
   const handleImport = async () => {
     try {
       const result = (await getAPI().sys.openDialog({
-        title: '选择导入文件',
+        title: t('page.students.import.dialogTitle', '选择导入文件'),
         // main 侧 buildImportArgs 只支持 .json/.jsonl(Rust 端 serde_json 导入),
         // 不再提供 CSV 选项避免用户选中后被拒绝
         filters: [{ name: 'JSON', extensions: ['json', 'jsonl'] }],
@@ -254,12 +284,109 @@ export function useStudentActions({
     }
   }
 
+  // Excel 批量导入（M30）：选文件 → 主进程 parse-excel → 预览对话框确认
+  const handleImportExcel = async () => {
+    try {
+      const result = (await getAPI().sys.openDialog({
+        title: t('page.students.import.excel.dialogTitle', '选择 Excel 文件'),
+        filters: [{ name: 'Excel', extensions: ['xlsx', 'xls'] }],
+        properties: ['openFile'],
+      })) as OpenDialogResult
+      if (result.canceled || !result.filePaths?.length) return
+      const filePath = result.filePaths[0]
+      const preview = await getAPI().students.parseExcel(filePath)
+      if (!preview.success) {
+        toast.error(
+          `${t('page.students.import.excel.parseFailed')}: ${preview.error ?? t('error.unknown')}`,
+        )
+        return
+      }
+      if (preview.rows.length === 0 && preview.errors.length === 0) {
+        toast.warning(t('page.students.import.excel.emptyFile'))
+        return
+      }
+      setExcelImport({ open: true, preview, importing: false, progress: null, result: null })
+    } catch (err) {
+      console.error('[Students] Excel import parse failed:', err)
+      toast.error(t('page.students.import.excel.parseFailed'))
+    }
+  }
+
+  // Excel 导入确认：订阅进度推送 → 逐条 add-student → 展示结果/失败清单
+  const handleConfirmExcelImport = async () => {
+    const preview = excelImport.preview
+    if (!preview || excelImport.importing) return
+    setExcelImport((prev) => ({ ...prev, importing: true, progress: null }))
+    // 仅导入期间订阅进度事件（主进程串行 spawn 较慢，实时推送）
+    const unsubscribe = getAPI().students.onImportProgress((data) => {
+      setExcelImport((prev) => ({ ...prev, progress: data }))
+    })
+    try {
+      const result = await getAPI().students.importExcel({
+        rows: preview.rows.map((r) => ({ row: r.row, name: r.name, classId: r.classId })),
+      })
+      if (!result.success) {
+        toast.error(`${t('toast.common.importFailed')}: ${result.error ?? t('error.unknown')}`)
+        setExcelImport((prev) => ({ ...prev, importing: false }))
+        return
+      }
+      setExcelImport((prev) => ({ ...prev, importing: false, result }))
+      if (result.failed.length === 0) {
+        toast.success(
+          t('toast.students.excelImportSuccess').replace('{0}', String(result.imported)),
+        )
+      } else {
+        toast.warning(
+          t('toast.students.excelImportPartial')
+            .replace('{0}', String(result.imported))
+            .replace('{1}', String(result.failed.length)),
+        )
+      }
+      if (result.imported > 0) loadStudents()
+    } catch (err) {
+      console.error('[Students] Excel import failed:', err)
+      toast.error(t('toast.common.importFailed'))
+      setExcelImport((prev) => ({ ...prev, importing: false }))
+    } finally {
+      unsubscribe()
+    }
+  }
+
+  // 关闭 Excel 导入对话框（导入进行中禁止关闭，防止丢失进度反馈）
+  const handleCloseExcelImport = () => {
+    if (excelImport.importing) return
+    setExcelImport({ open: false, preview: null, importing: false, progress: null, result: null })
+  }
+
+  // 下载 Excel 导入模板（走已有 sys:save-dialog → 主进程 xlsx 动态构造）
+  const handleDownloadExcelTemplate = async () => {
+    try {
+      const result = (await getAPI().sys.saveDialog({
+        title: t('page.students.import.excel.templateTitle', '保存导入模板'),
+        defaultPath: 'students-import-template.xlsx',
+        filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+      })) as SaveDialogResult
+      if (!result || result.canceled || !result.filePath) return
+      const r = await getAPI().students.importTemplate(result.filePath)
+      if (r.success) {
+        toast.success(t('page.students.import.excel.templateSaved'))
+      } else {
+        toast.error(
+          `${t('page.students.import.excel.templateFailed')}: ${r.error ?? t('error.unknown')}`,
+        )
+      }
+    } catch (err) {
+      console.error('[Students] Excel template download failed:', err)
+      toast.error(t('page.students.import.excel.templateFailed'))
+    }
+  }
+
   // 导出排名
   const handleExport = async (format: string) => {
     try {
       const ext = format === 'markdown' ? 'md' : format
       const result = (await getAPI().sys.saveDialog({
-        title: '导出排名',
+        title: t('page.students.export.rankTitle', '导出排名'),
         defaultPath: `ranking.${ext}`,
         filters: [{ name: format.toUpperCase(), extensions: [ext] }],
       })) as SaveDialogResult
@@ -284,7 +411,12 @@ export function useStudentActions({
     handleBatchDelete,
     handleImport,
     handleExport,
+    handleImportExcel,
+    handleConfirmExcelImport,
+    handleCloseExcelImport,
+    handleDownloadExcelTemplate,
     confirmState,
     setConfirmState,
+    excelImport,
   }
 }

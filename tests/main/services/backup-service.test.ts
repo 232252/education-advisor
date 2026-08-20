@@ -60,6 +60,7 @@ const {
   listAutoBackups,
   pruneBackups,
   restoreFromZip,
+  runAutoBackupOnce,
   validateManifest,
 } = await import('../../../src/main/services/backup-service')
 const { createZip } = await import('../../../src/main/utils/zip')
@@ -275,6 +276,85 @@ describe('listAutoBackups / deleteAutoBackup / pruneBackups', () => {
     expect(list.length).toBe(3)
     // 保留的是最新的
     expect(list.map((b) => b.fileName)).toEqual(['auto-4.zip', 'auto-3.zip', 'auto-2.zip'])
+  })
+})
+
+describe('createBackup — 缺失文件处理', () => {
+  it('可选文件(-wal/cron)缺失时被跳过,其余照常打包', async () => {
+    await seedWorkspace()
+    await fsp.rm(`${dbPath}-wal`, { force: true })
+    await fsp.rm(path.join(userDataDir, 'cron-logs.jsonl'), { force: true })
+    await fsp.rm(path.join(userDataDir, 'cron.user.json'), { force: true })
+
+    const dest = path.join(tmpRoot, 'partial.zip')
+    const result = await createBackup(dest)
+
+    const { readZipFile } = await import('../../../src/main/utils/zip')
+    const entries = await readZipFile(dest)
+    const names = entries.map((e) => e.name)
+    expect(names).toContain('settings.json')
+    expect(names).toContain('workstation.db')
+    expect(names).not.toContain('workstation.db-wal')
+    expect(names).not.toContain('cron-logs.jsonl')
+    expect(names).not.toContain('cron.user.json')
+    // result.files 不含 manifest 自身
+    expect(result.files).toBe(entries.length - 1)
+  })
+
+  it('空工作区(无任何可备份文件)应抛错而非生成空包', async () => {
+    await fsp.rm(tmpRoot, { recursive: true, force: true })
+    await fsp.mkdir(userDataDir, { recursive: true })
+    await fsp.mkdir(eaaDataDir, { recursive: true })
+    await expect(createBackup(path.join(tmpRoot, 'empty.zip'))).rejects.toThrow(
+      'no backupable data found',
+    )
+  })
+
+  it('backups/ 目录不存在时 listAutoBackups 返回空数组', async () => {
+    // 上一用例已清空 tmpRoot,backups/ 必然不存在
+    expect(await listAutoBackups()).toEqual([])
+  })
+})
+
+describe('restoreFromZip — 坏包处理', () => {
+  beforeAll(seedWorkspace)
+
+  it('垃圾字节(非 zip)文件应拒绝', async () => {
+    const garbage = path.join(tmpRoot, 'garbage.zip')
+    await fsp.writeFile(garbage, Buffer.from('this is not a zip file'))
+    await expect(restoreFromZip(garbage)).rejects.toThrow(/invalid zip/)
+  })
+
+  it('不存在的 zip 路径应拒绝', async () => {
+    await expect(restoreFromZip(path.join(tmpRoot, 'missing.zip'))).rejects.toThrow(/ENOENT/)
+  })
+
+  it('eaa-data 条目含路径穿越(..)应整包拒绝', async () => {
+    const evil = path.join(tmpRoot, 'zipslip.zip')
+    const zipBuf = createZip([
+      { name: 'manifest.json', data: makeManifest([]) },
+      { name: 'eaa-data/../evil.txt', data: Buffer.from('x') },
+    ])
+    await fsp.writeFile(evil, zipBuf)
+    await expect(restoreFromZip(evil)).rejects.toThrow(/unsafe zip entry name/)
+  })
+})
+
+describe('runAutoBackupOnce', () => {
+  beforeAll(async () => {
+    await seedWorkspace()
+    mocks.settingsGet.mockReturnValue({ backup: { keep: 2 } })
+  })
+
+  it('在 backups/ 生成 auto-*.zip,记录 lastAutoAt,并按 keep 修剪', async () => {
+    const info = await runAutoBackupOnce()
+    expect(info).not.toBeNull()
+    expect(info?.fileName).toMatch(/^auto-.*\.zip$/)
+    expect(info?.kind).toBe('auto')
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith('backup.lastAutoAt', expect.any(Number))
+    const list = await listAutoBackups()
+    expect(list.length).toBeLessThanOrEqual(2)
+    expect(list.some((b) => b.fileName === info?.fileName)).toBe(true)
   })
 })
 

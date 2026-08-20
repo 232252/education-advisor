@@ -6,8 +6,10 @@
 // 诊断动作在 hooks/useDashboardActions.ts，展示区块在 components/。
 // =============================================================
 
+import { AlertTriangle, RotateCw } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Button } from '../../components/Button'
 import { PageHeader } from '../../components/PageHeader'
 import { PageSkeleton } from '../../components/Skeleton'
 import { useT } from '../../i18n'
@@ -86,6 +88,10 @@ export function DashboardPage() {
     }
   }, [loading, errors])
 
+  // M5: 部分失败派生值 — 告警条展示失败源名称(如 stats/ranking),给重试提供上下文
+  const failedSources = Object.keys(errors).join(', ')
+  const failedCount = Object.keys(errors).length
+
   // 手动刷新：重新加载数据（Electron 版本无 invalidateCache，直接 reload）
   const handleRefresh = useCallback(() => {
     reload()
@@ -124,6 +130,27 @@ export function DashboardPage() {
         }
       />
       <div className="p-6 space-y-6">
+        {/* M5 修复: 部分数据源加载失败时显示告警条(此前仅 console.warn,用户看到空图无从分辨) */}
+        {failedCount > 0 && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300/60 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 px-4 py-2.5">
+            <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>
+                {t('page.dashboard.partialLoadFailed', `${failedCount} 项数据加载失败`)}:
+                <span className="ml-1 font-mono opacity-75">{failedSources}</span>
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<RotateCw className="h-3.5 w-3.5" />}
+              onClick={handleRefresh}
+            >
+              {t('common.retry', '重试')}
+            </Button>
+          </div>
+        )}
+
         {/* 班级对比模式: 显示对比表格 */}
         {compareMode && (
           <ClassComparisonPanel

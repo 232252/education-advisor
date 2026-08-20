@@ -93,7 +93,10 @@ export function FeishuSection({
       <SettingRow
         label="App ID"
         path="feishu.appId"
-        description="飞书开放平台应用 ID,以 cli_ 开头。填写并保存后自动连接。"
+        description={t(
+          'page.settings.feishu.appIdDesc',
+          '飞书开放平台应用 ID,以 cli_ 开头。填写并保存后自动连接。',
+        )}
       >
         <input
           type="text"
@@ -111,7 +114,10 @@ export function FeishuSection({
       <SettingRow
         label="App Secret"
         path="feishu.appSecret"
-        description="飞书应用密钥,加密保存到本地 keystore,不外泄。保存后自动连接。"
+        description={t(
+          'page.settings.feishu.appSecretDesc',
+          '飞书应用密钥,加密保存到本地 keystore,不外泄。保存后自动连接。',
+        )}
       >
         <div className="flex flex-col items-end gap-1">
           <div className="flex items-center gap-2">
@@ -125,7 +131,9 @@ export function FeishuSection({
               disabled={feishuTestStatus === 'testing'}
               className="text-[10px] px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 transition-colors"
             >
-              {feishuTestStatus === 'testing' ? '测试中...' : '测试连接'}
+              {feishuTestStatus === 'testing'
+                ? t('settings.feishu.testing', '测试中...')
+                : t('settings.feishu.testConnection', '测试连接')}
             </button>
           </div>
           {feishuTestInfo && (

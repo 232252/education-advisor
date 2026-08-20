@@ -4,12 +4,11 @@
 // 修复:
 //   P1-26: save() 改为异步写盘
 //   A6: 通过单个 fd 写入 + fsync 确保数据落盘后再 rename
-//   使用唯一临时文件名避免 Windows 上 writeFile+rename 的竞态条件
+//   M17b: 原子写序列收敛到 utils/atomic-write(与 keystore-service 共享)
 // =============================================================
 
-import fsp from 'node:fs/promises'
-import path from 'node:path'
 import type { UnifiedSettings } from '@shared/types'
+import { atomicWrite } from '../../utils/atomic-write'
 
 /** 持久化状态(节流定时器/写入标志/最近错误) */
 export interface PersistenceState {
@@ -63,20 +62,11 @@ export async function saveNow(
     do {
       state.needsResave = false
       const json = JSON.stringify(getSettings(), null, 2)
-      // 修复: 使用唯一临时文件名避免 Windows 上 writeFile+rename 的竞态条件
-      const tmpPath = `${state.settingsPath}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
-      // 确保目录存在
-      await fsp.mkdir(path.dirname(state.settingsPath), { recursive: true })
-      // A6 修复: 通过单个 fd 写入 + fsync 确保数据落盘后再 rename,
-      // 避免 Windows 文件缓存在 SIGKILL/断电时丢失刚 rename 的设置 (R4 同类问题)
-      const fd = await fsp.open(tmpPath, 'w')
-      try {
-        await fd.writeFile(json, 'utf-8')
-        await fd.sync()
-      } finally {
-        await fd.close()
-      }
-      await fsp.rename(tmpPath, state.settingsPath)
+      // M17b 收敛: 原子写入(fd+fsync+rename,带 EPERM/EACCES/EBUSY 重试)
+      // 统一走 utils/atomic-write,与 keystore-service 共享同一实现
+      // (A6 语义保留: fsync 确保数据落盘后再 rename,防 Windows 文件缓存
+      //  在 SIGKILL/断电时丢失刚 rename 的设置)
+      await atomicWrite(state.settingsPath, json)
       state.lastError = null
     } while (state.needsResave)
   } catch (err) {

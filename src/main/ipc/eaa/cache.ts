@@ -1,11 +1,12 @@
 // =============================================================
-// EAA IPC 缓存上下文 — staticCache / scoreCache 创建
+// EAA IPC 缓存上下文 — staticCache / scoreCache 创建 + ranking 预热
 // 从 eaa-handlers.ts 抽出,逻辑零修改(逐行对照搬迁)
-// 注意: studentsCache / rankingCache / invalidateStudentsCache 保留在
-// eaa-handlers.ts —— tests/e2e 的源码断言(page-render / user-flow-simulation)
-// 依赖这些标识符出现在 eaa-handlers.ts 文件内容中,不可移动。
+// M18: prefillScoreCacheFromRanking 从 eaa/commands.ts 迁入(缓存预热归本文件,
+// 参数组装归 params.ts); studentsCache / rankingCache / invalidateStudentsCache
+// 位于 handlers-system.ts(随 ranking/list-students handler 一起迁入)
 // =============================================================
 
+import type { EAAResult } from '../../services/eaa-bridge'
 import { TtlLruCache } from '../../services/eaa-cache'
 
 /** 各 EAA handler 共享的缓存上下文(每次 registerEAAHandlers 调用时新建) */
@@ -16,6 +17,38 @@ export interface EaaCacheContext {
   scoreCache: TtlLruCache<unknown>
   /** 与原 setCached 行为一致:仅缓存 success:true 的对象 */
   setStaticCacheIfSuccess: (key: string, data: unknown) => void
+}
+
+/**
+ * 用 ranking 结果预填充 scoreCache(按学生名缓存)。
+ * 这样后续 eaa:score 调用可直接命中缓存,避免 spawn EAA 二进制 (~95ms → 0.2ms)。
+ * 注意: scoreCache 按学生名缓存,ranking 的 name 字段是学生名,entity_id 是内部 ID。
+ */
+export function prefillScoreCacheFromRanking(
+  scoreCache: TtlLruCache<unknown>,
+  result: EAAResult | null | undefined,
+): void {
+  const data = result?.data as
+    | {
+        ranking?: Array<{
+          entity_id: string
+          name?: string
+          score?: number
+          class_id?: string | null
+        }>
+      }
+    | undefined
+  if (result?.success && data?.ranking) {
+    for (const item of data.ranking) {
+      const studentName = item.name ?? item.entity_id
+      if (studentName && typeof item.score === 'number') {
+        scoreCache.set(studentName, {
+          success: true,
+          data: { score: item.score, entity_id: item.entity_id, name: studentName },
+        })
+      }
+    }
+  }
 }
 
 export function createEaaCacheContext(): EaaCacheContext {

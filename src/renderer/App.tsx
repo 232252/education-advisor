@@ -2,7 +2,7 @@
 // 根组件 — 路由 + 布局（路由级代码分割版）
 // =============================================================
 
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ContextMenu } from './components/ContextMenu'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -10,6 +10,7 @@ import { ToastContainer } from './components/ToastContainer'
 import { useForwardConsole } from './hooks/useForwardConsole'
 import { useTheme } from './hooks/useTheme'
 import { MainLayout } from './layouts/MainLayout'
+import { useAgentStore } from './stores/agent/store'
 
 // 路由级懒加载 — 首屏仅加载 MainLayout + DashboardPage
 const DashboardPage = lazy(() =>
@@ -75,6 +76,15 @@ export function App() {
   useTheme()
   // T2: 装 console 劫持 hook,所有 console 输出转发到 logs/renderer-*.log
   useForwardConsole()
+
+  // M22: App 级 bootstrap — Agent 列表与状态总线只初始化一次
+  // (原 MainLayout 内联逻辑上移;MainLayout/ChatPage/useAgentsData 不再各自 fetch)
+  const fetchAgents = useAgentStore((s) => s.fetchAgents)
+  const initStatusListener = useAgentStore((s) => s.initStatusListener)
+  useEffect(() => {
+    fetchAgents()
+    initStatusListener()
+  }, [fetchAgents, initStatusListener])
 
   return (
     <ErrorBoundary>

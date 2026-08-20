@@ -7,16 +7,17 @@
 import type { ExamDef, GradeRecord, SubjectDef } from '@shared/types'
 import { AlertTriangle, BookOpen, RotateCw } from 'lucide-react'
 import { useMemo } from 'react'
+import { Button } from '../../../components/Button'
 import { EmptyState } from '../../../components/EmptyState'
 import { CardSkeleton } from '../../../components/Skeleton'
-import { btnStyle } from '../../../lib/ui-utils'
+import { useT } from '../../../i18n'
+import { buildGradeTableData, filterExamsWithGrades } from '../../../lib/academics'
 import {
   GradeTableCard,
   LatestRadarChartCard,
   SubjectAvgChartCard,
   TrendChartCard,
 } from '../components/overview'
-import { buildGradeTableData, filterExamsWithGrades } from '../lib/academics-metrics'
 
 export interface OverviewTabProps {
   studentName: string
@@ -39,6 +40,8 @@ export function OverviewTab({
   gradesError,
   onRetry,
 }: OverviewTabProps) {
+  const { t } = useT()
+
   /** 与成绩记录关联的有效考试 (按日期升序) */
   const sortedExamsWithGrades = useMemo(() => filterExamsWithGrades(exams, grades), [exams, grades])
 
@@ -62,14 +65,16 @@ export function OverviewTab({
     return (
       <EmptyState
         icon={<AlertTriangle size={28} />}
-        title="成绩数据加载失败"
-        description={`${gradesError} — 数据可能存在但未能读取,请重试;若持续失败请检查数据目录或查看日志`}
+        title={t('page.academics.overview.loadFailed', '成绩数据加载失败')}
+        description={`${gradesError}${t(
+          'page.academics.overview.loadFailedDesc',
+          ' — 数据可能存在但未能读取,请重试;若持续失败请检查数据目录或查看日志',
+        )}`}
         action={
           onRetry ? (
-            <button type="button" onClick={onRetry} className={btnStyle('primary')}>
-              <RotateCw size={14} aria-hidden />
-              重试
-            </button>
+            <Button onClick={onRetry} icon={<RotateCw size={14} aria-hidden />}>
+              {t('common.retry', '重试')}
+            </Button>
           ) : undefined
         }
       />
@@ -80,8 +85,11 @@ export function OverviewTab({
     return (
       <EmptyState
         icon={<BookOpen size={28} />}
-        title="暂无成绩数据"
-        description={`${studentName} 还没有任何成绩记录,请先在"考试管理"中创建考试,然后在"成绩录入"中录入成绩`}
+        title={t('page.academics.overview.noGrades', '暂无成绩数据')}
+        description={`${studentName}${t(
+          'page.academics.overview.noGradesDesc',
+          ' 还没有任何成绩记录,请先在"考试管理"中创建考试,然后在"成绩录入"中录入成绩',
+        )}`}
       />
     )
   }

@@ -98,6 +98,10 @@ export interface UnifiedSettings {
     intervalHours: number
     /** 自动备份保留份数(超出自动清理最旧的,默认 7) */
     keep: number
+    /** M33: cron 驱动的定时自动备份开关(默认 false) */
+    autoBackupEnabled: boolean
+    /** M33: 定时自动备份 cron 表达式(默认 '0 3 * * *' 每日 03:00) */
+    autoBackupCron: string
     /** 上次自动备份时间(epoch ms,从未备份为 undefined) */
     lastAutoAt?: number
   }

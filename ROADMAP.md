@@ -17,17 +17,18 @@
 
 ## Pillar 1: Multi-class support
 
-The most-requested feature by far. Today, Education Advisor models one
-**class** (a teacher's homeroom). The data model, the agent prompts, and
-the UI all assume a single class. To support a grade-level head teacher
-or a school admin, we need multi-class.
+The most-requested feature by far. **Update: the multi-class foundation
+has shipped** — students carry a `class_id`, the Classes page manages
+multiple classes (create/archive/batch reassign), and class-level
+comparison is available. What remains are the analytics and
+per-class customization layers below.
 
-### 🎯 Multi-class data model
+### ✅ Multi-class data model (shipped)
 
-- `eaa-cli` learns about a top-level `class_id` namespace
-- The event log gains a `class_id` column
-- The privacy engine learns to anonymize per-class
-- The renderer adds a class switcher in the header
+- `eaa-cli` has a top-level `class_id` namespace
+- Students/events are scoped per class (ClassProfile, batch class reassign)
+- The Classes page (`ClassesPage`) manages multiple classes natively
+- Class comparison panel (`ClassComparisonPanel`) renders cross-class views
 
 **Why it matters**: opens the door to grade-level and school-level
 adoption. The hardest part is the data migration (existing event logs

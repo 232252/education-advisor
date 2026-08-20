@@ -1,11 +1,17 @@
 // =============================================================
-// Update Service — 轻量级自动更新检查
-// 使用 Node 内置 https 模块检查 GitHub Releases API
-// 无需安装 electron-updater
+// Update Service — 自动更新:检查 + 下载 + 安装 (M31)
+// 检查层: GitHub Releases API + 自研 semver 比对 (保留原有逻辑,
+//         renderer 侧 check-update IPC 交互不变)
+// 下载/安装层: electron-updater (替换自研,差量/回滚/签名校验/代理均内置)
+//   - latest.yml 的 sha512 校验由 electron-updater 默认启用(硬性安全要求,
+//     校验失败会 reject 并拒绝触发 update-downloaded,不得禁用)
+//   - 进度/完成/错误经 progressListener 推送 → sys:update-progress IPC
+//   - portable 版(electron-builder portable 目标)不支持自动安装,提示手动替换
 // =============================================================
 
 import https from 'node:https'
 import { app, dialog, shell } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { settingsService } from './settings-service'
 
 interface UpdateInfo {
@@ -18,6 +24,20 @@ interface UpdateInfo {
   platform: string
   arch: string
   enabled: boolean
+  message: string
+  /** portable 版不支持自动安装,renderer 据此显示"手动替换"提示 */
+  portable: boolean
+}
+
+/** 更新下载进度载荷 (主→渲染,经 sys:update-progress 推送) */
+export interface UpdateProgress {
+  status: 'downloading' | 'downloaded' | 'error'
+  /** 下载百分比 0-100 (downloaded 恒为 100) */
+  percent: number
+  transferred: number
+  total: number
+  bytesPerSecond: number
+  version: string
   message: string
 }
 
@@ -174,10 +194,27 @@ function fetchLatestRelease(repoUrl: string): Promise<{
 class UpdateService {
   private lastCheck: UpdateInfo | null = null
   private updateUrl: string = ''
+  private progressListener: ((p: UpdateProgress) => void) | null = null
+  /** electron-updater 事件是否已接线 (仅接线一次,避免重复监听) */
+  private wired = false
 
   /** 设置 GitHub 仓库 URL */
   setRepoUrl(url: string): void {
     this.updateUrl = url
+  }
+
+  /** 注册进度监听 (sys-handlers 调用,转发到 win.webContents.send) */
+  setProgressListener(cb: (p: UpdateProgress) => void): void {
+    this.progressListener = cb
+  }
+
+  /**
+   * 是否为 portable 版:electron-builder portable 目标运行时注入
+   * PORTABLE_EXECUTABLE_DIR 环境变量;未打包的 dev 模式同样不支持自动安装
+   */
+  isPortable(): boolean {
+    if (!app.isPackaged) return true
+    return Boolean(process.env.PORTABLE_EXECUTABLE_DIR)
   }
 
   /** 检查更新 */
@@ -210,6 +247,7 @@ class UpdateService {
         publishedAt: '',
         enabled: false,
         message: '未配置更新源 (updateUrl)，请在设置中填写 GitHub 仓库地址',
+        portable: this.isPortable(),
       }
       this.lastCheck = info
       return info
@@ -229,6 +267,7 @@ class UpdateService {
         publishedAt: release.published_at,
         enabled: true,
         message: hasUpdate ? `发现新版本 v${latestVersion}` : `当前已是最新版本 v${currentVersion}`,
+        portable: this.isPortable(),
       }
       this.lastCheck = info
       return info
@@ -243,6 +282,7 @@ class UpdateService {
         publishedAt: '',
         enabled: true,
         message: `检查更新失败: ${msg}`,
+        portable: this.isPortable(),
       }
       this.lastCheck = info
       return info
@@ -278,6 +318,126 @@ class UpdateService {
 
     if (response === 0 && info.releaseUrl) {
       await shell.openExternal(info.releaseUrl)
+    }
+  }
+
+  // ===== 下载 & 安装层 (M31, electron-updater) =====
+
+  /** 推送进度到渲染进程 (监听器异常不中断更新流程) */
+  private emitProgress(p: UpdateProgress): void {
+    try {
+      this.progressListener?.(p)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** 接线 electron-updater 事件 → progressListener (仅接线一次) */
+  private ensureWired(): void {
+    if (this.wired) return
+    this.wired = true
+    autoUpdater.on('download-progress', (info) => {
+      this.emitProgress({
+        status: 'downloading',
+        percent: info.percent,
+        transferred: info.transferred,
+        total: info.total,
+        bytesPerSecond: info.bytesPerSecond,
+        version: '',
+        message: '',
+      })
+    })
+    // 下载完成事件仅在安装包 sha512 校验通过后才会触发
+    autoUpdater.on('update-downloaded', (info) => {
+      this.emitProgress({
+        status: 'downloaded',
+        percent: 100,
+        transferred: 0,
+        total: 0,
+        bytesPerSecond: 0,
+        version: info?.version ?? '',
+        message: '',
+      })
+    })
+    autoUpdater.on('error', (err) => {
+      this.emitProgress({
+        status: 'error',
+        percent: 0,
+        transferred: 0,
+        total: 0,
+        bytesPerSecond: 0,
+        version: '',
+        message: err instanceof Error ? err.message : String(err),
+      })
+    })
+  }
+
+  /** 从仓库 URL 配置 electron-updater feed (GitHub provider) */
+  private configureFeed(repoUrl: string): boolean {
+    // 与 fetchLatestRelease 相同的 owner/repo 提取与校验,防 URL 注入
+    const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/)
+    if (!match) return false
+    const [, owner, repo] = match
+    const cleanRepo = repo.replace(/\.git$/, '')
+    if (!/^[A-Za-z0-9._-]+$/.test(owner) || !/^[A-Za-z0-9._-]+$/.test(cleanRepo)) {
+      return false
+    }
+    autoUpdater.setFeedURL({ provider: 'github', owner, repo })
+    return true
+  }
+
+  /**
+   * 下载更新 (electron-updater,内置 latest.yml sha512 校验)
+   * 仅打包后的 NSIS 安装版支持;portable/dev 模式返回错误提示手动更新
+   */
+  async downloadUpdate(): Promise<{ success: boolean; error?: string }> {
+    if (this.isPortable()) {
+      return { success: false, error: '便携版或开发模式不支持自动下载,请前往 GitHub 手动下载' }
+    }
+    let repoUrl = this.updateUrl
+    if (!repoUrl) {
+      try {
+        const s = settingsService.getSettings() as { general?: { updateUrl?: string } }
+        repoUrl = s.general?.updateUrl ?? ''
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!repoUrl) {
+      return { success: false, error: '未配置更新源 (updateUrl)' }
+    }
+    if (!this.configureFeed(repoUrl)) {
+      return { success: false, error: `Invalid GitHub repo URL: ${repoUrl}` }
+    }
+    this.ensureWired()
+    // 手动下载:checkForUpdates 发现新版本后不自动下载,由用户点击"下载并安装"
+    autoUpdater.autoDownload = false
+    // 下载完成后即使未点"重启安装",退出应用时也自动装上(提高安全修复到达率)
+    autoUpdater.autoInstallOnAppQuit = true
+    try {
+      // downloadUpdate 前必须先 checkForUpdates 填充 updateInfoAndProvider
+      // (否则 electron-updater 抛 "Please check update first");
+      // sha512 校验失败会 reject,不会触发 update-downloaded
+      await autoUpdater.checkForUpdates()
+      await autoUpdater.downloadUpdate()
+      return { success: true }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: msg }
+    }
+  }
+
+  /** 重启并安装已下载的更新 (仅 NSIS 安装版;portable 返回 portable 标记) */
+  async installUpdate(): Promise<{ success: boolean; portable: boolean; error?: string }> {
+    if (this.isPortable()) {
+      return { success: false, portable: true, error: '便携版请手动下载替换文件更新' }
+    }
+    try {
+      autoUpdater.quitAndInstall()
+      return { success: true, portable: false }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, portable: false, error: msg }
     }
   }
 }

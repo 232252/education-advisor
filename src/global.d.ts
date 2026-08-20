@@ -5,7 +5,7 @@
 // CSS 副作用导入(TS7 TS2882: 样式文件无类型声明)
 declare module '*.css'
 
-// ws 库无内置类型声明,此处声明宽松接口供 mcp-service.ts / mcp-client-pool.ts 使用
+// ws 库无内置类型声明,此处声明宽松接口供 mcp-service.ts / mcp/pool.ts 使用
 declare module 'ws' {
   export interface WebSocket {
     readonly readyState: number

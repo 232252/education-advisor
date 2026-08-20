@@ -45,7 +45,7 @@ vi.mock('../../../src/renderer/stores/toastStore', () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }))
 
-const { useChatStore } = await import('../../../src/renderer/stores/chatStore')
+const { useChatStore } = await import('../../../src/renderer/stores/chat/store')
 
 describe('chatStore', () => {
   beforeEach(() => {

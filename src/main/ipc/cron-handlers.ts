@@ -30,7 +30,8 @@ export function registerCronHandlers(win: BrowserWindow) {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[IPC] cron:list failed:', msg)
-      return { success: false, error: msg, tasks: [] }
+      // F3 模式: 渲染层契约是 CronTask[],错误时返回空数组而非形状不符的对象
+      return []
     }
   })
 

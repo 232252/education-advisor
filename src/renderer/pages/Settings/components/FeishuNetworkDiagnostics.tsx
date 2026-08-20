@@ -4,9 +4,11 @@
 // =============================================================
 
 import { useState } from 'react'
+import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 
 export function FeishuNetworkDiagnostics() {
+  const { t } = useT()
   const [diagnosing, setDiagnosing] = useState(false)
   const [diagnoseResult, setDiagnoseResult] = useState<{
     steps: Array<{
@@ -38,14 +40,18 @@ export function FeishuNetworkDiagnostics() {
   return (
     <div className="px-5 py-3 border-t border-gray-200 dark:border-white/[0.06]/60">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs font-medium text-gray-600 dark:text-gray-300">网络诊断</span>
+        <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+          {t('page.settings.feishu.networkDiagnostics', '网络诊断')}
+        </span>
         <button
           type="button"
           onClick={handleDiagnose}
           disabled={diagnosing}
           className="text-[10px] px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
         >
-          {diagnosing ? '诊断中...' : '开始诊断'}
+          {diagnosing
+            ? t('page.settings.feishu.diagnosing', '诊断中...')
+            : t('page.settings.feishu.startDiagnose', '开始诊断')}
         </button>
         {diagnoseResult && !diagnosing && (
           <span
@@ -55,7 +61,9 @@ export function FeishuNetworkDiagnostics() {
                 : 'text-rose-500 dark:text-rose-400'
             }`}
           >
-            {diagnoseResult.overall === 'pass' ? '✓ 全部通过' : '✗ 存在问题'}
+            {diagnoseResult.overall === 'pass'
+              ? `✓ ${t('page.settings.feishu.allPassed', '全部通过')}`
+              : `✗ ${t('page.settings.feishu.hasIssues', '存在问题')}`}
           </span>
         )}
       </div>
@@ -87,7 +95,7 @@ export function FeishuNetworkDiagnostics() {
                 <div className="text-gray-500 dark:text-gray-400">{step.detail}</div>
                 {step.suggestion && (
                   <div className="text-amber-600 dark:text-amber-400 mt-0.5">
-                    建议: {step.suggestion}
+                    {t('page.settings.feishu.suggestion', '建议')}: {step.suggestion}
                   </div>
                 )}
               </div>
@@ -96,7 +104,9 @@ export function FeishuNetworkDiagnostics() {
         </div>
       )}
       {diagnoseResult && diagnoseResult.steps.length === 0 && (
-        <div className="text-[11px] text-rose-500 dark:text-rose-400">诊断失败,请检查应用日志</div>
+        <div className="text-[11px] text-rose-500 dark:text-rose-400">
+          {t('page.settings.feishu.diagnoseFailed', '诊断失败,请检查应用日志')}
+        </div>
       )}
     </div>
   )

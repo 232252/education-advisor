@@ -3,6 +3,8 @@
 // 支持编辑/只读模式、多行文本、下拉选择、跨列等
 // =============================================================
 
+import { useT } from '../../../i18n'
+
 export function ProfileField({
   label,
   value,
@@ -22,6 +24,7 @@ export function ProfileField({
   multiline?: boolean
   spanFull?: boolean
 }) {
+  const { t } = useT()
   const baseClass =
     'w-full bg-gray-50 dark:bg-surface-primary border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors'
   return (
@@ -43,7 +46,7 @@ export function ProfileField({
             onChange={(e) => onChange?.(e.target.value)}
             className={baseClass + (label ? ' mt-1' : '')}
           >
-            <option value="">未选择</option>
+            <option value="">{t('common.unselected', '未选择')}</option>
             {options.map((o) => (
               <option key={o} value={o}>
                 {o}

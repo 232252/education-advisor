@@ -4,6 +4,7 @@
 // =============================================================
 
 import { useState } from 'react'
+import { useT } from '../../../i18n'
 import { cn, INPUT_SM } from '../../../lib/ui-utils'
 
 export interface SecretInputProps {
@@ -14,6 +15,7 @@ export interface SecretInputProps {
 }
 
 export function SecretInput({ value, onChange, placeholder, onBlur }: SecretInputProps) {
+  const { t } = useT()
   const [revealed, setRevealed] = useState(false)
   const display = value ? (revealed ? value : '••••••••') : ''
   return (
@@ -21,7 +23,7 @@ export function SecretInput({ value, onChange, placeholder, onBlur }: SecretInpu
       <input
         type={revealed ? 'text' : 'password'}
         value={display}
-        placeholder={placeholder ?? '未设置'}
+        placeholder={placeholder ?? t('common.unset', '未设置')}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
         className={cn(INPUT_SM, 'w-44')}
@@ -32,7 +34,9 @@ export function SecretInput({ value, onChange, placeholder, onBlur }: SecretInpu
           onClick={() => setRevealed((r) => !r)}
           className="text-[10px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1.5 transition-colors"
         >
-          {revealed ? '隐藏' : '显示'}
+          {revealed
+            ? t('page.settings.secret.hide', '隐藏')
+            : t('page.settings.secret.show', '显示')}
         </button>
       )}
     </div>

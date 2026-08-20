@@ -4,7 +4,7 @@
 
 import { useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useAgentStore } from '../../../stores/agentStore'
+import { useAgentStore } from '../../../stores/agent/store'
 
 export function useAgentsData() {
   // OPT-2: 使用独立 selector 避免整个 store 订阅,防止流式输出时每 token 触发全页重渲染
@@ -27,9 +27,7 @@ export function useAgentsData() {
 
   const [searchParams, setSearchParams] = useSearchParams()
 
-  useEffect(() => {
-    fetchAgents()
-  }, [fetchAgents])
+  // 初始加载由 App 级 bootstrap 负责(见 App.tsx);fetchAgents 仅供刷新按钮等手动触发
 
   // 全局搜索(Ctrl+K)跳转: agents 加载完成后按 agent_id 自动选中
   useEffect(() => {

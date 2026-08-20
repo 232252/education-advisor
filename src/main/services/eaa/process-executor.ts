@@ -32,6 +32,34 @@ function abortedResult<T>(): EAAResult<T> {
 }
 
 /**
+ * M14: 统一的升级击杀逻辑(SIGTERM → 3 秒后 SIGKILL)。
+ * 超时路径原有的双段击杀抽为共用函数,abort/输出溢出两条路径同样接线——
+ * 此前这两处只发一次 SIGTERM,可忽略 SIGTERM 的子进程在 Linux/macOS 上会变孤儿。
+ * 返回 SIGKILL 定时器句柄,由调用方在 close/error 时 clearTimeout。
+ */
+function escalateKill(
+  child: ReturnType<typeof spawn>,
+  label: string,
+): ReturnType<typeof setTimeout> {
+  try {
+    child.kill('SIGTERM')
+  } catch {
+    /* already exited */
+  }
+  // 3 秒后升级到 SIGKILL,确保进程被强制终止
+  // label 记录触发路径(abort/timeout/输出溢出),SIGTERM 被忽略意味着
+  // 子进程行为异常,这条日志是孤儿进程问题的第一手线索
+  return setTimeout(() => {
+    console.warn(`[EAA] SIGTERM ignored after 3s, escalating to SIGKILL (${label})`)
+    try {
+      child.kill('SIGKILL')
+    } catch {
+      /* already exited */
+    }
+  }, 3000)
+}
+
+/**
  * 实际执行 EAA 命令的子进程逻辑(提取自 EAABridge._doExecute,逻辑逐字保留)。
  * 调用前 execute 已完成 binaryPath 重新 resolve 和 unavailable 检查。
  * 写命令由 execute 通过 writeQueue 串行化后调用,读命令直接调用。
@@ -86,37 +114,29 @@ export function executeProcess<T = unknown>(
     // P1-10: 注册到活跃进程表, 供 shutdown() 终止
     ctx.activeProcesses.add(proc)
 
-    // F4: 执行中 abort → kill 子进程(SIGTERM,与超时路径相同的终止策略),
+    // M14: 所有终止路径的 SIGKILL 升级定时器,close/error 时统一清理
+    const sigkillHandles: Array<ReturnType<typeof setTimeout>> = []
+    const clearKillTimers = () => {
+      while (sigkillHandles.length > 0) {
+        clearTimeout(sigkillHandles.pop())
+      }
+    }
+
+    // F4: 执行中 abort → 升级击杀(SIGTERM → SIGKILL,与超时路径相同的终止策略),
     // close/error 时按 aborted 标志返回统一的失败结果
     let aborted = false
     const onAbort = () => {
       if (aborted) return
       aborted = true
-      try {
-        proc.kill('SIGTERM')
-      } catch {
-        /* already exited */
-      }
+      sigkillHandles.push(escalateKill(proc, `abort ${cmd.command}`))
     }
     ctx.signal?.addEventListener('abort', onAbort, { once: true })
 
     // 修复: 超时后 SIGTERM → 3秒后 SIGKILL 升级,防止子进程成为孤儿
+    // (M14: 逻辑抽为 escalateKill,语义不变)
     const timeoutMs = cmd.timeout ?? 30_000
-    let sigkillHandle: ReturnType<typeof setTimeout> | null = null
     const timeoutHandle = setTimeout(() => {
-      try {
-        proc.kill('SIGTERM')
-      } catch {
-        /* already exited */
-      }
-      // 3 秒后升级到 SIGKILL,确保进程被强制终止
-      sigkillHandle = setTimeout(() => {
-        try {
-          proc.kill('SIGKILL')
-        } catch {
-          /* already exited */
-        }
-      }, 3000)
+      sigkillHandles.push(escalateKill(proc, `timeout ${timeoutMs}ms ${cmd.command}`))
     }, timeoutMs)
 
     // MEDIUM 修复: stdout/stderr 设置 50MB/10MB 累积上限,溢出时截断并 kill 子进程,防止 OOM
@@ -138,11 +158,8 @@ export function executeProcess<T = unknown>(
       if (stdoutBytes > MAX_STDOUT_BYTES) {
         stdoutChunks.push(Buffer.from('\n[... stdout truncated at 50MB ...]'))
         stdoutTruncated = true
-        try {
-          proc.kill('SIGTERM')
-        } catch {
-          /* already exited */
-        }
+        // M14: 溢出路径同样走升级击杀(此前仅 SIGTERM)
+        sigkillHandles.push(escalateKill(proc, `stdout overflow ${cmd.command}`))
       }
     })
     proc.stderr?.on('data', (chunk: Buffer) => {
@@ -152,17 +169,14 @@ export function executeProcess<T = unknown>(
       if (stderrBytes > MAX_STDERR_BYTES) {
         stderrChunks.push(Buffer.from('\n[... stderr truncated at 10MB ...]'))
         stderrTruncated = true
-        try {
-          proc.kill('SIGTERM')
-        } catch {
-          /* already exited */
-        }
+        // M14: 溢出路径同样走升级击杀(此前仅 SIGTERM)
+        sigkillHandles.push(escalateKill(proc, `stderr overflow ${cmd.command}`))
       }
     })
 
     proc.on('close', (code) => {
       clearTimeout(timeoutHandle)
-      if (sigkillHandle) clearTimeout(sigkillHandle)
+      clearKillTimers()
       ctx.activeProcesses.delete(proc)
       ctx.signal?.removeEventListener('abort', onAbort)
       // F4: 因 abort 被 kill 的进程统一返回 aborted 失败结果
@@ -200,6 +214,7 @@ export function executeProcess<T = unknown>(
 
     proc.on('error', (err) => {
       clearTimeout(timeoutHandle)
+      clearKillTimers()
       ctx.activeProcesses.delete(proc)
       ctx.signal?.removeEventListener('abort', onAbort)
       // F4: abort 触发的 kill 在部分平台走 error 路径,同样返回统一 aborted 结果

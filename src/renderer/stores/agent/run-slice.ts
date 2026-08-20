@@ -2,6 +2,7 @@
 // Agent 运行 slice — runAgent / abortAgent / clearOutput
 // =============================================================
 
+import { t } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../toastStore'
 import { _flushLiveOutputNow, resetLiveOutputBuffer } from './live-output'
@@ -37,7 +38,7 @@ export function createRunSlice(
         set({ isRunning: false })
       } catch (err) {
         console.error('[AgentStore] Failed to abort agent:', err)
-        toast.error('中止 Agent 失败')
+        toast.error(t('toast.agent.abortFailed', '中止 Agent 失败'))
       }
     },
 

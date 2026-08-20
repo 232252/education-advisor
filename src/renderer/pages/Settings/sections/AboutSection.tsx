@@ -20,28 +20,36 @@ export function AboutSection() {
             </span>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
-            多智能体教育管理桌面系统 — 18 个教育 AI Agent + Rust 操行引擎 + 隐私脱敏
+            {t(
+              'page.settings.about.tagline',
+              '多智能体教育管理桌面系统 — 18 个教育 AI Agent + Rust 操行引擎 + 隐私脱敏',
+            )}
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-gray-50 dark:bg-surface-secondary rounded-lg p-3">
             <div className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 font-medium">
-              底层核心
+              {t('page.settings.about.coreTitle', '底层核心')}
             </div>
             <div className="space-y-1.5 text-xs">
               <div>
                 <span className="text-blue-500 dark:text-blue-400 font-medium">EAA Core</span>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  — Rust 操行评分/事件/隐私引擎, 24 子命令
+                  {t('page.settings.about.core.eaa', '— Rust 操行评分/事件/隐私引擎, 24 子命令')}
                 </span>
               </div>
               <div>
-                <span className="text-blue-500 dark:text-blue-400 font-medium">18 教育 Agent</span>
+                <span className="text-blue-500 dark:text-blue-400 font-medium">
+                  {t('page.settings.about.core.agents', '18 教育 Agent')}
+                </span>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  — 参谋/督导/辅导员/心理/纪律/班务等多智能体
+                  {t(
+                    'page.settings.about.core.agents.desc',
+                    '— 参谋/督导/辅导员/心理/纪律/班务等多智能体',
+                  )}
                 </span>
               </div>
               <div>
@@ -55,7 +63,7 @@ export function AboutSection() {
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  — Agent 运行时 (vendor/pi-agent-core)
+                  {t('page.settings.about.core.piAgent', '— Agent 运行时 (vendor/pi-agent-core)')}
                 </span>
               </div>
               <div>
@@ -69,14 +77,14 @@ export function AboutSection() {
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  — LLM 通信层 (vendor/pi-ai)
+                  {t('page.settings.about.core.piAi', '— LLM 通信层 (vendor/pi-ai)')}
                 </span>
               </div>
               <div>
                 <span className="text-blue-500 dark:text-blue-400 font-medium">PII Shield</span>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  — 隐私脱敏加密引擎
+                  {t('page.settings.about.core.piiShield', '— 隐私脱敏加密引擎')}
                 </span>
               </div>
             </div>
@@ -84,7 +92,7 @@ export function AboutSection() {
 
           <div className="bg-gray-50 dark:bg-surface-secondary rounded-lg p-3">
             <div className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 font-medium">
-              关键依赖
+              {t('page.settings.about.depsTitle', '关键依赖')}
             </div>
             <div className="grid grid-cols-1 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
               <span>Electron 43.2 + React 19.2</span>
@@ -96,8 +104,10 @@ export function AboutSection() {
         </div>
 
         <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-          Education Advisor 内置 EAA Core (Rust) + Pi Agent 运行时 + Pi-AI 通信层 + 18 个教育 AI
-          Agent，遵循 MIT 协议发布。
+          {t(
+            'page.settings.about.license',
+            'Education Advisor 内置 EAA Core (Rust) + Pi Agent 运行时 + Pi-AI 通信层 + 18 个教育 AI Agent，遵循 MIT 协议发布。',
+          )}
         </p>
       </div>
     </Section>

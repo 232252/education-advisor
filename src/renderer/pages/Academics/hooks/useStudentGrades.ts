@@ -7,6 +7,7 @@
 
 import type { GradeRecord } from '@shared/types'
 import { useCallback, useEffect, useState } from 'react'
+import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 
 export interface UseStudentGradesResult {
@@ -19,34 +20,38 @@ export interface UseStudentGradesResult {
 }
 
 export function useStudentGrades(selectedStudent: string | null): UseStudentGradesResult {
+  const { t } = useT()
   const [grades, setGrades] = useState<GradeRecord[]>([])
   const [gradesLoading, setGradesLoading] = useState(false)
   const [gradesError, setGradesError] = useState<string | null>(null)
 
-  const loadGrades = useCallback(async (studentName: string) => {
-    if (!studentName) {
-      setGrades([])
-      setGradesError(null)
-      return
-    }
-    setGradesLoading(true)
-    try {
-      const res = await getAPI().academic.getGrades(studentName)
-      if (res.success && res.data) {
-        setGrades(res.data)
-        setGradesError(null)
-      } else {
+  const loadGrades = useCallback(
+    async (studentName: string) => {
+      if (!studentName) {
         setGrades([])
-        setGradesError(res.error || '成绩数据加载失败')
+        setGradesError(null)
+        return
       }
-    } catch (err) {
-      console.warn('[Academics] Failed to load grades:', err)
-      setGrades([])
-      setGradesError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setGradesLoading(false)
-    }
-  }, [])
+      setGradesLoading(true)
+      try {
+        const res = await getAPI().academic.getGrades(studentName)
+        if (res.success && res.data) {
+          setGrades(res.data)
+          setGradesError(null)
+        } else {
+          setGrades([])
+          setGradesError(res.error || t('page.academics.overview.loadFailed', '成绩数据加载失败'))
+        }
+      } catch (err) {
+        console.warn('[Academics] Failed to load grades:', err)
+        setGrades([])
+        setGradesError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setGradesLoading(false)
+      }
+    },
+    [t],
+  )
 
   // 学生切换时重新加载成绩
   useEffect(() => {

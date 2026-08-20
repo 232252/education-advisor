@@ -167,3 +167,65 @@ describe('keystoreService', () => {
     mocks.encryptionAvailable = true
   })
 })
+
+// =============================================================
+// 启动加载降级 — 需要 fresh 单例,用 vi.resetModules() 重新 import
+// (electron mock 由 vi.mock 注册,resetModules 后仍然生效)
+// =============================================================
+describe('keystoreService 启动加载降级', () => {
+  beforeAll(async () => {
+    // 上一个 describe 的 afterAll 已删除 tmpDir,这里重建
+    await fsp.mkdir(tmpDir, { recursive: true })
+  })
+
+  async function freshService() {
+    vi.resetModules()
+    const mod = await import('../../src/main/services/keystore-service')
+    await mod.keystoreService.ready()
+    return mod.keystoreService
+  }
+
+  it('keystore.enc 损坏(解密失败)时应清空缓存并记录 lastError', async () => {
+    await fsp.writeFile(
+      path.join(tmpDir, 'keystore.enc'),
+      Buffer.from('garbage-not-encrypted-bytes'),
+    )
+    const fresh = await freshService()
+    expect(fresh.getLastError()).toMatch(/decryption failed/i)
+    expect(fresh.getApiKey('openai')).toBeUndefined()
+    expect(fresh.listProviders()).toEqual([])
+  })
+
+  it('加密后端不可用时 load 应记录 lastError 且不填充缓存', async () => {
+    // 先写一个"正常加密"的文件,再以加密不可用状态启动
+    const payload = Buffer.from(JSON.stringify({ openai: 'sk-x' })).toString('base64')
+    await fsp.writeFile(path.join(tmpDir, 'keystore.enc'), Buffer.from(`enc:${payload}`))
+    mocks.encryptionAvailable = false
+    try {
+      const fresh = await freshService()
+      expect(fresh.getLastError()).toMatch(/not available/i)
+      expect(fresh.getApiKey('openai')).toBeUndefined()
+    } finally {
+      mocks.encryptionAvailable = true
+    }
+  })
+
+  it('keystore.enc 不存在时应以空缓存启动且无错误', async () => {
+    try {
+      await fsp.unlink(path.join(tmpDir, 'keystore.enc'))
+    } catch {
+      /* ignore */
+    }
+    const fresh = await freshService()
+    expect(fresh.getLastError()).toBeNull()
+    expect(fresh.listProviders()).toEqual([])
+  })
+
+  it('正常加密文件应能解密加载回缓存', async () => {
+    const payload = Buffer.from(JSON.stringify({ deepseek: 'sk-ds-789' })).toString('base64')
+    await fsp.writeFile(path.join(tmpDir, 'keystore.enc'), Buffer.from(`enc:${payload}`))
+    const fresh = await freshService()
+    expect(fresh.getLastError()).toBeNull()
+    expect(fresh.getApiKey('deepseek')).toBe('sk-ds-789')
+  })
+})

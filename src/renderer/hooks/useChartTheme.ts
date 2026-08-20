@@ -40,14 +40,22 @@ export interface ChartTheme {
   }
 }
 
+// 图表品牌语义色 —— 多处复用的具名色(ChartCard.dotColor 标记 / 单系列主色),
+// 与 PALETTE 成员同源单一定义:blue=palette[0], violet=palette[2], green=palette[4]
+export const CHART_BRAND = {
+  blue: '#3b82f6', // blue-500
+  violet: '#8b5cf6', // violet-500
+  green: '#22c55e', // green-500
+}
+
 // 品牌色板：蓝 → 靛 → 紫 → 青 → 绿 → 琥珀 → 橙 → 红
 // 与 AppLogo / MainLayout 渐变（blue→indigo→violet）呼应，替代 ECharts 默认色
 const PALETTE = [
-  '#3b82f6', // blue-500
+  CHART_BRAND.blue, // blue-500
   '#6366f1', // indigo-500
-  '#8b5cf6', // violet-500
+  CHART_BRAND.violet, // violet-500
   '#06b6d4', // cyan-500
-  '#22c55e', // green-500
+  CHART_BRAND.green, // green-500
   '#eab308', // yellow-500
   '#f97316', // orange-500
   '#ef4444', // red-500

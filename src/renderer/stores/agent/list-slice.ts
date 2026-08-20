@@ -3,6 +3,7 @@
 // =============================================================
 
 import type { AgentDetail, AgentListItem } from '@shared/types'
+import { t } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../toastStore'
 import type { AgentGet, AgentSet, AgentState } from './types'
@@ -19,7 +20,7 @@ export function createListSlice(
         set({ agents, loading: false })
       } catch (err) {
         console.error('[AgentStore] Failed to fetch agents:', err)
-        toast.error('加载 Agent 列表失败')
+        toast.error(t('toast.agent.loadFailed', '加载 Agent 列表失败'))
         set({ loading: false })
       }
     },
@@ -32,7 +33,7 @@ export function createListSlice(
         }))
       } catch (err) {
         console.error('[AgentStore] Failed to toggle agent:', err)
-        toast.error(`${enabled ? '启用' : '停用'} Agent 失败`)
+        toast.error(t(enabled ? 'toast.agent.enableFailed' : 'toast.agent.disableFailed'))
         throw err
       }
     },
@@ -56,10 +57,10 @@ export function createListSlice(
         if (selectedAgentId === id && detail !== undefined) {
           set({ selectedDetail: detail })
         }
-        toast.success('Agent 配置已更新')
+        toast.success(t('toast.agent.updated'))
       } catch (err) {
         console.error('[AgentStore] Failed to update agent:', err)
-        toast.error('更新 Agent 配置失败')
+        toast.error(t('toast.agent.updateFailed'))
         throw err
       }
     },

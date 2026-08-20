@@ -38,14 +38,14 @@ const { chatState, setStateMock } = vi.hoisted(() => {
   return { chatState: proxied, setStateMock: vi.fn() }
 })
 
-vi.mock('../../../stores/chatStore', () => ({
+vi.mock('../../../stores/chat/store', () => ({
   useChatStore: Object.assign((sel: (s: unknown) => unknown) => sel(chatState), {
     setState: setStateMock,
     getState: () => chatState,
   }),
 }))
 
-vi.mock('../../../stores/agentStore', () => ({
+vi.mock('../../../stores/agent/store', () => ({
   useAgentStore: Object.assign(
     (sel: (s: unknown) => unknown) =>
       sel({

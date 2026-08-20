@@ -5,6 +5,7 @@
 import type { ChatMessage } from '@shared/types'
 import { Bot, Check, Copy } from 'lucide-react'
 import { Markdown } from '../../../components/Markdown'
+import { useT } from '../../../i18n'
 import { ToolCallRow } from './ToolCallRow'
 import { TypingDots } from './TypingDots'
 
@@ -19,6 +20,7 @@ interface MessageItemProps {
 
 /** 消息列表中的单条消息（用户/助手气泡） */
 export function MessageItem({ msg, index, isStreaming, isLast, copied, onCopy }: MessageItemProps) {
+  const { t } = useT()
   return (
     <div
       className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} ${msg.role !== 'user' ? 'gap-2.5 items-end' : ''}`}
@@ -50,7 +52,7 @@ export function MessageItem({ msg, index, isStreaming, isLast, copied, onCopy }:
           {msg.thinking && (
             <details className="mb-2">
               <summary className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300">
-                思考过程
+                {t('page.chat.message.thinkingProcess', '思考过程')}
               </summary>
               <div className="mt-1 text-xs text-gray-400 dark:text-gray-500 whitespace-pre-wrap pl-2 border-l border-gray-300 dark:border-white/[0.06]">
                 {msg.thinking}
@@ -76,17 +78,19 @@ export function MessageItem({ msg, index, isStreaming, isLast, copied, onCopy }:
             type="button"
             onClick={() => onCopy(index, msg.content)}
             className="self-start mt-1 inline-flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity duration-150 px-1"
-            aria-label={copied ? '已复制' : '复制'}
+            aria-label={
+              copied ? t('page.chat.message.copied', '已复制') : t('page.chat.message.copy', '复制')
+            }
           >
             {copied ? (
               <>
                 <Check size={12} strokeWidth={2.5} className="text-green-500" />
-                已复制
+                {t('page.chat.message.copied', '已复制')}
               </>
             ) : (
               <>
                 <Copy size={12} strokeWidth={2} />
-                复制
+                {t('page.chat.message.copy', '复制')}
               </>
             )}
           </button>
