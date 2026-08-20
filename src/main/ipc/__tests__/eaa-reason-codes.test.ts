@@ -4,7 +4,11 @@
 // =============================================================
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getReasonCodeDef, lookupReasonCodeDelta, resetReasonCodesCache } from '../eaa-reason-codes'
+import {
+  getReasonCodeDef,
+  lookupReasonCodeDelta,
+  resetReasonCodesCache,
+} from '../../services/eaa/reason-codes'
 
 // mock fs 同步读取,避免依赖真实 config/reason-codes.json 文件
 vi.mock('node:fs', () => ({

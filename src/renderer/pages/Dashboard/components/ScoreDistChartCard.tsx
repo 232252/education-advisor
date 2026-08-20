@@ -1,14 +1,19 @@
 // =============================================================
 // ScoreDistChartCard — 分数分布柱状图卡片
 // 职责：接收分数区间数据 + 主题，内部构造并 memo ECharts option。
-// （option 构造函数不导出，避免 declaration emit 的 TS4058，
-//   与代码库其他图表组件内联构造 option 的模式一致）
+// M21: 轴/网格/tooltip 样板收敛到 components/charts/option-builders,
+// 容器收敛到 ChartCard;仅保留本图语义(按分数区间分桶渐变着色)。
 // =============================================================
 
-import ReactEChartsCore from 'echarts-for-react/esm/core'
 import { useMemo } from 'react'
-import { Card } from '../../../components/Card'
-import { type ChartTheme, useChartTheme } from '../../../hooks/useChartTheme'
+import { ChartCard } from '../../../components/charts/ChartCard'
+import {
+  axisTooltip,
+  categoryAxis,
+  containGrid,
+  valueAxis,
+} from '../../../components/charts/option-builders'
+import { CHART_BRAND, type ChartTheme, useChartTheme } from '../../../hooks/useChartTheme'
 import { useT } from '../../../i18n'
 import { echarts } from '../../../lib/echarts-setup'
 
@@ -29,23 +34,10 @@ function buildScoreChartOption(
     animation: true,
     animationDuration: 800,
     animationEasing: 'cubicOut' as const,
-    tooltip: {
-      trigger: 'axis',
-      ...chartTheme.tooltipOption,
-    },
-    grid: { left: 8, right: 8, top: 8, bottom: 28, containLabel: true },
-    xAxis: {
-      type: 'category',
-      data: sortedScoreKeys,
-      axisLabel: { color: chartTheme.legendColor, fontSize: 11, rotate: 0 },
-      axisLine: { lineStyle: { color: chartTheme.gridColor } },
-      axisTick: { show: false },
-    },
-    yAxis: {
-      type: 'value',
-      axisLabel: { color: chartTheme.legendColor },
-      splitLine: { lineStyle: { color: chartTheme.gridColor, type: 'dashed' } },
-    },
+    tooltip: axisTooltip(chartTheme),
+    grid: containGrid(28),
+    xAxis: categoryAxis(sortedScoreKeys, chartTheme, { hideTick: true }),
+    yAxis: valueAxis(chartTheme),
     series: [
       {
         type: 'bar',
@@ -94,15 +86,12 @@ export function ScoreDistChartCard({ scoreIntervals, sortedScoreKeys }: ScoreDis
     [scoreIntervals, sortedScoreKeys, chartTheme],
   )
   return (
-    <Card
-      padding="md"
+    <ChartCard
+      title={t('page.dashboard.chart.scoreDist')}
+      dotColor={CHART_BRAND.blue}
+      height={260}
+      option={option}
       className="shadow-card hover:shadow-card-hover transition-shadow duration-300"
-    >
-      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-        {t('page.dashboard.chart.scoreDist')}
-      </h3>
-      <ReactEChartsCore echarts={echarts} style={{ height: 260 }} option={option} />
-    </Card>
+    />
   )
 }

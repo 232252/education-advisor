@@ -9,7 +9,7 @@ import path from 'node:path'
 import { compareSemver } from '../../src/main/services/update-service'
 import { tokenizeQuery } from '../../src/main/services/eaa-tools'
 import { EAABridge } from '../../src/main/services/eaa-bridge'
-import { parseCommand } from '../../src/main/services/feishu-command-router'
+import { parseCommand } from '../../src/main/services/feishu-bot/command-router'
 
 vi.mock('electron', () => ({
   app: {

@@ -3,10 +3,10 @@
 // =============================================================
 
 import { MessageSquare } from 'lucide-react'
+import { Button } from '../../../components/Button'
 import { EmptyState } from '../../../components/EmptyState'
 import { useT } from '../../../i18n'
-import { btnStyle, cn } from '../../../lib/ui-utils'
-import type { ChatSession } from '../../../stores/chatStore'
+import type { ChatSession } from '../../../stores/chat/types'
 import { formatTime } from '../lib/format'
 
 interface SessionSidebarProps {
@@ -32,13 +32,9 @@ export function SessionSidebar({
     <div className="w-64 flex-shrink-0 border-r border-gray-200/60 dark:border-white/[0.06] flex flex-col bg-gray-50/80 dark:bg-surface-tertiary">
       {/* 顶部操作区 */}
       <div className="p-3 border-b border-gray-200/60 dark:border-white/[0.06]">
-        <button
-          type="button"
-          onClick={onCreateSession}
-          className={cn('w-full', btnStyle('primary'))}
-        >
+        <Button variant="primary" fullWidth onClick={onCreateSession}>
           + {t('page.chat.newConversation')}
-        </button>
+        </Button>
       </div>
 
       {/* 会话列表 */}
@@ -84,7 +80,7 @@ export function SessionSidebar({
                 }}
                 className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 ml-2 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 transition-all text-xs"
                 title={t('common.delete')}
-                aria-label="删除对话"
+                aria-label={t('page.chat.session.delete', '删除对话')}
               >
                 ×
               </button>

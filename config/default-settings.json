@@ -48,7 +48,9 @@
   "backup": {
     "autoEnabled": false,
     "intervalHours": 24,
-    "keep": 7
+    "keep": 7,
+    "autoBackupEnabled": false,
+    "autoBackupCron": "0 3 * * *"
   },
   "privacy": {
     "enabled": false,

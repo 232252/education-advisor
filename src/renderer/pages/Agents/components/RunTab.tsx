@@ -7,8 +7,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Markdown } from '../../../components/Markdown'
+import { useT } from '../../../i18n'
 import { btnStyle } from '../../../lib/ui-utils'
-import { useAgentStore } from '../../../stores/agentStore'
+import { useAgentStore } from '../../../stores/agent/store'
 
 interface RunTabProps {
   agentId: string
@@ -18,6 +19,7 @@ interface RunTabProps {
 }
 
 export function RunTab({ agentId, enabled, onRun, onAbort }: RunTabProps) {
+  const { t } = useT()
   // 细粒度 selector: 只订阅本 Tab 需要的流式状态
   const liveOutput = useAgentStore((s) => s.liveOutput)
   const liveToolCalls = useAgentStore((s) => s.liveToolCalls)
@@ -55,7 +57,11 @@ export function RunTab({ agentId, enabled, onRun, onAbort }: RunTabProps) {
               }
             }}
             disabled={isRunning || !enabled}
-            placeholder={enabled ? '输入指令或问题...' : 'Agent 已禁用'}
+            placeholder={
+              enabled
+                ? t('page.agents.run.placeholder', '输入指令或问题...')
+                : t('page.agents.run.disabled', 'Agent 已禁用')
+            }
             className="flex-1 bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-4 py-2 text-sm
               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow disabled:opacity-50"
           />
@@ -63,20 +69,20 @@ export function RunTab({ agentId, enabled, onRun, onAbort }: RunTabProps) {
             <button
               type="button"
               onClick={() => onAbort(agentId)}
-              aria-label="停止执行"
+              aria-label={t('page.agents.run.stop', '停止执行')}
               className={btnStyle('danger')}
             >
-              停止
+              {t('page.agents.run.stopBtn', '停止')}
             </button>
           ) : (
             <button
               type="button"
               onClick={handleRun}
               disabled={!prompt.trim() || !enabled}
-              aria-label="执行"
+              aria-label={t('page.agents.run.execute', '执行')}
               className={btnStyle('primary')}
             >
-              执行
+              {t('page.agents.run.execute', '执行')}
             </button>
           )}
         </div>
@@ -110,14 +116,14 @@ export function RunTab({ agentId, enabled, onRun, onAbort }: RunTabProps) {
         ) : (
           !isRunning && (
             <div className="text-gray-400 dark:text-gray-600 text-sm text-center mt-8">
-              执行结果将在此显示
+              {t('page.agents.run.emptyOutput', '执行结果将在此显示')}
             </div>
           )
         )}
 
         {isRunning && (
           <div className="mt-2 text-xs text-gray-400 dark:text-gray-500 animate-pulse">
-            Agent 正在执行中...
+            {t('page.agents.run.running', 'Agent 正在执行中...')}
           </div>
         )}
       </div>

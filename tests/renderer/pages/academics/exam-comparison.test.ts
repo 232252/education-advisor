@@ -16,7 +16,7 @@ import {
   summarizeClassComparison,
   summarizeSubjects,
   type SubjectComparison,
-} from '../../../../src/renderer/pages/Academics/exam-comparison'
+} from '../../../../src/renderer/lib/academics'
 
 // ---------- 数据工厂 ----------
 

@@ -14,7 +14,7 @@ import { NAV_ITEMS } from '../../config/nav-items'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { cn } from '../../lib/ui-utils'
-import { useAgentStore } from '../../stores/agentStore'
+import { useAgentStore } from '../../stores/agent/store'
 import { usePaletteStore } from '../../stores/paletteStore'
 import {
   buildEventResults,

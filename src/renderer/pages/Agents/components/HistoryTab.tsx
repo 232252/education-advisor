@@ -7,12 +7,19 @@ import { ClipboardList } from 'lucide-react'
 import { memo, useState } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
 import { Markdown } from '../../../components/Markdown'
+import { useT } from '../../../i18n'
 import { cn, TABLE_ROW, TABLE_TD, TABLE_TH } from '../../../lib/ui-utils'
 import { formatHistoryTime, sortExecutionsDesc } from '../lib/agent-display'
 
 export function HistoryTab({ executions }: { executions: AgentExecution[] }) {
+  const { t } = useT()
   if (executions.length === 0) {
-    return <EmptyState icon={<ClipboardList size={28} />} title="暂无执行记录" />
+    return (
+      <EmptyState
+        icon={<ClipboardList size={28} />}
+        title={t('page.agents.history.empty', '暂无执行记录')}
+      />
+    )
   }
 
   // 按时间倒序
@@ -23,12 +30,12 @@ export function HistoryTab({ executions }: { executions: AgentExecution[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr>
-            <th className={TABLE_TH}>时间</th>
-            <th className={TABLE_TH}>状态</th>
-            <th className={TABLE_TH}>指令</th>
-            <th className={TABLE_TH}>耗时</th>
+            <th className={TABLE_TH}>{t('page.agents.history.col.time', '时间')}</th>
+            <th className={TABLE_TH}>{t('page.agents.history.col.status', '状态')}</th>
+            <th className={TABLE_TH}>{t('page.agents.history.col.prompt', '指令')}</th>
+            <th className={TABLE_TH}>{t('page.agents.history.col.duration', '耗时')}</th>
             <th className={TABLE_TH}>Token</th>
-            <th className={TABLE_TH}>费用</th>
+            <th className={TABLE_TH}>{t('page.agents.history.col.cost', '费用')}</th>
           </tr>
         </thead>
         <tbody>
@@ -42,6 +49,7 @@ export function HistoryTab({ executions }: { executions: AgentExecution[] }) {
 }
 
 const HistoryRow = memo(function HistoryRow({ exec }: { exec: AgentExecution }) {
+  const { t } = useT()
   const [expanded, setExpanded] = useState(false)
   const timeStr = formatHistoryTime(exec.startedAt)
 
@@ -61,7 +69,11 @@ const HistoryRow = memo(function HistoryRow({ exec }: { exec: AgentExecution }) 
                   : 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400'
             }`}
           >
-            {exec.status === 'success' ? '成功' : exec.status === 'error' ? '错误' : '超时'}
+            {exec.status === 'success'
+              ? t('common.success', '成功')
+              : exec.status === 'error'
+                ? t('common.error', '错误')
+                : t('status.timeout', '超时')}
           </span>
         </td>
         <td className={cn(TABLE_TD, 'text-gray-600 dark:text-gray-300 truncate max-w-[200px]')}>
@@ -80,13 +92,17 @@ const HistoryRow = memo(function HistoryRow({ exec }: { exec: AgentExecution }) 
       {expanded && (
         <tr className="bg-gray-50 dark:bg-white/[0.03]">
           <td colSpan={6} className="p-4">
-            <div className="text-xs text-gray-400 dark:text-gray-500 mb-2">输入: {exec.prompt}</div>
+            <div className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+              {t('page.agents.history.input', '输入')}: {exec.prompt}
+            </div>
             {exec.output ? (
               <div className="text-xs text-gray-600 dark:text-gray-300 max-h-60 overflow-y-auto">
                 <Markdown content={exec.output} />
               </div>
             ) : (
-              <div className="text-xs text-gray-400 dark:text-gray-500 italic">（无输出）</div>
+              <div className="text-xs text-gray-400 dark:text-gray-500 italic">
+                {t('page.agents.history.noOutput', '（无输出）')}
+              </div>
             )}
           </td>
         </tr>

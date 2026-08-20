@@ -10,14 +10,14 @@
 import type { EAAEventRecord, EAAStudent, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useT } from '../../../i18n'
-import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
-import { toast } from '../../../stores/toastStore'
-import { summarizeClassComparison } from '../exam-comparison'
 import {
   computeStudentComparisons,
   filterStudentNamesByClass,
   sortByDateAsc,
-} from '../lib/academics-metrics'
+  summarizeClassComparison,
+} from '../../../lib/academics'
+import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
+import { toast } from '../../../stores/toastStore'
 
 export interface UseCompareDataParams {
   students: EAAStudent[]
@@ -88,6 +88,10 @@ export function useCompareData({ students, subjects, exams }: UseCompareDataPara
         try {
           const rangeRes = await getAPI().eaa.range(start, end, 5000)
           if (rangeRes.success && rangeRes.data) {
+            // M10: range 结果达上限(limit 被截断为 1000)时提醒缩小日期范围
+            if (rangeRes.data.truncated) {
+              toast.warning(t('toast.eaa.rangeTruncated'))
+            }
             setConductEvents(rangeRes.data.events ?? [])
           } else {
             setConductEvents(null)

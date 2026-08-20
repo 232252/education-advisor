@@ -4,8 +4,9 @@
 // =============================================================
 
 import type { ExamDef, GradeRecord } from '@shared/types'
+import { useT } from '../../../../i18n'
+import { ACADEMIC_SUBJECT_MAP, computeExamAverage } from '../../../../lib/academics'
 import { CARD_BASE } from '../../../../lib/ui-utils'
-import { ACADEMIC_SUBJECT_MAP, computeExamAverage } from '../../lib/academics-metrics'
 
 interface ExamGradeCardsProps {
   /** 按日期升序且该学生有成绩的考试 */
@@ -15,6 +16,7 @@ interface ExamGradeCardsProps {
 }
 
 export function ExamGradeCards({ sortedExams, gradesByExam }: ExamGradeCardsProps) {
+  const { t } = useT()
   return (
     <div className="grid grid-cols-2 gap-3">
       {sortedExams.map((exam) => {
@@ -51,7 +53,7 @@ export function ExamGradeCards({ sortedExams, gradesByExam }: ExamGradeCardsProp
             </div>
             {examGrades.some((g) => g.score != null) && (
               <div className="mt-3 pt-2 border-t border-gray-100 dark:border-white/[0.06] text-xs text-gray-500 dark:text-gray-400 flex justify-between">
-                <span>平均分</span>
+                <span>{t('page.students.academics.avgScore', '平均分')}</span>
                 <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
                   {avg.toFixed(1)}
                 </span>

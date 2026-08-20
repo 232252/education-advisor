@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAutoDismiss } from '../../../hooks/useAutoDismiss'
 import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
-import { useAgentStore } from '../../../stores/agentStore'
+import { useAgentStore } from '../../../stores/agent/store'
 import { toast } from '../../../stores/toastStore'
 
 export function useAgentAnalysis(
@@ -69,10 +69,13 @@ export function useAgentAnalysis(
         setAiOutput((prev) => prev + data.output)
       }
       if (data.result) {
-        setAiOutput((prev) => `${prev}\n\n--- 执行完成 (${data.result?.durationMs}ms) ---\n`)
+        setAiOutput(
+          (prev) =>
+            `${prev}\n\n--- ${t('page.students.ai.executed', '执行完成')} (${data.result?.durationMs}ms) ---\n`,
+        )
       }
       if (data.error) {
-        setAiOutput((prev) => `${prev}\n[错误] ${data.error}\n`)
+        setAiOutput((prev) => `${prev}\n[${t('common.error', '错误')}] ${data.error}\n`)
       }
     })
 
@@ -86,10 +89,12 @@ export function useAgentAnalysis(
         // 等待一段时间让流式输出到达
         await new Promise((r) => setTimeout(r, 1500))
       }
-      if (mountedRef.current) setAiMessageAuto('AI 分析完成')
+      if (mountedRef.current) setAiMessageAuto(t('page.students.ai.done', 'AI 分析完成'))
     } catch (err) {
       if (mountedRef.current)
-        setAiMessageAuto(`分析失败: ${err instanceof Error ? err.message : String(err)}`)
+        setAiMessageAuto(
+          `${t('page.students.ai.failed', '分析失败')}: ${err instanceof Error ? err.message : String(err)}`,
+        )
     } finally {
       unsub()
       if (mountedRef.current) setAiRunning(false)
@@ -99,7 +104,7 @@ export function useAgentAnalysis(
   // 返回所有已选中的 agent
   const runSelected = async () => {
     if (selectedAgents.size === 0) {
-      setAiMessageAuto('请至少选择一个Agent')
+      setAiMessageAuto(t('page.students.ai.selectAtLeastOne', '请至少选择一个Agent'))
       return
     }
     await runAgents(Array.from(selectedAgents))
@@ -109,7 +114,7 @@ export function useAgentAnalysis(
   const runAll = async () => {
     const allIds = agents.filter((a) => a.enabled).map((a) => a.id)
     if (allIds.length === 0) {
-      setAiMessageAuto('没有可用的Agent')
+      setAiMessageAuto(t('page.students.ai.noAgentAvailable', '没有可用的Agent'))
       return
     }
     setSelectedAgents(new Set(allIds))

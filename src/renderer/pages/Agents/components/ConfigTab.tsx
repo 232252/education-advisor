@@ -4,6 +4,7 @@
 
 import type { AgentDetail } from '@shared/types'
 import { useEffect, useRef, useState } from 'react'
+import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { btnStyle } from '../../../lib/ui-utils'
 import type { AgentUpdatePatch } from '../types'
@@ -14,6 +15,7 @@ interface ConfigTabProps {
 }
 
 export function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
+  const { t } = useT()
   const [name, setName] = useState(detail.name)
   const [description, setDescription] = useState(detail.description)
   const [modelTier, setModelTier] = useState<'high_quality' | 'low_cost'>(detail.modelTier)
@@ -75,7 +77,9 @@ export function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-white/[0.06]">
         <span className="text-xs text-gray-400 dark:text-gray-500">
-          {dirty ? '未保存' : '已保存'}
+          {dirty
+            ? t('page.agents.config.unsaved', '未保存')
+            : t('page.agents.config.saved', '已保存')}
         </span>
         <button
           type="button"
@@ -83,7 +87,7 @@ export function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
           disabled={!dirty || saving}
           className={btnStyle('primary')}
         >
-          {saving ? '保存中...' : '保存'}
+          {saving ? t('page.agents.config.saving', '保存中...') : t('common.save', '保存')}
         </button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -93,7 +97,7 @@ export function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
             htmlFor="agent-config-name"
             className="text-xs text-gray-500 dark:text-gray-400 font-medium block mb-1"
           >
-            名称
+            {t('page.agents.config.name', '名称')}
           </label>
           <input
             id="agent-config-name"
@@ -114,7 +118,7 @@ export function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
             htmlFor="agent-config-description"
             className="text-xs text-gray-500 dark:text-gray-400 font-medium block mb-1"
           >
-            描述
+            {t('page.agents.config.description', '描述')}
           </label>
           <textarea
             id="agent-config-description"
@@ -132,7 +136,7 @@ export function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
         {/* 模型层级 */}
         <div>
           <span className="text-xs text-gray-500 dark:text-gray-400 font-medium block mb-1">
-            模型层级
+            {t('page.agents.config.modelTier', '模型层级')}
           </span>
           <div className="flex gap-2">
             <button
@@ -147,7 +151,7 @@ export function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
                   : 'bg-white dark:bg-surface-elevated text-gray-600 dark:text-gray-300 border-gray-300 dark:border-white/[0.08] hover:border-blue-400'
               }`}
             >
-              低成本
+              {t('page.agents.tier.low', '低成本')}
             </button>
             <button
               type="button"
@@ -161,7 +165,7 @@ export function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
                   : 'bg-white dark:bg-surface-elevated text-gray-600 dark:text-gray-300 border-gray-300 dark:border-white/[0.08] hover:border-blue-400'
               }`}
             >
-              高质量
+              {t('page.agents.tier.high', '高质量')}
             </button>
           </div>
         </div>
@@ -169,16 +173,22 @@ export function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
         {/* MCP server 选择 */}
         <div>
           <span className="text-xs text-gray-500 dark:text-gray-400 font-medium block mb-1">
-            MCP 服务器
+            {t('page.agents.config.mcpServers', 'MCP 服务器')}
           </span>
           <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-2">
-            勾选后,该 Agent 运行时可使用这些 MCP 服务器提供的工具。在「技能 → MCP 服务器」管理。
+            {t(
+              'page.agents.config.mcpHint',
+              '勾选后,该 Agent 运行时可使用这些 MCP 服务器提供的工具。在「技能 → MCP 服务器」管理。',
+            )}
           </p>
           {availableServers.length === 0 ? (
             <p className="text-xs text-gray-400 dark:text-gray-500 italic">
               {mcpServers.length === 0
-                ? '暂无可用的 MCP 服务器(请在技能页添加,或未启用 MCP 功能)'
-                : `已选: ${mcpServers.join(', ')} (服务列表加载中或 MCP 未启用)`}
+                ? t(
+                    'page.agents.config.mcpEmpty',
+                    '暂无可用的 MCP 服务器(请在技能页添加,或未启用 MCP 功能)',
+                  )
+                : `${t('page.agents.config.selected', '已选')}: ${mcpServers.join(', ')} ${t('page.agents.config.selectedSuffix', '(服务列表加载中或 MCP 未启用)')}`}
             </p>
           ) : (
             <div className="space-y-1">
@@ -210,19 +220,27 @@ export function ConfigTab({ detail, onUpdate }: ConfigTabProps) {
 
         {/* 只读信息 */}
         <div className="border-t border-gray-200 dark:border-white/[0.06] pt-4 space-y-2">
-          <h4 className="text-xs text-gray-400 dark:text-gray-500 font-medium">只读信息</h4>
+          <h4 className="text-xs text-gray-400 dark:text-gray-500 font-medium">
+            {t('page.agents.config.readonlyInfo', '只读信息')}
+          </h4>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="text-gray-500 dark:text-gray-400">ID</div>
             <div className="font-mono text-gray-700 dark:text-gray-300">{detail.id}</div>
-            <div className="text-gray-500 dark:text-gray-400">角色</div>
-            <div className="text-gray-700 dark:text-gray-300">{detail.role}</div>
-            <div className="text-gray-500 dark:text-gray-400">能力</div>
-            <div className="text-gray-700 dark:text-gray-300">
-              {detail.capabilities.join(', ') || '无'}
+            <div className="text-gray-500 dark:text-gray-400">
+              {t('page.agents.config.role', '角色')}
             </div>
-            <div className="text-gray-500 dark:text-gray-400">定时</div>
+            <div className="text-gray-700 dark:text-gray-300">{detail.role}</div>
+            <div className="text-gray-500 dark:text-gray-400">
+              {t('page.agents.detail.capabilities', '能力')}
+            </div>
+            <div className="text-gray-700 dark:text-gray-300">
+              {detail.capabilities.join(', ') || t('common.none', '无')}
+            </div>
+            <div className="text-gray-500 dark:text-gray-400">
+              {t('page.agents.detail.schedule', '定时')}
+            </div>
             <div className="font-mono text-gray-700 dark:text-gray-300">
-              {detail.schedule.join(', ') || '无'}
+              {detail.schedule.join(', ') || t('common.none', '无')}
             </div>
           </div>
         </div>

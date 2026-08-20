@@ -5,6 +5,7 @@
 import type { ChatMessage } from '@shared/types'
 import { type RefObject, useState } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
+import { useT } from '../../../i18n'
 import { getMessageKey } from '../lib/chat-message'
 import { MessageItem } from './MessageItem'
 
@@ -18,6 +19,7 @@ interface MessageListProps {
 
 /** 消息区：遍历渲染消息 + 复制按钮交互状态 */
 export function MessageList({ messages, isStreaming, canSend, messagesEndRef }: MessageListProps) {
+  const { t } = useT()
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
 
   // 复制助手消息内容到剪贴板
@@ -36,8 +38,12 @@ export function MessageList({ messages, isStreaming, canSend, messagesEndRef }: 
       {messages.length === 0 && (
         <EmptyState
           icon={<span className="text-3xl">💬</span>}
-          title="开始对话"
-          description={canSend ? '输入消息即可开始' : '请先选择一个 Agent'}
+          title={t('page.chat.empty.title', '开始对话')}
+          description={
+            canSend
+              ? t('page.chat.empty.subtitle', '输入消息即可开始')
+              : t('page.chat.empty.selectAgent', '请先选择一个 Agent')
+          }
           className="h-full"
         />
       )}

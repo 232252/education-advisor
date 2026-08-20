@@ -146,6 +146,12 @@ bun.lockb
 .history/
 .tmp/
 .tmp/*
+
+# ===== M27: 视频制作素材(221.5MB,与产品无关,退出 git 跟踪) =====
+# public/intro.mp4 是 Welcome 页在用的产品资源,保留跟踪;
+# resources/intro/ 是宣传视频源素材+制作脚本,promo/ 是未跟踪的成品
+resources/intro/
+promo/
 # Rust build artifacts (Cargo.lock IS committed, like package-lock.json)
 core/**/target/
 

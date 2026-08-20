@@ -11,7 +11,7 @@ import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentListItem, EAAStudent, StudentProfileData } from '@shared/types'
 import { useAgentAnalysis } from '../../../../src/renderer/pages/Students/hooks/useAgentAnalysis'
-import { useAgentStore } from '../../../../src/renderer/stores/agentStore'
+import { useAgentStore } from '../../../../src/renderer/stores/agent/store'
 
 // ---------- toast mock ----------
 

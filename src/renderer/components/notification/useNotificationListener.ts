@@ -15,7 +15,7 @@
 import type { AgentStatusPayload, CronTask } from '@shared/types'
 import { useEffect } from 'react'
 import { getAPI } from '../../lib/ipc-client'
-import { useAgentStore } from '../../stores/agentStore'
+import { useAgentStore } from '../../stores/agent/store'
 import { useNotificationStore } from '../../stores/notificationStore'
 
 /** cron 任务名解析缓存(60s TTL,任务名变化频率低) */

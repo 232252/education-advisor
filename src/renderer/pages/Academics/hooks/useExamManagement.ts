@@ -9,9 +9,9 @@
 import type { ExamDef, ExamType, SubjectDef } from '@shared/types'
 import { useCallback, useState } from 'react'
 import { useT } from '../../../i18n'
+import { getCurrentSemester } from '../../../lib/academics'
 import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
-import { getCurrentSemester } from '../academics-shared'
 
 export interface UseExamManagementParams {
   subjects: SubjectDef[]

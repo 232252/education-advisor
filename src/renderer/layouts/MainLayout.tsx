@@ -1,10 +1,12 @@
 // =============================================================
 // 主布局 — 侧边栏导航 + 内容区
+// M22 瘦身: bootstrap 上移 App.tsx; 快捷键 → useGlobalShortcuts;
+//          Agent 状态列表 → AgentStatusBar; 折叠持久化 → useLocalStorage
 // =============================================================
 
 import { PanelLeft, PanelLeftClose, Search } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useCallback } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AppLogo } from '../components/AppLogo'
 import { CommandPalette } from '../components/command-palette/CommandPalette'
 import { ErrorBoundary } from '../components/ErrorBoundary'
@@ -13,90 +15,52 @@ import { useNotificationListener } from '../components/notification/useNotificat
 import { OnboardingWizard } from '../components/onboarding/OnboardingWizard'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { NAV_ITEMS } from '../config/nav-items'
+import { useGlobalShortcuts } from '../hooks/useGlobalShortcuts'
+import { useLocalStorage } from '../hooks/useLocalStorage'
 import { useT } from '../i18n'
 import { cn } from '../lib/ui-utils'
-import { useAgentStore } from '../stores/agentStore'
+import { useAgentStore } from '../stores/agent/store'
 import { usePaletteStore } from '../stores/paletteStore'
+import { AgentStatusBar } from './AgentStatusBar'
 
 /** localStorage key for sidebar collapsed state */
 const SIDEBAR_COLLAPSED_KEY = 'ea.sidebar.collapsed'
 
+// 旧版以 '1'/'0' 明文存储,一次性迁移为 useLocalStorage 的 JSON 布尔格式
+;(function migrateLegacyCollapsed() {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_COLLAPSED_KEY)
+    if (raw === '1' || raw === '0') {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, JSON.stringify(raw === '1'))
+    }
+  } catch {
+    /* localStorage 不可用时静默降级 */
+  }
+})()
+
 export function MainLayout() {
   const { t } = useT()
   const location = useLocation()
-  const navigate = useNavigate()
   const agents = useAgentStore((s) => s.agents)
-  const fetchAgents = useAgentStore((s) => s.fetchAgents)
-  const initStatusListener = useAgentStore((s) => s.initStatusListener)
 
   // 可折叠侧边栏: 状态持久化到 localStorage, 折叠后只显示图标列
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
-    } catch {
-      return false
-    }
-  })
+  // (历史值可能为明文 '1'/'0' 解析出的 1/0,Boolean 归一保证语义)
+  const [storedCollapsed, setCollapsed] = useLocalStorage<boolean>(SIDEBAR_COLLAPSED_KEY, false)
+  const collapsed = Boolean(storedCollapsed)
   const toggleCollapsed = useCallback(() => {
-    setCollapsed((prev) => {
-      const next = !prev
-      try {
-        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0')
-      } catch {
-        /* localStorage 不可用时静默降级 */
-      }
-      return next
-    })
-  }, [])
+    setCollapsed((prev) => !prev)
+  }, [setCollapsed])
+
+  // 桌面级全局快捷键 (Ctrl+1..9 / Ctrl+, / Ctrl+B)
+  useGlobalShortcuts({ onToggleSidebar: toggleCollapsed })
 
   // 全局搜索命令面板 (Ctrl+K) — 侧边栏按钮入口,快捷键由 CommandPalette 自行监听
   const togglePalette = useCallback(() => {
     usePaletteStore.getState().toggle()
   }, [])
 
-  useEffect(() => {
-    fetchAgents()
-    initStatusListener()
-  }, [fetchAgents, initStatusListener])
-
   // 通知中心事件监听 — Agent 运行结果/定时任务状态 → 通知面板(全局挂载一次)
   useNotificationListener()
-
-  // 桌面级全局快捷键:
-  //   Ctrl/Cmd+1..9 → 切换前 9 个导航项
-  //   Ctrl/Cmd+,    → 设置(业界惯例)
-  //   Ctrl/Cmd+B    → 折叠/展开侧边栏(VS Code/JetBrains 惯例)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const mod = e.ctrlKey || e.metaKey
-      if (!mod) return
-      // 输入框/文本域/可编辑元素聚焦时不触发(避免影响打字)
-      const target = e.target as HTMLElement | null
-      const tag = target?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-      if (target?.isContentEditable) return
-      // Ctrl/Cmd+, → 设置(业界惯例)
-      if (e.key === ',') {
-        e.preventDefault()
-        navigate('/settings')
-        return
-      }
-      // Ctrl/Cmd+B → 折叠/展开侧边栏
-      if (e.key === 'b' || e.key === 'B') {
-        e.preventDefault()
-        toggleCollapsed()
-        return
-      }
-      // Ctrl/Cmd+1..9 → 对应导航项
-      const n = Number.parseInt(e.key, 10)
-      if (n >= 1 && n <= 9 && NAV_ITEMS[n - 1]) {
-        e.preventDefault()
-        navigate(NAV_ITEMS[n - 1].path)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [navigate, toggleCollapsed])
 
   const runningCount = agents.filter((a) => a.status === 'running').length
   const errorCount = agents.filter((a) => a.status === 'error').length
@@ -230,56 +194,7 @@ export function MainLayout() {
         </nav>
 
         {/* Agent 状态 — 折叠态只显示状态点列 */}
-        <div
-          className={cn(
-            'border-t border-gray-200/60 dark:border-white/[0.06]',
-            collapsed ? 'px-2 py-3' : 'px-4 py-3',
-          )}
-        >
-          {!collapsed && (
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest font-semibold">
-                {t('sidebar.agents', 'Agents')}
-              </span>
-              {runningCount > 0 && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded-full ring-1 ring-blue-500/20">
-                  <span className="w-1 h-1 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse" />
-                  {runningCount} {t('sidebar.running', '运行中')}
-                </span>
-              )}
-            </div>
-          )}
-          <div
-            className={cn(
-              'max-h-28 overflow-y-auto',
-              collapsed ? 'space-y-2 flex flex-col items-center' : 'space-y-1.5',
-            )}
-          >
-            {agents.slice(0, 6).map((agent) => (
-              <div
-                key={agent.id}
-                className={cn('flex items-center text-xs group', collapsed ? 'gap-0' : 'gap-2.5')}
-                title={collapsed ? `${agent.name} · ${agent.status}` : undefined}
-              >
-                <span
-                  className={cn(
-                    'rounded-full flex-shrink-0 transition-all duration-300',
-                    collapsed ? 'w-2 h-2' : 'w-1.5 h-1.5',
-                    agent.status === 'running' &&
-                      'bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.6)] animate-pulse',
-                    agent.status === 'error' && 'bg-red-400 shadow-[0_0_4px_rgba(248,113,113,0.4)]',
-                    agent.status === 'idle' && 'bg-gray-300 dark:bg-gray-600',
-                  )}
-                />
-                {!collapsed && (
-                  <span className="text-gray-500 dark:text-gray-400 truncate group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-150">
-                    {agent.name}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <AgentStatusBar agents={agents} collapsed={collapsed} />
 
         {/* 底部工具区: 通知中心 + 主题切换 (折叠态纵向堆叠,展开态横向排列) */}
         <div

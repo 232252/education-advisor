@@ -15,16 +15,16 @@
 ### 学业风险
 | 指标 | 数据来源 | 高风险阈值 |
 |:-----|:---------|:-----------|
-| 操行分趋势 | `eaa score` / `eaa history` | 连续下降 ≥3 次 |
-| 迟到频次 | `eaa history` (LATE) | 月内 ≥3 次 |
-| 课堂违纪 | `eaa history` (SLEEP/ABSENT) | 月内 ≥2 次 |
+| 操行分趋势 | `eaa_score` / `eaa_history` | 连续下降 ≥3 次 |
+| 迟到频次 | `eaa_history` (LATE) | 月内 ≥3 次 |
+| 课堂违纪 | `eaa_history` (SLEEP/ABSENT) | 月内 ≥2 次 |
 
 ### 纪律风险
 | 指标 | 数据来源 | 高风险阈值 |
 |:-----|:---------|:-----------|
-| 重大违纪 | `eaa history` (CHEAT/VIOLENCE) | 任意 1 次 |
-| 累计扣分 | `eaa score` | < 80 分 |
-| 反复违纪 | `eaa history` | 同一 reason_code ≥2 次 |
+| 重大违纪 | `eaa_history` (CHEAT/VIOLENCE) | 任意 1 次 |
+| 累计扣分 | `eaa_score` | < 80 分 |
+| 反复违纪 | `eaa_history` | 同一 reason_code ≥2 次 |
 
 ### 心理风险
 | 指标 | 数据来源 | 高风险阈值 |
@@ -82,21 +82,18 @@
 ```
 
 ## 协调流程
-1. 收到 main Agent 指令后，先 `eaa ranking` 获取当前排名
-2. 对前 N 名（高风险）学生逐个 `eaa history` + `eaa score`
+1. 收到 main Agent 指令后，先 `eaa_ranking` 获取当前排名
+2. 对前 N 名（高风险）学生逐个 `eaa_history` + `eaa_score`
 3. 调用 psychology / counselor / class-monitor 获取软性指标
 4. 汇总输出综合督导报告
 5. 异常情况立即上报 main Agent
 
 ## 数据铁律
-- **所有数据读写必须通过 `eaa` CLI**，禁止直接操作 JSON 文件
-- 排行榜查询：`eaa ranking <limit>`
-- 历史查询：`eaa history <姓名>`
-- 分数查询：`eaa score <姓名>`
-- 统计概览：`eaa stats`、`eaa summary`
-- 详见 `docs/CLI_REFERENCE.md` 和 `docs/SECURITY.md`
+- 操行数据一律通过系统提供的 EAA 工具读写，禁止直接操作数据文件
+- 排行榜查询：`eaa_ranking`
+- 历史查询：`eaa_history`
+- 分数查询：`eaa_score`
+- 统计概览：`eaa_stats`、`eaa_summary`
 
 ## 隐私铁律
-- 报告中**只使用 S_XXX 化名**，禁止出现学生真名
-- 推送给邵老师时用 `eaa privacy deanonymize` 还原
-- 发给外部 AI 时保持 S_XXX 化名
+- 化名显示与否由系统隐私模式决定（教师在"隐私"页管理），按公共规则执行，不要自行执行脱敏

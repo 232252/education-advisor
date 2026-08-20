@@ -17,13 +17,15 @@ import {
   Printer,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Button } from '../../components/Button'
 import { PageHeader } from '../../components/PageHeader'
 import { PrintOverlay } from '../../components/print/PrintOverlay'
 import { StudentReportDocument } from '../../components/print/StudentReportDocument'
 import { useStudentPrintData } from '../../components/print/useStudentPrintData'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useTheme } from '../../hooks/useTheme'
-import { btnStyle, cn, riskColor } from '../../lib/ui-utils'
+import { useT } from '../../i18n'
+import { riskColor } from '../../lib/ui-utils'
 import { AddEventInline } from './components'
 import { useAgentAnalysis } from './hooks/useAgentAnalysis'
 import { useStudentProfileData } from './hooks/useStudentProfileData'
@@ -45,17 +47,21 @@ interface StudentProfileProps {
 
 type TabId = 'overview' | 'profile' | 'events' | 'academics' | 'ai' | 'home_school'
 
-// 模块级常量 — StudentProfile 的 tabs 固定不变
-const STUDENT_PROFILE_TABS: Array<{ id: TabId; label: string; icon: LucideIcon }> = [
-  { id: 'overview', label: '概览', icon: BarChart3 },
-  { id: 'profile', label: '档案', icon: ClipboardList },
-  { id: 'events', label: '事件', icon: History },
-  { id: 'academics', label: '学业', icon: BookOpen },
-  { id: 'ai', label: 'AI分析', icon: Bot },
-  { id: 'home_school', label: '家校沟通', icon: MessageCircleHeart },
-]
-
 export function StudentProfile({ student, onClose, onRefresh }: StudentProfileProps) {
+  const { t } = useT()
+  // 模块级常量 — StudentProfile 的 tabs 固定不变
+  const STUDENT_PROFILE_TABS: Array<{ id: TabId; label: string; icon: LucideIcon }> = [
+    { id: 'overview', label: t('page.students.tab.overview', '概览'), icon: BarChart3 },
+    { id: 'profile', label: t('page.students.tab.profile', '档案'), icon: ClipboardList },
+    { id: 'events', label: t('page.students.tab.events', '事件'), icon: History },
+    { id: 'academics', label: t('page.students.tab.academics', '学业'), icon: BookOpen },
+    { id: 'ai', label: t('page.students.tab.ai', 'AI分析'), icon: Bot },
+    {
+      id: 'home_school',
+      label: t('page.students.tab.homeSchool', '家校沟通'),
+      icon: MessageCircleHeart,
+    },
+  ]
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   // 数据加载接入 Phase 1 useMultiLoader（替代原 loadAllData + currentNameRef stale guard）
   const {
@@ -108,67 +114,74 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
         title={student.name}
         actions={
           <>
-            <button
-              type="button"
+            <Button
               onClick={() => setShowAddEvent(!showAddEvent)}
-              className={btnStyle('primary')}
-              aria-label={showAddEvent ? '取消添加事件' : '添加事件'}
+              aria-label={
+                showAddEvent
+                  ? t('page.students.addEvent.ariaCancel', '取消添加事件')
+                  : t('page.students.addEvent.aria', '添加事件')
+              }
             >
-              {showAddEvent ? '取消添加' : '+ 添加事件'}
-            </button>
-            <button
-              type="button"
+              {showAddEvent
+                ? t('page.students.addEvent.cancel', '取消添加')
+                : t('page.students.addEvent', '+ 添加事件')}
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => {
                 reloadProfileData()
                 onRefresh()
               }}
-              className={btnStyle('secondary')}
-              aria-label="刷新"
+              aria-label={t('common.refresh', '刷新')}
             >
-              🔄 刷新
-            </button>
-            <button
-              type="button"
+              {t('page.students.refresh', '🔄 刷新')}
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => setActiveTab('ai')}
-              className={btnStyle('secondary')}
-              aria-label="AI 分析"
+              aria-label={t('page.students.aiAnalysis', 'AI 分析')}
             >
-              🤖 AI 分析
-            </button>
-            <button
-              type="button"
+              {t('page.students.aiAnalysisBtn', '🤖 AI 分析')}
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => void printReport.openPrint()}
               disabled={printReport.loading}
-              className={btnStyle('secondary')}
-              aria-label="打印报告"
-              title="打印 / 导出 PDF"
+              aria-label={t('page.students.printReport', '打印报告')}
+              title={t('print.action', '打印 / 导出 PDF')}
             >
               <Printer className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden />
-              {printReport.loading ? '加载中…' : '打印报告'}
-            </button>
-            <button
-              type="button"
+              {printReport.loading
+                ? t('page.students.printLoading', '加载中…')
+                : t('page.students.printReport', '打印报告')}
+            </Button>
+            <Button
+              variant="ghost"
               onClick={onClose}
-              className={cn(btnStyle('ghost'), 'text-2xl')}
-              aria-label="关闭"
+              className="text-2xl"
+              aria-label={t('common.close', '关闭')}
             >
               &times;
-            </button>
+            </Button>
           </>
         }
       />
       {/* 学生概要信息条 */}
       <div className="flex items-center gap-2 px-6 py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50/50 dark:bg-surface-tertiary/50">
-        <span className={riskColor(student.risk)}>风险: {student.risk}</span>
+        <span className={riskColor(student.risk)}>
+          {t('page.students.riskLabel', '风险')}: {student.risk}
+        </span>
         <span className="text-gray-300 dark:text-gray-600">|</span>
         <span>
-          分数:{' '}
+          {t('page.students.scoreLabel', '分数')}:{' '}
           <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
             {student.score.toFixed(1)}
           </span>
         </span>
         <span className="text-gray-300 dark:text-gray-600">|</span>
-        <span>{student.events_count} 事件</span>
+        <span>
+          {student.events_count} {t('page.students.eventsUnit', '事件')}
+        </span>
       </div>
 
       {actionMsg && (
@@ -185,7 +198,7 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
             setShowAddEvent(false)
             reloadProfileData()
             onRefresh()
-            setActionMsgAuto('事件已添加')
+            setActionMsgAuto(t('toast.students.eventAdded', '事件已添加'))
           }}
         />
       )}
@@ -271,7 +284,10 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
 
       {/* 打印/PDF 报告预览 */}
       {printReport.open && printReport.data && (
-        <PrintOverlay title={`学生综合报告 — ${student.name}`} onClose={printReport.closePrint}>
+        <PrintOverlay
+          title={`${t('print.studentReport.title', '学生综合报告')} — ${student.name}`}
+          onClose={printReport.closePrint}
+        >
           <StudentReportDocument
             studentName={student.name}
             classId={student.class_id}
