@@ -4,7 +4,8 @@
 
 import { Paperclip } from 'lucide-react'
 import { type RefObject, useEffect } from 'react'
-import { btnStyle, cn } from '../../../lib/ui-utils'
+import { Button } from '../../../components/Button'
+import { useT } from '../../../i18n'
 import type { UploadedFile } from '../lib/chat-message'
 
 interface ComposerProps {
@@ -37,6 +38,7 @@ export function Composer({
   onSend,
   onStop,
 }: ComposerProps) {
+  const { t } = useT()
   // 输入框自动增高：1→6 行平滑增长，超过 6 行才滚动（发送后清空也会复位）
   // input 作为触发器依赖：内容变化(含发送后 setInput(''))时重新调整高度
   // biome-ignore lint/correctness/useExhaustiveDependencies: input 是有意触发器，effect 体内通过 inputRef 读取 DOM
@@ -51,7 +53,7 @@ export function Composer({
     <div className="border-t border-gray-200/60 dark:border-white/[0.06] px-6 py-4 bg-white/80 dark:bg-surface-tertiary/80 backdrop-blur-sm">
       {!canSend && (
         <div className="text-xs text-amber-500 dark:text-amber-400 mb-2 text-center">
-          正在加载 Agent 列表...
+          {t('page.chat.composer.loadingAgents', '正在加载 Agent 列表...')}
         </div>
       )}
       <div className="flex gap-3">
@@ -73,8 +75,8 @@ export function Composer({
                     type="button"
                     onClick={() => onRemoveFile(idx)}
                     className="text-blue-500 hover:text-blue-700 dark:hover:text-blue-200 ml-0.5"
-                    title="移除"
-                    aria-label="移除文件"
+                    title={t('common.remove', '移除')}
+                    aria-label={t('page.chat.composer.removeFile', '移除文件')}
                   >
                     ×
                   </button>
@@ -83,12 +85,12 @@ export function Composer({
             </div>
           )}
           <div className="flex items-end gap-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={onUpload}
-              className={cn(btnStyle('secondary'), 'flex-shrink-0')}
-              aria-label="上传文件"
-              title="上传文件 (文本/代码/图片, 最大 10MB)"
+              className="flex-shrink-0"
+              aria-label={t('page.chat.composer.upload', '上传文件')}
+              title={t('page.chat.composer.uploadTitle', '上传文件 (文本/代码/图片, 最大 10MB)')}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -98,12 +100,12 @@ export function Composer({
                 strokeWidth="2"
                 className="w-5 h-5"
                 role="img"
-                aria-label="上传文件"
+                aria-label={t('page.chat.composer.upload', '上传文件')}
               >
-                <title>上传文件</title>
+                <title>{t('page.chat.composer.upload', '上传文件')}</title>
                 <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
               </svg>
-            </button>
+            </Button>
             <textarea
               value={input}
               onChange={(e) => onInputChange(e.target.value)}
@@ -116,18 +118,17 @@ export function Composer({
             />
           </div>
         </div>
-        <button
-          type="button"
+        <Button
+          variant={isStreaming ? 'danger' : 'primary'}
           onClick={isStreaming ? onStop : onSend}
-          className={cn(
-            isStreaming ? btnStyle('danger') : btnStyle('primary'),
-            'self-end px-6 py-3',
-          )}
+          className="self-end px-6 py-3"
           disabled={!isStreaming && (!input.trim() || !canSend)}
-          aria-label={isStreaming ? '停止' : '发送'}
+          aria-label={
+            isStreaming ? t('page.chat.composer.stop', '停止') : t('page.chat.send', '发送')
+          }
         >
-          {isStreaming ? '停止' : '发送'}
-        </button>
+          {isStreaming ? t('page.chat.composer.stop', '停止') : t('page.chat.send', '发送')}
+        </Button>
       </div>
     </div>
   )

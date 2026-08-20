@@ -7,6 +7,7 @@
 
 import type { EAAStudent, ExamDef, ExamType, GradeRecord, SubjectDef } from '@shared/types'
 import { EmptyState } from '../../../components/EmptyState'
+import { useT } from '../../../i18n'
 import {
   AIEntryPanel,
   AllSubjectsTable,
@@ -41,6 +42,8 @@ export function GradeEntryTab({
   onSaved,
   onExamCreated,
 }: GradeEntryTabProps) {
+  const { t } = useT()
+
   const entry = useGradeEntry({
     studentName,
     students,
@@ -119,8 +122,11 @@ export function GradeEntryTab({
         !entry.selectedSubjectId ? (
           <EmptyState
             icon="👆"
-            title="请先选择科目"
-            description="选择科目后即可录入成绩,考试可不选"
+            title={t('page.academics.toast.selectSubject', '请先选择科目')}
+            description={t(
+              'page.academics.entry.selectSubjectDesc',
+              '选择科目后即可录入成绩,考试可不选',
+            )}
           />
         ) : (
           <SingleSubjectTable
@@ -134,7 +140,11 @@ export function GradeEntryTab({
           />
         )
       ) : !entry.entryStudentName ? (
-        <EmptyState icon="👆" title="请先选择学生" description="选择学生后即可录入成绩" />
+        <EmptyState
+          icon="👆"
+          title={t('page.academics.toast.selectStudent', '请先选择学生')}
+          description={t('page.academics.entry.selectStudentDesc', '选择学生后即可录入成绩')}
+        />
       ) : (
         <AllSubjectsTable
           studentName={entry.entryStudentName}

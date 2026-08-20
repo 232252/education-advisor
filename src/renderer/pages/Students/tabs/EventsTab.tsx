@@ -144,7 +144,7 @@ export function EventsTab({
         toast.success(t('toast.profile.eventReverted'))
         onRefresh()
       } else {
-        toast.error(getErrorMessage(result, '撤销失败'))
+        toast.error(getErrorMessage(result, t('toast.students.revertFailed', '撤销失败')))
       }
     } catch (err) {
       console.warn('[EventsTab] revert error:', err)
@@ -179,7 +179,7 @@ export function EventsTab({
           type="text"
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
-          placeholder="搜索事件..."
+          placeholder={t('page.students.events.searchPlaceholder', '搜索事件...')}
           className="flex-1 min-w-[140px] bg-gray-50 dark:bg-surface-primary border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 placeholder:text-gray-400 dark:placeholder:text-gray-500"
         />
         <input
@@ -188,7 +188,9 @@ export function EventsTab({
           onChange={(e) => handleDateChange(e.target.value, dateEnd)}
           className="bg-gray-50 dark:bg-surface-primary border border-gray-300 dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 text-gray-700 dark:text-gray-300"
         />
-        <span className="text-xs text-gray-400 dark:text-gray-500">至</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500">
+          {t('page.students.events.dateTo', '至')}
+        </span>
         <input
           type="date"
           value={dateEnd}
@@ -205,42 +207,89 @@ export function EventsTab({
               setSearchEvents(null)
             }}
             className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-            title="清除搜索/筛选"
+            title={t('page.students.events.clearFilter', '清除搜索/筛选')}
           >
-            ✕ 重置
+            {t('page.students.events.reset', '✕ 重置')}
           </button>
         )}
-        {searchLoading && <span className="text-xs text-blue-500 animate-pulse">查询中...</span>}
+        {searchLoading && (
+          <span className="text-xs text-blue-500 animate-pulse">
+            {t('page.students.events.searching', '查询中...')}
+          </span>
+        )}
       </div>
 
       {/* 类型 + 时间筛选栏 */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-gray-500 dark:text-gray-400">类型:</span>
-        {filterBtn('all', '全部', eventFilter === 'all', () => onFilterChange('all'))}
-        {filterBtn('bonus', '加分', eventFilter === 'bonus', () => onFilterChange('bonus'))}
-        {filterBtn('deduct', '扣分', eventFilter === 'deduct', () => onFilterChange('deduct'))}
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          {t('page.students.events.type', '类型')}:
+        </span>
+        {filterBtn('all', t('common.all', '全部'), eventFilter === 'all', () =>
+          onFilterChange('all'),
+        )}
+        {filterBtn(
+          'bonus',
+          t('page.students.events.filter.bonus', '加分'),
+          eventFilter === 'bonus',
+          () => onFilterChange('bonus'),
+        )}
+        {filterBtn(
+          'deduct',
+          t('page.students.events.filter.deduct', '扣分'),
+          eventFilter === 'deduct',
+          () => onFilterChange('deduct'),
+        )}
         <span className="text-xs text-gray-300 dark:text-gray-600 mx-1">|</span>
-        <span className="text-xs text-gray-500 dark:text-gray-400">时间:</span>
-        {filterBtn('all', '全部', timeRange === 'all', () => onTimeRangeChange('all'))}
-        {filterBtn('week', '本周', timeRange === 'week', () => onTimeRangeChange('week'))}
-        {filterBtn('month', '本月', timeRange === 'month', () => onTimeRangeChange('month'))}
-        {filterBtn('semester', '本学期', timeRange === 'semester', () =>
-          onTimeRangeChange('semester'),
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          {t('page.students.events.time', '时间')}:
+        </span>
+        {filterBtn('all', t('common.all', '全部'), timeRange === 'all', () =>
+          onTimeRangeChange('all'),
+        )}
+        {filterBtn(
+          'week',
+          t('page.students.events.filter.week', '本周'),
+          timeRange === 'week',
+          () => onTimeRangeChange('week'),
+        )}
+        {filterBtn(
+          'month',
+          t('page.students.events.filter.month', '本月'),
+          timeRange === 'month',
+          () => onTimeRangeChange('month'),
+        )}
+        {filterBtn(
+          'semester',
+          t('page.students.events.filter.semester', '本学期'),
+          timeRange === 'semester',
+          () => onTimeRangeChange('semester'),
         )}
         <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-          {isSearchMode ? `搜索结果 ${displayEvents.length} 条` : `共 ${displayEvents.length} 条`}
+          {isSearchMode
+            ? t('page.students.events.searchResultCount', '搜索结果 {0} 条').replace(
+                '{0}',
+                String(displayEvents.length),
+              )
+            : t('page.students.events.totalCount', '共 {0} 条').replace(
+                '{0}',
+                String(displayEvents.length),
+              )}
         </span>
       </div>
 
       {displayEvents.length === 0 ? (
         searchLoading ? (
           <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-12">
-            查询中...
+            {t('page.students.events.searching', '查询中...')}
           </div>
         ) : (
           <EmptyState
             icon={<ClipboardList className="h-6 w-6" />}
-            title={isSearchMode ? '未找到匹配的事件' : '暂无事件记录'}
+            title={
+              isSearchMode
+                ? t('page.students.events.noMatch', '未找到匹配的事件')
+                : t('page.students.events.noRecords', '暂无事件记录')
+            }
             className="py-12"
           />
         )
@@ -264,9 +313,9 @@ export function EventsTab({
       {/* 撤销事件确认对话框 */}
       <ConfirmDialog
         open={revertDialog.state.open}
-        title="撤销事件"
-        message="确定要撤销此事件吗？撤销后分数将回退。"
-        confirmText="撤销"
+        title={t('page.students.events.revertTitle', '撤销事件')}
+        message={t('page.students.events.revertConfirm', '确定要撤销此事件吗？撤销后分数将回退。')}
+        confirmText={t('page.students.events.revert', '撤销')}
         variant="danger"
         onConfirm={executeRevert}
         onCancel={revertDialog.close}

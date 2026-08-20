@@ -1,7 +1,7 @@
 // =============================================================
 // EAA 原因码 (reason-codes) 缓存
 // 从 ipc/eaa-reason-codes.ts 移入 services 层(services/eaa 的工具与
-// ipc/eaa/commands.ts 均依赖它,原 ipc 路径改为纯 re-export 保持兼容)。
+// ipc/eaa/ 的 params.ts 均依赖它,原 ipc 路径改为纯 re-export 保持兼容)。
 // 合并 eaa-handlers.ts 原本的 lookupReasonCodeDelta + getReasonCodeDef,
 // 消除 90% 重复的"读 config/reason-codes.json 并缓存"逻辑。
 // 导出签名保持不变。

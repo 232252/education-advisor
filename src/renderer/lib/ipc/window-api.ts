@@ -18,6 +18,7 @@ import type { PrivacyAPI } from './privacy'
 import type { ProfileAPI } from './profile'
 import type { SettingsAPI } from './settings'
 import type { SkillAPI } from './skill'
+import type { StudentsAPI } from './students'
 import type { SysAPI } from './sys'
 
 // window.api 的类型声明（与 preload 脚本对应）
@@ -35,6 +36,8 @@ export interface WindowAPI {
   profile: ProfileAPI
   academic: AcademicAPI
   class: ClassAPI
+  // 学生 Excel 批量导入 (M30)
+  students: StudentsAPI
   chat: ChatAPI
   // T5: 日志系统 API
   log: LogAPI

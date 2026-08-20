@@ -5,6 +5,7 @@
 
 import type { EAAStudent } from '@shared/types'
 import { memo } from 'react'
+import { useT } from '../../../i18n'
 import { cn, riskColor, TABLE_ROW, TABLE_TD } from '../../../lib/ui-utils'
 
 // P 优化: 将表格行抽成 memo 组件,避免点击切换选中时整表重渲染
@@ -31,6 +32,7 @@ export const StudentRow = memo(function StudentRow({
   onToggleCheck,
   onDelete,
 }: StudentRowProps) {
+  const { t } = useT()
   return (
     <tr
       data-ctx-menu={ctxMenuJson}
@@ -62,7 +64,9 @@ export const StudentRow = memo(function StudentRow({
             {classNameLabel ?? s.class_id}
           </span>
         ) : (
-          <span className="text-gray-300 dark:text-gray-600">未分班</span>
+          <span className="text-gray-300 dark:text-gray-600">
+            {t('page.students.unassignedClass', '未分班')}
+          </span>
         )}
       </td>
       <td className={cn(TABLE_TD, 'text-right font-mono')}>{s.score.toFixed(1)}</td>
@@ -112,10 +116,10 @@ export const StudentRow = memo(function StudentRow({
             onDelete(s.name)
           }}
           className="text-red-400/50 hover:text-red-500 dark:hover:text-red-400 text-xs transition-colors"
-          title="删除学生"
-          aria-label="删除学生"
+          title={t('page.students.deleteStudent', '删除学生')}
+          aria-label={t('page.students.deleteStudent', '删除学生')}
         >
-          删除
+          {t('page.students.delete', '删除')}
         </button>
       </td>
     </tr>

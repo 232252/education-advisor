@@ -4,26 +4,39 @@
 
 import { Card } from '../../../../components/Card'
 import { DeltaBadge } from '../../../../components/DeltaBadge'
+import { useT } from '../../../../i18n'
+import type { StudentComparison } from '../../../../lib/academics'
 import { cn, TABLE_ROW, TABLE_STICKY_HEAD, TABLE_TD, TABLE_TH } from '../../../../lib/ui-utils'
-import type { StudentComparison } from '../../exam-comparison'
 
 interface StudentComparisonTableProps {
   studentComparisons: StudentComparison[]
 }
 
 export function StudentComparisonTable({ studentComparisons }: StudentComparisonTableProps) {
+  const { t } = useT()
+
   return (
     <Card padding="sm" className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className={cn(TABLE_STICKY_HEAD)}>
             <tr>
-              <th className={TABLE_TH}>学生</th>
-              <th className={cn(TABLE_TH, 'text-center')}>总分 A</th>
-              <th className={cn(TABLE_TH, 'text-center')}>总分 B</th>
-              <th className={cn(TABLE_TH, 'text-center')}>总分变化</th>
-              <th className={cn(TABLE_TH, 'text-center')}>进步/退步</th>
-              <th className={cn(TABLE_TH, 'text-center')}>操行分变化</th>
+              <th className={TABLE_TH}>{t('page.academics.common.student', '学生')}</th>
+              <th className={cn(TABLE_TH, 'text-center')}>
+                {t('page.academics.compare.totalA', '总分 A')}
+              </th>
+              <th className={cn(TABLE_TH, 'text-center')}>
+                {t('page.academics.compare.totalB', '总分 B')}
+              </th>
+              <th className={cn(TABLE_TH, 'text-center')}>
+                {t('page.academics.compare.totalChange', '总分变化')}
+              </th>
+              <th className={cn(TABLE_TH, 'text-center')}>
+                {t('page.academics.compare.improvedDeclined', '进步/退步')}
+              </th>
+              <th className={cn(TABLE_TH, 'text-center')}>
+                {t('page.academics.compare.conductChange', '操行分变化')}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -43,7 +56,10 @@ export function StudentComparisonTable({ studentComparisons }: StudentComparison
                   {sc.totalScoreB ?? '-'}
                 </td>
                 <td className={cn(TABLE_TD, 'text-center')}>
-                  <DeltaBadge delta={sc.totalScoreDelta} suffix="分" />
+                  <DeltaBadge
+                    delta={sc.totalScoreDelta}
+                    suffix={t('page.academics.common.scoreUnit', '分')}
+                  />
                 </td>
                 <td className={cn(TABLE_TD, 'text-center text-xs')}>
                   <span className="text-green-600 dark:text-green-400">{sc.improvedSubjects}</span>
@@ -52,7 +68,10 @@ export function StudentComparisonTable({ studentComparisons }: StudentComparison
                 </td>
                 <td className={cn(TABLE_TD, 'text-center')}>
                   {sc.conductDelta !== null ? (
-                    <DeltaBadge delta={sc.conductDelta} suffix="分" />
+                    <DeltaBadge
+                      delta={sc.conductDelta}
+                      suffix={t('page.academics.common.scoreUnit', '分')}
+                    />
                   ) : (
                     <span className="text-gray-400 text-xs">-</span>
                   )}

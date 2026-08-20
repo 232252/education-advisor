@@ -2,7 +2,6 @@
 // hooks 统一导出
 // =============================================================
 
-export { type AsyncState, useAsync } from './useAsync'
 export { useAutoDismiss } from './useAutoDismiss'
 export { type ChartTheme, useChartTheme } from './useChartTheme'
 export { useConfirmDialog } from './useConfirmDialog'

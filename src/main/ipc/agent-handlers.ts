@@ -30,7 +30,8 @@ export function registerAgentHandlers(win: BrowserWindow) {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[IPC] agent:get failed for "${id}":`, msg)
-      return { success: false, error: msg }
+      // F3 模式: 渲染层契约是 AgentDetail | null,错误时返回 null 而非形状不符的对象
+      return null
     }
   })
 

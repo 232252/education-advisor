@@ -286,6 +286,9 @@ The two most important **directories** for a feature contributor are:
   Tailwind utility classes or the CSS variables in `src/renderer/styles/globals.css`.
 - **No `useEffect` for data fetching** — use the typed IPC client in
   `src/renderer/lib/ipc-client.ts` and a Zustand store instead.
+- **Async-loading hooks must be race-safe** — build them on `useMultiLoader`
+  (`src/renderer/hooks/useMultiLoader.ts`) or an equivalent request-token
+  pattern; never rely on a bare `mounted` flag alone.
 
 ### Linting
 

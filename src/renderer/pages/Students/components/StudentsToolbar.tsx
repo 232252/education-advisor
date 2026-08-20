@@ -5,8 +5,9 @@
 
 import type { ClassEntity } from '@shared/types'
 import { CheckSquare } from 'lucide-react'
+import { Button } from '../../../components/Button'
 import { useT } from '../../../i18n'
-import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
+import { cn, INPUT_BASE } from '../../../lib/ui-utils'
 
 interface StudentsToolbarProps {
   /** 班级筛选值（__ALL__ / __NONE__ / class_id） */
@@ -65,10 +66,10 @@ export function StudentsToolbar({
         value={classFilter}
         onChange={(e) => onClassFilterChange(e.target.value)}
         className="bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
-        title="按班级筛选"
+        title={t('page.students.toolbar.filterByClass', '按班级筛选')}
       >
-        <option value="__ALL__">全部班级</option>
-        <option value="__NONE__">未分班</option>
+        <option value="__ALL__">{t('page.students.toolbar.allClasses', '全部班级')}</option>
+        <option value="__NONE__">{t('page.students.unassignedClass', '未分班')}</option>
         {activeClassList.map((c) => (
           <option key={c.id} value={c.class_id}>
             {c.name} ({c.class_id})
@@ -79,7 +80,7 @@ export function StudentsToolbar({
         type="text"
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
-        placeholder="搜索姓名/分组/角色..."
+        placeholder={t('page.students.search.placeholder', '搜索姓名/分组/角色...')}
         className={cn(INPUT_BASE, 'w-48 px-3 py-1.5 text-sm')}
       />
       {archivedHiddenCount > 0 && (
@@ -103,54 +104,51 @@ export function StudentsToolbar({
             value={batchAssignTarget}
             onChange={(e) => onBatchAssignTargetChange(e.target.value)}
             className="bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500"
-            title="选择目标班级"
+            title={t('page.students.toolbar.selectTargetClass', '选择目标班级')}
           >
-            <option value="">调入班级...</option>
+            <option value="">{t('page.students.toolbar.assignTarget', '调入班级...')}</option>
             {activeClassList.map((c) => (
               <option key={c.id} value={c.class_id}>
                 {c.name}
               </option>
             ))}
           </select>
-          <button
-            type="button"
+          <Button
             onClick={onBatchAssign}
             disabled={selectedCount === 0 || !batchAssignTarget || batchAssigning}
-            className={btnStyle('primary')}
-            aria-label="调入"
+            aria-label={t('page.students.toolbar.assign', '调入')}
           >
-            {batchAssigning ? t('common.loading') : '调入'}
-          </button>
-          <button
-            type="button"
+            {batchAssigning
+              ? t('common.loading', '加载中...')
+              : t('page.students.toolbar.assign', '调入')}
+          </Button>
+          <Button
+            variant="danger"
             onClick={onBatchDelete}
             disabled={selectedCount === 0 || batchDeleting}
-            className={btnStyle('danger')}
             aria-label={t('page.students.batch.delete')}
           >
             {batchDeleting
               ? t('common.loading')
               : `${t('page.students.batch.delete')} (${selectedCount})`}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="secondary"
             onClick={onExitSelectMode}
-            className={btnStyle('secondary')}
             aria-label={t('page.students.batch.cancel')}
           >
             {t('page.students.batch.cancel')}
-          </button>
+          </Button>
         </>
       ) : (
-        <button
-          type="button"
+        <Button
+          variant="secondary"
           onClick={onEnterSelectMode}
-          className={btnStyle('secondary')}
+          icon={<CheckSquare size={14} />}
           aria-label={t('page.students.batch.select')}
         >
-          <CheckSquare size={14} />
           {t('page.students.batch.select')}
-        </button>
+        </Button>
       )}
     </div>
   )

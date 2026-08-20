@@ -5,7 +5,8 @@
 
 import { Download } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { btnStyle } from '../../../lib/ui-utils'
+import { Button } from '../../../components/Button'
+import { useT } from '../../../i18n'
 
 interface ExportMenuProps {
   /** 支持的导出格式列表（从 EAA 动态获取） */
@@ -15,6 +16,7 @@ interface ExportMenuProps {
 }
 
 export function ExportMenu({ formats, onExport }: ExportMenuProps) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -35,15 +37,14 @@ export function ExportMenu({ formats, onExport }: ExportMenuProps) {
 
   return (
     <div className="relative" ref={menuRef}>
-      <button
-        type="button"
+      <Button
+        variant="secondary"
         onClick={() => setOpen(!open)}
-        className={btnStyle('secondary')}
-        aria-label="导出"
+        icon={<Download size={14} />}
+        aria-label={t('page.students.export', '导出')}
       >
-        <Download size={14} />
-        导出
-      </button>
+        {t('page.students.export', '导出')}
+      </Button>
       {open && (
         <div className="absolute right-0 top-full mt-1 bg-white dark:bg-surface-tertiary border border-gray-200 dark:border-white/[0.06] rounded-lg shadow-lg z-50 min-w-[120px] animate-scale-in overflow-hidden">
           {formats.map((fmt) => (

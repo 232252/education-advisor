@@ -9,8 +9,8 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { McpClientPool } from '../mcp-client-pool'
-import { McpConfigStore } from '../mcp-config-store'
+import { McpClientPool } from '../mcp/pool'
+import { McpConfigStore } from './config-store'
 
 /** McpService 的共享状态与依赖 */
 export interface McpServiceContext {

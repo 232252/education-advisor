@@ -302,7 +302,6 @@ education-advisor/
 ├── resources/               # Icons, Rust binaries per platform
 ├── scripts/                 # Dev-time link-analysis tools
 ├── skills/                  # User-injected Markdown skills
-├── single-agent/            # "Single-agent mode" fallback prompt
 ├── examples/                # Example student records (anonymized)
 ├── tests/                   # Vitest suites (main + e2e)
 ├── electron-builder.yml     # Windows installer config

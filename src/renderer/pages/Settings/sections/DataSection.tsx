@@ -9,8 +9,9 @@ import type { UnifiedSettings } from '@shared/types'
 import { useCallback, useEffect, useState } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { useT } from '../../../i18n'
+import { validateCron } from '../../../lib/cron-utils'
 import { getAPI } from '../../../lib/ipc-client'
-import { btnStyle, INPUT_SM } from '../../../lib/ui-utils'
+import { btnStyle, cn, INPUT_INVALID, INPUT_SM } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
 import { Section, SettingRow, ToggleSwitch } from '../components'
 
@@ -40,6 +41,14 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
   >([])
   const [confirmRestore, setConfirmRestore] = useState(false)
   const [confirmRestart, setConfirmRestart] = useState(false)
+  // M33: 备份计划 cron 表达式本地编辑态(非法中间态不落盘,合法才 onSave)
+  const [cronInput, setCronInput] = useState(settings.backup?.autoBackupCron ?? '0 3 * * *')
+
+  useEffect(() => {
+    setCronInput(settings.backup?.autoBackupCron ?? '0 3 * * *')
+  }, [settings.backup?.autoBackupCron])
+
+  const cronValidation = validateCron(cronInput)
 
   const loadBackups = useCallback(async () => {
     try {
@@ -158,11 +167,11 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
           className={INPUT_SM}
           disabled={!backupSettings.autoEnabled}
         >
-          <option value="6">6 小时</option>
-          <option value="12">12 小时</option>
-          <option value="24">24 小时</option>
-          <option value="48">48 小时</option>
-          <option value="168">7 天</option>
+          <option value="6">6 {t('page.settings.backup.hoursUnit', '小时')}</option>
+          <option value="12">12 {t('page.settings.backup.hoursUnit', '小时')}</option>
+          <option value="24">24 {t('page.settings.backup.hoursUnit', '小时')}</option>
+          <option value="48">48 {t('page.settings.backup.hoursUnit', '小时')}</option>
+          <option value="168">7 {t('page.settings.backup.daysUnit', '天')}</option>
         </select>
       </SettingRow>
 
@@ -177,11 +186,56 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
           className={INPUT_SM}
           disabled={!backupSettings.autoEnabled}
         >
-          <option value="3">3 份</option>
-          <option value="5">5 份</option>
-          <option value="7">7 份</option>
-          <option value="14">14 份</option>
+          <option value="3">3 {t('settings.backup.countUnit', '份')}</option>
+          <option value="5">5 {t('settings.backup.countUnit', '份')}</option>
+          <option value="7">7 {t('settings.backup.countUnit', '份')}</option>
+          <option value="14">14 {t('settings.backup.countUnit', '份')}</option>
         </select>
+      </SettingRow>
+
+      <SettingRow
+        label={t('settings.backup.autoCron', '定时自动备份 (cron)')}
+        path="backup.autoBackupEnabled"
+        description={t(
+          'settings.backup.autoCronDesc',
+          '按 cron 计划到点自动备份到应用数据目录的 backups/ 下,默认每日 03:00',
+        )}
+      >
+        <ToggleSwitch
+          checked={backupSettings.autoBackupEnabled ?? false}
+          onChange={(v) => onSave('backup.autoBackupEnabled', v)}
+          label={t('settings.backup.autoCron', '定时自动备份 (cron)')}
+        />
+      </SettingRow>
+
+      <SettingRow
+        label={t('settings.backup.cronExpr', '备份计划')}
+        path="backup.autoBackupCron"
+        description={t(
+          'settings.backup.cronExprDesc',
+          'cron 表达式(分 时 日 月 周),如 0 3 * * * 表示每日 03:00',
+        )}
+      >
+        <div className="flex flex-col items-end">
+          <input
+            type="text"
+            value={cronInput}
+            placeholder="0 3 * * *"
+            onChange={(e) => {
+              const v = e.target.value
+              setCronInput(v)
+              // 非法中间态只更新本地 state,合法才写入 settings(防坏表达式进调度器)
+              if (validateCron(v).valid) onSave('backup.autoBackupCron', v)
+            }}
+            className={cn(INPUT_SM, 'w-40 font-mono', !cronValidation.valid && INPUT_INVALID)}
+            disabled={!backupSettings.autoBackupEnabled}
+          />
+          {!cronValidation.valid && (
+            <div className="text-[10px] mt-1 text-rose-500 dark:text-rose-400">
+              {t('settings.backup.cronInvalid', '无效的 cron 表达式')}: {cronValidation.error}
+            </div>
+          )}
+        </div>
       </SettingRow>
 
       <SettingRow

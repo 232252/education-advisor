@@ -10,6 +10,17 @@
 // =============================================================
 
 /**
+ * 剥离不可见 Unicode 字符(零宽空格、BOM、软连字符等)并 trim。
+ * M17a 收敛: 此前 sanitizeName/sanitizeFreeText(本模块)、privacy/params.ts sanitize、
+ * profile-handlers.ts sanitizeName 三处手写同一段正则——清洗规则升级(如新增不可见字符)
+ * 要改四处。现以此为唯一权威实现,各 sanitize 变体复用;
+ * 变体间的字符集**差异**(控制字符/元字符/路径分隔符策略)仍留在各自函数中。
+ */
+export function stripInvisibleUnicode(input: string): string {
+  return input.replace(/[\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\uFFF9-\uFFFB]/g, '').trim()
+}
+
+/**
  * 参数 sanitize:允许字母、数字、中文、常见姓名符号('()·.)、下划线、连字符。
  * 剥离不可见 Unicode 字符,拒绝 NUL 和以 -- 开头的输入(防止参数注入)。
  *
@@ -20,9 +31,7 @@ export function sanitizeName(name: unknown, field: string): string {
     throw new Error(`${field} must be a string`)
   }
   // 剥离不可见 Unicode 字符(零宽空格、BOM 等)
-  const cleaned = name
-    .replace(/[\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\uFFF9-\uFFFB]/g, '')
-    .trim()
+  const cleaned = stripInvisibleUnicode(name)
   if (cleaned.length === 0) {
     throw new Error(`${field} cannot be empty`)
   }
@@ -74,9 +83,7 @@ export function sanitizeFreeText(value: unknown, field: string, maxLength = 500)
     throw new Error(`${field} must be a string`)
   }
   // 剥离不可见 Unicode 字符(零宽空格、BOM 等)
-  const cleaned = value
-    .replace(/[\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\uFFF9-\uFFFB]/g, '')
-    .trim()
+  const cleaned = stripInvisibleUnicode(value)
   if (cleaned.length === 0) {
     throw new Error(`${field} cannot be empty`)
   }

@@ -6,6 +6,7 @@ import type { EAAStudent } from '@shared/types'
 import { Save } from 'lucide-react'
 import { Button } from '../../../../components/Button'
 import { Card } from '../../../../components/Card'
+import { useT } from '../../../../i18n'
 import type { ScoreEntry } from '../../lib/grade-entry'
 
 interface SingleSubjectTableProps {
@@ -30,11 +31,13 @@ export function SingleSubjectTable({
   singleScores,
   onUpdateScore,
 }: SingleSubjectTableProps) {
+  const { t } = useT()
+
   return (
     <Card padding="md">
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-          单科成绩录入 — {subjectName}
+          {`${t('page.academics.entry.singleSubjectTitle', '单科成绩录入')} — ${subjectName}`}
         </h4>
         <Button
           variant="success"
@@ -43,19 +46,25 @@ export function SingleSubjectTable({
           icon={!saving ? <Save className="h-3.5 w-3.5" /> : undefined}
           onClick={onSave}
         >
-          {saving ? '保存中...' : '保存成绩'}
+          {saving
+            ? t('page.academics.entry.saving', '保存中...')
+            : t('page.academics.entry.saveGrades', '保存成绩')}
         </Button>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-white/[0.06]">
-              <th className="py-2 px-3 font-medium">学生</th>
+              <th className="py-2 px-3 font-medium">
+                {t('page.academics.common.student', '学生')}
+              </th>
               <th className="py-2 px-3 font-medium text-center">
-                成绩
+                {t('page.academics.common.score', '成绩')}
                 <span className="text-[10px] text-gray-400 ml-1">/{fullMark}</span>
               </th>
-              <th className="py-2 px-3 font-medium text-center">班级排名</th>
+              <th className="py-2 px-3 font-medium text-center">
+                {t('print.studentReport.classRank', '班级排名')}
+              </th>
             </tr>
           </thead>
           <tbody>

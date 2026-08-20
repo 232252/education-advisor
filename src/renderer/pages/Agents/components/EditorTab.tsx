@@ -3,6 +3,7 @@
 // =============================================================
 
 import { useEffect, useState } from 'react'
+import { useT } from '../../../i18n'
 import { btnStyle } from '../../../lib/ui-utils'
 
 interface EditorTabProps {
@@ -12,6 +13,7 @@ interface EditorTabProps {
 }
 
 export function EditorTab({ content, placeholder, onSave }: EditorTabProps) {
+  const { t } = useT()
   const [text, setText] = useState(content)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -39,7 +41,9 @@ export function EditorTab({ content, placeholder, onSave }: EditorTabProps) {
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-white/[0.06]">
         <span className="text-xs text-gray-400 dark:text-gray-500">
-          {dirty ? '未保存' : '已保存'}
+          {dirty
+            ? t('page.agents.editor.unsaved', '未保存')
+            : t('page.agents.editor.saved', '已保存')}
         </span>
         <button
           type="button"
@@ -47,7 +51,7 @@ export function EditorTab({ content, placeholder, onSave }: EditorTabProps) {
           disabled={!dirty || saving}
           className={btnStyle('secondary')}
         >
-          {saving ? '保存中...' : '保存'}
+          {saving ? t('page.agents.editor.saving', '保存中...') : t('common.save', '保存')}
         </button>
       </div>
       <textarea

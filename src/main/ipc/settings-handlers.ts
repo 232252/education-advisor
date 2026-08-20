@@ -163,6 +163,13 @@ export function registerSettingsHandlers(win: BrowserWindow) {
         cronService.registerBitableSync()
       }
 
+      // M33: 定时自动备份开关/cron 表达式变化后联动 cron 任务(照抄 bitableSync 联动模式)。
+      // registerAutoBackup 幂等 upsert: enabled → 按当前 autoBackupCron 重建(改表达式重绑);
+      // disabled → 移除既有 auto-backup 任务(关闭开关任务消失)。
+      if (path === 'backup.autoBackupEnabled' || path === 'backup.autoBackupCron') {
+        cronService.registerAutoBackup()
+      }
+
       return { success: true }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -192,6 +199,8 @@ export function registerSettingsHandlers(win: BrowserWindow) {
       syncNativeTheme()
       // F2 修复: 重置后 bitableSync 回到默认关闭,联动移除既有 __feishu__ cron 任务
       cronService.registerBitableSync()
+      // M33: 重置后 autoBackupEnabled 回到默认关闭,联动移除既有 auto-backup cron 任务
+      cronService.registerAutoBackup()
       log('info', 'settings', `settings reset; logLevel=${newSettings.general.logLevel}`)
       return { success: true }
     } catch (err: unknown) {

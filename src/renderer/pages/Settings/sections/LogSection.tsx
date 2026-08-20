@@ -68,11 +68,14 @@ export function LogSection({
   }, 300)
 
   return (
-    <Section title="日志查看">
+    <Section title={t('settings.section.logs', '日志查看')}>
       <div className="px-5 py-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="text-xs text-gray-500 dark:text-gray-400">
-            实时查看 logs/ 目录下的 main / chat / renderer 三类日志,按日期分割
+            {t(
+              'page.settings.logs.desc',
+              '实时查看 logs/ 目录下的 main / chat / renderer 三类日志,按日期分割',
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -89,14 +92,14 @@ export function LogSection({
               }}
               className="text-[10px] px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-white/[0.08] text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.04] transition-colors"
             >
-              刷新列表
+              {t('settings.logs.refresh', '刷新列表')}
             </button>
             <button
               type="button"
               onClick={onClearLogsRequest}
               className="text-[10px] px-2.5 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-500 dark:text-rose-400 hover:bg-rose-500/20 transition-colors"
             >
-              清空
+              {t('settings.logs.clear', '清空')}
             </button>
           </div>
         </div>
@@ -104,7 +107,9 @@ export function LogSection({
         {/* T3: 增强工具栏 — level 过滤 + 搜索 + 导出 */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-gray-500 dark:text-gray-400">级别:</span>
+            <span className="text-[10px] text-gray-500 dark:text-gray-400">
+              {t('page.settings.logs.levelLabel', '级别:')}
+            </span>
             <select
               value={logLevelFilter}
               onChange={async (e) => {
@@ -121,7 +126,7 @@ export function LogSection({
               }}
               className="bg-gray-50 dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded-lg px-1.5 py-1 text-[10px] text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
             >
-              <option value="all">全部</option>
+              <option value="all">{t('settings.logs.level.all', '全部')}</option>
               <option value="debug">Debug</option>
               <option value="info">Info</option>
               <option value="warn">Warn</option>
@@ -132,7 +137,7 @@ export function LogSection({
           <input
             type="text"
             value={logSearchQuery}
-            placeholder="搜索日志内容..."
+            placeholder={t('settings.logs.search.placeholder', '搜索日志内容...')}
             onChange={(e) => {
               const v = e.target.value
               setLogSearchQuery(v)
@@ -154,7 +159,9 @@ export function LogSection({
                 const result = await getAPI().log.exportWithDialog(selectedLog)
                 if (result.canceled) return
                 if (result.bytes > 0) {
-                  toast.success(`已导出 ${result.bytes} 字节到 ${result.path}`)
+                  toast.success(
+                    `${t('page.settings.logs.exportedPrefix', '已导出 ')}${result.bytes}${t('page.settings.logs.exportedInfix', ' 字节到 ')}${result.path}`,
+                  )
                 } else {
                   toast.warning(t('toast.settings.exportEmpty'))
                 }
@@ -166,7 +173,7 @@ export function LogSection({
             disabled={!selectedLog}
             className="text-[10px] px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            导出
+            {t('settings.logs.export', '导出')}
           </button>
         </div>
 
@@ -188,7 +195,7 @@ export function LogSection({
                     setLogContent(content)
                   } catch (err) {
                     console.error('[Settings] log read failed:', err)
-                    setLogContent('读取日志失败,请查看控制台')
+                    setLogContent(t('page.settings.logs.readFailed', '读取日志失败,请查看控制台'))
                   }
                 }}
                 className={`text-[10px] px-2 py-1 rounded-lg border ${
@@ -211,7 +218,7 @@ export function LogSection({
 
         {logFiles.length === 0 && !logContent && (
           <div className="text-[10px] text-gray-500 dark:text-gray-400 italic">
-            尚无日志文件。App 启动并产生日志后会出现在此。
+            {t('settings.logs.empty', '尚无日志文件。App 启动并产生日志后会出现在此。')}
           </div>
         )}
       </div>

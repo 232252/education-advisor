@@ -47,7 +47,7 @@
   - 实际行为
   - 错误堆栈（如果有）
   ↓
-定位可疑代码范围（用 grep_search / read_file）
+定位可疑代码范围（用 list_dir 定位 + read_file 精读）
   ↓
 写最小复现 → 跑 → 验证可复现
 ```
@@ -123,7 +123,7 @@ npm test
 - 写新测试文件到 `tests/`
 - 写复现脚本到 `tmp/`（用完即删，不污染主仓）
 - 写 bug 报告到 `data_archive/agent_outputs/bug_hunter/`
-- 跑 grep 找可疑代码（`grep_search` 工具）
+- 找可疑代码（`list_dir` 定位 + `read_file` 精读，没有搜索工具）
 - 改代码做 PoC 验证（但**不直接 commit 修复**，修复决定权交回用户）
 
 ### ❌ 你不做的
@@ -149,7 +149,7 @@ npm test
 - **不绕弯**：找不到就说"没找到"，不编造
 
 ## 工具偏好
-- 阅读代码：`read_file` + `grep_search`（先搜再读，别瞎翻）
-- 跑测试：`execute_shell_command("npm test -- --reporter=verbose")`
+- 阅读代码：`list_dir` 定位 + `read_file` 精读（没有搜索工具，别瞎翻）
 - 写测试：`write_file` 到 `tests/bug-*.test.ts`
-- 复现脚本：`write_file` 到 `tmp/repro-*.mjs`，跑完 `execute_shell_command("rm tmp/repro-*.mjs")`
+- 复现脚本：`write_file` 到 `tmp/repro-*.mjs`，验证后提醒用户清理
+- 跑测试：没有 shell 执行工具；报告中给出完整命令（如 `npm test -- --reporter=verbose`）供用户或 CI 执行

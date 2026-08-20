@@ -74,6 +74,9 @@ export async function startApp(): Promise<void> {
   // 注册飞书 Bitable 定时同步任务
   cronService.registerBitableSync()
 
+  // M33: 按设置注册定时自动备份 cron 任务(开关开启时挂到 cron 调度,关闭时移除)
+  cronService.registerAutoBackup()
+
   // 启动自动备份调度(每小时检查一次设置,到期则备份并清理旧备份)
   initAutoBackup()
 

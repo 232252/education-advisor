@@ -23,7 +23,8 @@ export function registerSkillHandlers(_win: BrowserWindow) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[IPC] skill:get failed:', msg)
-      return { success: false, error: msg }
+      // F3 模式: 渲染层契约是 Skill | null,错误时返回 null 而非形状不符的对象
+      return null
     }
   })
 

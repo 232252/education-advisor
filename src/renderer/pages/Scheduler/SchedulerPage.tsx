@@ -4,11 +4,12 @@
 // =============================================================
 
 import type { CronTask } from '@shared/types'
-import { Clock, Loader2 } from 'lucide-react'
+import { Clock } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
+import { Skeleton } from '../../components/Skeleton'
 import { useT } from '../../i18n'
 import { btnStyle } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
@@ -108,9 +109,24 @@ export function SchedulerPage() {
 
       {/* 主体 */}
       {loading ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-400 dark:text-gray-500">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span className="text-sm">加载中...</span>
+        <div className="flex-1 flex overflow-hidden">
+          {/* 左侧：任务卡片骨架 */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 border-r border-gray-200 dark:border-white/[0.06]">
+            {Array.from({ length: 4 }).map((_, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: 骨架屏静态元素，不会重排序
+              <Skeleton key={`task-${i}`} className="h-16 w-full rounded-xl" />
+            ))}
+          </div>
+          {/* 右侧：执行日志骨架 */}
+          <div className="w-96 p-3">
+            <Skeleton className="h-4 w-24 mb-3" />
+            <div className="space-y-1.5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: 骨架屏静态元素，不会重排序
+                <Skeleton key={`log-${i}`} className="h-5 w-full" />
+              ))}
+            </div>
+          </div>
         </div>
       ) : (
         <div className="flex-1 flex overflow-hidden">

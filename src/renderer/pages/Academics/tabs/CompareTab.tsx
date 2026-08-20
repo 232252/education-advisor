@@ -8,6 +8,7 @@ import type { ClassEntity, EAAStudent, ExamDef, SubjectDef } from '@shared/types
 import { Inbox, TrendingUp } from 'lucide-react'
 import { EmptyState } from '../../../components/EmptyState'
 import { CardSkeleton } from '../../../components/Skeleton'
+import { useT } from '../../../i18n'
 import {
   CompareSelectorBar,
   ComparisonSummaryCards,
@@ -24,6 +25,8 @@ export interface CompareTabProps {
 }
 
 export function CompareTab({ students, classList, subjects, exams }: CompareTabProps) {
+  const { t } = useT()
+
   const {
     classFilter,
     setClassFilter,
@@ -59,20 +62,20 @@ export function CompareTab({ students, classList, subjects, exams }: CompareTabP
       ) : !canCompare ? (
         <EmptyState
           icon={<TrendingUp size={28} />}
-          title="选择两场考试进行对比"
+          title={t('page.academics.compare.selectTwoExams', '选择两场考试进行对比')}
           description={
             sortedExams.length < 2
-              ? '至少需要 2 场考试才能对比'
+              ? t('page.academics.compare.needTwoExams', '至少需要 2 场考试才能对比')
               : examAId === examBId && examAId
-                ? '请选择两场不同的考试'
-                : '从上方选择班级和两场考试'
+                ? t('page.academics.compare.selectDifferent', '请选择两场不同的考试')
+                : t('page.academics.compare.selectHint', '从上方选择班级和两场考试')
           }
         />
       ) : studentComparisons.length === 0 ? (
         <EmptyState
           icon={<Inbox size={28} />}
-          title="暂无对比数据"
-          description="所选班级在两次考试中均无成绩记录"
+          title={t('page.academics.compare.noData', '暂无对比数据')}
+          description={t('page.academics.compare.noDataDesc', '所选班级在两次考试中均无成绩记录')}
         />
       ) : (
         <>
