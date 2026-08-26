@@ -203,15 +203,11 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           generate_release_notes: true
-          # M31 自动更新: 客户端 electron-updater 依据 latest*.yml 发现新版本
-          # 并校验 sha512;blockmap 用于差量下载。必须作为 Release 资产发布。
+          # electron-builder --publish onTag 已把全部安装包、latest*.yml 与
+          # blockmap 直传到（草稿）Release；此处仅负责正式发布 Release 并补充
+          # 校验和。若再上传安装包，本地带空格的文件名会被 GitHub 规范化为
+          # 点号，与 electron-builder 的连字符命名并存形成重复资产。
           files: |
-            artifacts/**/*.exe
-            artifacts/**/*.dmg
-            artifacts/**/*.AppImage
-            artifacts/**/*.deb
-            artifacts/**/latest*.yml
-            artifacts/**/*.blockmap
             artifacts/SHA256SUMS
             artifacts/SHA256SUMS.sig
             artifacts/SHA256SUMS.pem
