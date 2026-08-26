@@ -77,17 +77,17 @@ jobs:
           # 下载指引：安装包超出 Gitee 免费版单附件 100MB 上限时，
           # 在 release 描述中明确国内用户的替代下载渠道。
           NOTE=$(cat <<NOTEEOF
-<!-- gitee-download-note -->
----
+          <!-- gitee-download-note -->
+          ---
 
-## 下载说明
+          ## 下载说明
 
-安装包体积超出 Gitee 免费版单附件 100MB 上限，本镜像仅同步 `SHA256SUMS` 校验和与 `latest*.yml` 自动更新清单。
+          安装包体积超出 Gitee 免费版单附件 100MB 上限，本镜像仅同步 `SHA256SUMS` 校验和与 `latest*.yml` 自动更新清单。
 
-**安装包请从以下渠道下载：**
-- 官网（推荐）：https://eea.qdzwwqd.top/download.html
-- GitHub Release：https://github.com/232252/education-advisor/releases/tag/$TAG
-NOTEEOF
+          **安装包请从以下渠道下载：**
+          - 官网（推荐）：https://eea.qdzwwqd.top/download.html
+          - GitHub Release：https://github.com/232252/education-advisor/releases/tag/$TAG
+          NOTEEOF
           )
 
           # 幂等：tag 已有 release 则复用并刷新描述，否则创建（复用 GitHub 的 release 说明）
