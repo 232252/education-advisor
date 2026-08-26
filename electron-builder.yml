@@ -2,8 +2,12 @@ appId: com.education-advisor.app
 productName: Education Advisor
 copyright: Copyright 2026
 
-# 避免 CI 环境自动 publish 到 GitHub 导致编译失败
-publish: null
+# CI 通过 --publish onTag 发布并生成 latest*.yml 自动更新清单
+# 本地构建不加 --publish 时默认 onTagOrDraft（仅 tag 提交才发布）
+publish:
+  provider: github
+  owner: 232252
+  repo: education-advisor
 
 directories:
   output: release-v11

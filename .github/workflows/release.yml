@@ -126,7 +126,7 @@ jobs:
           npx electron-builder \
             --${{ matrix.target }} \
             --${{ matrix.arch }} \
-            --publish never \
+            --publish onTag \
             --config.extraMetadata.version=${GITHUB_REF_NAME#v}
 
       - name: Upload artifacts
