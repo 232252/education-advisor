@@ -74,15 +74,37 @@ jobs:
           set -euo pipefail
           API="https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO"
 
-          # 幂等：tag 已有 release 则复用，否则创建（复用 GitHub 的 release 说明）
+          # 下载指引：安装包超出 Gitee 免费版单附件 100MB 上限时，
+          # 在 release 描述中明确国内用户的替代下载渠道。
+          NOTE=$(cat <<NOTEEOF
+<!-- gitee-download-note -->
+---
+
+## 下载说明
+
+安装包体积超出 Gitee 免费版单附件 100MB 上限，本镜像仅同步 `SHA256SUMS` 校验和与 `latest*.yml` 自动更新清单。
+
+**安装包请从以下渠道下载：**
+- 官网（推荐）：https://eea.qdzwwqd.top/download.html
+- GitHub Release：https://github.com/232252/education-advisor/releases/tag/$TAG
+NOTEEOF
+          )
+
+          # 幂等：tag 已有 release 则复用并刷新描述，否则创建（复用 GitHub 的 release 说明）
           RELEASE_ID=""
           RELEASE_ID=$(curl -sS "$API/releases/tags/$TAG?access_token=$GITEE_TOKEN" | jq -r '.id // empty' 2>/dev/null || true)
-          if [ -z "${RELEASE_ID:-}" ]; then
-            BODY=$(gh release view "$TAG" --repo "${{ github.repository }}" --json body -q .body)
+          BODY=$(gh release view "$TAG" --repo "${{ github.repository }}" --json body -q .body)
+          if [ -n "${RELEASE_ID:-}" ]; then
+            # 已存在：刷新描述（幂等：按标记剥掉旧下载指引，再追加最新指引）
+            BODY_NO_NOTE=$(printf '%s' "$BODY" | sed '/<!-- gitee-download-note -->/,$d')
+            jq -n --arg body "$BODY_NO_NOTE$NOTE" '{body:$body}' \
+              | curl -sS -X PATCH "$API/releases/$RELEASE_ID?access_token=$GITEE_TOKEN" \
+                -H "Content-Type: application/json" -d @- >/dev/null || true
+          else
             RELEASE_ID=$(jq -n \
               --arg tag "$TAG" \
               --arg name "Release $TAG" \
-              --arg body "$BODY" \
+              --arg body "$BODY$NOTE" \
               --arg branch "main" \
               '{tag_name:$tag, name:$name, body:$body, prerelease:false, target_commitish:$branch}' \
               | curl -sS -X POST "$API/releases?access_token=$GITEE_TOKEN" \
