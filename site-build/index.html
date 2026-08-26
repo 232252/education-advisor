@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Education Advisor — 让教育更智能，让教师更轻松</title>
+  <meta name="description" content="Education Advisor 是基于 Electron 的多智能体教育管理桌面应用。18 个专业 AI 智能体，Rust 数据引擎，隐私优先，跨平台 LLM 编排，专为班主任与教师打造。">
+  <meta name="keywords" content="Education Advisor, AI 教育, 多智能体, Electron, Rust, 班主任, 学生管理, 教育信息化">
+  <meta name="author" content="sq199">
+  <meta name="theme-color" content="#ffffff">
+
+  <meta property="og:title" content="Education Advisor — 让教育更智能，让教师更轻松">
+  <meta property="og:description" content="18 个 AI 智能体驱动的桌面教育指挥中心，本地优先，隐私保护，跨平台。">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://eea.qdzwwqd.top/">
+
+  <link rel="canonical" href="https://eea.qdzwwqd.top/">
+  <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="assets/css/style.css?v=20260820a">
+</head>
+<body>
+  <!-- Navigation -->
+  <header class="nav" id="nav">
+    <div class="container nav-inner">
+      <a class="logo" href="/" aria-label="Education Advisor 首页">
+        <svg class="logo-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#3b82f6"/>
+              <stop offset="1" stop-color="#6366f1"/>
+            </linearGradient>
+          </defs>
+          <rect width="40" height="40" rx="10" fill="url(#logoGrad)"/>
+          <path d="M12 26.5V13.5L20 10L28 13.5V26.5L20 30L12 26.5Z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>
+          <path d="M20 18V26" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="20" cy="15" r="1.5" fill="white"/>
+        </svg>
+        <span class="logo-text">Education Advisor</span>
+      </a>
+
+      <nav class="nav-links" aria-label="主导航">
+        <a href="#features">核心特性</a>
+        <a href="#architecture">架构</a>
+        <a href="docs.html">使用文档</a>
+        <a href="#download">下载</a>
+        <a href="#faq">常见问题</a>
+        <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </nav>
+
+      <div class="nav-actions">
+        <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+          <span class="theme-icon-light" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          </span>
+          <span class="theme-icon-dark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </span>
+        </button>
+        <a class="btn btn-primary btn-sm" href="download.html">立即下载</a>
+        <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="nav-mobile" id="navMobile">
+      <a href="#features">核心特性</a>
+      <a href="#architecture">架构</a>
+      <a href="docs.html">使用文档</a>
+      <a href="#download">下载</a>
+      <a href="#faq">常见问题</a>
+      <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <button class="theme-toggle-mobile" id="navMobileTheme">☀️ 切换主题</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section class="hero" id="hero">
+      <div class="hero-bg" aria-hidden="true">
+        <div class="hero-grid"></div>
+        <div class="hero-blob hero-blob-1"></div>
+        <div class="hero-blob hero-blob-2"></div>
+        <div class="hero-blob hero-blob-3"></div>
+      </div>
+      <div class="container hero-inner">
+        <div class="hero-content">
+          <div class="badge">
+            <span class="badge-dot"></span>
+            <span>v3.2.0 正式发布 · Electron Edition</span>
+          </div>
+          <h1 class="hero-title">
+            让教育更智能，<br>
+            <span class="text-gradient">让教师更轻松</span>
+          </h1>
+          <p class="hero-desc">
+            Education Advisor 是一款基于 Electron 的桌面教育管理应用。操行评分、学业分析、风险预警、家校沟通，18 个专业 AI 智能体覆盖班主任日常全场景，Rust 高性能引擎 + 本地隐私保护，让每一位教师都能拥有专属的数字化助手。
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="download.html">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              <span>免费下载全平台版本</span>
+            </a>
+            <a class="btn btn-secondary btn-lg" href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23a11.49 11.49 0 0 1 3-.405c1.02 0 2.04.135 3 .405 2.28-1.56 3.285-1.23 3.285-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12Z"/></svg>
+              <span>查看源码</span>
+            </a>
+          </div>
+          <div class="hero-meta">
+            <span>Windows / macOS / Linux</span>
+            <span class="dot"></span>
+            <span>MIT 开源</span>
+            <span class="dot"></span>
+            <span>内置自动更新</span>
+          </div>
+        </div>
+
+        <div class="hero-visual">
+          <div class="app-window">
+            <div class="app-window-header">
+              <div class="window-dots"><span></span><span></span><span></span></div>
+              <div class="window-title">Education Advisor</div>
+            </div>
+            <div class="app-window-body">
+              <div class="app-sidebar">
+                <div class="app-avatar">EA</div>
+                <div class="app-nav-items">
+                  <span class="app-nav-item active"></span>
+                  <span class="app-nav-item"></span>
+                  <span class="app-nav-item"></span>
+                  <span class="app-nav-item"></span>
+                </div>
+              </div>
+              <div class="app-main">
+                <div class="app-chat">
+                  <div class="chat-bubble assistant">
+                    <p>班级本周德育分已生成，需要我生成家校沟通稿吗？</p>
+                  </div>
+                  <div class="chat-bubble user">
+                    <p>帮我整理一下本次月考的学业分析报告</p>
+                  </div>
+                  <div class="chat-bubble assistant">
+                    <p>已完成。风险学生 3 名，其中张明数学下滑最明显，建议重点关注。</p>
+                  </div>
+                </div>
+                <div class="app-input">
+                  <span>输入指令...</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats" id="stats">
+      <div class="container">
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-number">18</div>
+            <div class="stat-label">专业 AI 智能体</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">35+</div>
+            <div class="stat-label">LLM 提供商</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">3<span class="stat-unit">ms</span></div>
+            <div class="stat-label">统计查询响应</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">2,968</div>
+            <div class="stat-label">回归测试全部通过</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features" id="features">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">核心特性</span>
+          <h2 class="section-title">把班主任的重复劳动<br>交给 AI 智能体</h2>
+          <p class="section-desc">
+            从德育评分到家校沟通，从学业预警到班级日志，Education Advisor 用多智能体协作把繁杂事务变得井井有条。
+          </p>
+        </div>
+
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon feature-icon-blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </div>
+            <h3>操行评分与德育管理</h3>
+            <p>加扣分一键录入，自动汇总周/月操行排名。支持自定义评分维度与权重，德育分、纪律分、卫生分分类管理，班级表现一目了然。</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon feature-icon-cyan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
+            <h3>学业成绩分析</h3>
+            <p>导入月考/期中/期末成绩，自动生成班级排名、学科均分、进步退步榜。AI 智能识别成绩波动学生，生成个性化学习建议与学业报告。</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon feature-icon-rose">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <h3>风险预警与关怀</h3>
+            <p>综合操行、学业、出勤多维度数据，AI 自动识别需重点关注的学生。风险等级分级提醒，生成关怀建议，帮助教师及时干预。</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon feature-icon-emerald">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <h3>家校沟通与通知</h3>
+            <p>AI 自动生成个性化家校沟通稿，根据学生表现智能匹配沟通策略。支持飞书消息推送、个别沟通记录追踪，家校协作更高效。</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon feature-icon-violet">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
+            <h3>班级日志与周报</h3>
+            <p>日常事件流水记录，自动生成班级日志和周报。AI 智能体按周总结班级动态、突出问题和改进建议，让班级管理有据可查。</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon feature-icon-amber">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <h3>Rust 高性能引擎</h3>
+            <p>EAA CLI 数据引擎以 Sidecar 进程运行，流式处理 + 多级缓存。score 2ms、ranking 6ms、stats 3ms，数万次操作零错误，毫秒级响应。</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon feature-icon-blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h3>本地优先，隐私保护</h3>
+            <p>数据保存在本地，PII 隐私引擎支持脱敏、反脱敏与按接收者过滤，敏感信息不上云。AES 加密映射表保障数据安全。</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon feature-icon-violet">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <h3>18 个专业 AI 智能体</h3>
+            <p>辅导员、监督员、学业指导、风险预警、家校沟通、数据分析师等，各司其职。支持 35+ LLM 提供商，按需编排协作。</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon feature-icon-cyan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            </div>
+            <h3>MCP 与 19 个 AI 工具</h3>
+            <p>支持 Model Context Protocol，11 个 EAA 能力门控工具 + 6 个文件工具 + 2 个通用工具，AI 可安全访问全部数据。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture -->
+    <section class="architecture" id="architecture">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">架构</span>
+          <h2 class="section-title">三层架构，兼顾性能与体验</h2>
+          <p class="section-desc">Electron 主进程业务层 + React 渲染层 + Rust 数据引擎，层层解耦。</p>
+        </div>
+
+        <div class="arch-stack">
+          <div class="arch-layer arch-layer-ui">
+            <div class="arch-badge">UI 层</div>
+            <div class="arch-content">
+              <h3>React 18 + Vite 6 + Tailwind CSS</h3>
+              <p>现代化的响应式界面，流畅的交互体验，专为教师工作流设计。</p>
+            </div>
+          </div>
+          <div class="arch-connector"></div>
+          <div class="arch-layer arch-layer-sidecar">
+            <div class="arch-badge">业务层</div>
+            <div class="arch-content">
+              <h3>Electron 主进程 · Node.js 22</h3>
+              <p>承载业务服务、LLM 编排、智能体调度与 MCP 工具链，131 个 IPC 处理器。</p>
+            </div>
+          </div>
+          <div class="arch-connector"></div>
+          <div class="arch-layer arch-layer-engine">
+            <div class="arch-badge">数据层</div>
+            <div class="arch-content">
+              <h3>Rust EAA CLI · JSONL + SQLite</h3>
+              <p>事件流存储、多级缓存、流式校验，高性能与高可靠性兼得。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download CTA -->
+    <section class="download-section" id="download">
+      <div class="container">
+        <div class="download-card">
+          <div class="download-content">
+            <span class="section-tag">下载</span>
+            <h2 class="section-title">准备好把班级管理<br>交给 Education Advisor 了吗？</h2>
+            <p class="section-desc">v3.2.0 稳定版已发布，覆盖 Windows、macOS（Intel / Apple Silicon）与 Linux 三大平台，内置自动更新，支持 GitHub 与 Gitee 双源下载。</p>
+            <div class="download-options">
+              <a class="btn btn-primary btn-lg" href="https://github.com/232252/education-advisor/releases/download/v3.2.0/Education-Advisor-3.2.0-Setup.exe">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                <span>GitHub 下载 Windows 版</span>
+              </a>
+              <a class="btn btn-secondary btn-lg" href="download.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                <span>全平台下载</span>
+              </a>
+            </div>
+            <p class="download-note">国内用户推荐使用 Gitee 加速下载。应用内置 electron-updater 自动更新，新版本发布后可在应用内直接升级。</p>
+          </div>
+          <div class="download-meta">
+            <div class="download-meta-item">
+              <span class="download-meta-label">最新版本</span>
+              <span class="download-meta-value">v3.2.0</span>
+            </div>
+            <div class="download-meta-item">
+              <span class="download-meta-label">安装方式</span>
+              <span class="download-meta-value">NSIS / DMG / AppImage / deb</span>
+            </div>
+            <div class="download-meta-item">
+              <span class="download-meta-label">系统要求</span>
+              <span class="download-meta-value">Windows · macOS · Linux x64</span>
+            </div>
+            <div class="download-meta-item">
+              <span class="download-meta-label">开源协议</span>
+              <span class="download-meta-value">MIT License</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="faq" id="faq">
+      <div class="container faq-container">
+        <div class="section-header faq-header">
+          <span class="section-tag">常见问题</span>
+          <h2 class="section-title">有疑问？这里可能有答案</h2>
+        </div>
+
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>Education Advisor 是免费的吗？</summary>
+            <p>是的。Education Advisor 采用 MIT 协议开源，完全免费使用。项目源码托管在 <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub</a>，欢迎提交 Issue 或 PR。</p>
+          </details>
+
+          <details class="faq-item">
+            <summary>数据会上传到云端吗？</summary>
+            <p>不会。Education Advisor 采用本地优先架构，学生信息、事件记录、学业数据等均保存在本地设备。只有在调用外部 LLM API 时才会按需发送请求，且 PII 隐私引擎会先对敏感信息进行脱敏处理。</p>
+          </details>
+
+          <details class="faq-item">
+            <summary>支持哪些平台？</summary>
+            <p>v3.2.0 提供 Windows x64（NSIS 安装程序）、macOS（Intel 与 Apple Silicon 的 DMG）以及 Linux x64（AppImage 与 deb）安装包，全平台支持自动更新。</p>
+          </details>
+
+          <details class="faq-item">
+            <summary>为什么从 Tauri 迁回 Electron？</summary>
+            <p>项目曾尝试迁移至 Tauri 以缩减体积，但稳定性未达预期。现已回归 Electron 主线：三平台构建成熟稳定、自动更新可靠、多窗口与系统能力更完整。Rust 数据引擎（EAA CLI）以 Sidecar 方式保留，性能不受影响。</p>
+          </details>
+
+          <details class="faq-item">
+            <summary>可以自定义 AI 提供商吗？</summary>
+            <p>可以。Education Advisor 支持 OpenAI、Anthropic、DeepSeek、Moonshot、Google、Ollama 等 35+ 个 LLM 提供商，并支持在设置中配置自己的 API Key 与模型参数。</p>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-main">
+        <a class="logo logo-footer" href="/">
+          <svg class="logo-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="logoGradFooter" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#3b82f6"/>
+                <stop offset="1" stop-color="#6366f1"/>
+              </linearGradient>
+            </defs>
+            <rect width="40" height="40" rx="10" fill="url(#logoGradFooter)"/>
+            <path d="M12 26.5V13.5L20 10L28 13.5V26.5L20 30L12 26.5Z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>
+            <path d="M20 18V26" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="20" cy="15" r="1.5" fill="white"/>
+          </svg>
+          <span class="logo-text">Education Advisor</span>
+        </a>
+        <p class="footer-desc">基于 Electron 的多智能体教育管理桌面应用。<br>本地优先，隐私保护，开源免费。</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h4>产品</h4>
+          <a href="#features">核心特性</a>
+          <a href="#architecture">架构</a>
+          <a href="docs.html">使用文档</a>
+          <a href="download.html">下载</a>
+        </div>
+        <div class="footer-col">
+          <h4>资源</h4>
+          <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://gitee.com/qdzwwqd/education-advisor" target="_blank" rel="noopener noreferrer">Gitee 镜像</a>
+          <a href="https://github.com/232252/education-advisor/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+          <a href="https://github.com/232252/education-advisor/issues" target="_blank" rel="noopener noreferrer">问题反馈</a>
+        </div>
+        <div class="footer-col">
+          <h4>法律</h4>
+          <a href="legal.html">隐私政策</a>
+          <a href="legal.html#terms">使用条款</a>
+        </div>
+      </div>
+    </div>
+    <div class="container footer-bottom">
+      <p>© 2026 Education Advisor. Released under MIT License.</p>
+      <p>Made with care by sq199.</p>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js?v=20260820a" defer></script>
+</body>
+</html>

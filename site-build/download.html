@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>下载 Education Advisor — Windows / macOS / Linux 安装包</title>
+  <meta name="description" content="下载 Education Advisor v3.2.0。提供 Windows NSIS 安装程序、macOS DMG（Intel / Apple Silicon）与 Linux AppImage / deb 安装包，全平台内置自动更新。支持 GitHub 与 Gitee 双源加速下载。">
+  <meta name="theme-color" content="#fffbf7">
+  <link rel="canonical" href="https://eea.qdzwwqd.top/download.html">
+  <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css?v=20260820a">
+  <style>
+    .download-hero { padding-top: calc(var(--nav-height) + 80px); padding-bottom: 60px; }
+    .download-hero .section-header { margin-bottom: 48px; }
+    .download-grid { display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 64px; }
+    @media (min-width: 640px) { .download-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 1024px) { .download-grid { grid-template-columns: repeat(3, 1fr); } }
+    .download-platform { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 40px; display: flex; flex-direction: column; gap: 24px; transition: transform var(--transition), box-shadow var(--transition); }
+    .download-platform:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+    .platform-header { display: flex; align-items: center; gap: 16px; }
+    .platform-icon { width: 56px; height: 56px; border-radius: var(--radius); background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); display: flex; align-items: center; justify-content: center; }
+    .platform-icon svg { width: 28px; height: 28px; }
+    .platform-title { font-size: 1.3rem; font-weight: 700; margin: 0; }
+    .platform-subtitle { color: var(--text-secondary); font-size: 0.95rem; margin: 4px 0 0; }
+    .platform-meta { display: flex; flex-wrap: wrap; gap: 12px; }
+    .platform-meta span { font-size: 0.85rem; color: var(--text-tertiary); background: var(--bg-soft); padding: 6px 12px; border-radius: var(--radius-full); border: 1px solid var(--border); }
+    .platform-cta { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+    .platform-cta .btn { width: 100%; }
+    .source-label { font-size: 0.78rem; color: var(--text-tertiary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: -4px; }
+    .release-notes { background: var(--bg-soft); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 40px; }
+    .release-notes h2 { font-size: 1.4rem; font-weight: 800; margin: 0 0 24px; }
+    .release-notes-content { color: var(--text-secondary); line-height: 1.7; }
+    .release-notes-content h1, .release-notes-content h2, .release-notes-content h3 { color: var(--text); margin-top: 24px; margin-bottom: 12px; }
+    .release-notes-content p { margin: 0 0 12px; }
+    .release-notes-content ul { padding-left: 20px; margin: 0 0 16px; }
+    .release-notes-content li { margin-bottom: 8px; }
+    .release-notes-content code { background: var(--bg-muted); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+    .loading { color: var(--text-tertiary); font-style: italic; }
+    .error { color: var(--accent-rose); }
+    .gitee-banner { display: flex; align-items: center; gap: 12px; padding: 16px 24px; background: color-mix(in srgb, var(--accent-emerald) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-emerald) 20%, transparent); border-radius: var(--radius-lg); margin-bottom: 48px; }
+    .gitee-banner svg { flex-shrink: 0; color: var(--accent-emerald); }
+    .gitee-banner p { margin: 0; font-size: 0.9rem; color: var(--text-secondary); }
+    .gitee-banner strong { color: var(--text); }
+    .checksum-note { margin-top: 24px; font-size: 0.85rem; color: var(--text-tertiary); }
+    .checksum-note a { color: var(--primary); }
+  </style>
+</head>
+<body>
+  <header class="nav" id="nav">
+    <div class="container nav-inner">
+      <a class="logo" href="/" aria-label="Education Advisor 首页">
+        <svg class="logo-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#3b82f6"/>
+              <stop offset="1" stop-color="#6366f1"/>
+            </linearGradient>
+          </defs>
+          <rect width="40" height="40" rx="10" fill="url(#logoGrad)"/>
+          <path d="M12 26.5V13.5L20 10L28 13.5V26.5L20 30L12 26.5Z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>
+          <path d="M20 18V26" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="20" cy="15" r="1.5" fill="white"/>
+        </svg>
+        <span class="logo-text">Education Advisor</span>
+      </a>
+      <nav class="nav-links" aria-label="主导航">
+        <a href="/">首页</a>
+        <a href="/#features">核心特性</a>
+        <a href="docs.html">使用文档</a>
+        <a href="/#faq">常见问题</a>
+        <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+          <span class="theme-icon-light" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          </span>
+          <span class="theme-icon-dark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </span>
+        </button>
+        <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+    <div class="nav-mobile" id="navMobile">
+      <a href="/">首页</a>
+      <a href="/#features">核心特性</a>
+      <a href="docs.html">使用文档</a>
+      <a href="/#faq">常见问题</a>
+      <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <button class="theme-toggle-mobile" id="navMobileTheme">☀️ 切换主题</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="download-hero">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">下载</span>
+          <h1 class="section-title">获取 Education Advisor</h1>
+          <p class="section-desc">当前最新版本为 v3.2.0。覆盖 Windows、macOS 与 Linux 三大平台，全部内置自动更新。</p>
+        </div>
+
+        <div class="gitee-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <p><strong>国内用户加速：</strong>Gitee 镜像已同步，下载速度更快。若 GitHub 下载缓慢，请选择 Gitee 源。应用安装后即可通过内置自动更新直接升级后续版本。</p>
+        </div>
+
+        <div class="download-grid">
+          <div class="download-platform" id="windows">
+            <div class="platform-header">
+              <div class="platform-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0M10.949 1.949L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+              </div>
+              <div>
+                <h2 class="platform-title">Windows</h2>
+                <p class="platform-subtitle">NSIS 安装程序，推荐大多数用户使用。</p>
+              </div>
+            </div>
+            <div class="platform-meta">
+              <span>v3.2.0</span>
+              <span>NSIS .exe</span>
+              <span>Windows 10/11 x64</span>
+            </div>
+            <div class="platform-cta">
+              <div class="source-label">GitHub 源</div>
+              <a class="btn btn-primary btn-lg" href="https://github.com/232252/education-advisor/releases/download/v3.2.0/Education-Advisor-3.2.0-Setup.exe">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                <span>GitHub 下载 .exe</span>
+              </a>
+              <div class="source-label">Gitee 加速源</div>
+              <a class="btn btn-secondary btn-lg" href="https://gitee.com/qdzwwqd/education-advisor/releases/download/v3.2.0/Education-Advisor-3.2.0-Setup.exe">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                <span>Gitee 加速下载 .exe</span>
+              </a>
+              <div class="source-label">Portable 免安装版</div>
+              <a class="btn btn-secondary btn-lg" href="https://github.com/232252/education-advisor/releases/download/v3.2.0/Education-Advisor-3.2.0-Portable.exe">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                <span>下载 Portable .exe</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="download-platform" id="macos">
+            <div class="platform-header">
+              <div class="platform-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 152c-12.9-14.4-30.8-24.6-51.4-24.6-32.7 0-56.6 26.2-56.6 68.8 0 42.6 24.2 68.8 56.6 68.8 20.7 0 38.6-10.2 51.5-24.6 1.6-1.8 1.9-4.4.8-6.6l-12.9-25.5c-2.1-4.2-8.1-4.5-10.7-.6-6.5 9.8-16.3 16.1-28.5 16.1-17.6 0-29.6-13.5-29.6-27.7 0-14.2 12-27.7 29.6-27.7 12.2 0 22 6.3 28.5 16.1 2.6 3.9 8.6 3.6 10.7-.6l12.9-25.5c1.1-2.2.8-4.8-.8-6.6z" transform="scale(0.08) translate(50, 50)"/><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+              </div>
+              <div>
+                <h2 class="platform-title">macOS</h2>
+                <p class="platform-subtitle">DMG 镜像，Intel 与 Apple Silicon 双版本。</p>
+              </div>
+            </div>
+            <div class="platform-meta">
+              <span>v3.2.0</span>
+              <span>DMG</span>
+              <span>macOS 12+</span>
+            </div>
+            <div class="platform-cta">
+              <div class="source-label">Apple Silicon (M1/M2/M3/M4)</div>
+              <a class="btn btn-primary btn-lg" href="https://github.com/232252/education-advisor/releases/download/v3.2.0/Education-Advisor-3.2.0-arm64.dmg">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                <span>下载 arm64 .dmg</span>
+              </a>
+              <div class="source-label">Intel 芯片</div>
+              <a class="btn btn-secondary btn-lg" href="https://github.com/232252/education-advisor/releases/download/v3.2.0/Education-Advisor-3.2.0-x64.dmg">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                <span>下载 x64 .dmg</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="download-platform" id="linux">
+            <div class="platform-header">
+              <div class="platform-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l-1.5-4.5L12 6l4.5 7.5L15 18"/><path d="M9 18h6"/><path d="M12 6c-1 0-2-.5-2-2s1-2 2-2 2 .5 2 2-1 2-2 2z"/><path d="M7 21c.5-1.5 2-2 3-2m7 2c-.5-1.5-2-2-3-2"/></svg>
+              </div>
+              <div>
+                <h2 class="platform-title">Linux</h2>
+                <p class="platform-subtitle">AppImage 免安装版与 deb 安装包。</p>
+              </div>
+            </div>
+            <div class="platform-meta">
+              <span>v3.2.0</span>
+              <span>AppImage / deb</span>
+              <span>x64</span>
+            </div>
+            <div class="platform-cta">
+              <div class="source-label">AppImage（免安装）</div>
+              <a class="btn btn-primary btn-lg" href="https://github.com/232252/education-advisor/releases/download/v3.2.0/Education-Advisor-3.2.0.AppImage">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                <span>下载 .AppImage</span>
+              </a>
+              <div class="source-label">deb（Debian / Ubuntu）</div>
+              <a class="btn btn-secondary btn-lg" href="https://github.com/232252/education-advisor/releases/download/v3.2.0/education-advisor_3.2.0_amd64.deb">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                <span>下载 .deb</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="release-notes">
+          <h2>v3.2.0 更新日志</h2>
+          <div class="release-notes-content" id="releaseNotes">
+            <p class="loading">正在从 GitHub 加载最新 release 信息...</p>
+          </div>
+          <p class="checksum-note">所有安装包均提供 SHA256 校验文件（SHA256SUMS），可在 <a href="https://github.com/232252/education-advisor/releases/tag/v3.2.0" target="_blank" rel="noopener noreferrer">GitHub Release 页面</a> 下载验证。</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-bottom">
+      <p>© 2026 Education Advisor. Released under MIT License.</p>
+      <p><a href="/">返回首页</a> · <a href="docs.html">使用文档</a> · <a href="legal.html">隐私政策</a></p>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js?v=20260820a" defer></script>
+  <script src="assets/js/download.js?v=20260820a" defer></script>
+</body>
+</html>
