@@ -1,0 +1,6 @@
+# 部署时忽略的文件
+wrangler.toml
+.assetsignore
+
+# 预览截图（仅本地使用）
+*.png

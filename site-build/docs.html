@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>使用文档 — Education Advisor 功能指南与使用场景</title>
+  <meta name="description" content="Education Advisor 功能使用文档：仪表盘、学生管理、班级管理、学业分析、AI 对话、18 个智能体、模型配置、定时任务、隐私引擎、飞书集成与自动更新的完整使用指南与典型使用场景。">
+  <meta name="theme-color" content="#fffbf7">
+  <link rel="canonical" href="https://eea.qdzwwqd.top/docs.html">
+  <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css?v=20260820a">
+  <style>
+    .docs-hero { padding-top: calc(var(--nav-height) + 64px); padding-bottom: 40px; }
+    .docs-hero .section-header { margin-bottom: 32px; }
+    .docs-layout { display: grid; grid-template-columns: 1fr; gap: 40px; padding-bottom: 96px; }
+    @media (min-width: 1024px) { .docs-layout { grid-template-columns: 240px 1fr; } }
+    .docs-toc { display: none; }
+    @media (min-width: 1024px) {
+      .docs-toc { display: block; position: sticky; top: calc(var(--nav-height) + 24px); align-self: start; max-height: calc(100vh - var(--nav-height) - 48px); overflow-y: auto; }
+    }
+    .docs-toc nav { display: flex; flex-direction: column; gap: 2px; }
+    .docs-toc-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); margin: 0 0 12px 12px; }
+    .docs-toc a { display: block; padding: 8px 12px; border-radius: var(--radius); font-size: 0.9rem; color: var(--text-secondary); text-decoration: none; transition: background var(--transition), color var(--transition); border-left: 2px solid transparent; }
+    .docs-toc a:hover { background: var(--bg-soft); color: var(--text); }
+    .docs-toc a.active { background: color-mix(in srgb, var(--primary) 8%, transparent); color: var(--primary); border-left-color: var(--primary); font-weight: 600; }
+    .docs-content { min-width: 0; }
+    .doc-section { margin-bottom: 64px; scroll-margin-top: calc(var(--nav-height) + 24px); }
+    .doc-section-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+    .doc-section-icon { width: 48px; height: 48px; flex-shrink: 0; border-radius: var(--radius); background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); display: flex; align-items: center; justify-content: center; }
+    .doc-section-icon svg { width: 24px; height: 24px; }
+    .doc-section-title { font-size: 1.5rem; font-weight: 800; margin: 0; }
+    .doc-section-desc { color: var(--text-secondary); line-height: 1.7; margin: 0 0 24px; }
+    .doc-block { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 28px; margin-bottom: 20px; }
+    .doc-block h3 { font-size: 1.05rem; font-weight: 700; margin: 0 0 16px; display: flex; align-items: center; gap: 8px; }
+    .doc-block h3 .block-tag { font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: var(--radius-full); background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); letter-spacing: 0.03em; }
+    .doc-block ol, .doc-block ul { padding-left: 20px; margin: 0; }
+    .doc-block li { color: var(--text-secondary); line-height: 1.8; margin-bottom: 6px; }
+    .doc-block li strong { color: var(--text); }
+    .doc-block p { color: var(--text-secondary); line-height: 1.7; margin: 0 0 12px; }
+    .doc-block p:last-child { margin-bottom: 0; }
+    .doc-block code { background: var(--bg-muted); padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
+    .scenario-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    @media (min-width: 640px) { .scenario-grid { grid-template-columns: repeat(2, 1fr); } }
+    .scenario-card { background: color-mix(in srgb, var(--accent-emerald) 5%, transparent); border: 1px solid color-mix(in srgb, var(--accent-emerald) 18%, transparent); border-radius: var(--radius); padding: 18px 20px; }
+    .scenario-card h4 { font-size: 0.92rem; font-weight: 700; margin: 0 0 8px; color: var(--text); }
+    .scenario-card p { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.65; margin: 0; }
+    .tip-banner { display: flex; gap: 12px; padding: 14px 18px; background: color-mix(in srgb, var(--accent-amber) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-amber) 22%, transparent); border-radius: var(--radius); margin-top: 4px; }
+    .tip-banner svg { flex-shrink: 0; color: var(--accent-amber); margin-top: 2px; }
+    .tip-banner p { margin: 0; font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; }
+    .agent-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .agent-table th { text-align: left; padding: 10px 14px; background: var(--bg-soft); color: var(--text); font-weight: 700; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .agent-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+    .agent-table tr:last-child td { border-bottom: none; }
+    .agent-table td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+    .table-wrap .agent-table { margin: 0; }
+    kbd { background: var(--bg-muted); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; font-size: 0.82em; font-family: inherit; }
+  </style>
+</head>
+<body>
+  <header class="nav" id="nav">
+    <div class="container nav-inner">
+      <a class="logo" href="/" aria-label="Education Advisor 首页">
+        <svg class="logo-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#3b82f6"/>
+              <stop offset="1" stop-color="#6366f1"/>
+            </linearGradient>
+          </defs>
+          <rect width="40" height="40" rx="10" fill="url(#logoGrad)"/>
+          <path d="M12 26.5V13.5L20 10L28 13.5V26.5L20 30L12 26.5Z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>
+          <path d="M20 18V26" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="20" cy="15" r="1.5" fill="white"/>
+        </svg>
+        <span class="logo-text">Education Advisor</span>
+      </a>
+      <nav class="nav-links" aria-label="主导航">
+        <a href="/">首页</a>
+        <a href="/#features">核心特性</a>
+        <a href="download.html">下载</a>
+        <a href="/#faq">常见问题</a>
+        <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+          <span class="theme-icon-light" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          </span>
+          <span class="theme-icon-dark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </span>
+        </button>
+        <a class="btn btn-primary btn-sm" href="download.html">立即下载</a>
+        <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+    <div class="nav-mobile" id="navMobile">
+      <a href="/">首页</a>
+      <a href="/#features">核心特性</a>
+      <a href="download.html">下载</a>
+      <a href="/#faq">常见问题</a>
+      <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <button class="theme-toggle-mobile" id="navMobileTheme">☀️ 切换主题</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="docs-hero">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">使用文档</span>
+          <h1 class="section-title">功能使用指南</h1>
+          <p class="section-desc">每一个功能模块的详细使用方法与典型使用场景，帮助你把 Education Advisor 的能力用满用好。</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="container docs-layout">
+      <aside class="docs-toc" aria-label="文档目录">
+        <p class="docs-toc-title">目录</p>
+        <nav id="tocNav">
+          <a href="#quickstart">快速上手</a>
+          <a href="#dashboard">仪表盘</a>
+          <a href="#students">学生管理</a>
+          <a href="#classes">班级管理</a>
+          <a href="#academics">学业分析</a>
+          <a href="#chat">AI 对话</a>
+          <a href="#agents">AI 智能体</a>
+          <a href="#models">模型管理</a>
+          <a href="#scheduler">定时任务</a>
+          <a href="#privacy">隐私引擎</a>
+          <a href="#feishu">飞书集成</a>
+          <a href="#update">自动更新</a>
+          <a href="#shortcuts">快捷键</a>
+        </nav>
+      </aside>
+
+      <div class="docs-content">
+
+        <!-- 快速上手 -->
+        <section class="doc-section" id="quickstart">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </div>
+            <h2 class="doc-section-title">快速上手</h2>
+          </div>
+          <p class="doc-section-desc">从安装到跑通第一个 AI 任务，只需要几分钟。</p>
+
+          <div class="doc-block">
+            <h3>安装与首次启动 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li><strong>下载安装包：</strong>前往<a href="download.html">下载页</a>获取对应平台的安装包（Windows / macOS / Linux），双击安装。</li>
+              <li><strong>首次启动向导：</strong>首次启动会进入 Onboarding 向导，依次完成班级创建 → 学生导入 → 模型配置 三步初始化。</li>
+              <li><strong>创建班级：</strong>输入班级名称（如「高一(3)班」），系统自动创建班级命名空间，所有数据按班级隔离。</li>
+              <li><strong>导入学生：</strong>选择 Excel 批量导入或手动逐个添加，学生姓名支持拼音检索。</li>
+              <li><strong>配置模型：</strong>在「模型」页面选择 LLM 提供商并填入 API Key（详见<a href="#models">模型管理</a>），完成连接测试。</li>
+              <li><strong>开始使用：</strong>进入仪表盘或 AI 对话页，开始你的第一个智能体任务。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用场景 <span class="block-tag">场景</span></h3>
+            <div class="scenario-grid">
+              <div class="scenario-card">
+                <h4>新学期开班</h4>
+                <p>开学第一周，通过向导创建新班级、Excel 导入全班学生名单，10 分钟内完成班级数字化底座搭建。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>接手二手班级</h4>
+                <p>中途接手其他老师的班级，先导入学生名单与历史成绩，再让「数据分析师」智能体生成班级现状报告，快速摸底。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="tip-banner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <p>所有数据保存在本地（<code>%APPDATA%/education-advisor</code> / <code>~/Library/Application Support/education-advisor</code>），卸载重装不丢失。</p>
+          </div>
+        </section>
+
+        <!-- 仪表盘 -->
+        <section class="doc-section" id="dashboard">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+            </div>
+            <h2 class="doc-section-title">仪表盘</h2>
+          </div>
+          <p class="doc-section-desc">班级全局视图一屏尽览：关键指标、风险分布、分数趋势。</p>
+
+          <div class="doc-block">
+            <h3>使用步骤 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>点击左侧导航「仪表盘」进入。</li>
+              <li>顶部切换班级（多班级场景），或选择「全部班级」查看汇总。</li>
+              <li>查看核心指标卡：学生总数、本周事件数、平均操行分、风险学生数。</li>
+              <li>浏览风险等级分布饼图与操行分数分布柱状图，点击图块可查看学生明细。</li>
+              <li>「最新动态」面板展示最近事件流，点击学生名跳转学生档案。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用场景 <span class="block-tag">场景</span></h3>
+            <div class="scenario-grid">
+              <div class="scenario-card">
+                <h4>每日晨检</h4>
+                <p>早自习前打开仪表盘 30 秒扫一眼：昨日事件、风险学生变化，决定今天重点关注哪些学生。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>周例会汇报</h4>
+                <p>周五班会前截图风险分布与分数趋势图，作为班级周总结的可视化素材。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 学生管理 -->
+        <section class="doc-section" id="students">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h2 class="doc-section-title">学生管理</h2>
+          </div>
+          <p class="doc-section-desc">学生信息、日常事件（加扣分）、批量导入导出的统一入口。</p>
+
+          <div class="doc-block">
+            <h3>添加与管理学生 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>进入「学生」页面，点击「添加学生」。</li>
+              <li>填写姓名、学号、性别等基本信息（姓名必填）。</li>
+              <li>在学生列表点击任一学生进入<a href="#student-profile">学生档案</a>，查看事件流、学业数据、AI 分析。</li>
+              <li>支持搜索、按班级筛选、批量选择操作（调班 / 删除）。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>Excel 批量导入 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>点击「导入」→「Excel 导入」，选择 .xlsx 文件。</li>
+              <li>系统自动解析并弹出预览：显示将导入的学生（姓名 / 学号 / 班级），错误行单独列出原因。</li>
+              <li>确认无误后点击「确认导入」，进度条实时显示导入进度。</li>
+              <li>重名学生与已存在学生会标记冲突，可选择跳过或覆盖。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>记录日常事件（加扣分） <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>在学生列表或学生档案页点击「记录事件」。</li>
+              <li>选择事件类型（德育 / 纪律 / 卫生 / 学习 / 出勤）与分值（加分 / 扣分）。</li>
+              <li>填写事件描述，可附备注。保存后立即计入操行分统计。</li>
+              <li>事件支持撤销与回滚（带审计记录），误操作可安全恢复。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用场景 <span class="block-tag">场景</span></h3>
+            <div class="scenario-grid">
+              <div class="scenario-card">
+                <h4>开学名单入库</h4>
+                <p>教务处发的 Excel 花名册直接导入，含学号与班级列，30 秒完成全班 50 人建档。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>课堂即时记分</h4>
+                <p>课堂上学生回答精彩 +2 分、违纪 -1 分，随手记录，期末汇总时每一分都有出处。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>家长询问依据</h4>
+                <p>家长质疑操行分，打开学生档案事件流，逐条展示时间、类型、分值与描述。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>数据迁移备份</h4>
+                <p>学期末导出学生与事件数据为 Excel，归档或导入其他班级系统。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 班级管理 -->
+        <section class="doc-section" id="classes">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"/><circle cx="10" cy="7" r="4"/><line x1="21" y1="8" x2="15" y2="14"/></svg>
+            </div>
+            <h2 class="doc-section-title">班级管理</h2>
+          </div>
+          <p class="doc-section-desc">多班级管理、批量调班、跨班级对比分析。</p>
+
+          <div class="doc-block">
+            <h3>使用步骤 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>进入「班级」页面，点击「创建班级」可添加多个班级（适合跨班任课教师 / 年级组长）。</li>
+              <li>点击班级卡片进入详情，查看班级学生、事件与学业概览。</li>
+              <li>「批量调班」：勾选多个学生，选择目标班级一键迁移，历史数据跟随保留。</li>
+              <li>「班级对比」：选择 2-4 个班级，对比操行均分、风险分布、学业指标，生成横向对比视图。</li>
+              <li>不用的班级可「归档」，数据保留但不再出现在日常视图。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用场景 <span class="block-tag">场景</span></h3>
+            <div class="scenario-grid">
+              <div class="scenario-card">
+                <h4>年级组长巡检</h4>
+                <p>管理全年级 8 个班级，用班级对比面板横向比较各班操行与风险指标，定位需要重点关注的班级。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>学生转班</h4>
+                <p>学生文理分科转班，批量调班一步完成，事件与成绩记录完整跟随。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 学业分析 -->
+        <section class="doc-section" id="academics">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
+            <h2 class="doc-section-title">学业分析</h2>
+          </div>
+          <p class="doc-section-desc">成绩录入（手动 / Excel / AI 表格识别）、考试管理与多维度分析图表。</p>
+
+          <div class="doc-block">
+            <h3>录入成绩 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>进入「学业」页面，点击「新建考试」，填写考试名称（如「十月月考」）、科目与满分。</li>
+              <li>三种录入方式任选：<strong>单科录入</strong>（逐个输入分数）、<strong>Excel 导入</strong>（标准模板）、<strong>AI 录入</strong>（上传成绩单照片/表格，AI 自动识别解析）。</li>
+              <li>录入完成自动计算班级均分、排名、及格率、优秀率。</li>
+              <li>「对比分析」视图：选择两次考试，查看每个学生的进步 / 退步幅度与升降榜。</li>
+              <li>趋势图表展示单科目或总分的多考试走势，可按学生筛选。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用场景 <span class="block-tag">场景</span></h3>
+            <div class="scenario-grid">
+              <div class="scenario-card">
+                <h4>月考后快速分析</h4>
+                <p>月考成绩 Excel 直接导入，5 分钟生成班级排名与学科分析，替代手工 Excel 统计 2 小时工作。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>纸成绩单数字化</h4>
+                <p>只有纸质成绩单？拍照上传，AI 表格识别自动结构化，再人工校对确认。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>临界生跟踪</h4>
+                <p>对比分析筛选两次考试下降超 10 名的学生，结合操行数据生成重点关注名单。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>学情报告</h4>
+                <p>分析视图一键生成学情报告，AI 补充文字结论与教学建议，直接用于家长会。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- AI 对话 -->
+        <section class="doc-section" id="chat">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <h2 class="doc-section-title">AI 对话</h2>
+          </div>
+          <p class="doc-section-desc">与智能体自由对话，支持会话管理、上下文引用、文件上传与工具调用。</p>
+
+          <div class="doc-block">
+            <h3>使用步骤 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>进入「对话」页面，点击「新建会话」。</li>
+              <li>选择对话对象：主控智能体（默认）或任一专业智能体。</li>
+              <li>输入问题或指令，AI 可自动调用 19 个工具查询班级数据（分数、排名、事件等）。</li>
+              <li>上传文件（成绩单、文档、图片），AI 结合文件内容回答。</li>
+              <li>侧栏管理历史会话，支持重命名、置顶、删除；对话内容自动保存。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用场景 <span class="block-tag">场景</span></h3>
+            <div class="scenario-grid">
+              <div class="scenario-card">
+                <h4>随手查询</h4>
+                <p>「张明这周扣了几次分？」「班级数学平均分多少？」自然语言直接问，AI 查库秒回。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>写材料</h4>
+                <p>「根据本班本月数据，写一段期末评语素材」「帮我起草运动会通知」，AI 结合真实数据生成。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>成绩单解读</h4>
+                <p>上传外班联考成绩 Excel，让 AI 对比本班数据找出差距科目。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- AI 智能体 -->
+        <section class="doc-section" id="agents">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <h2 class="doc-section-title">AI 智能体</h2>
+          </div>
+          <p class="doc-section-desc">18 个专业智能体各司其职，可独立运行、定时调度或协作编排。</p>
+
+          <div class="doc-block">
+            <h3>智能体一览 <span class="block-tag">角色</span></h3>
+            <div class="table-wrap">
+              <table class="agent-table">
+                <thead>
+                  <tr><th>智能体</th><th>职责</th><th>典型用途</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>主控 (main)</td><td>意图识别与任务分派的中枢</td><td>日常对话入口，自动路由到专业智能体</td></tr>
+                  <tr><td>辅导员 (counselor)</td><td>学生日常管理与关怀</td><td>学生情况综合分析、谈话建议</td></tr>
+                  <tr><td>监督员 (supervisor)</td><td>流程合规与质量把关</td><td>审核输出结果、纠偏</td></tr>
+                  <tr><td>学业指导 (academic)</td><td>学习方法与成绩提升</td><td>生成个性化学习建议、偏科诊断</td></tr>
+                  <tr><td>风险预警 (risk-alert)</td><td>多维度风险识别</td><td>筛查学业/心理/行为风险学生并分级</td></tr>
+                  <tr><td>家校沟通 (home_school)</td><td>家长沟通稿与策略</td><td>生成个性化家校沟通文案</td></tr>
+                  <tr><td>数据分析师 (data-analyst)</td><td>班级数据深度分析</td><td>成绩/操行统计洞察、趋势解读</td></tr>
+                  <tr><td>心理学老师 (psychology)</td><td>学生心理状态研判</td><td>行为信号的心理视角解读与干预建议</td></tr>
+                  <tr><td>纪律委员 (discipline-officer)</td><td>纪律事件处理</td><td>违纪事件记录规范、处理建议</td></tr>
+                  <tr><td>安全员 (safety)</td><td>校园安全关注</td><td>安全隐患提醒、安全事件台账</td></tr>
+                  <tr><td>学生关怀 (student-care)</td><td>个别学生长期关注</td><td>跟踪特殊学生动态、生成关怀记录</td></tr>
+                  <tr><td>周报员 (weekly-reporter)</td><td>班级周报自动生成</td><td>汇总一周事件与数据生成周报</td></tr>
+                  <tr><td>研究员 (research)</td><td>教育方法论调研</td><td>检索教育实践方法供决策参考</td></tr>
+                  <tr><td>执行者 (executor)</td><td>具体任务执行</td><td>执行主控分派的具体操作类任务</td></tr>
+                  <tr><td>校验员 (validator)</td><td>结果校验</td><td>核验数据与结论的一致性</td></tr>
+                  <tr><td>总督 (governor)</td><td>策略裁决</td><td>冲突策略的最终裁决与摘要</td></tr>
+                  <tr><td>缺陷猎手 (bug-hunter)</td><td>问题排查</td><td>使用中遇到的问题诊断</td></tr>
+                  <tr><td>班级值日 (class-monitor)</td><td>班级日常事务</td><td>值日安排、日常事务提醒</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="doc-block">
+            <h3>运行与配置 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>进入「智能体」页面，查看 18 个智能体卡片与状态。</li>
+              <li>点击智能体进入详情：查看职责说明、模型绑定、系统提示词（可编辑）。</li>
+              <li>「立即运行」手动触发一次，或到<a href="#scheduler">定时任务</a>设置周期调度。</li>
+              <li>「运行历史」查看每次执行的输入输出、耗时与令牌消耗。</li>
+              <li>每个智能体可绑定不同模型：高频任务用快模型，深度分析用强模型，控制成本。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用场景 <span class="block-tag">场景</span></h3>
+            <div class="scenario-grid">
+              <div class="scenario-card">
+                <h4>每周风险排查</h4>
+                <p>每周一 7:00 定时运行「风险预警」，自动筛查上周数据并推送风险学生名单。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>家长会前物料</h4>
+                <p>依次运行「数据分析师」生成学情报告、「家校沟通」生成沟通稿，1 小时备齐全部材料。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>期末综合素质评价</h4>
+                <p>「周报员」按周积累的记录汇总，「辅导员」为每个学生生成期末评语初稿。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 模型管理 -->
+        <section class="doc-section" id="models">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            </div>
+            <h2 class="doc-section-title">模型管理</h2>
+          </div>
+          <p class="doc-section-desc">35+ LLM 提供商统一管理：API Key、模型参数、连接测试、按智能体分配。</p>
+
+          <div class="doc-block">
+            <h3>使用步骤 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>进入「模型」页面，点击「添加提供商」。</li>
+              <li>选择厂商（OpenAI / Anthropic / DeepSeek / Moonshot / 通义 / Google / Ollama 本地模型等 35+）。</li>
+              <li>填入 API Key 与 Base URL（自定义代理可改），选择默认模型。</li>
+              <li>点击「测试连接」验证连通性与可用模型列表。</li>
+              <li>在模型列表中调整参数（温度、上下文长度、最大输出），并设置各智能体绑定的模型。</li>
+              <li>多提供商可共存，按任务自动路由到性价比最优的模型。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用场景 <span class="block-tag">场景</span></h3>
+            <div class="scenario-grid">
+              <div class="scenario-card">
+                <h4>国内直连</h4>
+                <p>使用 DeepSeek / Moonshot 国内厂商，无需代理稳定访问，成本更低。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>隐私零上云</h4>
+                <p>配置本地 Ollama（如 qwen2.5:7b），全部 AI 推理在本机完成，数据不出设备。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>成本分级</h4>
+                <p>高频轻任务（记分、查询）绑定便宜快模型，周报/分析绑定旗舰模型，整体费用可控。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 定时任务 -->
+        <section class="doc-section" id="scheduler">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <h2 class="doc-section-title">定时任务</h2>
+          </div>
+          <p class="doc-section-desc">Cron 表达式驱动的智能体调度与自动备份，支持漏执行补偿。</p>
+
+          <div class="doc-block">
+            <h3>使用步骤 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>进入「调度」页面，点击「新建任务」。</li>
+              <li>选择任务类型：运行智能体 / 自动备份 / 自定义。</li>
+              <li>设置 Cron 表达式（如 <code>0 7 * * 1</code> = 每周一 7:00），支持常用模板一键填入。</li>
+              <li>配置任务参数（如风险预警的班级范围），保存并启用。</li>
+              <li>「运行日志」查看每次执行结果；错过执行（如电脑关机）会在下次启动时自动补偿一次。</li>
+              <li>自动备份任务定期打包全部数据到本地备份目录，保留多版本。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用场景 <span class="block-tag">场景</span></h3>
+            <div class="scenario-grid">
+              <div class="scenario-card">
+                <h4>周五自动周报</h4>
+                <p>每周五 17:00 自动运行周报员，周一到校直接取用上周班级周报。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>数据自动备份</h4>
+                <p>每天 22:00 自动备份，即使电脑故障也能恢复到前一天的数据状态。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 隐私引擎 -->
+        <section class="doc-section" id="privacy">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h2 class="doc-section-title">隐私引擎</h2>
+          </div>
+          <p class="doc-section-desc">PII 自动脱敏 / 反脱敏 / 按接收者过滤，学生敏感信息不外泄。</p>
+
+          <div class="doc-block">
+            <h3>工作原理 <span class="block-tag">原理</span></h3>
+            <p>所有发送给外部 LLM 的内容先经过隐私引擎：姓名、身份证号、手机号、住址等 PII 被替换为 <code>[P1]</code>、<code>[P2]</code> 等占位符；LLM 返回结果后再自动还原（映射表 AES 加密存储在本地）。可按接收者（不同的模型提供商）配置不同的过滤规则。</p>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用步骤 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>进入「隐私」页面，查看脱敏规则（姓名 / 证件 / 电话 / 地址等类别）。</li>
+              <li>调整规则：对特定接收者（如某海外模型）启用更严格的全字段脱敏。</li>
+              <li>「测试面板」粘贴一段文本预览脱敏效果。</li>
+              <li>审计日志记录每次脱敏/还原操作，可追溯。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用场景 <span class="block-tag">场景</span></h3>
+            <div class="scenario-grid">
+              <div class="scenario-card">
+                <h4>合规使用云模型</h4>
+                <p>学校要求学生信息不得外传，开启严格脱敏后，云端模型只见 <code>[P1]</code> 未见真实姓名，回复本地自动还原。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>外发材料检查</h4>
+                <p>生成家长通知后用脱敏预览检查一遍，确认不含身份证号等敏感字段再发出。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 飞书集成 -->
+        <section class="doc-section" id="feishu">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            </div>
+            <h2 class="doc-section-title">飞书集成</h2>
+          </div>
+          <p class="doc-section-desc">连接飞书机器人，接收通知推送、远程查询与指令。</p>
+
+          <div class="doc-block">
+            <h3>配置步骤 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>在飞书开放平台创建企业自建应用，开启机器人能力。</li>
+              <li>进入「设置」→「飞书」，填入 App ID、App Secret，点击连接测试。</li>
+              <li>配置接收人（个人 / 群组），订阅推送类型：风险预警、周报摘要、任务结果。</li>
+              <li>在飞书中 @机器人 发送指令（如「今日风险」），即可远程查询班级数据。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用场景 <span class="block-tag">场景</span></h3>
+            <div class="scenario-grid">
+              <div class="scenario-card">
+                <h4>风险即时触达</h4>
+                <p>风险预警智能体发现高危学生，飞书立即收到推送卡片，不在电脑前也能第一时间知晓。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>手机上查数据</h4>
+                <p>课间在飞书群里 @机器人 问「本周扣分前五名」，通勤路上也能处理班级事务。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 自动更新 -->
+        <section class="doc-section" id="update">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </div>
+            <h2 class="doc-section-title">自动更新</h2>
+          </div>
+          <p class="doc-section-desc">内置 electron-updater，新版本发布后应用内直接升级，安装包带 SHA512 校验。</p>
+
+          <div class="doc-block">
+            <h3>使用步骤 <span class="block-tag">步骤</span></h3>
+            <ol>
+              <li>应用启动时自动检查更新；也可在「设置」→「关于」点击「检查更新」。</li>
+              <li>发现新版本后点击「下载」，进度条实时显示。</li>
+              <li>下载完成（已通过 SHA512 校验）后点击「重启安装」，应用自动完成升级。</li>
+              <li>更新源支持 GitHub Releases 与 Gitee 镜像，国内网络可在设置中切换 Gitee 源加速。</li>
+            </ol>
+          </div>
+
+          <div class="doc-block">
+            <h3>使用场景 <span class="block-tag">场景</span></h3>
+            <div class="scenario-grid">
+              <div class="scenario-card">
+                <h4>无感升级</h4>
+                <p>教师无需手动下载安装包，新功能与修复直接推送，始终使用最新稳定版。</p>
+              </div>
+              <div class="scenario-card">
+                <h4>安全可靠</h4>
+                <p>差量更新（blockmap）只下载变化部分，且每一步校验文件哈希，杜绝被篡改的安装包。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 快捷键 -->
+        <section class="doc-section" id="shortcuts">
+          <div class="doc-section-header">
+            <div class="doc-section-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="10" x2="6" y2="10"/><line x1="10" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="14" y2="10"/><line x1="18" y1="10" x2="18" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/></svg>
+            </div>
+            <h2 class="doc-section-title">快捷键</h2>
+          </div>
+          <p class="doc-section-desc">高频操作键盘直达，可在「设置」→「快捷键」自定义。</p>
+
+          <div class="doc-block">
+            <div class="table-wrap">
+              <table class="agent-table">
+                <thead>
+                  <tr><th>操作</th><th>默认快捷键</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>全局搜索</td><td><kbd>Ctrl</kbd> + <kbd>K</kbd></td></tr>
+                  <tr><td>切换深色 / 浅色主题</td><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd></td></tr>
+                  <tr><td>打开设置</td><td><kbd>Ctrl</kbd> + <kbd>,</kbd></td></tr>
+                  <tr><td>新建对话</td><td><kbd>Ctrl</kbd> + <kbd>N</kbd></td></tr>
+                  <tr><td>快速记录事件</td><td><kbd>Ctrl</kbd> + <kbd>E</kbd></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-bottom">
+      <p>© 2026 Education Advisor. Released under MIT License.</p>
+      <p><a href="/">返回首页</a> · <a href="download.html">下载</a> · <a href="legal.html">隐私政策</a></p>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js?v=20260820a" defer></script>
+  <script>
+    // 目录滚动高亮
+    (() => {
+      'use strict';
+      const links = document.querySelectorAll('#tocNav a');
+      if (!links.length || !('IntersectionObserver' in window)) return;
+      const map = new Map();
+      links.forEach((link) => {
+        const section = document.querySelector(link.getAttribute('href'));
+        if (section) map.set(section, link);
+      });
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            links.forEach((l) => l.classList.remove('active'));
+            map.get(entry.target)?.classList.add('active');
+          }
+        });
+      }, { rootMargin: '-20% 0px -70% 0px' });
+      map.forEach((_, section) => observer.observe(section));
+    })();
+  </script>
+</body>
+</html>
