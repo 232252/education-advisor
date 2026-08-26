@@ -1,8 +1,11 @@
 name: Sync Release to Gitee
 
-# GitHub Release 发布完成后，自动同步全部安装包资产到 Gitee 镜像。
+# GitHub Release 发布完成后，自动同步全部可镜像资产到 Gitee。
 # - Release 工作流成功结束时自动触发（workflow_run）
 # - 也可手动指定 tag 触发（补同步历史版本）
+#
+# Gitee 免费版单附件 100MB 上限：超限安装包会被跳过（预检），
+# 并在 Gitee release 描述中自动追加官网/GitHub 下载指引。
 on:
   workflow_run:
     workflows: ["Release"]
@@ -48,24 +51,27 @@ jobs:
           set -euo pipefail
           mkdir -p assets
           gh release download "$TAG" --repo "${{ github.repository }}" --dir assets --clobber
-          # 排除仅供 GitHub 差量更新使用的文件（*.blockmap / mac *.zip）：
+          # 排除仅供 GitHub 差量更新使用的文件（*.blockmap / mac *.zip / AppImage）：
           # 它们体积大且对手动下载无用，可有效控制 Gitee 附件总量。
           rm -f assets/*.blockmap assets/*-x64.zip assets/*-arm64.zip assets/*.AppImage
           # Gitee 免费版单附件 100MB 上限：上传前预检，超限文件直接跳过，
           # 避免完整传输数分钟后才被服务端拒绝。
           MAX_BYTES=$((100 * 1024 * 1024))
+          SKIPPED=""
           for f in assets/*; do
             [ -f "$f" ] || continue
             size=$(stat -c%s "$f")
             if [ "$size" -gt "$MAX_BYTES" ]; then
-              echo "::warning::跳过 $(basename "$f")（$(du -h "$f" | cut -f1) 超出 Gitee 单附件 100MB 上限，请从 GitHub/官网下载）"
+              echo "::warning::跳过 $(basename "$f")（$(du -h "$f" | cut -f1) 超出 Gitee 单附件 100MB 上限）"
+              SKIPPED="$SKIPPED $(basename "$f")"
               rm -f "$f"
             fi
           done
+          echo "SKIPPED_ASSETS=$SKIPPED" >> "$GITHUB_ENV"
           echo "--- Assets to sync ---"
           du -h assets/* 2>/dev/null || echo "（无可同步附件）"
 
-      - name: Create or reuse Gitee release
+      - name: Recreate Gitee release
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           GH_TOKEN: ${{ github.token }}
@@ -74,42 +80,43 @@ jobs:
           set -euo pipefail
           API="https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO"
 
-          # 下载指引：安装包超出 Gitee 免费版单附件 100MB 上限时，
-          # 在 release 描述中明确国内用户的替代下载渠道。
-          NOTE=$(cat <<NOTEEOF
+          BODY=$(gh release view "$TAG" --repo "${{ github.repository }}" --json body -q .body)
+
+          # 有超限跳过的安装包时，在描述末尾追加下载指引（幂等标记便于识别）
+          if [ -n "${SKIPPED_ASSETS:-}" ]; then
+            NOTE=$(cat <<NOTEEOF
           <!-- gitee-download-note -->
           ---
 
           ## 下载说明
 
-          安装包体积超出 Gitee 免费版单附件 100MB 上限，本镜像仅同步 `SHA256SUMS` 校验和与 `latest*.yml` 自动更新清单。
+          以下安装包体积超出 Gitee 免费版单附件 100MB 上限，本镜像仅同步 \`SHA256SUMS\` 校验和与 \`latest*.yml\` 自动更新清单：$SKIPPED_ASSETS
 
           **安装包请从以下渠道下载：**
           - 官网（推荐）：https://eea.qdzwwqd.top/download.html
           - GitHub Release：https://github.com/232252/education-advisor/releases/tag/$TAG
           NOTEEOF
-          )
-
-          # 幂等：tag 已有 release 则复用并刷新描述，否则创建（复用 GitHub 的 release 说明）
-          RELEASE_ID=""
-          RELEASE_ID=$(curl -sS "$API/releases/tags/$TAG?access_token=$GITEE_TOKEN" | jq -r '.id // empty' 2>/dev/null || true)
-          BODY=$(gh release view "$TAG" --repo "${{ github.repository }}" --json body -q .body)
-          if [ -n "${RELEASE_ID:-}" ]; then
-            # 已存在：刷新描述（幂等：按标记剥掉旧下载指引，再追加最新指引）
-            BODY_NO_NOTE=$(printf '%s' "$BODY" | sed '/<!-- gitee-download-note -->/,$d')
-            jq -n --arg body "$BODY_NO_NOTE$NOTE" '{body:$body}' \
-              | curl -sS -X PATCH "$API/releases/$RELEASE_ID?access_token=$GITEE_TOKEN" \
-                -H "Content-Type: application/json" -d @- >/dev/null || true
-          else
-            RELEASE_ID=$(jq -n \
-              --arg tag "$TAG" \
-              --arg name "Release $TAG" \
-              --arg body "$BODY$NOTE" \
-              --arg branch "main" \
-              '{tag_name:$tag, name:$name, body:$body, prerelease:false, target_commitish:$branch}' \
-              | curl -sS -X POST "$API/releases?access_token=$GITEE_TOKEN" \
-                -H "Content-Type: application/json" -d @- | jq -r '.id')
+            )
+            BODY="$BODY$NOTE"
           fi
+
+          # 幂等重建：删除旧 release（连同旧附件）后重新创建。
+          # 注：Gitee 的 PATCH 更新接口对 query-token 认证不生效，
+          # 删除重建是唯一可靠的幂等方式；附件随后重新上传，URL 按 tag+文件名保持稳定。
+          OLD_ID=$(curl -sS "$API/releases/tags/$TAG?access_token=$GITEE_TOKEN" | jq -r '.id // empty' 2>/dev/null || true)
+          if [ -n "$OLD_ID" ]; then
+            echo "Deleting existing Gitee release $OLD_ID (recreate for idempotency)"
+            curl -sS -X DELETE "$API/releases/$OLD_ID?access_token=$GITEE_TOKEN" >/dev/null || true
+          fi
+
+          RELEASE_ID=$(jq -n \
+            --arg tag "$TAG" \
+            --arg name "Release $TAG" \
+            --arg body "$BODY" \
+            --arg branch "main" \
+            '{tag_name:$tag, name:$name, body:$body, prerelease:false, target_commitish:$branch}' \
+            | curl -sS -X POST "$API/releases?access_token=$GITEE_TOKEN" \
+              -H "Content-Type: application/json" -d @- | jq -r '.id')
           if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
             echo "::error::Failed to create Gitee release for $TAG"
             exit 1
@@ -124,16 +131,6 @@ jobs:
         run: |
           set -uo pipefail
           API="https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO"
-
-          # 幂等：删除同名旧附件，避免重跑时产生重复（接口不支持时忽略）
-          curl -sS "$API/releases/$RELEASE_ID?access_token=$GITEE_TOKEN" \
-            | jq -r '(.attach_assets // .assets // [])[] | [.id, (.name // .file_name)] | @tsv' 2>/dev/null \
-            | while IFS=$'\t' read -r aid aname; do
-                [ -z "${aid:-}" ] && continue
-                echo "Deleting old attachment: $aname"
-                curl -sS -X DELETE \
-                  "$API/releases/$RELEASE_ID/attach_files/$aid?access_token=$GITEE_TOKEN" >/dev/null || true
-              done
 
           failed=0
           total=0
@@ -162,5 +159,9 @@ jobs:
             echo "### Gitee 镜像同步结果"
             echo "- Tag: \`$TAG\`"
             echo "- 附件总数: $TOTAL_COUNT，失败: $FAILED_COUNT"
+            if [ -n "${SKIPPED_ASSETS:-}" ]; then
+              echo "- 超限跳过（>100MB）:$SKIPPED_ASSETS"
+              echo "- 安装包请从 [官网](https://eea.qdzwwqd.top/download.html) 或 [GitHub Release](https://github.com/232252/education-advisor/releases/tag/$TAG) 下载"
+            fi
             echo "- 镜像地址: https://gitee.com/$GITEE_OWNER/$GITEE_REPO/releases/tag/$TAG"
           } >> "$GITHUB_STEP_SUMMARY"
