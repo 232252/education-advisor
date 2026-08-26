@@ -52,6 +52,13 @@ win:
 portable:
   artifactName: "${productName}-${version}-Portable.${ext}"
 
+# macOS 产物显式无空格命名：electron-builder 的 ArchiveTarget（mac zip）
+# 生成 blockmap 时传入的是带空格的原始文件名（上游 bug），GitHub 会把
+# 空格规范化为点号，导致重跑同一 tag 时资产名匹配失败（422 already_exists）。
+# 无空格命名后 dmg/zip/blockmap 名称跨运行完全一致，覆盖上传可靠。
+mac:
+  artifactName: "Education-Advisor-${version}-${arch}.${ext}"
+
 # 显式指定 Linux 目标：electron-builder 26 未配置时默认构建 snap，
 # GitHub runner 无 snapcraft 必然失败，且 deb 也不会被构建。
 linux:
