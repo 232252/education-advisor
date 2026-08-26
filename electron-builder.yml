@@ -61,6 +61,8 @@ linux:
     - target: deb
       arch: [x64]
   category: Education
+  # deb 包要求 maintainer（package.json author 无 email 时必须显式指定）
+  maintainer: "232252 <2322527175@qq.com>"
 
 nsis:
   oneClick: false
