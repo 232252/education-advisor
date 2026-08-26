@@ -123,11 +123,16 @@ jobs:
           for var in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
             if [ -z "${!var}" ]; then unset "$var"; fi
           done
-          npx electron-builder \
-            --${{ matrix.target }} \
-            --${{ matrix.arch }} \
-            --publish onTag \
-            --config.extraMetadata.version=${GITHUB_REF_NAME#v}
+          # CI 网络抖动时上传大安装包偶发 Request timed out（v3.2.0 曾因
+          # Setup.exe 上传 4 分钟超时失败），失败后整体重试一次。
+          # electron-builder 对已存在的同名资产会自动 overwrite，重试幂等。
+          ARGS=(--${{ matrix.target }} --${{ matrix.arch }} --publish onTag
+                --config.extraMetadata.version=${GITHUB_REF_NAME#v})
+          if ! npx electron-builder "${ARGS[@]}"; then
+            echo "::warning::electron-builder 打包/上传失败，60 秒后重试一次"
+            sleep 60
+            npx electron-builder "${ARGS[@]}"
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7

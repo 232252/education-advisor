@@ -46,6 +46,22 @@ win:
   icon: resources/icon.ico
   artifactName: "${productName}-${version}-Setup.${ext}"
 
+# portable 沿用 win.artifactName 会与 NSIS 输出同名互相覆盖，
+# 并导致同一文件被并发重复上传（曾引发 Request timed out），
+# 这里单独命名为 Portable 以区分。
+portable:
+  artifactName: "${productName}-${version}-Portable.${ext}"
+
+# 显式指定 Linux 目标：electron-builder 26 未配置时默认构建 snap，
+# GitHub runner 无 snapcraft 必然失败，且 deb 也不会被构建。
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: Education
+
 nsis:
   oneClick: false
   perMachine: false
