@@ -1,0 +1,130 @@
+name: Sync Release to Gitee
+
+# GitHub Release 发布完成后，自动同步全部安装包资产到 Gitee 镜像。
+# - Release 工作流成功结束时自动触发（workflow_run）
+# - 也可手动指定 tag 触发（补同步历史版本）
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要同步的 Release tag（如 v3.2.0）"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitee-sync-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      GITEE_OWNER: qdzwwqd
+      GITEE_REPO: education-advisor
+    steps:
+      - name: Resolve tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${{ github.event.workflow_run.head_branch }}"
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "Syncing release $TAG to Gitee"
+
+      - name: Download GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          gh release download "$TAG" --repo "${{ github.repository }}" --dir assets --clobber
+          echo "--- Downloaded assets ---"
+          du -h assets/*
+
+      - name: Create or reuse Gitee release
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          API="https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO"
+
+          # 幂等：tag 已有 release 则复用，否则创建（复用 GitHub 的 release 说明）
+          RELEASE_ID=""
+          RELEASE_ID=$(curl -sS "$API/releases/tags/$TAG?access_token=$GITEE_TOKEN" | jq -r '.id // empty' 2>/dev/null || true)
+          if [ -z "${RELEASE_ID:-}" ]; then
+            BODY=$(gh release view "$TAG" --repo "${{ github.repository }}" --json body -q .body)
+            RELEASE_ID=$(jq -n \
+              --arg tag "$TAG" \
+              --arg name "Release $TAG" \
+              --arg body "$BODY" \
+              --arg branch "main" \
+              '{tag_name:$tag, name:$name, body:$body, prerelease:false, target_commitish:$branch}' \
+              | curl -sS -X POST "$API/releases?access_token=$GITEE_TOKEN" \
+                -H "Content-Type: application/json" -d @- | jq -r '.id')
+          fi
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+            echo "::error::Failed to create Gitee release for $TAG"
+            exit 1
+          fi
+          echo "RELEASE_ID=$RELEASE_ID" >> "$GITHUB_ENV"
+          echo "Gitee release id: $RELEASE_ID"
+
+      - name: Upload assets to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          API="https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO"
+
+          # 幂等：删除同名旧附件，避免重跑时产生重复（接口不支持时忽略）
+          curl -sS "$API/releases/$RELEASE_ID?access_token=$GITEE_TOKEN" \
+            | jq -r '(.attach_assets // .assets // [])[] | [.id, (.name // .file_name)] | @tsv' 2>/dev/null \
+            | while IFS=$'\t' read -r aid aname; do
+                [ -z "${aid:-}" ] && continue
+                echo "Deleting old attachment: $aname"
+                curl -sS -X DELETE \
+                  "$API/releases/$RELEASE_ID/attach_files/$aid?access_token=$GITEE_TOKEN" >/dev/null || true
+              done
+
+          failed=0
+          total=0
+          for f in assets/*; do
+            [ -f "$f" ] || continue
+            total=$((total+1))
+            name=$(basename "$f")
+            size=$(du -h "$f" | cut -f1)
+            echo "Uploading $name ($size)..."
+            if curl -sSf -X POST \
+                 "$API/releases/$RELEASE_ID/attach_files?access_token=$GITEE_TOKEN" \
+                 -F "file=@$f" >/dev/null; then
+              echo "  -> OK"
+            else
+              echo "::warning::上传失败: $name（可能超出 Gitee 单附件 100MB 限制）"
+              failed=$((failed+1))
+            fi
+          done
+          echo "FAILED_COUNT=$failed" >> "$GITHUB_ENV"
+          echo "TOTAL_COUNT=$total" >> "$GITHUB_ENV"
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "### Gitee 镜像同步结果"
+            echo "- Tag: \`$TAG\`"
+            echo "- 附件总数: $TOTAL_COUNT，失败: $FAILED_COUNT"
+            echo "- 镜像地址: https://gitee.com/$GITEE_OWNER/$GITEE_REPO/releases/tag/$TAG"
+          } >> "$GITHUB_STEP_SUMMARY"
