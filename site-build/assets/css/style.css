@@ -1367,6 +1367,70 @@ button {
   margin: 0;
 }
 
+/* ---------- Demo video ---------- */
+.demo {
+  padding: 96px 0;
+  background: var(--bg-soft);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.demo .section-header {
+  margin-bottom: 40px;
+}
+
+.demo-video-wrap {
+  max-width: 920px;
+  margin: 0 auto;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  background: #0A1628;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.demo-video-wrap:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-glow);
+}
+
+.demo-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #0A1628;
+}
+
+.demo-note {
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 0.88rem;
+  margin: 20px 0 0;
+}
+
+/* ---------- Page transitions ---------- */
+@view-transition {
+  navigation: auto;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body {
+    animation: page-enter 0.45s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
