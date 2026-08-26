@@ -4,8 +4,3 @@ wrangler.toml
 
 # 预览截图（仅本地使用）
 *.png
-
-# 根目录历史冗余资源（页面统一引用 assets/ 路径）
-css/
-js/
-img/
