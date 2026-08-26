@@ -48,12 +48,22 @@ jobs:
           set -euo pipefail
           mkdir -p assets
           gh release download "$TAG" --repo "${{ github.repository }}" --dir assets --clobber
-          # 排除仅供 GitHub 差量更新使用的文件（*.blockmap / *-mac.zip）：
-          # 它们体积大且对手动下载无用，可有效控制 Gitee 附件总量
-          # （免费版单附件 100MB 上限，超限文件上传会被跳过并告警）。
-          rm -f assets/*.blockmap assets/*-mac.zip
+          # 排除仅供 GitHub 差量更新使用的文件（*.blockmap / mac *.zip）：
+          # 它们体积大且对手动下载无用，可有效控制 Gitee 附件总量。
+          rm -f assets/*.blockmap assets/*-x64.zip assets/*-arm64.zip assets/*.AppImage
+          # Gitee 免费版单附件 100MB 上限：上传前预检，超限文件直接跳过，
+          # 避免完整传输数分钟后才被服务端拒绝。
+          MAX_BYTES=$((100 * 1024 * 1024))
+          for f in assets/*; do
+            [ -f "$f" ] || continue
+            size=$(stat -c%s "$f")
+            if [ "$size" -gt "$MAX_BYTES" ]; then
+              echo "::warning::跳过 $(basename "$f")（$(du -h "$f" | cut -f1) 超出 Gitee 单附件 100MB 上限，请从 GitHub/官网下载）"
+              rm -f "$f"
+            fi
+          done
           echo "--- Assets to sync ---"
-          du -h assets/*
+          du -h assets/* 2>/dev/null || echo "（无可同步附件）"
 
       - name: Create or reuse Gitee release
         env:
