@@ -7,7 +7,7 @@
   <meta name="description" content="Education Advisor 是基于 Electron 的多智能体教育管理桌面应用。18 个专业 AI 智能体，Rust 数据引擎，隐私优先，跨平台 LLM 编排，专为班主任与教师打造。">
   <meta name="keywords" content="Education Advisor, AI 教育, 多智能体, Electron, Rust, 班主任, 学生管理, 教育信息化">
   <meta name="author" content="sq199">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#fffbf7">
 
   <meta property="og:title" content="Education Advisor — 让教育更智能，让教师更轻松">
   <meta property="og:description" content="18 个 AI 智能体驱动的桌面教育指挥中心，本地优先，隐私保护，跨平台。">
@@ -19,9 +19,10 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet"></noscript>
 
-  <link rel="stylesheet" href="assets/css/style.css?v=20260820a">
+  <link rel="stylesheet" href="assets/css/style.css?v=20260826a">
 </head>
 <body>
   <!-- Navigation -->
@@ -30,21 +31,22 @@
       <a class="logo" href="/" aria-label="Education Advisor 首页">
         <svg class="logo-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <defs>
-            <linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#3b82f6"/>
-              <stop offset="1" stop-color="#6366f1"/>
+            <linearGradient id="logoGrad" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#8B5CF6"/>
+              <stop offset="1" stop-color="#06B6D4"/>
             </linearGradient>
           </defs>
-          <rect width="40" height="40" rx="10" fill="url(#logoGrad)"/>
-          <path d="M12 26.5V13.5L20 10L28 13.5V26.5L20 30L12 26.5Z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>
-          <path d="M20 18V26" stroke="white" stroke-width="2" stroke-linecap="round"/>
-          <circle cx="20" cy="15" r="1.5" fill="white"/>
+          <path d="M20 2 L37 11.5 L37 28.5 L20 38 L3 28.5 L3 11.5 Z" fill="url(#logoGrad)"/>
+          <path d="M20 10.5 L29.5 15.5 L29.5 24.5 L20 29.5 L10.5 24.5 L10.5 15.5 Z" fill="#0A1628"/>
+          <circle cx="20" cy="20" r="4.2" fill="white"/>
+          <circle cx="20" cy="20" r="2.9" fill="url(#logoGrad)"/>
         </svg>
         <span class="logo-text">Education Advisor</span>
       </a>
 
       <nav class="nav-links" aria-label="主导航">
         <a href="#features">核心特性</a>
+        <a href="#demo">产品演示</a>
         <a href="#architecture">架构</a>
         <a href="docs.html">使用文档</a>
         <a href="#download">下载</a>
@@ -70,6 +72,7 @@
 
     <div class="nav-mobile" id="navMobile">
       <a href="#features">核心特性</a>
+      <a href="#demo">产品演示</a>
       <a href="#architecture">架构</a>
       <a href="docs.html">使用文档</a>
       <a href="#download">下载</a>
@@ -270,6 +273,24 @@
       </div>
     </section>
 
+    <!-- Demo video -->
+    <section class="demo" id="demo">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">产品演示</span>
+          <h2 class="section-title">78 秒看懂 Education Advisor</h2>
+          <p class="section-desc">从首次启动、班级创建到 18 个 AI 智能体协作的完整产品演示。</p>
+        </div>
+        <div class="demo-video-wrap">
+          <video class="demo-video" controls preload="none" poster="assets/media/eea-intro-poster.jpg" playsinline>
+            <source src="assets/media/eea-intro.mp4" type="video/mp4">
+            您的浏览器不支持 HTML5 视频播放。
+          </video>
+        </div>
+        <p class="demo-note">应用内也内置了同样的介绍视频，首次启动自动播放，侧边栏「介绍」入口可随时重看。</p>
+      </div>
+    </section>
+
     <!-- Architecture -->
     <section class="architecture" id="architecture">
       <div class="container">
@@ -394,15 +415,15 @@
         <a class="logo logo-footer" href="/">
           <svg class="logo-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <defs>
-              <linearGradient id="logoGradFooter" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-                <stop stop-color="#3b82f6"/>
-                <stop offset="1" stop-color="#6366f1"/>
+              <linearGradient id="logoGradFooter" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#8B5CF6"/>
+                <stop offset="1" stop-color="#06B6D4"/>
               </linearGradient>
             </defs>
-            <rect width="40" height="40" rx="10" fill="url(#logoGradFooter)"/>
-            <path d="M12 26.5V13.5L20 10L28 13.5V26.5L20 30L12 26.5Z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>
-            <path d="M20 18V26" stroke="white" stroke-width="2" stroke-linecap="round"/>
-            <circle cx="20" cy="15" r="1.5" fill="white"/>
+            <path d="M20 2 L37 11.5 L37 28.5 L20 38 L3 28.5 L3 11.5 Z" fill="url(#logoGradFooter)"/>
+            <path d="M20 10.5 L29.5 15.5 L29.5 24.5 L20 29.5 L10.5 24.5 L10.5 15.5 Z" fill="#0A1628"/>
+            <circle cx="20" cy="20" r="4.2" fill="white"/>
+            <circle cx="20" cy="20" r="2.9" fill="url(#logoGradFooter)"/>
           </svg>
           <span class="logo-text">Education Advisor</span>
         </a>
@@ -412,6 +433,7 @@
         <div class="footer-col">
           <h4>产品</h4>
           <a href="#features">核心特性</a>
+          <a href="#demo">产品演示</a>
           <a href="#architecture">架构</a>
           <a href="docs.html">使用文档</a>
           <a href="download.html">下载</a>
@@ -436,6 +458,6 @@
     </div>
   </footer>
 
-  <script src="assets/js/main.js?v=20260820a" defer></script>
+  <script src="assets/js/main.js?v=20260826a" defer></script>
 </body>
 </html>

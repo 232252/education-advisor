@@ -10,8 +10,9 @@
   <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=20260716c">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="assets/css/style.css?v=20260826a">
   <style>
     .legal-hero { padding-top: calc(var(--nav-height) + 80px); padding-bottom: 60px; }
     .legal-content { max-width: 760px; margin: 0 auto 100px; }
@@ -29,22 +30,23 @@
       <a class="logo" href="/" aria-label="Education Advisor 首页">
         <svg class="logo-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <defs>
-            <linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#f97316"/>
-              <stop offset="1" stop-color="#fbbf24"/>
+            <linearGradient id="logoGrad" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#8B5CF6"/>
+              <stop offset="1" stop-color="#06B6D4"/>
             </linearGradient>
           </defs>
-          <rect width="40" height="40" rx="10" fill="url(#logoGrad)"/>
-          <path d="M12 26.5V13.5L20 10L28 13.5V26.5L20 30L12 26.5Z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>
-          <path d="M20 18V26" stroke="white" stroke-width="2" stroke-linecap="round"/>
-          <circle cx="20" cy="15" r="1.5" fill="white"/>
+          <path d="M20 2 L37 11.5 L37 28.5 L20 38 L3 28.5 L3 11.5 Z" fill="url(#logoGrad)"/>
+          <path d="M20 10.5 L29.5 15.5 L29.5 24.5 L20 29.5 L10.5 24.5 L10.5 15.5 Z" fill="#0A1628"/>
+          <circle cx="20" cy="20" r="4.2" fill="white"/>
+          <circle cx="20" cy="20" r="2.9" fill="url(#logoGrad)"/>
         </svg>
         <span class="logo-text">Education Advisor</span>
       </a>
       <nav class="nav-links" aria-label="主导航">
         <a href="/">首页</a>
         <a href="/#features">核心特性</a>
-        <a href="/#architecture">架构</a>
+        <a href="/#demo">产品演示</a>
+        <a href="docs.html">使用文档</a>
         <a href="/#faq">常见问题</a>
         <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub</a>
       </nav>
@@ -65,7 +67,8 @@
     <div class="nav-mobile" id="navMobile">
       <a href="/">首页</a>
       <a href="/#features">核心特性</a>
-      <a href="/#architecture">架构</a>
+      <a href="/#demo">产品演示</a>
+      <a href="docs.html">使用文档</a>
       <a href="/#faq">常见问题</a>
       <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub</a>
       <button class="theme-toggle-mobile" id="navMobileTheme">☀️ 切换主题</button>
@@ -125,12 +128,54 @@
   </main>
 
   <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-main">
+        <a class="logo logo-footer" href="/">
+          <svg class="logo-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="logoGradFooter" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#8B5CF6"/>
+                <stop offset="1" stop-color="#06B6D4"/>
+              </linearGradient>
+            </defs>
+            <path d="M20 2 L37 11.5 L37 28.5 L20 38 L3 28.5 L3 11.5 Z" fill="url(#logoGradFooter)"/>
+            <path d="M20 10.5 L29.5 15.5 L29.5 24.5 L20 29.5 L10.5 24.5 L10.5 15.5 Z" fill="#0A1628"/>
+            <circle cx="20" cy="20" r="4.2" fill="white"/>
+            <circle cx="20" cy="20" r="2.9" fill="url(#logoGradFooter)"/>
+          </svg>
+          <span class="logo-text">Education Advisor</span>
+        </a>
+        <p class="footer-desc">基于 Electron 的多智能体教育管理桌面应用。<br>本地优先，隐私保护，开源免费。</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h4>产品</h4>
+          <a href="/#features">核心特性</a>
+          <a href="/#demo">产品演示</a>
+          <a href="/#architecture">架构</a>
+          <a href="docs.html">使用文档</a>
+          <a href="download.html">下载</a>
+        </div>
+        <div class="footer-col">
+          <h4>资源</h4>
+          <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://gitee.com/qdzwwqd/education-advisor" target="_blank" rel="noopener noreferrer">Gitee 镜像</a>
+          <a href="https://github.com/232252/education-advisor/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+          <a href="https://github.com/232252/education-advisor/issues" target="_blank" rel="noopener noreferrer">问题反馈</a>
+        </div>
+        <div class="footer-col">
+          <h4>法律</h4>
+          <a href="legal.html">隐私政策</a>
+          <a href="legal.html#terms">使用条款</a>
+        </div>
+      </div>
+    </div>
     <div class="container footer-bottom">
       <p>© 2026 Education Advisor. Released under MIT License.</p>
-      <p><a href="/">返回首页</a> · <a href="download.html">下载</a></p>
+      <p>Made with care by sq199.</p>
     </div>
   </footer>
 
-  <script src="assets/js/main.js?v=20260716c" defer></script>
+  <script src="assets/js/main.js?v=20260826a" defer></script>
 </body>
 </html>
