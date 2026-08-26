@@ -17,7 +17,7 @@
 
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) {
-      meta.setAttribute('content', theme === 'dark' ? '#0f1218' : '#eff6ff');
+      meta.setAttribute('content', theme === 'dark' ? '#0f1218' : '#fffbf7');
     }
 
     const mobileThemeBtn = document.getElementById('navMobileTheme');
