@@ -1,0 +1,6 @@
+name = "rapid-sky-9499"
+compatibility_date = "2026-06-09"
+
+# 纯静态资源站点 — 所有文件作为 assets 托管
+[assets]
+directory = "."
