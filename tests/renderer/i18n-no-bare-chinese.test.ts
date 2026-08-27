@@ -118,9 +118,9 @@ import { mkdirSync, writeFileSync } from 'node:fs'
  *  语义: 对比基线 — 新增的裸中文行才失败(长尾逐步清零,基线随之重生成)。 */
 const BASELINE_FILE = path.join(__dirname, '__fixtures__', 'bare-chinese-baseline.json')
 
-function loadBaseline(): Array<{ file: string; line: number }> {
+function loadBaseline(): Array<{ file: string; line: number; text: string }> {
   try {
-    return JSON.parse(fs.readFileSync(BASELINE_FILE, 'utf-8')) as Array<{ file: string; line: number }>
+    return JSON.parse(fs.readFileSync(BASELINE_FILE, 'utf-8')) as Array<{ file: string; line: number; text: string }>
   } catch {
     return []
   }
@@ -132,11 +132,12 @@ describe('R2-13 JSX 裸中文防回归(R2-13)', () => {
     // REPORT=1 时重生成基线(清理一批后运行一次)
     if (process.env.R2_I18N_REPORT === '1') {
       mkdirSync(path.dirname(BASELINE_FILE), { recursive: true })
-      writeFileSync(BASELINE_FILE, JSON.stringify(hits.map(({ file, line }) => ({ file, line })).sort(), null, 2))
+      writeFileSync(BASELINE_FILE, JSON.stringify(hits.map((h) => ({ file: h.file, line: h.line, text: h.text })).sort(), null, 2))
       return
     }
-    const baseline = new Set(loadBaseline().map((b) => `${b.file}:${b.line}`))
-    const fresh = hits.filter((h) => !baseline.has(`${h.file}:${h.line}`))
+    // 内容匹配:同一文件同一行文本视为基线(行号随编辑漂移不算新增)
+    const baseline = new Set(loadBaseline().map((b) => `${b.file}\u0000${b.text}`))
+    const fresh = hits.filter((h) => !baseline.has(`${h.file}\u0000${h.text}`))
     if (fresh.length > 0) {
       const shown = fresh.slice(0, 40).map((h) => `${h.file}:${h.line}  ${h.text}`).join('\n')
       expect.fail(
