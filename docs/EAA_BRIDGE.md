@@ -135,23 +135,25 @@ error message verbatim, prefixed with a localized error title.
 
 ### Streaming
 
-Some operations (e.g. `dashboard` for very large classes) can be
-streaming. The protocol extension is:
-
-```json
-{"id":"req_xxx","type":"chunk","data":{...}}
-{"id":"req_xxx","type":"chunk","data":{...}}
-{"id":"req_xxx","type":"done","result":{...}}
-```
-
-The bridge implements this with a long-lived child process per
-streaming operation.
+> **核实说明(R2-26)**: 本节原文档声称存在 `{type:"chunk"}` 流式协议与
+> 长驻子进程。实际实现(`src/main/services/eaa/process-executor.ts`)为
+> 一次性 spawn、收齐 stdout 后整体解析(命令级 `--output json`),
+> **不存在** chunk 协议。流式体验由应用层 Agent/聊天链路(MessagePort 增量)提供,
+> 与 EAA CLI 无关。以下协议描述删除:
+>
+> ~TODO 若未来需要真正流式(超大导出进度),先在 Rust 侧加 `--stream` 选项,
+> 再同步本文档~
 
 ---
 
 ## The IPC operations
 
-The bridge exposes 21 IPC operations. They map 1-to-1 to the EAA
+> 计数修正(R2-26): 原文「21 IPC operations」与表格行数、代码实际不符。
+> 以 `src/shared/ipc-channels.ts` 为准(含 `eaa:export-formats`、
+> `eaa:invalidate-cache`),合计 24 个 `eaa:*` 通道;静态契约校验
+> `node scripts/ipc-contract-test.mjs --static` 定期对齐。
+
+The bridge exposes 24 IPC operations. They map 1-to-1 to the EAA
 subcommands:
 
 | IPC channel | EAA subcommand | Type | Description |
@@ -180,7 +182,7 @@ subcommands:
 | `eaa:dashboard` | `dashboard` | write | Generate an HTML dashboard report. |
 
 The full schema for each operation is in
-`src/shared/types/index.ts` (539 lines) and mirrored in the EAA CLI
+`src/shared/types/`(按域拆分 16 个类型模块;行数快照易漂移不再手写数字) and mirrored in the EAA CLI
 documentation.
 
 ---
