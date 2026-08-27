@@ -178,3 +178,6 @@ data_archive/agent_outputs/
 core.[0-9]*
 shots/
 tmp_fix/
+
+# R2-04: root 属主构建快照残留(sudo 可用时删除)
+site-build/prod-light.png
