@@ -10,7 +10,7 @@
 // 用法: npx vitest run tests/e2e/agent-loop-e2e.test.ts
 // =============================================================
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type {
   AgentEvent,
   AgentMessage,
@@ -22,6 +22,15 @@ import { Agent } from '@earendil-works/pi-agent-core'
 import { EventStream } from '@earendil-works/pi-ai/compat'
 import type { Api, Model } from '@earendil-works/pi-ai/compat'
 import { getModel } from '@earendil-works/pi-ai/compat'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+// R2-30: 周报落盘场景需要真实 writeFileTool → paths.ts → electron
+vi.mock('electron', () => ({
+  app: { getPath: (n: string) => (n === 'userData' ? path.join(os.tmpdir(), 'e2e-weekly-userdata') : '') },
+}))
+import { writeFileTool } from '../../src/main/services/file-tools'
 
 // =============================================================
 // 工具
@@ -336,4 +345,53 @@ describe('Agent 完整循环 E2E', () => {
     // 关键:transformContext 触发了
     expect(transformTriggered).toBeGreaterThan(0)
   }, 10000)
+
+  it('E2E-4: 周报场景 — write_file 产物落盘 data_archive/agent_outputs(R2-30)', async () => {
+    let responseCount = 0
+    // 产物目录(测试态 userData/data_archive/agent_outputs,与 paths.resolver 同判)
+    const outDir = path.join(os.tmpdir(), 'e2e-weekly-userdata', 'data_archive', 'agent_outputs')
+    fs.rmSync(os.tmpdir() + '/e2e-weekly-userdata', { recursive: true, force: true })
+
+    const agent = new Agent({
+      initialState: {
+        systemPrompt:
+          '你是周报撰写员。生成周报后用 write_file 写入 data_archive/agent_outputs/weekly_report_test.md,然后结束。',
+        model: getModel('openai', 'gpt-4o-mini') as Model<Api>,
+        tools: [writeFileTool],
+      },
+      streamFn: (_model, context) => {
+        const stream = new MockAssistantStream()
+        responseCount++
+        queueMicrotask(() => {
+          if (responseCount === 1) {
+            stream.push({
+              type: 'done',
+              reason: 'toolUse',
+              message: createAssistantMessageWithToolCall('write_file', {
+                path: 'data_archive/agent_outputs/weekly_report_test.md',
+                content: '# 本周班级周报\n\n本周概况: 平均分 91.2,风险学生 3 人。',
+              }, 'wc-1'),
+            })
+          } else {
+            stream.push({ type: 'done', reason: 'stop', message: createAssistantMessage('周报已生成。') })
+          }
+        })
+        return stream
+      },
+    })
+
+    await agent.prompt('生成本周周报')
+    await agent.waitForIdle()
+
+    // 核心断言(R2-30): 产物真实落盘且内容完整
+    const reportPath = path.join(outDir, 'weekly_report_test.md')
+    expect(fs.existsSync(reportPath)).toBe(true)
+    const content = fs.readFileSync(reportPath, 'utf-8')
+    expect(content).toContain('本周班级周报')
+    expect(content).toContain('91.2')
+
+    // 清理
+    fs.rmSync(os.tmpdir() + '/e2e-weekly-userdata', { recursive: true, force: true })
+  }, 10000)
 })
+

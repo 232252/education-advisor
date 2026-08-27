@@ -68,7 +68,7 @@ const JSON_COMMANDS = [
 
 // 已知的文本输出命令(不应追加 --output json)
 const TEXT_COMMANDS = [
-  'export', 'dashboard', 'serve', 'init', 'config', 'privacy',
+  'export', 'dashboard', 'init', 'privacy',
   'add', 'revert', 'add-student', 'delete-student', 'set-student-meta', 'import',
 ]
 
