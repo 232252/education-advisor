@@ -16,6 +16,7 @@
 //   P1-27: 防御性处理中间节点为 undefined 的情况
 // =============================================================
 
+import os from 'node:os'
 import path from 'node:path'
 import type { UnifiedSettings } from '@shared/types'
 import { app } from 'electron'
@@ -35,7 +36,14 @@ class SettingsService {
   private persistence: PersistenceState
 
   constructor() {
-    this.settingsPath = path.join(app.getPath('userData'), 'settings.json')
+    // 测试态兜底:部分 agent 测试的 hoisted mock 在 import 期返回 ''(beforeAll
+    // 才切到 tmp),直接绑定会把 settings.json 写进 cwd(仓库根出现脏文件)。
+    // 生产环境 userData 永不为空,此分支仅测试可达。
+    const userData = app.getPath('userData')
+    this.settingsPath = path.join(
+      userData || path.join(os.tmpdir(), 'ea-settings-fallback-userdata'),
+      'settings.json',
+    )
     this.settings = loadOrDefaultSync(this.settingsPath)
     this.persistence = {
       settingsPath: this.settingsPath,
