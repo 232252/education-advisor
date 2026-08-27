@@ -8,8 +8,8 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { app } from 'electron'
 import type { ReportEntry, ReportListResult, ReportReadResult } from '@shared/types/reports'
+import { app } from 'electron'
 
 const MAX_READ_BYTES = 5 * 1024 * 1024 // 5MB 上限,防超大文件拖垮渲染层
 

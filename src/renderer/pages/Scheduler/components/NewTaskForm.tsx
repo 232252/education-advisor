@@ -104,7 +104,12 @@ export function NewTaskForm({
 
   return (
     <div className="border-b border-gray-200 dark:border-white/[0.06] p-4 bg-gray-50 dark:bg-surface-tertiary">
-      <h3 className="text-sm font-medium mb-3">{t(isEditing ? 'page.scheduler.form.editTitle' : 'page.scheduler.form.newTitle', isEditing ? '编辑定时任务' : '新建定时任务')}</h3>
+      <h3 className="text-sm font-medium mb-3">
+        {t(
+          isEditing ? 'page.scheduler.form.editTitle' : 'page.scheduler.form.newTitle',
+          isEditing ? '编辑定时任务' : '新建定时任务',
+        )}
+      </h3>
 
       <div className="grid grid-cols-2 gap-3">
         {/* 任务名称 */}
@@ -143,7 +148,9 @@ export function NewTaskForm({
                 {a.name}
               </option>
             ))}
-            {agents.length === 0 && <option value=''>{t('page.scheduler.form.noAgent', '无可用 Agent')}</option>}
+            {agents.length === 0 && (
+              <option value="">{t('page.scheduler.form.noAgent', '无可用 Agent')}</option>
+            )}
           </select>
         </div>
 
@@ -190,7 +197,11 @@ export function NewTaskForm({
         {/* 模型层级 */}
         <div>
           <span className="text-xs text-gray-400 dark:text-gray-500 block mb-1">模型</span>
-          <div className="flex gap-2" role="radiogroup" aria-label={t('page.scheduler.form.modelTier', '模型层级')}>
+          <div
+            className="flex gap-2"
+            role="radiogroup"
+            aria-label={t('page.scheduler.form.modelTier', '模型层级')}
+          >
             <button
               type="button"
               role="radio"

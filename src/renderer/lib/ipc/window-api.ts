@@ -16,11 +16,11 @@ import type { McpAPI } from './mcp'
 import type { OllamaAPI } from './ollama'
 import type { PrivacyAPI } from './privacy'
 import type { ProfileAPI } from './profile'
+import type { ReportsAPI } from './reports'
 import type { SettingsAPI } from './settings'
 import type { SkillAPI } from './skill'
 import type { StudentsAPI } from './students'
 import type { SysAPI } from './sys'
-import type { ReportsAPI } from './reports'
 
 // window.api 的类型声明（与 preload 脚本对应）
 export interface WindowAPI {

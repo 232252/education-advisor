@@ -121,57 +121,57 @@
   },
   {
     "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 83,
+    "line": 93,
     "text": "{c.riskDistribution.极高}"
   },
   {
     "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 86,
+    "line": 96,
     "text": "{c.riskDistribution.高}"
   },
   {
     "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 89,
+    "line": 99,
     "text": "{c.riskDistribution.中}"
   },
   {
     "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 92,
+    "line": 102,
     "text": "{c.riskDistribution.低}"
   },
   {
     "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 159,
+    "line": 169,
     "text": "<span className=\"font-mono text-red-500\">{d.riskDistribution.极高}</span>"
   },
   {
     "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 162,
+    "line": 172,
     "text": "<span>高</span>"
   },
   {
     "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 163,
+    "line": 173,
     "text": "<span className=\"font-mono text-orange-500\">{d.riskDistribution.高}</span>"
   },
   {
     "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 166,
+    "line": 176,
     "text": "<span>中</span>"
   },
   {
     "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 167,
+    "line": 177,
     "text": "<span className=\"font-mono text-yellow-500\">{d.riskDistribution.中}</span>"
   },
   {
     "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 170,
+    "line": 180,
     "text": "<span>低</span>"
   },
   {
     "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 171,
+    "line": 181,
     "text": "<span className=\"font-mono text-green-500\">{d.riskDistribution.低}</span>"
   },
   {
@@ -431,47 +431,47 @@
   },
   {
     "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 53,
+    "line": 54,
     "text": "{serveRunning ? '运行中' : available ? '已安装(未运行)' : '未安装'}"
   },
   {
     "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 61,
+    "line": 62,
     "text": "停止"
   },
   {
     "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 70,
+    "line": 71,
     "text": "启动"
   },
   {
     "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 81,
+    "line": 84,
     "text": "本地模型功能需要先安装 Ollama（免费、开源）:"
   },
   {
     "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 84,
+    "line": 87,
     "text": "访问{' '}"
   },
   {
     "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 93,
+    "line": 96,
     "text": "下载安装(Windows 版约 500MB)"
   },
   {
     "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 103,
+    "line": 106,
     "text": "推荐模型（中文友好 · CPU 优化）"
   },
   {
     "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 131,
+    "line": 134,
     "text": "本地模型在 CPU 上运行,不消耗网络流量,数据完全本地化。首次下载需联网,之后离线可用。"
   },
   {
     "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 132,
+    "line": 135,
     "text": "对话时在 Agent 设置里选择 ollama provider 即可。"
   },
   {
@@ -526,52 +526,52 @@
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 225,
+    "line": 227,
     "text": "{isLoadingModels ? '加载模型中...' : `${currentModels.length} 个模型可用`}"
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 234,
+    "line": 236,
     "text": "{refreshing || isLoadingModels ? '刷新中...' : '刷新模型列表'}"
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 245,
+    "line": 249,
     "text": "输入 {formatCost(hqModelInfo.costPerInputToken)} / 输出{' '}"
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 257,
+    "line": 261,
     "text": "<option value=\"\">请选择...</option>"
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 260,
+    "line": 264,
     "text": "{m.name} (输入 {formatCost(m.costPerInputToken)} / 输出{' '}"
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 269,
+    "line": 273,
     "text": "或输入自定义模型 ID"
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 301,
+    "line": 307,
     "text": "输入 {formatCost(lqModelInfo.costPerInputToken)} / 输出{' '}"
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 313,
+    "line": 319,
     "text": "<option value=\"\">请选择...</option>"
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 316,
+    "line": 322,
     "text": "{m.name} (输入 {formatCost(m.costPerInputToken)} / 输出{' '}"
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 325,
+    "line": 331,
     "text": "或输入自定义模型 ID"
   },
   {
@@ -1011,12 +1011,12 @@
   },
   {
     "file": "pages/Reports/ReportsPage.tsx",
-    "line": 85,
+    "line": 87,
     "text": "'点击右上角\"立即生成周报\",或等待周五定时任务自动产出。',"
   },
   {
     "file": "pages/Reports/ReportsPage.tsx",
-    "line": 128,
+    "line": 130,
     "text": "'报告产物支持 Markdown/JSON/文本,可直接阅读或复制。',"
   },
   {
@@ -1028,6 +1028,11 @@
     "file": "pages/Scheduler/SchedulerPage.tsx",
     "line": 90,
     "text": "{showForm ? '取消' : '+ 新增任务'}"
+  },
+  {
+    "file": "pages/Scheduler/SchedulerPage.tsx",
+    "line": 141,
+    "text": "'点击「新增任务」或在 Agent 配置中设置 schedule',"
   },
   {
     "file": "pages/Scheduler/components/ExecutionLogPanel.tsx",
@@ -1051,77 +1056,77 @@
   },
   {
     "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 107,
-    "text": "<h3 className=\"text-sm font-medium mb-3\">{t(isEditing ? 'page.scheduler.form.editTitle' : 'page.scheduler.form.newTitle'"
+    "line": 110,
+    "text": "isEditing ? '编辑定时任务' : '新建定时任务',"
   },
   {
     "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 116,
+    "line": 121,
     "text": "任务名称"
   },
   {
     "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 156,
+    "line": 163,
     "text": "Cron 表达式"
   },
   {
     "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 186,
+    "line": 193,
     "text": "{isCronValid ? '✓ 表达式有效' : `✗ ${cronValidation.error ?? '无效'}`}"
   },
   {
     "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 192,
+    "line": 199,
     "text": "<span className=\"text-xs text-gray-400 dark:text-gray-500 block mb-1\">模型</span>"
   },
   {
     "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 202,
+    "line": 213,
     "text": "低成本"
   },
   {
     "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 212,
+    "line": 223,
     "text": "高质量"
   },
   {
     "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 224,
+    "line": 235,
     "text": "执行指令"
   },
   {
     "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 239,
+    "line": 250,
     "text": "取消"
   },
   {
     "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 249,
+    "line": 260,
     "text": "{isEditing ? '保存' : '创建'}"
   },
   {
     "file": "pages/Scheduler/components/TaskCard.tsx",
-    "line": 57,
+    "line": 56,
     "text": "aria-label={task.enabled ? '停用任务' : '启用任务'}"
   },
   {
     "file": "pages/Scheduler/components/TaskCard.tsx",
-    "line": 72,
+    "line": 71,
     "text": "自动"
   },
   {
     "file": "pages/Scheduler/components/TaskCard.tsx",
-    "line": 107,
+    "line": 106,
     "text": "执行"
   },
   {
     "file": "pages/Scheduler/components/TaskCard.tsx",
-    "line": 118,
+    "line": 117,
     "text": "编辑"
   },
   {
     "file": "pages/Scheduler/components/TaskCard.tsx",
-    "line": 130,
+    "line": 129,
     "text": "删除"
   },
   {
@@ -1216,17 +1221,17 @@
   },
   {
     "file": "pages/Settings/sections/AboutSection.tsx",
-    "line": 44,
+    "line": 42,
     "text": "'多智能体教育管理桌面系统 — 18 个教育 AI Agent + Rust 操行引擎 + 隐私脱敏',"
   },
   {
     "file": "pages/Settings/sections/AboutSection.tsx",
-    "line": 70,
+    "line": 68,
     "text": "'— 参谋/督导/辅导员/心理/纪律/班务等多智能体',"
   },
   {
     "file": "pages/Settings/sections/AboutSection.tsx",
-    "line": 128,
+    "line": 126,
     "text": "'Education Advisor 内置 EAA Core (Rust) + Pi Agent 运行时 + Pi-AI 通信层 + 18 个教育 AI Agent，遵循 MIT 协议发布。',"
   },
   {
@@ -1246,32 +1251,32 @@
   },
   {
     "file": "pages/Settings/sections/DataSection.tsx",
-    "line": 117,
+    "line": 124,
     "text": "'将设置/学生数据/数据库/定时任务打包为 zip,保存到指定位置',"
   },
   {
     "file": "pages/Settings/sections/DataSection.tsx",
-    "line": 137,
+    "line": 144,
     "text": "'按设定间隔自动备份到应用数据目录的 backups/ 下',"
   },
   {
     "file": "pages/Settings/sections/DataSection.tsx",
-    "line": 189,
+    "line": 196,
     "text": "'按 cron 计划到点自动备份到应用数据目录的 backups/ 下,默认每日 03:00',"
   },
   {
     "file": "pages/Settings/sections/DataSection.tsx",
-    "line": 204,
+    "line": 211,
     "text": "'cron 表达式(分 时 日 月 周),如 0 3 * * * 表示每日 03:00',"
   },
   {
     "file": "pages/Settings/sections/DataSection.tsx",
-    "line": 284,
+    "line": 291,
     "text": "'选择备份 zip 覆盖当前数据;恢复前会自动做一次安全备份,完成后需重启应用',"
   },
   {
     "file": "pages/Settings/sections/DataSection.tsx",
-    "line": 304,
+    "line": 311,
     "text": "'将用备份内容覆盖当前全部核心数据(设置/学生数据/数据库/定时任务)。恢复前会自动创建安全备份,完成后需要重启应用。确定继续?',"
   },
   {

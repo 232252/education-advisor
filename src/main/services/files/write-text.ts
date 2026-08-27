@@ -8,9 +8,9 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
+import { resolveAppDataDir } from '../paths'
 import { validateFilePath } from './security'
 import { textResult } from './shared'
-import { resolveAppDataDir } from '../paths'
 
 // =============================================================
 // Schema 定义
