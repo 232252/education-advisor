@@ -7,6 +7,8 @@ import * as IPC from '@shared/ipc-channels'
 import type { AgentExecution, CronLogEntry, CronTask } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { log } from '../../utils/logger'
+import { FEISHU_PUSH_AGENT_IDS, sendAgentAlert } from '../feishu/alerts'
+import { settingsService } from '../settings-service'
 import { runAutoBackupExecution } from './auto-backup-task'
 import { runBitableSyncExecution } from './bitable-sync'
 import {
@@ -118,6 +120,26 @@ export async function executeCronTask(
         circuitBreaker: ctx.circuitBreaker,
         pushLog: (entry) => ctx.pushLog(entry),
       })
+      // 定时报告类任务(周报/风险预警等)产出后推送飞书 — 此前生成物只落
+      // DB 与 GUI,教师不开应用就看不到;推送开关默认关闭(settings.feishu.agentPushEnabled)
+      if (
+        execution?.status === 'success' &&
+        execution.output &&
+        FEISHU_PUSH_AGENT_IDS.includes(task.agentId)
+      ) {
+        const s = settingsService.getSettings()
+        if (s.feishu?.agentPushEnabled) {
+          void sendAgentAlert(`${task.name} 完成`, execution.output).then((r) => {
+            if (r.skipped) {
+              log('info', 'cron', `agent push skipped (${task.agentId}): ${r.skipped}`)
+            } else if (!r.success) {
+              log('warn', 'cron', `agent push failed (${task.agentId}): ${r.error}`)
+            } else {
+              log('info', 'cron', `agent push sent (${task.agentId})`)
+            }
+          })
+        }
+      }
     } else {
       console.warn(`[CronService] Agent runner not set, skipping task ${taskId}`)
     }

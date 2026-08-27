@@ -24,10 +24,38 @@ export interface RawAgentEntry {
   description?: unknown
   enabled?: unknown
   model_tier?: unknown
+  /**
+   * schedule.cron 条目支持两种形态(向后兼容):
+   *   - 字符串: "0 6 * * *"(仅表达式,任务提示词回退泛化句)
+   *   - 对象:   { cron: "0 6 * * *", prompt: "执行晨间数据质量检查: ..." }
+   */
   schedule?: { cron?: unknown }
   capabilities?: unknown
   risk_thresholds?: unknown
   mcp_servers?: unknown
+}
+
+/** 解析 schedule.cron 条目 → 表达式数组 + 平行的 prompt 数组(无 prompt 处为 undefined) */
+export function parseScheduleEntries(raw: unknown): {
+  expressions: string[]
+  prompts: Array<string | undefined>
+} {
+  const expressions: string[] = []
+  const prompts: Array<string | undefined> = []
+  if (!Array.isArray(raw)) return { expressions, prompts }
+  for (const entry of raw) {
+    if (typeof entry === 'string') {
+      expressions.push(entry)
+      prompts.push(undefined)
+    } else if (entry && typeof entry === 'object' && 'cron' in entry) {
+      const e = entry as { cron?: unknown; prompt?: unknown }
+      if (typeof e.cron === 'string') {
+        expressions.push(e.cron)
+        prompts.push(typeof e.prompt === 'string' && e.prompt.trim() ? e.prompt.trim() : undefined)
+      }
+    }
+  }
+  return { expressions, prompts }
 }
 
 /**
@@ -41,6 +69,7 @@ export interface RawAgentEntry {
 export function buildAgentConfig(a: RawAgentEntry, override?: AgentOverride): AgentConfig | null {
   // 防御单条数据畸形：必须有字符串 id
   if (!a || typeof a.id !== 'string') return null
+  const { expressions, prompts } = parseScheduleEntries(a.schedule?.cron)
   return {
     id: a.id,
     name: override?.name ?? (a.name as string | undefined) ?? a.id,
@@ -52,7 +81,8 @@ export function buildAgentConfig(a: RawAgentEntry, override?: AgentOverride): Ag
         : ((a.enabled as boolean | undefined) ?? true),
     modelTier:
       override?.modelTier ?? (a.model_tier as AgentConfig['modelTier'] | undefined) ?? 'low_cost',
-    schedule: (a.schedule?.cron as string[] | undefined) ?? [],
+    schedule: expressions,
+    schedulePrompts: prompts.some((p) => p !== undefined) ? prompts : undefined,
     capabilities: override?.capabilities ?? (a.capabilities as string[] | undefined) ?? [],
     riskThresholds: a.risk_thresholds as AgentConfig['riskThresholds'],
     mcpServers: override?.mcpServers ?? (a.mcp_servers as string[] | undefined),

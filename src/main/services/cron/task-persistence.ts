@@ -119,6 +119,8 @@ export interface AgentScheduleInput {
   id: string
   name: string
   schedule: string[]
+  /** 与 schedule 平行的任务提示词(缺省项回退泛化提示) */
+  schedulePrompts?: Array<string | undefined>
   modelTier: 'high_quality' | 'low_cost'
 }
 
@@ -159,7 +161,9 @@ export function syncAgentScheduleTasks(
         name: `${agent.name} 定时任务 ${i + 1}`,
         agentId: agent.id,
         expression,
-        prompt: `执行 ${agent.name} 的定时任务`,
+        // 携带 yaml 中该条目的具体指令;未配置时回退泛化提示
+        // (泛化提示下 agent 只能靠 SOUL 自猜任务意图)
+        prompt: agent.schedulePrompts?.[i] ?? `执行 ${agent.name} 的定时任务`,
         enabled: true,
         modelTier: agent.modelTier,
       }

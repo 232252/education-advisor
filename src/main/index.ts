@@ -22,7 +22,15 @@ import { keystoreService } from './services/keystore-service'
 import { ollamaService } from './services/ollama-service'
 import { settingsService } from './services/settings-service'
 import { destroyTray, getTrayStatus } from './services/tray-service'
+import { loadDevEnv } from './utils/load-dev-env'
 import { log } from './utils/logger'
+
+// 开发模式 .env 加载 — 必须在读取 ENABLE_CDP/DEBUG_* 等环境变量之前执行
+// (此前 .env 文件从不被主进程解析,拷贝后不生效,需手动 export)
+const devEnvLoaded = loadDevEnv()
+if (devEnvLoaded > 0) {
+  console.log(`[Main] Loaded ${devEnvLoaded} entries from .env (dev mode)`)
+}
 
 // 全局未捕获异常处理器 — 防止 Promise 拒绝和未捕获异常静默丢失
 process.on('unhandledRejection', (reason) => {

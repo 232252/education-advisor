@@ -4,6 +4,10 @@
 //   - buildSkillsSection: 将可用 skill 格式化为 system prompt 段落
 //   - buildAgentTools:    构造 EAA + 文件 + 实用 + MCP 工具集
 // M32: buildAgentTools 增加委托桥接参数,delegate_to 只注入 main
+// 后续扩展:
+//   - save_memory: 所有 agent 获得(长期记忆写入入口,读取走 system prompt 注入)
+//   - escalate_to_main: 声明 'escalate' capability 的安全类 agent 获得
+//   - privacyGuard: 开启自动脱敏时包装 EAA 工具(入参化名→真名,结果真名→化名)
 // =============================================================
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
@@ -19,6 +23,13 @@ import {
   DELEGATE_SOURCE_AGENT_ID,
   type DelegateToolDeps,
 } from './delegate-tool'
+import {
+  createEscalateToMainTool,
+  ESCALATE_CAPABILITY,
+  type EscalationToolDeps,
+} from './escalation-tool'
+import { createMemoryTool } from './memory-tool'
+import type { PrivacyGuard } from './privacy-guard'
 
 /** 将所有可用 skill 格式化为 system prompt 段落 */
 export function buildSkillsSection(): string {
@@ -26,39 +37,55 @@ export function buildSkillsSection(): string {
   if (skills.length === 0) return ''
 
   const entries = skills.map((s) => {
-    // 只输出名称和描述摘要，不注入完整内容（节省 token）
-    // Agent 可通过文件读取工具获取完整内容
-    return `### ${s.name}\n${s.description}`
+    // 只输出名称和描述摘要，不注入完整内容（节省 token）。
+    // 附上文件路径,agent 需要时可自行 read_file 读取全文 —
+    // 此前只给名字,agent 实际上没有途径读到技能正文。
+    return `### ${s.name}\n${s.description}\n(完整内容: 用 read_file 读取 "${s.filePath}")`
   })
 
   return `\n--- 可用技能 ---\n${entries.join('\n\n')}`
 }
 
 /**
- * 构造 Agent 运行时工具集(EAA + 文件 + 实用工具 + MCP)
+ * 构造 Agent 运行时工具集(EAA + 文件 + 实用 + 记忆 + MCP)
  *
  * MCP 集成:合并三层配置(全局 mcp.yaml + Agent 级 mcpServers + 技能级临时 server)
  * MCP 未启用或无配置时返回空数组,不影响现有工具
  *
  * M32: delegate_to 轻量路由 — 仅当 delegateDeps 提供且 id 为 main 时注入
  * (其他角色不获得该工具,防递归风暴);委托桥接实现见 agent/delegate-tool.ts
+ *
+ * escalate_to_main — 仅当声明 'escalate' capability 时注入(psychology/risk-alert/safety)
+ *
+ * privacyGuard 非空时(开启自动脱敏的运行),EAA 工具经 wrapTool 包装:
+ * 模型用化名调用工具 → 入参还原为真名执行 → 结果再脱敏回流模型上下文
  */
 export async function buildAgentTools(
   config: AgentConfig,
   id: string,
   win?: BrowserWindow,
   delegateDeps?: DelegateToolDeps,
+  escalationDeps?: EscalationToolDeps,
+  privacyGuard?: PrivacyGuard,
   // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
 ): Promise<AgentTool<any>[]> {
   const mcpTools = await getMcpToolsForAgent(id, config.mcpServers)
+  const rawEaaTools = getToolsByCapability(config.capabilities)
+  const eaaTools = privacyGuard ? rawEaaTools.map((t) => privacyGuard.wrapTool(t)) : rawEaaTools
+  // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
   const tools: AgentTool<any>[] = [
-    ...getToolsByCapability(config.capabilities),
+    ...eaaTools,
     ...allFileTools, // 文件工具（read_file, read_excel, write_excel, write_csv, list_dir）
     ...allUtilityTools, // 实用工具（get_current_time, calculate）
+    createMemoryTool(id), // save_memory — 长期记忆写入(所有角色)
     ...mcpTools, // MCP 工具(动态注入,工具名前缀 mcp_<serverId>_)
   ]
   if (delegateDeps && id === DELEGATE_SOURCE_AGENT_ID) {
     tools.push(createDelegateToTool(delegateDeps, { sourceAgentId: id, win }))
+  }
+  const capSet = new Set(config.capabilities.map((c) => c.toLowerCase()))
+  if (escalationDeps && capSet.has(ESCALATE_CAPABILITY)) {
+    tools.push(createEscalateToMainTool(escalationDeps, { sourceAgentId: id }))
   }
   return tools
 }
