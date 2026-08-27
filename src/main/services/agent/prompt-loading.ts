@@ -53,6 +53,17 @@ export function loadSharedRules(agentsDir: string): string {
   return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : ''
 }
 
+/**
+ * 读取项目级背景知识(agents/_shared/project-context.md) — 让每个 Agent
+ * 都知道"自己运行在什么系统里": 核心业务概念(操行分/事件/原因码/风险分级)、
+ * Agent 体系分工、数据与工具约定。此前 AI 对项目的认知只有角色人格,
+ * README/PROJECT_INTRO 等文档从不进入 prompt。
+ */
+export function loadProjectContext(agentsDir: string): string {
+  const filePath = path.join(agentsDir, '_shared', 'project-context.md')
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : ''
+}
+
 export function loadRules(agentsDir: string, id: string): string {
   return readPromptFile(agentsDir, id, 'AGENTS.md')
 }

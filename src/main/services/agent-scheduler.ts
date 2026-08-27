@@ -35,6 +35,8 @@ export interface SchedulableAgent {
   id: string
   name: string
   schedule: string[]
+  /** 与 schedule 平行的任务提示词(缺省项由 task-persistence 回退泛化提示) */
+  schedulePrompts?: Array<string | undefined>
   modelTier: 'high_quality' | 'low_cost'
 }
 

@@ -37,8 +37,16 @@ import { app, type BrowserWindow } from 'electron'
 import yaml from 'yaml'
 import { buildAgentConfig, type RawAgentEntry } from './agent/config'
 import type { DelegateToolDeps } from './agent/delegate-tool'
+import type { EscalationToolDeps } from './agent/escalation-tool'
 import { executeAgentRun } from './agent/execution'
-import { loadRules, loadSharedRules, loadSoul, saveRules, saveSoul } from './agent/prompt-loading'
+import {
+  loadProjectContext,
+  loadRules,
+  loadSharedRules,
+  loadSoul,
+  saveRules,
+  saveSoul,
+} from './agent/prompt-loading'
 import { AgentRunQueue } from './agent/run-queue'
 import { sendAgentStatus } from './agent/status-tracking'
 import { withTimeout } from './agent/timeout'
@@ -46,6 +54,7 @@ import { buildAgentTools, buildSkillsSection } from './agent/tools'
 import type { AgentExecutionDeps, RunningAgent } from './agent/types'
 import { AgentScheduler, type SchedulableAgent } from './agent-scheduler'
 import { cronService } from './cron-service'
+import { sendAgentAlert } from './feishu/alerts'
 import { mcpService } from './mcp-service'
 
 class AgentService {
@@ -76,9 +85,12 @@ class AgentService {
     getSoulContent: (id) => this.getSoul(id),
     getRulesContent: (id) => this.getRules(id),
     getSharedRulesContent: () => this.getSharedRules(),
+    getProjectContextContent: () => loadProjectContext(this.agentsDir),
     buildSkillsSection: () => buildSkillsSection(),
     // M32: 传入 win + 委托桥接 — main 的工具集会注入 delegate_to(见 agent/tools.ts)
-    buildAgentTools: (config, id, win) => buildAgentTools(config, id, win, this.delegateBridge),
+    // privacyGuard 由 execution 按运行时脱敏开关创建后传入(见 agent/privacy-guard.ts)
+    buildAgentTools: (config, id, win, privacyGuard) =>
+      buildAgentTools(config, id, win, this.delegateBridge, this.escalationBridge, privacyGuard),
     isCurrentGeneration: (id, generation) => this.runQueue.isCurrentGeneration(id, generation),
   }
 
@@ -97,6 +109,34 @@ class AgentService {
     isDelegationInProgress: () => this.activeDelegations > 0,
     runDelegatedTask: (targetId, task, win) => this.runDelegatedAgent(targetId, task, win),
     abortDelegatedAgent: (targetId, win) => this.abortAgent(targetId, win),
+  }
+
+  /**
+   * escalate_to_main 上报桥接(方向与 delegate_to 相反: 专家 → main)。
+   * fire-and-forget: 入队即返回,不在工具调用内等待 main 完成 —
+   * main 的运行走自己的串行队列,结果经状态事件/飞书推送呈现。
+   */
+  private readonly escalationBridge: EscalationToolDeps = {
+    enqueueMainReport: async (text) => {
+      try {
+        const main = this.agents.get('main')
+        if (!main?.enabled) return false
+        void this.runAgent('main', text, undefined as unknown as BrowserWindow).catch((err) =>
+          console.warn(
+            '[AgentService] escalated main run failed:',
+            err instanceof Error ? err.message : err,
+          ),
+        )
+        return true
+      } catch (err) {
+        console.warn(
+          '[AgentService] enqueueMainReport failed:',
+          err instanceof Error ? err.message : err,
+        )
+        return false
+      }
+    },
+    sendFeishuAlert: (text) => sendAgentAlert('紧急上报', text),
   }
 
   constructor() {
@@ -140,7 +180,13 @@ class AgentService {
   private syncSchedules() {
     const agents: SchedulableAgent[] = Array.from(this.agents.values())
       .filter((a) => a.enabled && a.schedule.length > 0)
-      .map((a) => ({ id: a.id, name: a.name, schedule: a.schedule, modelTier: a.modelTier }))
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        schedule: a.schedule,
+        schedulePrompts: a.schedulePrompts,
+        modelTier: a.modelTier,
+      }))
     this.scheduler.syncSchedules(agents)
   }
 

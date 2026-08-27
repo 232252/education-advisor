@@ -141,18 +141,23 @@ table (they're harmless and make future anonymization faster).
 ### How it's stored
 
 The table is stored as a single binary file
-(`userData/eaa-data/privacy/mapping.bin`) encrypted with
+(`userData/eaa-data/privacy/mapping.enc`) encrypted with
 **AES-256-GCM** under a key derived from the teacher's master
-password via **Argon2id**.
+password via **PBKDF2-HMAC-SHA256** (100,000 iterations).
+
+> **Implementation honesty note** (v3.2.x, Rust engine): the KDF is
+> PBKDF2 with a **fixed, hardcoded salt**
+> (`education-advisor-privacy-v1-salt`, see
+> `core/eaa-cli/src/privacy/mod.rs`). This means two installs using
+> the same password derive the same key. It protects the mapping at
+> rest against casual reading, but is weaker than a per-install
+> random salt (no `salt.bin` file exists; there is also no
+> `audit.log` — that capability is not implemented). Upgrading to
+> Argon2id with a random per-install salt is on the roadmap; a
+> migration path must re-encrypt existing `mapping.enc` files.
 
 The key never leaves memory. The encrypted file never contains
 plaintext.
-
-### The salt
-
-A random 16-byte salt is generated on first run and stored at
-`userData/eaa-data/privacy/salt.bin`. The salt is **not** secret;
-its purpose is to make precomputed rainbow tables infeasible.
 
 ---
 
@@ -163,7 +168,7 @@ The privacy engine uses:
 | Algorithm | Purpose | Why |
 | --- | --- | --- |
 | **AES-256-GCM** | Encryption of the mapping table | AEAD: confidentiality + integrity in one primitive. 256-bit key. |
-| **Argon2id** | Master password → key derivation | Memory-hard, GPU-resistant. Tuned to ~250 ms on a modern CPU. |
+| **PBKDF2-HMAC-SHA256** | Master password → key derivation | 100k iterations. Weaker than Argon2id against GPU attacks; fixed salt (see honesty note above). |
 | **SHA-256** | Salt + key fingerprint | Standard, well-audited. |
 | **OS RNG** | Random salt, random IV | Relies on `crypto.getRandomValues` (browser) or `crypto.randomBytes` (Node). |
 
@@ -182,20 +187,18 @@ rationale.
 
 ## The IPC operations
 
-The privacy engine exposes 11 IPC operations in
+The privacy engine exposes 9 IPC operations in
 `src/shared/ipc-channels.ts`:
 
 | IPC channel | Method | Description |
 | --- | --- | --- |
 | `privacy:init` | `init(password, autoScan?)` | Initialize the engine with a master password. Optionally scan the existing data and auto-populate the mapping. |
 | `privacy:load` | `load(password)` | Load the existing mapping table from disk. Required on each app start. |
-| `privacy:enable` | `enable()` | Turn the engine on. |
-| `privacy:disable` | `disable(password)` | Turn the engine off. Requires the master password. |
-| `privacy:list` | `list(password)` | List all mappings (for review / export). Requires the master password. |
+| `privacy:unlock` | `unlock(password)` | Re-unlock after an explicit lock. |
+| `privacy:lock` | `lock()` | Clear the in-memory password (lock the engine). |
+| `privacy:status` | `status()` | Report init/locked state. |
+| `privacy:list` | `list()` | List all mappings (for review / export). |
 | `privacy:add` | `add(entityType, text)` | Add a single mapping. |
-| `privacy:anonymize` | `anonymize(text)` | Anonymize a text. |
-| `privacy:deanonymize` | `deanonymize(text)` | Restore the real identifiers. |
-| `privacy:filter` | `filter(receiver, text)` | Per-recipient filter. |
 | `privacy:dryrun` | `dryrun(text)` | Preview what `anonymize` would do, without changing the table. |
 | `privacy:backup` | `backup(destPath)` | Write the (encrypted) mapping table to a destination path. |
 
@@ -206,11 +209,20 @@ The privacy engine exposes 11 IPC operations in
    and the mapping table is built.
 2. **Each launch**: `load(password)`. The teacher enters the
    master password, the engine decrypts the table.
-3. **Each LLM call**: `anonymize(text)` is called automatically
-   by the agent service. The LLM sees the anonymized text.
-4. **Each LLM response**: `deanonymize(text, recipient)` is
-   called by the agent service. The teacher sees the real names
-   in the final report.
+3. **Each Agent run / direct AI chat** (when
+   `settings.privacy.enabled + autoAnonymize` are both on):
+   outgoing prompts, chat history, and system prompts are
+   anonymized (real name → `S_001`); tool parameters are
+   deanonymized before execution; tool results are re-anonymized
+   before flowing back into the model context; streamed
+   `text_delta` output is deanonymized (with a carry filter so
+   split aliases are still replaced) before reaching the teacher.
+   If the engine is locked, runs **fail closed** with a clear
+   error instead of silently sending real names. See
+   `src/main/services/agent/privacy-guard.ts`.
+4. **Escalation / Feishu push**: alerts carry whatever text the
+   agent produced; when anonymization is active the streamed
+   output has already been deanonymized for the teacher.
 
 The teacher can **disable** the engine at any time (via
 Settings → Privacy → Disable). When disabled, the LLM sees the

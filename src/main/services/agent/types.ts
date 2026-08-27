@@ -6,6 +6,7 @@ import type { Agent, AgentTool } from '@earendil-works/pi-agent-core'
 
 import type { AgentConfig, AgentExecution, AgentStatus } from '@shared/types'
 import type { BrowserWindow } from 'electron'
+import type { PrivacyGuard } from './privacy-guard'
 
 // =============================================================
 // Agent 运行时实例（每次执行创建一个）
@@ -34,9 +35,17 @@ export interface AgentExecutionDeps {
   getRulesContent(id: string): string
   /** 全角色公共规则(agents/_shared/rules.md),M10: 公共段单点维护统一注入 */
   getSharedRulesContent(): string
+  /** 项目级背景知识(agents/_shared/project-context.md),让 AI 认知整个系统 */
+  getProjectContextContent(): string
   buildSkillsSection(): string
   // M32: win 用于 delegate_to 委托运行的状态推送(仅 main 会注入该工具)
-  // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
-  buildAgentTools(config: AgentConfig, id: string, win?: BrowserWindow): Promise<AgentTool<any>[]>
+  // privacyGuard: 开启自动脱敏的运行传入,用于包装 EAA 工具(见 agent/privacy-guard.ts)
+  buildAgentTools(
+    config: AgentConfig,
+    id: string,
+    win?: BrowserWindow,
+    privacyGuard?: PrivacyGuard,
+    // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
+  ): Promise<AgentTool<any>[]>
   isCurrentGeneration(id: string, generation: number): boolean
 }
