@@ -17,15 +17,15 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 <!-- doc-stats:start -->
 | 维度 | 数量 |
 | --- | --- |
-| 页面数 | 12 |
-| 路由数 | 14 |
-| IPC 通道数 | 137 |
-| Service 文件数 | 133 |
-| IPC handler 文件数 | 41 |
+| 页面数 | 13 |
+| 路由数 | 15 |
+| IPC 通道数 | 140 |
+| Service 文件数 | 141 |
+| IPC handler 文件数 | 43 |
 | Zustand store 模块数 | 7 |
-| Preload API 文件数 | 18 |
-| Shared 类型文件数 | 16 |
-| Renderer IPC 类型文件数 | 19 |
+| Preload API 文件数 | 19 |
+| Shared 类型文件数 | 17 |
+| Renderer IPC 类型文件数 | 20 |
 | Agent 数 | 18 |
 <!-- doc-stats:end -->
 
