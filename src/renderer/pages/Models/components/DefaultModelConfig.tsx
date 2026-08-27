@@ -201,13 +201,15 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
       <div className="space-y-5">
         {/* ---- Default Provider ---- */}
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-700 dark:text-gray-300">{t('page.models.default.provider', '默认 Provider')}</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">
+            {t('page.models.default.provider', '默认 Provider')}
+          </span>
           <select
             value={defaultProvider}
             onChange={(e) => handleProviderChange(e.target.value)}
             className={cn(INPUT_BASE, 'w-80')}
           >
-            <option value=''>{t('common.select', '请选择...')}</option>
+            <option value="">{t('common.select', '请选择...')}</option>
             {configuredProviders.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -239,7 +241,9 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{t('page.models.default.highQuality', '高质量模型')}</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {t('page.models.default.highQuality', '高质量模型')}
+                  </span>
                   {hqModelInfo && (
                     <span className="text-xs text-gray-500 dark:text-gray-500 font-mono">
                       输入 {formatCost(hqModelInfo.costPerInputToken)} / 输出{' '}
@@ -295,7 +299,9 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{t('page.models.default.lowCost', '低成本模型')}</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {t('page.models.default.lowCost', '低成本模型')}
+                  </span>
                   {lqModelInfo && (
                     <span className="text-xs text-gray-500 dark:text-gray-500 font-mono">
                       输入 {formatCost(lqModelInfo.costPerInputToken)} / 输出{' '}

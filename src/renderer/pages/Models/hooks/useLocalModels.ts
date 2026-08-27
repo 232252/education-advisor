@@ -56,7 +56,9 @@ export function useLocalModels() {
     } catch (err) {
       // R2-14: 此前裸 await 无兜底 — IPC 抛错变 unhandled rejection,UI 无任何反馈
       console.error('[useLocalModels] startServe failed:', err)
-      toast.error(`${t('toast.models.ollamaStartFailed')} (${err instanceof Error ? err.message : String(err)})`)
+      toast.error(
+        `${t('toast.models.ollamaStartFailed')} (${err instanceof Error ? err.message : String(err)})`,
+      )
     }
   }
 

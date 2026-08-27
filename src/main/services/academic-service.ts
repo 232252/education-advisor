@@ -9,7 +9,6 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import type { AcademicConfig, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
-import { app } from 'electron'
 import { atomicWrite } from '../utils/atomic-write'
 import { log } from '../utils/logger'
 import { getAppPaths } from './paths'

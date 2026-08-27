@@ -4,8 +4,8 @@
 // =============================================================
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { Button } from './Button'
 import { t } from '../i18n'
+import { Button } from './Button'
 
 interface Props {
   children: ReactNode

@@ -8,9 +8,9 @@
 // 无班级/查询失败时返回空 —— 调用方整段省略,绝不输出占位垃圾。
 // =============================================================
 
-import { eaaBridge } from '../eaa-bridge'
 import { academicService } from '../academic-service'
 import { classService } from '../class-service'
+import { eaaBridge } from '../eaa-bridge'
 
 export interface ClassContextInfo {
   className: string

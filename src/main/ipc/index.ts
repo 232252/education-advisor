@@ -18,11 +18,11 @@ import { registerMcpHandlers } from './mcp-handlers'
 import { registerOllamaHandlers } from './ollama-handlers'
 import { registerPrivacyHandlers } from './privacy-handlers'
 import { registerProfileHandlers } from './profile-handlers'
+import { registerReportsHandlers } from './reports-handlers'
 import { registerSettingsHandlers } from './settings-handlers'
 import { registerSkillHandlers } from './skill-handlers'
 import { registerStudentExcelHandlers } from './students/excel-import-handlers'
 import { registerSysHandlers } from './sys-handlers'
-import { registerReportsHandlers } from './reports-handlers'
 
 export async function registerAllHandlers(win: BrowserWindow) {
   registerAIHandlers(win)

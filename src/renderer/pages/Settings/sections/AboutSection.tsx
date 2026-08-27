@@ -34,9 +34,7 @@ export function AboutSection() {
         <div>
           <div className="text-base text-gray-800 dark:text-gray-100 font-semibold">
             Education Advisor{' '}
-            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
-              v{version}
-            </span>
+            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">v{version}</span>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
             {t(
