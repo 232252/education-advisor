@@ -8,6 +8,7 @@ import type { ClassEntity } from '@shared/types'
 import { GraduationCap } from 'lucide-react'
 import { Card } from '../../../components/Card'
 import { EmptyState } from '../../../components/EmptyState'
+import { useT } from '../../../i18n'
 import { cn, INPUT_BASE, TABLE_ROW, TABLE_TD, TABLE_TH } from '../../../lib/ui-utils'
 import type { ClassComparisonItem } from '../dashboard-stats'
 
@@ -36,28 +37,29 @@ export function ClassComparisonPanel({
   compareDataA: ClassComparisonRow | null
   compareDataB: ClassComparisonRow | null
 }) {
+  const { t } = useT()
   return (
     <Card padding="md" className="shadow-card animate-slide-up overflow-x-auto">
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-violet-500"></span>
-        班级对比总览
+        {t('page.classcmp.overview', '班级对比总览')}
       </h3>
       {classComparison.length === 0 ? (
-        <EmptyState icon={<GraduationCap size={28} />} title="暂无班级数据" className="py-6" />
+        <EmptyState icon={<GraduationCap size={28} />} title={t('page.classcmp.empty', '暂无班级数据')} className="py-6" />
       ) : (
         <table className="w-full text-sm min-w-[600px]">
           <thead>
             <tr>
-              <th className={TABLE_TH}>班级</th>
-              <th className={TABLE_TH}>年级</th>
-              <th className={TABLE_TH}>班主任</th>
-              <th className={cn(TABLE_TH, 'text-center')}>学生数</th>
-              <th className={cn(TABLE_TH, 'text-center')}>平均分</th>
-              <th className={cn(TABLE_TH, 'text-center')}>高风险</th>
-              <th className={cn(TABLE_TH, 'text-center')}>极高</th>
-              <th className={cn(TABLE_TH, 'text-center')}>高</th>
-              <th className={cn(TABLE_TH, 'text-center')}>中</th>
-              <th className={cn(TABLE_TH, 'text-center')}>低</th>
+              <th className={TABLE_TH}>{t('page.classcmp.colClass', '班级')}</th>
+              <th className={TABLE_TH}>{t('page.classcmp.colGrade', '年级')}</th>
+              <th className={TABLE_TH}>{t('page.classcmp.colTeacher', '班主任')}</th>
+              <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colCount', '学生数')}</th>
+              <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colAvg', '平均分')}</th>
+              <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colHighRisk', '高风险')}</th>
+              <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colVeryHigh', '极高')}</th>
+              <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colHigh', '高')}</th>
+              <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colMedium', '中')}</th>
+              <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colLow', '低')}</th>
             </tr>
           </thead>
           <tbody>
@@ -105,9 +107,9 @@ export function ClassComparisonPanel({
             value={compareClassA}
             onChange={(e) => onCompareClassAChange(e.target.value)}
             className={INPUT_BASE}
-            aria-label="选择对比班级 A"
+            aria-label={t('page.classcmp.selectA', '选择对比班级 A')}
           >
-            <option value="">选择班级 A...</option>
+            <option value=''>{t('page.classcmp.optionA', '选择班级 A...')}</option>
             {activeClassList.map((c) => (
               <option key={c.id} value={c.class_id}>
                 {c.name}
@@ -119,9 +121,9 @@ export function ClassComparisonPanel({
             value={compareClassB}
             onChange={(e) => onCompareClassBChange(e.target.value)}
             className={INPUT_BASE}
-            aria-label="选择对比班级 B"
+            aria-label={t('page.classcmp.selectB', '选择对比班级 B')}
           >
-            <option value="">选择班级 B...</option>
+            <option value=''>{t('page.classcmp.optionB', '选择班级 B...')}</option>
             {activeClassList.map((c) => (
               <option key={c.id} value={c.class_id}>
                 {c.name}
@@ -139,21 +141,21 @@ export function ClassComparisonPanel({
                 <h5 className="font-semibold text-sm mb-2">{d.className}</h5>
                 <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
                   <div className="flex justify-between">
-                    <span>学生数</span>
+                    <span>{t('page.classcmp.colCount', '学生数')}</span>
                     <span className="font-mono">{d.studentCount}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>平均分</span>
+                    <span>{t('page.classcmp.colAvg', '平均分')}</span>
                     <span className="font-mono">{d.avgScore.toFixed(1)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>高风险</span>
+                    <span>{t('page.classcmp.colHighRisk', '高风险')}</span>
                     <span className={`font-mono ${d.highRisk > 0 ? 'text-red-500 font-bold' : ''}`}>
                       {d.highRisk}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span>极高</span>
+                    <span>{t('page.classcmp.colVeryHigh', '极高')}</span>
                     <span className="font-mono text-red-500">{d.riskDistribution.极高}</span>
                   </div>
                   <div className="flex justify-between">

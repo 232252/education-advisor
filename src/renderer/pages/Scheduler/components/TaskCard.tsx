@@ -28,6 +28,8 @@ export const TaskCard = memo(function TaskCard({
   onRemove,
   onEdit,
 }: TaskCardProps) {
+
+  const { t } = useT()
   const agent = agents.find((a) => a.id === task.agentId)
 
   return (
@@ -134,7 +136,7 @@ export const TaskCard = memo(function TaskCard({
       {/* 展开显示 prompt */}
       {selected && (
         <div className="mt-3 pt-3 border-t border-gray-200 dark:border-white/[0.06]">
-          <div className="text-xs text-gray-400 dark:text-gray-500 mb-1">执行指令:</div>
+          <div className="text-xs text-gray-400 dark:text-gray-500 mb-1">{t('page.scheduler.card.promptLabel', '执行指令:')}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-surface-tertiary rounded px-3 py-2 font-mono">
             {task.prompt}
           </div>
@@ -143,3 +145,4 @@ export const TaskCard = memo(function TaskCard({
     </div>
   )
 })
+import { useT } from '../../../i18n'
