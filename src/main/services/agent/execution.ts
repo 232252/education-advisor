@@ -30,6 +30,8 @@ import { ollamaService } from '../ollama-service'
 import { settingsService } from '../settings-service'
 import { runContinuationLoop } from './continuation'
 import { createEventCollector } from './event-collector'
+import { memoryService } from './memory-service'
+import { assertPrivacyReadyForRun, isAutoAnonymizeEnabled, PrivacyGuard } from './privacy-guard'
 import { sendAgentStatus } from './status-tracking'
 import { buildSystemPrompt } from './system-prompt'
 import { withTimeout } from './timeout'
@@ -60,6 +62,25 @@ export async function executeAgentRun(
     throw new Error(msg)
   }
 
+  // ── 隐私自动脱敏(fail-closed) ──
+  // 开启 privacy.enabled + autoAnonymize 但隐私引擎未解锁 → 直接失败,
+  // 不静默发送含真实姓名的内容给模型(违背用户明确表达的脱敏意图)。
+  assertPrivacyReadyForRun()
+  let privacyGuard: PrivacyGuard | undefined
+  if (isAutoAnonymizeEnabled()) {
+    try {
+      privacyGuard = await PrivacyGuard.create()
+      console.log(
+        `[AgentService] runAgent(${id}) privacy guard active (${privacyGuard.mappingCount} mappings)`,
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      deps.setStatus(id, 'error')
+      sendAgentStatus(win, id, 'error', { error: `隐私脱敏初始化失败: ${msg}` })
+      throw new Error(`隐私脱敏初始化失败: ${msg}`)
+    }
+  }
+
   // 选择模型
   // P0-2: ollama 等本地 keyless provider 的已安装列表需异步预取
   // (selectModel 是同步纯函数,无法内部 await ollamaService.listModels)
@@ -76,8 +97,9 @@ export async function executeAgentRun(
 
   // 选择工具(三层 MCP 合并,抽出为 buildAgentTools 方法)
   // M32: 传入 win — main 的 delegate_to 委托运行需复用该窗口推送状态
+  // privacyGuard 非空时 EAA 工具会被包装(入参化名→真名,结果真名→化名)
   // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
-  const tools: AgentTool<any>[] = await deps.buildAgentTools(config, id, win)
+  const tools: AgentTool<any>[] = await deps.buildAgentTools(config, id, win, privacyGuard)
 
   // MEDIUM-2 修复: 启动竞态窗口 — buildAgentTools 等 await 期间 runningAgents 尚未注册,
   // 此窗口内的 abortAgent 靠"无条件递增 generation"生效,此处出 await 后立即检查。
@@ -108,16 +130,20 @@ export async function executeAgentRun(
     `[AgentService] runAgent(${id}) chat config: steering=${steeringMode} followUp=${followUpMode} showImages=${showImages} compaction=${compactionEnabled ? 'on' : 'off'} reserve=${compactionReserve} keepRecent=${compactionKeep}`,
   )
 
-  // 构造 system prompt (含 SOUL + 公共规则 + 角色 Rules + Skills + 转向/后续/图片设置)
+  // 构造 system prompt (含 SOUL + 项目背景 + 公共规则 + 角色 Rules + Skills
+  //  + 长期记忆 + 风险阈值 + 转向/后续/图片设置)
   // 注意:此处先拼好,后面会被 systemPrompt setter 覆盖
   // M10: 公共规则(agents/_shared/rules.md)单点注入,角色 AGENTS.md 只保留角色差异段
   // M16: 模板拼接拆到 agent/system-prompt.ts(纯函数)
   const systemPrompt = buildSystemPrompt({
     config: { name: config.name, role: config.role, description: config.description },
     soulContent: deps.getSoulContent(id),
+    projectContextContent: deps.getProjectContextContent(),
     sharedRulesContent: deps.getSharedRulesContent(),
     rulesContent: deps.getRulesContent(id),
     skillsSection: deps.buildSkillsSection(),
+    memorySection: memoryService.getMemorySection(id),
+    riskThresholds: config.riskThresholds,
     steeringMode,
     followUpMode,
     showImages,
@@ -233,29 +259,52 @@ export async function executeAgentRun(
   const collector = createEventCollector(win, id)
   const { stats } = collector
 
+  // 脱敏开启时,流式增量先经 carry 过滤器安全还原(尾部疑似化名前缀的字符
+  // 扣到下一段再判定,避免 "S_001" 被切成两半漏替换),再进入收集器 —
+  // stats.outputText 与推送给渲染进程的内容因此都已是真名。
+  const streamDeanon = privacyGuard?.createStreamDeanonymizer()
+  const collectorHandler = (event: Parameters<typeof collector.handler>[0]) => {
+    if (
+      streamDeanon &&
+      event.type === 'message_update' &&
+      event.assistantMessageEvent &&
+      event.assistantMessageEvent.type === 'text_delta'
+    ) {
+      const restored = streamDeanon.push(event.assistantMessageEvent.delta)
+      collector.handler({
+        ...event,
+        assistantMessageEvent: { ...event.assistantMessageEvent, delta: restored },
+      })
+      return
+    }
+    collector.handler(event)
+  }
+
   // M-4 修复: 声明 dbExecId 在 try 外(供 catch 使用),赋值移入 try 内
   // 之前 recordExecutionStart 在 try-catch 外,若 DB 抛错会导致 agent 状态卡死、unsubscribe 泄漏
   let dbExecId = -1
 
-  const unsubscribe = agent.subscribe(collector.handler)
+  const unsubscribe = agent.subscribe(collectorHandler)
 
   // ── 注入对话历史（让 Agent 拥有完整上下文）──
   // pi-agent-core 的 runAgentLoop 会将 state.messages + 新 prompt 合并后发给 LLM
   // 因此这里把前端传来的聊天历史转为 AgentMessage[] 并注入 state.messages
+  // 脱敏开启时历史内容先真名→化名(历史含真实姓名,不能原样发给模型)
   if (history && history.length > 0) {
     const historyMessages: AgentMessage[] = []
     for (const msg of history) {
       if (!msg.content) continue
+      const content = privacyGuard ? privacyGuard.anonymize(msg.content) : msg.content
       if (msg.role === 'user') {
         historyMessages.push({
           role: 'user' as const,
-          content: msg.content,
+          content,
           timestamp: Date.now(),
         })
       } else if (msg.role === 'assistant') {
         historyMessages.push({
           role: 'assistant' as const,
-          content: [{ type: 'text' as const, text: msg.content }],
+          content: [{ type: 'text' as const, text: content }],
           api: model.api,
           provider: model.provider,
           model: model.id,
@@ -295,7 +344,7 @@ export async function executeAgentRun(
       'agent',
       `runAgent(${id}) calling agent.prompt(), model=${model.provider}/${model.id}, apiKey=${apiKeyResolved ? 'present' : 'MISSING'}, tools=${tools.length}`,
     )
-    await agent.prompt(prompt)
+    await agent.prompt(privacyGuard ? privacyGuard.anonymize(prompt) : prompt)
     console.log(`[AgentService] runAgent(${id}) prompt() resolved, waiting for idle...`)
     log('debug', 'agent', `runAgent(${id}) prompt() resolved, waiting for idle...`)
     await waitIdle(`Agent waitForIdle(${id})`)
@@ -329,11 +378,23 @@ export async function executeAgentRun(
     }
     console.log(`[AgentService] runAgent(${id}) idle, output length=${stats.outputText.length}`)
 
+    // 脱敏流式还原的收尾: 释放 carry 中扣住的尾部字符(镜像收集器的 text_delta 处理,
+    // 保证 stats 与渲染进程拿到完整文本)
+    if (streamDeanon) {
+      const rest = streamDeanon.flush()
+      if (rest) {
+        stats.outputText += rest
+        sendAgentStatus(win, id, 'running', { output: rest })
+      }
+    }
+
     // 优化: 当输出为空且 LLM 返回了错误时,标记为 error 而非 success
     // 此前 stopReason=error 的空输出被标记为 success,用户看不到任何错误提示
     const hasError = stats.outputText.length === 0 && !!stats.lastErrorMessage
     const finalStatus: AgentExecution['status'] = hasError ? 'error' : 'success'
-    const finalOutput = stats.outputText || (hasError ? `[LLM 错误] ${stats.lastErrorMessage}` : '')
+    const rawOutput = stats.outputText || (hasError ? `[LLM 错误] ${stats.lastErrorMessage}` : '')
+    // 兜底还原(流式过滤器已处理绝大多数;对非化名文本是 no-op)
+    const finalOutput = privacyGuard ? privacyGuard.deanonymize(rawOutput) : rawOutput
 
     // 记录执行历史
     const execution: AgentExecution = {

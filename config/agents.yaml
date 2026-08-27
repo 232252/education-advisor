@@ -4,6 +4,12 @@
 # capabilities 映射: score, add_event, history, search, list,
 #   ranking, stats, codes, summary, add_student, range,
 #   read (= 只读工具集), write (= 写入工具集), all / *
+#   escalate (= 获得 escalate_to_main 紧急上报工具,仅安全类角色)
+# schedule.cron 条目支持两种形态(向后兼容):
+#   - 字符串: "0 6 * * *"
+#   - 对象:   { cron: "0 6 * * *", prompt: "具体任务指令..." }
+# risk_thresholds 语义(全系统统一): 分数 < high 高风险; high-medium 中风险;
+#   medium-low 低风险; >= low 优秀
 # =============================================================
 
 agents:
@@ -40,7 +46,7 @@ agents:
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 督导 Agent：数据治理与督导复盘 ───
   - id: governor
@@ -59,17 +65,24 @@ agents:
       - ranking
     schedule:
       cron:
-        - "0 6 * * *"      # 每日06:00 晨间数据质量检查
-        - "0 12 * * *"     # 每日12:00 午间数据校验
-        - "0 18 * * *"     # 每日18:00 晚间数据校验
-        - "0 22 * * *"     # 每日22:00 督导复盘+数字孪生
-        - "0 17 * * 5"     # 每周五17:00 谈话提醒
-        - "0 22 * * 0"     # 每周日22:00 系统周报
-        - "0 9 1 * *"      # 每月1日09:00 月度数据检查
+        - cron: "0 6 * * *"
+          prompt: "执行晨间数据质量检查: 用 eaa_stats 与 eaa_summary 校验昨日事件完整性与分数一致性,发现异常列出具体学生与问题。"
+        - cron: "0 12 * * *"
+          prompt: "执行午间数据校验: 检查上午新增事件是否有重复或异常记录,输出简短校验结论。"
+        - cron: "0 18 * * *"
+          prompt: "执行晚间数据校验: 核对今日事件数量与分数变动是否匹配,异常项给出处理建议。"
+        - cron: "0 22 * * *"
+          prompt: "执行督导复盘并生成数字孪生快照: 汇总今日全班操行动态与风险变化,报告写入 data_archive/agent_outputs/。"
+        - cron: "0 17 * * 5"
+          prompt: "周五谈话提醒: 从 eaa_ranking 找出本周分数下降明显的学生,生成下周谈话建议名单。"
+        - cron: "0 22 * * 0"
+          prompt: "生成系统周报: 汇总本周操行事件统计(eaa_stats/eaa_range)并与上周对比,结构化周报写入 data_archive/agent_outputs/。"
+        - cron: "0 9 1 * *"
+          prompt: "执行月度数据检查: 统计本月事件总量、均分与极端值,评估数据质量并给出下月关注点。"
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 辅导员 Agent：学业日报 + 谈话计划 ───
   - id: counselor
@@ -87,12 +100,14 @@ agents:
       - add_event
     schedule:
       cron:
-        - "5 7 * * *"      # 每日07:05 学业日报+谈话计划
-        - "0 20 * * *"     # 每日20:00 更新谈话计划
+        - cron: "5 7 * * *"
+          prompt: "生成学业日报: 基于 eaa_summary 与 eaa_ranking 输出昨日操行与学业动态简报,列出建议今日关注的学生。"
+        - cron: "0 20 * * *"
+          prompt: "更新谈话计划: 结合最新操行数据调整近期谈话名单与优先级,写入 data_archive/agent_outputs/counselor_talk_plan.json。"
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 督导汇总 Agent：风险评估与综合报告 ───
   - id: supervisor
@@ -101,7 +116,9 @@ agents:
     description: |
       负责学生风险评估、生成综合督导报告、协调各 Agent 工作。
       多维度评估学生风险：学业、纪律、心理、人际。
-    enabled: true
+    # 已停用: 职能与 governor 重叠约 60%(复盘/周报/晨检均有重复 cron),
+    # 按治理决策统一收口到 governor;如需独立运行改回 true 即可
+    enabled: false
     model_tier: low_cost
     capabilities:
       - read
@@ -118,7 +135,7 @@ agents:
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 数据校验 Agent：数据准确性守护者 ───
   - id: validator
@@ -127,7 +144,9 @@ agents:
     description: |
       负责数据准确性、完整性、一致性校验，是质量管控的核心防线。
       每6小时自动核验一轮。
-    enabled: true
+    # 已停用: 数据校验职能已并入 governor 的晨/午/晚三时段检查;
+    # 如需独立运行改回 true 即可
+    enabled: false
     model_tier: low_cost
     capabilities:
       - read
@@ -139,7 +158,7 @@ agents:
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 学业分析 Agent：成绩分析与学业预警 ───
   - id: academic
@@ -157,11 +176,12 @@ agents:
       - ranking
     schedule:
       cron:
-        - "5 7 * * *"      # 每日07:05 学业报告
+        - cron: "5 7 * * *"
+          prompt: "生成学业分析日报: 分析近一日成绩与操行关联(eaa_summary),输出学业预警学生与干预建议。"
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 心理危机监测 Agent：学生心理安全防线 ───
   - id: psychology
@@ -177,13 +197,15 @@ agents:
       - search
       - history
       - summary
+      - escalate
     schedule:
       cron:
-        - "0 21 * * *"     # 每日21:00 心理检查
+        - cron: "0 21 * * *"
+          prompt: "执行心理巡查: 检索近期负面事件与异常信号(eaa_search),评估学生心理状态;发现高危信号立即用 escalate_to_main 上报。"
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 安全检查 Agent：实验室与校园安全 ───
   - id: safety
@@ -197,13 +219,15 @@ agents:
     capabilities:
       - read
       - add_event
+      - escalate
     schedule:
       cron:
-        - "0 8 * * 1"      # 每周一08:00 周检
+        - cron: "0 8 * * 1"
+          prompt: "执行周一周检: 检查上周实验室与校园安全相关事件记录,输出安全检查结论;发现隐患立即用 escalate_to_main 上报。"
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 家校沟通 Agent：通知生成与家长联系 ───
   - id: home_school
@@ -220,11 +244,12 @@ agents:
       - ranking
     schedule:
       cron:
-        - "30 8 * * *"     # 每日08:30 生成通知
+        - cron: "30 8 * * *"
+          prompt: "生成今日家校沟通建议: 挑选需要关注的学生,起草简短沟通要点供班主任参考。"
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 科研辅助 Agent：课题管理与论文数据 ───
   - id: research
@@ -241,11 +266,12 @@ agents:
       - stats
     schedule:
       cron:
-        - "10 22 * * *"    # 每日22:10 收集数据
+        - cron: "10 22 * * *"
+          prompt: "收集今日科研数据: 整理可用于课题的班级数据观察点,追加到研究笔记。"
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 系统维护 Agent：自维护与备份 ───
   - id: executor
@@ -262,11 +288,12 @@ agents:
       - codes
     schedule:
       cron:
-        - "0 1 * * *"      # 每日01:00 自维护
+        - cron: "0 1 * * *"
+          prompt: "执行系统自维护: 检查事件数据健康度(eaa_stats),输出维护结论与风险提示。"
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 谈话计划 Agent（功能已整合到 counselor，保留配置备用）───
   # P2-13 修复:已删除 agents/talk_planner/ 目录并从 yaml 移除条目(避免误导)
@@ -295,7 +322,7 @@ agents:
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 风险预警员：定时扫描高风险学生 ───
   - id: risk-alert
@@ -312,15 +339,18 @@ agents:
       - stats
       - summary
       - range
+      - escalate
     schedule:
       cron:
-        - "0 8 * * 1-5"    # 工作日早8点
-        - "0 17 * * 5"     # 每周五下午5点（周末前汇总）
+        - cron: "0 8 * * 1-5"
+          prompt: "执行晨间风险扫描: 用 eaa_ranking 与 eaa_stats 找出高风险学生(操行分低于85),生成预警清单;发现紧急情况用 escalate_to_main 上报。"
+        - cron: "0 17 * * 5"
+          prompt: "执行周末前风险汇总: 汇总本周风险变化,输出需要假期重点关注的学生清单。"
     # P2-12 修复:统一阈值 85/93/93
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 数据分析师：深度分析操行数据 ───
   - id: data-analyst
@@ -339,12 +369,13 @@ agents:
       - range
     schedule:
       cron:
-        - "0 9 * * 1"      # 每周一上午9点（周报）
+        - cron: "0 9 * * 1"
+          prompt: "生成周数据分析报告: 多维统计上周扣分原因分布与时段趋势(eaa_stats/eaa_range),输出数据洞察。"
     # P2-12 修复:统一阈值 85/93/93
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 学生关怀员：关注正向激励 ───
   - id: student-care
@@ -369,7 +400,7 @@ agents:
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 纪律管理员：严肃纪律处分 ───
   - id: discipline-officer
@@ -395,7 +426,7 @@ agents:
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── 周报撰写员：自动生成周报 ───
   - id: weekly-reporter
@@ -414,12 +445,13 @@ agents:
       - range
     schedule:
       cron:
-        - "0 16 * * 5"     # 每周五下午4点
+        - cron: "0 16 * * 5"
+          prompt: "生成班级操行周报: 汇总本周分数变动、风险预警、典型事件与改进建议,结构化输出并写入 data_archive/agent_outputs/。"
     # P2-12 修复:统一阈值 85/93/93
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100
 
   # ─── Bug Hunter：编程 Bug 复现 + 回归测试 ───
   - id: bug-hunter
@@ -438,4 +470,4 @@ agents:
     risk_thresholds:
       high: 85
       medium: 93
-      low: 93
+      low: 100

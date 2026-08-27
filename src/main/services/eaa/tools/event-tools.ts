@@ -24,6 +24,17 @@ const addEventParams = Type.Object({
   ),
   note: Type.Optional(Type.String({ description: '备注说明' })),
   tags: Type.Optional(Type.String({ description: '标签，分号分隔（如 期中;表扬）' })),
+  force: Type.Optional(
+    Type.Boolean({
+      description:
+        '超出常规分值范围（如 |delta|>10）时强制写入。仅在用户明确要求时使用，普通加减分不要传',
+    }),
+  ),
+  dry_run: Type.Optional(
+    Type.Boolean({
+      description: '只校验不真正写入（预演）。适合不确定原因码/分值是否正确时先验证一遍',
+    }),
+  ),
 })
 
 const revertEventParams = Type.Object({
@@ -50,6 +61,8 @@ export const addEventTool: AgentTool<typeof addEventParams> = {
       reasonCode: params.reason_code,
       delta: params.delta,
       note: params.note,
+      force: params.force,
+      dryRun: params.dry_run,
       tags: params.tags
         ? params.tags
             .split(';')

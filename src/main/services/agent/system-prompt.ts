@@ -9,18 +9,33 @@ export interface SystemPromptInput {
   config: { name: string; role: string; description: string }
   /** agents/<id>/SOUL.md 内容 */
   soulContent: string
+  /** agents/_shared/project-context.md 内容(项目级背景知识,可选) */
+  projectContextContent?: string
   /** agents/_shared/rules.md 内容(M10 公共规则单点注入) */
   sharedRulesContent: string
   /** agents/<id>/AGENTS.md 内容(角色差异段) */
   rulesContent: string
   /** Skills 清单段落 */
   skillsSection: string
+  /** 长期记忆段落(memory-service 注入,可选) */
+  memorySection?: string
+  /** 风险分级阈值(agents.yaml risk_thresholds,可选;消费此前无人读取的死字段) */
+  riskThresholds?: { high: number; medium: number; low: number }
   /** settings.chat.steeringMode */
   steeringMode: string
   /** settings.chat.followUpMode */
   followUpMode: string
   /** settings.chat.showImages */
   showImages: boolean
+}
+
+/** 风险阈值 → 可读分级标准(单一事实来源: agents.yaml risk_thresholds) */
+export function formatRiskThresholds(t: { high: number; medium: number; low: number }): string {
+  return (
+    `操行分风险分级标准(全系统统一): ` +
+    `分数 < ${t.high} 为高风险; ${t.high}–${t.medium} 为中风险; ` +
+    `${t.medium}–${t.low} 为低风险(正常关注); ≥ ${t.low} 为优秀。`
+  )
 }
 
 /**
@@ -31,15 +46,19 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   const baseSystemPrompt = [
     input.soulContent ||
       `你是 ${input.config.name}，角色: ${input.config.role}。${input.config.description}`,
+    input.projectContextContent ? `\n--- 项目背景 ---\n${input.projectContextContent}` : '',
     input.skillsSection,
     input.sharedRulesContent ? `\n--- 公共规则 ---\n${input.sharedRulesContent}` : '',
     input.rulesContent ? `\n--- 角色规则 ---\n${input.rulesContent}` : '',
+    input.memorySection ?? '',
   ]
     .filter(Boolean)
     .join('\n\n')
+  const riskLine = input.riskThresholds ? formatRiskThresholds(input.riskThresholds) : ''
   return (
     `${baseSystemPrompt}\n\n--- 运行环境 ---\n` +
     `你运行在用户的 **本地桌面应用**（Electron）中，**不是沙箱**，**不是云端**。你拥有完整的本地文件系统读写权限。\n` +
+    (riskLine ? `${riskLine}\n` : '') +
     `你可以用以下工具直接操作本地文件和系统：\n` +
     `| 工具 | 作用 |\n` +
     `|:-----|:-----|\n` +
