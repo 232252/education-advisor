@@ -11,6 +11,8 @@ export interface SystemPromptInput {
   soulContent: string
   /** agents/_shared/project-context.md 内容(项目级背景知识,可选) */
   projectContextContent?: string
+  /** 「当前班级」段(class-context 生成,可选;R2-05 让 AI 知道你的班) */
+  classContextSection?: string
   /** agents/_shared/rules.md 内容(M10 公共规则单点注入) */
   sharedRulesContent: string
   /** agents/<id>/AGENTS.md 内容(角色差异段) */
@@ -47,6 +49,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     input.soulContent ||
       `你是 ${input.config.name}，角色: ${input.config.role}。${input.config.description}`,
     input.projectContextContent ? `\n--- 项目背景 ---\n${input.projectContextContent}` : '',
+    input.classContextSection ?? '',
     input.skillsSection,
     input.sharedRulesContent ? `\n--- 公共规则 ---\n${input.sharedRulesContent}` : '',
     input.rulesContent ? `\n--- 角色规则 ---\n${input.rulesContent}` : '',

@@ -34,6 +34,7 @@ import { memoryService } from './memory-service'
 import { assertPrivacyReadyForRun, isAutoAnonymizeEnabled, PrivacyGuard } from './privacy-guard'
 import { sendAgentStatus } from './status-tracking'
 import { buildSystemPrompt } from './system-prompt'
+import { getClassContextSection } from './class-context'
 import { withTimeout } from './timeout'
 import type { AgentExecutionDeps } from './types'
 
@@ -130,19 +131,26 @@ export async function executeAgentRun(
     `[AgentService] runAgent(${id}) chat config: steering=${steeringMode} followUp=${followUpMode} showImages=${showImages} compaction=${compactionEnabled ? 'on' : 'off'} reserve=${compactionReserve} keepRecent=${compactionKeep}`,
   )
 
-  // 构造 system prompt (含 SOUL + 项目背景 + 公共规则 + 角色 Rules + Skills
+  // 构造 system prompt (含 SOUL + 项目背景 + 当前班级 + 公共规则 + 角色 Rules + Skills
   //  + 长期记忆 + 风险阈值 + 转向/后续/图片设置)
   // 注意:此处先拼好,后面会被 systemPrompt setter 覆盖
   // M10: 公共规则(agents/_shared/rules.md)单点注入,角色 AGENTS.md 只保留角色差异段
   // M16: 模板拼接拆到 agent/system-prompt.ts(纯函数)
+  // R2-05: 注入「当前班级」元数据 — AI 开场即知名称/年级/人数/科目
+  const classContextSection = await getClassContextSection()
   const systemPrompt = buildSystemPrompt({
     config: { name: config.name, role: config.role, description: config.description },
     soulContent: deps.getSoulContent(id),
     projectContextContent: deps.getProjectContextContent(),
+    classContextSection,
     sharedRulesContent: deps.getSharedRulesContent(),
     rulesContent: deps.getRulesContent(id),
     skillsSection: deps.buildSkillsSection(),
-    memorySection: memoryService.getMemorySection(id),
+    // R2-08: 记忆注入过脱敏管线 — 记忆落盘为真名(见 memory-tool),
+    // 当次运行开启自动脱敏时,出域前把真名转回化名(与 chat 历史同待遇)
+    memorySection: privacyGuard
+      ? privacyGuard.anonymize(memoryService.getMemorySection(id))
+      : memoryService.getMemorySection(id),
     riskThresholds: config.riskThresholds,
     steeringMode,
     followUpMode,

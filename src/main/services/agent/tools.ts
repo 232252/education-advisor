@@ -46,6 +46,11 @@ export function buildSkillsSection(): string {
   return `\n--- 可用技能 ---\n${entries.join('\n\n')}`
 }
 
+// R2-07 脱敏旁路封堵:只读类文件工具经 wrapTool 包装(结果真名→化名回流上下文);
+// 写类工具(write_file/write_excel/write_csv)不包装 — 本地落盘保留真名是安全方向,
+// 且模型把化名写进导出文件会直接产出废纸。
+const READ_SIDE_FILE_TOOL_NAMES = new Set(['read_file', 'read_excel', 'list_dir'])
+
 /**
  * 构造 Agent 运行时工具集(EAA + 文件 + 实用 + 记忆 + MCP)
  *
@@ -57,8 +62,9 @@ export function buildSkillsSection(): string {
  *
  * escalate_to_main — 仅当声明 'escalate' capability 时注入(psychology/risk-alert/safety)
  *
- * privacyGuard 非空时(开启自动脱敏的运行),EAA 工具经 wrapTool 包装:
- * 模型用化名调用工具 → 入参还原为真名执行 → 结果再脱敏回流模型上下文
+ * privacyGuard 非空时(开启自动脱敏的运行),EAA 工具 + 只读文件工具 + MCP 工具
+ * 经 wrapTool 包装:模型用化名调用工具 → 入参还原为真名执行 → 结果再脱敏回流模型上下文。
+ * R2-07 此前只有 EAA 工具被包装,read_excel 读成绩表可整表绕过脱敏(旁路)。
  */
 export async function buildAgentTools(
   config: AgentConfig,
@@ -72,13 +78,20 @@ export async function buildAgentTools(
   const mcpTools = await getMcpToolsForAgent(id, config.mcpServers)
   const rawEaaTools = getToolsByCapability(config.capabilities)
   const eaaTools = privacyGuard ? rawEaaTools.map((t) => privacyGuard.wrapTool(t)) : rawEaaTools
+  // R2-07: 只读文件工具纳入脱敏包装;MCP 是外部扩展宁可过保护 — 全部包装
+  const fileTools = privacyGuard
+    ? allFileTools.map((t) =>
+        READ_SIDE_FILE_TOOL_NAMES.has(t.name) ? privacyGuard.wrapTool(t) : t,
+      )
+    : allFileTools
+  const guardedMcpTools = privacyGuard ? mcpTools.map((t) => privacyGuard.wrapTool(t)) : mcpTools
   // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
   const tools: AgentTool<any>[] = [
     ...eaaTools,
-    ...allFileTools, // 文件工具（read_file, read_excel, write_excel, write_csv, list_dir）
+    ...fileTools, // 文件工具（read_file, read_excel, write_excel, write_csv, list_dir）
     ...allUtilityTools, // 实用工具（get_current_time, calculate）
-    createMemoryTool(id), // save_memory — 长期记忆写入(所有角色)
-    ...mcpTools, // MCP 工具(动态注入,工具名前缀 mcp_<serverId>_)
+    createMemoryTool(id, privacyGuard), // save_memory — 长期记忆写入(所有角色;落盘前化名→真名)
+    ...guardedMcpTools, // MCP 工具(动态注入,工具名前缀 mcp_<serverId>_)
   ]
   if (delegateDeps && id === DELEGATE_SOURCE_AGENT_ID) {
     tools.push(createDelegateToTool(delegateDeps, { sourceAgentId: id, win }))

@@ -1,56 +1,35 @@
 ---
 name: STUDENT_MANAGEMENT
-description: 学生操行管理技能 — 用内置 eaa_* 工具查询分数/记录加减分/撤销事件,含原因码标准分值表与操作规范
+description: 学生操行数据操作手册 — 何时用哪些 eaa_* 工具、write 类工具的参数与约束（dry_run/force/撤销）；适合「怎么加分扣分/撤销/查名单」类操作问题。通用规则（先确认/数据即工具）不在此重复，见系统自动注入的公共规则。
 ---
 
-# 学生管理技能
+# 学生管理操作手册（技能）
 
-你无需调用外部 CLI — 系统已把 eaa 数据引擎封装为内置工具，直接调用即可。
+本技能聚焦**操作参数与约束**；通用行为规则（数字来自工具、写操作先复述确认、化名）由公共规则注入，此处不重复，阅读本技能即可专注工具用法。
 
-## 数据查询（内置工具）
+## 查询类工具
 
-| 工具 | 用途 |
-|:-----|:-----|
-| `eaa_score` | 查询单个学生分数与风险等级 |
-| `eaa_history` | 学生事件时间线 |
-| `eaa_search` | 按关键词搜索事件 |
-| `eaa_ranking` | 班级排行榜 |
-| `eaa_list_students` | 学生名单 |
-| `eaa_stats` / `eaa_summary` | 班级统计 / 区间汇总 |
-| `eaa_codes` | 原因码完整列表（分值以它为准） |
-| `eaa_tag` / `eaa_range` | 标签查询 / 时间段汇总 |
+| 工具 | 用途 | 关键参数 |
+|:-----|:-----|:-----|
+| `eaa_score` | 单生分数 + 风险等级 | student_name |
+| `eaa_history` | 单生事件时间线（撤销前先查 event_id） | student_name |
+| `eaa_search` | 按关键词搜事件 | 关键词 |
+| `eaa_list_students` | 学生名单（含 class_id / 学号 / 性别） | 无 |
+| `eaa_ranking` | 排行榜 | n（默认 10） |
+| `eaa_stats` / `eaa_summary` | 班级统计 / 区间汇总 | 可选范围 |
+| `eaa_codes` | 原因码全表（分值以此为准） | 无 |
+| `eaa_tag` / `eaa_range` | 按标签查 / 按时间段汇总 | tag / 起止日期 |
 
-## 数据写入（内置工具）
+## 写入类工具（参数与约束）
 
-- **加减分**： `eaa_add_event`，参数 `student_name` / `reason_code` / `delta`(可省，自动取标准分值) / `note` / `tags`(分号分隔)
-- **撤销**： `eaa_revert_event`，参数 `event_id`(从 `eaa_history` / `eaa_search` 获取) + `reason`
-- **不确定时**： `eaa_add_event` 传 `dry_run: true` 先预演校验，不真正写入
-- **超常规分值**（|delta| > 10）： 需 `force: true`，且必须先向用户确认
+- **`eaa_add_event` 加分/扣分**：参数 `student_name` / `reason_code` / `delta`（可省，自动取标准分值）/ `note` / `tags`（分号分隔）
+  - `dry_run: true` — 只预演校验不落库；不确定分值或参数时先用它
+  - `force: true` — 超常规分值（|delta| > 10）必须显式传，且必须先经用户确认
+- **`eaa_revert_event` 撤销**：参数 `event_id`（从 `eaa_history`/`eaa_search` 获取）+ 撤销原因 `reason`。撤销是留痕对冲，事件本身不可删除
+- **`eaa_add_student` 新增学生**：`name` / `class_id` / 可选 meta（学号、性别）；学生已存在会报错
 
-## 原因码参考
+## 常见操作流程
 
-| 代码 | 标准分 | 说明 |
-|:-----|:-----:|:-----|
-| SPEAK_IN_CLASS | -2 | 课堂讲话 |
-| SLEEP_IN_CLASS | -2 | 课堂睡觉 |
-| LATE | -2 | 迟到 |
-| SMOKING | -10 | 抽烟 |
-| DRINKING_DORM | -5 | 寝室饮酒 |
-| PHONE_IN_CLASS | -5 | 手机违纪 |
-| SCHOOL_CAUGHT | -5 | 学校抓拍 |
-| APPEARANCE_VIOLATION | -2 | 仪容违纪 |
-| DESK_UNALIGNED | -1 | 桌椅不整齐 |
-| MONTHLY_ATTENDANCE | +2 | 月勤奖励 |
-| CLASS_MONITOR | +10 | 班长履职 |
-| CLASS_COMMITTEE | +5 | 班委履职 |
-| CIVILIZED_DORM | +3 | 文明寝室 |
-
-完整列表以 `eaa_codes` 实时结果为准。
-
-## 操作规范
-
-1. **所有数字必须来自工具输出** — 没查到的数据就是不存在，禁止凭记忆报分数
-2. 写操作前先向用户复述确认（学生、原因码、分值），确认后再执行
-3. 禁止直接读写 events.json / entities.json 数据文件
-4. 事件不可删除，只能通过 `eaa_revert_event` 对冲留痕
-5. 开启隐私模式时你看到的学生姓名是化名（如 S_001），直接用化名调用工具即可，系统会自动转换
+1. **记一条扣分**：先用 `eaa_codes` 查标准分值 → 复述给用户确认 → `eaa_add_event`（必要时 dry_run 预演 → 确认后再真实写入）
+2. **记错了**：`eaa_history` 拿 event_id → `eaa_revert_event` 并注明原因；**不要**用一条反向事件对冲（除非教师明确要求）
+3. **批量导入**：需要教师提供 Excel/CSV 名单（或应用内导入），agent 不要凭空生成学生名单

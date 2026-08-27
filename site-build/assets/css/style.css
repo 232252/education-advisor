@@ -1402,6 +1402,27 @@ button {
   background: #0A1628;
 }
 
+.demo-video-16x10 {
+  aspect-ratio: 16 / 10;
+}
+
+.demo-item {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.demo-item + .demo-item {
+  margin-top: 64px;
+}
+
+.demo-item-title {
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 16px;
+}
+
 .demo-note {
   text-align: center;
   color: var(--text-tertiary);
