@@ -56,14 +56,16 @@ export function PrivacyPage() {
         actions={
           unlocked ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-green-500 dark:text-green-400">● 已解锁</span>
+              <span className="text-xs text-green-500 dark:text-green-400">
+                ● {t('page.privacy.unlocked', '已解锁')}
+              </span>
               <button
                 type="button"
                 onClick={handleLock}
-                aria-label="锁定隐私引擎"
+                aria-label={t('page.privacy.lockAction', '锁定隐私引擎')}
                 className={btnStyle('secondary')}
               >
-                🔒 锁定
+                🔒 {t('page.privacy.lock', '锁定')}
               </button>
             </div>
           ) : undefined
