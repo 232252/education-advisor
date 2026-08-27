@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
+import { resolveEaaDataDir as resolveEaaDataDirFromPaths } from '../paths'
 
 /**
  * R152 修复 + R135 强化: 清理 stale .lock 文件
@@ -73,9 +74,8 @@ export function cleanupStaleLock(dataDir: string): boolean {
  *               在编排层求值后传入,保证与拆分前 __dirname 的语义一致)
  */
 export function resolveDataDir(mainDir: string): string {
-  // 开发/测试/CI 覆盖入口: 若设置了 EAA_DATA_DIR 环境变量,直接使用该目录。
-  // 用于在不修改代码的情况下切换数据目录(如沙箱权限受限时指向可写位置)。
-  // 生产环境通常不设置此变量,走下方常规解析。
+  // R2-17: 打包态统一经 path-resolver(支持 settings.general.dataDir 自定义父目录);
+  // env 覆盖(EAA_DATA_DIR)保留最高优先。dev 判定与 R154 迁移逻辑原样保留。
   const envOverride = process.env.EAA_DATA_DIR
   if (envOverride && envOverride.trim().length > 0) {
     try {
@@ -91,21 +91,16 @@ export function resolveDataDir(mainDir: string): string {
   const legacyDir = path.join(app.getPath('userData'), 'eaa-data')
 
   // 检测是否为真正打包模式(process.resourcesPath 不含 node_modules/electron)
-  // 开发模式下 process.resourcesPath 类似:
-  //   C:\...\node_modules\electron\dist\resources
-  // 打包模式下 process.resourcesPath 类似:
-  //   C:\Users\...\AppData\Local\Programs\Education Advisor\resources
   const resourcesPath = process.resourcesPath || ''
   const isRealPackaged =
     !resourcesPath.includes('node_modules') && !resourcesPath.includes('electron')
 
-  // 真正打包模式: 用 userData/eaa-data(生产环境无沙箱限制)
+  // 真正打包模式: 统一经 path-resolver(userData/eaa-data 或自定义 dataDir)
   if (isRealPackaged) {
-    return legacyDir
+    return resolveEaaDataDirFromPaths()
   }
 
   // 开发模式: 用项目目录下的 .eaa-data
-  // mainDir 在编译后是 dist/main/,项目根是上两级
   const projectRoot = path.resolve(mainDir, '..', '..')
   const devDir = path.join(projectRoot, '.eaa-data')
 

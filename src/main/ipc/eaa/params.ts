@@ -10,6 +10,7 @@ import path from 'node:path'
 import type { SetStudentMetaParams } from '@shared/types'
 import { buildAddEventArgs as buildAddEventArgsImpl } from '../../services/eaa/arg-builders'
 import { sanitizeClassId, sanitizeName } from '../../utils/sanitize'
+import { isValidIsoDate } from './date-validation'
 
 /** 参数组装结果: ok=false 时 error 同时用于 IPC 返回的 error/stderr 字段 */
 export type CommandArgsResult = { ok: true; args: string[] } | { ok: false; error: string }
@@ -35,9 +36,8 @@ export function buildSetStudentMetaArgs(params: SetStudentMetaParams): string[] 
 
 /** 校验并组装 range 命令参数(YYYY-MM-DD 格式 + start<=end + limit) */
 export function buildRangeArgs(start: string, end: string, limit?: number): CommandArgsResult {
-  // 日期格式校验：YYYY-MM-DD
-  const dateRe = /^\d{4}-\d{2}-\d{2}$/
-  if (!dateRe.test(start) || !dateRe.test(end)) {
+  // 日期格式校验：YYYY-MM-DD(from date-validation.ts,R2-21 收敛)
+  if (!isValidIsoDate(start) || !isValidIsoDate(end)) {
     return { ok: false, error: 'start/end must be YYYY-MM-DD format' }
   }
   // R3 修复: 校验 start <= end,避免 Rust CLI 静默返回 null 造成前端困惑

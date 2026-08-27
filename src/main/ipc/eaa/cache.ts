@@ -73,3 +73,22 @@ export function createEaaCacheContext(): EaaCacheContext {
 
   return { staticCache, scoreCache, setStaticCacheIfSuccess }
 }
+
+// =============================================================
+// R2-20: 缓存失效改直调(私有 IPC 通道 '__invalidate_students_cache' 退休)
+// 原先用全局 EventEmitter 事件做「跨模块函数调用」:语义是事件实为调用,
+// 多实例注册会互相触发,靠 __invalidateListenerRegistered 守卫补救。
+// 现在 handlers-system 装配时注册失效函数,任何模块直接调用。
+// =============================================================
+
+let invalidateStudentsCacheFn: (() => void) | null = null
+
+/** 由 handlers-system 在装配时注册(幂等:多次调用覆盖为最新实例) */
+export function setInvalidateStudentsCacheFn(fn: () => void): void {
+  invalidateStudentsCacheFn = fn
+}
+
+/** 任何模块直接调用失效(替代 ipcMain.emit 私有通道) */
+export function invalidateStudentsCacheNow(): void {
+  invalidateStudentsCacheFn?.()
+}

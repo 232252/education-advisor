@@ -1,8 +1,33 @@
 // =============================================================
-// 共享 UI 工具函数 — 风险颜色、设计 tokens、class 合并
+// 共享 UI 工具函数 — 风险颜色、设计 tokens、class 合并、格式化
+// R2-21: formatDate/formatDateTime/formatBytes 统一收敛至此
+// (此前独立实现 5+ 处: Classes/lib/students、DataSection、
+//  Models/lib/local-models、print 三件套的 stamp)
 // =============================================================
 
 import type { EAARiskLevel } from '@shared/types'
+
+/** YYYY-MM-DD(接受 Date 或 epoch ms) */
+export function formatDate(v: Date | number): string {
+  const d = typeof v === 'number' ? new Date(v) : v
+  const pad = (x: number) => String(x).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** YYYY-MM-DD HH:mm:ss(epoch ms) */
+export function formatDateTime(ms: number): string {
+  const d = new Date(ms)
+  const pad = (x: number) => String(x).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+/** 人类可读字节大小 */
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`
+}
 
 /** 风险等级文字颜色（统一 4 处重复的 riskColor 函数） */
 export function riskColor(risk: EAARiskLevel | string): string {

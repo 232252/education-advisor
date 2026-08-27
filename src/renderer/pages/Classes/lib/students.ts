@@ -21,7 +21,5 @@ export function filterAssignableStudents(allStudents: EAAStudent[], classId: str
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/** 创建日期格式化为 YYYY-MM-DD */
-export function formatDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+/** 创建日期格式化为 YYYY-MM-DD(共享实现=R2-21 收敛,避免四处漂移) */
+export { formatDate } from '../../../lib/ui-utils'

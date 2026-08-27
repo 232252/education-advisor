@@ -10,6 +10,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 import { validateFilePath } from './security'
 import { textResult } from './shared'
+import { resolveAppDataDir } from '../paths'
 
 // =============================================================
 // Schema 定义
@@ -33,7 +34,14 @@ export const writeFileTool: AgentTool<typeof writeFileParams> = {
     // F1 修复: pi-agent-core 以 execute(id, args, signal) 传入 AbortSignal,入口协作式中止
     if (signal?.aborted) return textResult('已取消')
     validateFilePath(params.path)
-    const resolvedPath = path.resolve(params.path)
+    // R2-17: 提示词约定写入 data_archive/agent_outputs/ 的产物,在打包态
+    // 归一化到 userData(应用 cwd 可能是只读安装目录,写到那儿必失败且
+    // 与报告中心读取路径不一致);开发态保持项目根(与既有产物目录连续)
+    const isOutputsPath =
+      !path.isAbsolute(params.path) && /^(?:data_archive|agent_outputs)[\\/]/.test(params.path)
+    const resolvedPath = isOutputsPath
+      ? path.join(resolveAppDataDir(), params.path)
+      : path.resolve(params.path)
 
     // 确保父目录存在
     const dir = path.dirname(resolvedPath)

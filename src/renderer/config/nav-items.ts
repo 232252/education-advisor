@@ -8,6 +8,7 @@ import {
   Bot,
   Brain,
   CalendarClock,
+  FileText,
   GraduationCap,
   LayoutDashboard,
   type LucideIcon,
@@ -52,5 +53,11 @@ export const NAV_ITEMS: NavItem[] = [
     keywords: 'scheduler cron 定时',
   },
   { path: '/privacy', icon: ShieldCheck, labelKey: 'nav.privacy', keywords: 'privacy 隐私' },
+  {
+    path: '/reports',
+    icon: FileText,
+    labelKey: 'nav.reports',
+    keywords: 'reports weekly 周报 报告中心',
+  },
   { path: '/settings', icon: Settings, labelKey: 'nav.settings', keywords: 'settings 设置' },
 ]

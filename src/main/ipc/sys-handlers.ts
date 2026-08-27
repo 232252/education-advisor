@@ -47,6 +47,9 @@ export function registerSysHandlers(win: BrowserWindow) {
 
   // 获取系统路径
   // P1-34 修复:用 Parameters<typeof app.getPath>[0] 替代 as any,
+  // R2-16: 版本号单一来源 — electron-builder 注入的 package.json version
+  ipcMain.handle(IPC.IPC_SYS_GET_VERSION, () => app.getVersion())
+
   // 避免非法路径名（如 '../evil'）导致 app.getPath 抛错
   // H-8 修复: 加 try-catch,校验失败返回结构化错误
   ipcMain.handle(IPC.IPC_SYS_GET_PATH, async (_e, name: string) => {

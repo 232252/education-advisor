@@ -13,6 +13,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { Skill } from '@shared/types'
 import { app } from 'electron'
+import { getAppPaths } from './paths'
 
 class SkillService {
   private userSkillsDir: string
@@ -23,18 +24,9 @@ class SkillService {
   private cachedSkills: Skill[] = []
 
   constructor() {
-    // 用户级: ~/.education-advisor/skills/
-    // R155 修复: 开发模式下 TRAE Sandbox 阻止写入 %APPDATA%,
-    // 与 db-service/eaa-bridge 同模式: 开发模式重定向到项目根 .app-data/skills/
-    const resourcesPath = process.resourcesPath || ''
-    const isRealPackaged =
-      !resourcesPath.includes('node_modules') && !resourcesPath.includes('electron')
-    if (isRealPackaged) {
-      this.userSkillsDir = path.join(app.getPath('userData'), 'skills')
-    } else {
-      const projectRoot = path.resolve(__dirname, '..', '..')
-      this.userSkillsDir = path.join(projectRoot, '.app-data', 'skills')
-    }
+    // 用户级技能(R2-17 起统一经 path-resolver,dev 落 .app-data/skills,
+    // 打包落 userData/skills;此前在构造函数里自行判定 dev/prod)
+    this.userSkillsDir = getAppPaths().userSkillsDir
     // 项目级: resources/skills/ (打包后) 或项目根目录 skills/ (开发)
     // app.isPackaged 在 `electron .` 启动时不可靠，优先检查 dev 路径
     const devSkillsDir = path.join(__dirname, '..', '..', 'skills')

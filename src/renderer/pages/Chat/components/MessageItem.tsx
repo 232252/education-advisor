@@ -1,26 +1,44 @@
 // =============================================================
 // 单条消息项 — 头像 / 气泡 / 工具调用 / 思考过程 / 复制按钮
+// R2-15: memo 化 + copiedIdx 下沉到本条局部态 — 流式 flush 时
+//        旧消息 props 稳定直接短路,复制也不再触发全列表重渲
 // =============================================================
 
 import type { ChatMessage } from '@shared/types'
 import { Bot, Check, Copy } from 'lucide-react'
+import { memo, useState } from 'react'
 import { Markdown } from '../../../components/Markdown'
 import { useT } from '../../../i18n'
+import { toast } from '../../../stores/toastStore'
 import { ToolCallRow } from './ToolCallRow'
 import { TypingDots } from './TypingDots'
 
 interface MessageItemProps {
   msg: ChatMessage
-  index: number
   isStreaming: boolean
   isLast: boolean
-  copied: boolean
-  onCopy: (idx: number, text: string) => void
 }
 
-/** 消息列表中的单条消息（用户/助手气泡） */
-export function MessageItem({ msg, index, isStreaming, isLast, copied, onCopy }: MessageItemProps) {
+/** 消息列表中的单条消息（用户/助手气泡,memo 以消息引用+状态位为键短路） */
+export const MessageItem = memo(function MessageItem({
+  msg,
+  isStreaming,
+  isLast,
+}: MessageItemProps) {
   const { t } = useT()
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(msg.content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // R2-14: 剪贴板不可用要告知,否则用户以为复制成功
+      toast.error(t('toast.chat.copyFailed', '复制失败，请手动选择文本'))
+    }
+  }
+
   return (
     <div
       className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} ${msg.role !== 'user' ? 'gap-2.5 items-end' : ''}`}
@@ -76,7 +94,7 @@ export function MessageItem({ msg, index, isStreaming, isLast, copied, onCopy }:
         {msg.role !== 'user' && msg.content && !(isStreaming && isLast) && (
           <button
             type="button"
-            onClick={() => onCopy(index, msg.content)}
+            onClick={handleCopy}
             className="self-start mt-1 inline-flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity duration-150 px-1"
             aria-label={
               copied ? t('page.chat.message.copied', '已复制') : t('page.chat.message.copy', '复制')
@@ -98,4 +116,4 @@ export function MessageItem({ msg, index, isStreaming, isLast, copied, onCopy }:
       </div>
     </div>
   )
-}
+})
