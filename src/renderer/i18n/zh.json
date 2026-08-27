@@ -1420,5 +1420,17 @@
   "sidebar.collapse": "折叠侧边栏",
   "sidebar.toggle": "折叠/展开",
   "page.academics.common.listSeparator": "、",
-  "page.skills.subtitle": "技能 / MCP / 插件管理"
+  "page.skills.subtitle": "技能 / MCP / 插件管理",
+  "nav.reports": "报告中心",
+  "common.deleteIrreversible": "此操作不可恢复。",
+  "toast.chat.copyFailed": "复制失败，请手动选择文本",
+  "toast.settings.saveFailed": "设置保存失败，重启后将恢复上次选择",
+  "page.reports.subtitle": "AI 生成的周报、风险汇总与谈话计划产物（每周五自动生成，可一键补跑）",
+  "page.reports.generateNow": "立即生成周报",
+  "page.reports.generating": "正在生成…",
+  "page.reports.count": "共 {n} 份",
+  "page.reports.empty": "暂无报告产物",
+  "page.reports.emptyDesc": "点击右上角\"立即生成周报\"，或等待周五定时任务自动产出。",
+  "page.reports.previewEmpty": "选择左侧产物查看",
+  "page.reports.previewEmptyDesc": "报告产物支持 Markdown/JSON/文本，可直接阅读或复制。"
 }

@@ -22,6 +22,7 @@ import { registerSettingsHandlers } from './settings-handlers'
 import { registerSkillHandlers } from './skill-handlers'
 import { registerStudentExcelHandlers } from './students/excel-import-handlers'
 import { registerSysHandlers } from './sys-handlers'
+import { registerReportsHandlers } from './reports-handlers'
 
 export async function registerAllHandlers(win: BrowserWindow) {
   registerAIHandlers(win)
@@ -32,6 +33,7 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerSkillHandlers(win)
   registerSettingsHandlers(win)
   registerSysHandlers(win)
+  registerReportsHandlers()
   registerProfileHandlers()
   registerLogHandlers()
   registerFeishuHandlers(win)

@@ -1,9 +1,11 @@
 // =============================================================
 // 消息列表 — 空状态 + 消息流 + 底部滚动锚点 + 复制状态管理
+// R2-15: copiedIdx 下沉到 MessageItem 局部态(此前在 List 层,
+//        任意一次复制触发全列表重渲);handleCopy 依赖已稳定,List 本身增 memo
 // =============================================================
 
 import type { ChatMessage } from '@shared/types'
-import { type RefObject, useState } from 'react'
+import { memo, type RefObject } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
 import { useT } from '../../../i18n'
 import { getMessageKey } from '../lib/chat-message'
@@ -17,21 +19,19 @@ interface MessageListProps {
   messagesEndRef: RefObject<HTMLDivElement | null>
 }
 
-/** 消息区：遍历渲染消息 + 复制按钮交互状态 */
-export function MessageList({ messages, isStreaming, canSend, messagesEndRef }: MessageListProps) {
+/**
+ * 消息区：遍历渲染消息 + 复制按钮交互状态。
+ * R2-15: memo 化 — 流式 50ms 批量 flush 时,消息数组整体引用变化但
+ * 未变的消息对象引用稳定,MessageItem 内容 props 不变即短路,避免
+ * 长对话(几十条含表格/公式 Markdown)每次 flush 全量 VDOM 重 diff。
+ */
+export const MessageList = memo(function MessageList({
+  messages,
+  isStreaming,
+  canSend,
+  messagesEndRef,
+}: MessageListProps) {
   const { t } = useT()
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
-
-  // 复制助手消息内容到剪贴板
-  const handleCopy = async (idx: number, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopiedIdx(idx)
-      setTimeout(() => setCopiedIdx((cur) => (cur === idx ? null : cur)), 1500)
-    } catch {
-      /* 剪贴板不可用时静默忽略 */
-    }
-  }
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/30 dark:bg-transparent">
@@ -52,14 +52,11 @@ export function MessageList({ messages, isStreaming, canSend, messagesEndRef }: 
         <MessageItem
           key={getMessageKey(msg, i)}
           msg={msg}
-          index={i}
           isStreaming={isStreaming}
           isLast={i === messages.length - 1}
-          copied={copiedIdx === i}
-          onCopy={handleCopy}
         />
       ))}
       <div ref={messagesEndRef} />
     </div>
   )
-}
+})

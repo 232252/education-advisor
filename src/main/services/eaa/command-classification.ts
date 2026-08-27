@@ -6,52 +6,53 @@
 
 import type { EAACommand } from './types'
 
-/** 已知会产生 JSON 输出的命令（其余命令如 add/revert/export/dashboard 等为文本输出） */
+/**
+ * R2-23: 命令分类表与 core/eaa-cli/src/main.rs Commands 枚举逐项对齐。
+ * 此前 JSON_COMPATIBLE_COMMANDS 含 list/get/query/report/find/show/status 等
+ * 并不存在的子命令(防御性遗留,误导维护者),已删除。
+ * 全局选项 --output json 仅在分析/查询类命令追加。
+ */
+/** 已知会产生 JSON 输出的命令(追加 --output json) */
 export const JSON_COMPATIBLE_COMMANDS = new Set<string>([
-  'doctor',
-  'list',
-  'get',
-  'query',
+  'doctor', // 健康检查结构化输出
+  'info',
+  'validate',
+  'replay',
+  'history',
+  'ranking',
+  'score',
+  'codes',
   'search',
   'stats',
-  'report',
-  'find',
-  'show',
-  'status',
-  'history',
-  'summary',
-  'ranking',
-  'info',
-  'score',
-  'validate',
-  'range',
   'tag',
-  'codes',
+  'range',
+  'summary',
   'list-students',
-  'replay',
 ])
 
-/** 已知会产生文本/文件输出的命令（不追加 --output json） */
+/** 已知会产生文本/文件输出的命令(不追加 --output json) */
 export const TEXT_OUTPUT_COMMANDS = new Set<string>([
   'export', // 输出 CSV/JSONL/HTML 文件
   'dashboard', // 生成 HTML 文件
-  'serve', // 启动 HTTP 服务
-  'init', // 初始化
-  'config', // 配置
-  'privacy', // 隐私子命令（嵌套命令有自己的输出格式）
+  'rebuild-cache', // 进度文本
+  'privacy', // 隐私子命令(嵌套命令有自己的输出格式)
   'add',
   'revert',
   'add-student',
   'delete-student',
   'set-student-meta',
   'import',
+  'init', // 首次初始化 R2 后已并入 schema 初始化链,保留分类
+  'load',
+  'enable',
+  'disable',
 ])
 
 /** 所有其他命令均视为 JSON 兼容命令，自动追加 --output json */
 
 /**
  * RISK 7 修复: 需要串行化的写命令集合(基于 TEXT_OUTPUT_COMMANDS 中会修改数据的命令)。
- * doctor/list/get/query 等读命令不在此集合中,可并发执行。
+ * 读命令可并发执行。
  */
 export const WRITE_COMMANDS = new Set<string>([
   'add',
@@ -61,7 +62,6 @@ export const WRITE_COMMANDS = new Set<string>([
   'revert',
   'import',
   'init',
-  'config',
   'privacy',
 ])
 

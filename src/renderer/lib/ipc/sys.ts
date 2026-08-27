@@ -31,6 +31,8 @@ export interface SysAPI {
   openDialog: (options: unknown) => Promise<unknown>
   saveDialog: (options: unknown) => Promise<unknown>
   getPath: (name: string) => Promise<string>
+  /** 应用版本号(R2-16: 运行时读取 package.json version) */
+  getVersion: () => Promise<string>
   checkUpdate: () => Promise<CheckUpdateResult>
   showUpdateDialog: () => Promise<{ success: boolean }>
   /** 下载更新 (M31: electron-updater;进度经 onUpdateProgress 推送) */

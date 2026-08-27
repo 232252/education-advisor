@@ -20,6 +20,7 @@ import type { SettingsAPI } from './settings'
 import type { SkillAPI } from './skill'
 import type { StudentsAPI } from './students'
 import type { SysAPI } from './sys'
+import type { ReportsAPI } from './reports'
 
 // window.api 的类型声明（与 preload 脚本对应）
 export interface WindowAPI {
@@ -46,6 +47,8 @@ export interface WindowAPI {
   // 全量数据备份/恢复
   backup: BackupAPI
   sys: SysAPI
+  // R2-12 报告中心
+  reports: ReportsAPI
 }
 
 // 全局类型扩展
