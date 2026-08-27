@@ -1,12 +1,10 @@
 {
   "general": {
     "dataDir": "",
-    "defaultOperator": "班主任",
     "theme": "light",
     "language": "zh-CN",
     "autoUpdate": true,
     "updateUrl": "",
-    "telemetry": false,
     "logLevel": "info",
     "autoStart": false,
     "minimizeToTray": true,
@@ -68,11 +66,6 @@
       "syncInterval": "0 */6 * * *"
     },
     "agentPushEnabled": false
-  },
-  "advanced": {
-    "shellPath": "",
-    "sessionDir": "",
-    "httpIdleTimeoutMs": 120000
   },
   "shortcuts": {
     "chat.new": "Ctrl+N",

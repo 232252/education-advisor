@@ -42,6 +42,31 @@ export interface TaskExecutionCtx {
   broadcastStatus(taskId: string, task: CronTask): void
 }
 
+// =============================================================
+// R2-03 接线: general.maxConcurrentCronTasks(此前仅 UI 可配,后端不消费)
+// 简易计数信号量 — 同刻多条 cron 触发时,超过上限的任务在队列中等待,
+// 避免并发压 LLM API(2026-08 上游 429 配额错误的实证诱因之一)。
+// 只闸 agent 类任务;__feishu__/__backup__ 为本地/低成本操作不设限。
+// =============================================================
+let activeAgentRuns = 0
+const runSlotWaiters: Array<() => void> = []
+
+async function acquireAgentRunSlot(): Promise<void> {
+  const configured = settingsService.getSettings().general?.maxConcurrentCronTasks
+  const max = Math.max(1, Number.isFinite(configured) ? (configured as number) : 5)
+  if (activeAgentRuns >= max) {
+    log('info', 'cron', `agent run queued (${activeAgentRuns}/${max} concurrent slots busy)`)
+    await new Promise<void>((resolve) => runSlotWaiters.push(resolve))
+  }
+  activeAgentRuns++
+}
+
+function releaseAgentRunSlot(): void {
+  activeAgentRuns = Math.max(0, activeAgentRuns - 1)
+  const next = runSlotWaiters.shift()
+  if (next) next()
+}
+
 /**
  * 执行任务 — Critical 2.2 修复: __feishu__ 路由到 executeBitableSync 而非 agentRunner
  * High 2.3 修复: per-task 锁防止 runNow + cron 定时并发执行同一任务
@@ -110,35 +135,41 @@ export async function executeCronTask(
         pushLog: (entry) => ctx.pushLog(entry),
       })
     } else if (ctx.agentRunner) {
-      const execution = await ctx.agentRunner(task.agentId, task.prompt, ctx.mainWindow)
-      recordAgentRunOutcome({
-        task,
-        taskId,
-        timestamp,
-        startTime,
-        execution,
-        circuitBreaker: ctx.circuitBreaker,
-        pushLog: (entry) => ctx.pushLog(entry),
-      })
-      // 定时报告类任务(周报/风险预警等)产出后推送飞书 — 此前生成物只落
-      // DB 与 GUI,教师不开应用就看不到;推送开关默认关闭(settings.feishu.agentPushEnabled)
-      if (
-        execution?.status === 'success' &&
-        execution.output &&
-        FEISHU_PUSH_AGENT_IDS.includes(task.agentId)
-      ) {
-        const s = settingsService.getSettings()
-        if (s.feishu?.agentPushEnabled) {
-          void sendAgentAlert(`${task.name} 完成`, execution.output).then((r) => {
-            if (r.skipped) {
-              log('info', 'cron', `agent push skipped (${task.agentId}): ${r.skipped}`)
-            } else if (!r.success) {
-              log('warn', 'cron', `agent push failed (${task.agentId}): ${r.error}`)
-            } else {
-              log('info', 'cron', `agent push sent (${task.agentId})`)
-            }
-          })
+      // R2-03: 并发闸门 — 超过 maxConcurrentCronTasks 的任务在此排队
+      await acquireAgentRunSlot()
+      try {
+        const execution = await ctx.agentRunner(task.agentId, task.prompt, ctx.mainWindow)
+        recordAgentRunOutcome({
+          task,
+          taskId,
+          timestamp,
+          startTime,
+          execution,
+          circuitBreaker: ctx.circuitBreaker,
+          pushLog: (entry) => ctx.pushLog(entry),
+        })
+        // 定时报告类任务(周报/风险预警等)产出后推送飞书 — 此前生成物只落
+        // DB 与 GUI,教师不开应用就看不到;推送开关默认关闭(settings.feishu.agentPushEnabled)
+        if (
+          execution?.status === 'success' &&
+          execution.output &&
+          FEISHU_PUSH_AGENT_IDS.includes(task.agentId)
+        ) {
+          const s = settingsService.getSettings()
+          if (s.feishu?.agentPushEnabled) {
+            void sendAgentAlert(`${task.name} 完成`, execution.output).then((r) => {
+              if (r.skipped) {
+                log('info', 'cron', `agent push skipped (${task.agentId}): ${r.skipped}`)
+              } else if (!r.success) {
+                log('warn', 'cron', `agent push failed (${task.agentId}): ${r.error}`)
+              } else {
+                log('info', 'cron', `agent push sent (${task.agentId})`)
+              }
+            })
+          }
         }
+      } finally {
+        releaseAgentRunSlot()
       }
     } else {
       console.warn(`[CronService] Agent runner not set, skipping task ${taskId}`)
