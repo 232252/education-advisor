@@ -9,6 +9,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 import { textResult } from '../eaa/tools/shared'
 import { memoryService } from './memory-service'
+import type { PrivacyGuard } from './privacy-guard'
 
 const saveMemoryParams = Type.Object({
   content: Type.String({
@@ -23,8 +24,17 @@ const saveMemoryParams = Type.Object({
   ),
 })
 
-/** 创建 save_memory 工具实例(每次运行重建,捕获当次 agentId) */
-export function createMemoryTool(agentId: string): AgentTool<typeof saveMemoryParams> {
+/**
+ * 创建 save_memory 工具实例(每次运行重建,捕获当次 agentId)。
+ * R2-08: privacyGuard 存在时,落盘前把内容中的化名还原为真名 —
+ * 记忆是本地数据,存储基准态与 entities.json 一致(本地真名/出域脱敏);
+ * 若存化名,隐私引擎重置后映射丢失,S_xxx 将永远无法还原,记忆库变废。
+ * 注入侧(execution.ts)在每次运行时按当次脱敏开关重新 anonymize。
+ */
+export function createMemoryTool(
+  agentId: string,
+  privacyGuard?: PrivacyGuard,
+): AgentTool<typeof saveMemoryParams> {
   return {
     name: 'save_memory',
     label: '保存长期记忆',
@@ -34,7 +44,8 @@ export function createMemoryTool(agentId: string): AgentTool<typeof saveMemoryPa
     execute: async (_toolCallId, params) => {
       const category = params.category?.trim() || 'fact'
       try {
-        const entry = memoryService.addEntry(agentId, params.content, category)
+        const content = privacyGuard ? privacyGuard.deanonymize(params.content) : params.content
+        const entry = memoryService.addEntry(agentId, content, category)
         return textResult(
           `已保存记忆 [${entry.category}] ${entry.content.slice(0, 100)} — 该记忆将在后续运行中自动加载。`,
         )

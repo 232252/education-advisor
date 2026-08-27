@@ -17,6 +17,10 @@ import { app } from 'electron'
 class SkillService {
   private userSkillsDir: string
   private projectSkillsDir: string
+  // R2-11: 目录 mtime 缓存 — listSkills 被每次 agent 运行调用,
+  // 此前每次全量读盘扫两目录;技能增删改都是低频操作(用户级走 saveSkill/deleteSkill)
+  private cachedSignature: string | null = null
+  private cachedSkills: Skill[] = []
 
   constructor() {
     // 用户级: ~/.education-advisor/skills/
@@ -42,8 +46,11 @@ class SkillService {
     console.log(`[SkillService]   project dir: ${this.projectSkillsDir}`)
   }
 
-  /** 扫描并列出所有技能 */
+  /** 扫描并列出所有技能(R2-11: 目录 mtime 未变时直接返回缓存) */
   listSkills(): Skill[] {
+    const sig = this.dirSignature()
+    if (this.cachedSignature === sig) return this.cachedSkills
+
     const skills: Skill[] = []
 
     // 扫描用户级技能 (单个目录失败不影响另一个)
@@ -72,7 +79,31 @@ class SkillService {
     }
 
     console.log(`[SkillService] Total: ${skills.length} skills`)
+    this.cachedSignature = sig
+    this.cachedSkills = skills
     return skills
+  }
+
+  /** 两个技能目录的 mtime 签名;目录缺失时以占位值参与计算 */
+  private dirSignature(): string {
+    const sigOf = (dir: string): string => {
+      try {
+        const st = fs.statSync(dir)
+        if (!st.isDirectory()) return `missing:${dir}`
+        // mtime 精度不够两目录比较,掺入文件数;单文件内容变化不改变上层
+        // 判定 —— 用户改技能文件会走 saveSkill/deleteSkill,后者显式失效缓存
+        return `${st.mtimeMs}:${fs.readdirSync(dir).length}:${dir}`
+      } catch {
+        return `missing:${dir}`
+      }
+    }
+    return `${sigOf(this.userSkillsDir)}|${sigOf(this.projectSkillsDir)}`
+  }
+
+  /** 写/删技能后失效缓存(下次 listSkills 重扫) */
+  private invalidateCache(): void {
+    this.cachedSignature = null
+    this.cachedSkills = []
   }
 
   /** 读取指定技能内容 */
@@ -98,6 +129,7 @@ class SkillService {
       fs.mkdirSync(this.userSkillsDir, { recursive: true })
       const filePath = path.join(this.userSkillsDir, `${name}.md`)
       fs.writeFileSync(filePath, content, 'utf-8')
+      this.invalidateCache()
       console.log(`[SkillService] Saved skill: ${name}`)
       return { success: true }
     } catch (err) {
@@ -116,6 +148,7 @@ class SkillService {
       const filePath = path.join(this.userSkillsDir, `${name}.md`)
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath)
+        this.invalidateCache()
         console.log(`[SkillService] Deleted skill: ${name}`)
         return { success: true }
       }
