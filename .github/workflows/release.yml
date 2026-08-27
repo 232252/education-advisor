@@ -150,6 +150,8 @@ jobs:
             release-v*/*.deb
             release-v*/latest*.yml
             release-v*/*.blockmap
+            # R2-01: 官网演示视频随 release 上传为固定名资产,站点可零维护引用
+            site-build/assets/media/eea-intro.mp4
           retention-days: 14
           if-no-files-found: warn
 
