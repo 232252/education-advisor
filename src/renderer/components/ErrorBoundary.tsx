@@ -5,6 +5,7 @@
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { Button } from './Button'
+import { t } from '../i18n'
 
 interface Props {
   children: ReactNode
@@ -65,13 +66,13 @@ export class ErrorBoundary extends Component<Props, State> {
           </svg>
         </div>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-          页面渲染出错了
+          {t('error.boundary.title', '页面渲染出错了')}
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mb-4">
-          {this.state.error?.message || '发生了未知错误'}
+          {this.state.error?.message || t('error.boundary.unknown', '发生了未知错误')}
         </p>
         <Button size="lg" onClick={() => this.setState({ hasError: false, error: null })}>
-          重试
+          {t('error.boundary.retry', '重试')}
         </Button>
       </div>
     )

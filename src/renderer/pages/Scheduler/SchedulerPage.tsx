@@ -72,7 +72,7 @@ export function SchedulerPage() {
       {/* 头部 */}
       <PageHeader
         title={t('page.scheduler.title')}
-        subtitle="管理 Agent 定时调度"
+        subtitle={t('page.scheduler.subtitle', '管理 Agent 定时调度')}
         size="md"
         actions={
           <>
@@ -135,8 +135,8 @@ export function SchedulerPage() {
             {tasks.length === 0 ? (
               <EmptyState
                 icon={<Clock size={28} />}
-                title="暂无定时任务"
-                description="点击「新增任务」或在 Agent 配置中设置 schedule"
+                title={t('page.scheduler.empty', '暂无定时任务')}
+                description={t('page.scheduler.emptyDesc', '点击「新增任务」或在 Agent 配置中设置 schedule')}
               />
             ) : (
               tasks.map((task) => (
