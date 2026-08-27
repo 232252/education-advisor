@@ -4,13 +4,12 @@
 
 export interface UnifiedSettings {
   general: {
+    /** R2-17 起 path-resolver 消费此字段(空串=默认定位;绝对路径=自定义数据父目录) */
     dataDir: string
-    defaultOperator: string
     theme: 'dark' | 'light' | 'system'
     language: 'zh-CN' | 'en-US'
     autoUpdate: boolean
     updateUrl: string
-    telemetry: boolean
     logLevel: 'debug' | 'info' | 'warn' | 'error' | 'off'
     autoStart: boolean
     minimizeToTray: boolean
@@ -84,11 +83,7 @@ export interface UnifiedSettings {
     /** 定时任务(周报/风险预警等)完成后把结果推送给教师,默认关闭 */
     agentPushEnabled: boolean
   }
-  advanced: {
-    shellPath: string
-    sessionDir: string
-    httpIdleTimeoutMs: number
-  }
+  // R2-03 清理:原 advanced.shellPath/sessionDir/httpIdleTimeoutMs 为死配置(全仓无消费方),已删除
   mcp: {
     /** MCP 集成 feature flag (默认 false,关闭时 McpService 进入 no-op 模式) */
     enabled: boolean
