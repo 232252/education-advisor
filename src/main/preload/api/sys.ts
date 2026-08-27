@@ -12,6 +12,8 @@ export const sysApi = {
   saveDialog: (options: unknown) => ipcRenderer.invoke(IPC.IPC_SYS_SAVE_DIALOG, options),
   // [r] 获取系统路径
   getPath: (name: string) => ipcRenderer.invoke(IPC.IPC_SYS_GET_PATH, name),
+  // [r] 应用版本号(R2-16: About 页唯一来源,防发版漂移)
+  getVersion: () => ipcRenderer.invoke(IPC.IPC_SYS_GET_VERSION),
   // [r] 检查更新
   checkUpdate: () => ipcRenderer.invoke(IPC.IPC_SYS_CHECK_UPDATE),
   showUpdateDialog: () => ipcRenderer.invoke(IPC.IPC_SYS_SHOW_UPDATE_DIALOG),

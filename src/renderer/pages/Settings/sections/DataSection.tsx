@@ -11,21 +11,9 @@ import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { useT } from '../../../i18n'
 import { validateCron } from '../../../lib/cron-utils'
 import { getAPI } from '../../../lib/ipc-client'
-import { btnStyle, cn, INPUT_INVALID, INPUT_SM } from '../../../lib/ui-utils'
+import { btnStyle, cn, formatBytes, formatDateTime, INPUT_INVALID, INPUT_SM } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
 import { Section, SettingRow, ToggleSwitch } from '../components'
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function formatTime(ms: number): string {
-  const d = new Date(ms)
-  const pad = (x: number) => String(x).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
 
 export interface DataSectionProps {
   settings: UnifiedSettings
@@ -272,7 +260,7 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
                     )}
                   </div>
                   <div className="text-[10px] text-gray-400 dark:text-gray-500">
-                    {formatTime(b.createdAt)} · {formatBytes(b.sizeBytes)}
+                    {formatDateTime(b.createdAt)} · {formatBytes(b.sizeBytes)}
                   </div>
                 </div>
                 <button

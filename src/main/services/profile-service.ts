@@ -8,13 +8,14 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { open, readFile, rename } from 'node:fs/promises'
 import path from 'node:path'
 import type { StudentProfileData } from '@shared/types'
-import { app } from 'electron'
+import { getAppPaths } from './paths'
 
 class ProfileService {
   private profilesDir: string
 
   constructor() {
-    this.profilesDir = path.join(app.getPath('userData'), 'eaa-data', 'profiles')
+    // R2-17: 统一经 path-resolver(此前硬编码 userData/eaa-data/profiles,dev 分叉)
+    this.profilesDir = getAppPaths().profilesDir
     // 确保目录存在 (同步,仅启动时执行一次)
     if (!existsSync(this.profilesDir)) {
       mkdirSync(this.profilesDir, { recursive: true })

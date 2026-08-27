@@ -22,6 +22,8 @@ import { atomicWrite } from '../utils/atomic-write'
 import { createZip, isSafeEntryName, readZipFile } from '../utils/zip'
 import { dbService } from './db-service'
 import { eaaBridge } from './eaa-bridge'
+import { getAppPaths } from './paths'
+import { formatTimestampFileSafe } from '../utils/format-timestamp'
 import { settingsService } from './settings-service'
 
 const APP_ID = 'education-advisor'
@@ -86,6 +88,12 @@ export async function collectBackupFiles(): Promise<LogicalFile[]> {
   files.push({ name: 'settings.json', absPath: path.join(userData, 'settings.json') })
 
   await walkDir(eaaBridge.getDataDir(), 'eaa-data/', files)
+
+  // R2-17: 学业/档案与 SQLite 同层(appDataDir),须纳入备份——
+  // 此前它们在 userData/eaa-data/ 且 dev 分叉,备份只走 eaa-data 会漏
+  const appPaths = getAppPaths()
+  await walkDir(appPaths.academicsDir, 'academics/', files)
+  await walkDir(appPaths.profilesDir, 'profiles/', files)
 
   const dbPath = dbService.getDbPath()
   if (dbPath) {
@@ -250,10 +258,7 @@ export async function restoreFromZip(zipPath: string): Promise<RestoreResult> {
 
   // 1. 恢复前安全备份(即使 zip 本身有问题,当前数据已有兜底)
   await fsp.mkdir(backupsDir(), { recursive: true })
-  const ts = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const stamp = `${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}`
-  const safetyBackupPath = path.join(backupsDir(), `pre-restore-${stamp}.zip`)
+  const safetyBackupPath = path.join(backupsDir(), `pre-restore-${formatTimestampFileSafe()}.zip`)
   await createBackup(safetyBackupPath)
 
   // 2. 逐条目校验映射 + 对应数据(替换任何文件之前先全部校验,失败则零改动)
@@ -294,9 +299,7 @@ export async function runAutoBackupOnce(): Promise<AutoBackupInfo | null> {
   autoRunning = true
   try {
     await fsp.mkdir(backupsDir(), { recursive: true })
-    const ts = new Date()
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const stamp = `${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}`
+    const stamp = formatTimestampFileSafe()
     const dest = path.join(backupsDir(), `auto-${stamp}.zip`)
     await createBackup(dest)
     settingsService.update('backup.lastAutoAt', Date.now())

@@ -105,9 +105,13 @@ export const IPC_SETTINGS_SET = 'settings:set'
 export const IPC_SETTINGS_RESET = 'settings:reset'
 
 // ===== 系统 =====
+export const IPC_REPORTS_LIST = 'reports:list'
+export const IPC_REPORTS_READ = 'reports:read'
 export const IPC_SYS_OPEN_DIALOG = 'sys:open-dialog'
 export const IPC_SYS_SAVE_DIALOG = 'sys:save-dialog'
 export const IPC_SYS_GET_PATH = 'sys:get-path'
+/** R2-16: 版本号单一来源(About 页不再硬编码,发版零漂移) */
+export const IPC_SYS_GET_VERSION = 'sys:get-version'
 export const IPC_SYS_CHECK_UPDATE = 'sys:check-update'
 export const IPC_SYS_READ_FILE = 'sys:read-file'
 // 重启应用(备份恢复后数据文件已替换,需重启进程重新加载)
