@@ -1474,5 +1474,6 @@
   "page.models.default.highQuality": "High-quality model",
   "page.models.default.hqPlaceholder": "e.g. gpt-4-turbo-preview",
   "page.models.default.lowCost": "Low-cost model",
-  "page.models.default.lqPlaceholder": "e.g. gpt-3.5-turbo"
+  "page.models.default.lqPlaceholder": "e.g. gpt-3.5-turbo",
+  "page.models.local.ollamaDesc": "Ollama · CPU inference · Free, no login"
 }

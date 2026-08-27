@@ -27,7 +27,8 @@ vi.mock('electron', () => ({
 
 import { academicService } from '../../src/main/services/academic-service'
 
-const baseDir = path.join(mocks.userDataDir, 'eaa-data', 'academics')
+// R2-17: academic 数据与 SQLite 同层(userData/academics),不再混入 eaa-data
+const baseDir = path.join(mocks.userDataDir, 'academics')
 const gradesDir = path.join(baseDir, 'grades')
 
 describe('academicService — config/exams 基础读写', () => {
