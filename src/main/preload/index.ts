@@ -28,11 +28,11 @@ import { mcpApi } from './api/mcp'
 import { ollamaApi } from './api/ollama'
 import { privacyApi } from './api/privacy'
 import { profileApi } from './api/profile'
+import { reportsApi } from './api/reports'
 import { settingsApi } from './api/settings'
 import { skillApi } from './api/skill'
 import { studentsApi } from './api/students'
 import { sysApi } from './api/sys'
-import { reportsApi } from './api/reports'
 
 // =============================================================
 // 暴露给渲染进程的安全 API

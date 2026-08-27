@@ -11,4 +11,4 @@ export interface ReportsAPI {
   read: (fileName: string) => Promise<ReportReadResult>
 }
 
-export type { ReportListResult, ReportReadResult, ReportEntry } from '@shared/types/reports'
+export type { ReportEntry, ReportListResult, ReportReadResult } from '@shared/types/reports'

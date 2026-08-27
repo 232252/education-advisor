@@ -136,7 +136,10 @@ export function SchedulerPage() {
               <EmptyState
                 icon={<Clock size={28} />}
                 title={t('page.scheduler.empty', '暂无定时任务')}
-                description={t('page.scheduler.emptyDesc', '点击「新增任务」或在 Agent 配置中设置 schedule')}
+                description={t(
+                  'page.scheduler.emptyDesc',
+                  '点击「新增任务」或在 Agent 配置中设置 schedule',
+                )}
               />
             ) : (
               tasks.map((task) => (

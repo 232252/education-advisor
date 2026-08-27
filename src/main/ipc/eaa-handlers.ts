@@ -13,13 +13,12 @@
 // (ipc/ 组织规则见 docs/ARCHITECTURE.md)
 // =============================================================
 
-import { type BrowserWindow, ipcMain } from 'electron'
-import { createEaaCacheContext } from './eaa/cache'
+import { type BrowserWindow } from 'electron'
+import { createEaaCacheContext, invalidateStudentsCacheNow } from './eaa/cache'
 import { registerEventHandlers } from './eaa/handlers-events'
 import { registerExportHandlers } from './eaa/handlers-export'
 import { registerStudentHandlers } from './eaa/handlers-students'
 import { registerSystemHandlers } from './eaa/handlers-system'
-import { invalidateStudentsCacheNow } from './eaa/cache'
 
 /**
  * 供 class-handlers 等其他模块调用,使 listStudents 缓存失效。

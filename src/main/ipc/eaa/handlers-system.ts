@@ -12,7 +12,11 @@ import { ipcMain } from 'electron'
 import { eaaBridge } from '../../services/eaa-bridge'
 import type { TtlLruCache } from '../../services/eaa-cache'
 import { sanitizeName } from '../../utils/sanitize'
-import { invalidateStudentsCacheNow, prefillScoreCacheFromRanking, setInvalidateStudentsCacheFn } from './cache'
+import {
+  invalidateStudentsCacheNow,
+  prefillScoreCacheFromRanking,
+  setInvalidateStudentsCacheFn,
+} from './cache'
 import { isValidIsoDate } from './date-validation'
 
 export interface SystemHandlersContext {

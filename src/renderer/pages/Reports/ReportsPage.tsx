@@ -48,7 +48,9 @@ export function ReportsPage() {
             className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50"
           >
             <Play size={13} />
-            {generating ? t('page.reports.generating', '正在生成…') : t('page.reports.generateNow', '立即生成周报')}
+            {generating
+              ? t('page.reports.generating', '正在生成…')
+              : t('page.reports.generateNow', '立即生成周报')}
           </button>,
           <button
             type="button"
@@ -144,7 +146,6 @@ function ReportRow({
   selected: boolean
   onSelect: () => void
 }) {
-  const { t } = useT()
   return (
     <button
       type="button"
