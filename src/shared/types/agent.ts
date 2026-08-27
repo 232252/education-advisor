@@ -34,7 +34,14 @@ export interface AgentConfig {
   description: string
   enabled: boolean
   modelTier: 'high_quality' | 'low_cost'
+  /** cron 表达式数组 */
   schedule: string[]
+  /**
+   * 与 schedule 平行的任务提示词(yaml 中对象条目的 prompt 字段)。
+   * 此前所有定时任务共用"执行 XX 的定时任务"一句泛化提示,agent 只能靠
+   * SOUL 自猜任务意图;现在每条 cron 可携带具体指令(缺省回退泛化提示)。
+   */
+  schedulePrompts?: Array<string | undefined>
   capabilities: string[]
   riskThresholds?: RiskThresholds
   /** MCP 集成:该 Agent 启用的全局 MCP server ID 列表 */

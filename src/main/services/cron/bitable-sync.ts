@@ -6,6 +6,7 @@
 import type { CronLogEntry, CronTask } from '@shared/types'
 import { log } from '../../utils/logger'
 import { withTimeout } from '../agent/timeout'
+import { eaaBridge } from '../eaa-bridge'
 import { syncBitableNow } from '../feishu-service'
 import { keystoreService } from '../keystore-service'
 import { settingsService } from '../settings-service'
@@ -74,6 +75,51 @@ export function registerBitableSyncTask(ctx: BitableSyncRegistrationCtx): void {
 /** M-3 修复: 30 秒总超时,防止 getTenantToken + addBitableRecord 累计 hang */
 const BITABLE_SYNC_TIMEOUT_MS = 30_000
 
+/**
+ * 组装真实数据快照文案(替代此前的固定心跳占位 — "名为同步,从不写业务数据")。
+ * 解析 `eaa summary` 的文本表格;解析失败时降级为带错误说明的占位,
+ * 同步链路本身不因数据查询失败而中断。
+ */
+async function composeSnapshotMessageInternal(): Promise<string> {
+  try {
+    const result = await withTimeout(
+      eaaBridge.execute({ command: 'summary', args: [] }),
+      10_000,
+      'bitable snapshot query',
+    )
+    const text = typeof result.data === 'string' ? result.data : ''
+    if (!result.success || !text) {
+      return `snapshot unavailable: ${result.stderr || 'no data'}`.slice(0, 200)
+    }
+    const num = (label: string): number | null => {
+      const m = new RegExp(`${label}[^\\d]*(\\d+)`).exec(text)
+      return m ? Number(m[1]) : null
+    }
+    const events = num('事件数')
+    const bonus = num('加分')
+    const penalty = num('扣分')
+    if (events === null) return 'snapshot unavailable: summary parse failed'
+    const parts = [`有效事件${events}条`]
+    if (bonus !== null) parts.push(`加分${bonus}次`)
+    if (penalty !== null) parts.push(`扣分${penalty}次`)
+    // 风险分布段: 风险分布之后的 (极高|高|中|低) N人
+    const riskSection = text.split('风险分布')[1] ?? ''
+    const risks: string[] = []
+    for (const m of riskSection.matchAll(/(极高|高|中|低)\s+(\d+)人/g)) {
+      if (Number(m[2]) > 0) risks.push(`${m[1]}风险${m[2]}人`)
+    }
+    if (risks.length > 0) parts.push(risks.join('/'))
+    return `班级操行快照: ${parts.join(' | ')}`
+  } catch (err) {
+    return `snapshot unavailable: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200)
+  }
+}
+
+/** 组装真实数据快照(导出供单测;运行路径见 executeBitableSyncOnce) */
+export async function composeSnapshotMessage(): Promise<string> {
+  return composeSnapshotMessageInternal()
+}
+
 /** T4: 执行一次 bitable 同步(graceful 降级) */
 export async function executeBitableSyncOnce(): Promise<BitableSyncResult> {
   try {
@@ -96,11 +142,13 @@ export async function executeBitableSyncOnce(): Promise<BitableSyncResult> {
         error: 'feishu.bitableAppToken 未配置,请在设置页面填写 Bitable App Token',
       }
     }
+    // 真实业务快照(替代固定心跳): 汇总当前事件量/加减分/风险分布
+    const message = await composeSnapshotMessageInternal()
     const fields = {
       timestamp: new Date().toISOString(),
       source: 'education-advisor',
-      level: 'info',
-      message: 'periodic bitable sync heartbeat',
+      level: message.startsWith('snapshot unavailable') ? 'warn' : 'info',
+      message,
     }
     // M-3 修复: withTimeout 30 秒总超时(与手写 Promise.race 同语义:
     // 超时 reject → 外层 catch 转 { success:false, error };正常返回透传)

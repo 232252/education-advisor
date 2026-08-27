@@ -257,6 +257,7 @@ class CronService {
       id: string
       name: string
       schedule: string[]
+      schedulePrompts?: Array<string | undefined>
       modelTier: 'high_quality' | 'low_cost'
     }>,
   ): Map<string, string[]> {

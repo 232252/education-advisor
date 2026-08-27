@@ -81,6 +81,8 @@ export interface UnifiedSettings {
       enabled: boolean
       syncInterval: string
     }
+    /** 定时任务(周报/风险预警等)完成后把结果推送给教师,默认关闭 */
+    agentPushEnabled: boolean
   }
   advanced: {
     shellPath: string
