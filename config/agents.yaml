@@ -468,8 +468,8 @@ agents:
       无需 EAA 学生数据,手动触发,不挂定时。
     enabled: true
     model_tier: low_cost
-    capabilities:
-      - read
+    # R2-26: 最小权限 — 代码审查不需要 EAA 学生数据工具(此前与读域共用 read)
+    capabilities: []
     schedule:
       cron: []
     risk_thresholds:

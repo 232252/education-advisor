@@ -1,6 +1,6 @@
 # 0001 — Keep the Rust and TypeScript codebases in separate repos
 
-**Status**: Accepted
+**Status**: Superseded by [0002-rust-cli-in-monorepo](./0002-rust-cli-in-monorepo.md)
 **Date**: 2026-06-09
 **Authors**: The maintainer team
 
