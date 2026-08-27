@@ -7,52 +7,39 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
+import { getAppPaths } from '../paths'
 
 type BetterSqlite3 = typeof import('better-sqlite3')
 type Database = import('better-sqlite3').Database
 
 /**
- * R155 修复: 开发模式下 TRAE Sandbox 阻止写入 %APPDATA%,
- * 导致 SQLite 初始化失败、chat 持久化/agent 历史/cron 日志全部静默 no-op。
- * 与 eaa-bridge.resolveDataDir() 同模式: 开发模式重定向到项目根 .app-data/。
+ * 数据库路径 — R2-17 起统一经 path-resolver(getAppPaths().dbPath)。
+ * 保留旧位置的迁移复制(开发态此前可能在 userData 有旧库),
+ * 与 dev: 项目根 .app-data/workstation.db 同语义。
  *
- * @param mainDir 主进程模块目录(db-service.ts 的 __dirname,用于定位项目根;
- *               在编排层求值后传入,保证与下沉前 __dirname 的语义一致)
+ * @param mainDir 保留参数(兼容既有调用点;路径判定已收敛到 paths.ts)
  */
 export function resolveDbPath(mainDir: string): string {
-  const userData = app.getPath('userData')
-  const legacyPath = path.join(userData, 'workstation.db')
-  const resourcesPath = process.resourcesPath || ''
-  const isRealPackaged =
-    !resourcesPath.includes('node_modules') && !resourcesPath.includes('electron')
+  void mainDir // R2-17: 判定逻辑已上移到 paths.ts,参数保留兼容
+  const paths = getAppPaths()
+  const legacyPath = path.join(app.getPath('userData'), 'workstation.db')
 
-  if (isRealPackaged) {
-    return legacyPath
-  }
-
-  // 开发模式: 项目根 .app-data/workstation.db
-  const projectRoot = path.resolve(mainDir, '..', '..')
-  const devDir = path.join(projectRoot, '.app-data')
-  const devPath = path.join(devDir, 'workstation.db')
-
-  // 迁移旧数据(如果存在且新路径不存在)
-  if (fs.existsSync(legacyPath) && !fs.existsSync(devPath)) {
+  if (legacyPath !== paths.dbPath && fs.existsSync(legacyPath) && !fs.existsSync(paths.dbPath)) {
     try {
-      fs.mkdirSync(devDir, { recursive: true })
-      fs.copyFileSync(legacyPath, devPath)
-      // WAL/SHM 临时文件也尝试迁移(可能不存在)
+      fs.mkdirSync(path.dirname(paths.dbPath), { recursive: true })
+      fs.copyFileSync(legacyPath, paths.dbPath)
       for (const ext of ['-wal', '-shm']) {
         const src = legacyPath + ext
-        if (fs.existsSync(src)) fs.copyFileSync(src, devPath + ext)
+        if (fs.existsSync(src)) fs.copyFileSync(src, paths.dbPath + ext)
       }
-      console.log(`[DB] R155: Migrated DB from "${legacyPath}" to "${devPath}"`)
+      console.log(`[DB] Migrated DB from "${legacyPath}" to "${paths.dbPath}"`)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      console.warn('[DB] R155: Migration failed, starting fresh:', msg)
+      console.warn('[DB] Migration failed, starting fresh:', msg)
     }
   }
 
-  return devPath
+  return paths.dbPath
 }
 
 /**

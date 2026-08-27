@@ -4,7 +4,7 @@
 
 export interface UnifiedSettings {
   general: {
-    /** R2-17 起 path-resolver 消费此字段(空串=默认定位;绝对路径=自定义数据父目录) */
+    /** 当前 EAA 数据目录(供展示;启动时若为空自动填默认值,解析统一走 paths.ts) */
     dataDir: string
     theme: 'dark' | 'light' | 'system'
     language: 'zh-CN' | 'en-US'

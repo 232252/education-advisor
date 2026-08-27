@@ -3,11 +3,30 @@
 // 纯展示组件,无 state / callback
 // =============================================================
 
+import { useEffect, useState } from 'react'
 import { useT } from '../../../i18n'
+import { getAPI } from '../../../lib/ipc-client'
 import { Section } from '../components'
 
 export function AboutSection() {
   const { t } = useT()
+  // R2-16: 版本号从主进程运行时读取(app.getVersion = package.json),
+  // 此前硬编码 v0.1.0-rc.1 发版必漂移
+  const [version, setVersion] = useState('…')
+  useEffect(() => {
+    let alive = true
+    getAPI()
+      .sys.getVersion()
+      .then((v) => {
+        if (alive && v) setVersion(v)
+      })
+      .catch(() => {
+        /* 读取失败保持默认,不影响页面 */
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   return (
     <Section title={t('settings.section.about')}>
@@ -16,7 +35,7 @@ export function AboutSection() {
           <div className="text-base text-gray-800 dark:text-gray-100 font-semibold">
             Education Advisor{' '}
             <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
-              v0.1.0-rc.1
+              v{version}
             </span>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">

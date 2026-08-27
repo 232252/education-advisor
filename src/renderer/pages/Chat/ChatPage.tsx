@@ -102,7 +102,8 @@ export function ChatPage() {
       await getAPI().settings.set('models.defaultProvider', provider)
       await getAPI().settings.set('models.highQualityModel', model)
     } catch {
-      /* silent */
+      // R2-14: 保存失败必须可见 — 静默回退会让用户以为已配置,重启后悄悄还原
+      toast.warning(t('toast.settings.saveFailed', '设置保存失败,重启后将恢复上次选择'))
     }
   }
 
@@ -113,7 +114,7 @@ export function ChatPage() {
       // C-1 修复: 写入 chat.thinkingLevel 而非 chat.maxTokens(后者是 number,会被字符串覆盖损坏)
       await getAPI().settings.set('chat.thinkingLevel', value)
     } catch {
-      /* silent */
+      toast.warning(t('toast.settings.saveFailed', '设置保存失败,重启后将恢复上次选择'))
     }
   }
 
@@ -262,7 +263,11 @@ export function ChatPage() {
       <ConfirmDialog
         open={pendingDeleteSessionId !== null}
         title={t('common.delete')}
-        message={`${t('common.delete')}?`}
+        message={
+          pendingDeleteSessionId
+            ? `${t('common.delete')} ${sessions.find((s) => s.id === pendingDeleteSessionId)?.title ?? ''}？${t('common.deleteIrreversible', '此操作不可恢复。')}`
+            : `${t('common.delete')}?`
+        }
         variant="danger"
         onConfirm={() => {
           if (pendingDeleteSessionId) {

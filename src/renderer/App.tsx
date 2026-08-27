@@ -44,6 +44,9 @@ const PrivacyPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/Settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 )
+const ReportsPage = lazy(() =>
+  import('./pages/Reports/ReportsPage').then((m) => ({ default: m.ReportsPage })),
+)
 const WelcomePage = lazy(() =>
   import('./pages/Welcome/WelcomePage').then((m) => ({ default: m.WelcomePage })),
 )
@@ -109,6 +112,7 @@ export function App() {
               <Route path="/skills" element={<SkillsPage />} />
               <Route path="/scheduler" element={<SchedulerPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               {/* 兜底：未匹配路由重定向到 dashboard，避免空白页 */}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

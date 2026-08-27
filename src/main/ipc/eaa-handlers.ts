@@ -19,13 +19,15 @@ import { registerEventHandlers } from './eaa/handlers-events'
 import { registerExportHandlers } from './eaa/handlers-export'
 import { registerStudentHandlers } from './eaa/handlers-students'
 import { registerSystemHandlers } from './eaa/handlers-system'
+import { invalidateStudentsCacheNow } from './eaa/cache'
 
 /**
  * 供 class-handlers 等其他模块调用,使 listStudents 缓存失效。
  * 用于调班(class.assign)等直接调 eaaBridge.execute 而不走 IPC 的场景。
+ * R2-20: 直调失效函数(原 ipcMain.emit 私有通道已退休)。
  */
 export function invalidateStudentsCacheExternal(): void {
-  ipcMain.emit('__invalidate_students_cache')
+  invalidateStudentsCacheNow()
 }
 
 export function registerEAAHandlers(_win: BrowserWindow) {

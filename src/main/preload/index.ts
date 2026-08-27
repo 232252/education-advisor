@@ -32,6 +32,7 @@ import { settingsApi } from './api/settings'
 import { skillApi } from './api/skill'
 import { studentsApi } from './api/students'
 import { sysApi } from './api/sys'
+import { reportsApi } from './api/reports'
 
 // =============================================================
 // 暴露给渲染进程的安全 API
@@ -90,4 +91,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // ----- 飞书集成 -----
   feishu: feishuApi,
+
+  // ----- 报告中心 (R2-12) -----
+  reports: reportsApi,
 })

@@ -9,6 +9,7 @@
 import * as IPC from '@shared/ipc-channels'
 import { type BrowserWindow, dialog, ipcMain } from 'electron'
 import type { AutoBackupInfo } from '../services/backup-service'
+import { formatTimestampFileSafe } from '../utils/format-timestamp'
 import {
   createBackup,
   deleteAutoBackup,
@@ -21,9 +22,7 @@ function errMessage(err: unknown): string {
 }
 
 function backupStamp(): string {
-  const ts = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}`
+  return formatTimestampFileSafe()
 }
 
 export function registerBackupHandlers(win: BrowserWindow): void {

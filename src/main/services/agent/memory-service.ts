@@ -16,7 +16,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { app } from 'electron'
+import { getAppPaths } from '../paths'
 
 /** 单条记忆 */
 export interface MemoryEntry {
@@ -40,14 +40,8 @@ const MAX_ENTRIES_STORED = 100
 const MAX_CONTENT_CHARS_STORED = 500
 
 function resolveMemoryDir(): string {
-  const resourcesPath = process.resourcesPath || ''
-  const isRealPackaged =
-    !resourcesPath.includes('node_modules') && !resourcesPath.includes('electron')
-  if (isRealPackaged) {
-    return path.join(app.getPath('userData'), 'memory')
-  }
-  const projectRoot = path.resolve(__dirname, '..', '..', '..', '..')
-  return path.join(projectRoot, '.app-data', 'memory')
+  // R2-17: 统一经 path-resolver(dev:.app-data/memory / prod:userData/memory)
+  return getAppPaths().memoryDir
 }
 
 export class MemoryService {

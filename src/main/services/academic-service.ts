@@ -12,6 +12,7 @@ import type { AcademicConfig, ExamDef, GradeRecord, SubjectDef } from '@shared/t
 import { app } from 'electron'
 import { atomicWrite } from '../utils/atomic-write'
 import { log } from '../utils/logger'
+import { getAppPaths } from './paths'
 
 const DEFAULT_SUBJECTS: SubjectDef[] = [
   { id: 'chinese', name: '语文', category: 'core', fullMark: 150, isCore: true },
@@ -51,7 +52,9 @@ class AcademicService {
   private gradeWriteQueues: Map<string, Promise<unknown>> = new Map()
 
   constructor() {
-    this.baseDir = path.join(app.getPath('userData'), 'eaa-data', 'academics')
+    // R2-17: 统一经 path-resolver(此前硬编码 userData/eaa-data/academics,
+    // 与 EAA 桥的 dev 重定向分叉 → 数据双份、备份打包旧副本)
+    this.baseDir = getAppPaths().academicsDir
     this.configPath = path.join(this.baseDir, 'config.json')
     this.examsPath = path.join(this.baseDir, 'exams.json')
     this.gradesDir = path.join(this.baseDir, 'grades')

@@ -12,7 +12,8 @@ import { ipcMain } from 'electron'
 import { eaaBridge } from '../../services/eaa-bridge'
 import type { TtlLruCache } from '../../services/eaa-cache'
 import { sanitizeName } from '../../utils/sanitize'
-import { prefillScoreCacheFromRanking } from './cache'
+import { invalidateStudentsCacheNow, prefillScoreCacheFromRanking, setInvalidateStudentsCacheFn } from './cache'
+import { isValidIsoDate } from './date-validation'
 
 export interface SystemHandlersContext {
   /** 静态数据缓存(30s) */
@@ -22,10 +23,6 @@ export interface SystemHandlersContext {
   /** 与原 setCached 行为一致:仅缓存 success:true 的对象 */
   setStaticCacheIfSuccess: (key: string, data: unknown) => void
 }
-
-// R131 修复: 防止 registerEAAHandlers 被多次调用时累积 ipcMain.on 监听器
-// (M18 随 '__invalidate_students_cache' 监听器从 eaa-handlers.ts 迁入)
-let __invalidateListenerRegistered = false
 
 // F1 修复: 防止重复注册写命令钩子(onWriteCommand 为覆盖语义,重复注册无害,守卫保持与 R131 一致)
 // (M18 随写钩子从 eaa-handlers.ts 迁入)
@@ -180,9 +177,8 @@ export function registerSystemHandlers({
         }
       }
       const args: string[] = []
-      const dateRe = /^\d{4}-\d{2}-\d{2}$/
       if (since) {
-        if (!dateRe.test(since)) {
+        if (!isValidIsoDate(since)) {
           return {
             success: false,
             error: 'since must be YYYY-MM-DD format',
@@ -193,7 +189,7 @@ export function registerSystemHandlers({
         args.push('--since', since)
       }
       if (until) {
-        if (!dateRe.test(until)) {
+        if (!isValidIsoDate(until)) {
           return {
             success: false,
             error: 'until must be YYYY-MM-DD format',
@@ -304,17 +300,9 @@ export function registerSystemHandlers({
     staticCache.clear()
   }
 
-  // 供 invalidateStudentsCacheExternal(eaa-handlers.ts)跨模块调用
-  // R131 修复: 添加去重守卫,防止多次注册 (ipcMain.on 不像 handle 会抛错)
-  if (!__invalidateListenerRegistered) {
-    __invalidateListenerRegistered = true
-    ipcMain.on('__invalidate_students_cache', () => {
-      studentsCache = null
-      rankingCache = null
-      scoreCache.clear()
-      staticCache.clear()
-    })
-  }
+  // R2-20: 注册失效函数供任意模块直调(私有 IPC 通道已退休 —
+  // 原 ipcMain.emit('__invalidate_students_cache') 语义是事件实为调用)
+  setInvalidateStudentsCacheFn(invalidateStudentsCache)
 
   // F1 修复: Agent 工具(eaa/tools/*)与飞书 runEAA 直接调 eaaBridge.execute 写数据,
   // 不经过 handler,导致 studentsCache/rankingCache/scoreCache/staticCache 不失效。
@@ -327,10 +315,8 @@ export function registerSystemHandlers({
 
   // ----- invalidate-cache: 清空 EAA 读缓存 -----
   // 「刷新」按钮调用,使下次读取重新 spawn 拉取最新数据。
-  // Electron 版的读缓存位于 handlers 闭包(studentsCache/rankingCache/scoreCache/staticCache),
-  // 通过 emit 内部事件触发 invalidateStudentsCache() 清空。
   ipcMain.handle(IPC.IPC_EAA_INVALIDATE_CACHE, () => {
-    ipcMain.emit('__invalidate_students_cache')
+    invalidateStudentsCacheNow()
     return { success: true }
   })
 
