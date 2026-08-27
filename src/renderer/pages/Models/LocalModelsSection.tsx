@@ -14,6 +14,8 @@ import { useLocalModels } from './hooks/useLocalModels'
 import { RECOMMENDED } from './lib/local-models'
 
 export function LocalModelsSection() {
+
+  const { t } = useT()
   const {
     installed,
     pulling,
@@ -32,7 +34,7 @@ export function LocalModelsSection() {
       <div className="px-5 py-4 border-b border-indigo-200 dark:border-white/[0.06]/60 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-lg">🖥️</span>
-          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">本地模型</h2>
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{t('page.models.local.title', '本地模型')}</h2>
           <span className="text-[10px] text-gray-400 dark:text-gray-500">
             Ollama · CPU 推理 · 免登录免费
           </span>
@@ -75,7 +77,7 @@ export function LocalModelsSection() {
         {/* 未安装提示 */}
         {!available && (
           <div className="text-xs text-gray-500 dark:text-gray-400 bg-white/60 dark:bg-surface-elevated/40 rounded-lg p-3 leading-relaxed">
-            <div className="font-medium text-gray-700 dark:text-gray-300 mb-1">未检测到 Ollama</div>
+            <div className="font-medium text-gray-700 dark:text-gray-300 mb-1">{t('page.models.local.notDetected', '未检测到 Ollama')}</div>
             本地模型功能需要先安装 Ollama（免费、开源）:
             <ol className="list-decimal ml-4 mt-1 space-y-0.5">
               <li>
@@ -90,7 +92,7 @@ export function LocalModelsSection() {
                 </a>{' '}
                 下载安装(Windows 版约 500MB)
               </li>
-              <li>安装后回到此页面,点击"启动"</li>
+              <li>{t('page.models.local.hint', '安装后回到此页面,点击"启动"')}</li>
             </ol>
           </div>
         )}
@@ -133,3 +135,4 @@ export function LocalModelsSection() {
     </div>
   )
 }
+import { useT } from '../../i18n'

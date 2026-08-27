@@ -184,7 +184,7 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
     <div className="bg-gray-50 dark:bg-surface-elevated border border-gray-200 dark:border-white/[0.06] rounded-xl p-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="font-semibold text-lg">默认模型配置</h2>
+        <h2 className="font-semibold text-lg">{t('page.models.default.title', '默认模型配置')}</h2>
         {saveToast && (
           <span
             className={`text-xs px-2.5 py-1 rounded-full transition-opacity ${
@@ -201,13 +201,13 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
       <div className="space-y-5">
         {/* ---- Default Provider ---- */}
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-700 dark:text-gray-300">默认 Provider</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">{t('page.models.default.provider', '默认 Provider')}</span>
           <select
             value={defaultProvider}
             onChange={(e) => handleProviderChange(e.target.value)}
             className={cn(INPUT_BASE, 'w-80')}
           >
-            <option value="">请选择...</option>
+            <option value=''>{t('common.select', '请选择...')}</option>
             {configuredProviders.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -229,7 +229,7 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
                 onClick={handleRefresh}
                 disabled={refreshing || isLoadingModels}
                 className={btnStyle('secondary')}
-                aria-label="刷新模型列表"
+                aria-label={t('page.models.default.refresh', '刷新模型列表')}
               >
                 {refreshing || isLoadingModels ? '刷新中...' : '刷新模型列表'}
               </button>
@@ -239,7 +239,7 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">高质量模型</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{t('page.models.default.highQuality', '高质量模型')}</span>
                   {hqModelInfo && (
                     <span className="text-xs text-gray-500 dark:text-gray-500 font-mono">
                       输入 {formatCost(hqModelInfo.costPerInputToken)} / 输出{' '}
@@ -285,7 +285,7 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
                       e.currentTarget.blur()
                     }
                   }}
-                  placeholder="例如 gpt-4-turbo-preview"
+                  placeholder={t('page.models.default.hqPlaceholder', '例如 gpt-4-turbo-preview')}
                   className={cn(INPUT_BASE, 'text-xs w-80')}
                 />
               </div>
@@ -295,7 +295,7 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">低成本模型</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{t('page.models.default.lowCost', '低成本模型')}</span>
                   {lqModelInfo && (
                     <span className="text-xs text-gray-500 dark:text-gray-500 font-mono">
                       输入 {formatCost(lqModelInfo.costPerInputToken)} / 输出{' '}
@@ -340,7 +340,7 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
                       e.currentTarget.blur()
                     }
                   }}
-                  placeholder="例如 gpt-3.5-turbo"
+                  placeholder={t('page.models.default.lqPlaceholder', '例如 gpt-3.5-turbo')}
                   className={cn(INPUT_BASE, 'text-xs w-80')}
                 />
               </div>

@@ -1,0 +1,1190 @@
+[
+  {
+    "file": "pages/Academics/AcademicsPage.tsx",
+    "line": 230
+  },
+  {
+    "file": "pages/Academics/components/exam-mgmt/ExamCardGrid.tsx",
+    "line": 40
+  },
+  {
+    "file": "pages/Academics/components/grade-entry/AIEntryPanel.tsx",
+    "line": 51
+  },
+  {
+    "file": "pages/Academics/components/grade-entry/AIEntryPanel.tsx",
+    "line": 62
+  },
+  {
+    "file": "pages/Academics/components/grade-entry/AIEntryPanel.tsx",
+    "line": 90
+  },
+  {
+    "file": "pages/Academics/components/grade-entry/EntrySelectorsCard.tsx",
+    "line": 99
+  },
+  {
+    "file": "pages/Academics/components/grade-entry/EntrySelectorsCard.tsx",
+    "line": 112
+  },
+  {
+    "file": "pages/Academics/tabs/ExamManagementTab.tsx",
+    "line": 119
+  },
+  {
+    "file": "pages/Academics/tabs/GradeEntryTab.tsx",
+    "line": 128
+  },
+  {
+    "file": "pages/Academics/tabs/OverviewTab.tsx",
+    "line": 71
+  },
+  {
+    "file": "pages/Academics/tabs/OverviewTab.tsx",
+    "line": 91
+  },
+  {
+    "file": "pages/Agents/AgentsPage.tsx",
+    "line": 52
+  },
+  {
+    "file": "pages/Agents/components/ConfigTab.tsx",
+    "line": 181
+  },
+  {
+    "file": "pages/Agents/components/ConfigTab.tsx",
+    "line": 189
+  },
+  {
+    "file": "pages/Chat/components/ChatToolbar.tsx",
+    "line": 110
+  },
+  {
+    "file": "pages/Classes/ClassProfile.tsx",
+    "line": 79
+  },
+  {
+    "file": "pages/Classes/ClassesPage.tsx",
+    "line": 186
+  },
+  {
+    "file": "pages/Classes/components/StudentsTab.tsx",
+    "line": 40
+  },
+  {
+    "file": "pages/Classes/components/StudentsTab.tsx",
+    "line": 50
+  },
+  {
+    "file": "pages/Classes/components/StudentsTab.tsx",
+    "line": 58
+  },
+  {
+    "file": "pages/Classes/components/StudentsTab.tsx",
+    "line": 61
+  },
+  {
+    "file": "pages/Classes/components/StudentsTab.tsx",
+    "line": 79
+  },
+  {
+    "file": "pages/Classes/components/StudentsTab.tsx",
+    "line": 117
+  },
+  {
+    "file": "pages/Classes/components/StudentsTab.tsx",
+    "line": 130
+  },
+  {
+    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
+    "line": 102
+  },
+  {
+    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
+    "line": 158
+  },
+  {
+    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
+    "line": 161
+  },
+  {
+    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
+    "line": 162
+  },
+  {
+    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
+    "line": 165
+  },
+  {
+    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
+    "line": 166
+  },
+  {
+    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
+    "line": 169
+  },
+  {
+    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
+    "line": 170
+  },
+  {
+    "file": "pages/Dashboard/components/DashboardStatsRow.tsx",
+    "line": 32
+  },
+  {
+    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
+    "line": 33
+  },
+  {
+    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
+    "line": 34
+  },
+  {
+    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
+    "line": 36
+  },
+  {
+    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
+    "line": 37
+  },
+  {
+    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
+    "line": 49
+  },
+  {
+    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
+    "line": 50
+  },
+  {
+    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
+    "line": 52
+  },
+  {
+    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
+    "line": 54
+  },
+  {
+    "file": "pages/Dashboard/components/MaintenanceActionsCard.tsx",
+    "line": 42
+  },
+  {
+    "file": "pages/Dashboard/components/MaintenanceActionsCard.tsx",
+    "line": 44
+  },
+  {
+    "file": "pages/Dashboard/components/MaintenanceActionsCard.tsx",
+    "line": 52
+  },
+  {
+    "file": "pages/Dashboard/components/MaintenanceActionsCard.tsx",
+    "line": 53
+  },
+  {
+    "file": "pages/Dashboard/components/PeriodSummaryCard.tsx",
+    "line": 28
+  },
+  {
+    "file": "pages/Dashboard/components/PeriodSummaryCard.tsx",
+    "line": 31
+  },
+  {
+    "file": "pages/Dashboard/components/PeriodSummaryCard.tsx",
+    "line": 64
+  },
+  {
+    "file": "pages/Dashboard/components/PeriodSummaryCard.tsx",
+    "line": 84
+  },
+  {
+    "file": "pages/Dashboard/components/PeriodSummaryCard.tsx",
+    "line": 103
+  },
+  {
+    "file": "pages/Dashboard/components/RankingCard.tsx",
+    "line": 31
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 13
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 14
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 15
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 16
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 17
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 18
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 19
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 20
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 21
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 22
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 23
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 24
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 25
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 26
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 27
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 28
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 29
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 30
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 31
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 32
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 33
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 34
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 77
+  },
+  {
+    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
+    "line": 92
+  },
+  {
+    "file": "pages/Dashboard/components/RiskDistChartCard.tsx",
+    "line": 22
+  },
+  {
+    "file": "pages/Dashboard/components/RiskDistChartCard.tsx",
+    "line": 33
+  },
+  {
+    "file": "pages/Dashboard/components/ScoreDistChartCard.tsx",
+    "line": 51
+  },
+  {
+    "file": "pages/Dashboard/components/ScoreDistChartCard.tsx",
+    "line": 53
+  },
+  {
+    "file": "pages/Dashboard/components/ScoreDistChartCard.tsx",
+    "line": 55
+  },
+  {
+    "file": "pages/Dashboard/components/ScoreDistChartCard.tsx",
+    "line": 61
+  },
+  {
+    "file": "pages/Dashboard/components/ScoreDistChartCard.tsx",
+    "line": 63
+  },
+  {
+    "file": "pages/Dashboard/components/ScoreDistChartCard.tsx",
+    "line": 65
+  },
+  {
+    "file": "pages/Models/LocalModelsSection.tsx",
+    "line": 38
+  },
+  {
+    "file": "pages/Models/LocalModelsSection.tsx",
+    "line": 52
+  },
+  {
+    "file": "pages/Models/LocalModelsSection.tsx",
+    "line": 60
+  },
+  {
+    "file": "pages/Models/LocalModelsSection.tsx",
+    "line": 69
+  },
+  {
+    "file": "pages/Models/LocalModelsSection.tsx",
+    "line": 80
+  },
+  {
+    "file": "pages/Models/LocalModelsSection.tsx",
+    "line": 83
+  },
+  {
+    "file": "pages/Models/LocalModelsSection.tsx",
+    "line": 92
+  },
+  {
+    "file": "pages/Models/LocalModelsSection.tsx",
+    "line": 102
+  },
+  {
+    "file": "pages/Models/LocalModelsSection.tsx",
+    "line": 130
+  },
+  {
+    "file": "pages/Models/LocalModelsSection.tsx",
+    "line": 131
+  },
+  {
+    "file": "pages/Models/ModelsPage.tsx",
+    "line": 86
+  },
+  {
+    "file": "pages/Models/ModelsPage.tsx",
+    "line": 92
+  },
+  {
+    "file": "pages/Models/ModelsPage.tsx",
+    "line": 95
+  },
+  {
+    "file": "pages/Models/ModelsPage.tsx",
+    "line": 123
+  },
+  {
+    "file": "pages/Models/ModelsPage.tsx",
+    "line": 148
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 17
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 95
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 98
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 99
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 191
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 225
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 234
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 245
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 257
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 260
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 269
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 301
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 313
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 316
+  },
+  {
+    "file": "pages/Models/components/DefaultModelConfig.tsx",
+    "line": 325
+  },
+  {
+    "file": "pages/Models/components/HiddenProviderList.tsx",
+    "line": 18
+  },
+  {
+    "file": "pages/Models/components/HiddenProviderList.tsx",
+    "line": 35
+  },
+  {
+    "file": "pages/Models/components/HiddenProviderList.tsx",
+    "line": 38
+  },
+  {
+    "file": "pages/Models/components/InstalledModelList.tsx",
+    "line": 18
+  },
+  {
+    "file": "pages/Models/components/InstalledModelList.tsx",
+    "line": 40
+  },
+  {
+    "file": "pages/Models/components/ModelRow.tsx",
+    "line": 11
+  },
+  {
+    "file": "pages/Models/components/ModelRow.tsx",
+    "line": 59
+  },
+  {
+    "file": "pages/Models/components/ModelRow.tsx",
+    "line": 129
+  },
+  {
+    "file": "pages/Models/components/ModelRow.tsx",
+    "line": 136
+  },
+  {
+    "file": "pages/Models/components/ModelRow.tsx",
+    "line": 152
+  },
+  {
+    "file": "pages/Models/components/ModelRow.tsx",
+    "line": 170
+  },
+  {
+    "file": "pages/Models/components/ModelRow.tsx",
+    "line": 193
+  },
+  {
+    "file": "pages/Models/components/ModelRow.tsx",
+    "line": 209
+  },
+  {
+    "file": "pages/Models/components/ModelRow.tsx",
+    "line": 211
+  },
+  {
+    "file": "pages/Models/components/ModelRow.tsx",
+    "line": 219
+  },
+  {
+    "file": "pages/Models/components/ModelRow.tsx",
+    "line": 221
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 85
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 90
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 95
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 102
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 104
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 122
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 130
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 138
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 146
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 154
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 156
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 163
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 184
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 193
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 198
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 205
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 208
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 211
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 217
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 219
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 220
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 221
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 222
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 223
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 225
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 296
+  },
+  {
+    "file": "pages/Models/components/ProviderCard.tsx",
+    "line": 309
+  },
+  {
+    "file": "pages/Models/components/RecommendedModelCard.tsx",
+    "line": 44
+  },
+  {
+    "file": "pages/Models/components/RecommendedModelCard.tsx",
+    "line": 46
+  },
+  {
+    "file": "pages/Models/components/RecommendedModelCard.tsx",
+    "line": 55
+  },
+  {
+    "file": "pages/Models/components/RecommendedModelCard.tsx",
+    "line": 60
+  },
+  {
+    "file": "pages/Models/components/RecommendedModelCard.tsx",
+    "line": 65
+  },
+  {
+    "file": "pages/Models/components/RecommendedModelCard.tsx",
+    "line": 76
+  },
+  {
+    "file": "pages/Models/components/RecommendedModelCard.tsx",
+    "line": 97
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 33
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 37
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 40
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 50
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 58
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 59
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 60
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 61
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 62
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 63
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 64
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 72
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 79
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 90
+  },
+  {
+    "file": "pages/Privacy/components/AddEntityCard.tsx",
+    "line": 93
+  },
+  {
+    "file": "pages/Privacy/components/MappingTableCard.tsx",
+    "line": 17
+  },
+  {
+    "file": "pages/Privacy/components/MappingTableCard.tsx",
+    "line": 22
+  },
+  {
+    "file": "pages/Privacy/components/MappingTableCard.tsx",
+    "line": 23
+  },
+  {
+    "file": "pages/Privacy/components/MappingTableCard.tsx",
+    "line": 24
+  },
+  {
+    "file": "pages/Privacy/components/MappingTableCard.tsx",
+    "line": 43
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyInitCard.tsx",
+    "line": 21
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyInitCard.tsx",
+    "line": 22
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyInitCard.tsx",
+    "line": 29
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyInitCard.tsx",
+    "line": 39
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyInitCard.tsx",
+    "line": 42
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyLoadCard.tsx",
+    "line": 28
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyLoadCard.tsx",
+    "line": 34
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyLoadCard.tsx",
+    "line": 40
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyLoadCard.tsx",
+    "line": 43
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyLoadCard.tsx",
+    "line": 49
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyLoadCard.tsx",
+    "line": 52
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyLoadCard.tsx",
+    "line": 57
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyPreviewCard.tsx",
+    "line": 24
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyPreviewCard.tsx",
+    "line": 28
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyPreviewCard.tsx",
+    "line": 35
+  },
+  {
+    "file": "pages/Privacy/components/PrivacyPreviewCard.tsx",
+    "line": 38
+  },
+  {
+    "file": "pages/Reports/ReportsPage.tsx",
+    "line": 40
+  },
+  {
+    "file": "pages/Reports/ReportsPage.tsx",
+    "line": 85
+  },
+  {
+    "file": "pages/Reports/ReportsPage.tsx",
+    "line": 128
+  },
+  {
+    "file": "pages/Scheduler/SchedulerPage.tsx",
+    "line": 80
+  },
+  {
+    "file": "pages/Scheduler/SchedulerPage.tsx",
+    "line": 90
+  },
+  {
+    "file": "pages/Scheduler/components/ExecutionLogPanel.tsx",
+    "line": 23
+  },
+  {
+    "file": "pages/Scheduler/components/ExecutionLogPanel.tsx",
+    "line": 28
+  },
+  {
+    "file": "pages/Scheduler/components/LogEntry.tsx",
+    "line": 30
+  },
+  {
+    "file": "pages/Scheduler/components/NewTaskForm.tsx",
+    "line": 82
+  },
+  {
+    "file": "pages/Scheduler/components/NewTaskForm.tsx",
+    "line": 107
+  },
+  {
+    "file": "pages/Scheduler/components/NewTaskForm.tsx",
+    "line": 116
+  },
+  {
+    "file": "pages/Scheduler/components/NewTaskForm.tsx",
+    "line": 156
+  },
+  {
+    "file": "pages/Scheduler/components/NewTaskForm.tsx",
+    "line": 186
+  },
+  {
+    "file": "pages/Scheduler/components/NewTaskForm.tsx",
+    "line": 192
+  },
+  {
+    "file": "pages/Scheduler/components/NewTaskForm.tsx",
+    "line": 202
+  },
+  {
+    "file": "pages/Scheduler/components/NewTaskForm.tsx",
+    "line": 212
+  },
+  {
+    "file": "pages/Scheduler/components/NewTaskForm.tsx",
+    "line": 224
+  },
+  {
+    "file": "pages/Scheduler/components/NewTaskForm.tsx",
+    "line": 239
+  },
+  {
+    "file": "pages/Scheduler/components/NewTaskForm.tsx",
+    "line": 249
+  },
+  {
+    "file": "pages/Scheduler/components/TaskCard.tsx",
+    "line": 56
+  },
+  {
+    "file": "pages/Scheduler/components/TaskCard.tsx",
+    "line": 71
+  },
+  {
+    "file": "pages/Scheduler/components/TaskCard.tsx",
+    "line": 106
+  },
+  {
+    "file": "pages/Scheduler/components/TaskCard.tsx",
+    "line": 117
+  },
+  {
+    "file": "pages/Scheduler/components/TaskCard.tsx",
+    "line": 129
+  },
+  {
+    "file": "pages/Settings/components/BitableAdvancedSection.tsx",
+    "line": 53
+  },
+  {
+    "file": "pages/Settings/components/BitableAdvancedSection.tsx",
+    "line": 75
+  },
+  {
+    "file": "pages/Settings/components/BitableAdvancedSection.tsx",
+    "line": 112
+  },
+  {
+    "file": "pages/Settings/components/BitableAdvancedSection.tsx",
+    "line": 142
+  },
+  {
+    "file": "pages/Settings/components/FeishuGuidePanel.tsx",
+    "line": 22
+  },
+  {
+    "file": "pages/Settings/components/FeishuGuidePanel.tsx",
+    "line": 42
+  },
+  {
+    "file": "pages/Settings/components/FeishuGuidePanel.tsx",
+    "line": 48
+  },
+  {
+    "file": "pages/Settings/components/FeishuGuidePanel.tsx",
+    "line": 54
+  },
+  {
+    "file": "pages/Settings/components/FeishuGuidePanel.tsx",
+    "line": 63
+  },
+  {
+    "file": "pages/Settings/components/FeishuStatusBadge.tsx",
+    "line": 47
+  },
+  {
+    "file": "pages/Settings/components/FeishuStatusBadge.tsx",
+    "line": 52
+  },
+  {
+    "file": "pages/Settings/components/FeishuStatusBadge.tsx",
+    "line": 83
+  },
+  {
+    "file": "pages/Settings/components/HintIcon.tsx",
+    "line": 18
+  },
+  {
+    "file": "pages/Settings/components/HintIcon.tsx",
+    "line": 27
+  },
+  {
+    "file": "pages/Settings/components/HintIcon.tsx",
+    "line": 31
+  },
+  {
+    "file": "pages/Settings/components/HintIcon.tsx",
+    "line": 35
+  },
+  {
+    "file": "pages/Settings/components/HintIcon.tsx",
+    "line": 39
+  },
+  {
+    "file": "pages/Settings/components/HintIcon.tsx",
+    "line": 48
+  },
+  {
+    "file": "pages/Settings/sections/AboutSection.tsx",
+    "line": 44
+  },
+  {
+    "file": "pages/Settings/sections/AboutSection.tsx",
+    "line": 70
+  },
+  {
+    "file": "pages/Settings/sections/AboutSection.tsx",
+    "line": 128
+  },
+  {
+    "file": "pages/Settings/sections/ChatSection.tsx",
+    "line": 26
+  },
+  {
+    "file": "pages/Settings/sections/ChatSection.tsx",
+    "line": 74
+  },
+  {
+    "file": "pages/Settings/sections/ChatSection.tsx",
+    "line": 136
+  },
+  {
+    "file": "pages/Settings/sections/DataSection.tsx",
+    "line": 117
+  },
+  {
+    "file": "pages/Settings/sections/DataSection.tsx",
+    "line": 137
+  },
+  {
+    "file": "pages/Settings/sections/DataSection.tsx",
+    "line": 189
+  },
+  {
+    "file": "pages/Settings/sections/DataSection.tsx",
+    "line": 204
+  },
+  {
+    "file": "pages/Settings/sections/DataSection.tsx",
+    "line": 284
+  },
+  {
+    "file": "pages/Settings/sections/DataSection.tsx",
+    "line": 304
+  },
+  {
+    "file": "pages/Settings/sections/DiagnosticSection.tsx",
+    "line": 52
+  },
+  {
+    "file": "pages/Settings/sections/FeishuSection.tsx",
+    "line": 98
+  },
+  {
+    "file": "pages/Settings/sections/FeishuSection.tsx",
+    "line": 119
+  },
+  {
+    "file": "pages/Settings/sections/GeneralSection.tsx",
+    "line": 133
+  },
+  {
+    "file": "pages/Settings/sections/GeneralSection.tsx",
+    "line": 166
+  },
+  {
+    "file": "pages/Settings/sections/GeneralSection.tsx",
+    "line": 241
+  },
+  {
+    "file": "pages/Settings/sections/GeneralSection.tsx",
+    "line": 267
+  },
+  {
+    "file": "pages/Settings/sections/GeneralSection.tsx",
+    "line": 293
+  },
+  {
+    "file": "pages/Settings/sections/GeneralSection.tsx",
+    "line": 326
+  },
+  {
+    "file": "pages/Settings/sections/GeneralSection.tsx",
+    "line": 389
+  },
+  {
+    "file": "pages/Settings/sections/LogSection.tsx",
+    "line": 77
+  },
+  {
+    "file": "pages/Students/components/AddStudentForm.tsx",
+    "line": 42
+  },
+  {
+    "file": "pages/Students/tabs/AIAnalysisTab.tsx",
+    "line": 49
+  },
+  {
+    "file": "pages/Students/tabs/AIAnalysisTab.tsx",
+    "line": 50
+  },
+  {
+    "file": "pages/Students/tabs/AIAnalysisTab.tsx",
+    "line": 51
+  },
+  {
+    "file": "pages/Students/tabs/AIAnalysisTab.tsx",
+    "line": 52
+  },
+  {
+    "file": "pages/Students/tabs/AIAnalysisTab.tsx",
+    "line": 109
+  },
+  {
+    "file": "pages/Students/tabs/AcademicsTab.tsx",
+    "line": 185
+  },
+  {
+    "file": "pages/Students/tabs/EventsTab.tsx",
+    "line": 142
+  },
+  {
+    "file": "pages/Students/tabs/HomeSchoolTab.tsx",
+    "line": 177
+  },
+  {
+    "file": "pages/Students/tabs/HomeSchoolTab.tsx",
+    "line": 194
+  },
+  {
+    "file": "pages/Students/tabs/ProfileTab.tsx",
+    "line": 88
+  },
+  {
+    "file": "components/ComboBox.tsx",
+    "line": 125
+  },
+  {
+    "file": "components/ConfirmDialog.tsx",
+    "line": 33
+  },
+  {
+    "file": "components/ConfirmDialog.tsx",
+    "line": 34
+  },
+  {
+    "file": "components/ModelSelector.tsx",
+    "line": 127
+  },
+  {
+    "file": "components/ModelSelector.tsx",
+    "line": 171
+  },
+  {
+    "file": "components/ModelSelector.tsx",
+    "line": 173
+  },
+  {
+    "file": "components/ModelSelector.tsx",
+    "line": 229
+  },
+  {
+    "file": "components/ModelSelector.tsx",
+    "line": 242
+  },
+  {
+    "file": "components/ToastContainer.tsx",
+    "line": 26
+  },
+  {
+    "file": "components/ToastContainer.tsx",
+    "line": 41
+  },
+  {
+    "file": "components/onboarding/OnboardingWizard.tsx",
+    "line": 49
+  },
+  {
+    "file": "components/onboarding/OnboardingWizard.tsx",
+    "line": 50
+  },
+  {
+    "file": "components/onboarding/steps/AgentsStep.tsx",
+    "line": 43
+  },
+  {
+    "file": "components/onboarding/steps/ClassStep.tsx",
+    "line": 11
+  },
+  {
+    "file": "components/onboarding/steps/ClassStep.tsx",
+    "line": 13
+  },
+  {
+    "file": "components/onboarding/steps/StudentsStep.tsx",
+    "line": 49
+  },
+  {
+    "file": "components/print/ParentReportDocument.tsx",
+    "line": 77
+  },
+  {
+    "file": "components/print/ParentReportDocument.tsx",
+    "line": 106
+  },
+  {
+    "file": "components/print/ParentReportDocument.tsx",
+    "line": 151
+  },
+  {
+    "file": "components/print/ParentReportDocument.tsx",
+    "line": 235
+  },
+  {
+    "file": "components/print/ParentReportDocument.tsx",
+    "line": 244
+  },
+  {
+    "file": "layouts/AgentStatusBar.tsx",
+    "line": 53
+  }
+]
