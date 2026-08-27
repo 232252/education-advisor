@@ -45,8 +45,11 @@ export function hasApiKey(provider: string): boolean {
 
 /**
  * 根据 modelTier 选择模型(支持自定义 provider + API key 验证)
- * 修复 Bug-1: 用户的 defaultProvider + defaultModel(含 900K contextWindow 等自定义)必须能传过来
- * 之前 tier 路径不读 defaultModel, 选了 tier 标签但用了 static 注册表的 model(默认 32K)
+ * Bug-1 修复: 此前 tier 路径不读用户自定义配置(如 900K contextWindow),选了 tier 标签
+ *   却命中 static 注册表(默认 32K)
+ * R2-10 修复: 调换优先级为 tier 专属优先 + defaultModel 兜底 — 否则用户设过默认
+ *   模型后双 tier 同模型,逐 agent 的 model_tier 名存实亡;contextWindow 继承经由
+ *   resolveModel/customModels 同一路径实现,不再依赖 defaultModel 元数据补齐
  *
  * @param ollamaInstalledModelIds ollama 等本地 keyless provider 的已安装模型 id 列表
  *   (由调用方异步预取 ollamaService.listModels() 后注入;selectModel 是同步纯函数无法内部 await)
@@ -57,13 +60,12 @@ export function selectModel(
 ): Model<Api> {
   const settings = settingsService.getSettings()
   const providerId = settings.models.defaultProvider
-  // 优先 defaultModel(用户在 Models 页面选的那个,含自定义 900K contextWindow)
-  // 然后是 tier 对应的 highQualityModel/lowCostModel
-  let modelId = settings.models.defaultModel
-  if (!modelId) {
-    modelId =
-      tier === 'high_quality' ? settings.models.highQualityModel : settings.models.lowCostModel
-  }
+  // R2-10 修复 tier 名存实亡: 此前 defaultModel 第一优先,用户设过默认模型后
+  // high_quality 与 low_cost 选出的是同一个模型, agents.yaml 的 model_tier 全部失效。
+  // 现改为 tier 专属优先,defaultModel 兜底;两者都走 resolveModel/customModels 路径,
+  // 因此用户自定义的 contextWindow(如 900K)经 tier 字段配置后依然生效。
+  const tierModel = tier === 'high_quality' ? settings.models.highQualityModel : settings.models.lowCostModel
+  let modelId = tierModel || settings.models.defaultModel
 
   console.log(
     `[AgentService] selectModel: tier=${tier} provider=${providerId} model=${modelId} (using defaultModel first to inherit user's selected model contextWindow)`,

@@ -31,3 +31,5 @@
 ## 输出要求
 
 输出文件：counselor_morning.json、counselor_talk_plan.json（均在 `data_archive/agent_outputs/`）。谈话计划按优先级排序，每项附证据链；日报含整体概况与重点关注名单，所有数字标注来源工具。
+
+- 涉及家长沟通的内容（如约谈建议、替代方案）以"给教师的建议"呈现：你只起草要点，不承诺代发；话术成品由 home_school 角色负责。
