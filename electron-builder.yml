@@ -36,6 +36,11 @@ extraResources:
   - from: agents/
     to: agents/
     filter: ["**/*"]
+  # 内置技能随包分发 — skill-service 打包态读 process.resourcesPath/skills,
+  # 缺此条则安装版系统提示词的技能清单为空
+  - from: skills/
+    to: skills/
+    filter: ["**/*"]
 
 win:
   target:
