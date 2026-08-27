@@ -100,7 +100,7 @@ export function ClassComparisonPanel({
       {/* 双班级对比选择器 */}
       <div className="mt-4 pt-4 border-t border-gray-100 dark:border-white/[0.06]">
         <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
-          双班级详细对比
+          {t('page.classcmp.dual', '双班级详细对比')}
         </h4>
         <div className="flex items-center gap-3 flex-wrap">
           <select

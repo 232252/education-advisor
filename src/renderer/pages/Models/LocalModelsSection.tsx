@@ -36,7 +36,7 @@ export function LocalModelsSection() {
           <span className="text-lg">🖥️</span>
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{t('page.models.local.title', '本地模型')}</h2>
           <span className="text-[10px] text-gray-400 dark:text-gray-500">
-            Ollama · CPU 推理 · 免登录免费
+            {t('page.models.local.ollamaDesc', 'Ollama · CPU 推理 · 免登录免费')}
           </span>
         </div>
         <div className="flex items-center gap-2">
