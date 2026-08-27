@@ -45,7 +45,11 @@ export function ClassComparisonPanel({
         {t('page.classcmp.overview', '班级对比总览')}
       </h3>
       {classComparison.length === 0 ? (
-        <EmptyState icon={<GraduationCap size={28} />} title={t('page.classcmp.empty', '暂无班级数据')} className="py-6" />
+        <EmptyState
+          icon={<GraduationCap size={28} />}
+          title={t('page.classcmp.empty', '暂无班级数据')}
+          className="py-6"
+        />
       ) : (
         <table className="w-full text-sm min-w-[600px]">
           <thead>
@@ -53,10 +57,16 @@ export function ClassComparisonPanel({
               <th className={TABLE_TH}>{t('page.classcmp.colClass', '班级')}</th>
               <th className={TABLE_TH}>{t('page.classcmp.colGrade', '年级')}</th>
               <th className={TABLE_TH}>{t('page.classcmp.colTeacher', '班主任')}</th>
-              <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colCount', '学生数')}</th>
+              <th className={cn(TABLE_TH, 'text-center')}>
+                {t('page.classcmp.colCount', '学生数')}
+              </th>
               <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colAvg', '平均分')}</th>
-              <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colHighRisk', '高风险')}</th>
-              <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colVeryHigh', '极高')}</th>
+              <th className={cn(TABLE_TH, 'text-center')}>
+                {t('page.classcmp.colHighRisk', '高风险')}
+              </th>
+              <th className={cn(TABLE_TH, 'text-center')}>
+                {t('page.classcmp.colVeryHigh', '极高')}
+              </th>
               <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colHigh', '高')}</th>
               <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colMedium', '中')}</th>
               <th className={cn(TABLE_TH, 'text-center')}>{t('page.classcmp.colLow', '低')}</th>
@@ -109,7 +119,7 @@ export function ClassComparisonPanel({
             className={INPUT_BASE}
             aria-label={t('page.classcmp.selectA', '选择对比班级 A')}
           >
-            <option value=''>{t('page.classcmp.optionA', '选择班级 A...')}</option>
+            <option value="">{t('page.classcmp.optionA', '选择班级 A...')}</option>
             {activeClassList.map((c) => (
               <option key={c.id} value={c.class_id}>
                 {c.name}
@@ -123,7 +133,7 @@ export function ClassComparisonPanel({
             className={INPUT_BASE}
             aria-label={t('page.classcmp.selectB', '选择对比班级 B')}
           >
-            <option value=''>{t('page.classcmp.optionB', '选择班级 B...')}</option>
+            <option value="">{t('page.classcmp.optionB', '选择班级 B...')}</option>
             {activeClassList.map((c) => (
               <option key={c.id} value={c.class_id}>
                 {c.name}

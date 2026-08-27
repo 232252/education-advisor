@@ -9,13 +9,13 @@
 import * as IPC from '@shared/ipc-channels'
 import { type BrowserWindow, dialog, ipcMain } from 'electron'
 import type { AutoBackupInfo } from '../services/backup-service'
-import { formatTimestampFileSafe } from '../utils/format-timestamp'
 import {
   createBackup,
   deleteAutoBackup,
   listAutoBackups,
   restoreFromZip,
 } from '../services/backup-service'
+import { formatTimestampFileSafe } from '../utils/format-timestamp'
 
 function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)

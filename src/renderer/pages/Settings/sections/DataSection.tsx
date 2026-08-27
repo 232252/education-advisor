@@ -11,7 +11,14 @@ import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { useT } from '../../../i18n'
 import { validateCron } from '../../../lib/cron-utils'
 import { getAPI } from '../../../lib/ipc-client'
-import { btnStyle, cn, formatBytes, formatDateTime, INPUT_INVALID, INPUT_SM } from '../../../lib/ui-utils'
+import {
+  btnStyle,
+  cn,
+  formatBytes,
+  formatDateTime,
+  INPUT_INVALID,
+  INPUT_SM,
+} from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
 import { Section, SettingRow, ToggleSwitch } from '../components'
 

@@ -64,8 +64,9 @@ export function selectModel(
   // high_quality 与 low_cost 选出的是同一个模型, agents.yaml 的 model_tier 全部失效。
   // 现改为 tier 专属优先,defaultModel 兜底;两者都走 resolveModel/customModels 路径,
   // 因此用户自定义的 contextWindow(如 900K)经 tier 字段配置后依然生效。
-  const tierModel = tier === 'high_quality' ? settings.models.highQualityModel : settings.models.lowCostModel
-  let modelId = tierModel || settings.models.defaultModel
+  const tierModel =
+    tier === 'high_quality' ? settings.models.highQualityModel : settings.models.lowCostModel
+  const modelId = tierModel || settings.models.defaultModel
 
   console.log(
     `[AgentService] selectModel: tier=${tier} provider=${providerId} model=${modelId} (using defaultModel first to inherit user's selected model contextWindow)`,
