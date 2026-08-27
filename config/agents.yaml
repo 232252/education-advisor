@@ -41,6 +41,7 @@ agents:
       - stats
       - codes
       - range
+      - revert # R2-02:AGENTS.md 声明了 eaa_revert_event,补齐授权(主协调者直接处理"记错了,撤销")
     schedule:
       cron: []
     risk_thresholds:
@@ -394,6 +395,8 @@ agents:
       - ranking
       - summary
       - add_event
+      - range # R2-02:AGENTS.md 声明了 eaa_range,补授权(只读区间查询)
+      - codes # R2-02:AGENTS.md 声明了 eaa_codes,补授权(只读原因码)
     schedule:
       cron: []
     # P2-12 修复:统一阈值 85/93/93
@@ -420,6 +423,8 @@ agents:
       - ranking
       - summary
       - history
+      - revert # R2-02:AGENTS.md 声明了 eaa_revert_event,处分纠错是本角色分内事
+      - add_student # R2-02:AGENTS.md 声明了 eaa_add_student,违纪学生未入库时先建档
     schedule:
       cron: []
     # P2-12 修复:统一阈值 85/93/93
