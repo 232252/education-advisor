@@ -60,7 +60,7 @@ vi.mock('../../../stores/toastStore', () => ({ toast: vi.fn() }))
 
 vi.mock('../../../lib/ipc-client', () => ({
   getAPI: () => ({
-    agent: { runManual: vi.fn(), abort: vi.fn() },
+    agent: { runManual: runManualMock, abort: vi.fn() },
     settings: { set: vi.fn(), get: vi.fn(() => Promise.resolve({})) },
     sys: { openDialog: vi.fn(), readFile: vi.fn() },
     chat: {
@@ -71,6 +71,8 @@ vi.mock('../../../lib/ipc-client', () => ({
     },
   }),
 }))
+
+const { runManualMock } = vi.hoisted(() => ({ runManualMock: vi.fn() }))
 
 vi.mock('../../../components/ModelSelector', () => ({
   ModelSelector: () => <div data-testid="model-sel" />,
@@ -121,5 +123,31 @@ describe('ChatPage — 助手消息头像与复制按钮', () => {
     renderPage()
     expect(screen.getByText('你好')).toBeTruthy()
     expect(document.querySelectorAll('.from-blue-500').length).toBe(1)
+  })
+
+  // R2-29: 发送路径组件级测试 — 输入 → runManual(选中 agent, 组装 history)
+  it('发送消息经 runManual 以选中 agent 执行(R2-29)', async () => {
+    renderPage()
+    // 输入框是受控 textarea(placeholder 含"发送指令")
+    const inputEl = screen.getByPlaceholderText(/发送指令/) as HTMLTextAreaElement
+    fireEvent.change(inputEl, { target: { value: '给张三的家长发一条提醒' } })
+    // 回车或发送按钮触发 handleSend
+    fireEvent.keyDown(inputEl, { key: 'Enter', code: 'Enter' })
+    // 微任务 → runManual 应被调用
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(runManualMock).toHaveBeenCalledTimes(1)
+    const [agentId, text, history] = runManualMock.mock.calls[0]!
+    expect(agentId).toBe('main')
+    expect(text).toBe('给张三的家长发一条提醒')
+    expect(Array.isArray(history)).toBe(true)
+  })
+
+  it('空输入不触发 runManual(R2-29)', async () => {
+    renderPage()
+    const inputEl = screen.getByPlaceholderText(/发送指令/) as HTMLTextAreaElement
+    fireEvent.keyDown(inputEl, { key: 'Enter', code: 'Enter' })
+    await Promise.resolve()
+    expect(runManualMock).not.toHaveBeenCalled()
   })
 })

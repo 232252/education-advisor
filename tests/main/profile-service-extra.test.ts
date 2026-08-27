@@ -31,7 +31,7 @@ const { profileService } = await import('../../src/main/services/profile-service
 
 describe('profileService 补充 — 路径遍历与名称清洗', () => {
   beforeAll(async () => {
-    await fsp.mkdir(path.join(tmpDir, 'eaa-data', 'profiles'), { recursive: true })
+    await fsp.mkdir(path.join(tmpDir, 'profiles'), { recursive: true })
   })
 
   afterAll(async () => {
@@ -54,8 +54,8 @@ describe('profileService 补充 — 路径遍历与名称清洗', () => {
       const evilPath = path.join(tmpDir, '..', '..', '..', 'etc', 'ZZZ_NONEXISTENT_TRAVERSAL_TARGET')
       expect(fs.existsSync(evilPath)).toBe(false)
       // 同时确认数据写入了 profiles 目录内(清洗后的安全文件名)
-      // profile-service 用 userData/eaa-data/profiles,测试 mock userData=tmpDir
-      const profilesDir = path.join(tmpDir, 'eaa-data', 'profiles')
+      // profile-service(R2-17 起)用 userData/profiles,测试 mock userData=tmpDir
+      const profilesDir = path.join(tmpDir, 'profiles') // R2-17: 与 SQLite 同层
       const written = fs
         .readdirSync(profilesDir)
         .filter((f) => f.includes('etc') && f.includes('ZZZ_NONEXISTENT'))
@@ -94,7 +94,7 @@ describe('profileService 补充 — 路径遍历与名称清洗', () => {
     })
 
     it('损坏 JSON 返回空对象', async () => {
-      const dir = path.join(tmpDir, 'eaa-data', 'profiles')
+      const dir = path.join(tmpDir, 'profiles') // R2-17
       fs.writeFileSync(path.join(dir, '损坏好.json'), 'not json{', 'utf-8')
       expect(await profileService.get('损坏好')).toEqual({})
     })
