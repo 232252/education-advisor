@@ -46,7 +46,7 @@ export function PeriodSummaryCard({
                 +{data.events.bonus_total.toFixed(1)}
               </div>
             </div>
-            <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 rounded-xl p-3 border border-red-200/50 dark:border-red-700/30">
+            <div className="bg-gradient-to-br from-red-50 to-red-50 dark:from-red-900/20 dark:to-red-900/20 rounded-xl p-3 border border-red-200/50 dark:border-red-700/30">
               <div className="text-gray-400 dark:text-gray-500">
                 {t('page.dashboard.summary.down')}
               </div>

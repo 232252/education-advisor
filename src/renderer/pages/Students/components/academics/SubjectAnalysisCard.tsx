@@ -42,7 +42,7 @@ export function SubjectAnalysisCard({ subjectAnalysis }: SubjectAnalysisCardProp
           </div>
         )}
         {subjectAnalysis.weakest && subjectAnalysis.all.length > 1 && (
-          <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10 rounded-lg p-3 border border-red-200/50 dark:border-red-700/30">
+          <div className="bg-gradient-to-br from-red-50 to-red-50 dark:from-red-900/10 dark:to-red-900/10 rounded-lg p-3 border border-red-200/50 dark:border-red-700/30">
             <div className="text-xs text-red-600 dark:text-red-400 font-medium">
               {t('page.students.subjectAnalysis.weakest', '⚠️ 最弱科目')}
             </div>

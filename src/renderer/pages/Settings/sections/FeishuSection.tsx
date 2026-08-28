@@ -142,7 +142,7 @@ export function FeishuSection({
                 feishuTestStatus === 'success'
                   ? 'text-emerald-500 dark:text-emerald-400'
                   : feishuTestStatus === 'error'
-                    ? 'text-rose-500 dark:text-rose-400'
+                    ? 'text-red-500 dark:text-red-400'
                     : 'text-gray-500 dark:text-gray-400'
               }`}
             >

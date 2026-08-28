@@ -95,7 +95,7 @@ export function BitableAdvancedSection({
                 bitableListStatus === 'success'
                   ? 'text-emerald-500 dark:text-emerald-400'
                   : bitableListStatus === 'error'
-                    ? 'text-rose-500 dark:text-rose-400'
+                    ? 'text-red-500 dark:text-red-400'
                     : 'text-gray-500 dark:text-gray-400'
               }`}
             >

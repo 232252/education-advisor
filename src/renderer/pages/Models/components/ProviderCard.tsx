@@ -6,7 +6,8 @@
 import type { ModelInfo, ProviderInfo } from '@shared/types'
 import { memo, useState } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
-import { btnStyle, CARD_BASE, cn, INPUT_BASE } from '../../../lib/ui-utils'
+import { useT } from '../../../i18n'
+import { btnStyle, CARD_BASE, cn, formatDateTime, INPUT_BASE } from '../../../lib/ui-utils'
 import { ModelRow } from './ModelRow'
 
 // 空表单常量(供 ModelRow 非编辑行传参用,避免每次 render 新建对象导致 memo 失效)
@@ -55,6 +56,7 @@ export const ProviderCard = memo(function ProviderCard({
   onDeleteCustomModel,
   refreshTime,
 }: ProviderCardProps) {
+  const { t } = useT()
   const p = provider
   const [customModelInput, setCustomModelInput] = useState('')
   const [editingModelId, setEditingModelId] = useState<string | null>(null)
@@ -195,7 +197,7 @@ export const ProviderCard = memo(function ProviderCard({
             )}
             {refreshTime !== undefined && refreshTime > 0 && (
               <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                最近刷新: {new Date(refreshTime).toLocaleTimeString()}
+                {t('page.models.provider.lastRefresh', '最近刷新')}: {formatDateTime(refreshTime)}
               </span>
             )}
           </div>

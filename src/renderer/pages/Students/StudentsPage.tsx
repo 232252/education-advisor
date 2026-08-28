@@ -3,7 +3,7 @@
 // =============================================================
 import type { EAAStudent } from '@shared/types'
 import { Plus, Users } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
@@ -29,6 +29,12 @@ import { StudentProfile } from './StudentProfile'
 export function StudentsPage() {
   const { t } = useT()
   const [search, setSearch] = useState('')
+  // R2+(流畅度): 搜索防抖 — 此前每击键全量 filter+sort+diff
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(timer)
+  }, [search])
   const [selectedStudent, setSelectedStudent] = useState<EAAStudent | null>(null)
   const [addingStudent, setAddingStudent] = useState(false)
   const [newStudentName, setNewStudentName] = useState('')
@@ -51,8 +57,9 @@ export function StudentsPage() {
     activeClassList,
   } = useStudentList(setSelectedStudent)
   const filtered = useMemo(
-    () => filterStudents(students, classFilter, search, archivedClassIds, showArchivedClass),
-    [students, classFilter, showArchivedClass, archivedClassIds, search],
+    () =>
+      filterStudents(students, classFilter, debouncedSearch, archivedClassIds, showArchivedClass),
+    [students, classFilter, showArchivedClass, archivedClassIds, debouncedSearch],
   )
   const archivedHiddenCount = useMemo(
     () => countArchivedHidden(students, archivedClassIds),
