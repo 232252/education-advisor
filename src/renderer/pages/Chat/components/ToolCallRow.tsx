@@ -19,6 +19,11 @@ export function ToolCallRow({ tc }: { tc: ToolCall }) {
           {tc.isError ? '✗' : '✓'}
         </span>
       )}
+      {tc.result && tc.result !== 'success' && tc.result !== 'error' && (
+        <span className="ml-1 text-gray-400 dark:text-gray-500 truncate max-w-[280px] inline-block align-middle">
+          {tc.result}
+        </span>
+      )}
     </div>
   )
 }

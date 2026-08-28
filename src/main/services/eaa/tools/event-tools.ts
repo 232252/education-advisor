@@ -76,7 +76,13 @@ export const addEventTool: AgentTool<typeof addEventParams> = {
     if (!result.success) {
       throw new Error(`添加事件失败: ${getErrorMessage(result)}`)
     }
-    return textResult(`事件已添加: ${extractData(result.data)}`)
+    // R2+(文案修复): dry_run 预演必须明说"未写入" — 此前统一返回
+    // "事件已添加",模型会据此告知用户"已记录"而实际什么都没落库
+    return textResult(
+      params.dry_run
+        ? `[dry-run 预演,未写入数据] ${extractData(result.data)} — 若确认无误,请向教师复述并再次调用(dry_run:false)正式写入`
+        : `事件已添加: ${extractData(result.data)}`,
+    )
   },
 }
 

@@ -209,11 +209,17 @@ export class EAABridge {
     }
 
     // 运行 doctor 健康检查(逻辑拆分到 eaa/initialization.ts)
-    const result = await runDoctorCheck(() =>
-      this.execute({ command: 'doctor', args: [], timeout: 10_000 }),
-    )
+    // R2+: 改为后台预热 — doctor 结果无运行时消费方(纯诊断日志),
+    // 而 spawn eaa.exe 在 Windows 杀软扫描时可卡数秒,不应阻塞启动首帧
     this.initialized = true
-    return result
+    void runDoctorCheck(() => this.execute({ command: 'doctor', args: [], timeout: 10_000 }))
+      .then((result) => {
+        console.log(`[EAA] Doctor warmup: ${result.message}`)
+      })
+      .catch((err) => {
+        console.error('[EAA] Doctor warmup failed:', err)
+      })
+    return { healthy: true, message: 'EAA data dir ready (doctor check in background)' }
   }
 
   /**
