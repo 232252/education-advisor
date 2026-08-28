@@ -10,7 +10,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 import * as XLSX from 'xlsx'
 import { checkFileSize, MAX_EXCEL_ROWS, validateFilePath } from './security'
-import { textResult } from './shared'
+import { textResult, truncateForResult } from './shared'
 
 // =============================================================
 // Schema 定义
@@ -124,7 +124,15 @@ export const readExcelTool: AgentTool<typeof readExcelParams> = {
       lines.push('(空表格)')
     }
 
-    return textResult(lines.join('\n'))
+    // H4 修复(2026-08-28 智能轮): 默认 5000 行全量格式化可达数十万字符,
+    // 套统一截断 — 本工具无 offset 分页,指引模型收窄 maxRows 分段读取
+    return textResult(
+      truncateForResult(
+        lines.join('\n'),
+        0,
+        '本工具无分页参数,请用更小的 maxRows(如 100)分段读取所需区间。',
+      ),
+    )
   },
 }
 

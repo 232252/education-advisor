@@ -17,15 +17,21 @@ import type { Api, Model } from '@earendil-works/pi-ai/compat'
 import { getModel, getModels, getProviders } from '@earendil-works/pi-ai/compat'
 // KEYLESS_PROVIDERS 从 ollama/constants 导入(定义单一来源;ollama-service 入口会拉入 electron)
 import { KEYLESS_PROVIDERS } from './ollama/constants'
-import { buildOllamaModel, resolveModel } from './pi-ai/model-utils'
+import { buildOllamaModel, parseOllamaParamB, resolveModel } from './pi-ai/model-utils'
 import { costScore } from './pi-ai-helpers'
 import { piAIService } from './pi-ai-service'
 import { settingsService } from './settings-service'
 
 /** 模型提前结束时最多续跑次数 */
 export const MAX_CONTINUATIONS = 5
-/** 输出少于此字符时触发续跑 */
-export const MIN_OUTPUT_CHARS = 200
+/**
+ * 输出少于此字符数且轮次不足时触发续跑。
+ * M1 修复(2026-08-28 智能轮): 原 200 — 教师问"今天星期几"级别的短回答(50~150 字)
+ * 也会触发续跑,系统注入"至少还需 N 轮"的指令逼模型凑轮次/编造工具调用。
+ * 收敛到 50: 低于此值几乎必然是截断/空回(真正需要续跑的信号);
+ * 合法短回答不再被打扰。
+ */
+export const MIN_OUTPUT_CHARS = 50
 /** 轮次少于此数时触发续跑 */
 export const MIN_TURN_COUNT = 3
 
@@ -69,7 +75,7 @@ export function selectModel(
   const modelId = tierModel || settings.models.defaultModel
 
   console.log(
-    `[AgentService] selectModel: tier=${tier} provider=${providerId} model=${modelId} (using defaultModel first to inherit user's selected model contextWindow)`,
+    `[AgentService] selectModel: tier=${tier} provider=${providerId} model=${modelId} (tier 专属优先, defaultModel 兜底; contextWindow 经 resolveModel/customModels 继承)`,
   )
 
   // 1. 尝试使用配置的具体模型（静态注册表 + ollama/自定义模型回退）
@@ -100,18 +106,21 @@ export function selectModel(
 
   // 2. ollama 等本地 keyless provider 的 tier 自动选择:
   // 不在 pi-ai 静态注册表(getModels 会抛错),改从调用方预取的已安装列表中挑选。
-  // 沿用静态表"按成本档位 reduce"的语义:本地模型 cost 全为 0,
-  // reduce 相等时保留第一个 → 等效"选第一个可用"
+  // H5 修复(2026-08-28 智能轮): 本地模型 cost 全为 0,原"按 cost reduce"在相等时
+  // 保留第一个 → 两个 tier 永远选同一个,agents.yaml 的 model_tier 对本地用户名存实亡。
+  // 改按模型名解析的参数规模(b 数)排序: high_quality → 最大,low_cost → 最小;
+  // 解析不出规模时按 8(主流默认档)参与排序。
   if (providerId && KEYLESS_PROVIDERS.has(providerId) && hasApiKey(providerId)) {
     const installed = ollamaInstalledModelIds ?? []
     if (installed.length > 0) {
       const localModels = installed.map((id) => buildOllamaModel(id))
+      const paramB = (m: Model<Api>) => parseOllamaParamB(m.id) ?? 8
       const selected =
         tier === 'high_quality'
-          ? localModels.reduce((best, m) => (costScore(m) > costScore(best) ? m : best))
-          : localModels.reduce((cheapest, m) => (costScore(m) < costScore(cheapest) ? m : cheapest))
+          ? localModels.reduce((best, m) => (paramB(m) > paramB(best) ? m : best))
+          : localModels.reduce((smallest, m) => (paramB(m) < paramB(smallest) ? m : smallest))
       console.log(
-        `[AgentService] selectModel: using local provider ${providerId} auto-selected ${selected.id}`,
+        `[AgentService] selectModel: using local provider ${providerId} auto-selected ${selected.id} (param≈${paramB(selected)}b, tier=${tier}, candidates=${installed.join(',')})`,
       )
       return selected
     }

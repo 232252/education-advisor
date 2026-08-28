@@ -54,8 +54,8 @@ describe('续跑常量', () => {
   it('MAX_CONTINUATIONS = 5', () => {
     expect(MAX_CONTINUATIONS).toBe(5)
   })
-  it('MIN_OUTPUT_CHARS = 200', () => {
-    expect(MIN_OUTPUT_CHARS).toBe(200)
+  it('MIN_OUTPUT_CHARS = 50 (M1: 合法短回答不再触发续跑)', () => {
+    expect(MIN_OUTPUT_CHARS).toBe(50)
   })
   it('MIN_TURN_COUNT = 3', () => {
     expect(MIN_TURN_COUNT).toBe(3)

@@ -22,7 +22,7 @@ import { resolveApiKey, selectModel } from '../agent-model-selector'
 import {
   compactAgentMessages,
   computeAdaptiveReserve,
-  estimateMessageChars,
+  estimateMessageTokens,
 } from '../compaction-helper'
 import { dbService } from '../db-service'
 import { ollamaService } from '../ollama-service'
@@ -216,17 +216,19 @@ async function executeAgentRunInner(
     if (messages.length <= 2) {
       return messages
     }
-    // R136 优化: 廉价预检查 — 字符总数 / 4 < 阈值 * 0.8 时跳过完整扫描
+    // R136 优化: 廉价预检查 — 估算 token < 阈值 * 0.8 时跳过完整扫描
     // 避免每轮都对全部消息做 O(N) token 估算(常见于会话初期)
-    // (M16: 统计规则收敛到 compaction-helper.estimateMessageChars,此处是第三个消费方)
+    // (M16: 统计规则收敛到 compaction-helper.estimateMessageTokens,此处是第三个消费方;
+    //   2026-08-28 智能轮: /4 字符估算改为 CJK 感知,与完整评估同口径,
+    //   否则中文会话预检查放行、完整评估又触发,预检查失效)
     const threshold = model.contextWindow - compactionSettings.reserveTokens
-    let quickChars = 0
+    let quickTokens = 0
     for (let i = 0; i < messages.length; i++) {
-      quickChars += estimateMessageChars(messages[i])
+      quickTokens += estimateMessageTokens(messages[i])
       // 提前退出: 已超阈值 * 0.8 就停止统计, 进入完整评估
-      if (quickChars / 4 > threshold * 0.8) break
+      if (quickTokens > threshold * 0.8) break
     }
-    if (quickChars / 4 < threshold * 0.8) {
+    if (quickTokens < threshold * 0.8) {
       return messages
     }
     const key = resolveApiKey(model.provider)
