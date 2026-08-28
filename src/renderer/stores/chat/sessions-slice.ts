@@ -62,6 +62,40 @@ export function createSessionsSlice(
       // F1 修复: 切换会话前 flush 待处理 delta,
       // 否则模块级 50ms 缓冲中的 pending delta 会写入新会话的末条 assistant 消息
       flushStreamDeltas()
+      // 串台修复(2026-08-28 审计): 在途流必须先终止 — 否则 abort 前后的
+      // delta/idle 事件会写入新会话并在新会话 id 下落库。
+      const state = get()
+      if (state.isStreaming && state.selectedAgentId) {
+        // 部分输出属于旧会话,先落库再走(与 Chat 停止按钮的行为一致)
+        const msgs = state.messages
+        const last = msgs[msgs.length - 1]
+        if (last?.role === 'assistant' && last.content.trim().length > 0) {
+          getAPI()
+            .chat.saveMessage({
+              sessionId: state.sessionId,
+              role: 'assistant',
+              content: last.content,
+              thinking: last.thinking,
+              timestamp: last.timestamp,
+              provider: `agent:${state.selectedAgentId}`,
+              model: state.selectedAgentId,
+            })
+            .catch(() => {
+              /* 保存失败不阻断切换 */
+            })
+        }
+        try {
+          getAPI().agent.abort(state.selectedAgentId)
+        } catch {
+          /* abort 失败不阻断切换;晚到的流事件由 streamSessionId 守卫丢弃 */
+        }
+        set({
+          isStreaming: false,
+          isThinking: false,
+          streamingAgentId: null,
+          streamSessionId: null,
+        })
+      }
       set({
         sessionId: id,
         messages: [],

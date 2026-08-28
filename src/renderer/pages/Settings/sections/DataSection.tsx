@@ -35,6 +35,7 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
     Array<{ fileName: string; sizeBytes: number; createdAt: number; kind: 'auto' | 'pre-restore' }>
   >([])
   const [confirmRestore, setConfirmRestore] = useState(false)
+  const [pendingDeleteBackup, setPendingDeleteBackup] = useState<string | null>(null)
   const [confirmRestart, setConfirmRestart] = useState(false)
   // M33: 备份计划 cron 表达式本地编辑态(非法中间态不落盘,合法才 onSave)
   const [cronInput, setCronInput] = useState(settings.backup?.autoBackupCron ?? '0 3 * * *')
@@ -226,7 +227,7 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
             disabled={!backupSettings.autoBackupEnabled}
           />
           {!cronValidation.valid && (
-            <div className="text-[10px] mt-1 text-rose-500 dark:text-rose-400">
+            <div className="text-[10px] mt-1 text-red-500 dark:text-red-400">
               {t('settings.backup.cronInvalid', '无效的 cron 表达式')}: {cronValidation.error}
             </div>
           )}
@@ -272,8 +273,8 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleDelete(b.fileName)}
-                  className="text-[10px] px-2 py-1 rounded-lg text-rose-500 dark:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  onClick={() => setPendingDeleteBackup(b.fileName)}
+                  className="text-[10px] px-2 py-1 rounded-lg text-red-500 dark:text-red-400 hover:bg-red-500/10 transition-colors"
                 >
                   {t('common.delete', '删除')}
                 </button>
@@ -317,6 +318,18 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
           void executeRestore()
         }}
         onCancel={() => setConfirmRestore(false)}
+      />
+      <ConfirmDialog
+        open={pendingDeleteBackup !== null}
+        title={t('common.delete', '删除')}
+        message={`${t('common.delete')} ${pendingDeleteBackup ?? ''}？${t('common.deleteIrreversible', '此操作不可恢复。')}`}
+        variant="danger"
+        onConfirm={() => {
+          const fileName = pendingDeleteBackup
+          setPendingDeleteBackup(null)
+          if (fileName) void handleDelete(fileName)
+        }}
+        onCancel={() => setPendingDeleteBackup(null)}
       />
 
       <ConfirmDialog

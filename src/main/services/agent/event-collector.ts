@@ -9,6 +9,24 @@ import type { BrowserWindow } from 'electron'
 import { log } from '../../utils/logger'
 import { sendAgentStatus } from './status-tracking'
 
+/** 工具结果 → 面向用户的短预览(截 200 字符;失败时错误文本优先) */
+function toolResultPreview(result: unknown): string | undefined {
+  try {
+    const r = result as { content?: Array<{ type?: string; text?: string }>; error?: unknown }
+    const text = r?.content?.find((c) => c.type === 'text')?.text
+    if (typeof text === 'string' && text.length > 0) {
+      return text.length > 200 ? `${text.slice(0, 200)}…` : text
+    }
+    if (r?.error !== undefined) {
+      const errText = String(r.error)
+      return errText.length > 200 ? `${errText.slice(0, 200)}…` : errText
+    }
+    return undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** 单次运行的聚合统计(最终落库 tokenUsage/cost 与续跑判断都读这里) */
 export interface AgentRunStats {
   /** 流式输出的累计文本(text_delta 拼接) */
@@ -79,7 +97,13 @@ export function createEventCollector(
           `[AgentService] agent(${id}) turn=${stats.turnCount} tool_end: ${event.toolName} error=${event.isError}`,
         )
         sendAgentStatus(win, id, 'running', {
-          toolResult: { name: event.toolName, isError: event.isError },
+          toolResult: {
+            name: event.toolName,
+            isError: event.isError,
+            // R2+(工具可见性): 附带结果文本预览 — 此前只回传 isError,
+            // 模型收到的错误详情(如"删除学生需要显式确认")用户完全看不到
+            preview: toolResultPreview(event.result),
+          },
         })
         break
       case 'turn_end': {

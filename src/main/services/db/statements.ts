@@ -99,7 +99,9 @@ export function prepareAllStatements(db: Database | null): DbStatements {
       VALUES (@session_id, @role, @content, @thinking, @tool_calls, @timestamp, @provider, @model, @token_input, @token_output, @cost)
     `)
   stmts.selectChatMessages = db.prepare(`
-      SELECT * FROM chat_messages WHERE session_id = ? ORDER BY timestamp ASC
+      SELECT * FROM (
+        SELECT * FROM chat_messages WHERE session_id = ? ORDER BY timestamp DESC LIMIT 500
+      ) ORDER BY timestamp ASC
     `)
   stmts.deleteChatSession = db.prepare(`
       DELETE FROM chat_messages WHERE session_id = ?

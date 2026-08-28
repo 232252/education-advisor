@@ -8,6 +8,13 @@
  * 配额耗尽类错误补充可操作建议。非 JSON 错误原样返回。
  */
 export function formatLlmError(raw: string): string {
+  // 无可用模型/无 key — agent-model-selector 降级链耗尽时的英文兜底,
+  // 映射为带操作引导的中文(2026-08-28 审计:新用户首条消息石沉大海的主文案)
+  if (
+    /no model available|no (configured )?api key|api key (is )?(missing|not configured)/i.test(raw)
+  ) {
+    return `${raw}\n\n> 未找到可用模型：请到「模型」页配置 API Key，或安装本地模型（Ollama）后重试。`
+  }
   const jsonStart = raw.indexOf('{')
   if (jsonStart > 0) {
     try {

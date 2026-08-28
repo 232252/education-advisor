@@ -35,6 +35,20 @@ export function createAgentBridgeSlice(
       // 修复策略 v1: 对于 idle/error 终止事件,即使 agentId 不匹配也要清理可能残留的 isStreaming 状态
       // 修复策略 v2(避免 v1 引入的回归): 只有当 idle/error 来自 streamingAgentId 时才清理,
       //   避免旧 agent 的 idle 事件错误清理新 agent 的流状态
+      // 串台修复: 流启动后用户切换了会话 → 该流的任何事件不再写入当前(新)会话。
+      // idle/error 仅做流状态清理;部分输出已由 switchSession 落到旧会话。
+      if (state.streamSessionId && state.streamSessionId !== state.sessionId) {
+        if (data.status === 'idle' || data.status === 'error') {
+          set({
+            isStreaming: false,
+            isThinking: false,
+            streamingAgentId: null,
+            streamSessionId: null,
+          })
+        }
+        return
+      }
+
       if (data.agentId !== state.selectedAgentId) {
         // CONCERN 修复: 缓存切走期间的 output,切回时合并到消息
         if (data.status === 'running' && data.output) {
@@ -70,7 +84,7 @@ export function createAgentBridgeSlice(
             const lastMsg = state.messages[state.messages.length - 1]
             if (state.streamingAgentId === data.agentId && lastMsg?.role === 'assistant') {
               // 复用:仅恢复 isStreaming,不新建消息
-              set({ isStreaming: true, isThinking: false })
+              set({ isStreaming: true, isThinking: false, streamSessionId: state.sessionId })
               // CONCERN 修复: 合并切走期间缓存的 output,避免文本截断
               const pending = pendingAgentOutputs.get(data.agentId)
               if (pending && pending.length > 0) {
@@ -80,7 +94,12 @@ export function createAgentBridgeSlice(
               }
             } else {
               // 新流:记录 streamingAgentId + 新建 assistant 消息
-              set({ isStreaming: true, isThinking: false, streamingAgentId: data.agentId })
+              set({
+                isStreaming: true,
+                isThinking: false,
+                streamingAgentId: data.agentId,
+                streamSessionId: state.sessionId,
+              })
               // LOW 修复: 清理非当前 agent 的残留缓存,防止 agent 崩溃(不发出 idle/error)
               // 导致 pendingAgentOutputs 内存泄漏。新流开始意味着用户关注当前 agent,
               // 之前切走期间的其他 agent 缓存已无意义(切回也会从新流开始)。
@@ -134,7 +153,8 @@ export function createAgentBridgeSlice(
                   if (tcs[i].name === toolResult.name && !tcs[i].result) {
                     tcs[i] = {
                       ...tcs[i],
-                      result: toolResult.isError ? 'error' : 'success',
+                      // 优先展示结果文本预览(工具可见性),无预览时退回状态标记
+                      result: toolResult.preview ?? (toolResult.isError ? 'error' : 'success'),
                       isError: toolResult.isError,
                     }
                     break
@@ -175,6 +195,7 @@ export function createAgentBridgeSlice(
             isStreaming: false,
             isThinking: false,
             streamingAgentId: null,
+            streamSessionId: null,
             lastUsage: usage,
             lastCost: data.result?.cost || 0,
           })
@@ -203,7 +224,12 @@ export function createAgentBridgeSlice(
               get().appendStreamDelta(`\n\n**错误:** ${formatLlmError(data.error)}`)
             }
           }
-          set({ isStreaming: false, isThinking: false, streamingAgentId: null })
+          set({
+            isStreaming: false,
+            isThinking: false,
+            streamingAgentId: null,
+            streamSessionId: null,
+          })
           break
         }
       }

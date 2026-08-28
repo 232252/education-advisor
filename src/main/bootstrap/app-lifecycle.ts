@@ -71,6 +71,47 @@ export async function startApp(): Promise<void> {
   // 注册所有 IPC 处理器（同步注册 + 异步初始化）
   await registerAllHandlers(win)
 
+  // R2+(2026-08-28 流畅度审计): loadURL 提前 — handler 注册完成即加载渲染层,
+  // cron/飞书/托盘/更新检查改在首帧之后初始化,EAA doctor 已后台预热
+  // 外部链接在系统浏览器中打开
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
+  // 加载渲染进程
+  if (process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL) {
+    const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
+    win.loadURL(devUrl)
+    win.webContents.openDevTools({ mode: 'detach' })
+  } else {
+    // P0 修复: 使用自定义 app:// 协议加载渲染进程,解决 file:// 下 ES Module CORS 问题
+    win.loadURL('app://index/index.html')
+  }
+
+  // 监听渲染进程控制台消息，输出到主进程
+  win.webContents.on('console-message', (_event, level, message, _line, sourceId) => {
+    const prefix = `[Renderer ${level}]`
+    console.log(`${prefix} ${message} (${sourceId})`)
+  })
+
+  // 监听渲染进程崩溃
+  win.webContents.on('render-process-gone', (_event, details) => {
+    console.error(`[Renderer] Process gone: ${details.reason} (exitCode=${details.exitCode})`)
+  })
+
+  // 监听页面加载失败
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDesc, validatedURL) => {
+    console.error(`[Renderer] Load failed: ${errorCode} ${errorDesc} URL=${validatedURL}`)
+  })
+
+  // 初始化完成后显示窗口
+  win.once('ready-to-show', () => {
+    // 双重保险: 在 show 前再次设置图标,确保 Windows 任务栏正确显示
+    if (appIcon) win.setIcon(appIcon)
+    win.show()
+  })
+
   // 注册飞书 Bitable 定时同步任务
   cronService.registerBitableSync()
 
@@ -95,12 +136,6 @@ export async function startApp(): Promise<void> {
   } catch (err) {
     log('warn', 'main', `feishu bot auto-start skipped: ${err}`)
   }
-
-  // 外部链接在系统浏览器中打开
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
-    return { action: 'deny' }
-  })
 
   // 读取设置，按需创建系统托盘(委托给 tray-service)
   // Linux headless/无托盘环境: new Tray 会抛异常, 捕获后降级为无托盘模式, 不阻塞启动
@@ -143,39 +178,6 @@ export async function startApp(): Promise<void> {
 
   win.on('closed', () => {
     mainState.mainWindow = null
-  })
-
-  // 加载渲染进程
-  if (process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL) {
-    const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
-    win.loadURL(devUrl)
-    win.webContents.openDevTools({ mode: 'detach' })
-  } else {
-    // P0 修复: 使用自定义 app:// 协议加载渲染进程,解决 file:// 下 ES Module CORS 问题
-    win.loadURL('app://index/index.html')
-  }
-
-  // 监听渲染进程控制台消息，输出到主进程
-  win.webContents.on('console-message', (_event, level, message, _line, sourceId) => {
-    const prefix = `[Renderer ${level}]`
-    console.log(`${prefix} ${message} (${sourceId})`)
-  })
-
-  // 监听渲染进程崩溃
-  win.webContents.on('render-process-gone', (_event, details) => {
-    console.error(`[Renderer] Process gone: ${details.reason} (exitCode=${details.exitCode})`)
-  })
-
-  // 监听页面加载失败
-  win.webContents.on('did-fail-load', (_event, errorCode, errorDesc, validatedURL) => {
-    console.error(`[Renderer] Load failed: ${errorCode} ${errorDesc} URL=${validatedURL}`)
-  })
-
-  // 初始化完成后显示窗口
-  win.once('ready-to-show', () => {
-    // 双重保险: 在 show 前再次设置图标,确保 Windows 任务栏正确显示
-    if (appIcon) win.setIcon(appIcon)
-    win.show()
   })
 
   app.on('activate', () => {

@@ -59,6 +59,7 @@ class DBService {
   private _lastError: string | null = null
   /** CONCERN 修复: 定期清理定时器 (每 24 小时清理一次过期数据) */
   private cleanupTimer: NodeJS.Timeout | null = null
+  private startupCleanupTimer: NodeJS.Timeout | null = null
   /** 预编译语句缓存 */
   private stmts: DbStatements = {}
 
@@ -93,7 +94,11 @@ class DBService {
       this._ready = true
       console.log(`[DB] SQLite ready at ${this.dbPath}`)
       // RISK 修复: 启动时自动清理过期数据,防止 DB 无限增长
-      this.cleanupOldData()
+      // R2+: 延后 5s — 批量 DELETE(最多万行)是主线程同步操作,不挡启动路径
+      this.startupCleanupTimer = setTimeout(() => {
+        this.startupCleanupTimer = null
+        this.cleanupOldData()
+      }, 5000)
       // CONCERN 修复: 定期清理 (每 24 小时),防止长时间运行的实例 DB 持续增长
       // batchSize=10000 可能追赶不上高频写入,定期清理确保最终一致
       this.cleanupTimer = setInterval(
@@ -281,6 +286,10 @@ class DBService {
     if (this.cleanupTimer !== null) {
       clearInterval(this.cleanupTimer)
       this.cleanupTimer = null
+    }
+    if (this.startupCleanupTimer !== null) {
+      clearTimeout(this.startupCleanupTimer)
+      this.startupCleanupTimer = null
     }
     if (!this.db) return
     try {

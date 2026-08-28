@@ -13,6 +13,7 @@ import type { EaaAPI } from './eaa'
 import type { FeishuAPI } from './feishu'
 import type { LogAPI } from './log'
 import type { McpAPI } from './mcp'
+import type { MemoryAPI } from './memory'
 import type { OllamaAPI } from './ollama'
 import type { PrivacyAPI } from './privacy'
 import type { ProfileAPI } from './profile'
@@ -49,6 +50,8 @@ export interface WindowAPI {
   sys: SysAPI
   // R2-12 报告中心
   reports: ReportsAPI
+  // R2+ 记忆管理
+  memory: MemoryAPI
 }
 
 // 全局类型扩展

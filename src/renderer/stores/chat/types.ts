@@ -17,7 +17,7 @@ export interface AgentBridgeEvent {
   status: string
   output?: string
   toolCall?: { name: string; args: unknown }
-  toolResult?: { name: string; isError: boolean }
+  toolResult?: { name: string; isError: boolean; preview?: string }
   result?: { output: string; tokenUsage?: TokenUsage; cost?: number }
   error?: string
 }
@@ -44,6 +44,8 @@ export interface ChatState {
   /** High 3.2 配套: 跟踪当前 isStreaming 是由哪个 agent 触发的,
    *  避免 handleAgentEvent 中清理逻辑误清新 agent 的流状态 */
   streamingAgentId: string | null
+  /** 流启动时所在的会话 id — 切换会话后,旧流的后续事件/落库不得写入新会话(串台修复) */
+  streamSessionId: string | null
 
   // Actions
   addMessage: (msg: ChatMessage) => void

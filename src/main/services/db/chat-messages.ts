@@ -73,7 +73,9 @@ function syncSessionMeta(
   }
 }
 
-/** Load chat messages for a session */
+/** Load chat messages for a session
+ *  R2+(流畅度): 取最近 500 条(子查询倒序 LIMIT 后再正序返回) —
+ *  长会话不再全量加载,超限的早期消息仍留在库里,清空会话时一并删除 */
 export function loadChatMessages(
   ctx: DbClient,
   sessionId: string = 'default',

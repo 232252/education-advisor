@@ -94,6 +94,23 @@ export class MemoryService {
     return this.readMemoryFile(agentId).entries
   }
 
+  /** 列出所有 agent 的记忆(记忆管理入口用;无记忆文件的 agent 不出现) */
+  listAllEntries(): Array<{ agentId: string; entries: MemoryEntry[] }> {
+    try {
+      const files = fs.readdirSync(this.memoryDir).filter((f) => f.endsWith('.json'))
+      const result: Array<{ agentId: string; entries: MemoryEntry[] }> = []
+      for (const f of files) {
+        const agentId = f.replace(/\.json$/, '')
+        if (!/^[a-zA-Z0-9_-]+$/.test(agentId)) continue
+        const entries = this.readMemoryFile(agentId).entries
+        if (entries.length > 0) result.push({ agentId, entries })
+      }
+      return result
+    } catch {
+      return []
+    }
+  }
+
   /**
    * 追加一条记忆。返回新增条目;content 超 500 字符截断,超出存储上限时丢弃最旧。
    */

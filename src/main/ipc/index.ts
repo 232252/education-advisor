@@ -15,6 +15,7 @@ import { registerEAAHandlers } from './eaa-handlers'
 import { registerFeishuHandlers } from './feishu-handlers'
 import { registerLogHandlers } from './log-handlers'
 import { registerMcpHandlers } from './mcp-handlers'
+import { registerMemoryHandlers } from './memory-handlers'
 import { registerOllamaHandlers } from './ollama-handlers'
 import { registerPrivacyHandlers } from './privacy-handlers'
 import { registerProfileHandlers } from './profile-handlers'
@@ -43,6 +44,7 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerMcpHandlers(win)
   registerAcademicHandlers()
   registerBackupHandlers(win)
+  registerMemoryHandlers(win)
 
   // 初始化 EAA Bridge（创建数据目录、复制 reason-codes、doctor 健康检查）
   const eaaStatus = await eaaBridge.initialize()
