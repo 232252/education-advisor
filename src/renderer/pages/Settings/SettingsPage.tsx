@@ -30,6 +30,7 @@ import {
   GeneralSection,
   LogSection,
   McpSection,
+  MemorySection,
 } from './sections'
 
 /**
@@ -261,7 +262,7 @@ export function SettingsPage() {
               aria-label={t('settings.reset')}
               className={cn(
                 btnStyle('ghost'),
-                'text-xs text-gray-500 dark:text-gray-400 hover:text-rose-500 dark:hover:text-rose-400 hover:border-rose-500/50',
+                'text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:border-red-500/50',
               )}
             >
               {t('settings.reset')}
@@ -325,6 +326,7 @@ export function SettingsPage() {
         />
 
         {/* ===== 数据与备份 ===== */}
+        <MemorySection />
         <DataSection settings={settings} onSave={handleSave} />
 
         {/* ===== 关于 ===== */}

@@ -1475,5 +1475,20 @@
   "page.models.default.hqPlaceholder": "例如 gpt-4-turbo-preview",
   "page.models.default.lowCost": "低成本模型",
   "page.models.default.lqPlaceholder": "例如 gpt-3.5-turbo",
-  "page.models.local.ollamaDesc": "Ollama · CPU 推理 · 免登录免费"
+  "page.models.local.ollamaDesc": "Ollama · CPU 推理 · 免登录免费",
+  "settings.memory.title": "记忆管理",
+  "settings.memory.titleLabel": "AI 长期记忆",
+  "settings.memory.desc": "各 Agent 通过 save_memory 保存的偏好与事实(本地存储,注入对话上下文)。可审查或删除;删除后立即生效",
+  "settings.memory.entriesUnit": "条",
+  "settings.memory.empty": "暂无任何记忆 — 与 Agent 对话几轮后,它记住的偏好会出现在这里",
+  "settings.memory.clearAll": "清空",
+  "settings.memory.clearConfirm": "将删除该 Agent 的全部长期记忆,对话中的个性化引用将立即失效。确定继续?",
+  "settings.memory.deleteSuccess": "记忆已删除",
+  "settings.memory.deleteFailed": "删除失败",
+  "settings.memory.clearSuccess": "已清空该 Agent 的记忆",
+  "settings.memory.clearFailed": "清空失败",
+  "common.loadMore": "加载更多",
+  "page.scheduler.task.disable": "停用任务",
+  "page.scheduler.task.enable": "启用任务",
+  "page.models.provider.lastRefresh": "最近刷新"
 }

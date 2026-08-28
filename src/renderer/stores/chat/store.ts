@@ -24,6 +24,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     isStreaming: false,
     isThinking: false,
     streamingAgentId: null,
+    streamSessionId: null,
     currentModel: '',
     currentProvider: '',
     currentModelContext: 0,

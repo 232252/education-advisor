@@ -1475,5 +1475,20 @@
   "page.models.default.hqPlaceholder": "e.g. gpt-4-turbo-preview",
   "page.models.default.lowCost": "Low-cost model",
   "page.models.default.lqPlaceholder": "e.g. gpt-3.5-turbo",
-  "page.models.local.ollamaDesc": "Ollama · CPU inference · Free, no login"
+  "page.models.local.ollamaDesc": "Ollama · CPU inference · Free, no login",
+  "settings.memory.title": "Memory Management",
+  "settings.memory.titleLabel": "AI Long-term Memory",
+  "settings.memory.desc": "Preferences and facts saved by agents via save_memory (stored locally, injected into chat context). Review or delete; deletions take effect immediately",
+  "settings.memory.entriesUnit": "entries",
+  "settings.memory.empty": "No memories yet — after a few chat rounds, preferences the AI remembers will appear here",
+  "settings.memory.clearAll": "Clear All",
+  "settings.memory.clearConfirm": "This deletes all long-term memories of this agent; personalized references in chats will stop immediately. Continue?",
+  "settings.memory.deleteSuccess": "Memory deleted",
+  "settings.memory.deleteFailed": "Delete failed",
+  "settings.memory.clearSuccess": "Agent memory cleared",
+  "settings.memory.clearFailed": "Clear failed",
+  "common.loadMore": "Load More",
+  "page.scheduler.task.disable": "Disable Task",
+  "page.scheduler.task.enable": "Enable Task",
+  "page.models.provider.lastRefresh": "Last Refresh"
 }
