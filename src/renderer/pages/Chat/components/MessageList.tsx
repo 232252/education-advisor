@@ -17,24 +17,34 @@ interface MessageListProps {
   canSend: boolean
   /** 底部滚动锚点 ref（由页面持有，配合自动滚动 effect） */
   messagesEndRef: RefObject<HTMLDivElement | null>
+  /** 滚动容器 ref — 页面据此直赋值 scrollTop(平滑动画高频重启会抖动) */
+  scrollContainerRef?: RefObject<HTMLDivElement | null>
+  /** 用户滚动回调 — 页面据此判断是否仍在底部附近(跟随开关) */
+  onUserScroll?: (e: React.UIEvent<HTMLDivElement>) => void
 }
 
 /**
  * 消息区：遍历渲染消息 + 复制按钮交互状态。
  * R2-15: memo 化 — 流式 50ms 批量 flush 时,消息数组整体引用变化但
- * 未变的消息对象引用稳定,MessageItem 内容 props 不变即短路,避免
- * 长对话(几十条含表格/公式 Markdown)每次 flush 全量 VDOM 重 diff。
+ *        未变的消息对象引用稳定,MessageItem 内容 props 不变即短路,避免
+ *        长对话(几十条含表格/公式 Markdown)每次 flush 全量 VDOM 重 diff。
  */
 export const MessageList = memo(function MessageList({
   messages,
   isStreaming,
   canSend,
   messagesEndRef,
+  scrollContainerRef,
+  onUserScroll,
 }: MessageListProps) {
   const { t } = useT()
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/30 dark:bg-transparent">
+    <div
+      ref={scrollContainerRef}
+      onScroll={onUserScroll}
+      className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/30 dark:bg-transparent"
+    >
       {messages.length === 0 && (
         <EmptyState
           icon={<span className="text-3xl">💬</span>}

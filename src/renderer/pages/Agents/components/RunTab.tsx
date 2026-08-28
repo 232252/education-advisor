@@ -18,6 +18,9 @@ interface RunTabProps {
   onAbort: (id: string) => Promise<void>
 }
 
+/** 流式期间参与 Markdown+KaTeX 解析的尾部窗口(字符) — 控制每次 flush 的解析成本恒定 */
+const STREAM_TAIL_WINDOW = 4096
+
 export function RunTab({ agentId, enabled, onRun, onAbort }: RunTabProps) {
   const { t } = useT()
   // 细粒度 selector: 只订阅本 Tab 需要的流式状态
@@ -108,10 +111,22 @@ export function RunTab({ agentId, enabled, onRun, onAbort }: RunTabProps) {
           </div>
         )}
 
-        {/* 实时输出 — Markdown 渲染(agent 报告含标题/列表/表格) */}
+        {/* 实时输出 — Markdown 渲染(agent 报告含标题/列表/表格)
+            R2+(流畅度): 流式期间只对尾部 ~4KB 做 Markdown+KaTeX 解析,
+            稳定前缀以纯文本渲染 — 此前每 50ms 对最多 1MB 全量重解析(O(n²)),
+            长报告生成时整个渲染进程被拖住。完成后恢复全文 Markdown。 */}
         {liveOutput ? (
           <div className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
-            <Markdown content={liveOutput} />
+            {isRunning && liveOutput.length > STREAM_TAIL_WINDOW ? (
+              <>
+                <pre className="whitespace-pre-wrap break-words font-sans text-gray-500 dark:text-gray-400">
+                  {liveOutput.slice(0, liveOutput.length - STREAM_TAIL_WINDOW)}
+                </pre>
+                <Markdown content={liveOutput.slice(-STREAM_TAIL_WINDOW)} />
+              </>
+            ) : (
+              <Markdown content={liveOutput} />
+            )}
           </div>
         ) : (
           !isRunning && (

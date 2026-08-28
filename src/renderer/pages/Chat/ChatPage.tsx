@@ -90,10 +90,19 @@ export function ChatPage() {
     useChatStore.getState().initFromSettings()
   }, [])
 
-  // 自动滚动到底部（新消息或流式输出时触发）
+  // 自动滚动 — 只在用户仍"贴底"时跟随(上滑阅读历史不被拽回);
+  // 直赋值 scrollTop:smooth 动画每 50ms flush 重启会抖动(2026-08-28 流畅度审计)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const followBottomRef = useRef(true)
+  const handleUserScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    followBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }
   // biome-ignore lint/correctness/useExhaustiveDependencies: 触发器式 effect，仅依赖消息变化来执行滚动
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!followBottomRef.current) return
+    const el = scrollContainerRef.current
+    if (el) el.scrollTop = el.scrollHeight
   }, [messages, isStreaming])
 
   const handleModelSelect = async (provider: string, model: string) => {
@@ -148,6 +157,8 @@ export function ChatPage() {
           : text,
       timestamp: Date.now(),
     })
+    // 用户发消息 = 明确回到对话底部,重新启用自动跟随
+    followBottomRef.current = true
 
     // 清空已上传文件
     setUploadedFiles([])
@@ -238,6 +249,8 @@ export function ChatPage() {
           isStreaming={isStreaming}
           canSend={canSend}
           messagesEndRef={messagesEndRef}
+          scrollContainerRef={scrollContainerRef}
+          onUserScroll={handleUserScroll}
         />
 
         {/* 输入区 */}

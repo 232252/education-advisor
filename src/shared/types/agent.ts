@@ -21,7 +21,7 @@ export interface AgentStatusPayload {
   status: AgentStatus
   output?: string
   toolCall?: { name: string; args: unknown }
-  toolResult?: { name: string; isError: boolean }
+  toolResult?: { name: string; isError: boolean; preview?: string }
   result?: AgentExecution
   error?: string
   aborted?: boolean

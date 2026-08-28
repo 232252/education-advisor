@@ -3,6 +3,7 @@
 // =============================================================
 
 /** 格式化消息时间：今天显示 HH:mm，非今天显示 月/日 */
+/** [R2-21 豁免] 聊天相对时间(今天只显示时分)是刻意设计 */
 export function formatTime(ts: number): string {
   const d = new Date(ts)
   const now = new Date()

@@ -34,9 +34,13 @@ export function isAutoAnonymizeEnabled(): boolean {
 /** 开启自动脱敏但引擎未解锁时抛错(fail-closed,调用方转为执行失败) */
 export function assertPrivacyReadyForRun(): void {
   if (isAutoAnonymizeEnabled() && !eaaBridge.hasPrivacyPassword()) {
-    throw new Error(
+    // reportedToRenderer: executeAgentRun 外层守卫据此跳过重复推送
+    // (此错误文案本身面向用户,需要到达渲染进程)
+    const err = new Error(
       '已开启隐私自动脱敏(privacy.autoAnonymize),但隐私引擎尚未解锁 — 请先在隐私设置中输入密码解锁,否则包含学生真实姓名的内容不会发送给模型。',
     )
+    ;(err as { reportedToRenderer?: boolean }).reportedToRenderer = false
+    throw err
   }
 }
 

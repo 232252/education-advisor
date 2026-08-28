@@ -15,7 +15,6 @@ import type {
   ThinkingLevel,
 } from '@earendil-works/pi-agent-core'
 import { Agent } from '@earendil-works/pi-agent-core'
-import { streamSimple } from '@earendil-works/pi-ai/compat'
 import type { AgentExecution } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { log } from '../../utils/logger'
@@ -33,15 +32,50 @@ import { runContinuationLoop } from './continuation'
 import { createEventCollector } from './event-collector'
 import { memoryService } from './memory-service'
 import { assertPrivacyReadyForRun, isAutoAnonymizeEnabled, PrivacyGuard } from './privacy-guard'
+import { createRetryingStreamFn } from './retrying-stream'
 import { sendAgentStatus } from './status-tracking'
 import { buildSystemPrompt } from './system-prompt'
 import { withTimeout } from './timeout'
 import type { AgentExecutionDeps } from './types'
 
+/** 内部已推送过 error 状态的错误(外层守卫据此去重,避免渲染进程收到两条错误) */
+function markedError(msg: string): Error {
+  const err = new Error(msg)
+  ;(err as { reportedToRenderer?: boolean }).reportedToRenderer = true
+  return err
+}
+
 /**
  * 实际执行一次 Agent 运行(由 runAgent 队列串行调用),返回执行记录(含真实 status)
+ *
+ * 外层守卫: 内部任何阶段抛错(选模型无 key/隐私断言/MCP 启动失败等)都必须
+ * 推送 error 状态事件到渲染进程 — 否则 fire-and-forget 的 IPC 调用方只
+ * console.error,用户界面永远静止(2026-08-28 审计的致命项)。
+ * 内部已自行推送过的错误带 reportedToRenderer 标记,此处去重。
  */
 export async function executeAgentRun(
+  deps: AgentExecutionDeps,
+  id: string,
+  prompt: string,
+  win: BrowserWindow,
+  history?: Array<{ role: string; content: string }>,
+  generation?: number,
+): Promise<AgentExecution | undefined> {
+  try {
+    return await executeAgentRunInner(deps, id, prompt, win, history, generation)
+  } catch (err) {
+    const reported = (err as { reportedToRenderer?: boolean }).reportedToRenderer === true
+    if (!reported) {
+      const raw = err instanceof Error ? err.message : String(err)
+      console.error(`[AgentService] runAgent(${id}) failed before stream:`, raw)
+      deps.setStatus(id, 'error')
+      sendAgentStatus(win, id, 'error', { error: raw })
+    }
+    throw err
+  }
+}
+
+async function executeAgentRunInner(
   deps: AgentExecutionDeps,
   id: string,
   prompt: string,
@@ -53,14 +87,14 @@ export async function executeAgentRun(
   if (!config) {
     const msg = `Agent not found: ${id}`
     sendAgentStatus(win, id, 'error', { error: msg })
-    throw new Error(msg)
+    throw markedError(msg)
   }
   if (!config.enabled) {
     // 排队期间被停用 → 与 runAgent 入口行为一致
     const msg = `Agent is disabled: ${id}`
     deps.setStatus(id, 'error')
     sendAgentStatus(win, id, 'error', { error: msg })
-    throw new Error(msg)
+    throw markedError(msg)
   }
 
   // ── 隐私自动脱敏(fail-closed) ──
@@ -78,7 +112,7 @@ export async function executeAgentRun(
       const msg = err instanceof Error ? err.message : String(err)
       deps.setStatus(id, 'error')
       sendAgentStatus(win, id, 'error', { error: `隐私脱敏初始化失败: ${msg}` })
-      throw new Error(`隐私脱敏初始化失败: ${msg}`)
+      throw markedError(`隐私脱敏初始化失败: ${msg}`)
     }
   }
 
@@ -222,7 +256,9 @@ export async function executeAgentRun(
 
   const agent = new Agent({
     // pi-agent-core 0.84: streamFn 必填(旧版可选),显式传入 pi-ai 的流式实现
-    streamFn: streamSimple,
+    // R2+: 经 createRetryingStreamFn 包装 — 建流阶段(429/超时/网络)按
+    // models.retry.* 指数退避重试,与直连聊天路径同策略(此前 agent 链路零重试)
+    streamFn: createRetryingStreamFn(),
     initialState: {
       systemPrompt,
       model,

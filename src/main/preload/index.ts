@@ -25,6 +25,7 @@ import { eaaApi } from './api/eaa'
 import { feishuApi } from './api/feishu'
 import { logApi } from './api/log'
 import { mcpApi } from './api/mcp'
+import { memoryApi } from './api/memory'
 import { ollamaApi } from './api/ollama'
 import { privacyApi } from './api/privacy'
 import { profileApi } from './api/profile'
@@ -94,4 +95,5 @@ contextBridge.exposeInMainWorld('api', {
 
   // ----- 报告中心 (R2-12) -----
   reports: reportsApi,
+  memory: memoryApi,
 })
