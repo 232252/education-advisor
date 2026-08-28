@@ -179,6 +179,8 @@ export const IPC_CHAT_SAVE_MESSAGE = 'chat:save-message'
 export const IPC_CHAT_LOAD_MESSAGES = 'chat:load-messages'
 export const IPC_CHAT_DELETE_SESSION = 'chat:delete-session'
 export const IPC_CHAT_LIST_SESSIONS = 'chat:list-sessions'
+// R2+: 会话重命名(自动起名用 — 首条消息派生标题)
+export const IPC_CHAT_RENAME_SESSION = 'chat:rename-session'
 
 // ===== 飞书 =====
 // arch-P0-1 修复：原硬编码字符串，迁入共享常量

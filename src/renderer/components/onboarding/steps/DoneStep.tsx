@@ -4,9 +4,10 @@
 // =============================================================
 
 import type { LucideIcon } from 'lucide-react'
-import { Bot, CheckCircle2, School, UserPlus } from 'lucide-react'
-import type { RefObject } from 'react'
+import { AlertTriangle, Bot, CheckCircle2, School, UserPlus } from 'lucide-react'
+import { type RefObject, useEffect, useState } from 'react'
 import { useT } from '../../../i18n'
+import { getAPI } from '../../../lib/ipc-client'
 
 /** 完成页摘要数据 */
 export interface OnboardingSummary {
@@ -20,12 +21,35 @@ interface DoneStepProps {
   summary: OnboardingSummary
   /** 开始使用 → 标记完成并跳转仪表盘 */
   onFinish: () => void
+  /** R2+ 审计修复: 尚未配置模型时跳转模型页(否则进 Chat 必撞无模型错误) */
+  onGoModels: () => void
   /** 主按钮 ref — 弹层内接管键盘焦点(替代 autoFocus) */
   primaryBtnRef: RefObject<HTMLButtonElement | null>
 }
 
-export function DoneStep({ summary, onFinish, primaryBtnRef }: DoneStepProps) {
+export function DoneStep({ summary, onFinish, onGoModels, primaryBtnRef }: DoneStepProps) {
   const { t } = useT()
+  // R2+ 审计: 向导从不含模型配置步骤,新用户完成后的第一件事就是撞"无模型"错误。
+  // 完成页检查任一 provider 是否已配 key,未配则给一张显眼的引导卡。
+  const [hasModel, setHasModel] = useState<boolean | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    getAPI()
+      .ai.listProviders()
+      .then((providers) => {
+        if (cancelled) return
+        const usable = (providers as Array<{ hasApiKey?: boolean; id?: string }>).some(
+          (p) => p.hasApiKey,
+        )
+        setHasModel(usable)
+      })
+      .catch(() => {
+        if (!cancelled) setHasModel(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
   return (
     <div className="text-center py-4">
       <div className="flex items-center justify-center w-14 h-14 rounded-full bg-green-100 dark:bg-green-500/15 text-green-600 dark:text-green-400 mx-auto mb-4">
@@ -65,6 +89,24 @@ export function DoneStep({ summary, onFinish, primaryBtnRef }: DoneStepProps) {
           }
         />
       </div>
+      {hasModel === false && (
+        <div className="rounded-xl border border-amber-300/60 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4 mb-5 text-left">
+          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm font-medium mb-1.5">
+            <AlertTriangle size={16} />
+            {t('onboarding.done.noModelTitle', '还没有配置 AI 模型')}
+          </div>
+          <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mb-3">
+            {t('onboarding.done.noModelDesc')}
+          </p>
+          <button
+            type="button"
+            onClick={onGoModels}
+            className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium transition-colors"
+          >
+            {t('onboarding.done.goModels', '去配置模型')} →
+          </button>
+        </div>
+      )}
       <button
         type="button"
         onClick={onFinish}
