@@ -184,15 +184,36 @@ export class ChatStreamRunner {
 
     if (compactionEnabled && sourceMessages.length > 2) {
       // 构造 AgentMessage 序列供 compactAgentMessages 使用
-      // 使用宽松 cast: Chat 链路只关心 user-role 文本
-      const agentMsgs: AgentMessage[] = sourceMessages.map(
-        (m, i) =>
-          ({
-            role: 'user',
-            content: m.content,
+      // H-5 修复: 保留原始 role(user→UserMessage, assistant→最小 AssistantMessage)。
+      // 此前全部 cast 成 role:'user',压缩一旦触发,摘要模型看到的对话全程只有
+      // [User] 发言(serializeConversation 按 role 输出),recent 部分转回后
+      // assistant 身份也永久丢失 — 多轮指代消解与连贯性直接劣化。
+      const agentMsgs: AgentMessage[] = sourceMessages.map((m, i) => {
+        if (m.role === 'assistant') {
+          return {
+            role: 'assistant',
+            content: [{ type: 'text', text: m.content }],
+            api: model.api,
+            provider: model.provider,
+            model: model.id,
+            usage: {
+              input: 0,
+              output: 0,
+              cacheRead: 0,
+              cacheWrite: 0,
+              totalTokens: 0,
+              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+            },
+            stopReason: 'stop',
             timestamp: Date.now() - (sourceMessages.length - i) * 1000,
-          }) as unknown as AgentMessage,
-      )
+          } as unknown as AgentMessage
+        }
+        return {
+          role: 'user',
+          content: m.content,
+          timestamp: Date.now() - (sourceMessages.length - i) * 1000,
+        } as unknown as AgentMessage
+      })
       try {
         const compacted = await compactAgentMessages(
           agentMsgs,

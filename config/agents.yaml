@@ -101,8 +101,8 @@ agents:
       - add_event
     schedule:
       cron:
-        - cron: "5 7 * * *"
-          prompt: "生成学业日报: 基于 eaa_summary 与 eaa_ranking 输出昨日操行与学业动态简报,列出建议今日关注的学生。"
+        - cron: "25 7 * * *"
+          prompt: "生成谈话关注简报: 基于 eaa_summary 与 eaa_ranking 增补昨日动态中建议今日谈话的学生。学业分析日报已由 academic 于 07:05 生成,此处不重复学业分析,聚焦谈话名单与优先级。"
         - cron: "0 20 * * *"
           prompt: "更新谈话计划: 结合最新操行数据调整近期谈话名单与优先级,写入 data_archive/agent_outputs/counselor_talk_plan.json。"
     risk_thresholds:

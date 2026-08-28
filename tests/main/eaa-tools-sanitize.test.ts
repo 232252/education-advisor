@@ -266,27 +266,28 @@ describe('eaa-tools: tokenizeQuery (via searchEventsTool)', () => {
 
   it('空格分隔 "张三 迟到" → ["张三", "迟到"]', async () => {
   await searchEventsTool.execute('tc', { query: '张三 迟到' })
-  expect(receivedArgs).toEqual(['张三', '迟到'])
+  expect(receivedArgs).toEqual(['张三', '迟到', '--limit', '50'])
   })
 
  it('双引号包裹复合词 "\\"张三迟到\\"" → ["张三迟到"]', async () => {
  await searchEventsTool.execute('tc', { query: '"张三迟到"' })
- expect(receivedArgs).toEqual(['张三迟到'])
+ expect(receivedArgs).toEqual(['张三迟到', '--limit', '50'])
  })
 
  it('混合 "a \\"b c\\" d" → ["a", "b c", "d"]', async () => {
  await searchEventsTool.execute('tc', { query: 'a "b c" d' })
- expect(receivedArgs).toEqual(['a', 'b c', 'd'])
+ expect(receivedArgs).toEqual(['a', 'b c', 'd', '--limit', '50'])
  })
 
- it('空字符串 "" → []', async () => {
+ it('空字符串 "" → 仅默认 limit flags', async () => {
+ // L2 修复后 eaa_search 恒传显式默认 --limit 50(此前由 CLI 决定,与参数描述不符)
  await searchEventsTool.execute('tc', { query: '' })
- expect(receivedArgs).toEqual([])
+ expect(receivedArgs).toEqual(['--limit', '50'])
  })
 
- it('仅有空格 " " → []', async () => {
+ it('仅有空格 " " → 仅默认 limit flags', async () => {
  await searchEventsTool.execute('tc', { query: ' ' })
- expect(receivedArgs).toEqual([])
+ expect(receivedArgs).toEqual(['--limit', '50'])
  })
 
  it('query 带 limit 参数时 args末尾追加 --limit <n>', async () => {
@@ -296,13 +297,13 @@ describe('eaa-tools: tokenizeQuery (via searchEventsTool)', () => {
 
  it('单 token "迟到" → ["迟到"]', async () => {
  await searchEventsTool.execute('tc', { query: '迟到' })
- expect(receivedArgs).toEqual(['迟到'])
+ expect(receivedArgs).toEqual(['迟到', '--limit', '50'])
  })
 
- it('只有引号 """""" → []', async () => {
+ it('只有引号 """""" → 仅默认 limit flags', async () => {
   // """""" = "" + "" + "" (三对空引号) → token都被吃完
   await searchEventsTool.execute('tc', { query: '""""""' })
-  expect(receivedArgs).toEqual([])
+  expect(receivedArgs).toEqual(['--limit', '50'])
   })
 
   it('query 含 shell 元字符应被 safeExecute 拒绝', async () => {

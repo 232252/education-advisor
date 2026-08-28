@@ -43,6 +43,20 @@ export function buildOllamaModel(modelId: string): Model<Api> {
   } as Model<Api>
 }
 
+/**
+ * 从 ollama 模型 id 解析参数规模(十亿参数),供本地 tier 选择排序。
+ * 如 "qwen2.5:14b"→14、"deepseek-r1:32b"→32、"llama3.2:1b"→1;
+ * 无规模后缀(如 "llama3.2"/"qwen2.5:latest")返回 undefined,由调用方按默认档参与排序。
+ */
+export function parseOllamaParamB(modelId: string): number | undefined {
+  // 锚定 ":tag" 段的规模标记: "qwen2.5:14b"→14 / "llama3.2:0.5b"→0.5 / "deepseek-r1:32b-q4"→32;
+  // 避免误吞名字里的数字(如 "qwen2.5" 的 2.5)
+  const m = /:(\d+(?:\.\d+)?)b(?![a-z])/i.exec(modelId)
+  if (!m) return undefined
+  const v = Number.parseFloat(m[1])
+  return Number.isFinite(v) ? v : undefined
+}
+
 /** 解析模型 - 找不到时回退到自定义模型构造（核心修复） */
 export function resolveModel(providerId: string, modelId: string): Model<Api> | undefined {
   // 1. 先尝试 pi-ai 静态注册表
@@ -81,12 +95,14 @@ export function resolveModel(providerId: string, modelId: string): Model<Api> | 
   // 构造 pi-ai 兼容的 Model<Api> 对象
   // 修复 Bug-1: 真正透传用户填的 contextWindow —— 不是猜 900K, 也不是 32K
   // 1) 优先用用户在 Models 页面填的 custom.contextWindow
-  // 2) 兜底 900K (与 SettingsPage 同步显示"未设置时默认 900K"对齐)
-  // 3) 最后才 32768 (兼容老代码)
+  // 2) 未填时兜底 32768(保守值): 自定义网关真实窗口多为 32K~200K,此前兜底 900K
+  //    会让压缩阈值 ≈896K — 真实窗口先在 API 侧 400 硬报错,压缩一次都没跑过。
+  //    保守小值的方向性错误只是"压缩提前"(安全),保守大值是"上下文超限"(致命)。
+  //    (2026-08-28 智能轮修复;UI 层 ModelRow 对未填值同样显示默认,口径一致)
   const resolvedContextWindow =
     typeof custom.contextWindow === 'number' && custom.contextWindow > 0
       ? custom.contextWindow
-      : 900000
+      : 32768
   const model: Model<Api> = {
     id: custom.id,
     name: custom.name,
@@ -106,7 +122,7 @@ export function resolveModel(providerId: string, modelId: string): Model<Api> | 
   }
 
   console.log(
-    `[PiAI] Resolved custom model: ${providerId}/${modelId} (api: ${model.api}, baseUrl: ${model.baseUrl}, contextWindow: ${model.contextWindow} ${typeof custom.contextWindow === 'number' ? '(from settings)' : '(default 900K)'})`,
+    `[PiAI] Resolved custom model: ${providerId}/${modelId} (api: ${model.api}, baseUrl: ${model.baseUrl}, contextWindow: ${model.contextWindow} ${typeof custom.contextWindow === 'number' ? '(from settings)' : '(default 32K conservative)'})`,
   )
   return model
 }

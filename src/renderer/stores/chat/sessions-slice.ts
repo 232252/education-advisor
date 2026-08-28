@@ -36,6 +36,8 @@ export function createSessionsSlice(
         messages: [],
         lastUsage: null,
         lastCost: 0,
+        // lastModel 一并清零: 状态栏徽标不残留上一会话的模型(2026-08-28 智能轮核查)
+        lastModel: '',
         historyLoaded: false,
       }))
       // L-10 配套: 新建会话时清理 pending agent 缓存,避免旧会话的残留缓存污染新会话
@@ -101,6 +103,8 @@ export function createSessionsSlice(
         messages: [],
         lastUsage: null,
         lastCost: 0,
+        // 切会话清 lastModel: 徽标不跨会话残留(与 lastUsage/lastCost 同口径)
+        lastModel: '',
         historyLoaded: false,
       })
       // 加载该会话的历史消息
