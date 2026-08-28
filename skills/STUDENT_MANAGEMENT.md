@@ -1,6 +1,7 @@
 ---
 name: STUDENT_MANAGEMENT
 description: 学生操行数据操作手册 — 何时用哪些 eaa_* 工具、write 类工具的参数与约束（dry_run/force/撤销）；适合「怎么加分扣分/撤销/查名单」类操作问题。通用规则（先确认/数据即工具）不在此重复，见系统自动注入的公共规则。
+tools: [eaa_score, eaa_history, eaa_search, eaa_list_students, eaa_codes, eaa_stats, eaa_summary, eaa_ranking, eaa_range, eaa_tag, eaa_add_event, eaa_revert_event, eaa_add_student, eaa_set_student_meta]
 ---
 
 # 学生管理操作手册（技能）

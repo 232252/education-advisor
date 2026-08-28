@@ -132,7 +132,11 @@ describe('getToolsByCapability — read / write 分组', () => {
     expect(names).not.toContain('eaa_add_student')
     expect(names).not.toContain('eaa_set_student_meta')
     expect(names).not.toContain('eaa_revert_event')
-    expect(tools.length).toBe(10)
+    // R2+: read 还包含 3 个考试成绩工具(exams/exam_grades/student_grades)
+    expect(names).toContain('eaa_exams')
+    expect(names).toContain('eaa_exam_grades')
+    expect(names).toContain('eaa_student_grades')
+    expect(tools.length).toBe(13)
   })
 
   it('write 返回 add_event + add_student + set_student_meta + revert', () => {
@@ -144,8 +148,8 @@ describe('getToolsByCapability — read / write 分组', () => {
 
   it('read + write 应去重并合并', () => {
     const tools = getToolsByCapability(['read', 'write'])
-    // read(10) + write(4 个,均不在 read 中) = 14 (不含 delete)
-    expect(tools.length).toBe(14)
+    // read(13,含 3 个考试工具) + write(4 个,均不在 read 中) = 17 (不含 delete)
+    expect(tools.length).toBe(17)
     expect(tools).not.toContain(deleteStudentTool)
   })
 })
@@ -158,7 +162,7 @@ describe('getToolsByCapability — 组合 / 边界', () => {
 
   it('read + 单项 → 去重(单项已在 read 中)', () => {
     const tools = getToolsByCapability(['read', 'ranking'])
-    expect(tools.length).toBe(10) // ranking 已在 read 中,read 共 10 个
+    expect(tools.length).toBe(13) // ranking 已在 read 中,read 共 13 个
   })
 
   it('未知 capability → 空数组', () => {
@@ -181,10 +185,16 @@ describe('getToolsByCapability — 组合 / 边界', () => {
 })
 
 describe('allEAATools — 集合完整性', () => {
-  it('应包含全部 14 个安全工具,且 name 唯一', () => {
-    expect(allEAATools.length).toBe(14)
+  it('应包含全部 17 个安全工具(14 操行 + 3 考试),且 name 唯一', () => {
+    expect(allEAATools.length).toBe(17)
     const names = allEAATools.map((t) => t.name)
-    expect(new Set(names).size).toBe(14)
+    expect(new Set(names).size).toBe(17)
+  })
+
+  it('academics capability → 3 个考试成绩工具', () => {
+    const tools = getToolsByCapability(['academics'])
+    const names = tools.map((t) => t.name).sort()
+    expect(names).toEqual(['eaa_exam_grades', 'eaa_exams', 'eaa_student_grades'])
   })
 
   it('dangerousEAATools 仅含删除工具', () => {

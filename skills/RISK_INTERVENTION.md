@@ -1,6 +1,7 @@
 ---
 name: RISK_INTERVENTION
 description: 风险预警与干预手册 — 四档风险对应的干预动作、趋势识别方法与家校沟通时机；适合「哪些学生需要关注/怎么跟家长沟通/预警报告怎么写」类任务，配合 risk-alert / psychology / counselor 角色使用。
+tools: [eaa_ranking, eaa_score, eaa_range, eaa_search, eaa_stats, eaa_summary]
 ---
 
 # 风险干预手册（技能）

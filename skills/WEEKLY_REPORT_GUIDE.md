@@ -1,6 +1,7 @@
 ---
 name: WEEKLY_REPORT_GUIDE
 description: 周报撰写操作手册 — 周报结构模板、数据来源工具组合、对比基准与常见坑；适合「生成本周/本月周报、阶段小结」类任务，配合 weekly-reporter 角色使用。
+tools: [eaa_stats, eaa_summary, eaa_ranking, eaa_list_students, eaa_range, eaa_search, eaa_codes, get_current_time, write_file]
 ---
 
 # 周报撰写手册（技能）

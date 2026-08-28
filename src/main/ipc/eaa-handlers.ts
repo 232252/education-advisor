@@ -13,7 +13,7 @@
 // (ipc/ 组织规则见 docs/ARCHITECTURE.md)
 // =============================================================
 
-import { type BrowserWindow } from 'electron'
+import type { BrowserWindow } from 'electron'
 import { createEaaCacheContext, invalidateStudentsCacheNow } from './eaa/cache'
 import { registerEventHandlers } from './eaa/handlers-events'
 import { registerExportHandlers } from './eaa/handlers-export'
