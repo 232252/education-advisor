@@ -154,24 +154,6 @@ export function btnStyle(
   }
 }
 
-/** 统一图标按钮样式 (无 padding，正方形，圆形) */
-export function iconBtnStyle(
-  variant: 'primary' | 'secondary' | 'danger' | 'ghost' = 'ghost',
-): string {
-  const base =
-    'inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-primary disabled:opacity-50 disabled:cursor-not-allowed'
-  switch (variant) {
-    case 'primary':
-      return `${base} bg-blue-600 hover:bg-blue-700 text-white focus-visible:ring-blue-500`
-    case 'secondary':
-      return `${base} bg-gray-100 dark:bg-surface-elevated hover:bg-gray-200 dark:hover:bg-white/[0.08] text-gray-700 dark:text-gray-300 focus-visible:ring-gray-400 border border-gray-200 dark:border-white/[0.08]`
-    case 'danger':
-      return `${base} bg-red-600 hover:bg-red-700 text-white focus-visible:ring-red-500`
-    case 'ghost':
-      return `${base} hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-600 dark:text-gray-400 focus-visible:ring-gray-400`
-  }
-}
-
 /** ─── 表格统一样式常量 ─── */
 export const TABLE_TH =
   'text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-white/[0.06] py-2.5 px-3 font-semibold'
@@ -179,13 +161,6 @@ export const TABLE_TD = 'py-2.5 px-3 text-sm'
 export const TABLE_ROW =
   'border-b border-gray-100 dark:border-white/[0.06] hover:bg-blue-50/40 dark:hover:bg-white/[0.03] transition-colors'
 export const TABLE_STICKY_HEAD = 'sticky top-0 bg-white dark:bg-surface-tertiary z-10'
-
-/** ─── 页面头部统一样式常量 ─── */
-export const PAGE_HEADER_BASE =
-  'flex items-center justify-between border-b border-gray-200 dark:border-white/[0.06] bg-gradient-to-r from-transparent to-gray-50/50 dark:to-white/[0.02] px-6 py-4 flex-shrink-0'
-export const PAGE_HEADER_STICKY =
-  'sticky top-0 z-10 bg-white/80 dark:bg-surface-tertiary/80 backdrop-blur border-b border-gray-200 dark:border-white/[0.06] px-6 py-4'
-export const PAGE_TITLE_BASE = 'font-bold tracking-tight text-gray-900 dark:text-white'
 
 /** 统一 badge 样式 */
 export function badgeStyle(

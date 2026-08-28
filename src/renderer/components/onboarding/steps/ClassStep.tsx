@@ -5,6 +5,7 @@
 
 import { useT } from '../../../i18n'
 import { cn, INPUT_BASE } from '../../../lib/ui-utils'
+import { Button } from '../../Button'
 import { ComboBox } from '../../ComboBox'
 
 /** 年级预设(初中 + 高中) */
@@ -124,16 +125,16 @@ export function ClassStep({
         >
           {t('onboarding.skip', '跳过引导')}
         </button>
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="md"
           onClick={onCreate}
           disabled={creatingClass || !effectiveClassId}
-          className="px-4 py-1.5 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
         >
           {creatingClass
             ? t('onboarding.creating', '创建中…')
             : t('onboarding.class.create', '创建班级并继续')}
-        </button>
+        </Button>
       </div>
     </div>
   )

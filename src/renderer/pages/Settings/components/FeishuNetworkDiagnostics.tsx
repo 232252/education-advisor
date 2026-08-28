@@ -58,7 +58,7 @@ export function FeishuNetworkDiagnostics() {
             className={`text-[10px] font-medium ${
               diagnoseResult.overall === 'pass'
                 ? 'text-emerald-500 dark:text-emerald-400'
-                : 'text-rose-500 dark:text-rose-400'
+                : 'text-red-500 dark:text-red-400'
             }`}
           >
             {diagnoseResult.overall === 'pass'
@@ -79,7 +79,7 @@ export function FeishuNetworkDiagnostics() {
                   step.status === 'pass'
                     ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
                     : step.status === 'fail'
-                      ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
+                      ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
                       : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
                 }`}
               >
@@ -104,7 +104,7 @@ export function FeishuNetworkDiagnostics() {
         </div>
       )}
       {diagnoseResult && diagnoseResult.steps.length === 0 && (
-        <div className="text-[11px] text-rose-500 dark:text-rose-400">
+        <div className="text-[11px] text-red-500 dark:text-red-400">
           {t('page.settings.feishu.diagnoseFailed', '诊断失败,请检查应用日志')}
         </div>
       )}

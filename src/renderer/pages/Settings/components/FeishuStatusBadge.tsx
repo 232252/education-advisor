@@ -30,7 +30,7 @@ export function FeishuStatusBadge({
             : botStatus?.status === 'connecting'
               ? 'bg-amber-400 animate-pulse'
               : botStatus?.status === 'error'
-                ? 'bg-rose-400'
+                ? 'bg-red-400'
                 : 'bg-gray-400 dark:bg-gray-500'
         }`}
       />

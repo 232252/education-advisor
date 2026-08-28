@@ -9,6 +9,7 @@ import { PageHeader } from '../../../components/PageHeader'
 import { Skeleton } from '../../../components/Skeleton'
 import { useT } from '../../../i18n'
 import { btnStyle, CARD_INTERACTIVE } from '../../../lib/ui-utils'
+import { ToggleSwitch } from '../../Settings/components/ToggleSwitch'
 import { getAgentStatusLabel, getModelTierLabel } from '../lib/agent-display'
 
 interface AgentListSidebarProps {
@@ -107,27 +108,16 @@ export function AgentListSidebar({
                   <Bot size={16} />
                 </span>
                 <span className="font-medium text-sm truncate flex-1">{agent.name}</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={agent.enabled}
-                  aria-label={
+                <ToggleSwitch
+                  size="sm"
+                  checked={agent.enabled}
+                  label={
                     agent.enabled
                       ? `${t('page.agents.list.disable', '停用')} ${agent.name}`
                       : `${t('page.agents.list.enable', '启用')} ${agent.name}`
                   }
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onToggle(agent.id, !agent.enabled)
-                  }}
-                  className={`relative w-9 h-5 rounded-full transition-colors inline-block flex-shrink-0
-                      ${agent.enabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}`}
-                >
-                  <span
-                    className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform inline-block
-                        ${agent.enabled ? 'left-[18px]' : 'left-0.5'}`}
-                  />
-                </button>
+                  onChange={(v) => onToggle(agent.id, v)}
+                />
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1.5 pl-[42px]">
                 {agent.description || agent.role}

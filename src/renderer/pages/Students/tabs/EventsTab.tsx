@@ -5,7 +5,7 @@
 
 import type { EAAEventRecord, EAAHistoryEvent, EAAReasonCode } from '@shared/types'
 import { ClipboardList } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { EmptyState } from '../../../components/EmptyState'
 import { useConfirmDialog } from '../../../hooks/useConfirmDialog'
@@ -63,6 +63,9 @@ export function EventsTab({
 }) {
   const { t } = useT()
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null)
+  // R2+(流畅度): 事件列表分页 — 全量渲染在单生几百条事件时明显卡顿
+  const PAGE_SIZE = 50
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   // 搜索/范围结果（替换 history 事件）
   const [searchEvents, setSearchEvents] = useState<EAAHistoryEvent[] | null>(null)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -71,6 +74,11 @@ export function EventsTab({
 
   // 实际展示的事件列表：有搜索/范围结果时用结果，否则用 props.events
   const displayEvents = searchEvents ?? events
+  // 切换学生/搜索/筛选时重置分页
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 触发器式 effect,列表身份变化即重置可见条数
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [displayEvents])
 
   const performSearch = async (query: string, start: string, end: string) => {
     setSearchLoading(true)
@@ -295,7 +303,7 @@ export function EventsTab({
         )
       ) : (
         <div className="space-y-2">
-          {displayEvents.map((evt) => (
+          {displayEvents.slice(0, visibleCount).map((evt) => (
             <EventCard
               key={evt.event_id}
               event={evt}
@@ -307,6 +315,15 @@ export function EventsTab({
               onRevert={!evt.reverted ? () => handleRevert(evt.event_id) : undefined}
             />
           ))}
+          {displayEvents.length > visibleCount && (
+            <button
+              type="button"
+              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+              className="w-full text-xs py-2 rounded-lg border border-gray-200 dark:border-white/[0.06] text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors"
+            >
+              {t('common.loadMore', '加载更多')} ({displayEvents.length - visibleCount})
+            </button>
+          )}
         </div>
       )}
 
