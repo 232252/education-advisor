@@ -20,6 +20,8 @@ export interface ChatAPI {
     sessionId?: string,
   ) => Promise<{ success: boolean; messages: Array<Record<string, unknown>> }>
   deleteSession: (sessionId: string) => Promise<{ success: boolean }>
+  /** R2+: 会话重命名(自动起名用) */
+  renameSession: (sessionId: string, title: string) => Promise<{ success: boolean; error?: string }>
   listSessions: () => Promise<{
     success: boolean
     sessions: Array<{ id: string; title: string; createdAt: number; messageCount: number }>

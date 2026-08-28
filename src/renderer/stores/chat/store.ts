@@ -32,6 +32,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     thinkingLevel: 'off',
     lastUsage: null,
     lastCost: 0,
+    lastModel: '',
     sessionId: 'default',
     historyLoaded: false,
     sessions: [],

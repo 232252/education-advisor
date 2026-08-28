@@ -5,7 +5,9 @@
 
 import { formatLlmError } from '@shared/llm-error'
 import type { TokenUsage } from '@shared/types'
+import { t } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
+import { toast } from '../toastStore'
 import { MAX_PENDING_AGENTS, pendingAgentOutputs } from './agent-pending'
 import { warnSaveFailed } from './persistence'
 import type { ChatGet, ChatSet, ChatState } from './types'
@@ -76,6 +78,12 @@ export function createAgentBridgeSlice(
 
       switch (data.status) {
         case 'running': {
+          // R2+: 上下文压缩已发生 → 用户可见提示(此前只有 console.log,表现为 AI 突然失忆)
+          if (data.compacted) {
+            toast.info(
+              t('page.chat.compactedNotice', '对话过长,已自动压缩较早的历史(完整记录仍在数据库)'),
+            )
+          }
           // 第一次收到 running 且未在 streaming → 初始化或复用 assistant 消息
           if (!state.isStreaming) {
             // R-1 修复: 检测"切回原 agent"场景 — 若 streamingAgentId 仍指向当前 agent,
@@ -185,6 +193,23 @@ export function createAgentBridgeSlice(
               })
               .catch((err) => warnSaveFailed('agent', err))
           }
+          // R2+: 会话自动起名 — 默认标题(新对话/对话 + 时间戳)时用首条用户消息派生
+          const sess = get().sessions.find((x) => x.id === get().sessionId)
+          if (sess && /^(新对话|对话)/.test(sess.title)) {
+            const firstUser = get().messages.find((m) => m.role === 'user')
+            const derived = firstUser?.content.trim().slice(0, 20)
+            if (derived) {
+              const title = derived.replace(/\s+/g, ' ')
+              set((st) => ({
+                sessions: st.sessions.map((x) => (x.id === sess.id ? { ...x, title } : x)),
+              }))
+              getAPI()
+                .chat.renameSession(sess.id, title)
+                .catch(() => {
+                  /* 起名失败不影响会话 */
+                })
+            }
+          }
           const usage: TokenUsage = data.result?.tokenUsage || {
             inputTokens: 0,
             outputTokens: 0,
@@ -198,6 +223,7 @@ export function createAgentBridgeSlice(
             streamSessionId: null,
             lastUsage: usage,
             lastCost: data.result?.cost || 0,
+            lastModel: data.result?.model ?? '',
           })
           break
         }

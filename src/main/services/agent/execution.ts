@@ -246,6 +246,8 @@ async function executeAgentRunInner(
         console.log(
           `[AgentService] compaction applied: ${messages.length} → ${result.length} messages`,
         )
+        // R2+: 压缩对用户可见(此前只有 console.log,表现为 AI 突然失忆)
+        sendAgentStatus(win, id, 'running', { compacted: true })
       }
       return result
     } catch (err) {
@@ -456,6 +458,8 @@ async function executeAgentRunInner(
       },
       cost: stats.totalCost,
       status: finalStatus,
+      // R2+: 实际执行模型回传(tier→default→ollama 降级链的最终选择)
+      model: `${model.provider}/${model.id}`,
     }
     deps.appendExecution(id, execution)
 

@@ -25,6 +25,8 @@ export interface AgentStatusPayload {
   result?: AgentExecution
   error?: string
   aborted?: boolean
+  /** 上下文压缩已发生(R2+ 可见性,running 事件携带) */
+  compacted?: boolean
 }
 
 export interface AgentConfig {
@@ -70,6 +72,8 @@ export interface AgentExecution {
   tokenUsage: TokenUsage
   cost: number
   status: 'success' | 'error' | 'timeout'
+  /** 实际执行的模型(provider/id) — 降级链回退后与用户设置可能不同,R2+ 可见性 */
+  model?: string
 }
 
 export interface RiskThresholds {

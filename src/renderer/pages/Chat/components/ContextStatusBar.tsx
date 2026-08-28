@@ -10,6 +10,8 @@ import { fmtK } from '../lib/format'
 interface ContextStatusBarProps {
   modelContext: number
   modelMaxOutput: number
+  /** 最近一次实际执行的模型(降级链可见性;空串不显示) */
+  lastModel?: string
   lastUsage: {
     inputTokens: number
     outputTokens: number
@@ -25,6 +27,7 @@ export function ContextStatusBar({
   modelMaxOutput,
   lastUsage,
   lastCost,
+  lastModel,
 }: ContextStatusBarProps) {
   const { t } = useT()
   // 压缩阈值(默认 90% = reserve 10%) — 跟主进程 compaction-helper 自适应策略一致
@@ -54,6 +57,12 @@ export function ContextStatusBar({
           <span>{t('page.chat.context.maxOutput', '输出上限')}</span>
           <span className="font-mono">{modelMaxOutput > 0 ? fmtK(modelMaxOutput) : '4K'}</span>
         </div>
+        {lastModel && (
+          <div className="flex items-center gap-1.5" title={t('page.chat.context.actualModelDesc')}>
+            <span>{t('page.chat.context.actualModel', '实际模型')}</span>
+            <span className="font-mono">{lastModel}</span>
+          </div>
+        )}
         {lastUsage && (
           <>
             <div className="flex items-center gap-1.5">

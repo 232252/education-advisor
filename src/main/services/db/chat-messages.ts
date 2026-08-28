@@ -91,6 +91,20 @@ export function loadChatMessages(
   }
 }
 
+/** Rename a chat session(自动起名: 首条用户消息派生标题) */
+export function renameChatSession(ctx: DbClient, sessionId: string, title: string): boolean {
+  if (!ctx.ready || !ctx.db) return false
+  try {
+    ctx.db.prepare('UPDATE chat_sessions SET title = ? WHERE id = ?').run(title, sessionId)
+    return true
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    ctx.setError(msg)
+    console.error('[DB] renameChatSession failed:', msg)
+    return false
+  }
+}
+
 /** Delete all messages for a chat session AND the session record itself
  *  修复: 两步删除用事务包裹,保证原子性(要么全删,要么全不删) */
 export function deleteChatSession(ctx: DbClient, sessionId: string): boolean {
