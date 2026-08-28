@@ -35,7 +35,7 @@ export function InstalledModelList({ installed, onDelete }: InstalledModelListPr
             <button
               type="button"
               onClick={() => onDelete(m.name)}
-              className="text-[10px] text-gray-400 hover:text-rose-500 transition-colors"
+              className="text-[10px] text-gray-400 hover:text-red-500 transition-colors"
             >
               删除
             </button>

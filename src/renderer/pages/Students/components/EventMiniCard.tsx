@@ -4,6 +4,7 @@
 // =============================================================
 
 import type { EAAHistoryEvent } from '@shared/types'
+import { formatDate } from '../../../lib/ui-utils'
 
 export function EventMiniCard({ event }: { event: EAAHistoryEvent }) {
   const isBonus = event.score_delta > 0
@@ -22,7 +23,7 @@ export function EventMiniCard({ event }: { event: EAAHistoryEvent }) {
         )}
       </div>
       <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-2 flex-shrink-0">
-        {new Date(event.timestamp).toLocaleDateString()}
+        {formatDate(new Date(event.timestamp))}
       </span>
     </div>
   )

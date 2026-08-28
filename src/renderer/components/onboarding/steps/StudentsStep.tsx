@@ -5,6 +5,7 @@
 
 import { useT } from '../../../i18n'
 import { cn, INPUT_BASE } from '../../../lib/ui-utils'
+import { Button } from '../../Button'
 
 interface StudentsStepProps {
   studentsText: string
@@ -80,12 +81,7 @@ export function StudentsStep({
         >
           {t('onboarding.students.skip', '跳过,稍后导入')}
         </button>
-        <button
-          type="button"
-          onClick={onAdd}
-          disabled={addingStudents}
-          className="px-4 py-1.5 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
-        >
+        <Button variant="primary" size="md" onClick={onAdd} disabled={addingStudents}>
           {addingStudents
             ? t('onboarding.students.adding', '添加中…')
             : parsedNames.length > 0
@@ -94,7 +90,7 @@ export function StudentsStep({
                   String(parsedNames.length),
                 )
               : t('common.next', '下一步')}
-        </button>
+        </Button>
       </div>
     </div>
   )

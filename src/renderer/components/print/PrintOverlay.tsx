@@ -9,6 +9,7 @@
 import { FileText, Printer, X } from 'lucide-react'
 import { type ReactNode, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { Button } from '../../components/Button'
 import { useT } from '../../i18n'
 
 interface PrintOverlayProps {
@@ -45,14 +46,10 @@ export function PrintOverlay({ title, onClose, children }: PrintOverlayProps) {
           {t('print.hint.pdf', '打印对话框中选择「另存为 PDF」可导出 PDF 文件')}
         </span>
         <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
-          >
+          <Button type="button" onClick={() => window.print()} variant="primary" size="sm">
             <Printer size={13} />
             {t('print.action', '打印 / 导出 PDF')}
-          </button>
+          </Button>
           <button
             type="button"
             onClick={onClose}

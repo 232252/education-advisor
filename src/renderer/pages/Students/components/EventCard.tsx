@@ -6,7 +6,7 @@
 import type { EAAHistoryEvent } from '@shared/types'
 import { ChevronDown, ChevronUp, RotateCcw, StickyNote } from 'lucide-react'
 import { useT } from '../../../i18n'
-import { CARD_BASE, cn } from '../../../lib/ui-utils'
+import { CARD_BASE, cn, formatDate } from '../../../lib/ui-utils'
 
 export function EventCard({
   event,
@@ -62,7 +62,7 @@ export function EventCard({
           )}
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
-          <span>{new Date(event.timestamp).toLocaleDateString()}</span>
+          <span>{formatDate(new Date(event.timestamp))}</span>
           <span className="text-gray-300 dark:text-gray-600">
             {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </span>

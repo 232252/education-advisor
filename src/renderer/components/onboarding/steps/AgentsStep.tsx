@@ -7,6 +7,7 @@ import type { AgentListItem } from '@shared/types'
 import { Bot } from 'lucide-react'
 import { useT } from '../../../i18n'
 import { cn } from '../../../lib/ui-utils'
+import { Button } from '../../Button'
 
 interface AgentsStepProps {
   agents: AgentListItem[]
@@ -104,16 +105,11 @@ export function AgentsStep({
         >
           {t('onboarding.back', '上一步')}
         </button>
-        <button
-          type="button"
-          onClick={onFinish}
-          disabled={enablingAgents}
-          className="px-4 py-1.5 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
-        >
+        <Button variant="primary" size="md" onClick={onFinish} disabled={enablingAgents}>
           {enablingAgents
             ? t('onboarding.agents.enabling', '启用中…')
             : t('onboarding.finish', '完成配置')}
-        </button>
+        </Button>
       </div>
     </div>
   )
