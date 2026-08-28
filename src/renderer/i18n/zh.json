@@ -1490,5 +1490,11 @@
   "common.loadMore": "加载更多",
   "page.scheduler.task.disable": "停用任务",
   "page.scheduler.task.enable": "启用任务",
-  "page.models.provider.lastRefresh": "最近刷新"
+  "page.models.provider.lastRefresh": "最近刷新",
+  "page.chat.context.actualModel": "实际模型",
+  "page.chat.context.actualModelDesc": "最近一次回答实际使用的模型(配置的模型不可用时按降级链选择)",
+  "page.chat.compactedNotice": "对话过长,已自动压缩较早的历史(完整记录仍在数据库)",
+  "onboarding.done.noModelTitle": "还没有配置 AI 模型",
+  "onboarding.done.noModelDesc": "对话功能需要一个可用的模型(API Key 或本地 Ollama)。不配置的话,发消息会收到「未找到可用模型」提示。",
+  "onboarding.done.goModels": "去配置模型"
 }

@@ -29,6 +29,7 @@ import {
   deleteChatSession,
   listChatSessions,
   loadChatMessages,
+  renameChatSession,
   saveChatMessage,
 } from './db/chat-messages'
 import {
@@ -203,6 +204,11 @@ class DBService {
    *  修复: 两步删除用事务包裹,保证原子性(要么全删,要么全不删) */
   deleteChatSession(sessionId: string): boolean {
     return deleteChatSession(this.client, sessionId)
+  }
+
+  /** R2+: 会话重命名(自动起名) */
+  renameChatSession(sessionId: string, title: string): boolean {
+    return renameChatSession(this.client, sessionId, title)
   }
 
   /** List all chat sessions ordered by updated_at DESC */

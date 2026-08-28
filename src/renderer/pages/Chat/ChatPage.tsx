@@ -31,6 +31,7 @@ export function ChatPage() {
   const currentModelContext = useChatStore((s) => s.currentModelContext)
   const currentModelMaxOutput = useChatStore((s) => s.currentModelMaxOutput)
   const lastUsage = useChatStore((s) => s.lastUsage)
+  const lastModel = useChatStore((s) => s.lastModel)
   const lastCost = useChatStore((s) => s.lastCost)
   const thinkingLevel = useChatStore((s) => s.thinkingLevel)
   const sessionId = useChatStore((s) => s.sessionId)
@@ -160,6 +161,22 @@ export function ChatPage() {
     // 用户发消息 = 明确回到对话底部,重新启用自动跟随
     followBottomRef.current = true
 
+    // 发送即反馈(R2+ 审计 HIGH): 乐观创建空气泡+置位流式态 —
+    // 此前 runAgent 排队/buildAgentTools 期间界面完全静止,用户不知道消息是否发出。
+    // running 事件到达后走"复用末条 assistant"路径,不会重复建气泡。
+    useChatStore.getState().addMessage({
+      role: 'assistant',
+      content: '',
+      toolCalls: [],
+      timestamp: Date.now(),
+    })
+    useChatStore.setState((s) => ({
+      isStreaming: true,
+      isThinking: true,
+      streamingAgentId: selectedAgentId,
+      streamSessionId: s.sessionId,
+    }))
+
     // 清空已上传文件
     setUploadedFiles([])
 
@@ -169,6 +186,19 @@ export function ChatPage() {
       await getAPI().agent.runManual(selectedAgentId, finalText, history)
     } catch (err) {
       console.error('[Chat] Agent run failed:', err)
+      // 回滚乐观态: invoke 本身失败时不会有 agent 事件来清理(空气泡一并移除)
+      useChatStore.setState((s) => {
+        const msgs = [...s.messages]
+        const last = msgs[msgs.length - 1]
+        if (last?.role === 'assistant' && !last.content) msgs.pop()
+        return {
+          messages: msgs,
+          isStreaming: false,
+          isThinking: false,
+          streamingAgentId: null,
+          streamSessionId: null,
+        }
+      })
       toast.error(t('toast.agents.runFailed'))
     }
   }
@@ -241,6 +271,7 @@ export function ChatPage() {
           modelMaxOutput={currentModelMaxOutput}
           lastUsage={lastUsage}
           lastCost={lastCost}
+          lastModel={lastModel}
         />
 
         {/* 消息区 */}

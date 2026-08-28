@@ -25,6 +25,8 @@ const classAssignMock = vi.fn()
 const addStudentMock = vi.fn()
 const agentListMock = vi.fn()
 const agentToggleMock = vi.fn()
+// R2+ DoneStep 模型配置检查(返回已配置,不弹提醒卡)
+const listProvidersMock = vi.fn()
 
 function setupApi(overrides?: Record<string, unknown>) {
   ;(window as unknown as { api: unknown }).api = {
@@ -35,6 +37,7 @@ function setupApi(overrides?: Record<string, unknown>) {
     },
     eaa: { addStudent: addStudentMock },
     agent: { list: agentListMock, toggle: agentToggleMock },
+    ai: { listProviders: listProvidersMock },
     ...overrides,
   }
 }
@@ -59,6 +62,7 @@ beforeEach(() => {
   addStudentMock.mockResolvedValue({ success: true, data: 'ok', stderr: '', exitCode: 0 })
   agentListMock.mockResolvedValue([])
   agentToggleMock.mockResolvedValue({ success: true })
+  listProvidersMock.mockResolvedValue([{ id: 'openai', hasApiKey: true }])
   setupApi()
 })
 

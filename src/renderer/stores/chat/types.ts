@@ -18,8 +18,10 @@ export interface AgentBridgeEvent {
   output?: string
   toolCall?: { name: string; args: unknown }
   toolResult?: { name: string; isError: boolean; preview?: string }
-  result?: { output: string; tokenUsage?: TokenUsage; cost?: number }
+  result?: { output: string; tokenUsage?: TokenUsage; cost?: number; model?: string }
   error?: string
+  /** 上下文压缩已发生(R2+ 可见性) */
+  compacted?: boolean
 }
 
 export interface ChatState {
@@ -35,6 +37,8 @@ export interface ChatState {
   thinkingLevel: string
   lastUsage: TokenUsage | null
   lastCost: number
+  /** 最近一次 agent 运行实际使用的模型(provider/id) — 降级可见性 */
+  lastModel: string
   sessionId: string
   historyLoaded: boolean
   sessions: ChatSession[]

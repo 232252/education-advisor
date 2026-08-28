@@ -290,6 +290,13 @@ export function OnboardingWizard() {
     navigate('/dashboard')
   }
 
+  // R2+: 未配置模型时从完成页直达模型页(标记向导完成,不阻断后续使用)
+  const handleGoModels = () => {
+    markOnboardingDone()
+    setPhase('closed')
+    navigate('/models')
+  }
+
   if (phase === 'closed' || phase === 'checking') return null
 
   const STEPS: WizardStepDef[] = [
@@ -377,7 +384,12 @@ export function OnboardingWizard() {
 
         {/* ── 完成页 ── */}
         {phase === 'done' && (
-          <DoneStep summary={summary} onFinish={handleFinish} primaryBtnRef={primaryBtnRef} />
+          <DoneStep
+            summary={summary}
+            onFinish={handleFinish}
+            onGoModels={handleGoModels}
+            primaryBtnRef={primaryBtnRef}
+          />
         )}
       </div>
     </div>
