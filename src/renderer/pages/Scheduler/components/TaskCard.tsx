@@ -4,7 +4,8 @@
 
 import type { AgentListItem, CronTask } from '@shared/types'
 import { memo } from 'react'
-import { btnStyle } from '../../../lib/ui-utils'
+import { btnStyle, formatDateTime } from '../../../lib/ui-utils'
+import { ToggleSwitch } from '../../Settings/components/ToggleSwitch'
 import { cronStatusColor, cronStatusLabel, isAutoTask } from '../lib/scheduler-utils'
 
 interface TaskCardProps {
@@ -47,21 +48,19 @@ export const TaskCard = memo(function TaskCard({
     >
       <div className="flex items-center gap-3">
         {/* 开关 */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggle(task.id, !task.enabled)
-          }}
-          aria-label={task.enabled ? '停用任务' : '启用任务'}
-          className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0
-            ${task.enabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}`}
-        >
-          <span
-            className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform
-              ${task.enabled ? 'left-5' : 'left-0.5'}`}
+        {/* onClickCapture: 卡片本身可点击,开关点击需阻止冒泡 */}
+        <span onClickCapture={(e) => e.stopPropagation()}>
+          <ToggleSwitch
+            size="sm"
+            checked={task.enabled}
+            label={
+              task.enabled
+                ? t('page.scheduler.task.disable', '停用任务')
+                : t('page.scheduler.task.enable', '启用任务')
+            }
+            onChange={(v) => onToggle(task.id, v)}
           />
-        </button>
+        </span>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -89,7 +88,7 @@ export const TaskCard = memo(function TaskCard({
           )}
           {task.lastRunAt && (
             <div className="text-[10px] text-gray-400 dark:text-gray-600 mt-0.5">
-              {new Date(task.lastRunAt).toLocaleString('zh-CN')}
+              {formatDateTime(task.lastRunAt)}
             </div>
           )}
         </div>

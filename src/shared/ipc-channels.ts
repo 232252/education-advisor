@@ -105,6 +105,11 @@ export const IPC_SETTINGS_SET = 'settings:set'
 export const IPC_SETTINGS_RESET = 'settings:reset'
 
 // ===== 系统 =====
+// ── 记忆管理(memory:*): 查看/删除各 agent 长期记忆(R2+ 记忆透明化) ──
+export const IPC_MEMORY_LIST = 'memory:list'
+export const IPC_MEMORY_DELETE_ENTRY = 'memory:delete-entry'
+export const IPC_MEMORY_CLEAR = 'memory:clear'
+
 export const IPC_REPORTS_LIST = 'reports:list'
 export const IPC_REPORTS_READ = 'reports:read'
 export const IPC_SYS_OPEN_DIALOG = 'sys:open-dialog'

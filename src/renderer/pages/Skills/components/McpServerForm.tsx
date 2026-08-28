@@ -1,5 +1,6 @@
 import type { McpServerConfig, McpTransport } from '@shared/types'
 import { cloneElement, useId, useMemo, useState } from 'react'
+import { Button } from '../../../components/Button'
 import { useT } from '../../../i18n'
 import { CARD_BASE, cn, INPUT_SM } from '../../../lib/ui-utils'
 import { validateMcpConfig } from '../mcp-validate'
@@ -273,13 +274,9 @@ export function McpServerForm({ initial, mode, onSubmit, onCancel }: McpServerFo
           >
             {t('common.cancel')}
           </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="px-4 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          <Button type="submit" variant="primary" size="md" disabled={submitting}>
             {t('common.confirm')}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

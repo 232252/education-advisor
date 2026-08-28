@@ -102,7 +102,7 @@ export function DiagnosticSection({
                   ✓ {t('page.dashboard.sysmgmt.doctor.healthy', '健康')}
                 </span>
               ) : (
-                <span className="text-rose-500 dark:text-rose-400">
+                <span className="text-red-500 dark:text-red-400">
                   ✗ {t('page.dashboard.sysmgmt.doctor.unhealthy', '异常')}
                 </span>
               )}
@@ -111,7 +111,7 @@ export function DiagnosticSection({
                 {t('page.dashboard.sysmgmt.doctor.failed', '失败')} {doctorResult.failed}
               </span>
               {doctorResult.issues.length > 0 && (
-                <ul className="mt-1 space-y-0.5 text-rose-500 dark:text-rose-400">
+                <ul className="mt-1 space-y-0.5 text-red-500 dark:text-red-400">
                   {doctorResult.issues.map((issue) => (
                     <li key={issue}>• {issue}</li>
                   ))}
@@ -180,7 +180,7 @@ export function DiagnosticSection({
                   ✓ {t('page.settings.diagnostic.dataIntact', '数据完整')}
                 </span>
               ) : (
-                <span className="text-rose-500 dark:text-rose-400">
+                <span className="text-red-500 dark:text-red-400">
                   ✗ {t('page.settings.diagnostic.issuesFound', '发现问题')}
                 </span>
               )}
@@ -188,7 +188,7 @@ export function DiagnosticSection({
                 {t('page.settings.diagnostic.total', '共')} {validateResult.total_events}{' '}
                 {t('page.settings.diagnostic.eventsUnit', '条事件')}
                 {validateResult.errors.length > 0 && (
-                  <span className="text-rose-500 dark:text-rose-400 ml-1">
+                  <span className="text-red-500 dark:text-red-400 ml-1">
                     {t('page.dashboard.sysmgmt.validate.errors', '错误')}{' '}
                     {validateResult.errors.length}
                   </span>
@@ -201,7 +201,7 @@ export function DiagnosticSection({
                 )}
               </span>
               {validateResult.errors.length > 0 && (
-                <ul className="mt-1 space-y-0.5 text-rose-500 dark:text-rose-400">
+                <ul className="mt-1 space-y-0.5 text-red-500 dark:text-red-400">
                   {validateResult.errors.map((e) => (
                     <li key={e}>• {e}</li>
                   ))}

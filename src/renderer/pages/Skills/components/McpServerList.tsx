@@ -4,6 +4,7 @@
 // =============================================================
 
 import type { McpServerStatus } from '@shared/types'
+import { Button } from '../../../components/Button'
 import { useT } from '../../../i18n'
 
 interface McpServerListProps {
@@ -25,13 +26,9 @@ export function McpServerList({
   return (
     <div className="w-72 flex-shrink-0 border-r border-gray-200 dark:border-white/[0.06] flex flex-col bg-gray-50/30 dark:bg-surface-tertiary/30">
       <div className="p-3 border-b border-gray-200 dark:border-white/[0.06] space-y-2">
-        <button
-          type="button"
-          onClick={onAdd}
-          className="w-full px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600"
-        >
+        <Button variant="primary" size="md" className="w-full" onClick={onAdd}>
           + {t('page.mcp.add')}
-        </button>
+        </Button>
         <button
           type="button"
           onClick={onFromTemplate}

@@ -43,6 +43,7 @@ export function cronStatusColor(status?: string): string {
 }
 
 /** 日志时间格式化: HH:mm:ss */
+/** [R2-21 豁免] 日志时间只要 H:mm:ss,与展示用 formatDateTime 语义不同 */
 export function formatLogTime(timestamp: number): string {
   const time = new Date(timestamp)
   return `${time.getHours()}:${String(time.getMinutes()).padStart(2, '0')}:${String(time.getSeconds()).padStart(2, '0')}`

@@ -15,6 +15,7 @@ export function getModelTierLabel(modelTier: 'high_quality' | 'low_cost'): strin
 }
 
 /** 执行历史时间格式化: M/D HH:mm */
+/** [R2-21 豁免] 执行历史用紧凑 M/D H:mm(省空间),与展示用 formatDateTime 语义不同 */
 export function formatHistoryTime(startedAt: number): string {
   const date = new Date(startedAt)
   return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`

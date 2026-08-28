@@ -97,7 +97,7 @@ export function LogSection({
             <button
               type="button"
               onClick={onClearLogsRequest}
-              className="text-[10px] px-2.5 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-500 dark:text-rose-400 hover:bg-rose-500/20 transition-colors"
+              className="text-[10px] px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-500/20 transition-colors"
             >
               {t('settings.logs.clear', '清空')}
             </button>

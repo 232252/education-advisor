@@ -52,6 +52,7 @@ export function ParentReportDocument({
   generatedAt = new Date(),
 }: ParentReportDocumentProps) {
   const { t } = useT()
+  // [R2-21 豁免] 打印文件名戳用 ISO 日期(YYYY-MM-DD),与展示用 formatDate 语义不同,勿改
   const stamp = `${generatedAt.getFullYear()}-${String(generatedAt.getMonth() + 1).padStart(2, '0')}-${String(generatedAt.getDate()).padStart(2, '0')}`
 
   const { highlights, concerns } = splitEventsForParent(events)
