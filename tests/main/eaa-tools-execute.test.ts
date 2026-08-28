@@ -16,6 +16,15 @@ vi.mock('../../src/main/services/eaa-bridge', () => ({
     typeof r.data === 'string' && r.data ? r.data : r.stderr || f,
 }))
 
+// R2+: eaa-tools 经 academic-tools → academic-service → utils/logger 链在模块
+// 顶层调用 app.getPath('userData'),仅 mock eaa-bridge 不再够用 — 补 electron app mock
+vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => '/tmp/eaa-tools-isolated-test'),
+    isPackaged: false,
+  },
+}))
+
 const { rankingTool, statsTool, codesTool, summaryTool, listStudentsTool, rangeTool, queryScoreTool } =
   await import('../../src/main/services/eaa-tools')
 

@@ -301,6 +301,37 @@ class AcademicService {
     }
     return result
   }
+
+  /**
+   * 扫描 grades 目录,返回某场考试的全部已录入成绩(按学生分组)。
+   * 与 getClassGrades 的区别:无需预知学生名单,有成绩记录的学生自然出现;
+   * 供 eaa_exam_grades(AI 工具)全班查询使用。
+   */
+  async getExamGrades(examId: string, subjectId?: string): Promise<Record<string, GradeRecord[]>> {
+    const result: Record<string, GradeRecord[]> = {}
+    let files: string[]
+    try {
+      files = await fsp.readdir(this.gradesDir)
+    } catch {
+      return result
+    }
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue
+      try {
+        const content = await fsp.readFile(path.join(this.gradesDir, file), 'utf-8')
+        const grades = JSON.parse(content) as GradeRecord[]
+        const matched = grades
+          .filter((g) => g.examId === examId)
+          .filter((g) => !subjectId || g.subjectId === subjectId)
+        if (matched.length > 0 && matched[0]?.studentName) {
+          result[matched[0].studentName] = matched
+        }
+      } catch {
+        // 跳过无法解析的文件(与 deleteExam 的容错口径一致)
+      }
+    }
+    return result
+  }
 }
 
 export const academicService = new AcademicService()

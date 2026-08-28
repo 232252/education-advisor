@@ -176,10 +176,11 @@ class SkillService {
           }
           const name = entry.name.replace(/\.md$/, '')
 
-          // 尝试解析 YAML frontmatter 获取 description
+          // 尝试解析 YAML frontmatter 获取 description / tools
           const description = this.extractDescription(content)
+          const tools = this.extractTools(content)
 
-          skills.push({ name, description, content, source, filePath })
+          skills.push({ name, description, content, source, filePath, tools })
         }
 
         // 子目录中有 SKILL.md 的也算一个技能
@@ -197,6 +198,7 @@ class SkillService {
               content,
               source,
               filePath: skillMd,
+              tools: this.extractTools(content),
             })
           }
         }
@@ -247,6 +249,37 @@ class SkillService {
     }
 
     return 'No description'
+  }
+
+  /** 从 frontmatter 解析 tools 字段(技能讲授的工具名,用于按 agent 工具集过滤注入)。
+   *  支持两种写法: tools: [eaa_add_event, eaa_revert_event] 或
+   *  tools:\n  - eaa_add_event\n  - eaa_revert_event */
+  private extractTools(content: string): string[] | undefined {
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+    if (!fmMatch) return undefined
+
+    const fm = fmMatch[1] ?? ''
+    const inline = fm.match(/tools:\s*\[([^\]]*)\]/)
+    if (inline) {
+      const items = inline[1]?.split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
+      const list = (items ?? []).filter(Boolean)
+      return list.length > 0 ? list : undefined
+    }
+    const blockMatch = fm.match(/tools:\s*\n((?:\s+-\s+.+\n?)+)/)
+    if (blockMatch) {
+      const list = (blockMatch[1] ?? '')
+        .split('\n')
+        .map((l) =>
+          l
+            .trim()
+            .replace(/^-\s+/, '')
+            .trim()
+            .replace(/^['"]|['"]$/g, ''),
+        )
+        .filter(Boolean)
+      return list.length > 0 ? list : undefined
+    }
+    return undefined
   }
 }
 

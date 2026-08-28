@@ -37,7 +37,8 @@ export interface AgentExecutionDeps {
   getSharedRulesContent(): string
   /** 项目级背景知识(agents/_shared/project-context.md),让 AI 认知整个系统 */
   getProjectContextContent(): string
-  buildSkillsSection(): string
+  /** 技能清单段(按该 agent capabilities 过滤,见 agent/tools.ts) */
+  buildSkillsSection(capabilities: string[]): string
   // M32: win 用于 delegate_to 委托运行的状态推送(仅 main 会注入该工具)
   // privacyGuard: 开启自动脱敏的运行传入,用于包装 EAA 工具(见 agent/privacy-guard.ts)
   buildAgentTools(

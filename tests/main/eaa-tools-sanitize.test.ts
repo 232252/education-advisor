@@ -31,6 +31,15 @@ vi.mock('../../src/main/services/eaa-bridge', () => ({
   !result?.success ? (result?.error || result?.stderr || fallback) : fallback,
 }))
 
+// R2+: eaa-tools 经 academic-tools → academic-service → utils/logger 链在模块
+// 顶层调用 app.getPath('userData'),仅 mock eaa-bridge 不再够用 — 补 electron app mock
+vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => '/tmp/eaa-tools-isolated-test'),
+    isPackaged: false,
+  },
+}))
+
 //重要：import 必须发生在 vi.mock之后
 const { queryScoreTool, addEventTool, searchEventsTool, historyTool, addStudentTool } =
  await import('../../src/main/services/eaa-tools')

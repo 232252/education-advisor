@@ -145,7 +145,7 @@ export async function executeAgentRun(
     classContextSection,
     sharedRulesContent: deps.getSharedRulesContent(),
     rulesContent: deps.getRulesContent(id),
-    skillsSection: deps.buildSkillsSection(),
+    skillsSection: deps.buildSkillsSection(config.capabilities),
     // R2-08: 记忆注入过脱敏管线 — 记忆落盘为真名(见 memory-tool),
     // 当次运行开启自动脱敏时,出域前把真名转回化名(与 chat 历史同待遇)
     memorySection: privacyGuard

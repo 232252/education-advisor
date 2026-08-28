@@ -5,6 +5,7 @@
 // 实现已拆分至 ./eaa/tools/(纯重构,逻辑逐字搬移,契约不变)
 // =============================================================
 
+export { examGradesTool, examsTool, studentGradesTool } from './eaa/tools/academic-tools'
 export { addEventTool, revertEventTool } from './eaa/tools/event-tools'
 export { historyTool, queryScoreTool, searchEventsTool, tagTool } from './eaa/tools/query-tools'
 export {

@@ -86,7 +86,7 @@ class AgentService {
     getRulesContent: (id) => this.getRules(id),
     getSharedRulesContent: () => this.getSharedRules(),
     getProjectContextContent: () => loadProjectContext(this.agentsDir),
-    buildSkillsSection: () => buildSkillsSection(),
+    buildSkillsSection: (capabilities: string[]) => buildSkillsSection(capabilities),
     // M32: 传入 win + 委托桥接 — main 的工具集会注入 delegate_to(见 agent/tools.ts)
     // privacyGuard 由 execution 按运行时脱敏开关创建后传入(见 agent/privacy-guard.ts)
     buildAgentTools: (config, id, win, privacyGuard) =>
