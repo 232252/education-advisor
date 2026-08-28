@@ -183,24 +183,38 @@ export function ChatPage() {
     // 启动 Agent（fire-and-forget，事件通过 onStatusUpdate 桥接）
     // 传入对话历史和包含文件内容的最终文本
     try {
-      await getAPI().agent.runManual(selectedAgentId, finalText, history)
+      // 渲染端补角(2026-08-28 智能轮核查): runManual 前置校验失败(agent 不存在/
+      // 已停用等)返回 {success:false} 而非 reject — 此前返回值无人检查,
+      // 也不会有任何 agent 事件到达 → 空气泡+流式态永久卡死。现在显式回滚。
+      const res = await getAPI().agent.runManual(selectedAgentId, finalText, history)
+      if (res && typeof res === 'object' && 'success' in res && !res.success) {
+        const reason = res.message ?? ''
+        rollbackOptimisticState()
+        toast.error(reason || t('toast.agents.runFailed'))
+        return
+      }
     } catch (err) {
       console.error('[Chat] Agent run failed:', err)
       // 回滚乐观态: invoke 本身失败时不会有 agent 事件来清理(空气泡一并移除)
-      useChatStore.setState((s) => {
-        const msgs = [...s.messages]
-        const last = msgs[msgs.length - 1]
-        if (last?.role === 'assistant' && !last.content) msgs.pop()
-        return {
-          messages: msgs,
-          isStreaming: false,
-          isThinking: false,
-          streamingAgentId: null,
-          streamSessionId: null,
-        }
-      })
+      rollbackOptimisticState()
       toast.error(t('toast.agents.runFailed'))
     }
+  }
+
+  /** 回滚"发送即反馈"的乐观态: 移除末尾空气泡并复位流式标志 */
+  const rollbackOptimisticState = () => {
+    useChatStore.setState((s) => {
+      const msgs = [...s.messages]
+      const last = msgs[msgs.length - 1]
+      if (last?.role === 'assistant' && !last.content) msgs.pop()
+      return {
+        messages: msgs,
+        isStreaming: false,
+        isThinking: false,
+        streamingAgentId: null,
+        streamSessionId: null,
+      }
+    })
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

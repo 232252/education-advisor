@@ -149,7 +149,8 @@ export const rangeTool: AgentTool<typeof rangeParams> = {
   execute: async (_toolCallId, params, signal) => {
     const values: string[] = [params.start, params.end]
     const flags: string[] = []
-    if (params.limit) flags.push('--limit', String(params.limit))
+    // L2 修复: 显式传默认值 — 与参数描述"默认 100"对齐(此前不传时由 CLI 自行决定)
+    flags.push('--limit', String(params.limit ?? 100))
     const result = await safeExecute('range', values, flags, signal)
     if (!result.success) {
       throw new Error(`范围查询失败: ${getErrorMessage(result)}`)

@@ -530,12 +530,13 @@ describe('ChatStreamRunner — 消息格式互转', () => {
     ])
     await collect(new ChatStreamRunner().chatStream(chatParams({ messages: fourMessages })))
 
-    // 简化格式 → AgentMessage: 全部 user role + 原文,带 apiKey 与 abort signal
+    // 简化格式 → AgentMessage: 保留原始 role — assistant 转最小 AssistantMessage
+    // (H1 修复 2026-08-28 智能轮: 此前全部摊平成 user,压缩一触发多轮身份即毁)
     const compactArgs = piMocks.compactAgentMessages.mock.calls[0] as unknown[]
-    const agentMsgs = compactArgs[0] as Array<{ role: string; content: string }>
+    const agentMsgs = compactArgs[0] as Array<{ role: string; content: unknown }>
     expect(agentMsgs.map((m) => [m.role, m.content])).toEqual([
       ['user', 'msg1'],
-      ['user', 'a1'],
+      ['assistant', [{ type: 'text', text: 'a1' }]],
       ['user', 'msg2'],
       ['user', 'msg3'],
     ])

@@ -9,7 +9,7 @@ import path from 'node:path'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 import { checkFileSize, validateFilePath } from './security'
-import { textResult } from './shared'
+import { MAX_TOOL_RESULT_CHARS, textResult, truncateForResult } from './shared'
 
 /**
  * L-3 修复: 校验 encoding 参数是否为 Node.js 支持的 BufferEncoding。
@@ -30,14 +30,21 @@ const VALID_ENCODINGS = new Set<BufferEncoding>([
   'ucs2',
 ])
 
+/**
+ * M7 修复(2026-08-28 智能轮): 此前 gbk/gb2312 静默回退 utf-8 — 老编码文件
+ * 读出来是替换符乱码,工具不报错,模型拿到 mojibake 还以为"编码已支持",
+ * 只能基于乱码编造内容。现在明确报错并给出可执行指引(转存 UTF-8)。
+ */
 function resolveEncoding(encoding: string | undefined): BufferEncoding {
   if (!encoding) return 'utf-8'
   const lower = encoding.toLowerCase()
   if (VALID_ENCODINGS.has(lower as BufferEncoding)) {
     return lower as BufferEncoding
   }
-  // gbk/gb2312 等 Node.js 原生不支持的编码,fallback 到 utf-8
-  return 'utf-8'
+  throw new Error(
+    `不支持的编码: ${encoding}。Node.js 原生仅支持 utf-8/utf-16le/latin1 等,` +
+      'GBK/GB2312 文件请先让用户转存为 UTF-8 后再读取;若文件实际是 UTF-8,请去掉 encoding 参数重试。',
+  )
 }
 
 // =============================================================
@@ -46,7 +53,17 @@ function resolveEncoding(encoding: string | undefined): BufferEncoding {
 
 const readFileParams = Type.Object({
   path: Type.String({ description: '文件的绝对路径或相对路径' }),
-  encoding: Type.Optional(Type.String({ description: '文件编码，默认 utf-8，可选 gbk/gb2312' })),
+  encoding: Type.Optional(
+    Type.String({
+      description:
+        '文件编码,默认 utf-8(仅支持 utf-8/utf-16le/latin1 等 Node.js 原生编码,不支持 gbk)',
+    }),
+  ),
+  offset: Type.Optional(
+    Type.Number({
+      description: `起始字符偏移(默认 0)。超过 ${MAX_TOOL_RESULT_CHARS} 字符的结果会被截断并提示下一页 offset,据此续读`,
+    }),
+  ),
 })
 
 const listDirParams = Type.Object({
@@ -85,7 +102,15 @@ export const readFileTool: AgentTool<typeof readFileParams> = {
     const ext = path.extname(resolvedPath).toLowerCase()
     const fileName = path.basename(resolvedPath)
 
-    return textResult(`📄 文件: ${fileName} (${ext})\n路径: ${resolvedPath}\n---\n${content}`)
+    // H4 修复(2026-08-28 智能轮): 全文原样返回 → 分页截断。
+    // 大 CSV/日志一次挤爆上下文的问题见 shared.MAX_TOOL_RESULT_CHARS 注释。
+    const offset = typeof params.offset === 'number' && params.offset >= 0 ? params.offset : 0
+    const body = truncateForResult(content, offset)
+    const pageInfo =
+      content.length > MAX_TOOL_RESULT_CHARS ? `(共 ${content.length} 字符,已分页)` : ''
+    return textResult(
+      `📄 文件: ${fileName} (${ext}) ${pageInfo}\n路径: ${resolvedPath}\n---\n${body}`,
+    )
   },
 }
 
@@ -128,6 +153,13 @@ export const listDirTool: AgentTool<typeof listDirParams> = {
     lines.push(`📁 目录: ${resolvedPath}`)
     lines.push(`条目数: ${entries.length}`)
     lines.push('---')
+
+    // H4 修复: 条目上限,超大目录(如 node_modules)不再全量列出挤爆上下文
+    const MAX_LIST_ENTRIES = 500
+    if (entries.length > MAX_LIST_ENTRIES) {
+      entries = entries.slice(0, MAX_LIST_ENTRIES)
+      lines.push(`[已截断] 仅显示前 ${MAX_LIST_ENTRIES} 个条目,如需定位具体文件请用更精确的路径`)
+    }
 
     // 先列目录，再列文件
     const dirs = entries.filter((e) => e.isDirectory())

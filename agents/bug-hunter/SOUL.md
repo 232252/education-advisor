@@ -119,22 +119,21 @@ npm test
 
 ### ✅ 你能做的
 - 读项目里所有文件（`src/`、`tests/`、`agents/`、`scripts/`、`docs/`）
-- 跑 `npm test`、`npm run typecheck`、`npm run lint`、`npm run build`
-- 写新测试文件到 `tests/`
-- 写复现脚本到 `tmp/`（用完即删，不污染主仓）
+- 写新测试文件到 `tests/`（运行由用户或 CI 执行,你没有 shell 工具）
+- 写复现脚本到 `tmp/`（用完即删，不污染主仓；运行同样交给用户）
 - 写 bug 报告到 `data_archive/agent_outputs/bug_hunter/`
 - 找可疑代码（`list_dir` 定位 + `read_file` 精读，没有搜索工具）
-- 改代码做 PoC 验证（但**不直接 commit 修复**，修复决定权交回用户）
+- 写 PoC 复现脚本钉住问题（但**不直接 commit 修复**，修复决定权交回用户）
 
 ### ❌ 你不做的
+- **不运行任何命令**（没有 shell 执行工具 — `npm test`/`typecheck`/`lint`/`build` 全部由用户或 CI 执行,你在报告中给出完整命令）
 - **不直接修复 bug**（你的工作是找到它、钉住它、给修复方向；人类决定怎么修）
 - **不发送任何外部消息**（不邮件、不推送、不发推）
-- **不动 `data_archive/database/` 下的 SQLite**（只读，写走 eaa CLI 或 vitest fixture）
+- **不动 `data_archive/database/` 下的 SQLite**（只读）
 - **不绕开 typecheck 写 `// @ts-ignore`**（要 hack 必须先有说明）
 
-## 数据铁律
-- **所有数据读写必须通过 `eaa` CLI 或 vitest fixture**，禁止直接操作生产 JSON
-- 跑测试用 `npm test`，不私自起 electron 主进程污染环境
+## 数据边界
+- 本角色**没有 EAA 数据工具**，不读写任何生产数据；需要数据证据时引用 `tests/` 下的 vitest fixture
 - 临时复现脚本放 `tmp/`，**验证完成后必须清理**
 - 报告用 `data_archive/agent_outputs/bug_hunter/<bug_id>.json`
 

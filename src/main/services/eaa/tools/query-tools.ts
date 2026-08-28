@@ -18,6 +18,15 @@ const searchParams = Type.Object({
   limit: Type.Optional(Type.Number({ description: '最大返回条数，默认 50' })),
 })
 
+const historyParams = Type.Object({
+  name: Type.String({ description: '学生姓名' }),
+  limit: Type.Optional(
+    Type.Number({
+      description: '最多返回的最近事件条数，默认 50(完整时间线条数在 events_count 字段)',
+    }),
+  ),
+})
+
 const tagParams = Type.Object({
   tag: Type.Optional(Type.String({ description: '标签名。不填则列出所有已知标签' })),
 })
@@ -42,17 +51,38 @@ export const queryScoreTool: AgentTool<typeof nameParam> = {
 // =============================================================
 // 3. 查看学生事件历史
 // =============================================================
-export const historyTool: AgentTool<typeof nameParam> = {
+export const historyTool: AgentTool<typeof historyParams> = {
   name: 'eaa_history',
   label: '查看事件历史',
-  description: '查看指定学生的完整操行事件时间线',
-  parameters: nameParam,
+  description:
+    '查看指定学生的操行事件时间线(默认只返回最近 50 条,完整条数见 events_count;需要更早记录可调大 limit)',
+  parameters: historyParams,
   execute: async (_toolCallId, params, signal) => {
     const result = await safeExecute('history', [params.name], [], signal)
     if (!result.success) {
       throw new Error(`查询历史失败: ${getErrorMessage(result)}`)
     }
-    return jsonResult(extractData(result.data), `${params.name} 的事件历史`)
+    // H4 修复(2026-08-28 智能轮): CLI history 无 --limit 参数且全量返回 —
+    // 老学生全时间线(数百条 pretty JSON)一次就能挤爆上下文。
+    // 此处 JS 侧截取最近 N 条(事件按时间升序,保留尾部即最近),
+    // 完整条数在 events_count,截断信息在 events_truncated。
+    const data = extractData(result.data) as {
+      events?: unknown[]
+      events_count?: number
+      [key: string]: unknown
+    }
+    const limit = typeof params.limit === 'number' && params.limit > 0 ? params.limit : 50
+    if (Array.isArray(data.events) && data.events.length > limit) {
+      return jsonResult(
+        {
+          ...data,
+          events: data.events.slice(-limit),
+          events_truncated: `仅返回最近 ${limit}/${data.events.length} 条,完整时间线条数见 events_count`,
+        },
+        `${params.name} 的事件历史`,
+      )
+    }
+    return jsonResult(data, `${params.name} 的事件历史`)
   },
 }
 
@@ -71,7 +101,9 @@ export const searchEventsTool: AgentTool<typeof searchParams> = {
     // 必须由 safeExecute 在转给 eaa-bridge 前对每个 token 做 sanitize。
     const values = tokenizeQuery(params.query)
     const flags: string[] = []
-    if (params.limit) flags.push('--limit', String(params.limit))
+    // L2 修复: 显式传默认值 — 此前不传 limit 时由 CLI 决定,与参数描述"默认 50"不符,
+    // 模型按错误心智做分页决策会失准
+    flags.push('--limit', String(params.limit ?? 50))
     const result = await safeExecute('search', values, flags, signal)
     if (!result.success) {
       throw new Error(`搜索失败: ${getErrorMessage(result)}`)
