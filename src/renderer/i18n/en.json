@@ -1490,5 +1490,11 @@
   "common.loadMore": "Load More",
   "page.scheduler.task.disable": "Disable Task",
   "page.scheduler.task.enable": "Enable Task",
-  "page.models.provider.lastRefresh": "Last Refresh"
+  "page.models.provider.lastRefresh": "Last Refresh",
+  "page.chat.context.actualModel": "Actual Model",
+  "page.chat.context.actualModelDesc": "Model actually used for the last reply (fallback chain applies when the configured model is unavailable)",
+  "page.chat.compactedNotice": "Conversation was long; earlier history was auto-compacted (full records remain in the database)",
+  "onboarding.done.noModelTitle": "No AI model configured yet",
+  "onboarding.done.noModelDesc": "Chat requires an available model (API key or local Ollama). Without one, sending a message will show a \"no model available\" notice.",
+  "onboarding.done.goModels": "Configure Model"
 }

@@ -56,6 +56,21 @@ export function registerAIChatPersistenceHandlers(): void {
 
   // ----- 对话持久化: 删除会话 -----
   // M-1 修复: 加 try-catch
+  // R2+: 会话重命名(自动起名; 参数校验与 delete 同口径)
+  ipcMain.handle(IPC.IPC_CHAT_RENAME_SESSION, async (_e, sessionId: string, title: string) => {
+    try {
+      if (typeof sessionId !== 'string' || typeof title !== 'string' || title.length === 0) {
+        return { success: false, error: 'invalid arguments' }
+      }
+      const success = dbService.renameChatSession(sessionId, title.slice(0, 60))
+      return { success }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[IPC] chat:rename-session failed:', msg)
+      return { success: false, error: msg }
+    }
+  })
+
   ipcMain.handle(IPC.IPC_CHAT_DELETE_SESSION, async (_e, sessionId: string) => {
     try {
       const success = dbService.deleteChatSession(sessionId)
