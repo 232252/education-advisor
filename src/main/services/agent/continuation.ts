@@ -61,11 +61,13 @@ export async function runContinuationLoop(deps: ContinuationDeps): Promise<numbe
   ) {
     continuationCount++
     const prevOutputLen = deps.getOutputLength()
-    const remainingTasks = Math.max(0, MIN_TURN_COUNT - deps.getTurnCount())
+    // M1 修复(2026-08-28 智能轮): 原指令"至少还需执行 N 轮操作/要积极调用工具"
+    // 会在模型已完整回答时逼它凑轮次 — 编造工具调用、输出垃圾附录。
+    // 改为中性判定式: 让模型自己确认任务状态,已完成则简短收尾。
     const contPrompt =
-      `[系统指令] 你的回复过早结束。你只完成了 ${deps.getTurnCount()} 轮操作，输出了 ${deps.getOutputLength()} 个字符。` +
-      `用户的任务需要更多步骤才能完成。请继续使用可用工具完成任务，至少还需执行 ${remainingTasks} 轮操作。` +
-      `不要只说一句概述就停止，要积极调用工具执行实际操作。`
+      `[系统检查] 你的回复为空或异常简短(${deps.getOutputLength()} 字符,${deps.getTurnCount()} 轮)。` +
+      `这可能是输出被截断或请求未正常完成。请检查用户原始任务:` +
+      `若任务尚未完成,请继续完成并给出完整回复;若任务已经完成,请直接复述你的最终结论后结束,不要新增多余操作。`
     console.log(
       `[AgentService] runAgent(${deps.id}) continuation #${continuationCount}: turns=${deps.getTurnCount()} outputLen=${deps.getOutputLength()}`,
     )

@@ -12,6 +12,25 @@ import { MAX_PENDING_AGENTS, pendingAgentOutputs } from './agent-pending'
 import { warnSaveFailed } from './persistence'
 import type { ChatGet, ChatSet, ChatState } from './types'
 
+/**
+ * 会话自动起名 — 默认标题(新对话/对话 + 时间戳)时用首条用户消息前 20 字派生。
+ * idle 与 error 终止时都调用: 首轮就报错的会话此前永远保持默认标题(2026-08-28 智能轮核查补角)。
+ */
+function autoNameSessionIfDefault(get: ChatGet, set: ChatSet) {
+  const sess = get().sessions.find((x) => x.id === get().sessionId)
+  if (!sess || !/^(新对话|对话)/.test(sess.title)) return
+  const firstUser = get().messages.find((m) => m.role === 'user')
+  const derived = firstUser?.content.trim().slice(0, 20)
+  if (!derived) return
+  const title = derived.replace(/\s+/g, ' ')
+  set((st) => ({ sessions: st.sessions.map((x) => (x.id === sess.id ? { ...x, title } : x)) }))
+  getAPI()
+    .chat.renameSession(sess.id, title)
+    .catch(() => {
+      /* 起名失败不影响会话 */
+    })
+}
+
 export function createAgentBridgeSlice(
   set: ChatSet,
   get: ChatGet,
@@ -180,7 +199,9 @@ export function createAgentBridgeSlice(
           // Agent 执行完成 — 保存消息并结束 streaming
           const msgs = get().messages
           const lastMsg = msgs[msgs.length - 1]
-          if (lastMsg?.role === 'assistant') {
+          // 空内容守卫(2026-08-28 智能轮核查): abort 后零输出的空气泡不落库,
+          // 否则重开会话会加载出一条空气泡(与 switchSession 部分落库的守卫同口径)
+          if (lastMsg?.role === 'assistant' && lastMsg.content.trim().length > 0) {
             getAPI()
               .chat.saveMessage({
                 sessionId: get().sessionId,
@@ -193,23 +214,8 @@ export function createAgentBridgeSlice(
               })
               .catch((err) => warnSaveFailed('agent', err))
           }
-          // R2+: 会话自动起名 — 默认标题(新对话/对话 + 时间戳)时用首条用户消息派生
-          const sess = get().sessions.find((x) => x.id === get().sessionId)
-          if (sess && /^(新对话|对话)/.test(sess.title)) {
-            const firstUser = get().messages.find((m) => m.role === 'user')
-            const derived = firstUser?.content.trim().slice(0, 20)
-            if (derived) {
-              const title = derived.replace(/\s+/g, ' ')
-              set((st) => ({
-                sessions: st.sessions.map((x) => (x.id === sess.id ? { ...x, title } : x)),
-              }))
-              getAPI()
-                .chat.renameSession(sess.id, title)
-                .catch(() => {
-                  /* 起名失败不影响会话 */
-                })
-            }
-          }
+          // R2+: 会话自动起名 — 默认标题时用首条用户消息派生(error 轮也起名,见 helper)
+          autoNameSessionIfDefault(get, set)
           const usage: TokenUsage = data.result?.tokenUsage || {
             inputTokens: 0,
             outputTokens: 0,
@@ -256,6 +262,8 @@ export function createAgentBridgeSlice(
             streamingAgentId: null,
             streamSessionId: null,
           })
+          // 首轮即报错的会话也自动起名(此前只有 idle 分支起名,error 轮漏掉)
+          autoNameSessionIfDefault(get, set)
           break
         }
       }

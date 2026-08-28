@@ -41,17 +41,50 @@ export function computeAdaptiveReserve(reserveTokens: number, contextWindow: num
 }
 
 /**
- * M16 消重: 单条消息的字符数统计(text/thinking 原长 + image≈4800 + toolCall 序列化长度)。
+ * M16 消重: 单条消息的 token 估算(2026-08-28 智能轮升级为 CJK 感知)。
  * 此前 evaluateCompaction 的兜底估算与 compactAgentMessages 的 estimateOne
- * 各自手写同一套规则,agent/execution.ts 的 quickChars 预检查是第三份变体——
+ * 各自手写同一套规则,agent/execution.ts 的预检查是第三份变体——
  * 现在三处共用本函数,规则升级(如调整 image 折算)只改一处。
+ * 历史版本 estimateMessageChars(纯字符统计,/4 折算)已无消费方,随本轮移除。
  */
-export function estimateMessageChars(m: AgentMessage | undefined | null): number {
+
+/**
+ * CJK 感知的文本 token 估算。
+ * 此前统一 chars/4(英文经验值),中文实际约 1.5~2 字符/token — 低估约 3 倍,
+ * 后果是 keepRecent 切分按膨胀前的量保留消息,压缩后仍超真实窗口,
+ * 长中文会话反复触发压缩直至 API 上下文超限硬报错。
+ * 现按字符类别分段: CJK ≈ 0.6 token/字, 其余沿用 SDK 的 ≈ 0.25 token/字符。
+ */
+export function estimateTokensFromText(text: string): number {
+  let cjk = 0
+  let other = 0
+  for (const ch of text) {
+    const code = ch.codePointAt(0) ?? 0
+    // CJK 统一表意文字 + 扩展A + CJK 符号/标点 + 全角形式
+    if (
+      (code >= 0x4e00 && code <= 0x9fff) ||
+      (code >= 0x3400 && code <= 0x4dbf) ||
+      (code >= 0x3000 && code <= 0x303f) ||
+      (code >= 0xff00 && code <= 0xffef)
+    ) {
+      cjk++
+    } else {
+      other++
+    }
+  }
+  return Math.ceil(cjk * 0.6 + other * 0.25)
+}
+
+/**
+ * 单条消息的 token 估算(CJK 感知)。结构与 estimateMessageChars 同源:
+ * text/thinking 按真实文本分段估算,image 折算 4800 字符,toolCall/其他对象按序列化文本估算。
+ */
+export function estimateMessageTokens(m: AgentMessage | undefined | null): number {
   if (!m) return 0
   const content = (m as { content?: unknown }).content
-  let chars = 0
-  if (typeof content === 'string') return content.length
+  if (typeof content === 'string') return estimateTokensFromText(content)
   if (Array.isArray(content)) {
+    let tokens = 0
     for (const raw of content) {
       const b = raw as {
         type?: string
@@ -60,18 +93,18 @@ export function estimateMessageChars(m: AgentMessage | undefined | null): number
         name?: string
         arguments?: unknown
       }
-      if (b.type === 'text' && b.text) chars += b.text.length
-      else if (b.type === 'thinking' && b.thinking) chars += b.thinking.length
-      else if (b.type === 'image') chars += 4800
+      if (b.type === 'text' && b.text) tokens += estimateTokensFromText(b.text)
+      else if (b.type === 'thinking' && b.thinking) tokens += estimateTokensFromText(b.thinking)
+      else if (b.type === 'image')
+        tokens += 1200 // 4800 字符 × 0.25
       else if (b.type === 'toolCall')
-        chars += (b.name?.length ?? 0) + JSON.stringify(b.arguments ?? {}).length
+        tokens += estimateTokensFromText((b.name ?? '') + JSON.stringify(b.arguments ?? {}))
     }
-    return chars
+    return tokens
   }
   if (typeof content === 'object' && content !== null) {
-    // bashExecution 等其他类型:粗略统计其序列化长度
     try {
-      return JSON.stringify(content).length
+      return estimateTokensFromText(JSON.stringify(content))
     } catch {
       return 0
     }
@@ -106,14 +139,13 @@ export function evaluateCompaction(
     // SDK 抛错时静默回退到字符估算
     console.warn('[Compaction] SDK estimateContextTokens failed, falling back:', err)
   }
-  // 兜底估算: 字符总数 / 4 (1 token ≈ 4 字符, 跟 SDK 内部策略一致)
-  // (M16: 统计规则收敛到 estimateMessageChars,R132 null 跳过语义保留在函数内)
-  let charEstimate = 0
+  // 兜底估算: CJK 感知分段估算(中文 ≈0.6 token/字,其余 ≈0.25 token/字符)
+  // 此前 chars/4 按英文经验值,中文场景低估约 3 倍 → 长中文会话压缩后仍超真实窗口
+  // (M16: 统计规则收敛到 estimateMessageTokens,null 跳过语义保留在函数内)
+  let charTokens = 0
   for (const m of messages) {
-    charEstimate += estimateMessageChars(m)
+    charTokens += estimateMessageTokens(m)
   }
-  const charTokens = Math.ceil(charEstimate / 4)
-  // 取较大值(SDK 估算在没 usage 时是 0,必须用 char 兜底)
   const tokens = Math.max(sdkTokens, charTokens)
   const threshold = model.contextWindow - settings.reserveTokens
   return {
@@ -207,15 +239,22 @@ export async function compactAgentMessages(
   )
 
   // 找到 splitIndex:从尾部向前累计 token,达到 keepRecentTokens 时停止
+  // keepRecentTokens 上限按 contextWindow 收敛(40%): 小窗口模型(如 8K)上,
+  // 用户填的 16000 会让全部消息都算"近期"→ oldMessages 为空 → 压缩空转,
+  // 每轮触发却不产出,最终 API 上下文超限报错
+  const effectiveKeepRecent = Math.min(
+    settings.keepRecentTokens,
+    Math.max(1, Math.floor(model.contextWindow * 0.4)),
+  )
   let recentTokens = 0
   let splitIndex = cleanMessages.length
-  // 简化版 estimateTokens (与 SDK 内部策略一致:字符数 / 4)
-  // (M16: 统计规则收敛到 estimateMessageChars,null 跳过语义保留在函数内)
-  const estimateOne = (m: AgentMessage): number => Math.ceil(estimateMessageChars(m) / 4)
+  // CJK 感知估算(estimateTokensFromText): 中文 ≈0.6 token/字,其余 ≈0.25 token/字符
+  // (M16: 统计规则收敛到 estimateMessageTokens,null 跳过语义保留在函数内)
+  const estimateOne = (m: AgentMessage): number => estimateMessageTokens(m)
 
   for (let i = cleanMessages.length - 1; i >= 0; i--) {
     const t = estimateOne(cleanMessages[i])
-    if (recentTokens + t > settings.keepRecentTokens) break
+    if (recentTokens + t > effectiveKeepRecent) break
     recentTokens += t
     splitIndex = i
   }
@@ -278,7 +317,7 @@ export function compactChatMessagesSimple(
   // R132 修复: 防御性过滤 undefined/null 元素
   const clean = messages.filter((m) => m && typeof m.content === 'string')
   if (clean.length <= 2) return clean
-  const estimateOne = (s: string) => Math.ceil(s.length / 3)
+  const estimateOne = (s: string) => estimateTokensFromText(s)
   const totalTokens = clean.reduce((s, m) => s + estimateOne(m.content), 0)
   const threshold = maxTokens - reserveTokens
   if (totalTokens <= threshold) return clean

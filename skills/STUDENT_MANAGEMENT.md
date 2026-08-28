@@ -1,7 +1,7 @@
 ---
 name: STUDENT_MANAGEMENT
 description: 学生操行数据操作手册 — 何时用哪些 eaa_* 工具、write 类工具的参数与约束（dry_run/force/撤销）；适合「怎么加分扣分/撤销/查名单」类操作问题。通用规则（先确认/数据即工具）不在此重复，见系统自动注入的公共规则。
-tools: [eaa_score, eaa_history, eaa_search, eaa_list_students, eaa_codes, eaa_stats, eaa_summary, eaa_ranking, eaa_range, eaa_tag, eaa_add_event, eaa_revert_event, eaa_add_student, eaa_set_student_meta]
+tools: [eaa_score, eaa_history, eaa_search, eaa_list_students, eaa_codes, eaa_stats, eaa_summary, eaa_ranking, eaa_range, eaa_tag, eaa_add_event, eaa_revert_event, eaa_add_student]
 ---
 
 # 学生管理操作手册（技能）
@@ -22,6 +22,8 @@ tools: [eaa_score, eaa_history, eaa_search, eaa_list_students, eaa_codes, eaa_st
 | `eaa_tag` / `eaa_range` | 按标签查 / 按时间段汇总 | tag / 起止日期 |
 
 ## 写入类工具（参数与约束）
+
+> **适用性检查**：本节仅当你的工具集中**确实存在**相应写入工具时适用。多数角色只持有查询类工具 — 若你调用写入工具收到"工具不存在"报错，说明本角色无写权限，请改为向用户说明需要由有权限的角色执行，不要尝试口头"完成"写操作。
 
 - **`eaa_add_event` 加分/扣分**：参数 `student_name` / `reason_code` / `delta`（可省，自动取标准分值）/ `note` / `tags`（分号分隔）
   - `dry_run: true` — 只预演校验不落库；不确定分值或参数时先用它
