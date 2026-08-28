@@ -343,3 +343,43 @@ describe('academicService — 成绩读写与级联删除', () => {
     expect(bySubject['班学生2'].length).toBe(1)
   })
 })
+describe('academicService — getExamGrades(扫描 grades 目录,eaa_exam_grades 全班查询用)', () => {
+  it('无需预知学生名单,有成绩的学生自然出现;按 examId/subjectId 过滤', async () => {
+    const examA = await academicService.createExam({
+      name: '扫描考试A',
+      type: 'other',
+      date: '2026-05-08',
+      semester: '2025-2026-2',
+      subjects: [],
+    })
+    const examB = await academicService.createExam({
+      name: '扫描考试B',
+      type: 'other',
+      date: '2026-05-09',
+      semester: '2025-2026-2',
+      subjects: [],
+    })
+    await academicService.batchSetGrades([
+      { examId: examA.id, studentName: '扫描学生1', subjectId: 'math', score: 80 },
+      { examId: examA.id, studentName: '扫描学生1', subjectId: 'chinese', score: 81 },
+      { examId: examA.id, studentName: '扫描学生2', subjectId: 'math', score: 82 },
+      { examId: examB.id, studentName: '扫描学生2', subjectId: 'math', score: 83 },
+    ])
+
+    const byA = await academicService.getExamGrades(examA.id)
+    expect(Object.keys(byA).sort()).toEqual(['扫描学生1', '扫描学生2'])
+    expect(byA['扫描学生1'].length).toBe(2)
+
+    const byASubject = await academicService.getExamGrades(examA.id, 'math')
+    expect(byASubject['扫描学生1'].length).toBe(1)
+    expect(byASubject['扫描学生1'][0].subjectId).toBe('math')
+
+    const byB = await academicService.getExamGrades(examB.id)
+    expect(Object.keys(byB)).toEqual(['扫描学生2'])
+  })
+
+  it('目录不存在 → 空对象', async () => {
+    const result = await academicService.getExamGrades('exam-not-exist')
+    expect(result).toEqual({})
+  })
+})

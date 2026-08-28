@@ -31,12 +31,47 @@ import {
 import { createMemoryTool } from './memory-tool'
 import type { PrivacyGuard } from './privacy-guard'
 
-/** 将所有可用 skill 格式化为 system prompt 段落 */
-export function buildSkillsSection(): string {
+/** 文件/实用/记忆类工具对所有 agent 无条件注入 — 技能按工具过滤时视为人人可得 */
+const UNIVERSAL_TOOL_NAMES = new Set([
+  'read_file',
+  'read_excel',
+  'write_file',
+  'write_excel',
+  'write_csv',
+  'list_dir',
+  'get_current_time',
+  'calculate',
+  'save_memory',
+])
+
+/**
+ * 将可用 skill 格式化为 system prompt 段落。
+ *
+ * R2+: 按 agent capability 过滤 — 此前技能全员无差别注入,而工具按 capability
+ * 门控,造成「技能教了、该 agent 工具做不到」的错配(如 read 类 agent 被教
+ * eaa_add_event)。规则:技能 frontmatter 声明 tools 时,仅当 agent 实际持有
+ * 其中至少一个工具(或为全员工具)才注入;未声明 tools 的技能保持全员可见。
+ */
+export function buildSkillsSection(capabilities?: string[]): string {
   const skills = skillService.listSkills()
   if (skills.length === 0) return ''
 
-  const entries = skills.map((s) => {
+  // capabilities === undefined → legacy 语义,不过滤(调用链现已全部显式传参)
+  const visible =
+    capabilities === undefined
+      ? skills
+      : (() => {
+          const agentToolNames = new Set(
+            getToolsByCapability(capabilities).map((t) => t.name as string),
+          )
+          for (const u of UNIVERSAL_TOOL_NAMES) agentToolNames.add(u)
+          return skills.filter(
+            (s) => !s.tools || s.tools.length === 0 || s.tools.some((t) => agentToolNames.has(t)),
+          )
+        })()
+  if (visible.length === 0) return ''
+
+  const entries = visible.map((s) => {
     // 只输出名称和描述摘要，不注入完整内容（节省 token）。
     // 附上文件路径,agent 需要时可自行 read_file 读取全文 —
     // 此前只给名字,agent 实际上没有途径读到技能正文。

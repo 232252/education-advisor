@@ -17,6 +17,15 @@ vi.mock('../../src/main/services/eaa-bridge', () => ({
   eaaBridge: bridge,
 }))
 
+// R2+: eaa-tools 经 academic-tools → academic-service → utils/logger 链在模块
+// 顶层调用 app.getPath('userData'),仅 mock eaa-bridge 不再够用 — 补 electron app mock
+vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => '/tmp/eaa-tools-isolated-test'),
+    isPackaged: false,
+  },
+}))
+
 // 必须在 vi.mock 之后 import
 const { tokenizeQuery } = await import('../../src/main/services/eaa-tools')
 
