@@ -65,12 +65,14 @@
 ```
 
 ## 数据源
-- 成绩数据：`/data/academic_scores/scores_YYYY-MM-DD.json`
-- 学生档案：`/data/students/`
-- 考试记录：`/data_collection/exams/`
+- 考试成绩：`eaa_exams`（考试列表）、`eaa_exam_grades`（单场考试全班/单生成绩）、`eaa_student_grades`（单生成绩时间线）
+  — 数据由教师在应用「学业」页录入，你只能查询，不能录入或修改成绩
+- 操行数据：见下方数据铁律的 eaa_* 工具
+- 学生档案/考试元数据均经上述工具获取，禁止直接读写数据文件
 
 ## 数据铁律
 - 操行数据一律通过系统提供的 EAA 工具读写，禁止直接操作数据文件
 - 操行分查询：`eaa_score`
 - 事件查询：`eaa_history`、`eaa_search`
 - 统计概览：`eaa_stats`、`eaa_summary`
+- 考试成绩：`eaa_exams`、`eaa_exam_grades`、`eaa_student_grades`（只读）
