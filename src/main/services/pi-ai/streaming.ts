@@ -19,6 +19,7 @@ import {
   type ThinkingLevel,
 } from '@earendil-works/pi-ai/compat'
 import type { StreamEvent } from '@shared/types'
+import { errText } from '../../utils/err-text'
 import {
   compactAgentMessages,
   compactChatMessagesSimple,
@@ -383,7 +384,7 @@ export class ChatStreamRunner {
           }
           break // 正常消费完毕,退出重试循环
         } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : String(err)
+          const message = errText(err)
           const retryable = isRetryableError(message)
           // GAP-2: 仅当 (a)开启了重试 (b)错误可重试 (c)尚未向用户输出任何 token (d)未超最大次数 时自动重试
           const canAutoRetry =

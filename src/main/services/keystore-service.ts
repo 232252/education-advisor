@@ -12,6 +12,7 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { app, safeStorage } from 'electron'
 import { atomicWrite } from '../utils/atomic-write'
+import { errText } from '../utils/err-text'
 
 class KeystoreService {
   private keyStorePath: string
@@ -64,7 +65,7 @@ class KeystoreService {
     } catch (err) {
       // 解密失败（可能换了机器 / 重装系统 / DPAPI key 已失效）
       // 清空缓存，提示用户重新输入（P1-22）
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       this._lastError = `Keystore decryption failed (${msg}). Please re-enter your API keys.`
       console.warn('[Keystore] Failed to decrypt keystore, clearing cache:', msg)
       this.cache.clear()
@@ -100,7 +101,7 @@ class KeystoreService {
         await atomicWrite(this.keyStorePath, encrypted)
       } while (this._needsResave)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       this._lastError = `Failed to save keystore: ${msg}`
       console.error('[Keystore] Save failed:', msg)
     } finally {
