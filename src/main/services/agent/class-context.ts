@@ -12,7 +12,7 @@ import { academicService } from '../academic-service'
 import { classService } from '../class-service'
 import { eaaBridge } from '../eaa-bridge'
 
-export interface ClassContextInfo {
+interface ClassContextInfo {
   className: string
   grade?: string
   teacher?: string
@@ -66,7 +66,9 @@ async function loadClassContext(): Promise<ClassContextInfo | null> {
               s !== null &&
               (s as { class_id?: string }).class_id === cls.class_id,
           )
-          info.studentCount = (inClass.length > 0 ? inClass : students).length
+          // 只在过滤命中时才注入人数 — 过滤为空(班级数据错位)时兜底成
+          // 全库学生数会往 system prompt 塞一个错误锚定数字,宁缺勿错
+          if (inClass.length > 0) info.studentCount = inClass.length
         }
       }
     } catch {

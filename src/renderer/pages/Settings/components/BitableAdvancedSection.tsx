@@ -5,10 +5,10 @@
 
 import type { UnifiedSettings } from '@shared/types'
 import { useT } from '../../../i18n'
-import { cn, INPUT_SM } from '../../../lib/ui-utils'
+import { BTN_SM_BLUE, cn, INPUT_SM } from '../../../lib/ui-utils'
 import { type BitListAction, type BitListStatus, useBitableList } from '../hooks/useBitableList'
 import { SettingRow } from './SettingRow'
-import { ToggleSwitch } from './ToggleSwitch'
+import { ToggleSettingRow } from './ToggleSettingRow'
 
 interface BitableAdvancedSectionProps {
   settings: UnifiedSettings
@@ -82,7 +82,7 @@ export function BitableAdvancedSection({
               title={t('page.settings.feishu.listBitable', '拉取 Bitable 表列表')}
               onClick={handleListBitable}
               disabled={bitableListStatus === 'listing'}
-              className="text-[10px] px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 transition-colors"
+              className={BTN_SM_BLUE}
             >
               {bitableListStatus === 'listing'
                 ? t('page.settings.feishu.listing', '拉取中...')
@@ -122,17 +122,13 @@ export function BitableAdvancedSection({
           />
         </SettingRow>
 
-        <SettingRow
-          label={t('settings.feishu.bitableSync', 'Bitable 同步')}
+        <ToggleSettingRow
           path="feishu.bitableSync.enabled"
+          label={t('settings.feishu.bitableSync', 'Bitable 同步')}
           description={t('settings.feishu.bitableSync.desc', '定时把 AI 报告同步到飞书多维表格')}
-        >
-          <ToggleSwitch
-            checked={settings.feishu.bitableSync.enabled}
-            onChange={(v) => onSave('feishu.bitableSync.enabled', v)}
-            label={t('settings.feishu.bitableSync', 'Bitable 同步')}
-          />
-        </SettingRow>
+          value={settings.feishu.bitableSync.enabled}
+          onSave={onSave}
+        />
 
         <SettingRow
           label={t('page.settings.feishu.syncInterval', '同步间隔')}

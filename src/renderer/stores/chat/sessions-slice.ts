@@ -7,6 +7,7 @@ import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../toastStore'
 import { pendingAgentOutputs } from './agent-pending'
 import { flushStreamDeltas } from './delta-batch'
+import { sessionViewReset } from './state-reset'
 import type { ChatGet, ChatSession, ChatSet, ChatState } from './types'
 
 /** 竞态修复: loadSessions 请求令牌，防止快速切换时旧响应覆盖新数据 */
@@ -32,13 +33,7 @@ export function createSessionsSlice(
       }
       set((s) => ({
         sessions: [newSession, ...s.sessions],
-        sessionId: id,
-        messages: [],
-        lastUsage: null,
-        lastCost: 0,
-        // lastModel 一并清零: 状态栏徽标不残留上一会话的模型(2026-08-28 智能轮核查)
-        lastModel: '',
-        historyLoaded: false,
+        ...sessionViewReset(id),
       }))
       // L-10 配套: 新建会话时清理 pending agent 缓存,避免旧会话的残留缓存污染新会话
       pendingAgentOutputs.clear()
@@ -91,22 +86,18 @@ export function createSessionsSlice(
         } catch {
           /* abort 失败不阻断切换;晚到的流事件由 streamSessionId 守卫丢弃 */
         }
+        // 注意: streamSessionId 保留指向旧会话 — 若一并清空,守卫(依赖
+        // streamSessionId ≠ sessionId)永不命中,abort 生效前已入队的晚到
+        // running 事件会在新会话新建气泡串台。isStreaming/streamingAgentId
+        // 仍需复位,保证新会话 UI 不显示流式状态。
         set({
           isStreaming: false,
           isThinking: false,
           streamingAgentId: null,
-          streamSessionId: null,
+          streamSessionId: state.sessionId,
         })
       }
-      set({
-        sessionId: id,
-        messages: [],
-        lastUsage: null,
-        lastCost: 0,
-        // 切会话清 lastModel: 徽标不跨会话残留(与 lastUsage/lastCost 同口径)
-        lastModel: '',
-        historyLoaded: false,
-      })
+      set(sessionViewReset(id))
       // 加载该会话的历史消息
       get().loadHistory()
     },

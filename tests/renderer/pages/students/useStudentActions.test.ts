@@ -5,31 +5,17 @@
 // =============================================================
 
 import { act } from 'react'
+import { setWindowApi, clearWindowApi } from '../../helpers/window-api'
+import { toastMocks } from '../../helpers/mock-toast'
 import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ClassEntity, EAAStudent } from '@shared/types'
 import { useStudentActions } from '../../../../src/renderer/pages/Students/hooks/useStudentActions'
+import { makeStudent as makeStudentBase } from '../../__fixtures__/make'
 
 // ---------- toast mock ----------
 
-const toastMocks = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
-}))
-
-vi.mock('../../../../src/renderer/stores/toastStore', () => ({
-  toast: {
-    success: toastMocks.success,
-    error: toastMocks.error,
-    warning: toastMocks.warning,
-    info: toastMocks.info,
-    show: vi.fn(),
-    dismiss: vi.fn(),
-    clear: vi.fn(),
-  },
-}))
+vi.mock('../../../../src/renderer/stores/toastStore', async () => (await import('../../helpers/mock-toast')).mockToastStore)
 
 // ---------- window.api mock ----------
 
@@ -44,7 +30,7 @@ const apiMocks = vi.hoisted(() => ({
 }))
 
 function installApi() {
-  ;(window as unknown as { api: unknown }).api = {
+  ;setWindowApi({
     eaa: {
       addStudent: apiMocks.addStudent,
       deleteStudent: apiMocks.deleteStudent,
@@ -53,25 +39,13 @@ function installApi() {
     },
     class: { assign: apiMocks.classAssign },
     sys: { openDialog: apiMocks.openDialog, saveDialog: apiMocks.saveDialog },
-  }
+  })
 }
 
-// ---------- 测试数据 ----------
+// ---------- 测试数据(工厂单一来源: tests/renderer/__fixtures__/make) ----------
 
-function makeStudent(name: string): EAAStudent {
-  return {
-    name,
-    entity_id: `e-${name}`,
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-  }
-}
+// 历史签名为 (name) 且 entity_id 由 name 推导,用适配器保持原值
+const makeStudent = (name: string): EAAStudent => makeStudentBase({ name, entity_id: `e-${name}` })
 
 const students = [makeStudent('甲'), makeStudent('乙'), makeStudent('丙')]
 
@@ -129,7 +103,7 @@ describe('useStudentActions', () => {
   })
 
   afterEach(() => {
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   // ---------- handleAddStudent ----------

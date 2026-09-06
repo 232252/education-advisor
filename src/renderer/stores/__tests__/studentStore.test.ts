@@ -6,7 +6,8 @@
 
 import type { EAAStudent } from '@shared/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { resetStudentStoreForTest, useStudentStore } from '../student/store'
+import { makeStudent as makeStudentBase } from '../../../../tests/renderer/__fixtures__/make'
+import { refreshStudents, resetStudentStoreForTest, useStudentStore } from '../student/store'
 
 const apiMocks = vi.hoisted(() => ({
   listStudents: vi.fn(),
@@ -22,21 +23,9 @@ function installApi() {
   }
 }
 
-function makeStudent(name: string, overrides: Partial<EAAStudent> = {}): EAAStudent {
-  return {
-    name,
-    entity_id: name,
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-    ...overrides,
-  }
-}
+// 历史签名为 (name, overrides) 且 entity_id=name,用适配器保持原值
+const makeStudent = (name: string, overrides: Partial<EAAStudent> = {}): EAAStudent =>
+  makeStudentBase({ name, entity_id: name, ...overrides })
 
 const studentsA = [makeStudent('甲')]
 const studentsB = [makeStudent('乙'), makeStudent('丙')]
@@ -54,17 +43,17 @@ describe('studentStore (M20 共享数据层)', () => {
     delete (window as unknown as { api?: unknown }).api
   })
 
-  it('首次拉取: loading/settled/students 正确流转', async () => {
+  it('首次拉取: loading/settled/items 正确流转', async () => {
     expect(useStudentStore.getState().loading).toBe(false)
     expect(useStudentStore.getState().settled).toBe(false)
 
-    const p = useStudentStore.getState().fetchStudents()
+    const p = useStudentStore.getState().fetchItems()
     expect(useStudentStore.getState().loading).toBe(true)
 
     const result = await p
     expect(result).toEqual(studentsA)
     const s = useStudentStore.getState()
-    expect(s.students).toEqual(studentsA)
+    expect(s.items).toEqual(studentsA)
     expect(s.loading).toBe(false)
     expect(s.settled).toBe(true)
     expect(s.error).toBeNull()
@@ -73,8 +62,8 @@ describe('studentStore (M20 共享数据层)', () => {
   })
 
   it('TTL 复用: 3s 内非强制 fetch 直接返回缓存,不重复 spawn EAA', async () => {
-    await useStudentStore.getState().fetchStudents()
-    const again = await useStudentStore.getState().fetchStudents()
+    await useStudentStore.getState().fetchItems()
+    const again = await useStudentStore.getState().fetchItems()
     expect(again).toEqual(studentsA)
     expect(apiMocks.listStudents).toHaveBeenCalledTimes(1)
   })
@@ -87,8 +76,8 @@ describe('studentStore (M20 共享数据层)', () => {
           release = res
         }),
     )
-    const p1 = useStudentStore.getState().fetchStudents()
-    const p2 = useStudentStore.getState().fetchStudents()
+    const p1 = useStudentStore.getState().fetchItems()
+    const p2 = useStudentStore.getState().fetchItems()
     release?.({ success: true, data: { students: studentsA } })
     const [r1, r2] = await Promise.all([p1, p2])
     expect(r1).toEqual(studentsA) // 两个调用拿到同一份数据
@@ -97,18 +86,18 @@ describe('studentStore (M20 共享数据层)', () => {
   })
 
   it('force 绕过 TTL: 强制刷新总能拉到最新数据', async () => {
-    await useStudentStore.getState().fetchStudents()
+    await useStudentStore.getState().fetchItems()
     apiMocks.listStudents.mockResolvedValue({ success: true, data: { students: studentsB } })
-    const result = await useStudentStore.getState().fetchStudents({ force: true })
+    const result = await useStudentStore.getState().fetchItems({ force: true })
     expect(result).toEqual(studentsB)
-    expect(useStudentStore.getState().students).toEqual(studentsB)
+    expect(useStudentStore.getState().items).toEqual(studentsB)
     expect(apiMocks.listStudents).toHaveBeenCalledTimes(2)
   })
 
   it('IPC 异常: 记录 error/settled,保留旧数据', async () => {
-    await useStudentStore.getState().fetchStudents()
+    await useStudentStore.getState().fetchItems()
     apiMocks.listStudents.mockRejectedValue(new Error('ipc down'))
-    const result = await useStudentStore.getState().fetchStudents({ force: true })
+    const result = await useStudentStore.getState().fetchItems({ force: true })
     const s = useStudentStore.getState()
     expect(result).toEqual(studentsA) // 旧数据保留
     expect(s.error).toBe('ipc down')
@@ -117,11 +106,11 @@ describe('studentStore (M20 共享数据层)', () => {
   })
 
   it('success:false 业务失败: 静默(不记 error),保留旧数据', async () => {
-    await useStudentStore.getState().fetchStudents()
+    await useStudentStore.getState().fetchItems()
     apiMocks.listStudents.mockResolvedValue({ success: false, error: 'EAA internal error' })
-    await useStudentStore.getState().fetchStudents({ force: true })
+    await useStudentStore.getState().fetchItems({ force: true })
     const s = useStudentStore.getState()
-    expect(s.students).toEqual(studentsA)
+    expect(s.items).toEqual(studentsA)
     expect(s.error).toBeNull()
     expect(s.settled).toBe(true)
   })
@@ -137,34 +126,34 @@ describe('studentStore (M20 共享数据层)', () => {
     )
     apiMocks.listStudents.mockResolvedValue({ success: true, data: { students: studentsB } })
 
-    const p1 = useStudentStore.getState().fetchStudents()
+    const p1 = useStudentStore.getState().fetchItems()
     // 挂起期间发生写操作 → force 拉取(gen 递增,取代旧请求)
-    const p2 = useStudentStore.getState().fetchStudents({ force: true })
+    const p2 = useStudentStore.getState().fetchItems({ force: true })
     await p2
-    expect(useStudentStore.getState().students).toEqual(studentsB)
+    expect(useStudentStore.getState().items).toEqual(studentsB)
 
     // 旧请求此刻才返回(旧数据) — 必须被丢弃,不得覆盖新数据
     releaseFirst?.({ success: true, data: { students: studentsA } })
     await p1
-    expect(useStudentStore.getState().students).toEqual(studentsB)
+    expect(useStudentStore.getState().items).toEqual(studentsB)
     expect(useStudentStore.getState().loading).toBe(false)
     expect(useStudentStore.getState()._pending).toBeNull()
   })
 
   it('refreshStudents: 先清 EAA 主进程缓存,再 force 拉取', async () => {
-    await useStudentStore.getState().fetchStudents() // 1 次
+    await useStudentStore.getState().fetchItems() // 1 次
     apiMocks.listStudents.mockResolvedValue({ success: true, data: { students: studentsB } })
-    const result = await useStudentStore.getState().refreshStudents()
+    const result = await refreshStudents()
     expect(apiMocks.invalidateCache).toHaveBeenCalledTimes(1)
     expect(apiMocks.listStudents).toHaveBeenCalledTimes(2)
     expect(result).toEqual(studentsB)
   })
 
   it('refreshStudents: 清缓存失败不阻塞刷新', async () => {
-    await useStudentStore.getState().fetchStudents()
+    await useStudentStore.getState().fetchItems()
     apiMocks.invalidateCache.mockRejectedValue(new Error('no eaa'))
     apiMocks.listStudents.mockResolvedValue({ success: true, data: { students: studentsB } })
-    const result = await useStudentStore.getState().refreshStudents()
+    const result = await refreshStudents()
     expect(result).toEqual(studentsB)
     expect(apiMocks.listStudents).toHaveBeenCalledTimes(2)
   })

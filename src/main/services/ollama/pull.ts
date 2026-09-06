@@ -4,6 +4,7 @@
 // M-1 修复: 使用 AbortController 控制下载请求。
 // =============================================================
 
+import { errText } from '../../utils/err-text'
 import { OLLAMA_BASE_URL } from './constants'
 import type { OllamaPullProgress } from './types'
 
@@ -65,7 +66,7 @@ export async function pullModel(
     if (signal.aborted) {
       return { success: false, error: 'cancelled' }
     }
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     return { success: false, error: msg }
   } finally {
     state.abortController = null

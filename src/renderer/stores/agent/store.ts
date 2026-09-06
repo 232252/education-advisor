@@ -30,3 +30,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   ...createDetailSlice(set, get),
   ...createRunSlice(set),
 }))
+
+// ── 具名派生 selector(参照 notificationStore.selectUnreadCount 模式) ──
+
+/** 运行中 agent 数(MainLayout 状态点 / AgentStatusBar 徽标共用) */
+export const selectRunningCount = (s: AgentState): number =>
+  s.agents.filter((a) => a.status === 'running').length
+
+/** 出错 agent 数 */
+export const selectErrorCount = (s: AgentState): number =>
+  s.agents.filter((a) => a.status === 'error').length

@@ -29,7 +29,7 @@ export function SchedulerPage() {
     logs,
     agents,
     loading,
-    loadData,
+    reload,
     handleToggle,
     handleRunNow,
     handleRemove,
@@ -76,7 +76,7 @@ export function SchedulerPage() {
         size="md"
         actions={
           <>
-            <button type="button" onClick={loadData} className={btnStyle('secondary')}>
+            <button type="button" onClick={reload} className={btnStyle('secondary')}>
               刷新
             </button>
             <button

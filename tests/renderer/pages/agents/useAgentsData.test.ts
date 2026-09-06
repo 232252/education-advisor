@@ -6,6 +6,7 @@
 // =============================================================
 
 import { createElement, type ReactNode } from 'react'
+import { setWindowApi, clearWindowApi } from '../../helpers/window-api'
 import { act } from 'react'
 import { renderHook, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -13,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentListItem } from '@shared/types'
 import { useAgentsData } from '../../../../src/renderer/pages/Agents/hooks/useAgentsData'
 import { useAgentStore } from '../../../../src/renderer/stores/agent/store'
+import { makeAgent as makeAgentBase } from '../../__fixtures__/make'
 
 // useAgentsData 使用 useSearchParams(全局搜索 agent_id 跳转),需要 Router 上下文
 function createWrapper() {
@@ -28,26 +30,16 @@ const apiMocks = vi.hoisted(() => ({
 }))
 
 function installApi() {
-  ;(window as unknown as { api: unknown }).api = {
+  ;setWindowApi({
     agent: { list: apiMocks.agentList },
-  }
+  })
 }
 
-// ---------- 测试数据 ----------
+// ---------- 测试数据(工厂单一来源: tests/renderer/__fixtures__/make) ----------
 
-function makeAgent(id: string, enabled: boolean): AgentListItem {
-  return {
-    id,
-    name: `agent-${id}`,
-    role: 'r',
-    description: 'd',
-    enabled,
-    modelTier: 'low_cost',
-    schedule: [],
-    capabilities: [],
-    status: 'idle',
-  }
-}
+// 历史签名为 (id, enabled) 且 name 由 id 推导,用适配器保持原值
+const makeAgent = (id: string, enabled: boolean): AgentListItem =>
+  makeAgentBase({ id, name: `agent-${id}`, role: 'r', description: 'd', enabled })
 
 const agents = [makeAgent('a1', true), makeAgent('a2', false)]
 
@@ -72,7 +64,7 @@ describe('useAgentsData', () => {
 
   afterEach(() => {
     resetStore()
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   it('挂载不自动拉取(初始加载由 App bootstrap 负责),手动 fetchAgents 生效', async () => {

@@ -4,6 +4,7 @@
 // =============================================================
 
 import type { ProviderInfo } from '@shared/types'
+import { tr, useT } from '../../../i18n'
 import { btnStyle } from '../../../lib/ui-utils'
 
 interface HiddenProviderListProps {
@@ -12,10 +13,11 @@ interface HiddenProviderListProps {
 }
 
 export function HiddenProviderList({ providers, onUnhide }: HiddenProviderListProps) {
+  const { t } = useT()
   return (
     <div>
       <h2 className="text-sm font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-        已隐藏 ({providers.length})
+        {tr('page.models.hidden.title', { count: providers.length })}
       </h2>
       <div className="space-y-1">
         {providers.map((p) => (
@@ -32,10 +34,10 @@ export function HiddenProviderList({ providers, onUnhide }: HiddenProviderListPr
             <button
               type="button"
               onClick={() => onUnhide(p.id)}
-              aria-label="取消隐藏"
+              aria-label={t('page.models.hidden.ariaUnhide')}
               className={btnStyle('ghost')}
             >
-              取消隐藏
+              {t('page.models.hidden.unhide')}
             </button>
           </div>
         ))}

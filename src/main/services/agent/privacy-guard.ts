@@ -31,6 +31,14 @@ export function isAutoAnonymizeEnabled(): boolean {
   return Boolean(p?.enabled && p?.autoAnonymize)
 }
 
+/** 已拉取的映射(进程级);null = 需要重新 spawn `privacy list` */
+let cachedMapping: Array<{ alias: string; plain: string }> | null = null
+
+/** 隐私映射发生变更(init/load/lock/添加或删除别名)后调用 — 下次 create() 重新拉取 */
+export function invalidatePrivacyGuardCache(): void {
+  cachedMapping = null
+}
+
 /** 开启自动脱敏但引擎未解锁时抛错(fail-closed,调用方转为执行失败) */
 export function assertPrivacyReadyForRun(): void {
   if (isAutoAnonymizeEnabled() && !eaaBridge.hasPrivacyPassword()) {
@@ -63,8 +71,16 @@ export class PrivacyGuard {
     this.aliases = mapping.map((m) => m.alias)
   }
 
-  /** 加载映射并创建守卫;无映射条目时也返回实例(替换为 no-op) */
+  /**
+   * 已拉取的映射缓存: 自动脱敏开启时每次 agent 运行/直连聊天都会 create(),
+   * 而 `privacy list` 是一次 EAA spawn(常态 95-500ms,杀软下更久)。
+   * 映射只在显式变更(init/load/lock/添加别名)时变化 — IPC 层在变更点调用
+   * invalidatePrivacyGuardCache(),此处命中缓存即免一次 spawn。
+   */
   static async create(): Promise<PrivacyGuard> {
+    if (cachedMapping) {
+      return new PrivacyGuard(cachedMapping)
+    }
     const result = await eaaBridge.execute({
       command: 'privacy',
       args: ['list'],
@@ -80,6 +96,7 @@ export class PrivacyGuard {
         mapping.push({ alias: m[2], plain: m[3].trim() })
       }
     }
+    cachedMapping = mapping
     return new PrivacyGuard(mapping)
   }
 

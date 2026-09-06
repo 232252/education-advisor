@@ -4,8 +4,10 @@
 
 import type { ClassEntity, ExamDef } from '@shared/types'
 import { Card } from '../../../../components/Card'
+import { ClassFilterSelect } from '../../../../components/ClassFilterSelect'
+import { ExamPairSelector } from '../../../../components/ExamPairSelector'
 import { useT } from '../../../../i18n'
-import { cn, INPUT_BASE } from '../../../../lib/ui-utils'
+import { INPUT_BASE } from '../../../../lib/ui-utils'
 
 interface CompareSelectorBarProps {
   classFilter: string
@@ -37,45 +39,22 @@ export function CompareSelectorBar({
   return (
     <Card padding="sm">
       <div className="flex flex-wrap items-center gap-3">
-        <select
+        <ClassFilterSelect
           value={classFilter}
-          onChange={(e) => onClassFilterChange(e.target.value)}
-          className={cn(INPUT_BASE)}
-        >
-          <option value="__ALL__">{t('page.academics.class.all', '全部班级')}</option>
-          <option value="__NONE__">{t('page.classes.profile.unassigned', '未分班')}</option>
-          {classList.map((c) => (
-            <option key={c.class_id} value={c.class_id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+          onChange={onClassFilterChange}
+          classes={classList}
+          allLabel={t('page.academics.class.all', '全部班级')}
+          noneLabel={t('page.classes.profile.unassigned', '未分班')}
+        />
         <span className="text-gray-400 text-sm">|</span>
-        <select
-          value={examAId}
-          onChange={(e) => onExamAIdChange(e.target.value)}
-          className={cn(INPUT_BASE)}
-        >
-          <option value="">{t('page.academics.compare.selectExamA', '选择考试 A')}</option>
-          {sortedExams.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}（{e.date}）
-            </option>
-          ))}
-        </select>
-        <span className="text-gray-400">→</span>
-        <select
-          value={examBId}
-          onChange={(e) => onExamBIdChange(e.target.value)}
-          className={cn(INPUT_BASE)}
-        >
-          <option value="">{t('page.academics.compare.selectExamB', '选择考试 B')}</option>
-          {sortedExams.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}（{e.date}）
-            </option>
-          ))}
-        </select>
+        <ExamPairSelector
+          sortedExams={sortedExams}
+          examAId={examAId}
+          examBId={examBId}
+          onExamAIdChange={onExamAIdChange}
+          onExamBIdChange={onExamBIdChange}
+          className={INPUT_BASE}
+        />
         <span className="text-xs text-gray-400 ml-auto">
           {studentCount} {t('page.academics.compare.studentUnit', '名学生')}
         </span>

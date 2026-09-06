@@ -18,6 +18,14 @@ export function getAPI(): WindowAPI {
 }
 
 /**
+ * 提取抛出的错误消息:Error 取 message,其余 String 化。
+ * catch 块统一使用(与主进程 utils/err-text 同名同义)。
+ */
+export function errText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+/**
  * 从 EAAResult 中提取最有用的错误信息。
  * TEXT_OUTPUT_COMMANDS 失败时 CLI 详细错误在 data（字符串），
  * JSON 命令失败时在 stderr。按优先级选取。

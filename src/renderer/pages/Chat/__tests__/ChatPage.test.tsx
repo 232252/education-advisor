@@ -137,7 +137,9 @@ describe('ChatPage — 助手消息头像与复制按钮', () => {
     await Promise.resolve()
     await Promise.resolve()
     expect(runManualMock).toHaveBeenCalledTimes(1)
-    const [agentId, text, history] = runManualMock.mock.calls[0]!
+    const firstCall = runManualMock.mock.calls.at(0)
+    expect(firstCall).toBeTruthy()
+    const [agentId, text, history] = firstCall ?? []
     expect(agentId).toBe('main')
     expect(text).toBe('给张三的家长发一条提醒')
     expect(Array.isArray(history)).toBe(true)

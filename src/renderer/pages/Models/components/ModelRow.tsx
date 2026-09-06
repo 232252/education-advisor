@@ -5,10 +5,11 @@
 
 import type { ModelInfo } from '@shared/types'
 import { memo } from 'react'
+import { t } from '../../../i18n'
 
 /** 格式化 token 成本(美元/百万 token) */
 function formatCost(costPerToken: number): string {
-  if (costPerToken === 0) return '免费'
+  if (costPerToken === 0) return t('page.models.freeCost', '免费')
   const perMillion = costPerToken * 1_000_000
   if (perMillion < 0.01) return `$${perMillion.toFixed(4)}/M`
   return `$${perMillion.toFixed(2)}/M`

@@ -37,7 +37,7 @@ vi.mock('electron', () => ({
   },
 }))
 
-import { PrivacyGuard } from '../../src/main/services/agent/privacy-guard'
+import { PrivacyGuard, invalidatePrivacyGuardCache } from '../../src/main/services/agent/privacy-guard'
 import { buildAgentTools } from '../../src/main/services/agent/tools'
 import { createMemoryTool } from '../../src/main/services/agent/memory-tool'
 
@@ -47,6 +47,7 @@ const LIST_OUTPUT = [
 ].join('\n')
 
 async function makeGuard(): Promise<PrivacyGuard> {
+  invalidatePrivacyGuardCache() // 映射缓存是进程级的,场景切换先失效
   bridgeMock.execute.mockResolvedValue({ success: true, data: LIST_OUTPUT, stderr: '', exitCode: 0 })
   return PrivacyGuard.create()
 }

@@ -12,6 +12,7 @@
 // =============================================================
 
 import fsp from 'node:fs/promises'
+import { makeFakeWindow } from './helpers/electron-ipc'
 import os from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -97,10 +98,7 @@ function setBackupSettings(enabled: boolean, cronExpr?: string): void {
 }
 
 function makeFakeWin() {
-  return {
-    webContents: { send: mocks.webContentsSend },
-    isDestroyed: () => false,
-  } as unknown as import('electron').BrowserWindow
+  return makeFakeWindow(mocks.webContentsSend)
 }
 
 /** 造一份可备份的工作区(settings.json + eaa-data + db) */

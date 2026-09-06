@@ -2,16 +2,18 @@
 // EAA 事件域 IPC 处理器
 // add-event / revert-event / search / range
 // 从 eaa-handlers.ts 抽出,handler 体逐行对照搬迁
+// 失败骨架统一走 handleIpc + eaaReject(日志格式/信封形状与原 eaaFailure 逐字一致)
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
 import type { AddEventParams, EAARangeData } from '@shared/types'
-import { ipcMain } from 'electron'
 import { eaaBridge } from '../../services/eaa-bridge'
 import { sanitizeFreeText, sanitizeName, tokenizeQuery } from '../../utils/sanitize'
+import { handleIpc } from '../handle'
+import { eaaReject } from './failures'
 import { buildAddEventArgs, buildRangeArgs } from './params'
 
-export interface EventHandlersContext {
+interface EventHandlersContext {
   /** 写操作完成后清空缓存(由 eaa-handlers.ts 提供) */
   invalidateStudentsCache: () => void
 }
@@ -19,24 +21,23 @@ export interface EventHandlersContext {
 export function registerEventHandlers({ invalidateStudentsCache }: EventHandlersContext): void {
   // ----- add: 添加操行事件 -----
   // 注意: EAA CLI 的 add 命令不产生 JSON 输出，返回文本
-  ipcMain.handle(IPC.IPC_EAA_ADD_EVENT, async (_e, params: AddEventParams) => {
-    try {
+  handleIpc(
+    IPC.IPC_EAA_ADD_EVENT,
+    async (_e, params: AddEventParams) => {
       const args = buildAddEventArgs(params)
       const result = await eaaBridge.execute({ command: 'add', args })
       // dryRun 模式不实际写入数据,不需要失效缓存
       if (!params.dryRun) invalidateStudentsCache()
       return result
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] eaa:add-event failed:', msg)
-      return { success: false, error: msg, stderr: msg, exitCode: -1 }
-    }
-  })
+    },
+    { onError: eaaReject },
+  )
 
   // ----- revert: 撤销事件 -----
   // 注意: revert 不产生 JSON 输出
-  ipcMain.handle(IPC.IPC_EAA_REVERT_EVENT, async (_e, eventId: string, reason: string) => {
-    try {
+  handleIpc(
+    IPC.IPC_EAA_REVERT_EVENT,
+    async (_e, eventId: string, reason: string) => {
       const safeId = sanitizeName(eventId, 'eventId')
       // 修复: reason 用 sanitizeFreeText
       const safeReason = sanitizeFreeText(reason, 'reason', 200)
@@ -47,16 +48,18 @@ export function registerEventHandlers({ invalidateStudentsCache }: EventHandlers
       // 撤销事件改变排名/分数/历史,需失效缓存
       invalidateStudentsCache()
       return result
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] eaa:revert-event failed for "${eventId}":`, msg)
-      return { success: false, error: msg, stderr: msg, exitCode: -1 }
-    }
-  })
+    },
+    {
+      onError: eaaReject,
+      // biome-ignore lint/suspicious/noExplicitAny: 阻断 label 参数参与 A 的泛型推断(见 handle.ts)
+      label: (...args: any[]) => `eaa:revert-event failed for "${args[0]}"`,
+    },
+  )
 
   // ----- search: 搜索事件 -----
-  ipcMain.handle(IPC.IPC_EAA_SEARCH, async (_e, query: string, limit?: number) => {
-    try {
+  handleIpc(
+    IPC.IPC_EAA_SEARCH,
+    async (_e, query: string, limit?: number) => {
       if (typeof query !== 'string') {
         return {
           success: false,
@@ -99,16 +102,14 @@ export function registerEventHandlers({ invalidateStudentsCache }: EventHandlers
         args.push('--limit', String(Math.min(1000, Math.floor(limit))))
       }
       return await eaaBridge.execute({ command: 'search', args })
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] eaa:search failed:', msg)
-      return { success: false, error: msg, stderr: msg, exitCode: -1 }
-    }
-  })
+    },
+    { onError: eaaReject },
+  )
 
   // ----- range: 按日期范围查询事件 -----
-  ipcMain.handle(IPC.IPC_EAA_RANGE, async (_e, start: string, end: string, limit?: number) => {
-    try {
+  handleIpc(
+    IPC.IPC_EAA_RANGE,
+    async (_e, start: string, end: string, limit?: number) => {
       const built = buildRangeArgs(start, end, limit)
       if (!built.ok) {
         return { success: false, error: built.error, stderr: built.error, exitCode: -1 }
@@ -127,10 +128,7 @@ export function registerEventHandlers({ invalidateStudentsCache }: EventHandlers
         result.data.truncated = true
       }
       return result
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] eaa:range failed:', msg)
-      return { success: false, error: msg, stderr: msg, exitCode: -1 }
-    }
-  })
+    },
+    { onError: eaaReject },
+  )
 }

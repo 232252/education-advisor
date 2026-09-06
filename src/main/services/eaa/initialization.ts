@@ -7,6 +7,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
+import { errText } from '../../utils/err-text'
 import { convertReasonCodes } from './legacy-migration'
 
 /**
@@ -33,26 +34,20 @@ export function resolveReasonCodesSource(mainDir: string): string {
  * @param codesDst 数据目录下的目标路径(备用路径)
  */
 export function seedReasonCodes(codesSrc: string, schemaCodesDst: string, codesDst: string): void {
-  if (fs.existsSync(codesSrc) && !fs.existsSync(schemaCodesDst)) {
+  // 两个落点(主用 schema 目录/备用数据目录)共用播种逻辑
+  const seedTo = (dst: string, logLabel: string, warnLabel: string) => {
+    if (!fs.existsSync(codesSrc) || fs.existsSync(dst)) return
     try {
       const converted = convertReasonCodes(fs.readFileSync(codesSrc, 'utf-8'))
-      fs.writeFileSync(schemaCodesDst, converted, 'utf-8')
-      console.log('[EAA] Converted + wrote reason-codes.json to schema dir')
+      fs.writeFileSync(dst, converted, 'utf-8')
+      console.log(`[EAA] Converted + wrote reason-codes.json ${logLabel}`)
     } catch (err) {
-      console.warn('[EAA] Failed to write reason-codes.json to schema dir:', err)
+      console.warn(`[EAA] Failed to write reason-codes.json${warnLabel}`, err)
     }
   }
-
+  seedTo(schemaCodesDst, ' to schema dir', ' to schema dir:')
   // 也复制到数据目录（备用路径）
-  if (fs.existsSync(codesSrc) && !fs.existsSync(codesDst)) {
-    try {
-      const converted = convertReasonCodes(fs.readFileSync(codesSrc, 'utf-8'))
-      fs.writeFileSync(codesDst, converted, 'utf-8')
-      console.log('[EAA] Converted + wrote reason-codes.json to data dir')
-    } catch (err) {
-      console.warn('[EAA] Failed to write reason-codes.json:', err)
-    }
-  }
+  seedTo(codesDst, ' to data dir', ':')
 }
 
 /**
@@ -75,7 +70,7 @@ export async function runDoctorCheck(
     console.log('[EAA] Doctor warnings (non-fatal):', result.stderr || JSON.stringify(result.data))
     return { healthy: true, message: 'EAA ready (with warnings)' }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     console.error('[EAA] Doctor check failed:', msg)
     // 不阻塞启动——EAA 命令可能在后续成功
     return { healthy: false, message: msg }

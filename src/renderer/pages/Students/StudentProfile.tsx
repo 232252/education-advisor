@@ -22,6 +22,7 @@ import { PageHeader } from '../../components/PageHeader'
 import { PrintOverlay } from '../../components/print/PrintOverlay'
 import { StudentReportDocument } from '../../components/print/StudentReportDocument'
 import { useStudentPrintData } from '../../components/print/useStudentPrintData'
+import { Tabs } from '../../components/Tabs'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useTheme } from '../../hooks/useTheme'
 import { useT } from '../../i18n'
@@ -50,14 +51,14 @@ type TabId = 'overview' | 'profile' | 'events' | 'academics' | 'ai' | 'home_scho
 export function StudentProfile({ student, onClose, onRefresh }: StudentProfileProps) {
   const { t } = useT()
   // 模块级常量 — StudentProfile 的 tabs 固定不变
-  const STUDENT_PROFILE_TABS: Array<{ id: TabId; label: string; icon: LucideIcon }> = [
-    { id: 'overview', label: t('page.students.tab.overview', '概览'), icon: BarChart3 },
-    { id: 'profile', label: t('page.students.tab.profile', '档案'), icon: ClipboardList },
-    { id: 'events', label: t('page.students.tab.events', '事件'), icon: History },
-    { id: 'academics', label: t('page.students.tab.academics', '学业'), icon: BookOpen },
-    { id: 'ai', label: t('page.students.tab.ai', 'AI分析'), icon: Bot },
+  const STUDENT_PROFILE_TABS: Array<{ key: TabId; label: string; icon: LucideIcon }> = [
+    { key: 'overview', label: t('page.students.tab.overview', '概览'), icon: BarChart3 },
+    { key: 'profile', label: t('page.students.tab.profile', '档案'), icon: ClipboardList },
+    { key: 'events', label: t('page.students.tab.events', '事件'), icon: History },
+    { key: 'academics', label: t('page.students.tab.academics', '学业'), icon: BookOpen },
+    { key: 'ai', label: t('page.students.tab.ai', 'AI分析'), icon: Bot },
     {
-      id: 'home_school',
+      key: 'home_school',
       label: t('page.students.tab.homeSchool', '家校沟通'),
       icon: MessageCircleHeart,
     },
@@ -204,24 +205,14 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
       )}
 
       {/* 选项卡导航 */}
-      <div className="flex border-b border-gray-200 dark:border-white/[0.06] px-4 bg-gray-50/50 dark:bg-surface-tertiary/50">
-        {STUDENT_PROFILE_TABS.map((tab) => (
-          <button
-            type="button"
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={
-              'px-4 py-2.5 text-sm border-b-2 transition-colors ' +
-              (activeTab === tab.id
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400 font-medium'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300')
-            }
-          >
-            <tab.icon className="mr-1.5 inline-block h-4 w-4 align-[-2px]" aria-hidden />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        tabs={STUDENT_PROFILE_TABS}
+        active={activeTab}
+        onChange={setActiveTab}
+        label={t('page.students.profile.title', '学生档案')}
+        idPrefix="student-profile"
+        className="px-4 bg-gray-50/50 dark:bg-surface-tertiary/50"
+      />
 
       {/* 选项卡内容 */}
       <div className="flex-1 overflow-y-auto p-4">

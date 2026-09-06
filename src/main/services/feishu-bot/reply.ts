@@ -4,6 +4,7 @@
 // =============================================================
 
 import type * as lark from '@larksuiteoapi/node-sdk'
+import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import { REPLY_CHAR_LIMIT } from './constants'
 
@@ -35,7 +36,7 @@ export async function sendReply(
     }
     log('info', 'feishu-bot', `reply sent (${truncated.length} chars)`)
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     log('error', 'feishu-bot', `reply failed: ${msg}`)
   }
 }

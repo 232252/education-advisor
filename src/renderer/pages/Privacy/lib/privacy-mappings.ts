@@ -3,12 +3,11 @@
 // 逻辑自 PrivacyPage.tsx 逐字搬移,行为不变
 // =============================================================
 
-/** 隐私映射条目 */
-export interface PrivacyMapping {
-  entityType: string
-  pseudonym: string
-  realName: string
-}
+import type { PrivacyMapping } from '@shared/types'
+
+// 类型单一来源在 @shared/types(privacy.ts);此处转发给既有相对导入方,
+// 消除曾出现字段漂移的双定义(entityType 放宽/缺 createdAt)
+export type { PrivacyMapping }
 
 // 防御性校验：确保 data 是数组（bridge 可能返回字符串）
 export function parsePrivacyMappings(data: unknown): PrivacyMapping[] {

@@ -344,7 +344,7 @@ agents:
     schedule:
       cron:
         - cron: "0 8 * * 1-5"
-          prompt: "执行晨间风险扫描: 用 eaa_ranking 与 eaa_stats 找出高风险学生(操行分低于85),生成预警清单;发现紧急情况用 escalate_to_main 上报。"
+          prompt: "执行晨间风险扫描: 用 eaa_ranking(传 n=999 取全量)从列表末尾找出分数最低的学生,结合 eaa_stats 与风险档位(操行分低于85为高风险)生成预警清单;发现紧急情况用 escalate_to_main 上报。"
         - cron: "0 17 * * 5"
           prompt: "执行周末前风险汇总: 汇总本周风险变化,输出需要假期重点关注的学生清单。"
     # P2-12 修复:统一阈值 85/93/93

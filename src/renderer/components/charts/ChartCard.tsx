@@ -2,19 +2,18 @@
 // ChartCard — 图表卡片统一容器 (M21)
 //
 // 收敛 7 个图表组件重复的"Card 包裹 + 标题(圆点/emoji 混用) +
-// ReactEChartsCore 渲染 + 空态 EmptyState"样板:
+// EChart 渲染 + 空态 EmptyState"样板:
 //   - 统一标题样式(text-sm font-semibold + 可选彩色圆点,去掉混用的 emoji)
 //   - 统一空态渲染(isEmpty/option 为 null 时显示 EmptyState)
-//   - 统一 echarts 注册来源(lib/echarts-setup)与高度控制
+//   - 统一 EChart 包装(注册来源 lib/echarts-setup)与高度控制
 // 数据 shaping 与 option 构造仍在各图表组件(语义差异),
 // 共享样板走本组件 + charts/option-builders。
 // =============================================================
 
-import ReactEChartsCore from 'echarts-for-react/esm/core'
 import type { ReactNode } from 'react'
-import { echarts } from '../../lib/echarts-setup'
 import { Card } from '../Card'
 import { EmptyState } from '../EmptyState'
+import { EChart } from './EChart'
 
 interface ChartCardProps {
   /** 卡片标题(已翻译的文本,由调用方 t() 传入) */
@@ -63,7 +62,7 @@ export function ChartCard({
       {empty ? (
         <EmptyState icon={emptyIcon} title={emptyTitle ?? ''} className={emptyClassName} />
       ) : (
-        <ReactEChartsCore echarts={echarts} style={{ height }} option={option} />
+        <EChart option={option} height={height} />
       )}
     </Card>
   )

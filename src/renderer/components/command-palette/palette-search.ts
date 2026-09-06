@@ -28,7 +28,7 @@ export interface NavCommand {
   keywords?: string
 }
 
-export interface PaletteData {
+interface PaletteData {
   students: EAAStudent[]
   classes: ClassEntity[]
   agents: AgentListItem[]
@@ -36,7 +36,7 @@ export interface PaletteData {
 }
 
 /** 每类结果在面板中的展示上限 */
-export const LIMITS = {
+const LIMITS = {
   students: 5,
   classes: 3,
   agents: 4,

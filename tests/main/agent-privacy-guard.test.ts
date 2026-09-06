@@ -8,7 +8,7 @@
 //       (f) 映射加载失败时 create 抛错(不静默降级)
 // =============================================================
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const bridgeMock = vi.hoisted(() => ({
   execute: vi.fn(),
@@ -26,9 +26,16 @@ vi.mock('../../src/main/services/settings-service', () => ({
 
 import {
   assertPrivacyReadyForRun,
+  invalidatePrivacyGuardCache,
   isAutoAnonymizeEnabled,
   PrivacyGuard,
 } from '../../src/main/services/agent/privacy-guard'
+
+// create() 命中进程级映射缓存 — 每个用例重设 CLI mock 前必须先失效缓存,
+// 否则后续用例拿到上一个用例的旧映射(fail-closed/no-op 用例即为此失败)
+beforeEach(() => {
+  invalidatePrivacyGuardCache()
+})
 
 const LIST_OUTPUT = [
   '类型           化名         真名',

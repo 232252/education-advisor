@@ -4,13 +4,13 @@
 // =============================================================
 
 import type { ExamDef } from '@shared/types'
-import ReactEChartsCore from 'echarts-for-react/esm/core'
+import { EChart } from '../../../../components/charts/EChart'
 import { DeltaBadge } from '../../../../components/DeltaBadge'
+import { ExamPairSelector } from '../../../../components/ExamPairSelector'
 import { CHART_BRAND, useChartTheme } from '../../../../hooks/useChartTheme'
 import { useT } from '../../../../i18n'
 import type { StudentComparison } from '../../../../lib/academics'
-import { echarts } from '../../../../lib/echarts-setup'
-import { CARD_BASE, cn } from '../../../../lib/ui-utils'
+import { CARD_BASE } from '../../../../lib/ui-utils'
 
 interface ExamCompareCardProps {
   /** 可选考试列表（有成绩且按日期升序） */
@@ -42,37 +42,14 @@ export function ExamCompareCard({
 
       {/* 对比选择器 */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <select
-          value={compareExamAId}
-          onChange={(e) => onCompareExamAChange(e.target.value)}
-          className={cn(
-            'text-xs rounded-lg border border-gray-300 dark:border-white/[0.08]',
-            'bg-white dark:bg-surface-primary text-gray-700 dark:text-gray-300 px-2 py-1',
-          )}
-        >
-          <option value="">{t('page.students.compare.selectExamA', '选择考试 A')}</option>
-          {sortedExams.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}（{e.date}）
-            </option>
-          ))}
-        </select>
-        <span className="text-gray-400">→</span>
-        <select
-          value={compareExamBId}
-          onChange={(e) => onCompareExamBChange(e.target.value)}
-          className={cn(
-            'text-xs rounded-lg border border-gray-300 dark:border-white/[0.08]',
-            'bg-white dark:bg-surface-primary text-gray-700 dark:text-gray-300 px-2 py-1',
-          )}
-        >
-          <option value="">{t('page.students.compare.selectExamB', '选择考试 B')}</option>
-          {sortedExams.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}（{e.date}）
-            </option>
-          ))}
-        </select>
+        <ExamPairSelector
+          sortedExams={sortedExams}
+          examAId={compareExamAId}
+          examBId={compareExamBId}
+          onExamAIdChange={onCompareExamAChange}
+          onExamBIdChange={onCompareExamBChange}
+          className="text-xs rounded-lg border border-gray-300 dark:border-white/[0.08] bg-white dark:bg-surface-primary text-gray-700 dark:text-gray-300 px-2 py-1"
+        />
       </div>
 
       {comparison ? (
@@ -187,9 +164,8 @@ export function ExamCompareCard({
           {/* 并排柱状图 */}
           {comparison.subjects.filter((s) => s.scoreA !== null || s.scoreB !== null).length > 0 && (
             <div className="mt-2">
-              <ReactEChartsCore
-                echarts={echarts}
-                style={{ height: 200 }}
+              <EChart
+                height={200}
                 option={{
                   tooltip: { trigger: 'axis' },
                   legend: {

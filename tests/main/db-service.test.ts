@@ -231,6 +231,37 @@ describe('dbService', () => {
     expect(sessions.find((s) => s.id === 'del-test')).toBeUndefined()
   })
 
+  it('cleanupOldData 分块清理: 删过期行/保留新行/返回删除计数', async () => {
+    if (!dbService.isReady()) return
+    const day = 24 * 60 * 60 * 1000
+    // 25 条 100 天前(超 90 天保留期) + 2 条当前 — batchSize=10 必然跨多块
+    for (let i = 0; i < 25; i++) {
+      dbService.saveChatMessage({
+        sessionId: 'cleanup-chunked-test',
+        role: 'user',
+        content: `old-${i}`,
+        timestamp: Date.now() - 100 * day,
+      })
+    }
+    for (let i = 0; i < 2; i++) {
+      dbService.saveChatMessage({
+        sessionId: 'cleanup-chunked-test',
+        role: 'user',
+        content: `fresh-${i}`,
+        timestamp: Date.now(),
+      })
+    }
+    const r = await dbService.cleanupOldData(90, 10)
+    expect(r.messages).toBe(25)
+    // 新记录必须保留
+    const kept = dbService.loadChatMessages('cleanup-chunked-test')
+    expect(kept.length).toBe(2)
+    // 追平后再次调用为 no-op
+    const again = await dbService.cleanupOldData(90, 10)
+    expect(again.messages).toBe(0)
+    dbService.deleteChatSession('cleanup-chunked-test')
+  })
+
   it('close 后 isReady 应为 false', async () => {
     if (!dbService.isReady()) return
     await dbService.close()

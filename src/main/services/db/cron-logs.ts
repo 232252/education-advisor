@@ -3,6 +3,7 @@
 // 从 db-service.ts DBService 对应方法拆分而来（逻辑逐字搬移,行为零变化）
 // =============================================================
 
+import { errText } from '../../utils/err-text'
 import type { DbClient } from './statements'
 import type { CronLogRecord } from './types'
 
@@ -24,7 +25,7 @@ export function recordCronLog(
     })
     return true
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] recordCronLog failed:', msg)
     return false
@@ -37,7 +38,7 @@ export function getCronLogs(ctx: DbClient, taskId: string | null, limit = 200): 
     const rows = ctx.stmts.selectCronLogs.all(taskId, taskId, limit)
     return rows as CronLogRecord[]
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] getCronLogs failed:', msg)
     return []

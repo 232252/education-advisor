@@ -8,7 +8,7 @@
 import type { McpServerStatus, McpTool } from '@shared/types'
 import { useState } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { CARD_BASE, cn } from '../../../lib/ui-utils'
 
 interface McpServerCardProps {
@@ -193,7 +193,7 @@ export function McpServerCard({
 
       <ConfirmDialog
         open={confirmOpen}
-        message={t('page.mcp.confirm.delete').replace('{name}', server.name)}
+        message={tr('page.mcp.confirm.delete', { name: server.name })}
         variant="danger"
         onConfirm={() => {
           setConfirmOpen(false)

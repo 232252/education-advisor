@@ -5,19 +5,13 @@
 // =============================================================
 
 import { act } from 'react'
+import { toastMocks } from '../../helpers/mock-toast'
 import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ModelInfo, ProviderInfo } from '@shared/types'
 
 const mocks = vi.hoisted(() => ({
   listModels: vi.fn(),
-}))
-
-const toastMocks = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
 }))
 
 vi.mock('../../../../src/renderer/lib/ipc-client', () => ({
@@ -28,9 +22,7 @@ vi.mock('../../../../src/renderer/lib/ipc-client', () => ({
   }),
 }))
 
-vi.mock('../../../../src/renderer/stores/toastStore', () => ({
-  toast: toastMocks,
-}))
+vi.mock('../../../../src/renderer/stores/toastStore', async () => (await import('../../helpers/mock-toast')).mockToastStore)
 
 import { useProviderModelsCache } from '../../../../src/renderer/pages/Models/hooks/useProviderModelsCache'
 

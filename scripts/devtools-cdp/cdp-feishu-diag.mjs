@@ -1,27 +1,9 @@
 // 飞书功能深度诊断: 状态/凭证/设置项/命令路由
-import WebSocket from 'ws'
+import { connectCdp } from '../lib/cdp-client.mjs'
 
-const res = await fetch('http://localhost:9222/json')
-const targets = await res.json()
-const page = targets.find((t) => t.type === 'page' && !t.url.startsWith('devtools'))
-const ws = new WebSocket(page.webSocketDebuggerUrl, { maxPayload: 256 * 1024 * 1024 })
-await new Promise((r, j) => { ws.on('open', r); ws.on('error', j) })
-let id = 0
-const pending = new Map()
-ws.on('message', (d) => {
-  const m = JSON.parse(d.toString())
-  if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id) }
+const { evl, close } = await connectCdp({
+  pageFilter: (t) => t.type === 'page' && !t.url.startsWith('devtools'),
 })
-const send = (method, params = {}) => new Promise((r) => {
-  const mid = ++id
-  pending.set(mid, r)
-  ws.send(JSON.stringify({ id: mid, method, params }))
-})
-const evl = async (expr) => {
-  const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true })
-  if (r.result?.exceptionDetails) return { __error: r.result.exceptionDetails.text + ' ' + (r.result.exceptionDetails.exception?.description || '') }
-  return r.result?.result?.value
-}
 
 // 1. 枚举 window.api 上飞书相关方法
 const apiKeys = await evl(`(() => {
@@ -57,5 +39,5 @@ const settings = await evl(`(async () => {
 console.log('=== settings.feishu ===')
 console.log(JSON.stringify(settings, null, 1))
 
-ws.close()
+close()
 process.exit(0)

@@ -6,6 +6,8 @@
 // =============================================================
 
 import type { ReactNode } from 'react'
+import { setWindowApi, clearWindowApi } from '../../helpers/window-api'
+import { toastMocks } from '../../helpers/mock-toast'
 import { act } from 'react'
 import { renderHook, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -14,27 +16,11 @@ import type { ClassEntity, EAAStudent } from '@shared/types'
 import { useStudentList } from '../../../../src/renderer/pages/Students/hooks/useStudentList'
 import { resetClassStoreForTest } from '../../../../src/renderer/stores/class/store'
 import { resetStudentStoreForTest } from '../../../../src/renderer/stores/student/store'
+import { makeStudent as makeStudentBase } from '../../__fixtures__/make'
 
 // ---------- toast mock ----------
 
-const toastMocks = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
-}))
-
-vi.mock('../../../../src/renderer/stores/toastStore', () => ({
-  toast: {
-    success: toastMocks.success,
-    error: toastMocks.error,
-    warning: toastMocks.warning,
-    info: toastMocks.info,
-    show: vi.fn(),
-    dismiss: vi.fn(),
-    clear: vi.fn(),
-  },
-}))
+vi.mock('../../../../src/renderer/stores/toastStore', async () => (await import('../../helpers/mock-toast')).mockToastStore)
 
 // ---------- window.api mock ----------
 
@@ -46,33 +32,21 @@ const apiMocks = vi.hoisted(() => ({
 }))
 
 function installApi() {
-  ;(window as unknown as { api: unknown }).api = {
+  ;setWindowApi({
     eaa: {
       listStudents: apiMocks.listStudents,
       exportFormats: apiMocks.exportFormats,
       invalidateCache: apiMocks.invalidateCache,
     },
     class: { list: apiMocks.classList },
-  }
+  })
 }
 
-// ---------- 测试数据 ----------
+// ---------- 测试数据(工厂单一来源: tests/renderer/__fixtures__/make) ----------
 
-function makeStudent(overrides: Partial<EAAStudent>): EAAStudent {
-  return {
-    name: '学生',
-    entity_id: 'e0',
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-    ...overrides,
-  }
-}
+// 本文件历史默认 name/entity_id 为 学生/e0 且必填 overrides,用适配器保持原值
+const makeStudent = (overrides: Partial<EAAStudent>): EAAStudent =>
+  makeStudentBase({ name: '学生', entity_id: 'e0', ...overrides })
 
 const s1 = makeStudent({ name: '甲', entity_id: 'e1', class_id: 'G7-1' })
 const s2 = makeStudent({ name: '乙', entity_id: 'e2', status: 'Deleted' })
@@ -115,7 +89,7 @@ describe('useStudentList', () => {
   })
 
   afterEach(() => {
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   it('初始 loading=true, 挂载后自动加载学生与班级', async () => {

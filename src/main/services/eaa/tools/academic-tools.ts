@@ -171,6 +171,16 @@ export const examGradesTool: AgentTool<typeof examGradesParams> = {
       const records = (await academicService.getGrades(params.student))
         .filter((g) => g.examId === params.exam_id)
         .filter((g) => !params.subject_id || g.subjectId === params.subject_id)
+      if (records.length === 0) {
+        return jsonResult(
+          {
+            exam: examView(exam, subjects),
+            grades: [],
+            hint: `「${params.student}」在该考试下无成绩记录: 可能是姓名不完全一致(用 eaa_list_students 逐字核对)、该生缺录、或 subject_id 过滤无匹配`,
+          },
+          `${params.student} 在 ${exam.name} 无成绩记录`,
+        )
+      }
       return jsonResult(
         {
           exam: examView(exam, subjects),

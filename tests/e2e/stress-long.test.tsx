@@ -4,63 +4,22 @@
 // 或: npx vitest run tests/e2e/stress-long.test.tsx -t "30 分钟"
 // =============================================================
 
-import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createEaaEnv, describeE2E } from './harness'
 
-// eaa 真实调用（跨平台）
-const _dirName = process.platform === 'win32' ? 'win32-x64' : process.platform === 'darwin' ? (process.arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64') : 'linux-x64'
-const _binName = process.platform === 'win32' ? 'eaa.exe' : 'eaa'
-const EAA_BIN = join(__dirname, '..', '..', 'resources', 'eaa-binaries', _dirName, _binName)
-// 平台二进制缺失(如 macOS 无 darwin 构建)时整组跳过,避免 CI 误报 ENOENT
-const describeE2E = existsSync(EAA_BIN) ? describe : describe.skip
-const TEST_ROOT = mkdtempSync(join(tmpdir(), 'eaa-stress-'))
-const TEST_DATA = join(TEST_ROOT, 'data')
-const SCHEMA_SRC = join(__dirname, '..', '..', 'core', 'eaa-cli', 'schema', 'reason_codes.json')
+// eaa 真实调用(跨平台,基建见 ./harness;重试版 eaaRun 修复了并发空输出)
+const env = createEaaEnv('eaa-stress-')
+const { eaaRun } = env
 
-mkdirSync(join(TEST_DATA, 'entities'), { recursive: true })
-mkdirSync(join(TEST_DATA, 'events'), { recursive: true })
-mkdirSync(join(TEST_ROOT, 'schema'), { recursive: true })
-writeFileSync(join(TEST_DATA, 'entities', 'entities.json'), '{"entities":{}}')
-writeFileSync(join(TEST_DATA, 'entities', 'name_index.json'), '{}')
-writeFileSync(join(TEST_DATA, 'events', 'events.json'), '[]')
-if (existsSync(SCHEMA_SRC)) {
-  writeFileSync(join(TEST_ROOT, 'schema', 'reason_codes.json'), readFileSync(SCHEMA_SRC))
-}
-
-function eaaRun(args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(EAA_BIN, args, {
-      env: { ...process.env, EAA_DATA_DIR: TEST_DATA },
-      timeout: 10_000,
-    })
-    let out = ''
-    let err = ''
-    proc.stdout?.on('data', (d) => (out += d.toString()))
-    proc.stderr?.on('data', (d) => (err += d.toString()))
-    proc.on('error', reject)
-    proc.on('exit', (code) => {
-      if (code !== 0) return reject(new Error(`eaa exit ${code}: ${err.slice(0, 200)}`))
-      resolve(out)
-    })
-  })
-}
-
+/** 重置 eaa 数据: 走 harness 的全删重建(原实现只重写种子文件,
+ *  会残留 scores 缓存与 jsonl 事件产生"幽灵实体") + 短暂 settle */
 async function resetEaa() {
-  const lockFile = join(TEST_DATA, '.lock')
-  if (existsSync(lockFile)) {
-    try { rmSync(lockFile) } catch { /* ignore */ }
-  }
-  writeFileSync(join(TEST_DATA, 'entities', 'entities.json'), '{"entities":{}}')
-  writeFileSync(join(TEST_DATA, 'entities', 'name_index.json'), '{}')
-  writeFileSync(join(TEST_DATA, 'events', 'events.json'), '[]')
+  env.resetEaaData()
   await new Promise((r) => setTimeout(r, 100))
 }
 
 afterAll(() => {
-  try { rmSync(TEST_ROOT, { recursive: true, force: true }) } catch { /* ignore */ }
+  env.cleanup()
 })
 
 beforeEach(async () => {

@@ -5,7 +5,7 @@
 
 import type { AgentListItem } from '@shared/types'
 import { getAPI } from '../../lib/ipc-client'
-import { _appendLiveOutput, _flushLiveOutputNow } from './live-output'
+import { _appendLiveOutput, _flushLiveOutput } from './live-output'
 import type { AgentGet, AgentSet, AgentState, AgentStatusUpdate } from './types'
 
 export function createStatusSlice(
@@ -66,7 +66,7 @@ export function createStatusSlice(
         const needFlush =
           data.status === 'idle' || data.status === 'error' || !!data.error || !!data.result
         if (needFlush) {
-          _flushLiveOutputNow(set)
+          _flushLiveOutput(set)
         }
 
         //追加实时输出(批处理)

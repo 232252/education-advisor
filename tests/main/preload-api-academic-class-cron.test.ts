@@ -2,21 +2,12 @@
 // Preload API — Academic / Class / Cron / Ollama / MCP 域测试
 // =============================================================
 
+
+import { ipcMocks } from './helpers/electron-ipc'
+const mocks = ipcMocks
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  invoke: vi.fn(),
-  on: vi.fn(),
-  removeListener: vi.fn(),
-}))
-
-vi.mock('electron', () => ({
-  ipcRenderer: {
-    invoke: mocks.invoke,
-    on: mocks.on,
-    removeListener: mocks.removeListener,
-  },
-}))
+vi.mock('electron', async () => (await import('./helpers/electron-ipc')).mockIpcRendererModule())
 
 import * as IPC from '../../src/shared/ipc-channels'
 import { academicApi } from '../../src/main/preload/api/academic'

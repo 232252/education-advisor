@@ -6,3 +6,11 @@
 // =============================================================
 
 export { sanitizeClassId, sanitizeName } from '../../utils/sanitize'
+
+/** CRUD id 非空守卫单一来源(此前逐字 4 份);合法返回 null,否则返回结构化错误 */
+export function requireClassId(id: unknown): { success: false; error: string } | null {
+  if (typeof id !== 'string' || id.trim().length === 0) {
+    return { success: false, error: 'id must be a non-empty string' }
+  }
+  return null
+}

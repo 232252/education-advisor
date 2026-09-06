@@ -3,21 +3,12 @@
 // mock electron ipcRenderer(invoke/on/removeListener)
 // =============================================================
 
+
+import { ipcMocks } from './helpers/electron-ipc'
+const mocks = ipcMocks
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  invoke: vi.fn(),
-  on: vi.fn(),
-  removeListener: vi.fn(),
-}))
-
-vi.mock('electron', () => ({
-  ipcRenderer: {
-    invoke: mocks.invoke,
-    on: mocks.on,
-    removeListener: mocks.removeListener,
-  },
-}))
+vi.mock('electron', async () => (await import('./helpers/electron-ipc')).mockIpcRendererModule())
 
 import * as IPC from '../../src/shared/ipc-channels'
 import { agentApi } from '../../src/main/preload/api/agent'
@@ -65,9 +56,7 @@ describe('agentApi — invoke 通道与参数', () => {
     expect(mocks.invoke).toHaveBeenLastCalledWith(IPC.IPC_AGENT_RUN_MANUAL, 'id-1', '执行任务', undefined)
   })
 
-  it('getHistory / abort', () => {
-    void agentApi.getHistory('id-1')
-    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_AGENT_GET_HISTORY, 'id-1')
+  it('abort', () => {
     void agentApi.abort('id-1')
     expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_AGENT_ABORT, 'id-1')
   })

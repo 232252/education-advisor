@@ -6,22 +6,35 @@
 //      portable 版显示"手动替换"提示,不提供自动安装
 // =============================================================
 
+import type { CheckUpdateResult, UpdateProgressInfo } from '@shared/api/sys'
 import type { UnifiedSettings } from '@shared/types'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useIpcSubscription } from '../../../hooks/useIpcSubscription'
 import { setLang, useT } from '../../../i18n'
-import type { CheckUpdateResult, UpdateProgressInfo } from '../../../lib/ipc/sys'
 import { getAPI } from '../../../lib/ipc-client'
 import { btnStyle, cn, INPUT_SM } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
-import { Section, SettingRow, ToggleSwitch } from '../components'
+import {
+  NumberSettingRow,
+  Section,
+  SelectSettingRow,
+  SettingRow,
+  ToggleSettingRow,
+} from '../components'
 
 /** 更新流程 UI 状态机: 检查前 → 发现新版本 → 下载中 → 下载完成待安装 */
 type UpdatePhase = 'idle' | 'available' | 'downloading' | 'downloaded'
 
-export interface GeneralSectionProps {
+interface GeneralSectionProps {
   settings: UnifiedSettings
   onSave: (path: string, value: unknown) => void
 }
+
+/** M31 更新流程按钮样式(检查/前往下载 = blue,下载并安装/重启安装 = emerald) */
+const UPDATE_BTN_BLUE =
+  'text-xs bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20'
+const UPDATE_BTN_EMERALD =
+  'text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
 
 export function GeneralSection({ settings, onSave }: GeneralSectionProps) {
   const { t } = useT()
@@ -32,8 +45,9 @@ export function GeneralSection({ settings, onSave }: GeneralSectionProps) {
   const [progress, setProgress] = useState<UpdateProgressInfo | null>(null)
 
   // 订阅主进程下载进度推送 (sys:update-progress,参考 ollama pull-progress 模式)
-  useEffect(() => {
-    const unsub = getAPI().sys.onUpdateProgress((info) => {
+  useIpcSubscription<UpdateProgressInfo>(
+    (cb) => getAPI().sys.onUpdateProgress(cb),
+    (info) => {
       setProgress(info)
       if (info.status === 'downloaded') {
         setPhase('downloaded')
@@ -42,9 +56,8 @@ export function GeneralSection({ settings, onSave }: GeneralSectionProps) {
         // 错误详情由 downloadUpdate 返回值提示,这里仅回退到"可下载"状态
         setPhase('available')
       }
-    })
-    return unsub
-  }, [t])
+    },
+  )
 
   const handleCheck = async () => {
     // H-6 修复: 加 try/catch,避免检查更新失败时无反馈
@@ -104,49 +117,37 @@ export function GeneralSection({ settings, onSave }: GeneralSectionProps) {
 
   return (
     <Section title={t('settings.section.general')}>
-      <SettingRow
-        label={t('settings.theme', '主题')}
+      <SelectSettingRow
         path="general.theme"
+        label={t('settings.theme', '主题')}
         description={t('settings.theme.desc', '界面外观,system 表示跟随操作系统')}
-      >
-        <select
-          value={settings.general.theme}
-          onChange={(e) => {
-            const v = e.target.value
-            onSave('general.theme', v)
-            // 通知 useTheme hook 立即应用新主题
-            window.dispatchEvent(new CustomEvent('theme-changed', { detail: v }))
-          }}
-          className={INPUT_SM}
-        >
-          <option value="dark">{t('settings.theme.dark')}</option>
-          <option value="light">{t('settings.theme.light')}</option>
-          <option value="system">{t('settings.theme.system')}</option>
-        </select>
-      </SettingRow>
+        value={settings.general.theme}
+        options={[
+          { value: 'dark', label: t('settings.theme.dark') },
+          { value: 'light', label: t('settings.theme.light') },
+          { value: 'system', label: t('settings.theme.system') },
+        ]}
+        onSave={onSave}
+        // 通知 useTheme hook 立即应用新主题
+        onCommit={(v) => window.dispatchEvent(new CustomEvent('theme-changed', { detail: v }))}
+      />
 
-      <SettingRow
-        label={t('settings.language', '语言')}
+      <SelectSettingRow
         path="general.language"
+        label={t('settings.language', '语言')}
         description={t(
           'page.settings.general.languageDesc',
           '界面语言,useT hook 自动响应切换 (部分静态文案需重启)',
         )}
-      >
-        <select
-          value={settings.general.language}
-          onChange={(e) => {
-            const v = e.target.value
-            onSave('general.language', v)
-            // 同步触发 i18n 切换（settings 值 zh-CN/en-US → i18n 值 zh/en）
-            setLang(v === 'zh-CN' ? 'zh' : 'en')
-          }}
-          className={INPUT_SM}
-        >
-          <option value="zh-CN">{t('settings.language.zh', '中文')}</option>
-          <option value="en-US">{t('settings.language.en', 'English')}</option>
-        </select>
-      </SettingRow>
+        value={settings.general.language}
+        options={[
+          { value: 'zh-CN', label: t('settings.language.zh', '中文') },
+          { value: 'en-US', label: t('settings.language.en', 'English') },
+        ]}
+        onSave={onSave}
+        // 同步触发 i18n 切换（settings 值 zh-CN/en-US → i18n 值 zh/en）
+        onCommit={(v) => setLang(v === 'zh-CN' ? 'zh' : 'en')}
+      />
 
       <SettingRow
         label={t('settings.dataDir', '数据目录')}
@@ -158,165 +159,129 @@ export function GeneralSection({ settings, onSave }: GeneralSectionProps) {
         </span>
       </SettingRow>
 
-      <SettingRow
-        label={t('page.settings.general.timezone', '时区')}
+      <SelectSettingRow
         path="general.timezone"
+        label={t('page.settings.general.timezone', '时区')}
         description={t(
           'page.settings.general.timezoneDesc',
           'cron 定时任务的调度时区,影响每日重置/定时报告的触发时间',
         )}
-      >
-        <select
-          value={settings.general.timezone}
-          onChange={(e) => onSave('general.timezone', e.target.value)}
-          className={INPUT_SM}
-        >
-          <option value="Asia/Shanghai">
-            {t('page.settings.general.timezoneShanghai', '亚洲/上海 (UTC+8)')}
-          </option>
-          <option value="Asia/Tokyo">
-            {t('page.settings.general.timezoneTokyo', '亚洲/东京 (UTC+9)')}
-          </option>
-          <option value="Asia/Singapore">
-            {t('page.settings.general.timezoneSingapore', '亚洲/新加坡 (UTC+8)')}
-          </option>
-          <option value="America/Los_Angeles">
-            {t('page.settings.general.timezoneLosAngeles', '美洲/洛杉矶 (UTC-8)')}
-          </option>
-          <option value="America/New_York">
-            {t('page.settings.general.timezoneNewYork', '美洲/纽约 (UTC-5)')}
-          </option>
-          <option value="Europe/London">
-            {t('page.settings.general.timezoneLondon', '欧洲/伦敦 (UTC+0)')}
-          </option>
-          <option value="UTC">UTC</option>
-        </select>
-      </SettingRow>
+        value={settings.general.timezone}
+        options={[
+          {
+            value: 'Asia/Shanghai',
+            label: t('page.settings.general.timezoneShanghai', '亚洲/上海 (UTC+8)'),
+          },
+          {
+            value: 'Asia/Tokyo',
+            label: t('page.settings.general.timezoneTokyo', '亚洲/东京 (UTC+9)'),
+          },
+          {
+            value: 'Asia/Singapore',
+            label: t('page.settings.general.timezoneSingapore', '亚洲/新加坡 (UTC+8)'),
+          },
+          {
+            value: 'America/Los_Angeles',
+            label: t('page.settings.general.timezoneLosAngeles', '美洲/洛杉矶 (UTC-8)'),
+          },
+          {
+            value: 'America/New_York',
+            label: t('page.settings.general.timezoneNewYork', '美洲/纽约 (UTC-5)'),
+          },
+          {
+            value: 'Europe/London',
+            label: t('page.settings.general.timezoneLondon', '欧洲/伦敦 (UTC+0)'),
+          },
+          { value: 'UTC', label: 'UTC' },
+        ]}
+        onSave={onSave}
+      />
 
-      <SettingRow
-        label={t('settings.autoStart', '开机启动')}
+      <ToggleSettingRow
         path="general.autoStart"
+        label={t('settings.autoStart', '开机启动')}
         description={t('settings.autoStart.desc', '操作系统启动时自动运行 Education Advisor')}
-      >
-        <ToggleSwitch
-          checked={settings.general.autoStart}
-          onChange={(v) => onSave('general.autoStart', v)}
-          label={t('settings.autoStart', '开机启动')}
-        />
-      </SettingRow>
+        value={settings.general.autoStart}
+        onSave={onSave}
+      />
 
-      <SettingRow
-        label={t('settings.minimizeToTray', '最小化到托盘')}
+      <ToggleSettingRow
         path="general.minimizeToTray"
+        label={t('settings.minimizeToTray', '最小化到托盘')}
         description={t('settings.minimizeToTray.desc', '关闭窗口时最小化到系统托盘,不退出')}
-      >
-        <ToggleSwitch
-          checked={settings.general.minimizeToTray}
-          onChange={(v) => onSave('general.minimizeToTray', v)}
-          label={t('settings.minimizeToTray', '最小化到托盘')}
-        />
-      </SettingRow>
+        value={settings.general.minimizeToTray}
+        onSave={onSave}
+      />
 
-      <SettingRow
-        label={t('settings.closeBehavior', '关闭按钮行为')}
+      <SelectSettingRow
         path="general.closeBehavior"
+        label={t('settings.closeBehavior', '关闭按钮行为')}
         description={t('settings.closeBehavior.desc', '点击窗口右上角关闭按钮时如何处理')}
-      >
-        <select
-          value={settings.general.closeBehavior}
-          onChange={(e) => onSave('general.closeBehavior', e.target.value)}
-          className={INPUT_SM}
-        >
-          <option value="ask">{t('settings.closeBehavior.ask', '每次询问')}</option>
-          <option value="tray">{t('settings.closeBehavior.minimize', '最小化到托盘')}</option>
-          <option value="exit">{t('settings.closeBehavior.exit', '退出应用')}</option>
-        </select>
-      </SettingRow>
+        value={settings.general.closeBehavior}
+        options={[
+          { value: 'ask', label: t('settings.closeBehavior.ask', '每次询问') },
+          { value: 'tray', label: t('settings.closeBehavior.minimize', '最小化到托盘') },
+          { value: 'exit', label: t('settings.closeBehavior.exit', '退出应用') },
+        ]}
+        onSave={onSave}
+      />
 
-      <SettingRow
-        label={t('page.settings.general.agentTimeout', 'Agent 执行超时')}
+      <NumberSettingRow
         path="general.agentTimeoutMins"
+        label={t('page.settings.general.agentTimeout', 'Agent 执行超时')}
         description={t(
           'page.settings.general.agentTimeoutDesc',
           '单个 Agent 任务最长执行时间(分钟),超时自动中止;-1 表示不限',
         )}
-      >
-        <input
-          type="number"
-          min={-1}
-          max={1440}
-          step={1}
-          value={settings.general.agentTimeoutMins}
-          onChange={(e) => {
-            const v = Number.parseInt(e.target.value, 10)
-            if (Number.isFinite(v) && (v === -1 || (v >= 1 && v <= 1440))) {
-              onSave('general.agentTimeoutMins', v)
-            } else {
-              toast.error(t('toast.settings.agentTimeoutInvalid', '请输入 -1 或 1-1440 之间的整数'))
-            }
-          }}
-          className={cn(INPUT_SM, 'w-24')}
-        />
-      </SettingRow>
+        value={settings.general.agentTimeoutMins}
+        min={1}
+        max={1440}
+        step={1}
+        onSave={onSave}
+        invalidToast={t('toast.settings.agentTimeoutInvalid', '请输入 -1 或 1-1440 之间的整数')}
+        allowValue={-1}
+      />
 
-      <SettingRow
-        label={t('page.settings.general.maxConcurrent', 'Cron 最大并发')}
+      <NumberSettingRow
         path="general.maxConcurrentCronTasks"
+        label={t('page.settings.general.maxConcurrent', 'Cron 最大并发')}
         description={t(
           'page.settings.general.maxConcurrentDesc',
           'cron 定时任务同时运行的最大数量,超过则排队等待',
         )}
-      >
-        <input
-          type="number"
-          min={1}
-          max={20}
-          step={1}
-          value={settings.general.maxConcurrentCronTasks}
-          onChange={(e) => {
-            const v = Number.parseInt(e.target.value, 10)
-            if (Number.isFinite(v) && v >= 1 && v <= 20) {
-              onSave('general.maxConcurrentCronTasks', v)
-            } else {
-              toast.error(t('toast.settings.maxConcurrentInvalid', '请输入 1-20 之间的整数'))
-            }
-          }}
-          className={cn(INPUT_SM, 'w-24')}
-        />
-      </SettingRow>
+        value={settings.general.maxConcurrentCronTasks}
+        min={1}
+        max={20}
+        step={1}
+        onSave={onSave}
+        invalidToast={t('toast.settings.maxConcurrentInvalid', '请输入 1-20 之间的整数')}
+      />
 
-      <SettingRow
-        label={t('settings.logLevel', '日志级别')}
+      <SelectSettingRow
         path="general.logLevel"
+        label={t('settings.logLevel', '日志级别')}
         description={t(
           'page.settings.general.logLevelDesc',
           '控制主进程和渲染进程的日志输出详细程度(5 档)',
         )}
-      >
-        <select
-          value={settings.general.logLevel}
-          onChange={(e) => onSave('general.logLevel', e.target.value)}
-          className={INPUT_SM}
-        >
-          <option value="debug">{t('settings.logLevel.debug', 'Debug (全日志)')}</option>
-          <option value="info">{t('settings.logLevel.info', 'Info (重要事件)')}</option>
-          <option value="warn">{t('settings.logLevel.warn', 'Warn (警告)')}</option>
-          <option value="error">{t('settings.logLevel.error', 'Error (仅错误)')}</option>
-          <option value="off">{t('settings.logLevel.off', 'Off (关闭)')}</option>
-        </select>
-      </SettingRow>
+        value={settings.general.logLevel}
+        options={[
+          { value: 'debug', label: t('settings.logLevel.debug', 'Debug (全日志)') },
+          { value: 'info', label: t('settings.logLevel.info', 'Info (重要事件)') },
+          { value: 'warn', label: t('settings.logLevel.warn', 'Warn (警告)') },
+          { value: 'error', label: t('settings.logLevel.error', 'Error (仅错误)') },
+          { value: 'off', label: t('settings.logLevel.off', 'Off (关闭)') },
+        ]}
+        onSave={onSave}
+      />
 
-      <SettingRow
-        label={t('settings.autoUpdate', '自动更新')}
+      <ToggleSettingRow
         path="general.autoUpdate"
+        label={t('settings.autoUpdate', '自动更新')}
         description={t('page.settings.general.autoUpdateDesc', '启动时自动检查新版本')}
-      >
-        <ToggleSwitch
-          checked={settings.general.autoUpdate}
-          onChange={(v) => onSave('general.autoUpdate', v)}
-          label={t('settings.autoUpdate', '自动更新')}
-        />
-      </SettingRow>
+        value={settings.general.autoUpdate}
+        onSave={onSave}
+      />
 
       <SettingRow
         label={t('page.settings.general.updateUrl', '更新源')}
@@ -366,10 +331,7 @@ export function GeneralSection({ settings, onSave }: GeneralSectionProps) {
             <button
               type="button"
               onClick={() => void handleCheck()}
-              className={cn(
-                btnStyle('secondary'),
-                'text-xs bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20',
-              )}
+              className={cn(btnStyle('secondary'), UPDATE_BTN_BLUE)}
             >
               {t('page.settings.general.checkUpdate', '检查更新')}
             </button>
@@ -395,10 +357,7 @@ export function GeneralSection({ settings, onSave }: GeneralSectionProps) {
                       // 外部链接经 setWindowOpenHandler → shell.openExternal
                       window.open(updateResult.releaseUrl, '_blank')
                     }}
-                    className={cn(
-                      btnStyle('secondary'),
-                      'text-xs bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20',
-                    )}
+                    className={cn(btnStyle('secondary'), UPDATE_BTN_BLUE)}
                   >
                     {t('page.settings.general.updateGoDownload', '前往下载')}
                   </button>
@@ -407,10 +366,7 @@ export function GeneralSection({ settings, onSave }: GeneralSectionProps) {
                 <button
                   type="button"
                   onClick={() => void handleDownload()}
-                  className={cn(
-                    btnStyle('secondary'),
-                    'text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20',
-                  )}
+                  className={cn(btnStyle('secondary'), UPDATE_BTN_EMERALD)}
                 >
                   {t('page.settings.general.updateDownloadInstall', '下载并安装')}
                 </button>
@@ -437,10 +393,7 @@ export function GeneralSection({ settings, onSave }: GeneralSectionProps) {
             <button
               type="button"
               onClick={() => void handleInstall()}
-              className={cn(
-                btnStyle('secondary'),
-                'text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20',
-              )}
+              className={cn(btnStyle('secondary'), UPDATE_BTN_EMERALD)}
             >
               {t('page.settings.general.updateRestartInstall', '重启并安装')}
             </button>

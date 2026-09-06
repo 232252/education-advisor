@@ -15,24 +15,13 @@ import {
   computeAutoClassId,
   gradeToNumber,
 } from '../../../../src/renderer/pages/Classes/class-id'
+import { makeStudent as makeStudentBase } from '../../__fixtures__/make'
 
-// ---------- 测试数据 ----------
+// ---------- 测试数据(工厂单一来源: tests/renderer/__fixtures__/make) ----------
 
-function makeStudent(overrides: Partial<EAAStudent>): EAAStudent {
-  return {
-    name: '学生',
-    entity_id: 'e0',
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-    ...overrides,
-  }
-}
+// 本文件历史默认 name/entity_id 为 学生/e0 且必填 overrides,用适配器保持原值
+const makeStudent = (overrides: Partial<EAAStudent>): EAAStudent =>
+  makeStudentBase({ name: '学生', entity_id: 'e0', ...overrides })
 
 const all = [
   makeStudent({ name: '甲', class_id: 'G7-1', risk: '中' }),

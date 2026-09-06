@@ -6,55 +6,20 @@
 // =============================================================
 
 import { act } from 'react'
+import { setWindowApi, clearWindowApi } from '../../helpers/window-api'
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { EAAStudent, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
+import type { GradeRecord, SubjectDef } from '@shared/types'
 import { useGradeEntry } from '../../../../src/renderer/pages/Academics/hooks/useGradeEntry'
 import { useChatStore } from '../../../../src/renderer/stores/chat/store'
 import { toast } from '../../../../src/renderer/stores/toastStore'
+import {
+  makeExam,
+  makeGrade,
+  makeStudent,
+} from '../../__fixtures__/make'
 
-// ---------- 数据工厂 ----------
-
-function makeStudent(overrides: Partial<EAAStudent> = {}): EAAStudent {
-  return {
-    name: '张三',
-    entity_id: 'ent-1',
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-    ...overrides,
-  }
-}
-
-function makeExam(overrides: Partial<ExamDef> = {}): ExamDef {
-  return {
-    id: 'exam-1',
-    name: '期中考试',
-    type: 'midterm',
-    date: '2025-11-01',
-    semester: '2025-2026-1',
-    subjects: ['chinese', 'math'],
-    createdAt: '2025-11-02T00:00:00Z',
-    ...overrides,
-  }
-}
-
-function makeGrade(overrides: Partial<GradeRecord> = {}): GradeRecord {
-  return {
-    examId: 'exam-1',
-    subjectId: 'chinese',
-    studentName: '张三',
-    score: 90,
-    fullMark: 150,
-    updatedAt: '2025-11-02T00:00:00Z',
-    ...overrides,
-  }
-}
+// ---------- 数据工厂(单一来源: tests/renderer/__fixtures__/make) ----------
 
 const SUBJECT_CHINESE: SubjectDef = { id: 'chinese', name: '语文', category: 'core', fullMark: 150 }
 const SUBJECT_MATH: SubjectDef = { id: 'math', name: '数学', category: 'core', fullMark: 150 }
@@ -98,7 +63,7 @@ const apiMock = {
 describe('useGradeEntry', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as unknown as { api: unknown }).api = apiMock
+    ;setWindowApi(apiMock)
     apiMock.academic.getClassGrades.mockResolvedValue({ success: true, data: {} })
     apiMock.academic.createExam.mockResolvedValue({
       success: true,
@@ -111,7 +76,7 @@ describe('useGradeEntry', () => {
   })
 
   afterEach(() => {
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   // ---------- 初始状态 ----------

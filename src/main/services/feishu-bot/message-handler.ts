@@ -5,6 +5,7 @@
 // =============================================================
 
 import type * as lark from '@larksuiteoapi/node-sdk'
+import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import type { CommandContext, FeishuCommandRouter } from './command-router'
 import { parseIncomingMessage } from './message-parsing'
@@ -12,7 +13,7 @@ import { sendReply } from './reply'
 import type { FeishuMessageEvent } from './types'
 
 /** 消息处理流程所需依赖(由 facade 注入,保持本模块无状态) */
-export interface MessageHandlerDeps {
+interface MessageHandlerDeps {
   /** 斜杠命令路由器 */
   router: FeishuCommandRouter
   /** 动态获取当前 SDK Client(stop/重启时会被置 null,不能提前捕获) */
@@ -45,7 +46,7 @@ export async function handleIncomingMessage(
     try {
       reply = await deps.router.dispatch(text, ctx)
     } catch (err) {
-      reply = `命令处理出错: ${err instanceof Error ? err.message : String(err)}`
+      reply = `命令处理出错: ${errText(err)}`
     }
 
     if (reply === null) {

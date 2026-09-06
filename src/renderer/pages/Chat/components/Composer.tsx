@@ -3,7 +3,7 @@
 // =============================================================
 
 import { Paperclip } from 'lucide-react'
-import { type RefObject, useEffect } from 'react'
+import { memo, type RefObject, useEffect } from 'react'
 import { Button } from '../../../components/Button'
 import { useT } from '../../../i18n'
 import type { UploadedFile } from '../lib/chat-message'
@@ -24,7 +24,7 @@ interface ComposerProps {
 }
 
 /** 底部输入区：文件上传 + 多行输入 + 发送/停止按钮 */
-export function Composer({
+export const Composer = memo(function Composer({
   input,
   onInputChange,
   inputRef,
@@ -132,4 +132,4 @@ export function Composer({
       </div>
     </div>
   )
-}
+})

@@ -8,7 +8,7 @@ import { Card } from '../../../components/Card'
 import { useT } from '../../../i18n'
 
 /** 单个插件卡的 props */
-export interface PluginCardProps {
+interface PluginCardProps {
   icon: React.ReactNode
   title: string
   description: string

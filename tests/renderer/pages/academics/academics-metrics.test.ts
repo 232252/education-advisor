@@ -18,49 +18,17 @@ import {
   filterStudents,
   sortByDateAsc,
 } from '../../../../src/renderer/lib/academics'
+import {
+  makeExam,
+  makeGrade,
+  makeStudent as makeStudentBase,
+} from '../../__fixtures__/make'
 
-// ---------- 数据工厂 ----------
+// ---------- 数据工厂(单一来源: tests/renderer/__fixtures__/make) ----------
 
-function makeStudent(overrides: Partial<EAAStudent> = {}): EAAStudent {
-  return {
-    name: '张三',
-    entity_id: 'ent-1',
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: 'class-1',
-    ...overrides,
-  }
-}
-
-function makeExam(overrides: Partial<ExamDef> = {}): ExamDef {
-  return {
-    id: 'exam-1',
-    name: '期中考试',
-    type: 'midterm',
-    date: '2025-11-01',
-    semester: '2025-2026-1',
-    subjects: ['chinese', 'math'],
-    createdAt: '2025-11-02T00:00:00Z',
-    ...overrides,
-  }
-}
-
-function makeGrade(overrides: Partial<GradeRecord> = {}): GradeRecord {
-  return {
-    examId: 'exam-1',
-    subjectId: 'chinese',
-    studentName: '张三',
-    score: 90,
-    fullMark: 150,
-    updatedAt: '2025-11-02T00:00:00Z',
-    ...overrides,
-  }
-}
+// 本文件历史默认 class_id 为 'class-1',与共享工厂不同,用适配器保持原值
+const makeStudent = (overrides: Partial<EAAStudent> = {}): EAAStudent =>
+  makeStudentBase({ class_id: 'class-1', ...overrides })
 
 // ---------- sortByDateAsc ----------
 
@@ -117,20 +85,19 @@ describe('calcSubjectAvg', () => {
     expect(calcSubjectAvg(grades, 'english')).toBeNull()
   })
 
-  it('score 为 null 或 0 的记录不计入平均', () => {
+  // 2026-09-05 口径统一: 0 分是真实成绩(录入非空即存/显示 0/computeExamAverage 均计入),
+  // 仅缺考(null)不计入平均 — 此前 0 被剔除导致平均分虚高
+  it('score 为 null 的缺考记录不计入平均,0 分计入', () => {
     const grades = [
       makeGrade({ subjectId: 'math', score: null }),
       makeGrade({ subjectId: 'math', score: 0 }),
       makeGrade({ subjectId: 'math', score: 100 }),
     ]
-    expect(calcSubjectAvg(grades, 'math')).toBe(100)
+    expect(calcSubjectAvg(grades, 'math')).toBe(50)
   })
 
-  it('全部无效分数返回 null', () => {
-    const grades = [
-      makeGrade({ subjectId: 'math', score: null }),
-      makeGrade({ subjectId: 'math', score: 0 }),
-    ]
+  it('全部缺考(null)返回 null', () => {
+    const grades = [makeGrade({ subjectId: 'math', score: null })]
     expect(calcSubjectAvg(grades, 'math')).toBeNull()
   })
 })
