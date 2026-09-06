@@ -5,7 +5,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './App'
-import { initHtmlLang } from './i18n'
+import { initHtmlLang, startHealWatcher } from './i18n'
 // Inter Variable(西文/数字主字体) — 必须在 globals.css 之前加载，
 // 使 --font-sans 首位的 "Inter Variable" @font-face 就绪；CJK 仍走系统字体
 import '@fontsource-variable/inter'
@@ -18,6 +18,8 @@ import './styles/globals.css'
 
 // 启动时同步 <html lang> 到当前 i18n 语言 (修复 index.html 静态 "zh-CN" 不随切换更新)
 initHtmlLang()
+// app:// 分区 localStorage 刷盘窗口竞态自愈(boot 后 10s 内持续对齐偏好)
+startHealWatcher()
 
 const rootEl = document.getElementById('root')
 if (!rootEl) throw new Error('Root element #root not found')

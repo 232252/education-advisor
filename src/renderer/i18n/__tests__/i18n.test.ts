@@ -108,33 +108,68 @@ describe('i18n', () => {
       expect(getLang()).toBe('en')
     })
 
-    it('healLangFromStorage — storage 晚就绪时自愈 boot 语言(竞态修复)', async () => {
-      const { healLangFromStorage } = await import('../index')
+    it('healLangFromStorage — storage 晚就绪时自愈 boot 语言(竞态修复,幂等)', async () => {
+      vi.resetModules()
+      const { healLangFromStorage, setLang: setLangFresh, getLang: getLangFresh } = await import('../index')
       // 现场: boot 时读到旧值锁 zh,但 storage 实际偏好是 en
-      setLang('zh')
+      setLangFresh('zh')
       mockLocalStorage.setItem('education-advisor.lang', 'en')
       healLangFromStorage()
-      expect(getLang()).toBe('en')
+      expect(getLangFresh()).toBe('en')
       // 自愈走 setLang 语义: 偏好回写 + html lang 同步
       expect(mockLocalStorage.setItem).toHaveBeenLastCalledWith('education-advisor.lang', 'en')
-    })
-
-    it('healLangFromStorage — 哨兵幂等,自愈后再次漂移不再纠正', async () => {
-      const { healLangFromStorage } = await import('../index')
-      setLang('en')
-      healLangFromStorage() // 首次调用消耗哨兵(storage=en 与 currentLang 一致,无操作)
-      setLang('zh') // 模拟此后被改回 zh
-      mockLocalStorage.setItem('education-advisor.lang', 'en')
+      // 幂等: 连续调用一致即无操作
       healLangFromStorage()
-      expect(getLang()).toBe('zh') // 哨兵已耗尽,不再自愈
+      expect(getLangFresh()).toBe('en')
     })
 
     it('healLangFromStorage — storage 无有效值时不动', async () => {
-      const { healLangFromStorage } = await import('../index')
-      setLang('zh')
+      vi.resetModules()
+      const { healLangFromStorage, setLang: setLangFresh, getLang: getLangFresh } = await import('../index')
+      setLangFresh('zh')
       mockLocalStorage.clear()
       healLangFromStorage()
-      expect(getLang()).toBe('zh')
+      expect(getLangFresh()).toBe('zh')
+    })
+
+    it('startHealWatcher — 窗口内刷盘完成后自动对齐语言', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.resetModules()
+        const mod = await import('../index')
+        mod.setLang('zh')
+        // 模拟: boot 后 1.2s 刷盘完成,storage 显示真实偏好 en
+        mockLocalStorage.setItem('education-advisor.lang', 'en')
+        mod.startHealWatcher()
+        await vi.advanceTimersByTimeAsync(500)
+        // 模拟 1.2s 时刻刷盘(前两轮 poll 时 storage 仍是旧值 zh 的场景:
+        // watcher 每次都会 setLang(zh),等价 no-op)
+        mockLocalStorage.setItem('education-advisor.lang', 'en')
+        await vi.advanceTimersByTimeAsync(1500)
+        expect(mod.getLang()).toBe('en')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('startHealWatcher — 10s 窗口耗尽后停止轮询', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.resetModules()
+        const mod = await import('../index')
+        mod.setLang('en')
+        mod.startHealWatcher()
+        // 窗口内 storage 一直是 zh: watcher 会不断拉回 zh
+        mockLocalStorage.setItem('education-advisor.lang', 'zh')
+        await vi.advanceTimersByTimeAsync(10_500)
+        expect(mod.getLang()).toBe('zh')
+        // 窗口已过: 改 storage 不再被拉回
+        mockLocalStorage.setItem('education-advisor.lang', 'en')
+        await vi.advanceTimersByTimeAsync(2000)
+        expect(mod.getLang()).toBe('zh')
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 
