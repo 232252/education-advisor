@@ -1,0 +1,13 @@
+# Education Advisor Agent 用户覆盖配置
+# 此文件由 UI 自动生成,主配置文件 config/agents.yaml 不会被修改
+# 仅记录用户在 UI 中改过的字段（enabled/name/description/modelTier/capabilities/mcp_servers）
+# 删除此文件可重置所有覆盖
+agents:
+  - id: test-agent
+    description: 更新后描述
+    modelTier: high_quality
+    mcp_servers:
+      - fs
+  - id: plain-agent
+    enabled: true
+
