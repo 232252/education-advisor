@@ -33,7 +33,10 @@ if (!targets || targets.length === 0) {
 }
 const { evl, close } = await connectCdp()
 
-await evl(`localStorage.setItem('${LANG_KEY}', '${LANG}'); location.hash = '#/dashboard'; location.reload()`)
+// 语言切换用 setItem + i18n-changed 事件(与 SettingsPage 真实路径同语义)。
+// 不用 location.reload(): 跨 reload 的 storage 写入存在间歇丢失
+// (Chromium app:// 分区语义,见 ADR 0008),会让审计结果不确定。
+await evl(`localStorage.setItem('${LANG_KEY}', '${LANG}'); location.hash = '#/dashboard'; window.dispatchEvent(new CustomEvent('i18n-changed', { detail: '${LANG}' }))`)
 await sleep(3000)
 
 const findings = []
