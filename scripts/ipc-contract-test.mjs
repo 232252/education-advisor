@@ -11,54 +11,33 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+import { ROOT, parseIpcChannelConstants, stripComments, walkFiles } from './lib/gate-utils.mjs'
 
 // =============================================================
 // --static 模式: 纯文本解析
 // =============================================================
 
-/** 去掉块注释与行注释, 避免把注释中的 ipcMain.handle(...) 误计入集合 */
-function stripComments(src) {
-  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-}
-
-/** C: src/shared/ipc-channels.ts 导出的通道常量名集合 */
-function parseChannelConstants() {
-  const file = path.join(ROOT, 'src', 'shared', 'ipc-channels.ts')
-  const src = stripComments(fs.readFileSync(file, 'utf8'))
-  const set = new Set()
-  const re = /^export const (IPC_[A-Z0-9_]+)\s*=/gm
-  let m
-  while ((m = re.exec(src)) !== null) set.add(m[1])
-  return set
-}
+const parseChannelConstants = parseIpcChannelConstants
 
 /** 递归收集目录下所有 .ts 文件(跳过 __tests__) */
-function walkTsFiles(dir, out = []) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      if (entry.name === '__tests__' || entry.name === 'node_modules') continue
-      walkTsFiles(full, out)
-    } else if (entry.isFile() && entry.name.endsWith('.ts')) {
-      out.push(full)
-    }
-  }
-  return out
-}
+const walkTsFiles = (dir) => walkFiles(dir, (f) => f.endsWith('.ts'), ['node_modules', '__tests__'])
 
-/** H: src/main/ipc/** 中 ipcMain.handle(IPC.XXX 注册的常量集合 */
+/** H: src/main/ipc/** 中注册为 handler 的通道常量集合 */
 function parseHandledChannels() {
   const dir = path.join(ROOT, 'src', 'main', 'ipc')
   const set = new Set()
-  const re = /ipcMain\.handle\(\s*IPC\.(IPC_[A-Z0-9_]+)/g
+  // 三种注册形态: 裸 ipcMain.handle(IPC.X / handleIpc(IPC.X(统一骨架) /
+  // 已知注册工厂 registerCachedStatic( · registerPassThrough( 的 IPC.X 首参直传调用。
+  // 新增注册工厂时把工厂名加进本正则,或在下方 EXTRA_HANDLED 登记。
+  const re = /(?:ipcMain\.handle|handleIpc|registerCachedStatic|registerPassThrough)\(\s*IPC\.(IPC_[A-Z0-9_]+)/g
   for (const file of walkTsFiles(dir)) {
     const src = stripComments(fs.readFileSync(file, 'utf8'))
     let m
     while ((m = re.exec(src)) !== null) set.add(m[1])
   }
+  // 间接注册补充: 首参经局部助手转传(如 agent-handlers 的 registerDocSetter(channel,...)),
+  // 静态解析不可见,此处人工核对后登记。新增间接注册时同步维护此清单。
+  for (const x of ['IPC_AGENT_SET_SOUL', 'IPC_AGENT_SET_RULES']) set.add(x)
   return set
 }
 
@@ -131,29 +110,8 @@ if (process.argv.includes('--static')) {
 // 运行时模式: 通过 CDP 逐个调用 window.api 方法
 // =============================================================
 
-const { default: WebSocket } = await import('ws')
-
-const page = (await (await fetch('http://localhost:9222/json')).json()).find((t) => t.type === 'page')
-const ws = new WebSocket(page.webSocketDebuggerUrl, { maxPayload: 256 * 1024 * 1024 })
-await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej) })
-let id = 0
-const pending = new Map()
-ws.on('message', (data) => {
-  const msg = JSON.parse(data.toString())
-  if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id) }
-})
-const send = (method, params = {}, timeout = 30000) => new Promise((res, rej) => {
-  const mid = ++id
-  const t = setTimeout(() => { pending.delete(mid); rej(new Error(`timeout ${method}`)) }, timeout)
-  pending.set(mid, (m) => { clearTimeout(t); res(m) })
-  ws.send(JSON.stringify({ id: mid, method, params }))
-})
-const evl = async (expr, timeout = 25000) => {
-  const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }, timeout)
-  if (r.result?.exceptionDetails) return { __error: (r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text).slice(0, 400) }
-  return r.result?.result?.value
-}
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const { connectCdp } = await import('./lib/cdp-client.mjs')
+const { evl, close } = await connectCdp()
 
 // 逐个 API 调用并结构化输出
 const tests = [
@@ -174,10 +132,8 @@ const tests = [
   ['mcp.list', `api.mcp.list()`],
   ['privacy.status', `api.privacy.status()`],
   ['log.list', `api.log.list({})`],
-  ['sys.getPath', `api.sys.getPath('userData')`],
   ['ollama.detect', `api.ollama.detect()`],
   ['feishu.botStatus', `api.feishu.botStatus()`],
-  ['feishu.status', `api.feishu.status()`],
   ['profile.get', `api.profile.get('test')`],
 ]
 
@@ -201,5 +157,5 @@ for (const [name, expr] of tests) {
     console.log(`✓ ${name} (${ms}ms): ${summary}`)
   } catch (e) { console.log(`✗ ${name}: ${e.message}`) }
 }
-ws.close()
+close()
 process.exit(0)

@@ -1,45 +1,23 @@
 // CDP 深度交互测试: 主题切换 + Dashboard 班级过滤 + 班级对比
 import fs from 'node:fs'
-import WebSocket from 'ws'
+import { connectCdp } from '../lib/cdp-client.mjs'
 
 const OUT = process.argv[2] || process.env.TEMP + '/cdp-interact'
 fs.mkdirSync(OUT, { recursive: true })
 
-async function getPageTarget() {
-  const res = await fetch(`http://localhost:${process.env.EA_CDP_PORT || '9222'}/json`)
-  const targets = await res.json()
-  const page = targets.find((t) => t.type === 'page' && !t.url.startsWith('devtools'))
-  if (!page) throw new Error('no page target')
-  return page
-}
-
-const page = await getPageTarget()
-const ws = new WebSocket(page.webSocketDebuggerUrl, { maxPayload: 256 * 1024 * 1024 })
-await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej) })
-let id = 0
-const pending = new Map()
+// 控制台错误/异常经 onMessage 事件流收集(应答消息由库内部消化)
 const consoleMsgs = []
-ws.on('message', (data) => {
-  const msg = JSON.parse(data.toString())
-  if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id) }
-  if (msg.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(msg.params.type)) {
-    consoleMsgs.push({ type: msg.params.type, text: msg.params.args?.map((a) => a.value ?? a.description ?? '').join(' ').slice(0, 300) })
-  }
-  if (msg.method === 'Runtime.exceptionThrown') {
-    consoleMsgs.push({ type: 'exception', text: JSON.stringify(msg.params.exceptionDetails).slice(0, 300) })
-  }
+const { send, evl, close } = await connectCdp({
+  pageFilter: (t) => t.type === 'page' && !t.url.startsWith('devtools'),
+  onMessage: (msg) => {
+    if (msg.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(msg.params.type)) {
+      consoleMsgs.push({ type: msg.params.type, text: msg.params.args?.map((a) => a.value ?? a.description ?? '').join(' ').slice(0, 300) })
+    }
+    if (msg.method === 'Runtime.exceptionThrown') {
+      consoleMsgs.push({ type: 'exception', text: JSON.stringify(msg.params.exceptionDetails).slice(0, 300) })
+    }
+  },
 })
-const send = (method, params = {}, timeoutMs = 15000) => new Promise((res, rej) => {
-  const mid = ++id
-  const timer = setTimeout(() => { pending.delete(mid); rej(new Error(`CDP timeout: ${method}`)) }, timeoutMs)
-  pending.set(mid, (msg) => { clearTimeout(timer); res(msg) })
-  ws.send(JSON.stringify({ id: mid, method, params }))
-})
-const evl = async (expr) => {
-  const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true })
-  if (r.result?.exceptionDetails) return { __error: r.result.exceptionDetails.text + ' ' + (r.result.exceptionDetails.exception?.description || '') }
-  return r.result?.result?.value
-}
 // 截图用独立子进程: 同一会话内 Runtime.enable + captureScreenshot 组合偶发无响应,
 // cdp-shot.mjs 独立进程 100% 可靠, 直接复用。
 import { execFileSync } from 'node:child_process'
@@ -168,5 +146,5 @@ report.consoleIssues = pageErrors || []
 fs.writeFileSync(`${OUT}/report.json`, JSON.stringify(report, null, 2))
 console.log('page errors:', (pageErrors || []).length)
 for (const c of (pageErrors || []).slice(0, 10)) console.log(' [page]', c.type, c.text)
-ws.close()
+close()
 process.exit(0)

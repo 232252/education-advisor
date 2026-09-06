@@ -5,6 +5,7 @@
 // =============================================================
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { makeFakeWindow } from './helpers/electron-ipc'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -204,10 +205,7 @@ describe('AgentService finally 块 abort', () => {
     agentMockState.waitForIdleImpl = () => Promise.resolve()
 
     const cleanup = injectTestAgent('test-prompt-error')
-    const fakeWin = {
-      isDestroyed: () => false,
-      webContents: { send: vi.fn() },
-    }
+    const fakeWin = makeFakeWindow()
 
     // runAgent 不 rethrow(catch 块吞掉错误),所以应正常 resolve
     await agentService.runAgent('test-prompt-error', 'test', fakeWin as never)
@@ -226,10 +224,7 @@ describe('AgentService finally 块 abort', () => {
     agentMockState.waitForIdleImpl = () => Promise.resolve()
 
     const cleanup = injectTestAgent('test-normal-complete')
-    const fakeWin = {
-      isDestroyed: () => false,
-      webContents: { send: vi.fn() },
-    }
+    const fakeWin = makeFakeWindow()
 
     await agentService.runAgent('test-normal-complete', 'test', fakeWin as never)
 
@@ -245,10 +240,7 @@ describe('AgentService finally 块 abort', () => {
     agentMockState.waitForIdleImpl = () => Promise.resolve()
 
     const cleanup = injectTestAgent('test-double-run')
-    const fakeWin = {
-      isDestroyed: () => false,
-      webContents: { send: vi.fn() },
-    }
+    const fakeWin = makeFakeWindow()
 
     // 第一次运行
     await agentService.runAgent('test-double-run', 'first', fakeWin as never)
@@ -273,10 +265,7 @@ describe('M15: Agent 超时错标修复 + 可配置', () => {
     agentMockState.waitForIdleImpl = () => new Promise<void>(() => {})
 
     const cleanup = injectTestAgent('test-m15-timeout')
-    const fakeWin = {
-      isDestroyed: () => false,
-      webContents: { send: vi.fn() },
-    }
+    const fakeWin = makeFakeWindow()
 
     // 引入被 mock 的 dbService 断言落库状态
     const { dbService } = await import('../../src/main/services/db-service')
@@ -310,10 +299,7 @@ describe('M15: Agent 超时错标修复 + 可配置', () => {
     agentMockState.waitForIdleImpl = () => Promise.resolve()
 
     const cleanup = injectTestAgent('test-m15-error')
-    const fakeWin = {
-      isDestroyed: () => false,
-      webContents: { send: vi.fn() },
-    }
+    const fakeWin = makeFakeWindow()
 
     const { dbService } = await import('../../src/main/services/db-service')
     const updateExecutionMock = dbService.updateExecution as unknown as ReturnType<typeof vi.fn>

@@ -100,16 +100,21 @@ export function CommandPalette() {
     }
   }, [cache])
 
+  // loadData 依赖 cache,缓存写入后身份变化 — open effect 若直接依赖它会在
+  // 数据加载完成时重跑并把用户刚输入的 query 擦掉(首开必现,60s 缓存过期后复发)。
+  // 用 ref 透传,effect 仅随 open 触发。
+  const loadDataRef = useRef(loadData)
+  loadDataRef.current = loadData
   useEffect(() => {
     if (!open) return
     setQuery('')
     setActiveIndex(0)
     setEventResults([])
     setEventError(false)
-    void loadData()
+    void loadDataRef.current()
     // 挂载后聚焦(等 overlay 渲染完成)
     requestAnimationFrame(() => inputRef.current?.focus())
-  }, [open, loadData])
+  }, [open])
 
   // ── 本地搜索结果(学生/班级/Agent/导航) ──
   const navCommands: NavCommand[] = useMemo(
@@ -133,20 +138,26 @@ export function CommandPalette() {
     [query, cache, agents, navCommands],
   )
 
-  // ── EAA 事件异步搜索(防抖) ──
+  // ── EAA 事件异步搜索(防抖 + 陈旧响应守卫) ──
+  // 防抖只拦未触发的 timer;已 in-flight 的请求在 query 变化后晚到,
+  // 会覆盖新查询的结果 — cancelled 标志保证只有最后一次 effect 的响应落地。
   useEffect(() => {
     const q = query.trim()
+    let cancelled = false
     if (!open || !q) {
       setEventResults([])
       setEventSearching(false)
       setEventError(false)
-      return
+      return () => {
+        cancelled = true
+      }
     }
     setEventSearching(true)
     setEventError(false)
     const timer = window.setTimeout(async () => {
       try {
         const res = await getAPI().eaa.search(q, 8)
+        if (cancelled) return
         if (res.success && res.data?.events) {
           setEventResults(buildEventResults(res.data.events))
         } else {
@@ -154,13 +165,17 @@ export function CommandPalette() {
         }
       } catch (err) {
         console.warn('[Palette] event search failed:', err)
+        if (cancelled) return
         setEventResults([])
         setEventError(true)
       } finally {
-        setEventSearching(false)
+        if (!cancelled) setEventSearching(false)
       }
     }, EVENT_SEARCH_DEBOUNCE_MS)
-    return () => window.clearTimeout(timer)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
   }, [query, open])
 
   // ── 汇总 + 分组 ──

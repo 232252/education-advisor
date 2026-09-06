@@ -4,41 +4,29 @@
 
 import * as IPC from '@shared/ipc-channels'
 import type { ClassUpsertParams } from '@shared/types'
-import { type IpcMainInvokeEvent, ipcMain } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
 import { classService } from '../../services/class-service'
 import { eaaBridge } from '../../services/eaa-bridge'
-import { invalidateStudentsCacheExternal } from '../eaa-handlers'
+import { invalidateStudentsCacheNow } from '../eaa/cache'
+import { handleIpc } from '../handle'
+import { requireClassId } from './params'
 
 export function registerClassCrudHandlers(): void {
   // [r] 列出所有班级
-  ipcMain.handle(IPC.IPC_CLASS_LIST, async () => {
-    try {
-      return { success: true, data: classService.list() }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      return { success: false, error: msg }
-    }
+  handleIpc(IPC.IPC_CLASS_LIST, async () => {
+    return { success: true, data: classService.list() }
   })
 
   // [w] 新建班级
-  ipcMain.handle(
-    IPC.IPC_CLASS_CREATE,
-    async (_e: IpcMainInvokeEvent, params: ClassUpsertParams) => {
-      try {
-        if (!params || typeof params !== 'object') {
-          return { success: false, error: 'params must be an object' }
-        }
-        return classService.create(params)
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        console.error('[IPC] class:create failed:', msg)
-        return { success: false, error: msg }
-      }
-    },
-  )
+  handleIpc(IPC.IPC_CLASS_CREATE, async (_e: IpcMainInvokeEvent, params: ClassUpsertParams) => {
+    if (!params || typeof params !== 'object') {
+      return { success: false, error: 'params must be an object' }
+    }
+    return classService.create(params)
+  })
 
   // [w] 更新班级信息（名称/年级/备注/班主任）
-  ipcMain.handle(
+  handleIpc(
     IPC.IPC_CLASS_UPDATE,
     async (
       _e: IpcMainInvokeEvent,
@@ -50,53 +38,47 @@ export function registerClassCrudHandlers(): void {
         teacher?: string | null
       },
     ) => {
-      try {
-        if (typeof id !== 'string' || id.trim().length === 0) {
-          return { success: false, error: 'id must be a non-empty string' }
-        }
-        return classService.update(id, fields)
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        console.error(`[IPC] class:update failed for "${id}":`, msg)
-        return { success: false, error: msg }
-      }
+      const invalidId = requireClassId(id)
+      if (invalidId) return invalidId
+      return classService.update(id, fields)
+    },
+    {
+      label: (id: string) => `class:update failed for "${id}"`,
     },
   )
 
   // [w] 存档班级（标记隐藏，数据保留）
-  ipcMain.handle(IPC.IPC_CLASS_ARCHIVE, async (_e: IpcMainInvokeEvent, id: string) => {
-    try {
-      if (typeof id !== 'string' || id.trim().length === 0) {
-        return { success: false, error: 'id must be a non-empty string' }
-      }
+  handleIpc(
+    IPC.IPC_CLASS_ARCHIVE,
+    async (_e: IpcMainInvokeEvent, id: string) => {
+      const invalidId = requireClassId(id)
+      if (invalidId) return invalidId
       return classService.archive(id)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] class:archive failed for "${id}":`, msg)
-      return { success: false, error: msg }
-    }
-  })
+    },
+    {
+      label: (id: string) => `class:archive failed for "${id}"`,
+    },
+  )
 
   // [w] 恢复班级（取消存档）
-  ipcMain.handle(IPC.IPC_CLASS_RESTORE, async (_e: IpcMainInvokeEvent, id: string) => {
-    try {
-      if (typeof id !== 'string' || id.trim().length === 0) {
-        return { success: false, error: 'id must be a non-empty string' }
-      }
+  handleIpc(
+    IPC.IPC_CLASS_RESTORE,
+    async (_e: IpcMainInvokeEvent, id: string) => {
+      const invalidId = requireClassId(id)
+      if (invalidId) return invalidId
       return classService.restore(id)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] class:restore failed for "${id}":`, msg)
-      return { success: false, error: msg }
-    }
-  })
+    },
+    {
+      label: (id: string) => `class:restore failed for "${id}"`,
+    },
+  )
 
   // [c] 删除班级（仅删本地记录，学生保留）— UI 层应二次确认
-  ipcMain.handle(IPC.IPC_CLASS_DELETE, async (_e: IpcMainInvokeEvent, id: string) => {
-    try {
-      if (typeof id !== 'string' || id.trim().length === 0) {
-        return { success: false, error: 'id must be a non-empty string' }
-      }
+  handleIpc(
+    IPC.IPC_CLASS_DELETE,
+    async (_e: IpcMainInvokeEvent, id: string) => {
+      const invalidId = requireClassId(id)
+      if (invalidId) return invalidId
       const result = classService.delete(id)
       // 级联清理:把 EAA 中 class_id 指向该班的学生清除 class_id,避免"幽灵 class_id"导致数据不互通
       if (result.success && result.classId) {
@@ -142,13 +124,12 @@ export function registerClassCrudHandlers(): void {
           console.warn('[Class] cascade clear class_id failed:', e)
         }
         // 级联清理后让 students/ranking/score 缓存失效,确保下次加载看到最新数据
-        invalidateStudentsCacheExternal()
+        invalidateStudentsCacheNow()
       }
       return result
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] class:delete failed for "${id}":`, msg)
-      return { success: false, error: msg }
-    }
-  })
+    },
+    {
+      label: (id: string) => `class:delete failed for "${id}"`,
+    },
+  )
 }

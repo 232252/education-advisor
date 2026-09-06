@@ -16,7 +16,7 @@ import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
 
-export interface ExamGradeSheetData {
+interface ExamGradeSheetData {
   exam: ExamDef
   rows: GradeSheetRow[]
   subjectStats: SubjectStat[]

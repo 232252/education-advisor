@@ -21,12 +21,12 @@ export type ClassCountMap = Record<string, number>
 /** 加载班级列表与学生数统计（学生数随共享 store 数据到达自动更新） */
 export function useClassesData() {
   const { t } = useT()
-  const classes = useClassStore((s) => s.classes)
+  const classes = useClassStore((s) => s.items)
   const classesLoading = useClassStore((s) => s.loading)
   const classesSettled = useClassStore((s) => s.settled)
   const classesError = useClassStore((s) => s.error)
   // 原始全量学生(含 Deleted) — 人数统计口径与原实现一致
-  const allStudents = useStudentStore((s) => s.students)
+  const allStudents = useStudentStore((s) => s.items)
 
   // 班级加载异常提示(与原行为一致: 仅 IPC 异常 toast)
   const lastErrorRef = useRef<string | null>(null)
@@ -41,8 +41,8 @@ export function useClassesData() {
   // 学生非强制 — TTL 内复用其他页刚拉的数据,过期则后台重拉(不阻塞班级显示)
   const loadClasses = useCallback(async () => {
     await Promise.all([
-      useClassStore.getState().fetchClasses({ force: true }),
-      useStudentStore.getState().fetchStudents(),
+      useClassStore.getState().fetchItems({ force: true }),
+      useStudentStore.getState().fetchItems(),
     ])
   }, [])
 

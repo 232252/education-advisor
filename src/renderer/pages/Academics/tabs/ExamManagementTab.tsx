@@ -15,7 +15,7 @@ import { CreateExamFormCard, ExamCardGrid, ExamListHeader } from '../components/
 import { useExamGradeSheet } from '../hooks/useExamGradeSheet'
 import { useExamManagement } from '../hooks/useExamManagement'
 
-export interface ExamManagementTabProps {
+interface ExamManagementTabProps {
   subjects: SubjectDef[]
   examTypes: Array<{ value: ExamType; label: string }>
   exams: ExamDef[]

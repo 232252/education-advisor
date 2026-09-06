@@ -16,6 +16,7 @@ const LIVE_OUTPUT_BATCH_MS = 50
 // R95 修复: 限制 liveOutput 最大字符数 (1MB),防止长 agent 运行导致内存无界增长
 const LIVE_OUTPUT_MAX_CHARS = 1_000_000
 
+/** 立即刷新批处理 — 用于状态切换(running→idle/error)前确保输出完整 */
 export function _flushLiveOutput(set: (fn: (s: AgentState) => Partial<AgentState>) => void): void {
   if (_liveOutputTimer) {
     clearTimeout(_liveOutputTimer)
@@ -35,13 +36,6 @@ export function _flushLiveOutput(set: (fn: (s: AgentState) => Partial<AgentState
     }
     return { liveOutput: next }
   })
-}
-
-/** 立即刷新批处理 — 用于状态切换(running→idle/error)前确保输出完整 */
-export function _flushLiveOutputNow(
-  set: (fn: (s: AgentState) => Partial<AgentState>) => void,
-): void {
-  _flushLiveOutput(set)
 }
 
 export function _appendLiveOutput(

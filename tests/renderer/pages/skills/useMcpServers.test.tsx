@@ -30,6 +30,8 @@ const toastMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../../../../src/renderer/lib/ipc-client', () => ({
+  // 与真实 errText 同义:Error 取 message,其余 String 化(toast.error(err.message) 断言依赖)
+  errText: (err: unknown) => (err instanceof Error ? err.message : String(err)),
   getAPI: () => ({
     settings: {
       get: mocks.settingsGet,

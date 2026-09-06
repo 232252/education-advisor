@@ -3,50 +3,29 @@
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
-import { type BrowserWindow, ipcMain } from 'electron'
+import type { BrowserWindow } from 'electron'
 import { skillService } from '../services/skill-service'
+import { handleIpc } from './handle'
 
 export function registerSkillHandlers(_win: BrowserWindow) {
-  ipcMain.handle(IPC.IPC_SKILL_LIST, async () => {
-    try {
-      return skillService.listSkills()
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] skill:list failed:', msg)
-      return []
-    }
-  })
+  handleIpc(
+    IPC.IPC_SKILL_LIST,
+    () => skillService.listSkills(),
+    () => [],
+  )
 
-  ipcMain.handle(IPC.IPC_SKILL_GET, async (_e, name: string) => {
-    try {
-      return skillService.getSkill(name)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] skill:get failed:', msg)
-      // F3 模式: 渲染层契约是 Skill | null,错误时返回 null 而非形状不符的对象
-      return null
-    }
-  })
+  // F3 模式: 渲染层契约是 Skill | null,错误时返回 null 而非形状不符的对象
+  handleIpc(
+    IPC.IPC_SKILL_GET,
+    (_e, name: string) => skillService.getSkill(name),
+    () => null,
+  )
 
-  ipcMain.handle(IPC.IPC_SKILL_SAVE, async (_e, name: string, content: string) => {
-    try {
-      return skillService.saveSkill(name, content)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] skill:save failed:', msg)
-      return { success: false, error: msg }
-    }
-  })
+  handleIpc(IPC.IPC_SKILL_SAVE, (_e, name: string, content: string) =>
+    skillService.saveSkill(name, content),
+  )
 
-  ipcMain.handle(IPC.IPC_SKILL_DELETE, async (_e, name: string) => {
-    try {
-      return skillService.deleteSkill(name)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] skill:delete failed:', msg)
-      return { success: false, error: msg }
-    }
-  })
+  handleIpc(IPC.IPC_SKILL_DELETE, (_e, name: string) => skillService.deleteSkill(name))
 
   console.log('[IPC] Skill handlers registered')
 }

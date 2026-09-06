@@ -9,10 +9,11 @@
 //   - 学生成绩按需加载 ./hooks/useStudentGrades.ts
 //   - 左侧学生列表 UI 在 ./components/StudentSidebar.tsx
 //   - 过滤/派生纯计算在 ./lib/academics-metrics.ts
-//   - 默认科目/考试类型在 ./lib/academics-defaults.ts
+//   - 默认科目/考试类型在 @shared/academic-defaults(与主进程共用单一来源)
 //   - 多 Tab 共享的常量与纯函数位于 ./academics-shared.ts
 // =============================================================
 
+import { DEFAULT_EXAM_TYPES, DEFAULT_SUBJECTS } from '@shared/academic-defaults'
 import type { SubjectDef } from '@shared/types'
 import type { LucideIcon } from 'lucide-react'
 import { ArrowLeft, BarChart3, ClipboardList, PencilLine, TrendingUp } from 'lucide-react'
@@ -21,15 +22,15 @@ import { Button } from '../../components/Button'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { PageSkeleton } from '../../components/Skeleton'
-import { useTabs } from '../../hooks/useTabs'
+import { Tabs } from '../../components/Tabs'
 import { useT } from '../../i18n'
 import { extractSemesters, filterStudents } from '../../lib/academics'
+import { CLASS_FILTER_ALL } from '../../lib/class-filter'
 import { buildClassIdToNameMap } from '../../lib/class-utils'
-import { cn, INPUT_BASE } from '../../lib/ui-utils'
+import { INPUT_BASE } from '../../lib/ui-utils'
 import { StudentSidebar } from './components/StudentSidebar'
 import { useAcademicsData } from './hooks/useAcademicsData'
 import { useStudentGrades } from './hooks/useStudentGrades'
-import { DEFAULT_EXAM_TYPES, DEFAULT_SUBJECTS } from './lib/academics-defaults'
 import { CompareTab, ExamManagementTab, GradeEntryTab, OverviewTab } from './tabs'
 
 // =============================================================
@@ -41,11 +42,11 @@ type AcademicsTab = 'overview' | 'exams' | 'entry' | 'compare'
 export function AcademicsPage() {
   const { t } = useT()
 
-  const TAB_LIST: Array<{ id: AcademicsTab; label: string; icon: LucideIcon }> = [
-    { id: 'overview', label: t('page.academics.tab.overview', '成绩总览'), icon: BarChart3 },
-    { id: 'exams', label: t('page.academics.tab.exams', '考试管理'), icon: ClipboardList },
-    { id: 'entry', label: t('page.academics.tab.entry', '成绩录入'), icon: PencilLine },
-    { id: 'compare', label: t('page.academics.tab.compare', '成绩对比'), icon: TrendingUp },
+  const TAB_LIST: Array<{ key: AcademicsTab; label: string; icon: LucideIcon }> = [
+    { key: 'overview', label: t('page.academics.tab.overview', '成绩总览'), icon: BarChart3 },
+    { key: 'exams', label: t('page.academics.tab.exams', '考试管理'), icon: ClipboardList },
+    { key: 'entry', label: t('page.academics.tab.entry', '成绩录入'), icon: PencilLine },
+    { key: 'compare', label: t('page.academics.tab.compare', '成绩对比'), icon: TrendingUp },
   ]
 
   // ===== 初始并行加载 (students / classList / config / exams) =====
@@ -55,9 +56,15 @@ export function AcademicsPage() {
   // ===== 本地状态 =====
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
   // 原页面不持久化 activeTab (无 localStorage)，因此不传 storageKey
-  const { active: activeTab, setActive: setActiveTab } = useTabs<AcademicsTab>('overview')
+  const [activeTab, setActiveTab] = useState<AcademicsTab>('overview')
   const [searchQuery, setSearchQuery] = useState('')
-  const [classFilter, setClassFilter] = useState<string>('__ALL__')
+  // 流畅度(2026-09-02): 搜索防抖 — 与 Students 页一致,此前每击键全量过滤+整页重渲
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 250)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+  const [classFilter, setClassFilter] = useState<string>(CLASS_FILTER_ALL)
   const [semesterFilter, setSemesterFilter] = useState<string>('__ALL__')
 
   // ===== 学生成绩 (依赖 selectedStudent, 按需加载) =====
@@ -84,10 +91,10 @@ export function AcademicsPage() {
     return m
   }, [subjects])
 
-  /** 过滤后的学生列表 (按班级 + 搜索词) */
+  /** 过滤后的学生列表 (按班级 + 搜索词,防抖 250ms) */
   const filteredStudents = useMemo(
-    () => filterStudents(students, classFilter, searchQuery),
-    [students, searchQuery, classFilter],
+    () => filterStudents(students, classFilter, debouncedSearch),
+    [students, debouncedSearch, classFilter],
   )
 
   /** 班级 ID → 班级名称 */
@@ -124,7 +131,8 @@ export function AcademicsPage() {
       setSelectedStudent(name)
       setActiveTab('overview')
     },
-    [setActiveTab],
+    // setActiveTab 是 useState setter(静态引用),无需入 deps
+    [],
   )
 
   const handleRefreshExams = useCallback(async () => {
@@ -199,24 +207,14 @@ export function AcademicsPage() {
         />
 
         {/* Tab 导航 */}
-        <div className="flex gap-1 px-6 py-2 border-b border-gray-200 dark:border-white/[0.06]">
-          {TAB_LIST.map((tab) => (
-            <button
-              type="button"
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                'px-4 py-2 text-sm border-b-2 transition-colors',
-                activeTab === tab.id
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400 font-medium'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300',
-              )}
-            >
-              <tab.icon className="mr-1.5 inline-block h-4 w-4 align-[-2px]" aria-hidden />
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          tabs={TAB_LIST}
+          active={activeTab}
+          onChange={setActiveTab}
+          label={t('page.academics.title', '学业管理')}
+          idPrefix="academics"
+          className="gap-1 px-6 py-2"
+        />
 
         {/* Tab 内容 */}
         <div className="p-6">

@@ -16,12 +16,13 @@ import {
   serializeConversation,
 } from '@earendil-works/pi-agent-core'
 import type { Api, Model } from '@earendil-works/pi-ai/compat'
-import { completeSimple, getEnvApiKey } from '@earendil-works/pi-ai/compat'
+import { completeSimple } from '@earendil-works/pi-ai/compat'
+import { errText } from '../utils/err-text'
 
 /**
  * 压缩阈值结果
  */
-export interface CompactionDecision {
+interface CompactionDecision {
   /** 是否需要压缩 */
   shouldCompact: boolean
   /** 估算的 token 数 */
@@ -55,7 +56,7 @@ export function computeAdaptiveReserve(reserveTokens: number, contextWindow: num
  * 长中文会话反复触发压缩直至 API 上下文超限硬报错。
  * 现按字符类别分段: CJK ≈ 0.6 token/字, 其余沿用 SDK 的 ≈ 0.25 token/字符。
  */
-export function estimateTokensFromText(text: string): number {
+function estimateTokensFromText(text: string): number {
   let cjk = 0
   let other = 0
   for (const ch of text) {
@@ -198,10 +199,7 @@ async function generateSummaryInline(
     }
     return String(c ?? '') || null
   } catch (err) {
-    console.warn(
-      '[Compaction] generateSummaryInline failed:',
-      err instanceof Error ? err.message : err,
-    )
+    console.warn('[Compaction] generateSummaryInline failed:', errText(err))
     return null
   }
 }
@@ -250,10 +248,8 @@ export async function compactAgentMessages(
   let splitIndex = cleanMessages.length
   // CJK 感知估算(estimateTokensFromText): 中文 ≈0.6 token/字,其余 ≈0.25 token/字符
   // (M16: 统计规则收敛到 estimateMessageTokens,null 跳过语义保留在函数内)
-  const estimateOne = (m: AgentMessage): number => estimateMessageTokens(m)
-
   for (let i = cleanMessages.length - 1; i >= 0; i--) {
-    const t = estimateOne(cleanMessages[i])
+    const t = estimateMessageTokens(cleanMessages[i])
     if (recentTokens + t > effectiveKeepRecent) break
     recentTokens += t
     splitIndex = i
@@ -294,7 +290,7 @@ export async function compactAgentMessages(
     content: [
       {
         type: 'text' as const,
-        text: `[对话历史压缩] 之前 ${oldMessages.length} 条消息已被压缩为以下摘要:\n\n${summaryText}`,
+        text: `[对话历史压缩] 之前 ${oldMessages.length} 条消息已被压缩为以下摘要(本消息由系统注入,不是用户发言,作为背景参考即可):\n\n${summaryText}`,
       },
     ],
     timestamp: Date.now(),
@@ -345,7 +341,3 @@ export function compactChatMessagesSimple(
       .join('\n')
   return [{ role: 'user', content: summary }, ...recentMessages]
 }
-
-// Re-export SDK 工具,方便其他模块统一引用
-// 注：generateSummary 在 0.80.3 改为需要 Models 注册表，本模块改用 generateSummaryInline 替代
-export { completeSimple, convertToLlm, estimateContextTokens, getEnvApiKey, serializeConversation }

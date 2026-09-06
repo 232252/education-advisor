@@ -4,35 +4,15 @@
 // =============================================================
 
 import { ClipboardList } from 'lucide-react'
+// 原因码 → 标签映射:单一来源 config/reason-codes.json(此前手抄 22 条逐字副本)
+import reasonCodesJson from '../../../../../config/reason-codes.json'
 import { Card } from '../../../components/Card'
 import { EmptyState } from '../../../components/EmptyState'
 import { useT } from '../../../i18n'
 
-// 原因码 → 中文标签映射
-const REASON_CODE_LABELS: Record<string, string> = {
-  SPEAK_IN_CLASS: '课堂讲话',
-  SLEEP_IN_CLASS: '课堂睡觉',
-  LATE: '迟到',
-  SCHOOL_CAUGHT: '学校抓拍违纪',
-  MAKEUP: '补差扣分',
-  DESK_UNALIGNED: '桌椅不整齐',
-  PHONE_IN_CLASS: '手机违纪',
-  SMOKING: '抽烟',
-  DRINKING_DORM: '寝室饮酒',
-  OTHER_DEDUCT: '其他扣分',
-  APPEARANCE_VIOLATION: '仪容仪表违纪',
-  BONUS_VARIABLE: '学业奖励(变量)',
-  ACTIVITY_PARTICIPATION: '活动参与加分',
-  CLASS_MONITOR: '班长履职加分',
-  CLASS_COMMITTEE: '班委履职加分',
-  CIVILIZED_DORM: '文明寝室',
-  MONTHLY_ATTENDANCE: '月勤奖励',
-  REVERT: '撤销(自动计算)',
-  LAB_EQUIPMENT_DAMAGE: '实验室设备损坏',
-  LAB_SAFETY_VIOLATION: '实验室安全违规',
-  LAB_UNSAFE_BEHAVIOR: '实验室不安全行为',
-  LAB_CLEAN_UP: '实验室未清理',
-}
+const REASON_CODE_LABELS: Record<string, string> = Object.fromEntries(
+  Object.entries(reasonCodesJson).map(([code, def]) => [code, (def as { label: string }).label]),
+)
 
 // 进度条渐变起止色（按序取用）
 const BAR_FROM = [

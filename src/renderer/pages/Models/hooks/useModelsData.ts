@@ -4,18 +4,17 @@
 // =============================================================
 
 import type { ProviderInfo } from '@shared/types'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useT } from '../../../i18n'
-import { getAPI } from '../../../lib/ipc-client'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { useIpcQuery } from '../../../hooks/useIpcQuery'
+import { errText, getAPI } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
 import { getHiddenProviders, getVisibleProviders, partitionByApiKey } from '../lib/providers-filter'
 import { useProviderModelsCache } from './useProviderModelsCache'
 
+// 稳定空数组引用,避免加载前每次渲染产生新引用
+const EMPTY_PROVIDERS: ProviderInfo[] = []
+
 export function useModelsData() {
-  const { t } = useT()
-  const [providers, setProviders] = useState<ProviderInfo[]>([])
-  const [loading, setLoading] = useState(true)
-  const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
   const {
     modelsMap,
     modelsLoading,
@@ -26,6 +25,20 @@ export function useModelsData() {
     clear: clearProviderCache,
     invalidateAndRefresh,
   } = useProviderModelsCache()
+  // 单源加载收口至 useIpcQuery(loading 仅首载置位,失败 toast;
+  // onData 在 try 内 await — 级联加载模型列表抛错走失败路径,与原实现一致)
+  const {
+    data: providersData,
+    loading,
+    reload: loadProviders,
+  } = useIpcQuery<ProviderInfo[]>(() => getAPI().ai.listProviders(), {
+    loadingMode: 'initial',
+    scope: 'Models',
+    deps: [loadAllProviderModels],
+    onData: (data) => loadAllProviderModels(data),
+  })
+  const providers = providersData ?? EMPTY_PROVIDERS
+  const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
   const [apiKeyInputs, setApiKeyInputs] = useState<Record<string, string>>({})
   const [testResults, setTestResults] = useState<Record<string, string>>({})
   const [searchTerm, setSearchTerm] = useState('')
@@ -33,25 +46,6 @@ export function useModelsData() {
   // Ref mirror of apiKeyInputs so handleTestConnection can stay stable (deps: [])
   const apiKeyInputsRef = useRef(apiKeyInputs)
   apiKeyInputsRef.current = apiKeyInputs
-
-  // 加载所有 Provider，完成后自动拉取已配置 provider 的模型
-  const loadProviders = useCallback(async () => {
-    try {
-      const data = await getAPI().ai.listProviders()
-      setProviders(data)
-      // 批量加载所有已配置 API Key 的 provider 的模型列表（封装在 hook 内）
-      await loadAllProviderModels(data)
-    } catch (err) {
-      console.error('[Models] Failed to load providers:', err)
-      toast.error(t('error.unknown'))
-    } finally {
-      setLoading(false)
-    }
-  }, [t, loadAllProviderModels])
-
-  useEffect(() => {
-    loadProviders()
-  }, [loadProviders])
 
   // 展开 Provider 时加载模型列表（跳过已在加载中的 provider）
   // ensureLoaded 内部做缓存 + inflight 双重守卫
@@ -139,7 +133,7 @@ export function useModelsData() {
       }
     } catch (err) {
       console.error(`[Models] OAuth login failed for ${providerId}:`, err)
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       setTestResults((p) => ({ ...p, [providerId]: `OAuth 错误: ${msg}` }))
       toast.error(`OAuth 登录错误: ${msg}`)
     }
@@ -148,41 +142,38 @@ export function useModelsData() {
   // 注：刷新指定 Provider 模型列表的逻辑（原 handleRefreshModels）已封装为
   // useProviderModelsCache.refresh，通过 refreshModels 别名传给子组件 onRefreshModels。
 
-  // 隐藏 Provider（加入黑名单）
-  const handleHideProvider = useCallback(
-    async (providerId: string) => {
+  // 黑名单加入/移除孪生动作参数化: 读旧黑名单 → 变更 → 保存 → toast → 刷新
+  const mutateBlacklist = useCallback(
+    async (providerId: string, add: boolean, okText: string, failText: string) => {
       try {
         const settings = await getAPI().settings.get()
         // UI-2 修复: 可选链兜底,防止后端 settings 缺嵌套子对象时崩溃
         const blacklist = settings?.models?.providerBlacklist ?? []
-        if (!blacklist.includes(providerId)) {
-          await getAPI().settings.set('models.providerBlacklist', [...blacklist, providerId])
-          toast.success(`已隐藏 ${providerId}`)
-          loadProviders()
-        }
+        const next = add
+          ? blacklist.includes(providerId)
+            ? blacklist
+            : [...blacklist, providerId]
+          : blacklist.filter((id) => id !== providerId)
+        if (next === blacklist) return
+        await getAPI().settings.set('models.providerBlacklist', next)
+        toast.success(okText)
+        loadProviders()
       } catch (err) {
-        toast.error(`隐藏失败: ${err}`)
+        toast.error(`${failText}: ${err}`)
       }
     },
     [loadProviders],
   )
 
-  // 取消隐藏 Provider（从黑名单移除）
+  // 隐藏/取消隐藏 Provider
+  const handleHideProvider = useCallback(
+    (providerId: string) => mutateBlacklist(providerId, true, `已隐藏 ${providerId}`, '隐藏失败'),
+    [mutateBlacklist],
+  )
   const handleUnhideProvider = useCallback(
-    async (providerId: string) => {
-      try {
-        const settings = await getAPI().settings.get()
-        // UI-2 修复: 可选链兜底
-        const blacklist = settings?.models?.providerBlacklist ?? []
-        const next = blacklist.filter((id) => id !== providerId)
-        await getAPI().settings.set('models.providerBlacklist', next)
-        toast.success(`已取消隐藏 ${providerId}`)
-        loadProviders()
-      } catch (err) {
-        toast.error(`取消隐藏失败: ${err}`)
-      }
-    },
-    [loadProviders],
+    (providerId: string) =>
+      mutateBlacklist(providerId, false, `已取消隐藏 ${providerId}`, '取消隐藏失败'),
+    [mutateBlacklist],
   )
 
   // 添加自定义模型到指定 Provider

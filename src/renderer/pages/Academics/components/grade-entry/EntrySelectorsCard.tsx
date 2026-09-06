@@ -3,6 +3,7 @@
 // =============================================================
 
 import type { EAAStudent, ExamDef, GradeEntryMode, SubjectDef } from '@shared/types'
+import { useMemo } from 'react'
 import { Badge } from '../../../../components/Badge'
 import { Card } from '../../../../components/Card'
 import { useT } from '../../../../i18n'
@@ -43,6 +44,8 @@ export function EntrySelectorsCard({
   selectedExam,
 }: EntrySelectorsCardProps) {
   const { t } = useT()
+  // 录入击键高频重渲染本卡,学生过滤别在 JSX 里每轮重算
+  const activeStudents = useMemo(() => students.filter((s) => s.status !== 'Deleted'), [students])
 
   return (
     <Card padding="md">
@@ -150,13 +153,11 @@ export function EntrySelectorsCard({
               <option value="">
                 {t('page.academics.entry.selectStudentPlaceholder', '请选择学生...')}
               </option>
-              {students
-                .filter((s) => s.status !== 'Deleted')
-                .map((s) => (
-                  <option key={s.entity_id} value={s.name}>
-                    {s.name}
-                  </option>
-                ))}
+              {activeStudents.map((s) => (
+                <option key={s.entity_id} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
             </select>
           </div>
         )}

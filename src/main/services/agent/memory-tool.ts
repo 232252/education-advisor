@@ -7,6 +7,7 @@
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
+import { errText } from '../../utils/err-text'
 import { textResult } from '../eaa/tools/shared'
 import { memoryService } from './memory-service'
 import type { PrivacyGuard } from './privacy-guard'
@@ -14,12 +15,12 @@ import type { PrivacyGuard } from './privacy-guard'
 const saveMemoryParams = Type.Object({
   content: Type.String({
     description:
-      '要记住的内容(一句话事实或偏好,如"用户偏好简洁的中文回复""张三的家长习惯晚上8点后联系")',
+      '要记住的内容(一句话事实或偏好,如"用户偏好简洁的中文回复""张三的家长习惯晚上8点后联系")。保存前先对照本次已注入的长期记忆段,已有相同或同义内容时不要重复保存',
   }),
   category: Type.Optional(
     Type.String({
       description:
-        '记忆类别: user_preference(用户偏好) / fact(事实结论) / task(任务备忘),默认 fact',
+        '记忆类别: user_preference(用户偏好) / fact(事实结论) / task(任务备忘,14 天未重新保存将不再注入;任务仍在进行时重新保存一次即可续期),默认 fact',
     }),
   ),
 })
@@ -44,13 +45,24 @@ export function createMemoryTool(
     execute: async (_toolCallId, params) => {
       const category = params.category?.trim() || 'fact'
       try {
-        const content = privacyGuard ? privacyGuard.deanonymize(params.content) : params.content
-        const entry = memoryService.addEntry(agentId, content, category)
-        return textResult(
-          `已保存记忆 [${entry.category}] ${entry.content.slice(0, 100)} — 该记忆将在后续运行中自动加载。`,
-        )
+        const raw = params.content.trim()
+        const content = privacyGuard ? privacyGuard.deanonymize(raw) : raw
+        const entry = await memoryService.addEntry(agentId, content, category)
+        // 回执回显完整存储内容: 只回显前 100 字时模型无法察觉截断,
+        // 会以为完整保存了(长内容实际被截断到 500 字符)
+        const wasTruncated = entry.content.endsWith('…') || entry.content.length < content.length
+        const lines = [
+          entry.deduped
+            ? `已存在相同内容的记忆,已刷新其时间而未重复保存: [${entry.category}] ${entry.content}`
+            : `已保存记忆 [${entry.category}] ${entry.content}`,
+        ]
+        if (wasTruncated) {
+          lines.push('注意: 内容超过单条存储上限,已被截断 — 请把长内容压缩成一句话再保存。')
+        }
+        lines.push('该记忆将在后续运行中自动加载。')
+        return textResult(lines.join('\n'))
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
+        const msg = errText(err)
         return textResult(`保存记忆失败: ${msg}`)
       }
     },

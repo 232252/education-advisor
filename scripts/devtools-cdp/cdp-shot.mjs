@@ -6,17 +6,7 @@
 //   node scripts/cdp-shot.mjs shots/dashboard.png 800 "location.hash='#/dashboard'"
 import fs from 'node:fs'
 import path from 'node:path'
-import WebSocket from 'ws'
-
-const CDP_HTTP = `http://localhost:${process.env.EA_CDP_PORT || '9222'}`
-
-async function getPageTarget() {
-  const res = await fetch(`${CDP_HTTP}/json`)
-  const targets = await res.json()
-  const page = targets.find((t) => t.type === 'page')
-  if (!page) throw new Error('No page target found. Is the app running with CDP?')
-  return page
-}
+import { connectCdp } from '../lib/cdp-client.mjs'
 
 async function main() {
   const [out, waitMsArg, ...exprParts] = process.argv.slice(2)
@@ -27,28 +17,7 @@ async function main() {
   const waitMs = Number.parseInt(waitMsArg || '800', 10) || 800
   const expr = exprParts.join(' ').trim()
 
-  const page = await getPageTarget()
-  const ws = new WebSocket(page.webSocketDebuggerUrl, { maxPayload: 256 * 1024 * 1024 })
-  await new Promise((resolve, reject) => {
-    ws.on('open', resolve)
-    ws.on('error', reject)
-  })
-  let id = 1
-  const pending = new Map()
-  ws.on('message', (data) => {
-    const msg = JSON.parse(data.toString())
-    if (msg.id && pending.has(msg.id)) {
-      pending.get(msg.id)(msg)
-      pending.delete(msg.id)
-    }
-  })
-  const send = (method, params = {}) =>
-    new Promise((resolve, reject) => {
-      const myId = id++
-      pending.set(myId, resolve)
-      ws.send(JSON.stringify({ id: myId, method, params }))
-      setTimeout(() => reject(new Error(`${method} timeout`)), 30000)
-    })
+  const { send, close } = await connectCdp()
 
   await send('Page.enable')
   if (expr) {
@@ -56,7 +25,7 @@ async function main() {
   }
   await new Promise((r) => setTimeout(r, waitMs))
   const shot = await send('Page.captureScreenshot', { format: 'png' })
-  ws.close()
+  close()
   if (!shot.result?.data) throw new Error('captureScreenshot returned no data')
   fs.mkdirSync(path.dirname(out), { recursive: true })
   fs.writeFileSync(out, Buffer.from(shot.result.data, 'base64'))

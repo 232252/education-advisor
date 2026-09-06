@@ -20,10 +20,10 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 | 页面数 | 13 |
 | 路由数 | 15 |
 | IPC 通道数 | 144 |
-| Service 文件数 | 143 |
-| IPC handler 文件数 | 44 |
+| Service 文件数 | 147 |
+| IPC handler 文件数 | 47 |
 | Zustand store 模块数 | 7 |
-| Preload API 文件数 | 20 |
+| Preload API 文件数 | 21 |
 | Shared 类型文件数 | 17 |
 | Renderer IPC 类型文件数 | 21 |
 | Agent 数 | 18 |
@@ -128,6 +128,25 @@ The renderer has **zero direct access** to:
 Every operation that needs any of those goes through `window.api`,
 which is a thin proxy over `ipcRenderer.invoke`.
 
+**Shared hook layer** (`src/renderer/hooks/`) — pages must not
+hand-roll loading boilerplate:
+
+- `useIpcQuery` — single-source IPC load: token-based stale guard,
+  unmount guard, cascade `onData` (awaited inside the try, so a
+  failing cascade follows the failure path), configurable failure
+  policy (default `console.error` + toast; `onError`/`keepDataOnError`
+  per call site).
+- `useMultiLoader` — parallel multi-source load with per-key
+  progressive settle (`readyKeys`).
+- `useMountedRef` — the one unmount guard; async callbacks drop
+  state writes after unmount.
+- `useConfirmAction` / `useConfirmDialog` — the confirm-dialog state
+  machines; `useAutoDismiss` — self-clearing transient messages.
+
+Chat streaming deltas and agent live output go through module-level
+50 ms batchers (`stores/chat/delta-batch.ts`,
+`stores/agent/live-output.ts`) instead of per-event `set()` calls.
+
 ### Process 2: Main (Node 22 + Electron 43)
 
 - **Runtime**: Node 22 with Electron 43's hardened main process
@@ -142,7 +161,7 @@ The main process owns:
 - The window lifecycle (create / show / hide / close)
 - The system tray
 - The auto-update flow
-- The IPC handlers (11 modules, 90+ channels)
+- The IPC handlers (46 files across 20 domains, 144 channels)
 - The 13 service modules (agent loop, EAA bridge, cron, …)
 - The SQLite database
 - The EAA child process
@@ -186,20 +205,20 @@ grouped by namespace:
 | --- | --- | --- |
 | `ai:*` | 11 | LLM provider / model / chat / OAuth / custom models |
 | `ollama:*` | 7 | Local models (detect / serve / list / pull / delete / progress) |
-| `agent:*` | 10 | Agent lifecycle (list / get / update / toggle / soul / rules / run / history / abort / status-update) |
+| `agent:*` | 9 | Agent lifecycle (list / get / update / toggle / soul / rules / run / abort / status-update) |
 | `eaa:*` | 24 | Data engine (info / score / ranking / replay / add / revert / history / search / range / tag / stats / validate / export / students / import / codes / doctor / summary / dashboard / export-formats / invalidate-cache) |
 | `privacy:*` | 8 | Privacy engine (init / load / list / add / dryrun / backup / lock / status) |
 | `cron:*` | 8 | Scheduler (list / add / update / remove / toggle / run-now / get-logs / status-update) |
 | `skill:*` | 4 | User-injected skills (list / get / save / delete) |
 | `mcp:*` | 8 | MCP (list / connect / disconnect / list-tools / test / add / update / remove) |
 | `settings:*` | 3 | App settings (get / set / reset) |
-| `sys:*` | 7 | System (open-dialog / save-dialog / get-path / check-update / read-file / restart-app / show-update-dialog) |
+| `sys:*` | 9 | System (open/save-dialog / get-version / check-download-install-update / update-progress / read-file / restart-app) |
 | `backup:*` | 4 | Backup / restore (create-dialog / restore-dialog / list-auto / delete-auto) |
 | `profile:*` | 2 | Student profile (get / set) |
 | `academic:*` | 7 | Academics (get-config / list-exams / create-exam / delete-exam / get-grades / batch-set-grades / get-class-grades) |
 | `class:*` | 8 | Classes (list / create / update / archive / restore / delete / assign / assign-progress) |
 | `chat:*` | 4 | Conversation persistence (save / load / delete-session / list-sessions) |
-| `feishu:*` | 8 | Feishu (test / bitable / status / bot-start / bot-stop / bot-status / bot-status-update / diagnose) |
+| `feishu:*` | 7 | Feishu (test / bitable / bot-start / bot-stop / bot-status / bot-status-update / diagnose) |
 | `log:*` | 7 | Logs (list / read / clear / filter / search / export-dialog / write-renderer) |
 
 Every channel is a string constant exported from a single file. Every
@@ -218,6 +237,11 @@ single point of trust.
 2. **Event push** — `ipcRenderer.on(channel, handler)`. The main
    process pushes state updates (agent status, chat stream, cron
    status). Returns a cancellation function for clean up.
+   Cleanup contract (audited 2026-09-04, both sides mandatory):
+   the preload `subscribe()` wrapper returns a `removeListener`
+   closure, every renderer consumer unsubscribes in effect cleanup
+   or action `finally`, and every main-process push site guards
+   `webContents.isDestroyed()` before `send`.
 3. **One-way fire** — `ipcRenderer.send(channel, ...args)`. Used only
    for `log:write-renderer`, where the renderer is telling the main
    process "console.log happened".
@@ -246,6 +270,17 @@ convention and review):
    aggregation entry.** A source-structure assertion should point
    at where the code actually lives (e.g. `eaa/handlers-system.ts`),
    so moving handler bodies never requires rewriting assertions.
+5. **`handleIpc()` (`ipc/handle.ts`) is the default handler
+   skeleton** — fail-logging + failure envelope + optional IPC
+   timer. Raw `ipcMain.handle` is reserved for streaming pushes
+   (`ai:chat`, `class:assign`), rethrow-contract channels
+   (`log:*`, the renderer expects a promise rejection), and
+   custom-shape responses (`privacy:status`). Failure envelopes
+   are per-domain contracts, kept intact via the `onError` opt:
+   EAA uses `{success,error,stderr,exitCode}` (`eaa/failures.ts`,
+   the renderer's `getErrorMessage` reads `data`/`stderr` first),
+   privacy uses `{success,data}` (error text lives in `data`),
+   `cron:*`/`agent:*` run/abort use `{success,message}`.
 
 ---
 

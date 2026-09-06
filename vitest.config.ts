@@ -97,8 +97,14 @@ export default defineConfig({
     ],
     // 60s 默认超时
     testTimeout: 60_000,
-    // 不在 CI 中跑并发时强制串行,避免端口/资源冲突
-    fileParallelism: false,
+    // 文件级并行(2026-09-04 测试提速轮): 全量 317s → 25s。
+    // 此前强制串行是防端口/资源冲突 — 复核结论: 各文件临时目录均走
+    // mkdtemp(随机后缀)、无固定端口绑定(唯一 PORT 字样是 IPC_EAA_EXPORT
+    // 子串误报)、真实 EAA e2e 每文件独立 TEST_ROOT,连续三次全量并行
+    // 均绿(190 files/3173 tests)。若个别文件再现资源冲突,局部修复
+    // (独立端口/目录)或将该文件标记 test.sequential,不要整体回退串行。
+    // 注: vitest 4 中 project 级 fileParallelism 不覆盖顶层值,统一在此声明。
+    fileParallelism: true,
     // 报告:verbose 让通过/失败一目了然
     reporters: process.env.CI ? ['default'] : ['verbose'],
     // coverage 配置（按需启用,不在 vitest run 默认跑）

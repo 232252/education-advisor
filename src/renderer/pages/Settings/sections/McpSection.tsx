@@ -6,9 +6,9 @@
 
 import type { UnifiedSettings } from '@shared/types'
 import { useT } from '../../../i18n'
-import { Section, SettingRow, ToggleSwitch } from '../components'
+import { Section, ToggleSettingRow } from '../components'
 
-export interface McpSectionProps {
+interface McpSectionProps {
   settings: UnifiedSettings
   onSave: (path: string, value: unknown) => void
 }
@@ -18,17 +18,13 @@ export function McpSection({ settings, onSave }: McpSectionProps) {
 
   return (
     <Section title={t('settings.section.mcp')}>
-      <SettingRow
-        label={t('settings.mcp.enabled')}
+      <ToggleSettingRow
         path="mcp.enabled"
+        label={t('settings.mcp.enabled')}
         description={t('settings.mcp.enabled.desc')}
-      >
-        <ToggleSwitch
-          checked={settings.mcp.enabled}
-          onChange={(v) => onSave('mcp.enabled', v)}
-          label={t('settings.mcp.enabled')}
-        />
-      </SettingRow>
+        value={settings.mcp.enabled}
+        onSave={onSave}
+      />
       <div className="px-5 py-3 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-t border-gray-200 dark:border-white/[0.06]/60">
         <div className="font-medium text-blue-600 dark:text-blue-400 mb-1">
           {t('settings.mcp.hint.title')}

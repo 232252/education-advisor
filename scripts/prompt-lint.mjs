@@ -17,26 +17,18 @@
 //   R4 不含 CLI 风格工具引用 `eaa xxx`（运行时工具名是 eaa_xxx）
 //   R5 不含硬编码模式：教师本人 / 学生总数=52
 //   R6 yaml 的 agent 与 agents/ 目录一一对应（_shared 除外）
+//   R7 提示词中 eaa_* 工具引用必须真实存在于工具注册表(tools/*.ts)
 // =============================================================
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, relative } from 'node:path'
+import { ROOT, walkFiles } from './lib/gate-utils.mjs'
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const AGENTS_DIR = join(ROOT, 'agents')
 const AGENTS_YAML = join(ROOT, 'config', 'agents.yaml')
 
 /** 递归收集目录下所有 .md 文件 */
-function walkMd(dir, out = []) {
-  if (!existsSync(dir) || !statSync(dir).isDirectory()) return out
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name)
-    if (statSync(p).isDirectory()) walkMd(p, out)
-    else if (p.endsWith('.md')) out.push(p)
-  }
-  return out
-}
+const walkMd = (dir) => walkFiles(dir, (f) => f.endsWith('.md'))
 
 /** 解析 agents.yaml 顶层 agent id 列表（缩进 2 空格的 "- id:"） */
 function parseAgentIds() {
@@ -116,6 +108,16 @@ const HARDCODE_PATTERNS = [
   [/学生总数=52/, '硬编码"学生总数=52"'],
 ]
 
+// ---------- R7 前置：从工具注册表提取真实存在的 eaa_* 工具名 ----------
+const TOOLS_DIR = join(ROOT, 'src', 'main', 'services', 'eaa', 'tools')
+const realToolNames = new Set()
+for (const f of walkFiles(TOOLS_DIR, (x) => x.endsWith('.ts'))) {
+  for (const m of readFileSync(f, 'utf-8').matchAll(/name:\s*'(eaa_[a-z_]+)'/g)) {
+    realToolNames.add(m[1])
+  }
+}
+const TOOL_REF_RE = /eaa_[a-z_]+/g
+
 for (const file of walkMd(AGENTS_DIR)) {
   const content = readFileSync(file, 'utf-8')
   for (const [re, why] of HALLUCINATION_PATTERNS) {
@@ -125,6 +127,12 @@ for (const file of walkMd(AGENTS_DIR)) {
     fail('R4', file, 'CLI 风格工具引用 `eaa xxx`（应为 eaa_xxx 工具名）')
   for (const [re, why] of HARDCODE_PATTERNS) {
     if (re.test(content)) fail('R5', file, why)
+  }
+  // R7: 工具引用必须真实存在(幻觉诱饵 — 提示词引用不存在的工具会让模型反复调用失败)
+  for (const m of content.matchAll(TOOL_REF_RE)) {
+    if (!realToolNames.has(m[0])) {
+      fail('R7', file, `引用不存在的工具 "${m[0]}"（注册表中无此名,共 ${realToolNames.size} 个真实工具）`)
+    }
   }
 }
 
@@ -137,4 +145,4 @@ if (violations.length > 0) {
 }
 
 const mdCount = walkMd(AGENTS_DIR).length
-console.log(`prompt-lint: 通过（${agentIds.length} 个 agent / ${mdCount} 个 .md 文件 / 6 组规则）`)
+console.log(`prompt-lint: 通过（${agentIds.length} 个 agent / ${mdCount} 个 .md 文件 / 7 组规则）`)

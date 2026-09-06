@@ -6,6 +6,7 @@
 // =============================================================
 
 import type { EAAStudent, ExamDef, ExamType, GradeRecord, SubjectDef } from '@shared/types'
+import { useMemo } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
 import { useT } from '../../../i18n'
 import {
@@ -19,7 +20,7 @@ import {
 import { useGradeEntry } from '../hooks/useGradeEntry'
 import { getActiveStudentsSorted } from '../lib/grade-entry'
 
-export interface GradeEntryTabProps {
+interface GradeEntryTabProps {
   studentName: string
   students: EAAStudent[]
   subjects: SubjectDef[]
@@ -55,8 +56,8 @@ export function GradeEntryTab({
     onExamCreated,
   })
 
-  // 单科表格行序: 过滤未删除学生并按姓名排序
-  const activeStudents = getActiveStudentsSorted(students)
+  // 单科表格行序: 过滤未删除学生并按姓名排序(录入期间 students 引用不变,memo 消掉每击键的 zh collator 全量重排)
+  const activeStudents = useMemo(() => getActiveStudentsSorted(students), [students])
 
   if (entry.showQuickCreate) {
     return (

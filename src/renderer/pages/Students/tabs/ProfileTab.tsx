@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '../../../components/Button'
 import { useAutoDismiss } from '../../../hooks/useAutoDismiss'
 import { useT } from '../../../i18n'
-import { getAPI } from '../../../lib/ipc-client'
+import { errText, getAPI } from '../../../lib/ipc-client'
 import { InfoRow, ProfileField, ProfileSection } from '../components'
 
 export function ProfileTab({
@@ -60,9 +60,7 @@ export function ProfileTab({
       setMsgAuto(t('page.students.profile.saved', '档案已保存'))
       onUpdate()
     } catch (err) {
-      setMsgAuto(
-        `${t('toast.common.saveFailed', '保存失败')}: ${err instanceof Error ? err.message : String(err)}`,
-      )
+      setMsgAuto(`${t('toast.common.saveFailed', '保存失败')}: ${errText(err)}`)
     }
     setSaving(false)
     setEditing(false)

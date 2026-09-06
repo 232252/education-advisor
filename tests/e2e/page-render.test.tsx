@@ -7,205 +7,15 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, cleanup, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { spawn } from 'node:child_process'
+import { buildMockApi, createEaaEnv, describeE2E, installWindowApi } from './harness'
 
-// ---------- eaa 真实调用（跨平台） ----------
-const _dirName = process.platform === 'win32' ? 'win32-x64' : process.platform === 'darwin' ? (process.arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64') : 'linux-x64'
-const _binName = process.platform === 'win32' ? 'eaa.exe' : 'eaa'
-const EAA_BIN = join(__dirname, '..', '..', 'resources', 'eaa-binaries', _dirName, _binName)
-// 平台二进制缺失(如 macOS 无 darwin 构建)时整组跳过,避免 CI 误报 ENOENT
-const describeE2E = existsSync(EAA_BIN) ? describe : describe.skip
-const TEST_ROOT = mkdtempSync(join(tmpdir(), 'eaa-pages-'))
-const TEST_DATA = join(TEST_ROOT, 'data')
-const SCHEMA_SRC = join(__dirname, '..', '..', 'core', 'eaa-cli', 'schema', 'reason_codes.json')
+// ---------- eaa 真实调用(跨平台,基建见 ./harness) ----------
+const env = createEaaEnv('eaa-pages-')
+const { eaaRun } = env
+const { mockApi, classList } = buildMockApi(env)
 
-mkdirSync(join(TEST_DATA, 'entities'), { recursive: true })
-mkdirSync(join(TEST_DATA, 'events'), { recursive: true })
-mkdirSync(join(TEST_ROOT, 'schema'), { recursive: true })
-writeFileSync(join(TEST_DATA, 'entities', 'entities.json'), '{"entities":{}}')
-writeFileSync(join(TEST_DATA, 'entities', 'name_index.json'), '{}')
-writeFileSync(join(TEST_DATA, 'events', 'events.json'), '[]')
-if (existsSync(SCHEMA_SRC)) {
-  writeFileSync(join(TEST_ROOT, 'schema', 'reason_codes.json'), readFileSync(SCHEMA_SRC))
-}
-
-function eaaRunOnce(args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(EAA_BIN, args, {
-      env: { ...process.env, EAA_DATA_DIR: TEST_DATA },
-      timeout: 10_000,
-    })
-    let out = ''
-    let err = ''
-    proc.stdout?.on('data', (d) => (out += d.toString()))
-    proc.stderr?.on('data', (d) => (err += d.toString()))
-    proc.on('error', reject)
-    proc.on('exit', (code) => {
-      if (code !== 0) return reject(new Error(`eaa exit ${code}: ${err.slice(0, 200)}`))
-      resolve(out)
-    })
-  })
-}
-
-/** eaaRun 带重试 — 并发争用文件锁时 eaa 可能 exit 0 但 stdout 为空。自动重试 3 次。 */
-async function eaaRun(args: string[]): Promise<string> {
-  const MAX_RETRIES = 3
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const out = await eaaRunOnce(args)
-      if (out.trim() === '' && attempt < MAX_RETRIES) {
-        await new Promise((r) => setTimeout(r, 80 * (attempt + 1)))
-        continue
-      }
-      return out
-    } catch (err) {
-      if (attempt < MAX_RETRIES && String(err).includes('exit')) {
-        await new Promise((r) => setTimeout(r, 80 * (attempt + 1)))
-        continue
-      }
-      throw err
-    }
-  }
-  throw new Error(`eaa ${args[0]} failed after ${MAX_RETRIES + 1} attempts`)
-}
-
-// ---------- Mock getAPI（指向真实 eaa） ----------
-const classList: Array<{
-  id: string
-  class_id: string
-  name: string
-  grade?: string
-  teacher?: string
-  archived: boolean
-  created_at: number
-}> = []
-
-const mockApi = {
-  eaa: {
-    listStudents: vi.fn(async () => {
-      const r = await eaaRun(['list-students', '-O', 'json'])
-      return { success: true, data: JSON.parse(r) }
-    }),
-    addStudent: vi.fn(async (name: string) => {
-      try {
-        await eaaRun(['add-student', name])
-        return { success: true }
-      } catch (e) {
-        return { success: false, error: String(e) }
-      }
-    }),
-    deleteStudent: vi.fn(async () => ({ success: true })),
-    setStudentMeta: vi.fn(async (p: { name: string; classId?: string; clearClassId?: boolean }) => {
-      try {
-        if (p.clearClassId) await eaaRun(['set-student-meta', p.name, '--clear-class-id'])
-        else if (p.classId) await eaaRun(['set-student-meta', p.name, '--class-id', p.classId])
-        return { success: true }
-      } catch (e) {
-        return { success: false, error: String(e) }
-      }
-    }),
-    ranking: vi.fn(async (n: number) => {
-      const r = await eaaRun(['ranking', String(n), '-O', 'json'])
-      const data = JSON.parse(r) as {
-        ranking: Array<{ rank: number; name: string; entity_id: string; class_id?: string | null; score: number }>
-      }
-      // 增强: 用 listStudents 的 class_id 填充 ranking (与 IPC handler 逻辑一致)
-      try {
-        const studentsRaw = await eaaRun(['list-students', '-O', 'json'])
-        const students = JSON.parse(studentsRaw) as {
-          students: Array<{ entity_id: string; class_id?: string | null }>
-        }
-        const classIdMap: Record<string, string | null> = {}
-        for (const s of students.students) {
-          classIdMap[s.entity_id] = s.class_id ?? null
-        }
-        for (const item of data.ranking) {
-          item.class_id = classIdMap[item.entity_id] ?? null
-        }
-      } catch { /* enrichment failure is non-fatal */ }
-      return { success: true, data }
-    }),
-    summary: vi.fn(async () => {
-      const r = await eaaRun(['summary', '-O', 'json'])
-      const data = JSON.parse(r) as Record<string, unknown>
-      // 增强: 用 listStudents 的 class_id 填充 top_gainers/top_losers
-      try {
-        const studentsRaw = await eaaRun(['list-students', '-O', 'json'])
-        const students = JSON.parse(studentsRaw) as {
-          students: Array<{ name: string; class_id?: string | null }>
-        }
-        const nameToClassId: Record<string, string | null> = {}
-        for (const s of students.students) {
-          nameToClassId[s.name] = s.class_id ?? null
-        }
-        for (const group of ['top_gainers', 'top_losers'] as const) {
-          const items = data[group]
-          if (Array.isArray(items)) {
-            for (const item of items as Array<{ name: string; class_id?: string | null }>) {
-              item.class_id = nameToClassId[item.name] ?? null
-            }
-          }
-        }
-      } catch { /* enrichment failure is non-fatal */ }
-      return { success: true, data }
-    }),
-    stats: vi.fn(async () => {
-      const r = await eaaRun(['info', '-O', 'json'])
-      return { success: true, data: { ...JSON.parse(r), classes: classList.length } }
-    }),
-    listCodes: vi.fn(async () => ({ success: true, data: { codes: [] } })),
-    range: vi.fn(async () => ({ success: true, data: { events: [] } })),
-    tag: vi.fn(async () => ({ success: true, data: { tags: [] } })),
-    exportFormats: vi.fn(async () => ['csv', 'jsonl', 'html']),
-    import: vi.fn(async () => ({ success: true })),
-    export: vi.fn(async () => ({ success: true })),
-  },
-  class: {
-    list: vi.fn(async () => ({ success: true, data: classList })),
-    create: vi.fn(async (p: { class_id: string; name: string; grade?: string; teacher?: string }) => {
-      const id = `cls_${Date.now()}`
-      classList.push({ id, ...p, archived: false, created_at: Date.now() })
-      return { success: true, data: classList[classList.length - 1] }
-    }),
-    update: vi.fn(async () => ({ success: true })),
-    archive: vi.fn(async (id: string) => {
-      const c = classList.find((x) => x.id === id)
-      if (c) c.archived = true
-      return { success: true }
-    }),
-    restore: vi.fn(async (id: string) => {
-      const c = classList.find((x) => x.id === id)
-      if (c) c.archived = false
-      return { success: true }
-    }),
-    delete: vi.fn(async (id: string) => {
-      const i = classList.findIndex((x) => x.id === id)
-      if (i >= 0) classList.splice(i, 1)
-      return { success: true }
-    }),
-    assign: vi.fn(async (p: { class_id: string; student_names: string[] }) => {
-      for (const name of p.student_names) {
-        try {
-          await eaaRun(['set-student-meta', name, '--class-id', p.class_id])
-        } catch {
-          /* ignore */
-        }
-      }
-      return { success: true, assigned: p.student_names.length, failed: [] }
-    }),
-    remove: vi.fn(async () => ({ success: true })),
-  },
-  sys: {
-    openDialog: vi.fn(async () => ({ canceled: true, filePaths: [] })),
-    saveDialog: vi.fn(async () => ({ canceled: true })),
-  },
-}
-
-// 设置 window.api
-;(globalThis as unknown as { window: { api: typeof mockApi } }).window = { api: mockApi }
+// 设置 window.api + matchMedia 桩
+installWindowApi(mockApi)
 
 // Mock react-i18n
 vi.mock('react-i18next', () => ({
@@ -213,9 +23,9 @@ vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => {} },
 }))
 
-// Mock echarts-for-react（jsdom 没 canvas）
-vi.mock('echarts-for-react', () => ({
-  default: () => null,
+// Mock EChart 包装（jsdom 没 canvas）
+vi.mock('@renderer/components/charts/EChart', () => ({
+  EChart: () => null,
 }))
 
 // Mock zustand store 简单包装
@@ -259,11 +69,7 @@ beforeEach(() => {
 })
 
 afterAll(() => {
-  try {
-    rmSync(TEST_ROOT, { recursive: true, force: true })
-  } catch {
-    /* ignore */
-  }
+  env.cleanup()
 })
 
 // =============================================================
@@ -344,7 +150,8 @@ describeE2E('用户报告 Bug 验证（数据流层）', () => {
       'utf-8',
     )
     expect(content).toContain('studentsCache')
-    expect(content).toContain('STUDENTS_CACHE_TTL_MS')
+    // MEDIUM 5.3 收敛后缓存走 TtlLruCache(3s TTL 等价于原手写 STUDENTS_CACHE_TTL_MS)
+    expect(content).toContain('TtlLruCache')
     expect(content).toContain('invalidateStudentsCache')
   })
 })

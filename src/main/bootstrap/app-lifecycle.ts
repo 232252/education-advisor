@@ -3,39 +3,52 @@
 // (协议处理/日志/主题/db/窗口/IPC 注册/cron/飞书自启/托盘/更新检查)
 // =============================================================
 
-import path from 'node:path'
 import { debug } from '@shared/debug'
-import { app, BrowserWindow, net, protocol, shell } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { registerAllHandlers } from '../ipc/index'
 import { initAutoBackup } from '../services/backup-service'
 import { cronService } from '../services/cron-service'
 import { dbService } from '../services/db-service'
 import { feishuBotService } from '../services/feishu-bot-service'
 import { keystoreService } from '../services/keystore-service'
+import { resolveAppDataDir, resolveEaaDataDir } from '../services/paths'
 import { settingsService } from '../services/settings-service'
 import { syncNativeTheme } from '../services/theme-service'
 import { initTray } from '../services/tray-service'
 import { updateService } from '../services/update-service'
+import { sweepAtomicTmpResidue } from '../utils/atomic-write'
+import { errText } from '../utils/err-text'
 import { initLogger, log } from '../utils/logger'
+import { openExternalUrl } from '../utils/open-external'
+import { registerAppProtocol } from './app-protocol'
 import { handleWindowClose } from './close-behavior'
-import { mainState } from './state'
+import { bootT0, mainState } from './state'
 import { createMainWindow, resolveAppIcon } from './window'
 
+/** 启动分段耗时(诊断用): bootT0 起算的毫秒数 */
+const sinceBoot = () => Math.round(performance.now() - bootT0)
+
 export async function startApp(): Promise<void> {
+  log('info', 'main', `[Startup] whenReady -> startApp at ${sinceBoot()}ms`)
   // P0 修复: 注册 app:// 协议处理器，生产模式下通过自定义协议加载渲染进程
-  // 解决 file:// 协议下 ES Module CORS 限制
-  protocol.handle('app', (request) => {
-    const { pathname } = new URL(request.url)
-    // host = 'index' (from app://index/...), pathname = '/index.html' or '/assets/...'
-    const filePath = path.join(__dirname, '..', 'renderer', pathname)
-    return net.fetch(`file://${filePath}`)
-  })
+  // 解决 file:// 协议下 ES Module CORS 限制;handler 内含域内路径约束(防 .. 逃逸)
+  registerAppProtocol()
 
   // T5: 初始化日志系统(从 settings 读 logLevel,劫持 console)
   // DEBUG_LOG_LEVEL 环境变量优先级最高(调试时强制覆盖 settings),否则用 settings.general.logLevel
   const settingsLogLevel = settingsService.getSettings().general.logLevel
   const initialLogLevel = debug.logLevel ?? settingsLogLevel
   initLogger(initialLogLevel)
+
+  // 原子写残留清扫(2026-09-05 根因修复): 崩溃遗留的 *.tmp.<pid>.<ts>.<rand>
+  // boot 期一次性执行,异步不阻塞启动;覆盖三个 atomicWrite 落盘根
+  void sweepAtomicTmpResidue([
+    app.getPath('userData'),
+    resolveAppDataDir(),
+    resolveEaaDataDir(),
+  ]).then((n) => {
+    if (n > 0) log('info', 'main', `[Startup] swept ${n} atomic-write tmp residue files`)
+  })
   log(
     'info',
     'main',
@@ -73,9 +86,9 @@ export async function startApp(): Promise<void> {
 
   // R2+(2026-08-28 流畅度审计): loadURL 提前 — handler 注册完成即加载渲染层,
   // cron/飞书/托盘/更新检查改在首帧之后初始化,EAA doctor 已后台预热
-  // 外部链接在系统浏览器中打开
+  // 外部链接在系统浏览器中打开(https/mailto 白名单,其余协议拒绝)
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    void openExternalUrl(url)
     return { action: 'deny' }
   })
 
@@ -107,6 +120,7 @@ export async function startApp(): Promise<void> {
 
   // 初始化完成后显示窗口
   win.once('ready-to-show', () => {
+    log('info', 'main', `[Startup] ready-to-show at ${sinceBoot()}ms`)
     // 双重保险: 在 show 前再次设置图标,确保 Windows 任务栏正确显示
     if (appIcon) win.setIcon(appIcon)
     win.show()
@@ -142,9 +156,7 @@ export async function startApp(): Promise<void> {
   try {
     initTray(win)
   } catch (err) {
-    console.warn(
-      `[Main] Tray init failed, degraded to no-tray mode: ${err instanceof Error ? err.message : String(err)}`,
-    )
+    console.warn(`[Main] Tray init failed, degraded to no-tray mode: ${errText(err)}`)
   }
 
   // 启动后延迟检查更新（避免启动卡顿）

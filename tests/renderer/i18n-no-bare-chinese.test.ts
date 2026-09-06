@@ -71,13 +71,15 @@ function stripLineComment(line: string): string {
   return line.replace(/\/\/.*$/, '')
 }
 
-/** 剥离 t('key', 'fallback') / {t(...)} 整体(含中文 fallback) */
+/** 剥离 t('key', 'fallback') / {t(...)} / tr('key', {…}, 'fallback') 整体(含中文 fallback) */
 function stripTInvocations(line: string): string {
   // t('key', '中文兜底') 或 t('key') 或 t(`…`)
   let out = line
   out = out.replace(/t\(\s*'[^']*'(?:\s*,\s*'[^']*')?\s*\)/g, 'T')
   out = out.replace(/t\(\s*`[^`]*`(?:\s*,\s*'[^']*')?\s*\)/g, 'T')
   out = out.replace(/t\(\s*'[^']*'\s*,\s*`[^`]*`\s*\)/g, 'T')
+  // tr('key', { 0: '…' }, '中文兜底') — 带插值参数的变体,同为正规接线
+  out = out.replace(/tr\(\s*'[^']*'\s*,\s*\{[^}]*\}\s*,\s*'[^']*'\s*\)/g, 'T')
   return out
 }
 

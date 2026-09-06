@@ -7,9 +7,9 @@ import type { EAAReasonCode } from '@shared/types'
 import { useState } from 'react'
 import { Button } from '../../../components/Button'
 import { useT } from '../../../i18n'
-import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
+import { errText, getAPI, getErrorMessage } from '../../../lib/ipc-client'
+import { runIpcMutation } from '../../../lib/mutation'
 import { cn, INPUT_BASE } from '../../../lib/ui-utils'
-import { toast } from '../../../stores/toastStore'
 
 export function AddEventInline({
   studentName,
@@ -26,27 +26,23 @@ export function AddEventInline({
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!reasonCode) return
-    setSubmitting(true)
-    try {
-      const result = await getAPI().eaa.addEvent({
-        studentName,
-        reasonCode,
-        delta: delta ? Number.parseFloat(delta) : undefined,
-        note: note || undefined,
-      })
-      if (result.success) {
-        onDone()
-      } else {
-        toast.error(`${t('toast.students.addEventFailed', '添加失败')}: ${getErrorMessage(result)}`)
-      }
-    } catch (err) {
-      toast.error(
-        `${t('toast.students.submitFailed', '提交失败')}: ${err instanceof Error ? err.message : String(err)}`,
-      )
-    }
-    setSubmitting(false)
+    return runIpcMutation(
+      () =>
+        getAPI().eaa.addEvent({
+          studentName,
+          reasonCode,
+          delta: delta ? Number.parseFloat(delta) : undefined,
+          note: note || undefined,
+        }),
+      {
+        onOk: () => onDone(),
+        failMsg: (r) => `${t('toast.students.addEventFailed', '添加失败')}: ${getErrorMessage(r)}`,
+        catchMsg: (err) => `${t('toast.students.submitFailed', '提交失败')}: ${errText(err)}`,
+        setBusy: setSubmitting,
+      },
+    )
   }
 
   return (

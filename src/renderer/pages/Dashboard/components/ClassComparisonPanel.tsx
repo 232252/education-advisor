@@ -13,7 +13,7 @@ import { cn, INPUT_BASE, TABLE_ROW, TABLE_TD, TABLE_TH } from '../../../lib/ui-u
 import type { ClassComparisonItem } from '../dashboard-stats'
 
 /** 对比总览行：在 ClassComparisonItem 基础上补充年级/班主任展示字段 */
-export interface ClassComparisonRow extends ClassComparisonItem {
+interface ClassComparisonRow extends ClassComparisonItem {
   grade: string
   teacher: string
 }
@@ -169,15 +169,15 @@ export function ClassComparisonPanel({
                     <span className="font-mono text-red-500">{d.riskDistribution.极高}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>高</span>
+                    <span>{t('page.classcmp.colHigh')}</span>
                     <span className="font-mono text-orange-500">{d.riskDistribution.高}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>中</span>
+                    <span>{t('page.classcmp.colMedium')}</span>
                     <span className="font-mono text-yellow-500">{d.riskDistribution.中}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>低</span>
+                    <span>{t('page.classcmp.colLow')}</span>
                     <span className="font-mono text-green-500">{d.riskDistribution.低}</span>
                   </div>
                 </div>

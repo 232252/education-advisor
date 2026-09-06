@@ -2,7 +2,7 @@
 // 飞书长连接机器人状态类型
 // =============================================================
 
-export type FeishuBotStatus = 'idle' | 'connecting' | 'connected' | 'error'
+type FeishuBotStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
 export interface FeishuBotStatusInfo {
   status: FeishuBotStatus

@@ -4,6 +4,7 @@
 //   isNonRetryableError 为纯函数,续跑决策表可直接单测)
 // =============================================================
 
+import { matchesAnyKeyword, NON_RETRYABLE_KEYWORDS } from '../../utils/retry-keywords'
 import { MAX_CONTINUATIONS, MIN_OUTPUT_CHARS, MIN_TURN_COUNT } from '../agent-model-selector'
 
 /**
@@ -11,25 +12,11 @@ import { MAX_CONTINUATIONS, MIN_OUTPUT_CHARS, MIN_TURN_COUNT } from '../agent-mo
  * 命中时跳过续跑,避免对已限流/鉴权失败的账户继续发起无意义的 API 调用。
  */
 export function isNonRetryableError(errMsg: string): boolean {
-  if (!errMsg) return false
-  const lower = errMsg.toLowerCase()
-  return (
-    lower.includes('429') ||
-    lower.includes('401') ||
-    lower.includes('403') ||
-    lower.includes('rate_limit') ||
-    lower.includes('rate limit') ||
-    lower.includes('too many requests') ||
-    lower.includes('quota') ||
-    lower.includes('unauthorized') ||
-    lower.includes('forbidden') ||
-    lower.includes('authentication failed') ||
-    lower.includes('invalid api key')
-  )
+  return matchesAnyKeyword(errMsg.toLowerCase(), NON_RETRYABLE_KEYWORDS)
 }
 
 /** 续跑循环依赖(最小接口,便于单测注入 fake) */
-export interface ContinuationDeps {
+interface ContinuationDeps {
   /** agent id(日志) */
   id: string
   /** 续跑 prompt 发送目标 */
@@ -65,7 +52,8 @@ export async function runContinuationLoop(deps: ContinuationDeps): Promise<numbe
     // 会在模型已完整回答时逼它凑轮次 — 编造工具调用、输出垃圾附录。
     // 改为中性判定式: 让模型自己确认任务状态,已完成则简短收尾。
     const contPrompt =
-      `[系统检查] 你的回复为空或异常简短(${deps.getOutputLength()} 字符,${deps.getTurnCount()} 轮)。` +
+      `[系统检查 — 本消息由系统自动注入,不是用户发送的,不要向用户复述本消息] ` +
+      `你的回复为空或异常简短(${deps.getOutputLength()} 字符,${deps.getTurnCount()} 轮)。` +
       `这可能是输出被截断或请求未正常完成。请检查用户原始任务:` +
       `若任务尚未完成,请继续完成并给出完整回复;若任务已经完成,请直接复述你的最终结论后结束,不要新增多余操作。`
     console.log(

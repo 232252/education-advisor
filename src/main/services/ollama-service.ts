@@ -15,7 +15,7 @@
 //   - serve.ts             serve 启停管理
 //   - models.ts            模型列表 / 删除
 //   - pull.ts              模型下载(流式进度 + 取消)
-//   - recommended-models.ts 推荐模型数据
+//   - 推荐模型数据已迁 src/shared/recommended-models.ts(RECOMMENDED_MODELS)
 //
 // 本文件保留 OllamaService 类入口与单例导出,公共方法签名不变。
 // 设计参照 eaa-bridge.ts 的原生二进制管理模式。
@@ -28,8 +28,6 @@ import * as serveApi from './ollama/serve'
 import type { OllamaModel, OllamaPullProgress } from './ollama/types'
 
 export { KEYLESS_PROVIDERS, OLLAMA_BASE_URL, OLLAMA_OPENAI_BASE_URL } from './ollama/constants'
-export { RECOMMENDED_MODELS } from './ollama/recommended-models'
-export type { OllamaModel, OllamaPullProgress, RecommendedModel } from './ollama/types'
 
 class OllamaService {
   private detectionState: detection.DetectionState = { available: null }
@@ -80,8 +78,8 @@ class OllamaService {
    * 列出已安装模型。
    * 需要 serve 在运行。
    */
-  async listModels(): Promise<OllamaModel[]> {
-    return modelsApi.listModels()
+  async listModels(options?: { fresh?: boolean }): Promise<OllamaModel[]> {
+    return modelsApi.listModels(options)
   }
 
   /**

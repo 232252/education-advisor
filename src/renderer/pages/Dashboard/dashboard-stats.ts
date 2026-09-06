@@ -8,7 +8,7 @@
 import type { EAAEventRecord, EAAStudent } from '@shared/types'
 
 /** 分数分桶区间标签 */
-export const SCORE_INTERVAL_LABELS = {
+const SCORE_INTERVAL_LABELS = {
   VERY_HIGH: '极高(<60)',
   HIGH: '高(60-80)',
   MID: '中(80-100)',

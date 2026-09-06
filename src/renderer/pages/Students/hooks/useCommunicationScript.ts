@@ -5,11 +5,12 @@
 // =============================================================
 
 import type { AgentListItem, EAAHistoryEvent, EAAStudent, StudentProfileData } from '@shared/types'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
+import { useAgentStreamOutput } from '../../../hooks/useAgentStreamOutput'
 import { useAutoDismiss } from '../../../hooks/useAutoDismiss'
+import { useMountedRef } from '../../../hooks/useMountedRef'
 import { useT } from '../../../i18n'
-import { getAPI } from '../../../lib/ipc-client'
-import { useAgentStore } from '../../../stores/agent/store'
+import { errText, getAPI } from '../../../lib/ipc-client'
 import { buildCommunicationPrompt, type CommScenario, type CommTone } from '../lib/home-school'
 
 export function useCommunicationScript(
@@ -19,9 +20,9 @@ export function useCommunicationScript(
   agents: AgentListItem[],
 ) {
   const { t } = useT()
-  const mountedRef = useRef(true)
+  const mountedRef = useMountedRef()
   const [running, setRunning] = useState(false)
-  const [output, setOutput] = useState('')
+  const { output, resetOutput, startSession } = useAgentStreamOutput()
   const [message, setMessage] = useState('')
   const setMessageAuto = useAutoDismiss<string>(setMessage, '')
   const [agentId, setAgentId] = useState<string>('')
@@ -42,29 +43,24 @@ export function useCommunicationScript(
     }
     const prompt = buildCommunicationPrompt({ student, events, profileData }, scenario, tone)
     setRunning(true)
-    setOutput('')
+    resetOutput()
 
-    const unsub = useAgentStore.getState().subscribeStatus((data) => {
-      if (data.agentId !== effectiveAgentId) return
-      if (data.output) setOutput((prev) => prev + data.output)
-      if (data.error) setOutput((prev) => `${prev}\n[${t('common.error', '错误')}] ${data.error}\n`)
-    })
+    // 订阅/收集/收尾节奏的实现收敛在 useAgentStreamOutput
+    const session = startSession({ filter: (id) => id === effectiveAgentId })
 
     try {
       await getAPI().agent.runManual(effectiveAgentId, prompt)
-      // 等待流式输出收尾(与 useAgentAnalysis 相同的节奏)
-      await new Promise((r) => setTimeout(r, 1500))
+      // 等待流式输出收尾
+      await session.settle()
       if (mountedRef.current) {
         setGeneratedAt(Date.now())
         setMessageAuto(t('page.students.comm.generated', '话术已生成'))
       }
     } catch (err) {
       if (mountedRef.current)
-        setMessageAuto(
-          `${t('page.students.comm.generateFailed', '生成失败')}: ${err instanceof Error ? err.message : String(err)}`,
-        )
+        setMessageAuto(`${t('page.students.comm.generateFailed', '生成失败')}: ${errText(err)}`)
     } finally {
-      unsub()
+      session.finish()
       if (mountedRef.current) setRunning(false)
     }
   }

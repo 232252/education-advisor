@@ -5,16 +5,9 @@
 // 隐私: 身份证/手机号在报告中部分脱敏。
 // =============================================================
 
-import type {
-  EAAHistoryEvent,
-  EAAStudentScore,
-  ExamDef,
-  GradeRecord,
-  StudentProfileData,
-  SubjectDef,
-} from '@shared/types'
-import type { ReactNode } from 'react'
 import { useT } from '../../i18n'
+import { examGradeRows, fmtDate, printStamp, SectionTitle, StatBox } from './primitives'
+import type { ReportDocumentBaseProps } from './report-document-props'
 
 /** 手机号脱敏: 保留前3后4 */
 function maskPhone(phone?: string): string {
@@ -31,20 +24,6 @@ function maskIdCard(id?: string): string {
   return `${id.slice(0, 4)}***********${id.slice(-3)}`
 }
 
-function fmtDate(iso: string): string {
-  return iso.slice(0, 10)
-}
-
-// ─── 通用小件(仅打印域使用,显式浅色) ───
-
-function SectionTitle({ children }: { children: ReactNode }) {
-  return (
-    <h2 className="text-[13px] font-bold text-gray-900 border-l-[3px] border-blue-600 pl-2 mt-6 mb-3">
-      {children}
-    </h2>
-  )
-}
-
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex text-xs leading-6">
@@ -54,29 +33,9 @@ function InfoItem({ label, value }: { label: string; value: string }) {
   )
 }
 
-function StatBox({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div
-      className={`flex-1 border rounded px-3 py-2 text-center ${accent ? 'border-blue-400 bg-blue-50' : 'border-gray-300 bg-gray-50'}`}
-    >
-      <div className="text-[10px] text-gray-500 mb-0.5">{label}</div>
-      <div className="text-base font-bold text-gray-900">{value}</div>
-    </div>
-  )
-}
-
-export interface StudentReportDocumentProps {
-  studentName: string
-  classId?: string | null
-  score: EAAStudentScore | null
-  profileData: StudentProfileData
-  events: EAAHistoryEvent[]
-  grades: GradeRecord[]
-  exams: ExamDef[]
-  subjects: SubjectDef[]
+interface StudentReportDocumentProps extends ReportDocumentBaseProps {
   /** 报告展示的最近事件条数上限 */
   recentEventLimit?: number
-  generatedAt?: Date
 }
 
 export function StudentReportDocument({
@@ -92,8 +51,7 @@ export function StudentReportDocument({
   generatedAt = new Date(),
 }: StudentReportDocumentProps) {
   const { t } = useT()
-  // [R2-21 豁免] 打印文件名戳用 ISO 日期(YYYY-MM-DD),与展示用 formatDate 语义不同,勿改
-  const stamp = `${generatedAt.getFullYear()}-${String(generatedAt.getMonth() + 1).padStart(2, '0')}-${String(generatedAt.getDate()).padStart(2, '0')}`
+  const stamp = printStamp(generatedAt)
 
   // 近期事件: 有效的优先,按时间倒序,截取上限
   const recentEvents = [...events]
@@ -101,17 +59,7 @@ export function StudentReportDocument({
     .slice(0, recentEventLimit)
 
   // 成绩: 按考试日期倒序
-  const examById = new Map(exams.map((e) => [e.id, e]))
-  const gradesByExam = new Map<string, GradeRecord[]>()
-  for (const g of grades) {
-    const list = gradesByExam.get(g.examId) ?? []
-    list.push(g)
-    gradesByExam.set(g.examId, list)
-  }
-  const examRows = [...gradesByExam.entries()]
-    .map(([examId, list]) => ({ exam: examById.get(examId), records: list }))
-    .filter((r): r is { exam: ExamDef; records: GradeRecord[] } => r.exam != null)
-    .sort((a, b) => (b.exam.date || '').localeCompare(a.exam.date || ''))
+  const examRows = examGradeRows(grades, exams)
 
   return (
     <div className="text-gray-900">

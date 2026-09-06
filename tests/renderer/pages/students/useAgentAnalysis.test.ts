@@ -7,32 +7,18 @@
 // =============================================================
 
 import { act } from 'react'
+import { setWindowApi, clearWindowApi } from '../../helpers/window-api'
+import { toastMocks } from '../../helpers/mock-toast'
 import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentListItem, EAAStudent, StudentProfileData } from '@shared/types'
 import { useAgentAnalysis } from '../../../../src/renderer/pages/Students/hooks/useAgentAnalysis'
 import { useAgentStore } from '../../../../src/renderer/stores/agent/store'
+import { makeAgent as makeAgentBase } from '../../__fixtures__/make'
 
 // ---------- toast mock ----------
 
-const toastMocks = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
-}))
-
-vi.mock('../../../../src/renderer/stores/toastStore', () => ({
-  toast: {
-    success: toastMocks.success,
-    error: toastMocks.error,
-    warning: toastMocks.warning,
-    info: toastMocks.info,
-    show: vi.fn(),
-    dismiss: vi.fn(),
-    clear: vi.fn(),
-  },
-}))
+vi.mock('../../../../src/renderer/stores/toastStore', async () => (await import('../../helpers/mock-toast')).mockToastStore)
 
 // ---------- window.api mock ----------
 
@@ -42,10 +28,10 @@ const apiMocks = vi.hoisted(() => ({
 }))
 
 function installApi() {
-  ;(window as unknown as { api: unknown }).api = {
+  ;setWindowApi({
     agent: { runManual: apiMocks.runManual },
     profile: { set: apiMocks.profileSet },
-  }
+  })
 }
 
 // ---------- 测试数据 ----------
@@ -63,19 +49,9 @@ const student: EAAStudent = {
   class_id: 'G7-1',
 }
 
-function makeAgent(id: string, enabled: boolean): AgentListItem {
-  return {
-    id,
-    name: `agent-${id}`,
-    role: 'r',
-    description: 'd',
-    enabled,
-    modelTier: 'low_cost',
-    schedule: [],
-    capabilities: [],
-    status: 'idle',
-  }
-}
+// 历史签名为 (id, enabled) 且 name 由 id 推导,用适配器保持原值
+const makeAgent = (id: string, enabled: boolean): AgentListItem =>
+  makeAgentBase({ id, name: `agent-${id}`, role: 'r', description: 'd', enabled })
 
 const profileData: StudentProfileData = { comments: '测试档案' }
 
@@ -100,7 +76,7 @@ describe('useAgentAnalysis', () => {
     // 清理可能残留的派生订阅者
     useAgentStore.setState({ _statusListeners: new Set() })
     vi.useRealTimers()
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   const setup = (agents: AgentListItem[] = [makeAgent('a1', true), makeAgent('a2', true)]) =>

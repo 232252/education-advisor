@@ -1,53 +1,40 @@
 // =============================================================
 // EaaInfoCard — EAA 系统信息卡片
 // 版本 / 学生数 / 事件数 / 数据目录
+// 卡壳(容器/标题/空态)见 ./DiagnosticsCardShell
 // =============================================================
 
 import type { EAAInfoData } from '@shared/types'
-import { Inbox } from 'lucide-react'
-import { Card } from '../../../components/Card'
-import { EmptyState } from '../../../components/EmptyState'
 import { useT } from '../../../i18n'
+import { DiagnosticsCardShell } from './DiagnosticsCardShell'
 
 export function EaaInfoCard({ info }: { info: EAAInfoData | null }) {
   const { t } = useT()
+  const rows: Array<[string, string]> = [
+    [t('page.dashboard.sysmgmt.info.version'), info?.version ?? ''],
+    [t('page.dashboard.sysmgmt.info.students'), info ? String(info.students) : ''],
+    [t('page.dashboard.sysmgmt.info.events'), info ? String(info.events) : ''],
+    [t('page.dashboard.sysmgmt.info.dataDir'), info?.data_dir ?? ''],
+  ]
   return (
-    <Card padding="md" className="shadow-card">
-      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-        {t('page.dashboard.sysmgmt.info')}
-      </h3>
-      {info ? (
-        <div className="space-y-1.5 text-xs text-gray-500 dark:text-gray-400">
-          <div className="flex justify-between">
-            <span>{t('page.dashboard.sysmgmt.info.version')}</span>
-            <span className="font-mono text-gray-700 dark:text-gray-300">{info.version}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>{t('page.dashboard.sysmgmt.info.students')}</span>
-            <span className="font-mono text-gray-700 dark:text-gray-300">{info.students}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>{t('page.dashboard.sysmgmt.info.events')}</span>
-            <span className="font-mono text-gray-700 dark:text-gray-300">{info.events}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>{t('page.dashboard.sysmgmt.info.dataDir')}</span>
+    <DiagnosticsCardShell
+      dotClass="bg-blue-500"
+      title={t('page.dashboard.sysmgmt.info')}
+      data={info}
+    >
+      <div className="space-y-1.5 text-xs text-gray-500 dark:text-gray-400">
+        {rows.map(([label, value], i) => (
+          <div key={label} className="flex justify-between">
+            <span>{label}</span>
             <span
-              className="font-mono text-gray-700 dark:text-gray-300 truncate ml-2"
-              title={info.data_dir}
+              className={`font-mono text-gray-700 dark:text-gray-300 ${i === rows.length - 1 ? 'truncate ml-2' : ''}`}
+              title={i === rows.length - 1 ? value : undefined}
             >
-              {info.data_dir}
+              {value}
             </span>
           </div>
-        </div>
-      ) : (
-        <EmptyState
-          icon={<Inbox size={28} />}
-          title={t('page.dashboard.sysmgmt.noData')}
-          className="py-4"
-        />
-      )}
-    </Card>
+        ))}
+      </div>
+    </DiagnosticsCardShell>
   )
 }

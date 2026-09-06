@@ -8,12 +8,14 @@
 
 import type { ExamDef, ExamType, SubjectDef } from '@shared/types'
 import { useCallback, useState } from 'react'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { getCurrentSemester } from '../../../lib/academics'
-import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
+import { errText, getAPI, getErrorMessage } from '../../../lib/ipc-client'
+import { runIpcMutation } from '../../../lib/mutation'
+import { todayISO } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
 
-export interface UseExamManagementParams {
+interface UseExamManagementParams {
   subjects: SubjectDef[]
   onRefresh: () => void
 }
@@ -30,7 +32,7 @@ export function useExamManagement({ subjects, onRefresh }: UseExamManagementPara
   // 创建表单状态
   const [formName, setFormName] = useState('')
   const [formType, setFormType] = useState<ExamType>('monthly')
-  const [formDate, setFormDate] = useState(new Date().toISOString().slice(0, 10))
+  const [formDate, setFormDate] = useState(todayISO())
   const [formSemester, setFormSemester] = useState(getCurrentSemester())
   const [formScope, setFormScope] = useState('')
   const [formSubjects, setFormSubjects] = useState<Set<string>>(new Set())
@@ -55,7 +57,7 @@ export function useExamManagement({ subjects, onRefresh }: UseExamManagementPara
   const resetForm = useCallback(() => {
     setFormName('')
     setFormType('monthly')
-    setFormDate(new Date().toISOString().slice(0, 10))
+    setFormDate(todayISO())
     setFormSemester(getCurrentSemester())
     setFormScope('')
     setFormSubjects(new Set())
@@ -71,33 +73,30 @@ export function useExamManagement({ subjects, onRefresh }: UseExamManagementPara
       return
     }
     setCreating(true)
-    try {
-      const res = await getAPI().academic.createExam({
-        name: formName.trim(),
-        type: formType,
-        date: formDate,
-        semester: formSemester.trim() || getCurrentSemester(),
-        scope: formScope.trim() || undefined,
-        subjects: Array.from(formSubjects),
-      })
-      if (res.success) {
-        toast.success(t('page.academics.toast.examCreated'))
-        resetForm()
-        setShowCreateForm(false)
-        onRefresh()
-      } else {
-        toast.error(getErrorMessage(res, t('page.academics.toast.createFailed')))
-      }
-    } catch (err) {
-      toast.error(
-        t('page.academics.toast.createFailedWithError').replace(
-          '{error}',
-          err instanceof Error ? err.message : String(err),
-        ),
-      )
-    } finally {
-      setCreating(false)
-    }
+    const ok = await runIpcMutation(
+      () =>
+        getAPI().academic.createExam({
+          name: formName.trim(),
+          type: formType,
+          date: formDate,
+          semester: formSemester.trim() || getCurrentSemester(),
+          scope: formScope.trim() || undefined,
+          subjects: Array.from(formSubjects),
+        }),
+      {
+        onOk: () => {
+          toast.success(t('page.academics.toast.examCreated'))
+          resetForm()
+          setShowCreateForm(false)
+          onRefresh()
+        },
+        failMsg: (r) => getErrorMessage(r, t('page.academics.toast.createFailed')),
+        catchMsg: (err) =>
+          tr('page.academics.toast.createFailedWithError', { error: errText(err) }),
+      },
+    )
+    setCreating(false)
+    return ok
   }, [formName, formType, formDate, formSemester, formScope, formSubjects, resetForm, onRefresh, t])
 
   const handleDelete = useCallback((exam: ExamDef) => {
@@ -108,22 +107,14 @@ export function useExamManagement({ subjects, onRefresh }: UseExamManagementPara
     const exam = deleteConfirm.exam
     setDeleteConfirm({ open: false, exam: null })
     if (!exam) return
-    try {
-      const res = await getAPI().academic.deleteExam(exam.id)
-      if (res.success) {
+    await runIpcMutation(() => getAPI().academic.deleteExam(exam.id), {
+      onOk: () => {
         toast.success(t('page.academics.toast.examDeleted'))
         onRefresh()
-      } else {
-        toast.error(res.error ?? t('toast.common.deleteFailed'))
-      }
-    } catch (err) {
-      toast.error(
-        t('page.academics.toast.deleteFailedWithError').replace(
-          '{error}',
-          err instanceof Error ? err.message : String(err),
-        ),
-      )
-    }
+      },
+      failMsg: (r) => r.error ?? t('toast.common.deleteFailed'),
+      catchMsg: (err) => tr('page.academics.toast.deleteFailedWithError', { error: errText(err) }),
+    })
   }, [deleteConfirm.exam, onRefresh, t])
 
   return {

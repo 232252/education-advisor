@@ -5,6 +5,8 @@
 // =============================================================
 
 import { act } from 'react'
+import { setWindowApi, clearWindowApi } from '../../helpers/window-api'
+import { toastMocks } from '../../helpers/mock-toast'
 import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ClassEntity } from '@shared/types'
@@ -12,24 +14,7 @@ import { useClassForm } from '../../../../src/renderer/pages/Classes/hooks/useCl
 
 // ---------- toast mock ----------
 
-const toastMocks = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
-}))
-
-vi.mock('../../../../src/renderer/stores/toastStore', () => ({
-  toast: {
-    success: toastMocks.success,
-    error: toastMocks.error,
-    warning: toastMocks.warning,
-    info: toastMocks.info,
-    show: vi.fn(),
-    dismiss: vi.fn(),
-    clear: vi.fn(),
-  },
-}))
+vi.mock('../../../../src/renderer/stores/toastStore', async () => (await import('../../helpers/mock-toast')).mockToastStore)
 
 // ---------- window.api mock ----------
 
@@ -39,9 +24,9 @@ const apiMocks = vi.hoisted(() => ({
 }))
 
 function installApi() {
-  ;(window as unknown as { api: unknown }).api = {
+  ;setWindowApi({
     class: { create: apiMocks.create, update: apiMocks.update },
-  }
+  })
 }
 
 // ---------- 测试数据 ----------
@@ -82,7 +67,7 @@ describe('useClassForm — 表单开关', () => {
   })
 
   afterEach(() => {
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   it('初始: 表单关闭, 空表单, 自动编号开启', () => {
@@ -153,7 +138,7 @@ describe('useClassForm — applyTemplate', () => {
   })
 
   afterEach(() => {
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   it('选择模板: 预填 name/grade/note/teacher(编号需另起)', () => {
@@ -205,7 +190,7 @@ describe('useClassForm — 编号自动生成', () => {
   })
 
   afterEach(() => {
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   it('年级+班号可识别时: 自动生成 G7-3 形式编号', () => {
@@ -282,7 +267,7 @@ describe('useClassForm — handleSave', () => {
   })
 
   afterEach(() => {
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   it('编号或名称为空: 提示校验失败且不调用 API', async () => {

@@ -26,10 +26,18 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import type { AgentExecution } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { Type } from 'typebox'
+import { errText } from '../../utils/err-text'
 import { textResult } from '../eaa/tools/shared'
 
 /** delegate_to 唯一注入的协调者角色(其他角色不获得该工具,防递归风暴) */
 export const DELEGATE_SOURCE_AGENT_ID = 'main'
+
+/**
+ * 委托结果回传的最大字符数(约 4K token)。
+ * 目标 agent 的完整输出会整体注入发起方上下文 — 不封顶时一次长报告
+ * 就能挤占 main 数万 token,挤掉教师原始任务细节并过早触发压缩。
+ */
+const MAX_DELEGATED_OUTPUT_CHARS = 8000
 
 // =============================================================
 // Schema
@@ -146,6 +154,16 @@ export function createDelegateToTool(
         return textResult(`[delegate_to 错误] ${validationError}`)
       }
 
+      // 委托结果回传封顶: 目标 agent 的完整输出会整体注入发起方上下文,
+      // 一次周报/深度分析动辄数万字符,不封顶就会挤爆 main 的上下文并过早触发压缩
+      const capOutput = (text: string): string => {
+        if (!text || text.length <= MAX_DELEGATED_OUTPUT_CHARS) return text || ''
+        return (
+          `${text.slice(0, MAX_DELEGATED_OUTPUT_CHARS)}…\n` +
+          `[结果超长,已截断至 ${MAX_DELEGATED_OUTPUT_CHARS}/${text.length} 字符。需要完整内容时: 重新委托并在 task 中要求把完整结果写入本地文件(write_file),然后用 read_file 分页读取]`
+        )
+      }
+
       console.log(
         `[AgentService] delegate_to: ${context.sourceAgentId} → ${targetId} (task: ${task.length > 80 ? `${task.slice(0, 80)}...` : task})`,
       )
@@ -163,20 +181,22 @@ export function createDelegateToTool(
         }
         if (execution.status === 'timeout') {
           return textResult(
-            `[delegate_to] 目标 Agent ${targetId} 执行超时:\n${execution.output || '(无输出)'}`,
+            `[delegate_to] 目标 Agent ${targetId} 执行超时:\n${capOutput(execution.output) || '(无输出)'}\n` +
+              `下一步可选: ①把任务拆成更小的子任务重新委托 ②基于已有工具结果自己完成任务 ③如实告知教师该部分暂时无法完成。不要凭空编造 ${targetId} 的分析结论。`,
           )
         }
         if (execution.status !== 'success') {
           return textResult(
-            `[delegate_to] 目标 Agent ${targetId} 执行失败:\n${execution.output || '(无输出)'}`,
+            `[delegate_to] 目标 Agent ${targetId} 执行失败:\n${capOutput(execution.output) || '(无输出)'}\n` +
+              `下一步可选: ①把任务拆成更小的子任务重新委托 ②基于已有工具结果自己完成任务 ③如实告知教师该部分暂时无法完成。不要凭空编造 ${targetId} 的分析结论。`,
           )
         }
         return textResult(
-          `[delegate_to] ${targetId} 的执行结果(耗时 ${(execution.durationMs / 1000).toFixed(1)}s):\n${execution.output || '(无输出)'}`,
+          `[delegate_to] ${targetId} 的执行结果(耗时 ${(execution.durationMs / 1000).toFixed(1)}s):\n${capOutput(execution.output) || '(无输出)'}`,
         )
       } catch (err) {
         // runAgent 同步抛错(如目标排队已满)— 如实返回给 main
-        const msg = err instanceof Error ? err.message : String(err)
+        const msg = errText(err)
         return textResult(`[delegate_to 错误] 委托 ${targetId} 失败: ${msg}`)
       }
     },

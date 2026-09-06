@@ -1,0 +1,26 @@
+// =============================================================
+// 记忆管理 API 类型(单一来源: preload 实现按此注解)
+// =============================================================
+
+interface MemoryEntryView {
+  id: string
+  content: string
+  category: string
+  createdAt: number
+}
+
+export interface MemoryAgentEntries {
+  agentId: string
+  entries: MemoryEntryView[]
+}
+
+export interface MemoryOpResult {
+  success: boolean
+  error?: string
+}
+
+export interface MemoryAPI {
+  list: () => Promise<MemoryAgentEntries[]>
+  deleteEntry: (agentId: string, entryId: string) => Promise<MemoryOpResult>
+  clear: (agentId: string) => Promise<MemoryOpResult>
+}

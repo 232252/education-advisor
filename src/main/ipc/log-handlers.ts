@@ -8,6 +8,7 @@
 
 import * as IPC from '@shared/ipc-channels'
 import { dialog, ipcMain } from 'electron'
+import { errText } from '../utils/err-text'
 import type { LogLevel } from '../utils/logger'
 import {
   clearAllLogs,
@@ -28,56 +29,26 @@ export function registerLogHandlers(): void {
     logRenderer(lv, String(msg))
   })
 
-  ipcMain.handle(IPC.IPC_LOG_LIST, async () => {
-    try {
-      return await listLogFiles()
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      throw new Error(`listLogFiles 失败: ${msg}`)
-    }
-  })
-
-  ipcMain.handle(IPC.IPC_LOG_READ, async (_event, filePath: string, lines?: number) => {
-    try {
-      return await readLogTail(filePath, lines)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      throw new Error(`readLogTail 失败: ${msg}`)
-    }
-  })
-
-  ipcMain.handle(IPC.IPC_LOG_CLEAR, async () => {
-    try {
-      return await clearAllLogs()
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      throw new Error(`clearAllLogs 失败: ${msg}`)
-    }
-  })
-
-  ipcMain.handle(
-    IPC.IPC_LOG_FILTER,
-    async (_event, filePath: string, levels: string[], lines?: number) => {
+  /** 注册「透传 logger 工具函数」型 handler: 调用原函数,异常统一重打 `<fn> 失败:` 标签后 rethrow */
+  function registerPassThrough<A extends unknown[]>(
+    channel: string,
+    fnName: string,
+    fn: (...args: A) => Promise<unknown>,
+  ): void {
+    ipcMain.handle(channel, async (_event, ...args: A) => {
       try {
-        return await readLogTailByLevel(filePath, levels, lines)
+        return await fn(...args)
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        throw new Error(`readLogTailByLevel 失败: ${msg}`)
+        throw new Error(`${fnName} 失败: ${errText(err)}`)
       }
-    },
-  )
+    })
+  }
 
-  ipcMain.handle(
-    IPC.IPC_LOG_SEARCH,
-    async (_event, filePath: string, query: string, maxResults?: number) => {
-      try {
-        return await searchLog(filePath, query, maxResults)
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        throw new Error(`searchLog 失败: ${msg}`)
-      }
-    },
-  )
+  registerPassThrough(IPC.IPC_LOG_LIST, 'listLogFiles', listLogFiles)
+  registerPassThrough(IPC.IPC_LOG_READ, 'readLogTail', readLogTail)
+  registerPassThrough(IPC.IPC_LOG_CLEAR, 'clearAllLogs', clearAllLogs)
+  registerPassThrough(IPC.IPC_LOG_FILTER, 'readLogTailByLevel', readLogTailByLevel)
+  registerPassThrough(IPC.IPC_LOG_SEARCH, 'searchLog', searchLog)
 
   ipcMain.handle(IPC.IPC_LOG_EXPORT_DIALOG, async (_event, sourceName: string) => {
     try {
@@ -92,8 +63,7 @@ export function registerLogHandlers(): void {
       const bytes = await exportLog(sourceName, result.filePath)
       return { canceled: false, bytes, path: result.filePath }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      throw new Error(`exportLogWithDialog 失败: ${msg}`)
+      throw new Error(`exportLogWithDialog 失败: ${errText(err)}`)
     }
   })
 

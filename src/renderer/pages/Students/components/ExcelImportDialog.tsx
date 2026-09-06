@@ -12,7 +12,7 @@ import type {
 } from '@shared/types'
 import { useEffect } from 'react'
 import { Button } from '../../../components/Button'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { cn, TABLE_TD, TABLE_TH } from '../../../lib/ui-utils'
 
 interface ExcelImportDialogProps {
@@ -97,9 +97,10 @@ export function ExcelImportDialog({
                   : 'text-amber-600 dark:text-amber-400',
               )}
             >
-              {t('page.students.import.excel.doneSummary')
-                .replace('{0}', String(result.imported))
-                .replace('{1}', String(result.failed.length))}
+              {tr('page.students.import.excel.doneSummary', {
+                0: String(result.imported),
+                1: String(result.failed.length),
+              })}
             </p>
             {result.failed.length > 0 && (
               <div className="min-h-0">
@@ -121,9 +122,10 @@ export function ExcelImportDialog({
           /* ----- 导入中：进度条 ----- */
           <div className="py-8 flex flex-col items-center gap-3">
             <p className="text-sm text-blue-600 dark:text-blue-400">
-              {t('page.students.import.excel.importing')
-                .replace('{0}', String(progress?.current ?? 0))
-                .replace('{1}', String(progress?.total ?? validRows.length))}
+              {tr('page.students.import.excel.importing', {
+                0: String(progress?.current ?? 0),
+                1: String(progress?.total ?? validRows.length),
+              })}
             </p>
             <div className="w-full h-2 bg-gray-200 dark:bg-white/[0.08] rounded-full overflow-hidden">
               <div
@@ -140,10 +142,11 @@ export function ExcelImportDialog({
           /* ----- 预览阶段：摘要 + 预览表格 + 问题行 ----- */
           <div className="min-h-0 flex flex-col gap-3">
             <p className="text-sm text-gray-600 dark:text-gray-300 shrink-0">
-              {t('page.students.import.excel.summary')
-                .replace('{0}', String(preview?.totalRows ?? 0))
-                .replace('{1}', String(validRows.length))
-                .replace('{2}', String(errorRows.length))}
+              {tr('page.students.import.excel.summary', {
+                0: String(preview?.totalRows ?? 0),
+                1: String(validRows.length),
+                2: String(errorRows.length),
+              })}
             </p>
             {validRows.length > 0 && (
               <div className="min-h-0 overflow-auto border border-gray-200 dark:border-white/[0.06] rounded-lg">
@@ -208,7 +211,7 @@ export function ExcelImportDialog({
               loading={importing}
               disabled={validRows.length === 0}
             >
-              {t('page.students.import.excel.confirm').replace('{0}', String(validRows.length))}
+              {tr('page.students.import.excel.confirm', { 0: String(validRows.length) })}
             </Button>
           )}
         </div>

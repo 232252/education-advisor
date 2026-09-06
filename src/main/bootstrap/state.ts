@@ -5,6 +5,9 @@
 
 import type { BrowserWindow } from 'electron'
 
+/** 启动计时基准: 本模块首次被求值的时刻(主进程模块图加载期,贴近进程启动) */
+export const bootT0 = performance.now()
+
 export const mainState = {
   // 全局窗口引用
   mainWindow: null as BrowserWindow | null,
