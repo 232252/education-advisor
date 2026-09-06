@@ -30,10 +30,14 @@ const ALLOWLIST_LINE: Record<string, Record<number, string>> = {
     99: '动态生成班级名数据(如 "3班")',
   },
   'pages/Dashboard/components/ClassComparisonPanel.tsx': {
-    82: 'EAARiskLevel 数据键值(极高/高/中/低 来自后端枚举)',
-    85: 'EAARiskLevel 数据键值',
-    88: 'EAARiskLevel 数据键值',
-    91: 'EAARiskLevel 数据键值',
+    93: 'EAARiskLevel 数据键值(极高/高/中/低 来自后端枚举,属性访问非文案)',
+    96: 'EAARiskLevel 数据键值',
+    99: 'EAARiskLevel 数据键值',
+    102: 'EAARiskLevel 数据键值',
+    169: 'EAARiskLevel 数据键值',
+    173: 'EAARiskLevel 数据键值',
+    177: 'EAARiskLevel 数据键值',
+    181: 'EAARiskLevel 数据键值',
   },
 }
 
@@ -71,16 +75,26 @@ function stripLineComment(line: string): string {
   return line.replace(/\/\/.*$/, '')
 }
 
-/** 剥离 t('key', 'fallback') / {t(...)} / tr('key', {…}, 'fallback') 整体(含中文 fallback) */
-function stripTInvocations(line: string): string {
-  // t('key', '中文兜底') 或 t('key') 或 t(`…`)
-  let out = line
-  out = out.replace(/t\(\s*'[^']*'(?:\s*,\s*'[^']*')?\s*\)/g, 'T')
-  out = out.replace(/t\(\s*`[^`]*`(?:\s*,\s*'[^']*')?\s*\)/g, 'T')
-  out = out.replace(/t\(\s*'[^']*'\s*,\s*`[^`]*`\s*\)/g, 'T')
+/**
+ * 剥离 t('key','fallback') / tr('key',{…},'fallback') 调用整体(含中文 fallback)。
+ * 跨行多行调用同样剥离: 逐行正则识别不了换行拆开的实参,会把已接线文案误报成
+ * 裸中文。匹配段替换为等长空白(保留换行位置),行号不漂移。
+ * \b 词边界: 避免 start(/expect( 等"以 t 结尾标识符+(" 的误匹配。
+ */
+function stripTInvocations(lines: string[]): string[] {
+  const blankKeepNewlines = (m: string) => m.replace(/[^\n]/g, ' ')
+  let text = lines.join('\n')
   // tr('key', { 0: '…' }, '中文兜底') — 带插值参数的变体,同为正规接线
-  out = out.replace(/tr\(\s*'[^']*'\s*,\s*\{[^}]*\}\s*,\s*'[^']*'\s*\)/g, 'T')
-  return out
+  text = text.replace(
+    /\btr\(\s*'[^']*'\s*,\s*\{[^}]*\}\s*,\s*'[^']*'\s*\)/gs,
+    blankKeepNewlines,
+  )
+  // t('key') / t('key','兜底') / t(`key`) / t('key',`兜底`)
+  text = text.replace(
+    /\bt\(\s*(?:'[^']*'|`[^`]*`)\s*(?:,\s*(?:'[^']*'|`[^`]*`)\s*)?\)/gs,
+    blankKeepNewlines,
+  )
+  return text.split('\n')
 }
 
 function collectHits(): Array<{ file: string; line: number; text: string }> {
@@ -99,10 +113,10 @@ function collectHits(): Array<{ file: string; line: number; text: string }> {
           const lineAllow: Record<number, string> = ALLOWLIST_LINE[rel] ?? {}
           const lines = fs.readFileSync(p, 'utf-8').split('\n')
           const stripped = stripBlockComments(lines)
+          const noT = stripTInvocations(stripped)
           stripped.forEach((noBlock, i) => {
-            const noComment = stripLineComment(noBlock)
-            const noT = stripTInvocations(noComment)
-            if (CJK.test(noT) && !lineAllow[i + 1]) {
+            const noComment = stripLineComment(noT[i] ?? '')
+            if (CJK.test(noComment) && !lineAllow[i + 1]) {
               hits.push({ file: rel, line: i + 1, text: lines[i]!.trim().slice(0, 120) })
             }
           })
