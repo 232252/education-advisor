@@ -17,6 +17,27 @@ const DICTS: Record<Lang, Dict> = { zh, en }
 const LANG_KEY = 'education-advisor.lang'
 let currentLang: Lang = loadInitial()
 
+/**
+ * F1 自愈 — app:// 分区下 localStorage 的首次写入存在刷盘窗口:
+ * boot 时 loadInitial() 可能读到重定位前的旧值,把语言锁死(实测 en 用户
+ * reload/重启后间歇性回退 zh,且主布局与懒加载页渲染不一致)。
+ * 首次组件渲染(useT)时 storage 必已就绪,此时重读一次:
+ * 偏好有效且与当前不同 → 走 setLang 自愈(回写+广播,已挂载组件同步)。
+ * 哨兵保证只自愈一次,此后以 setLang 事件为唯一变更通道。
+ */
+let healChecked = false
+export function healLangFromStorage(): void {
+  if (healChecked) return
+  healChecked = true
+  if (typeof window === 'undefined') return
+  try {
+    const stored = window.localStorage.getItem(LANG_KEY)
+    if ((stored === 'zh' || stored === 'en') && stored !== currentLang) setLang(stored)
+  } catch {
+    /* storage 不可用时保持当前语言 */
+  }
+}
+
 function loadInitial(): Lang {
   if (typeof window === 'undefined') return 'zh'
   try {
@@ -81,6 +102,8 @@ export function getLang(): Lang {
 
 /** React hook: 返回 t 函数 + 当前 lang, lang 变化时自动 rerender */
 export function useT(): { t: (key: string, fallback?: string) => string; lang: Lang } {
+  // 首次渲染自愈 boot 语言竞态(见 healLangFromStorage 注释)
+  healLangFromStorage()
   const [lang, setLangState] = useState<Lang>(currentLang)
   useEffect(() => {
     const handler = (e: Event) => {
