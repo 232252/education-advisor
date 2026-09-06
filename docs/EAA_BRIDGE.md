@@ -180,6 +180,8 @@ subcommands:
 | `eaa:doctor` | `doctor` | read | Health check. |
 | `eaa:summary` | `summary` | read | Generate a summary for a date range. |
 | `eaa:dashboard` | `dashboard` | write | Generate an HTML dashboard report. |
+| `eaa:export-formats` | `export --list-formats` | read | List export formats supported by the installed EAA CLI (fetched dynamically). |
+| `eaa:invalidate-cache` | *(no CLI subcommand)* | write | Clear the renderer-side EAA read caches (the dashboard "refresh" action). |
 
 The full schema for each operation is in
 `src/shared/types/`(按域拆分 16 个类型模块;行数快照易漂移不再手写数字) and mirrored in the EAA CLI
