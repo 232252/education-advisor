@@ -63,6 +63,7 @@
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "ipc:contract": "node scripts/ipc-contract-test.mjs --static",
+    "ipc:runtime": "node scripts/ipc-contract-test.mjs",
     "prompt:lint": "node scripts/prompt-lint.mjs",
     "doc:check": "node scripts/doc-stats.mjs --check",
     "doc:stats": "node scripts/doc-stats.mjs --write",
