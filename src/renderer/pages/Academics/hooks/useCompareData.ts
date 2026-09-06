@@ -7,8 +7,9 @@
 // 对比核心算法在 ../exam-comparison.ts。
 // =============================================================
 
-import type { EAAEventRecord, EAAStudent, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { EAAStudent, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useConductEvents, useExamPairSelection } from '../../../hooks/useExamPair'
 import { useT } from '../../../i18n'
 import {
   computeStudentComparisons,
@@ -16,10 +17,11 @@ import {
   sortByDateAsc,
   summarizeClassComparison,
 } from '../../../lib/academics'
+import { CLASS_FILTER_ALL } from '../../../lib/class-filter'
 import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
 
-export interface UseCompareDataParams {
+interface UseCompareDataParams {
   students: EAAStudent[]
   subjects: SubjectDef[]
   exams: ExamDef[]
@@ -27,13 +29,10 @@ export interface UseCompareDataParams {
 
 export function useCompareData({ students, subjects, exams }: UseCompareDataParams) {
   const { t } = useT()
-  const [classFilter, setClassFilter] = useState<string>('__ALL__')
-  const [examAId, setExamAId] = useState<string>('')
-  const [examBId, setExamBId] = useState<string>('')
+  const [classFilter, setClassFilter] = useState<string>(CLASS_FILTER_ALL)
   const [loading, setLoading] = useState(false)
   const [classGradesA, setClassGradesA] = useState<Record<string, GradeRecord[]> | null>(null)
   const [classGradesB, setClassGradesB] = useState<Record<string, GradeRecord[]> | null>(null)
-  const [conductEvents, setConductEvents] = useState<EAAEventRecord[] | null>(null)
 
   // subjectId → 中文名(纯函数模块要求 Record<string,string>)
   const subjectNameMap = useMemo(() => {
@@ -51,64 +50,44 @@ export function useCompareData({ students, subjects, exams }: UseCompareDataPara
   // 按日期升序的考试列表
   const sortedExams = useMemo(() => sortByDateAsc(exams), [exams])
 
-  // 默认选最近两场
-  useEffect(() => {
-    if (sortedExams.length >= 2 && !examAId && !examBId) {
-      setExamAId(sortedExams[sortedExams.length - 2].id)
-      setExamBId(sortedExams[sortedExams.length - 1].id)
-    }
-  }, [sortedExams, examAId, examBId])
+  // 考试 A/B 选择(默认最近两场)+ 操行分 range 拉取,实现见 hooks/useExamPair
+  const { examAId, setExamAId, examBId, setExamBId } = useExamPairSelection(sortedExams)
+  const conductEvents = useConductEvents(exams, examAId, examBId, 5000)
 
   // 加载对比数据
+  // 代际防护: 切换考试对后,晚到的旧响应不得覆盖新数据;旧请求的 finally 也不得提前关闭新请求的 loading
+  const loadGenRef = useRef(0)
   const loadComparison = useCallback(async () => {
+    const gen = ++loadGenRef.current
     if (!examAId || !examBId || examAId === examBId || targetStudentNames.length === 0) {
       setClassGradesA(null)
       setClassGradesB(null)
-      setConductEvents(null)
       return
     }
     setLoading(true)
     try {
-      const examA = exams.find((e) => e.id === examAId)
-      const examB = exams.find((e) => e.id === examBId)
       const [resA, resB] = await Promise.allSettled([
         getAPI().academic.getClassGrades(targetStudentNames, examAId),
         getAPI().academic.getClassGrades(targetStudentNames, examBId),
       ])
+      if (loadGenRef.current !== gen) return
       if (resA.status === 'fulfilled' && resA.value.success && resA.value.data) {
         setClassGradesA(resA.value.data)
       }
       if (resB.status === 'fulfilled' && resB.value.success && resB.value.data) {
         setClassGradesB(resB.value.data)
       }
-      // 加载两次考试日期之间的操行分事件
-      if (examA?.date && examB?.date) {
-        const start = examA.date <= examB.date ? examA.date : examB.date
-        const end = examA.date <= examB.date ? examB.date : examA.date
-        try {
-          const rangeRes = await getAPI().eaa.range(start, end, 5000)
-          if (rangeRes.success && rangeRes.data) {
-            // M10: range 结果达上限(limit 被截断为 1000)时提醒缩小日期范围
-            if (rangeRes.data.truncated) {
-              toast.warning(t('toast.eaa.rangeTruncated'))
-            }
-            setConductEvents(rangeRes.data.events ?? [])
-          } else {
-            setConductEvents(null)
-          }
-        } catch {
-          setConductEvents(null)
-        }
-      }
+      // 操行分事件由 useConductEvents 独立拉取(与成绩加载并行)
     } catch (err) {
+      if (loadGenRef.current !== gen) return
       console.warn('[CompareTab] load failed:', err)
       toast.error(
         getErrorMessage({ success: false } as never, t('page.academics.toast.compareLoadFailed')),
       )
     } finally {
-      setLoading(false)
+      if (loadGenRef.current === gen) setLoading(false)
     }
-  }, [examAId, examBId, exams, targetStudentNames, t])
+  }, [examAId, examBId, targetStudentNames, t])
 
   useEffect(() => {
     loadComparison()

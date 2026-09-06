@@ -9,7 +9,7 @@
 
 import { create } from 'zustand'
 
-export type NotificationSource = 'agent' | 'cron' | 'system'
+type NotificationSource = 'agent' | 'cron' | 'system'
 export type NotificationLevel = 'info' | 'success' | 'warning' | 'error'
 
 export interface NotificationItem {

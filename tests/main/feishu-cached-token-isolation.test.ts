@@ -4,15 +4,7 @@
 // =============================================================
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-function mockFetchResponse(data: unknown, ok = true, status = 200) {
-  return {
-    ok,
-    status,
-    json: async () => data,
-    text: async () => JSON.stringify(data),
-  }
-}
+import { mockFetchResponse } from './helpers/make'
 
 const fetchMock = vi.fn()
 

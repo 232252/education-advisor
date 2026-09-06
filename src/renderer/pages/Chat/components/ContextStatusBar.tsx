@@ -4,6 +4,7 @@
 //              不在 UI 硬编码 900K
 // =============================================================
 
+import { memo } from 'react'
 import { useT } from '../../../i18n'
 import { fmtK } from '../lib/format'
 
@@ -21,8 +22,8 @@ interface ContextStatusBarProps {
   lastCost: number
 }
 
-/** 上下文状态条：token 用量 + 压缩阈值进度 */
-export function ContextStatusBar({
+/** 上下文状态条：token 用量 + 压缩阈值进度(memo: 流式 flush 期间 props 稳定即短路) */
+export const ContextStatusBar = memo(function ContextStatusBar({
   modelContext,
   modelMaxOutput,
   lastUsage,
@@ -119,4 +120,4 @@ export function ContextStatusBar({
       </div>
     </div>
   )
-}
+})

@@ -47,11 +47,10 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerMemoryHandlers(win)
 
   // 初始化 EAA Bridge（创建数据目录、复制 reason-codes、doctor 健康检查）
-  const eaaStatus = await eaaBridge.initialize()
+  // 与 Agent 运行时互不依赖(agent-service 全文零引用 eaaBridge,各自只读
+  // 自己的配置文件),并行发起缩短 loadURL 前的启动关键路径(2026-09-04)
+  const [eaaStatus] = await Promise.all([eaaBridge.initialize(), agentService.init(win)])
   console.log(`[IPC] EAA Bridge: ${eaaStatus.message}`)
-
-  // 初始化 Agent 运行时（加载配置、桥接 cron 调度、注入 Skill）
-  await agentService.init(win)
 
   console.log('[IPC] All handlers registered')
 }

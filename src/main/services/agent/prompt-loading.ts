@@ -15,14 +15,34 @@ export function validateAgentId(id: string): string {
   return path.basename(id)
 }
 
+/**
+ * 提示词文件缓存(mtime 签名): 每次 agent 运行都要读 SOUL/AGENTS/rules/project-context
+ * 共 8 次同步 fs,内容几乎从不变 — 命中时只付 1 次 statSync,编辑保存后 mtime 变化自动失效。
+ * (与 skill-service 的 dirSignature 缓存同思路)
+ */
+const promptCache = new Map<string, { mtimeMs: number; content: string }>()
+
+function readWithCache(filePath: string): string {
+  try {
+    const stat = fs.statSync(filePath)
+    const cached = promptCache.get(filePath)
+    if (cached && cached.mtimeMs === stat.mtimeMs) return cached.content
+    const content = fs.readFileSync(filePath, 'utf-8')
+    promptCache.set(filePath, { mtimeMs: stat.mtimeMs, content })
+    return content
+  } catch {
+    // 文件不存在等价于旧 existsSync 分支的空串
+    return ''
+  }
+}
+
 /** 读取 agent 提示词文件，不存在返回空串 */
 function readPromptFile(agentsDir: string, id: string, filename: string): string {
   const safeId = validateAgentId(id)
-  const filePath = path.join(agentsDir, safeId, filename)
-  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : ''
+  return readWithCache(path.join(agentsDir, safeId, filename))
 }
 
-/** 写入 agent 提示词文件（自动创建目录） */
+/** 写入 agent 提示词文件（自动创建目录;写后显式刷新缓存,防同毫秒 mtime 不变导致旧值） */
 function writePromptFile(
   agentsDir: string,
   id: string,
@@ -33,6 +53,11 @@ function writePromptFile(
   const filePath = path.join(agentsDir, safeId, filename)
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, content, 'utf-8')
+  try {
+    promptCache.set(filePath, { mtimeMs: fs.statSync(filePath).mtimeMs, content })
+  } catch {
+    promptCache.delete(filePath)
+  }
   return { success: true }
 }
 
@@ -49,8 +74,7 @@ export function saveSoul(agentsDir: string, id: string, content: string): { succ
  * system prompt,消除 18 份 AGENTS.md 中逐字复制的公共段。
  */
 export function loadSharedRules(agentsDir: string): string {
-  const filePath = path.join(agentsDir, '_shared', 'rules.md')
-  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : ''
+  return readWithCache(path.join(agentsDir, '_shared', 'rules.md'))
 }
 
 /**
@@ -60,8 +84,7 @@ export function loadSharedRules(agentsDir: string): string {
  * README/PROJECT_INTRO 等文档从不进入 prompt。
  */
 export function loadProjectContext(agentsDir: string): string {
-  const filePath = path.join(agentsDir, '_shared', 'project-context.md')
-  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : ''
+  return readWithCache(path.join(agentsDir, '_shared', 'project-context.md'))
 }
 
 export function loadRules(agentsDir: string, id: string): string {

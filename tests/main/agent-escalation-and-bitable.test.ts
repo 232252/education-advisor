@@ -78,6 +78,34 @@ describe('escalate_to_main 工具', () => {
     expect(text).toContain('上报 main 失败')
     expect(text).toContain('飞书推送跳过')
   })
+
+  it('超长 summary/detail 被封顶(runaway 输出不灌爆 main 上下文)', async () => {
+    const enqueue = vi.fn().mockResolvedValue(true)
+    const tool = createEscalateToMainTool({ enqueueMainReport: enqueue }, { sourceAgentId: 'psychology' })
+    await tool.execute('tc1', {
+      severity: 'critical',
+      summary: 's'.repeat(2000),
+      detail: 'd'.repeat(8000),
+    })
+    const reported = enqueue.mock.calls[0][0] as string
+    expect(reported).toContain(`${'s'.repeat(500)}…(超长已截断至 500/2000 字符)`)
+    expect(reported).toContain(`${'d'.repeat(2000)}…(超长已截断至 2000/8000 字符)`)
+    expect(reported).not.toContain('s'.repeat(501))
+  })
+
+  it('非法 severity 归一化时回显实际级别(不静默降级)', async () => {
+    const enqueue = vi.fn().mockResolvedValue(true)
+    const tool = createEscalateToMainTool({ enqueueMainReport: enqueue }, { sourceAgentId: 'psychology' })
+    // 直接以越权调用构造(schema 会拦,这里测运行时防御路径)
+    const result = (await tool.execute('tc1', {
+      severity: 'high' as unknown as 'critical',
+      summary: '测试',
+    })) as { content: Array<{ text: string }> }
+    const text = result.content[0].text
+    expect(text).toContain('不是合法值')
+    expect(text).toContain('已按 warning 级记录')
+    expect(enqueue.mock.calls[0][0]).toContain('[紧急上报][warning]')
+  })
 })
 
 describe('composeSnapshotMessage(bitable 真实快照)', () => {

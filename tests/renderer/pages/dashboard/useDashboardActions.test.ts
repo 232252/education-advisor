@@ -6,6 +6,8 @@
 // =============================================================
 
 import { act } from 'react'
+import { setWindowApi, clearWindowApi } from '../../helpers/window-api'
+import { toastMocks } from '../../helpers/mock-toast'
 import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EAADoctorData, EAAValidateData } from '@shared/types'
@@ -13,24 +15,7 @@ import { useDashboardActions } from '../../../../src/renderer/pages/Dashboard/ho
 
 // ---------- toast mock ----------
 
-const toastMocks = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
-}))
-
-vi.mock('../../../../src/renderer/stores/toastStore', () => ({
-  toast: {
-    success: toastMocks.success,
-    error: toastMocks.error,
-    warning: toastMocks.warning,
-    info: toastMocks.info,
-    show: vi.fn(),
-    dismiss: vi.fn(),
-    clear: vi.fn(),
-  },
-}))
+vi.mock('../../../../src/renderer/stores/toastStore', async () => (await import('../../helpers/mock-toast')).mockToastStore)
 
 // ---------- window.api mock ----------
 
@@ -42,14 +27,14 @@ const apiMocks = vi.hoisted(() => ({
 }))
 
 function installApi() {
-  ;(window as unknown as { api: unknown }).api = {
+  ;setWindowApi({
     eaa: {
       doctor: apiMocks.doctor,
       validate: apiMocks.validate,
       replay: apiMocks.replay,
       dashboard: apiMocks.dashboard,
     },
-  }
+  })
 }
 
 const doctorData: EAADoctorData = {
@@ -75,7 +60,7 @@ describe('useDashboardActions', () => {
   })
 
   afterEach(() => {
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   it('初始状态: 数据为 null, 运行标记为 false', () => {

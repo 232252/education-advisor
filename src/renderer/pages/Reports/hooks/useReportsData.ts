@@ -5,8 +5,12 @@
 // =============================================================
 
 import type { ReportEntry } from '@shared/types/reports'
-import { useCallback, useEffect, useState } from 'react'
-import { getAPI } from '../../../lib/ipc-client'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useIpcQuery } from '../../../hooks/useIpcQuery'
+import { errText, getAPI } from '../../../lib/ipc-client'
+
+// 稳定空数组引用,避免加载前/失败后每次渲染产生新引用
+const EMPTY_ENTRIES: ReportEntry[] = []
 
 /** 与 agents.yaml weekly-reporter cron 指令同口径的即时生成 prompt */
 const GENERATE_PROMPT =
@@ -15,36 +19,41 @@ const GENERATE_PROMPT =
   '产物写入 data_archive/agent_outputs/ 目录,文件名 weekly_report_<日期>。'
 
 export function useReportsData() {
-  const [entries, setEntries] = useState<ReportEntry[]>([])
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedName, setSelectedName] = useState<string | null>(null)
   const [content, setContent] = useState('')
   const [contentLoading, setContentLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  // onData 闭包用 ref 读最新选中项,fetchList 依赖收口为稳定引用
+  const selectedNameRef = useRef(selectedName)
+  selectedNameRef.current = selectedName
 
-  const fetchList = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
+  // 列表加载收口至 useIpcQuery — 修复: 原实现 fetchList 从未在挂载时
+  // 触发,首次进入报告中心列表恒为空,必须手点刷新
+  const {
+    data: entriesData,
+    loading,
+    reload: fetchList,
+  } = useIpcQuery<ReportEntry[]>(
+    async () => {
       const r = await getAPI().reports.list()
-      if (!r.success) {
-        setError(r.error ?? '加载失败')
-        setEntries([])
-      } else {
-        setEntries(r.entries)
-        // 默认选中最新一份
-        if (r.entries.length > 0 && !r.entries.some((e) => e.name === selectedName)) {
-          setSelectedName((cur) => cur ?? r.entries[0]!.name)
+      if (!r.success) throw new Error(r.error ?? '加载失败')
+      return r.entries
+    },
+    {
+      scope: 'Reports',
+      // 失败即清空列表(与原实现一致)
+      keepDataOnError: false,
+      onError: (err) => setError(errText(err)),
+      onData: (list) => {
+        // 默认选中最新一份(长度已判,?. 仅为满足 lint;取不到时保持 undefined)
+        if (list.length > 0 && !list.some((e) => e.name === selectedNameRef.current)) {
+          setSelectedName((cur) => cur ?? list[0]?.name)
         }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-      setEntries([])
-    } finally {
-      setLoading(false)
-    }
-  }, [selectedName])
+      },
+    },
+  )
+  const entries = entriesData ?? EMPTY_ENTRIES
 
   const select = useCallback(async (name: string) => {
     setSelectedName(name)
@@ -57,7 +66,7 @@ export function useReportsData() {
         setContent(`读取失败: ${r.error ?? '未知错误'}`)
       }
     } catch (err) {
-      setContent(`读取异常: ${err instanceof Error ? err.message : String(err)}`)
+      setContent(`读取异常: ${errText(err)}`)
     } finally {
       setContentLoading(false)
     }
@@ -74,7 +83,7 @@ export function useReportsData() {
       // fire-and-forget 与 manual run 一致;结果会写入产物目录,生成后刷新列表
       await getAPI().agent.runManual('weekly-reporter', GENERATE_PROMPT, [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errText(err))
     } finally {
       setGenerating(false)
       // agent 运行是异步的,稳定延迟后刷新一次列表

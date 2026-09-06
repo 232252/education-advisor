@@ -23,30 +23,9 @@
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
 import type { Api, AssistantMessageEvent, Model } from '@earendil-works/pi-ai/compat'
 import { streamSimple } from '@earendil-works/pi-ai/compat'
-import { isRetryableError } from '../pi-ai-helpers'
-import { settingsService } from '../settings-service'
-
-interface RetrySettings {
-  enabled: boolean
-  maxRetries: number
-  baseDelayMs: number
-}
-
-function readRetrySettings(): RetrySettings {
-  // 默认值与 ChatStreamRunner/直连路径一致: enabled/3 次/1000ms 起步
-  const s: RetrySettings = { enabled: true, maxRetries: 3, baseDelayMs: 1000 }
-  try {
-    const r = settingsService.getSettings().models?.retry
-    if (r) {
-      if (typeof r.enabled === 'boolean') s.enabled = r.enabled
-      if (typeof r.maxRetries === 'number' && r.maxRetries >= 0) s.maxRetries = r.maxRetries
-      if (typeof r.baseDelayMs === 'number' && r.baseDelayMs > 0) s.baseDelayMs = r.baseDelayMs
-    }
-  } catch {
-    /* settings 不可用时用默认值 */
-  }
-  return s
-}
+import { errText } from '../../utils/err-text'
+import { readRetrySettings } from '../pi-ai/retry-settings'
+import { backoffDelayMs, isRetryableError, zeroedUsage } from '../pi-ai-helpers'
 
 /** 构造最小合法的 error 事件(agent-loop 以 result() 提取该消息作为最终输出) */
 function syntheticErrorEvent(model: Model<Api>, message: string): AssistantMessageEvent {
@@ -59,14 +38,7 @@ function syntheticErrorEvent(model: Model<Api>, message: string): AssistantMessa
       api: model.api,
       provider: model.provider,
       model: model.id,
-      usage: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        totalTokens: 0,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-      },
+      usage: zeroedUsage(),
       stopReason: 'error',
       errorMessage: message,
       timestamp: Date.now(),
@@ -77,7 +49,14 @@ function syntheticErrorEvent(model: Model<Api>, message: string): AssistantMessa
 /** 构造带事件级重试的 streamFn — 在 execution.ts 替代裸 streamSimple 注入 Agent */
 export function createRetryingStreamFn() {
   return async (...args: Parameters<typeof streamSimple>) => {
-    const { enabled, maxRetries, baseDelayMs } = readRetrySettings()
+    // 默认值与 ChatStreamRunner/直连路径一致: enabled/3 次/1000ms 起步
+    let retry = { enabled: true, maxRetries: 3, baseDelayMs: 1000 }
+    try {
+      retry = readRetrySettings()
+    } catch {
+      /* settings 不可用时用默认值 */
+    }
+    const { enabled, maxRetries, baseDelayMs } = retry
     const signal = args[2]?.signal
     const model = args[0]
     const wrapper = createAssistantMessageEventStream()
@@ -105,7 +84,7 @@ export function createRetryingStreamFn() {
               const canRetry =
                 enabled && isRetryableError(errMsg) && attempt < maxRetries && !signal?.aborted
               if (!committed && canRetry) {
-                const delay = baseDelayMs * 2 ** attempt + Math.floor(Math.random() * 100)
+                const delay = backoffDelayMs(baseDelayMs, attempt)
                 attempt++
                 console.log(
                   `[Agent] stream error retry ${attempt}/${maxRetries} after ${delay}ms (error: ${errMsg})`,
@@ -134,13 +113,13 @@ export function createRetryingStreamFn() {
           return
         } catch (err) {
           // 建流同步抛错(鉴权/参数 assert)或泵自身异常
-          const message = err instanceof Error ? err.message : String(err)
+          const message = errText(err)
           const canRetry = enabled && isRetryableError(message) && attempt < maxRetries
           if (!canRetry) {
             wrapper.push(syntheticErrorEvent(model, message))
             return
           }
-          const delay = baseDelayMs * 2 ** attempt + Math.floor(Math.random() * 100)
+          const delay = backoffDelayMs(baseDelayMs, attempt)
           attempt++
           console.log(
             `[Agent] stream creation retry ${attempt}/${maxRetries} after ${delay}ms (error: ${message})`,

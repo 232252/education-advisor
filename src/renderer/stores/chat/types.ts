@@ -12,7 +12,7 @@ export interface ChatSession {
   messageCount: number
 }
 
-export interface AgentBridgeEvent {
+interface AgentBridgeEvent {
   agentId: string
   status: string
   output?: string
@@ -55,6 +55,7 @@ export interface ChatState {
   addMessage: (msg: ChatMessage) => void
   appendStreamDelta: (delta: string) => void
   appendThinkingDelta: (delta: string) => void
+  /** 立即 flush 50ms 批处理缓冲的 delta(测试与"停止/切换前落盘"场景) */
   flushDeltas: () => void
   handleAgentEvent: (data: AgentBridgeEvent) => void
   setModel: (provider: string, model: string) => void

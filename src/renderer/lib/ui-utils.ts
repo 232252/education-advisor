@@ -14,6 +14,11 @@ export function formatDate(v: Date | number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/** 今日日期字符串 YYYY-MM-DD(UTC 口径,与考试/快速录入的默认值一致) */
+export function todayISO(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
 /** YYYY-MM-DD HH:mm:ss(epoch ms) */
 export function formatDateTime(ms: number): string {
   const d = new Date(ms)
@@ -128,6 +133,14 @@ export const CARD_INTERACTIVE = `${CARD_BASE} transition-all duration-200 hover:
 export const INPUT_BASE =
   'rounded-lg border border-gray-300 dark:border-white/[0.08] bg-white dark:bg-surface-elevated text-sm text-gray-900 dark:text-gray-100 px-3 py-2 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-transparent focus:bg-white dark:focus:bg-[#22262f]'
 
+/** 设置页小按钮 — 蓝色系(text-[10px],诊断/导出/测试连接等动作) */
+export const BTN_SM_BLUE =
+  'text-[10px] px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+
+/** 设置页小按钮 — 灰色系(text-[10px],次级动作如刷新列表) */
+export const BTN_SM_GRAY =
+  'text-[10px] px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-white/[0.08] text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.04] transition-colors'
+
 /** 紧凑型输入框 (Settings 表单 / 内联编辑场景, text-xs 字号) */
 export const INPUT_SM =
   'rounded-lg border border-gray-300 dark:border-white/[0.08] bg-white dark:bg-surface-elevated text-xs text-gray-900 dark:text-gray-100 px-2.5 py-1.5 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-transparent focus:bg-white dark:focus:bg-[#22262f]'
@@ -180,3 +193,53 @@ export function badgeStyle(
       return `${base} bg-gray-100 dark:bg-surface-elevated text-gray-600 dark:text-gray-400`
   }
 }
+
+// =============================================================
+// 统计卡片主题渐变色(单一来源)
+// MetricCard(Students) 与 DashboardStatCard(Dashboard) 共用:
+// bg/border/text 为 Tailwind 组合类,from/to 为装饰渐变的 hex 端点
+// =============================================================
+export const GRADIENT_TONES = {
+  blue: {
+    from: '#3b82f6',
+    to: '#1d4ed8',
+    bg: 'from-blue-500/10 to-blue-600/5',
+    border: 'border-blue-500/20',
+    text: 'text-blue-600 dark:text-blue-400',
+    shadow: 'shadow-blue-500/10',
+  },
+  green: {
+    from: '#22c55e',
+    to: '#15803d',
+    bg: 'from-green-500/10 to-green-600/5',
+    border: 'border-green-500/20',
+    text: 'text-green-600 dark:text-green-400',
+    shadow: 'shadow-green-500/10',
+  },
+  yellow: {
+    from: '#eab308',
+    to: '#a16207',
+    bg: 'from-yellow-500/10 to-yellow-600/5',
+    border: 'border-yellow-500/20',
+    text: 'text-yellow-600 dark:text-yellow-400',
+    shadow: 'shadow-yellow-500/10',
+  },
+  purple: {
+    from: '#a855f7',
+    to: '#7e22ce',
+    bg: 'from-purple-500/10 to-purple-600/5',
+    border: 'border-purple-500/20',
+    text: 'text-purple-600 dark:text-purple-400',
+    shadow: 'shadow-purple-500/10',
+  },
+  red: {
+    from: '#ef4444',
+    to: '#b91c1c',
+    bg: 'from-red-500/10 to-red-600/5',
+    border: 'border-red-500/20',
+    text: 'text-red-600 dark:text-red-400',
+    shadow: 'shadow-red-500/10',
+  },
+} as const
+
+export type GradientTone = keyof typeof GRADIENT_TONES

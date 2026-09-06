@@ -5,6 +5,7 @@
 
 import { type Context, completeSimple, getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import type { TestConnectionResult } from '@shared/types'
+import { errText } from '../../utils/err-text'
 import { keystoreService } from '../keystore-service'
 import { selectCheapestModel } from '../pi-ai-helpers'
 import { safeGetModels } from './model-utils'
@@ -75,7 +76,7 @@ export async function testProviderConnection(
       success: false,
       latencyMs: Date.now() - start,
       model: testModel.id,
-      error: err instanceof Error ? err.message : String(err),
+      error: errText(err),
     }
   }
 }

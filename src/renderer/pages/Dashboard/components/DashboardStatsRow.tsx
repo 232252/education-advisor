@@ -29,7 +29,9 @@ export function DashboardStatsRow({
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
       <DashboardStatCard
-        title={isAllClasses ? t('page.dashboard.stat.students') : '班级学生'}
+        title={
+          isAllClasses ? t('page.dashboard.stat.students') : t('page.dashboard.stat.classStudents')
+        }
         value={studentCount}
         color="blue"
         icon={Users}

@@ -13,6 +13,8 @@
 
 import { randomUUID } from 'node:crypto'
 import type { ClassEntity, ClassUpsertParams } from '@shared/types'
+import { errText } from '../utils/err-text'
+import { sanitizeClassId } from '../utils/sanitize'
 import type { ClassRecord } from './db-service'
 import { dbService } from './db-service'
 
@@ -34,17 +36,6 @@ function toEntity(row: ClassRecord | null | undefined): ClassEntity | null {
 }
 
 /** 校验 class_id：与 eaa-handlers 的 sanitizeClassId 保持一致（字母数字/./-，≤32） */
-function validateClassId(classId: string): string {
-  if (typeof classId !== 'string') throw new Error('classId must be a string')
-  const trimmed = classId.trim()
-  if (trimmed.length === 0) throw new Error('classId cannot be empty')
-  if (trimmed.length > 32) throw new Error('classId too long (max 32 chars)')
-  if (!/^[A-Za-z0-9.-]+$/.test(trimmed)) {
-    throw new Error('classId must be alphanumeric, dot or hyphen only')
-  }
-  return trimmed
-}
-
 function validateName(name: string): string {
   if (typeof name !== 'string') throw new Error('name must be a string')
   const trimmed = name.trim()
@@ -63,7 +54,7 @@ class ClassService {
   /** 新建班级。class_id 已存在则返回错误 */
   create(params: ClassUpsertParams): { success: boolean; data?: ClassEntity; error?: string } {
     try {
-      const classId = validateClassId(params.class_id)
+      const classId = sanitizeClassId(params.class_id)
       const name = validateName(params.name)
       if (dbService.getClassByClassId(classId)) {
         return { success: false, error: `班级编号 "${classId}" 已存在` }
@@ -83,7 +74,7 @@ class ClassService {
       }
       return { success: true, data: toEntity(record) ?? undefined }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       return { success: false, error: msg }
     }
   }
@@ -117,7 +108,7 @@ class ClassService {
       }
       return { success: true }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       return { success: false, error: msg }
     }
   }

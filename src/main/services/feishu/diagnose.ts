@@ -5,6 +5,7 @@
 // 从 feishu-service.ts 拆出(纯重构,行为不变)
 // =============================================================
 
+import { errText } from '../../utils/err-text'
 import { type FeishuDomain, getApiBase } from './config'
 import type { TenantTokenResponse } from './token'
 
@@ -55,7 +56,7 @@ export async function diagnoseConnection(
     steps.push({
       name: 'DNS 解析',
       status: 'fail',
-      detail: `DNS 查询异常: ${err instanceof Error ? err.message : String(err)}`,
+      detail: `DNS 查询异常: ${errText(err)}`,
       suggestion: '检查网络连接或 DNS 配置',
     })
   }
@@ -78,7 +79,7 @@ export async function diagnoseConnection(
       suggestion: reachable ? undefined : '飞书服务器暂时不可用,请稍后重试',
     })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     steps.push({
       name: 'HTTPS 连通',
       status: 'fail',
@@ -130,7 +131,7 @@ export async function diagnoseConnection(
       steps.push({
         name: '凭证校验',
         status: 'fail',
-        detail: `鉴权请求失败: ${err instanceof Error ? err.message : String(err)}`,
+        detail: `鉴权请求失败: ${errText(err)}`,
         suggestion: '检查网络连接后重试',
       })
     }
@@ -159,7 +160,7 @@ export async function diagnoseConnection(
       suggestion: endpointReachable ? undefined : '飞书长连接服务暂时不可用,请稍后重试',
     })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     steps.push({
       name: 'WebSocket 端点',
       status: 'fail',

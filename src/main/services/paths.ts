@@ -37,6 +37,17 @@ function projectRoot(): string {
   return path.resolve(__dirname, '..', '..')
 }
 
+/**
+ * 随应用分发的只读资源目录(agents/config/skills 等)统一解析。
+ * dev: 项目根下存在该目录则用之;否则回退 packaged resources。
+ * 判据用 existsSync 而非 isDevRuntime — app.isPackaged/isDevRuntime
+ * 在 `electron .` 启动时不可靠,dev 目录存在性检查更稳(各模块原判据)。
+ */
+export function resolveResourceDir(rel: string): string {
+  const devDir = path.join(projectRoot(), rel)
+  return fs.existsSync(devDir) ? devDir : path.join(process.resourcesPath || '', rel)
+}
+
 /** 应用自有数据根目录(SQLite / academics / profiles / skills / memory 同层) */
 export function resolveAppDataDir(): string {
   if (isDevRuntime()) return path.join(projectRoot(), '.app-data')
@@ -51,7 +62,7 @@ export function resolveEaaDataDir(): string {
   return path.join(app.getPath('userData'), 'eaa-data')
 }
 
-export interface AppPaths {
+interface AppPaths {
   /** 应用数据根(.app-data / userData / 自定义) */
   appDataDir: string
   /** SQLite 数据库 */
@@ -111,7 +122,21 @@ function runLegacyPathMigration(paths: AppPaths): void {
       const newDir = paths[sub === 'academics' ? 'academicsDir' : 'profilesDir']
       if (fs.existsSync(oldDir) && !fs.existsSync(newDir)) {
         fs.mkdirSync(path.dirname(newDir), { recursive: true })
-        fs.renameSync(oldDir, newDir)
+        try {
+          fs.renameSync(oldDir, newDir)
+        } catch (err) {
+          // EXDEV 修复(2026-09-04): userData 与项目数据目录可能跨挂载点(如 /home vs /mnt),
+          // rename 跨设备必然失败且"下次重试"永远重试 — 退化为复制+删除,迁移真正完成
+          if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+          try {
+            fs.cpSync(oldDir, newDir, { recursive: true })
+            fs.rmSync(oldDir, { recursive: true, force: true })
+          } catch (cpErr) {
+            // 复制中断则清掉半成品,保证下次启动重试时 newDir 不存在
+            fs.rmSync(newDir, { recursive: true, force: true })
+            throw cpErr
+          }
+        }
         moved = true
         console.log(`[paths] R2-17 migrated ${sub}: "${oldDir}" → "${newDir}"`)
       }

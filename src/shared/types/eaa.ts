@@ -7,10 +7,10 @@
 export type EAARiskLevel = '低' | '中' | '高' | '极高'
 
 /** EAA 实体状态 */
-export type EAAEntityStatus = 'Active' | 'Transferred' | 'Suspended' | 'Deleted'
+type EAAEntityStatus = 'Active' | 'Transferred' | 'Suspended' | 'Deleted'
 
 /** EAA 事件类型（Debug 格式） */
-export type EAAEventType = 'ConductDeduct' | 'ConductBonus'
+type EAAEventType = 'ConductDeduct' | 'ConductBonus'
 
 /** list-students 输出中的单个学生 */
 export interface EAAStudent {
@@ -137,7 +137,7 @@ export interface EAACodesData {
 }
 
 /** stats 命令中 reason/tag 分布项 */
-export interface EAADistributionItem {
+interface EAADistributionItem {
   code?: string
   tag?: string
   count: number

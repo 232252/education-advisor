@@ -7,6 +7,7 @@
 // =============================================================
 
 import { useState } from 'react'
+import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { InstalledModelList } from './components/InstalledModelList'
 import { RecommendedModelCard } from './components/RecommendedModelCard'
@@ -51,7 +52,11 @@ export function LocalModelsSection() {
             }`}
           />
           <span className="text-[11px] text-gray-500 dark:text-gray-400">
-            {serveRunning ? '运行中' : available ? '已安装(未运行)' : '未安装'}
+            {serveRunning
+              ? t('page.models.local.running')
+              : available
+                ? t('page.models.local.installedNotRunning')
+                : t('page.models.local.notInstalled')}
           </span>
           {serveRunning ? (
             <button
@@ -59,7 +64,7 @@ export function LocalModelsSection() {
               onClick={() => getAPI().ollama.stopServe()}
               className="text-[10px] px-2 py-1 rounded-lg border border-gray-300 dark:border-white/[0.08] text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.04] transition-colors"
             >
-              停止
+              {t('page.models.local.stop')}
             </button>
           ) : (
             <button
@@ -68,7 +73,7 @@ export function LocalModelsSection() {
               disabled={!available}
               className="text-[10px] px-2 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 disabled:opacity-50 transition-colors"
             >
-              启动
+              {t('page.models.local.start')}
             </button>
           )}
         </div>
@@ -81,10 +86,10 @@ export function LocalModelsSection() {
             <div className="font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t('page.models.local.notDetected', '未检测到 Ollama')}
             </div>
-            本地模型功能需要先安装 Ollama（免费、开源）:
+            {t('page.models.local.installHint')}
             <ol className="list-decimal ml-4 mt-1 space-y-0.5">
               <li>
-                访问{' '}
+                {t('page.models.local.visit')}{' '}
                 <a
                   href="https://ollama.com/download"
                   target="_blank"
@@ -93,7 +98,7 @@ export function LocalModelsSection() {
                 >
                   ollama.com/download
                 </a>{' '}
-                下载安装(Windows 版约 500MB)
+                {t('page.models.local.downloadWin')}
               </li>
               <li>{t('page.models.local.hint', '安装后回到此页面,点击"启动"')}</li>
             </ol>
@@ -103,7 +108,7 @@ export function LocalModelsSection() {
         {/* 推荐模型 */}
         <div>
           <div className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">
-            推荐模型（中文友好 · CPU 优化）
+            {t('page.models.local.recommended')}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {RECOMMENDED.map((m) => (
@@ -131,12 +136,9 @@ export function LocalModelsSection() {
 
         {/* 说明 */}
         <div className="text-[10px] text-gray-400 dark:text-gray-500 italic">
-          本地模型在 CPU 上运行,不消耗网络流量,数据完全本地化。首次下载需联网,之后离线可用。
-          对话时在 Agent 设置里选择 ollama provider 即可。
+          {t('page.models.local.footer')}
         </div>
       </div>
     </div>
   )
 }
-
-import { useT } from '../../i18n'

@@ -12,24 +12,26 @@ tools: [eaa_score, eaa_history, eaa_search, eaa_list_students, eaa_codes, eaa_st
 
 | 工具 | 用途 | 关键参数 |
 |:-----|:-----|:-----|
-| `eaa_score` | 单生分数 + 风险等级 | student_name |
-| `eaa_history` | 单生事件时间线（撤销前先查 event_id） | student_name |
-| `eaa_search` | 按关键词搜事件 | 关键词 |
+| `eaa_score` | 单生分数 + 风险等级 | `name` |
+| `eaa_history` | 单生事件时间线（撤销前先查 event_id） | `name`，可选 `limit` |
+| `eaa_search` | 按关键词搜事件 | `query`，可选 `limit`（结果可能被截断，注意 events_truncated 字段） |
 | `eaa_list_students` | 学生名单（含 class_id / 学号 / 性别） | 无 |
-| `eaa_ranking` | 排行榜 | n（默认 10） |
+| `eaa_ranking` | 排行榜（**分数从高到低**，默认前 10 名） | `n`；找低分学生传大 n 后看末尾 |
 | `eaa_stats` / `eaa_summary` | 班级统计 / 区间汇总 | 可选范围 |
 | `eaa_codes` | 原因码全表（分值以此为准） | 无 |
-| `eaa_tag` / `eaa_range` | 按标签查 / 按时间段汇总 | tag / 起止日期 |
+| `eaa_tag` / `eaa_range` | 按标签查 / 按时间段汇总 | `tag` / `start`+`end` |
+
+> 学生姓名参数：查询类工具用 `name`，仅 `eaa_add_event` 用 `student_name` — 不要混用。
 
 ## 写入类工具（参数与约束）
 
 > **适用性检查**：本节仅当你的工具集中**确实存在**相应写入工具时适用。多数角色只持有查询类工具 — 若你调用写入工具收到"工具不存在"报错，说明本角色无写权限，请改为向用户说明需要由有权限的角色执行，不要尝试口头"完成"写操作。
 
-- **`eaa_add_event` 加分/扣分**：参数 `student_name` / `reason_code` / `delta`（可省，自动取标准分值）/ `note` / `tags`（分号分隔）
+- **`eaa_add_event` 加分/扣分**：参数 `student_name` / `reason_code`（**必须先调 `eaa_codes` 查询**，不要凭记忆猜码）/ `delta`（可省，自动取标准分值）/ `note` / `tags`（分号分隔）
   - `dry_run: true` — 只预演校验不落库；不确定分值或参数时先用它
   - `force: true` — 超常规分值（|delta| > 10）必须显式传，且必须先经用户确认
 - **`eaa_revert_event` 撤销**：参数 `event_id`（从 `eaa_history`/`eaa_search` 获取）+ 撤销原因 `reason`。撤销是留痕对冲，事件本身不可删除
-- **`eaa_add_student` 新增学生**：`name` / `class_id` / 可选 meta（学号、性别）；学生已存在会报错
+- **`eaa_add_student` 新增学生**：只有 `name` 一个参数；班级归属/组别/角色要用 `eaa_set_student_meta` 二次设置（参数为 `name` + `classId` / `group` / `role`）。学生已存在会报错
 
 ## 常见操作流程
 

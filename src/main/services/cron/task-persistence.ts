@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import type { CronTask } from '@shared/types'
 import cron from 'node-cron'
+import { atomicWrite } from '../../utils/atomic-write'
 import { log } from '../../utils/logger'
 
 /** 判断是否为用户任务（非系统任务）。系统任务包括 agent-schedule-* 和 feishu-bitable-sync */
@@ -15,7 +16,7 @@ export function isUserTask(id: string): boolean {
 }
 
 /** restoreUserTasksFile 所需的宿主能力(由 CronService 注入,保持薄委托) */
-export interface UserTasksRestoreCtx {
+interface UserTasksRestoreCtx {
   /** 经宿主 addTask 重建(重新生成 id 并走调度/落盘逻辑) */
   addTask(task: Omit<CronTask, 'id'>): string
   /** 重建后按 newId 回填 lastRunAt/lastStatus */
@@ -66,7 +67,7 @@ export async function restoreUserTasksFile(
  * 读取 cron.user.json 中持久化的用户任务(原始数组)。
  * 文件不存在(首次启动或旧版本)或格式错误时返回 null,由调用方跳过恢复。
  */
-export async function readUserTasksFile(filePath: string): Promise<CronTask[] | null> {
+async function readUserTasksFile(filePath: string): Promise<CronTask[] | null> {
   try {
     await fsp.access(filePath, fs.constants.F_OK)
   } catch {
@@ -89,22 +90,11 @@ export async function readUserTasksFile(filePath: string): Promise<CronTask[] | 
 
 /**
  * 将用户任务持久化到 cron.user.json (R87 BUG-1 修复)。
- * 原子写: tmp + fsync + rename(与 settings/keystore/profile-service 一致策略)。
+ * 原子写走 atomicWrite 唯一权威实现(同样的 tmp+fsync+rename 策略,另带重试)。
  */
 export async function persistUserTasksFile(filePath: string, tasks: CronTask[]): Promise<void> {
   try {
-    const json = JSON.stringify({ tasks, savedAt: Date.now() }, null, 2)
-    // 原子写：tmp + rename（与 profile-service 一致策略）
-    const tmpPath = `${filePath}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
-    // A6 修复: fd 写入 + fsync 确保任务落盘后再 rename (与 settings/keystore 一致)
-    const fd = await fsp.open(tmpPath, 'w')
-    try {
-      await fd.writeFile(json, 'utf-8')
-      await fd.sync()
-    } finally {
-      await fd.close()
-    }
-    await fsp.rename(tmpPath, filePath)
+    await atomicWrite(filePath, JSON.stringify({ tasks, savedAt: Date.now() }, null, 2))
   } catch (err) {
     console.error('[CronService] Failed to persist user tasks:', err)
   }
@@ -115,7 +105,7 @@ export async function persistUserTasksFile(filePath: string, tasks: CronTask[]):
 // -------------------------------------------------------------
 
 /** syncAgentSchedules 的入参(与 CronService 公共方法签名保持一致) */
-export interface AgentScheduleInput {
+interface AgentScheduleInput {
   id: string
   name: string
   schedule: string[]
@@ -125,7 +115,7 @@ export interface AgentScheduleInput {
 }
 
 /** syncAgentScheduleTasks 所需的宿主能力(由 CronService 注入,保持薄委托) */
-export interface AgentScheduleSyncCtx {
+interface AgentScheduleSyncCtx {
   /** 任务表(直接清理/重建 agent-schedule-* 系统任务) */
   tasks: Map<string, CronTask>
   schedule(id: string, task: CronTask): void

@@ -21,12 +21,18 @@ export default defineConfig({
       input: resolve(__dirname, 'src/renderer/index.html'),
       output: {
         manualChunks(id: string) {
-          // ECharts 单独打包 — 仅 Dashboard/StudentProfile 使用
-          if (id.includes('echarts') || id.includes('zrender')) return 'vendor-echarts'
-          // Markdown 渲染库 — 仅 Chat 页面使用
-          if (id.includes('react-markdown') || id.includes('remark-') || id.includes('rehype-') || id.includes('unified') || id.includes('hast-') || id.includes('mdast-')) return 'vendor-markdown'
-          // React 核心
-          if (id.includes('react-dom') || id.includes('react/') || id.includes('scheduler')) return 'vendor-react'
+          if (!id.includes('node_modules')) return
+          // React 核心必须最先精确判定: 宽松的 'react/' 子串会误吞 lucide-react
+          // 等包名含 react 的库。包名精确匹配,避免子串误路由。
+          // 注: markdown 渲染栈(react-markdown/remark/katex ~428KB)不设手动
+          // vendor chunk — 其唯一消费者 Markdown.tsx 仅被懒加载页面引用,
+          // 自然跟随懒块按需加载;此前手动分包反而被 rolldown 连带 jsx-runtime
+          // 一起拖入首屏同步加载。
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'vendor-react'
+          // ECharts 单独打包 — 仅图表页使用,首屏不加载
+          if (/[\\/]node_modules[\\/](echarts|zrender)[\\/]/.test(id)) return 'vendor-echarts'
+          // 图标库 — 多页共用,独立分包去重
+          if (id.includes('lucide-react')) return 'vendor-icons'
           // 路由 + 状态管理（几乎每个页面都依赖）
           if (id.includes('react-router') || id.includes('zustand')) return 'vendor-app'
           // R136 优化: AI SDK 单独打包 — Chat/Agents 页使用,体积较大

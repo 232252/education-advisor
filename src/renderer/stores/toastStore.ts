@@ -12,7 +12,7 @@ import { create } from 'zustand'
 
 export type ToastType = 'info' | 'success' | 'error' | 'warning'
 
-export interface ToastItem {
+interface ToastItem {
   id: string
   type: ToastType
   message: string

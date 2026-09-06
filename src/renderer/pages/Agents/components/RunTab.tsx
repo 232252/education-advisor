@@ -96,18 +96,20 @@ export function RunTab({ agentId, enabled, onRun, onAbort }: RunTabProps) {
         {/* 工具调用记录 */}
         {liveToolCalls.length > 0 && (
           <div className="mb-4 space-y-1">
-            {liveToolCalls.map((tc) => (
-              // 用 tool name + args hash 组合 stable key, 避免 index 重建
-              <div
-                key={`${tc.name}-${tc.time}-${JSON.stringify(tc.args).slice(0, 32)}`}
-                className="text-xs bg-gray-50 border border-gray-200 dark:bg-surface-elevated dark:border-white/[0.06] rounded px-3 py-1.5 font-mono"
-              >
-                <span className="text-blue-500 dark:text-blue-400">{tc.name}</span>
-                <span className="text-gray-400 dark:text-gray-500 ml-2">
-                  {JSON.stringify(tc.args)}
-                </span>
-              </div>
-            ))}
+            {liveToolCalls.map((tc) => {
+              // 50ms flush 热路径:args 只序列化一次,key 与展示复用
+              const argsStr = JSON.stringify(tc.args)
+              return (
+                // 用 tool name + args hash 组合 stable key, 避免 index 重建
+                <div
+                  key={`${tc.name}-${tc.time}-${argsStr.slice(0, 32)}`}
+                  className="text-xs bg-gray-50 border border-gray-200 dark:bg-surface-elevated dark:border-white/[0.06] rounded px-3 py-1.5 font-mono"
+                >
+                  <span className="text-blue-500 dark:text-blue-400">{tc.name}</span>
+                  <span className="text-gray-400 dark:text-gray-500 ml-2">{argsStr}</span>
+                </div>
+              )
+            })}
           </div>
         )}
 

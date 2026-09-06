@@ -2,10 +2,11 @@
 // Preload API — 学生档案域
 // =============================================================
 
+import type { ProfileAPI } from '@shared/api/profile'
 import * as IPC from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 
-export const profileApi = {
+export const profileApi: ProfileAPI = {
   // [r] 读取学生扩展档案
   get: (name: string) => ipcRenderer.invoke(IPC.IPC_PROFILE_GET, name),
   // [w] 写入学生扩展档案

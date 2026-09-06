@@ -3,6 +3,7 @@
 // 从 db-service.ts DBService 对应方法拆分而来（逻辑逐字搬移,行为零变化）
 // =============================================================
 
+import { errText } from '../../utils/err-text'
 import type { DbClient } from './statements'
 import type { AgentExecutionRecord } from './types'
 
@@ -21,7 +22,7 @@ export function recordExecutionStart(ctx: DbClient, agentId: string, prompt: str
     })
     return Number(result.lastInsertRowid)
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] recordExecutionStart failed:', msg)
     return -1
@@ -62,7 +63,7 @@ export function updateExecution(
     })
     return (result.changes ?? 0) > 0
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] updateExecution failed:', msg)
     return false
@@ -79,7 +80,7 @@ export function getExecutionHistory(
     const rows = ctx.stmts.selectExecutionHistory.all(agentId, agentId, limit)
     return rows as AgentExecutionRecord[]
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] getExecutionHistory failed:', msg)
     return []

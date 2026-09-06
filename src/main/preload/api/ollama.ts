@@ -2,10 +2,12 @@
 // Preload API — 本地模型 (Ollama) 域
 // =============================================================
 
+import type { OllamaAPI } from '@shared/api/ollama'
 import * as IPC from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
+import { subscribe } from './subscribe'
 
-export const ollamaApi = {
+export const ollamaApi: OllamaAPI = {
   // [r] 检测 ollama 是否可用
   detect: () => ipcRenderer.invoke(IPC.IPC_OLLAMA_DETECT),
   // [w] 启动 ollama serve
@@ -19,9 +21,5 @@ export const ollamaApi = {
   // [w] 删除模型
   deleteModel: (modelName: string) => ipcRenderer.invoke(IPC.IPC_OLLAMA_DELETE_MODEL, modelName),
   // [r] 订阅下载进度(返回取消订阅函数)
-  onPullProgress: (callback: (info: unknown) => void) => {
-    const listener = (_e: unknown, info: unknown) => callback(info)
-    ipcRenderer.on(IPC.IPC_OLLAMA_PULL_PROGRESS, listener)
-    return () => ipcRenderer.removeListener(IPC.IPC_OLLAMA_PULL_PROGRESS, listener)
-  },
+  onPullProgress: (callback) => subscribe(IPC.IPC_OLLAMA_PULL_PROGRESS, callback),
 }

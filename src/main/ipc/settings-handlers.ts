@@ -8,7 +8,7 @@
 
 import * as IPC from '@shared/ipc-channels'
 import type { UnifiedSettings } from '@shared/types'
-import { app, type BrowserWindow, ipcMain } from 'electron'
+import { app, type BrowserWindow } from 'electron'
 import { cronService } from '../services/cron-service'
 import { TtlLruCache } from '../services/eaa-cache'
 import { feishuBotService } from '../services/feishu-bot-service'
@@ -17,6 +17,7 @@ import { settingsService } from '../services/settings-service'
 import { syncNativeTheme } from '../services/theme-service'
 import { updateTray } from '../services/tray-service'
 import { log, setLogLevel } from '../utils/logger'
+import { handleIpc } from './handle'
 
 /**
  * PERF: settings:get 响应缓存
@@ -67,29 +68,24 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     }
   }
 
-  ipcMain.handle(IPC.IPC_SETTINGS_GET, async () => {
-    // H-9 修复: 加 try-catch
-    try {
-      // PERF: 命中缓存直接返回(避免 structuredClone + keystore 查询)
-      const cached = settingsGetCache.get('response')
-      if (cached) return cached
-      const settings = settingsService.getSettings()
-      // 如果 keystore 中有飞书 appSecret，用占位符标记（不返回真实密钥）
-      if (keystoreService.getSecret('feishu-app-secret')) {
-        settings.feishu.appSecret = '__keystore__'
-      }
-      settingsGetCache.set('response', settings)
-      return settings
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] settings:get failed:', msg)
-      return { success: false, error: msg }
+  // H-9 修复: 加 try-catch
+  handleIpc(IPC.IPC_SETTINGS_GET, async () => {
+    // PERF: 命中缓存直接返回(避免 structuredClone + keystore 查询)
+    const cached = settingsGetCache.get('response')
+    if (cached) return cached
+    const settings = settingsService.getSettings()
+    // 如果 keystore 中有飞书 appSecret，用占位符标记（不返回真实密钥）
+    if (keystoreService.getSecret('feishu-app-secret')) {
+      settings.feishu.appSecret = '__keystore__'
     }
+    settingsGetCache.set('response', settings)
+    return settings
   })
 
   // H-9 修复: 加顶层 try-catch,确保任何异常都返回结构化错误
-  ipcMain.handle(IPC.IPC_SETTINGS_SET, async (_e, path: string, value: unknown) => {
-    try {
+  handleIpc(
+    IPC.IPC_SETTINGS_SET,
+    async (_e, path: string, value: unknown) => {
       // 飞书 appSecret:存入 keystore 加密存储，不写入 settings.json
       if (path === 'feishu.appSecret' && typeof value === 'string' && value.length > 0) {
         // 如果是 keystore 占位符，说明用户没修改，跳过
@@ -171,43 +167,37 @@ export function registerSettingsHandlers(win: BrowserWindow) {
       }
 
       return { success: true }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] settings:set failed for "${path}":`, msg)
-      return { success: false, error: msg }
-    }
-  })
+    },
+    {
+      onError: (msg) => ({ success: false, error: msg }),
+      label: (p: string) => `settings:set failed for "${p}"`,
+    },
+  )
 
   // H-9 修复: 加 try-catch
-  ipcMain.handle(IPC.IPC_SETTINGS_RESET, async () => {
-    try {
-      settingsService.reset()
-      // PERF: reset 后让 get 缓存失效
-      settingsGetCache.clear()
-      // 重置时也清除 keystore 中的飞书密钥
-      keystoreService.deleteSecret('feishu-app-secret')
-      // 重置后停止飞书长连接
-      await feishuBotService.stop().catch(() => {})
-      // 重置后也要同步 autoStart(默认 false)
-      app.setLoginItemSettings({ openAtLogin: false })
-      // 重置后也要重建托盘
-      const newSettings = settingsService.getSettings()
-      updateTray(newSettings.general.minimizeToTray)
-      // T5: 重置后恢复 logLevel
-      setLogLevel(newSettings.general.logLevel)
-      // 适配 Electron 33/36: 重置后同步 nativeTheme 到默认主题
-      syncNativeTheme()
-      // F2 修复: 重置后 bitableSync 回到默认关闭,联动移除既有 __feishu__ cron 任务
-      cronService.registerBitableSync()
-      // M33: 重置后 autoBackupEnabled 回到默认关闭,联动移除既有 auto-backup cron 任务
-      cronService.registerAutoBackup()
-      log('info', 'settings', `settings reset; logLevel=${newSettings.general.logLevel}`)
-      return { success: true }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] settings:reset failed:', msg)
-      return { success: false, error: msg }
-    }
+  handleIpc(IPC.IPC_SETTINGS_RESET, async () => {
+    settingsService.reset()
+    // PERF: reset 后让 get 缓存失效
+    settingsGetCache.clear()
+    // 重置时也清除 keystore 中的飞书密钥
+    keystoreService.deleteSecret('feishu-app-secret')
+    // 重置后停止飞书长连接
+    await feishuBotService.stop().catch(() => {})
+    // 重置后也要同步 autoStart(默认 false)
+    app.setLoginItemSettings({ openAtLogin: false })
+    // 重置后也要重建托盘
+    const newSettings = settingsService.getSettings()
+    updateTray(newSettings.general.minimizeToTray)
+    // T5: 重置后恢复 logLevel
+    setLogLevel(newSettings.general.logLevel)
+    // 适配 Electron 33/36: 重置后同步 nativeTheme 到默认主题
+    syncNativeTheme()
+    // F2 修复: 重置后 bitableSync 回到默认关闭,联动移除既有 __feishu__ cron 任务
+    cronService.registerBitableSync()
+    // M33: 重置后 autoBackupEnabled 回到默认关闭,联动移除既有 auto-backup cron 任务
+    cronService.registerAutoBackup()
+    log('info', 'settings', `settings reset; logLevel=${newSettings.general.logLevel}`)
+    return { success: true }
   })
 
   console.log('[IPC] Settings handlers registered')

@@ -19,7 +19,7 @@ import {
   Users,
 } from 'lucide-react'
 
-export interface NavItem {
+interface NavItem {
   path: string
   icon: LucideIcon
   labelKey: string

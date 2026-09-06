@@ -11,7 +11,7 @@ import type { AgentListItem } from '@shared/types'
 import { Bot, School, UserPlus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useT } from '../../i18n'
+import { tr, useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { CARD_BASE, cn } from '../../lib/ui-utils'
 import { computeAutoClassId } from '../../pages/Classes/class-id'
@@ -29,7 +29,7 @@ const ONBOARDING_DONE_KEY = 'ea.onboarding.done'
 type Phase = 'checking' | 'welcome' | 'class' | 'students' | 'agents' | 'done' | 'closed'
 
 /** 写入完成标记(跳过或完成均调用) */
-export function markOnboardingDone(): void {
+function markOnboardingDone(): void {
   try {
     localStorage.setItem(ONBOARDING_DONE_KEY, '1')
   } catch {
@@ -231,9 +231,7 @@ export function OnboardingWizard() {
       }
       setSummary((s) => ({ ...s, studentsAdded: added, studentsFailed: failed }))
       if (added > 0)
-        toast.success(
-          t('onboarding.studentsAdded', '已添加 {0} 名学生').replace('{0}', String(added)),
-        )
+        toast.success(tr('onboarding.studentsAdded', { 0: String(added) }, '已添加 {0} 名学生'))
       if (failed > 0) {
         toast.error(
           t('onboarding.studentsPartialFailed', '{0} 名学生添加失败').replace(

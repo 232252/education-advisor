@@ -4,11 +4,12 @@
 // 本段让"AI 记住了什么"可审查、可清除
 // =============================================================
 
+import type { MemoryAgentEntries } from '@shared/api/memory'
 import { useCallback, useEffect, useState } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { useT } from '../../../i18n'
-import type { MemoryAgentEntries } from '../../../lib/ipc/memory'
 import { getAPI } from '../../../lib/ipc-client'
+import { runIpcMutation } from '../../../lib/mutation'
 import { formatDateTime } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
 import { Section, SettingRow } from '../components'
@@ -47,25 +48,24 @@ export function MemorySection() {
     void load()
   }, [load])
 
-  const handleDeleteEntry = async (agentId: string, entryId: string) => {
-    const result = await getAPI().memory.deleteEntry(agentId, entryId)
-    if (result.success) {
-      toast.success(t('settings.memory.deleteSuccess', '记忆已删除'))
-      void load()
-    } else {
-      toast.error(`${t('settings.memory.deleteFailed', '删除失败')}: ${result.error ?? ''}`)
-    }
-  }
+  // 此前为裸 await 无 catch(IPC 抛错即 unhandled rejection),收口后由统一骨架兜底 toast
+  const handleDeleteEntry = (agentId: string, entryId: string) =>
+    runIpcMutation(() => getAPI().memory.deleteEntry(agentId, entryId), {
+      onOk: () => {
+        toast.success(t('settings.memory.deleteSuccess', '记忆已删除'))
+        void load()
+      },
+      failMsg: (r) => `${t('settings.memory.deleteFailed', '删除失败')}: ${r.error ?? ''}`,
+    })
 
-  const handleClear = async (agentId: string) => {
-    const result = await getAPI().memory.clear(agentId)
-    if (result.success) {
-      toast.success(t('settings.memory.clearSuccess', '已清空该 Agent 的记忆'))
-      void load()
-    } else {
-      toast.error(`${t('settings.memory.clearFailed', '清空失败')}: ${result.error ?? ''}`)
-    }
-  }
+  const handleClear = (agentId: string) =>
+    runIpcMutation(() => getAPI().memory.clear(agentId), {
+      onOk: () => {
+        toast.success(t('settings.memory.clearSuccess', '已清空该 Agent 的记忆'))
+        void load()
+      },
+      failMsg: (r) => `${t('settings.memory.clearFailed', '清空失败')}: ${r.error ?? ''}`,
+    })
 
   const total = data?.reduce((acc, a) => acc + a.entries.length, 0) ?? 0
 

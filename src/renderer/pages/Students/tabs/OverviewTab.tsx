@@ -4,9 +4,9 @@
 // =============================================================
 
 import type { EAAHistoryData, EAAStudent, EAAStudentScore } from '@shared/types'
-import ReactEChartsCore from 'echarts-for-react/esm/core'
 import { ClipboardList } from 'lucide-react'
 import { useMemo } from 'react'
+import { EChart } from '../../../components/charts/EChart'
 import { EmptyState } from '../../../components/EmptyState'
 import { CHART_BRAND, useChartTheme } from '../../../hooks/useChartTheme'
 import { useT } from '../../../i18n'
@@ -79,9 +79,8 @@ export function OverviewTab({
           <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             {t('page.students.overview.scoreTrend', '📈 分数变化趋势')}
           </h4>
-          <ReactEChartsCore
-            echarts={echarts}
-            style={{ height: 200 }}
+          <EChart
+            height={200}
             option={{
               animation: true,
               animationDuration: 800,

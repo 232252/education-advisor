@@ -4,11 +4,7 @@
 // =============================================================
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  getReasonCodeDef,
-  lookupReasonCodeDelta,
-  resetReasonCodesCache,
-} from '../../services/eaa/reason-codes'
+import { lookupReasonCodeDelta, resetReasonCodesCache } from '../../services/eaa/reason-codes'
 
 // mock fs 同步读取,避免依赖真实 config/reason-codes.json 文件
 vi.mock('node:fs', () => ({
@@ -48,24 +44,6 @@ describe('lookupReasonCodeDelta', () => {
     lookupReasonCodeDelta('LATE')
     lookupReasonCodeDelta('ABSENT')
     lookupReasonCodeDelta('LATE')
-    expect(fs.readFileSync).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('getReasonCodeDef', () => {
-  it('返回完整定义(含 null delta)', () => {
-    expect(getReasonCodeDef('LATE')).toEqual({ delta: -2.0 })
-    expect(getReasonCodeDef('BONUS')).toEqual({ delta: null })
-  })
-
-  it('未知原因码返回 undefined', () => {
-    expect(getReasonCodeDef('UNKNOWN')).toBeUndefined()
-  })
-
-  it('与 lookupReasonCodeDelta 共享同一份缓存', async () => {
-    const fs = (await import('node:fs')).default
-    lookupReasonCodeDelta('LATE') // 触发首次读取
-    getReasonCodeDef('ABSENT') // 应命中缓存
     expect(fs.readFileSync).toHaveBeenCalledTimes(1)
   })
 })

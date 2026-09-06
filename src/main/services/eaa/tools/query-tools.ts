@@ -5,9 +5,15 @@
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
-import { getErrorMessage } from '../../eaa-bridge'
 import { safeExecute, tokenizeQuery } from './sanitize'
-import { extractData, jsonResult, nameParam } from './shared'
+import {
+  assertEaaSuccess,
+  extractData,
+  jsonResult,
+  nameParam,
+  textResult,
+  withTruncationNotice,
+} from './shared'
 
 // =============================================================
 // Schema 定义
@@ -41,10 +47,15 @@ export const queryScoreTool: AgentTool<typeof nameParam> = {
   parameters: nameParam,
   execute: async (_toolCallId, params, signal) => {
     const result = await safeExecute('score', [params.name], [], signal)
-    if (!result.success) {
-      throw new Error(`查询失败: ${getErrorMessage(result)}`)
+    assertEaaSuccess(result, '查询失败')
+    const data = extractData(result.data)
+    if (data === '(无数据)') {
+      // 名字打错一个字就查不到 — 必须给出自纠路径,而不是让模型把"无数据"当结论
+      return textResult(
+        `未查到「${params.name}」的操行数据 — 请先用 eaa_list_students 核对姓名是否完全一致(逐字核对);若名单里有该学生仍无数据,说明其尚无任何操行记录`,
+      )
     }
-    return jsonResult(extractData(result.data), `${params.name} 的操行分数`)
+    return jsonResult(data, `${params.name} 的操行分数`)
   },
 }
 
@@ -59,9 +70,7 @@ export const historyTool: AgentTool<typeof historyParams> = {
   parameters: historyParams,
   execute: async (_toolCallId, params, signal) => {
     const result = await safeExecute('history', [params.name], [], signal)
-    if (!result.success) {
-      throw new Error(`查询历史失败: ${getErrorMessage(result)}`)
-    }
+    assertEaaSuccess(result, '查询历史失败')
     // H4 修复(2026-08-28 智能轮): CLI history 无 --limit 参数且全量返回 —
     // 老学生全时间线(数百条 pretty JSON)一次就能挤爆上下文。
     // 此处 JS 侧截取最近 N 条(事件按时间升序,保留尾部即最近),
@@ -105,10 +114,18 @@ export const searchEventsTool: AgentTool<typeof searchParams> = {
     // 模型按错误心智做分页决策会失准
     flags.push('--limit', String(params.limit ?? 50))
     const result = await safeExecute('search', values, flags, signal)
-    if (!result.success) {
-      throw new Error(`搜索失败: ${getErrorMessage(result)}`)
+    assertEaaSuccess(result, '搜索失败')
+    // 截断检测与自纠提示统一收口 shared.withTruncationNotice
+    const data = extractData(result.data) as {
+      total?: number
+      showing?: number
+      [key: string]: unknown
     }
-    return jsonResult(extractData(result.data), `"${params.query}" 的搜索结果`)
+    return withTruncationNotice(
+      data,
+      `"${params.query}" 的搜索结果`,
+      '需要完整结果请调大 limit 参数',
+    )
   },
 }
 
@@ -123,9 +140,7 @@ export const tagTool: AgentTool<typeof tagParams> = {
   execute: async (_toolCallId, params, signal) => {
     const values = params.tag ? [params.tag] : []
     const result = await safeExecute('tag', values, [], signal)
-    if (!result.success) {
-      throw new Error(`标签查询失败: ${getErrorMessage(result)}`)
-    }
+    assertEaaSuccess(result, '标签查询失败')
     return jsonResult(
       extractData(result.data),
       params.tag ? `标签 "${params.tag}" 的结果` : '所有标签',

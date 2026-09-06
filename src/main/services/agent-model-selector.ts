@@ -15,6 +15,7 @@
 
 import type { Api, Model } from '@earendil-works/pi-ai/compat'
 import { getModel, getModels, getProviders } from '@earendil-works/pi-ai/compat'
+import { errText } from '../utils/err-text'
 // KEYLESS_PROVIDERS 从 ollama/constants 导入(定义单一来源;ollama-service 入口会拉入 electron)
 import { KEYLESS_PROVIDERS } from './ollama/constants'
 import { buildOllamaModel, parseOllamaParamB, resolveModel } from './pi-ai/model-utils'
@@ -148,7 +149,7 @@ export function selectModel(
       // 静态模型查找失败（如自定义 provider），继续尝试自定义模型
       console.warn(
         `[AgentService] getModels threw for default provider "${providerId}" (will try custom models):`,
-        err instanceof Error ? err.message : err,
+        errText(err),
       )
     }
 
@@ -184,7 +185,7 @@ export function selectModel(
       // continue — 该 provider 可能是自定义 provider,静态注册表查不到
       console.warn(
         `[AgentService] getModels threw for provider "${pid}" during fallback scan:`,
-        err instanceof Error ? err.message : err,
+        errText(err),
       )
     }
 

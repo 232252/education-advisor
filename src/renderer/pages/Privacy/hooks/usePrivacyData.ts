@@ -9,7 +9,9 @@
 
 import { useEffect, useState } from 'react'
 import { useT } from '../../../i18n'
+import { saveAs } from '../../../lib/dialog'
 import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
+import { runIpcMutation } from '../../../lib/mutation'
 import { toast } from '../../../stores/toastStore'
 import {
   isDuplicateEntity,
@@ -56,52 +58,46 @@ export function usePrivacyData() {
     }
   }, [])
 
-  const handleInit = async () => {
+  const handleInit = () => {
     if (!initPassword || initPassword.length < 4) {
       toast.warning(t('toast.privacy.passwordTooShort'))
       return
     }
-    try {
-      const result = await getAPI().privacy.init(initPassword, true)
-      if (result.success) {
+    return runIpcMutation(() => getAPI().privacy.init(initPassword, true), {
+      failMsg: (r) => `初始化失败: ${getErrorMessage(r)}`,
+      onOk: () => {
         setIsInitialized(true)
         setUnlocked(true)
         // 立即清空渲染进程中的密码状态(主进程已缓存)
         setInitPassword('')
         toast.success(t('status.success'))
-      } else {
-        toast.error(`初始化失败: ${getErrorMessage(result)}`)
-      }
-    } catch (err) {
-      console.error('[Privacy] Init failed:', err)
-      toast.error(t('status.failed'))
-    }
+      },
+      catchMsg: t('status.failed'),
+      catchLog: '[Privacy] Init failed:',
+    })
   }
 
-  const handleLoad = async () => {
+  const handleLoad = () => {
     if (!password) return
-    try {
-      // C-1 修复: 移除自动 init 回退 - 错误密码触发的 init 会覆盖已有隐私库,导致数据永久丢失
-      // 现在 load 失败时只提示错误,让用户主动决定是否重新初始化
-      const result = await getAPI().privacy.load(password)
-      if (!result.success) {
-        toast.error(`密码错误或加载失败: ${getErrorMessage(result)}`)
-        return
-      }
-      setUnlocked(true)
-      setIsInitialized(true)
-      // 立即清空渲染进程中的密码状态(主进程已缓存)
-      setPassword('')
-      // 后续 list 调用不传密码,使用主进程内存中的缓存
-      const listResult = await getAPI().privacy.list()
-      if (listResult.success) {
-        setMappings(parsePrivacyMappings(listResult.data))
-        setIsLoaded(true)
-      }
-    } catch (err) {
-      console.error('[Privacy] Failed to load:', err)
-      toast.error(t('toast.privacy.loadMapFailed'))
-    }
+    // C-1 修复: 移除自动 init 回退 - 错误密码触发的 init 会覆盖已有隐私库,导致数据永久丢失
+    // 现在 load 失败时只提示错误,让用户主动决定是否重新初始化
+    return runIpcMutation(() => getAPI().privacy.load(password), {
+      failMsg: (r) => `密码错误或加载失败: ${getErrorMessage(r)}`,
+      onOk: async () => {
+        setUnlocked(true)
+        setIsInitialized(true)
+        // 立即清空渲染进程中的密码状态(主进程已缓存)
+        setPassword('')
+        // 后续 list 调用不传密码,使用主进程内存中的缓存
+        const listResult = await getAPI().privacy.list()
+        if (listResult.success) {
+          setMappings(parsePrivacyMappings(listResult.data))
+          setIsLoaded(true)
+        }
+      },
+      catchMsg: t('toast.privacy.loadMapFailed'),
+      catchLog: '[Privacy] Failed to load:',
+    })
   }
 
   // 锁定隐私引擎(清空主进程内存中的密码)
@@ -141,27 +137,27 @@ export function usePrivacyData() {
     try {
       // C-2 修复: saveDialog 返回 {canceled, filePath} 对象,而非字符串
       // 之前把对象当作字符串传递,且 !filePath 永远为 false(对象 truthy)
-      const dialogResult = (await getAPI().sys.saveDialog({
+      const filePath = await saveAs({
         title: '备份隐私映射表',
         defaultPath: 'privacy-backup.json',
         filters: [{ name: 'JSON', extensions: ['json'] }],
-      })) as { canceled: boolean; filePath?: string }
-      const filePath = dialogResult?.filePath
-      if (!filePath) return
-      const result = await getAPI().privacy.backup(filePath)
-      if (result.success) {
-        toast.success(t('toast.privacy.backupSuccess'))
-      } else {
-        toast.error(`备份失败: ${getErrorMessage(result)}`)
-      }
+      })
+      if (filePath === null) return
+      await runIpcMutation(() => getAPI().privacy.backup(filePath), {
+        failMsg: (r) => `备份失败: ${getErrorMessage(r)}`,
+        onOk: () => toast.success(t('toast.privacy.backupSuccess')),
+        catchMsg: t('toast.privacy.backupFailed'),
+        catchLog: '[Privacy] Backup failed:',
+      })
     } catch (err) {
+      // saveAs 对话框本身失败(非 IPC 信封)仍在此兜底
       console.error('[Privacy] Backup failed:', err)
       toast.error(t('toast.privacy.backupFailed'))
     }
   }
 
   // 添加隐私实体 — 调用主进程 IPC_PRIVACY_ADD,成功后刷新映射表
-  const handleAddEntity = async () => {
+  const handleAddEntity = () => {
     const name = newEntityName.trim()
     if (!name) {
       toast.warning(t('toast.privacy.enterEntityName'))
@@ -171,10 +167,9 @@ export function usePrivacyData() {
       toast.warning(`该实体已存在: ${newEntityType} / ${name}`)
       return
     }
-    setAdding(true)
-    try {
-      const result = await getAPI().privacy.add(newEntityType, name)
-      if (result.success) {
+    return runIpcMutation(() => getAPI().privacy.add(newEntityType, name), {
+      failMsg: (r) => `添加失败: ${getErrorMessage(r)}`,
+      onOk: async () => {
         toast.success(t('toast.privacy.entityAdded'))
         setNewEntityName('')
         setNewEntityType('person') // CONCERN 修复: 成功后重置类型为默认值
@@ -185,15 +180,11 @@ export function usePrivacyData() {
         if (listResult.success) {
           setMappings(parsePrivacyMappings(listResult.data))
         }
-      } else {
-        toast.error(`添加失败: ${getErrorMessage(result)}`)
-      }
-    } catch (err) {
-      console.error('[Privacy] Add entity failed:', err)
-      toast.error(t('toast.privacy.addEntityFailed'))
-    } finally {
-      setAdding(false)
-    }
+      },
+      catchMsg: t('toast.privacy.addEntityFailed'),
+      catchLog: '[Privacy] Add entity failed:',
+      setBusy: setAdding,
+    })
   }
 
   return {

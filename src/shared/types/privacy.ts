@@ -2,7 +2,7 @@
 // 隐私引擎类型 — 实体类型 / 假名映射 / 预览
 // =============================================================
 
-export type EntityType =
+type EntityType =
   | 'person'
   | 'place'
   | 'org'
@@ -17,11 +17,4 @@ export interface PrivacyMapping {
   pseudonym: string
   realName: string
   createdAt: number
-}
-
-export interface PrivacyPreview {
-  original: string
-  anonymized: string
-  deanonymized: string
-  filtered?: string
 }

@@ -2,17 +2,11 @@
 // Preload API — 数据备份/恢复域
 // =============================================================
 
+import type { BackupAPI } from '@shared/api/backup'
 import * as IPC from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 
-export interface AutoBackupInfo {
-  fileName: string
-  sizeBytes: number
-  createdAt: number
-  kind: 'auto' | 'pre-restore'
-}
-
-export const backupApi = {
+export const backupApi: BackupAPI = {
   // [w] 弹保存对话框 → 打包核心数据为 zip
   createDialog: () => ipcRenderer.invoke(IPC.IPC_BACKUP_CREATE_DIALOG),
   // [c] 弹选择对话框 → 校验 → 安全备份 → 替换数据文件(danger, UI 层需二次确认)

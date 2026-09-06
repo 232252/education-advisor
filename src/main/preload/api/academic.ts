@@ -2,10 +2,11 @@
 // Preload API — 学业管理 (Academics) 域
 // =============================================================
 
+import type { AcademicAPI } from '@shared/api/academic'
 import * as IPC from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 
-export const academicApi = {
+export const academicApi: AcademicAPI = {
   // [r] 读取学业配置(科目定义/考试类型)
   getConfig: () => ipcRenderer.invoke(IPC.IPC_ACADEMIC_GET_CONFIG),
   // [r] 列出考试(可选按学期过滤)

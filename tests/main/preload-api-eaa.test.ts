@@ -3,17 +3,12 @@
 // mock electron ipcRenderer,断言每个函数的 channel 与参数透传
 // =============================================================
 
+
+import { ipcMocks } from './helpers/electron-ipc'
+const mocks = ipcMocks
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  invoke: vi.fn(),
-}))
-
-vi.mock('electron', () => ({
-  ipcRenderer: {
-    invoke: mocks.invoke,
-  },
-}))
+vi.mock('electron', async () => (await import('./helpers/electron-ipc')).mockIpcRendererModule())
 
 import * as IPC from '../../src/shared/ipc-channels'
 import { eaaApi } from '../../src/main/preload/api/eaa'

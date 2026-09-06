@@ -107,10 +107,10 @@ describe('H-2: IPC_SYS_READ_FILE 路径穿越防御', () => {
     const handler = handlers.get(IPC.IPC_SYS_READ_FILE)!
     // 这个路径不包含 .., 应通过校验但 statSync 失败
     const result = await handler({}, '/tmp/nonexistent-file-xyz-12345.txt')
+    // 失败信封走 handleIpc 默认形状 {success,error}(path 仅成功信封携带)
     expect(result).toEqual({
       success: false,
       error: expect.any(String),
-      path: '/tmp/nonexistent-file-xyz-12345.txt',
     })
   })
 })

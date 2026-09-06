@@ -5,7 +5,7 @@
 import { t } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../toastStore'
-import { _flushLiveOutputNow, resetLiveOutputBuffer } from './live-output'
+import { _flushLiveOutput, resetLiveOutputBuffer } from './live-output'
 import type { AgentSet, AgentState } from './types'
 
 export function createRunSlice(
@@ -14,7 +14,7 @@ export function createRunSlice(
   return {
     runAgent: async (id, prompt) => {
       // PERF: 启动新 run 前先 flush 旧输出并清空批处理缓冲
-      _flushLiveOutputNow(set)
+      _flushLiveOutput(set)
       resetLiveOutputBuffer()
       set({
         liveOutput: '',

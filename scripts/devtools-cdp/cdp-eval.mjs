@@ -4,49 +4,21 @@
 //   node scripts/cdp-eval.mjs "<js expression>"
 //   node scripts/cdp-eval.mjs --file <path-to-js-file>
 //   node scripts/cdp-eval.mjs --await "<async js expression>"
-import WebSocket from 'ws'
+import { connectCdp } from '../lib/cdp-client.mjs'
 
-const CDP_HTTP = `http://localhost:${process.env.EA_CDP_PORT || '9222'}`
-
-async function getPageTarget() {
-  const res = await fetch(`${CDP_HTTP}/json`)
-  const targets = await res.json()
-  const page = targets.find((t) => t.type === 'page')
-  if (!page) throw new Error('No page target found. Is the app running with CDP?')
-  return page
-}
-
+// 经共用库连接;--await 由调用方包裹 IIFE 后统一走 awaitPromise 求值
+// (原实现把 timeout 误传进 Runtime.evaluate params,现由 send 层真正生效)
 async function evalInPage(expression, { awaitPromise = false, timeout = 30000 } = {}) {
-  const page = await getPageTarget()
-  const ws = new WebSocket(page.webSocketDebuggerUrl)
-  await new Promise((resolve, reject) => {
-    ws.on('open', resolve)
-    ws.on('error', reject)
-  })
-  let id = 1
-  const pending = new Map()
-  ws.on('message', (data) => {
-    const msg = JSON.parse(data.toString())
-    if (msg.id && pending.has(msg.id)) {
-      pending.get(msg.id)(msg)
-      pending.delete(msg.id)
-    }
-  })
-  const send = (method, params = {}) =>
-    new Promise((resolve) => {
-      const myId = id++
-      pending.set(myId, resolve)
-      ws.send(JSON.stringify({ id: myId, method, params }))
-    })
-  const result = await send('Runtime.evaluate', {
-    expression,
-    awaitPromise,
-    returnByValue: true,
+  const { send, close } = await connectCdp()
+  const result = await send(
+    'Runtime.evaluate',
+    { expression, awaitPromise, returnByValue: true },
     timeout,
-  })
-  ws.close()
+  )
+  close()
   if (result.result?.exceptionDetails) {
-    return { __error: result.result.exceptionDetails.exception?.description || result.result.exceptionDetails.text }
+    const d = result.result.exceptionDetails
+    return { __error: d.exception?.description || d.text }
   }
   return result.result?.result?.value
 }

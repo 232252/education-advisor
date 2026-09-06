@@ -5,40 +5,12 @@
 // 纯展示组件,只使用浅色显式样式,任何主题下打印输出一致。
 // =============================================================
 
-import type {
-  EAAHistoryEvent,
-  EAAStudentScore,
-  ExamDef,
-  GradeRecord,
-  StudentProfileData,
-  SubjectDef,
-} from '@shared/types'
 import { useT } from '../../i18n'
 import { riskToParentTerm, splitEventsForParent } from '../../pages/Students/lib/home-school'
+import { examGradeRows, fmtDate, printStamp, SectionTitle } from './primitives'
+import type { ReportDocumentBaseProps } from './report-document-props'
 
-function fmtDate(iso: string): string {
-  return iso.slice(0, 10)
-}
-
-function SectionTitle({ children }: { children: string }) {
-  return (
-    <h2 className="text-[13px] font-bold text-gray-900 border-l-[3px] border-emerald-600 pl-2 mt-6 mb-3">
-      {children}
-    </h2>
-  )
-}
-
-export interface ParentReportDocumentProps {
-  studentName: string
-  classId?: string | null
-  score: EAAStudentScore | null
-  profileData: StudentProfileData
-  events: EAAHistoryEvent[]
-  grades: GradeRecord[]
-  exams: ExamDef[]
-  subjects: SubjectDef[]
-  generatedAt?: Date
-}
+interface ParentReportDocumentProps extends ReportDocumentBaseProps {}
 
 export function ParentReportDocument({
   studentName,
@@ -52,24 +24,12 @@ export function ParentReportDocument({
   generatedAt = new Date(),
 }: ParentReportDocumentProps) {
   const { t } = useT()
-  // [R2-21 豁免] 打印文件名戳用 ISO 日期(YYYY-MM-DD),与展示用 formatDate 语义不同,勿改
-  const stamp = `${generatedAt.getFullYear()}-${String(generatedAt.getMonth() + 1).padStart(2, '0')}-${String(generatedAt.getDate()).padStart(2, '0')}`
+  const stamp = printStamp(generatedAt)
 
   const { highlights, concerns } = splitEventsForParent(events)
 
   // 学业: 最近 2 次考试的科目成绩
-  const examById = new Map(exams.map((e) => [e.id, e]))
-  const gradesByExam = new Map<string, GradeRecord[]>()
-  for (const g of grades) {
-    const list = gradesByExam.get(g.examId) ?? []
-    list.push(g)
-    gradesByExam.set(g.examId, list)
-  }
-  const recentExams = [...gradesByExam.entries()]
-    .map(([examId, list]) => ({ exam: examById.get(examId), records: list }))
-    .filter((r): r is { exam: ExamDef; records: GradeRecord[] } => r.exam != null)
-    .sort((a, b) => (b.exam.date || '').localeCompare(a.exam.date || ''))
-    .slice(0, 2)
+  const recentExams = examGradeRows(grades, exams, 2)
 
   const subjectNames = new Map(subjects.map((s) => [s.id, s.name ?? s.id]))
 
@@ -109,7 +69,7 @@ export function ParentReportDocument({
       </p>
 
       {/* 学生概况 */}
-      <SectionTitle>{t('print.parentReport.basicTitle', '孩子概况')}</SectionTitle>
+      <SectionTitle accent="emerald">{t('print.parentReport.basicTitle', '孩子概况')}</SectionTitle>
       <div className="flex gap-3">
         <div className="flex-1 border border-gray-300 rounded px-3 py-2 text-center bg-gray-50">
           <div className="text-[10px] text-gray-500 mb-0.5">
@@ -144,7 +104,9 @@ export function ParentReportDocument({
       </div>
 
       {/* 表现亮点 */}
-      <SectionTitle>{t('print.parentReport.highlightsTitle', '近期亮点')}</SectionTitle>
+      <SectionTitle accent="emerald">
+        {t('print.parentReport.highlightsTitle', '近期亮点')}
+      </SectionTitle>
       {highlights.length === 0 ? (
         <p className="text-xs text-gray-500 leading-6">
           {t(
@@ -164,7 +126,9 @@ export function ParentReportDocument({
       )}
 
       {/* 需要关注 */}
-      <SectionTitle>{t('print.parentReport.concernsTitle', '需要关注的方面')}</SectionTitle>
+      <SectionTitle accent="emerald">
+        {t('print.parentReport.concernsTitle', '需要关注的方面')}
+      </SectionTitle>
       {concerns.length === 0 ? (
         <p className="text-xs text-gray-500 leading-6">
           {t('print.parentReport.concernsEmpty', '目前没有需要特别关注的方面，请家长放心。')}
@@ -181,7 +145,9 @@ export function ParentReportDocument({
       )}
 
       {/* 学业成绩 */}
-      <SectionTitle>{t('print.parentReport.academicsTitle', '近期学业成绩')}</SectionTitle>
+      <SectionTitle accent="emerald">
+        {t('print.parentReport.academicsTitle', '近期学业成绩')}
+      </SectionTitle>
       {recentExams.length === 0 ? (
         <p className="text-xs text-gray-500 leading-6">
           {t('print.parentReport.academicsEmpty', '暂无近期考试成绩记录。')}
@@ -228,7 +194,9 @@ export function ParentReportDocument({
       )}
 
       {/* 家校配合建议 */}
-      <SectionTitle>{t('print.parentReport.suggestionsTitle', '家校配合建议')}</SectionTitle>
+      <SectionTitle accent="emerald">
+        {t('print.parentReport.suggestionsTitle', '家校配合建议')}
+      </SectionTitle>
       <ul className="text-xs text-gray-800 leading-7 list-disc pl-5">
         <li>
           {t(

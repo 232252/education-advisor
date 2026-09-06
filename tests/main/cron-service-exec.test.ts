@@ -4,6 +4,8 @@
 // =============================================================
 
 import fsp from 'node:fs/promises'
+import { makeExecution } from './helpers/make'
+import { makeFakeWindow } from './helpers/electron-ipc'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -48,33 +50,11 @@ const { cronService } = await import('../../src/main/services/cron-service')
 
 // 伪造 BrowserWindow: webContents.send 可观测
 function makeFakeWin() {
-  return {
-    webContents: {
-      send: mocks.webContentsSend,
-    },
-    isDestroyed: () => false,
-  } as unknown as import('electron').BrowserWindow
+  return makeFakeWindow(mocks.webContentsSend)
 }
 
 // R169: runAgent 现返回 AgentExecution | undefined;undefined 表示排队期间被 abort(记 error)。
 // 因此"成功" mock 必须返回 status:'success' 的 execution 对象。
-function makeExecution(
-  agentId: string,
-  status: 'success' | 'error' | 'timeout' = 'success',
-  output = 'ok',
-): import('@shared/types').AgentExecution {
-  return {
-    id: `exec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    agentId,
-    prompt: 'x',
-    output,
-    startedAt: Date.now(),
-    durationMs: 1,
-    tokenUsage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
-    cost: 0,
-    status,
-  }
-}
 
 describe('cronService executeTask 补充', () => {
   beforeAll(async () => {

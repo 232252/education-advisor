@@ -6,55 +6,30 @@
 // =============================================================
 
 import { describe, expect, it } from 'vitest'
-import type { EAAEventRecord, EAAStudent } from '@shared/types'
+import type { EAAStudent } from '@shared/types'
 import {
   CLASS_FILTER_ALL,
   CLASS_FILTER_NONE,
+  matchesClassFilter,
+} from '../../../../src/renderer/lib/class-filter'
+import {
   computeClassComparison,
   computeClassStats,
   computePeriodSummary,
   computeReasonDistribution,
   computeScoreIntervals,
-  matchesClassFilter,
   SCORE_ORDER,
 } from '../../../../src/renderer/pages/Dashboard/dashboard-stats'
+import {
+  makeEvent,
+  makeStudent as makeStudentBase,
+} from '../../__fixtures__/make'
 
-// ---------- 测试数据工厂 ----------
+// ---------- 测试数据工厂(单一来源: tests/renderer/__fixtures__/make) ----------
 
-function makeStudent(overrides: Partial<EAAStudent> = {}): EAAStudent {
-  return {
-    name: '学生',
-    entity_id: 'e1',
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-    ...overrides,
-  }
-}
-
-function makeEvent(overrides: Partial<EAAEventRecord> = {}): EAAEventRecord {
-  return {
-    event_id: 'ev1',
-    name: '学生',
-    entity_id: 'e1',
-    timestamp: '2026-01-01T00:00:00Z',
-    event_type: 'ConductBonus',
-    reason_code: 'R1',
-    original_reason: 'r',
-    score_delta: 1,
-    note: '',
-    tags: [],
-    operator: 'op',
-    is_valid: true,
-    reverted_by: null,
-    ...overrides,
-  }
-}
+// 本文件历史默认 name/entity_id 为 学生/e1,与共享工厂不同,用适配器保持原值
+const makeStudent = (overrides: Partial<EAAStudent> = {}): EAAStudent =>
+  makeStudentBase({ name: '学生', entity_id: 'e1', ...overrides })
 
 // ---------- matchesClassFilter ----------
 
