@@ -77,7 +77,7 @@ export function SchedulerPage() {
         actions={
           <>
             <button type="button" onClick={reload} className={btnStyle('secondary')}>
-              刷新
+              {t('common.refresh', '刷新')}
             </button>
             <button
               type="button"
@@ -87,7 +87,7 @@ export function SchedulerPage() {
               }}
               className={btnStyle(showForm ? 'secondary' : 'primary')}
             >
-              {showForm ? '取消' : '+ 新增任务'}
+              {showForm ? t('common.cancel', '取消') : t('page.scheduler.newTask', '+ 新增任务')}
             </button>
           </>
         }

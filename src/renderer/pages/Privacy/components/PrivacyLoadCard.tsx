@@ -4,6 +4,7 @@
 // =============================================================
 
 import { Card } from '../../../components/Card'
+import { tr, useT } from '../../../i18n'
 import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
 
 interface PrivacyLoadCardProps {
@@ -23,38 +24,43 @@ export function PrivacyLoadCard({
   isLoaded,
   mappingsCount,
 }: PrivacyLoadCardProps) {
+  const { t } = useT()
   return (
     <Card padding="md" className="bg-gray-50 dark:bg-surface-tertiary">
-      <h2 className="font-semibold mb-3">加密映射表</h2>
+      <h2 className="font-semibold mb-3">{t('page.privacy.load.title', '加密映射表')}</h2>
       <div className="flex gap-3 items-center">
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="输入隐私密码..."
+          placeholder={t('page.privacy.load.passwordPlaceholder', '输入隐私密码...')}
           className={cn('flex-1', INPUT_BASE)}
         />
         <button
           type="button"
           onClick={onLoad}
-          aria-label="加载映射表"
+          aria-label={t('page.privacy.load.ariaLoad', '加载映射表')}
           className={btnStyle('primary')}
         >
-          加载映射表
+          {t('page.privacy.load.action', '加载映射表')}
         </button>
         <button
           type="button"
           onClick={onBackup}
           disabled={!isLoaded}
-          aria-label="备份映射表"
+          aria-label={t('page.privacy.load.ariaBackup', '备份映射表')}
           className={btnStyle('secondary')}
         >
-          备份
+          {t('page.privacy.load.backup', '备份')}
         </button>
       </div>
       {isLoaded && (
         <div className="mt-3 text-sm text-green-500 dark:text-green-400">
-          已加载 {mappingsCount} 条映射记录
+          {tr(
+            'page.privacy.load.loadedCount',
+            { count: String(mappingsCount) },
+            '已加载 {count} 条映射记录',
+          )}
         </div>
       )}
     </Card>

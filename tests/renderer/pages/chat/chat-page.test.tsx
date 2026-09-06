@@ -46,6 +46,8 @@ const i18nMocks = vi.hoisted(() => {
 vi.mock('../../../../src/renderer/i18n', () => ({
   useT: () => ({ t: i18nMocks.t, lang: 'zh' }),
   tr: (key: string) => key,
+  // ConfirmDialog/ToastContainer 等共享组件用模块级 t 提供默认文案
+  t: (_key: string, fallback?: string) => fallback ?? _key,
   setLang: i18nMocks.setLang,
 }))
 
