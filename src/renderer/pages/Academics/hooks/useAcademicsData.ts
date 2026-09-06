@@ -19,14 +19,14 @@ import { getAPI } from '../../../lib/ipc-client'
 import { useClassStore } from '../../../stores/class/store'
 import { useStudentStore } from '../../../stores/student/store'
 
-export interface AcademicsInitialData {
+interface AcademicsInitialData {
   students: EAAStudent[]
   classList: ClassEntity[]
   config: AcademicConfig | null
   exams: ExamDef[]
 }
 
-export interface UseAcademicsDataResult {
+interface UseAcademicsDataResult {
   data: AcademicsInitialData
   loading: boolean
   reload: () => void
@@ -35,13 +35,13 @@ export interface UseAcademicsDataResult {
 /** useMultiLoader fetcher 解包 IPC 结果；失败时 fetcher 抛错，由 hook 记入 errors */
 async function unwrapStudents(): Promise<EAAStudent[]> {
   // M20: 复用共享 studentStore — 与 Students/Classes/Dashboard 跨页共享(TTL 3s)
-  const students = await useStudentStore.getState().fetchStudents()
+  const students = await useStudentStore.getState().fetchItems()
   return students.filter((s) => s.status !== 'Deleted')
 }
 
 async function unwrapClassList(): Promise<ClassEntity[]> {
   // M20: 复用共享 classStore
-  return useClassStore.getState().fetchClasses()
+  return useClassStore.getState().fetchItems()
 }
 
 async function unwrapConfig(): Promise<AcademicConfig | null> {
@@ -56,6 +56,13 @@ async function unwrapExams(): Promise<ExamDef[]> {
   return []
 }
 
+const FALLBACKS = {
+  students: [] as EAAStudent[],
+  classList: [] as ClassEntity[],
+  config: null as AcademicConfig | null,
+  exams: [] as ExamDef[],
+}
+
 export function useAcademicsData(): UseAcademicsDataResult {
   const fetchers = useMemo(
     () => ({
@@ -67,17 +74,7 @@ export function useAcademicsData(): UseAcademicsDataResult {
     [],
   )
 
-  const { data, loading, reload } = useMultiLoader(fetchers, { deps: [] })
+  const { data, loading, reload } = useMultiLoader(fetchers, { deps: [], fallbacks: FALLBACKS })
 
-  const merged: AcademicsInitialData = useMemo(
-    () => ({
-      students: data.students ?? [],
-      classList: data.classList ?? [],
-      config: data.config ?? null,
-      exams: data.exams ?? [],
-    }),
-    [data],
-  )
-
-  return { data: merged, loading, reload }
+  return { data: data as AcademicsInitialData, loading, reload }
 }

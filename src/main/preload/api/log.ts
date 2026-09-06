@@ -2,10 +2,11 @@
 // Preload API — 日志系统域
 // =============================================================
 
+import type { LogAPI } from '@shared/api/log'
 import * as IPC from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 
-export const logApi = {
+export const logApi: LogAPI = {
   // [r] 列日志文件
   list: () => ipcRenderer.invoke(IPC.IPC_LOG_LIST),
   // [r] 读 tail N 行

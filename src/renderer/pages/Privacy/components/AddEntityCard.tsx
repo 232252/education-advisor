@@ -4,6 +4,7 @@
 // =============================================================
 
 import { Card } from '../../../components/Card'
+import { useT } from '../../../i18n'
 import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
 
 interface AddEntityCardProps {
@@ -27,17 +28,20 @@ export function AddEntityCard({
   adding,
   onAddEntity,
 }: AddEntityCardProps) {
+  const { t } = useT()
   return (
     <Card padding="md" className="bg-gray-50 dark:bg-surface-tertiary">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-semibold">添加实体</h2>
+        <h2 className="font-semibold">{t('page.privacy.addEntity.title')}</h2>
         <button
           type="button"
           onClick={onToggleForm}
-          aria-label={showAddForm ? '取消添加实体' : '添加实体'}
+          aria-label={t('page.privacy.addEntity.ariaToggle')}
           className={btnStyle('primary')}
         >
-          {showAddForm ? '取消' : '+ 添加实体'}
+          {showAddForm
+            ? t('page.privacy.addEntity.cancel')
+            : `+ ${t('page.privacy.addEntity.toggleOn')}`}
         </button>
       </div>
       {showAddForm && (
@@ -47,7 +51,7 @@ export function AddEntityCard({
               htmlFor="new-entity-type"
               className="block text-xs text-gray-500 dark:text-gray-400 mb-1"
             >
-              实体类型
+              {t('page.privacy.addEntity.type')}
             </label>
             <select
               id="new-entity-type"
@@ -55,13 +59,13 @@ export function AddEntityCard({
               onChange={(e) => setNewEntityType(e.target.value)}
               className={cn('w-full', INPUT_BASE)}
             >
-              <option value="person">人物 (学生/教师/家长)</option>
-              <option value="student_id">学号</option>
-              <option value="id_card">身份证号</option>
-              <option value="phone">电话</option>
-              <option value="email">邮箱</option>
-              <option value="place">地点</option>
-              <option value="org">组织 (学校/班级)</option>
+              <option value="person">{t('page.privacy.addEntity.type.person')}</option>
+              <option value="student_id">{t('page.privacy.addEntity.type.studentId')}</option>
+              <option value="id_card">{t('page.privacy.addEntity.type.idCard')}</option>
+              <option value="phone">{t('page.privacy.addEntity.type.phone')}</option>
+              <option value="email">{t('page.privacy.addEntity.type.email')}</option>
+              <option value="place">{t('page.privacy.addEntity.type.place')}</option>
+              <option value="org">{t('page.privacy.addEntity.type.org')}</option>
             </select>
           </div>
           <div className="flex-1">
@@ -69,14 +73,14 @@ export function AddEntityCard({
               htmlFor="new-entity-name"
               className="block text-xs text-gray-500 dark:text-gray-400 mb-1"
             >
-              实体名称 (必填)
+              {t('page.privacy.addEntity.name')}
             </label>
             <input
               id="new-entity-name"
               type="text"
               value={newEntityName}
               onChange={(e) => setNewEntityName(e.target.value)}
-              placeholder="输入实体名称 (如:张三)..."
+              placeholder={t('page.privacy.addEntity.namePlaceholder')}
               className={cn('w-full', INPUT_BASE)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !adding) onAddEntity()
@@ -87,10 +91,10 @@ export function AddEntityCard({
             type="button"
             onClick={onAddEntity}
             disabled={adding || !newEntityName.trim()}
-            aria-label="确认添加实体"
+            aria-label={t('page.privacy.addEntity.ariaConfirm')}
             className={btnStyle('primary')}
           >
-            {adding ? '添加中...' : '确认添加'}
+            {adding ? t('page.privacy.addEntity.adding') : t('page.privacy.addEntity.confirm')}
           </button>
         </div>
       )}

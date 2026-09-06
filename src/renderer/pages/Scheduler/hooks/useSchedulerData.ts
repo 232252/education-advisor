@@ -1,80 +1,60 @@
 // =============================================================
 // useSchedulerData — Cron 任务/日志/Agent 列表数据加载与动作 handlers
+// 三源并行加载复用 useMultiLoader(allSettled + stale guard + reload),
+// 单源失败不阻塞其他数据,失败仅 console.warn(与旧实现一致,不弹 toast)
 // =============================================================
 
 import type { AgentListItem, CronLogEntry, CronTask } from '@shared/types'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
+import { useConfirmAction } from '../../../hooks/useConfirmAction'
+import { useIpcSubscription } from '../../../hooks/useIpcSubscription'
+import { useMultiLoader } from '../../../hooks/useMultiLoader'
 import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
+import { runIpcMutation } from '../../../lib/mutation'
 import { toast } from '../../../stores/toastStore'
 
-/** 删除确认对话框状态 */
-export interface SchedulerConfirmState {
-  open: boolean
-  message: string
-  title?: string
-  onConfirm: () => void
-  variant?: 'default' | 'danger'
+const SCHEDULER_FALLBACKS = {
+  tasks: [] as CronTask[],
+  logs: [] as CronLogEntry[],
+  agents: [] as AgentListItem[],
 }
 
 export function useSchedulerData() {
   const { t } = useT()
-  const [tasks, setTasks] = useState<CronTask[]>([])
-  const [logs, setLogs] = useState<CronLogEntry[]>([])
-  const [agents, setAgents] = useState<AgentListItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [confirmState, setConfirmState] = useState<SchedulerConfirmState>({
-    open: false,
-    message: '',
-    onConfirm: () => {},
-  })
+  // 删除确认对话框状态(状态机统一走 useConfirmAction,字段与旧 SchedulerConfirmState 同形)
+  const { state: confirmState, setState: setConfirmState, ask, close } = useConfirmAction()
 
-  const loadData = useCallback(async () => {
-    try {
-      // 使用 allSettled: 单个 IPC 调用失败不阻塞其他数据加载
-      // 例如 agent.list() 失败时,cron 任务和日志仍能正常显示
-      const results = await Promise.allSettled([
-        getAPI().cron.list(),
-        getAPI().cron.getLogs(),
-        getAPI().agent.list(),
-      ])
-      const [taskData, logData, agentData] = results.map((r) =>
-        r.status === 'fulfilled' ? r.value : [],
+  const { data, loading, errors, reload } = useMultiLoader(
+    {
+      tasks: async () => getAPI().cron.list(),
+      logs: async () => getAPI().cron.getLogs(),
+      agents: async () => getAPI().agent.list(),
+    },
+    { fallbacks: SCHEDULER_FALLBACKS },
+  )
+  const tasks = data.tasks as CronTask[]
+  const logs = data.logs as CronLogEntry[]
+  const agents = data.agents as AgentListItem[]
+
+  // 局部失败与旧实现一致: 仅 console.warn,数据各自兜底 [] 不阻塞其他源
+  useEffect(() => {
+    const failed = Object.entries(errors)
+    if (failed.length > 0) {
+      console.warn(
+        `[Scheduler] ${failed.length}/3 calls failed:`,
+        failed.map(([, reason]) => String(reason)),
       )
-      setTasks(taskData as CronTask[])
-      setLogs(logData as CronLogEntry[])
-      setAgents(agentData as AgentListItem[])
-      const failed = results.filter((r) => r.status === 'rejected')
-      if (failed.length > 0) {
-        console.warn(
-          `[Scheduler] ${failed.length}/${results.length} calls failed:`,
-          failed.map((r) => String((r as PromiseRejectedResult).reason)),
-        )
-      }
-    } catch (err) {
-      console.error('[Scheduler] Failed to load:', err)
-      toast.error(t('toast.scheduler.loadFailed'))
-    } finally {
-      setLoading(false)
     }
-  }, [t])
+  }, [errors])
 
-  // P2-3: 用 loadDataRef 包装 loadData,listener 回调里调用最新版本,避免闭包过期
-  const loadDataRef = useRef(loadData)
-  useEffect(() => {
-    loadDataRef.current = loadData
-  })
+  // 监听状态更新(handler 经 ref 持有最新闭包,无需依赖 reload 身份)
+  useIpcSubscription(
+    (cb) => getAPI().cron.onStatusUpdate(cb),
+    () => reload(),
+  )
 
-  useEffect(() => {
-    loadData()
-    // 监听状态更新
-    const unsub = getAPI().cron.onStatusUpdate(() => {
-      loadDataRef.current()
-    })
-    return unsub
-  }, [loadData])
-
-  // P2-6: setTimeout(loadData, 2000) 用 ref 管理 timer,unmount 时清理
+  // P2-6: setTimeout(reload, 2000) 用 ref 管理 timer,unmount 时清理
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     return () => {
@@ -88,7 +68,7 @@ export function useSchedulerData() {
   const handleToggle = async (id: string, enabled: boolean) => {
     try {
       await getAPI().cron.toggle(id, enabled)
-      loadData()
+      reload()
     } catch (err) {
       console.error('[Scheduler] Toggle failed:', err)
       toast.error(t('toast.scheduler.toggleFailed'))
@@ -103,7 +83,7 @@ export function useSchedulerData() {
       }
       refreshTimerRef.current = setTimeout(() => {
         refreshTimerRef.current = null
-        loadData()
+        reload()
       }, 2000)
     } catch (err) {
       console.error('[Scheduler] Run now failed:', err)
@@ -112,72 +92,56 @@ export function useSchedulerData() {
   }
 
   const handleRemove = (id: string) => {
-    setConfirmState({
-      open: true,
-      message: '确定要删除此定时任务吗？',
-      variant: 'danger',
-      onConfirm: async () => {
+    ask(
+      '确定要删除此定时任务吗？',
+      async () => {
         try {
           await getAPI().cron.remove(id)
-          loadData()
+          reload()
         } catch (err) {
           console.error('[Scheduler] Remove failed:', err)
           toast.error(t('toast.scheduler.deleteFailed'))
         } finally {
-          setConfirmState((prev) => ({ ...prev, open: false }))
+          close()
         }
       },
-    })
+      { variant: 'danger' },
+    )
   }
 
   // 返回是否成功: 成功时由页面关闭表单(原页面 setShowForm 逻辑)
   // cron:add 校验失败时返回 { success: false, error } 而非抛异常,必须检查 success
-  const handleCreate = async (task: Omit<CronTask, 'id'>): Promise<boolean> => {
-    try {
-      const result = await getAPI().cron.add(task)
-      if (result.success) {
-        loadData()
-        return true
-      }
-      console.error('[Scheduler] Create rejected:', result.error)
-      toast.error(
-        result.error
-          ? `${t('toast.scheduler.createFailed')}: ${result.error}`
+  const handleCreate = (task: Omit<CronTask, 'id'>): Promise<boolean> =>
+    runIpcMutation(() => getAPI().cron.add(task), {
+      onOk: () => reload(),
+      failMsg: (r) =>
+        r.error
+          ? `${t('toast.scheduler.createFailed')}: ${r.error}`
           : t('toast.scheduler.createFailed'),
-      )
-      return false
-    } catch (err) {
-      console.error('[Scheduler] Create failed:', err)
-      toast.error(t('toast.scheduler.createFailed'))
-      return false
-    }
-  }
+      failLog: '[Scheduler] Create rejected:',
+      catchMsg: t('toast.scheduler.createFailed'),
+      catchLog: '[Scheduler] Create failed:',
+    })
 
   // CONCERN 修复: 编辑任务入口 — 调用 IPC_CRON_UPDATE 更新已有任务
   // 返回是否成功: 成功时由页面关闭表单并清除编辑态
-  const handleEdit = async (id: string, patch: Partial<CronTask>): Promise<boolean> => {
-    try {
-      const result = await getAPI().cron.update(id, patch)
-      if (result.success) {
-        loadData()
+  const handleEdit = (id: string, patch: Partial<CronTask>): Promise<boolean> =>
+    runIpcMutation(() => getAPI().cron.update(id, patch), {
+      onOk: () => {
+        reload()
         toast.success(t('toast.scheduler.taskUpdated'))
-        return true
-      }
-      toast.error(t('toast.scheduler.updateFailed'))
-      return false
-    } catch (err) {
-      console.error('[Scheduler] Edit failed:', err)
-      toast.error(t('toast.scheduler.updateFailed'))
-      return false
-    }
-  }
+      },
+      failMsg: t('toast.scheduler.updateFailed'),
+      catchMsg: t('toast.scheduler.updateFailed'),
+      catchLog: '[Scheduler] Edit failed:',
+    })
 
   return {
     tasks,
     logs,
     agents,
     loading,
-    loadData,
+    reload,
     handleToggle,
     handleRunNow,
     handleRemove,

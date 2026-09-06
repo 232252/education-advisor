@@ -9,6 +9,7 @@ import { Button } from '../../../../components/Button'
 import { Card } from '../../../../components/Card'
 import { useT } from '../../../../i18n'
 import { cn, INPUT_BASE } from '../../../../lib/ui-utils'
+import { LabeledControl } from '../LabeledControl'
 
 interface CreateExamFormCardProps {
   subjects: SubjectDef[]
@@ -61,11 +62,7 @@ export function CreateExamFormCard({
         {t('page.academics.exams.createTitle', '新建考试')}
       </h4>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            {t('page.academics.exams.nameLabel', '考试名称')}{' '}
-            <span className="text-red-500">*</span>
-          </label>
+        <LabeledControl label={t('page.academics.exams.nameLabel', '考试名称')} required>
           <input
             type="text"
             value={formName}
@@ -73,11 +70,8 @@ export function CreateExamFormCard({
             placeholder={t('page.academics.exams.namePlaceholder', '如: 2025年期中考试')}
             className={cn(INPUT_BASE, 'w-full')}
           />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            {t('page.academics.exams.typeLabel', '考试类型')}
-          </label>
+        </LabeledControl>
+        <LabeledControl label={t('page.academics.exams.typeLabel', '考试类型')}>
           <select
             value={formType}
             onChange={(e) => onFormTypeChange(e.target.value as ExamType)}
@@ -89,22 +83,16 @@ export function CreateExamFormCard({
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            {t('page.academics.exams.dateLabel', '考试日期')}
-          </label>
+        </LabeledControl>
+        <LabeledControl label={t('page.academics.exams.dateLabel', '考试日期')}>
           <input
             type="date"
             value={formDate}
             onChange={(e) => onFormDateChange(e.target.value)}
             className={cn(INPUT_BASE, 'w-full')}
           />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            {t('print.gradeSheet.semester', '学期')}
-          </label>
+        </LabeledControl>
+        <LabeledControl label={t('print.gradeSheet.semester', '学期')}>
           <input
             type="text"
             value={formSemester}
@@ -112,18 +100,17 @@ export function CreateExamFormCard({
             placeholder={t('page.academics.exams.semesterPlaceholder', '如: 2025-2026-1')}
             className={cn(INPUT_BASE, 'w-full')}
           />
-        </div>
+        </LabeledControl>
         <div className="md:col-span-2">
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            {t('page.academics.exams.scopeLabel', '考试范围')} ({t('common.optional', '可选')})
-          </label>
-          <input
-            type="text"
-            value={formScope}
-            onChange={(e) => onFormScopeChange(e.target.value)}
-            placeholder={t('page.academics.exams.scopePlaceholder', '如: 第一单元 ~ 第三单元')}
-            className={cn(INPUT_BASE, 'w-full')}
-          />
+          <LabeledControl label={t('page.academics.exams.scopeLabel', '考试范围')} optional>
+            <input
+              type="text"
+              value={formScope}
+              onChange={(e) => onFormScopeChange(e.target.value)}
+              placeholder={t('page.academics.exams.scopePlaceholder', '如: 第一单元 ~ 第三单元')}
+              className={cn(INPUT_BASE, 'w-full')}
+            />
+          </LabeledControl>
         </div>
       </div>
 

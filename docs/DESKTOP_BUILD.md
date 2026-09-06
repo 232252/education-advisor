@@ -27,7 +27,7 @@ distinct processes:
 
 | Config | Purpose | Output |
 | --- | --- | --- |
-| `vite.config.main.ts` | The main process (Node 22) | `dist/main/index.js` + `dist/main/preload.js` |
+| `vite.config.main.ts` | The main process (Node 22) | `dist/main/index.cjs` + `dist/main/preload.cjs` |
 | `vite.config.renderer.ts` | The renderer (Chromium) | `dist/renderer/index.html` + assets |
 
 The main-process config:
@@ -35,7 +35,7 @@ The main-process config:
 - Uses `ssr: true` and `lib.entry` to produce a CommonJS library.
 - Has `format: 'cjs'` because the main process is a Node process.
 - Externalizes native deps (electron, better-sqlite3, node-cron,
-  chokidar, cross-spawn).
+  cross-spawn).
 - Aliases `@earendil-works/pi-ai` and `@earendil-works/pi-agent-core`
   to the local monorepo paths (see [DEVELOPMENT.md](./DEVELOPMENT.md)).
 
@@ -43,7 +43,7 @@ The renderer config:
 
 - Uses the standard `react()` plugin.
 - Has `base: './'` because Electron loads from `file://`.
-- Targets `chrome130` (Electron 33's Chromium version).
+- Targets `chrome150` (Electron 43's Chromium version).
 - Has HMR enabled by default.
 
 ---
@@ -61,7 +61,7 @@ npm run dev:electron
 The dev servers watch the source and rebuild on change. The
 Electron shell loads the renderer from `http://localhost:5173`
 (with HMR) and the main process from the freshly-built
-`dist/main/index.js`.
+`dist/main/index.cjs`.
 
 If you only want to rebuild without launching Electron:
 
@@ -86,7 +86,7 @@ launching.
 npm run build
 
 # Output:
-#   dist/main/index.js       (CommonJS)
+#   dist/main/index.cjs      (CommonJS)
 #   dist/main/preload.js     (CommonJS)
 #   dist/renderer/index.html
 #   dist/renderer/assets/    (hashed JS / CSS / image filenames)
@@ -109,8 +109,8 @@ or your error tracker of choice.
 npm run package
 
 # Output:
-#   release/Education Advisor-Setup-0.1.0.exe   (~85 MB, NSIS installer)
-#   release/Education Advisor-0.1.0-Portable.exe  # see below
+#   release-v11/Education-Advisor-Setup.exe       (~85 MB, NSIS installer, version-free name)
+#   release-v11/Education-Advisor-Portable.exe    # see below
 
 # Build a Windows x64 portable .exe
 npm run package:portable
@@ -125,7 +125,7 @@ artifact filename is templated as
 
 ### What the NSIS installer does
 
-1. **Asks for the install location** (default: `C:\Program Files\Education Advisor`).
+1. **Installs per-user** (`%LOCALAPPDATA%\Programs`; `nsis.perMachine: false` in `electron-builder.yml`).
 2. **Creates a desktop shortcut** and a start menu shortcut.
 3. **Copies the app.asar** (containing `dist/main/` and
    `dist/renderer/`) to the install location.
@@ -155,23 +155,22 @@ pipeline. We are tracking this in the
 
 ## macOS packaging (DMG)
 
-> **Note**: macOS packaging is configured in
-> `electron-builder.yml` but is **not** part of the default CI
-> pipeline (we have no macOS maintainer with signing keys). See
-> the [DISTRIBUTION.md](./DISTRIBUTION.md) guide for the steps to
-> add a macOS build.
+> macOS packaging is configured in `electron-builder.yml` **and
+> runs on the default CI pipeline** (`macos-latest` runners in
+> `.github/workflows/release.yml`). Signing keys are the remaining
+> piece — see [DISTRIBUTION.md](./DISTRIBUTION.md).
 
 To build locally on a Mac:
 
 ```bash
-npm run package -- --mac
+npx electron-builder --mac   # NOTE: `npm run package` is pinned to --win --x64
 ```
 
 This produces:
 
-- `release/Education Advisor-0.1.0-arm64.dmg` (Apple Silicon)
-- `release/Education Advisor-0.1.0.dmg` (Intel, x64)
-- `release/Education Advisor-0.1.0-mac.zip` (zip alternative for
+- `release-v11/Education-Advisor-arm64.dmg` (Apple Silicon)
+- `release-v11/Education-Advisor.dmg` (Intel, x64)
+- `release-v11/Education-Advisor-mac.zip` (zip alternative for
   auto-update)
 
 For the build to succeed you need:
@@ -184,29 +183,28 @@ For the build to succeed you need:
 
 ## Linux packaging (deb + AppImage)
 
-> **Note**: Linux packaging is configured in `electron-builder.yml`
-> but is **not** part of the default CI pipeline (we have no
-> maintainer for the Linux distribution repos). See the
-> [DISTRIBUTION.md](./DISTRIBUTION.md) guide for the steps to
-> enable a Linux build.
+> Linux packaging is configured in `electron-builder.yml` **and
+> runs on the default CI pipeline** (`ubuntu-22.04` runner in
+> `.github/workflows/release.yml`). See
+> [DISTRIBUTION.md](./DISTRIBUTION.md) for distribution notes.
 
 To build locally on a Linux box:
 
 ```bash
 # Build a .deb (Debian / Ubuntu)
-npm run package -- --linux deb
+npx electron-builder --linux deb
 
 # Build an AppImage (portable)
-npm run package -- --linux AppImage
+npx electron-builder --linux AppImage
 
 # Build both
-npm run package -- --linux deb AppImage
+npx electron-builder --linux deb AppImage
 ```
 
 This produces:
 
-- `release/Education Advisor-0.1.0.deb`
-- `release/Education Advisor-0.1.0.AppImage`
+- `release-v11/Education-Advisor.deb`
+- `release-v11/Education-Advisor.AppImage`
 
 For the build to succeed you need:
 
@@ -269,18 +267,19 @@ to deliver updates. The flow:
    generated by `electron-builder --publish always` and uploaded
    alongside the installer.
 
-### Update channels
+### Update configuration
 
-The app supports three update channels (configured in Settings):
+There are **no update channels**. The relevant settings are two
+booleans/strings in Settings → General:
 
-- **`stable`** (default) — only stable releases (e.g. `v0.1.5`).
-- **`beta`** — release candidates and beta tags (e.g.
-  `v0.2.0-beta.1`).
-- **`rc`** — every release candidate.
+- **`general.autoUpdate`** (default `true`) — check GitHub Releases
+  on startup (5 s after boot); when an update is found the app
+  offers download + restart-install.
+- **`general.updateUrl`** (default empty) — point at a different
+  GitHub repo to serve updates from a fork, for school-wide
+  deployments that pin their own release train.
 
-To pin to a specific version (e.g. for a school-wide deployment),
-set the channel to `stable` and use a tag-based filter in your
-deployment.
+There is no stable/beta/rc channel switcher in the app.
 
 ---
 
@@ -365,7 +364,7 @@ npm run build
 npm run package
 
 # Compare the SHA-256 of release/*.exe
-sha256sum release/*.exe
+sha256sum release-v11/*.exe
 ```
 
 The two should match, **except for**:

@@ -4,7 +4,7 @@
 //  + 运行环境 + 工作准则 + 对话配置,模板逐字保留)
 // =============================================================
 
-export interface SystemPromptInput {
+interface SystemPromptInput {
   /** Agent 配置(SOUL 缺失时用 name/role/description 兜底描述) */
   config: { name: string; role: string; description: string }
   /** agents/<id>/SOUL.md 内容 */
@@ -62,7 +62,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     `${baseSystemPrompt}\n\n--- 运行环境 ---\n` +
     `你运行在用户的 **本地桌面应用**（Electron）中，**不是沙箱**，**不是云端**。你拥有完整的本地文件系统读写权限。\n` +
     (riskLine ? `${riskLine}\n` : '') +
-    `你可以用以下工具直接操作本地文件和系统：\n` +
+    `以下是部分常用文件工具（你的完整能力面以本轮随消息提供的工具定义为准，其中还包括操行数据查询、记忆保存、任务委派等）：\n` +
     `| 工具 | 作用 |\n` +
     `|:-----|:-----|\n` +
     `| \`read_file\` | 读取本地文本文件（.txt, .md, .csv, .json 等） |\n` +
@@ -81,6 +81,17 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     `4. 如果任务涉及多条数据的批量操作，逐条执行，不要中途停下。\n` +
     `5. 当用户让你修改 Excel 文件时：先 read_excel 读取 → 用 calculate 计算 → 用 write_excel 写回新文件。\n` +
     `6. 需要知道"今天几号"、"星期几"时，调用 get_current_time，不要猜测。\n\n` +
-    `--- 对话配置 ---\n转向模式: ${input.steeringMode}\n后续模式: ${input.followUpMode}\n显示图片: ${input.showImages ? '是' : '否'}`
+    `--- 对话配置 ---\n` +
+    `转向模式: ${
+      input.steeringMode === 'all'
+        ? '用户可能随时插入新指令 — 结合最新消息调整当前行为'
+        : '逐项处理 — 完成当前子任务并汇报后,再进行下一项'
+    }\n` +
+    `后续模式: ${
+      input.followUpMode === 'all'
+        ? '回答后可连续向用户追问所需信息,直到任务完整'
+        : '每次回答后最多追问一个问题,等待用户答复后再继续'
+    }\n` +
+    `显示图片: ${input.showImages ? '是' : '否'}`
   )
 }

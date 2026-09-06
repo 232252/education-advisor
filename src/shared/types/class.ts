@@ -35,21 +35,3 @@ export interface ClassAssignParams {
   class_id: string
   student_names: string[]
 }
-
-/** 调班：单个学生退出班级（清空 EAA class_id） */
-export interface ClassRemoveStudentParams {
-  student_name: string
-}
-
-/** 班级下学生列表返回 */
-export interface ClassStudentsResult {
-  class_id: string
-  students: Array<{
-    name: string
-    entity_id: string
-    status: string
-    score: number
-    risk: string
-    events_count: number
-  }>
-}

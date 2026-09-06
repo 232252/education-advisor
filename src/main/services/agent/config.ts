@@ -7,7 +7,7 @@
 import type { AgentConfig } from '@shared/types'
 
 /** user override 结构(与 agent-scheduler.ts Override 结构一致,结构化类型兼容) */
-export interface AgentOverride {
+interface AgentOverride {
   enabled?: boolean
   name?: string
   description?: string

@@ -10,6 +10,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
+import { errText } from './err-text'
 
 /** 解析 .env 文本 → 条目数组(跳过注释/空行;不支持引号剥离以外的 shell 语法) */
 export function parseEnvContent(content: string): Array<{ key: string; value: string }> {
@@ -53,7 +54,7 @@ export function loadDevEnv(): number {
     }
     return loaded
   } catch (err) {
-    console.warn('[loadDevEnv] failed to load .env:', err instanceof Error ? err.message : err)
+    console.warn('[loadDevEnv] failed to load .env:', errText(err))
     return 0
   }
 }

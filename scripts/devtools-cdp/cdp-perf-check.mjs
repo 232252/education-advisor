@@ -1,28 +1,9 @@
 // 多角度健康检查: 内存/性能/DOM/存储/监听器泄漏
-import WebSocket from 'ws'
+import { connectCdp, sleep } from '../lib/cdp-client.mjs'
 
-const res = await fetch('http://localhost:9222/json')
-const targets = await res.json()
-const page = targets.find((t) => t.type === 'page' && !t.url.startsWith('devtools'))
-const ws = new WebSocket(page.webSocketDebuggerUrl, { maxPayload: 256 * 1024 * 1024 })
-await new Promise((res2, rej) => { ws.on('open', res2); ws.on('error', rej) })
-let id = 0
-const pending = new Map()
-ws.on('message', (data) => {
-  const msg = JSON.parse(data.toString())
-  if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id) }
+const { send, evl, close } = await connectCdp({
+  pageFilter: (t) => t.type === 'page' && !t.url.startsWith('devtools'),
 })
-const send = (method, params = {}) => new Promise((res2) => {
-  const mid = ++id
-  pending.set(mid, res2)
-  ws.send(JSON.stringify({ id: mid, method, params }))
-})
-const evl = async (expr) => {
-  const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true })
-  if (r.result?.exceptionDetails) return { __error: r.result.exceptionDetails.text }
-  return r.result?.result?.value
-}
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // 1. 基线指标
 await send('Performance.enable')
@@ -85,5 +66,5 @@ const longTasks = await evl(`(async () => {
 console.log('=== students 页 longtask(>50ms) ===')
 console.log('nav+render wall(ms):', Date.now() - t0, ' longtasks:', JSON.stringify(longTasks))
 
-ws.close()
+close()
 process.exit(0)

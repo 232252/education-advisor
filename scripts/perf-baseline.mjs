@@ -1,17 +1,8 @@
 // 性能基线: 内存/堆/DOM节点/路由切换耗时
 // 需要已启动且开启 CDP 的 Electron 实例(本地 npm run dev,端口 9222)。
 // CI 无头环境没有 Electron 实例,优雅跳过(exit 0)避免误报失败。
-import WebSocket from 'ws'
+import { connectCdp, fetchTargets, sleep } from './lib/cdp-client.mjs'
 
-async function fetchTargets() {
-  try {
-    const r = await fetch('http://localhost:9222/json')
-    if (!r.ok) return null
-    return await r.json()
-  } catch {
-    return null
-  }
-}
 const targets = await fetchTargets()
 if (!targets || targets.length === 0) {
   console.log(
@@ -19,14 +10,7 @@ if (!targets || targets.length === 0) {
   )
   process.exit(0)
 }
-const page = targets.find((t) => t.type === 'page')
-const ws = new WebSocket(page.webSocketDebuggerUrl)
-await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej) })
-let id = 0; const pending = new Map()
-ws.on('message', (d) => { const m = JSON.parse(d.toString()); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id) } })
-const send = (method, params = {}, timeout = 30000) => new Promise((res, rej) => { const mid = ++id; const t = setTimeout(() => { pending.delete(mid); rej(new Error('timeout')) }, timeout); pending.set(mid, (m) => { clearTimeout(t); res(m) }); ws.send(JSON.stringify({ id: mid, method, params })) })
-const evl = async (expr) => { const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }); if (r.result?.exceptionDetails) return { __error: r.result.exceptionDetails.text }; return r.result?.result?.value }
-const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+const { evl, close } = await connectCdp()
 const routes = ['#/dashboard', '#/chat', '#/students', '#/classes', '#/academics', '#/agents', '#/models', '#/skills', '#/scheduler', '#/privacy', '#/settings']
 // 首次基线
 const base = await evl(`(() => {
@@ -52,4 +36,4 @@ const after = await evl(`(() => {
   return { mem, domNodes: document.querySelectorAll('*').length }
 })()`)
 console.log('after nav:', JSON.stringify(after))
-ws.close(); process.exit(0)
+close(); process.exit(0)

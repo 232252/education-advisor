@@ -4,7 +4,8 @@
 // =============================================================
 
 import type { OllamaModelInfo } from '@shared/types'
-import { formatBytes } from '../lib/local-models'
+import { tr, useT } from '../../../i18n'
+import { formatBytes } from '../../../lib/ui-utils'
 
 interface InstalledModelListProps {
   installed: OllamaModelInfo[]
@@ -12,10 +13,11 @@ interface InstalledModelListProps {
 }
 
 export function InstalledModelList({ installed, onDelete }: InstalledModelListProps) {
+  const { t } = useT()
   return (
     <div>
       <div className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">
-        已安装模型（{installed.length}）
+        {tr('page.models.installed.title', { count: installed.length })}
       </div>
       <div className="space-y-1">
         {installed.map((m) => (
@@ -37,7 +39,7 @@ export function InstalledModelList({ installed, onDelete }: InstalledModelListPr
               onClick={() => onDelete(m.name)}
               className="text-[10px] text-gray-400 hover:text-red-500 transition-colors"
             >
-              删除
+              {t('page.models.installed.delete')}
             </button>
           </div>
         ))}

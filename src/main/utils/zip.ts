@@ -34,7 +34,7 @@ const CRC_TABLE = (() => {
   return table
 })()
 
-export function crc32(buf: Buffer): number {
+function crc32(buf: Buffer): number {
   let c = 0xffffffff
   for (let i = 0; i < buf.length; i++) {
     c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8)
@@ -71,7 +71,7 @@ function toDosDateTime(date: Date): { time: number; date: number } {
 
 // ---------- 写入 ----------
 
-export interface ZipInput {
+interface ZipInput {
   name: string
   data: Buffer
 }
@@ -153,7 +153,7 @@ export function createZip(entries: ZipInput[], mtime = new Date()): Buffer {
 
 // ---------- 读取 ----------
 
-export interface ZipEntry {
+interface ZipEntry {
   name: string
   data: Buffer
 }

@@ -4,24 +4,13 @@
 // =============================================================
 
 import { renderHook, waitFor } from '@testing-library/react'
+import { setWindowApi, clearWindowApi } from '../../helpers/window-api'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GradeRecord } from '@shared/types'
 import { useStudentGrades } from '../../../../src/renderer/pages/Academics/hooks/useStudentGrades'
+import { makeGrade } from '../../__fixtures__/make'
 
-// ---------- 数据工厂 ----------
-
-function makeGrade(overrides: Partial<GradeRecord> = {}): GradeRecord {
-  return {
-    examId: 'exam-1',
-    subjectId: 'chinese',
-    studentName: '张三',
-    score: 90,
-    fullMark: 150,
-    updatedAt: '2025-11-02T00:00:00Z',
-    ...overrides,
-  }
-}
+// ---------- 数据工厂(单一来源: tests/renderer/__fixtures__/make) ----------
 
 // ---------- window.api mock ----------
 
@@ -34,12 +23,12 @@ const apiMock = {
 describe('useStudentGrades', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as unknown as { api: unknown }).api = apiMock
+    ;setWindowApi(apiMock)
     apiMock.academic.getGrades.mockResolvedValue({ success: true, data: [] })
   })
 
   afterEach(() => {
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   it('初始无学生时成绩为空且不调 IPC', () => {

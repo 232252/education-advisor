@@ -62,7 +62,7 @@ type StreamEventBase =
 export type StreamEvent = StreamEventBase & { sessionId?: string }
 
 /** 重试策略信息(从 settings.models.retry.* 读,附在 error 事件上供渲染端展示) */
-export interface RetryPolicyInfo {
+interface RetryPolicyInfo {
   enabled: boolean
   maxRetries: number
   baseDelayMs: number

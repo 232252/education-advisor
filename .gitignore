@@ -81,6 +81,8 @@ scripts/link*.json
 /*.tmp.json
 /.tmp-ico-prompt.json
 /.tmp-upload.json
+# atomic-write 崩溃残留(*.tmp.<pid>.<ts>.<rand>,boot 时由 sweepAtomicTmpResidue 清扫)
+/*.tmp.[0-9]*.[0-9]*.*
 
 # ===== AI / tool runtime state =====
 # (These directories are created by various AI coding tools and IDE helpers.
@@ -165,7 +167,9 @@ core/eaa-cli/data/
 
 # R139: 开发模式下 EAA schema 目录(runtime 从 config/reason-codes.json 转换而来)
 # 打包模式下 schema 写入 %APPDATA%/Education Advisor/schema,不影响源码树
-schema/
+# (锚定根目录: 未锚定时会误中已跟踪的 core/eaa-cli/schema/ 源数据,
+#  其后续改动将静默不出现在 git status)
+/schema/
 
 # R155: 开发模式下 DB + 用户技能目录(TRAE Sandbox workaround)
 # SQLite workstation.db 和用户级 skills 迁移至此
@@ -181,3 +185,13 @@ tmp_fix/
 
 # R2-04: root 属主构建快照残留(sudo 可用时删除)
 site-build/prod-light.png
+# Cloudflare wrangler 本地状态(wrangler pages dev 运行时生成)
+site-build/.wrangler/
+
+# ===== 历史误提交产物路径(曾致 pack 506MiB,目录已删,防复发) =====
+iced-app/
+src-tauri/
+
+# ===== syncthing 同步产物(9/6 灾难元凶,防再入版本库) =====
+*.sync-conflict-*
+.syncthing*

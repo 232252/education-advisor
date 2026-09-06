@@ -6,7 +6,7 @@
 export type ExamType = 'monthly' | 'midterm' | 'final' | 'quiz' | 'test' | 'mock' | 'other'
 
 /** 科目分类 */
-export type SubjectCategory = 'core' | 'science' | 'arts' | 'pe' | 'art' | 'other'
+type SubjectCategory = 'core' | 'science' | 'arts' | 'pe' | 'art' | 'other'
 
 /** 科目定义 */
 export interface SubjectDef {
@@ -29,18 +29,6 @@ export interface ExamDef {
   /** 包含的科目ID列表 */
   subjects: string[]
   createdAt: string
-}
-
-/** 试卷分析结果 (占位结构,后续接入 AI/OCR) */
-export interface PaperAnalysisResult {
-  filePath: string
-  fileName: string
-  fileType: string
-  examId: string | null
-  subjectId: string | null
-  questionScores: number[]
-  analysis: string
-  analyzedAt: string
 }
 
 /** 成绩记录 (单个学生在单场考试的单科成绩) */

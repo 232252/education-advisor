@@ -10,6 +10,7 @@
 
 import type { Api, Model } from '@earendil-works/pi-ai/compat'
 import type { ModelInfo } from '@shared/types'
+import { errText } from '../../utils/err-text'
 
 export class OnlineModelsFetcher {
   /**
@@ -120,10 +121,7 @@ export class OnlineModelsFetcher {
         this.failedOnlineFetch.set(providerId, Date.now() + OnlineModelsFetcher.FAILED_FETCH_TTL_MS)
       }
     } catch (err) {
-      console.warn(
-        `[PiAI] Failed to fetch models online for ${providerId}:`,
-        err instanceof Error ? err.message : String(err),
-      )
+      console.warn(`[PiAI] Failed to fetch models online for ${providerId}:`, errText(err))
       this.failedOnlineFetch.set(providerId, Date.now() + OnlineModelsFetcher.FAILED_FETCH_TTL_MS)
     }
     return []

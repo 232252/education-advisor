@@ -20,7 +20,7 @@
 // =============================================================
 
 /** 调试配置(运行时只读快照,启动时从环境变量读取一次) */
-export interface DebugConfig {
+interface DebugConfig {
   /** 总开关 — 开启全部调试子项 */
   enabled: boolean
   /** EAA 二进制调用详细日志(stdin/stdout/stderr/exitCode) */

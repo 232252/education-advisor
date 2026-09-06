@@ -4,53 +4,38 @@
 // =============================================================
 
 import { act } from 'react'
+import { setWindowApi, clearWindowApi } from '../../helpers/window-api'
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { EAAStudent, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
+import type { ExamDef, GradeRecord, SubjectDef } from '@shared/types'
 import { useCompareData } from '../../../../src/renderer/pages/Academics/hooks/useCompareData'
+import {
+  makeStudent,
+  makeExam as makeExamBase,
+  makeGrade as makeGradeBase,
+} from '../../__fixtures__/make'
 
-// ---------- 数据工厂 ----------
+// ---------- 数据工厂(单一来源: tests/renderer/__fixtures__/make) ----------
 
-function makeStudent(overrides: Partial<EAAStudent> = {}): EAAStudent {
-  return {
-    name: '张三',
-    entity_id: 'ent-1',
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-    ...overrides,
-  }
-}
-
-function makeExam(overrides: Partial<ExamDef> = {}): ExamDef {
-  return {
+// 本文件历史默认字面值与共享工厂不同,用适配器保持原值
+const makeExam = (overrides: Partial<ExamDef> = {}): ExamDef =>
+  makeExamBase({
     id: 'e1',
     name: '月考一',
     type: 'monthly',
     date: '2025-10-01',
-    semester: '2025-2026-1',
     subjects: ['chinese'],
     createdAt: '2025-10-02T00:00:00Z',
     ...overrides,
-  }
-}
+  })
 
-function makeGrade(overrides: Partial<GradeRecord> = {}): GradeRecord {
-  return {
+const makeGrade = (overrides: Partial<GradeRecord> = {}): GradeRecord =>
+  makeGradeBase({
     examId: 'e1',
-    subjectId: 'chinese',
-    studentName: '张三',
     score: 80,
-    fullMark: 150,
     updatedAt: '2025-10-02T00:00:00Z',
     ...overrides,
-  }
-}
+  })
 
 const SUBJECTS: SubjectDef[] = [{ id: 'chinese', name: '语文', category: 'core', fullMark: 150 }]
 
@@ -86,13 +71,13 @@ const apiMock = {
 describe('useCompareData', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as unknown as { api: unknown }).api = apiMock
+    ;setWindowApi(apiMock)
     apiMock.academic.getClassGrades.mockResolvedValue({ success: true, data: {} })
     apiMock.eaa.range.mockResolvedValue({ success: true, data: { events: [] } })
   })
 
   afterEach(() => {
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   it('初始状态: 默认选最近两场考试(升序倒数第二与最后一场)', async () => {

@@ -5,9 +5,11 @@
 // =============================================================
 
 import { existsSync, mkdirSync } from 'node:fs'
-import { open, readFile, rename } from 'node:fs/promises'
 import path from 'node:path'
 import type { StudentProfileData } from '@shared/types'
+import { atomicWrite } from '../utils/atomic-write'
+import { errText } from '../utils/err-text'
+import { readJsonOr, safeFileName } from '../utils/json-file'
 import { getAppPaths } from './paths'
 
 class ProfileService {
@@ -23,45 +25,28 @@ class ProfileService {
   }
 
   private profilePath(name: string): string {
-    // 防止路径遍历攻击
-    const safeName = name.replace(/[^a-zA-Z0-9\u4e00-\u9fff_-]/g, '_')
-    return path.join(this.profilesDir, `${safeName}.json`)
+    // 防止路径遍历攻击(共享实现见 utils/json-file)
+    return path.join(this.profilesDir, `${safeFileName(name)}.json`)
   }
 
   /** 读取学生扩展档案 */
   // H-11 修复: 改为异步,避免阻塞主进程
   async get(name: string): Promise<StudentProfileData> {
-    const filePath = this.profilePath(name)
-    try {
-      const content = await readFile(filePath, 'utf-8')
-      return JSON.parse(content) as StudentProfileData
-    } catch {
-      // 文件不存在(ENOENT)或 JSON 解析失败时返回空对象
-      return {}
-    }
+    // 文件不存在(ENOENT)或 JSON 解析失败时返回空对象
+    return readJsonOr(this.profilePath(name), {} as StudentProfileData)
   }
 
   /** 写入学生扩展档案（全量覆盖） */
   // H-11 修复: 改为异步,避免阻塞主进程
-  // 修复: 使用唯一临时文件名避免 Windows 上 writeFile+rename 的竞态条件
-  // 修复: 通过单个 fd 写入+fsync 确保数据落盘后再 rename (避免 Windows 缓存导致读到旧数据)
+  // 原手写 fd+fsync+rename 序列已换 atomicWrite(唯一权威实现):
+  // 同样的唯一临时名+落盘后 rename 语义,额外获得 EPERM/EACCES/EBUSY 重试
   async set(name: string, data: StudentProfileData): Promise<{ success: boolean; error?: string }> {
     try {
       const filePath = this.profilePath(name)
-      const tmpPath = `${filePath}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
-      const json = JSON.stringify(data, null, 2)
-      // 用 'w' 模式打开,通过 fd 写入 + fsync,确保数据落盘后再 rename
-      const fd = await open(tmpPath, 'w')
-      try {
-        await fd.writeFile(json, 'utf-8')
-        await fd.sync()
-      } finally {
-        await fd.close()
-      }
-      await rename(tmpPath, filePath)
+      await atomicWrite(filePath, JSON.stringify(data, null, 2))
       return { success: true }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       return { success: false, error: msg }
     }
   }

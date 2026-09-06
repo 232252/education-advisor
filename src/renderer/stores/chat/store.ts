@@ -7,7 +7,7 @@ import { create } from 'zustand'
 import { createAgentBridgeSlice } from './agent-bridge-slice'
 import {
   bindStreamDeltaTarget,
-  flushAllDeltas,
+  flushStreamDeltas,
   queueStreamDelta,
   queueThinkingDelta,
 } from './delta-batch'
@@ -40,8 +40,7 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     appendStreamDelta: (delta) => queueStreamDelta(delta, set),
     appendThinkingDelta: (delta) => queueThinkingDelta(delta, set),
-    /** 立即 flush 所有待处理的 delta 批处理 (在 done/error/text_end 时调用) */
-    flushDeltas: () => flushAllDeltas(set),
+    flushDeltas: () => flushStreamDeltas(),
 
     ...createMessagesSlice(set, get),
     ...createAgentBridgeSlice(set, get),

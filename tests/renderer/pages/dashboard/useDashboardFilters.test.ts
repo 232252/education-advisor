@@ -11,26 +11,18 @@ import type { ClassEntity, EAAEventRecord, EAARankItem, EAAStudent } from '@shar
 import {
   CLASS_FILTER_ALL,
   CLASS_FILTER_NONE,
-} from '../../../../src/renderer/pages/Dashboard/dashboard-stats'
+} from '../../../../src/renderer/lib/class-filter'
 import { useDashboardFilters } from '../../../../src/renderer/pages/Dashboard/hooks/useDashboardFilters'
+import {
+  makeEvent as makeEventBase,
+  makeStudent as makeStudentBase,
+} from '../../__fixtures__/make'
 
-// ---------- 测试数据 ----------
+// ---------- 测试数据(工厂单一来源: tests/renderer/__fixtures__/make) ----------
 
-function makeStudent(overrides: Partial<EAAStudent>): EAAStudent {
-  return {
-    name: '学生',
-    entity_id: 'e0',
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-    ...overrides,
-  }
-}
+// 本文件历史默认 name/entity_id 为 学生/e0 且必填 overrides,用适配器保持原值
+const makeStudent = (overrides: Partial<EAAStudent>): EAAStudent =>
+  makeStudentBase({ name: '学生', entity_id: 'e0', ...overrides })
 
 const s1 = makeStudent({ name: '甲', entity_id: 'e1', class_id: 'G7-1', score: 55, risk: '极高' })
 const s2 = makeStudent({ name: '乙', entity_id: 'e2', class_id: 'G7-1', score: 75, risk: '高' })
@@ -59,23 +51,16 @@ const ranking: EAARankItem[] = [
   { rank: 4, name: '甲', entity_id: 'e1', score: 55, delta: 0, risk: '极高' },
 ]
 
-function makeEvent(entityId: string, delta: number, code: string): EAAEventRecord {
-  return {
+// 历史签名为 (entityId, delta, code),部分字段按 delta 推导,用适配器保持原值
+const makeEvent = (entityId: string, delta: number, code: string): EAAEventRecord =>
+  makeEventBase({
     event_id: `ev-${entityId}`,
     name: 'n',
     entity_id: entityId,
-    timestamp: '2026-01-01T00:00:00Z',
     event_type: delta >= 0 ? 'ConductBonus' : 'ConductDeduct',
     reason_code: code,
-    original_reason: 'r',
     score_delta: delta,
-    note: '',
-    tags: [],
-    operator: 'op',
-    is_valid: true,
-    reverted_by: null,
-  }
-}
+  })
 
 const allEvents = [
   makeEvent('e1', 5, 'A'),

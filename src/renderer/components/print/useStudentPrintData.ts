@@ -4,14 +4,14 @@
 // 操行数据(score/history/profileData)由调用方从既有 hook 透传。
 // =============================================================
 
+import { DEFAULT_SUBJECTS } from '@shared/academic-defaults'
 import type { EAAStudent, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
 import { useCallback, useState } from 'react'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
-import { DEFAULT_SUBJECTS } from '../../pages/Academics/lib/academics-defaults'
 import { toast } from '../../stores/toastStore'
 
-export interface StudentPrintData {
+interface StudentPrintData {
   grades: GradeRecord[]
   exams: ExamDef[]
   subjects: SubjectDef[]

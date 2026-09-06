@@ -28,7 +28,11 @@ export function RankingCard({
       </h3>
       <div className="space-y-2">
         {items.length === 0 ? (
-          <EmptyState icon={<Trophy size={28} />} title="暂无排行数据" className="py-6" />
+          <EmptyState
+            icon={<Trophy size={28} />}
+            title={t('page.dashboard.ranking.empty')}
+            className="py-6"
+          />
         ) : (
           items.slice(0, 10).map((r) => (
             <button

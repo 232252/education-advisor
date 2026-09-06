@@ -37,6 +37,20 @@ export function t(key: string, fallback?: string): string {
   return dict[key] ?? fallback ?? key
 }
 
+/**
+ * t(key) + 占位符替换的单一来源: tr('a.b', { name }) 替换文案中的 {name},
+ * tr('a.b', { 0: n, 1: m }) 替换 {0}/{1}(数字键合法,JS 对象整型键自动字符串化)。
+ * 取代散落 60+ 处的 `.replace('{x}', …)` 链 — 占位符名与字典条目解耦,
+ * 字典改占位符名时调用点不再静默漏替换。
+ */
+export function tr(key: string, vars: Record<string, string | number>, fallback?: string): string {
+  let out = t(key, fallback)
+  for (const [name, value] of Object.entries(vars)) {
+    out = out.replaceAll(`{${name}}`, String(value))
+  }
+  return out
+}
+
 export function setLang(lang: Lang): void {
   currentLang = lang
   if (typeof window !== 'undefined') {

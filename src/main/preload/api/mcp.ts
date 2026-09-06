@@ -2,10 +2,11 @@
 // Preload API — MCP (Model Context Protocol) 域
 // =============================================================
 
+import type { McpAPI } from '@shared/api/mcp'
 import * as IPC from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 
-export const mcpApi = {
+export const mcpApi: McpAPI = {
   // [r] 列出所有配置的 MCP server 及连接状态
   list: () => ipcRenderer.invoke(IPC.IPC_MCP_LIST),
   // [w] 手动连接指定 MCP server

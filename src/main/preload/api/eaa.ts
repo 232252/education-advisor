@@ -2,10 +2,11 @@
 // Preload API — EAA 域
 // =============================================================
 
+import type { EaaAPI } from '@shared/api/eaa'
 import * as IPC from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 
-export const eaaApi = {
+export const eaaApi: EaaAPI = {
   // [r] 系统信息
   info: () => ipcRenderer.invoke(IPC.IPC_EAA_INFO),
   // [r] 学生评分
@@ -15,7 +16,7 @@ export const eaaApi = {
   // [r] 回放
   replay: () => ipcRenderer.invoke(IPC.IPC_EAA_REPLAY),
   // [w] 新增事件
-  addEvent: (params: unknown) => ipcRenderer.invoke(IPC.IPC_EAA_ADD_EVENT, params),
+  addEvent: (params) => ipcRenderer.invoke(IPC.IPC_EAA_ADD_EVENT, params),
   // [c] 回滚事件 — UI 层应二次确认
   revertEvent: (eventId: string, reason: string) =>
     ipcRenderer.invoke(IPC.IPC_EAA_REVERT_EVENT, eventId, reason),
@@ -44,7 +45,7 @@ export const eaaApi = {
   deleteStudent: (name: string, reason?: string) =>
     ipcRenderer.invoke(IPC.IPC_EAA_DELETE_STUDENT, name, { confirm: true, reason }),
   // [w] 设置学生元数据
-  setStudentMeta: (params: unknown) => ipcRenderer.invoke(IPC.IPC_EAA_SET_STUDENT_META, params),
+  setStudentMeta: (params) => ipcRenderer.invoke(IPC.IPC_EAA_SET_STUDENT_META, params),
   // [w] 导入数据
   import: (filePath: string) => ipcRenderer.invoke(IPC.IPC_EAA_IMPORT, filePath),
   // [r] reason-codes

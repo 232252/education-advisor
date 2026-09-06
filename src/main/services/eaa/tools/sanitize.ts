@@ -5,7 +5,7 @@
 // 从 eaa-tools.ts 拆分(纯重构,逻辑逐字搬移)
 // =============================================================
 
-import type { EAAResult } from '../../eaa-bridge'
+import type { EAACommand, EAAResult } from '../../eaa-bridge'
 import { eaaBridge } from '../../eaa-bridge'
 
 export { tokenizeQuery } from '../../../utils/sanitize'
@@ -26,12 +26,24 @@ export function sanitizeArg(arg: string): void {
   // 修复：原正则 [class]#~!\\] 缺少 |，要求 6 字符序列才能匹配，单个 metachar 全部漏掉。
   // 现将 #、~、!、\\ 一并放入字符类，单个命中即拒绝。
   if (/[&|;`$(){}\\<>*?[\]#~!]/.test(arg)) {
-    throw new Error(`参数包含非法 shell 元字符: ${JSON.stringify(arg)}`)
+    throw new Error(
+      `参数包含非法 shell 元字符: ${JSON.stringify(arg)}。关键词只支持普通文字（中文/字母/数字/空格/引号），不支持 * ? # ~ ! 等符号 — 请去掉特殊符号后重试`,
+    )
   }
   // 拒绝以 -- 开头的参数（防止参数注入）
   if (arg.startsWith('--')) {
-    throw new Error(`参数不允许以 -- 开头: ${JSON.stringify(arg)}`)
+    throw new Error(
+      `参数不允许以 -- 开头: ${JSON.stringify(arg)} — 这是命令行选项保留前缀,普通参数值请去掉开头的 --`,
+    )
   }
+}
+
+/**
+ * 仅 signal 存在时才传第二参调用 eaaBridge.execute
+ * (保持无 signal 时单参调用契约,兼容 toHaveBeenCalledWith 断言)
+ */
+export function executeWithSignal(cmd: EAACommand, signal?: AbortSignal) {
+  return signal ? eaaBridge.execute(cmd, { signal }) : eaaBridge.execute(cmd)
 }
 
 /**
@@ -50,9 +62,7 @@ async function safeExecute(
   for (const val of values) {
     sanitizeArg(val)
   }
-  const cmd = { command, args: [...values, ...flags] }
-  // 仅 signal 存在时才传第二参(保持无 signal 时单参调用契约,兼容 toHaveBeenCalledWith 断言)
-  return signal ? eaaBridge.execute(cmd, { signal }) : eaaBridge.execute(cmd)
+  return executeWithSignal({ command, args: [...values, ...flags] }, signal)
 }
 
 export { safeExecute }

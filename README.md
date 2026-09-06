@@ -112,12 +112,12 @@ Privacy is not a checkbox. The Rust PII engine builds a per-install **encrypted 
 │  Dashboard · Chat · Students · Agents · Models · Skills · ...    │
 │  Zustand stores · i18n (zh/en) · 9 routes · 12 hooks             │
 └────────────────────────┬─────────────────────────────────────────┘
-                         │  contextBridge  (window.api, 11 namespaces)
-                         │  90+ IPC channels · 1 type-safe surface
+                         │  contextBridge  (window.api, 20 namespaces)
+                         │  144 IPC channels · 1 type-safe surface
 ┌────────────────────────▼─────────────────────────────────────────┐
 │                  Main (Node 22 + Electron 43)                    │
 │                                                                  │
-│  11 IPC handlers ── 13 services ── 4 Zustand-like stores         │
+│  20 IPC domains ── 13 services ── 7 Zustand-like stores          │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────┐  │
 │  │ pi-ai SDK   │  │  EAA bridge │  │ SQLite (db) │  │ Tray /  │  │
 │  │ 30+ LLM     │  │  Rust child │  │ chat / cron │  │ Auto-   │  │
@@ -279,23 +279,23 @@ For macOS / Linux targets, edit [`electron-builder.yml`](./electron-builder.yml)
 ```
 education-advisor/
 ├── src/
-│   ├── main/                # Electron main process (33 files)
-│   │   ├── ipc/             #   11 IPC handler modules
+│   ├── main/                # Electron main process (20 IPC domains, 13 service groups)
+│   │   ├── ipc/             #   46 handler files, handleIpc skeleton by default
 │   │   ├── services/        #   13 service modules (agent, EAA, cron, ...)
 │   │   ├── preload/         #   contextBridge bridge
 │   │   ├── utils/           #   logger, etc.
 │   │   └── index.ts         #   main entry
-│   ├── renderer/            # React 19 renderer (23 files)
-│   │   ├── pages/           #   9 page modules
+│   ├── renderer/            # React 19 renderer
+│   │   ├── pages/           #   13 page modules
 │   │   ├── components/      #   shared UI
-│   │   ├── hooks/           #   12 custom hooks
-│   │   ├── stores/          #   4 Zustand stores
+│   │   ├── hooks/           #   15 shared hooks (useIpcQuery / useMultiLoader / useMountedRef / ...)
+│   │   ├── stores/          #   7 Zustand stores
 │   │   ├── i18n/            #   zh + en
 │   │   ├── lib/             #   typed IPC client
 │   │   └── main.tsx         #   renderer entry
 │   └── shared/              # Code shared by main + renderer
-│       ├── ipc-channels.ts  #   90+ channel constants
-│       └── types/           #   539 lines of shared TypeScript types
+│       ├── ipc-channels.ts  #   144 channel constants
+│       └── types/           #   17 shared TypeScript type modules
 ├── agents/                  # 18 agents × (SOUL.md + AGENTS.md)
 ├── config/                  # agents.yaml, reason-codes.json, default-settings.json
 ├── docs/                    # Full documentation (see /docs)

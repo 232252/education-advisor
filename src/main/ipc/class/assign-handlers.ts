@@ -4,10 +4,12 @@
 
 import * as IPC from '@shared/ipc-channels'
 import type { ClassAssignParams } from '@shared/types'
-import { type IpcMainInvokeEvent, ipcMain } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
 import { classService } from '../../services/class-service'
 import { eaaBridge } from '../../services/eaa-bridge'
-import { invalidateStudentsCacheExternal } from '../eaa-handlers'
+import { invalidateStudentsCacheNow } from '../eaa/cache'
+import { handleIpc } from '../handle'
+import { makeProgressSender } from '../progress'
 import { sanitizeClassId, sanitizeName } from './params'
 
 export function registerClassAssignHandlers(): void {
@@ -15,11 +17,11 @@ export function registerClassAssignHandlers(): void {
   // EAA 写命令经 writeQueue 串行化，循环调用安全但较慢（N 次 spawn）。
   // 因 spawn 串行且每次都要读写 entities.json，大批量（如数百人）耗时较长，
   // 故在循环中通过 webContents.send 实时推送进度，避免前端长时间无反馈。
-  ipcMain.handle(IPC.IPC_CLASS_ASSIGN, async (e: IpcMainInvokeEvent, params: ClassAssignParams) => {
+  handleIpc(IPC.IPC_CLASS_ASSIGN, async (e: IpcMainInvokeEvent, params: ClassAssignParams) => {
     if (!params || typeof params !== 'object') {
       return { success: false, error: 'params must be an object' }
     }
-    try {
+    {
       const classId = sanitizeClassId(params.class_id)
       if (!Array.isArray(params.student_names) || params.student_names.length === 0) {
         return { success: false, error: 'student_names must be a non-empty array' }
@@ -35,15 +37,7 @@ export function registerClassAssignHandlers(): void {
       const failed: string[] = []
       let assigned = 0
       let current = 0
-      const sendProgress = (current: number, total: number, assigned: number, lastName: string) => {
-        try {
-          if (!e.sender.isDestroyed()) {
-            e.sender.send(IPC.IPC_CLASS_ASSIGN_PROGRESS, { current, total, assigned, lastName })
-          }
-        } catch {
-          /* 渲染进程可能已卸载，忽略 */
-        }
-      }
+      const sendProgress = makeProgressSender(e, IPC.IPC_CLASS_ASSIGN_PROGRESS, 'assigned')
       // 开始前先发一次 0/total，让前端立即进入「处理中」状态
       sendProgress(0, total, 0, '')
       for (const rawName of names) {
@@ -62,11 +56,8 @@ export function registerClassAssignHandlers(): void {
         sendProgress(current, total, assigned, name)
       }
       // 调班后让 listStudents 缓存失效,下一次加载看到新班级
-      invalidateStudentsCacheExternal()
+      invalidateStudentsCacheNow()
       return { success: true, assigned, failed }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      return { success: false, error: msg }
     }
   })
 }

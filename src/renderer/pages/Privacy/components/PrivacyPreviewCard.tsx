@@ -4,6 +4,7 @@
 // =============================================================
 
 import { Card } from '../../../components/Card'
+import { useT } from '../../../i18n'
 import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
 
 interface PrivacyPreviewCardProps {
@@ -19,23 +20,24 @@ export function PrivacyPreviewCard({
   onPreview,
   previewResult,
 }: PrivacyPreviewCardProps) {
+  const { t } = useT()
   return (
     <Card padding="md" className="bg-gray-50 dark:bg-surface-tertiary">
-      <h2 className="font-semibold mb-3">脱敏预览</h2>
+      <h2 className="font-semibold mb-3">{t('page.privacy.preview.title')}</h2>
       <textarea
         value={previewInput}
         onChange={(e) => setPreviewInput(e.target.value)}
-        placeholder="输入包含学生姓名的文本，查看脱敏效果..."
+        placeholder={t('page.privacy.preview.placeholder')}
         rows={3}
         className={cn('w-full resize-none mb-3', INPUT_BASE)}
       />
       <button
         type="button"
         onClick={onPreview}
-        aria-label="测试脱敏"
+        aria-label={t('page.privacy.preview.ariaRun')}
         className={btnStyle('primary')}
       >
-        测试脱敏
+        {t('page.privacy.preview.action')}
       </button>
       {previewResult && (
         <pre className="mt-3 bg-gray-100 dark:bg-surface-elevated rounded-lg p-3 text-sm font-mono text-gray-600 dark:text-gray-300 overflow-x-auto">

@@ -167,22 +167,22 @@ Electron shell loads the renderer from `http://localhost:5173`
 ```
 src/
 ├── main/                # Electron main process (Node 22)
-│   ├── ipc/             # IPC handler modules — 11 files
+│   ├── ipc/             # IPC handler modules — 20 domains, handleIpc skeleton by default
 │   ├── services/        # Service modules — 13 files
 │   ├── preload/         # contextBridge bridge — 1 file
 │   ├── utils/           # logger etc.
 │   └── index.ts         # main entry
-├── renderer/            # React 18 renderer
-│   ├── pages/           # 9 page modules
+├── renderer/            # React 19 renderer
+│   ├── pages/           # 13 page modules
 │   ├── components/      # shared UI
-│   ├── hooks/           # 12 custom hooks
-│   ├── stores/          # 4 Zustand stores
+│   ├── hooks/           # 15 shared hooks (loading / confirm / mount-guard, ...)
+│   ├── stores/          # 7 Zustand stores
 │   ├── i18n/            # zh-CN + en-US
 │   ├── lib/             # typed IPC client
 │   └── main.tsx         # renderer entry
 └── shared/              # code shared by main + renderer
-    ├── ipc-channels.ts  # 90+ channel constants
-    └── types/           # 539 lines of shared types
+    ├── ipc-channels.ts  # 144 channel constants
+    └── types/           # 17 shared type modules
 ```
 
 See [`ARCHITECTURE.md`](./ARCHITECTURE.md#where-to-read-the-code)
@@ -213,8 +213,11 @@ for a 30-minute reading order.
 - **No inline styles** for anything that needs to be themable;
   use the Tailwind utility classes or the CSS variables in
   `src/renderer/styles/globals.css`.
-- **No `useEffect` for data fetching** — use the typed IPC client
-  in `src/renderer/lib/ipc-client.ts` and a Zustand store instead.
+- **No hand-written `useEffect` + `setState` data loading** — use the
+  shared hooks: `useIpcQuery` (single-source IPC load, stale-guarded),
+  `useMultiLoader` (multi-source parallel load), or a Zustand store
+  (`stores/lib/create-shared-list-store.ts` for list domains). The
+  typed IPC client (`lib/ipc-client.ts`) is what those hooks call.
 
 ### Linting
 

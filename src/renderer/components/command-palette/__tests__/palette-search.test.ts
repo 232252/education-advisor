@@ -5,6 +5,10 @@
 import type { AgentListItem, ClassEntity, EAAEventRecord, EAAStudent } from '@shared/types'
 import { describe, expect, it } from 'vitest'
 import {
+  makeAgent as makeAgentBase,
+  makeStudent as makeStudentBase,
+} from '../../../../../tests/renderer/__fixtures__/make'
+import {
   buildEventResults,
   groupResults,
   matchScore,
@@ -15,21 +19,9 @@ import {
   searchStudents,
 } from '../palette-search'
 
-function makeStudent(over: Partial<EAAStudent>): EAAStudent {
-  return {
-    name: '张三',
-    entity_id: 'stu-001',
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-    ...over,
-  }
-}
+// 历史默认字面值与共享工厂不同,用适配器保持原值
+const makeStudent = (over: Partial<EAAStudent>): EAAStudent =>
+  makeStudentBase({ name: '张三', entity_id: 'stu-001', ...over })
 
 function makeClass(over: Partial<ClassEntity>): ClassEntity {
   return {
@@ -45,20 +37,15 @@ function makeClass(over: Partial<ClassEntity>): ClassEntity {
   }
 }
 
-function makeAgent(over: Partial<AgentListItem>): AgentListItem {
-  return {
+const makeAgent = (over: Partial<AgentListItem>): AgentListItem =>
+  makeAgentBase({
     id: 'agent-1',
     name: '学情分析师',
     role: 'analyst',
     description: '分析班级学情数据',
-    enabled: true,
     modelTier: 'high_quality',
-    schedule: [],
-    capabilities: [],
-    status: 'idle',
     ...over,
-  }
-}
+  })
 
 const NAV = [
   { path: '/students', label: '学生管理', keywords: 'students 学生' },

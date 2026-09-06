@@ -9,8 +9,8 @@
 //   6. 同一事件不会被主流程处理两次（不变量）
 // =============================================================
 
-import type { AgentListItem } from '@shared/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { makeAgent } from '../../../../tests/renderer/__fixtures__/make'
 import { useAgentStore } from '../agent/store'
 
 // --- 桩：模拟 window.api.agent.onStatusUpdate 的多订阅器容器 ---
@@ -38,21 +38,7 @@ function makeIpcStub(): IpcStub {
   }
 }
 
-// --- 桩：构造一个最小的 AgentListItem ---
-function makeAgent(overrides: Partial<AgentListItem> = {}): AgentListItem {
-  return {
-    id: 'a1',
-    name: 'A1',
-    role: 'tester',
-    description: 'unit test agent',
-    enabled: true,
-    modelTier: 'low_cost',
-    schedule: [],
-    capabilities: [],
-    status: 'idle',
-    ...overrides,
-  }
-}
+// --- 最小 AgentListItem 构造器(单一来源: tests/renderer/__fixtures__/make) ---
 
 describe('agentStore status listener (fix double-subscription invariant)', () => {
   let ipc: IpcStub

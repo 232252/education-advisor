@@ -11,18 +11,18 @@
 
 import * as IPC from '@shared/ipc-channels'
 import type { BrowserWindow } from 'electron'
-import { ipcMain, Notification } from 'electron'
+import { Notification } from 'electron'
 import { feishuBotService } from '../services/feishu-bot-service'
 import {
   diagnoseConnection,
   type FeishuDomain,
-  feishuInfo,
   listBitableTables,
   testConnection,
 } from '../services/feishu-service'
 import { keystoreService } from '../services/keystore-service'
 import { settingsService } from '../services/settings-service'
 import { log } from '../utils/logger'
+import { handleIpc } from './handle'
 
 /** 内部辅助：从 keystore 获取飞书 appSecret，获取不到则返回空字符串 */
 function getFeishuSecret(): string {
@@ -78,97 +78,75 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
   feishuBotService.on('status', statusHandler)
 
   // H-5 修复: 加 try-catch
-  ipcMain.handle(IPC.IPC_FEISHU_TEST, async (_e, appId: string) => {
-    if (typeof appId !== 'string' || appId.length === 0) {
-      return { success: false, error: 'appId must be a non-empty string' }
-    }
-    try {
+  handleIpc(
+    IPC.IPC_FEISHU_TEST,
+    async (_e, appId: string) => {
+      if (typeof appId !== 'string' || appId.length === 0) {
+        return { success: false, error: 'appId must be a non-empty string' }
+      }
       const appSecret = getFeishuSecret()
       log('info', 'feishu', `test connection, appId=${appId.slice(0, 8)}...`)
       return await testConnection(appId, appSecret, getFeishuDomain())
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] feishu:test failed for "${appId}":`, msg)
-      return { success: false, error: msg }
-    }
-  })
+    },
+    {
+      label: (appId: string) => `feishu:test failed for "${appId}"`,
+    },
+  )
 
   // H-5 修复: 加 try-catch
-  ipcMain.handle(IPC.IPC_FEISHU_BITABLE, async (_e, appId: string, appToken: string) => {
-    if (typeof appId !== 'string' || typeof appToken !== 'string') {
-      return { success: false, error: 'appId and appToken must be strings' }
-    }
-    try {
+  handleIpc(
+    IPC.IPC_FEISHU_BITABLE,
+    async (_e, appId: string, appToken: string) => {
+      if (typeof appId !== 'string' || typeof appToken !== 'string') {
+        return { success: false, error: 'appId and appToken must be strings' }
+      }
       const appSecret = getFeishuSecret()
       log('info', 'feishu', `list bitable tables, appToken=${appToken}`)
       return await listBitableTables(appId, appSecret, appToken, getFeishuDomain())
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] feishu:bitable failed for "${appToken}":`, msg)
-      return { success: false, error: msg }
-    }
-  })
-
-  // H-5 修复: 加 try-catch
-  ipcMain.handle(IPC.IPC_FEISHU_STATUS, async () => {
-    try {
-      return feishuInfo()
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] feishu:status failed:', msg)
-      return { success: false, error: msg }
-    }
-  })
+    },
+    {
+      label: (_appId: string, appToken: string) => `feishu:bitable failed for "${appToken}"`,
+    },
+  )
 
   // ===== 飿书长连接机器人 =====
   // 启动:从 settings 读 appId + keystore 读 appSecret,启动长连接
   // H-5 修复: 加 try-catch
-  ipcMain.handle(IPC.IPC_FEISHU_BOT_START, async () => {
-    try {
-      const settings = settingsService.getSettings()
-      const appId = settings.feishu.appId
-      const appSecret = getFeishuSecret()
-      if (!appId || !appSecret) {
-        return { success: false, error: '请先填写 App ID 和 App Secret 并保存' }
-      }
-      await feishuBotService.start(appId, appSecret, win, getFeishuDomain())
-      const status = feishuBotService.getStatus()
-      return { success: status.status === 'connected', status }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] feishu:bot-start failed:', msg)
-      return { success: false, error: msg }
+  handleIpc(IPC.IPC_FEISHU_BOT_START, async () => {
+    const settings = settingsService.getSettings()
+    const appId = settings.feishu.appId
+    const appSecret = getFeishuSecret()
+    if (!appId || !appSecret) {
+      return { success: false, error: '请先填写 App ID 和 App Secret 并保存' }
     }
+    await feishuBotService.start(appId, appSecret, win, getFeishuDomain())
+    const status = feishuBotService.getStatus()
+    return { success: status.status === 'connected', status }
   })
 
   // 停止
   // H-5 修复: 加 try-catch
-  ipcMain.handle(IPC.IPC_FEISHU_BOT_STOP, async () => {
-    try {
+  handleIpc(
+    IPC.IPC_FEISHU_BOT_STOP,
+    async () => {
       await feishuBotService.stop()
       return { success: true, status: feishuBotService.getStatus() }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] feishu:bot-stop failed:', msg)
-      return { success: false, error: msg, status: feishuBotService.getStatus() }
-    }
-  })
+    },
+    (msg) => ({ success: false, error: msg, status: feishuBotService.getStatus() }),
+  )
 
   // 查询状态
   // H-5 修复: 加 try-catch
-  ipcMain.handle(IPC.IPC_FEISHU_BOT_STATUS, async () => {
-    try {
-      return feishuBotService.getStatus()
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] feishu:bot-status failed:', msg)
-      return { status: 'unknown', error: msg }
-    }
-  })
+  handleIpc(
+    IPC.IPC_FEISHU_BOT_STATUS,
+    () => feishuBotService.getStatus(),
+    (msg) => ({ status: 'unknown', error: msg }),
+  )
 
   // 网络诊断:检测 DNS/HTTPS/鉴权/WebSocket 端点,排查远程访问问题
-  ipcMain.handle(IPC.IPC_FEISHU_DIAGNOSE, async () => {
-    try {
+  handleIpc(
+    IPC.IPC_FEISHU_DIAGNOSE,
+    async () => {
       const settings = settingsService.getSettings()
       const appId = settings.feishu.appId
       const appSecret = getFeishuSecret()
@@ -179,18 +157,15 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
         `diagnose connection, domain=${domain}, appId=${appId ? `${appId.slice(0, 8)}...` : '(none)'}`,
       )
       return await diagnoseConnection(appId, appSecret, domain)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] feishu:diagnose failed:', msg)
-      return {
-        steps: [],
-        overall: 'fail',
-        domain: getFeishuDomain(),
-        timestamp: Date.now(),
-        error: msg,
-      }
-    }
-  })
+    },
+    (msg) => ({
+      steps: [],
+      overall: 'fail',
+      domain: getFeishuDomain(),
+      timestamp: Date.now(),
+      error: msg,
+    }),
+  )
 
   log('info', 'feishu-handlers', 'Feishu IPC handlers registered (appSecret from keystore)')
 }

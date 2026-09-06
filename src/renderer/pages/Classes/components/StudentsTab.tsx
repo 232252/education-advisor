@@ -6,8 +6,9 @@ import type { ClassEntity, EAAStudent } from '@shared/types'
 import { Users } from 'lucide-react'
 import { useState } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
-import { useT } from '../../../i18n'
-import { getAPI } from '../../../lib/ipc-client'
+import { tr, useT } from '../../../i18n'
+import { errText, getAPI } from '../../../lib/ipc-client'
+import { runIpcMutation } from '../../../lib/mutation'
 import {
   cn,
   INPUT_BASE,
@@ -34,33 +35,36 @@ export function StudentsTab({
   const [transferTarget, setTransferTarget] = useState<Record<string, string>>({})
   const [transferring, setTransferring] = useState<string | null>(null)
 
-  const handleTransfer = async (studentName: string) => {
+  const handleTransfer = (studentName: string) => {
     const targetClassId = transferTarget[studentName]
     if (!targetClassId) {
-      toast.warning('请先选择目标班级')
+      toast.warning(t('page.classes.transfer.noTarget'))
       return
     }
-    setTransferring(studentName)
-    try {
-      const res = await getAPI().class.assign({
-        class_id: targetClassId,
-        student_names: [studentName],
-      })
-      if (res.success) {
-        toast.success(`已将「${studentName}」转出`)
-        setTransferTarget((prev) => {
-          const next = { ...prev }
-          delete next[studentName]
-          return next
-        })
-        onRefresh()
-      } else {
-        toast.error(`转班失败: ${res.failed?.join(', ') || '未知错误'}`)
-      }
-    } catch (err) {
-      toast.error(`转班失败: ${err instanceof Error ? err.message : String(err)}`)
-    }
-    setTransferring(null)
+    return runIpcMutation(
+      () =>
+        getAPI().class.assign({
+          class_id: targetClassId,
+          student_names: [studentName],
+        }),
+      {
+        onOk: () => {
+          toast.success(tr('page.classes.transfer.done', { name: studentName }))
+          setTransferTarget((prev) => {
+            const next = { ...prev }
+            delete next[studentName]
+            return next
+          })
+          onRefresh()
+        },
+        failMsg: (r) =>
+          tr('page.classes.transfer.failed', {
+            detail: r.failed?.join(', ') || t('page.classes.transfer.unknownErr'),
+          }),
+        catchMsg: (err) => tr('page.classes.transfer.failed', { detail: errText(err) }),
+        setBusy: (v) => setTransferring(v ? studentName : null),
+      },
+    )
   }
 
   if (students.length === 0) {
@@ -76,7 +80,7 @@ export function StudentsTab({
     <div>
       {otherClasses.length === 0 && (
         <div className="px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-xs">
-          ⚠ 没有其他可用班级，如需转班请先创建新班级
+          {t('page.classes.transfer.noOtherClass')}
         </div>
       )}
       <table className="w-full text-sm">
@@ -114,7 +118,7 @@ export function StudentsTab({
                     disabled={otherClasses.length === 0}
                     className={cn('w-full', INPUT_BASE)}
                   >
-                    <option value="">目标班</option>
+                    <option value="">{t('page.classes.transfer.target')}</option>
                     {otherClasses.map((c) => (
                       <option key={c.class_id} value={c.class_id}>
                         {c.name}
@@ -127,7 +131,7 @@ export function StudentsTab({
                     disabled={!transferTarget[s.name] || transferring === s.name}
                     className="text-xs text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 disabled:text-gray-300 dark:disabled:text-gray-600 transition-colors"
                   >
-                    {transferring === s.name ? '...' : '转班'}
+                    {transferring === s.name ? '...' : t('page.classes.transfer.action')}
                   </button>
                 </div>
               </td>

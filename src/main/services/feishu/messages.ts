@@ -3,8 +3,9 @@
 // 从 feishu-service.ts 拆出(纯重构,行为不变)
 // =============================================================
 
-import { FEISHU_FETCH_TIMEOUT_MS, type FeishuDomain, getApiBase } from './config'
-import { getTenantToken } from './token'
+import { errText } from '../../utils/err-text'
+import type { FeishuDomain } from './config'
+import { feishuApiRequest } from './request'
 
 interface MessageResponse {
   code: number
@@ -21,27 +22,15 @@ export async function sendTextMessage(
   domain: FeishuDomain,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const { token } = await getTenantToken(appId, appSecret, domain)
-    const apiBase = getApiBase(domain)
-    const res = await fetch(`${apiBase}/im/v1/messages?receive_id_type=open_id`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        receive_id: userOpenId,
-        msg_type: 'text',
-        content: JSON.stringify({ text }),
-      }),
-      signal: AbortSignal.timeout(FEISHU_FETCH_TIMEOUT_MS),
+    const data = await feishuApiRequest<MessageResponse>({
+      appId,
+      appSecret,
+      domain,
+      path: '/im/v1/messages?receive_id_type=open_id',
+      body: { receive_id: userOpenId, msg_type: 'text', content: JSON.stringify({ text }) },
     })
-    const data = (await res.json()) as MessageResponse
-    if (data.code !== 0) {
-      return { success: false, error: `code=${data.code} msg=${data.msg}` }
-    }
     return { success: true, messageId: data.data?.message_id }
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
+    return { success: false, error: errText(err) }
   }
 }

@@ -2,10 +2,11 @@
 // Preload API — 技能域
 // =============================================================
 
+import type { SkillAPI } from '@shared/api/skill'
 import * as IPC from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 
-export const skillApi = {
+export const skillApi: SkillAPI = {
   // [r] 列出技能
   list: () => ipcRenderer.invoke(IPC.IPC_SKILL_LIST),
   // [r] 读取技能

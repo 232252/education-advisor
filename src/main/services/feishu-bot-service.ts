@@ -27,6 +27,7 @@
 import { EventEmitter } from 'node:events'
 import * as lark from '@larksuiteoapi/node-sdk'
 import { type BrowserWindow, powerMonitor } from 'electron'
+import { errText } from '../utils/err-text'
 import { log } from '../utils/logger'
 import { createCommandContext } from './feishu-bot/command-context'
 import {
@@ -196,11 +197,7 @@ class FeishuBotService extends EventEmitter {
       handshakeTimeoutMs: 15_000,
       onReady: () => {
         // 首次 WebSocket 握手成功
-        this.connectedAt = Date.now()
-        this.lastError = undefined
-        this.guardAttempts = 0
-        this.setStatus('connected')
-        log('info', 'feishu-bot', `connected, appId=${appId}`)
+        this.handleConnected(`connected, appId=${appId}`, true)
       },
       onError: (err: Error) => {
         // M1 修复: SDK 重试耗尽(state→failed)。不直接定死 error,
@@ -213,10 +210,7 @@ class FeishuBotService extends EventEmitter {
         log('info', 'feishu-bot', 'reconnecting...')
       },
       onReconnected: () => {
-        this.connectedAt = Date.now()
-        this.guardAttempts = 0
-        this.setStatus('connected')
-        log('info', 'feishu-bot', 'reconnected')
+        this.handleConnected('reconnected')
       },
     })
 
@@ -231,7 +225,7 @@ class FeishuBotService extends EventEmitter {
       // 启动一个轮询,在真正连上、failed 守护重启或长时间失败后更新可见状态。
       this.startStatusPolling()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       this.setStatus('error', { error: msg })
       log('error', 'feishu-bot', `start failed: ${msg}`)
       // 清理半初始化的 client,允许后续重试
@@ -265,6 +259,25 @@ class FeishuBotService extends EventEmitter {
     }
   }
 
+  /** onReady/onReconnected 共用: 重置守护计数并转 connected(首次连接还清 lastError) */
+  private handleConnected(logMsg: string, clearError = false): void {
+    this.connectedAt = Date.now()
+    if (clearError) this.lastError = undefined
+    this.guardAttempts = 0
+    this.setStatus('connected')
+    log('info', 'feishu-bot', logMsg)
+  }
+
+  /** 强制关闭底层 WS(restartClient/stop 共用);SDK close 可能因已断开抛错 */
+  private closeClientForce(): void {
+    if (!this.client) return
+    try {
+      this.client.close({ force: true })
+    } catch (err) {
+      log('warn', 'feishu-bot', `close error: ${errText(err)}`)
+    }
+  }
+
   /**
    * M1/M2: 重启 WS 客户端(close + start,复用同一实例与 eventDispatcher)。
    * SDK 的 close() 会 removeAllListeners,不会触发自动重连;start() 会清除 terminalError。
@@ -274,18 +287,10 @@ class FeishuBotService extends EventEmitter {
     this.restarting = true
     try {
       log('info', 'feishu-bot', `restarting ws client (${reason})`)
-      try {
-        this.client.close({ force: true })
-      } catch {
-        /* ignore */
-      }
+      this.closeClientForce()
       await this.client.start({ eventDispatcher: this.eventDispatcher })
     } catch (err) {
-      log(
-        'warn',
-        'feishu-bot',
-        `restart failed (${reason}): ${err instanceof Error ? err.message : String(err)}`,
-      )
+      log('warn', 'feishu-bot', `restart failed (${reason}): ${errText(err)}`)
     } finally {
       this.restarting = false
     }
@@ -368,13 +373,7 @@ class FeishuBotService extends EventEmitter {
     this.detachResumeListener()
     // 主动关闭 WSClient 的底层 WebSocket 连接(force 模式立即断开),
     // 避免置 null 后后台重连线程继续触发 onReady/onReconnecting 回调。
-    if (this.client) {
-      try {
-        this.client.close({ force: true })
-      } catch (err) {
-        log('warn', 'feishu-bot', `close error: ${err}`)
-      }
-    }
+    this.closeClientForce()
     this.client = null
     this.sdkClient = null
     this.connectedAt = undefined

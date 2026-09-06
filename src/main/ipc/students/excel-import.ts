@@ -4,14 +4,13 @@
 // (空行/缺姓名/文件内重名/已存在学生/班级不存在)
 // =============================================================
 
-import path from 'node:path'
 import type {
   ClassEntity,
   StudentImportPreview,
   StudentImportRow,
   StudentImportRowError,
 } from '@shared/types'
-import { sanitizeName } from '../../utils/sanitize'
+import { sanitizeName, validatePathSafety } from '../../utils/sanitize'
 
 /** 模板表头（name 必填；student_id/class_name 可选） */
 export const TEMPLATE_HEADERS = ['name', 'student_id', 'class_name'] as const
@@ -20,10 +19,10 @@ export const TEMPLATE_HEADERS = ['name', 'student_id', 'class_name'] as const
 export const TEMPLATE_SHEET_NAME = 'students'
 
 /** 数据区最大行数（与 agent 侧 read_excel 的 MAX_EXCEL_ROWS 对齐） */
-export const MAX_IMPORT_ROWS = 5000
+const MAX_IMPORT_ROWS = 5000
 
 /** 表头列索引（-1 表示该可选列不存在） */
-export interface HeaderIndexes {
+interface HeaderIndexes {
   name: number
   studentId: number
   className: number
@@ -46,8 +45,7 @@ export function resolveHeaderIndexes(headerRow: unknown[]): HeaderIndexes | null
 }
 
 /**
- * 校验 Excel 文件路径（与 eaa/params.ts buildImportArgs 同款防护：
- * NUL 字节 / 路径遍历 / 扩展名白名单）
+ * 校验 Excel 文件路径(防护与 eaa 域同款:NUL/遍历/扩展名白名单,统一走 sanitize)
  */
 export function validateExcelFilePath(
   filePath: string,
@@ -56,20 +54,8 @@ export function validateExcelFilePath(
   if (typeof filePath !== 'string' || filePath.length === 0) {
     return { ok: false, error: 'filePath must be a non-empty string' }
   }
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional NUL-byte guard
-  if (/\x00/.test(filePath)) {
-    return { ok: false, error: 'filePath contains null bytes' }
-  }
-  if (filePath.includes('..')) {
-    return { ok: false, error: 'filePath cannot contain path traversal (..)' }
-  }
-  const ext = path.extname(filePath).toLowerCase()
-  if (!allowedExts.includes(ext)) {
-    return {
-      ok: false,
-      error: `file extension not supported: ${ext}, allowed: ${allowedExts.join(', ')}`,
-    }
-  }
+  const err = validatePathSafety(filePath, { field: 'filePath', allowedExts })
+  if (err) return { ok: false, error: err }
   return { ok: true }
 }
 

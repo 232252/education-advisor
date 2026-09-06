@@ -17,6 +17,11 @@
 import type { Dirent } from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import type { AutoBackupInfo } from '@shared/api/backup'
+
+// backup-handlers 经由本模块引用该类型(单一来源仍在 @shared/api/backup)
+export type { AutoBackupInfo }
+
 import { app } from 'electron'
 import { atomicWrite } from '../utils/atomic-write'
 import { formatTimestampFileSafe } from '../utils/format-timestamp'
@@ -36,13 +41,6 @@ export interface BackupManifest {
   formatVersion: number
   createdAt: string
   files: Array<{ name: string; size: number }>
-}
-
-export interface AutoBackupInfo {
-  fileName: string
-  sizeBytes: number
-  createdAt: number // epoch ms (文件 mtime)
-  kind: 'auto' | 'pre-restore'
 }
 
 export interface CreateBackupResult {
@@ -240,7 +238,7 @@ function mapEntryToTarget(name: string): string {
   throw new Error(`unknown backup entry: ${name}`)
 }
 
-export interface RestoreResult {
+interface RestoreResult {
   restoredFiles: number
   safetyBackupPath: string
 }

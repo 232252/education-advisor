@@ -33,7 +33,7 @@ microservice sense**. An agent is:
 
 The agent service (in `src/main/services/agent-service.ts`) reads
 the Markdown files, concatenates them with the global rulebook
-(`config/SMALL_MODEL_RULES.md`) and any active skills
+(any active skills registered in the skills system)
 (`skills/STUDENT_MANAGEMENT.md`, etc.), and passes the whole thing
 to the LLM as the system prompt.
 
@@ -63,7 +63,7 @@ everything else.
 agents/
 └── my-agent/
     ├── SOUL.md         # 角色 + 核心职责 + 工具清单
-    └── AGENTS.md       # 工作规则（引用 SMALL_MODEL_RULES.md）
+    └── AGENTS.md       # 工作规则
 
 config/
 └── agents.yaml         # 注册条目（id, capabilities, schedule, ...）
@@ -104,12 +104,11 @@ mkdir -p agents/lab-supervisor
 
 ## 工具清单
 
-- `eaa.list_students` - 列出使用实验室的班级
-- `eaa.history` - 查询学生使用实验室的历史
-- `eaa.search` - 搜索特定的实验事件
-- `eaa.add_event` - 记录设备/试剂相关事件（仅限 lab_ 系列原因码）
-- `eaa.codes` - 查询可用的 lab_ 系列原因码
-- `feishu.send` - 向实验管理员发送提醒
+- `list_students` - 列出使用实验室的班级
+- `history` - 查询学生使用实验室的历史
+- `search` - 搜索特定的实验事件
+- `add_event` - 记录设备/试剂相关事件（仅限 lab_ 系列原因码）
+- `codes` - 查询可用的 lab_ 系列原因码
 
 ## 边界
 
@@ -119,7 +118,7 @@ mkdir -p agents/lab-supervisor
 
 ## 数据铁律
 
-参考 `/config/SMALL_MODEL_RULES.md` 的全局规则，特别是"防幻觉铁律"。
+所有数字必须来自工具调用结果，禁止编造。
 所有数字必须从工具调用获取。
 ```
 
@@ -128,7 +127,6 @@ mkdir -p agents/lab-supervisor
 ```markdown
 # Working rules
 
-The global rulebook at `/config/SMALL_MODEL_RULES.md` applies in full.
 This file adds lab-supervisor-specific rules.
 
 ## Lab-specific output format
@@ -146,13 +144,13 @@ When reporting an issue, the output format is:
 
 When a tool call is needed:
 
-1. For inventory checks: `eaa.search --query "lab_"`
-2. For a specific reagent: `eaa.search --query "{reagent_name}"`
-3. For today's events: `eaa.range --start {today} --end {today}`
+1. For inventory checks: `search --query "lab_"`
+2. For a specific reagent: `search --query "{reagent_name}"`
+3. For today's events: `range --start {today} --end {today}`
 
 ## Lab-specific failure handling
 
-If `eaa.add_event` returns `INVALID_REASON_CODE`, the code is not
+If `add_event` returns `INVALID_REASON_CODE`, the code is not
 in the lab_ series — refuse the call and explain why.
 ```
 
@@ -167,11 +165,10 @@ Add a new entry under the `agents:` list:
     description: |
       监控化学实验室的设备状态和试剂库存，发现异常时记录事件并提醒。
     enabled: true
-    model_tier: low-cost
+    model_tier: low_cost
     capabilities:
-      - eaa.read
-      - eaa.add_event
-      - feishu.send
+      - read
+      - add_event
     schedule:
       cron:
         - "0 8 * * 1"     # 每周一 08:00 设备巡检
@@ -262,7 +259,7 @@ A pointer to the global rulebook + any agent-specific additions.
 ## AGENTS.md — the working rules
 
 `AGENTS.md` is the **operational handbook** for the agent. It's
-read in addition to `SOUL.md` and the global `SMALL_MODEL_RULES.md`.
+read in addition to `SOUL.md` and any active skills.
 
 The recommended structure:
 
@@ -279,7 +276,7 @@ specify it here.
 ## {Agent}-specific tool patterns
 
 If the agent has a particular way of calling tools (e.g. always
-calls `eaa.search` before `eaa.add_event`), specify it here.
+calls `search` before `add_event`), specify it here.
 
 ## {Agent}-specific failure handling
 
@@ -307,9 +304,9 @@ A minimal registration:
   - id: my-agent
     name: My Agent
     role: One-line role description
-    model_tier: low-cost
+    model_tier: low_cost
     capabilities:
-      - eaa.read
+      - read
     schedule:
       cron: []
 ```
@@ -347,9 +344,9 @@ schema and an example.
 ✅ **Good**:
 
 ```yaml
-tool: eaa.add_event
+tool: add_event
 args:
-  student: string  # 学生姓名，必须在 eaa.list_students 中存在
+  student: string  # 学生姓名，必须在 list_students 结果中存在
   code: enum  # 必须是 reason-codes.json 中的合法 code
   delta: integer  # 分数变化
   reason: string  # 简短原因，不超过 50 字
@@ -357,7 +354,7 @@ args:
 
 ### Test on the small model
 
-Before merging, run your agent with the `low-cost` model tier
+Before merging, run your agent with the `low_cost` model tier
 (Qwen 3.5 4B, GPT-4o-mini, etc.). If it doesn't work on the small
 model, it won't work for the average user.
 
@@ -375,21 +372,36 @@ The `capabilities` list is the **single most important security
 mechanism** in the project. Every agent should have the **minimum**
 capabilities it needs.
 
-### Default deny
+### Valid vocabulary (authoritative)
 
-Any capability not in the list is rejected at the tool layer. This
-is enforced in `src/main/services/eaa-tools.ts` and is the **only**
-place where the whitelist is checked.
+Capabilities are **bare words** (no `domain.` prefix). The mapping
+to tools lives in `src/main/services/eaa/tools/registry.ts`
+(`mapping` table), enforced via `getToolsByCapability` in
+`src/main/services/eaa-tools.ts` — the **only** place where the
+whitelist is checked. An unknown capability silently matches no
+tools, so a typo'd word means the agent gets nothing.
+
+| Capability | Grants |
+| --- | --- |
+| `score` `history` `search` `list` `ranking` `stats` `codes` `summary` `range` `tag` | Single read-only query tool each |
+| `add_event` `add_student` `set_student_meta` `revert` `delete` | Single write tool each |
+| `read` | The whole read-only family (+ exams/grades tools) |
+| `write` | The whole write family |
+| `academics` | Exams / grades tools only (without full `read`) |
+| `escalate` | `escalate_to_main` tool |
+
+> Feishu push is **not** a capability — scheduled push routes through
+> the `__feishu__` system task (`FEISHU_PUSH_AGENT_IDS`), and in-chat
+> Feishu commands go through the feishu bot's own command router.
 
 ### Examples
 
 | Agent | Capabilities | Why |
 | --- | --- | --- |
-| `class-monitor` | `eaa.read`, `eaa.add_event` | Reads the event log; writes new events. |
-| `psychology` | `eaa.read`, `eaa.history` | Read-only; never writes events. |
-| `home_school` | `eaa.read`, `feishu.send` | Reads data, sends messages. |
-| `bug-hunter` | `eaa.read` | Read-only; never writes. |
-| `weekly-reporter` | `eaa.read`, `eaa.export` | Reads data, exports reports. |
+| `class-monitor` | `read`, `add_event` | Reads the event log; writes new events. |
+| `psychology` | `read`, `history` | Read-only; never writes events. |
+| `bug-hunter` | `read` | Read-only; never writes. |
+| `weekly-reporter` | `read`, `summary` | Reads data, summarizes. |
 
 ### The principle
 
@@ -440,8 +452,9 @@ seconds field:
 
 ### Caveats
 
-- **Cron is timezone-aware.** The default is the system's local
-  time. To set a specific timezone, configure the `TZ` env var.
+- **Cron is timezone-aware.** The timezone comes from
+  **Settings → General → Timezone** (`settings.general.timezone`,
+  default `Asia/Shanghai`, IANA names).
 - **Cron jobs do not run while the app is closed.** If you need
   always-on scheduling, deploy the EAA CLI on a server and use
   its built-in cron. See the EAA CLI's documentation.
@@ -514,18 +527,18 @@ import { eaaBridge } from '../../src/main/services/eaa-bridge'
 
 describe('lab-supervisor', () => {
   it('records a lab_equipment_damage event when prompted', async () => {
-    vi.spyOn(eaaBridge, 'addEvent').mockResolvedValue({
+    vi.spyOn(eaaBridge, 'execute').mockResolvedValue({
       event_id: 'evt_test',
       ts: '2026-06-09T08:00:00.000+08:00',
     })
-    const result = await agentService.run(
+    const result = await agentService.runAgent(
       'lab-supervisor',
       'The chemistry lab\'s beaker #3 broke today',
     )
     expect(result).toMatchObject({
       tool_calls: expect.arrayContaining([
         expect.objectContaining({
-          name: 'eaa.addEvent',
+          name: 'add_event',
           args: expect.objectContaining({
             code: 'LAB_EQUIPMENT_DAMAGE',
           }),
@@ -543,7 +556,7 @@ describe('lab-supervisor', () => {
 ### 1. Over-broad capabilities
 
 ❌ **Bad**: `capabilities: ['all']`
-✅ **Good**: `capabilities: ['eaa.read', 'eaa.add_event']`
+✅ **Good**: `capabilities: ['read', 'add_event']`
 
 The first version lets the agent do anything. The second version
 constrains it to exactly what it needs.
@@ -585,7 +598,7 @@ parameter**, not two separate agents.
 
 ### 6. Not testing on the small model
 
-The default model is `low-cost`. If your agent doesn't work on
+The default tier is `low_cost`. If your agent doesn't work on
 GPT-4o-mini / Qwen 4B, it won't work for the average user.
 
 ### 7. Hard-coding student names

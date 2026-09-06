@@ -7,6 +7,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
+import { errText } from '../../utils/err-text'
 import { getAppPaths } from '../paths'
 
 type BetterSqlite3 = typeof import('better-sqlite3')
@@ -34,7 +35,7 @@ export function resolveDbPath(mainDir: string): string {
       }
       console.log(`[DB] Migrated DB from "${legacyPath}" to "${paths.dbPath}"`)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       console.warn('[DB] Migration failed, starting fresh:', msg)
     }
   }

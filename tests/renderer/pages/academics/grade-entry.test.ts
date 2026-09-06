@@ -7,7 +7,7 @@
 // =============================================================
 
 import { describe, expect, it } from 'vitest'
-import type { EAAStudent, GradeRecord, SubjectDef } from '@shared/types'
+import type { GradeRecord, SubjectDef } from '@shared/types'
 import {
   buildAIGradeSystemPrompt,
   buildAllSaveRecords,
@@ -20,36 +20,9 @@ import {
   gradeToEntry,
   parseAIGradesText,
 } from '../../../../src/renderer/pages/Academics/lib/grade-entry'
+import { makeGrade, makeStudent } from '../../__fixtures__/make'
 
-// ---------- 数据工厂 ----------
-
-function makeGrade(overrides: Partial<GradeRecord> = {}): GradeRecord {
-  return {
-    examId: 'exam-1',
-    subjectId: 'chinese',
-    studentName: '张三',
-    score: 90,
-    fullMark: 150,
-    updatedAt: '2025-11-02T00:00:00Z',
-    ...overrides,
-  }
-}
-
-function makeStudent(overrides: Partial<EAAStudent> = {}): EAAStudent {
-  return {
-    name: '张三',
-    entity_id: 'ent-1',
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-    ...overrides,
-  }
-}
+// ---------- 数据工厂(单一来源: tests/renderer/__fixtures__/make) ----------
 
 // ---------- gradeToEntry ----------
 
