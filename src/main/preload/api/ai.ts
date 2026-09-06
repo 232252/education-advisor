@@ -5,6 +5,7 @@
 import * as IPC from '@shared/ipc-channels'
 import type { StreamEvent } from '@shared/types'
 import { ipcRenderer } from 'electron'
+import { subscribe } from './subscribe'
 
 export const aiApi = {
   // [r] 列出所有已配置 Provider
@@ -66,11 +67,6 @@ export const aiApi = {
   }) => ipcRenderer.invoke(IPC.IPC_AI_UPDATE_CUSTOM_MODEL, params),
 
   /** 订阅 LLM 流式事件，返回取消订阅函数 */
-  onStream: (callback: (event: StreamEvent) => void) => {
-    const handler = (_e: unknown, data: StreamEvent) => callback(data)
-    ipcRenderer.on(IPC.IPC_AI_CHAT_STREAM, handler)
-    return () => {
-      ipcRenderer.removeListener(IPC.IPC_AI_CHAT_STREAM, handler)
-    }
-  },
+  onStream: (callback: (event: StreamEvent) => void) =>
+    subscribe<StreamEvent>(IPC.IPC_AI_CHAT_STREAM, callback),
 }
