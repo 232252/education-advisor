@@ -4,6 +4,7 @@
 
 import * as IPC from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
+import { subscribe } from './subscribe'
 
 export const cronApi = {
   // [r] 列出任务
@@ -21,11 +22,7 @@ export const cronApi = {
   // [r] 读取日志
   getLogs: (taskId?: string) => ipcRenderer.invoke(IPC.IPC_CRON_GET_LOGS, taskId),
 
-  onStatusUpdate: (callback: (data: unknown) => void) => {
-    const handler = (_e: unknown, data: unknown) => callback(data)
-    ipcRenderer.on(IPC.IPC_CRON_STATUS_UPDATE, handler)
-    return () => {
-      ipcRenderer.removeListener(IPC.IPC_CRON_STATUS_UPDATE, handler)
-    }
-  },
+  // [r] 订阅任务状态变化(返回取消订阅函数)
+  onStatusUpdate: (callback: (data: unknown) => void) =>
+    subscribe(IPC.IPC_CRON_STATUS_UPDATE, callback),
 }

@@ -4,6 +4,7 @@
 
 import * as IPC from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
+import { subscribe } from './subscribe'
 
 export const feishuApi = {
   // [w] 测试连接(返回 token 前 8 位 + 过期秒数) appSecret 从 keystore 读取
@@ -21,11 +22,8 @@ export const feishuApi = {
   // [r] 查询机器人当前状态
   botStatus: () => ipcRenderer.invoke(IPC.IPC_FEISHU_BOT_STATUS),
   // [r] 订阅机器人状态变化(返回取消订阅函数)
-  onBotStatusUpdate: (callback: (info: unknown) => void) => {
-    const listener = (_e: unknown, info: unknown) => callback(info)
-    ipcRenderer.on(IPC.IPC_FEISHU_BOT_STATUS_UPDATE, listener)
-    return () => ipcRenderer.removeListener(IPC.IPC_FEISHU_BOT_STATUS_UPDATE, listener)
-  },
+  onBotStatusUpdate: (callback: (info: unknown) => void) =>
+    subscribe(IPC.IPC_FEISHU_BOT_STATUS_UPDATE, callback),
   // [w] 网络诊断:检测 DNS/HTTPS/鉴权/WebSocket 端点可达性
   diagnose: () => ipcRenderer.invoke(IPC.IPC_FEISHU_DIAGNOSE),
 }
