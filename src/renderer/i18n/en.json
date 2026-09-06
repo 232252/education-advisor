@@ -1557,5 +1557,11 @@
   "page.models.default.costInOut": "In {in} / Out {out}",
   "page.models.default.pickPlaceholder": "Select...",
   "page.models.default.optionCost": "{name} (in {in} / out {out})",
-  "page.scheduler.log.success": "Run succeeded"
+  "page.scheduler.log.success": "Run succeeded",
+  "agents.status.running": "Running",
+  "agents.status.error": "Error",
+  "agents.status.ready": "Ready",
+  "agents.status.disabled": "Disabled",
+  "agents.tier.high": "High quality",
+  "agents.tier.low": "Low cost"
 }
