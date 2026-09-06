@@ -58,7 +58,7 @@
     "lint": "biome check src/",
     "lint:fix": "biome check src/ --write",
     "test": "vitest run",
-    "test:stress": "vitest run tests/e2e/stress-long.test.tsx",
+    "test:stress": "EA_STRESS=1 vitest run tests/e2e/stress-long.test.tsx",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
