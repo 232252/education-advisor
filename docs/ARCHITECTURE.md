@@ -198,8 +198,9 @@ the central design decision of the project.
 
 ## The IPC contract
 
-There are **130 IPC channels** in `src/shared/ipc-channels.ts`,
-grouped by namespace:
+There are **143 IPC channels** in `src/shared/ipc-channels.ts`,
+grouped by namespace (counts calibrated 2026-09-07 against the
+source; the doc-stats gate guards the total):
 
 | Namespace | Count | Purpose |
 | --- | --- | --- |
@@ -217,9 +218,12 @@ grouped by namespace:
 | `profile:*` | 2 | Student profile (get / set) |
 | `academic:*` | 7 | Academics (get-config / list-exams / create-exam / delete-exam / get-grades / batch-set-grades / get-class-grades) |
 | `class:*` | 8 | Classes (list / create / update / archive / restore / delete / assign / assign-progress) |
-| `chat:*` | 4 | Conversation persistence (save / load / delete-session / list-sessions) |
-| `feishu:*` | 7 | Feishu (test / bitable / bot-start / bot-stop / bot-status / bot-status-update / diagnose) |
+| `chat:*` | 5 | Conversation persistence (save / load / delete-session / list-sessions / rename) |
+| `feishu:*` | 8 | Feishu (test / status / bitable / bot-start / bot-stop / bot-status / bot-status-update / diagnose) |
 | `log:*` | 7 | Logs (list / read / clear / filter / search / export-dialog / write-renderer) |
+| `memory:*` | 3 | Agent memory (list / delete-entry / clear) |
+| `reports:*` | 2 | Markdown reports (list / read) |
+| `students:*` | 4 | Student Excel import (parse-excel / import-excel / import-progress / import-template) |
 
 Every channel is a string constant exported from a single file. Every
 channel has a corresponding handler in `src/main/ipc/`. The handler
