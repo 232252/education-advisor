@@ -79,6 +79,8 @@ const stableT = vi.hoisted(() => {
 vi.mock('../../../../src/renderer/i18n', () => ({
   useT: () => ({ t: stableT.t, lang: 'zh' }),
   tr: stableT.t,
+  // ConfirmDialog 等共享组件用模块级 t 提供默认文案
+  t: stableT.t,
   setLang: mocks.setLang,
 }))
 

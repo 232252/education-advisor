@@ -4,6 +4,7 @@
 
 import type { CronLogEntry } from '@shared/types'
 import { memo } from 'react'
+import { t } from '../../../i18n'
 import { formatLogTime } from '../lib/scheduler-utils'
 
 export const LogEntry = memo(function LogEntry({ log }: { log: CronLogEntry }) {
@@ -27,7 +28,10 @@ export const LogEntry = memo(function LogEntry({ log }: { log: CronLogEntry }) {
         {(log.durationMs / 1000).toFixed(1)}s
       </span>
       {log.status === 'success' && (
-        <span className="text-green-500 dark:text-green-400 flex-shrink-0" title="执行成功">
+        <span
+          className="text-green-500 dark:text-green-400 flex-shrink-0"
+          title={t('page.scheduler.log.success', '执行成功')}
+        >
           ✓
         </span>
       )}
