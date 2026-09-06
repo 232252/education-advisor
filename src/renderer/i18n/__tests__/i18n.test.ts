@@ -110,7 +110,11 @@ describe('i18n', () => {
 
     it('healLangFromStorage — storage 晚就绪时自愈 boot 语言(竞态修复,幂等)', async () => {
       vi.resetModules()
-      const { healLangFromStorage, setLang: setLangFresh, getLang: getLangFresh } = await import('../index')
+      const {
+        healLangFromStorage,
+        setLang: setLangFresh,
+        getLang: getLangFresh,
+      } = await import('../index')
       // 现场: boot 时读到旧值锁 zh,但 storage 实际偏好是 en
       setLangFresh('zh')
       mockLocalStorage.setItem('education-advisor.lang', 'en')
@@ -125,7 +129,11 @@ describe('i18n', () => {
 
     it('healLangFromStorage — storage 无有效值时不动', async () => {
       vi.resetModules()
-      const { healLangFromStorage, setLang: setLangFresh, getLang: getLangFresh } = await import('../index')
+      const {
+        healLangFromStorage,
+        setLang: setLangFresh,
+        getLang: getLangFresh,
+      } = await import('../index')
       setLangFresh('zh')
       mockLocalStorage.clear()
       healLangFromStorage()

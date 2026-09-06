@@ -4,22 +4,22 @@
 
 import type { CronLogEntry } from '@shared/types'
 
-/** 任务最近一次执行状态 → 展示文本 */
-export function cronStatusLabel(status?: string): string {
+/** 任务最近一次执行状态 → i18n 键(调用方经 t() 渲染;未匹配返回 null) */
+export function cronStatusKey(status?: string): string | null {
   switch (status) {
     case 'success':
-      return '成功'
+      return 'page.scheduler.status.success'
     case 'error':
-      return '失败'
+      return 'page.scheduler.status.error'
     case 'timeout':
-      return '超时'
+      return 'page.scheduler.status.timeout'
     case 'skipped_circuit_breaker':
-      return '已暂停(配额熔断)'
+      return 'page.scheduler.status.paused'
     case 'skipped':
       // F2 修复: bitableSync 返回 skipped 字段(如开关已关闭)时的状态
-      return '已跳过'
+      return 'page.scheduler.status.skipped'
     default:
-      return ''
+      return null
   }
 }
 
@@ -35,7 +35,7 @@ export function cronStatusColor(status?: string): string {
     case 'skipped_circuit_breaker':
       return 'text-orange-500 dark:text-orange-400'
     case 'skipped':
-      // F2 修复: 与 cronStatusLabel 的 'skipped' 分支配套
+      // F2 修复: 与 cronStatusKey 的 'skipped' 分支配套
       return 'text-gray-500 dark:text-gray-400'
     default:
       return 'text-gray-400 dark:text-gray-600'
