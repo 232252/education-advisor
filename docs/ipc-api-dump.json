@@ -1,0 +1,860 @@
+{
+  "_meta": {
+    "description": "window.api 运行时快照(preload contextBridge 暴露面) — 权威契约参考",
+    "howToRegenerate": "启动应用(ENABLE_CDP=1)后: EA_CDP_PORT=9444 node scripts/devtools-cdp/cdp-api-dump.mjs",
+    "capturedAt": "2026-09-06T18:29:17.019Z",
+    "namespaces": 20,
+    "methods": 143,
+    "paramNote": "params 为 preload/api/<ns>.ts 静态解析的 TypeScript 形参(contextBridge 代理 toString 被钳制,运行时不可得); null = 静态源未匹配(经工厂动态挂载)",
+    "staticSignaturesEnriched": 143
+  },
+  "ai": {
+    "listProviders": {
+      "params": [],
+      "arity": 0
+    },
+    "listModels": {
+      "params": [
+        "providerId: string"
+      ],
+      "arity": 0
+    },
+    "testConnection": {
+      "params": [
+        "providerId: string",
+        "apiKey: string",
+        "baseUrl?: string"
+      ],
+      "arity": 0
+    },
+    "setApiKey": {
+      "params": [
+        "providerId: string",
+        "apiKey: string"
+      ],
+      "arity": 0
+    },
+    "deleteApiKey": {
+      "params": [
+        "providerId: string"
+      ],
+      "arity": 0
+    },
+    "oauthLogin": {
+      "params": [
+        "providerId: string"
+      ],
+      "arity": 0
+    },
+    "chat": {
+      "params": [
+        "params: { providerId: string modelId: string messages: Array<{ role: string; content: string }> systemPrompt?: string thinking?: string maxTokens?: number }"
+      ],
+      "arity": 0
+    },
+    "addCustomModel": {
+      "params": [
+        "params: { providerId: string modelId: string name?: string contextWindow?: number maxOutputTokens?: number supportsReasoning?: boolean }"
+      ],
+      "arity": 0
+    },
+    "deleteCustomModel": {
+      "params": [
+        "providerId: string",
+        "modelId: string"
+      ],
+      "arity": 0
+    },
+    "updateCustomModel": {
+      "params": [
+        "params: { providerId: string modelId: string name?: string contextWindow?: number maxOutputTokens?: number supportsReasoning?: boolean costPerInputToken?: number costPerOutputToken?: number api?: string baseUrl?: string }"
+      ],
+      "arity": 0
+    },
+    "onStream": {
+      "params": [
+        "callback: (event: StreamEvent"
+      ],
+      "arity": 0
+    }
+  },
+  "ollama": {
+    "detect": {
+      "params": [],
+      "arity": 0
+    },
+    "startServe": {
+      "params": [],
+      "arity": 0
+    },
+    "stopServe": {
+      "params": [],
+      "arity": 0
+    },
+    "listModels": {
+      "params": [],
+      "arity": 0
+    },
+    "pullModel": {
+      "params": [
+        "modelName: string"
+      ],
+      "arity": 0
+    },
+    "deleteModel": {
+      "params": [
+        "modelName: string"
+      ],
+      "arity": 0
+    },
+    "onPullProgress": {
+      "params": [
+        "callback"
+      ],
+      "arity": 0
+    }
+  },
+  "agent": {
+    "list": {
+      "params": [],
+      "arity": 0
+    },
+    "get": {
+      "params": [
+        "id: string"
+      ],
+      "arity": 0
+    },
+    "toggle": {
+      "params": [
+        "id: string",
+        "enabled: boolean"
+      ],
+      "arity": 0
+    },
+    "update": {
+      "params": [
+        "id: string",
+        "patch: unknown"
+      ],
+      "arity": 0
+    },
+    "setSoul": {
+      "params": [
+        "id: string",
+        "content: string"
+      ],
+      "arity": 0
+    },
+    "setRules": {
+      "params": [
+        "id: string",
+        "content: string"
+      ],
+      "arity": 0
+    },
+    "runManual": {
+      "params": [
+        "id: string",
+        "prompt: string",
+        "history?: Array<{ role: string; content: string }>"
+      ],
+      "arity": 0
+    },
+    "abort": {
+      "params": [
+        "id: string"
+      ],
+      "arity": 0
+    },
+    "onStatusUpdate": {
+      "params": [
+        "callback: (data: unknown"
+      ],
+      "arity": 0
+    }
+  },
+  "eaa": {
+    "info": {
+      "params": [],
+      "arity": 0
+    },
+    "score": {
+      "params": [
+        "name: string"
+      ],
+      "arity": 0
+    },
+    "ranking": {
+      "params": [
+        "n?: number"
+      ],
+      "arity": 0
+    },
+    "replay": {
+      "params": [],
+      "arity": 0
+    },
+    "addEvent": {
+      "params": [
+        "params"
+      ],
+      "arity": 0
+    },
+    "revertEvent": {
+      "params": [
+        "eventId: string",
+        "reason: string"
+      ],
+      "arity": 0
+    },
+    "history": {
+      "params": [
+        "name: string"
+      ],
+      "arity": 0
+    },
+    "search": {
+      "params": [
+        "query: string",
+        "limit?: number"
+      ],
+      "arity": 0
+    },
+    "range": {
+      "params": [
+        "start: string",
+        "end: string",
+        "limit?: number"
+      ],
+      "arity": 0
+    },
+    "tag": {
+      "params": [
+        "tag?: string"
+      ],
+      "arity": 0
+    },
+    "stats": {
+      "params": [],
+      "arity": 0
+    },
+    "validate": {
+      "params": [],
+      "arity": 0
+    },
+    "export": {
+      "params": [
+        "format: string",
+        "outputFile?: string"
+      ],
+      "arity": 0
+    },
+    "listStudents": {
+      "params": [],
+      "arity": 0
+    },
+    "addStudent": {
+      "params": [
+        "name: string"
+      ],
+      "arity": 0
+    },
+    "deleteStudent": {
+      "params": [
+        "name: string",
+        "reason?: string"
+      ],
+      "arity": 0
+    },
+    "setStudentMeta": {
+      "params": [
+        "params"
+      ],
+      "arity": 0
+    },
+    "import": {
+      "params": [
+        "filePath: string"
+      ],
+      "arity": 0
+    },
+    "codes": {
+      "params": [],
+      "arity": 0
+    },
+    "doctor": {
+      "params": [],
+      "arity": 0
+    },
+    "summary": {
+      "params": [
+        "since?: string",
+        "until?: string"
+      ],
+      "arity": 0
+    },
+    "dashboard": {
+      "params": [
+        "outputDir?: string"
+      ],
+      "arity": 0
+    },
+    "exportFormats": {
+      "params": [],
+      "arity": 0
+    },
+    "invalidateCache": {
+      "params": [],
+      "arity": 0
+    }
+  },
+  "privacy": {
+    "init": {
+      "params": [
+        "password: string",
+        "autoScan?: boolean"
+      ],
+      "arity": 0
+    },
+    "load": {
+      "params": [
+        "password: string"
+      ],
+      "arity": 0
+    },
+    "list": {
+      "params": [
+        "password?: string"
+      ],
+      "arity": 0
+    },
+    "add": {
+      "params": [
+        "entityType: string",
+        "text: string"
+      ],
+      "arity": 0
+    },
+    "dryrun": {
+      "params": [
+        "text: string"
+      ],
+      "arity": 0
+    },
+    "backup": {
+      "params": [
+        "destPath: string"
+      ],
+      "arity": 0
+    },
+    "lock": {
+      "params": [],
+      "arity": 0
+    },
+    "status": {
+      "params": [],
+      "arity": 0
+    }
+  },
+  "cron": {
+    "list": {
+      "params": [],
+      "arity": 0
+    },
+    "add": {
+      "params": [
+        "task: unknown"
+      ],
+      "arity": 0
+    },
+    "update": {
+      "params": [
+        "id: string",
+        "patch: unknown"
+      ],
+      "arity": 0
+    },
+    "remove": {
+      "params": [
+        "id: string"
+      ],
+      "arity": 0
+    },
+    "toggle": {
+      "params": [
+        "id: string",
+        "enabled: boolean"
+      ],
+      "arity": 0
+    },
+    "runNow": {
+      "params": [
+        "id: string"
+      ],
+      "arity": 0
+    },
+    "getLogs": {
+      "params": [
+        "taskId?: string"
+      ],
+      "arity": 0
+    },
+    "onStatusUpdate": {
+      "params": [
+        "callback: (data: unknown"
+      ],
+      "arity": 0
+    }
+  },
+  "skill": {
+    "list": {
+      "params": [],
+      "arity": 0
+    },
+    "get": {
+      "params": [
+        "name: string"
+      ],
+      "arity": 0
+    },
+    "save": {
+      "params": [
+        "name: string",
+        "content: string"
+      ],
+      "arity": 0
+    },
+    "delete": {
+      "params": [
+        "name: string"
+      ],
+      "arity": 0
+    }
+  },
+  "settings": {
+    "get": {
+      "params": [],
+      "arity": 0
+    },
+    "set": {
+      "params": [
+        "path: string",
+        "value: unknown"
+      ],
+      "arity": 0
+    },
+    "reset": {
+      "params": [],
+      "arity": 0
+    }
+  },
+  "mcp": {
+    "list": {
+      "params": [],
+      "arity": 0
+    },
+    "connect": {
+      "params": [
+        "serverId: string"
+      ],
+      "arity": 0
+    },
+    "disconnect": {
+      "params": [
+        "serverId: string"
+      ],
+      "arity": 0
+    },
+    "listTools": {
+      "params": [
+        "serverId: string"
+      ],
+      "arity": 0
+    },
+    "test": {
+      "params": [
+        "serverId: string"
+      ],
+      "arity": 0
+    },
+    "add": {
+      "params": [
+        "config: unknown"
+      ],
+      "arity": 0
+    },
+    "update": {
+      "params": [
+        "serverId: string",
+        "patch: unknown"
+      ],
+      "arity": 0
+    },
+    "remove": {
+      "params": [
+        "serverId: string"
+      ],
+      "arity": 0
+    }
+  },
+  "sys": {
+    "openDialog": {
+      "params": [
+        "options: unknown"
+      ],
+      "arity": 0
+    },
+    "saveDialog": {
+      "params": [
+        "options: unknown"
+      ],
+      "arity": 0
+    },
+    "getVersion": {
+      "params": [],
+      "arity": 0
+    },
+    "getPath": {
+      "params": [
+        "name: string"
+      ],
+      "arity": 0
+    },
+    "showUpdateDialog": {
+      "params": [],
+      "arity": 0
+    },
+    "checkUpdate": {
+      "params": [],
+      "arity": 0
+    },
+    "downloadUpdate": {
+      "params": [],
+      "arity": 0
+    },
+    "installUpdate": {
+      "params": [],
+      "arity": 0
+    },
+    "onUpdateProgress": {
+      "params": [
+        "callback"
+      ],
+      "arity": 0
+    },
+    "readFile": {
+      "params": [
+        "filePath: string"
+      ],
+      "arity": 0
+    },
+    "restartApp": {
+      "params": [],
+      "arity": 0
+    }
+  },
+  "profile": {
+    "get": {
+      "params": [
+        "name: string"
+      ],
+      "arity": 0
+    },
+    "set": {
+      "params": [
+        "name: string",
+        "data: unknown"
+      ],
+      "arity": 0
+    }
+  },
+  "academic": {
+    "getConfig": {
+      "params": [],
+      "arity": 0
+    },
+    "listExams": {
+      "params": [
+        "semester?: string"
+      ],
+      "arity": 0
+    },
+    "createExam": {
+      "params": [
+        "exam: unknown"
+      ],
+      "arity": 0
+    },
+    "deleteExam": {
+      "params": [
+        "examId: string"
+      ],
+      "arity": 0
+    },
+    "getGrades": {
+      "params": [
+        "studentName: string"
+      ],
+      "arity": 0
+    },
+    "batchSetGrades": {
+      "params": [
+        "records: unknown"
+      ],
+      "arity": 0
+    },
+    "getClassGrades": {
+      "params": [
+        "studentNames: string[]",
+        "examId: string",
+        "subjectId?: string"
+      ],
+      "arity": 0
+    }
+  },
+  "class": {
+    "list": {
+      "params": [],
+      "arity": 0
+    },
+    "create": {
+      "params": [
+        "params"
+      ],
+      "arity": 0
+    },
+    "update": {
+      "params": [
+        "id: string",
+        "fields: unknown"
+      ],
+      "arity": 0
+    },
+    "archive": {
+      "params": [
+        "id: string"
+      ],
+      "arity": 0
+    },
+    "restore": {
+      "params": [
+        "id: string"
+      ],
+      "arity": 0
+    },
+    "delete": {
+      "params": [
+        "id: string"
+      ],
+      "arity": 0
+    },
+    "assign": {
+      "params": [
+        "params"
+      ],
+      "arity": 0
+    },
+    "onAssignProgress": {
+      "params": [
+        "callback"
+      ],
+      "arity": 0
+    }
+  },
+  "students": {
+    "parseExcel": {
+      "params": [
+        "filePath: string"
+      ],
+      "arity": 0
+    },
+    "importExcel": {
+      "params": [
+        "params: StudentImportParams"
+      ],
+      "arity": 0
+    },
+    "importTemplate": {
+      "params": [
+        "filePath: string"
+      ],
+      "arity": 0
+    },
+    "onImportProgress": {
+      "params": [
+        "callback: (data: StudentImportProgress"
+      ],
+      "arity": 0
+    }
+  },
+  "chat": {
+    "saveMessage": {
+      "params": [
+        "msg: ChatMessageInput"
+      ],
+      "arity": 0
+    },
+    "loadMessages": {
+      "params": [
+        "sessionId?: string"
+      ],
+      "arity": 0
+    },
+    "deleteSession": {
+      "params": [
+        "sessionId: string"
+      ],
+      "arity": 0
+    },
+    "renameSession": {
+      "params": [
+        "sessionId: string",
+        "title: string"
+      ],
+      "arity": 0
+    },
+    "listSessions": {
+      "params": [],
+      "arity": 0
+    }
+  },
+  "log": {
+    "list": {
+      "params": [],
+      "arity": 0
+    },
+    "read": {
+      "params": [
+        "name: string",
+        "lines?: number"
+      ],
+      "arity": 0
+    },
+    "clear": {
+      "params": [],
+      "arity": 0
+    },
+    "filter": {
+      "params": [
+        "name: string",
+        "levels: string[]",
+        "lines?: number"
+      ],
+      "arity": 0
+    },
+    "search": {
+      "params": [
+        "name: string",
+        "query: string",
+        "lines?: number"
+      ],
+      "arity": 0
+    },
+    "exportWithDialog": {
+      "params": [
+        "name: string"
+      ],
+      "arity": 0
+    },
+    "forward": {
+      "params": [
+        "level: 'debug' | 'info' | 'warn' | 'error'",
+        "msg: string"
+      ],
+      "arity": 0
+    }
+  },
+  "backup": {
+    "createDialog": {
+      "params": [],
+      "arity": 0
+    },
+    "restoreDialog": {
+      "params": [],
+      "arity": 0
+    },
+    "listAuto": {
+      "params": [],
+      "arity": 0
+    },
+    "deleteAuto": {
+      "params": [
+        "fileName: string"
+      ],
+      "arity": 0
+    }
+  },
+  "feishu": {
+    "test": {
+      "params": [
+        "appId: string"
+      ],
+      "arity": 0
+    },
+    "listBitable": {
+      "params": [
+        "appId: string",
+        "appToken: string"
+      ],
+      "arity": 0
+    },
+    "status": {
+      "params": [],
+      "arity": 0
+    },
+    "botStart": {
+      "params": [],
+      "arity": 0
+    },
+    "botStop": {
+      "params": [],
+      "arity": 0
+    },
+    "botStatus": {
+      "params": [],
+      "arity": 0
+    },
+    "onBotStatusUpdate": {
+      "params": [
+        "callback: (info: unknown"
+      ],
+      "arity": 0
+    },
+    "diagnose": {
+      "params": [],
+      "arity": 0
+    }
+  },
+  "reports": {
+    "list": {
+      "params": [],
+      "arity": 0
+    },
+    "read": {
+      "params": [
+        "fileName: string"
+      ],
+      "arity": 0
+    }
+  },
+  "memory": {
+    "list": {
+      "params": [],
+      "arity": 0
+    },
+    "deleteEntry": {
+      "params": [
+        "agentId: string",
+        "entryId: string"
+      ],
+      "arity": 0
+    },
+    "clear": {
+      "params": [
+        "agentId: string"
+      ],
+      "arity": 0
+    }
+  }
+}
