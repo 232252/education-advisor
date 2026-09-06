@@ -533,6 +533,25 @@ gh pr create --fill
 CI runs the same four quality gates on every PR. Local green is
 the contract.
 
+### IPC contract checks
+
+Two complementary modes (both must pass before pushing):
+
+```bash
+# Static — pure text parsing, no Electron needed (also runs in CI):
+npm run ipc:contract
+
+# Runtime — deep test against a LIVE app: invokes ~20 key window.api
+# methods and validates return shapes against the contract.
+# Needs the app running with CDP enabled:
+ENABLE_CDP=1 EA_CDP_PORT=9444 npx electron .
+EA_CDP_PORT=9444 npm run ipc:runtime
+```
+
+The runtime mode catches gaps static parsing cannot see (e.g. a
+preload method removed while its channel constant survives, or a
+handler returning an unexpected envelope).
+
 ---
 
 ## Next steps
