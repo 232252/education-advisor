@@ -10,11 +10,7 @@ export { useDebouncedCallback } from './useDebouncedCallback'
 export { useEventListener } from './useEventListener'
 export { useInterval } from './useInterval'
 export { useLocalStorage } from './useLocalStorage'
-export {
-  type UseMultiLoaderOptions,
-  type UseMultiLoaderResult,
-  useMultiLoader,
-} from './useMultiLoader'
+export { useMultiLoader } from './useMultiLoader'
 export { useTabs } from './useTabs'
 export { useTheme } from './useTheme'
 export { useToggle } from './useToggle'
