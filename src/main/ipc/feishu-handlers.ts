@@ -21,6 +21,7 @@ import {
 } from '../services/feishu-service'
 import { keystoreService } from '../services/keystore-service'
 import { settingsService } from '../services/settings-service'
+import { feishuInfo } from '../services/feishu/token'
 import { log } from '../utils/logger'
 import { handleIpc } from './handle'
 
@@ -92,6 +93,11 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
       label: (appId: string) => `feishu:test failed for "${appId}"`,
     },
   )
+
+  // ----- status: token 缓存状态(诊断用,不返回 token 本体) -----
+  handleIpc(IPC.IPC_FEISHU_STATUS, () => feishuInfo(), {
+    label: () => 'feishu:status failed',
+  })
 
   // H-5 修复: 加 try-catch
   handleIpc(

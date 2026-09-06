@@ -79,7 +79,7 @@ async function walkDir(dir: string, prefix: string, out: LogicalFile[]): Promise
 }
 
 /** 收集备份白名单文件(运行时实际路径) */
-export async function collectBackupFiles(): Promise<LogicalFile[]> {
+async function collectBackupFiles(): Promise<LogicalFile[]> {
   const userData = app.getPath('userData')
   const files: LogicalFile[] = []
 

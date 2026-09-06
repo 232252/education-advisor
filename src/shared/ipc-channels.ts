@@ -33,7 +33,6 @@ export const IPC_AGENT_TOGGLE = 'agent:toggle'
 export const IPC_AGENT_SET_SOUL = 'agent:set-soul'
 export const IPC_AGENT_SET_RULES = 'agent:set-rules'
 export const IPC_AGENT_RUN_MANUAL = 'agent:run-manual'
-export const IPC_AGENT_GET_HISTORY = 'agent:get-history'
 export const IPC_AGENT_STATUS_UPDATE = 'agent:status-update'
 export const IPC_AGENT_ABORT = 'agent:abort'
 

@@ -22,7 +22,7 @@ import type { McpServerConfig } from '@shared/types'
  * @example interpolateEnv('${env.USERPROFILE}/Documents') → 'C:\\Users\\sq\\Documents'
  * @example interpolateEnv('http://${HOST}') → 'http://example.com'(当 HOST=example.com)
  */
-export function interpolateEnv(value: string): string {
+function interpolateEnv(value: string): string {
   return value.replace(/\$\{([^}]+)\}/g, (_, rawName: string) => {
     // 剥离可选的 env. 前缀(预设模板 mcp-presets.ts 使用 ${env.VAR} 写法)
     const name = rawName.startsWith('env.') ? rawName.slice(4) : rawName
