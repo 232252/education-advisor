@@ -268,6 +268,7 @@ function ModelSlotField({
   placeholder,
   customIdLabel,
 }: ModelSlotFieldProps) {
+  const { t } = useT()
   const inList = savedModel ? currentModels.some((m) => m.id === savedModel) : false
   const dropdownValue = inList ? savedModel : ''
   const customValue = override !== null ? override : !inList ? savedModel : ''
@@ -280,8 +281,14 @@ function ModelSlotField({
           <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
           {modelInfo && (
             <span className="text-xs text-gray-500 dark:text-gray-500 font-mono">
-              输入 {formatCost(modelInfo.costPerInputToken)} / 输出{' '}
-              {formatCost(modelInfo.costPerOutputToken)}
+              {tr(
+                'page.models.default.costInOut',
+                {
+                  in: formatCost(modelInfo.costPerInputToken),
+                  out: formatCost(modelInfo.costPerOutputToken),
+                },
+                '输入 {in} / 输出 {out}',
+              )}
             </span>
           )}
         </div>
@@ -292,11 +299,18 @@ function ModelSlotField({
           className="bg-white dark:bg-surface-tertiary border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm w-80
                      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow disabled:opacity-50"
         >
-          <option value="">请选择...</option>
+          <option value="">{t('page.models.default.pickPlaceholder', '请选择...')}</option>
           {currentModels.map((m) => (
             <option key={m.id} value={m.id}>
-              {m.name} (输入 {formatCost(m.costPerInputToken)} / 输出{' '}
-              {formatCost(m.costPerOutputToken)})
+              {tr(
+                'page.models.default.optionCost',
+                {
+                  name: m.name,
+                  in: formatCost(m.costPerInputToken),
+                  out: formatCost(m.costPerOutputToken),
+                },
+                '{name} (输入 {in} / 输出 {out})',
+              )}
             </option>
           ))}
         </select>

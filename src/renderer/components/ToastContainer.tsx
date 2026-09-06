@@ -8,6 +8,7 @@ import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { type ToastType, useToastStore } from '../stores/toastStore'
 import './ToastContainer.css'
+import { t as tf } from '../i18n'
 
 const ICONS: Record<ToastType, ReactNode> = {
   info: <Info size={14} strokeWidth={2.5} />,
@@ -23,7 +24,11 @@ export function ToastContainer() {
   if (toasts.length === 0) return null
 
   return (
-    <section className="toast-container" aria-label="通知" aria-live="polite">
+    <section
+      className="toast-container"
+      aria-label={tf('common.aria.notification', '通知')}
+      aria-live="polite"
+    >
       {toasts.map((t) => (
         <div
           key={t.id}
@@ -38,7 +43,7 @@ export function ToastContainer() {
             type="button"
             className="toast-close"
             onClick={() => dismiss(t.id)}
-            aria-label="关闭通知"
+            aria-label={tf('common.aria.closeNotification', '关闭通知')}
           >
             ×
           </button>

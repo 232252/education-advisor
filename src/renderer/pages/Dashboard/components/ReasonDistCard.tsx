@@ -69,7 +69,13 @@ export function ReasonDistCard({ items }: { items: Array<{ code: string; count: 
               {item.count}
             </span>
           </div>
-        )) ?? <EmptyState icon={<ClipboardList size={28} />} title="暂无数据" className="py-6" />}
+        )) ?? (
+          <EmptyState
+            icon={<ClipboardList size={28} />}
+            title={t('common.empty.noData', '暂无数据')}
+            className="py-6"
+          />
+        )}
       </div>
     </Card>
   )

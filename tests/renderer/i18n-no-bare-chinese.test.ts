@@ -21,6 +21,7 @@ const UI_DIRS = ['pages', 'components', 'layouts']
 const ALLOWLIST: Record<string, string> = {
   'pages/Welcome/WelcomePage.tsx': '整页为宣传视频介绍,计划整页重做双语(R3),先行豁免',
   'components/print/PrintOverlay.tsx': '打印界面向教师输出,保持单语中文打印体验(产品决策)',
+  'components/print/ParentReportDocument.tsx': '家长报告打印文档,与 PrintOverlay 同一单语打印体验(产品决策)',
   'components/onboarding/steps/WelcomeStep.tsx': 'onboarding 步骤文案与页面标题联动,R3 与 Welcome 页一并处理',
 }
 
@@ -38,6 +39,50 @@ const ALLOWLIST_LINE: Record<string, Record<number, string>> = {
     173: 'EAARiskLevel 数据键值',
     177: 'EAARiskLevel 数据键值',
     181: 'EAARiskLevel 数据键值',
+  },
+  'pages/Dashboard/components/ScoreDistChartCard.tsx': {
+    51: '分数段 label 与后端枚举比对选色(数据匹配非 UI 文案)',
+    53: '分数段 label 比对',
+    55: '分数段 label 比对',
+    61: '分数段 label 比对',
+    63: '分数段 label 比对',
+    65: '分数段 label 比对',
+  },
+  'pages/Dashboard/components/RiskDistChartCard.tsx': {
+    22: '风险等级枚举名比对选色(数据匹配)',
+    33: 'echarts tooltip 模板串,{c} 人 为数值单位',
+  },
+  'pages/Dashboard/components/ReasonDistCard.tsx': {
+    57: '原因码标签表查值失败时的兜底展示(数据即文案)',
+  },
+  'pages/Models/components/ProviderCard.tsx': {
+    175: '对自身 toast 结果文本做成功/失败分流(临时数据流 hack,待改结构化状态)',
+  },
+  'pages/Models/components/RecommendedModelCard.tsx': {
+    46: 'm.tier 后端枚举值比对(GPU/大内存 等)',
+    48: 'm.tier 后端枚举值比对',
+    57: 'm.chineseLevel 后端枚举值比对(优秀)',
+  },
+  'components/onboarding/OnboardingWizard.tsx': {
+    49: '表单默认值=示例数据(七年级),随向导写入业务数据',
+    50: '表单默认值=示例数据(1班)',
+  },
+  'components/onboarding/steps/ClassStep.tsx': {
+    12: '年级预设数据项,直接写入业务数据',
+    14: '班级名预设数据项(1班~20班)',
+  },
+  'pages/Students/tabs/AIAnalysisTab.tsx': {
+    49: '解析 AI 输出的分节标题(数据匹配)',
+    50: '解析 AI 输出的分节标题',
+    51: '解析 AI 输出的分节标题',
+    52: '解析 AI 输出的分节标题',
+    109: '对自身 toast 消息文本做成功/失败分流(数据流 hack)',
+  },
+  'pages/Students/tabs/ProfileTab.tsx': {
+    86: '对自身 toast 消息文本做成功/失败分流(数据流 hack)',
+  },
+  'pages/Students/tabs/EventsTab.tsx': {
+    150: '撤销事件写入 EAA 的审计备注(业务数据非 UI 文案)',
   },
 }
 
@@ -80,18 +125,28 @@ function stripLineComment(line: string): string {
  * 跨行多行调用同样剥离: 逐行正则识别不了换行拆开的实参,会把已接线文案误报成
  * 裸中文。匹配段替换为等长空白(保留换行位置),行号不漂移。
  * \b 词边界: 避免 start(/expect( 等"以 t 结尾标识符+(" 的误匹配。
+ * 覆盖变体: tf 别名(模块级 t 重命名导入)/尾逗号(prettier 多行实参)/
+ * 三元 fallback( t('k', cond ? 'a' : 'b') )/双引号实参(内嵌单引号的文案)。
  */
+const STR = String.raw`(?:'[^']*'|"[^"]*"|` + '`[^`]*`)'
 function stripTInvocations(lines: string[]): string[] {
   const blankKeepNewlines = (m: string) => m.replace(/[^\n]/g, ' ')
   let text = lines.join('\n')
-  // tr('key', { 0: '…' }, '中文兜底') — 带插值参数的变体,同为正规接线
+  // tr('key', { 0: '…' }, '中文兜底') — 带插值参数的变体,同为正规接线(尾逗号同容错)
   text = text.replace(
-    /\btr\(\s*'[^']*'\s*,\s*\{[^}]*\}\s*,\s*'[^']*'\s*\)/gs,
+    new RegExp(`\\btr\\(\\s*${STR}\\s*,\\s*\\{[^}]*\\}\\s*,\\s*${STR}\\s*,?\\s*\\)`, 'gs'),
     blankKeepNewlines,
   )
-  // t('key') / t('key','兜底') / t(`key`) / t('key',`兜底`)
+  // t('key') / t('key','兜底') / t(cond ? 'k1' : 'k2', cond ? 'a' : 'b')
+  // key 与兜底均允许「简单条件表达式 ? 串 : 串」(如 NewTaskForm 编辑/新建双态标题;
+  // 条件限标识符/取反/空白,不含括号引号,防跨结构吞行)
+  // tf = 模块级 t 的重命名导入(ModelRow formatCost 等非 hook 作用域)
+  const ternary = `[\\w.\\s!]+\\?\\s*${STR}\\s*:\\s*${STR}`
   text = text.replace(
-    /\bt\(\s*(?:'[^']*'|`[^`]*`)\s*(?:,\s*(?:'[^']*'|`[^`]*`)\s*)?\)/gs,
+    new RegExp(
+      `\\btf?\\(\\s*(?:${STR}|${ternary})\\s*(?:,\\s*(?:${STR}|${ternary})\\s*)?,?\\s*\\)`,
+      'gs',
+    ),
     blankKeepNewlines,
   )
   return text.split('\n')
