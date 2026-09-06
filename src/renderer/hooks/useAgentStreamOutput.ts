@@ -12,7 +12,7 @@ import { t } from '../i18n'
 import { useAgentStore } from '../stores/agent/store'
 
 /** runManual resolve 后等待流式事件收尾的固定节奏 */
-export const STREAM_SETTLE_MS = 1500
+const STREAM_SETTLE_MS = 1500
 
 export interface AgentStreamSession {
   /** 追加一段文本到输出(如每个 agent 的标题行) */

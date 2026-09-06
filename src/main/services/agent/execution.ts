@@ -78,7 +78,7 @@ function markedError(msg: string): Error {
  * 删除/停用,两处判定必须一致。抛 markedError:入口路径的调用方(IPC/委托
  * 工具)只消费 message;出队路径经外层守卫去重,不会二次推送渲染进程。
  */
-export function assertAgentRunnable(
+function assertAgentRunnable(
   config: AgentConfig | undefined,
   id: string,
   win: BrowserWindow | undefined,
@@ -99,7 +99,7 @@ export function assertAgentRunnable(
 }
 
 /** abort 序列共用: controller.abort + agent.abort() 吞错(agent 已停止时会抛,无害) */
-export async function abortAgentInstance(
+async function abortAgentInstance(
   agent: { abort: () => unknown },
   abortController: AbortController,
   id: string,
