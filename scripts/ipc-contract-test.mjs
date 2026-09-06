@@ -122,7 +122,8 @@ const tests = [
   ['eaa.codes', `api.eaa.codes()`],
   ['eaa.doctor', `api.eaa.doctor()`],
   ['agent.list', `api.agent.list()`],
-  ['agent.getHistory', `api.agent.getHistory('class-monitor')`],
+  // agent.getHistory 已移除: 历史随 agent:get 响应内联返回,无独立通道
+  // (IPC_AGENT_GET_HISTORY 常量与 preload 方法均已删,R17 运行时测试暴露)
   ['cron.list', `api.cron.list()`],
   ['settings.get', `api.settings.get()`],
   ['class.list', `api.class.list()`],
