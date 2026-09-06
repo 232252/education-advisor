@@ -19,7 +19,7 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 | --- | --- |
 | 页面数 | 13 |
 | 路由数 | 15 |
-| IPC 通道数 | 144 |
+| IPC 通道数 | 143 |
 | Service 文件数 | 147 |
 | IPC handler 文件数 | 47 |
 | Zustand store 模块数 | 7 |
