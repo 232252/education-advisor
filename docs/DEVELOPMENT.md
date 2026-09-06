@@ -324,9 +324,9 @@ This means:
 - `git clone && npm ci` works without any sibling checkouts.
 - Patches you make to `vendor/pi-agent-core/` or `vendor/pi-ai/`
   are committed to this repo (no separate PR dance).
-- To update the vendored copy, run the vendoring script
-  (see `scripts/vendor-pi.mjs`, if present) or copy the new
-  `dist/` manually and re-commit.
+- To update the vendored copy, copy the new `dist/` manually,
+  re-commit, then run `npm run verify:vendor`
+  (`scripts/verify-vendor.mjs`) to validate the result.
 
 > **Why not published npm versions?** The pi packages are not yet
 > published to the public registry. Vendoring them is the only
