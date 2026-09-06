@@ -5,6 +5,7 @@
 
 import { formatLlmError } from '@shared/llm-error'
 import type { BrowserWindow } from 'electron'
+import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import { agentService } from '../agent-service'
 import { DEFAULT_AGENT_ID } from './constants'
@@ -35,7 +36,7 @@ export async function runAgentAndCollect(
     }
     return execution.output || '(Agent 返回空内容)'
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     log('error', 'feishu-bot', `agent run failed for ${target.id}: ${msg}`)
     // runAgent 抛错时(如 agent disabled/排队已满)也尝试从 history 取错误输出
     const history = agentService.getHistory(target.id)

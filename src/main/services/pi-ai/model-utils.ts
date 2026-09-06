@@ -5,6 +5,7 @@
 
 import { type Api, getModel, getModels, type Model } from '@earendil-works/pi-ai/compat'
 import type { ModelInfo } from '@shared/types'
+import { errText } from '../../utils/err-text'
 // OLLAMA_OPENAI_BASE_URL 从 ollama/constants 导入(而非 ollama-service 单例入口):
 // detection.ts 顶层 import electron,经 ollama-service 会把 electron 拉进纯函数模块的依赖链
 import { OLLAMA_OPENAI_BASE_URL } from '../ollama/constants'
@@ -15,10 +16,7 @@ export function safeGetModels(providerId: string): Model<Api>[] {
   try {
     return getModels(providerId as Parameters<typeof getModels>[0])
   } catch (err) {
-    console.warn(
-      `[PiAI] getModels("${providerId}") threw:`,
-      err instanceof Error ? err.message : String(err),
-    )
+    console.warn(`[PiAI] getModels("${providerId}") threw:`, errText(err))
     return []
   }
 }

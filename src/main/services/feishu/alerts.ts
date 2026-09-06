@@ -7,6 +7,7 @@
 // 未配置飞书 / 未开启开关时返回 skipped,调用方据此降级。
 // =============================================================
 
+import { errText } from '../../utils/err-text'
 import { keystoreService } from '../keystore-service'
 import { settingsService } from '../settings-service'
 import { sendTextMessage } from './messages'
@@ -67,6 +68,6 @@ export async function sendAgentAlert(title: string, body: string): Promise<Feish
     const text = `【${title}】\n${truncate(body)}`
     return await sendTextMessage(appId, appSecret, userOpenId, text, domain)
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
+    return { success: false, error: errText(err) }
   }
 }

@@ -4,6 +4,7 @@
 // =============================================================
 
 import type { CronLogEntry, CronTask } from '@shared/types'
+import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import { withTimeout } from '../agent/timeout'
 import { eaaBridge } from '../eaa-bridge'
@@ -64,11 +65,7 @@ export function registerBitableSyncTask(ctx: BitableSyncRegistrationCtx): void {
     ctx.schedule(taskId, task)
     log('info', 'cron', `bitableSync registered, expr='${expr}' taskId=${taskId}`)
   } catch (err) {
-    log(
-      'warn',
-      'cron',
-      `bitableSync register failed: ${err instanceof Error ? err.message : String(err)}`,
-    )
+    log('warn', 'cron', `bitableSync register failed: ${errText(err)}`)
   }
 }
 
@@ -111,7 +108,7 @@ async function composeSnapshotMessageInternal(): Promise<string> {
     if (risks.length > 0) parts.push(risks.join('/'))
     return `班级操行快照: ${parts.join(' | ')}`
   } catch (err) {
-    return `snapshot unavailable: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200)
+    return `snapshot unavailable: ${errText(err)}`.slice(0, 200)
   }
 }
 
@@ -158,7 +155,7 @@ export async function executeBitableSyncOnce(): Promise<BitableSyncResult> {
       'bitable sync',
     )
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
+    return { success: false, error: errText(err) }
   }
 }
 

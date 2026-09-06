@@ -4,11 +4,11 @@
 // - backup:restore-dialog: 弹选择对话框 → 校验 → 安全备份 → 恢复(danger)
 // - backup:list-auto / delete-auto: 管理 {userData}/backups/
 // 返回约定: { success, canceled?, error?, ...data }
+// (失败信封/日志骨架统一走 handleIpc,标签与通道名一致)
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
-import { type BrowserWindow, dialog, ipcMain } from 'electron'
-import type { AutoBackupInfo } from '../services/backup-service'
+import { type BrowserWindow, dialog } from 'electron'
 import {
   createBackup,
   deleteAutoBackup,
@@ -16,75 +16,47 @@ import {
   restoreFromZip,
 } from '../services/backup-service'
 import { formatTimestampFileSafe } from '../utils/format-timestamp'
-
-function errMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err)
-}
+import { handleIpc } from './handle'
 
 function backupStamp(): string {
   return formatTimestampFileSafe()
 }
 
 export function registerBackupHandlers(win: BrowserWindow): void {
-  ipcMain.handle(IPC.IPC_BACKUP_CREATE_DIALOG, async () => {
-    try {
-      const result = await dialog.showSaveDialog(win, {
-        title: '备份数据到…',
-        defaultPath: `education-advisor-backup-${backupStamp()}.zip`,
-        filters: [{ name: '备份文件', extensions: ['zip'] }],
-      })
-      if (result.canceled || !result.filePath) {
-        return { success: false, canceled: true }
-      }
-      const { files, bytes } = await createBackup(result.filePath)
-      return { success: true, path: result.filePath, files, bytes }
-    } catch (err) {
-      console.error('[IPC] backup:create-dialog failed:', errMessage(err))
-      return { success: false, error: errMessage(err) }
+  handleIpc(IPC.IPC_BACKUP_CREATE_DIALOG, async () => {
+    const result = await dialog.showSaveDialog(win, {
+      title: '备份数据到…',
+      defaultPath: `education-advisor-backup-${backupStamp()}.zip`,
+      filters: [{ name: '备份文件', extensions: ['zip'] }],
+    })
+    if (result.canceled || !result.filePath) {
+      return { success: false, canceled: true }
     }
+    const { files, bytes } = await createBackup(result.filePath)
+    return { success: true, path: result.filePath, files, bytes }
   })
 
-  ipcMain.handle(IPC.IPC_BACKUP_RESTORE_DIALOG, async () => {
-    try {
-      const result = await dialog.showOpenDialog(win, {
-        title: '选择要恢复的备份文件',
-        filters: [{ name: '备份文件', extensions: ['zip'] }],
-        properties: ['openFile'],
-      })
-      if (result.canceled || result.filePaths.length === 0) {
-        return { success: false, canceled: true }
-      }
-      const restore = await restoreFromZip(result.filePaths[0])
-      return { success: true, requiresRestart: true, ...restore }
-    } catch (err) {
-      console.error('[IPC] backup:restore-dialog failed:', errMessage(err))
-      return { success: false, error: errMessage(err) }
+  handleIpc(IPC.IPC_BACKUP_RESTORE_DIALOG, async () => {
+    const result = await dialog.showOpenDialog(win, {
+      title: '选择要恢复的备份文件',
+      filters: [{ name: '备份文件', extensions: ['zip'] }],
+      properties: ['openFile'],
+    })
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, canceled: true }
     }
+    const restore = await restoreFromZip(result.filePaths[0])
+    return { success: true, requiresRestart: true, ...restore }
   })
 
-  ipcMain.handle(
-    IPC.IPC_BACKUP_LIST_AUTO,
-    async (): Promise<{
-      success: boolean
-      data?: AutoBackupInfo[]
-      error?: string
-    }> => {
-      try {
-        const data = await listAutoBackups()
-        return { success: true, data }
-      } catch (err) {
-        return { success: false, error: errMessage(err) }
-      }
-    },
-  )
+  handleIpc(IPC.IPC_BACKUP_LIST_AUTO, async () => {
+    const data = await listAutoBackups()
+    return { success: true, data }
+  })
 
-  ipcMain.handle(IPC.IPC_BACKUP_DELETE_AUTO, async (_e, fileName: string) => {
-    try {
-      await deleteAutoBackup(String(fileName))
-      return { success: true }
-    } catch (err) {
-      return { success: false, error: errMessage(err) }
-    }
+  handleIpc(IPC.IPC_BACKUP_DELETE_AUTO, async (_e, fileName: string) => {
+    await deleteAutoBackup(String(fileName))
+    return { success: true }
   })
 
   console.log('[IPC] Backup handlers registered')
