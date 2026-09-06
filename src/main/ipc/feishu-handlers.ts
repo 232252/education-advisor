@@ -12,6 +12,7 @@
 import * as IPC from '@shared/ipc-channels'
 import type { BrowserWindow } from 'electron'
 import { Notification } from 'electron'
+import { feishuInfo } from '../services/feishu/token'
 import { feishuBotService } from '../services/feishu-bot-service'
 import {
   diagnoseConnection,
@@ -21,7 +22,6 @@ import {
 } from '../services/feishu-service'
 import { keystoreService } from '../services/keystore-service'
 import { settingsService } from '../services/settings-service'
-import { feishuInfo } from '../services/feishu/token'
 import { log } from '../utils/logger'
 import { handleIpc } from './handle'
 
