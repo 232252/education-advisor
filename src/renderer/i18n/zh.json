@@ -1557,5 +1557,11 @@
   "page.models.default.costInOut": "输入 {in} / 输出 {out}",
   "page.models.default.pickPlaceholder": "请选择...",
   "page.models.default.optionCost": "{name} (输入 {in} / 输出 {out})",
-  "page.scheduler.log.success": "执行成功"
+  "page.scheduler.log.success": "执行成功",
+  "agents.status.running": "运行中",
+  "agents.status.error": "错误",
+  "agents.status.ready": "就绪",
+  "agents.status.disabled": "已停用",
+  "agents.tier.high": "高质量",
+  "agents.tier.low": "低成本"
 }
