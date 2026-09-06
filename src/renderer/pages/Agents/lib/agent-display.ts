@@ -3,15 +3,24 @@
 // =============================================================
 
 import type { AgentExecution, AgentStatus } from '@shared/types'
+import { t as tf } from '../../../i18n'
 
 /** Agent 状态 → 展示文本（运行中/错误/就绪/已停用） */
 export function getAgentStatusLabel(status: AgentStatus, enabled: boolean): string {
-  return status === 'running' ? '运行中' : status === 'error' ? '错误' : enabled ? '就绪' : '已停用'
+  return status === 'running'
+    ? tf('agents.status.running', '运行中')
+    : status === 'error'
+      ? tf('agents.status.error', '错误')
+      : enabled
+        ? tf('agents.status.ready', '就绪')
+        : tf('agents.status.disabled', '已停用')
 }
 
 /** 模型档位 → 展示文本 */
 export function getModelTierLabel(modelTier: 'high_quality' | 'low_cost'): string {
-  return modelTier === 'high_quality' ? '高质量' : '低成本'
+  return modelTier === 'high_quality'
+    ? tf('agents.tier.high', '高质量')
+    : tf('agents.tier.low', '低成本')
 }
 
 /** 执行历史时间格式化: M/D HH:mm */
