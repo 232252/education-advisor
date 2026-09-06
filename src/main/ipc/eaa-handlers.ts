@@ -37,5 +37,7 @@ export function registerEAAHandlers(_win: BrowserWindow) {
   registerEventHandlers({ invalidateStudentsCache })
   registerExportHandlers({ invalidateStudentsCache })
 
-  console.log('[IPC] EAA handlers registered (21 commands + export-formats + invalidate-cache)')
+  // 通道数以 src/shared/ipc-channels.ts 的 eaa:* 为准(doc-stats 门禁守护总数);
+  // 此处不写具体数字,避免子域增减时日志漂移
+  console.log('[IPC] EAA handlers registered (events/students/export/system domains + invalidate-cache)')
 }
