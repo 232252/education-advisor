@@ -6,7 +6,7 @@ import type { AgentListItem, CronTask } from '@shared/types'
 import { memo } from 'react'
 import { btnStyle, formatDateTime } from '../../../lib/ui-utils'
 import { ToggleSwitch } from '../../Settings/components/ToggleSwitch'
-import { cronStatusColor, cronStatusLabel, isAutoTask } from '../lib/scheduler-utils'
+import { cronStatusColor, cronStatusKey, isAutoTask } from '../lib/scheduler-utils'
 
 interface TaskCardProps {
   task: CronTask
@@ -81,9 +81,9 @@ export const TaskCard = memo(function TaskCard({
         </div>
 
         <div className="text-right flex-shrink-0">
-          {task.lastStatus && (
+          {task.lastStatus && cronStatusKey(task.lastStatus) && (
             <div className={`text-xs ${cronStatusColor(task.lastStatus)}`}>
-              {cronStatusLabel(task.lastStatus)}
+              {t(cronStatusKey(task.lastStatus) as string)}
             </div>
           )}
           {task.lastRunAt && (
