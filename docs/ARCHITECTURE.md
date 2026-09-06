@@ -303,7 +303,7 @@ with the prompt "Alice just handed in her homework 10 minutes late, +2":
 [6] agent-service.ts builds the system prompt:
     - agents/class-monitor/SOUL.md
     - agents/class-monitor/AGENTS.md
-    - config/SMALL_MODEL_RULES.md (global rulebook)
+    - agents/_shared/rules.md (shared rulebook, M10 single-point injection)
     - skills/STUDENT_MANAGEMENT.md (active skill, if any)
     - list of available tools (sanitized, capability-checked)
     ↓
@@ -544,8 +544,9 @@ If you are new to the codebase, here is a 30-minute reading order:
    the tool layer the agents use.
 7. **[`config/agents.yaml`](../config/agents.yaml)** — the agent registry.
 8. **[`agents/main/SOUL.md`](../agents/main/SOUL.md)** — the most-used agent.
-9. **[`config/SMALL_MODEL_RULES.md`](../config/SMALL_MODEL_RULES.md)** —
-   the rulebook.
+9. **[`agents/_shared/rules.md`](../agents/_shared/rules.md)** —
+   the shared rulebook (M10: injected into every agent's system
+   prompt; role `AGENTS.md` files keep only role-specific rules).
 
 After that, the rest of the codebase is filling in the details.
 Welcome.

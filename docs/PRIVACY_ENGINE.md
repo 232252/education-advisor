@@ -409,8 +409,8 @@ The privacy engine does **not** defend against:
    Every text payload that goes to the LLM **must** go through
    `anonymize` first.
 2. **Add tests for every new anonymization pattern.** The
-   `tests/main/privacy.test.ts` file has a structure you can
-   copy.
+   `tests/main/agent-privacy-guard.test.ts` file has a structure
+   you can copy.
 3. **Update the audit log format in a backward-compatible way.**
    Existing log readers should still work.
 4. **Document any new entity type.** Add it to
