@@ -1,7 +1,7 @@
 [
   {
     "file": "pages/Academics/AcademicsPage.tsx",
-    "line": 236,
+    "line": 228,
     "text": "'从左侧学生列表中选择一个学生以查看学业详情',"
   },
   {
@@ -26,12 +26,12 @@
   },
   {
     "file": "pages/Academics/components/grade-entry/EntrySelectorsCard.tsx",
-    "line": 99,
+    "line": 102,
     "text": "'快速创建考试(设置类型/日期)',"
   },
   {
     "file": "pages/Academics/components/grade-entry/EntrySelectorsCard.tsx",
-    "line": 112,
+    "line": 115,
     "text": "'输入考试名称(可选),留空保存时自动创建',"
   },
   {
@@ -41,17 +41,17 @@
   },
   {
     "file": "pages/Academics/tabs/GradeEntryTab.tsx",
-    "line": 128,
+    "line": 129,
     "text": "'选择科目后即可录入成绩,考试可不选',"
   },
   {
     "file": "pages/Academics/tabs/OverviewTab.tsx",
-    "line": 71,
+    "line": 61,
     "text": "' — 数据可能存在但未能读取,请重试;若持续失败请检查数据目录或查看日志',"
   },
   {
     "file": "pages/Academics/tabs/OverviewTab.tsx",
-    "line": 91,
+    "line": 72,
     "text": "' 还没有任何成绩记录,请先在\"考试管理\"中创建考试,然后在\"成绩录入\"中录入成绩',"
   },
   {
@@ -73,156 +73,6 @@
     "file": "pages/Chat/components/ChatToolbar.tsx",
     "line": 110,
     "text": "'确定要清空当前会话的消息显示吗?该操作无法撤销(会话记录本身不会被删除)。',"
-  },
-  {
-    "file": "pages/Classes/ClassProfile.tsx",
-    "line": 79,
-    "text": "<button type=\"button\" onClick={onClose} aria-label=\"关闭\" className={btnStyle('ghost')}>"
-  },
-  {
-    "file": "pages/Classes/ClassesPage.tsx",
-    "line": 100,
-    "text": "const nameOptions = useMemo(() => Array.from({ length: 20 }, (_, i) => `${i + 1}班`), [])"
-  },
-  {
-    "file": "pages/Classes/ClassesPage.tsx",
-    "line": 177,
-    "text": "description=\"点击右上角「+」按钮创建第一个班级\""
-  },
-  {
-    "file": "pages/Classes/components/StudentsTab.tsx",
-    "line": 40,
-    "text": "toast.warning('请先选择目标班级')"
-  },
-  {
-    "file": "pages/Classes/components/StudentsTab.tsx",
-    "line": 50,
-    "text": "toast.success(`已将「${studentName}」转出`)"
-  },
-  {
-    "file": "pages/Classes/components/StudentsTab.tsx",
-    "line": 58,
-    "text": "toast.error(`转班失败: ${res.failed?.join(', ') || '未知错误'}`)"
-  },
-  {
-    "file": "pages/Classes/components/StudentsTab.tsx",
-    "line": 61,
-    "text": "toast.error(`转班失败: ${errText(err)}`)"
-  },
-  {
-    "file": "pages/Classes/components/StudentsTab.tsx",
-    "line": 79,
-    "text": "⚠ 没有其他可用班级，如需转班请先创建新班级"
-  },
-  {
-    "file": "pages/Classes/components/StudentsTab.tsx",
-    "line": 117,
-    "text": "<option value=\"\">目标班</option>"
-  },
-  {
-    "file": "pages/Classes/components/StudentsTab.tsx",
-    "line": 130,
-    "text": "{transferring === s.name ? '...' : '转班'}"
-  },
-  {
-    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 93,
-    "text": "{c.riskDistribution.极高}"
-  },
-  {
-    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 96,
-    "text": "{c.riskDistribution.高}"
-  },
-  {
-    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 99,
-    "text": "{c.riskDistribution.中}"
-  },
-  {
-    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 102,
-    "text": "{c.riskDistribution.低}"
-  },
-  {
-    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 169,
-    "text": "<span className=\"font-mono text-red-500\">{d.riskDistribution.极高}</span>"
-  },
-  {
-    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 172,
-    "text": "<span>高</span>"
-  },
-  {
-    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 173,
-    "text": "<span className=\"font-mono text-orange-500\">{d.riskDistribution.高}</span>"
-  },
-  {
-    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 176,
-    "text": "<span>中</span>"
-  },
-  {
-    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 177,
-    "text": "<span className=\"font-mono text-yellow-500\">{d.riskDistribution.中}</span>"
-  },
-  {
-    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 180,
-    "text": "<span>低</span>"
-  },
-  {
-    "file": "pages/Dashboard/components/ClassComparisonPanel.tsx",
-    "line": 181,
-    "text": "<span className=\"font-mono text-green-500\">{d.riskDistribution.低}</span>"
-  },
-  {
-    "file": "pages/Dashboard/components/DashboardStatsRow.tsx",
-    "line": 32,
-    "text": "title={isAllClasses ? t('page.dashboard.stat.students') : '班级学生'}"
-  },
-  {
-    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
-    "line": 33,
-    "text": "title=\"按班级筛选数据\""
-  },
-  {
-    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
-    "line": 34,
-    "text": "aria-label=\"按班级筛选数据\""
-  },
-  {
-    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
-    "line": 36,
-    "text": "<option value=\"__ALL__\">全部班级</option>"
-  },
-  {
-    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
-    "line": 37,
-    "text": "<option value=\"__NONE__\">未分班</option>"
-  },
-  {
-    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
-    "line": 49,
-    "text": "title=\"班级对比模式\""
-  },
-  {
-    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
-    "line": 50,
-    "text": "aria-label=\"班级对比模式\""
-  },
-  {
-    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
-    "line": 52,
-    "text": "班级对比"
-  },
-  {
-    "file": "pages/Dashboard/components/DashboardToolbar.tsx",
-    "line": 54,
-    "text": "<button type=\"button\" onClick={onRefresh} className={btnStyle('ghost')} aria-label=\"刷新数据\">"
   },
   {
     "file": "pages/Dashboard/components/MaintenanceActionsCard.tsx",
@@ -270,128 +120,13 @@
     "text": "<EmptyState icon={<Calendar size={28} />} title=\"暂无数据\" className=\"py-6\" />"
   },
   {
-    "file": "pages/Dashboard/components/RankingCard.tsx",
-    "line": 31,
-    "text": "<EmptyState icon={<Trophy size={28} />} title=\"暂无排行数据\" className=\"py-6\" />"
-  },
-  {
     "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 13,
-    "text": "SPEAK_IN_CLASS: '课堂讲话',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 14,
-    "text": "SLEEP_IN_CLASS: '课堂睡觉',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 15,
-    "text": "LATE: '迟到',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 16,
-    "text": "SCHOOL_CAUGHT: '学校抓拍违纪',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 17,
-    "text": "MAKEUP: '补差扣分',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 18,
-    "text": "DESK_UNALIGNED: '桌椅不整齐',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 19,
-    "text": "PHONE_IN_CLASS: '手机违纪',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 20,
-    "text": "SMOKING: '抽烟',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 21,
-    "text": "DRINKING_DORM: '寝室饮酒',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 22,
-    "text": "OTHER_DEDUCT: '其他扣分',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 23,
-    "text": "APPEARANCE_VIOLATION: '仪容仪表违纪',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 24,
-    "text": "BONUS_VARIABLE: '学业奖励(变量)',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 25,
-    "text": "ACTIVITY_PARTICIPATION: '活动参与加分',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 26,
-    "text": "CLASS_MONITOR: '班长履职加分',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 27,
-    "text": "CLASS_COMMITTEE: '班委履职加分',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 28,
-    "text": "CIVILIZED_DORM: '文明寝室',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 29,
-    "text": "MONTHLY_ATTENDANCE: '月勤奖励',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 30,
-    "text": "REVERT: '撤销(自动计算)',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 31,
-    "text": "LAB_EQUIPMENT_DAMAGE: '实验室设备损坏',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 32,
-    "text": "LAB_SAFETY_VIOLATION: '实验室安全违规',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 33,
-    "text": "LAB_UNSAFE_BEHAVIOR: '实验室不安全行为',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 34,
-    "text": "LAB_CLEAN_UP: '实验室未清理',"
-  },
-  {
-    "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 77,
+    "line": 57,
     "text": "{(REASON_CODE_LABELS[item.code || ''] ?? item.code) || '未知'}"
   },
   {
     "file": "pages/Dashboard/components/ReasonDistCard.tsx",
-    "line": 92,
+    "line": 72,
     "text": ")) ?? <EmptyState icon={<ClipboardList size={28} />} title=\"暂无数据\" className=\"py-6\" />}"
   },
   {
@@ -435,51 +170,6 @@
     "text": ": label.includes('中')"
   },
   {
-    "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 54,
-    "text": "{serveRunning ? '运行中' : available ? '已安装(未运行)' : '未安装'}"
-  },
-  {
-    "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 62,
-    "text": "停止"
-  },
-  {
-    "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 71,
-    "text": "启动"
-  },
-  {
-    "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 84,
-    "text": "本地模型功能需要先安装 Ollama（免费、开源）:"
-  },
-  {
-    "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 87,
-    "text": "访问{' '}"
-  },
-  {
-    "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 96,
-    "text": "下载安装(Windows 版约 500MB)"
-  },
-  {
-    "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 106,
-    "text": "推荐模型（中文友好 · CPU 优化）"
-  },
-  {
-    "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 134,
-    "text": "本地模型在 CPU 上运行,不消耗网络流量,数据完全本地化。首次下载需联网,之后离线可用。"
-  },
-  {
-    "file": "pages/Models/LocalModelsSection.tsx",
-    "line": 135,
-    "text": "对话时在 Agent 设置里选择 ollama provider 即可。"
-  },
-  {
     "file": "pages/Models/ModelsPage.tsx",
     "line": 86,
     "text": "placeholder=\"搜索 Provider...\""
@@ -506,418 +196,43 @@
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 80,
-    "text": "setSaveToastAuto('已保存', 2000)"
-  },
-  {
-    "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 83,
-    "text": "setSaveToastAuto('保存失败', 3000)"
-  },
-  {
-    "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 84,
-    "text": "toast.error(`保存设置失败: ${path}`)"
-  },
-  {
-    "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 159,
-    "text": "saveToast === '已保存'"
-  },
-  {
-    "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 195,
-    "text": "{isLoadingModels ? '加载模型中...' : `${currentModels.length} 个模型可用`}"
-  },
-  {
-    "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 204,
-    "text": "{refreshing || isLoadingModels ? '刷新中...' : '刷新模型列表'}"
-  },
-  {
-    "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 273,
+    "line": 283,
     "text": "输入 {formatCost(modelInfo.costPerInputToken)} / 输出{' '}"
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 285,
+    "line": 295,
     "text": "<option value=\"\">请选择...</option>"
   },
   {
     "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 288,
+    "line": 298,
     "text": "{m.name} (输入 {formatCost(m.costPerInputToken)} / 输出{' '}"
   },
   {
-    "file": "pages/Models/components/DefaultModelConfig.tsx",
-    "line": 296,
-    "text": "<span className=\"text-xs text-gray-500 dark:text-gray-500\">或输入自定义模型 ID</span>"
-  },
-  {
-    "file": "pages/Models/components/HiddenProviderList.tsx",
-    "line": 18,
-    "text": "已隐藏 ({providers.length})"
-  },
-  {
-    "file": "pages/Models/components/HiddenProviderList.tsx",
-    "line": 35,
-    "text": "aria-label=\"取消隐藏\""
-  },
-  {
-    "file": "pages/Models/components/HiddenProviderList.tsx",
-    "line": 38,
-    "text": "取消隐藏"
-  },
-  {
-    "file": "pages/Models/components/InstalledModelList.tsx",
-    "line": 18,
-    "text": "已安装模型（{installed.length}）"
-  },
-  {
-    "file": "pages/Models/components/InstalledModelList.tsx",
-    "line": 40,
-    "text": "删除"
-  },
-  {
     "file": "pages/Models/components/ModelRow.tsx",
-    "line": 54,
-    "text": "自定义"
-  },
-  {
-    "file": "pages/Models/components/ModelRow.tsx",
-    "line": 124,
-    "text": "保存"
-  },
-  {
-    "file": "pages/Models/components/ModelRow.tsx",
-    "line": 131,
-    "text": "取消"
-  },
-  {
-    "file": "pages/Models/components/ModelRow.tsx",
-    "line": 147,
-    "text": "placeholder=\"留空使用 Provider 默认值\""
-  },
-  {
-    "file": "pages/Models/components/ModelRow.tsx",
-    "line": 165,
-    "text": "自定义"
-  },
-  {
-    "file": "pages/Models/components/ModelRow.tsx",
-    "line": 188,
-    "text": "<span className=\"text-blue-500 dark:text-blue-400\" title=\"支持推理\">"
-  },
-  {
-    "file": "pages/Models/components/ModelRow.tsx",
-    "line": 204,
-    "text": "title=\"编辑属性\""
-  },
-  {
-    "file": "pages/Models/components/ModelRow.tsx",
-    "line": 206,
-    "text": "编辑"
-  },
-  {
-    "file": "pages/Models/components/ModelRow.tsx",
-    "line": 214,
-    "text": "title=\"删除\""
-  },
-  {
-    "file": "pages/Models/components/ModelRow.tsx",
-    "line": 216,
-    "text": "删除"
+    "line": 12,
+    "text": "if (costPerToken === 0) return tf('page.models.freeCost', '免费')"
   },
   {
     "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 87,
-    "text": "已配置"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 92,
-    "text": "含免费模型"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 97,
-    "text": "<span className=\"text-xs text-gray-500 dark:text-gray-400\">{p.modelCount} 个模型</span>"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 104,
-    "text": "aria-label={expanded ? '收起' : '展开'}"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 106,
-    "text": "<title>{expanded ? '收起' : '展开'}</title>"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 124,
-    "text": "输入 API Key 后点击测试连接。密钥加密存储在本地。"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 132,
-    "text": "placeholder={p.hasApiKey ? '已保存（输入新值覆盖）' : '输入 API Key...'}"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 140,
-    "text": "测试连接"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 148,
-    "text": "删除"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 156,
-    "text": "title=\"打开 provider 的 API Key 管理页面\""
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 158,
-    "text": "OAuth 登录"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 165,
+    "line": 175,
     "text": "testResult.includes('成功') || testResult.includes('已删除')"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 186,
-    "text": "刷新模型列表"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 195,
-    "text": "隐藏此Provider"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 207,
-    "text": "<div className=\"text-xs text-gray-500 dark:text-gray-400 font-medium\">模型列表</div>"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 210,
-    "text": "加载模型中..."
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 213,
-    "text": "<EmptyState icon=\"📦\" title=\"暂无模型\" className=\"py-3\" />"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 219,
-    "text": "<th className=\"text-left px-3 py-2 font-medium\">模型</th>"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 221,
-    "text": "<th className=\"text-right px-3 py-2 font-medium\">上下文</th>"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 222,
-    "text": "<th className=\"text-right px-3 py-2 font-medium\">最大输出</th>"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 223,
-    "text": "<th className=\"text-right px-3 py-2 font-medium\">输入成本</th>"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 224,
-    "text": "<th className=\"text-right px-3 py-2 font-medium\">输出成本</th>"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 225,
-    "text": "<th className=\"text-center px-3 py-2 font-medium\">推理</th>"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 227,
-    "text": "<th className=\"text-center px-3 py-2 font-medium w-20\">操作</th>"
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 298,
-    "text": "placeholder=\"输入自定义模型 ID...\""
-  },
-  {
-    "file": "pages/Models/components/ProviderCard.tsx",
-    "line": 311,
-    "text": "添加模型"
-  },
-  {
-    "file": "pages/Models/components/RecommendedModelCard.tsx",
-    "line": 44,
-    "text": "m.tier === 'GPU/大内存'"
   },
   {
     "file": "pages/Models/components/RecommendedModelCard.tsx",
     "line": 46,
+    "text": "m.tier === 'GPU/大内存'"
+  },
+  {
+    "file": "pages/Models/components/RecommendedModelCard.tsx",
+    "line": 48,
     "text": ": m.tier === 'CPU进阶'"
   },
   {
     "file": "pages/Models/components/RecommendedModelCard.tsx",
-    "line": 55,
+    "line": 57,
     "text": "m.chineseLevel === '优秀'"
-  },
-  {
-    "file": "pages/Models/components/RecommendedModelCard.tsx",
-    "line": 60,
-    "text": "中文{m.chineseLevel}"
-  },
-  {
-    "file": "pages/Models/components/RecommendedModelCard.tsx",
-    "line": 65,
-    "text": "✓ 已安装"
-  },
-  {
-    "file": "pages/Models/components/RecommendedModelCard.tsx",
-    "line": 76,
-    "text": "下载"
-  },
-  {
-    "file": "pages/Models/components/RecommendedModelCard.tsx",
-    "line": 97,
-    "text": "{expandedManual === m.tag ? '收起' : '手动下载'}"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 33,
-    "text": "<h2 className=\"font-semibold\">添加实体</h2>"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 37,
-    "text": "aria-label={showAddForm ? '取消添加实体' : '添加实体'}"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 40,
-    "text": "{showAddForm ? '取消' : '+ 添加实体'}"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 50,
-    "text": "实体类型"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 58,
-    "text": "<option value=\"person\">人物 (学生/教师/家长)</option>"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 59,
-    "text": "<option value=\"student_id\">学号</option>"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 60,
-    "text": "<option value=\"id_card\">身份证号</option>"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 61,
-    "text": "<option value=\"phone\">电话</option>"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 62,
-    "text": "<option value=\"email\">邮箱</option>"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 63,
-    "text": "<option value=\"place\">地点</option>"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 64,
-    "text": "<option value=\"org\">组织 (学校/班级)</option>"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 72,
-    "text": "实体名称 (必填)"
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 79,
-    "text": "placeholder=\"输入实体名称 (如:张三)...\""
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 90,
-    "text": "aria-label=\"确认添加实体\""
-  },
-  {
-    "file": "pages/Privacy/components/AddEntityCard.tsx",
-    "line": 93,
-    "text": "{adding ? '添加中...' : '确认添加'}"
-  },
-  {
-    "file": "pages/Privacy/components/MappingTableCard.tsx",
-    "line": 17,
-    "text": "<h2 className=\"font-semibold mb-3\">映射表</h2>"
-  },
-  {
-    "file": "pages/Privacy/components/MappingTableCard.tsx",
-    "line": 22,
-    "text": "<th className={TABLE_TH}>类型</th>"
-  },
-  {
-    "file": "pages/Privacy/components/MappingTableCard.tsx",
-    "line": 23,
-    "text": "<th className={TABLE_TH}>化名</th>"
-  },
-  {
-    "file": "pages/Privacy/components/MappingTableCard.tsx",
-    "line": 24,
-    "text": "<th className={TABLE_TH}>真名</th>"
-  },
-  {
-    "file": "pages/Privacy/components/MappingTableCard.tsx",
-    "line": 43,
-    "text": "显示前 50 条，共 {mappings.length} 条"
-  },
-  {
-    "file": "pages/Privacy/components/PrivacyInitCard.tsx",
-    "line": 21,
-    "text": "设置一个加密密码来保护学生隐私数据。初始化后，所有敏感信息将自动脱敏处理。"
-  },
-  {
-    "file": "pages/Privacy/components/PrivacyInitCard.tsx",
-    "line": 22,
-    "text": "密码仅在本次传输,主进程在内存中保留,关闭软件或点击\"锁定\"后将清空。"
-  },
-  {
-    "file": "pages/Privacy/components/PrivacyInitCard.tsx",
-    "line": 29,
-    "text": "placeholder=\"设置隐私密码（至少 4 位）...\""
-  },
-  {
-    "file": "pages/Privacy/components/PrivacyInitCard.tsx",
-    "line": 39,
-    "text": "aria-label=\"初始化隐私引擎\""
-  },
-  {
-    "file": "pages/Privacy/components/PrivacyInitCard.tsx",
-    "line": 42,
-    "text": "初始化"
   },
   {
     "file": "pages/Privacy/components/PrivacyLoadCard.tsx",
@@ -955,38 +270,18 @@
     "text": "已加载 {mappingsCount} 条映射记录"
   },
   {
-    "file": "pages/Privacy/components/PrivacyPreviewCard.tsx",
-    "line": 24,
-    "text": "<h2 className=\"font-semibold mb-3\">脱敏预览</h2>"
-  },
-  {
-    "file": "pages/Privacy/components/PrivacyPreviewCard.tsx",
-    "line": 28,
-    "text": "placeholder=\"输入包含学生姓名的文本，查看脱敏效果...\""
-  },
-  {
-    "file": "pages/Privacy/components/PrivacyPreviewCard.tsx",
-    "line": 35,
-    "text": "aria-label=\"测试脱敏\""
-  },
-  {
-    "file": "pages/Privacy/components/PrivacyPreviewCard.tsx",
-    "line": 38,
-    "text": "测试脱敏"
-  },
-  {
     "file": "pages/Reports/ReportsPage.tsx",
     "line": 41,
     "text": "'AI 生成的周报、风险汇总与谈话计划产物(每周五自动生成,可一键补跑)',"
   },
   {
     "file": "pages/Reports/ReportsPage.tsx",
-    "line": 89,
+    "line": 93,
     "text": "'点击右上角\"立即生成周报\",或等待周五定时任务自动产出。',"
   },
   {
     "file": "pages/Reports/ReportsPage.tsx",
-    "line": 133,
+    "line": 137,
     "text": "'报告产物支持 Markdown/JSON/文本,可直接阅读或复制。',"
   },
   {
@@ -1005,94 +300,14 @@
     "text": "'点击「新增任务」或在 Agent 配置中设置 schedule',"
   },
   {
-    "file": "pages/Scheduler/components/ExecutionLogPanel.tsx",
-    "line": 23,
-    "text": "{selectedTaskId ? '任务执行日志' : '全部执行日志'}"
-  },
-  {
-    "file": "pages/Scheduler/components/ExecutionLogPanel.tsx",
-    "line": 28,
-    "text": "<EmptyState icon={<ClipboardList size={28} />} title=\"暂无日志\" className=\"py-4\" />"
-  },
-  {
     "file": "pages/Scheduler/components/LogEntry.tsx",
     "line": 30,
     "text": "<span className=\"text-green-500 dark:text-green-400 flex-shrink-0\" title=\"执行成功\">"
   },
   {
     "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 82,
-    "text": "toast.error(`Cron 表达式无效: ${cronValidation.error ?? ''}`)"
-  },
-  {
-    "file": "pages/Scheduler/components/NewTaskForm.tsx",
     "line": 110,
     "text": "isEditing ? '编辑定时任务' : '新建定时任务',"
-  },
-  {
-    "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 121,
-    "text": "任务名称"
-  },
-  {
-    "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 163,
-    "text": "Cron 表达式"
-  },
-  {
-    "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 193,
-    "text": "{isCronValid ? '✓ 表达式有效' : `✗ ${cronValidation.error ?? '无效'}`}"
-  },
-  {
-    "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 199,
-    "text": "<span className=\"text-xs text-gray-400 dark:text-gray-500 block mb-1\">模型</span>"
-  },
-  {
-    "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 213,
-    "text": "低成本"
-  },
-  {
-    "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 223,
-    "text": "高质量"
-  },
-  {
-    "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 235,
-    "text": "执行指令"
-  },
-  {
-    "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 250,
-    "text": "取消"
-  },
-  {
-    "file": "pages/Scheduler/components/NewTaskForm.tsx",
-    "line": 260,
-    "text": "{isEditing ? '保存' : '创建'}"
-  },
-  {
-    "file": "pages/Scheduler/components/TaskCard.tsx",
-    "line": 70,
-    "text": "自动"
-  },
-  {
-    "file": "pages/Scheduler/components/TaskCard.tsx",
-    "line": 105,
-    "text": "执行"
-  },
-  {
-    "file": "pages/Scheduler/components/TaskCard.tsx",
-    "line": 116,
-    "text": "编辑"
-  },
-  {
-    "file": "pages/Scheduler/components/TaskCard.tsx",
-    "line": 128,
-    "text": "删除"
   },
   {
     "file": "pages/Settings/components/BitableAdvancedSection.tsx",
@@ -1111,7 +326,7 @@
   },
   {
     "file": "pages/Settings/components/BitableAdvancedSection.tsx",
-    "line": 142,
+    "line": 138,
     "text": "'自动同步的时间间隔，支持 cron 表达式（如 0 */6 * * *）或分钟数',"
   },
   {
@@ -1201,17 +416,17 @@
   },
   {
     "file": "pages/Settings/sections/ChatSection.tsx",
-    "line": 26,
+    "line": 25,
     "text": "'单次对话上下文窗口大小,数值越大支持的上下文越长',"
   },
   {
     "file": "pages/Settings/sections/ChatSection.tsx",
-    "line": 74,
+    "line": 61,
     "text": "'压缩时强制保留的最近消息 token 数',"
   },
   {
     "file": "pages/Settings/sections/ChatSection.tsx",
-    "line": 136,
+    "line": 109,
     "text": "'全量记录聊天流事件到 logs/chat-YYYY-MM-DD.log,含 in/out/event 三个方向',"
   },
   {
@@ -1246,57 +461,57 @@
   },
   {
     "file": "pages/Settings/sections/DiagnosticSection.tsx",
-    "line": 52,
+    "line": 81,
     "text": "'检查 EAA 引擎运行环境、数据完整性、配置正确性',"
   },
   {
     "file": "pages/Settings/sections/FeishuSection.tsx",
-    "line": 98,
+    "line": 104,
     "text": "'飞书开放平台应用 ID,以 cli_ 开头。填写并保存后自动连接。',"
   },
   {
     "file": "pages/Settings/sections/FeishuSection.tsx",
-    "line": 119,
+    "line": 125,
     "text": "'飞书应用密钥,加密保存到本地 keystore,不外泄。保存后自动连接。',"
   },
   {
     "file": "pages/Settings/sections/GeneralSection.tsx",
-    "line": 133,
+    "line": 140,
     "text": "'界面语言,useT hook 自动响应切换 (部分静态文案需重启)',"
   },
   {
     "file": "pages/Settings/sections/GeneralSection.tsx",
-    "line": 166,
+    "line": 167,
     "text": "'cron 定时任务的调度时区,影响每日重置/定时报告的触发时间',"
   },
   {
     "file": "pages/Settings/sections/GeneralSection.tsx",
-    "line": 241,
+    "line": 234,
     "text": "'单个 Agent 任务最长执行时间(分钟),超时自动中止;-1 表示不限',"
   },
   {
     "file": "pages/Settings/sections/GeneralSection.tsx",
-    "line": 267,
+    "line": 250,
     "text": "'cron 定时任务同时运行的最大数量,超过则排队等待',"
   },
   {
     "file": "pages/Settings/sections/GeneralSection.tsx",
-    "line": 293,
+    "line": 265,
     "text": "'控制主进程和渲染进程的日志输出详细程度(5 档)',"
   },
   {
     "file": "pages/Settings/sections/GeneralSection.tsx",
-    "line": 326,
+    "line": 291,
     "text": "'GitHub 仓库地址，用于检查更新（如 https://github.com/owner/repo）',"
   },
   {
     "file": "pages/Settings/sections/GeneralSection.tsx",
-    "line": 389,
+    "line": 351,
     "text": "'便携版不支持自动安装,请下载后手动替换',"
   },
   {
     "file": "pages/Settings/sections/LogSection.tsx",
-    "line": 77,
+    "line": 58,
     "text": "'实时查看 logs/ 目录下的 main / chat / renderer 三类日志,按日期分割',"
   },
   {
@@ -1331,7 +546,7 @@
   },
   {
     "file": "pages/Students/tabs/AcademicsTab.tsx",
-    "line": 185,
+    "line": 122,
     "text": "'请到「学业」页面录入考试成绩,数据将自动同步至此',"
   },
   {
@@ -1368,31 +583,6 @@
     "file": "components/ConfirmDialog.tsx",
     "line": 34,
     "text": "cancelText = '取消',"
-  },
-  {
-    "file": "components/ModelSelector.tsx",
-    "line": 127,
-    "text": "toast.error('加载 Provider 列表失败')"
-  },
-  {
-    "file": "components/ModelSelector.tsx",
-    "line": 171,
-    "text": "aria-label=\"模型\""
-  },
-  {
-    "file": "components/ModelSelector.tsx",
-    "line": 173,
-    "text": "<title>模型</title>"
-  },
-  {
-    "file": "components/ModelSelector.tsx",
-    "line": 229,
-    "text": "{p.modelCount} models{!p.hasApiKey ? ' · 未配置' : ''}"
-  },
-  {
-    "file": "components/ModelSelector.tsx",
-    "line": 242,
-    "text": "加载中..."
   },
   {
     "file": "components/ToastContainer.tsx",
@@ -1436,27 +626,27 @@
   },
   {
     "file": "components/print/ParentReportDocument.tsx",
-    "line": 51,
+    "line": 38,
     "text": "? `${profileData.parentName.trim()}家长`"
   },
   {
     "file": "components/print/ParentReportDocument.tsx",
-    "line": 80,
+    "line": 67,
     "text": "'，您好！感谢您一直以来对孩子教育的支持与配合。以下是孩子近期的在校表现情况，供您了解，也期待家校携手，共同陪伴孩子成长。',"
   },
   {
     "file": "components/print/ParentReportDocument.tsx",
-    "line": 127,
+    "line": 114,
     "text": "'本阶段暂无特别记录，欢迎家长多与孩子交流在校生活。',"
   },
   {
     "file": "components/print/ParentReportDocument.tsx",
-    "line": 217,
+    "line": 204,
     "text": "'每天抽出 10-15 分钟与孩子聊聊在校生活，倾听比说教更有效。',"
   },
   {
     "file": "components/print/ParentReportDocument.tsx",
-    "line": 226,
+    "line": 213,
     "text": "'对需要关注的方面，请与老师保持沟通，家校口径一致、共同引导。',"
   },
   {
