@@ -107,6 +107,35 @@ describe('i18n', () => {
       setLang('en')
       expect(getLang()).toBe('en')
     })
+
+    it('healLangFromStorage — storage 晚就绪时自愈 boot 语言(竞态修复)', async () => {
+      const { healLangFromStorage } = await import('../index')
+      // 现场: boot 时读到旧值锁 zh,但 storage 实际偏好是 en
+      setLang('zh')
+      mockLocalStorage.setItem('education-advisor.lang', 'en')
+      healLangFromStorage()
+      expect(getLang()).toBe('en')
+      // 自愈走 setLang 语义: 偏好回写 + html lang 同步
+      expect(mockLocalStorage.setItem).toHaveBeenLastCalledWith('education-advisor.lang', 'en')
+    })
+
+    it('healLangFromStorage — 哨兵幂等,自愈后再次漂移不再纠正', async () => {
+      const { healLangFromStorage } = await import('../index')
+      setLang('en')
+      healLangFromStorage() // 首次调用消耗哨兵(storage=en 与 currentLang 一致,无操作)
+      setLang('zh') // 模拟此后被改回 zh
+      mockLocalStorage.setItem('education-advisor.lang', 'en')
+      healLangFromStorage()
+      expect(getLang()).toBe('zh') // 哨兵已耗尽,不再自愈
+    })
+
+    it('healLangFromStorage — storage 无有效值时不动', async () => {
+      const { healLangFromStorage } = await import('../index')
+      setLang('zh')
+      mockLocalStorage.clear()
+      healLangFromStorage()
+      expect(getLang()).toBe('zh')
+    })
   })
 
   describe('useT hook', () => {
