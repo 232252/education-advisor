@@ -59,7 +59,6 @@ describe('agentStore status listener (fix double-subscription invariant)', () =>
           getRules: vi.fn().mockResolvedValue(''),
           setRules: vi.fn().mockResolvedValue({ success: true }),
           runManual: vi.fn().mockResolvedValue({ success: true }),
-          getHistory: vi.fn().mockResolvedValue([]),
           abort: vi.fn().mockResolvedValue({ success: true }),
         },
         settings: {

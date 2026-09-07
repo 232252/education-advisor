@@ -1,13 +1,13 @@
 // =============================================================
 // IPC 客户端封装 — 类型安全的 window.api 调用
-// 按域拆分至 ./ipc/ 目录,此处保留聚合入口:
+// 域接口类型单一来源在 @shared/api(经 ./window-api 聚合):
 //   getAPI / getErrorMessage 既有导出签名不变
 // =============================================================
 
 import { translateEaaError } from './eaa-error-messages'
-import type { WindowAPI } from './ipc/window-api'
+import type { WindowAPI } from './window-api'
 
-export type { WindowAPI } from './ipc/window-api'
+export type { WindowAPI } from './window-api'
 
 /** 获取 API 客户端（带安全检查） */
 export function getAPI(): WindowAPI {
