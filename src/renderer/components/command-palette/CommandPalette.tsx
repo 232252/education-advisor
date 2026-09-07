@@ -66,20 +66,6 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  // ── Ctrl+K / Cmd+K 全局开关(capture 阶段,输入框聚焦时也生效) ──
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const mod = e.ctrlKey || e.metaKey
-      if (mod && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault()
-        e.stopPropagation()
-        usePaletteStore.getState().toggle()
-      }
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [])
-
   // ── 打开面板: 加载数据(60s 缓存) + 聚焦输入框 ──
   const loadData = useCallback(async () => {
     if (cache && Date.now() - cache.at < DATA_TTL_MS) return
