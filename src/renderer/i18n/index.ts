@@ -148,9 +148,14 @@ export function useT(): { t: (key: string, fallback?: string) => string; lang: L
     const handler = (e: Event) => {
       const next = (e as CustomEvent).detail as Lang
       if (next === 'zh' || next === 'en') {
-        // 防御性同步: 确保事件触发(即使不经 setLang)时模块级 currentLang 也更新
-        // 否则 t() 闭包会读取旧 currentLang, 导致切换后内容不变
-        currentLang = next
+        // 事件与模块态不一致 → 走 setLang 规范通道(先 ensureDict 再翻转+再广播)。
+        // 懒字典下直接翻 currentLang 会让 t() 落在未加载字典上(裸 key/整页 fallback) —
+        // 外到场切换(setItem+裸事件,如审计脚本)依赖本防护。再广播到达时
+        // currentLang === next,落入下方同步路径,无环。
+        if (currentLang !== next) {
+          void setLang(next)
+          return
+        }
         // 同步 <html lang> 属性, 与 setLang()/initHtmlLang() 保持一致
         // (zh -> "zh-CN", en -> "en" 保持 BCP47 合规)
         if (typeof document !== 'undefined') {
