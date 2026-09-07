@@ -93,7 +93,7 @@ export function SettingsPage() {
       try {
         setSaving(true)
         await getAPI().settings.set(path, value)
-        setSettings((prev) => (prev ? { ...prev, ...deepSet(prev, path, value) } : prev))
+        setSettings((prev) => (prev ? deepSet(prev, path, value) : prev))
       } catch (err) {
         console.error('[Settings] Failed to save:', err)
         toast.error(`${t('settings.save.failed')}: ${path}`)
@@ -230,7 +230,7 @@ export function SettingsPage() {
 }
 
 // 深路径设置工具:set({a:{b:{c:1}}}, 'a.b.c', 2) => {a:{b:{c:2}}}
-function deepSet(obj: object, path: string, value: unknown): object {
+function deepSet<T extends object>(obj: T, path: string, value: unknown): T {
   const keys = path.split('.')
   const result: Record<string, unknown> = { ...(obj as Record<string, unknown>) }
   let current: Record<string, unknown> = result
@@ -241,5 +241,5 @@ function deepSet(obj: object, path: string, value: unknown): object {
     current = current[k] as Record<string, unknown>
   }
   current[keys[keys.length - 1]] = value
-  return result
+  return result as T
 }
