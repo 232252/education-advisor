@@ -38,7 +38,11 @@ export function handleIpc<A extends unknown[]>(
       },
 ): void {
   ipcMain.handle(channel, async (event: IpcMainInvokeEvent, ...args: A) => {
-    const stop = opts && typeof opts !== 'function' && opts.timer ? startIpcTimer(opts.timer) : null
+    // 全量计时: opts.timer 缺省用通道名。慢调用(>slowThresholdMs)在
+    // 任意环境可见(debug.ipc 仅控制常规逐调用日志),无需逐 handler 显式接 timer
+    const stop = startIpcTimer(
+      opts && typeof opts !== 'function' && opts.timer ? opts.timer : channel,
+    )
     try {
       return await fn(event, ...args)
     } catch (err: unknown) {
