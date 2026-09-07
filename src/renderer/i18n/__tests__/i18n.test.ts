@@ -146,14 +146,15 @@ describe('i18n', () => {
         vi.resetModules()
         const mod = await import('../index')
         await mod.setLang('zh')
-        // 模拟: boot 后 1.2s 刷盘完成,storage 显示真实偏好 en
+        // 模拟: boot 后 storage 刷盘完成,显示真实偏好 en
         mockLocalStorage.setItem('education-advisor.lang', 'en')
         mod.startHealWatcher()
-        await vi.advanceTimersByTimeAsync(500)
-        // 模拟 1.2s 时刻刷盘(前两轮 poll 时 storage 仍是旧值 zh 的场景:
-        // watcher 每次都会 setLang(zh),等价 no-op)
-        mockLocalStorage.setItem('education-advisor.lang', 'en')
-        await vi.advanceTimersByTimeAsync(1500)
+        // 有界逐轮推进: 自愈是 fire-and-forget 异步(healLangFromStorage 内部
+        // 含动态导入的字典加载),单次 advance 不能保证其内部 await 排空完成 —
+        // 按真实轮询粒度推进直到自愈落地(10s 窗口内必有 500ms 整数倍命中)
+        for (let i = 0; i < 20 && mod.getLang() !== 'en'; i++) {
+          await vi.advanceTimersByTimeAsync(500)
+        }
         expect(mod.getLang()).toBe('en')
       } finally {
         vi.useRealTimers()
