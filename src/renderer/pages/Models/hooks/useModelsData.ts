@@ -201,12 +201,12 @@ export function useModelsData() {
 
   // 隐藏/取消隐藏 Provider
   const handleHideProvider = useCallback(
-    (providerId: string) => mutateBlacklist(providerId, true, `已隐藏 ${providerId}`, '隐藏失败'),
+    (providerId: string) => mutateBlacklist(providerId, true, tr('models.hidden', { id: providerId }), tr('models.hideFailed', {})),
     [mutateBlacklist],
   )
   const handleUnhideProvider = useCallback(
     (providerId: string) =>
-      mutateBlacklist(providerId, false, `已取消隐藏 ${providerId}`, '取消隐藏失败'),
+      mutateBlacklist(providerId, false, tr('models.unhidden', { id: providerId }), tr('models.unhideFailed', {})),
     [mutateBlacklist],
   )
 
@@ -235,13 +235,13 @@ export function useModelsData() {
           ...updates,
         })
         if (result.success) {
-          toast.success(`已更新模型 ${modelId}`)
+          toast.success(tr('models.toast.modelUpdated', { model: modelId }))
           await invalidateAndRefresh(providerId)
         } else {
-          toast.error(`更新模型 ${modelId} 失败`)
+          toast.error(tr('models.toast.modelUpdateFailed', { model: modelId }))
         }
       } catch (err) {
-        toast.error(`更新模型失败: ${err}`)
+        toast.error(tr('models.toast.modelUpdateError', { err: errText(err) }))
       }
     },
     [invalidateAndRefresh],
@@ -252,10 +252,10 @@ export function useModelsData() {
     async (providerId: string, modelId: string) => {
       try {
         await getAPI().ai.deleteCustomModel(providerId, modelId)
-        toast.success(`已删除模型 ${modelId}`)
+        toast.success(tr('models.toast.modelDeleted', { model: modelId }))
         await invalidateAndRefresh(providerId)
       } catch (err) {
-        toast.error(`删除模型失败: ${err}`)
+        toast.error(tr('models.toast.modelDeleteFailed', { err: errText(err) }))
       }
     },
     [invalidateAndRefresh],

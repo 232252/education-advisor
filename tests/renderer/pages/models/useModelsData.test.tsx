@@ -437,7 +437,7 @@ describe('useModelsData', () => {
         await result.current.handleUpdateCustomModel('openai', 'my-model', { name: 'New' })
       })
 
-      expect(toastMocks.error).toHaveBeenCalledWith('更新模型失败: Error: x')
+      expect(toastMocks.error).toHaveBeenCalledWith('更新模型失败: x')
     })
 
     it('handleDeleteCustomModel 成功: toast.success 并刷新', async () => {
@@ -460,7 +460,7 @@ describe('useModelsData', () => {
         await result.current.handleDeleteCustomModel('openai', 'my-model')
       })
 
-      expect(toastMocks.error).toHaveBeenCalledWith('删除模型失败: Error: x')
+      expect(toastMocks.error).toHaveBeenCalledWith('删除模型失败: x')
     })
   })
 

@@ -4,6 +4,7 @@
 // 产得出但没有任何 UI 入口(renderer 全仓 grep agent_outputs = 0)
 // =============================================================
 
+import { tr } from '../../../i18n'
 import type { ReportEntry } from '@shared/types/reports'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useIpcQuery } from '../../../hooks/useIpcQuery'
@@ -37,7 +38,7 @@ export function useReportsData() {
   } = useIpcQuery<ReportEntry[]>(
     async () => {
       const r = await getAPI().reports.list()
-      if (!r.success) throw new Error(r.error ?? '加载失败')
+      if (!r.success) throw new Error(r.error ?? tr('reports.loadFailed', {}))
       return r.entries
     },
     {
@@ -63,10 +64,10 @@ export function useReportsData() {
       if (r.success && r.content !== undefined) {
         setContent(r.content)
       } else {
-        setContent(`读取失败: ${r.error ?? '未知错误'}`)
+        setContent(tr('reports.readFailed', { err: r.error ?? tr('reports.unknownError', {}) }))
       }
     } catch (err) {
-      setContent(`读取异常: ${errText(err)}`)
+      setContent(tr('reports.readError', { err: errText(err) }))
     } finally {
       setContentLoading(false)
     }
