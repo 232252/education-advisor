@@ -5,7 +5,7 @@
 
 import type { OllamaModelInfo, OllamaPullProgressInfo, OllamaStatusInfo } from '@shared/types'
 import { useCallback, useEffect, useState } from 'react'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { errText, getAPI } from '../../../lib/ipc-client'
 import { runIpcMutation } from '../../../lib/mutation'
 import { toast } from '../../../stores/toastStore'
@@ -63,12 +63,12 @@ export function useLocalModels() {
     setPulling(tag)
     setProgress({ model: tag, status: 'starting' })
     return runIpcMutation(() => getAPI().ollama.pullModel(tag), {
-      failMsg: (r) => `下载失败: ${r.error}`,
+      failMsg: (r) => tr('models.local.downloadFailed', { err: r.error ?? '' }),
       onOk: async () => {
-        toast.success(`${tag} 下载完成`)
+        toast.success(tr('models.local.downloadDone', { tag }))
         await refresh()
       },
-      catchMsg: (err) => `下载异常: ${errText(err)}`,
+      catchMsg: (err) => tr('models.local.downloadError', { err: errText(err) }),
       catchLog: '[useLocalModels] pullModel failed:',
       // busy 孪生只有复位段: 置位段由上方 setPulling/setProgress 定制值完成
       setBusy: (v) => {
@@ -82,12 +82,12 @@ export function useLocalModels() {
 
   const handleDelete = (name: string) =>
     runIpcMutation(() => getAPI().ollama.deleteModel(name), {
-      failMsg: (r) => `删除失败: ${r.error}`,
+      failMsg: (r) => tr('models.local.deleteFailed', { err: r.error ?? '' }),
       onOk: async () => {
-        toast.success(`已删除 ${name}`)
+        toast.success(tr('models.local.deleted', { name }))
         await refresh()
       },
-      catchMsg: (err) => `删除异常: ${errText(err)}`,
+      catchMsg: (err) => tr('models.local.deleteError', { err: errText(err) }),
       catchLog: '[useLocalModels] deleteModel failed:',
     })
 

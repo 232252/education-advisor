@@ -24,6 +24,7 @@
 
 import type { ModelInfo, ProviderInfo } from '@shared/types'
 import { useCallback, useRef, useState } from 'react'
+import { tr } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
 
@@ -48,7 +49,7 @@ export function useProviderModelsCache() {
         if (!opts.force) setRefreshTime((p) => ({ ...p, [providerId]: Date.now() }))
       } catch (err) {
         console.error(`[Models] Failed to load models for ${providerId}:`, err)
-        if (opts.force) toast.error(`刷新 ${providerId} 模型失败`)
+        if (opts.force) toast.error(tr('models.refreshFailed', { id: providerId }))
       } finally {
         inflightRef.current.delete(providerId)
         setModelsLoading((p) => ({ ...p, [providerId]: false }))

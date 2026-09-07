@@ -8,7 +8,7 @@
 // =============================================================
 
 import { useEffect, useState } from 'react'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { saveAs } from '../../../lib/dialog'
 import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
 import { runIpcMutation } from '../../../lib/mutation'
@@ -138,13 +138,13 @@ export function usePrivacyData() {
       // C-2 修复: saveDialog 返回 {canceled, filePath} 对象,而非字符串
       // 之前把对象当作字符串传递,且 !filePath 永远为 false(对象 truthy)
       const filePath = await saveAs({
-        title: '备份隐私映射表',
+        title: t('privacy.backupDialogTitle'),
         defaultPath: 'privacy-backup.json',
         filters: [{ name: 'JSON', extensions: ['json'] }],
       })
       if (filePath === null) return
       await runIpcMutation(() => getAPI().privacy.backup(filePath), {
-        failMsg: (r) => `备份失败: ${getErrorMessage(r)}`,
+        failMsg: (r) => tr('privacy.backupFailedMsg', { err: getErrorMessage(r) }),
         onOk: () => toast.success(t('toast.privacy.backupSuccess')),
         catchMsg: t('toast.privacy.backupFailed'),
         catchLog: '[Privacy] Backup failed:',
@@ -164,7 +164,7 @@ export function usePrivacyData() {
       return
     }
     if (isDuplicateEntity(mappings, newEntityType, name)) {
-      toast.warning(`该实体已存在: ${newEntityType} / ${name}`)
+      toast.warning(tr('privacy.entityExists', { type: newEntityType, name }))
       return
     }
     return runIpcMutation(() => getAPI().privacy.add(newEntityType, name), {
