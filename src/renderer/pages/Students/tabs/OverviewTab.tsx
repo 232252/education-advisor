@@ -10,7 +10,6 @@ import { EChart } from '../../../components/charts/EChart'
 import { EmptyState } from '../../../components/EmptyState'
 import { CHART_BRAND, useChartTheme } from '../../../hooks/useChartTheme'
 import { useT } from '../../../i18n'
-import { echarts } from '../../../lib/echarts-setup'
 import { CARD_BASE, riskColor } from '../../../lib/ui-utils'
 import { EventMiniCard, InfoRow, MetricCard } from '../components'
 
@@ -106,10 +105,17 @@ export function OverviewTab({
                   itemStyle: { color: CHART_BRAND.blue },
                   areaStyle: {
                     // 品牌蓝双向渐隐面积(单处使用,保留内联)
-                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                      { offset: 0, color: 'rgba(59,130,246,0.3)' },
-                      { offset: 1, color: 'rgba(59,130,246,0.02)' },
-                    ]),
+                    color: {
+                      type: 'linear',
+                      x: 0,
+                      y: 0,
+                      x2: 0,
+                      y2: 1,
+                      colorStops: [
+                        { offset: 0, color: 'rgba(59,130,246,0.3)' },
+                        { offset: 1, color: 'rgba(59,130,246,0.02)' },
+                      ],
+                    },
                   },
                   symbol: 'circle',
                   symbolSize: 4,

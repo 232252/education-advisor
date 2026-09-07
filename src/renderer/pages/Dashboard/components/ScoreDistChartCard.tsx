@@ -15,7 +15,6 @@ import {
 } from '../../../components/charts/option-builders'
 import { CHART_BRAND, type ChartTheme, useChartTheme } from '../../../hooks/useChartTheme'
 import { useT } from '../../../i18n'
-import { echarts } from '../../../lib/echarts-setup'
 
 interface ScoreDistChartCardProps {
   /** 分数区间 → 人数 */
@@ -45,28 +44,35 @@ function buildScoreChartOption(
           value: count,
           itemStyle: {
             borderRadius: [6, 6, 0, 0],
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              {
-                offset: 0,
-                color: label.includes('极高')
-                  ? '#ef4444'
-                  : label.includes('低')
-                    ? '#f97316'
-                    : label.includes('中')
-                      ? '#eab308'
-                      : '#22c55e',
-              },
-              {
-                offset: 1,
-                color: label.includes('极高')
-                  ? '#dc2626'
-                  : label.includes('低')
-                    ? '#ea580c'
-                    : label.includes('中')
-                      ? '#ca8a04'
-                      : '#16a34a',
-              },
-            ]),
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                {
+                  offset: 0,
+                  color: label.includes('极高')
+                    ? '#ef4444'
+                    : label.includes('低')
+                      ? '#f97316'
+                      : label.includes('中')
+                        ? '#eab308'
+                        : '#22c55e',
+                },
+                {
+                  offset: 1,
+                  color: label.includes('极高')
+                    ? '#dc2626'
+                    : label.includes('低')
+                      ? '#ea580c'
+                      : label.includes('中')
+                        ? '#ca8a04'
+                        : '#16a34a',
+                },
+              ],
+            },
           },
         })),
         barWidth: '50%',
