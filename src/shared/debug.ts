@@ -120,22 +120,22 @@ export function debugLog(scope: keyof DebugConfig, msg: string, data?: unknown):
 }
 
 /**
- * 测量 IPC 调用耗时(仅当 debug.ipc 开启时输出)
+ * 测量 IPC 调用耗时。
+ * SLOW 警告不受 debug.ipc 开关限制 — 慢调用稀有且可行动,属 error 级信号,
+ * 生产环境(默认全关)也必须可见;逐调用的常规耗时日志仍需 DEBUG_IPC 开启。
  * 用法:
  *   const stop = startIpcTimer('eaa:score')
  *   // ... do work ...
  *   stop()
  */
 export function startIpcTimer(channel: string): () => void {
-  if (!debug.ipc) return () => {}
   const start = Date.now()
   return () => {
     const elapsed = Date.now() - start
-    const prefix = debugPrefix('ipc')
     if (elapsed > debug.slowThresholdMs) {
-      console.warn(`${prefix} SLOW ${channel} took ${elapsed}ms (> ${debug.slowThresholdMs}ms)`)
-    } else {
-      console.log(`${prefix} ${channel} took ${elapsed}ms`)
+      console.warn(`${debugPrefix('ipc')} SLOW ${channel} took ${elapsed}ms (> ${debug.slowThresholdMs}ms)`)
+    } else if (debug.ipc) {
+      console.log(`${debugPrefix('ipc')} ${channel} took ${elapsed}ms`)
     }
   }
 }
