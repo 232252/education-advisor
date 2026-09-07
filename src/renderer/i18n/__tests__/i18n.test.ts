@@ -161,6 +161,23 @@ describe('i18n', () => {
       }
     })
 
+    it('外到场裸事件(setItem+dispatch)应经 setLang 补载懒字典 — t() 不落空字典', async () => {
+      const { renderHook } = await import('@testing-library/react')
+      vi.resetModules()
+      const mod = await import('../index') // boot zh: 仅 zh 字典就绪,en chunk 未加载
+      const { result } = await renderHook(() => mod.useT()) // 注册 i18n-changed 监听
+      // 模拟审计脚本式外到场切换: 不经 setLang,直接 setItem + 裸事件。
+      // 懒字典下若处理器直接翻 currentLang,t() 会落在未加载的 en 字典上
+      // (全部裸 key/fallback)—— 必须经 setLang 规范通道先补载字典。
+      mockLocalStorage.setItem('education-advisor.lang', 'en')
+      window.dispatchEvent(new CustomEvent('i18n-changed', { detail: 'en' }))
+      await vi.waitFor(() => expect(result.current.lang).toBe('en'))
+      expect(mod.getLang()).toBe('en')
+      const sampleKey = Object.keys(enDict)[0] as keyof typeof enDict
+      expect(mod.t(sampleKey)).toBe(enDict[sampleKey])
+      mockLocalStorage.clear()
+    })
+
     it('startHealWatcher — 10s 窗口耗尽后停止轮询', async () => {
       vi.useFakeTimers()
       try {
