@@ -36,6 +36,7 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 - [The data flow](#the-data-flow)
 - [The state model](#the-state-model)
 - [The build pipeline](#the-build-pipeline)
+- [The loading architecture (renderer)](#the-loading-architecture-renderer)
 - [The deployment pipeline](#the-deployment-pipeline)
 - [Why these choices?](#why-these-choices)
 - [Where to read the code](#where-to-read-the-code)
@@ -415,8 +416,10 @@ is the simplest possible model and the easiest to reason about.
 
 | Stage | Tool | Output | Run by |
 | --- | --- | --- | --- |
-| TypeScript compile (main) | Vite 6, `vite.config.main.ts` | `dist/main/index.js` + `dist/main/preload.js` | `npm run dev:main`, `npm run build` |
-| TypeScript compile (renderer) | Vite 6, `vite.config.renderer.ts` | `dist/renderer/index.html` + assets | `npm run dev:renderer`, `npm run build` |
+| TypeScript compile (main) | Vite, `vite.config.main.ts` | `dist/main/index.cjs` | `npm run dev:main`, `npm run build` |
+| TypeScript compile (preload) | Vite, `vite.config.preload.ts` | `dist/main/preload.cjs`（单文件内联，唯一 external = electron — sandboxed preload 的硬前提） | `npm run dev:preload`, `npm run build` |
+| TypeScript compile (renderer) | Vite, `vite.config.renderer.ts` | `dist/renderer/index.html` + assets | `npm run dev:renderer`, `npm run build` |
+| Bundle shape check | `scripts/bundle-shape-check.mjs` | exit code（懒加载分割守卫，见下节） | `npm run check:bundle`, CI |
 | Lint | Biome 2.3 | exit code | `npm run lint` |
 | Type check | TypeScript 7 | exit code | `npm run typecheck` |
 | Test | Vitest 3.2 | test report | `npm run test` |
@@ -432,6 +435,36 @@ The dependency footprint is intentionally small:
 - The Rust EAA binary is bundled as an `extraResource`, unpacked from
   the asar archive at startup.
 - Everything else is pure JS / TS.
+
+---
+
+## The loading architecture (renderer)
+
+渲染进程按「何时需要」分层加载，每层只付当次的成本（R150-R162 建立，
+`npm run check:bundle` 守卫防回归）：
+
+| 层 | 内容 | 加载时机 | 大致体积 |
+| --- | --- | --- | --- |
+| entry（必需） | React/Router/zustand/主布局/全局组件 | 首屏同步 | JS ~311KB + CSS ~143KB |
+| boot-await | 当前语言字典（zh 或 en，各成 chunk） | i18n 模块顶层 await，首帧渲染前 | ~87KB |
+| 路由级 | 12 个页面各自 chunk | 切换路由时 | 3~63KB |
+| 交互级 | 学生档案 6 tab / 学业 4 tab / 技能 3 tab / 命令面板 | 打开时 | 4~25KB/chunk |
+| 数据级 | echarts（全部图表）/ KaTeX 数学栈 / Markdown 渲染栈 | 首个图表渲染 / 首条含公式消息 / 首个 AI 页面 | 566KB / ~294KB / 136KB |
+
+关键机制：
+
+- **字典顶层 await**（`src/renderer/i18n/index.ts`）：模块求值顺序保证任何
+  导入方拿到 `t()` 前当前语言字典已就绪 — `t()`/`useT()` 保持同步语义，
+  无 key 闪烁；`setLang` 异步先载目标字典再翻转广播。
+- **KaTeX 内容门控**（`src/renderer/components/Markdown.tsx`）：`MATH_HINT`
+  扫描数学定界符，命中才动态加载数学栈；纯文本消息（绝大多数）零 katex 成本。
+- **热键 shim**（`use-palette-hotkey.ts`）：命令面板本体懒挂载，
+  Ctrl+K 监听常驻主布局（面板未挂载时其内部监听不存在）。
+- **字体 latin 子集**（`styles/fonts.css`）：西文字体仅声明 latin/latin-ext
+  两个 @font-face，CJK 走系统字体；此前整包导入含 7 个永不被
+  unicode-range 命中的子集。
+- **守卫**：`scripts/bundle-shape-check.mjs` 断言懒库标记不进 entry 静态图、
+  独立 chunk 存在、entry 总量 ≤400KB；CI 在 build 后强制执行。
 
 ---
 
