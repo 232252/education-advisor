@@ -41,12 +41,12 @@ const ALLOWLIST_LINE: Record<string, Record<number, string>> = {
     181: 'EAARiskLevel 数据键值',
   },
   'pages/Dashboard/components/ScoreDistChartCard.tsx': {
-    51: '分数段 label 与后端枚举比对选色(数据匹配非 UI 文案)',
-    53: '分数段 label 比对',
-    55: '分数段 label 比对',
-    61: '分数段 label 比对',
-    63: '分数段 label 比对',
-    65: '分数段 label 比对',
+    56: '分数段 label 与后端枚举比对选色(数据匹配非 UI 文案)',
+    58: '分数段 label 比对',
+    60: '分数段 label 比对',
+    66: '分数段 label 比对',
+    68: '分数段 label 比对',
+    70: '分数段 label 比对',
   },
   'pages/Dashboard/components/RiskDistChartCard.tsx': {
     22: '风险等级枚举名比对选色(数据匹配)',

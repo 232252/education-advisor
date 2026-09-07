@@ -198,5 +198,7 @@ export function registerStudentExcelHandlers(): void {
     },
   )
 
-  console.log('[IPC] Student Excel import handlers registered (parse/import/import-progress/template)')
+  console.log(
+    '[IPC] Student Excel import handlers registered (parse/import/import-progress/template)',
+  )
 }
