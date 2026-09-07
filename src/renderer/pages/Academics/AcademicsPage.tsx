@@ -17,11 +17,11 @@ import { DEFAULT_EXAM_TYPES, DEFAULT_SUBJECTS } from '@shared/academic-defaults'
 import type { SubjectDef } from '@shared/types'
 import type { LucideIcon } from 'lucide-react'
 import { ArrowLeft, BarChart3, ClipboardList, PencilLine, TrendingUp } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '../../components/Button'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
-import { PageSkeleton } from '../../components/Skeleton'
+import { CardSkeleton, PageSkeleton } from '../../components/Skeleton'
 import { Tabs } from '../../components/Tabs'
 import { useT } from '../../i18n'
 import { extractSemesters, filterStudents } from '../../lib/academics'
@@ -31,7 +31,19 @@ import { INPUT_BASE } from '../../lib/ui-utils'
 import { StudentSidebar } from './components/StudentSidebar'
 import { useAcademicsData } from './hooks/useAcademicsData'
 import { useStudentGrades } from './hooks/useStudentGrades'
-import { CompareTab, ExamManagementTab, GradeEntryTab, OverviewTab } from './tabs'
+
+// 4 个选项卡懒加载: 同一时刻仅渲染一个 tab,静态全量使 AcademicsPage
+// 成第二大页面 chunk(63.5KB);lazy 后首开只载当前 tab,切换毫秒级取chunk
+const CompareTab = lazy(() => import('./tabs/CompareTab').then((m) => ({ default: m.CompareTab })))
+const ExamManagementTab = lazy(() =>
+  import('./tabs/ExamManagementTab').then((m) => ({ default: m.ExamManagementTab })),
+)
+const GradeEntryTab = lazy(() =>
+  import('./tabs/GradeEntryTab').then((m) => ({ default: m.GradeEntryTab })),
+)
+const OverviewTab = lazy(() =>
+  import('./tabs/OverviewTab').then((m) => ({ default: m.OverviewTab })),
+)
 
 // =============================================================
 // 主组件
@@ -216,57 +228,66 @@ export function AcademicsPage() {
           className="gap-1 px-6 py-2"
         />
 
-        {/* Tab 内容 */}
+        {/* Tab 内容(tab chunk 加载窗口显示卡片骨架) */}
         <div className="p-6">
-          {/* compare tab 是全班对比功能,不依赖 selectedStudent;exams tab 也独立 */}
-          {!selectedStudent && activeTab !== 'exams' && activeTab !== 'compare' ? (
-            <EmptyState
-              icon={<ArrowLeft size={28} />}
-              title={t('page.academics.toast.selectStudent', '请先选择学生')}
-              description={t(
-                'page.academics.selectStudentFirstDesc',
-                '从左侧学生列表中选择一个学生以查看学业详情',
-              )}
-            />
-          ) : activeTab === 'overview' ? (
-            <OverviewTab
-              studentName={selectedStudent ?? ''}
-              subjects={subjects}
-              exams={filteredExams}
-              grades={grades}
-              gradesLoading={gradesLoading}
-              gradesError={gradesError}
-              onRetry={reloadGrades}
-            />
-          ) : activeTab === 'exams' ? (
-            <ExamManagementTab
-              subjects={subjects}
-              examTypes={examTypes}
-              exams={exams}
-              onRefresh={handleRefreshExams}
-              students={students}
-              classIdToName={classIdToName}
-            />
-          ) : activeTab === 'compare' ? (
-            <CompareTab
-              students={students}
-              classList={classList}
-              subjects={subjects}
-              exams={exams}
-            />
-          ) : (
-            <GradeEntryTab
-              studentName={selectedStudent ?? ''}
-              students={students}
-              subjects={subjects}
-              subjectMap={subjectMap}
-              exams={filteredExams}
-              examTypes={examTypes}
-              currentGrades={grades}
-              onSaved={reloadGrades}
-              onExamCreated={handleRefreshExams}
-            />
-          )}
+          <Suspense
+            fallback={
+              <div className="space-y-4">
+                <CardSkeleton />
+                <CardSkeleton />
+              </div>
+            }
+          >
+            {/* compare tab 是全班对比功能,不依赖 selectedStudent;exams tab 也独立 */}
+            {!selectedStudent && activeTab !== 'exams' && activeTab !== 'compare' ? (
+              <EmptyState
+                icon={<ArrowLeft size={28} />}
+                title={t('page.academics.toast.selectStudent', '请先选择学生')}
+                description={t(
+                  'page.academics.selectStudentFirstDesc',
+                  '从左侧学生列表中选择一个学生以查看学业详情',
+                )}
+              />
+            ) : activeTab === 'overview' ? (
+              <OverviewTab
+                studentName={selectedStudent ?? ''}
+                subjects={subjects}
+                exams={filteredExams}
+                grades={grades}
+                gradesLoading={gradesLoading}
+                gradesError={gradesError}
+                onRetry={reloadGrades}
+              />
+            ) : activeTab === 'exams' ? (
+              <ExamManagementTab
+                subjects={subjects}
+                examTypes={examTypes}
+                exams={exams}
+                onRefresh={handleRefreshExams}
+                students={students}
+                classIdToName={classIdToName}
+              />
+            ) : activeTab === 'compare' ? (
+              <CompareTab
+                students={students}
+                classList={classList}
+                subjects={subjects}
+                exams={exams}
+              />
+            ) : (
+              <GradeEntryTab
+                studentName={selectedStudent ?? ''}
+                students={students}
+                subjects={subjects}
+                subjectMap={subjectMap}
+                exams={filteredExams}
+                examTypes={examTypes}
+                currentGrades={grades}
+                onSaved={reloadGrades}
+                onExamCreated={handleRefreshExams}
+              />
+            )}
+          </Suspense>
         </div>
       </main>
     </div>
