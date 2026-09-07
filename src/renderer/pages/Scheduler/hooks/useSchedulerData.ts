@@ -93,7 +93,7 @@ export function useSchedulerData() {
 
   const handleRemove = (id: string) => {
     ask(
-      '确定要删除此定时任务吗？',
+      t('scheduler.confirmDelete'),
       async () => {
         try {
           await getAPI().cron.remove(id)

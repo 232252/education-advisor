@@ -5,6 +5,7 @@
 // =============================================================
 
 import type { AgentListItem, ClassEntity, EAAEventRecord, EAAStudent } from '@shared/types'
+import { tr } from '../../i18n'
 
 export type PaletteResultKind = 'nav' | 'student' | 'class' | 'agent' | 'event'
 
@@ -70,7 +71,7 @@ export function searchStudents(query: string, students: EAAStudent[]): PaletteRe
     const idScore = nameScore < 0 ? matchScore(query, s.entity_id) : -1
     const score = Math.max(nameScore, idScore * 0.6) // id 命中权重低于姓名
     if (score < 0) continue
-    const subtitleParts = [`分数 ${s.score}`]
+    const subtitleParts = [tr('palette.score', { score: s.score })]
     if (s.class_id) subtitleParts.push(s.class_id)
     out.push({
       id: `student:${s.entity_id}`,
@@ -96,7 +97,7 @@ export function searchClasses(query: string, classes: ClassEntity[]): PaletteRes
       id: `class:${c.class_id}`,
       kind: 'class',
       title: c.name,
-      subtitle: `${c.class_id}${c.archived ? ' · 已存档' : ''}`,
+      subtitle: `${c.class_id}${c.archived ? ` · ${tr('palette.archived', {})}` : ''}`,
       score,
       target: `/classes?class_id=${encodeURIComponent(c.class_id)}`,
     })
@@ -150,7 +151,7 @@ export function buildEventResults(events: EAAEventRecord[]): PaletteResult[] {
     id: `event:${e.event_id}`,
     kind: 'event' as const,
     title: e.name,
-    subtitle: `${e.reason_code}${e.score_delta >= 0 ? '+' : ''}${e.score_delta} · ${e.timestamp.slice(0, 10)}${e.is_valid ? '' : ' · 已撤销'}`,
+    subtitle: `${e.reason_code}${e.score_delta >= 0 ? '+' : ''}${e.score_delta} · ${e.timestamp.slice(0, 10)}${e.is_valid ? '' : ` · ${tr('palette.revoked', {})}`}`,
     score: 60, // 异步事件结果排在本地实体之后
     target: `/students?entity_id=${encodeURIComponent(e.entity_id)}`,
   }))
