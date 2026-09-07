@@ -16,12 +16,13 @@ import {
   MessageCircleHeart,
   Printer,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { Button } from '../../components/Button'
 import { PageHeader } from '../../components/PageHeader'
 import { PrintOverlay } from '../../components/print/PrintOverlay'
 import { StudentReportDocument } from '../../components/print/StudentReportDocument'
 import { useStudentPrintData } from '../../components/print/useStudentPrintData'
+import { CardSkeleton } from '../../components/Skeleton'
 import { Tabs } from '../../components/Tabs'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
 import { useTheme } from '../../hooks/useTheme'
@@ -31,14 +32,23 @@ import { AddEventInline } from './components'
 import { useAgentAnalysis } from './hooks/useAgentAnalysis'
 import { useStudentProfileData } from './hooks/useStudentProfileData'
 import { type EventScoreFilter, type EventTimeRange, filterEvents } from './lib/event-filters'
-import {
-  AcademicsTab,
-  AIAnalysisTab,
-  EventsTab,
-  HomeSchoolTab,
-  OverviewTab,
-  ProfileTab,
-} from './tabs'
+
+// 6 个选项卡懒加载: 同一时刻仅渲染一个 tab,静态全量打包使 StudentsPage
+// 成最大页面 chunk(103KB);lazy 后首开档案只载 overview,切 tab 毫秒级取chunk
+const AcademicsTab = lazy(() =>
+  import('./tabs/AcademicsTab').then((m) => ({ default: m.AcademicsTab })),
+)
+const AIAnalysisTab = lazy(() =>
+  import('./tabs/AIAnalysisTab').then((m) => ({ default: m.AIAnalysisTab })),
+)
+const EventsTab = lazy(() => import('./tabs/EventsTab').then((m) => ({ default: m.EventsTab })))
+const HomeSchoolTab = lazy(() =>
+  import('./tabs/HomeSchoolTab').then((m) => ({ default: m.HomeSchoolTab })),
+)
+const OverviewTab = lazy(() =>
+  import('./tabs/OverviewTab').then((m) => ({ default: m.OverviewTab })),
+)
+const ProfileTab = lazy(() => import('./tabs/ProfileTab').then((m) => ({ default: m.ProfileTab })))
 
 interface StudentProfileProps {
   student: EAAStudent
@@ -214,63 +224,72 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
         className="px-4 bg-gray-50/50 dark:bg-surface-tertiary/50"
       />
 
-      {/* 选项卡内容 */}
+      {/* 选项卡内容(tab chunk 加载窗口显示卡片骨架) */}
       <div className="flex-1 overflow-y-auto p-4">
-        {activeTab === 'overview' && (
-          <OverviewTab student={student} score={score} history={history} isDark={isDark} />
-        )}
-        {activeTab === 'profile' && (
-          <ProfileTab
-            student={student}
-            profileData={profileData}
-            onUpdate={() => reloadProfileData()}
-          />
-        )}
-        {activeTab === 'events' && (
-          <EventsTab
-            events={filteredEvents}
-            eventFilter={eventFilter}
-            onFilterChange={setEventFilter}
-            timeRange={eventTimeRange}
-            onTimeRangeChange={setEventTimeRange}
-            reasonCodes={reasonCodes}
-            studentName={student.name}
-            searchQuery={searchQuery}
-            onSearchQueryChange={setSearchQuery}
-            dateStart={dateStart}
-            onDateStartChange={setDateStart}
-            dateEnd={dateEnd}
-            onDateEndChange={setDateEnd}
-            onRefresh={() => {
-              reloadProfileData()
-              onRefresh()
-            }}
-          />
-        )}
-        {activeTab === 'academics' && <AcademicsTab studentName={student.name} isDark={isDark} />}
-        {activeTab === 'ai' && (
-          <AIAnalysisTab
-            agents={agents}
-            selectedAgents={selectedAgents}
-            onToggleAgent={toggleAgent}
-            onRunSelected={runSelected}
-            onRunAll={runAll}
-            running={aiRunning}
-            output={aiOutput}
-            message={aiMessage}
-            aiSaved={aiSaved}
-            onSaveResult={saveAiResult}
-          />
-        )}
-        {activeTab === 'home_school' && (
-          <HomeSchoolTab
-            student={student}
-            score={score}
-            history={history}
-            profileData={profileData}
-            agents={agents}
-          />
-        )}
+        <Suspense
+          fallback={
+            <div className="space-y-4">
+              <CardSkeleton />
+              <CardSkeleton />
+            </div>
+          }
+        >
+          {activeTab === 'overview' && (
+            <OverviewTab student={student} score={score} history={history} isDark={isDark} />
+          )}
+          {activeTab === 'profile' && (
+            <ProfileTab
+              student={student}
+              profileData={profileData}
+              onUpdate={() => reloadProfileData()}
+            />
+          )}
+          {activeTab === 'events' && (
+            <EventsTab
+              events={filteredEvents}
+              eventFilter={eventFilter}
+              onFilterChange={setEventFilter}
+              timeRange={eventTimeRange}
+              onTimeRangeChange={setEventTimeRange}
+              reasonCodes={reasonCodes}
+              studentName={student.name}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              dateStart={dateStart}
+              onDateStartChange={setDateStart}
+              dateEnd={dateEnd}
+              onDateEndChange={setDateEnd}
+              onRefresh={() => {
+                reloadProfileData()
+                onRefresh()
+              }}
+            />
+          )}
+          {activeTab === 'academics' && <AcademicsTab studentName={student.name} isDark={isDark} />}
+          {activeTab === 'ai' && (
+            <AIAnalysisTab
+              agents={agents}
+              selectedAgents={selectedAgents}
+              onToggleAgent={toggleAgent}
+              onRunSelected={runSelected}
+              onRunAll={runAll}
+              running={aiRunning}
+              output={aiOutput}
+              message={aiMessage}
+              aiSaved={aiSaved}
+              onSaveResult={saveAiResult}
+            />
+          )}
+          {activeTab === 'home_school' && (
+            <HomeSchoolTab
+              student={student}
+              score={score}
+              history={history}
+              profileData={profileData}
+              agents={agents}
+            />
+          )}
+        </Suspense>
       </div>
 
       {/* 打印/PDF 报告预览 */}
