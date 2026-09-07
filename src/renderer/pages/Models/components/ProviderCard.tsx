@@ -8,10 +8,19 @@ import { memo, useState } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
 import { tr, useT } from '../../../i18n'
 import { btnStyle, CARD_BASE, cn, formatDateTime, INPUT_BASE } from '../../../lib/ui-utils'
+import type { ProviderTestState } from '../hooks/useModelsData'
 import { ModelRow } from './ModelRow'
 
 // 空表单常量(供 ModelRow 非编辑行传参用,避免每次 render 新建对象导致 memo 失效)
 const EMPTY_EDIT_FORM: Record<string, string> = {}
+
+/** kind → 染色(info/testing 为中性色 — 旧按子串判定的'测试中显红'缺陷顺带修复) */
+const TEST_TONE: Record<ProviderTestState['kind'], string> = {
+  ok: 'text-green-600 dark:text-green-400',
+  error: 'text-red-600 dark:text-red-400',
+  info: 'text-gray-500 dark:text-gray-400',
+  testing: 'text-gray-500 dark:text-gray-400',
+}
 
 interface ProviderCardProps {
   provider: ProviderInfo
@@ -19,7 +28,7 @@ interface ProviderCardProps {
   models: ModelInfo[]
   modelsLoading: boolean
   apiKeyInput: string
-  testResult?: string
+  testResult?: ProviderTestState
   onExpand: (providerId: string) => void
   onApiKeyChange: (providerId: string, value: string) => void
   onTest: (providerId: string) => void
@@ -170,14 +179,8 @@ export const ProviderCard = memo(function ProviderCard({
               )}
             </div>
             {testResult && (
-              <div
-                className={`text-xs ${
-                  testResult.includes('成功') || testResult.includes('已删除')
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-red-600 dark:text-red-400'
-                }`}
-              >
-                {testResult}
+              <div className={`text-xs ${TEST_TONE[testResult.kind]}`}>
+                {tr(testResult.key, testResult.vars ?? {})}
               </div>
             )}
           </div>
