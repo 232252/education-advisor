@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useT } from '../../i18n'
+import { tr, useT } from '../../i18n'
 import { cn } from '../../lib/ui-utils'
 import {
   type NotificationItem,
@@ -219,7 +219,7 @@ export function NotificationCenter() {
                       <div className="flex items-center gap-2 mt-1">
                         <SourceIcon size={10} className="text-gray-300 dark:text-gray-600" />
                         <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                          {formatRelativeTime(n.createdAt, Date.now(), t)}
+                          {formatRelativeTime(n.createdAt, Date.now(), tr)}
                         </span>
                       </div>
                     </div>

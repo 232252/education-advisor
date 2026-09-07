@@ -13,6 +13,7 @@ import {
   categoryAxis,
   containGrid,
   valueAxis,
+  verticalGradient,
 } from '../../../../components/charts/option-builders'
 import { CHART_BRAND, useChartTheme } from '../../../../hooks/useChartTheme'
 import { useT } from '../../../../i18n'
@@ -37,17 +38,10 @@ export function SubjectAvgChartCard({ subjects, grades }: SubjectAvgChartCardPro
         hasData: avg != null,
         itemStyle: {
           borderRadius: [6, 6, 0, 0],
-          color: {
-            type: 'linear',
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
-            colorStops: [
-              { offset: 0, color: SUBJECT_COLORS[idx % SUBJECT_COLORS.length] },
-              { offset: 1, color: `${SUBJECT_COLORS[idx % SUBJECT_COLORS.length]}80` },
-            ],
-          },
+          color: verticalGradient(
+            SUBJECT_COLORS[idx % SUBJECT_COLORS.length],
+            `${SUBJECT_COLORS[idx % SUBJECT_COLORS.length]}80`,
+          ),
         },
       }
     })
