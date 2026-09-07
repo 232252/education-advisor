@@ -64,7 +64,7 @@ export function usePrivacyData() {
       return
     }
     return runIpcMutation(() => getAPI().privacy.init(initPassword, true), {
-      failMsg: (r) => `初始化失败: ${getErrorMessage(r)}`,
+      failMsg: (r) => tr('privacy.initFailed', { err: getErrorMessage(r) }),
       onOk: () => {
         setIsInitialized(true)
         setUnlocked(true)
@@ -82,7 +82,7 @@ export function usePrivacyData() {
     // C-1 修复: 移除自动 init 回退 - 错误密码触发的 init 会覆盖已有隐私库,导致数据永久丢失
     // 现在 load 失败时只提示错误,让用户主动决定是否重新初始化
     return runIpcMutation(() => getAPI().privacy.load(password), {
-      failMsg: (r) => `密码错误或加载失败: ${getErrorMessage(r)}`,
+      failMsg: (r) => tr('privacy.loadFailedPwd', { err: getErrorMessage(r) }),
       onOk: async () => {
         setUnlocked(true)
         setIsInitialized(true)
@@ -123,9 +123,9 @@ export function usePrivacyData() {
         setPreviewResult(JSON.stringify(result.data, null, 2))
       } else {
         // H-10 修复: result.success === false 时也要给用户反馈
-        const errMsg = (result as { error?: string }).error || '脱敏预览失败(未知原因)'
+        const errMsg = (result as { error?: string }).error || tr('privacy.previewFailed', {})
         toast.error(errMsg)
-        setPreviewResult(`错误: ${errMsg}`)
+        setPreviewResult(tr('privacy.previewError', { err: errMsg }))
       }
     } catch (err) {
       console.error('[Privacy] Preview failed:', err)
@@ -168,7 +168,7 @@ export function usePrivacyData() {
       return
     }
     return runIpcMutation(() => getAPI().privacy.add(newEntityType, name), {
-      failMsg: (r) => `添加失败: ${getErrorMessage(r)}`,
+      failMsg: (r) => tr('privacy.addFailed', { err: getErrorMessage(r) }),
       onOk: async () => {
         toast.success(t('toast.privacy.entityAdded'))
         setNewEntityName('')

@@ -157,7 +157,7 @@ function collectHits(): Array<{ file: string; line: number; text: string }> {
         if (e.isDirectory()) {
           if (e.name === '__tests__') continue
           walk(p)
-        } else if (e.name.endsWith('.tsx')) {
+        } else if (e.name.endsWith('.tsx') || e.name.endsWith('.ts')) {
           const rel = path.relative(RENDERER_ROOT, p).replace(/\\/g, '/')
           if (ALLOWLIST[rel]) continue
           const lineAllow: Record<number, string> = ALLOWLIST_LINE[rel] ?? {}
