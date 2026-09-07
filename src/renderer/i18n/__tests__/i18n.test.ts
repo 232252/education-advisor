@@ -141,7 +141,8 @@ describe('i18n', () => {
     })
 
     it('startHealWatcher — 窗口内刷盘完成后自动对齐语言', async () => {
-      vi.useFakeTimers()
+      // 只伪造 interval 相关计时器: setImmediate 保持真实,用于真实事件循环冲刷
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
       try {
         vi.resetModules()
         const mod = await import('../index')
@@ -149,11 +150,13 @@ describe('i18n', () => {
         // 模拟: boot 后 storage 刷盘完成,显示真实偏好 en
         mockLocalStorage.setItem('education-advisor.lang', 'en')
         mod.startHealWatcher()
-        // 有界逐轮推进: 自愈是 fire-and-forget 异步(healLangFromStorage 内部
-        // 含动态导入的字典加载),单次 advance 不能保证其内部 await 排空完成 —
-        // 按真实轮询粒度推进直到自愈落地(10s 窗口内必有 500ms 整数倍命中)
-        for (let i = 0; i < 20 && mod.getLang() !== 'en'; i++) {
+        // 逐轮推进 + 真实宏任务冲刷: 自愈是 fire-and-forget 异步(healLangFromStorage
+        // 内部含动态 import 的字典加载),vite-node 下 import 可能跨真实宏任务完成,
+        // 纯假时钟推进等不到它 — 每轮 advance 后 setImmediate 让真实事件循环转一拍,
+        // 高负载下不再假红(触发后的 setLang 落地不受 interval 已清除影响)
+        for (let i = 0; i < 40 && mod.getLang() !== 'en'; i++) {
           await vi.advanceTimersByTimeAsync(500)
+          await new Promise((resolve) => setImmediate(resolve))
         }
         expect(mod.getLang()).toBe('en')
       } finally {
