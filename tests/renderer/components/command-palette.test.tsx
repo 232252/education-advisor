@@ -24,14 +24,24 @@ vi.mock('../../../src/renderer/lib/ipc-client', () => ({
 }))
 
 const { CommandPalette } = await import('../../../src/renderer/components/command-palette/CommandPalette')
+const { usePaletteHotkey } = await import(
+  '../../../src/renderer/components/command-palette/use-palette-hotkey'
+)
 const { usePaletteStore } = await import('../../../src/renderer/stores/paletteStore')
 const { useAgentStore } = await import('../../../src/renderer/stores/agent/store')
 
 const student = (entity_id: string, name: string, status = 'Active') =>
   ({ entity_id, name, class_id: 'c1', status, score: 90 }) as never
 
+// 热键 shim 已随懒加载上提到 MainLayout(use-palette-hotkey),测试组合
+// 「钩子+面板」验证完整开关链路(与生产挂载方式一致)
+function Harness() {
+  usePaletteHotkey()
+  return createElement(CommandPalette)
+}
+
 function renderPalette() {
-  return render(createElement(CommandPalette))
+  return render(createElement(Harness))
 }
 
 beforeEach(() => {
