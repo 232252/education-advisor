@@ -10,7 +10,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { TableSkeleton } from '../../components/Skeleton'
 import { useAutoDismiss } from '../../hooks/useAutoDismiss'
-import { useT } from '../../i18n'
+import { tr, useT } from '../../i18n'
 import { cn, TABLE_STICKY_HEAD, TABLE_TH } from '../../lib/ui-utils'
 import {
   AddStudentForm,
@@ -107,7 +107,7 @@ export function StudentsPage() {
           title={`${t('page.students.title', '学生管理')} (${students.length})`}
           subtitle={
             archivedHiddenCount > 0 && !showArchivedClass
-              ? t('page.students.archivedHidden').replace('{0}', String(archivedHiddenCount))
+              ? tr('page.students.archivedHidden', { 0: archivedHiddenCount })
               : undefined
           }
           actions={

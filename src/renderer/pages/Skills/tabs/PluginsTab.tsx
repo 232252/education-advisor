@@ -11,7 +11,7 @@
 import { Brain, Clock, DoorOpen, MessageCircle, Plug, Puzzle, ScrollText } from 'lucide-react'
 import { EmptyState } from '../../../components/EmptyState'
 import { Skeleton } from '../../../components/Skeleton'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { FutureCard } from '../components/FutureCard'
 import { PluginCard } from '../components/PluginCard'
 import { usePluginsOverview } from '../hooks/usePluginsOverview'
@@ -82,9 +82,10 @@ export function PluginsTab() {
               description={t('page.skills.plugins.card.mcp.desc')}
               countText={
                 mcp?.enabled
-                  ? t('page.skills.plugins.card.mcp.count')
-                      .replace('{count}', String(mcp.total))
-                      .replace('{active}', String(mcp.active))
+                  ? tr('page.skills.plugins.card.mcp.count', {
+                      count: mcp.total,
+                      active: mcp.active,
+                    })
                   : mcp && !mcp.enabled
                     ? t('common.disabled')
                     : t('page.skills.plugins.card.mcp.empty')
@@ -99,10 +100,7 @@ export function PluginsTab() {
               icon={<ScrollText className="h-5 w-5" />}
               title={t('page.skills.plugins.card.skills')}
               description={t('page.skills.plugins.card.skills.desc')}
-              countText={t('page.skills.plugins.card.skills.count').replace(
-                '{count}',
-                String(skillsCount),
-              )}
+              countText={tr('page.skills.plugins.card.skills.count', { count: skillsCount })}
               manageLabel={t('page.skills.plugins.card.skills.manage')}
               to="/skills"
               tabKey="skills.activeTab"
@@ -115,9 +113,10 @@ export function PluginsTab() {
               description={t('page.skills.plugins.card.cron.desc')}
               countText={
                 cron
-                  ? t('page.skills.plugins.card.cron.count')
-                      .replace('{count}', String(cron.total))
-                      .replace('{enabled}', String(cron.enabled))
+                  ? tr('page.skills.plugins.card.cron.count', {
+                      count: cron.total,
+                      enabled: cron.enabled,
+                    })
                   : '—'
               }
               manageLabel={t('page.skills.plugins.card.cron.manage')}
@@ -130,7 +129,7 @@ export function PluginsTab() {
               description={t('page.skills.plugins.card.feishu.desc')}
               countText={
                 feishu?.status
-                  ? t('page.skills.plugins.card.feishu.count').replace('{status}', feishu.status)
+                  ? tr('page.skills.plugins.card.feishu.count', { status: feishu.status })
                   : t('common.offline')
               }
               manageLabel={t('page.skills.plugins.card.feishu.manage')}
@@ -143,12 +142,10 @@ export function PluginsTab() {
               description={t('page.skills.plugins.card.localModels.desc')}
               countText={
                 ollama
-                  ? t('page.skills.plugins.card.localModels.count')
-                      .replace('{count}', String(ollama.modelCount))
-                      .replace(
-                        '{running}',
-                        ollama.running ? t('common.online') : t('common.offline'),
-                      )
+                  ? tr('page.skills.plugins.card.localModels.count', {
+                      count: ollama.modelCount,
+                      running: ollama.running ? t('common.online') : t('common.offline'),
+                    })
                   : '—'
               }
               manageLabel={t('page.skills.plugins.card.localModels.manage')}
