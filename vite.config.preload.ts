@@ -11,7 +11,7 @@ export default defineConfig({
     outDir: 'dist/main',
     emptyOutDir: false,
     lib: {
-      entry: { preload: resolve(__dirname, 'src/main/preload/index.ts') },
+      entry: { preload: resolve(import.meta.dirname, 'src/main/preload/index.ts') },
       formats: ['cjs'],
       fileName: () => 'preload.cjs',
     },
@@ -27,8 +27,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@main': resolve(__dirname, 'src/main'),
-      '@shared': resolve(__dirname, 'src/shared'),
+      '@main': resolve(import.meta.dirname, 'src/main'),
+      '@shared': resolve(import.meta.dirname, 'src/shared'),
     },
   },
 })

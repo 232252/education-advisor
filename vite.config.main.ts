@@ -11,7 +11,8 @@ export default defineConfig({
     lib: {
       entry: {
         index: resolve(__dirname, 'src/main/index.ts'),
-        preload: resolve(__dirname, 'src/main/preload/index.ts'),
+        // preload 移至 vite.config.preload.ts 独立单文件内联构建
+        // (sandboxed preload 的 require 只允许 'electron',不能有共享 chunk)
       },
       formats: ['cjs'],
     },

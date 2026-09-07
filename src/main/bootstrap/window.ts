@@ -78,7 +78,9 @@ export function createMainWindow(
       })(),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      // 沙箱开启的前提: preload 单文件内联(vite.config.preload.ts),
+      // 其 require 面仅 'electron'(构建产物验证),沙箱限定的 require 子集足够
+      sandbox: true,
     },
     titleBarStyle: 'default',
     autoHideMenuBar: true,
