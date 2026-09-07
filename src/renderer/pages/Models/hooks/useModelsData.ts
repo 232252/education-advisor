@@ -6,6 +6,7 @@
 import type { ProviderInfo } from '@shared/types'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useIpcQuery } from '../../../hooks/useIpcQuery'
+import { tr } from '../../../i18n'
 import { errText, getAPI } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
 import { getHiddenProviders, getVisibleProviders, partitionByApiKey } from '../lib/providers-filter'
@@ -82,7 +83,10 @@ export function useModelsData() {
         setTestResults((p) => ({ ...p, [providerId]: testState('info', 'page.models.test.noKey') }))
         return
       }
-      setTestResults((p) => ({ ...p, [providerId]: testState('testing', 'page.models.test.testing') }))
+      setTestResults((p) => ({
+        ...p,
+        [providerId]: testState('testing', 'page.models.test.testing'),
+      }))
       try {
         const result = await getAPI().ai.testConnection(providerId, apiKey)
         if (result.success) {
@@ -100,13 +104,15 @@ export function useModelsData() {
           setTestResults((p) => ({
             ...p,
             [providerId]: testState('error', 'page.models.test.fail', {
-              err:
-                typeof result.error === 'string' ? result.error : JSON.stringify(result.error),
+              err: typeof result.error === 'string' ? result.error : JSON.stringify(result.error),
             }),
           }))
         }
       } catch {
-        setTestResults((p) => ({ ...p, [providerId]: testState('error', 'page.models.test.error') }))
+        setTestResults((p) => ({
+          ...p,
+          [providerId]: testState('error', 'page.models.test.error'),
+        }))
       }
     },
     [loadProviders],
@@ -120,11 +126,11 @@ export function useModelsData() {
         // 清理 modelsMap 缓存（封装在 hook 内）
         clearProviderCache(providerId)
         loadProviders()
-        toast.success(`已删除 ${providerId} 的 API Key`)
+        toast.success(tr('models.toast.keyDeleted', { id: providerId }))
         setTestResults((p) => ({ ...p, [providerId]: testState('ok', 'page.models.test.deleted') }))
       } catch (err) {
         console.error(`[Models] Failed to delete API key for ${providerId}:`, err)
-        toast.error(`删除 ${providerId} API Key 失败`)
+        toast.error(tr('models.toast.keyDeleteFailed', { id: providerId }))
       }
     },
     [loadProviders, clearProviderCache],
@@ -136,14 +142,17 @@ export function useModelsData() {
   // 支持 OAuth 的 provider: anthropic / github-copilot / openai-codex
   const handleOAuthLogin = useCallback(async (providerId: string) => {
     try {
-      setTestResults((p) => ({ ...p, [providerId]: testState('info', 'page.models.test.oauthOpen') }))
+      setTestResults((p) => ({
+        ...p,
+        [providerId]: testState('info', 'page.models.test.oauthOpen'),
+      }))
       const result = await getAPI().ai.oauthLogin(providerId)
       if (result.success) {
         setTestResults((p) => ({
           ...p,
           [providerId]: testState('info', 'page.models.test.oauthOpened'),
         }))
-        toast.info(`OAuth: 已打开 ${providerId} 登录页面,请复制 API Key 后填入输入框`)
+        toast.info(tr('models.toast.oauthOpened', { id: providerId }))
       } else {
         setTestResults((p) => ({
           ...p,
@@ -151,13 +160,16 @@ export function useModelsData() {
             err: result.error ?? '',
           }),
         }))
-        toast.error(`OAuth 登录失败: ${result.error}`)
+        toast.error(tr('models.toast.oauthFailed', { err: result.error ?? '' }))
       }
     } catch (err) {
       console.error(`[Models] OAuth login failed for ${providerId}:`, err)
       const msg = errText(err)
-      setTestResults((p) => ({ ...p, [providerId]: testState('error', 'page.models.test.oauthError', { err: msg }) }))
-      toast.error(`OAuth 登录错误: ${msg}`)
+      setTestResults((p) => ({
+        ...p,
+        [providerId]: testState('error', 'page.models.test.oauthError', { err: msg }),
+      }))
+      toast.error(tr('models.toast.oauthError', { err: msg }))
     }
   }, [])
 
@@ -203,11 +215,11 @@ export function useModelsData() {
     async (providerId: string, modelId: string) => {
       try {
         await getAPI().ai.addCustomModel({ providerId, modelId, name: modelId })
-        toast.success(`已添加模型 ${modelId}`)
+        toast.success(tr('models.toast.modelAdded', { model: modelId }))
         // 刷新该 provider 的模型列表（封装在 hook 内）
         await invalidateAndRefresh(providerId)
       } catch (err) {
-        toast.error(`添加模型失败: ${err}`)
+        toast.error(tr('models.toast.modelAddFailed', { err: errText(err) }))
       }
     },
     [invalidateAndRefresh],
