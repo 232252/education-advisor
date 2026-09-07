@@ -5,6 +5,7 @@
 // =============================================================
 
 import type { AgentListItem, ClassEntity, EAAEventRecord, EAAStudent } from '@shared/types'
+import { pinyin } from 'pinyin-pro'
 import { tr } from '../../i18n'
 
 export type PaletteResultKind = 'nav' | 'student' | 'class' | 'agent' | 'event'
@@ -60,6 +61,40 @@ export function matchScore(query: string, text: string): number {
   return -1
 }
 
+/**
+ * 拼音匹配层(R164): 纯字母查询时对中文文本按拼音命中 —
+ * 输 "zs" 找 "张三"(首字母)、"zhang" 前缀、"angs" 全拼子串。
+ * 中文优先应用的键盘导航刚需;查询含汉字/数字/符号时用户意图即原样
+ * 匹配,不走本层(原行为不变)。pinyin-pro 随懒加载的 palette chunk
+ * 加载,entry 零成本。
+ */
+const ASCII_QUERY = /^[a-z]+$/
+
+/** 文本拼音键缓存(学生/班级名量级 ≤ 数百,会话内无淘汰必要) */
+const pinyinCache = new Map<string, { initials: string; full: string }>()
+
+function pinyinKeys(text: string): { initials: string; full: string } {
+  let keys = pinyinCache.get(text)
+  if (!keys) {
+    keys = {
+      initials: pinyin(text, { pattern: 'first', toneType: 'none' }).replace(/\s+/g, ''),
+      full: pinyin(text, { toneType: 'none' }).replace(/\s+/g, ''),
+    }
+    pinyinCache.set(text, keys)
+  }
+  return keys
+}
+
+/** 首字母前缀 95 / 全拼前缀 85 / 全拼子串 75 — 介于姓名直接前缀(100)与 id(0.6x)之间 */
+function pinyinScore(query: string, text: string): number {
+  if (!ASCII_QUERY.test(query)) return -1
+  const { initials, full } = pinyinKeys(text)
+  if (initials.startsWith(query)) return 95
+  if (full.startsWith(query)) return 85
+  const idx = full.indexOf(query)
+  return idx >= 0 ? 75 - Math.min(idx, 20) : -1
+}
+
 function takeTop<T>(items: T[], n: number): T[] {
   return items.length <= n ? items : items.slice(0, n)
 }
@@ -68,8 +103,9 @@ export function searchStudents(query: string, students: EAAStudent[]): PaletteRe
   const out: PaletteResult[] = []
   for (const s of students) {
     const nameScore = matchScore(query, s.name)
-    const idScore = nameScore < 0 ? matchScore(query, s.entity_id) : -1
-    const score = Math.max(nameScore, idScore * 0.6) // id 命中权重低于姓名
+    const pyScore = nameScore < 0 ? pinyinScore(query, s.name) : -1
+    const idScore = nameScore < 0 && pyScore < 0 ? matchScore(query, s.entity_id) : -1
+    const score = Math.max(nameScore, pyScore, idScore * 0.6) // id 命中权重低于姓名/拼音
     if (score < 0) continue
     const subtitleParts = [tr('palette.score', { score: s.score })]
     if (s.class_id) subtitleParts.push(s.class_id)
@@ -90,8 +126,9 @@ export function searchClasses(query: string, classes: ClassEntity[]): PaletteRes
   const out: PaletteResult[] = []
   for (const c of classes) {
     const nameScore = matchScore(query, c.name)
-    const idScore = nameScore < 0 ? matchScore(query, c.class_id) : -1
-    const score = Math.max(nameScore, idScore * 0.6)
+    const pyScore = nameScore < 0 ? pinyinScore(query, c.name) : -1
+    const idScore = nameScore < 0 && pyScore < 0 ? matchScore(query, c.class_id) : -1
+    const score = Math.max(nameScore, pyScore, idScore * 0.6)
     if (score < 0) continue
     out.push({
       id: `class:${c.class_id}`,
@@ -110,8 +147,9 @@ export function searchAgents(query: string, agents: AgentListItem[]): PaletteRes
   const out: PaletteResult[] = []
   for (const a of agents) {
     const nameScore = matchScore(query, a.name)
-    const descScore = nameScore < 0 ? matchScore(query, a.description) * 0.5 : -1
-    const score = Math.max(nameScore, descScore)
+    const pyScore = nameScore < 0 ? pinyinScore(query, a.name) : -1
+    const descScore = nameScore < 0 && pyScore < 0 ? matchScore(query, a.description) * 0.5 : -1
+    const score = Math.max(nameScore, pyScore, descScore)
     if (score < 0) continue
     out.push({
       id: `agent:${a.id}`,
