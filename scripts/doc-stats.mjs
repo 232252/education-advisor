@@ -91,7 +91,6 @@ function computeStats() {
     stores: countStores(),
     preloadApis: countTsFiles('src/main/preload/api'),
     sharedTypes: countTsFiles('src/shared/types'),
-    rendererIpcTypes: countTsFiles('src/renderer/lib/ipc'),
     agents: countAgents(),
   }
   return s
@@ -108,7 +107,6 @@ function renderBlock(s) {
     ['Zustand store 模块数', String(s.stores)],
     ['Preload API 文件数', String(s.preloadApis)],
     ['Shared 类型文件数', String(s.sharedTypes)],
-    ['Renderer IPC 类型文件数', String(s.rendererIpcTypes)],
     ['Agent 数', String(s.agents)],
   ]
   const lines = rows.map((r) => `| ${r[0]} | ${r[1]} |`)

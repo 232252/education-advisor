@@ -25,7 +25,6 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 | Zustand store 模块数 | 7 |
 | Preload API 文件数 | 21 |
 | Shared 类型文件数 | 17 |
-| Renderer IPC 类型文件数 | 21 |
 | Agent 数 | 18 |
 <!-- doc-stats:end -->
 
