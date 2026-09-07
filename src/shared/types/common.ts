@@ -8,9 +8,3 @@ export interface TestConnectionResult {
   model: string
   error?: string
 }
-
-export interface ConnectionTestParams {
-  providerId: string
-  apiKey: string
-  baseUrl?: string
-}
