@@ -5,6 +5,7 @@
 // =============================================================
 
 import type { ModelInfo, ProviderInfo } from '@shared/types'
+import type { ProviderTestState } from '../hooks/useModelsData'
 import { ProviderCard } from './ProviderCard'
 
 const EMPTY_MODELS: ModelInfo[] = []
@@ -19,7 +20,7 @@ interface ProviderGroupProps {
   modelsMap: Record<string, ModelInfo[]>
   modelsLoading: Record<string, boolean>
   apiKeyInputs: Record<string, string>
-  testResults: Record<string, string>
+  testResults: Record<string, ProviderTestState>
   refreshTime: Record<string, number>
   onExpand: (providerId: string) => void
   onApiKeyChange: (providerId: string, value: string) => void
