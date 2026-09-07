@@ -100,6 +100,10 @@ jobs:
         shell: bash
         run: npm run build
 
+      - name: Bundle shape check (懒加载分割守卫)
+        shell: bash
+        run: npm run check:bundle
+
       - name: Upload build artifacts
         if: matrix.os == 'ubuntu-latest' && github.event_name == 'push'
         uses: actions/upload-artifact@v7
