@@ -7,6 +7,7 @@ import type { EAAHistoryData, EAAStudent, EAAStudentScore } from '@shared/types'
 import { ClipboardList } from 'lucide-react'
 import { useMemo } from 'react'
 import { EChart } from '../../../components/charts/EChart'
+import { verticalGradient } from '../../../components/charts/option-builders'
 import { EmptyState } from '../../../components/EmptyState'
 import { CHART_BRAND, useChartTheme } from '../../../hooks/useChartTheme'
 import { useT } from '../../../i18n'
@@ -104,18 +105,8 @@ export function OverviewTab({
                   lineStyle: { color: CHART_BRAND.blue, width: 2 },
                   itemStyle: { color: CHART_BRAND.blue },
                   areaStyle: {
-                    // 品牌蓝双向渐隐面积(单处使用,保留内联)
-                    color: {
-                      type: 'linear',
-                      x: 0,
-                      y: 0,
-                      x2: 0,
-                      y2: 1,
-                      colorStops: [
-                        { offset: 0, color: 'rgba(59,130,246,0.3)' },
-                        { offset: 1, color: 'rgba(59,130,246,0.02)' },
-                      ],
-                    },
+                    // 品牌蓝双向渐隐面积
+                    color: verticalGradient('rgba(59,130,246,0.3)', 'rgba(59,130,246,0.02)'),
                   },
                   symbol: 'circle',
                   symbolSize: 4,

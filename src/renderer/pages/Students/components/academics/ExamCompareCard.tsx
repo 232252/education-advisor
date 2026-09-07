@@ -5,6 +5,13 @@
 
 import type { ExamDef } from '@shared/types'
 import { EChart } from '../../../../components/charts/EChart'
+import {
+  axisTooltip,
+  bottomLegend,
+  categoryAxis,
+  containGrid,
+  valueAxis,
+} from '../../../../components/charts/option-builders'
 import { DeltaBadge } from '../../../../components/DeltaBadge'
 import { ExamPairSelector } from '../../../../components/ExamPairSelector'
 import { CHART_BRAND, useChartTheme } from '../../../../hooks/useChartTheme'
@@ -33,6 +40,8 @@ export function ExamCompareCard({
 }: ExamCompareCardProps) {
   const chartTheme = useChartTheme()
   const { t } = useT()
+  const examALabel = t('page.students.compare.examA', '考试 A')
+  const examBLabel = t('page.students.compare.examB', '考试 B')
 
   return (
     <div className={`${CARD_BASE} p-4 shadow-sm`}>
@@ -167,35 +176,24 @@ export function ExamCompareCard({
               <EChart
                 height={200}
                 option={{
-                  tooltip: { trigger: 'axis' },
-                  legend: {
-                    data: [
-                      t('page.students.compare.examA', '考试 A'),
-                      t('page.students.compare.examB', '考试 B'),
-                    ],
-                    textStyle: { color: chartTheme.legendColor },
-                  },
-                  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-                  xAxis: {
-                    type: 'category',
-                    data: comparison.subjects.map((s) => s.subjectName),
-                    axisLabel: { color: chartTheme.legendColor, fontSize: 10 },
-                    axisLine: { lineStyle: { color: chartTheme.gridColor } },
-                  },
-                  yAxis: {
-                    type: 'value',
-                    axisLabel: { color: chartTheme.legendColor },
-                    splitLine: { lineStyle: { color: chartTheme.gridColor, type: 'dashed' } },
-                  },
+                  tooltip: axisTooltip(chartTheme),
+                  legend: bottomLegend(chartTheme, { data: [examALabel, examBLabel] }),
+                  grid: containGrid(28),
+                  xAxis: categoryAxis(
+                    comparison.subjects.map((s) => s.subjectName),
+                    chartTheme,
+                    { hideTick: true },
+                  ),
+                  yAxis: valueAxis(chartTheme),
                   series: [
                     {
-                      name: t('page.students.compare.examA', '考试 A'),
+                      name: examALabel,
                       type: 'bar',
                       data: comparison.subjects.map((s) => s.scoreA ?? '-'),
                       itemStyle: { color: CHART_BRAND.blue, borderRadius: [4, 4, 0, 0] },
                     },
                     {
-                      name: t('page.students.compare.examB', '考试 B'),
+                      name: examBLabel,
                       type: 'bar',
                       data: comparison.subjects.map((s) => s.scoreB ?? '-'),
                       // 考试 B 对比色为 purple-500,主题色板无对应色,保留内联
