@@ -7,6 +7,7 @@
 
 import type { EAARiskLevel, EAAStudent } from '@shared/types'
 import { matchesClassFilter } from '../../../lib/class-filter'
+import { pinyinScore } from '../../../lib/pinyin-match'
 
 /** 风险等级排序权重（极高 > 高 > 中 > 低） */
 export const RISK_ORDER: Record<EAARiskLevel, number> = { 极高: 0, 高: 1, 中: 2, 低: 3 }
@@ -32,9 +33,11 @@ export function filterStudents(
     if (!matchesClassFilter(s.class_id, classFilter)) return false
     // 默认隐藏已存档班级的学生
     if (!showArchivedClass && s.class_id && archivedClassIds.has(s.class_id)) return false
-    // 搜索匹配 name/groups/roles
+    // 搜索匹配 name(含拼音)/groups/roles — 纯字母查询时姓名按拼音命中
+    // (输 "zs" 找张三),与命令面板同口径
     return (
       s.name.includes(search) ||
+      pinyinScore(search, s.name) >= 0 ||
       s.groups.some((g) => g.includes(search)) ||
       s.roles.some((r) => r.includes(search))
     )
