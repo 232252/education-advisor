@@ -14,6 +14,19 @@ import { useProviderModelsCache } from './useProviderModelsCache'
 // 稳定空数组引用,避免加载前每次渲染产生新引用
 const EMPTY_PROVIDERS: ProviderInfo[] = []
 
+/** 连接测试/删除/OAuth 的结果状态 — kind 驱动 UI 染色,key+vars 经 tr() 渲染(语言切换即时生效) */
+export interface ProviderTestState {
+  kind: 'info' | 'testing' | 'ok' | 'error'
+  key: string
+  vars?: Record<string, string | number>
+}
+
+const testState = (
+  kind: ProviderTestState['kind'],
+  key: string,
+  vars?: Record<string, string | number>,
+): ProviderTestState => ({ kind, key, vars })
+
 export function useModelsData() {
   const {
     modelsMap,
@@ -40,7 +53,7 @@ export function useModelsData() {
   const providers = providersData ?? EMPTY_PROVIDERS
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
   const [apiKeyInputs, setApiKeyInputs] = useState<Record<string, string>>({})
-  const [testResults, setTestResults] = useState<Record<string, string>>({})
+  const [testResults, setTestResults] = useState<Record<string, ProviderTestState>>({})
   const [searchTerm, setSearchTerm] = useState('')
 
   // Ref mirror of apiKeyInputs so handleTestConnection can stay stable (deps: [])
@@ -66,30 +79,34 @@ export function useModelsData() {
     async (providerId: string) => {
       const apiKey = apiKeyInputsRef.current[providerId]
       if (!apiKey) {
-        setTestResults((p) => ({ ...p, [providerId]: '请输入 API Key' }))
+        setTestResults((p) => ({ ...p, [providerId]: testState('info', 'page.models.test.noKey') }))
         return
       }
-      setTestResults((p) => ({ ...p, [providerId]: '测试中...' }))
+      setTestResults((p) => ({ ...p, [providerId]: testState('testing', 'page.models.test.testing') }))
       try {
         const result = await getAPI().ai.testConnection(providerId, apiKey)
         if (result.success) {
           await getAPI().ai.setApiKey(providerId, apiKey)
           setTestResults((p) => ({
             ...p,
-            [providerId]: `连接成功 (${result.latencyMs}ms) [${result.model}]`,
+            [providerId]: testState('ok', 'page.models.test.ok', {
+              ms: result.latencyMs,
+              model: result.model,
+            }),
           }))
           loadProviders()
         } else {
           // 防御: provider SDK 的错误信息可能是对象, 统一转字符串避免 UI 显示 "[object Object]"
           setTestResults((p) => ({
             ...p,
-            [providerId]: `失败: ${
-              typeof result.error === 'string' ? result.error : JSON.stringify(result.error)
-            }`,
+            [providerId]: testState('error', 'page.models.test.fail', {
+              err:
+                typeof result.error === 'string' ? result.error : JSON.stringify(result.error),
+            }),
           }))
         }
       } catch {
-        setTestResults((p) => ({ ...p, [providerId]: '连接错误' }))
+        setTestResults((p) => ({ ...p, [providerId]: testState('error', 'page.models.test.error') }))
       }
     },
     [loadProviders],
@@ -104,7 +121,7 @@ export function useModelsData() {
         clearProviderCache(providerId)
         loadProviders()
         toast.success(`已删除 ${providerId} 的 API Key`)
-        setTestResults((p) => ({ ...p, [providerId]: '已删除' }))
+        setTestResults((p) => ({ ...p, [providerId]: testState('ok', 'page.models.test.deleted') }))
       } catch (err) {
         console.error(`[Models] Failed to delete API key for ${providerId}:`, err)
         toast.error(`删除 ${providerId} API Key 失败`)
@@ -119,22 +136,27 @@ export function useModelsData() {
   // 支持 OAuth 的 provider: anthropic / github-copilot / openai-codex
   const handleOAuthLogin = useCallback(async (providerId: string) => {
     try {
-      setTestResults((p) => ({ ...p, [providerId]: '正在打开 OAuth 登录页面...' }))
+      setTestResults((p) => ({ ...p, [providerId]: testState('info', 'page.models.test.oauthOpen') }))
       const result = await getAPI().ai.oauthLogin(providerId)
       if (result.success) {
         setTestResults((p) => ({
           ...p,
-          [providerId]: `已在浏览器中打开登录页面,请复制 API Key 后填入上方输入框`,
+          [providerId]: testState('info', 'page.models.test.oauthOpened'),
         }))
         toast.info(`OAuth: 已打开 ${providerId} 登录页面,请复制 API Key 后填入输入框`)
       } else {
-        setTestResults((p) => ({ ...p, [providerId]: `OAuth 失败: ${result.error}` }))
+        setTestResults((p) => ({
+          ...p,
+          [providerId]: testState('error', 'page.models.test.oauthFail', {
+            err: result.error ?? '',
+          }),
+        }))
         toast.error(`OAuth 登录失败: ${result.error}`)
       }
     } catch (err) {
       console.error(`[Models] OAuth login failed for ${providerId}:`, err)
       const msg = errText(err)
-      setTestResults((p) => ({ ...p, [providerId]: `OAuth 错误: ${msg}` }))
+      setTestResults((p) => ({ ...p, [providerId]: testState('error', 'page.models.test.oauthError', { err: msg }) }))
       toast.error(`OAuth 登录错误: ${msg}`)
     }
   }, [])

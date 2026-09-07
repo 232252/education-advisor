@@ -53,9 +53,6 @@ const ALLOWLIST_LINE: Record<string, Record<number, string>> = {
   'pages/Dashboard/components/ReasonDistCard.tsx': {
     57: '原因码标签表查值失败时的兜底展示(数据即文案)',
   },
-  'pages/Models/components/ProviderCard.tsx': {
-    175: '对自身 toast 结果文本做成功/失败分流(临时数据流 hack,待改结构化状态)',
-  },
   'pages/Models/components/RecommendedModelCard.tsx': {
     46: 'm.tier 后端枚举值比对(GPU/大内存 等)',
     48: 'm.tier 后端枚举值比对',
