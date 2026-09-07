@@ -6,16 +6,6 @@
 
 import type { ChatState } from './types'
 
-/** 流状态四键清理 — 流式终止(idle/error/done)分支共用 */
-export function streamStateReset(): Partial<ChatState> {
-  return {
-    isStreaming: false,
-    isThinking: false,
-    streamingAgentId: null,
-    streamSessionId: null,
-  }
-}
-
 /** 会话视图重置 — createSession/switchSession 共用 */
 export function sessionViewReset(id: string): Partial<ChatState> {
   return {
