@@ -58,9 +58,9 @@ const ALLOWLIST_LINE: Record<string, Record<number, string>> = {
     48: 'm.tier 后端枚举值比对',
     57: 'm.chineseLevel 后端枚举值比对(优秀)',
   },
-  'components/onboarding/OnboardingWizard.tsx': {
-    49: '表单默认值=示例数据(七年级),随向导写入业务数据',
-    50: '表单默认值=示例数据(1班)',
+  'components/onboarding/OnboardingWizardBody.tsx': {
+    39: '表单默认值=示例数据(七年级),随向导写入业务数据',
+    40: '表单默认值=示例数据(1班)',
   },
   'components/onboarding/steps/ClassStep.tsx': {
     12: '年级预设数据项,直接写入业务数据',
