@@ -129,7 +129,7 @@ describe('拼音匹配层(R164)', () => {
   })
   it('班级名拼音命中: "qnjyb" → 七年级一班', () => {
     const r = searchClasses('qnjyb', [
-      { class_id: 'G7-1', name: '七年级一班', grade: '七年级', teacher: '', student_count: 30 },
+      { class_id: 'G7-1', name: '七年级一班', grade: '七年级', teacher: '' } as never,
     ])
     expect(r).toHaveLength(1)
     expect(r[0].title).toBe('七年级一班')
