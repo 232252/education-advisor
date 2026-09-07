@@ -1,8 +1,10 @@
 // =============================================================
-// i18n 字典完整性测试 — zh/en key 一致性、无空值、无重复
-// 捕获: 缺失翻译、空翻译、两边 key 不匹配
+// i18n 字典完整性测试 — zh/en key 一致性、无空值、无重复、无死键
+// 捕获: 缺失翻译、空翻译、两边 key 不匹配、字典膨胀(键无引用)
 // =============================================================
 
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import enDict from '../en.json'
 import zhDict from '../zh.json'
@@ -96,4 +98,44 @@ describe('i18n 字典 — 关键命名空间 key 存在性', () => {
       expect(zhHas).toBe(true)
     })
   }
+})
+
+describe('i18n 字典 — 死键守卫', () => {
+  // 引用判定(刻意过近似,宁枉勿纵):
+  // 1) 键以引号字面量出现于任意非测试源码 — 覆盖 t('k')/tr/tf 别名调用、
+  //    三元、labelKey/return/赋值/标识符键映射对象等一切"键字符串被写出"的形态
+  //    (t 的导入别名形形色色,按函数名分析不可靠,按键面分析才稳)
+  // 2) 键命中 t(`prefix${…}`) 模板动态前缀 — 键字符串不出现但前缀被动态拼接
+  // 不覆盖的形态(当前代码库不存在,引入时需同步本测试): 运行时拼接
+  // t('a.' + suffix) / 键来自后端下发
+  function collectSourceRefs(): { quoted: Set<string>; dynPrefixes: string[] } {
+    const files: string[] = []
+    const walk = (dir: string): void => {
+      for (const name of readdirSync(dir)) {
+        if (name === '__tests__' || name === 'node_modules') continue
+        const p = join(dir, name)
+        if (statSync(p).isDirectory()) walk(p)
+        else if (/\.tsx?$/.test(name) && !/\.test\./.test(name)) files.push(p)
+      }
+    }
+    walk(join(process.cwd(), 'src', 'renderer'))
+    const quoted = new Set<string>()
+    const dynPrefixes: string[] = []
+    for (const f of files) {
+      const src = readFileSync(f, 'utf8')
+      for (const m of src.matchAll(/['"`]([\w-]+(?:\.[\w-]+)+)['"`]/g)) quoted.add(m[1])
+      for (const m of src.matchAll(/\bt(?:r|f)?\(\s*`([\w.-]+)\$\{/g)) dynPrefixes.push(m[1])
+    }
+    return { quoted, dynPrefixes }
+  }
+
+  it('字典中不应存在零引用的死键(R152 清扫 26 键后守卫)', () => {
+    const { quoted, dynPrefixes } = collectSourceRefs()
+    const dead = Object.keys(zhDict).filter(
+      (k) =>
+        !quoted.has(k) &&
+        !dynPrefixes.some((p) => k === p || k.startsWith(p.endsWith('.') ? p : `${p}.`)),
+    )
+    expect(dead).toEqual([])
+  })
 })
