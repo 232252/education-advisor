@@ -36,12 +36,13 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "dev": "concurrently -n MAIN,RENDERER -c blue,green \"npm run dev:main\" \"npm run dev:renderer\"",
+    "dev": "concurrently -n MAIN,PRELOAD,RENDERER -c blue,yellow,green \"npm run dev:main\" \"npm run dev:preload\" \"npm run dev:renderer\"",
     "dev:main": "vite build --config vite.config.main.ts --watch",
+    "dev:preload": "vite build --config vite.config.preload.ts --watch",
     "dev:renderer": "vite --config vite.config.renderer.ts",
     "dev:electron": "electron .",
     "prebuild": "node scripts/prebuild-check.mjs",
-    "build": "vite build --config vite.config.main.ts && vite build --config vite.config.renderer.ts",
+    "build": "vite build --config vite.config.main.ts && vite build --config vite.config.preload.ts && vite build --config vite.config.renderer.ts",
     "build:icon": "node scripts/build-icon.mjs",
     "build:eaa": "node scripts/build-eaa.mjs",
     "prebuild:check": "node scripts/prebuild-check.mjs",
