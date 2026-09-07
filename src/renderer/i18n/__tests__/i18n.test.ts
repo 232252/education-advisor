@@ -33,9 +33,9 @@ Object.defineProperty(window, 'localStorage', {
 const { t, setLang, getLang, useT } = await import('../index')
 
 describe('i18n', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockLocalStorage.clear()
-    setLang('zh')
+    await setLang('zh')
   })
 
   afterEach(() => {
@@ -43,16 +43,16 @@ describe('i18n', () => {
   })
 
   describe('t()', () => {
-    it('zh 默认应返回中文', () => {
-      setLang('zh')
+    it('zh 默认应返回中文', async () => {
+      await setLang('zh')
       const sampleKey = Object.keys(zhDict)[0] as keyof typeof zhDict
       const expected = zhDict[sampleKey]
       const got = t(sampleKey)
       expect(got).toBe(expected)
     })
 
-    it('切换到 en 后应返回英文', () => {
-      setLang('en')
+    it('切换到 en 后应返回英文', async () => {
+      await setLang('en')
       const sampleKey = Object.keys(enDict)[0] as keyof typeof enDict
       const expected = enDict[sampleKey]
       const got = t(sampleKey)
@@ -67,10 +67,10 @@ describe('i18n', () => {
       expect(t('nonexistent.key')).toBe('nonexistent.key')
     })
 
-    it('同 key 在 zh/en 字典中应能切换', () => {
-      setLang('zh')
+    it('同 key 在 zh/en 字典中应能切换', async () => {
+      await setLang('zh')
       const zhVal = t('settings.title', 'fallback')
-      setLang('en')
+      await setLang('en')
       const enVal = t('settings.title', 'fallback')
       // 不要求完全相同(可能 i18n 不完整),但应该都能拿到 fallback
       expect(zhVal).toBeTruthy()
@@ -79,32 +79,32 @@ describe('i18n', () => {
   })
 
   describe('setLang / getLang', () => {
-    it('默认应为 zh', () => {
-      setLang('zh')
+    it('默认应为 zh', async () => {
+      await setLang('zh')
       expect(getLang()).toBe('zh')
     })
 
-    it('setLang(en) 后 getLang 应返回 en', () => {
-      setLang('en')
+    it('setLang(en) 后 getLang 应返回 en', async () => {
+      await setLang('en')
       expect(getLang()).toBe('en')
     })
 
-    it('setLang 应写入 localStorage', () => {
-      setLang('en')
+    it('setLang 应写入 localStorage', async () => {
+      await setLang('en')
       expect(mockLocalStorage.setItem).toHaveBeenCalledWith('education-advisor.lang', 'en')
     })
 
-    it('setLang(zh) 应写入 localStorage', () => {
-      setLang('zh')
+    it('setLang(zh) 应写入 localStorage', async () => {
+      await setLang('zh')
       expect(mockLocalStorage.setItem).toHaveBeenCalledWith('education-advisor.lang', 'zh')
     })
 
-    it('多次 setLang 应都更新', () => {
-      setLang('en')
+    it('多次 setLang 应都更新', async () => {
+      await setLang('en')
       expect(getLang()).toBe('en')
-      setLang('zh')
+      await setLang('zh')
       expect(getLang()).toBe('zh')
-      setLang('en')
+      await setLang('en')
       expect(getLang()).toBe('en')
     })
 
@@ -116,9 +116,9 @@ describe('i18n', () => {
         getLang: getLangFresh,
       } = await import('../index')
       // 现场: boot 时读到旧值锁 zh,但 storage 实际偏好是 en
-      setLangFresh('zh')
+      await setLangFresh('zh')
       mockLocalStorage.setItem('education-advisor.lang', 'en')
-      healLangFromStorage()
+      await healLangFromStorage()
       expect(getLangFresh()).toBe('en')
       // 自愈走 setLang 语义: 偏好回写 + html lang 同步
       expect(mockLocalStorage.setItem).toHaveBeenLastCalledWith('education-advisor.lang', 'en')
@@ -134,9 +134,9 @@ describe('i18n', () => {
         setLang: setLangFresh,
         getLang: getLangFresh,
       } = await import('../index')
-      setLangFresh('zh')
+      await setLangFresh('zh')
       mockLocalStorage.clear()
-      healLangFromStorage()
+      await healLangFromStorage()
       expect(getLangFresh()).toBe('zh')
     })
 
@@ -145,7 +145,7 @@ describe('i18n', () => {
       try {
         vi.resetModules()
         const mod = await import('../index')
-        mod.setLang('zh')
+        await mod.setLang('zh')
         // 模拟: boot 后 1.2s 刷盘完成,storage 显示真实偏好 en
         mockLocalStorage.setItem('education-advisor.lang', 'en')
         mod.startHealWatcher()
@@ -165,7 +165,7 @@ describe('i18n', () => {
       try {
         vi.resetModules()
         const mod = await import('../index')
-        mod.setLang('en')
+        await mod.setLang('en')
         mod.startHealWatcher()
         // 窗口内 storage 一直是 zh: watcher 会不断拉回 zh
         mockLocalStorage.setItem('education-advisor.lang', 'zh')
