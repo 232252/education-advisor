@@ -6,7 +6,7 @@
 import type { ClassEntity } from '@shared/types'
 import { CheckSquare } from 'lucide-react'
 import { Button } from '../../../components/Button'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { cn, INPUT_BASE } from '../../../lib/ui-utils'
 
 interface StudentsToolbarProps {
@@ -97,7 +97,7 @@ export function StudentsToolbar({
       {selectMode ? (
         <>
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {t('page.students.batch.selected').replace('{0}', String(selectedCount))}
+            {tr('page.students.batch.selected', { 0: selectedCount })}
           </span>
           {/* 批量调班 */}
           <select
