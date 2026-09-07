@@ -67,6 +67,7 @@
     "ipc:runtime": "node scripts/ipc-contract-test.mjs",
     "prompt:lint": "node scripts/prompt-lint.mjs",
     "doc:check": "node scripts/doc-stats.mjs --check",
+    "check:bundle": "node scripts/bundle-shape-check.mjs",
     "doc:stats": "node scripts/doc-stats.mjs --write",
     "clean": "rimraf dist release"
   },
