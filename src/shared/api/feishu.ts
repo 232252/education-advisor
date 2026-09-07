@@ -17,6 +17,8 @@ export interface FeishuAPI {
     tables?: Array<{ table_id: string; name: string }>
     error?: string
   }>
+  // [r] 查 token 缓存状态(诊断用,不返回 token 本体)
+  status: () => Promise<string>
   // 飞书长连接机器人
   botStart: () => Promise<{
     success: boolean
