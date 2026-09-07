@@ -141,27 +141,18 @@ describe('i18n', () => {
     })
 
     it('startHealWatcher — 窗口内刷盘完成后自动对齐语言', async () => {
-      // 只伪造 interval 相关计时器: setImmediate 保持真实,用于真实事件循环冲刷
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
-      try {
-        vi.resetModules()
-        const mod = await import('../index')
-        await mod.setLang('zh')
-        // 模拟: boot 后 storage 刷盘完成,显示真实偏好 en
-        mockLocalStorage.setItem('education-advisor.lang', 'en')
-        mod.startHealWatcher()
-        // 逐轮推进 + 真实宏任务冲刷: 自愈是 fire-and-forget 异步(healLangFromStorage
-        // 内部含动态 import 的字典加载),vite-node 下 import 可能跨真实宏任务完成,
-        // 纯假时钟推进等不到它 — 每轮 advance 后 setImmediate 让真实事件循环转一拍,
-        // 高负载下不再假红(触发后的 setLang 落地不受 interval 已清除影响)
-        for (let i = 0; i < 40 && mod.getLang() !== 'en'; i++) {
-          await vi.advanceTimersByTimeAsync(500)
-          await new Promise((resolve) => setImmediate(resolve))
-        }
-        expect(mod.getLang()).toBe('en')
-      } finally {
-        vi.useRealTimers()
-      }
+      vi.resetModules()
+      const mod = await import('../index')
+      await mod.setLang('zh')
+      // 模拟: boot 后 storage 刷盘完成,显示真实偏好 en。
+      // 真实计时器 + 有界等待: watcher 首个 500ms 轮询即触发自愈;
+      // 自愈是 fire-and-forget 异步(内部含动态 import 的字典加载),
+      // 假时钟推进与 import 互锁是本用例此前假红/超时的根因,故不伪造时钟。
+      // 自愈成功后 watcher 自清(clearInterval),无计时器泄漏。
+      mockLocalStorage.setItem('education-advisor.lang', 'en')
+      mod.startHealWatcher()
+      await vi.waitFor(() => expect(mod.getLang()).toBe('en'), { timeout: 5_000, interval: 100 })
+      mockLocalStorage.clear()
     })
 
     it('外到场裸事件(setItem+dispatch)应经 setLang 补载懒字典 — t() 不落空字典', async () => {
@@ -174,7 +165,10 @@ describe('i18n', () => {
       // (全部裸 key/fallback)—— 必须经 setLang 规范通道先补载字典。
       mockLocalStorage.setItem('education-advisor.lang', 'en')
       window.dispatchEvent(new CustomEvent('i18n-changed', { detail: 'en' }))
-      await vi.waitFor(() => expect(result.current.lang).toBe('en'))
+      await vi.waitFor(
+        () => expect(result.current.lang).toBe('en'),
+        { timeout: 5_000, interval: 100 },
+      )
       expect(mod.getLang()).toBe('en')
       const sampleKey = Object.keys(enDict)[0] as keyof typeof enDict
       expect(mod.t(sampleKey)).toBe(enDict[sampleKey])
