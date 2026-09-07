@@ -179,9 +179,18 @@ app.on('will-quit', (event) => {
   })
 })
 
-// 安全：阻止导航到外部页面
+// 安全：阻止导航到外部页面;权限白名单 — 仅剪贴板读写放行
+// (ContextMenu 复制/粘贴与各处复制按钮依赖),其余(地理/通知/媒体等)
+// 一律拒绝: 应用无此类需求,防渲染内容静默申请高权限 API
+const ALLOWED_PERMISSIONS = new Set(['clipboard-read', 'clipboard-sanitized-write'])
 app.on('web-contents-created', (_event, contents) => {
   contents.on('will-navigate', (event) => {
     event.preventDefault()
   })
+  contents.session.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(ALLOWED_PERMISSIONS.has(permission))
+  })
+  contents.session.setPermissionCheckHandler((_wc, permission) =>
+    ALLOWED_PERMISSIONS.has(permission),
+  )
 })
