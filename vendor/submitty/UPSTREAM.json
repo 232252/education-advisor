@@ -1,0 +1,23 @@
+{
+  "repo": "https://github.com/Submitty/Submitty.git",
+  "tag": "v26.08.01",
+  "commit": "d5d297e0bd4c083f8ad34296bf3d5aed1ad7164d",
+  "fetchedAt": "2026-09-08T11:32:47.825Z",
+  "files": [
+    {
+      "path": "sql/course_tables.sql",
+      "sha256": "9a687adf2b2360e3307a0d51746d1d0ced2ea24904ee8cbd22648efcda3c12cd",
+      "bytes": 123319
+    },
+    {
+      "path": "sql/submitty_db.sql",
+      "sha256": "0b7aa529702a7227a5085dc014687f018d4f1a0c815ca97f8838a95605ae4ee8",
+      "bytes": 38793
+    },
+    {
+      "path": "LICENSE.md",
+      "sha256": "c123708cb4ef52bc4ec9c0d023083f459f16bfb92f1021f1186f9bab9f7d0ae4",
+      "bytes": 1542
+    }
+  ]
+}
