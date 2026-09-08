@@ -8,9 +8,9 @@
 // =============================================================
 
 import { memo, useEffect, useState } from 'react'
-import type { Pluggable } from 'unified'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import type { Pluggable } from 'unified'
 import { cn } from '../lib/ui-utils'
 
 interface MathStack {

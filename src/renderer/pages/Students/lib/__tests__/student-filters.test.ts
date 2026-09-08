@@ -19,7 +19,6 @@ const student = (name: string, class_id = '', risk: EAAStudent['risk'] = '中') 
   }) as unknown as EAAStudent
 
 const ARCHIVED = new Set(['G9-OLD'])
-const noArchive = { archivedClassIds: ARCHIVED, showArchivedClass: false }
 const ALL = '__ALL__'
 
 describe('filterStudents — 拼音匹配(R167)', () => {

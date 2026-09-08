@@ -10,7 +10,6 @@ import { useAutoDismiss } from '../../../hooks/useAutoDismiss'
 import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
-import { toast } from '../../../stores/toastStore'
 import { formatCost } from '../lib/format'
 
 interface GradingModelConfigProps {

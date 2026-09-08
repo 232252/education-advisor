@@ -201,12 +201,23 @@ export function useModelsData() {
 
   // 隐藏/取消隐藏 Provider
   const handleHideProvider = useCallback(
-    (providerId: string) => mutateBlacklist(providerId, true, tr('models.hidden', { id: providerId }), tr('models.hideFailed', {})),
+    (providerId: string) =>
+      mutateBlacklist(
+        providerId,
+        true,
+        tr('models.hidden', { id: providerId }),
+        tr('models.hideFailed', {}),
+      ),
     [mutateBlacklist],
   )
   const handleUnhideProvider = useCallback(
     (providerId: string) =>
-      mutateBlacklist(providerId, false, tr('models.unhidden', { id: providerId }), tr('models.unhideFailed', {})),
+      mutateBlacklist(
+        providerId,
+        false,
+        tr('models.unhidden', { id: providerId }),
+        tr('models.unhideFailed', {}),
+      ),
     [mutateBlacklist],
   )
 

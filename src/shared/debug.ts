@@ -133,7 +133,9 @@ export function startIpcTimer(channel: string): () => void {
   return () => {
     const elapsed = Date.now() - start
     if (elapsed > debug.slowThresholdMs) {
-      console.warn(`${debugPrefix('ipc')} SLOW ${channel} took ${elapsed}ms (> ${debug.slowThresholdMs}ms)`)
+      console.warn(
+        `${debugPrefix('ipc')} SLOW ${channel} took ${elapsed}ms (> ${debug.slowThresholdMs}ms)`,
+      )
     } else if (debug.ipc) {
       console.log(`${debugPrefix('ipc')} ${channel} took ${elapsed}ms`)
     }
