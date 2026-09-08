@@ -122,8 +122,14 @@ export function usePrivacyData() {
       if (result.success) {
         setPreviewResult(JSON.stringify(result.data, null, 2))
       } else {
-        // H-10 修复: result.success === false 时也要给用户反馈
-        const errMsg = (result as { error?: string }).error || tr('privacy.previewFailed', {})
+        // H-10 修复: result.success === false 时也要给用户反馈。
+        // privacy 域失败信封是 {success:false, data: 文案}(锁定态等),
+        // 此前读不存在的 error 字段 → 锁定时永远显示 "unknown reason",
+        // 用户无从得知需先初始化/解锁。统一走 getErrorMessage(data/stderr + 翻译)。
+        const errMsg = getErrorMessage(
+          result as { data?: unknown; stderr?: string },
+          tr('privacy.previewFailed', {}),
+        )
         toast.error(errMsg)
         setPreviewResult(tr('privacy.previewError', { err: errMsg }))
       }
