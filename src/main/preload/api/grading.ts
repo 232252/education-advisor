@@ -6,6 +6,7 @@ import type { GradingAPI } from '@shared/api/grading'
 import * as IPC from '@shared/ipc-channels'
 import type { GradingTaskStatus, TeacherReview } from '@shared/types'
 import { ipcRenderer } from 'electron'
+import { subscribe } from './subscribe'
 
 export const gradingApi: GradingAPI = {
   // [r] 任务列表
@@ -34,4 +35,11 @@ export const gradingApi: GradingAPI = {
   // [w] 状态迁移
   setStatus: (taskId: string, status: GradingTaskStatus) =>
     ipcRenderer.invoke(IPC.IPC_GRADING_SET_STATUS, taskId, status),
+  // [w] 启动 AI 批改(异步作业,进度经 onProgress)
+  run: (taskId: string) => ipcRenderer.invoke(IPC.IPC_GRADING_RUN, taskId),
+  // [w] 中止批改
+  abort: (taskId: string) => ipcRenderer.invoke(IPC.IPC_GRADING_ABORT, taskId),
+  // [event] 批改进度
+  onProgress: (callback: (data: import('@shared/types').GradingProgressEvent) => void) =>
+    subscribe(IPC.IPC_GRADING_PROGRESS, callback),
 }

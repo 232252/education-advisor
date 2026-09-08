@@ -106,3 +106,20 @@ export interface GradingTask {
   publishedAt?: string
   publishedExamId?: string
 }
+
+/** AI 批改进度事件(主→渲染推送) */
+export interface GradingProgressEvent {
+  taskId: string
+  phase: 'start' | 'graded' | 'failed' | 'done'
+  paperId?: string
+  studentName?: string
+  index?: number
+  total?: number
+  /** phase=graded: 本份得分; phase=failed: 错误信息 */
+  score?: number
+  error?: string
+  /** phase=done 汇总 */
+  gradedCount?: number
+  failedCount?: number
+  aborted?: boolean
+}

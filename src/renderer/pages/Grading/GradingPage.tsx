@@ -197,6 +197,9 @@ export function GradingPage() {
               onImportPapers={grading.importPapers}
               onAssignPaper={grading.assignPaper}
               onRemovePaper={grading.removePaper}
+              onRunGrading={grading.runGrading}
+              onAbortGrading={grading.abortGrading}
+              onRefresh={grading.refresh}
             />
           </div>
         )}

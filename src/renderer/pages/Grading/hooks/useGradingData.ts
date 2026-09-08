@@ -130,6 +130,38 @@ export function useGradingData() {
     [runMutation],
   )
 
+  /** 刷新列表与当前详情(批改作业 done 事件后由进度订阅调用) */
+  const refresh = useCallback(async () => {
+    await loadTasks()
+    if (detailIdRef.current) await reloadDetail(detailIdRef.current)
+  }, [loadTasks, reloadDetail])
+
+  /** 启动 AI 批改(异步作业: 这里只负责启动反馈,进度走 onProgress 订阅) */
+  const runGrading = useCallback(
+    async (taskId: string) => {
+      setBusy(true)
+      setErrorMsg(null)
+      const r = await getAPI().grading.run(taskId)
+      setBusy(false)
+      if (!r.success) {
+        setErrorMsg(r.error ?? t('page.grading.error.mutationFailed', '操作失败'))
+        return false
+      }
+      await refresh()
+      return true
+    },
+    [refresh, t],
+  )
+
+  const abortGrading = useCallback(
+    async (taskId: string) => {
+      const r = await getAPI().grading.abort(taskId)
+      if (!r.success) setErrorMsg(r.error ?? t('page.grading.error.mutationFailed', '操作失败'))
+      return r.success
+    },
+    [t],
+  )
+
   return {
     tasks,
     loading,
@@ -150,5 +182,8 @@ export function useGradingData() {
     assignPaper,
     removePaper,
     setStatus,
+    refresh,
+    runGrading,
+    abortGrading,
   }
 }
