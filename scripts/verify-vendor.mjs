@@ -9,6 +9,7 @@
 // 退出码: 0 全部通过 / 1 有失败项
 // =============================================================
 
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,8 +17,10 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 
+// 期望的关键导出以 0.80.3 为准：模型工厂/计费在根导出，
+// getProviders/getModels/getModel 已变为 createModels() 实例方法（旧版遗留检查在 0.80.3 升级后失效）
 const VENDORS = [
-  { dir: 'vendor/pi-ai', module: '@earendil-works/pi-ai', apis: ['getProviders', 'getModels', 'getModel'] },
+  { dir: 'vendor/pi-ai', module: '@earendil-works/pi-ai', apis: ['createModels', 'calculateCost'] },
   {
     dir: 'vendor/pi-agent-core',
     module: '@earendil-works/pi-agent-core',
@@ -88,6 +91,32 @@ for (const v of VENDORS) {
     }
   } catch (e) {
     check(`${v.module} 可 import`, false, e instanceof Error ? e.message : String(e))
+  }
+}
+
+console.log('\n--- Submitty schema 参照 (vendor/submitty) ---')
+// 4. 批改子系统的上游参照面：UPSTREAM.json pin + 文件哈希
+{
+  const submittyDir = join(ROOT, 'vendor', 'submitty')
+  try {
+    const upstream = JSON.parse(readFileSync(join(submittyDir, 'UPSTREAM.json'), 'utf-8'))
+    check('submitty UPSTREAM.json tag', /^v\d+\.\d+\.\d+$/.test(upstream.tag ?? ''), upstream.tag ?? '')
+    check(
+      'submitty UPSTREAM.json commit',
+      /^[0-9a-f]{40}$/.test(upstream.commit ?? ''),
+      (upstream.commit ?? '').slice(0, 8),
+    )
+    for (const f of upstream.files ?? []) {
+      const file = join(submittyDir, f.path)
+      const exists = existsSync(file)
+      check(`submitty ${f.path} 存在`, exists)
+      if (exists) {
+        const actual = createHash('sha256').update(readFileSync(file)).digest('hex')
+        check(`submitty ${f.path} sha256 一致`, actual === f.sha256)
+      }
+    }
+  } catch (e) {
+    check('submitty UPSTREAM.json 可读', false, e instanceof Error ? e.message : String(e))
   }
 }
 
