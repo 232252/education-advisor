@@ -12,6 +12,7 @@ import type { ClassAPI } from '@shared/api/class'
 import type { CronAPI } from '@shared/api/cron'
 import type { EaaAPI } from '@shared/api/eaa'
 import type { FeishuAPI } from '@shared/api/feishu'
+import type { GradingAPI } from '@shared/api/grading'
 import type { LogAPI } from '@shared/api/log'
 import type { McpAPI } from '@shared/api/mcp'
 import type { MemoryAPI } from '@shared/api/memory'
@@ -51,6 +52,8 @@ export interface WindowAPI {
   sys: SysAPI
   // R2-12 报告中心
   reports: ReportsAPI
+  // AI 批改作业
+  grading: GradingAPI
   // R2+ 记忆管理
   memory: MemoryAPI
 }

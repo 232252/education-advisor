@@ -161,6 +161,20 @@ export const IPC_STUDENTS_IMPORT_PROGRESS = 'students:import-progress'
 // 生成 Excel 导入模板（xlsx 在 main 侧动态构造，路径来自已有保存对话框 IPC）
 export const IPC_STUDENTS_IMPORT_TEMPLATE = 'students:import-template'
 
+// ===== AI 批改 (Grading) =====
+export const IPC_GRADING_LIST = 'grading:list'
+export const IPC_GRADING_GET = 'grading:get'
+export const IPC_GRADING_CREATE = 'grading:create'
+export const IPC_GRADING_UPDATE = 'grading:update'
+export const IPC_GRADING_DELETE = 'grading:delete'
+// 导入试卷扫描件(批次→拷贝进 files/<taskId>/,预览归组后 assign)
+export const IPC_GRADING_IMPORT_PAPERS = 'grading:import-papers'
+export const IPC_GRADING_ASSIGN_PAPER = 'grading:assign-paper'
+export const IPC_GRADING_REMOVE_PAPER = 'grading:remove-paper'
+// 教师复核结果落库
+export const IPC_GRADING_SAVE_REVIEW = 'grading:save-review'
+export const IPC_GRADING_SET_STATUS = 'grading:set-status'
+
 // ===== 班级管理（本地：存档/删除） =====
 export const IPC_CLASS_LIST = 'class:list'
 export const IPC_CLASS_CREATE = 'class:create'

@@ -69,6 +69,8 @@ interface AppPaths {
   dbPath: string
   /** 学业成绩 JSON */
   academicsDir: string
+  /** AI 批改任务(任务 JSON + 试卷扫描件) */
+  gradingDir: string
   /** 学生扩展档案 */
   profilesDir: string
   /** 用户技能 */
@@ -89,6 +91,7 @@ export function getAppPaths(): AppPaths {
     appDataDir,
     dbPath: path.join(appDataDir, 'workstation.db'),
     academicsDir: path.join(appDataDir, 'academics'),
+    gradingDir: path.join(appDataDir, 'grading'),
     profilesDir: path.join(appDataDir, 'profiles'),
     userSkillsDir: path.join(appDataDir, 'skills'),
     memoryDir: path.join(appDataDir, 'memory'),
