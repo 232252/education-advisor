@@ -21,6 +21,14 @@ export interface ImportPaperBatch {
   files: Array<{ path: string; name?: string }>
 }
 
+/** 样卷识别抽出的量规题草稿(IPC 契约层类型,非持久化任务模型,不进 types/grading.ts) */
+export interface ExtractedRubricQuestion {
+  title: string
+  fullMark: number
+  /** 照录答案页原文;AI 自答草稿尾部带「AI 草稿」尾注供教师核对 */
+  referenceAnswer?: string
+}
+
 export interface GradingAPI {
   // [r] 任务列表(按更新时间倒序)
   listTasks: () => Promise<GradingResult<GradingTask[]>>
@@ -68,4 +76,6 @@ export interface GradingAPI {
       skipped: Array<{ paperId: string; studentName: string | null; reason: string }>
     }>
   >
+  // [w] 从样卷照片识别量规草稿(走视觉模型,复用批改模型配置;无状态不落盘)
+  extractRubric: (paths: string[]) => Promise<GradingResult<ExtractedRubricQuestion[]>>
 }
