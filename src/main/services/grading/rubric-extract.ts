@@ -156,14 +156,25 @@ export async function extractRubricFromImages(paths: string[]): Promise<Extracte
     if (!ALLOWED_EXTRACT_EXTS.has(ext)) {
       throw new Error(`不支持的图片格式: ${path.basename(p)}`)
     }
-    const stat = await fsp.stat(p)
+    // IO 错误转可读提示,不把 ENOENT 等原始系统错误漏给教师
+    let stat: Awaited<ReturnType<typeof fsp.stat>>
+    try {
+      stat = await fsp.stat(p)
+    } catch {
+      throw new Error(`样卷图片不存在或无法访问: ${path.basename(p)}`)
+    }
     if (!stat.isFile()) throw new Error(`不是文件: ${path.basename(p)}`)
     if (stat.size > MAX_EXTRACT_FILE_BYTES) {
       throw new Error(
         `文件超过 ${MAX_EXTRACT_FILE_BYTES / 1024 / 1024}MB 上限: ${path.basename(p)}`,
       )
     }
-    const buf = await fsp.readFile(p)
+    let buf: Buffer
+    try {
+      buf = await fsp.readFile(p)
+    } catch {
+      throw new Error(`无法读取样卷图片: ${path.basename(p)}`)
+    }
     images.push({ type: 'image', data: buf.toString('base64'), mimeType: mimeFromExt(ext) })
   }
 
