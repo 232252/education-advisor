@@ -139,6 +139,7 @@ export function buildStaticModelInfos(models: Model<Api>[]): ModelInfo[] {
     costCacheRead: m.cost.cacheRead,
     costCacheWrite: m.cost.cacheWrite,
     supportsReasoning: m.reasoning,
+    supportsImage: m.input.includes('image'),
     baseUrl: m.baseUrl,
   }))
 }

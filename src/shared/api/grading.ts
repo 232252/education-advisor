@@ -2,7 +2,12 @@
 // 批改域 API 类型(单一来源: preload 实现按此注解)
 // =============================================================
 
-import type { GradingTask, GradingTaskStatus, TeacherReview } from '@shared/types'
+import type {
+  GradingProgressEvent,
+  GradingTask,
+  GradingTaskStatus,
+  TeacherReview,
+} from '@shared/types'
 
 /** 批改域统一结果信封 */
 export interface GradingResult<T> {
@@ -45,4 +50,10 @@ export interface GradingAPI {
   ) => Promise<GradingResult<GradingTask>>
   // [w] 状态机迁移(非法迁移由服务层拒绝)
   setStatus: (taskId: string, status: GradingTaskStatus) => Promise<GradingResult<GradingTask>>
+  // [w] 启动 AI 批改(异步作业:同步校验失败即返回错误,进度经 onProgress)
+  run: (taskId: string) => Promise<GradingResult<void>>
+  // [w] 中止批改(返回是否确有进行中的作业)
+  abort: (taskId: string) => Promise<GradingResult<boolean>>
+  // [event] 批改进度(每份开始/完成/失败 + 整批 done)
+  onProgress: (callback: (data: GradingProgressEvent) => void) => () => void
 }

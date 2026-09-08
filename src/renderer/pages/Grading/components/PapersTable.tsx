@@ -4,7 +4,11 @@
 // (matchPaperFilesToStudents,唯一命中才建议,歧义留给人工)。
 // =============================================================
 
-import { matchPaperFilesToStudents } from '@shared/grading-helpers'
+import {
+  effectiveTotalScore,
+  matchPaperFilesToStudents,
+  rubricFullMark,
+} from '@shared/grading-helpers'
 import type { EAAStudent, GradingTask } from '@shared/types'
 import { useMemo, useState } from 'react'
 import { tr, useT } from '../../../i18n'
@@ -58,6 +62,7 @@ export function PapersTable({
 
   const suggestionCount = suggestions.size
   const importable = task.status === 'draft' || task.status === 'ready'
+  const fullMark = rubricFullMark(task.rubric)
 
   const handleImport = async () => {
     const paths = await pickFiles({ filters: IMAGE_FILTERS, properties: ['openFile'] })
@@ -168,8 +173,19 @@ export function PapersTable({
                       ) : (
                         <span className="text-gray-400">{t('page.grading.papers.unassigned')}</span>
                       )
+                    ) : paper.status === 'graded' && paper.ai ? (
+                      <span className="font-medium text-green-600 dark:text-green-400">
+                        {effectiveTotalScore(paper) ?? paper.ai.totalScore}/{fullMark}
+                      </span>
                     ) : (
-                      <span className="text-gray-500 dark:text-gray-400">
+                      <span
+                        className={
+                          paper.status === 'failed'
+                            ? 'text-red-500'
+                            : 'text-gray-500 dark:text-gray-400'
+                        }
+                        title={paper.status === 'failed' ? paper.error : undefined}
+                      >
                         {t(PAPER_STATUS_KEYS[paper.status])}
                       </span>
                     )}

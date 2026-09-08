@@ -1,12 +1,15 @@
 // =============================================================
 // TaskDetail — 批改任务详情(右侧面板)
-// 元信息 + 状态操作 + 量规编辑(draft/ready 可编辑,之后只读) + 试卷表。
-// P3 接「开始 AI 批改」、P4 接「复核/发布」入口。
+// 元信息 + 状态操作 + 量规编辑(draft/ready 可编辑,之后只读) + 试卷表
+// + AI 批改启动/中止/重试失败 与实时进度(订阅 grading:progress)。
+// P4 接「复核/发布」入口。
 // =============================================================
 
-import type { EAAStudent, GradingTask, RubricQuestion } from '@shared/types'
+import type { EAAStudent, GradingProgressEvent, GradingTask, RubricQuestion } from '@shared/types'
 import { useEffect, useState } from 'react'
-import { useT } from '../../../i18n'
+import { useIpcSubscription } from '../../../hooks/useIpcSubscription'
+import { tr, useT } from '../../../i18n'
+import { getAPI } from '../../../lib/ipc-client'
 import { btnStyle, cn } from '../../../lib/ui-utils'
 import { PapersTable } from './PapersTable'
 import { RubricEditor } from './RubricEditor'
@@ -43,6 +46,9 @@ interface TaskDetailProps {
   ) => Promise<boolean>
   onAssignPaper: (taskId: string, paperId: string, studentName: string | null) => Promise<boolean>
   onRemovePaper: (taskId: string, paperId: string) => Promise<boolean>
+  onRunGrading: (taskId: string) => Promise<boolean>
+  onAbortGrading: (taskId: string) => Promise<boolean>
+  onRefresh: () => Promise<void>
 }
 
 export function TaskDetail({
@@ -57,10 +63,24 @@ export function TaskDetail({
   onImportPapers,
   onAssignPaper,
   onRemovePaper,
+  onRunGrading,
+  onAbortGrading,
+  onRefresh,
 }: TaskDetailProps) {
   const { t } = useT()
   const [rubricDraft, setRubricDraft] = useState<RubricQuestion[]>(task.rubric)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [progress, setProgress] = useState<GradingProgressEvent | null>(null)
+
+  // 批改进度订阅: 只关心当前任务;done 后刷新任务列表与详情
+  useIpcSubscription<GradingProgressEvent>(
+    (cb) => getAPI().grading.onProgress(cb),
+    (e) => {
+      if (e.taskId !== task.id) return
+      setProgress(e)
+      if (e.phase === 'done') void onRefresh()
+    },
+  )
 
   // 保存量规后服务端返回新 rubric 时同步草稿;切任务由父组件 key 重挂载兜底
   useEffect(() => {
@@ -69,6 +89,15 @@ export function TaskDetail({
 
   const rubricEditable = task.status === 'draft' || task.status === 'ready'
   const rubricDirty = JSON.stringify(rubricDraft) !== JSON.stringify(task.rubric)
+
+  const failedCount = task.papers.filter((p) => p.status === 'failed').length
+  const pendingCount = task.papers.filter(
+    (p) => p.studentName !== null && p.status === 'pending',
+  ).length
+  const canRun =
+    (task.status === 'ready' || (task.status === 'review' && failedCount > 0)) &&
+    pendingCount + failedCount > 0
+  const running = task.status === 'grading'
 
   const saveRubric = async () => {
     const cleaned = rubricDraft
@@ -122,6 +151,28 @@ export function TaskDetail({
             {t('page.grading.detail.backToDraft')}
           </button>
         )}
+        {canRun && (
+          <button
+            type="button"
+            onClick={() => void onRunGrading(task.id)}
+            disabled={busy}
+            className={btnStyle('primary')}
+          >
+            {task.status === 'review'
+              ? t('page.grading.run.retryFailed')
+              : t('page.grading.run.start')}
+          </button>
+        )}
+        {running && (
+          <button
+            type="button"
+            onClick={() => void onAbortGrading(task.id)}
+            disabled={busy}
+            className={btnStyle('danger')}
+          >
+            {t('page.grading.run.abort')}
+          </button>
+        )}
         {confirmDelete ? (
           <span className="flex items-center gap-1">
             <button
@@ -165,6 +216,52 @@ export function TaskDetail({
             task.subjectId ? subjectNameById.get(task.subjectId) : undefined,
           )}
         </div>
+
+        {/* 批改进度(running 时实时;done 后保留汇总直到刷新) */}
+        {progress && progress.taskId === task.id && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs dark:border-amber-500/20 dark:bg-amber-500/10">
+            {progress.phase === 'done' ? (
+              <span className="text-amber-700 dark:text-amber-300">
+                {tr('page.grading.progress.done', {
+                  graded: progress.gradedCount ?? 0,
+                  failed: progress.failedCount ?? 0,
+                })}
+              </span>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-amber-700 dark:text-amber-300">
+                  <span>
+                    {progress.phase === 'failed'
+                      ? tr('page.grading.progress.failedAt', {
+                          student: progress.studentName ?? '',
+                          index: progress.index ?? 0,
+                          total: progress.total ?? 0,
+                        })
+                      : tr('page.grading.progress.doing', {
+                          student: progress.studentName ?? '',
+                          index: progress.index ?? 0,
+                          total: progress.total ?? 0,
+                        })}
+                  </span>
+                  <span className="font-mono">
+                    {(progress.index ?? 0) / (progress.total ?? 1) > 0
+                      ? Math.round(((progress.index ?? 0) / (progress.total ?? 1)) * 100)
+                      : 0}
+                    %
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-amber-100 dark:bg-amber-500/20">
+                  <div
+                    className="h-full rounded-full bg-amber-400 transition-all"
+                    style={{
+                      width: `${Math.min(100, Math.round(((progress.index ?? 0) / (progress.total ?? 1)) * 100))}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 量规 */}
         <section>
