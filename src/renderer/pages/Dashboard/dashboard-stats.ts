@@ -18,6 +18,18 @@ const SCORE_INTERVAL_LABELS = {
 /** 分数分布展示排序: 极高 → 高 → 中 → 低 */
 export const SCORE_ORDER = ['极高(<60)', '高(60-80)', '中(80-100)', '低(>=100)']
 
+/**
+ * 分数区间常量 → i18n 键。
+ * 区间常量是数据层 key(reasonDist 同款考虑),渲染层经此映射翻译轴标签;
+ * 缺失映射时调用方回退显示原始 key。
+ */
+export const SCORE_INTERVAL_I18N: Record<string, string> = {
+  [SCORE_INTERVAL_LABELS.VERY_HIGH]: 'page.dashboard.scoreInterval.veryHigh',
+  [SCORE_INTERVAL_LABELS.HIGH]: 'page.dashboard.scoreInterval.high',
+  [SCORE_INTERVAL_LABELS.MID]: 'page.dashboard.scoreInterval.mid',
+  [SCORE_INTERVAL_LABELS.LOW]: 'page.dashboard.scoreInterval.low',
+}
+
 /** 班级筛选哨兵值：全部班级 / 未分班 */
 export const CLASS_FILTER_ALL = '__ALL__'
 export const CLASS_FILTER_NONE = '__NONE__'
