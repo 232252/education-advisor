@@ -15,6 +15,7 @@
 - [TypeScript aliases](#typescript-aliases)
 - [The EAA data engine (Rust)](#the-eaa-data-engine-rust)
 - [The in-tree vendored pi packages](#the-in-tree-vendored-pi-packages)
+- [The vendored Submitty schema reference](#the-vendored-submitty-schema-reference)
 - [Running tests](#running-tests)
 - [Linting and formatting](#linting-and-formatting)
 - [Debugging tips](#debugging-tips)
@@ -56,6 +57,7 @@ to build and run the project end-to-end:
 | `src/main/`, `src/renderer/`, `src/shared/` | Electron + React + TypeScript desktop client |
 | `core/eaa-cli/` | Rust data engine — the EAA CLI (4 sub-crates: `eaa`, `eaa-core`, `eaa-crypto`, `eaa-sqlite`) |
 | `vendor/pi-agent-core/`, `vendor/pi-ai/` | The LLM SDK + agent core, vendored in-tree (no sibling monorepo required) |
+| `vendor/submitty/` | Pinned Submitty PostgreSQL schema dumps — the blueprint + drift guard for the built-in AI grading subsystem (see below) |
 | `resources/` | Bundled assets (icon, eaa binary, locale data) |
 | `docs/` | All documentation (architecture, agent authoring, EAA bridge, etc.) |
 | `.github/` | CI workflows, issue templates, CODEOWNERS |
@@ -331,6 +333,43 @@ This means:
 > **Why not published npm versions?** The pi packages are not yet
 > published to the public registry. Vendoring them is the only
 > way to ship a self-contained build.
+
+---
+
+## The vendored Submitty schema reference
+
+`vendor/submitty/` holds a small, pinned subset of the upstream
+[Submitty](https://github.com/Submitty/Submitty) project (BSD-3-Clause):
+the two authoritative PostgreSQL schema dumps
+(`migration/migrator/data/{course_tables,submitty_db}.sql`) plus the
+upstream `LICENSE.md`, recorded in `UPSTREAM.json` (tag / commit /
+per-file sha256).
+
+It is **not** the upstream application — the upstream PHP server is
+never executed. The dumps are the **data-model blueprint** for the
+built-in AI grading subsystem (「批改作业」 page): the native model in
+`src/main/services/grading/` mirrors Submitty's grading chain
+(`gradeable → gradeable_component → gradeable_component_mark →
+grade_override`, with `autograding_testcase` as the per-item scoring
+analogue of AI per-question grading).
+
+Guard rails:
+
+- `tests/main/submitty-vendor-drift.test.ts` fails when upstream
+  renames/removes a table or column our native model maps from —
+  pull a new reference, then update the mapping.
+- `npm run verify:vendor` validates the pin (existence + sha256).
+- `npm run rollback:vendor` also restores this directory.
+
+Updating (upstream releases monthly, `vYY.MM.NN`):
+
+```bash
+npm run update:vendor:submitty                  # latest release tag
+npm run update:vendor:submitty -- --tag v26.08.01
+```
+
+Then run the drift test; if red, update the native mapping before
+committing. See `vendor/submitty/README.md` for details.
 
 ---
 
