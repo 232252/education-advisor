@@ -1,10 +1,13 @@
 // =============================================================
-// Grading handlers — AI 批改任务 CRUD/试卷导入/归组/复核
+// Grading handlers — AI 批改任务 CRUD/试卷导入/归组/复核/批改执行
 // 入参做轻量类型检查,深校验(状态机/量规/越界)在 grading-service。
+// grading:run 为异步作业: 启动即返回,进度经 IPC_GRADING_PROGRESS 推送。
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
 import type { GradingTaskStatus, TeacherReview } from '@shared/types'
+import type { BrowserWindow } from 'electron'
+import { abortGrading, startGrading } from '../services/grading/grading-pipeline'
 import { gradingService } from '../services/grading/grading-service'
 import { handleIpc } from './handle'
 
@@ -12,7 +15,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null
 }
 
-export function registerGradingHandlers(): void {
+export function registerGradingHandlers(win: BrowserWindow): void {
   handleIpc(IPC.IPC_GRADING_LIST, async () => ({
     success: true,
     data: await gradingService.listTasks(),
@@ -92,5 +95,20 @@ export function registerGradingHandlers(): void {
     const allowed: GradingTaskStatus[] = ['draft', 'ready', 'grading', 'review', 'published']
     if (!allowed.includes(status)) throw new Error(`非法状态: ${String(status)}`)
     return { success: true, data: await gradingService.setStatus(taskId, status) }
+  })
+
+  // 启动 AI 批改(异步作业: 校验同步完成即返回,进度经 grading:progress)
+  handleIpc(IPC.IPC_GRADING_RUN, async (_e, taskId: string) => {
+    if (typeof taskId !== 'string' || taskId.length === 0)
+      throw new Error('taskId 必须是非空字符串')
+    await startGrading(taskId, win)
+    return { success: true }
+  })
+
+  // 中止批改(已完成的结果保留,可续批)
+  handleIpc(IPC.IPC_GRADING_ABORT, async (_e, taskId: string) => {
+    if (typeof taskId !== 'string' || taskId.length === 0)
+      throw new Error('taskId 必须是非空字符串')
+    return { success: true, data: abortGrading(taskId) }
   })
 }

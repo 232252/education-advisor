@@ -12,6 +12,7 @@ import { CardSkeleton } from '../../components/Skeleton'
 import { tr, useT } from '../../i18n'
 import { btnStyle, cn, INPUT_BASE } from '../../lib/ui-utils'
 import { DefaultModelConfig } from './components/DefaultModelConfig'
+import { GradingModelConfig } from './components/GradingModelConfig'
 import { HiddenProviderList } from './components/HiddenProviderList'
 import { ProviderGroup } from './components/ProviderGroup'
 import { useModelsData } from './hooks/useModelsData'
@@ -111,6 +112,14 @@ export function ModelsPage() {
           <div className="space-y-6">
             {/* 默认模型配置面板 */}
             <DefaultModelConfig
+              providers={providers}
+              modelsMap={modelsMap}
+              modelsLoading={modelsLoading}
+              onRefreshModels={refreshModels}
+            />
+
+            {/* AI 批改作业的模型(视觉过滤) */}
+            <GradingModelConfig
               providers={providers}
               modelsMap={modelsMap}
               modelsLoading={modelsLoading}

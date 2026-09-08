@@ -58,6 +58,10 @@
     "enabled": false,
     "autoAnonymize": false
   },
+  "grading": {
+    "provider": "",
+    "model": ""
+  },
   "feishu": {
     "domain": "feishu",
     "appId": "",

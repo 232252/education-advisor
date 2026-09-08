@@ -26,6 +26,8 @@ export interface ModelInfo {
   costCacheRead: number
   costCacheWrite: number
   supportsReasoning: boolean
+  /** 支持图像输入(视觉模型;试卷批改等场景的过滤依据) */
+  supportsImage?: boolean
   baseUrl: string
   isCustom?: boolean
 }
