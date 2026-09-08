@@ -184,6 +184,8 @@ export const IPC_GRADING_PROGRESS = 'grading:progress'
 export const IPC_GRADING_READ_FILE = 'grading:read-paper-file'
 // 发布批改结果进学业管线(ExamDef+GradeRecord,幂等)
 export const IPC_GRADING_PUBLISH = 'grading:publish'
+// 样卷识别→量规草稿(视觉模型,无状态:图片只读不拷贝,结果不落盘)
+export const IPC_GRADING_EXTRACT_RUBRIC = 'grading:extract-rubric'
 
 // ===== 班级管理（本地：存档/删除） =====
 export const IPC_CLASS_LIST = 'class:list'

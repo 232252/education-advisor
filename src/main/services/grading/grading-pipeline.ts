@@ -213,8 +213,8 @@ function pushProgress(win: BrowserWindow | null, payload: GradingProgressPayload
   }
 }
 
-/** 解析 provider 的 API key(keyless 本地 provider 给哨兵值) */
-function apiKeyFor(providerId: string): string | undefined {
+/** 解析 provider 的 API key(keyless 本地 provider 给哨兵值);样卷识别等旁路复用 */
+export function apiKeyFor(providerId: string): string | undefined {
   if (KEYLESS_PROVIDERS.has(providerId)) return 'local-no-key-needed'
   return keystoreService.getApiKey(providerId) ?? (getEnvApiKey(providerId) || undefined)
 }
