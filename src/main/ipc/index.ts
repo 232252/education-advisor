@@ -44,7 +44,7 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerStudentExcelHandlers()
   registerMcpHandlers(win)
   registerAcademicHandlers()
-  registerGradingHandlers()
+  registerGradingHandlers(win)
   registerBackupHandlers(win)
   registerMemoryHandlers(win)
 

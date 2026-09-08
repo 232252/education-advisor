@@ -68,6 +68,11 @@ export interface UnifiedSettings {
     enabled: boolean
     autoAnonymize: boolean
   }
+  // AI 批改作业子系统的模型配置(需视觉能力;空 = 跟随高质量模型)
+  grading: {
+    provider: string
+    model: string
+  }
   feishu: {
     /** 域名版本: 'feishu' 国内版(open.feishu.cn) / 'lark' 国际版(open.larksuite.com) */
     domain: 'feishu' | 'lark'

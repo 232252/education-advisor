@@ -174,6 +174,12 @@ export const IPC_GRADING_REMOVE_PAPER = 'grading:remove-paper'
 // 教师复核结果落库
 export const IPC_GRADING_SAVE_REVIEW = 'grading:save-review'
 export const IPC_GRADING_SET_STATUS = 'grading:set-status'
+// 启动 AI 批改(异步作业:立即返回,进度经 grading:progress 推送)
+export const IPC_GRADING_RUN = 'grading:run'
+// 中止进行中的批改
+export const IPC_GRADING_ABORT = 'grading:abort'
+// 主→渲染: 批改进度(每份试卷开始/完成/失败 + 整批 done)
+export const IPC_GRADING_PROGRESS = 'grading:progress'
 
 // ===== 班级管理（本地：存档/删除） =====
 export const IPC_CLASS_LIST = 'class:list'
