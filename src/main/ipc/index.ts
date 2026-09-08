@@ -13,6 +13,7 @@ import { registerClassHandlers } from './class-handlers'
 import { registerCronHandlers } from './cron-handlers'
 import { registerEAAHandlers } from './eaa-handlers'
 import { registerFeishuHandlers } from './feishu-handlers'
+import { registerGradingHandlers } from './grading-handlers'
 import { registerLogHandlers } from './log-handlers'
 import { registerMcpHandlers } from './mcp-handlers'
 import { registerMemoryHandlers } from './memory-handlers'
@@ -43,6 +44,7 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerStudentExcelHandlers()
   registerMcpHandlers(win)
   registerAcademicHandlers()
+  registerGradingHandlers()
   registerBackupHandlers(win)
   registerMemoryHandlers(win)
 

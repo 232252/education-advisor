@@ -1,0 +1,96 @@
+// =============================================================
+// Grading handlers — AI 批改任务 CRUD/试卷导入/归组/复核
+// 入参做轻量类型检查,深校验(状态机/量规/越界)在 grading-service。
+// =============================================================
+
+import * as IPC from '@shared/ipc-channels'
+import type { GradingTaskStatus, TeacherReview } from '@shared/types'
+import { gradingService } from '../services/grading/grading-service'
+import { handleIpc } from './handle'
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null
+}
+
+export function registerGradingHandlers(): void {
+  handleIpc(IPC.IPC_GRADING_LIST, async () => ({
+    success: true,
+    data: await gradingService.listTasks(),
+  }))
+
+  handleIpc(IPC.IPC_GRADING_GET, async (_e, taskId: string) => {
+    if (typeof taskId !== 'string' || taskId.length === 0)
+      throw new Error('taskId 必须是非空字符串')
+    return { success: true, data: await gradingService.getTask(taskId) }
+  })
+
+  handleIpc(IPC.IPC_GRADING_CREATE, async (_e, input: unknown) => {
+    if (!isRecord(input)) throw new Error('input 必须是对象')
+    return { success: true, data: await gradingService.createTask(input as never) }
+  })
+
+  handleIpc(IPC.IPC_GRADING_UPDATE, async (_e, taskId: string, patch: unknown) => {
+    if (typeof taskId !== 'string' || taskId.length === 0)
+      throw new Error('taskId 必须是非空字符串')
+    if (!isRecord(patch)) throw new Error('patch 必须是对象')
+    return { success: true, data: await gradingService.updateTask(taskId, patch as never) }
+  })
+
+  handleIpc(IPC.IPC_GRADING_DELETE, async (_e, taskId: string) => {
+    if (typeof taskId !== 'string' || taskId.length === 0)
+      throw new Error('taskId 必须是非空字符串')
+    await gradingService.deleteTask(taskId)
+    return { success: true }
+  })
+
+  handleIpc(IPC.IPC_GRADING_IMPORT_PAPERS, async (_e, taskId: string, batches: unknown) => {
+    if (typeof taskId !== 'string' || taskId.length === 0)
+      throw new Error('taskId 必须是非空字符串')
+    if (!Array.isArray(batches)) throw new Error('batches 必须是数组')
+    return { success: true, data: await gradingService.importPapers(taskId, batches as never) }
+  })
+
+  handleIpc(
+    IPC.IPC_GRADING_ASSIGN_PAPER,
+    async (_e, taskId: string, paperId: string, studentName: string | null) => {
+      if (typeof taskId !== 'string' || typeof paperId !== 'string') {
+        throw new Error('taskId/paperId 必须是字符串')
+      }
+      if (studentName !== null && typeof studentName !== 'string') {
+        throw new Error('studentName 必须是字符串或 null')
+      }
+      return {
+        success: true,
+        data: await gradingService.assignPaper(taskId, paperId, studentName),
+      }
+    },
+  )
+
+  handleIpc(IPC.IPC_GRADING_REMOVE_PAPER, async (_e, taskId: string, paperId: string) => {
+    if (typeof taskId !== 'string' || typeof paperId !== 'string') {
+      throw new Error('taskId/paperId 必须是字符串')
+    }
+    return { success: true, data: await gradingService.removePaper(taskId, paperId) }
+  })
+
+  handleIpc(
+    IPC.IPC_GRADING_SAVE_REVIEW,
+    async (_e, taskId: string, paperId: string, review: TeacherReview) => {
+      if (typeof taskId !== 'string' || typeof paperId !== 'string') {
+        throw new Error('taskId/paperId 必须是字符串')
+      }
+      if (!isRecord(review) || !isRecord(review.questions)) {
+        throw new Error('review.questions 必须是对象')
+      }
+      return { success: true, data: await gradingService.saveReview(taskId, paperId, review) }
+    },
+  )
+
+  handleIpc(IPC.IPC_GRADING_SET_STATUS, async (_e, taskId: string, status: GradingTaskStatus) => {
+    if (typeof taskId !== 'string' || taskId.length === 0)
+      throw new Error('taskId 必须是非空字符串')
+    const allowed: GradingTaskStatus[] = ['draft', 'ready', 'grading', 'review', 'published']
+    if (!allowed.includes(status)) throw new Error(`非法状态: ${String(status)}`)
+    return { success: true, data: await gradingService.setStatus(taskId, status) }
+  })
+}
