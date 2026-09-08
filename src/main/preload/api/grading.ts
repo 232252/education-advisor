@@ -47,4 +47,6 @@ export const gradingApi: GradingAPI = {
     ipcRenderer.invoke(IPC.IPC_GRADING_READ_FILE, taskId, storedName),
   // [w] 发布批改结果进学业管线
   publish: (taskId: string) => ipcRenderer.invoke(IPC.IPC_GRADING_PUBLISH, taskId),
+  // [w] 样卷识别→量规草稿(视觉模型,无状态)
+  extractRubric: (paths: string[]) => ipcRenderer.invoke(IPC.IPC_GRADING_EXTRACT_RUBRIC, paths),
 }
