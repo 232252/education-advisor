@@ -69,7 +69,8 @@ function buildScoreChartOption(
 }
 
 export function ScoreDistChartCard({ scoreIntervals, sortedScoreKeys }: ScoreDistChartCardProps) {
-  const { t } = useT()
+  // t 是模块级稳定引用,语言切换后 memo 重算必须依赖 lang
+  const { t, lang } = useT()
   const chartTheme = useChartTheme()
   const option = useMemo(
     () =>
@@ -79,7 +80,8 @@ export function ScoreDistChartCard({ scoreIntervals, sortedScoreKeys }: ScoreDis
         chartTheme,
         (key) => t(SCORE_INTERVAL_I18N[key] ?? '', key),
       ),
-    [scoreIntervals, sortedScoreKeys, chartTheme, t],
+    // lang 变化触发轴标签重译(t 为模块级稳定引用,不能作依赖)
+    [scoreIntervals, sortedScoreKeys, chartTheme, lang],
   )
   return (
     <ChartCard
