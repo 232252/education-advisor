@@ -92,6 +92,8 @@ async function collectBackupFiles(): Promise<LogicalFile[]> {
   const appPaths = getAppPaths()
   await walkDir(appPaths.academicsDir, 'academics/', files)
   await walkDir(appPaths.profilesDir, 'profiles/', files)
+  // P5: AI 批改子系统(任务 JSON + 试卷扫描件)与学业同层,一并入备份
+  await walkDir(appPaths.gradingDir, 'grading/', files)
 
   const dbPath = dbService.getDbPath()
   if (dbPath) {
@@ -222,6 +224,21 @@ function mapEntryToTarget(name: string): string {
     const rel = name.slice('eaa-data/'.length)
     if (!isSafeEntryName(rel)) throw new Error(`unsafe eaa-data entry: ${name}`)
     return path.join(eaaBridge.getDataDir(), ...rel.split('/'))
+  }
+  // R2-17 打包了 academics/profiles 但恢复映射遗漏,恢复含学业/档案数据的
+  // 备份会抛 unknown entry — 补齐;grading/ 随批改子系统同一批登记
+  const appPaths = getAppPaths()
+  const dirPrefixes: Array<[string, string]> = [
+    ['academics/', appPaths.academicsDir],
+    ['profiles/', appPaths.profilesDir],
+    ['grading/', appPaths.gradingDir],
+  ]
+  for (const [prefix, dir] of dirPrefixes) {
+    if (name.startsWith(prefix)) {
+      const rel = name.slice(prefix.length)
+      if (!isSafeEntryName(rel)) throw new Error(`unsafe ${prefix} entry: ${name}`)
+      return path.join(dir, ...rel.split('/'))
+    }
   }
   const dbPath = dbService.getDbPath()
   if (name === 'workstation.db') {

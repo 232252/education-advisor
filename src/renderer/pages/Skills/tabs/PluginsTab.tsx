@@ -8,10 +8,21 @@
 // UI 块: components/PluginCard / FutureCard
 // =============================================================
 
-import { Brain, Clock, DoorOpen, MessageCircle, Plug, Puzzle, ScrollText } from 'lucide-react'
+import {
+  Brain,
+  ClipboardCheck,
+  Clock,
+  DoorOpen,
+  MessageCircle,
+  Plug,
+  Puzzle,
+  ScrollText,
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
 import { Skeleton } from '../../../components/Skeleton'
 import { tr, useT } from '../../../i18n'
+import { getAPI } from '../../../lib/ipc-client'
 import { FutureCard } from '../components/FutureCard'
 import { PluginCard } from '../components/PluginCard'
 import { usePluginsOverview } from '../hooks/usePluginsOverview'
@@ -20,6 +31,14 @@ export function PluginsTab() {
   const { t } = useT()
   const { loading, mcp, skillsCount, cron, feishu, ollama, errorMsg, loadAll, allEmpty } =
     usePluginsOverview()
+  // AI 批改任务数:本组件就地拉取(不进 usePluginsOverview,保持该 hook 职责单一;挂载期一次)
+  const [gradingCount, setGradingCount] = useState<number | null>(null)
+  useEffect(() => {
+    void (async () => {
+      const r = await getAPI().grading.listTasks()
+      if (r.success && r.data) setGradingCount(r.data.length)
+    })()
+  }, [])
 
   if (loading) {
     return (
@@ -150,6 +169,19 @@ export function PluginsTab() {
               }
               manageLabel={t('page.skills.plugins.card.localModels.manage')}
               to="/models"
+            />
+            {/* AI 批改作业 */}
+            <PluginCard
+              icon={<ClipboardCheck className="h-5 w-5" />}
+              title={t('page.skills.plugins.card.grading')}
+              description={t('page.skills.plugins.card.grading.desc')}
+              countText={
+                gradingCount !== null
+                  ? tr('page.skills.plugins.card.grading.count', { count: gradingCount })
+                  : '—'
+              }
+              manageLabel={t('page.skills.plugins.card.grading.manage')}
+              to="/grading"
             />
           </div>
         </div>
