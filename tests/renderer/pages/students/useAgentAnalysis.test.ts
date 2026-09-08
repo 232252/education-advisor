@@ -3,7 +3,8 @@
 // 覆盖: toggleAgent 勾选 / runSelected&runAll 串行执行 /
 //       subscribeStatus 输出聚合(agentId 过滤) / 错误处理 /
 //       卸载中止(R95) / saveAiResult 保存
-// fake timers 驱动每个 agent 1500ms 的流式等待
+// settle 为事件驱动(runManual 已启动即 resolve): 测试需逐个喂
+// idle 终态事件驱动串行循环放行
 // =============================================================
 
 import { act } from 'react'
@@ -62,6 +63,20 @@ function emitStatus(payload: {
   error?: string
 }) {
   useAgentStore.getState()._handleStatusUpdate(payload)
+}
+
+/** 事件驱动 settle 的测试驱动器: 每次 runManual resolve 后喂 idle 终态放行 */
+async function driveRun(run: () => Promise<void>, agentIds: string[]) {
+  await act(async () => {
+    const p = run()
+    for (const id of agentIds) {
+      // 冲刷微任务: runManual resolve → 循环推进 → settle 挂上观察订阅
+      await vi.advanceTimersByTimeAsync(0)
+      emitStatus({ agentId: id, status: 'idle' })
+    }
+    await vi.advanceTimersByTimeAsync(0)
+    await p
+  })
 }
 
 describe('useAgentAnalysis', () => {
@@ -123,11 +138,7 @@ describe('useAgentAnalysis', () => {
       result.current.toggleAgent('a2')
     })
 
-    await act(async () => {
-      const p = result.current.runSelected()
-      await vi.advanceTimersByTimeAsync(3000)
-      await p
-    })
+    await driveRun(() => result.current.runSelected(), ['a1', 'a2'])
 
     expect(apiMocks.runManual).toHaveBeenCalledTimes(2)
     expect(apiMocks.runManual.mock.calls[0][0]).toBe('a1')
@@ -149,13 +160,15 @@ describe('useAgentAnalysis', () => {
     })
 
     let p!: Promise<void>
-    act(() => {
+    await act(async () => {
       p = result.current.runSelected()
+      await vi.advanceTimersByTimeAsync(0)
     })
     expect(result.current.aiRunning).toBe(true)
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500)
+      emitStatus({ agentId: 'a1', status: 'idle' })
+      await vi.advanceTimersByTimeAsync(0)
       await p
     })
     expect(result.current.aiRunning).toBe(false)
@@ -169,9 +182,7 @@ describe('useAgentAnalysis', () => {
     })
 
     await act(async () => {
-      const p = result.current.runSelected()
-      await vi.advanceTimersByTimeAsync(1500)
-      await p
+      await result.current.runSelected()
     })
 
     expect(result.current.aiMessage).toContain('分析失败')
@@ -191,11 +202,7 @@ describe('useAgentAnalysis', () => {
       result.current.toggleAgent('a1')
     })
 
-    await act(async () => {
-      const p = result.current.runSelected()
-      await vi.advanceTimersByTimeAsync(1500)
-      await p
-    })
+    await driveRun(() => result.current.runSelected(), ['a1'])
 
     expect(result.current.aiOutput).toContain('[a1] 流式输出')
   })
@@ -210,11 +217,7 @@ describe('useAgentAnalysis', () => {
       result.current.toggleAgent('a1')
     })
 
-    await act(async () => {
-      const p = result.current.runSelected()
-      await vi.advanceTimersByTimeAsync(1500)
-      await p
-    })
+    await driveRun(() => result.current.runSelected(), ['a1'])
 
     expect(result.current.aiOutput).not.toContain('别人的输出')
   })
@@ -229,11 +232,7 @@ describe('useAgentAnalysis', () => {
       result.current.toggleAgent('a1')
     })
 
-    await act(async () => {
-      const p = result.current.runSelected()
-      await vi.advanceTimersByTimeAsync(1500)
-      await p
-    })
+    await driveRun(() => result.current.runSelected(), ['a1'])
 
     expect(result.current.aiOutput).toContain('[错误] boom')
   })
@@ -242,11 +241,7 @@ describe('useAgentAnalysis', () => {
 
   it('runAll: 只执行启用的 agent 并同步勾选', async () => {
     const { result } = setup([makeAgent('a1', true), makeAgent('a2', false)])
-    await act(async () => {
-      const p = result.current.runAll()
-      await vi.advanceTimersByTimeAsync(1500)
-      await p
-    })
+    await driveRun(() => result.current.runAll(), ['a1'])
 
     expect(apiMocks.runManual).toHaveBeenCalledTimes(1)
     expect(apiMocks.runManual.mock.calls[0][0]).toBe('a1')
@@ -276,11 +271,8 @@ describe('useAgentAnalysis', () => {
     const rendered = renderHook(() => useAgentAnalysis(student, agents, profileData))
     const unmountRef = () => rendered.unmount()
 
-    await act(async () => {
-      const p = rendered.result.current.runAll()
-      await vi.advanceTimersByTimeAsync(3000)
-      await p
-    })
+    // 第一个 agent 执行时卸载: settle(a1) 仍需 idle 放行才能到达下一轮检查
+    await driveRun(() => rendered.result.current.runAll(), ['a1'])
 
     // 第一个 agent 执行时卸载 → 循环中断, 第二个不再执行
     expect(calls).toBe(1)
