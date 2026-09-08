@@ -109,6 +109,10 @@ export interface PeriodSummary {
 /**
  * 计算事件周期摘要：加分/扣分统计 + top 3 涨跌学生。
  *
+ * top 榜只统计在册学生（entityIdToName 能解析的实体）：
+ * 已删除/历史遗留实体的事件仍计入 events 计数，
+ * 但不进 top 榜——对老师展示裸 entity_id 或已删学生都是噪声。
+ *
  * @param events 事件列表
  * @param entityIdToName entity_id → 学生名映射
  * @param topN 涨跌幅前 N 名（默认 3）
@@ -135,15 +139,15 @@ export function computePeriodSummary(
     deltaByEntity[e.entity_id] = (deltaByEntity[e.entity_id] ?? 0) + d
   }
   const gainers = Object.entries(deltaByEntity)
-    .filter(([, d]) => d > 0)
+    .filter(([eid, d]) => d > 0 && eid in entityIdToName)
     .sort((a, b) => b[1] - a[1])
     .slice(0, topN)
-    .map(([eid, d]) => ({ name: entityIdToName[eid] ?? eid, delta: d }))
+    .map(([eid, d]) => ({ name: entityIdToName[eid], delta: d }))
   const losers = Object.entries(deltaByEntity)
-    .filter(([, d]) => d < 0)
+    .filter(([eid, d]) => d < 0 && eid in entityIdToName)
     .sort((a, b) => a[1] - b[1])
     .slice(0, topN)
-    .map(([eid, d]) => ({ name: entityIdToName[eid] ?? eid, delta: d }))
+    .map(([eid, d]) => ({ name: entityIdToName[eid], delta: d }))
   return {
     events: {
       total: events.length,
