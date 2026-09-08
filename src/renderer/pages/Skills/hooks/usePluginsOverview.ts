@@ -4,9 +4,9 @@
 // 逻辑自 tabs/PluginsTab.tsx 逐字搬移,行为不变
 // =============================================================
 
-import { tr } from '../../../i18n'
 import { useEffect } from 'react'
 import { useMultiLoader } from '../../../hooks/useMultiLoader'
+import { tr } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import {
   type CronOverview,
@@ -95,7 +95,10 @@ export function usePluginsOverview() {
   const { mcp, skillsCount, cron, feishu, ollama } = data
   // 收集错误(文案保持原样;日志仅在错误集合变化时打一次)
   const failedReasons = Object.values(errors)
-  const errorMsg = failedReasons.length > 0 ? tr('skills.capabilitiesLoadFailed', { n: failedReasons.length }) : null
+  const errorMsg =
+    failedReasons.length > 0
+      ? tr('skills.capabilitiesLoadFailed', { n: failedReasons.length })
+      : null
   useEffect(() => {
     const reasons = Object.values(errors)
     if (reasons.length > 0) {
