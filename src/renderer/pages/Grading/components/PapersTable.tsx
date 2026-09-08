@@ -22,6 +22,8 @@ interface PapersTableProps {
   onImport: (taskId: string, batches: Array<{ files: Array<{ path: string }> }>) => Promise<boolean>
   onAssign: (taskId: string, paperId: string, studentName: string | null) => Promise<boolean>
   onRemove: (taskId: string, paperId: string) => Promise<boolean>
+  /** 复核模式可用时(有 AI 结果且任务处于复核/已发布)点击行进入工作台 */
+  onReview?: (paperId: string) => void
 }
 
 const IMAGE_FILTERS = [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp'] }]
@@ -41,6 +43,7 @@ export function PapersTable({
   onImport,
   onAssign,
   onRemove,
+  onReview,
 }: PapersTableProps) {
   const { t } = useT()
   const [importing, setImporting] = useState(false)
@@ -190,7 +193,16 @@ export function PapersTable({
                       </span>
                     )}
                   </td>
-                  <td className="py-1.5 text-right">
+                  <td className="py-1.5 text-right whitespace-nowrap">
+                    {onReview && paper.ai && (
+                      <button
+                        type="button"
+                        onClick={() => onReview(paper.id)}
+                        className="mr-2 text-xs text-blue-500 hover:underline"
+                      >
+                        {t('page.grading.review.open')}
+                      </button>
+                    )}
                     {importable && (
                       <button
                         type="button"

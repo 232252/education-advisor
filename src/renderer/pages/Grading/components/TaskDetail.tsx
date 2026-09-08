@@ -5,13 +5,20 @@
 // P4 接「复核/发布」入口。
 // =============================================================
 
-import type { EAAStudent, GradingProgressEvent, GradingTask, RubricQuestion } from '@shared/types'
+import type {
+  EAAStudent,
+  GradingProgressEvent,
+  GradingTask,
+  RubricQuestion,
+  TeacherReview,
+} from '@shared/types'
 import { useEffect, useState } from 'react'
 import { useIpcSubscription } from '../../../hooks/useIpcSubscription'
 import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { btnStyle, cn } from '../../../lib/ui-utils'
 import { PapersTable } from './PapersTable'
+import { ReviewWorkbench } from './ReviewWorkbench'
 import { RubricEditor } from './RubricEditor'
 
 /** 任务状态 → 徽章 i18n 键(显式枚举,不用模板动态键) */
@@ -49,6 +56,8 @@ interface TaskDetailProps {
   onRunGrading: (taskId: string) => Promise<boolean>
   onAbortGrading: (taskId: string) => Promise<boolean>
   onRefresh: () => Promise<void>
+  onPublish: (taskId: string) => Promise<boolean>
+  onSaveReview: (taskId: string, paperId: string, review: TeacherReview) => Promise<boolean>
 }
 
 export function TaskDetail({
@@ -66,11 +75,14 @@ export function TaskDetail({
   onRunGrading,
   onAbortGrading,
   onRefresh,
+  onPublish,
+  onSaveReview,
 }: TaskDetailProps) {
   const { t } = useT()
   const [rubricDraft, setRubricDraft] = useState<RubricQuestion[]>(task.rubric)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [progress, setProgress] = useState<GradingProgressEvent | null>(null)
+  const [reviewingPaperId, setReviewingPaperId] = useState<string | null>(null)
 
   // 批改进度订阅: 只关心当前任务;done 后刷新任务列表与详情
   useIpcSubscription<GradingProgressEvent>(
@@ -98,6 +110,10 @@ export function TaskDetail({
     (task.status === 'ready' || (task.status === 'review' && failedCount > 0)) &&
     pendingCount + failedCount > 0
   const running = task.status === 'grading'
+  // 可复核 = 有 AI 结果的试卷(复核/已发布态)
+  const reviewablePapers = task.papers.filter((p) => p.ai)
+  const reviewable =
+    (task.status === 'review' || task.status === 'published') && reviewablePapers.length > 0
 
   const saveRubric = async () => {
     const cleaned = rubricDraft
@@ -112,6 +128,24 @@ export function TaskDetail({
         {label}: {value}
       </span>
     ) : null
+
+  // 复核模式: 双栏工作台替换详情主体
+  if (reviewingPaperId) {
+    const target = task.papers.find((p) => p.id === reviewingPaperId) ?? reviewablePapers[0] ?? null
+    if (target) {
+      return (
+        <ReviewWorkbench
+          task={task}
+          paperId={target.id}
+          reviewablePapers={reviewablePapers}
+          onClose={() => setReviewingPaperId(null)}
+          onNavigate={setReviewingPaperId}
+          onSaveReview={onSaveReview}
+        />
+      )
+    }
+    setReviewingPaperId(null)
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -171,6 +205,25 @@ export function TaskDetail({
             className={btnStyle('danger')}
           >
             {t('page.grading.run.abort')}
+          </button>
+        )}
+        {reviewable && (
+          <button
+            type="button"
+            onClick={() => setReviewingPaperId(reviewablePapers[0]?.id ?? null)}
+            className={btnStyle('primary')}
+          >
+            {t('page.grading.review.open')}
+          </button>
+        )}
+        {task.status === 'review' && reviewablePapers.length > 0 && (
+          <button
+            type="button"
+            onClick={() => void onPublish(task.id)}
+            disabled={busy}
+            className={btnStyle('primary')}
+          >
+            {t('page.grading.publish')}
           </button>
         )}
         {confirmDelete ? (
@@ -323,6 +376,7 @@ export function TaskDetail({
             onImport={onImportPapers}
             onAssign={onAssignPaper}
             onRemove={onRemovePaper}
+            onReview={reviewable ? setReviewingPaperId : undefined}
           />
         </section>
       </div>

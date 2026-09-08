@@ -42,4 +42,9 @@ export const gradingApi: GradingAPI = {
   // [event] 批改进度
   onProgress: (callback: (data: import('@shared/types').GradingProgressEvent) => void) =>
     subscribe(IPC.IPC_GRADING_PROGRESS, callback),
+  // [r] 读取试卷扫描件(base64 预览)
+  readPaperFile: (taskId: string, storedName: string) =>
+    ipcRenderer.invoke(IPC.IPC_GRADING_READ_FILE, taskId, storedName),
+  // [w] 发布批改结果进学业管线
+  publish: (taskId: string) => ipcRenderer.invoke(IPC.IPC_GRADING_PUBLISH, taskId),
 }

@@ -5,9 +5,9 @@
 // =============================================================
 
 import type { ImportPaperBatch } from '@shared/api/grading'
-import type { GradingTask, GradingTaskStatus } from '@shared/types'
+import type { GradingTask, GradingTaskStatus, TeacherReview } from '@shared/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 
 export interface RubricInput {
@@ -162,6 +162,46 @@ export function useGradingData() {
     [t],
   )
 
+  /** 保存教师复核(复核工作台) */
+  const saveReview = useCallback(
+    async (taskId: string, paperId: string, review: TeacherReview) => {
+      setBusy(true)
+      setErrorMsg(null)
+      const r = await getAPI().grading.saveReview(taskId, paperId, review)
+      setBusy(false)
+      if (!r.success) {
+        setErrorMsg(r.error ?? t('page.grading.error.mutationFailed', '操作失败'))
+        return false
+      }
+      setNotice(t('page.grading.review.saved', '复核已保存'))
+      await refresh()
+      return true
+    },
+    [refresh, t],
+  )
+
+  /** 发布批改成绩进学业管线 */
+  const publish = useCallback(
+    async (taskId: string) => {
+      setBusy(true)
+      setErrorMsg(null)
+      const r = await getAPI().grading.publish(taskId)
+      setBusy(false)
+      if (!r.success) {
+        setErrorMsg(r.error ?? t('page.grading.error.mutationFailed', '操作失败'))
+        return false
+      }
+      const skipped = r.data?.skipped.length ?? 0
+      setNotice(
+        tr('page.grading.publishDone', { n: r.data?.published ?? 0 }) +
+          (skipped > 0 ? tr('page.grading.publishSkipSuffix', { n: skipped }) : ''),
+      )
+      await refresh()
+      return true
+    },
+    [refresh, t],
+  )
+
   return {
     tasks,
     loading,
@@ -185,5 +225,7 @@ export function useGradingData() {
     refresh,
     runGrading,
     abortGrading,
+    saveReview,
+    publish,
   }
 }
