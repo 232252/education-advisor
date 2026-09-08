@@ -26,6 +26,9 @@ const ClassesPage = lazy(() =>
 const AcademicsPage = lazy(() =>
   import('./pages/Academics/AcademicsPage').then((m) => ({ default: m.AcademicsPage })),
 )
+const GradingPage = lazy(() =>
+  import('./pages/Grading/GradingPage').then((m) => ({ default: m.GradingPage })),
+)
 const AgentsPage = lazy(() =>
   import('./pages/Agents/AgentsPage').then((m) => ({ default: m.AgentsPage })),
 )
@@ -107,6 +110,7 @@ export function App() {
               <Route path="/students" element={<StudentsPage />} />
               <Route path="/classes" element={<ClassesPage />} />
               <Route path="/academics" element={<AcademicsPage />} />
+              <Route path="/grading" element={<GradingPage />} />
               <Route path="/agents" element={<AgentsPage />} />
               <Route path="/models" element={<ModelsPage />} />
               <Route path="/skills" element={<SkillsPage />} />

@@ -33,6 +33,16 @@ export async function pickFile(opts: OpenFileDialogOptions): Promise<string | nu
   return result.filePaths[0]
 }
 
+/** 打开「多选文件」对话框,返回全部所选路径;取消返回空数组 */
+export async function pickFiles(opts: OpenFileDialogOptions): Promise<string[]> {
+  const result = (await getAPI().sys.openDialog({
+    ...opts,
+    properties: [...(opts.properties ?? []), 'openFile', 'multiSelections'],
+  })) as { canceled: boolean; filePaths?: string[] } | undefined
+  if (!result || result.canceled || !result.filePaths?.length) return []
+  return result.filePaths
+}
+
 /** 打开「保存文件」对话框,返回目标路径;取消或未填返回 null */
 export async function saveAs(opts: SaveFileDialogOptions): Promise<string | null> {
   const result = (await getAPI().sys.saveDialog(opts)) as
