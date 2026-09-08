@@ -16,6 +16,7 @@ import {
 } from '../../../components/charts/option-builders'
 import { CHART_BRAND, type ChartTheme, useChartTheme } from '../../../hooks/useChartTheme'
 import { useT } from '../../../i18n'
+import { SCORE_INTERVAL_I18N } from '../dashboard-stats'
 
 interface ScoreDistChartCardProps {
   /** 分数区间 → 人数 */
@@ -37,6 +38,8 @@ function buildScoreChartOption(
   scoreIntervals: Record<string, number>,
   sortedScoreKeys: string[],
   chartTheme: ChartTheme,
+  /** 区间键翻译(数据层 key 是中文常量,轴标签按当前语言渲染) */
+  translateKey: (key: string) => string,
 ) {
   return {
     animation: true,
@@ -44,7 +47,7 @@ function buildScoreChartOption(
     animationEasing: 'cubicOut' as const,
     tooltip: axisTooltip(chartTheme),
     grid: containGrid(28),
-    xAxis: categoryAxis(sortedScoreKeys, chartTheme, { hideTick: true }),
+    xAxis: categoryAxis(sortedScoreKeys.map(translateKey), chartTheme, { hideTick: true }),
     yAxis: valueAxis(chartTheme),
     series: [
       {
@@ -69,8 +72,14 @@ export function ScoreDistChartCard({ scoreIntervals, sortedScoreKeys }: ScoreDis
   const { t } = useT()
   const chartTheme = useChartTheme()
   const option = useMemo(
-    () => buildScoreChartOption(scoreIntervals, sortedScoreKeys, chartTheme),
-    [scoreIntervals, sortedScoreKeys, chartTheme],
+    () =>
+      buildScoreChartOption(
+        scoreIntervals,
+        sortedScoreKeys,
+        chartTheme,
+        (key) => t(SCORE_INTERVAL_I18N[key] ?? '', key),
+      ),
+    [scoreIntervals, sortedScoreKeys, chartTheme, t],
   )
   return (
     <ChartCard
