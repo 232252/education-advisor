@@ -34,6 +34,10 @@ const FALLBACKS = {
   allEvents: [] as EAAEventRecord[],
 }
 
+// 截断提醒每次会话只弹一次:180 天窗口在数据量大的库里必然触发上限,
+// 每次进仪表盘都弹会变成噪声(用户无可操作的日期控件)。
+let rangeTruncationWarned = false
+
 export function useDashboardData() {
   const { data, loading, errors, readyKeys, reload } = useMultiLoader(
     {
@@ -79,8 +83,9 @@ export function useDashboardData() {
           todayISO(),
           5000,
         )
-        // M10: range 结果达上限(limit 被截断为 1000)时提醒缩小日期范围
-        if (r.success && r.data?.truncated) {
+        // M10: range 结果达上限(limit 被截断为 1000)时提醒缩小日期范围(每会话一次)
+        if (r.success && r.data?.truncated && !rangeTruncationWarned) {
+          rangeTruncationWarned = true
           toast.warning(t('toast.eaa.rangeTruncated'))
         }
         return r.success && r.data?.events ? r.data.events : []
