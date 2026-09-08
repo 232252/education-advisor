@@ -17,8 +17,8 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 <!-- doc-stats:start -->
 | 维度 | 数量 |
 | --- | --- |
-| 页面数 | 13 |
-| 路由数 | 15 |
+| 页面数 | 14 |
+| 路由数 | 16 |
 | IPC 通道数 | 153 |
 | Service 文件数 | 148 |
 | IPC handler 文件数 | 48 |
