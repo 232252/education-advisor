@@ -8,6 +8,4 @@ agents:
     modelTier: high_quality
     mcp_servers:
       - fs
-  - id: plain-agent
-    enabled: true
 
