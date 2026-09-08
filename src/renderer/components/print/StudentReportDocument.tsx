@@ -58,8 +58,9 @@ export function StudentReportDocument({
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
     .slice(0, recentEventLimit)
 
-  // 成绩: 按考试日期倒序
-  const examRows = examGradeRows(grades, exams)
+  // 成绩: 按考试日期倒序;AI 批改发布的考试(scope=ai-grading)科目是题目名,
+  // 映射不进固定科目矩阵,整行会全是「—」,不在本报告展示(档案「学业」页可见)
+  const examRows = examGradeRows(grades, exams).filter((r) => r.exam.scope !== 'ai-grading')
 
   return (
     <div className="text-gray-900">
