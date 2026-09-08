@@ -165,10 +165,10 @@ describe('i18n', () => {
       // (全部裸 key/fallback)—— 必须经 setLang 规范通道先补载字典。
       mockLocalStorage.setItem('education-advisor.lang', 'en')
       window.dispatchEvent(new CustomEvent('i18n-changed', { detail: 'en' }))
-      await vi.waitFor(
-        () => expect(result.current.lang).toBe('en'),
-        { timeout: 5_000, interval: 100 },
-      )
+      await vi.waitFor(() => expect(result.current.lang).toBe('en'), {
+        timeout: 5_000,
+        interval: 100,
+      })
       expect(mod.getLang()).toBe('en')
       const sampleKey = Object.keys(enDict)[0] as keyof typeof enDict
       expect(mod.t(sampleKey)).toBe(enDict[sampleKey])

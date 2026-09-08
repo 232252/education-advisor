@@ -4,10 +4,9 @@
 // 导出 HTML 仪表盘的运行状态与 IPC 调用（toast 反馈）。
 // =============================================================
 
-import { tr } from '../../../i18n'
 import type { EAADoctorData, EAAValidateData } from '@shared/types'
 import { useCallback, useState } from 'react'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
 

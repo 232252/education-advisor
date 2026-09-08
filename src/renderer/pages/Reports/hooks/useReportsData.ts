@@ -4,10 +4,10 @@
 // 产得出但没有任何 UI 入口(renderer 全仓 grep agent_outputs = 0)
 // =============================================================
 
-import { tr } from '../../../i18n'
 import type { ReportEntry } from '@shared/types/reports'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useIpcQuery } from '../../../hooks/useIpcQuery'
+import { tr } from '../../../i18n'
 import { errText, getAPI } from '../../../lib/ipc-client'
 
 // 稳定空数组引用,避免加载前/失败后每次渲染产生新引用
