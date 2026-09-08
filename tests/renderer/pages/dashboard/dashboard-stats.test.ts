@@ -218,16 +218,34 @@ describe('computePeriodSummary', () => {
       makeEvent({ entity_id: 'e1', score_delta: 5 }),
       makeEvent({ entity_id: 'e2', score_delta: 3 }),
     ]
-    const s = computePeriodSummary(events, {}, 1)
+    const s = computePeriodSummary(events, { e1: '甲', e2: '乙' }, 1)
     // e1 累计 +10, 排在 e2(+3) 之前, topN=1 只取第一名
-    expect(s.top_gainers).toEqual([{ name: 'e1', delta: 10 }])
+    expect(s.top_gainers).toEqual([{ name: '甲', delta: 10 }])
   })
 
-  it('entityIdToName 缺失时回退显示 entity_id', () => {
+  it('不在册实体(已删除/历史遗留)不进 top 榜,但 events 计数保留', () => {
+    const events = [
+      makeEvent({ entity_id: 'ent_orphan', score_delta: 99 }),
+      makeEvent({ entity_id: 'e1', score_delta: 5 }),
+      makeEvent({ entity_id: 'ent_orphan2', score_delta: -50 }),
+      makeEvent({ entity_id: 'e2', score_delta: -1 }),
+    ]
+    const s = computePeriodSummary(events, { e1: '甲', e2: '乙' })
+    // 裸 entity_id 对老师是噪声:top 榜只留在册学生
+    expect(s.top_gainers.map((g) => g.name)).toEqual(['甲'])
+    expect(s.top_losers.map((l) => l.name)).toEqual(['乙'])
+    // 孤儿事件仍计入总数
+    expect(s.events.total).toBe(4)
+    expect(s.events.bonus_total).toBe(104)
+    expect(s.events.deduct_total).toBe(-51)
+  })
+
+  it('全部实体都不在册时 top 榜为空(而非显示裸 entity_id)', () => {
     const s = computePeriodSummary([makeEvent({ entity_id: 'eX', score_delta: 1 })], {
       other: '别人',
     })
-    expect(s.top_gainers[0].name).toBe('eX')
+    expect(s.top_gainers).toEqual([])
+    expect(s.top_losers).toEqual([])
   })
 
   it('同一实体加扣抵消后净值为 0 时, 不出现在任一 top 榜', () => {
