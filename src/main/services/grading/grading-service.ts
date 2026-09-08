@@ -20,7 +20,9 @@ import type {
 } from '@shared/types'
 import { atomicWrite } from '../../utils/atomic-write'
 import { log } from '../../utils/logger'
+import { academicService } from '../academic-service'
 import { getAppPaths } from '../paths'
+import { buildPublishPayload, type PublishPayload } from './publish'
 
 /** 允许的图片扩展名(试卷扫描件;PDF 转图由渲染层完成后同样落此白名单) */
 const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp'])
@@ -472,6 +474,57 @@ class GradingService {
       throw new Error('非法存储文件名')
     }
     return path.join(this.taskFilesDir(taskId), storedName)
+  }
+
+  /** 读取试卷扫描件为 base64(复核工作台经 IPC 预览;文件导入时已限 25MB) */
+  async readPaperFile(
+    taskId: string,
+    storedName: string,
+  ): Promise<{ mime: string; base64: string }> {
+    const filePath = this.paperFilePath(taskId, storedName)
+    const buf = await fsp.readFile(filePath)
+    const mime = `image/${path.extname(storedName).toLowerCase().replace('.', '') || 'jpeg'}`
+    return { mime: mime === 'image/jpg' ? 'image/jpeg' : mime, base64: buf.toString('base64') }
+  }
+
+  /**
+   * 发布批改结果进学业管线(review|published → published):
+   * 首次发布创建考试并回填 publishedExamId;重复发布按
+   * (examId, subjectId) 幂等 upsert。返回发布份数与跳过清单。
+   */
+  async publishTask(
+    taskId: string,
+  ): Promise<{ task: GradingTask; published: number; skipped: PublishPayload['skipped'] }> {
+    assertTaskId(taskId)
+    return this.withTaskLock(taskId, async () => {
+      const task = await this.getTask(taskId)
+      if (task.status !== 'review' && task.status !== 'published') {
+        throw new Error(`任务状态 ${task.status} 不可发布(需先完成批改进入复核)`)
+      }
+      const payload = buildPublishPayload(task)
+      if (payload.records.length === 0) {
+        const reasons = payload.skipped.map((s) => s.reason).join('、')
+        throw new Error(`没有可发布的成绩(${reasons})`)
+      }
+      // 首次发布创建考试;重复发布沿用同一考试(幂等 upsert)
+      let examId = task.publishedExamId
+      if (!examId) {
+        const exam = await academicService.createExam(payload.examInput)
+        examId = exam.id
+      }
+      await academicService.batchSetGrades(payload.records.map((r) => ({ ...r, examId })))
+      task.status = 'published'
+      task.publishedExamId = examId
+      task.publishedAt = new Date().toISOString()
+      task.updatedAt = task.publishedAt
+      await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
+      log(
+        'info',
+        'grading',
+        `task published: ${taskId} → exam ${examId} (${payload.records.length} records, skipped ${payload.skipped.length})`,
+      )
+      return { task, published: payload.records.length, skipped: payload.skipped }
+    })
   }
 
   private findPaper(task: GradingTask, paperId: string): GradingPaper {

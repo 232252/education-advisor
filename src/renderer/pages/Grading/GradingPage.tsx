@@ -200,6 +200,8 @@ export function GradingPage() {
               onRunGrading={grading.runGrading}
               onAbortGrading={grading.abortGrading}
               onRefresh={grading.refresh}
+              onPublish={grading.publish}
+              onSaveReview={grading.saveReview}
             />
           </div>
         )}

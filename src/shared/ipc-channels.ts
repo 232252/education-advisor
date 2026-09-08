@@ -180,6 +180,10 @@ export const IPC_GRADING_RUN = 'grading:run'
 export const IPC_GRADING_ABORT = 'grading:abort'
 // 主→渲染: 批改进度(每份试卷开始/完成/失败 + 整批 done)
 export const IPC_GRADING_PROGRESS = 'grading:progress'
+// 复核工作台读取试卷扫描件(base64 预览)
+export const IPC_GRADING_READ_FILE = 'grading:read-paper-file'
+// 发布批改结果进学业管线(ExamDef+GradeRecord,幂等)
+export const IPC_GRADING_PUBLISH = 'grading:publish'
 
 // ===== 班级管理（本地：存档/删除） =====
 export const IPC_CLASS_LIST = 'class:list'
