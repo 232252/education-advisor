@@ -9,6 +9,7 @@ import type { GradingTaskStatus, TeacherReview } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { abortGrading, startGrading } from '../services/grading/grading-pipeline'
 import { gradingService } from '../services/grading/grading-service'
+import { extractRubricFromImages } from '../services/grading/rubric-extract'
 import { invalidateOnExamsWrite, invalidateOnGradesWrite } from './academic/cache'
 import { handleIpc } from './handle'
 
@@ -131,5 +132,18 @@ export function registerGradingHandlers(win: BrowserWindow): void {
     invalidateOnExamsWrite()
     invalidateOnGradesWrite(task.papers.map((p) => p.studentName ?? '').filter((n) => n.length > 0))
     return { success: true, data: result }
+  })
+
+  // 样卷识别→量规草稿(轻校验路径;扩展名/大小/存在性在 rubric-extract 深校验)
+  handleIpc(IPC.IPC_GRADING_EXTRACT_RUBRIC, async (_e, paths: unknown) => {
+    if (
+      !Array.isArray(paths) ||
+      paths.length === 0 ||
+      paths.length > 8 ||
+      paths.some((p) => typeof p !== 'string' || p.length === 0)
+    ) {
+      throw new Error('paths 必须是 1~8 个非空字符串路径')
+    }
+    return { success: true, data: await extractRubricFromImages(paths as string[]) }
   })
 }
