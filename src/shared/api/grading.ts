@@ -56,4 +56,16 @@ export interface GradingAPI {
   abort: (taskId: string) => Promise<GradingResult<boolean>>
   // [event] 批改进度(每份开始/完成/失败 + 整批 done)
   onProgress: (callback: (data: GradingProgressEvent) => void) => () => void
+  // [r] 读取试卷扫描件(base64 预览)
+  readPaperFile: (
+    taskId: string,
+    storedName: string,
+  ) => Promise<GradingResult<{ mime: string; base64: string }>>
+  // [w] 发布批改结果进学业管线(幂等;返回发布条数与跳过清单)
+  publish: (taskId: string) => Promise<
+    GradingResult<{
+      published: number
+      skipped: Array<{ paperId: string; studentName: string | null; reason: string }>
+    }>
+  >
 }

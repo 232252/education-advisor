@@ -9,6 +9,7 @@ import type { GradingTaskStatus, TeacherReview } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { abortGrading, startGrading } from '../services/grading/grading-pipeline'
 import { gradingService } from '../services/grading/grading-service'
+import { invalidateOnExamsWrite, invalidateOnGradesWrite } from './academic/cache'
 import { handleIpc } from './handle'
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -110,5 +111,25 @@ export function registerGradingHandlers(win: BrowserWindow): void {
     if (typeof taskId !== 'string' || taskId.length === 0)
       throw new Error('taskId 必须是非空字符串')
     return { success: true, data: abortGrading(taskId) }
+  })
+
+  // 复核工作台: 读取试卷扫描件(base64)
+  handleIpc(IPC.IPC_GRADING_READ_FILE, async (_e, taskId: string, storedName: string) => {
+    if (typeof taskId !== 'string' || typeof storedName !== 'string') {
+      throw new Error('taskId/storedName 必须是字符串')
+    }
+    return { success: true, data: await gradingService.readPaperFile(taskId, storedName) }
+  })
+
+  // 发布批改结果进学业管线(成功后失效学业缓存,Agent/页面即时可见)
+  handleIpc(IPC.IPC_GRADING_PUBLISH, async (_e, taskId: string) => {
+    if (typeof taskId !== 'string' || taskId.length === 0) {
+      throw new Error('taskId 必须是非空字符串')
+    }
+    const task = await gradingService.getTask(taskId)
+    const result = await gradingService.publishTask(taskId)
+    invalidateOnExamsWrite()
+    invalidateOnGradesWrite(task.papers.map((p) => p.studentName ?? '').filter((n) => n.length > 0))
+    return { success: true, data: result }
   })
 }
