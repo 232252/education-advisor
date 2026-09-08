@@ -2,22 +2,22 @@
 // useAgentStreamOutput — 手动 agent 运行的流式输出收集
 // (useAgentAnalysis 与 useCommunicationScript 此前的同构骨架收敛)
 //
-// 已知脆弱点(单点维护): runManual 的 IPC resolve 先于最后一个
-// status 事件到达,靠 1500ms 固定等待收尾;将来改事件驱动
-// (以 idle/result 事件收尾)时只需改本文件的 settle 实现。
+// 收尾节奏(单点维护): runManual 的 IPC 是「已启动即 resolve」,
+// 不能用固定等待——改为事件驱动: settle() 等 filter 命中的 agent
+// 进入终态(idle/error)才放行,封顶 SETTLE_TIMEOUT_MS 防挂死。
 // =============================================================
 
 import { useState } from 'react'
 import { t } from '../i18n'
 import { useAgentStore } from '../stores/agent/store'
 
-/** runManual resolve 后等待流式事件收尾的固定节奏 */
-const STREAM_SETTLE_MS = 1500
+/** settle 的兜底封顶: 终态事件丢失(崩溃等)时不至于永久挂起 */
+const SETTLE_TIMEOUT_MS = 120_000
 
 export interface AgentStreamSession {
   /** 追加一段文本到输出(如每个 agent 的标题行) */
   append: (chunk: string) => void
-  /** runManual resolve 后等待流式输出收尾 */
+  /** runManual resolve 后,等 agent 进入终态再放行 */
   settle: () => Promise<void>
   /** 结束收集并退订 */
   finish: () => void
@@ -51,7 +51,22 @@ export function useAgentStreamOutput() {
     })
     return {
       append: (chunk: string) => setOutput((prev) => prev + chunk),
-      settle: () => new Promise<void>((r) => setTimeout(r, STREAM_SETTLE_MS)),
+      settle: () =>
+        new Promise<void>((resolve) => {
+          let done = false
+          const finish = () => {
+            if (done) return
+            done = true
+            clearTimeout(cap)
+            watchUnsub()
+            resolve()
+          }
+          const cap = setTimeout(finish, SETTLE_TIMEOUT_MS)
+          const watchUnsub = useAgentStore.getState().subscribeStatus((data) => {
+            if (!filter(data.agentId)) return
+            if (data.status === 'idle' || data.status === 'error') finish()
+          })
+        }),
       finish: unsub,
     }
   }
