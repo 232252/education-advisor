@@ -1,51 +1,32 @@
 // =============================================================
 // 日志查看 Section — 列表 / 级别过滤 / 搜索(防抖)/ 导出 / 清空
 // 实时查看 logs/ 目录下的 main / chat / renderer 三类日志(按日期分割)。
-// 注: 日志相关 state(logFiles / logContent / selectedLog / logLevelFilter /
-// logSearchQuery)保留在 SettingsPage,本组件仅做展示 + 回调通知。
+// 状态自持(2026-09-05 下沉): logFiles/logContent/selectedLog/过滤/搜索
+// 与清空确认框全部收归本节,SettingsPage 不再透传 11 个 props。
 // 搜索防抖已接入 useDebouncedCallback,替代原先手写 timerRef + cleanup。
 // =============================================================
 
+import { useState } from 'react'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { useConfirmDialog } from '../../../hooks/useConfirmDialog'
 import { useDebouncedCallback } from '../../../hooks/useDebouncedCallback'
 import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
+import { BTN_SM_BLUE, BTN_SM_GRAY } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
 import { Section } from '../components'
 
-type LogLevelFilter = string
-
-export interface LogSectionProps {
-  logFiles: Array<{ stream: string; date: string; name: string; sizeBytes: number }>
-  logContent: string
-  selectedLog: string
-  logLevelFilter: LogLevelFilter
-  logSearchQuery: string
-  // state setter
-  setLogFiles: (
-    files: Array<{ stream: string; date: string; name: string; sizeBytes: number }>,
-  ) => void
-  setLogContent: (s: string) => void
-  setSelectedLog: (s: string) => void
-  setLogLevelFilter: (s: string) => void
-  setLogSearchQuery: (s: string) => void
-  // 通知父组件弹出清空日志确认对话框
-  onClearLogsRequest: () => void
-}
-
-export function LogSection({
-  logFiles,
-  logContent,
-  selectedLog,
-  logLevelFilter,
-  logSearchQuery,
-  setLogFiles,
-  setLogContent,
-  setSelectedLog,
-  setLogLevelFilter,
-  setLogSearchQuery,
-  onClearLogsRequest,
-}: LogSectionProps) {
+export function LogSection() {
   const { t } = useT()
+  const [logFiles, setLogFiles] = useState<
+    Array<{ stream: string; date: string; name: string; sizeBytes: number }>
+  >([])
+  const [logContent, setLogContent] = useState('')
+  const [selectedLog, setSelectedLog] = useState<string>('')
+  const [logLevelFilter, setLogLevelFilter] = useState<string>('all')
+  const [logSearchQuery, setLogSearchQuery] = useState<string>('')
+  // 清空日志确认(随状态一并下沉,原先挂在 SettingsPage 的 ConfirmDialog)
+  const clearLogsConfirm = useConfirmDialog<void>()
 
   // 搜索防抖(接入 useDebouncedCallback,替代手写 timerRef + cleanup effect)
   // useDebouncedCallback 内部用 fnRef 持有最新闭包,调用时总是访问最新的
@@ -90,13 +71,13 @@ export function LogSection({
                   toast.error(t('toast.settings.refreshLogsFailed'))
                 }
               }}
-              className="text-[10px] px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-white/[0.08] text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.04] transition-colors"
+              className={BTN_SM_GRAY}
             >
               {t('settings.logs.refresh', '刷新列表')}
             </button>
             <button
               type="button"
-              onClick={onClearLogsRequest}
+              onClick={() => clearLogsConfirm.open()}
               className="text-[10px] px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-500/20 transition-colors"
             >
               {t('settings.logs.clear', '清空')}
@@ -171,7 +152,7 @@ export function LogSection({
               }
             }}
             disabled={!selectedLog}
-            className="text-[10px] px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className={BTN_SM_BLUE}
           >
             {t('settings.logs.export', '导出')}
           </button>
@@ -222,6 +203,29 @@ export function LogSection({
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={clearLogsConfirm.isOpen}
+        title={t('page.settings.logs.clearTitle', '清空日志')}
+        message={t('settings.logs.clear.confirm', '清空所有日志文件?')}
+        variant="danger"
+        onConfirm={async () => {
+          clearLogsConfirm.close()
+          try {
+            await getAPI().log.clear()
+            setLogFiles([])
+            setLogContent('')
+            setSelectedLog('')
+            setLogSearchQuery('')
+            setLogLevelFilter('all')
+            toast.success(t('toast.settings.logsCleared'))
+          } catch (err) {
+            console.error('[Settings] log.clear failed:', err)
+            toast.error(t('toast.settings.clearLogsFailed'))
+          }
+        }}
+        onCancel={clearLogsConfirm.close}
+      />
     </Section>
   )
 }

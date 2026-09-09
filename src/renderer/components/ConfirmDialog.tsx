@@ -5,6 +5,7 @@
 // =============================================================
 
 import { useEffect, useRef } from 'react'
+import { t } from '../i18n'
 import { Button } from './Button'
 
 interface ConfirmDialogProps {
@@ -30,8 +31,8 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmText = '确认',
-  cancelText = '取消',
+  confirmText = t('common.confirm', '确认'),
+  cancelText = t('common.cancel', '取消'),
   variant = 'default',
   onConfirm,
   onCancel,

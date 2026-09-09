@@ -14,21 +14,24 @@
 import type { EAAStudent } from '@shared/types'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { buildClassIdToNameMap } from '../../../lib/class-utils'
 import { getAPI } from '../../../lib/ipc-client'
 import { useClassStore } from '../../../stores/class/store'
-import { useStudentStore } from '../../../stores/student/store'
+import {
+  refreshStudents as refreshStudentsStore,
+  useStudentStore,
+} from '../../../stores/student/store'
 import { toast } from '../../../stores/toastStore'
 
 export function useStudentList(setSelectedStudent: (s: EAAStudent | null) => void) {
   const { t } = useT()
   // 共享 store 订阅(原始数据含 Deleted,本页过滤后展示)
-  const rawStudents = useStudentStore((s) => s.students)
+  const rawStudents = useStudentStore((s) => s.items)
   const studentsLoading = useStudentStore((s) => s.loading)
   const studentsSettled = useStudentStore((s) => s.settled)
   const studentsError = useStudentStore((s) => s.error)
-  const classList = useClassStore((s) => s.classes)
+  const classList = useClassStore((s) => s.items)
   // 导出格式：从 EAA 动态获取（fallback 到内置列表）
   // C-2 修复: fallback 列表必须与 EAA Rust 端 cmd_export 一致 (csv/jsonl/html)
   // 之前包含 json 和 markdown,EAA 不支持,选了会报"未知导出格式"错误
@@ -44,27 +47,20 @@ export function useStudentList(setSelectedStudent: (s: EAAStudent | null) => voi
   // 变更后重载(增删/批量操作后由 useStudentActions 调用):
   // force 绕过渲染层 TTL — 写操作虽已失效主进程缓存,但渲染层 store 仍可能命中旧缓存
   const loadStudents = useCallback(async () => {
-    await useStudentStore.getState().fetchStudents({ force: true })
+    await useStudentStore.getState().fetchItems({ force: true })
   }, [])
 
   const loadClasses = useCallback(async () => {
-    await useClassStore.getState().fetchClasses({ force: true })
+    await useClassStore.getState().fetchItems({ force: true })
   }, [])
 
-  // 手动刷新：先清空 EAA 读缓存，再强制重新加载（强制重新拉取最新数据）
-  const refreshStudents = useCallback(async () => {
-    try {
-      await getAPI().eaa.invalidateCache()
-    } catch {
-      /* 清缓存失败不阻塞 */
-    }
-    await useStudentStore.getState().fetchStudents({ force: true })
-  }, [])
+  // 手动刷新: 复用 store 的单一实现(清缓存 + force 拉取)
+  const refreshStudents = useCallback(() => refreshStudentsStore(), [])
 
   // 挂载: 非强制拉取 — TTL(3s)内复用其他页面刚拉取的数据,跨页切换零重复 spawn
   useEffect(() => {
-    useStudentStore.getState().fetchStudents()
-    useClassStore.getState().fetchClasses()
+    useStudentStore.getState().fetchItems()
+    useClassStore.getState().fetchItems()
   }, [])
 
   // 学生加载异常提示(与原行为一致: 仅 IPC 异常 toast,success:false 静默保留旧数据)
@@ -102,7 +98,7 @@ export function useStudentList(setSelectedStudent: (s: EAAStudent | null) => voi
     // 避免之前直接 return 导致 entity_id param 残留在 URL 中。
     if (students.length === 0) {
       setSearchParams({}, { replace: true })
-      toast.warning(t('page.students.locate.empty').replace('{id}', targetId))
+      toast.warning(tr('page.students.locate.empty', { id: targetId }))
       return
     }
     const match = students.find((s) => s.entity_id === targetId)
@@ -113,9 +109,9 @@ export function useStudentList(setSelectedStudent: (s: EAAStudent | null) => voi
     } else {
       // entity_id 不存在: 清除 URL param 避免残留,并提示用户
       setSearchParams({}, { replace: true })
-      toast.warning(t('page.students.locate.notFound').replace('{id}', targetId))
+      toast.warning(tr('page.students.locate.notFound', { id: targetId }))
     }
-  }, [students, loading, searchParams, setSearchParams, setSelectedStudent, t])
+  }, [students, loading, searchParams, setSearchParams, setSelectedStudent])
 
   // 已存档的班级 class_id 集合（用于默认隐藏这些班级的学生）
   const archivedClassIds = useMemo(

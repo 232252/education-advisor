@@ -8,6 +8,8 @@
 // =============================================================
 
 import fsp from 'node:fs/promises'
+import { makeExecution } from './helpers/make'
+import { makeFakeWindow } from './helpers/electron-ipc'
 import os from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -70,27 +72,9 @@ afterAll(async () => {
 
 // 伪造 BrowserWindow: webContents.send 可观测
 function makeFakeWin() {
-  return {
-    webContents: {
-      send: mocks.webContentsSend,
-    },
-    isDestroyed: () => false,
-  } as unknown as import('electron').BrowserWindow
+  return makeFakeWindow(mocks.webContentsSend)
 }
 
-function makeExecution(agentId: string): import('@shared/types').AgentExecution {
-  return {
-    id: `exec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    agentId,
-    prompt: 'x',
-    output: 'ok',
-    startedAt: Date.now(),
-    durationMs: 1,
-    tokenUsage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
-    cost: 0,
-    status: 'success',
-  }
-}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
@@ -231,8 +215,14 @@ describe('M35 compensateMissedExecution 判定逻辑(单元)', () => {
 
 // -------------------------------------------------------------
 // 服务级: 真实 node-cron missed 路径(真实定时器 + 事件循环阻塞)
-// 表达式用 6 段式 */5 * * * * *(每 5 秒)缩短周期;node-cron 容差 1s,
-// 阻塞到"槽位+3.5s"保证该槽位 lateBy≈3s > 容差 → 判 missed 且不迟到执行
+// 表达式用 6 段式 */3 * * * * *(每 3 秒)缩短周期。node-cron v4 判定细节
+// (读自 _shared.js): 容差 DEFAULT_MISSED_EXECUTION_TOLERANCE=1000ms,且
+// planBeat 的"now"经 nowWithoutMs() 截断毫秒 — lateBy ≤ 1000 的槽位走
+// "迟到执行"而非 missed。故阻塞到"槽位+2.5s": 截断后 lateBy=2000 > 容差
+// (判 missed),且早于下个 3s 槽位 0.5s(避开迟到执行/多 missed 路径,保证
+// 恰好 1 个 missed 事件)。*/2 不可用: 过容差(≥+2s)与不越下槽位(<+2s)
+// 的窗口为空。测试提速轮(2026-09-04): 原 */5+3.5s 本文件 20.4s,
+// 是并行套件关键路径。
 // -------------------------------------------------------------
 describe('M35 错过调度补偿(服务级)', () => {
   beforeEach(() => {
@@ -256,7 +246,7 @@ describe('M35 错过调度补偿(服务级)', () => {
       const id = cronService.addTask({
         name: '睡眠补偿测试',
         agentId: 'sleep-agent',
-        expression: '*/5 * * * * *',
+        expression: '*/3 * * * * *',
         prompt: 'x',
         enabled: true,
         modelTier: 'low_cost',
@@ -268,9 +258,10 @@ describe('M35 错过调度补偿(服务级)', () => {
         await sleep(100) // 等执行链收尾(per-task 锁释放 / lastRunAt 刷新)
         expect(cronService.getLogs(id).filter((l) => l.status === 'skipped_missed')).toHaveLength(0)
 
-        // 阶段2: 阻塞事件循环模拟系统睡眠,睡到"下一个 5s 槽位 + 3.5s"
-        //   该槽位 lateBy≈3s > node-cron 容差 1s → planBeat 判 missed 且不迟到执行
-        const wakeAt = Math.ceil(Date.now() / 5000) * 5000 + 3500
+        // 阶段2: 阻塞事件循环模拟系统睡眠,睡到"下一个 3s 槽位 + 2.5s"
+        //   截断毫秒后 lateBy=2s > 容差 1s → planBeat 判 missed;
+        //   且早于下个槽位 0.5s,不会触发迟到执行(恰好 1 个 missed 事件)
+        const wakeAt = Math.ceil(Date.now() / 3000) * 3000 + 2500
         blockEventLoop(wakeAt - Date.now())
 
         // 阶段3: 醒来 → execution:missed → 记 skipped_missed 日志并立即补跑一次
@@ -281,7 +272,7 @@ describe('M35 错过调度补偿(服务级)', () => {
         expect(skipped[0].agentId).toBe('sleep-agent')
         expect(skipped[0].error).toContain('补跑')
 
-        // 阶段4: 醒来后下一个 5s 槽位恢复正常到点执行(正常调度不受影响)
+        // 阶段4: 醒来后下一个 3s 槽位恢复正常到点执行(正常调度不受影响)
         await waitForCalls(runnerCalls, 3)
         // 补跑只发生一次(共 3 次执行: 1 次睡前正常 + 1 次补跑 + 1 次醒后正常)
         expect(runner).toHaveBeenCalledTimes(3)
@@ -306,10 +297,11 @@ describe('M35 错过调度补偿(服务级)', () => {
       cronService.setAgentRunner(runner)
       cronService.setMainWindow(makeFakeWin())
 
+      // 每秒表达式: 本测试只需"连续两次到点",无 missed 语义,无需 3s 周期
       const id = cronService.addTask({
         name: '正常调度测试',
         agentId: 'normal-agent',
-        expression: '*/5 * * * * *',
+        expression: '* * * * * *',
         prompt: 'x',
         enabled: true,
         modelTier: 'low_cost',

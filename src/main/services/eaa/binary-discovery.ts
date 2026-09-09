@@ -24,7 +24,7 @@ export function tryResolveBinaryPath(mainDir: string): string | null {
 }
 
 /** 读缓存条目(key = `${command}:${args.join(' ')}`) */
-export interface ReadCacheEntry {
+interface ReadCacheEntry {
   result: EAAResult
   expireAt: number
 }

@@ -11,7 +11,7 @@
 - [`config/agents.yaml` — the agent registry](#configagentsyaml--the-agent-registry)
 - [`config/reason-codes.json` — the event taxonomy](#configreason-codesjson--the-event-taxonomy)
 - [`config/default-settings.json` — first-run defaults](#configdefault-settingsjson--first-run-defaults)
-- [`config/SMALL_MODEL_RULES.md` — the prompt rulebook](#configsmall_model_rulesmd--the-prompt-rulebook)
+- [`agents/_shared/rules.md` — the prompt rulebook](#agents_sharedrulesmd--the-prompt-rulebook)
 - [In-app settings](#in-app-settings)
 - [Environment variables](#environment-variables)
 - [.env file format](#env-file-format)
@@ -365,19 +365,21 @@ missing) are in
 
 ---
 
-## `config/SMALL_MODEL_RULES.md` — the prompt rulebook
+## `agents/_shared/rules.md` — the prompt rulebook
 
-Every agent's system prompt includes this file. It defines the
+Every agent's system prompt includes this file (M10: injected by
+`agent-service.ts` when building the prompt, so role `AGENTS.md`
+files only keep their role-specific rules). It defines the
 non-negotiable rules that the agent must follow, especially when
 running on a small (3–7B parameter) model.
 
 The file is included verbatim in the agent's system prompt, so its
 **length affects the LLM's per-call cost**. The current file is
-~150 lines / ~3 KB.
+~87 lines.
 
 To edit the rulebook:
 
-1. Open `config/SMALL_MODEL_RULES.md`.
+1. Open `agents/_shared/rules.md`.
 2. Edit the content.
 3. Restart the app (or click "Reload agents" in the Agents page).
 

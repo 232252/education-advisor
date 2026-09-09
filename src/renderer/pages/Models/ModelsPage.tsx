@@ -9,9 +9,10 @@ import { useCallback, useState } from 'react'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { PageHeader } from '../../components/PageHeader'
 import { CardSkeleton } from '../../components/Skeleton'
-import { useT } from '../../i18n'
+import { tr, useT } from '../../i18n'
 import { btnStyle, cn, INPUT_BASE } from '../../lib/ui-utils'
 import { DefaultModelConfig } from './components/DefaultModelConfig'
+import { GradingModelConfig } from './components/GradingModelConfig'
 import { HiddenProviderList } from './components/HiddenProviderList'
 import { ProviderGroup } from './components/ProviderGroup'
 import { useModelsData } from './hooks/useModelsData'
@@ -83,16 +84,16 @@ export function ModelsPage() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="搜索 Provider..."
+              placeholder={t('page.models.searchPlaceholder', '搜索 Provider...')}
               className={cn('w-64', INPUT_BASE)}
             />
             <button
               type="button"
               onClick={loadProviders}
-              aria-label="刷新"
+              aria-label={t('common.refresh', '刷新')}
               className={btnStyle('secondary')}
             >
-              刷新
+              {t('common.refresh', '刷新')}
             </button>
           </>
         }
@@ -117,10 +118,22 @@ export function ModelsPage() {
               onRefreshModels={refreshModels}
             />
 
+            {/* AI 批改作业的模型(视觉过滤) */}
+            <GradingModelConfig
+              providers={providers}
+              modelsMap={modelsMap}
+              modelsLoading={modelsLoading}
+              onRefreshModels={refreshModels}
+            />
+
             {/* 已配置的 Providers */}
             {configuredProviders.length > 0 && (
               <ProviderGroup
-                title={`已配置 (${configuredProviders.length})`}
+                title={tr(
+                  'page.models.section.configured',
+                  { count: String(configuredProviders.length) },
+                  '已配置 ({count})',
+                )}
                 titleClassName="text-green-500 dark:text-green-400"
                 providers={configuredProviders}
                 expandedProvider={expandedProvider}
@@ -145,7 +158,11 @@ export function ModelsPage() {
             {/* 未配置的 Providers */}
             {unconfiguredProviders.length > 0 && (
               <ProviderGroup
-                title={`未配置 (${unconfiguredProviders.length})`}
+                title={tr(
+                  'page.models.section.unconfigured',
+                  { count: String(unconfiguredProviders.length) },
+                  '未配置 ({count})',
+                )}
                 titleClassName="text-gray-500 dark:text-gray-400"
                 providers={unconfiguredProviders}
                 expandedProvider={expandedProvider}

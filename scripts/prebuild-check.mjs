@@ -16,8 +16,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const ROOT = resolve(__dirname, '..')
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 function log(level, msg) {
   const ts = new Date().toISOString()
@@ -28,16 +27,15 @@ const warn = (m) => log('warn', m)
 const error = (m) => log('error', m)
 
 // ---- 平台检测 ----
+const SUPPORTED_PLATFORMS = new Set(['darwin', 'linux', 'win32', 'freebsd'])
+const SUPPORTED_ARCHES = new Set(['x64', 'arm64', 'ia32', 'arm'])
+
 function detectPlatform() {
-  const platformMap = { darwin: 'darwin', linux: 'linux', win32: 'win32', freebsd: 'freebsd' }
-  const archMap = { x64: 'x64', arm64: 'arm64', ia32: 'ia32', arm: 'arm' }
-  const p = platformMap[process.platform]
-  const a = archMap[process.arch]
-  if (!p || !a) {
+  if (!SUPPORTED_PLATFORMS.has(process.platform) || !SUPPORTED_ARCHES.has(process.arch)) {
     error(`Unsupported platform: ${process.platform}/${process.arch}`)
     process.exit(2)
   }
-  return `${p}-${a}`
+  return `${process.platform}-${process.arch}`
 }
 
 const PLATFORM = detectPlatform()

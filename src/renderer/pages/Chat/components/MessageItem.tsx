@@ -19,6 +19,11 @@ interface MessageItemProps {
   isLast: boolean
 }
 
+/** 流式期间只对尾部该长度的文本做 Markdown+KaTeX 解析,稳定前缀以纯文本渲染 —
+ *  照搬 RunTab 同名方案: 每 50ms flush 对增长中的全文重解析是 O(n²),
+ *  长回复时整个渲染进程被拖住;完成后恢复全文 Markdown */
+const STREAM_TAIL_WINDOW = 4096
+
 /** 消息列表中的单条消息（用户/助手气泡,memo 以消息引用+状态位为键短路） */
 export const MessageItem = memo(function MessageItem({
   msg,
@@ -83,7 +88,16 @@ export const MessageItem = memo(function MessageItem({
               {msg.content || (isStreaming && isLast ? <TypingDots /> : '')}
             </div>
           ) : msg.content ? (
-            <Markdown content={msg.content} />
+            isStreaming && isLast && msg.content.length > STREAM_TAIL_WINDOW ? (
+              <>
+                <pre className="whitespace-pre-wrap break-words font-sans text-gray-500 dark:text-gray-400">
+                  {msg.content.slice(0, msg.content.length - STREAM_TAIL_WINDOW)}
+                </pre>
+                <Markdown content={msg.content.slice(-STREAM_TAIL_WINDOW)} />
+              </>
+            ) : (
+              <Markdown content={msg.content} />
+            )
           ) : isStreaming && isLast ? (
             <TypingDots />
           ) : (

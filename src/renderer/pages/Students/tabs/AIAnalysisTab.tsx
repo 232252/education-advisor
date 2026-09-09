@@ -34,7 +34,7 @@ export function AIAnalysisTab({
   aiSaved: boolean
   onSaveResult: () => void
 }) {
-  const { t } = useT()
+  const { t, lang } = useT()
   const enabledAgents = useMemo(() => agents.filter((a) => a.enabled), [agents])
 
   const sections = useMemo(() => {
@@ -69,7 +69,7 @@ export function AIAnalysisTab({
     return result.length > 0
       ? result
       : [{ title: t('page.students.ai.output', '分析输出'), content: output }]
-  }, [output, t])
+  }, [output, lang])
 
   return (
     <div className="space-y-4">

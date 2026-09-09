@@ -7,23 +7,14 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import type { AgentExecution, CronLogEntry, CronTask } from '@shared/types'
 import { log } from '../../utils/logger'
+import { matchesAnyKeyword, QUOTA_ERROR_KEYWORDS } from '../../utils/retry-keywords'
 
 /** circuit-breaker: 连续配额类错误达此阈值后,暂停该任务的 cron 触发 */
 export const CIRCUIT_BREAKER_THRESHOLD = 3
 
-/** 判断错误是否为配额类(持续会失败,值得熔断)。与 agent-service.ts isNonRetryableError 关键词对齐。 */
+/** 判断错误是否为配额类(持续会失败,值得熔断)。关键词表见 utils/retry-keywords(与续跑侧单一来源) */
 export function isQuotaError(msg: string): boolean {
-  if (!msg) return false
-  const lower = msg.toLowerCase()
-  return (
-    lower.includes('429') ||
-    lower.includes('rate_limit') ||
-    lower.includes('rate limit') ||
-    lower.includes('too many requests') ||
-    lower.includes('quota') ||
-    lower.includes('用量上限') ||
-    lower.includes('配额')
-  )
+  return matchesAnyKeyword(msg.toLowerCase(), QUOTA_ERROR_KEYWORDS)
 }
 
 /** circuit-breaker 状态机: per-task 连续失败计数 + 熔断状态
@@ -107,7 +98,7 @@ export async function readCronLogFile(filePath: string): Promise<CronLogEntry[] 
  * 追加写入日志并按需轮转(文件超过 5MB 时截断为最近 1000 条,轮转失败不影响主流程)。
  * 写入失败时抛错,由调用方负责把日志恢复到 buffer 前部(避免数据丢失)。
  */
-export async function appendCronLogLines(filePath: string, toWrite: CronLogEntry[]): Promise<void> {
+async function appendCronLogLines(filePath: string, toWrite: CronLogEntry[]): Promise<void> {
   const lines = `${toWrite.map((e) => JSON.stringify(e)).join('\n')}\n`
   await fsp.appendFile(filePath, lines, 'utf-8')
   // 日志轮转: 文件超过 5MB 时截断为最近 1000 条
@@ -227,7 +218,7 @@ export function applyTaskError(
 }
 
 /** recordAgentRunOutcome 所需的宿主能力(由 CronService 注入) */
-export interface AgentOutcomeCtx {
+interface AgentOutcomeCtx {
   task: CronTask
   taskId: string
   timestamp: number

@@ -11,10 +11,11 @@
 //                     无法实例化),保持本模块可在 vitest 中直接测试。
 // =============================================================
 
+import { errText } from '../../utils/err-text'
 import { type EAAResult, getErrorMessage } from '../eaa/types'
 
 /** 命令解析结果 */
-export interface ParsedCommand {
+interface ParsedCommand {
   command: string // 不含 '/',已转小写
   args: string[] // 按空白拆分的参数
   rawArgs: string // 原始参数字符串(保留引号等)
@@ -106,7 +107,7 @@ export class FeishuCommandRouter {
     try {
       return await entry.handler(parsed, ctx)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       return `命令 /${parsed.command} 执行失败: ${msg}`
     }
   }

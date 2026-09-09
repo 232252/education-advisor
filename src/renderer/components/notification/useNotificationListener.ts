@@ -14,6 +14,7 @@
 
 import type { AgentStatusPayload, CronTask } from '@shared/types'
 import { useEffect } from 'react'
+import { tr } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { useAgentStore } from '../../stores/agent/store'
 import { useNotificationStore } from '../../stores/notificationStore'
@@ -68,7 +69,7 @@ export function useNotificationListener() {
         push({
           source: 'agent',
           level: 'error',
-          title: `Agent 运行失败 — ${agentName}`,
+          title: tr('notif.agent.failed', { name: agentName }),
           message: payload.error || summarize(payload.output),
           target: `/agents?agent_id=${encodeURIComponent(payload.agentId)}`,
         })
@@ -79,7 +80,7 @@ export function useNotificationListener() {
         push({
           source: 'agent',
           level: 'info',
-          title: `Agent 已中止 — ${agentName}`,
+          title: tr('notif.agent.aborted', { name: agentName }),
           target: `/agents?agent_id=${encodeURIComponent(payload.agentId)}`,
         })
         return
@@ -88,7 +89,7 @@ export function useNotificationListener() {
         push({
           source: 'agent',
           level: payload.result.status === 'success' ? 'success' : 'error',
-          title: `Agent 运行完成 — ${agentName}`,
+          title: tr('notif.agent.completed', { name: agentName }),
           message: summarize(payload.result.output),
           target: `/agents?agent_id=${encodeURIComponent(payload.agentId)}`,
         })
@@ -109,22 +110,22 @@ export function useNotificationListener() {
             push({
               source: 'cron',
               level: 'error',
-              title: `定时任务失败 — ${taskName}`,
+              title: tr('notif.cron.failed', { name: taskName }),
               target: '/scheduler',
             })
           } else if (status === 'skipped_circuit_breaker') {
             push({
               source: 'cron',
               level: 'warning',
-              title: `定时任务被熔断跳过 — ${taskName}`,
-              message: '连续配额错误,已暂停自动执行;可手动运行或重启任务重置',
+              title: tr('notif.cron.skipped', { name: taskName }),
+              message: tr('notif.cron.skippedMsg', {}),
               target: '/scheduler',
             })
           } else if (status === 'success' && task?.agentId === '__feishu__') {
             push({
               source: 'cron',
               level: 'success',
-              title: `飞书同步完成 — ${taskName}`,
+              title: tr('notif.cron.feishuSynced', { name: taskName }),
               target: '/scheduler',
             })
           }

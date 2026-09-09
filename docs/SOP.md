@@ -41,12 +41,12 @@
 - Soft cap at **500 lines per file**.
 - If your change pushes a file over the cap, refactor in the
   same PR.
-- The current exceptions (in the refactor list):
-  - `src/main/services/agent-service.ts` (1 031 lines)
-  - `src/main/services/pi-ai-service.ts` (946 lines)
-  - `src/renderer/pages/Settings/SettingsPage.tsx` (~740 lines)
-  - `src/renderer/stores/chatStore.ts` (536 lines)
-  - `src/shared/types/index.ts` (539 lines)
+- Current exceptions: **none** — the former waiver list
+  (`agent-service.ts` 1031, `pi-ai-service.ts` 946,
+  `SettingsPage.tsx` ~740, `chatStore.ts` 536,
+  `shared/types/index.ts` 539) has been fully refactored down
+  under the cap (2026-09 slim rounds). Keep this list empty; add
+  a waiver only with a refactor plan attached.
 
 ## The naming conventions
 

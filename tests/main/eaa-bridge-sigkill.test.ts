@@ -8,7 +8,7 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const tmpRoot = path.join(
   os.tmpdir(),
@@ -84,6 +84,10 @@ describe('EAA Bridge 超时后 SIGKILL 升级', () => {
     mocks.spawnImpl.mockImplementation(() => new MockChildProcess())
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('超时后应先发 SIGTERM 再发 SIGKILL', async () => {
     const proc = new MockChildProcess()
     mocks.spawnImpl.mockImplementation(() => proc)
@@ -92,22 +96,21 @@ describe('EAA Bridge 超时后 SIGKILL 升级', () => {
     const { EAABridge } = await import('../../src/main/services/eaa-bridge')
     const bridge = new EAABridge()
 
-    // 用短超时(50ms)加速测试
+    // 用短超时(50ms)加速测试;被测代码只用全局 setTimeout(process-executor),
+    // fake timers 可完整接管,真实等待 3.4s 改为瞬时推进
+    vi.useFakeTimers()
     const execPromise = bridge.execute({
       command: 'list',
       args: [],
       timeout: 50,
     })
 
-    // 等待 spawn 完成 + SIGTERM 被发送
-    // execute 是 async,内部 await writeQueue 后才 spawn,需要 microtask 等待
-    await new Promise((r) => setTimeout(r, 200))
-
+    // 推进到 spawn 完成(microtask 链)+ 命令超时触发 → SIGTERM
+    await vi.advanceTimersByTimeAsync(100)
     expect(proc.killSignals).toContain('SIGTERM')
 
-    // 等待 SIGKILL 升级(3 秒后) — 使用真实 timer
-    await new Promise((r) => setTimeout(r, 3200))
-
+    // 推进 3 秒 → SIGKILL 升级
+    await vi.advanceTimersByTimeAsync(3000)
     expect(proc.killSignals).toContain('SIGKILL')
 
     // 让进程 close 以 resolve promise
@@ -183,25 +186,26 @@ describe('EAA Bridge 超时后 SIGKILL 升级', () => {
     const { EAABridge } = await import('../../src/main/services/eaa-bridge')
     const bridge = new EAABridge()
 
+    vi.useFakeTimers()
     const controller = new AbortController()
     const execPromise = bridge.execute(
       { command: 'list', args: [], timeout: 30_000 },
       { signal: controller.signal },
     )
 
-    // 等待 spawn 完成
-    await new Promise((r) => setImmediate(r))
+    // 等待 spawn 完成(microtask 链;fake timers 下 setImmediate 不可用)
+    await vi.advanceTimersByTimeAsync(0)
 
     // 执行中 abort
     controller.abort()
 
-    // abort 后 100ms: 子进程必须已被 kill(孤儿检测,不留存活子进程)
-    await new Promise((r) => setTimeout(r, 100))
+    // abort 即刻: 子进程必须已被 kill(孤儿检测,不留存活子进程)
+    await vi.advanceTimersByTimeAsync(100)
     expect(proc.killed).toBe(true)
     expect(proc.killSignals).toContain('SIGTERM')
 
     // 3 秒后升级 SIGKILL — 忽略 SIGTERM 的子进程也会被强制终止
-    await new Promise((r) => setTimeout(r, 3200))
+    await vi.advanceTimersByTimeAsync(3000)
     expect(proc.killSignals).toContain('SIGKILL')
 
     // 让进程 close,验证统一返回 aborted 失败结果

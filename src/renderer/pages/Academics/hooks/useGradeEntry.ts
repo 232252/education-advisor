@@ -17,10 +17,19 @@ import type {
   GradeRecord,
   SubjectDef,
 } from '@shared/types'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useT } from '../../../i18n'
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { tr, useT } from '../../../i18n'
 import { getCurrentSemester, sortByDateDesc } from '../../../lib/academics'
-import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
+import { errText, getAPI, getErrorMessage } from '../../../lib/ipc-client'
+import { todayISO } from '../../../lib/ui-utils'
 import { useChatStore } from '../../../stores/chat/store'
 import { toast } from '../../../stores/toastStore'
 import {
@@ -35,7 +44,7 @@ import {
   type ScoreEntry,
 } from '../lib/grade-entry'
 
-export interface UseGradeEntryArgs {
+interface UseGradeEntryArgs {
   studentName: string
   students: EAAStudent[]
   subjects: SubjectDef[]
@@ -135,16 +144,21 @@ export function useGradeEntry({
   }, [selectedExamId, selectedSubjectId, mode, entryStudentName, currentGrades])
 
   /** 加载同班学生在指定考试/科目的成绩 (单科模式) */
+  // 代际防护: 快速切换考试/科目时,晚到的旧响应不得覆盖新选择的成绩
+  const classGradesGenRef = useRef(0)
   const loadClassGrades = useCallback(
     async (examId: string, subjectId: string) => {
       if (!examId || !subjectId) return
+      const gen = ++classGradesGenRef.current
       try {
         const studentNames = students.map((s) => s.name)
         const res = await getAPI().academic.getClassGrades(studentNames, examId, subjectId)
+        if (classGradesGenRef.current !== gen) return
         if (res.success && res.data) {
           setSingleScores(buildScoresFromClassGrades(res.data))
         }
       } catch (err) {
+        if (classGradesGenRef.current !== gen) return
         console.warn('[GradeEntry] Load class grades failed:', err)
       }
     },
@@ -163,6 +177,41 @@ export function useGradeEntry({
     [exams, selectedExamId],
   )
 
+  /** 快速创建考试 / 保存时自动创建 共用的创建实现(成功 toast+选中并返回 id;失败 toast 返回 null) */
+  const createExamInternal = useCallback(
+    async (opts: {
+      name: string
+      type: ExamType
+      date: string
+      successKey: string
+      failKey: string
+      failWithErrorKey: string
+    }): Promise<string | null> => {
+      try {
+        const res = await getAPI().academic.createExam({
+          name: opts.name,
+          type: opts.type,
+          date: opts.date,
+          semester: getCurrentSemester(),
+          scope: '',
+          subjects: subjects.map((s) => s.id),
+        })
+        if (res.success && res.data) {
+          toast.success(tr(opts.successKey, { name: opts.name }))
+          onExamCreated()
+          setSelectedExamId(res.data.id)
+          return res.data.id
+        }
+        toast.error(getErrorMessage(res, t(opts.failKey)))
+        return null
+      } catch (err) {
+        toast.error(tr(opts.failWithErrorKey, { error: errText(err) }))
+        return null
+      }
+    },
+    [subjects, onExamCreated, t],
+  )
+
   /** 快速创建考试 (无需跳转考试管理 Tab) */
   const handleQuickCreate = useCallback(async () => {
     const name = quickName.trim()
@@ -172,36 +221,24 @@ export function useGradeEntry({
     }
     setQuickCreating(true)
     try {
-      const semester = getCurrentSemester()
-      const res = await getAPI().academic.createExam({
+      const examId = await createExamInternal({
         name,
         type: quickType,
-        date: quickDate || new Date().toISOString().slice(0, 10),
-        semester,
-        scope: '',
-        subjects: subjects.map((s) => s.id),
+        date: quickDate || todayISO(),
+        successKey: 'page.academics.toast.examQuickCreated',
+        failKey: 'page.academics.toast.createFailed',
+        failWithErrorKey: 'page.academics.toast.createFailedWithError',
       })
-      if (res.success && res.data) {
-        toast.success(t('page.academics.toast.examQuickCreated').replace('{name}', name))
-        onExamCreated()
-        setSelectedExamId(res.data.id)
+      // 仅成功时关闭并重置表单(失败保留输入,与既有行为一致)
+      if (examId) {
         setShowQuickCreate(false)
         setQuickName('')
         setQuickDate('')
-      } else {
-        toast.error(getErrorMessage(res, t('page.academics.toast.createFailed')))
       }
-    } catch (err) {
-      toast.error(
-        t('page.academics.toast.createFailedWithError').replace(
-          '{error}',
-          err instanceof Error ? err.message : String(err),
-        ),
-      )
     } finally {
       setQuickCreating(false)
     }
-  }, [quickName, quickType, quickDate, subjects, onExamCreated, t])
+  }, [quickName, quickType, quickDate, createExamInternal, t])
 
   /**
    * 解析当前考试: 优先用 selectedExamId; 否则按 examNameInput 查找已有考试;
@@ -224,37 +261,17 @@ export function useGradeEntry({
       }
     }
 
-    // 3. 自动创建
-    const name =
-      trimmedName ||
-      `${t('page.academics.entry.quickEntryPrefix', '快速录入')} ${new Date().toISOString().slice(0, 10)}`
-    try {
-      const res = await getAPI().academic.createExam({
-        name,
-        type: 'other',
-        date: new Date().toISOString().slice(0, 10),
-        semester: getCurrentSemester(),
-        scope: '',
-        subjects: subjects.map((s) => s.id),
-      })
-      if (res.success && res.data) {
-        toast.success(t('page.academics.toast.examAutoCreated').replace('{name}', name))
-        onExamCreated()
-        setSelectedExamId(res.data.id)
-        return res.data.id
-      }
-      toast.error(getErrorMessage(res, t('page.academics.toast.createExamFailed')))
-      return null
-    } catch (err) {
-      toast.error(
-        t('page.academics.toast.createExamFailedWithError').replace(
-          '{error}',
-          err instanceof Error ? err.message : String(err),
-        ),
-      )
-      return null
-    }
-  }, [selectedExamId, examNameInput, exams, subjects, onExamCreated, t])
+    // 3. 自动创建(名称可选,留空时用"快速录入 YYYY-MM-DD")
+    return createExamInternal({
+      name:
+        trimmedName || `${t('page.academics.entry.quickEntryPrefix', '快速录入')} ${todayISO()}`,
+      type: 'other',
+      date: todayISO(),
+      successKey: 'page.academics.toast.examAutoCreated',
+      failKey: 'page.academics.toast.createExamFailed',
+      failWithErrorKey: 'page.academics.toast.createExamFailedWithError',
+    })
+  }, [selectedExamId, examNameInput, exams, createExamInternal, t])
 
   /** AI 智能解析成绩文本,自动填充分数表 */
   const handleAIParse = useCallback(async () => {
@@ -296,9 +313,7 @@ export function useGradeEntry({
             setAiProgress(
               `${t('page.academics.ai.parseDonePrefix', '解析完成: 匹配')} ${result.matched} ${t('page.academics.ai.studentsUnit', '名学生')}`,
             )
-            toast.success(
-              t('page.academics.toast.aiFilled').replace('{count}', String(result.matched)),
-            )
+            toast.success(tr('page.academics.toast.aiFilled', { count: String(result.matched) }))
           } else if (result.reason === 'format') {
             setAiProgress(t('page.academics.ai.parseFormatError', '解析失败: AI 返回格式异常'))
             toast.error(t('page.academics.toast.aiFormatError'))
@@ -338,15 +353,8 @@ export function useGradeEntry({
       mySessionId = res.sessionId ?? ''
     } catch (err) {
       setAiParsing(false)
-      setAiProgress(
-        `${t('page.academics.ai.callFailedPrefix', '调用失败: ')}${err instanceof Error ? err.message : String(err)}`,
-      )
-      toast.error(
-        t('page.academics.toast.aiCallFailed').replace(
-          '{error}',
-          err instanceof Error ? err.message : String(err),
-        ),
-      )
+      setAiProgress(`${t('page.academics.ai.callFailedPrefix', '调用失败: ')}${errText(err)}`)
+      toast.error(tr('page.academics.toast.aiCallFailed', { error: errText(err) }))
     } finally {
       // 延迟取消订阅,确保所有流事件都已接收
       // R95 修复: 用 ref 跟踪定时器,组件卸载时清理,避免在已卸载组件上调用 setState
@@ -363,31 +371,72 @@ export function useGradeEntry({
     }
   }, [aiInputText, currentProvider, currentModel, students, t])
 
-  /** 单科模式: 更新学生分数 */
-  const updateSingleScore = useCallback((name: string, field: 'score' | 'rank', value: string) => {
-    setSingleScores((prev) => ({
-      ...prev,
-      [name]: {
-        score: prev[name]?.score ?? '',
-        rank: prev[name]?.rank ?? '',
-        [field]: value,
-      },
-    }))
-  }, [])
-
-  /** 全科模式: 更新科目分数 */
-  const updateAllScore = useCallback(
-    (subjectId: string, field: 'score' | 'rank', value: string) => {
-      setAllScores((prev) => ({
+  /** 分数表更新通用实现(单科按学生名 / 全科按科目 id — 仅 setter 与 key 不同) */
+  const updateScoreIn = useCallback(
+    (
+      setter: Dispatch<SetStateAction<Record<string, ScoreEntry>>>,
+      key: string,
+      field: 'score' | 'rank',
+      value: string,
+    ) => {
+      setter((prev) => ({
         ...prev,
-        [subjectId]: {
-          score: prev[subjectId]?.score ?? '',
-          rank: prev[subjectId]?.rank ?? '',
+        [key]: {
+          score: prev[key]?.score ?? '',
+          rank: prev[key]?.rank ?? '',
           [field]: value,
         },
       }))
     },
     [],
+  )
+
+  /** 单科模式: 更新学生分数 */
+  const updateSingleScore = useCallback(
+    (name: string, field: 'score' | 'rank', value: string) =>
+      updateScoreIn(setSingleScores, name, field, value),
+    [updateScoreIn],
+  )
+
+  /** 全科模式: 更新科目分数 */
+  const updateAllScore = useCallback(
+    (subjectId: string, field: 'score' | 'rank', value: string) =>
+      updateScoreIn(setAllScores, subjectId, field, value),
+    [updateScoreIn],
+  )
+
+  /**
+   * 保存流程公共实现: 解析/创建考试 → batchSetGrades → toast。
+   * 单科/全科两条 handler 仅 records 构建与成功文案不同。
+   */
+  const saveRecords = useCallback(
+    async (
+      records: Array<Omit<GradeRecord, 'updatedAt'>>,
+      successKey: 'page.academics.toast.savedNGrades' | 'page.academics.toast.savedNSubjects',
+    ) => {
+      if (records.length === 0) {
+        toast.error(t('page.academics.toast.noGradesToSave'))
+        return
+      }
+      setSaving(true)
+      try {
+        const examId = await resolveExamForSave()
+        if (!examId) return
+        const finalRecords = records.map((r) => ({ ...r, examId }))
+        const res = await getAPI().academic.batchSetGrades(finalRecords)
+        if (res.success) {
+          toast.success(tr(successKey, { count: finalRecords.length }))
+          onSaved()
+        } else {
+          toast.error(getErrorMessage(res, t('toast.common.saveFailed')))
+        }
+      } catch (err) {
+        toast.error(tr('page.academics.toast.saveFailedWithError', { error: errText(err) }))
+      } finally {
+        setSaving(false)
+      }
+    },
+    [resolveExamForSave, onSaved, t],
   )
 
   /** 保存单科成绩 (批量) — 考试未选时自动解析/创建 */
@@ -399,41 +448,11 @@ export function useGradeEntry({
     const subject = subjectMap[selectedSubjectId]
     if (!subject) return
 
-    const records = buildSingleSaveRecords(singleScores, selectedSubjectId, subject)
-
-    if (records.length === 0) {
-      toast.error(t('page.academics.toast.noGradesToSave'))
-      return
-    }
-
-    setSaving(true)
-    try {
-      const examId = await resolveExamForSave()
-      if (!examId) {
-        setSaving(false)
-        return
-      }
-      const finalRecords = records.map((r) => ({ ...r, examId }))
-      const res = await getAPI().academic.batchSetGrades(finalRecords)
-      if (res.success) {
-        toast.success(
-          t('page.academics.toast.savedNGrades').replace('{count}', String(finalRecords.length)),
-        )
-        onSaved()
-      } else {
-        toast.error(getErrorMessage(res, t('toast.common.saveFailed')))
-      }
-    } catch (err) {
-      toast.error(
-        t('page.academics.toast.saveFailedWithError').replace(
-          '{error}',
-          err instanceof Error ? err.message : String(err),
-        ),
-      )
-    } finally {
-      setSaving(false)
-    }
-  }, [selectedSubjectId, subjectMap, singleScores, resolveExamForSave, onSaved, t])
+    await saveRecords(
+      buildSingleSaveRecords(singleScores, selectedSubjectId, subject),
+      'page.academics.toast.savedNGrades',
+    )
+  }, [selectedSubjectId, subjectMap, singleScores, saveRecords, t])
 
   /** 保存全科成绩 — 考试未选时自动解析/创建 */
   const handleSaveAll = useCallback(async () => {
@@ -442,41 +461,11 @@ export function useGradeEntry({
       return
     }
 
-    const records = buildAllSaveRecords(allScores, entryStudentName, subjectMap)
-
-    if (records.length === 0) {
-      toast.error(t('page.academics.toast.noGradesToSave'))
-      return
-    }
-
-    setSaving(true)
-    try {
-      const examId = await resolveExamForSave()
-      if (!examId) {
-        setSaving(false)
-        return
-      }
-      const finalRecords = records.map((r) => ({ ...r, examId }))
-      const res = await getAPI().academic.batchSetGrades(finalRecords)
-      if (res.success) {
-        toast.success(
-          t('page.academics.toast.savedNSubjects').replace('{count}', String(finalRecords.length)),
-        )
-        onSaved()
-      } else {
-        toast.error(getErrorMessage(res, t('toast.common.saveFailed')))
-      }
-    } catch (err) {
-      toast.error(
-        t('page.academics.toast.saveFailedWithError').replace(
-          '{error}',
-          err instanceof Error ? err.message : String(err),
-        ),
-      )
-    } finally {
-      setSaving(false)
-    }
-  }, [entryStudentName, subjectMap, allScores, resolveExamForSave, onSaved, t])
+    await saveRecords(
+      buildAllSaveRecords(allScores, entryStudentName, subjectMap),
+      'page.academics.toast.savedNSubjects',
+    )
+  }, [entryStudentName, subjectMap, allScores, saveRecords, t])
 
   return {
     // 模式与选择器

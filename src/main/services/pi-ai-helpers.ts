@@ -136,6 +136,51 @@ export function extractPartialToolCall(
 }
 
 /**
+ * 零用量 usage(占位 AssistantMessage 构造共用)。
+ * 每次返回全新对象,避免多个消息共享同一可变引用。
+ */
+export function zeroedUsage() {
+  return {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  }
+}
+
+/**
+ * 构造最小合法的 AssistantMessage(纯文本占位回复)。
+ * 用于对话历史注入 / 压缩上下文构造:让 pi-ai 识别"这是之前的助手回复",
+ * 只保留 role/content/model 元信息,usage 全零。
+ */
+export function createAssistantPlaceholder(
+  text: string,
+  model: Pick<Model<Api>, 'api' | 'provider' | 'id'>,
+  timestamp: number,
+): AssistantMessage {
+  return {
+    role: 'assistant',
+    content: [{ type: 'text', text }],
+    api: model.api,
+    provider: model.provider,
+    model: model.id,
+    usage: zeroedUsage(),
+    stopReason: 'stop',
+    timestamp,
+  }
+}
+
+/**
+ * 指数退避延迟: baseDelay * 2^attempt + 随机 jitter(0-99ms)。
+ * Chat 与 Agent 两条流式链路的重试共用同一公式。
+ */
+export function backoffDelayMs(baseDelayMs: number, attempt: number): number {
+  return baseDelayMs * 2 ** attempt + Math.floor(Math.random() * 100)
+}
+
+/**
  * 判定一个错误消息是否属于"可重试"类型(网络/限流/5xx)。
  * 从 pi-ai-service.ts chatStream 的 catch 块提取,
  * 用于决定是否对失败请求做指数退避重试。

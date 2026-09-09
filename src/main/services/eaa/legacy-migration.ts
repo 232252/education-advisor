@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
+import { errText } from '../../utils/err-text'
 import { resolveEaaDataDir as resolveEaaDataDirFromPaths } from '../paths'
 
 /**
@@ -40,10 +41,7 @@ export function cleanupStaleLock(dataDir: string): boolean {
     return true
   } catch (err) {
     // 删除失败不阻塞,记录后继续(EAA 命令本身会报更详细的错误)
-    console.warn(
-      '[EAA] Failed to cleanup stale .lock:',
-      err instanceof Error ? err.message : String(err),
-    )
+    console.warn('[EAA] Failed to cleanup stale .lock:', errText(err))
     return false
   }
 }
@@ -154,12 +152,12 @@ export function resolveDataDir(mainDir: string): string {
           console.log(`[EAA] R139: Migrated schema from "${legacySchemaDir}" to "${devSchemaDir}"`)
         } catch (schemaErr) {
           // schema 迁移失败不阻塞,initialize() 会从 config/reason-codes.json 重建
-          const msg = schemaErr instanceof Error ? schemaErr.message : String(schemaErr)
+          const msg = errText(schemaErr)
           console.warn('[EAA] R139: Schema migration failed (will retry in initialize()):', msg)
         }
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       console.error('[EAA] R154: Migration failed, using empty dir:', msg)
     }
   }
@@ -246,7 +244,7 @@ export function convertReasonCodes(raw: string): string {
     }
     const out: {
       version: string
-      codes: Record<string, { label: string; category: string; score_delta: number }>
+      codes: Record<string, { label: string; category: string; score_delta: number | null }>
     } = { version: '1.0', codes: {} }
     for (const [code, defAny] of Object.entries(parsed)) {
       const def = defAny as {
@@ -259,12 +257,17 @@ export function convertReasonCodes(raw: string): string {
       out.codes[code] = {
         label: typeof def.label === 'string' ? def.label : code,
         category: typeof def.category === 'string' ? def.category : 'deduct',
+        // delta:null = 变量分值码(如 BONUS_VARIABLE/REVERT,教师裁量/自动计算) —
+        // 必须保留 null:Rust 端 score_delta 为 Option<f64>,None 表示 add 命令
+        // 跳过标准分值校验;此前静默压成 0 会让教师裁量奖励被分值校验拒绝。
         score_delta:
           typeof def.score_delta === 'number'
             ? def.score_delta
-            : typeof def.delta === 'number'
-              ? def.delta
-              : 0,
+            : def.delta === null
+              ? null
+              : typeof def.delta === 'number'
+                ? def.delta
+                : 0,
       }
     }
     return JSON.stringify(out, null, 2)

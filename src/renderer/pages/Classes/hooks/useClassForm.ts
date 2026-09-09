@@ -4,7 +4,7 @@
 
 import type { ClassEntity, ClassUpsertParams } from '@shared/types'
 import { useState } from 'react'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
 import { computeAutoClassId } from '../class-id'
@@ -119,7 +119,7 @@ export function useClassForm(classes: ClassEntity[], reload: () => Promise<void>
         })
         if (!res.success || !res.data) {
           const msg = (res as { error?: string }).error
-          toast.error(t('page.classes.create.failed').replace('{0}', msg ?? ''))
+          toast.error(tr('page.classes.create.failed', { 0: msg ?? '' }))
           return
         }
         toast.success(t('page.classes.create.success'))

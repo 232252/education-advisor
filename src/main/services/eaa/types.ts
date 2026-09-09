@@ -17,13 +17,11 @@ export interface EAACommand {
  * EAAResult — 统一返回结构
  * JSON 命令：data 为解析后的对象
  * 文本命令：data 为原始字符串
+ * 单一来源在 @shared/types(eaa.ts),此处转发并复用,消除双定义漂移风险
  */
-export interface EAAResult<T = unknown> {
-  success: boolean
-  data: T | null
-  stderr: string
-  exitCode: number
-}
+import type { EAAResult } from '@shared/types'
+
+export type { EAAResult }
 
 /**
  * 从 EAAResult 中提取最有用的错误信息。

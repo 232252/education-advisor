@@ -57,7 +57,7 @@ export interface StudentImportParams {
 }
 
 /** students/import-excel 单行失败明细 */
-export interface StudentImportFailure {
+interface StudentImportFailure {
   /** Excel 行号（入参回传，0 表示未知） */
   row: number
   name: string

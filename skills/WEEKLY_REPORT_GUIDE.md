@@ -17,8 +17,8 @@ tools: [eaa_stats, eaa_summary, eaa_ranking, eaa_list_students, eaa_range, eaa_s
 | 需求 | 工具 |
 |:-----|:-----|
 | 本周总览分数分布 | `eaa_stats` / `eaa_summary`（带范围参数） |
-| 逐学生变化 | `eaa_range`（时间区间汇总，与上一周期同范围对比） |
-| 排行榜与进步/退步名单 | `eaa_ranking` ×2 期 + `eaa_search` 找事件 |
+| 逐学生变化 | `eaa_range`（时间区间汇总，与上一周期同范围对比；退步名单 = 两个 `eaa_range` 结果对比，`eaa_ranking` 只反映当前快照、无法查历史周期） |
+| 排行榜（当前快照） | `eaa_ranking`（分数从高到低，找低分学生传大 n 看末尾） |
 | 重点事件 | `eaa_search`（按周范围 + 关键词） |
 | 原因码分布 | `eaa_codes`（行内解释给教师用） |
 

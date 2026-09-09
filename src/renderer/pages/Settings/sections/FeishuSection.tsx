@@ -1,58 +1,66 @@
 // =============================================================
 // 飞书设置 Section (编排层) — 长连接机器人状态徽章 + App ID/Secret + 首次使用指引 + Bitable 高级配置
-// 注: 此 Section 是 Settings 中耦合最重的,需要把 botStatus / feishuTestStatus /
-// bitableAppToken / bitableListStatus 等多个状态(及其 setter / dispatch)以 props 传入。
-// 状态本身仍保留在 SettingsPage,本组件仅做展示 + 回调通知。
+// 状态自持(2026-09-05 下沉): botStatus(含订阅)/测试连接/Bitable 列表机/
+// bitableAppToken 全部收归本节,SettingsPage 不再透传 14 个 props。
 // UI 块: components/FeishuStatusBadge / FeishuGuidePanel / FeishuNetworkDiagnostics / BitableAdvancedSection
 // 动作: hooks/useFeishuTest
 // =============================================================
 
 import type { FeishuBotStatusInfo, UnifiedSettings } from '@shared/types'
+import { useEffect, useReducer, useState } from 'react'
 import { useT } from '../../../i18n'
-import { cn, INPUT_INVALID, INPUT_SM } from '../../../lib/ui-utils'
+import { getAPI } from '../../../lib/ipc-client'
+import { BTN_SM_BLUE, cn, INPUT_INVALID, INPUT_SM } from '../../../lib/ui-utils'
 import { BitableAdvancedSection } from '../components/BitableAdvancedSection'
 import { FeishuGuidePanel } from '../components/FeishuGuidePanel'
 import { FeishuNetworkDiagnostics } from '../components/FeishuNetworkDiagnostics'
 import { FeishuStatusBadge } from '../components/FeishuStatusBadge'
-import { SecretInput, Section, SettingRow } from '../components/index'
+import { SecretInput, Section, SelectSettingRow, SettingRow } from '../components/index'
 import type { BitListAction, BitListStatus } from '../hooks/useBitableList'
 import { useFeishuTest } from '../hooks/useFeishuTest'
 
-export interface FeishuSectionProps {
+interface FeishuSectionProps {
   settings: UnifiedSettings
   onSave: (path: string, value: unknown) => void
-  // 长连接机器人状态
-  botStatus: FeishuBotStatusInfo | null
-  // 测试连接相关(state + setter)
-  feishuTestStatus: 'idle' | 'testing' | 'success' | 'error'
-  feishuTestInfo: string
-  setFeishuTestStatus: (s: 'idle' | 'testing' | 'success' | 'error') => void
-  setFeishuTestInfo: (s: string) => void
-  // Bitable 高级配置(state + setter)
-  bitableAppToken: string
-  setBitableAppToken: (s: string) => void
-  bitableListStatus: BitListStatus
-  dispatchBitList: (action: BitListAction) => void
-  bitableListInfo: string
-  setBitableListInfo: (s: string) => void
 }
 
-export function FeishuSection({
-  settings,
-  onSave,
-  botStatus,
-  feishuTestStatus,
-  feishuTestInfo,
-  setFeishuTestStatus,
-  setFeishuTestInfo,
-  bitableAppToken,
-  setBitableAppToken,
-  bitableListStatus,
-  dispatchBitList,
-  bitableListInfo,
-  setBitableListInfo,
-}: FeishuSectionProps) {
+// T4 状态机(与 useBitableList 的动作类型对齐): 规避 React 19 setter 推断问题
+function bitListReducer(state: BitListStatus, action: BitListAction): BitListStatus {
+  if (action.type === 'LIST' && state === 'idle') return 'listing'
+  if (action.type === 'SUCCESS' && state === 'listing') return 'success'
+  if (action.type === 'ERROR' && (state === 'idle' || state === 'listing')) return 'error'
+  if (action.type === 'RESET') return 'idle'
+  return state
+}
+
+export function FeishuSection({ settings, onSave }: FeishuSectionProps) {
   const { t } = useT()
+  // 长连接机器人状态(设置页徽章实时显示) — 挂载拉取一次 + 订阅后续变化
+  const [botStatus, setBotStatus] = useState<FeishuBotStatusInfo | null>(null)
+  useEffect(() => {
+    getAPI()
+      .feishu.botStatus()
+      .then(setBotStatus)
+      .catch((err) => console.warn('[SettingsPage] feishu botStatus initial fetch failed:', err))
+    const unsub = getAPI().feishu.onBotStatusUpdate((info) => setBotStatus(info))
+    return unsub
+  }, [])
+  // 测试连接
+  const [feishuTestStatus, setFeishuTestStatus] = useState<
+    'idle' | 'testing' | 'success' | 'error'
+  >('idle')
+  const [feishuTestInfo, setFeishuTestInfo] = useState<string>('')
+  // Bitable 高级配置
+  const [bitableAppToken, setBitableAppToken] = useState<string>(
+    settings.feishu?.bitableAppToken ?? '',
+  )
+  // C-4 修复语义保持: settings 值变化(含重置默认)时回填本地编辑态;
+  // 键值即存即持久,同步不会覆盖未保存草稿
+  useEffect(() => {
+    setBitableAppToken(settings.feishu?.bitableAppToken ?? '')
+  }, [settings.feishu?.bitableAppToken])
+  const [bitableListStatus, dispatchBitList] = useReducer(bitListReducer, 'idle')
+  const [bitableListInfo, setBitableListInfo] = useState<string>('')
 
   // 飞书凭证配置状态: appId 已填 + secret 已保存到 keystore(占位符 '__keystore__')
   const hasAppId = !!settings.feishu.appId
@@ -75,20 +83,18 @@ export function FeishuSection({
         isConfigured={isConfigured}
       />
 
-      <SettingRow
-        label={t('settings.feishu.domain')}
+      <SelectSettingRow
         path="feishu.domain"
+        label={t('settings.feishu.domain')}
         description={t('settings.feishu.domain.desc')}
-      >
-        <select
-          value={settings.feishu.domain}
-          onChange={(e) => onSave('feishu.domain', e.target.value)}
-          className={cn(INPUT_SM, 'w-48')}
-        >
-          <option value="feishu">{t('settings.feishu.domainFeishu')}</option>
-          <option value="lark">{t('settings.feishu.domainLark')}</option>
-        </select>
-      </SettingRow>
+        value={settings.feishu.domain}
+        options={[
+          { value: 'feishu', label: t('settings.feishu.domainFeishu') },
+          { value: 'lark', label: t('settings.feishu.domainLark') },
+        ]}
+        onSave={onSave}
+        className="w-48"
+      />
 
       <SettingRow
         label="App ID"
@@ -129,7 +135,7 @@ export function FeishuSection({
               type="button"
               onClick={handleTestConnection}
               disabled={feishuTestStatus === 'testing'}
-              className="text-[10px] px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 transition-colors"
+              className={BTN_SM_BLUE}
             >
               {feishuTestStatus === 'testing'
                 ? t('settings.feishu.testing', '测试中...')

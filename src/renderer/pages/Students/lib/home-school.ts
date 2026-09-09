@@ -34,7 +34,7 @@ const TONE_DESC: Record<CommTone, string> = {
   concern: '委婉表达需要关注的方面,用"我们一起来帮助孩子"的协作口吻,避免指责性措辞',
 }
 
-export interface CommunicationContext {
+interface CommunicationContext {
   student: EAAStudent
   events: EAAHistoryEvent[]
   profileData: StudentProfileData
@@ -88,7 +88,7 @@ export function buildCommunicationPrompt(
   return lines.join('\n')
 }
 
-export interface ParentEventGroups {
+interface ParentEventGroups {
   /** 正面亮点事件(加分且未撤销) */
   highlights: EAAHistoryEvent[]
   /** 需要关注的方面(扣分且未撤销) */

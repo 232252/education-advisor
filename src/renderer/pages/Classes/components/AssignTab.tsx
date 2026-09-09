@@ -4,10 +4,11 @@
 
 import type { ClassEntity, EAAStudent } from '@shared/types'
 import { CheckCircle2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
-import { useT } from '../../../i18n'
-import { getAPI } from '../../../lib/ipc-client'
+import { useIpcSubscription } from '../../../hooks/useIpcSubscription'
+import { tr, useT } from '../../../i18n'
+import { errText, getAPI } from '../../../lib/ipc-client'
 import { btnStyle } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
 
@@ -31,13 +32,11 @@ export function AssignTab({
     lastName: '',
   })
 
-  // 订阅主进程推送的分入进度事件；组件卸载时取消订阅
-  useEffect(() => {
-    const unsubscribe = getAPI().class.onAssignProgress((data) => {
-      setProgress({ current: data.current, total: data.total, lastName: data.lastName })
-    })
-    return unsubscribe
-  }, [])
+  // 订阅主进程推送的分入进度事件；组件卸载时自动取消订阅
+  useIpcSubscription<{ current: number; total: number; lastName: string }>(
+    (cb) => getAPI().class.onAssignProgress(cb),
+    (data) => setProgress({ current: data.current, total: data.total, lastName: data.lastName }),
+  )
 
   const toggle = (name: string) => {
     setSelected((prev) => {
@@ -67,30 +66,26 @@ export function AssignTab({
         student_names: names,
       })
       if (!res.success) {
-        toast.error(t('page.classes.profile.assign.failed').replace('{0}', res.error ?? ''))
+        toast.error(tr('page.classes.profile.assign.failed', { 0: res.error ?? '' }))
         return
       }
       const assigned = res.assigned ?? 0
       const failed = res.failed ?? []
       if (failed.length === 0) {
-        toast.success(t('page.classes.profile.assign.success').replace('{0}', String(assigned)))
+        toast.success(tr('page.classes.profile.assign.success', { 0: String(assigned) }))
       } else {
         toast.warning(
-          t('page.classes.profile.assign.partial')
-            .replace('{0}', String(assigned))
-            .replace('{1}', String(failed.length))
-            .replace('{2}', failed.slice(0, 3).join('; ')),
+          tr('page.classes.profile.assign.partial', {
+            0: String(assigned),
+            1: String(failed.length),
+            2: failed.slice(0, 3).join('; '),
+          }),
         )
       }
       setSelected(new Set())
       onRefresh()
     } catch (err) {
-      toast.error(
-        t('page.classes.profile.assign.failed').replace(
-          '{0}',
-          err instanceof Error ? err.message : String(err),
-        ),
-      )
+      toast.error(tr('page.classes.profile.assign.failed', { 0: errText(err) }))
     } finally {
       setAssigning(false)
     }
@@ -108,14 +103,15 @@ export function AssignTab({
   return (
     <div>
       <div className="mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-        {t('page.classes.profile.assign.hint').replace('{0}', classEntity.name)}
+        {tr('page.classes.profile.assign.hint', { 0: classEntity.name })}
       </div>
 
       {assigning ? (
         <div className="py-8 text-center text-sm text-blue-600 dark:text-blue-400">
-          {t('page.classes.profile.assign.processing')
-            .replace('{0}', String(progress.current))
-            .replace('{1}', String(progress.total || selected.size))}
+          {tr('page.classes.profile.assign.processing', {
+            0: String(progress.current),
+            1: String(progress.total || selected.size),
+          })}
           {progress.total > 0 && (
             <span className="ml-1">({Math.round((progress.current / progress.total) * 100)}%)</span>
           )}
@@ -147,7 +143,7 @@ export function AssignTab({
                 onChange={toggleAll}
                 className="accent-blue-500"
               />
-              {t('page.classes.profile.assign.selected').replace('{0}', String(selected.size))}
+              {tr('page.classes.profile.assign.selected', { 0: String(selected.size) })}
             </label>
           </div>
           <div className="max-h-72 overflow-y-auto space-y-1">

@@ -5,10 +5,9 @@
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
-import { eaaBridge, getErrorMessage } from '../../eaa-bridge'
 import { buildAddEventArgs } from '../arg-builders'
-import { safeExecute } from './sanitize'
-import { extractData, textResult } from './shared'
+import { executeWithSignal, safeExecute } from './sanitize'
+import { assertEaaSuccess, extractData, textResult } from './shared'
 
 // =============================================================
 // Schema 定义
@@ -17,7 +16,8 @@ import { extractData, textResult } from './shared'
 const addEventParams = Type.Object({
   student_name: Type.String({ description: '学生姓名' }),
   reason_code: Type.String({
-    description: '原因码（必须存在于 reason_codes.json 中，如 LATE, CLASS_MONITOR 等）',
+    description:
+      '原因码(如 LATE, CLASS_MONITOR)。必须取自 eaa_codes 工具的查询结果 — 不确定时先调 eaa_codes,凭记忆猜码会报错',
   }),
   delta: Type.Optional(
     Type.Number({ description: '分数变动（-10 到 +10），如果原因码有固定分值可不填' }),
@@ -70,12 +70,8 @@ export const addEventTool: AgentTool<typeof addEventParams> = {
             .filter(Boolean)
         : undefined,
     })
-    const cmd = { command: 'add' as const, args }
-    // 仅 signal 存在时才传第二参(保持无 signal 时单参调用契约)
-    const result = await (signal ? eaaBridge.execute(cmd, { signal }) : eaaBridge.execute(cmd))
-    if (!result.success) {
-      throw new Error(`添加事件失败: ${getErrorMessage(result)}`)
-    }
+    const result = await executeWithSignal({ command: 'add', args }, signal)
+    assertEaaSuccess(result, '添加事件失败')
     // R2+(文案修复): dry_run 预演必须明说"未写入" — 此前统一返回
     // "事件已添加",模型会据此告知用户"已记录"而实际什么都没落库
     return textResult(
@@ -102,9 +98,7 @@ export const revertEventTool: AgentTool<typeof revertEventParams> = {
       [],
       signal,
     )
-    if (!result.success) {
-      throw new Error(`撤销事件失败: ${getErrorMessage(result)}`)
-    }
+    assertEaaSuccess(result, '撤销事件失败')
     return textResult(`事件 ${params.event_id} 已撤销 (原因: ${params.reason})`)
   },
 }

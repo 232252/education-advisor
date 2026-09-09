@@ -7,6 +7,12 @@
 import { defineConfig } from 'vitest/config'
 import path from 'node:path'
 
+// stress-long(10 分钟压力测试)仅在 EA_STRESS=1 时纳入(npm run test:stress)。
+// 注意 vitest 4 的 CLI 文件过滤器不高于 exclude——单纯 `vitest run <该文件>`
+// 会因命中 exclude 而 0 收集,所以 test:stress 必须带 EA_STRESS=1。
+const EXCLUDE_STRESS = process.env.EA_STRESS !== '1'
+const STRESS_FILE = 'tests/e2e/stress-long.test.tsx'
+
 export default defineConfig({
   // 注意: Vitest 4 的 projects 模式不会继承顶层 resolve.alias,
   // 别名必须在每个 project 内重复声明(否则 @shared/* 等值导入在测试中解析失败)。
@@ -30,7 +36,7 @@ export default defineConfig({
       '**/*.d.ts',
       // 10 分钟持续压力测试，仅按需单独运行（npm run test:stress），
       // 不进入默认 `npm test`，避免拖慢日常回归。
-      'tests/e2e/stress-long.test.tsx',
+      ...(EXCLUDE_STRESS ? [STRESS_FILE] : []),
     ],
     // 用 projects 区分 renderer (jsdom) 和 main (node)
     projects: [
@@ -74,7 +80,7 @@ export default defineConfig({
             'tests/e2e/**/*.{test,spec}.{ts,tsx}',
           ],
           exclude: [
-            'tests/e2e/stress-long.test.tsx',
+            ...(EXCLUDE_STRESS ? [STRESS_FILE] : []),
             // 依赖本机真实 EAA 二进制的 e2e 压力/渲染测试(用户按键流、业务场景、
             // 组件渲染、页面渲染)。它们按"二进制存在则运行"判断,而 Linux 镜像上
             // 的 EAA 二进制在流水线中不可靠,会阻塞发布;这些是本地 dogfood 测试,
@@ -97,8 +103,14 @@ export default defineConfig({
     ],
     // 60s 默认超时
     testTimeout: 60_000,
-    // 不在 CI 中跑并发时强制串行,避免端口/资源冲突
-    fileParallelism: false,
+    // 文件级并行(2026-09-04 测试提速轮): 全量 317s → 25s。
+    // 此前强制串行是防端口/资源冲突 — 复核结论: 各文件临时目录均走
+    // mkdtemp(随机后缀)、无固定端口绑定(唯一 PORT 字样是 IPC_EAA_EXPORT
+    // 子串误报)、真实 EAA e2e 每文件独立 TEST_ROOT,连续三次全量并行
+    // 均绿(190 files/3173 tests)。若个别文件再现资源冲突,局部修复
+    // (独立端口/目录)或将该文件标记 test.sequential,不要整体回退串行。
+    // 注: vitest 4 中 project 级 fileParallelism 不覆盖顶层值,统一在此声明。
+    fileParallelism: true,
     // 报告:verbose 让通过/失败一目了然
     reporters: process.env.CI ? ['default'] : ['verbose'],
     // coverage 配置（按需启用,不在 vitest run 默认跑）

@@ -91,3 +91,18 @@ export function lineSeries(
     symbolSize: 5,
   }
 }
+
+/** 垂直线性渐变(纯对象形式,option 可序列化;echarts.graphic 类实例的平替) */
+export function verticalGradient(top: string, bottom: string): Record<string, unknown> {
+  return {
+    type: 'linear',
+    x: 0,
+    y: 0,
+    x2: 0,
+    y2: 1,
+    colorStops: [
+      { offset: 0, color: top },
+      { offset: 1, color: bottom },
+    ],
+  }
+}

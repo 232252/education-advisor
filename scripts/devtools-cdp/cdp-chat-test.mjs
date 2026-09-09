@@ -1,35 +1,9 @@
 // CDP 聊天端到端测试: 发送消息 → 等待 Agent 回复 → 验证状态恢复
-import WebSocket from 'ws'
+import { connectCdp, sleep } from '../lib/cdp-client.mjs'
 
-async function getPageTarget() {
-  const res = await fetch('http://localhost:9222/json')
-  const targets = await res.json()
-  const page = targets.find((t) => t.type === 'page' && !t.url.startsWith('devtools'))
-  if (!page) throw new Error('no page target')
-  return page
-}
-
-const page = await getPageTarget()
-const ws = new WebSocket(page.webSocketDebuggerUrl, { maxPayload: 256 * 1024 * 1024 })
-await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej) })
-let id = 0
-const pending = new Map()
-ws.on('message', (data) => {
-  const msg = JSON.parse(data.toString())
-  if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id) }
+const { evl, close } = await connectCdp({
+  pageFilter: (t) => t.type === 'page' && !t.url.startsWith('devtools'),
 })
-const send = (method, params = {}, timeoutMs = 20000) => new Promise((res, rej) => {
-  const mid = ++id
-  const timer = setTimeout(() => { pending.delete(mid); rej(new Error(`CDP timeout: ${method}`)) }, timeoutMs)
-  pending.set(mid, (msg) => { clearTimeout(timer); res(msg) })
-  ws.send(JSON.stringify({ id: mid, method, params }))
-})
-const evl = async (expr, timeout = 20000) => {
-  const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }, timeout)
-  if (r.result?.exceptionDetails) return { __error: r.result.exceptionDetails.text + ' ' + (r.result.exceptionDetails.exception?.description || '') }
-  return r.result?.result?.value
-}
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // 安装错误钩子
 await evl(`(() => {
@@ -106,5 +80,5 @@ console.log('running agents after chat:', JSON.stringify(agents))
 const errs = await evl(`window.__consoleErrors || []`)
 console.log('console errors:', JSON.stringify(errs).slice(0, 600))
 
-ws.close()
+close()
 process.exit(0)

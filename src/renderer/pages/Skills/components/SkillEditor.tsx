@@ -5,7 +5,7 @@
 // =============================================================
 
 import type { Skill } from '@shared/types'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
@@ -166,9 +166,10 @@ export function SkillEditor({
       {/* 底部状态栏 */}
       <div className="px-4 py-1.5 border-t border-gray-100 dark:border-gray-800 text-[10px] text-gray-400 dark:text-gray-600 flex items-center justify-between bg-gray-50/50 dark:bg-surface-tertiary/50">
         <span>
-          {t('page.skills.statusLines')
-            .replace('{lines}', String(editContent.split('\n').length))
-            .replace('{chars}', String(editContent.length))}
+          {tr('page.skills.statusLines', {
+            lines: String(editContent.split('\n').length),
+            chars: String(editContent.length),
+          })}
         </span>
         <span>
           {selected.source === 'user' ? t('page.skills.editable') : t('page.skills.readonly')}

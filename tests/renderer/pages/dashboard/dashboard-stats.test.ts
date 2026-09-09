@@ -6,55 +6,30 @@
 // =============================================================
 
 import { describe, expect, it } from 'vitest'
-import type { EAAEventRecord, EAAStudent } from '@shared/types'
+import type { EAAStudent } from '@shared/types'
 import {
   CLASS_FILTER_ALL,
   CLASS_FILTER_NONE,
+  matchesClassFilter,
+} from '../../../../src/renderer/lib/class-filter'
+import {
   computeClassComparison,
   computeClassStats,
   computePeriodSummary,
   computeReasonDistribution,
   computeScoreIntervals,
-  matchesClassFilter,
   SCORE_ORDER,
 } from '../../../../src/renderer/pages/Dashboard/dashboard-stats'
+import {
+  makeEvent,
+  makeStudent as makeStudentBase,
+} from '../../__fixtures__/make'
 
-// ---------- 测试数据工厂 ----------
+// ---------- 测试数据工厂(单一来源: tests/renderer/__fixtures__/make) ----------
 
-function makeStudent(overrides: Partial<EAAStudent> = {}): EAAStudent {
-  return {
-    name: '学生',
-    entity_id: 'e1',
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-    ...overrides,
-  }
-}
-
-function makeEvent(overrides: Partial<EAAEventRecord> = {}): EAAEventRecord {
-  return {
-    event_id: 'ev1',
-    name: '学生',
-    entity_id: 'e1',
-    timestamp: '2026-01-01T00:00:00Z',
-    event_type: 'ConductBonus',
-    reason_code: 'R1',
-    original_reason: 'r',
-    score_delta: 1,
-    note: '',
-    tags: [],
-    operator: 'op',
-    is_valid: true,
-    reverted_by: null,
-    ...overrides,
-  }
-}
+// 本文件历史默认 name/entity_id 为 学生/e1,与共享工厂不同,用适配器保持原值
+const makeStudent = (overrides: Partial<EAAStudent> = {}): EAAStudent =>
+  makeStudentBase({ name: '学生', entity_id: 'e1', ...overrides })
 
 // ---------- matchesClassFilter ----------
 
@@ -243,16 +218,34 @@ describe('computePeriodSummary', () => {
       makeEvent({ entity_id: 'e1', score_delta: 5 }),
       makeEvent({ entity_id: 'e2', score_delta: 3 }),
     ]
-    const s = computePeriodSummary(events, {}, 1)
+    const s = computePeriodSummary(events, { e1: '甲', e2: '乙' }, 1)
     // e1 累计 +10, 排在 e2(+3) 之前, topN=1 只取第一名
-    expect(s.top_gainers).toEqual([{ name: 'e1', delta: 10 }])
+    expect(s.top_gainers).toEqual([{ name: '甲', delta: 10 }])
   })
 
-  it('entityIdToName 缺失时回退显示 entity_id', () => {
+  it('不在册实体(已删除/历史遗留)不进 top 榜,但 events 计数保留', () => {
+    const events = [
+      makeEvent({ entity_id: 'ent_orphan', score_delta: 99 }),
+      makeEvent({ entity_id: 'e1', score_delta: 5 }),
+      makeEvent({ entity_id: 'ent_orphan2', score_delta: -50 }),
+      makeEvent({ entity_id: 'e2', score_delta: -1 }),
+    ]
+    const s = computePeriodSummary(events, { e1: '甲', e2: '乙' })
+    // 裸 entity_id 对老师是噪声:top 榜只留在册学生
+    expect(s.top_gainers.map((g) => g.name)).toEqual(['甲'])
+    expect(s.top_losers.map((l) => l.name)).toEqual(['乙'])
+    // 孤儿事件仍计入总数
+    expect(s.events.total).toBe(4)
+    expect(s.events.bonus_total).toBe(104)
+    expect(s.events.deduct_total).toBe(-51)
+  })
+
+  it('全部实体都不在册时 top 榜为空(而非显示裸 entity_id)', () => {
     const s = computePeriodSummary([makeEvent({ entity_id: 'eX', score_delta: 1 })], {
       other: '别人',
     })
-    expect(s.top_gainers[0].name).toBe('eX')
+    expect(s.top_gainers).toEqual([])
+    expect(s.top_losers).toEqual([])
   })
 
   it('同一实体加扣抵消后净值为 0 时, 不出现在任一 top 榜', () => {

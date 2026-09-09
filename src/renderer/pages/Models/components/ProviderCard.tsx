@@ -6,12 +6,21 @@
 import type { ModelInfo, ProviderInfo } from '@shared/types'
 import { memo, useState } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { btnStyle, CARD_BASE, cn, formatDateTime, INPUT_BASE } from '../../../lib/ui-utils'
+import type { ProviderTestState } from '../hooks/useModelsData'
 import { ModelRow } from './ModelRow'
 
 // 空表单常量(供 ModelRow 非编辑行传参用,避免每次 render 新建对象导致 memo 失效)
 const EMPTY_EDIT_FORM: Record<string, string> = {}
+
+/** kind → 染色(info/testing 为中性色 — 旧按子串判定的'测试中显红'缺陷顺带修复) */
+const TEST_TONE: Record<ProviderTestState['kind'], string> = {
+  ok: 'text-green-600 dark:text-green-400',
+  error: 'text-red-600 dark:text-red-400',
+  info: 'text-gray-500 dark:text-gray-400',
+  testing: 'text-gray-500 dark:text-gray-400',
+}
 
 interface ProviderCardProps {
   provider: ProviderInfo
@@ -19,7 +28,7 @@ interface ProviderCardProps {
   models: ModelInfo[]
   modelsLoading: boolean
   apiKeyInput: string
-  testResult?: string
+  testResult?: ProviderTestState
   onExpand: (providerId: string) => void
   onApiKeyChange: (providerId: string, value: string) => void
   onTest: (providerId: string) => void
@@ -84,26 +93,32 @@ export const ProviderCard = memo(function ProviderCard({
           <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">{p.id}</span>
           {p.hasApiKey && (
             <span className="text-xs bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full">
-              已配置
+              {t('page.models.provider.configured')}
             </span>
           )}
           {p.hasFreeModels && (
             <span className="text-xs bg-blue-500/20 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
-              含免费模型
+              {t('page.models.provider.hasFreeModels')}
             </span>
           )}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-500 dark:text-gray-400">{p.modelCount} 个模型</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {tr('page.models.provider.modelCount', { count: p.modelCount })}
+          </span>
           <svg
             className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
             role="img"
-            aria-label={expanded ? '收起' : '展开'}
+            aria-label={
+              expanded ? t('page.models.provider.collapse') : t('page.models.provider.expand')
+            }
           >
-            <title>{expanded ? '收起' : '展开'}</title>
+            <title>
+              {expanded ? t('page.models.provider.collapse') : t('page.models.provider.expand')}
+            </title>
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </div>
@@ -121,7 +136,7 @@ export const ProviderCard = memo(function ProviderCard({
               API Key
             </label>
             <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-1">
-              输入 API Key 后点击测试连接。密钥加密存储在本地。
+              {t('page.models.provider.apiKeyHint')}
             </p>
             <div className="flex gap-2 items-center">
               <input
@@ -129,7 +144,11 @@ export const ProviderCard = memo(function ProviderCard({
                 type="password"
                 value={apiKeyInput}
                 onChange={(e) => onApiKeyChange(p.id, e.target.value)}
-                placeholder={p.hasApiKey ? '已保存（输入新值覆盖）' : '输入 API Key...'}
+                placeholder={
+                  p.hasApiKey
+                    ? t('page.models.provider.apiKeySaved')
+                    : t('page.models.provider.apiKeyPlaceholder')
+                }
                 className={cn(INPUT_BASE, 'flex-1')}
               />
               <button
@@ -137,7 +156,7 @@ export const ProviderCard = memo(function ProviderCard({
                 onClick={() => onTest(p.id)}
                 className={cn(btnStyle('primary'), 'whitespace-nowrap')}
               >
-                测试连接
+                {t('page.models.provider.testConn')}
               </button>
               {p.hasApiKey && (
                 <button
@@ -145,7 +164,7 @@ export const ProviderCard = memo(function ProviderCard({
                   onClick={() => onDeleteKey(p.id)}
                   className="bg-red-600/20 hover:bg-red-600/40 text-red-500 dark:text-red-400 px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap"
                 >
-                  删除
+                  {t('page.models.provider.delete')}
                 </button>
               )}
               {p.supportsOAuth && (
@@ -153,21 +172,15 @@ export const ProviderCard = memo(function ProviderCard({
                   type="button"
                   onClick={() => onOAuthLogin?.(p.id)}
                   className="bg-gray-200 hover:bg-gray-300 dark:bg-surface-elevated dark:hover:bg-white/[0.08] px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap"
-                  title="打开 provider 的 API Key 管理页面"
+                  title={t('page.models.provider.oauthTitle')}
                 >
-                  OAuth 登录
+                  {t('page.models.provider.oauthLogin')}
                 </button>
               )}
             </div>
             {testResult && (
-              <div
-                className={`text-xs ${
-                  testResult.includes('成功') || testResult.includes('已删除')
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-red-600 dark:text-red-400'
-                }`}
-              >
-                {testResult}
+              <div className={`text-xs ${TEST_TONE[testResult.kind]}`}>
+                {tr(testResult.key, testResult.vars ?? {})}
               </div>
             )}
           </div>
@@ -183,7 +196,7 @@ export const ProviderCard = memo(function ProviderCard({
                   'text-xs bg-green-600/20 hover:bg-green-600/40 text-green-500 dark:text-green-400',
                 )}
               >
-                刷新模型列表
+                {t('page.models.provider.refreshModels')}
               </button>
             )}
             {onHideProvider && (
@@ -192,7 +205,7 @@ export const ProviderCard = memo(function ProviderCard({
                 onClick={() => onHideProvider?.(p.id)}
                 className={cn(btnStyle('secondary'), 'text-xs')}
               >
-                隐藏此Provider
+                {t('page.models.provider.hideProvider')}
               </button>
             )}
             {refreshTime !== undefined && refreshTime > 0 && (
@@ -204,27 +217,43 @@ export const ProviderCard = memo(function ProviderCard({
 
           {/* 模型列表 */}
           <div className="space-y-2">
-            <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">模型列表</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+              {t('page.models.provider.modelList')}
+            </div>
             {modelsLoading ? (
               <div className="text-sm text-gray-400 dark:text-gray-500 py-3 text-center">
-                加载模型中...
+                {t('page.models.provider.loadingModels')}
               </div>
             ) : models.length === 0 ? (
-              <EmptyState icon="📦" title="暂无模型" className="py-3" />
+              <EmptyState icon="📦" title={t('page.models.provider.noModels')} className="py-3" />
             ) : (
               <div className="bg-gray-100 dark:bg-surface-tertiary rounded-lg overflow-hidden">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-white/[0.06] text-gray-500 dark:text-gray-400">
-                      <th className="text-left px-3 py-2 font-medium">模型</th>
+                      <th className="text-left px-3 py-2 font-medium">
+                        {t('page.models.provider.thModel')}
+                      </th>
                       <th className="text-left px-3 py-2 font-medium">API</th>
-                      <th className="text-right px-3 py-2 font-medium">上下文</th>
-                      <th className="text-right px-3 py-2 font-medium">最大输出</th>
-                      <th className="text-right px-3 py-2 font-medium">输入成本</th>
-                      <th className="text-right px-3 py-2 font-medium">输出成本</th>
-                      <th className="text-center px-3 py-2 font-medium">推理</th>
+                      <th className="text-right px-3 py-2 font-medium">
+                        {t('page.models.provider.thContext')}
+                      </th>
+                      <th className="text-right px-3 py-2 font-medium">
+                        {t('page.models.provider.thMaxOutput')}
+                      </th>
+                      <th className="text-right px-3 py-2 font-medium">
+                        {t('page.models.provider.thInputCost')}
+                      </th>
+                      <th className="text-right px-3 py-2 font-medium">
+                        {t('page.models.provider.thOutputCost')}
+                      </th>
+                      <th className="text-center px-3 py-2 font-medium">
+                        {t('page.models.provider.thReasoning')}
+                      </th>
                       {(onUpdateCustomModel || onDeleteCustomModel) && (
-                        <th className="text-center px-3 py-2 font-medium w-20">操作</th>
+                        <th className="text-center px-3 py-2 font-medium w-20">
+                          {t('page.models.provider.thActions')}
+                        </th>
                       )}
                     </tr>
                   </thead>
@@ -295,7 +324,7 @@ export const ProviderCard = memo(function ProviderCard({
                       setCustomModelInput('')
                     }
                   }}
-                  placeholder="输入自定义模型 ID..."
+                  placeholder={t('page.models.provider.customModelPlaceholder')}
                   className={cn(INPUT_BASE, 'flex-1 text-xs px-3 py-1.5')}
                 />
                 <button
@@ -308,7 +337,7 @@ export const ProviderCard = memo(function ProviderCard({
                   }}
                   className={btnStyle('primary')}
                 >
-                  添加模型
+                  {t('page.models.provider.addModel')}
                 </button>
               </div>
             )}

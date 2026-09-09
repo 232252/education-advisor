@@ -6,14 +6,13 @@
 // { success: false, error, stderr, exitCode: -1 } 返回渲染进程
 // =============================================================
 
-import path from 'node:path'
 import type { SetStudentMetaParams } from '@shared/types'
 import { buildAddEventArgs as buildAddEventArgsImpl } from '../../services/eaa/arg-builders'
-import { sanitizeClassId, sanitizeName } from '../../utils/sanitize'
+import { sanitizeClassId, sanitizeName, validatePathSafety } from '../../utils/sanitize'
 import { isValidIsoDate } from './date-validation'
 
 /** 参数组装结果: ok=false 时 error 同时用于 IPC 返回的 error/stderr 字段 */
-export type CommandArgsResult = { ok: true; args: string[] } | { ok: false; error: string }
+type CommandArgsResult = { ok: true; args: string[] } | { ok: false; error: string }
 
 // buildAddEventArgs 权威实现已移至 services/eaa/arg-builders.ts
 // (addEventTool 与 IPC handler 共用同一份组装逻辑,消除 tags/delta 行为漂移),
@@ -57,20 +56,13 @@ export function buildExportFileArgs(outputFile?: string): CommandArgsResult {
   if (typeof outputFile !== 'string' || outputFile.length === 0) {
     return { ok: false, error: 'outputFile must be a non-empty string' }
   }
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional NUL-byte guard
-  if (/\x00/.test(outputFile)) {
-    return { ok: false, error: 'outputFile contains null bytes' }
-  }
-  // 路径遍历防护
-  if (outputFile.includes('..')) {
-    return { ok: false, error: 'outputFile contains path traversal characters' }
-  }
-  // 扩展名白名单(与 Rust 端实现对齐)
-  const allowedExts = ['.csv', '.jsonl', '.html', '.json', '.txt']
-  const ext = path.extname(outputFile).toLowerCase()
-  if (ext && !allowedExts.includes(ext)) {
-    return { ok: false, error: `outputFile extension not allowed: ${ext}` }
-  }
+  // NUL/遍历/扩展名白名单统一守卫(与 Rust 端白名单对齐;无扩展名放行,CLI 补默认)
+  const err = validatePathSafety(outputFile, {
+    field: 'outputFile',
+    allowedExts: ['.csv', '.jsonl', '.html', '.json', '.txt'],
+    extOptional: true,
+  })
+  if (err) return { ok: false, error: err }
   return { ok: true, args: ['--output-file', outputFile] }
 }
 
@@ -79,23 +71,12 @@ export function buildImportArgs(filePath: string): CommandArgsResult {
   if (typeof filePath !== 'string' || filePath.length === 0) {
     return { ok: false, error: 'filePath must be a non-empty string' }
   }
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional NUL-byte guard
-  if (/\x00/.test(filePath)) {
-    return { ok: false, error: 'filePath contains null bytes' }
-  }
-  // 路径遍历防护
-  if (filePath.includes('..')) {
-    return { ok: false, error: 'filePath cannot contain path traversal (..)' }
-  }
   // Rust 端只支持 JSON 格式导入(serde_json::from_str),白名单与 Rust 实现对齐
-  const allowedExts = ['.json', '.jsonl']
-  const ext = path.extname(filePath).toLowerCase()
-  if (!allowedExts.includes(ext)) {
-    return {
-      ok: false,
-      error: `file extension not supported: ${ext}, allowed: ${allowedExts.join(', ')}`,
-    }
-  }
+  const err = validatePathSafety(filePath, {
+    field: 'filePath',
+    allowedExts: ['.json', '.jsonl'],
+  })
+  if (err) return { ok: false, error: err }
   return { ok: true, args: [filePath] }
 }
 
@@ -103,14 +84,8 @@ export function buildImportArgs(filePath: string): CommandArgsResult {
 export function buildDashboardArgs(outputDir?: string): CommandArgsResult {
   const args: string[] = []
   if (outputDir) {
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional NUL-byte guard
-    if (/\x00/.test(outputDir)) {
-      return { ok: false, error: 'outputDir contains null bytes' }
-    }
-    // 路径遍历防护: 拒绝含 .. 的路径
-    if (outputDir.includes('..')) {
-      return { ok: false, error: 'outputDir cannot contain path traversal (..)' }
-    }
+    const err = validatePathSafety(outputDir, { field: 'outputDir' })
+    if (err) return { ok: false, error: err }
     args.push('--output-dir', outputDir)
   }
   return { ok: true, args }

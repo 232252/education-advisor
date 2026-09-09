@@ -6,6 +6,7 @@
 import * as IPC from '@shared/ipc-channels'
 import type { AgentExecution, CronLogEntry, CronTask } from '@shared/types'
 import type { BrowserWindow } from 'electron'
+import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import { FEISHU_PUSH_AGENT_IDS, sendAgentAlert } from '../feishu/alerts'
 import { settingsService } from '../settings-service'
@@ -175,7 +176,7 @@ export async function executeCronTask(
       console.warn(`[CronService] Agent runner not set, skipping task ${taskId}`)
     }
   } catch (err: unknown) {
-    const errMsg = err instanceof Error ? err.message : String(err)
+    const errMsg = errText(err)
     // circuit-breaker: 仅配额类错误(429/quota/rate_limit)累计,普通错误(网络抖动等)不熔断
     ctx.circuitBreaker.recordFailure(taskId, errMsg)
     ctx.pushLog(applyTaskError(task, taskId, timestamp, startTime, errMsg))

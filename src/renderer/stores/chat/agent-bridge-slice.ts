@@ -196,6 +196,9 @@ export function createAgentBridgeSlice(
         }
 
         case 'idle': {
+          // 截尾 flush: 末批 output 仍在 50ms 批处理缓冲里,不 flush 就读 messages
+          // 会把非空回答当空气泡跳过落库(测试与真实短回答均复现)
+          get().flushDeltas()
           // Agent 执行完成 — 保存消息并结束 streaming
           const msgs = get().messages
           const lastMsg = msgs[msgs.length - 1]
@@ -235,6 +238,8 @@ export function createAgentBridgeSlice(
         }
 
         case 'error': {
+          // 截尾 flush: 先把缓冲中的部分输出落进消息,错误文本才能接在其后
+          get().flushDeltas()
           // H-6 修复: 错误分支需要检查最后消息角色
           // 之前只在 !state.isStreaming 时创建 assistant 消息,
           // 但如果 streaming 已开始且最后消息不是 assistant(如用户在运行中发了新消息),
@@ -252,8 +257,10 @@ export function createAgentBridgeSlice(
                 timestamp: Date.now(),
               })
             } else {
-              // 最后消息是 assistant → 追加错误信息
+              // 最后消息是 assistant → 追加错误信息(追加后立即 flush,
+              // 终止时刻的 UI/落库不得再等 50ms 批处理周期)
               get().appendStreamDelta(`\n\n**错误:** ${formatLlmError(data.error)}`)
+              get().flushDeltas()
             }
           }
           set({

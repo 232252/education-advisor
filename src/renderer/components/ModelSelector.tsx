@@ -2,6 +2,7 @@
 // 模型选择器组件 — 在聊天输入区选择 Provider + Model
 // =============================================================
 
+import { debugLog } from '@shared/debug'
 import type { ModelInfo, ProviderInfo } from '@shared/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '../i18n'
@@ -81,8 +82,9 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
         const configured = allWithModels.filter((p: ProviderInfo) => p.hasApiKey)
         setProviders(allWithModels)
 
-        console.log(
-          `[ModelSelector] Total providers: ${data.length}, with models: ${allWithModels.length}, configured: ${configured.length}`,
+        debugLog(
+          'chat',
+          `ModelSelector providers: total=${data.length} withModels=${allWithModels.length} configured=${configured.length}`,
         )
 
         // 如果已有选中项（chatStore 非空），加载其模型即可，不覆盖
@@ -124,12 +126,12 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
       })
       .catch((err) => {
         console.error('[ModelSelector] Failed to load providers:', err)
-        toast.error('加载 Provider 列表失败')
+        toast.error(t('page.chat.modelSelector.loadFailed'))
       })
     return () => {
       cancelled = true
     }
-  }, [loadModelsFor])
+  }, [loadModelsFor, t])
 
   const handleProviderClick = useCallback(
     (providerId: string) => {
@@ -168,9 +170,9 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
           viewBox="0 0 24 24"
           stroke="currentColor"
           role="img"
-          aria-label="模型"
+          aria-label={t('page.chat.modelSelector.ariaModel')}
         >
-          <title>模型</title>
+          <title>{t('page.chat.modelSelector.ariaModel')}</title>
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -226,7 +228,8 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
                     <span className="truncate">{p.name}</span>
                   </div>
                   <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-3.5">
-                    {p.modelCount} models{!p.hasApiKey ? ' · 未配置' : ''}
+                    {p.modelCount} models
+                    {!p.hasApiKey ? t('page.chat.modelSelector.notConfigured') : ''}
                   </span>
                 </button>
               ))}
@@ -239,7 +242,7 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
               </div>
               {loading ? (
                 <div className="p-4 text-center text-gray-400 dark:text-gray-500 text-sm">
-                  加载中...
+                  {t('page.chat.modelSelector.loading')}
                 </div>
               ) : selectedProvider && models[selectedProvider] ? (
                 models[selectedProvider].map((m) => (

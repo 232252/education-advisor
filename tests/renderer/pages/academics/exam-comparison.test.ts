@@ -6,7 +6,7 @@
 // =============================================================
 
 import { describe, expect, it } from 'vitest'
-import type { EAAEventRecord, GradeRecord } from '@shared/types'
+import type { EAAEventRecord } from '@shared/types'
 import {
   aggregateConductDelta,
   compareClassGrades,
@@ -17,39 +17,23 @@ import {
   summarizeSubjects,
   type SubjectComparison,
 } from '../../../../src/renderer/lib/academics'
+import { makeEvent as makeEventBase, makeGrade } from '../../__fixtures__/make'
 
-// ---------- 数据工厂 ----------
+// ---------- 数据工厂(单一来源: tests/renderer/__fixtures__/make) ----------
 
-function makeGrade(overrides: Partial<GradeRecord> = {}): GradeRecord {
-  return {
-    examId: 'exam-1',
-    subjectId: 'chinese',
-    studentName: '张三',
-    score: 90,
-    fullMark: 150,
-    updatedAt: '2025-11-02T00:00:00Z',
-    ...overrides,
-  }
-}
-
-function makeEvent(overrides: Partial<EAAEventRecord> = {}): EAAEventRecord {
-  return {
+// 本文件的历史默认字面值与共享工厂不同,用适配器保持原值
+const makeEvent = (overrides: Partial<EAAEventRecord> = {}): EAAEventRecord =>
+  makeEventBase({
     event_id: 'ev-1',
     name: '张三',
     entity_id: 'ent-1',
     timestamp: '2025-11-05T00:00:00Z',
-    event_type: 'ConductBonus',
     reason_code: 'rc',
     original_reason: 'help',
     score_delta: 2,
-    note: '',
-    tags: [],
     operator: 'teacher',
-    is_valid: true,
-    reverted_by: null,
     ...overrides,
-  }
-}
+  })
 
 function sub(overrides: Partial<SubjectComparison>): SubjectComparison {
   return {

@@ -5,27 +5,19 @@
 
 import * as IPC from '@shared/ipc-channels'
 import type { ReportListResult, ReportReadResult } from '@shared/types/reports'
-import { ipcMain } from 'electron'
 import { listReports, readReport } from '../services/reports-service'
+import { handleIpc } from './handle'
 
 export function registerReportsHandlers(): void {
-  ipcMain.handle(IPC.IPC_REPORTS_LIST, (): ReportListResult => {
-    try {
+  handleIpc(
+    IPC.IPC_REPORTS_LIST,
+    (): ReportListResult => {
       return listReports()
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] reports:list failed:', msg)
-      return { success: false, entries: [], error: msg }
-    }
-  })
+    },
+    (msg) => ({ success: false, entries: [], error: msg }),
+  )
 
-  ipcMain.handle(IPC.IPC_REPORTS_READ, (_e, fileName: string): ReportReadResult => {
-    try {
-      return readReport(typeof fileName === 'string' ? fileName : '')
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] reports:read failed:', msg)
-      return { success: false, error: msg }
-    }
+  handleIpc(IPC.IPC_REPORTS_READ, (_e, fileName: string): ReportReadResult => {
+    return readReport(typeof fileName === 'string' ? fileName : '')
   })
 }

@@ -122,7 +122,7 @@ export function ComboBox({
           setOpen((o) => !o)
           inputRef.current?.focus()
         }}
-        aria-label={open ? '收起' : '展开'}
+        aria-label={open ? t('common.collapse', '收起') : t('common.expand', '展开')}
         className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
       >
         <svg

@@ -5,6 +5,7 @@
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
+import { errText } from '../utils/err-text'
 import { textResult } from './eaa/tools/shared'
 
 // =============================================================
@@ -38,19 +39,6 @@ export const getCurrentTimeTool: AgentTool<typeof currentTimeParams> = {
     const tz =
       params.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai'
 
-    const formatter = new Intl.DateTimeFormat('zh-CN', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      weekday: 'long',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    })
-    const formatted = formatter.format(now)
-
     // 修复: 使用指定时区计算星期几,而非 now.getDay()(系统时区)
     // 否则当 tz 与系统时区不同时,星期几和是否周末可能不正确
     const weekdayStr = new Intl.DateTimeFormat('en-US', {
@@ -69,19 +57,32 @@ export const getCurrentTimeTool: AgentTool<typeof currentTimeParams> = {
     const dayOfWeek = weekdayMap[weekdayStr] ?? now.getDay()
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
 
-    // ISO 格式
+    // 主日期/时间行必须取目标时区的本地值 — 此前用 toISOString()(UTC)当主行,
+    // 东八区 0:00-7:59 之间"日期"会比真实日期早一天,周报周期/区间查询全被带偏
+    const localDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now)
+    const localTime = new Intl.DateTimeFormat('en-GB', {
+      timeZone: tz,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(now)
     const iso = now.toISOString()
-    const dateOnly = iso.split('T')[0]
-    const timeOnly = iso.split('T')[1].split('.')[0]
 
     return textResult(
       `🕐 当前时间\n` +
-        `日期: ${dateOnly}（${formatted.split(' ').slice(3).join(' ')}）\n` +
-        `时间: ${timeOnly}\n` +
+        `日期: ${localDate}\n` +
+        `时间: ${localTime}\n` +
         `星期: ${WEEKDAYS_CN[dayOfWeek]}\n` +
         `类型: ${isWeekend ? '周末' : '工作日'}\n` +
         `时区: ${tz}\n` +
-        `ISO: ${iso}`,
+        `ISO: ${iso}\n` +
+        `注: 日期/时间行为 ${tz} 本地时间;ISO 行为 UTC,两者可能相差一天,以本地行为准`,
     )
   },
 }
@@ -119,7 +120,9 @@ function safeEval(expr: string): number {
   const withoutMath = cleaned.replace(mathFuncPattern, '0')
 
   if (!allowedPattern.test(withoutMath)) {
-    throw new Error(`表达式包含不允许的字符。只支持数字、四则运算 (+-×÷) 和括号。\n表达式: ${expr}`)
+    throw new Error(
+      `表达式包含不允许的字符。支持: 数字、四则运算 (+-×÷)、括号、百分比,以及 Math.abs/round/ceil/floor/sqrt/pow/min/max/log/log2/log10。\n表达式: ${expr}`,
+    )
   }
 
   // 将百分号转为除法
@@ -147,9 +150,7 @@ function safeEval(expr: string): number {
 
     return result
   } catch (err) {
-    throw new Error(
-      `计算失败: ${err instanceof Error ? err.message : String(err)}\n表达式: ${expr}`,
-    )
+    throw new Error(`计算失败: ${errText(err)}\n表达式: ${expr}`)
   }
 }
 
@@ -157,7 +158,7 @@ export const calculateTool: AgentTool<typeof calculateParams> = {
   name: 'calculate',
   label: '数学计算',
   description:
-    '计算数学表达式。支持加减乘除、括号、百分比。例如: "3 * 22"、"(198 + 170 + 156) / 3"、"29 - 6"、"100 * 85%"',
+    '计算数学表达式。支持加减乘除、括号、百分比,以及 Math.abs/round/ceil/floor/sqrt/pow/min/max/log/log2/log10 函数。例如: "3 * 22"、"(198 + 170 + 156) / 3"、"100 * 85%"、"Math.max(85, 90)"',
   parameters: calculateParams,
   execute: async (_toolCallId, params) => {
     const result = safeEval(params.expression)

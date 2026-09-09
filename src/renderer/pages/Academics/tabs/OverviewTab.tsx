@@ -5,11 +5,10 @@
 // =============================================================
 
 import type { ExamDef, GradeRecord, SubjectDef } from '@shared/types'
-import { AlertTriangle, BookOpen, RotateCw } from 'lucide-react'
+import { BookOpen } from 'lucide-react'
 import { useMemo } from 'react'
-import { Button } from '../../../components/Button'
 import { EmptyState } from '../../../components/EmptyState'
-import { CardSkeleton } from '../../../components/Skeleton'
+import { TabStateBoundary } from '../../../components/TabStateBoundary'
 import { useT } from '../../../i18n'
 import { buildGradeTableData, filterExamsWithGrades } from '../../../lib/academics'
 import {
@@ -19,7 +18,7 @@ import {
   TrendChartCard,
 } from '../components/overview'
 
-export interface OverviewTabProps {
+interface OverviewTabProps {
   studentName: string
   subjects: SubjectDef[]
   exams: ExamDef[]
@@ -51,71 +50,52 @@ export function OverviewTab({
     [sortedExamsWithGrades, grades, subjects],
   )
 
-  if (gradesLoading) {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <CardSkeleton />
-        <CardSkeleton />
-        <CardSkeleton />
-      </div>
-    )
-  }
-
-  if (gradesError) {
-    return (
-      <EmptyState
-        icon={<AlertTriangle size={28} />}
-        title={t('page.academics.overview.loadFailed', '成绩数据加载失败')}
-        description={`${gradesError}${t(
-          'page.academics.overview.loadFailedDesc',
-          ' — 数据可能存在但未能读取,请重试;若持续失败请检查数据目录或查看日志',
-        )}`}
-        action={
-          onRetry ? (
-            <Button onClick={onRetry} icon={<RotateCw size={14} aria-hidden />}>
-              {t('common.retry', '重试')}
-            </Button>
-          ) : undefined
-        }
-      />
-    )
-  }
-
-  if (grades.length === 0) {
-    return (
-      <EmptyState
-        icon={<BookOpen size={28} />}
-        title={t('page.academics.overview.noGrades', '暂无成绩数据')}
-        description={`${studentName}${t(
-          'page.academics.overview.noGradesDesc',
-          ' 还没有任何成绩记录,请先在"考试管理"中创建考试,然后在"成绩录入"中录入成绩',
-        )}`}
-      />
-    )
-  }
-
   return (
-    <div className="space-y-4">
-      {/* 3 个图表 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* 趋势线图 (占两列) */}
-        <TrendChartCard
-          examsWithGrades={sortedExamsWithGrades}
-          subjects={subjects}
-          grades={grades}
+    <TabStateBoundary
+      loading={gradesLoading}
+      error={gradesError}
+      onRetry={onRetry}
+      errorTitle={t('page.academics.overview.loadFailed', '成绩数据加载失败')}
+      errorHint={t(
+        'page.academics.overview.loadFailedDesc',
+        ' — 数据可能存在但未能读取,请重试;若持续失败请检查数据目录或查看日志',
+      )}
+      skeletonCount={3}
+      skeletonClassName="grid grid-cols-1 lg:grid-cols-3 gap-4"
+    >
+      {grades.length === 0 ? (
+        <EmptyState
+          icon={<BookOpen size={28} />}
+          title={t('page.academics.overview.noGrades', '暂无成绩数据')}
+          description={`${studentName}${t(
+            'page.academics.overview.noGradesDesc',
+            ' 还没有任何成绩记录,请先在"考试管理"中创建考试,然后在"成绩录入"中录入成绩',
+          )}`}
         />
-        {/* 科目柱状图 */}
-        <SubjectAvgChartCard subjects={subjects} grades={grades} />
-        {/* 雷达图 */}
-        <LatestRadarChartCard
-          examsWithGrades={sortedExamsWithGrades}
-          subjects={subjects}
-          grades={grades}
-        />
-      </div>
+      ) : (
+        <div className="space-y-4">
+          {/* 3 个图表 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* 趋势线图 (占两列) */}
+            <TrendChartCard
+              examsWithGrades={sortedExamsWithGrades}
+              subjects={subjects}
+              grades={grades}
+            />
+            {/* 科目柱状图 */}
+            <SubjectAvgChartCard subjects={subjects} grades={grades} />
+            {/* 雷达图 */}
+            <LatestRadarChartCard
+              examsWithGrades={sortedExamsWithGrades}
+              subjects={subjects}
+              grades={grades}
+            />
+          </div>
 
-      {/* 成绩表 */}
-      <GradeTableCard tableData={gradeTableData} subjects={subjects} />
-    </div>
+          {/* 成绩表 */}
+          <GradeTableCard tableData={gradeTableData} subjects={subjects} />
+        </div>
+      )}
+    </TabStateBoundary>
   )
 }

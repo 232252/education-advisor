@@ -8,6 +8,7 @@ import {
   Bot,
   Brain,
   CalendarClock,
+  ClipboardCheck,
   FileText,
   GraduationCap,
   LayoutDashboard,
@@ -19,7 +20,7 @@ import {
   Users,
 } from 'lucide-react'
 
-export interface NavItem {
+interface NavItem {
   path: string
   icon: LucideIcon
   labelKey: string
@@ -42,6 +43,12 @@ export const NAV_ITEMS: NavItem[] = [
     icon: NotebookPen,
     labelKey: 'nav.academics',
     keywords: 'academics grades 成绩 学业',
+  },
+  {
+    path: '/grading',
+    icon: ClipboardCheck,
+    labelKey: 'nav.grading',
+    keywords: 'grading 批改 作业 submitty 试卷',
   },
   { path: '/agents', icon: Bot, labelKey: 'nav.agents', keywords: 'agents 智能体' },
   { path: '/models', icon: Brain, labelKey: 'nav.models', keywords: 'models 模型' },

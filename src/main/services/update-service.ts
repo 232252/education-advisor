@@ -12,6 +12,7 @@
 import https from 'node:https'
 import { app, dialog, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
+import { errText } from '../utils/err-text'
 import { settingsService } from './settings-service'
 
 interface UpdateInfo {
@@ -30,7 +31,7 @@ interface UpdateInfo {
 }
 
 /** 更新下载进度载荷 (主→渲染,经 sys:update-progress 推送) */
-export interface UpdateProgress {
+interface UpdateProgress {
   status: 'downloading' | 'downloaded' | 'error'
   /** 下载百分比 0-100 (downloaded 恒为 100) */
   percent: number
@@ -133,21 +134,9 @@ function fetchLatestRelease(repoUrl: string): Promise<{
       }
     }
 
-    // 从 repo URL 提取 owner/repo
-    // 支持格式: https://github.com/owner/repo 或 owner/repo
-    const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/)
-    if (!match) {
-      safeReject(new Error(`Invalid GitHub repo URL: ${repoUrl}`))
-      return
-    }
-    const [, owner, repo] = match
-    const cleanRepo = repo.replace(/\.git$/, '')
-    // L-1 修复: 验证 owner/repo 只含合法字符(字母数字/连字符/下划线/点),防止 URL 注入
-    if (!/^[A-Za-z0-9._-]+$/.test(owner) || !/^[A-Za-z0-9._-]+$/.test(cleanRepo)) {
-      safeReject(new Error(`Invalid GitHub owner/repo in URL: ${repoUrl}`))
-      return
-    }
-    const apiUrl = `https://api.github.com/repos/${owner}/${cleanRepo}/releases/latest`
+    // 从 repo URL 提取 owner/repo(实现与错误文案收口 parseGitHubRepo)
+    const { owner, repo } = parseGitHubRepo(repoUrl)
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/releases/latest`
 
     // 保存 res 引用,以便在超时时清理响应流,防止资源泄漏
     let res: import('node:http').IncomingMessage | null = null
@@ -191,16 +180,43 @@ function fetchLatestRelease(repoUrl: string): Promise<{
   })
 }
 
+/**
+ * 从 repo URL 提取 owner/repo。
+ * 支持格式: https://github.com/owner/repo 或 owner/repo;
+ * L-1 修复: 验证 owner/repo 只含合法字符(字母数字/连字符/下划线/点),防止 URL 注入。
+ * 非法时抛错(fetchLatestRelease 直接 reject;configureFeed 捕获后返回 false)。
+ */
+function parseGitHubRepo(repoUrl: string): { owner: string; repo: string } {
+  const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/)
+  if (!match) {
+    throw new Error(`Invalid GitHub repo URL: ${repoUrl}`)
+  }
+  const [, owner, repo] = match
+  const cleanRepo = repo.replace(/\.git$/, '')
+  if (!/^[A-Za-z0-9._-]+$/.test(owner) || !/^[A-Za-z0-9._-]+$/.test(cleanRepo)) {
+    throw new Error(`Invalid GitHub owner/repo in URL: ${repoUrl}`)
+  }
+  return { owner, repo: cleanRepo }
+}
+
 class UpdateService {
   private lastCheck: UpdateInfo | null = null
-  private updateUrl: string = ''
   private progressListener: ((p: UpdateProgress) => void) | null = null
   /** electron-updater 事件是否已接线 (仅接线一次,避免重复监听) */
   private wired = false
 
-  /** 设置 GitHub 仓库 URL */
-  setRepoUrl(url: string): void {
-    this.updateUrl = url
+  /**
+   * 解析更新源 URL: settings.general.updateUrl
+   * (checkForUpdates / downloadUpdate 共用)
+   */
+  private resolveUpdateUrl(): string {
+    try {
+      const s = settingsService.getSettings() as { general?: { updateUrl?: string } }
+      return s.general?.updateUrl ?? ''
+    } catch {
+      /* ignore */
+      return ''
+    }
   }
 
   /** 注册进度监听 (sys-handlers 调用,转发到 win.webContents.send) */
@@ -226,16 +242,8 @@ class UpdateService {
       arch: process.arch,
     }
 
-    // 读取设置中的更新 URL
-    let repoUrl = this.updateUrl
-    if (!repoUrl) {
-      try {
-        const s = settingsService.getSettings() as { general?: { updateUrl?: string } }
-        repoUrl = s.general?.updateUrl ?? ''
-      } catch {
-        /* ignore */
-      }
-    }
+    // 读取设置中的更新 URL(实例 repoUrl 优先,回退 settings)
+    const repoUrl = this.resolveUpdateUrl()
 
     if (!repoUrl) {
       const info: UpdateInfo = {
@@ -272,7 +280,7 @@ class UpdateService {
       this.lastCheck = info
       return info
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       const info: UpdateInfo = {
         ...baseInfo,
         hasUpdate: false,
@@ -287,11 +295,6 @@ class UpdateService {
       this.lastCheck = info
       return info
     }
-  }
-
-  /** 获取上次检查结果 */
-  getLastCheck(): UpdateInfo | null {
-    return this.lastCheck
   }
 
   /** 弹出更新对话框（如果有更新） */
@@ -367,23 +370,21 @@ class UpdateService {
         total: 0,
         bytesPerSecond: 0,
         version: '',
-        message: err instanceof Error ? err.message : String(err),
+        message: errText(err),
       })
     })
   }
 
   /** 从仓库 URL 配置 electron-updater feed (GitHub provider) */
   private configureFeed(repoUrl: string): boolean {
-    // 与 fetchLatestRelease 相同的 owner/repo 提取与校验,防 URL 注入
-    const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/)
-    if (!match) return false
-    const [, owner, repo] = match
-    const cleanRepo = repo.replace(/\.git$/, '')
-    if (!/^[A-Za-z0-9._-]+$/.test(owner) || !/^[A-Za-z0-9._-]+$/.test(cleanRepo)) {
+    // 与 fetchLatestRelease 相同的 owner/repo 提取与校验(收口 parseGitHubRepo),防 URL 注入
+    try {
+      const { owner, repo } = parseGitHubRepo(repoUrl)
+      autoUpdater.setFeedURL({ provider: 'github', owner, repo })
+      return true
+    } catch {
       return false
     }
-    autoUpdater.setFeedURL({ provider: 'github', owner, repo })
-    return true
   }
 
   /**
@@ -394,15 +395,7 @@ class UpdateService {
     if (this.isPortable()) {
       return { success: false, error: '便携版或开发模式不支持自动下载,请前往 GitHub 手动下载' }
     }
-    let repoUrl = this.updateUrl
-    if (!repoUrl) {
-      try {
-        const s = settingsService.getSettings() as { general?: { updateUrl?: string } }
-        repoUrl = s.general?.updateUrl ?? ''
-      } catch {
-        /* ignore */
-      }
-    }
+    const repoUrl = this.resolveUpdateUrl()
     if (!repoUrl) {
       return { success: false, error: '未配置更新源 (updateUrl)' }
     }
@@ -422,7 +415,7 @@ class UpdateService {
       await autoUpdater.downloadUpdate()
       return { success: true }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       return { success: false, error: msg }
     }
   }
@@ -436,7 +429,7 @@ class UpdateService {
       autoUpdater.quitAndInstall()
       return { success: true, portable: false }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       return { success: false, portable: false, error: msg }
     }
   }

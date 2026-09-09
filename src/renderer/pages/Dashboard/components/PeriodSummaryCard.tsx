@@ -1,6 +1,6 @@
 // =============================================================
-// PeriodSummaryCard — 周期摘要卡片
-// 加分/扣分双栏摘要 + 进步/退步最快 Top 3
+// PeriodSummaryCard — {t('page.dashboard.period.title', '周期摘要')}卡片
+// 加分/扣分双栏摘要 + 进步/{t('page.dashboard.period.fastestFall', '退步最快')} Top 3
 // =============================================================
 
 import { AlertTriangle, Calendar, Trophy } from 'lucide-react'
@@ -25,10 +25,10 @@ export function PeriodSummaryCard({
     >
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-pink-500"></span>
-        周期摘要
+        {t('page.dashboard.period.title', '周期摘要')}
         {period?.since && (
           <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal ml-1">
-            {period.since} ~ {period.until ?? '至今'}
+            {period.since} ~ {period.until ?? t('page.dashboard.period.untilNow', '至今')}
           </span>
         )}
       </h3>
@@ -61,7 +61,8 @@ export function PeriodSummaryCard({
           {data.top_gainers.length > 0 && (
             <div>
               <div className="text-gray-500 dark:text-gray-400 mb-2 font-medium flex items-center gap-1.5">
-                <Trophy size={16} className="text-yellow-500" /> 进步最快
+                <Trophy size={16} className="text-yellow-500" />{' '}
+                {t('page.dashboard.period.fastestRise', '进步最快')}
               </div>
               {data.top_gainers.slice(0, 3).map((g) => (
                 <div
@@ -81,7 +82,8 @@ export function PeriodSummaryCard({
           {data.top_losers.length > 0 && (
             <div>
               <div className="text-gray-500 dark:text-gray-400 mb-2 font-medium flex items-center gap-1.5">
-                <AlertTriangle size={16} className="text-red-400" /> 退步最快
+                <AlertTriangle size={16} className="text-red-400" />{' '}
+                {t('page.dashboard.period.fastestFall', '退步最快')}
               </div>
               {data.top_losers.slice(0, 3).map((l) => (
                 <div
@@ -100,7 +102,11 @@ export function PeriodSummaryCard({
           )}
         </div>
       ) : (
-        <EmptyState icon={<Calendar size={28} />} title="暂无数据" className="py-6" />
+        <EmptyState
+          icon={<Calendar size={28} />}
+          title={t('common.empty.noData', '暂无数据')}
+          className="py-6"
+        />
       )}
     </Card>
   )
