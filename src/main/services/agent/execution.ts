@@ -223,7 +223,7 @@ async function executeAgentRunInner(
   const idleTimeoutMs =
     timeoutMins === -1 ? null : timeoutMins > 0 ? timeoutMins * 60_000 : 5 * 60_000
   const steeringMode = chatSettings?.steeringMode ?? 'all'
-  const followUpMode = chatSettings?.followUpMode ?? 'all'
+  const followUpMode = chatSettings?.followUpMode ?? 'one-at-a-time'
   const showImages = chatSettings?.showImages ?? true
   const compactionEnabled = chatSettings?.compaction?.enabled ?? true
   const compactionReserve = chatSettings?.compaction?.reserveTokens ?? 8000

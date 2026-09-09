@@ -27,3 +27,4 @@ export {
   deleteStudentTool,
   setStudentMetaTool,
 } from './eaa/tools/student-tools'
+export { createClassTool, importStudentsTool, listClassesTool } from './eaa/tools/class-tools'

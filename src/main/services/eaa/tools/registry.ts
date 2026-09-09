@@ -5,6 +5,7 @@
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { examGradesTool, examsTool, studentGradesTool } from './academic-tools'
+import { createClassTool, importStudentsTool, listClassesTool } from './class-tools'
 import { addEventTool, revertEventTool } from './event-tools'
 import { gradingOverviewTool, gradingStudentTool } from './grading-tools'
 import { historyTool, queryScoreTool, searchEventsTool, tagTool } from './query-tools'
@@ -41,6 +42,9 @@ export const allEAATools: AnyAgentTool[] = [
   setStudentMetaTool,
   revertEventTool,
   tagTool,
+  listClassesTool,
+  createClassTool,
+  importStudentsTool,
   // 学业考试数据(academic-service 直读,不走 Rust CLI)
   examsTool,
   examGradesTool,
@@ -77,12 +81,12 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
     add_event: [addEventTool],
     history: [historyTool],
     search: [searchEventsTool],
-    list: [listStudentsTool],
+    list: [listStudentsTool, listClassesTool],
     ranking: [rankingTool],
     stats: [statsTool],
     codes: [codesTool],
     summary: [summaryTool],
-    add_student: [addStudentTool],
+    add_student: [addStudentTool, importStudentsTool],
     range: [rangeTool],
     set_student_meta: [setStudentMetaTool],
     revert: [revertEventTool],
@@ -93,6 +97,7 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
       historyTool,
       searchEventsTool,
       listStudentsTool,
+      listClassesTool,
       rankingTool,
       statsTool,
       codesTool,
@@ -106,7 +111,16 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
       gradingOverviewTool,
       gradingStudentTool,
     ],
-    write: [addEventTool, addStudentTool, setStudentMetaTool, revertEventTool],
+    write: [
+      addEventTool,
+      addStudentTool,
+      setStudentMetaTool,
+      revertEventTool,
+      createClassTool,
+      importStudentsTool,
+    ],
+    class: [listClassesTool, createClassTool],
+    import_students: [importStudentsTool],
     // 也可单独授予学业成绩(不需要整套 read)
     academics: [
       examsTool,

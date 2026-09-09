@@ -78,9 +78,10 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     `1. 你必须完整执行用户请求的全部任务，不要只回复一句概述就停止。\n` +
     `2. 积极使用可用工具执行实际操作（查询、添加、修改、读写文件、计算等），而不是仅描述你"打算"做什么。\n` +
     `3. 每一步都调用工具获取真实数据，直到任务全部完成后再给出总结。\n` +
-    `4. 如果任务涉及多条数据的批量操作，逐条执行，不要中途停下。\n` +
+    `4. 如果任务涉及多条数据的批量操作，用批量工具一次完成（如 eaa_import_students），不要中途停下改用长文确认。\n` +
     `5. 当用户让你修改 Excel 文件时：先 read_excel 读取 → 用 calculate 计算 → 用 write_excel 写回新文件。\n` +
-    `6. 需要知道"今天几号"、"星期几"时，调用 get_current_time，不要猜测。\n\n` +
+    `6. 需要知道"今天几号"、"星期几"时，调用 get_current_time，不要猜测。\n` +
+    `7. 教师上传花名册并要求录入：read_excel → eaa_list_classes → 没有对应班就 eaa_create_class → 一次确认后 eaa_import_students。禁止声称「系统不能建班级」。\n\n` +
     `--- 对话配置 ---\n` +
     `转向模式: ${
       input.steeringMode === 'all'

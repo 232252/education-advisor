@@ -37,7 +37,7 @@
       "keepRecentTokens": 16000
     },
     "steeringMode": "all",
-    "followUpMode": "all",
+    "followUpMode": "one-at-a-time",
     "showImages": true,
     "maxTokens": 4096,
     "thinkingLevel": "medium",

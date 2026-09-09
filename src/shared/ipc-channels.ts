@@ -120,6 +120,8 @@ export const IPC_SYS_CHECK_UPDATE = 'sys:check-update'
 export const IPC_SYS_READ_FILE = 'sys:read-file'
 // 重启应用(备份恢复后数据文件已替换,需重启进程重新加载)
 export const IPC_SYS_RESTART_APP = 'sys:restart-app'
+/** 出厂重置：清空班级/学生/对话/设置/密钥，调用后应 relaunch */
+export const IPC_SYS_FACTORY_RESET = 'sys:factory-reset'
 // ===== 自动更新 (M31, electron-updater) =====
 // 触发下载新版本安装包(sha512 校验由 electron-updater 内置)
 export const IPC_SYS_DOWNLOAD_UPDATE = 'sys:download-update'
