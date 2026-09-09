@@ -136,6 +136,27 @@ describe('file-tools', () => {
       expect(readText).toContain('李四')
     })
 
+    it('花名册敏感列应对模型隐藏', async () => {
+      const filePath = path.join(tmpRoot, 'roster.xlsx')
+      await writeExcelTool.execute('we-pii', {
+        path: filePath,
+        sheets: [
+          {
+            name: 'Sheet1',
+            headers: ['姓名', '身份证号', '电话'],
+            rows: [['伍思情', '110101200801011230', '13800001111']],
+          },
+        ],
+      })
+      const result = await readExcelTool.execute('re-pii', { path: filePath })
+      const text = (result.content[0] as { text: string }).text
+      expect(text).toContain('伍思情')
+      expect(text).toContain('excel_path')
+      expect(text).toContain('(已隐藏)')
+      expect(text).not.toContain('110101200801011230')
+      expect(text).not.toContain('13800001111')
+    })
+
     it('多工作表时应列出全部工作表名', async () => {
       const filePath = path.join(tmpRoot, 'multi-sheet.xlsx')
       await writeExcelTool.execute('we2', {

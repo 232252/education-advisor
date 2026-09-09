@@ -83,7 +83,7 @@ export function buildFinalText(text: string, uploadedFiles: UploadedFile[]): str
       return (
         `--- 文件: ${f.name} (${sizeKb}KB, ${f.mimeType}) — Excel 二进制，不要当文本解析 ---\n` +
         `绝对路径: ${f.path}\n` +
-        `请用 read_excel 读取上述路径（表头/行数据）。身份证号/电话/住址不要写入系统。\n` +
+        `请用 read_excel 读取上述路径（表头/行数据）。花名册导入请把该绝对路径传给 eaa_import_students 的 excel_path，身份证/电话/住址会写入学生档案并由隐私引擎登记；不要在对话里复述完整身份证号。\n` +
         `--- 文件结束 ---`
       )
     }

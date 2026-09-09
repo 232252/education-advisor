@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   }>,
   existingStudents: [] as Array<{ name: string; status: string }>,
   invalidate: vi.fn(),
+  applyProfile: vi.fn(async () => ({ written: true })),
+  registerPrivacy: vi.fn(async () => ({ registered: 0, skippedLocked: true })),
 }))
 
 vi.mock('electron', () => ({
@@ -42,6 +44,13 @@ vi.mock('../../src/main/services/class-service', () => ({
 
 vi.mock('../../src/main/ipc/eaa/cache', () => ({
   invalidateStudentsCacheNow: mocks.invalidate,
+}))
+
+vi.mock('../../src/main/services/profile-import', () => ({
+  applyStudentRosterProfile: mocks.applyProfile,
+  registerRosterPrivacy: mocks.registerPrivacy,
+  isAlreadyExistsError: (stderr: string, data: unknown) =>
+    /already|已存在|exists/i.test(`${stderr} ${typeof data === 'string' ? data : ''}`),
 }))
 
 const { registerStudentExcelHandlers } = await import(
@@ -106,6 +115,8 @@ beforeEach(() => {
     { id: '2', class_id: 'G7-2', name: '七年级2班', archived: false, created_at: 0 },
   )
   mocks.existingStudents.length = 0
+  mocks.applyProfile.mockResolvedValue({ written: true })
+  mocks.registerPrivacy.mockResolvedValue({ registered: 0, skippedLocked: true })
   // 默认: list-students 成功返回现有学生; 写命令全部成功
   mocks.eaaExecute.mockImplementation(async (cmd: { command: string }) => {
     if (cmd.command === 'list-students') {
@@ -122,12 +133,17 @@ beforeEach(() => {
 describe('resolveHeaderIndexes — 表头识别', () => {
   it('标准表头: name 必填, student_id/class_name 可选', () => {
     const h = resolveHeaderIndexes(['name', 'student_id', 'class_name'])
-    expect(h).toEqual({ name: 0, studentId: 1, className: 2 })
+    expect(h).toMatchObject({ name: 0, studentId: 1, className: 2 })
+  })
+
+  it('中文花名册表头: 姓名/学号/班级/身份证号', () => {
+    const h = resolveHeaderIndexes(['姓名', '学号', '班级', '身份证号', '电话'])
+    expect(h).toMatchObject({ name: 0, studentId: 1, className: 2, idCard: 3, phone: 4 })
   })
 
   it('表头大小写与首尾空格不敏感, 列序可乱', () => {
     const h = resolveHeaderIndexes([' Class_Name ', 'NAME', 'Student_ID'])
-    expect(h).toEqual({ name: 1, studentId: 2, className: 0 })
+    expect(h).toMatchObject({ name: 1, studentId: 2, className: 0 })
   })
 
   it('缺 name 列返回 null', () => {
@@ -135,10 +151,10 @@ describe('resolveHeaderIndexes — 表头识别', () => {
     expect(resolveHeaderIndexes([])).toBeNull()
   })
 
-  it('多余列被忽略', () => {
+  it('未知列被忽略, 学号映射到 studentId', () => {
     const h = resolveHeaderIndexes(['备注', 'name', '学号'])
     expect(h?.name).toBe(1)
-    expect(h?.studentId).toBe(-1)
+    expect(h?.studentId).toBe(2)
     expect(h?.className).toBe(-1)
   })
 })
@@ -177,10 +193,22 @@ describe('parseStudentImportMatrix — 行解析与冲突检测', () => {
     expect(preview.success).toBe(true)
     expect(preview.totalRows).toBe(2)
     expect(preview.errors).toEqual([])
-    expect(preview.rows).toEqual([
-      { row: 2, name: '张三', studentId: 'S-001', className: '七年级1班', classId: 'G7-1' },
-      { row: 3, name: '李四', studentId: '', className: '', classId: null },
-    ])
+    expect(preview.rows[0]).toMatchObject({
+      row: 2,
+      name: '张三',
+      studentId: 'S-001',
+      className: '七年级1班',
+      classId: 'G7-1',
+      alreadyExists: false,
+    })
+    expect(preview.rows[1]).toMatchObject({
+      row: 3,
+      name: '李四',
+      studentId: '',
+      className: '',
+      classId: null,
+      alreadyExists: false,
+    })
   })
 
   it('缺 name 表头: 整表失败并提示模板列', () => {
@@ -228,14 +256,15 @@ describe('parseStudentImportMatrix — 行解析与冲突检测', () => {
     expect(preview.errors).toEqual([{ row: 3, name: '张三', reason: 'duplicate_in_file' }])
   })
 
-  it('已存在学生(非 Deleted): 记 already_exists', () => {
+  it('已存在学生: 仍可导入以更新档案', () => {
     const preview = parseStudentImportMatrix(
       [['name'], ['王五']],
       new Set(['王五']),
       classIndex,
     )
-    expect(preview.rows).toEqual([])
-    expect(preview.errors).toEqual([{ row: 2, name: '王五', reason: 'already_exists' }])
+    expect(preview.rows).toHaveLength(1)
+    expect(preview.rows[0]).toMatchObject({ name: '王五', alreadyExists: true })
+    expect(preview.errors).toEqual([])
   })
 
   it('班级不存在: 记 class_not_found; 班级编号可直接匹配', () => {
@@ -245,9 +274,29 @@ describe('parseStudentImportMatrix — 行解析与冲突检测', () => {
       classIndex,
     )
     expect(preview.rows).toEqual([
-      { row: 3, name: '李四', studentId: '', className: 'G7-1', classId: 'G7-1' },
+      expect.objectContaining({ row: 3, name: '李四', studentId: '', className: 'G7-1', classId: 'G7-1' }),
     ])
     expect(preview.errors).toEqual([{ row: 2, name: '张三', reason: 'class_not_found' }])
+  })
+
+  it('中文表头解析身份证并推导性别生日', () => {
+    const preview = parseStudentImportMatrix(
+      [
+        ['姓名', '身份证号', '电话', '家庭住址'],
+        ['伍思情', '110101200801011230', '13800001111', '某路1号'],
+      ],
+      emptyExisting,
+      classIndex,
+    )
+    expect(preview.success).toBe(true)
+    expect(preview.rows[0]).toMatchObject({
+      name: '伍思情',
+      idCard: '110101200801011230',
+      gender: '男',
+      birthDate: '2008-01-01',
+      phone: '13800001111',
+      address: '某路1号',
+    })
   })
 
   it('非法姓名(含路径分隔符): 记 invalid_name', () => {
@@ -450,12 +499,11 @@ describe('students:import-template handler', () => {
       filePath,
     )
 
-  it('生成模板文件, 表头为 name/student_id/class_name', async () => {
+  it('生成模板文件, 表头含姓名与身份证号', async () => {
     const file = path.join(tmpRoot, 'template.xlsx')
     const result = (await template(file)) as { success: boolean; filePath?: string }
     expect(result.success).toBe(true)
     expect(result.filePath).toBe(file)
-    // 读回验证表头
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const XLSX = require('xlsx') as typeof import('xlsx')
     const wb = XLSX.readFile(file)
@@ -463,7 +511,7 @@ describe('students:import-template handler', () => {
       header: 1,
       defval: '',
     }) as unknown[][]
-    expect(matrix).toEqual([['name', 'student_id', 'class_name']])
+    expect(matrix[0]).toEqual(['姓名', '学号', '班级', '身份证号', '性别', '电话', '家庭住址'])
   })
 
   it('.xls 扩展名拒绝(模板仅 .xlsx)', async () => {
@@ -481,22 +529,19 @@ describe('students:import-template handler', () => {
 // =============================================================
 
 describe('M30 验证: 50 行样例导入', () => {
-  it('解析: 45 可导入 + 5 问题行(空行/缺 name/重名/已存在)', async () => {
-    // 现有学生: 已有甲 (already_exists 冲突源)
+  it('解析: 46 可导入(含已存在更新档案) + 4 问题行', async () => {
     mocks.existingStudents.push({ name: '样例甲', status: 'Active' })
 
     const rows: unknown[][] = [['name', 'student_id', 'class_name']]
-    // 45 行合法数据(轮转两个班级)
     for (let i = 1; i <= 45; i++) {
       rows.push([`学生${String(i).padStart(2, '0')}`, `S-${String(i).padStart(3, '0')}`, i % 2 === 0 ? '七年级1班' : '七年级2班'])
     }
-    // 5 行问题数据: 空行 / 缺 name / 缺 name / 文件内重名 / 已存在学生
-    rows.push([' ', ' ', ' '])                       // 空行
-    rows.push(['', 'S-046', '七年级1班'])             // 缺 name
-    rows.push(['', 'S-047', '七年级2班'])             // 缺 name
-    rows.push(['学生01', 'S-048', ''])               // 文件内重名(与第 1 条合法行同名)
-    rows.push(['样例甲', 'S-049', ''])               // 已存在学生
-    expect(rows).toHaveLength(51) // 表头 + 50 数据行
+    rows.push([' ', ' ', ' '])
+    rows.push(['', 'S-046', '七年级1班'])
+    rows.push(['', 'S-047', '七年级2班'])
+    rows.push(['学生01', 'S-048', ''])
+    rows.push(['样例甲', 'S-049', ''])
+    expect(rows).toHaveLength(51)
 
     const file = writeExcel('sample-50.xlsx', rows)
     const parse = handlers.get(IPC.IPC_STUDENTS_PARSE_EXCEL) as (
@@ -505,41 +550,53 @@ describe('M30 验证: 50 行样例导入', () => {
     ) => Promise<unknown>
     const preview = (await parse(makeEvent().event, file)) as {
       success: boolean
-      rows: Array<{ name: string; classId: string | null }>
+      rows: Array<{
+        row: number
+        name: string
+        classId: string | null
+        alreadyExists?: boolean
+        studentId?: string
+      }>
       errors: Array<{ row: number; reason: string }>
       totalRows: number
     }
 
     expect(preview.success).toBe(true)
     expect(preview.totalRows).toBe(50)
-    expect(preview.rows).toHaveLength(45)
-    expect(preview.errors).toHaveLength(5)
+    expect(preview.rows).toHaveLength(46)
+    expect(preview.errors).toHaveLength(4)
     expect(preview.errors.map((e) => e.reason).sort()).toEqual([
-      'already_exists',
       'duplicate_in_file',
       'empty_row',
       'missing_name',
       'missing_name',
     ])
+    expect(preview.rows.find((r) => r.name === '样例甲')?.alreadyExists).toBe(true)
 
-    // 导入确认: 45 行逐条 add-student → 成功 45 + 失败清单 0
     const { event } = makeEvent()
     const importExcel = handlers.get(IPC.IPC_STUDENTS_IMPORT_EXCEL) as (
       e: unknown,
       p: unknown,
     ) => Promise<unknown>
     const result = (await importExcel(event, {
-      rows: preview.rows.map((r) => ({ row: r.row, name: r.name, classId: r.classId })),
+      rows: preview.rows.map((r) => ({
+        row: r.row,
+        name: r.name,
+        classId: r.classId,
+        alreadyExists: r.alreadyExists,
+        studentId: r.studentId,
+      })),
     })) as { success: boolean; total: number; imported: number; failed: unknown[] }
 
-    expect(result).toEqual({ success: true, total: 45, imported: 45, failed: [] })
+    expect(result).toEqual({ success: true, total: 46, imported: 46, failed: [] })
     const calls = mocks.eaaExecute.mock.calls.map(([c]) => c) as Array<{
       command: string
       args: string[]
     }>
     expect(calls.filter((c) => c.command === 'add-student')).toHaveLength(45)
-    // 45 行全部带班级 → 45 次 set-student-meta
     expect(calls.filter((c) => c.command === 'set-student-meta')).toHaveLength(45)
+    expect(mocks.applyProfile).toHaveBeenCalled()
+    expect(mocks.registerPrivacy).toHaveBeenCalled()
   })
 
   it('失败清单展示: 导入中 5 行 add-student 失败 → imported 40 + failed 5', async () => {
