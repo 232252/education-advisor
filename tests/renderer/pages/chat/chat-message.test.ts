@@ -125,8 +125,9 @@ describe('buildFinalText', () => {
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       },
     ])
-    expect(out).toContain('read_excel')
+    expect(out).toContain('excel_path')
     expect(out).toContain('C:\\Users\\me\\Downloads\\4班.xlsx')
+    expect(out).not.toContain('不要写入系统')
     expect(out).not.toContain('UEsDB')
     expect(out).not.toContain('<untrusted_file_content>')
   })

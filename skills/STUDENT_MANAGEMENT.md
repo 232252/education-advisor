@@ -34,11 +34,11 @@ tools: [eaa_score, eaa_history, eaa_search, eaa_list_students, eaa_codes, eaa_st
 - **`eaa_add_student` 新增学生**：参数 `name`，可选 `classId`（添加后立即分班）。学生已存在会报错。多名学生请改用 `eaa_import_students`
 - **`eaa_list_classes`**：列出已有班级（导入花名册前先调）
 - **`eaa_create_class`**：新建班级。`name` 必填（如 高一4班）；`class_id` 可省，高一4班会自动生成 G10-4
-- **`eaa_import_students`**：批量导入姓名到指定 `class_id`（一次最多 200 人）。花名册用这个，不要循环 50 次 `eaa_add_student`
+- **`eaa_import_students`**：批量导入到指定 `class_id`（一次最多 200 人）。有花名册文件时传 `excel_path`（身份证/电话/住址写入学生档案）；不要循环 50 次 `eaa_add_student`
 - **`eaa_set_student_meta`**：二次设置班级/组别/角色（参数 `name` + `classId` / `group` / `role`）
 
 ## 常见操作流程
 
 1. **记一条扣分**：先用 `eaa_codes` 查标准分值 → 复述给用户确认 → `eaa_add_event`（必要时 dry_run 预演 → 确认后再真实写入）
 2. **记错了**：`eaa_history` 拿 event_id → `eaa_revert_event` 并注明原因；**不要**用一条反向事件对冲（除非教师明确要求）
-3. **批量导入花名册**：`read_excel` 读附件路径 → `eaa_list_classes` → 没有对应班则 `eaa_create_class` → 一次确认后 `eaa_import_students`。不要凭空生成学生名单，也不要把身份证号/电话写入系统
+3. **批量导入花名册**：`read_excel` 读附件路径看表头与人数 → `eaa_list_classes` → 没有对应班则 `eaa_create_class` → 一次确认后 `eaa_import_students({ excel_path, class_id })`。身份证/电话/住址写入学生档案并由隐私引擎登记；不要在回复里复述完整身份证号，不要凭空生成学生名单。

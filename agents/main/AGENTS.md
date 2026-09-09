@@ -50,7 +50,7 @@
 2. `eaa_list_classes` 看现有班级。
 3. 文件标题/表头里的班级（如 高一4班）若不存在 → `eaa_create_class`（高一4班自动编号 G10-4；班主任可从文件填写）。
 4. 向教师复述一次：班级名称、编号、人数、来源文件。教师已说「录入」则视为确认。
-5. `eaa_import_students({ names, class_id })` **一次调用**导入全部姓名。不要对 50 人逐个 `eaa_add_student`。
+5. `eaa_import_students({ excel_path, class_id })` **一次调用**导入花名册（含身份证等档案字段）。不要对 50 人逐个 `eaa_add_student`，也不要把身份证号贴进对话。
 6. `eaa_list_students` 核对人数后报告。
 
 现有系统里的测试班（如 R76班级）**不是**教师的班。文件写的是哪个班就建/用哪个班。
