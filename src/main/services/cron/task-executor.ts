@@ -82,6 +82,12 @@ export async function executeCronTask(
   if (!task) return
   if (!ctx.mainWindow) return
 
+  // 总开关关闭时跳过定时触发(手动 runNow 仍执行,方便教师试跑)
+  if (source === 'cron' && settingsService.getSettings().general?.schedulerEnabled === false) {
+    log('info', 'cron', `Task ${taskId} skipped (scheduler master switch off)`)
+    return
+  }
+
   // circuit-breaker: cron 触发时若已熔断,跳过执行(避免配额耗尽后持续空转)
   // runNow(manual) 绕过此检查 —— 用户主动操作应执行,成功则顺带重置熔断
   if (source === 'cron' && ctx.circuitBreaker.isTripped(taskId)) {

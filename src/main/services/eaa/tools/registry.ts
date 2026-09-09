@@ -8,6 +8,7 @@ import { examGradesTool, examsTool, studentGradesTool } from './academic-tools'
 import { createClassTool, importStudentsTool, listClassesTool } from './class-tools'
 import { addEventTool, revertEventTool } from './event-tools'
 import { gradingOverviewTool, gradingStudentTool } from './grading-tools'
+import { gradingFromFilesTool, gradingPublishTool } from './grading-write-tools'
 import { historyTool, queryScoreTool, searchEventsTool, tagTool } from './query-tools'
 import {
   codesTool,
@@ -52,6 +53,8 @@ export const allEAATools: AnyAgentTool[] = [
   // AI 批改数据(grading-service 直读,只读)
   gradingOverviewTool,
   gradingStudentTool,
+  gradingFromFilesTool,
+  gradingPublishTool,
 ]
 
 /** 危险工具集：仅在 Agent 显式声明 'delete' capability 时才暴露 */
@@ -118,6 +121,8 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
       revertEventTool,
       createClassTool,
       importStudentsTool,
+      gradingFromFilesTool,
+      gradingPublishTool,
     ],
     class: [listClassesTool, createClassTool],
     import_students: [importStudentsTool],
@@ -129,6 +134,7 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
       gradingOverviewTool,
       gradingStudentTool,
     ],
+    grading: [gradingOverviewTool, gradingStudentTool, gradingFromFilesTool, gradingPublishTool],
   }
 
   for (const cap of capSet) {

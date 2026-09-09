@@ -11,7 +11,8 @@
     "closeBehavior": "ask",
     "timezone": "Asia/Shanghai",
     "agentTimeoutMins": 5,
-    "maxConcurrentCronTasks": 5
+    "maxConcurrentCronTasks": 5,
+    "schedulerEnabled": true
   },
   "models": {
     "defaultProvider": "",

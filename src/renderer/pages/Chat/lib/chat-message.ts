@@ -65,9 +65,20 @@ const MAX_FILE_CONTENT_LENGTH = 32 * 1024
 const EXCEL_EXT = /\.(xlsx|xls)$/i
 const EXCEL_MIME =
   /spreadsheet|excel|application\/vnd\.ms-excel|application\/vnd\.openxmlformats-officedocument\.spreadsheetml/i
+const GRADING_ASSET = /\.(pdf|zip|jpe?g|png|webp|bmp)$/i
 
 function isExcelUpload(file: UploadedFile): boolean {
   return EXCEL_EXT.test(file.name) || EXCEL_EXT.test(file.path) || EXCEL_MIME.test(file.mimeType)
+}
+
+function isGradingAsset(file: UploadedFile): boolean {
+  return (
+    GRADING_ASSET.test(file.name) ||
+    GRADING_ASSET.test(file.path) ||
+    file.mimeType === 'application/pdf' ||
+    file.mimeType === 'application/zip' ||
+    file.mimeType.startsWith('image/')
+  )
 }
 
 /**
@@ -84,6 +95,14 @@ export function buildFinalText(text: string, uploadedFiles: UploadedFile[]): str
         `--- 文件: ${f.name} (${sizeKb}KB, ${f.mimeType}) — Excel 二进制，不要当文本解析 ---\n` +
         `绝对路径: ${f.path}\n` +
         `请用 read_excel 读取上述路径（表头/行数据）。花名册导入请把该绝对路径传给 eaa_import_students 的 excel_path，身份证/电话/住址会写入学生档案并由隐私引擎登记；不要在对话里复述完整身份证号。\n` +
+        `--- 文件结束 ---`
+      )
+    }
+    if (isGradingAsset(f)) {
+      return (
+        `--- 文件: ${f.name} (${sizeKb}KB, ${f.mimeType}) — 试卷/作业扫描件，不要当文本解析 ---\n` +
+        `绝对路径: ${f.path}\n` +
+        `若教师要批改作业: 原卷/答案卷路径放进 eaa_grading_from_files 的 sample_paths,学生作业(照片/PDF/zip)放进 homework_paths,confirm:true。不要尝试把二进制内容读进对话。\n` +
         `--- 文件结束 ---`
       )
     }

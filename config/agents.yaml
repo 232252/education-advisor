@@ -45,6 +45,7 @@ agents:
       - class # 建班/列班：花名册导入必须先建班级
       - set_student_meta # 分班：eaa_add_student 后把学生归入班级
       - import_students # 花名册批量导入（与 add_student 叠加，显式授权）
+      - grading # 对话里丢原卷+作业包自动建批改任务并发布成绩
     schedule:
       cron: []
     risk_thresholds:
