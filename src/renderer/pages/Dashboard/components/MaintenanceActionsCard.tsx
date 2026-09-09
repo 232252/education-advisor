@@ -39,9 +39,10 @@ export function MaintenanceActionsCard({
             type="button"
             onClick={onExportHtml}
             className={btnStyle('secondary')}
-            aria-label="导出 HTML 仪表盘"
+            aria-label={t('page.dashboard.maintenance.exportHtml', '导出 HTML 仪表盘')}
           >
-            <FileOutput size={16} strokeWidth={2} /> 导出 HTML 仪表盘
+            <FileOutput size={16} strokeWidth={2} />{' '}
+            {t('page.dashboard.maintenance.exportHtml', '导出 HTML 仪表盘')}
           </button>
         </div>
       </div>
@@ -49,8 +50,11 @@ export function MaintenanceActionsCard({
       <ConfirmDialog
         open={confirmReplay}
         title={t('page.dashboard.sysmgmt.replay')}
-        message="事件重放将基于全部事件日志重建排行榜与统计缓存,耗时随事件数量增长。确定要继续吗?"
-        confirmText="开始重放"
+        message={t(
+          'page.dashboard.maintenance.replayConfirm',
+          '事件重放将基于全部事件日志重建排行榜与统计缓存,耗时随事件数量增长。确定要继续吗?',
+        )}
+        confirmText={t('page.dashboard.maintenance.replayConfirmAction', '开始重放')}
         onConfirm={() => {
           setConfirmReplay(false)
           onReplay()

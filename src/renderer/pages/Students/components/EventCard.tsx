@@ -5,10 +5,12 @@
 
 import type { EAAHistoryEvent } from '@shared/types'
 import { ChevronDown, ChevronUp, RotateCcw, StickyNote } from 'lucide-react'
+import { memo } from 'react'
 import { useT } from '../../../i18n'
 import { CARD_BASE, cn, formatDate } from '../../../lib/ui-utils'
 
-export function EventCard({
+/** 行级 memo:event 对象引用稳定 + 回调稳定,展开/搜索只重渲染受影响的卡片 */
+export const EventCard = memo(function EventCard({
   event,
   expanded,
   onToggle,
@@ -17,11 +19,15 @@ export function EventCard({
 }: {
   event: EAAHistoryEvent
   expanded: boolean
-  onToggle: () => void
+  /** 参数为本卡 event_id,父级传单一稳定回调 */
+  onToggle: (eventId: string) => void
   reasonLabel?: string
-  onRevert?: () => void
+  /** 参数为本卡 event_id;已撤销卡片传 undefined 不展示入口 */
+  onRevert?: ((eventId: string) => void) | undefined
 }) {
   const { t } = useT()
+  const eventId = event.event_id
+  const handleToggle = () => onToggle(eventId)
   const isBonus = event.score_delta > 0
   const isDeduct = event.score_delta < 0
   return (
@@ -37,11 +43,11 @@ export function EventCard({
         className="flex items-center justify-between cursor-pointer"
         role="button"
         tabIndex={0}
-        onClick={onToggle}
+        onClick={handleToggle}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            onToggle()
+            handleToggle()
           }
         }}
       >
@@ -93,7 +99,7 @@ export function EventCard({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  onRevert()
+                  onRevert(eventId)
                 }}
                 className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs font-medium transition-colors inline-flex items-center gap-1"
               >
@@ -106,4 +112,4 @@ export function EventCard({
       )}
     </div>
   )
-}
+})

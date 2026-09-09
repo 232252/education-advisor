@@ -9,21 +9,10 @@ import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { EAAStudent } from '@shared/types'
 import { useStudentSelection } from '../../../../src/renderer/pages/Students/hooks/useStudentSelection'
+import { makeStudent as makeStudentBase } from '../../__fixtures__/make'
 
-function makeStudent(name: string): EAAStudent {
-  return {
-    name,
-    entity_id: `e-${name}`,
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-  }
-}
+// 历史签名为 (name) 且 entity_id 由 name 推导,用适配器保持原值
+const makeStudent = (name: string): EAAStudent => makeStudentBase({ name, entity_id: `e-${name}` })
 
 const visible = [makeStudent('甲'), makeStudent('乙'), makeStudent('丙')]
 

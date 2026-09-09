@@ -8,11 +8,11 @@ import { FileText, Play, RefreshCw } from 'lucide-react'
 import { useMemo } from 'react'
 import { Button } from '../../components/Button'
 import { EmptyState } from '../../components/EmptyState'
-import { Markdown } from '../../components/Markdown'
 import { PageHeader } from '../../components/PageHeader'
 import { Skeleton } from '../../components/Skeleton'
 import { useT } from '../../i18n'
 import { formatBytes, formatDateTime } from '../../lib/ui-utils'
+import { LazyMarkdownReport } from './components/LazyMarkdownReport'
 import { useReportsData } from './hooks/useReportsData'
 
 export function ReportsPage() {
@@ -72,7 +72,11 @@ export function ReportsPage() {
           <div className="px-3 py-2 border-b border-gray-200/70 dark:border-white/[0.06] text-[11px] text-gray-400 dark:text-gray-500 font-medium">
             {loading
               ? t('common.loading', '加载中…')
-              : t('page.reports.count', `共 ${sorted.length} 份`)}
+              : // t() 不做插值,占位符按代码库惯例手动替换
+                t('page.reports.count', `共 ${sorted.length} 份`).replace(
+                  '{n}',
+                  String(sorted.length),
+                )}
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {loading ? (
@@ -121,7 +125,8 @@ export function ReportsPage() {
               <div className="text-xs text-gray-400 dark:text-gray-500 mb-3 font-mono">
                 {selectedName}
               </div>
-              <Markdown content={content} />
+              {/* 长报告渐进渲染: fence 安全切分 + 视口附近懒挂载(智能调优 2026-09-02) */}
+              <LazyMarkdownReport content={content} />
             </>
           ) : (
             <EmptyState

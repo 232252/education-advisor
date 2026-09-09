@@ -14,20 +14,11 @@
 // =============================================================
 
 import type { BrowserWindow } from 'electron'
-import { createEaaCacheContext, invalidateStudentsCacheNow } from './eaa/cache'
+import { createEaaCacheContext } from './eaa/cache'
 import { registerEventHandlers } from './eaa/handlers-events'
 import { registerExportHandlers } from './eaa/handlers-export'
 import { registerStudentHandlers } from './eaa/handlers-students'
 import { registerSystemHandlers } from './eaa/handlers-system'
-
-/**
- * 供 class-handlers 等其他模块调用,使 listStudents 缓存失效。
- * 用于调班(class.assign)等直接调 eaaBridge.execute 而不走 IPC 的场景。
- * R2-20: 直调失效函数(原 ipcMain.emit 私有通道已退休)。
- */
-export function invalidateStudentsCacheExternal(): void {
-  invalidateStudentsCacheNow()
-}
 
 export function registerEAAHandlers(_win: BrowserWindow) {
   // ----- 共享缓存上下文 (staticCache/scoreCache 创建见 eaa/cache.ts) -----
@@ -46,5 +37,9 @@ export function registerEAAHandlers(_win: BrowserWindow) {
   registerEventHandlers({ invalidateStudentsCache })
   registerExportHandlers({ invalidateStudentsCache })
 
-  console.log('[IPC] EAA handlers registered (21 commands + export-formats + invalidate-cache)')
+  // 通道数以 src/shared/ipc-channels.ts 的 eaa:* 为准(doc-stats 门禁守护总数);
+  // 此处不写具体数字,避免子域增减时日志漂移
+  console.log(
+    '[IPC] EAA handlers registered (events/students/export/system domains + invalidate-cache)',
+  )
 }

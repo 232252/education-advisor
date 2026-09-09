@@ -5,6 +5,7 @@
 import type { CronLogEntry } from '@shared/types'
 import { ClipboardList } from 'lucide-react'
 import { EmptyState } from '../../../components/EmptyState'
+import { useT } from '../../../i18n'
 import { getRecentLogs, selectLogsForTask } from '../lib/scheduler-utils'
 import { LogEntry } from './LogEntry'
 
@@ -14,18 +15,23 @@ interface ExecutionLogPanelProps {
 }
 
 export function ExecutionLogPanel({ logs, selectedTaskId }: ExecutionLogPanelProps) {
+  const { t } = useT()
   const selectedLogs = selectLogsForTask(logs, selectedTaskId)
 
   return (
     <div className="w-96 overflow-y-auto">
       <div className="p-3 border-b border-gray-200 dark:border-white/[0.06]">
         <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">
-          {selectedTaskId ? '任务执行日志' : '全部执行日志'}
+          {selectedTaskId ? t('page.scheduler.log.taskScoped') : t('page.scheduler.log.all')}
         </h3>
       </div>
       <div className="p-3 space-y-1">
         {selectedLogs.length === 0 ? (
-          <EmptyState icon={<ClipboardList size={28} />} title="暂无日志" className="py-4" />
+          <EmptyState
+            icon={<ClipboardList size={28} />}
+            title={t('page.scheduler.log.none')}
+            className="py-4"
+          />
         ) : (
           getRecentLogs(selectedLogs, 50).map((log) => (
             // 使用 taskId + timestamp + status + error 组合 key (避免 index 重建)

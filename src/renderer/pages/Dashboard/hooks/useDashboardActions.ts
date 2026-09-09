@@ -6,7 +6,7 @@
 
 import type { EAADoctorData, EAAValidateData } from '@shared/types'
 import { useCallback, useState } from 'react'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
 
@@ -64,7 +64,7 @@ export function useDashboardActions() {
       if (res.success)
         toast.success(
           res.data
-            ? `HTML 仪表盘已生成: ${res.data}`
+            ? tr('dashboard.htmlGenerated', { path: res.data })
             : t('page.dashboard.sysmgmt.dashboard.success'),
         )
       else toast.error(res.stderr || t('error.unknown'))

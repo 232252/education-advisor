@@ -4,13 +4,20 @@
 // =============================================================
 
 import type { ExamDef } from '@shared/types'
-import ReactEChartsCore from 'echarts-for-react/esm/core'
+import { EChart } from '../../../../components/charts/EChart'
+import {
+  axisTooltip,
+  bottomLegend,
+  categoryAxis,
+  containGrid,
+  valueAxis,
+} from '../../../../components/charts/option-builders'
 import { DeltaBadge } from '../../../../components/DeltaBadge'
+import { ExamPairSelector } from '../../../../components/ExamPairSelector'
 import { CHART_BRAND, useChartTheme } from '../../../../hooks/useChartTheme'
 import { useT } from '../../../../i18n'
 import type { StudentComparison } from '../../../../lib/academics'
-import { echarts } from '../../../../lib/echarts-setup'
-import { CARD_BASE, cn } from '../../../../lib/ui-utils'
+import { CARD_BASE } from '../../../../lib/ui-utils'
 
 interface ExamCompareCardProps {
   /** 可选考试列表（有成绩且按日期升序） */
@@ -33,6 +40,8 @@ export function ExamCompareCard({
 }: ExamCompareCardProps) {
   const chartTheme = useChartTheme()
   const { t } = useT()
+  const examALabel = t('page.students.compare.examA', '考试 A')
+  const examBLabel = t('page.students.compare.examB', '考试 B')
 
   return (
     <div className={`${CARD_BASE} p-4 shadow-sm`}>
@@ -42,37 +51,14 @@ export function ExamCompareCard({
 
       {/* 对比选择器 */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <select
-          value={compareExamAId}
-          onChange={(e) => onCompareExamAChange(e.target.value)}
-          className={cn(
-            'text-xs rounded-lg border border-gray-300 dark:border-white/[0.08]',
-            'bg-white dark:bg-surface-primary text-gray-700 dark:text-gray-300 px-2 py-1',
-          )}
-        >
-          <option value="">{t('page.students.compare.selectExamA', '选择考试 A')}</option>
-          {sortedExams.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}（{e.date}）
-            </option>
-          ))}
-        </select>
-        <span className="text-gray-400">→</span>
-        <select
-          value={compareExamBId}
-          onChange={(e) => onCompareExamBChange(e.target.value)}
-          className={cn(
-            'text-xs rounded-lg border border-gray-300 dark:border-white/[0.08]',
-            'bg-white dark:bg-surface-primary text-gray-700 dark:text-gray-300 px-2 py-1',
-          )}
-        >
-          <option value="">{t('page.students.compare.selectExamB', '选择考试 B')}</option>
-          {sortedExams.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}（{e.date}）
-            </option>
-          ))}
-        </select>
+        <ExamPairSelector
+          sortedExams={sortedExams}
+          examAId={compareExamAId}
+          examBId={compareExamBId}
+          onExamAIdChange={onCompareExamAChange}
+          onExamBIdChange={onCompareExamBChange}
+          className="text-xs rounded-lg border border-gray-300 dark:border-white/[0.08] bg-white dark:bg-surface-primary text-gray-700 dark:text-gray-300 px-2 py-1"
+        />
       </div>
 
       {comparison ? (
@@ -187,39 +173,27 @@ export function ExamCompareCard({
           {/* 并排柱状图 */}
           {comparison.subjects.filter((s) => s.scoreA !== null || s.scoreB !== null).length > 0 && (
             <div className="mt-2">
-              <ReactEChartsCore
-                echarts={echarts}
-                style={{ height: 200 }}
+              <EChart
+                height={200}
                 option={{
-                  tooltip: { trigger: 'axis' },
-                  legend: {
-                    data: [
-                      t('page.students.compare.examA', '考试 A'),
-                      t('page.students.compare.examB', '考试 B'),
-                    ],
-                    textStyle: { color: chartTheme.legendColor },
-                  },
-                  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-                  xAxis: {
-                    type: 'category',
-                    data: comparison.subjects.map((s) => s.subjectName),
-                    axisLabel: { color: chartTheme.legendColor, fontSize: 10 },
-                    axisLine: { lineStyle: { color: chartTheme.gridColor } },
-                  },
-                  yAxis: {
-                    type: 'value',
-                    axisLabel: { color: chartTheme.legendColor },
-                    splitLine: { lineStyle: { color: chartTheme.gridColor, type: 'dashed' } },
-                  },
+                  tooltip: axisTooltip(chartTheme),
+                  legend: bottomLegend(chartTheme, { data: [examALabel, examBLabel] }),
+                  grid: containGrid(28),
+                  xAxis: categoryAxis(
+                    comparison.subjects.map((s) => s.subjectName),
+                    chartTheme,
+                    { hideTick: true },
+                  ),
+                  yAxis: valueAxis(chartTheme),
                   series: [
                     {
-                      name: t('page.students.compare.examA', '考试 A'),
+                      name: examALabel,
                       type: 'bar',
                       data: comparison.subjects.map((s) => s.scoreA ?? '-'),
                       itemStyle: { color: CHART_BRAND.blue, borderRadius: [4, 4, 0, 0] },
                     },
                     {
-                      name: t('page.students.compare.examB', '考试 B'),
+                      name: examBLabel,
                       type: 'bar',
                       data: comparison.subjects.map((s) => s.scoreB ?? '-'),
                       // 考试 B 对比色为 purple-500,主题色板无对应色,保留内联

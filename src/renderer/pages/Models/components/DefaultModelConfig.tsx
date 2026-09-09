@@ -7,20 +7,15 @@
 import type { ModelInfo, ProviderInfo } from '@shared/types'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useAutoDismiss } from '../../../hooks/useAutoDismiss'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
+import { formatCost } from '../lib/format'
 
 // 格式化 token 成本（美元/百万 token）
-function formatCost(costPerToken: number): string {
-  if (costPerToken === 0) return '免费'
-  const perMillion = costPerToken * 1_000_000
-  if (perMillion < 0.01) return `$${perMillion.toFixed(4)}/M`
-  return `$${perMillion.toFixed(2)}/M`
-}
 
-export interface DefaultModelConfigProps {
+interface DefaultModelConfigProps {
   providers: ProviderInfo[]
   modelsMap: Record<string, ModelInfo[]>
   modelsLoading: Record<string, boolean>
@@ -53,16 +48,6 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
     [defaultProvider, modelsMap],
   )
   const isLoadingModels = defaultProvider ? (modelsLoading[defaultProvider] ?? false) : false
-  const modelIds = useMemo(() => currentModels.map((m) => m.id), [currentModels])
-
-  // Compute display values: if saved model is in the list, show in dropdown; otherwise show in custom input
-  const hqInList = highQualityModel ? modelIds.includes(highQualityModel) : false
-  const lqInList = lowCostModel ? modelIds.includes(lowCostModel) : false
-  const hqDropdownValue = hqInList ? highQualityModel : ''
-  const lqDropdownValue = lqInList ? lowCostModel : ''
-  const hqCustomValue =
-    customHQOverride !== null ? customHQOverride : !hqInList ? highQualityModel : ''
-  const lqCustomValue = customLQOverride !== null ? customLQOverride : !lqInList ? lowCostModel : ''
 
   // Load settings on mount — 不触发 onRefreshModels，因为 loadProviders 已经批量加载了所有已配置 provider 的模型
   const initialLoadDone = useRef(false)
@@ -92,15 +77,16 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
   const saveSetting = async (path: string, value: string) => {
     try {
       await getAPI().settings.set(path, value)
-      setSaveToastAuto('已保存', 2000)
+      setSaveToastAuto('ok', 2000)
     } catch (err) {
       console.error(`[DefaultModelConfig] Failed to save ${path}:`, err)
-      setSaveToastAuto('保存失败', 3000)
-      toast.error(`保存设置失败: ${path}`)
+      setSaveToastAuto('error', 3000)
+      toast.error(tr('page.models.default.saveFailedPath', { path }))
     }
   }
 
   // --- Handlers ---
+  // HQ/LQ 双槽位处理器同构,由工厂生成(选择即保存;自定义 ID 提交 = 保存 + 加入 customModels)
 
   const handleProviderChange = (value: string) => {
     setDefaultProvider(value)
@@ -114,57 +100,43 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
     }
   }
 
-  const handleHQDropdown = (value: string) => {
-    setHighQualityModel(value)
-    setCustomHQOverride(null)
-    saveSetting('models.highQualityModel', value)
-  }
-
-  const handleLQDropdown = (value: string) => {
-    setLowCostModel(value)
-    setCustomLQOverride(null)
-    saveSetting('models.lowCostModel', value)
-  }
-
-  const commitCustomHQ = async () => {
-    const value = (customHQOverride ?? '').trim()
-    if (value && defaultProvider) {
-      setHighQualityModel(value)
-      saveSetting('models.highQualityModel', value)
-      // 同时添加到 customModels 列表，让模型选择器可见
-      try {
-        await getAPI().ai.addCustomModel({
-          providerId: defaultProvider,
-          modelId: value,
-          name: value,
-        })
-        onRefreshModels(defaultProvider)
-      } catch (err) {
-        console.warn('[DefaultModelConfig] Failed to add custom HQ model:', err)
+  const makeSlotHandlers = (
+    path: string,
+    setSaved: (v: string) => void,
+    setOverride: (v: string | null) => void,
+  ) => ({
+    onSelect: (value: string) => {
+      setSaved(value)
+      setOverride(null)
+      saveSetting(path, value)
+    },
+    commitCustom: async (override: string | null) => {
+      const value = (override ?? '').trim()
+      if (value && defaultProvider) {
+        setSaved(value)
+        saveSetting(path, value)
+        // 同时添加到 customModels 列表，让模型选择器可见
+        try {
+          await getAPI().ai.addCustomModel({
+            providerId: defaultProvider,
+            modelId: value,
+            name: value,
+          })
+          onRefreshModels(defaultProvider)
+        } catch (err) {
+          console.warn(`[DefaultModelConfig] Failed to add custom model (${path}):`, err)
+        }
       }
-    }
-    setCustomHQOverride(null)
-  }
+      setOverride(null)
+    },
+  })
 
-  const commitCustomLQ = async () => {
-    const value = (customLQOverride ?? '').trim()
-    if (value && defaultProvider) {
-      setLowCostModel(value)
-      saveSetting('models.lowCostModel', value)
-      // 同时添加到 customModels 列表
-      try {
-        await getAPI().ai.addCustomModel({
-          providerId: defaultProvider,
-          modelId: value,
-          name: value,
-        })
-        onRefreshModels(defaultProvider)
-      } catch (err) {
-        console.warn('[DefaultModelConfig] Failed to add custom LQ model:', err)
-      }
-    }
-    setCustomLQOverride(null)
-  }
+  const hqHandlers = makeSlotHandlers(
+    'models.highQualityModel',
+    setHighQualityModel,
+    setCustomHQOverride,
+  )
+  const lqHandlers = makeSlotHandlers('models.lowCostModel', setLowCostModel, setCustomLQOverride)
 
   const handleRefresh = async () => {
     if (!defaultProvider) return
@@ -176,10 +148,6 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
     }
   }
 
-  // Lookup model info for currently selected values (for cost display)
-  const hqModelInfo = currentModels.find((m) => m.id === highQualityModel)
-  const lqModelInfo = currentModels.find((m) => m.id === lowCostModel)
-
   return (
     <div className="bg-gray-50 dark:bg-surface-elevated border border-gray-200 dark:border-white/[0.06] rounded-xl p-5">
       {/* Header */}
@@ -188,12 +156,14 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
         {saveToast && (
           <span
             className={`text-xs px-2.5 py-1 rounded-full transition-opacity ${
-              saveToast === '已保存'
+              saveToast === 'ok'
                 ? 'bg-green-500/20 text-green-600 dark:text-green-400'
                 : 'bg-red-500/20 text-red-600 dark:text-red-400'
             }`}
           >
-            {saveToast}
+            {saveToast === 'ok'
+              ? t('page.models.default.saved')
+              : t('page.models.default.saveFailed')}
           </span>
         )}
       </div>
@@ -224,7 +194,9 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
             {/* Model count + refresh button */}
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500 dark:text-gray-500">
-                {isLoadingModels ? '加载模型中...' : `${currentModels.length} 个模型可用`}
+                {isLoadingModels
+                  ? t('page.models.provider.loadingModels')
+                  : tr('page.models.default.modelsAvailable', { count: currentModels.length })}
               </span>
               <button
                 type="button"
@@ -233,127 +205,140 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
                 className={btnStyle('secondary')}
                 aria-label={t('page.models.default.refresh', '刷新模型列表')}
               >
-                {refreshing || isLoadingModels ? '刷新中...' : '刷新模型列表'}
+                {refreshing || isLoadingModels
+                  ? t('page.models.default.refreshing')
+                  : t('page.models.default.refreshList')}
               </button>
             </div>
 
-            {/* ---- High Quality Model ---- */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
-                    {t('page.models.default.highQuality', '高质量模型')}
-                  </span>
-                  {hqModelInfo && (
-                    <span className="text-xs text-gray-500 dark:text-gray-500 font-mono">
-                      输入 {formatCost(hqModelInfo.costPerInputToken)} / 输出{' '}
-                      {formatCost(hqModelInfo.costPerOutputToken)}
-                    </span>
-                  )}
-                </div>
-                <select
-                  value={hqDropdownValue}
-                  onChange={(e) => handleHQDropdown(e.target.value)}
-                  disabled={currentModels.length === 0}
-                  className="bg-white dark:bg-surface-tertiary border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm w-80
-                             focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow disabled:opacity-50"
-                >
-                  <option value="">请选择...</option>
-                  {currentModels.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} (输入 {formatCost(m.costPerInputToken)} / 输出{' '}
-                      {formatCost(m.costPerOutputToken)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {/* Custom model ID input */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500 dark:text-gray-500">
-                  或输入自定义模型 ID
-                </span>
-                <input
-                  type="text"
-                  value={hqCustomValue}
-                  onChange={(e) => setCustomHQOverride(e.target.value)}
-                  onFocus={() => {
-                    // Start editing: if override is null, initialize with current display value
-                    if (customHQOverride === null && !hqInList && highQualityModel) {
-                      setCustomHQOverride(highQualityModel)
-                    }
-                  }}
-                  onBlur={() => commitCustomHQ()}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      commitCustomHQ()
-                      e.currentTarget.blur()
-                    }
-                  }}
-                  placeholder={t('page.models.default.hqPlaceholder', '例如 gpt-4-turbo-preview')}
-                  className={cn(INPUT_BASE, 'text-xs w-80')}
-                />
-              </div>
-            </div>
+            {/* ---- High Quality / Low Cost Model 双槽位(同构 UI 收口至 ModelSlotField) ---- */}
+            <ModelSlotField
+              savedModel={highQualityModel}
+              override={customHQOverride}
+              setOverride={setCustomHQOverride}
+              onSelect={hqHandlers.onSelect}
+              commitCustom={hqHandlers.commitCustom}
+              currentModels={currentModels}
+              label={t('page.models.default.highQuality', '高质量模型')}
+              placeholder={t('page.models.default.hqPlaceholder', '例如 gpt-4-turbo-preview')}
+              customIdLabel={t('page.models.default.customIdLabel', '或输入自定义模型 ID')}
+            />
 
-            {/* ---- Low Cost Model ---- */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
-                    {t('page.models.default.lowCost', '低成本模型')}
-                  </span>
-                  {lqModelInfo && (
-                    <span className="text-xs text-gray-500 dark:text-gray-500 font-mono">
-                      输入 {formatCost(lqModelInfo.costPerInputToken)} / 输出{' '}
-                      {formatCost(lqModelInfo.costPerOutputToken)}
-                    </span>
-                  )}
-                </div>
-                <select
-                  value={lqDropdownValue}
-                  onChange={(e) => handleLQDropdown(e.target.value)}
-                  disabled={currentModels.length === 0}
-                  className="bg-white dark:bg-surface-tertiary border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm w-80
-                             focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow disabled:opacity-50"
-                >
-                  <option value="">请选择...</option>
-                  {currentModels.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} (输入 {formatCost(m.costPerInputToken)} / 输出{' '}
-                      {formatCost(m.costPerOutputToken)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {/* Custom model ID input */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500 dark:text-gray-500">
-                  或输入自定义模型 ID
-                </span>
-                <input
-                  type="text"
-                  value={lqCustomValue}
-                  onChange={(e) => setCustomLQOverride(e.target.value)}
-                  onFocus={() => {
-                    if (customLQOverride === null && !lqInList && lowCostModel) {
-                      setCustomLQOverride(lowCostModel)
-                    }
-                  }}
-                  onBlur={() => commitCustomLQ()}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      commitCustomLQ()
-                      e.currentTarget.blur()
-                    }
-                  }}
-                  placeholder={t('page.models.default.lqPlaceholder', '例如 gpt-3.5-turbo')}
-                  className={cn(INPUT_BASE, 'text-xs w-80')}
-                />
-              </div>
-            </div>
+            <ModelSlotField
+              savedModel={lowCostModel}
+              override={customLQOverride}
+              setOverride={setCustomLQOverride}
+              onSelect={lqHandlers.onSelect}
+              commitCustom={lqHandlers.commitCustom}
+              currentModels={currentModels}
+              label={t('page.models.default.lowCost', '低成本模型')}
+              placeholder={t('page.models.default.lqPlaceholder', '例如 gpt-3.5-turbo')}
+              customIdLabel={t('page.models.default.customIdLabel', '或输入自定义模型 ID')}
+            />
           </>
         )}
       </div>
     </div>
   )
 })
+
+interface ModelSlotFieldProps {
+  /** 已保存的模型 ID;在列表内走下拉回显,不在列表内走自定义输入回显 */
+  savedModel: string
+  /** 自定义输入的编辑态;null = 未编辑 */
+  override: string | null
+  setOverride: (v: string | null) => void
+  onSelect: (value: string) => void
+  commitCustom: (override: string | null) => void
+  currentModels: ModelInfo[]
+  label: string
+  placeholder: string
+  customIdLabel: string
+}
+
+/** 单个默认模型槽位: 成本显示 + 模型下拉 + 自定义模型 ID 输入(HQ/LQ 同构) */
+function ModelSlotField({
+  savedModel,
+  override,
+  setOverride,
+  onSelect,
+  commitCustom,
+  currentModels,
+  label,
+  placeholder,
+  customIdLabel,
+}: ModelSlotFieldProps) {
+  const { t } = useT()
+  const inList = savedModel ? currentModels.some((m) => m.id === savedModel) : false
+  const dropdownValue = inList ? savedModel : ''
+  const customValue = override !== null ? override : !inList ? savedModel : ''
+  const modelInfo = currentModels.find((m) => m.id === savedModel)
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+          {modelInfo && (
+            <span className="text-xs text-gray-500 dark:text-gray-500 font-mono">
+              {tr(
+                'page.models.default.costInOut',
+                {
+                  in: formatCost(modelInfo.costPerInputToken),
+                  out: formatCost(modelInfo.costPerOutputToken),
+                },
+                '输入 {in} / 输出 {out}',
+              )}
+            </span>
+          )}
+        </div>
+        <select
+          value={dropdownValue}
+          onChange={(e) => onSelect(e.target.value)}
+          disabled={currentModels.length === 0}
+          className="bg-white dark:bg-surface-tertiary border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm w-80
+                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow disabled:opacity-50"
+        >
+          <option value="">{t('page.models.default.pickPlaceholder', '请选择...')}</option>
+          {currentModels.map((m) => (
+            <option key={m.id} value={m.id}>
+              {tr(
+                'page.models.default.optionCost',
+                {
+                  name: m.name,
+                  in: formatCost(m.costPerInputToken),
+                  out: formatCost(m.costPerOutputToken),
+                },
+                '{name} (输入 {in} / 输出 {out})',
+              )}
+            </option>
+          ))}
+        </select>
+      </div>
+      {/* Custom model ID input */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-gray-500 dark:text-gray-500">{customIdLabel}</span>
+        <input
+          type="text"
+          value={customValue}
+          onChange={(e) => setOverride(e.target.value)}
+          onFocus={() => {
+            // Start editing: if override is null, initialize with current display value
+            if (override === null && !inList && savedModel) {
+              setOverride(savedModel)
+            }
+          }}
+          onBlur={() => commitCustom(override)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commitCustom(override)
+              e.currentTarget.blur()
+            }
+          }}
+          placeholder={placeholder}
+          className={cn(INPUT_BASE, 'text-xs w-80')}
+        />
+      </div>
+    </div>
+  )
+}

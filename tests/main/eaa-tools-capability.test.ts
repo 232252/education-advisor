@@ -136,7 +136,10 @@ describe('getToolsByCapability — read / write 分组', () => {
     expect(names).toContain('eaa_exams')
     expect(names).toContain('eaa_exam_grades')
     expect(names).toContain('eaa_student_grades')
-    expect(tools.length).toBe(13)
+    // P5: read 一并可见 2 个 AI 批改工具(与考试成绩同级敏感度)
+    expect(names).toContain('eaa_grading_overview')
+    expect(names).toContain('eaa_grading_student')
+    expect(tools.length).toBe(15)
   })
 
   it('write 返回 add_event + add_student + set_student_meta + revert', () => {
@@ -148,8 +151,8 @@ describe('getToolsByCapability — read / write 分组', () => {
 
   it('read + write 应去重并合并', () => {
     const tools = getToolsByCapability(['read', 'write'])
-    // read(13,含 3 个考试工具) + write(4 个,均不在 read 中) = 17 (不含 delete)
-    expect(tools.length).toBe(17)
+    // read(15,含 3 个考试 + 2 个批改工具) + write(4 个,均不在 read 中) = 19 (不含 delete)
+    expect(tools.length).toBe(19)
     expect(tools).not.toContain(deleteStudentTool)
   })
 })
@@ -162,7 +165,7 @@ describe('getToolsByCapability — 组合 / 边界', () => {
 
   it('read + 单项 → 去重(单项已在 read 中)', () => {
     const tools = getToolsByCapability(['read', 'ranking'])
-    expect(tools.length).toBe(13) // ranking 已在 read 中,read 共 13 个
+    expect(tools.length).toBe(15) // ranking 已在 read 中,read 共 15 个(含批改 2 个)
   })
 
   it('未知 capability → 空数组', () => {
@@ -185,16 +188,22 @@ describe('getToolsByCapability — 组合 / 边界', () => {
 })
 
 describe('allEAATools — 集合完整性', () => {
-  it('应包含全部 17 个安全工具(14 操行 + 3 考试),且 name 唯一', () => {
-    expect(allEAATools.length).toBe(17)
+  it('应包含全部 19 个安全工具(14 操行 + 3 考试 + 2 批改),且 name 唯一', () => {
+    expect(allEAATools.length).toBe(19)
     const names = allEAATools.map((t) => t.name)
-    expect(new Set(names).size).toBe(17)
+    expect(new Set(names).size).toBe(19)
   })
 
-  it('academics capability → 3 个考试成绩工具', () => {
+  it('academics capability → 考试成绩 + AI 批改共 5 个只读工具', () => {
     const tools = getToolsByCapability(['academics'])
     const names = tools.map((t) => t.name).sort()
-    expect(names).toEqual(['eaa_exam_grades', 'eaa_exams', 'eaa_student_grades'])
+    expect(names).toEqual([
+      'eaa_exam_grades',
+      'eaa_exams',
+      'eaa_grading_overview',
+      'eaa_grading_student',
+      'eaa_student_grades',
+    ])
   })
 
   it('dangerousEAATools 仅含删除工具', () => {

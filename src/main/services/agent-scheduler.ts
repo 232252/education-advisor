@@ -60,11 +60,6 @@ export class AgentScheduler {
     this.userOverrides.set(id, { ...existing, ...patch })
   }
 
-  /** 删除 override(供协调器 resetAgent 等使用) */
-  deleteOverride(id: string): void {
-    this.userOverrides.delete(id)
-  }
-
   /**
    * 加载 user overrides(独立 yaml,保留主 yaml 注释)
    * R6-1: 读 snake_case mcp_servers → camelCase mcpServers(与 persist 写入对称)

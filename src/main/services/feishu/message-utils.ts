@@ -39,7 +39,7 @@ export function sanitizeObject<T>(value: T): T {
  * R6-7 修复:安全 JSON.parse,解析后递归清理原型链污染键。
  * @throws 当输入不是合法 JSON 时(JSON.parse 的原始行为)
  */
-export function safeJsonParse<T>(text: string): T {
+function safeJsonParse<T>(text: string): T {
   return sanitizeObject(JSON.parse(text) as T)
 }
 

@@ -1,6 +1,12 @@
 # 0007 — Three cron tiers
 
-**Status**: Accepted
+**Status**: Accepted — ⚠ **Implementation gap (noted 2026-09-04)**:
+not implemented as specified. Current behavior has no per-tier retry
+policy — scheduled runs are **never retried** — and persistent-failure
+handling is a **quota-error circuit breaker** that pauses a task after
+3 consecutive quota-class failures (see `docs/CRON.md` and
+`src/main/services/cron/execution.ts`). Either implement the tiers or
+amend this decision.
 **Date**: 2026-06-09
 **Authors**: The maintainer team
 

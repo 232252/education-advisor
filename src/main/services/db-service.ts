@@ -20,10 +20,10 @@
 //     db/chat-messages.ts / db/classes.ts   领域 CRUD
 // =============================================================
 
-import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-
+import type { ChatMessageInput } from '@shared/api/chat'
+import { errText } from '../utils/err-text'
 import { getExecutionHistory, recordExecutionStart, updateExecution } from './db/agent-executions'
 import {
   deleteChatSession,
@@ -55,6 +55,8 @@ export type { AgentExecutionRecord, ClassRecord, CronLogRecord } from './db/type
 
 class DBService {
   private db: Database | null = null
+  /** in-flight 去重: 提前开跑(与 Chromium 引导并行)后,startApp 的 await 直取同一 Promise */
+  private _initPromise: Promise<void> | null = null
   private dbPath: string = ''
   private _ready = false
   private _lastError: string | null = null
@@ -77,13 +79,23 @@ class DBService {
   }
 
   /**
-   * 异步初始化。必须在 app.whenReady() 之后调用。
+   * 异步初始化。纯 fs/SQLite 操作,不依赖 app.whenReady —
+   * 允许在主进程入口提前开跑(与 Chromium 引导期重叠,隐藏其耗时);
+   * 并发调用经 in-flight 去重共享同一次执行,失败后清空标记保留重试语义。
    * 失败不抛异常,降级为 in-memory disabled 模式。
    * (路径解析/打开数据库/pragma 逻辑下沉到 db/connection.ts,
    *  建表/预编译分别下沉到 db/schema.ts 与 db/statements.ts)
    */
-  async init(): Promise<void> {
-    if (this._ready) return
+  init(): Promise<void> {
+    if (this._ready) return Promise.resolve()
+    if (this._initPromise) return this._initPromise
+    this._initPromise = this.doInit().finally(() => {
+      this._initPromise = null
+    })
+    return this._initPromise
+  }
+
+  private async doInit(): Promise<void> {
     try {
       // __dirname 在编排层求值后传参,保证子模块中项目根解析与下沉前一致
       this.dbPath = resolveDbPath(__dirname)
@@ -109,7 +121,7 @@ class DBService {
         24 * 60 * 60 * 1000,
       )
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       this._lastError = `Failed to init SQLite: ${msg}`
       console.warn(`[DB] ${this._lastError} — falling back to no-op mode`)
       this._ready = false
@@ -179,19 +191,7 @@ class DBService {
 
   // -------------------- Chat Messages --------------------
 
-  saveChatMessage(msg: {
-    sessionId?: string
-    role: string
-    content: string
-    thinking?: string
-    toolCalls?: string
-    timestamp: number
-    provider?: string
-    model?: string
-    tokenInput?: number
-    tokenOutput?: number
-    cost?: number
-  }): number {
+  saveChatMessage(msg: ChatMessageInput): number {
     return saveChatMessage(this.client, msg)
   }
 
@@ -272,10 +272,14 @@ class DBService {
   /** RISK 修复: 清理过期数据,防止 DB 无限增长
    *  - chat_messages: 保留最近 90 天
    *  - agent_executions: 保留最近 90 天
-   *  - 每次最多删除 10000 条,防止长时间阻塞
+   *  - 分块异步: 每块 1000 行,块间让出事件循环(不再一次同步删 2×10000 行)
    *  (逻辑下沉到 db/maintenance.ts) */
-  cleanupOldData(maxAgeDays = 90, batchSize = 10000): void {
-    cleanupOldData(this.client, maxAgeDays, batchSize)
+  cleanupOldData(
+    maxAgeDays = 90,
+    batchSize = 1000,
+  ): Promise<{ messages: number; executions: number }> {
+    // 返回 promise 便于测试/调用方追踪完成;定时调用方 fire-and-forget
+    return cleanupOldData(this.client, maxAgeDays, batchSize)
   }
 
   /**
@@ -303,22 +307,9 @@ class DBService {
       this._ready = false
       this.db = null
     } catch (err) {
-      this._lastError = err instanceof Error ? err.message : String(err)
+      this._lastError = errText(err)
       console.error('[DB] close failed:', this._lastError)
     }
-  }
-
-  /**
-   * 测试用：直接获取 db 实例（生产代码不应使用）。
-   * 仅在测试中通过 __test__ 钩子访问。
-   */
-  __test__getDb(): Database | null {
-    return this.db
-  }
-
-  /** 测试用：检查 db 文件是否存在 */
-  static __test__dbExists(p: string): boolean {
-    return fs.existsSync(p)
   }
 }
 

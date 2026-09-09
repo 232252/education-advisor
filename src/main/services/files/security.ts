@@ -11,7 +11,7 @@ import fsp from 'node:fs/promises'
 // =============================================================
 
 /** 最大文件大小：5 MB（防止读取超大文件撑爆上下文） */
-export const MAX_FILE_SIZE = 5 * 1024 * 1024
+const MAX_FILE_SIZE = 5 * 1024 * 1024
 
 /** 最大 Excel 行数：5000 行 */
 export const MAX_EXCEL_ROWS = 5000

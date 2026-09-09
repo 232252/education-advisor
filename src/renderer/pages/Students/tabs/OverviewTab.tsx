@@ -4,13 +4,13 @@
 // =============================================================
 
 import type { EAAHistoryData, EAAStudent, EAAStudentScore } from '@shared/types'
-import ReactEChartsCore from 'echarts-for-react/esm/core'
 import { ClipboardList } from 'lucide-react'
 import { useMemo } from 'react'
+import { EChart } from '../../../components/charts/EChart'
+import { verticalGradient } from '../../../components/charts/option-builders'
 import { EmptyState } from '../../../components/EmptyState'
 import { CHART_BRAND, useChartTheme } from '../../../hooks/useChartTheme'
 import { useT } from '../../../i18n'
-import { echarts } from '../../../lib/echarts-setup'
 import { CARD_BASE, riskColor } from '../../../lib/ui-utils'
 import { EventMiniCard, InfoRow, MetricCard } from '../components'
 
@@ -79,9 +79,8 @@ export function OverviewTab({
           <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             {t('page.students.overview.scoreTrend', '📈 分数变化趋势')}
           </h4>
-          <ReactEChartsCore
-            echarts={echarts}
-            style={{ height: 200 }}
+          <EChart
+            height={200}
             option={{
               animation: true,
               animationDuration: 800,
@@ -106,11 +105,8 @@ export function OverviewTab({
                   lineStyle: { color: CHART_BRAND.blue, width: 2 },
                   itemStyle: { color: CHART_BRAND.blue },
                   areaStyle: {
-                    // 品牌蓝双向渐隐面积(单处使用,保留内联)
-                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                      { offset: 0, color: 'rgba(59,130,246,0.3)' },
-                      { offset: 1, color: 'rgba(59,130,246,0.02)' },
-                    ]),
+                    // 品牌蓝双向渐隐面积
+                    color: verticalGradient('rgba(59,130,246,0.3)', 'rgba(59,130,246,0.02)'),
                   },
                   symbol: 'circle',
                   symbolSize: 4,

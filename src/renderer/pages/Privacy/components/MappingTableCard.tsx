@@ -4,6 +4,7 @@
 // =============================================================
 
 import { Card } from '../../../components/Card'
+import { tr, useT } from '../../../i18n'
 import { cn, TABLE_ROW, TABLE_TD, TABLE_TH } from '../../../lib/ui-utils'
 import type { PrivacyMapping } from '../lib/privacy-mappings'
 
@@ -12,16 +13,17 @@ interface MappingTableCardProps {
 }
 
 export function MappingTableCard({ mappings }: MappingTableCardProps) {
+  const { t } = useT()
   return (
     <Card padding="md" className="bg-gray-50 dark:bg-surface-tertiary">
-      <h2 className="font-semibold mb-3">映射表</h2>
+      <h2 className="font-semibold mb-3">{t('page.privacy.mapping.title')}</h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr>
-              <th className={TABLE_TH}>类型</th>
-              <th className={TABLE_TH}>化名</th>
-              <th className={TABLE_TH}>真名</th>
+              <th className={TABLE_TH}>{t('page.privacy.mapping.thType')}</th>
+              <th className={TABLE_TH}>{t('page.privacy.mapping.thAlias')}</th>
+              <th className={TABLE_TH}>{t('page.privacy.mapping.thReal')}</th>
             </tr>
           </thead>
           <tbody>
@@ -40,7 +42,7 @@ export function MappingTableCard({ mappings }: MappingTableCardProps) {
       </div>
       {mappings.length > 50 && (
         <div className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-          显示前 50 条，共 {mappings.length} 条
+          {tr('page.privacy.mapping.showingFirst', { total: mappings.length })}
         </div>
       )}
     </Card>

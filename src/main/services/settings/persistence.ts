@@ -9,6 +9,7 @@
 
 import type { UnifiedSettings } from '@shared/types'
 import { atomicWrite } from '../../utils/atomic-write'
+import { errText } from '../../utils/err-text'
 
 /** 持久化状态(节流定时器/写入标志/最近错误) */
 export interface PersistenceState {
@@ -70,7 +71,7 @@ export async function saveNow(
       state.lastError = null
     } while (state.needsResave)
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     state.lastError = `Failed to save settings: ${msg}`
     console.error('[Settings] Save failed:', msg)
   } finally {

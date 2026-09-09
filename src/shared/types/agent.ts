@@ -76,7 +76,7 @@ export interface AgentExecution {
   model?: string
 }
 
-export interface RiskThresholds {
+interface RiskThresholds {
   high: number
   medium: number
   low: number

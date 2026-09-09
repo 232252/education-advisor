@@ -3,6 +3,7 @@
 // 从 db-service.ts DBService 对应方法拆分而来（逻辑逐字搬移,行为零变化）
 // =============================================================
 
+import { errText } from '../../utils/err-text'
 import type { DbClient } from './statements'
 import type { ClassRecord } from './types'
 
@@ -23,7 +24,7 @@ export function insertClass(ctx: DbClient, record: ClassRecord): boolean {
     })
     return true
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] insertClass failed:', msg)
     return false
@@ -58,7 +59,7 @@ export function updateClass(
     })
     return Number(r.changes) > 0
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] updateClass failed:', msg)
     return false
@@ -71,7 +72,7 @@ export function getClassById(ctx: DbClient, id: string): ClassRecord | null {
   try {
     return (ctx.stmts.selectClassById.get(id) as ClassRecord | undefined) ?? null
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] getClassById failed:', msg)
     return null
@@ -84,7 +85,7 @@ export function getClassByClassId(ctx: DbClient, classId: string): ClassRecord |
   try {
     return (ctx.stmts.selectClassByClassId.get(classId) as ClassRecord | undefined) ?? null
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] getClassByClassId failed:', msg)
     return null
@@ -97,7 +98,7 @@ export function listClasses(ctx: DbClient): ClassRecord[] {
   try {
     return ctx.stmts.listClasses.all() as ClassRecord[]
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] listClasses failed:', msg)
     return []
@@ -111,7 +112,7 @@ export function deleteClass(ctx: DbClient, id: string): boolean {
     const r = ctx.stmts.deleteClass.run(id)
     return Number(r.changes) > 0
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] deleteClass failed:', msg)
     return false

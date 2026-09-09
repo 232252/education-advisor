@@ -102,6 +102,44 @@ describe('eaa-tools execute — listStudentsTool', () => {
     bridge.execute.mockResolvedValue({ success: false, data: '', stderr: 'db locked', exitCode: 1 })
     await expect(listStudentsTool.execute('t', {})).rejects.toThrow('列表获取失败')
   })
+
+  it('超过 200 名学生时截断并标注(大库防爆)', async () => {
+    const students = Array.from({ length: 260 }, (_, i) => ({ name: `学生${i}`, score: 100 }))
+    bridge.execute.mockResolvedValue({
+      success: true,
+      data: { students, total: 260 },
+      stderr: '',
+      exitCode: 0,
+    })
+    const r = (await listStudentsTool.execute('t', {})) as {
+      content: Array<{ type: string; text?: string }>
+    }
+    const parsed = JSON.parse(textOf(r)) as {
+      students: unknown[]
+      total: number
+      students_truncated?: string
+    }
+    expect(parsed.students).toHaveLength(200)
+    expect(parsed.total).toBe(260)
+    expect(parsed.students_truncated).toContain('200/260')
+    expect(parsed.students_truncated).toContain('eaa_ranking')
+  })
+
+  it('不超过 200 名时不截断', async () => {
+    const students = Array.from({ length: 50 }, (_, i) => ({ name: `学生${i}` }))
+    bridge.execute.mockResolvedValue({
+      success: true,
+      data: { students, total: 50 },
+      stderr: '',
+      exitCode: 0,
+    })
+    const r = (await listStudentsTool.execute('t', {})) as {
+      content: Array<{ type: string; text?: string }>
+    }
+    const parsed = JSON.parse(textOf(r)) as { students: unknown[]; students_truncated?: string }
+    expect(parsed.students).toHaveLength(50)
+    expect(parsed.students_truncated).toBeUndefined()
+  })
 })
 
 describe('eaa-tools execute — summaryTool', () => {
@@ -123,6 +161,24 @@ describe('eaa-tools execute — summaryTool', () => {
     expect(call.args).toContain('2026-01-01')
     expect(call.args).toContain('--until')
     expect(call.args).toContain('2026-06-30')
+  })
+
+  it('start/end 是 since/until 的等价别名(统一区间参数口径)', async () => {
+    bridge.execute.mockResolvedValue({ success: true, data: {}, stderr: '', exitCode: 0 })
+    await summaryTool.execute('t', { start: '2026-01-01', end: '2026-06-30' })
+    const call = bridge.execute.mock.calls[0][0]
+    expect(call.args).toContain('--since')
+    expect(call.args).toContain('2026-01-01')
+    expect(call.args).toContain('--until')
+    expect(call.args).toContain('2026-06-30')
+  })
+
+  it('显式 since/until 与别名同时存在时显式参数优先', async () => {
+    bridge.execute.mockResolvedValue({ success: true, data: {}, stderr: '', exitCode: 0 })
+    await summaryTool.execute('t', { since: '2026-02-01', start: '2026-01-01', until: '2026-06-30' })
+    const call = bridge.execute.mock.calls[0][0]
+    const sinceIdx = call.args.indexOf('--since')
+    expect(call.args[sinceIdx + 1]).toBe('2026-02-01')
   })
 })
 

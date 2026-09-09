@@ -3,24 +3,11 @@
 // 从 db-service.ts DBService 对应方法拆分而来（逻辑逐字搬移,行为零变化）
 // =============================================================
 
+import type { ChatMessageInput } from '@shared/api/chat'
+import { errText } from '../../utils/err-text'
 import type { DbClient } from './statements'
 
-export function saveChatMessage(
-  ctx: DbClient,
-  msg: {
-    sessionId?: string
-    role: string
-    content: string
-    thinking?: string
-    toolCalls?: string
-    timestamp: number
-    provider?: string
-    model?: string
-    tokenInput?: number
-    tokenOutput?: number
-    cost?: number
-  },
-): number {
+export function saveChatMessage(ctx: DbClient, msg: ChatMessageInput): number {
   if (!ctx.ready || !ctx.stmts.insertChatMessage) return -1
   try {
     const result = ctx.stmts.insertChatMessage.run({
@@ -40,7 +27,7 @@ export function saveChatMessage(
     syncSessionMeta(ctx, msg.sessionId ?? 'default', msg.model, msg.timestamp)
     return Number(result.lastInsertRowid)
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err)
+    const errMsg = errText(err)
     ctx.setError(errMsg)
     console.error('[DB] saveChatMessage failed:', errMsg)
     return -1
@@ -84,7 +71,7 @@ export function loadChatMessages(
   try {
     return ctx.stmts.selectChatMessages.all(sessionId) as Array<Record<string, unknown>>
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] loadChatMessages failed:', msg)
     return []
@@ -98,7 +85,7 @@ export function renameChatSession(ctx: DbClient, sessionId: string, title: strin
     ctx.db.prepare('UPDATE chat_sessions SET title = ? WHERE id = ?').run(title, sessionId)
     return true
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] renameChatSession failed:', msg)
     return false
@@ -120,7 +107,7 @@ export function deleteChatSession(ctx: DbClient, sessionId: string): boolean {
     })()
     return true
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] deleteChatSession failed:', msg)
     return false
@@ -133,7 +120,7 @@ export function listChatSessions(ctx: DbClient): Array<Record<string, unknown>> 
   try {
     return ctx.stmts.listChatSessions.all() as Array<Record<string, unknown>>
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     ctx.setError(msg)
     console.error('[DB] listChatSessions failed:', msg)
     return []

@@ -21,13 +21,10 @@
 import path from 'node:path'
 import { debug } from '@shared/debug'
 import type spawn from 'cross-spawn'
+import { errText } from '../utils/err-text'
 import { ReadCache, shutdownActiveProcesses, tryResolveBinaryPath } from './eaa/binary-discovery'
 import { sanitizeArgsForLog, WRITE_COMMANDS } from './eaa/command-classification'
-import {
-  EMPTY_STDOUT_RETRY_BASE_DELAY_MS,
-  OS_ERROR5_RETRY_DELAY_MS,
-  retryOnTransientFailure,
-} from './eaa/execution-policy'
+import { applyTransientRetries } from './eaa/execution-policy'
 import { probeExportFormats } from './eaa/export-formats'
 import { resolveReasonCodesSource, runDoctorCheck, seedReasonCodes } from './eaa/initialization'
 import { cleanupStaleLock, ensureDataDirStructure, resolveDataDir } from './eaa/legacy-migration'
@@ -101,11 +98,6 @@ export class EAABridge {
     this.writeListener = cb
   }
 
-  /** 清空读缓存（供「刷新」按钮调用，确保下次读取重新拉取） */
-  invalidateReadCache(): void {
-    this.readCache.clear()
-  }
-
   /**
    * RISK 7 修复: 需要串行化的写命令集合(WRITE_COMMANDS)已拆分到
    * eaa/command-classification.ts(逻辑逐字保留)。
@@ -136,7 +128,7 @@ export class EAABridge {
     try {
       this.binaryPath = resolveBinaryPath(__dirname)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       this.binaryPath = null
       this.unavailableReason = msg
       console.error('[EAA] Binary unavailable at startup:', msg)
@@ -183,7 +175,7 @@ export class EAABridge {
       // 确保数据目录/内部结构存在 + 清理 stale .lock(逻辑拆分到 eaa/legacy-migration.ts)
       ensureDataDirStructure(this.dataDir, schemaDir)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       console.error('[EAA] Failed to initialize EAA data dir:', msg)
       this.unavailableReason = `EAA data dir unavailable: ${msg}`
       this.initialized = true
@@ -291,29 +283,10 @@ export class EAABridge {
       const seqBefore = this.writeSeq
       const run = () => this._doExecute<T>(cmd, opts?.signal)
       let result = await run()
-      // R152 修复 + R135 强化: 如果读命令因 "os error 5"(Access Denied) 失败,
-      // 不依赖 cleanupStaleLock 返回值(Defender 拦截时 lock 文件可能不存在或 mtime 很新),
-      // 直接延迟 100ms 后重试一次。重试最多 2 次,覆盖 Defender 扫描窗口。
-      if (!result.success && result.stderr && result.stderr.includes('os error 5')) {
-        cleanupStaleLock(this.dataDir) // 尽力清理,不依赖返回值
-        result = await retryOnTransientFailure(
-          run,
-          (stderr) => stderr.includes('os error 5'),
-          () => OS_ERROR5_RETRY_DELAY_MS,
-          `read "${cmd.command}"`,
-        )
-      }
-      // P1-9 修复: JSON 命令并发文件锁竞争时 stdout 可能为空(退出码 0 但无输出)。
-      // _doExecute 已把这种情况标记为 success=false + stderr 含 [EAA_EMPTY_STDOUT]。
-      // 这里对读命令做最多 2 次重试, 退避递增 80ms*(attempt+1) 以错开并发峰值。
-      if (!result.success && result.stderr && result.stderr.includes('[EAA_EMPTY_STDOUT]')) {
-        result = await retryOnTransientFailure(
-          run,
-          (stderr) => stderr.includes('[EAA_EMPTY_STDOUT]'),
-          (attempt) => EMPTY_STDOUT_RETRY_BASE_DELAY_MS * (attempt + 1),
-          `read "${cmd.command}"`,
-        )
-      }
+      // R152/R135 + P1-9: 瞬态失败重试(规则表见 eaa/execution-policy,读/写共用)
+      result = await applyTransientRetries(run, result, `read "${cmd.command}"`, () =>
+        cleanupStaleLock(this.dataDir),
+      )
       // 仅缓存成功结果（失败重试更有意义）;
       // M13: 竞态窗口内(序号已变)放弃 set,避免旧快照驻留缓存
       if (result.success && this.writeSeq === seqBefore) {
@@ -344,36 +317,15 @@ export class EAABridge {
     await prevQueue.catch(() => {})
     try {
       let result = await run()
-      // R152 修复 + R135 强化: 写命令也可能因 "os error 5" 失败,
-      // 不依赖 cleanupStaleLock 返回值,延迟后重试最多 2 次
-      if (!result.success && result.stderr && result.stderr.includes('os error 5')) {
-        cleanupStaleLock(this.dataDir)
-        result = await retryOnTransientFailure(
-          run,
-          (stderr) => stderr.includes('os error 5'),
-          () => OS_ERROR5_RETRY_DELAY_MS,
-          `write "${cmd.command}"`,
-        )
-      }
-      // P1-9 修复: 写命令若返回空 stdout(JSON 命令)同样重试
-      if (!result.success && result.stderr && result.stderr.includes('[EAA_EMPTY_STDOUT]')) {
-        result = await retryOnTransientFailure(
-          run,
-          (stderr) => stderr.includes('[EAA_EMPTY_STDOUT]'),
-          (attempt) => EMPTY_STDOUT_RETRY_BASE_DELAY_MS * (attempt + 1),
-          `write "${cmd.command}"`,
-        )
-      }
+      // R152/R135 + P1-9: 瞬态失败重试(写命令同样适用,规则表与读路径共用)
+      result = await applyTransientRetries(run, result, `write "${cmd.command}"`)
       // F1: 写命令成功后通知监听方(如 ipc 层缓存失效)。
       // try/catch 保证监听方异常不影响命令结果返回。
       if (result.success) {
         try {
           this.writeListener?.()
         } catch (err) {
-          console.warn(
-            '[EAA] write listener failed:',
-            err instanceof Error ? err.message : String(err),
-          )
+          console.warn('[EAA] write listener failed:', errText(err))
         }
       }
       return result

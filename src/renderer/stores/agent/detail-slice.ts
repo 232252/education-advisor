@@ -6,7 +6,7 @@
 import { t } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../toastStore'
-import { _flushLiveOutputNow } from './live-output'
+import { _flushLiveOutput } from './live-output'
 import type { AgentGet, AgentSet, AgentState } from './types'
 
 /** 修复: selectAgent 请求令牌,防止快速切换 Agent 时旧响应覆盖新数据 */
@@ -16,10 +16,29 @@ export function createDetailSlice(
   set: AgentSet,
   get: AgentGet,
 ): Pick<AgentState, 'selectAgent' | 'refreshDetail' | 'saveSoul' | 'saveRules'> {
+  // SOUL/AGENTS 文档写入孪生动作参数化: 保存成功附带最新 detail,失败 toast+抛出
+  const saveAgentDoc = async (
+    id: string,
+    content: string,
+    setDoc: (id: string, content: string) => Promise<unknown>,
+    docLabel: string,
+    failToast: string,
+  ): Promise<void> => {
+    try {
+      await setDoc(id, content)
+      const detail = await getAPI().agent.get(id)
+      set({ selectedDetail: detail })
+    } catch (err) {
+      console.error(`[AgentStore] Failed to save ${docLabel}:`, err)
+      toast.error(failToast)
+      throw err
+    }
+  }
+
   return {
     selectAgent: async (id) => {
       // PERF: 切换 agent 前先 flush 旧 agent 的批处理缓冲,避免丢失输出
-      _flushLiveOutputNow(set)
+      _flushLiveOutput(set)
       if (!id) {
         set({
           selectedAgentId: null,
@@ -70,28 +89,22 @@ export function createDetailSlice(
       }
     },
 
-    saveSoul: async (id, content) => {
-      try {
-        await getAPI().agent.setSoul(id, content)
-        const detail = await getAPI().agent.get(id)
-        set({ selectedDetail: detail })
-      } catch (err) {
-        console.error('[AgentStore] Failed to save SOUL:', err)
-        toast.error(t('toast.agent.saveSoulFailed', '保存 SOUL 失败'))
-        throw err
-      }
-    },
+    saveSoul: (id, content) =>
+      saveAgentDoc(
+        id,
+        content,
+        (i, c) => getAPI().agent.setSoul(i, c),
+        'SOUL',
+        t('toast.agent.saveSoulFailed', '保存 SOUL 失败'),
+      ),
 
-    saveRules: async (id, content) => {
-      try {
-        await getAPI().agent.setRules(id, content)
-        const detail = await getAPI().agent.get(id)
-        set({ selectedDetail: detail })
-      } catch (err) {
-        console.error('[AgentStore] Failed to save rules:', err)
-        toast.error(t('toast.agent.saveRulesFailed', '保存规则失败'))
-        throw err
-      }
-    },
+    saveRules: (id, content) =>
+      saveAgentDoc(
+        id,
+        content,
+        (i, c) => getAPI().agent.setRules(i, c),
+        'rules',
+        t('toast.agent.saveRulesFailed', '保存规则失败'),
+      ),
   }
 }

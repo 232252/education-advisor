@@ -3,6 +3,7 @@
 // =============================================================
 
 import { MessageSquare } from 'lucide-react'
+import { memo } from 'react'
 import { Button } from '../../../components/Button'
 import { EmptyState } from '../../../components/EmptyState'
 import { useT } from '../../../i18n'
@@ -18,8 +19,8 @@ interface SessionSidebarProps {
   onRequestDelete: (id: string) => void
 }
 
-/** 左侧会话列表侧栏 */
-export function SessionSidebar({
+/** 左侧会话列表侧栏(memo: 流式 flush 期间 props 稳定即短路,避免每次重 map 会话条目) */
+export const SessionSidebar = memo(function SessionSidebar({
   sessions,
   currentSessionId,
   onCreateSession,
@@ -90,4 +91,4 @@ export function SessionSidebar({
       </div>
     </div>
   )
-}
+})

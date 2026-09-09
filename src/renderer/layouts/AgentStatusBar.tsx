@@ -4,7 +4,7 @@
 // =============================================================
 
 import type { AgentListItem } from '@shared/types'
-import { useT } from '../i18n'
+import { tr, useT } from '../i18n'
 import { cn } from '../lib/ui-utils'
 
 interface AgentStatusBarProps {
@@ -50,7 +50,11 @@ export function AgentStatusBar({ agents, collapsed }: AgentStatusBarProps) {
         {collapsed && agents.length > 6 && (
           <span
             className="text-[9px] text-gray-400 dark:text-gray-500"
-            title={`其余 ${agents.length - 6} 个`}
+            title={tr(
+              'layouts.agentStatus.moreAgents',
+              { count: String(agents.length - 6) },
+              '其余 {count} 个',
+            )}
           >
             +{agents.length - 6}
           </span>

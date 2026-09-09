@@ -40,8 +40,8 @@ vi.mock('../../src/main/services/class-service', () => ({
   classService: { list: () => mocks.classList },
 }))
 
-vi.mock('../../src/main/ipc/eaa-handlers', () => ({
-  invalidateStudentsCacheExternal: mocks.invalidate,
+vi.mock('../../src/main/ipc/eaa/cache', () => ({
+  invalidateStudentsCacheNow: mocks.invalidate,
 }))
 
 const { registerStudentExcelHandlers } = await import(

@@ -12,6 +12,32 @@ import { handleJsonRpcMessage, sendJsonRpc, sendNotification } from './protocol'
 import { buildSpawnEnv, resolveSpawnCommand } from './spawn-env'
 import { assertSafeMcpUrl, CONNECT_TIMEOUT_MS, type MCPClient } from './types'
 
+/** initialize 握手参数(stdio/sse/websocket 三种传输共用同一 client 标识) */
+const INITIALIZE_PARAMS = {
+  protocolVersion: '2024-11-05',
+  capabilities: {},
+  clientInfo: { name: 'education-advisor', version: '1.0.0' },
+}
+
+/**
+ * 拒绝该 client 的所有待响应请求并清空 pending 表
+ * (进程退出/ws error/ws close/主动断开四条清理路径共用)
+ */
+function rejectAllPending(client: MCPClient, message: string): void {
+  for (const [, entry] of client.pending) {
+    clearTimeout(entry.timer)
+    entry.reject(new Error(message))
+  }
+  client.pending.clear()
+}
+
+/** initialize 握手 + initialized 通知(stdio/websocket 共用) */
+function performInitialize(client: MCPClient): Promise<void> {
+  return sendJsonRpc(client, 'initialize', INITIALIZE_PARAMS).then(() => {
+    sendNotification(client, 'notifications/initialized', {})
+  })
+}
+
 /**
  * 根据传输方式连接
  */
@@ -90,11 +116,7 @@ function connectStdio(client: MCPClient, server: McpServerConfig): Promise<void>
       console.warn(`[McpService] stdio server ${server.id} exited (code=${code}, signal=${signal})`)
       client.connected = false
       // 拒绝所有待响应请求
-      for (const [, entry] of client.pending) {
-        clearTimeout(entry.timer)
-        entry.reject(new Error(`Server exited (code=${code})`))
-      }
-      client.pending.clear()
+      rejectAllPending(client, `Server exited (code=${code})`)
     })
 
     child.stdout?.on('data', (chunk: Buffer) => {
@@ -115,17 +137,9 @@ function connectStdio(client: MCPClient, server: McpServerConfig): Promise<void>
       if (text) console.warn(`[McpService] stdio ${server.id} stderr: ${text}`)
     })
 
-    // 发送 initialize 请求
-    sendJsonRpc(client, 'initialize', {
-      protocolVersion: '2024-11-05',
-      capabilities: {},
-      clientInfo: { name: 'education-advisor', version: '1.0.0' },
-    })
-      .then(() => {
-        // 发送 initialized 通知
-        sendNotification(client, 'notifications/initialized', {})
-        resolve()
-      })
+    // 发送 initialize 请求 + initialized 通知
+    performInitialize(client)
+      .then(() => resolve())
       .catch(reject)
   })
 }
@@ -149,11 +163,7 @@ async function connectSse(client: MCPClient, server: McpServerConfig): Promise<v
       jsonrpc: '2.0',
       id: client.requestId++,
       method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05',
-        capabilities: {},
-        clientInfo: { name: 'education-advisor', version: '1.0.0' },
-      },
+      params: INITIALIZE_PARAMS,
     }),
     signal: AbortSignal.timeout(CONNECT_TIMEOUT_MS),
   })
@@ -188,16 +198,9 @@ function connectWebSocket(client: MCPClient, server: McpServerConfig): Promise<v
 
         ws.on('open', () => {
           clearTimeout(timeout)
-          // 发送 initialize 请求
-          sendJsonRpc(client, 'initialize', {
-            protocolVersion: '2024-11-05',
-            capabilities: {},
-            clientInfo: { name: 'education-advisor', version: '1.0.0' },
-          })
-            .then(() => {
-              sendNotification(client, 'notifications/initialized', {})
-              resolve()
-            })
+          // 发送 initialize 请求 + initialized 通知
+          performInitialize(client)
+            .then(() => resolve())
             .catch(reject)
         })
 
@@ -215,22 +218,14 @@ function connectWebSocket(client: MCPClient, server: McpServerConfig): Promise<v
           else {
             client.connected = false
             // 拒绝所有待响应请求
-            for (const [, entry] of client.pending) {
-              clearTimeout(entry.timer)
-              entry.reject(new Error(`WebSocket error: ${err.message}`))
-            }
-            client.pending.clear()
+            rejectAllPending(client, `WebSocket error: ${err.message}`)
           }
         })
 
         ws.on('close', () => {
           console.warn(`[McpService] websocket server ${server.id} closed`)
           client.connected = false
-          for (const [, entry] of client.pending) {
-            clearTimeout(entry.timer)
-            entry.reject(new Error('WebSocket closed'))
-          }
-          client.pending.clear()
+          rejectAllPending(client, 'WebSocket closed')
         })
       } catch (err) {
         reject(err)
@@ -246,11 +241,7 @@ export async function disconnectClient(client: MCPClient): Promise<void> {
   client.connected = false
 
   // 清理 pending
-  for (const [, entry] of client.pending) {
-    clearTimeout(entry.timer)
-    entry.reject(new Error('Client disconnected'))
-  }
-  client.pending.clear()
+  rejectAllPending(client, 'Client disconnected')
 
   // stdio: kill 子进程
   // R4-MAP-LEAK-3 修复: 用局部变量捕获 childProcess,避免 setTimeout 触发时

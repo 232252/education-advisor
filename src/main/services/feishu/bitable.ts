@@ -3,8 +3,9 @@
 // 从 feishu-service.ts 拆出(纯重构,行为不变)
 // =============================================================
 
-import { FEISHU_FETCH_TIMEOUT_MS, type FeishuDomain, getApiBase } from './config'
-import { getTenantToken } from './token'
+import { errText } from '../../utils/err-text'
+import type { FeishuDomain } from './config'
+import { feishuApiRequest } from './request'
 
 interface BitableTable {
   table_id: string
@@ -39,19 +40,15 @@ export async function listBitableTables(
   try {
     // MEDIUM 修复: 校验 appToken,防止 URL 路径注入
     validateToken(appToken, 'appToken')
-    const { token } = await getTenantToken(appId, appSecret, domain)
-    const apiBase = getApiBase(domain)
-    const res = await fetch(`${apiBase}/bitable/v1/apps/${appToken}/tables`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(FEISHU_FETCH_TIMEOUT_MS),
+    const data = await feishuApiRequest<BitableListResponse>({
+      appId,
+      appSecret,
+      domain,
+      path: `/bitable/v1/apps/${appToken}/tables`,
     })
-    const data = (await res.json()) as BitableListResponse
-    if (data.code !== 0) {
-      return { success: false, error: `code=${data.code} msg=${data.msg}` }
-    }
     return { success: true, tables: data.data?.items ?? [] }
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
+    return { success: false, error: errText(err) }
   }
 }
 
@@ -68,28 +65,20 @@ export async function addBitableRecord(
     // MEDIUM 修复: 校验 appToken 和 tableId,防止 URL 路径注入
     validateToken(appToken, 'appToken')
     validateToken(tableId, 'tableId')
-    const { token } = await getTenantToken(appId, appSecret, domain)
-    const apiBase = getApiBase(domain)
-    const res = await fetch(`${apiBase}/bitable/v1/apps/${appToken}/tables/${tableId}/records`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ fields }),
-      signal: AbortSignal.timeout(FEISHU_FETCH_TIMEOUT_MS),
-    })
-    const data = (await res.json()) as {
+    const data = await feishuApiRequest<{
       code: number
       msg: string
       data?: { record?: { record_id?: string } }
-    }
-    if (data.code !== 0) {
-      return { success: false, error: `code=${data.code} msg=${data.msg}` }
-    }
+    }>({
+      appId,
+      appSecret,
+      domain,
+      path: `/bitable/v1/apps/${appToken}/tables/${tableId}/records`,
+      body: { fields },
+    })
     return { success: true, recordId: data.data?.record?.record_id }
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
+    return { success: false, error: errText(err) }
   }
 }
 

@@ -8,7 +8,8 @@ import path from 'node:path'
 import fs from 'node:fs'
 
 import { DEFAULT_SETTINGS } from '../../src/main/services/settings/defaults'
-import { deepMerge, loadOrDefaultSync } from '../../src/main/services/settings/merge'
+import { loadOrDefaultSync } from '../../src/main/services/settings/merge'
+import { deepMergeSettings as deepMerge } from '@shared/deep-merge'
 import { validateUpdate, getObjectDepth } from '../../src/main/services/settings/validation'
 import {
   scheduleSave,

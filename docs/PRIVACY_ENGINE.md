@@ -23,7 +23,7 @@
 
 ## What is the privacy engine?
 
-The privacy engine is a **per-install, encrypted, auditable** layer
+The privacy engine is a **per-install, encrypted** layer
 that sits between the LLM and the user data. It does two things:
 
 1. **Anonymize** — replace real identifiers (names, IDs, phone
@@ -73,25 +73,22 @@ exposure.
 │                   Renderer                         │
 │  (e.g. "Generate a parent message for Alice's mom")│
 └───────────────────────┬────────────────────────────┘
-                        │ window.api.privacy.anonymize(text)
+                        │ window.api.privacy (init/load/list/...)
 ┌───────────────────────▼────────────────────────────┐
 │                  Main process                      │
 │  ┌─────────────────┐    ┌──────────────────────┐  │
 │  │ anonymize()     │───▶│  privacy engine      │  │
-│  │ deanonymize()   │    │  (AES-256-GCM + Argon2)│ │
-│  │ filter()        │    └──────────┬───────────┘  │
+│  │ deanonymize()   │    │  (AES-256-GCM + PBKDF2)│ │
+│  │ filter()*       │    └──────────┬───────────┘  │
 │  └─────────────────┘               │              │
 │                                    ▼              │
 │                          ┌──────────────────────┐│
 │                          │ privacy/mapping.bin  ││
-│                          │ (encrypted at rest)   ││
+│                          │ (encrypted at rest)  ││
 │                          └──────────────────────┘│
 │                                    │              │
-│                                    ▼              │
-│                          ┌──────────────────────┐│
-│                          │ privacy/audit.log    ││
-│                          │ (append-only)        ││
-│                          └──────────────────────┘│
+│              (audit.log: NOT       │              │
+│               implemented)         │              │
 └───────────────────────┬────────────────────────────┘
                         │ anonymized text
 ┌───────────────────────▼────────────────────────────┐
@@ -187,14 +184,13 @@ rationale.
 
 ## The IPC operations
 
-The privacy engine exposes 9 IPC operations in
+The privacy engine exposes 8 IPC operations in
 `src/shared/ipc-channels.ts`:
 
 | IPC channel | Method | Description |
 | --- | --- | --- |
 | `privacy:init` | `init(password, autoScan?)` | Initialize the engine with a master password. Optionally scan the existing data and auto-populate the mapping. |
-| `privacy:load` | `load(password)` | Load the existing mapping table from disk. Required on each app start. |
-| `privacy:unlock` | `unlock(password)` | Re-unlock after an explicit lock. |
+| `privacy:load` | `load(password)` | Load the existing mapping table from disk. Required on each app start. Re-loads after an explicit lock (there is no separate `unlock`). |
 | `privacy:lock` | `lock()` | Clear the in-memory password (lock the engine). |
 | `privacy:status` | `status()` | Report init/locked state. |
 | `privacy:list` | `list()` | List all mappings (for review / export). |
@@ -224,17 +220,26 @@ The privacy engine exposes 9 IPC operations in
    agent produced; when anonymization is active the streamed
    output has already been deanonymized for the teacher.
 
-The teacher can **disable** the engine at any time (via
-Settings → Privacy → Disable). When disabled, the LLM sees the
-real data. The setting is persisted in `userData/settings.json`.
+The engine can be **disabled** at any time — note that as of
+now there is **no UI toggle** for `settings.privacy.enabled` (the
+Privacy *page* only manages init/load/lock); flip the key in
+`userData/settings.json`. When disabled, the LLM sees the real
+data.
 
 ---
 
 ## Per-recipient filtering
 
-The `filter(receiver, text)` operation is the **key insight** of
-the privacy engine. It takes a recipient type as the first
-argument and applies different anonymization rules accordingly.
+> **Status: not wired into the desktop app.** The EAA CLI
+> implements `privacy filter --receiver` (parent semantics only),
+> but no desktop code path calls it — actual masking is the flat
+> anonymize/deanonymize round-trip in
+> `src/main/services/agent/privacy-guard.ts`. Documented here for
+> CLI completeness.
+
+The `filter(receiver, text)` operation takes a recipient type as
+the first argument and applies different anonymization rules
+accordingly.
 
 ### The five recipient types
 
@@ -282,7 +287,12 @@ output (e.g. parent messages with no student name).
 
 ## The audit log
 
-Every `anonymize` and `deanonymize` call is logged to
+> **Not implemented.** There is no `audit.log` — this section
+> describes the original design and is kept for reference. See the
+> honesty note earlier in this document.
+
+Design (as originally planned) — every `anonymize` and
+`deanonymize` call would be logged to
 `userData/eaa-data/privacy/audit.log`:
 
 ```
@@ -399,8 +409,8 @@ The privacy engine does **not** defend against:
    Every text payload that goes to the LLM **must** go through
    `anonymize` first.
 2. **Add tests for every new anonymization pattern.** The
-   `tests/main/privacy.test.ts` file has a structure you can
-   copy.
+   `tests/main/agent-privacy-guard.test.ts` file has a structure
+   you can copy.
 3. **Update the audit log format in a backward-compatible way.**
    Existing log readers should still work.
 4. **Document any new entity type.** Add it to

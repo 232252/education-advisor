@@ -107,8 +107,14 @@ async function requestListToolsInternal(client: MCPClient): Promise<unknown> {
 /**
  * SSE 通用 JSON-RPC 请求(HTTP POST)。
  * R1-2 / B3: 让 listTools 与 callTool 共用同一 SSE 通道。
+ * errorLabel 用于错误信息前缀(默认 method;callTool 传入含工具名的标签)。
  */
-async function requestSse(client: MCPClient, method: string, params: unknown): Promise<unknown> {
+async function requestSse(
+  client: MCPClient,
+  method: string,
+  params: unknown,
+  errorLabel: string = method,
+): Promise<unknown> {
   if (!client.config.url) {
     throw new Error(`sse server ${client.serverId} missing url`)
   }
@@ -127,7 +133,7 @@ async function requestSse(client: MCPClient, method: string, params: unknown): P
     signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
   })
   if (!response.ok) {
-    throw new Error(`SSE ${method} failed: ${response.status} ${response.statusText}`)
+    throw new Error(`SSE ${errorLabel} failed: ${response.status} ${response.statusText}`)
   }
   const msg = (await response.json()) as { result?: unknown; error?: { message: string } }
   if (msg.error) throw new Error(msg.error.message)
@@ -175,36 +181,18 @@ export async function callToolInternal(
 }
 
 /**
- * SSE 工具调用(HTTP POST)
+ * SSE 工具调用 — 复用 requestSse 通道,仅空结果兜底与错误标签不同
  */
 async function callToolSse(
   client: MCPClient,
   toolName: string,
   args: Record<string, unknown>,
 ): Promise<McpCallResult> {
-  if (!client.config.url) {
-    throw new Error(`sse server ${client.serverId} missing url`)
-  }
-  const response = await fetch(client.config.url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...client.config.headers,
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: client.requestId++,
-      method: 'tools/call',
-      params: { name: toolName, arguments: args },
-    }),
-    signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
-  })
-
-  if (!response.ok) {
-    throw new Error(`SSE callTool ${toolName} failed: ${response.status}`)
-  }
-
-  const msg = (await response.json()) as { result?: McpCallResult; error?: { message: string } }
-  if (msg.error) throw new Error(msg.error.message)
-  return msg.result || { content: [{ type: 'text', text: '(empty)' }] }
+  const result = await requestSse(
+    client,
+    'tools/call',
+    { name: toolName, arguments: args },
+    `callTool ${toolName}`,
+  )
+  return (result as McpCallResult) || { content: [{ type: 'text', text: '(empty)' }] }
 }

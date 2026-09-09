@@ -2,10 +2,12 @@
 // Preload API — Agent 域
 // =============================================================
 
+import type { AgentAPI } from '@shared/api/agent'
 import * as IPC from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
+import { subscribe } from './subscribe'
 
-export const agentApi = {
+export const agentApi: AgentAPI = {
   // [r] 列出所有 agent
   list: () => ipcRenderer.invoke(IPC.IPC_AGENT_LIST),
 
@@ -29,17 +31,9 @@ export const agentApi = {
   runManual: (id: string, prompt: string, history?: Array<{ role: string; content: string }>) =>
     ipcRenderer.invoke(IPC.IPC_AGENT_RUN_MANUAL, id, prompt, history),
 
-  // [r] 读取 agent 执行历史
-  getHistory: (id: string) => ipcRenderer.invoke(IPC.IPC_AGENT_GET_HISTORY, id),
-
   // [c] 中断 agent 执行
   abort: (id: string) => ipcRenderer.invoke(IPC.IPC_AGENT_ABORT, id),
 
-  onStatusUpdate: (callback: (data: unknown) => void) => {
-    const handler = (_e: unknown, data: unknown) => callback(data)
-    ipcRenderer.on(IPC.IPC_AGENT_STATUS_UPDATE, handler)
-    return () => {
-      ipcRenderer.removeListener(IPC.IPC_AGENT_STATUS_UPDATE, handler)
-    }
-  },
+  onStatusUpdate: (callback: (data: unknown) => void) =>
+    subscribe(IPC.IPC_AGENT_STATUS_UPDATE, callback),
 }

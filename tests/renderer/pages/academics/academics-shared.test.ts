@@ -1,5 +1,5 @@
 // =============================================================
-// academics-shared + academics-defaults 单元测试
+// academics-shared + shared/academic-defaults 单元测试
 // 覆盖: EXAM_TYPE_LABEL / EXAM_TYPE_BADGE / sortByDateDesc /
 //       getCurrentSemester / DEFAULT_SUBJECTS / DEFAULT_EXAM_TYPES
 // =============================================================
@@ -15,7 +15,7 @@ import {
 import {
   DEFAULT_EXAM_TYPES,
   DEFAULT_SUBJECTS,
-} from '../../../../src/renderer/pages/Academics/lib/academics-defaults'
+} from '../../../../src/shared/academic-defaults'
 
 // ---------- EXAM_TYPE_LABEL / EXAM_TYPE_BADGE ----------
 

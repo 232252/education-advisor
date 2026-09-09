@@ -4,7 +4,7 @@
 
 import type { AgentListItem, CronTask } from '@shared/types'
 import { useEffect, useRef, useState } from 'react'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { CRON_PRESETS, validateCron } from '../../../lib/cron-utils'
 import { btnStyle, cn, INPUT_BASE, INPUT_INVALID } from '../../../lib/ui-utils'
 import { toast } from '../../../stores/toastStore'
@@ -79,7 +79,7 @@ export function NewTaskForm({
     if (!name.trim() || !agentId || !expression.trim() || !prompt.trim()) return
     // 提交前再次校验, 防止绕过 disabled 的情况 (如直接触发)
     if (!isCronValid) {
-      toast.error(`Cron 表达式无效: ${cronValidation.error ?? ''}`)
+      toast.error(tr('page.scheduler.form.invalid', { error: cronValidation.error ?? '' }))
       return
     }
     if (isEditing && editingTask) {
@@ -118,7 +118,7 @@ export function NewTaskForm({
             htmlFor="task-name"
             className="text-xs text-gray-400 dark:text-gray-500 block mb-1"
           >
-            任务名称
+            {t('page.scheduler.form.name')}
           </label>
           <input
             id="task-name"
@@ -160,7 +160,7 @@ export function NewTaskForm({
             htmlFor="task-cron"
             className="text-xs text-gray-400 dark:text-gray-500 block mb-1"
           >
-            Cron 表达式
+            {t('page.scheduler.form.expression')}
           </label>
           <input
             id="task-cron"
@@ -190,13 +190,19 @@ export function NewTaskForm({
             }`}
             role={isCronValid ? 'status' : 'alert'}
           >
-            {isCronValid ? '✓ 表达式有效' : `✗ ${cronValidation.error ?? '无效'}`}
+            {isCronValid
+              ? t('page.scheduler.form.cronValid')
+              : tr('page.scheduler.form.cronInvalid', {
+                  error: cronValidation.error ?? t('page.scheduler.form.invalidFallback'),
+                })}
           </div>
         </div>
 
         {/* 模型层级 */}
         <div>
-          <span className="text-xs text-gray-400 dark:text-gray-500 block mb-1">模型</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500 block mb-1">
+            {t('page.scheduler.form.model')}
+          </span>
           <div
             className="flex gap-2"
             role="radiogroup"
@@ -210,7 +216,7 @@ export function NewTaskForm({
               className={`flex-1 text-sm py-1.5 rounded-lg transition-colors
                 ${modelTier === 'low_cost' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-surface-elevated dark:text-gray-400'}`}
             >
-              低成本
+              {t('page.scheduler.form.lowCost')}
             </button>
             <button
               type="button"
@@ -220,7 +226,7 @@ export function NewTaskForm({
               className={`flex-1 text-sm py-1.5 rounded-lg transition-colors
                 ${modelTier === 'high_quality' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-surface-elevated dark:text-gray-400'}`}
             >
-              高质量
+              {t('page.scheduler.form.highQuality')}
             </button>
           </div>
         </div>
@@ -232,7 +238,7 @@ export function NewTaskForm({
           htmlFor="task-prompt"
           className="text-xs text-gray-400 dark:text-gray-500 block mb-1"
         >
-          执行指令
+          {t('page.scheduler.form.promptLabel')}
         </label>
         <textarea
           id="task-prompt"
@@ -247,7 +253,7 @@ export function NewTaskForm({
       {/* 按钮 */}
       <div className="flex justify-end gap-2 mt-3">
         <button type="button" onClick={onCancel} className={btnStyle('secondary')}>
-          取消
+          {t('common.cancel')}
         </button>
         <button
           type="button"
@@ -257,7 +263,7 @@ export function NewTaskForm({
           }
           className={btnStyle('primary')}
         >
-          {isEditing ? '保存' : '创建'}
+          {isEditing ? t('page.scheduler.form.save') : t('page.scheduler.form.create')}
         </button>
       </div>
     </div>

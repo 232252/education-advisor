@@ -5,10 +5,10 @@
 // =============================================================
 
 import { PanelLeft, PanelLeftClose, Search } from 'lucide-react'
-import { useCallback } from 'react'
+import { lazy, Suspense, useCallback } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AppLogo } from '../components/AppLogo'
-import { CommandPalette } from '../components/command-palette/CommandPalette'
+import { usePaletteHotkey } from '../components/command-palette/use-palette-hotkey'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { NotificationCenter } from '../components/notification/NotificationCenter'
 import { useNotificationListener } from '../components/notification/useNotificationListener'
@@ -21,6 +21,14 @@ import { useT } from '../i18n'
 import { cn } from '../lib/ui-utils'
 import { useAgentStore } from '../stores/agent/store'
 import { usePaletteStore } from '../stores/paletteStore'
+
+// 命令面板本体懒加载(560 行 + 搜索索引在 entry 之外);热键 shim 常驻本组件
+const LazyCommandPalette = lazy(() =>
+  import('../components/command-palette/CommandPalette').then((m) => ({
+    default: m.CommandPalette,
+  })),
+)
+
 import { AgentStatusBar } from './AgentStatusBar'
 
 /** localStorage key for sidebar collapsed state */
@@ -54,7 +62,10 @@ export function MainLayout() {
   // 桌面级全局快捷键 (Ctrl+1..9 / Ctrl+, / Ctrl+B)
   useGlobalShortcuts({ onToggleSidebar: toggleCollapsed })
 
-  // 全局搜索命令面板 (Ctrl+K) — 侧边栏按钮入口,快捷键由 CommandPalette 自行监听
+  // 全局搜索命令面板 (Ctrl+K) — 侧边栏按钮入口 + 热键 shim(面板本体懒挂载,
+  // 未挂载时其内部监听不存在,热键必须常驻此处;面板内部监听已随之移除避免双 toggle)
+  const paletteOpen = usePaletteStore((s) => s.open)
+  usePaletteHotkey()
   const togglePalette = useCallback(() => {
     usePaletteStore.getState().toggle()
   }, [])
@@ -222,8 +233,12 @@ export function MainLayout() {
         </ErrorBoundary>
       </main>
 
-      {/* ── 全局搜索命令面板 (Ctrl+K) ── */}
-      <CommandPalette />
+      {/* ── 全局搜索命令面板 (Ctrl+K,首次唤起时按需加载) ── */}
+      {paletteOpen && (
+        <Suspense fallback={null}>
+          <LazyCommandPalette />
+        </Suspense>
+      )}
 
       {/* ── 首次使用引导向导(检测: 无班级且未完成引导) ── */}
       <OnboardingWizard />

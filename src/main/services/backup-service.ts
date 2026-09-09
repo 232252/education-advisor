@@ -17,6 +17,11 @@
 import type { Dirent } from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import type { AutoBackupInfo } from '@shared/api/backup'
+
+// backup-handlers 经由本模块引用该类型(单一来源仍在 @shared/api/backup)
+export type { AutoBackupInfo }
+
 import { app } from 'electron'
 import { atomicWrite } from '../utils/atomic-write'
 import { formatTimestampFileSafe } from '../utils/format-timestamp'
@@ -36,13 +41,6 @@ export interface BackupManifest {
   formatVersion: number
   createdAt: string
   files: Array<{ name: string; size: number }>
-}
-
-export interface AutoBackupInfo {
-  fileName: string
-  sizeBytes: number
-  createdAt: number // epoch ms (文件 mtime)
-  kind: 'auto' | 'pre-restore'
 }
 
 export interface CreateBackupResult {
@@ -81,7 +79,7 @@ async function walkDir(dir: string, prefix: string, out: LogicalFile[]): Promise
 }
 
 /** 收集备份白名单文件(运行时实际路径) */
-export async function collectBackupFiles(): Promise<LogicalFile[]> {
+async function collectBackupFiles(): Promise<LogicalFile[]> {
   const userData = app.getPath('userData')
   const files: LogicalFile[] = []
 
@@ -94,6 +92,8 @@ export async function collectBackupFiles(): Promise<LogicalFile[]> {
   const appPaths = getAppPaths()
   await walkDir(appPaths.academicsDir, 'academics/', files)
   await walkDir(appPaths.profilesDir, 'profiles/', files)
+  // P5: AI 批改子系统(任务 JSON + 试卷扫描件)与学业同层,一并入备份
+  await walkDir(appPaths.gradingDir, 'grading/', files)
 
   const dbPath = dbService.getDbPath()
   if (dbPath) {
@@ -225,6 +225,21 @@ function mapEntryToTarget(name: string): string {
     if (!isSafeEntryName(rel)) throw new Error(`unsafe eaa-data entry: ${name}`)
     return path.join(eaaBridge.getDataDir(), ...rel.split('/'))
   }
+  // R2-17 打包了 academics/profiles 但恢复映射遗漏,恢复含学业/档案数据的
+  // 备份会抛 unknown entry — 补齐;grading/ 随批改子系统同一批登记
+  const appPaths = getAppPaths()
+  const dirPrefixes: Array<[string, string]> = [
+    ['academics/', appPaths.academicsDir],
+    ['profiles/', appPaths.profilesDir],
+    ['grading/', appPaths.gradingDir],
+  ]
+  for (const [prefix, dir] of dirPrefixes) {
+    if (name.startsWith(prefix)) {
+      const rel = name.slice(prefix.length)
+      if (!isSafeEntryName(rel)) throw new Error(`unsafe ${prefix} entry: ${name}`)
+      return path.join(dir, ...rel.split('/'))
+    }
+  }
   const dbPath = dbService.getDbPath()
   if (name === 'workstation.db') {
     if (!dbPath) throw new Error('workstation.db has no runtime path')
@@ -240,7 +255,7 @@ function mapEntryToTarget(name: string): string {
   throw new Error(`unknown backup entry: ${name}`)
 }
 
-export interface RestoreResult {
+interface RestoreResult {
   restoredFiles: number
   safetyBackupPath: string
 }

@@ -17,15 +17,14 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 <!-- doc-stats:start -->
 | 维度 | 数量 |
 | --- | --- |
-| 页面数 | 13 |
-| 路由数 | 15 |
-| IPC 通道数 | 144 |
-| Service 文件数 | 143 |
-| IPC handler 文件数 | 44 |
+| 页面数 | 14 |
+| 路由数 | 16 |
+| IPC 通道数 | 159 |
+| Service 文件数 | 152 |
+| IPC handler 文件数 | 48 |
 | Zustand store 模块数 | 7 |
-| Preload API 文件数 | 20 |
-| Shared 类型文件数 | 17 |
-| Renderer IPC 类型文件数 | 21 |
+| Preload API 文件数 | 22 |
+| Shared 类型文件数 | 18 |
 | Agent 数 | 18 |
 <!-- doc-stats:end -->
 
@@ -37,6 +36,7 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 - [The data flow](#the-data-flow)
 - [The state model](#the-state-model)
 - [The build pipeline](#the-build-pipeline)
+- [The loading architecture (renderer)](#the-loading-architecture-renderer)
 - [The deployment pipeline](#the-deployment-pipeline)
 - [Why these choices?](#why-these-choices)
 - [Where to read the code](#where-to-read-the-code)
@@ -128,6 +128,25 @@ The renderer has **zero direct access** to:
 Every operation that needs any of those goes through `window.api`,
 which is a thin proxy over `ipcRenderer.invoke`.
 
+**Shared hook layer** (`src/renderer/hooks/`) — pages must not
+hand-roll loading boilerplate:
+
+- `useIpcQuery` — single-source IPC load: token-based stale guard,
+  unmount guard, cascade `onData` (awaited inside the try, so a
+  failing cascade follows the failure path), configurable failure
+  policy (default `console.error` + toast; `onError`/`keepDataOnError`
+  per call site).
+- `useMultiLoader` — parallel multi-source load with per-key
+  progressive settle (`readyKeys`).
+- `useMountedRef` — the one unmount guard; async callbacks drop
+  state writes after unmount.
+- `useConfirmAction` / `useConfirmDialog` — the confirm-dialog state
+  machines; `useAutoDismiss` — self-clearing transient messages.
+
+Chat streaming deltas and agent live output go through module-level
+50 ms batchers (`stores/chat/delta-batch.ts`,
+`stores/agent/live-output.ts`) instead of per-event `set()` calls.
+
 ### Process 2: Main (Node 22 + Electron 43)
 
 - **Runtime**: Node 22 with Electron 43's hardened main process
@@ -142,7 +161,7 @@ The main process owns:
 - The window lifecycle (create / show / hide / close)
 - The system tray
 - The auto-update flow
-- The IPC handlers (11 modules, 90+ channels)
+- The IPC handlers (46 files across 20 domains, 144 channels)
 - The 13 service modules (agent loop, EAA bridge, cron, …)
 - The SQLite database
 - The EAA child process
@@ -179,28 +198,32 @@ the central design decision of the project.
 
 ## The IPC contract
 
-There are **130 IPC channels** in `src/shared/ipc-channels.ts`,
-grouped by namespace:
+There are **143 IPC channels** in `src/shared/ipc-channels.ts`,
+grouped by namespace (counts calibrated 2026-09-07 against the
+source; the doc-stats gate guards the total):
 
 | Namespace | Count | Purpose |
 | --- | --- | --- |
 | `ai:*` | 11 | LLM provider / model / chat / OAuth / custom models |
 | `ollama:*` | 7 | Local models (detect / serve / list / pull / delete / progress) |
-| `agent:*` | 10 | Agent lifecycle (list / get / update / toggle / soul / rules / run / history / abort / status-update) |
+| `agent:*` | 9 | Agent lifecycle (list / get / update / toggle / soul / rules / run / abort / status-update) |
 | `eaa:*` | 24 | Data engine (info / score / ranking / replay / add / revert / history / search / range / tag / stats / validate / export / students / import / codes / doctor / summary / dashboard / export-formats / invalidate-cache) |
 | `privacy:*` | 8 | Privacy engine (init / load / list / add / dryrun / backup / lock / status) |
 | `cron:*` | 8 | Scheduler (list / add / update / remove / toggle / run-now / get-logs / status-update) |
 | `skill:*` | 4 | User-injected skills (list / get / save / delete) |
 | `mcp:*` | 8 | MCP (list / connect / disconnect / list-tools / test / add / update / remove) |
 | `settings:*` | 3 | App settings (get / set / reset) |
-| `sys:*` | 7 | System (open-dialog / save-dialog / get-path / check-update / read-file / restart-app / show-update-dialog) |
+| `sys:*` | 9 | System (open/save-dialog / get-version / check-download-install-update / update-progress / read-file / restart-app) |
 | `backup:*` | 4 | Backup / restore (create-dialog / restore-dialog / list-auto / delete-auto) |
 | `profile:*` | 2 | Student profile (get / set) |
 | `academic:*` | 7 | Academics (get-config / list-exams / create-exam / delete-exam / get-grades / batch-set-grades / get-class-grades) |
 | `class:*` | 8 | Classes (list / create / update / archive / restore / delete / assign / assign-progress) |
-| `chat:*` | 4 | Conversation persistence (save / load / delete-session / list-sessions) |
-| `feishu:*` | 8 | Feishu (test / bitable / status / bot-start / bot-stop / bot-status / bot-status-update / diagnose) |
+| `chat:*` | 5 | Conversation persistence (save / load / delete-session / list-sessions / rename) |
+| `feishu:*` | 8 | Feishu (test / status / bitable / bot-start / bot-stop / bot-status / bot-status-update / diagnose) |
 | `log:*` | 7 | Logs (list / read / clear / filter / search / export-dialog / write-renderer) |
+| `memory:*` | 3 | Agent memory (list / delete-entry / clear) |
+| `reports:*` | 2 | Markdown reports (list / read) |
+| `students:*` | 4 | Student Excel import (parse-excel / import-excel / import-progress / import-template) |
 
 Every channel is a string constant exported from a single file. Every
 channel has a corresponding handler in `src/main/ipc/`. The handler
@@ -218,6 +241,11 @@ single point of trust.
 2. **Event push** — `ipcRenderer.on(channel, handler)`. The main
    process pushes state updates (agent status, chat stream, cron
    status). Returns a cancellation function for clean up.
+   Cleanup contract (audited 2026-09-04, both sides mandatory):
+   the preload `subscribe()` wrapper returns a `removeListener`
+   closure, every renderer consumer unsubscribes in effect cleanup
+   or action `finally`, and every main-process push site guards
+   `webContents.isDestroyed()` before `send`.
 3. **One-way fire** — `ipcRenderer.send(channel, ...args)`. Used only
    for `log:write-renderer`, where the renderer is telling the main
    process "console.log happened".
@@ -246,6 +274,17 @@ convention and review):
    aggregation entry.** A source-structure assertion should point
    at where the code actually lives (e.g. `eaa/handlers-system.ts`),
    so moving handler bodies never requires rewriting assertions.
+5. **`handleIpc()` (`ipc/handle.ts`) is the default handler
+   skeleton** — fail-logging + failure envelope + optional IPC
+   timer. Raw `ipcMain.handle` is reserved for streaming pushes
+   (`ai:chat`, `class:assign`), rethrow-contract channels
+   (`log:*`, the renderer expects a promise rejection), and
+   custom-shape responses (`privacy:status`). Failure envelopes
+   are per-domain contracts, kept intact via the `onError` opt:
+   EAA uses `{success,error,stderr,exitCode}` (`eaa/failures.ts`,
+   the renderer's `getErrorMessage` reads `data`/`stderr` first),
+   privacy uses `{success,data}` (error text lives in `data`),
+   `cron:*`/`agent:*` run/abort use `{success,message}`.
 
 ---
 
@@ -268,7 +307,7 @@ with the prompt "Alice just handed in her homework 10 minutes late, +2":
 [6] agent-service.ts builds the system prompt:
     - agents/class-monitor/SOUL.md
     - agents/class-monitor/AGENTS.md
-    - config/SMALL_MODEL_RULES.md (global rulebook)
+    - agents/_shared/rules.md (shared rulebook, M10 single-point injection)
     - skills/STUDENT_MANAGEMENT.md (active skill, if any)
     - list of available tools (sanitized, capability-checked)
     ↓
@@ -377,8 +416,10 @@ is the simplest possible model and the easiest to reason about.
 
 | Stage | Tool | Output | Run by |
 | --- | --- | --- | --- |
-| TypeScript compile (main) | Vite 6, `vite.config.main.ts` | `dist/main/index.js` + `dist/main/preload.js` | `npm run dev:main`, `npm run build` |
-| TypeScript compile (renderer) | Vite 6, `vite.config.renderer.ts` | `dist/renderer/index.html` + assets | `npm run dev:renderer`, `npm run build` |
+| TypeScript compile (main) | Vite, `vite.config.main.ts` | `dist/main/index.cjs` | `npm run dev:main`, `npm run build` |
+| TypeScript compile (preload) | Vite, `vite.config.preload.ts` | `dist/main/preload.cjs`（单文件内联，唯一 external = electron — sandboxed preload 的硬前提） | `npm run dev:preload`, `npm run build` |
+| TypeScript compile (renderer) | Vite, `vite.config.renderer.ts` | `dist/renderer/index.html` + assets | `npm run dev:renderer`, `npm run build` |
+| Bundle shape check | `scripts/bundle-shape-check.mjs` | exit code（懒加载分割守卫，见下节） | `npm run check:bundle`, CI |
 | Lint | Biome 2.3 | exit code | `npm run lint` |
 | Type check | TypeScript 7 | exit code | `npm run typecheck` |
 | Test | Vitest 3.2 | test report | `npm run test` |
@@ -394,6 +435,36 @@ The dependency footprint is intentionally small:
 - The Rust EAA binary is bundled as an `extraResource`, unpacked from
   the asar archive at startup.
 - Everything else is pure JS / TS.
+
+---
+
+## The loading architecture (renderer)
+
+渲染进程按「何时需要」分层加载，每层只付当次的成本（R150-R162 建立，
+`npm run check:bundle` 守卫防回归）：
+
+| 层 | 内容 | 加载时机 | 大致体积 |
+| --- | --- | --- | --- |
+| entry（必需） | React/Router/zustand/主布局/全局组件 | 首屏同步 | JS ~311KB + CSS ~143KB |
+| boot-await | 当前语言字典（zh 或 en，各成 chunk） | i18n 模块顶层 await，首帧渲染前 | ~87KB |
+| 路由级 | 12 个页面各自 chunk | 切换路由时 | 3~63KB |
+| 交互级 | 学生档案 6 tab / 学业 4 tab / 技能 3 tab / 命令面板 | 打开时 | 4~25KB/chunk |
+| 数据级 | echarts（全部图表）/ KaTeX 数学栈 / Markdown 渲染栈 | 首个图表渲染 / 首条含公式消息 / 首个 AI 页面 | 566KB / ~294KB / 136KB |
+
+关键机制：
+
+- **字典顶层 await**（`src/renderer/i18n/index.ts`）：模块求值顺序保证任何
+  导入方拿到 `t()` 前当前语言字典已就绪 — `t()`/`useT()` 保持同步语义，
+  无 key 闪烁；`setLang` 异步先载目标字典再翻转广播。
+- **KaTeX 内容门控**（`src/renderer/components/Markdown.tsx`）：`MATH_HINT`
+  扫描数学定界符，命中才动态加载数学栈；纯文本消息（绝大多数）零 katex 成本。
+- **热键 shim**（`use-palette-hotkey.ts`）：命令面板本体懒挂载，
+  Ctrl+K 监听常驻主布局（面板未挂载时其内部监听不存在）。
+- **字体 latin 子集**（`styles/fonts.css`）：西文字体仅声明 latin/latin-ext
+  两个 @font-face，CJK 走系统字体；此前整包导入含 7 个永不被
+  unicode-range 命中的子集。
+- **守卫**：`scripts/bundle-shape-check.mjs` 断言懒库标记不进 entry 静态图、
+  独立 chunk 存在、entry 总量 ≤400KB；CI 在 build 后强制执行。
 
 ---
 
@@ -509,8 +580,9 @@ If you are new to the codebase, here is a 30-minute reading order:
    the tool layer the agents use.
 7. **[`config/agents.yaml`](../config/agents.yaml)** — the agent registry.
 8. **[`agents/main/SOUL.md`](../agents/main/SOUL.md)** — the most-used agent.
-9. **[`config/SMALL_MODEL_RULES.md`](../config/SMALL_MODEL_RULES.md)** —
-   the rulebook.
+9. **[`agents/_shared/rules.md`](../agents/_shared/rules.md)** —
+   the shared rulebook (M10: injected into every agent's system
+   prompt; role `AGENTS.md` files keep only role-specific rules).
 
 After that, the rest of the codebase is filling in the details.
 Welcome.

@@ -3,6 +3,7 @@
 // 从 feishu-bot-service.ts 拆出(纯重构,行为不变)
 // =============================================================
 
+import { errText } from '../../utils/err-text'
 import { getFeishuBase } from './http-instance'
 
 /**
@@ -25,6 +26,6 @@ export async function validateCredentials(
     if (data.code === 0) return null
     return `appId/appSecret 校验失败(code=${data.code}): ${data.msg ?? '未知错误'}`
   } catch (err) {
-    return `凭证校验请求失败: ${err instanceof Error ? err.message : String(err)}`
+    return `凭证校验请求失败: ${errText(err)}`
   }
 }

@@ -38,20 +38,20 @@ describe('classStore (M20 共享数据层)', () => {
   })
 
   it('首次拉取: loading/settled/classes 正确流转', async () => {
-    const p = useClassStore.getState().fetchClasses()
+    const p = useClassStore.getState().fetchItems()
     expect(useClassStore.getState().loading).toBe(true)
     const result = await p
     expect(result).toEqual(classesA)
     const s = useClassStore.getState()
-    expect(s.classes).toEqual(classesA)
+    expect(s.items).toEqual(classesA)
     expect(s.loading).toBe(false)
     expect(s.settled).toBe(true)
     expect(apiMocks.classList).toHaveBeenCalledTimes(1)
   })
 
   it('TTL 复用: 3s 内非强制 fetch 直接返回缓存', async () => {
-    await useClassStore.getState().fetchClasses()
-    const again = await useClassStore.getState().fetchClasses()
+    await useClassStore.getState().fetchItems()
+    const again = await useClassStore.getState().fetchItems()
     expect(again).toEqual(classesA)
     expect(apiMocks.classList).toHaveBeenCalledTimes(1)
   })
@@ -64,8 +64,8 @@ describe('classStore (M20 共享数据层)', () => {
           release = res
         }),
     )
-    const p1 = useClassStore.getState().fetchClasses()
-    const p2 = useClassStore.getState().fetchClasses()
+    const p1 = useClassStore.getState().fetchItems()
+    const p2 = useClassStore.getState().fetchItems()
     release?.({ success: true, data: classesA })
     const [r1, r2] = await Promise.all([p1, p2])
     expect(r1).toEqual(classesA) // 两个调用拿到同一份数据
@@ -74,18 +74,18 @@ describe('classStore (M20 共享数据层)', () => {
   })
 
   it('force 绕过 TTL: 建班/存档后 force 刷新拿到最新列表', async () => {
-    await useClassStore.getState().fetchClasses()
+    await useClassStore.getState().fetchItems()
     apiMocks.classList.mockResolvedValue({ success: true, data: classesB })
-    const result = await useClassStore.getState().fetchClasses({ force: true })
+    const result = await useClassStore.getState().fetchItems({ force: true })
     expect(result).toEqual(classesB)
-    expect(useClassStore.getState().classes).toEqual(classesB)
+    expect(useClassStore.getState().items).toEqual(classesB)
     expect(apiMocks.classList).toHaveBeenCalledTimes(2)
   })
 
   it('IPC 异常: 记录 error/settled,保留旧数据', async () => {
-    await useClassStore.getState().fetchClasses()
+    await useClassStore.getState().fetchItems()
     apiMocks.classList.mockRejectedValue(new Error('db locked'))
-    const result = await useClassStore.getState().fetchClasses({ force: true })
+    const result = await useClassStore.getState().fetchItems({ force: true })
     const s = useClassStore.getState()
     expect(result).toEqual(classesA)
     expect(s.error).toBe('db locked')
@@ -94,11 +94,11 @@ describe('classStore (M20 共享数据层)', () => {
   })
 
   it('success:false 业务失败: 静默(不记 error),保留旧数据', async () => {
-    await useClassStore.getState().fetchClasses()
+    await useClassStore.getState().fetchItems()
     apiMocks.classList.mockResolvedValue({ success: false, error: 'internal' })
-    await useClassStore.getState().fetchClasses({ force: true })
+    await useClassStore.getState().fetchItems({ force: true })
     const s = useClassStore.getState()
-    expect(s.classes).toEqual(classesA)
+    expect(s.items).toEqual(classesA)
     expect(s.error).toBeNull()
     expect(s.settled).toBe(true)
   })

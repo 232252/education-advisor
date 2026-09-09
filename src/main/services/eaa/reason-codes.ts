@@ -67,16 +67,6 @@ export function lookupReasonCodeDelta(reasonCode: string): number | undefined {
 }
 
 /**
- * 返回原因码的完整定义(含 delta 字段,可能为 null 表示变量分值)。
- * 用于判断是否为固定分值原因码 (delta !== null),固定分值原因码不允许 delta 覆盖。
- *
- * v3.2.7: 修复 BUG#2 — 固定分值原因码 (如 LATE=-2.0) 不应被前端传入的 delta 覆盖。
- */
-export function getReasonCodeDef(reasonCode: string): ReasonCodeDef | undefined {
-  return loadReasonCodes()[reasonCode]
-}
-
-/**
  * 仅供测试重置缓存使用。生产代码不要调用。
  */
 export function resetReasonCodesCache(): void {

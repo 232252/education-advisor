@@ -6,9 +6,10 @@
 
 import type { McpServerConfig, McpServerStatus, McpTool } from '@shared/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useInterval } from '../../../hooks'
-import { useT } from '../../../i18n'
-import { getAPI } from '../../../lib/ipc-client'
+import { useInterval } from '../../../hooks/useInterval'
+import { tr, useT } from '../../../i18n'
+import { errText, getAPI } from '../../../lib/ipc-client'
+import { runIpcMutation } from '../../../lib/mutation'
 import { toast } from '../../../stores/toastStore'
 
 export function useMcpServers() {
@@ -58,7 +59,7 @@ export function useMcpServers() {
         toast.error(t('toast.mcp.toggleFailed'))
       }
     } catch (err) {
-      toast.error((err as Error).message)
+      toast.error(errText(err))
     }
   }
 
@@ -159,7 +160,7 @@ export function useMcpServers() {
         }
       } catch (err) {
         if (toolsGenRef.current[serverId] !== gen) return
-        const msg = (err as Error).message
+        const msg = errText(err)
         setToolsErrorMap((prev) => ({ ...prev, [serverId]: msg }))
         console.error('[MCP] listTools failed:', err)
       } finally {
@@ -177,85 +178,60 @@ export function useMcpServers() {
     }
   }, [selected, selectedId, toolsCache, loadTools])
 
-  const handleTest = async (id: string) => {
-    try {
-      const result = await getAPI().mcp.test(id)
-      if (result.success) {
-        toast.success(t('toast.mcp.testOk').replace('{count}', String(result.toolCount)))
+  const handleTest = (id: string) =>
+    runIpcMutation(() => getAPI().mcp.test(id), {
+      failMsg: t('toast.mcp.testFail'),
+      onOk: async (result) => {
+        toast.success(tr('toast.mcp.testOk', { count: String(result.toolCount) }))
         await loadServers()
         await loadTools(id)
-      } else {
-        toast.error(result.error || t('toast.mcp.testFail'))
-      }
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
-  }
+      },
+    })
 
-  const handleConnect = async (id: string) => {
-    try {
-      const result = await getAPI().mcp.connect(id)
-      if (result.success) {
+  const handleConnect = (id: string) =>
+    runIpcMutation(() => getAPI().mcp.connect(id), {
+      failMsg: t('toast.mcp.connectFailed'),
+      onOk: async () => {
         toast.success(t('toast.mcp.connectSuccess'))
         await loadServers()
         await loadTools(id)
-      } else {
-        toast.error(result.error || t('toast.mcp.connectFailed'))
-      }
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
-  }
+      },
+    })
 
   // R1-7 / UI-5 修复: 检查 result.success,失败时不清理缓存/不刷新,避免假性成功。
   // R3-4: 用 clearToolsState 统一清理(含代际),防止 disconnect 后 effect 重新触发 loadTools 还原错误。
-  const handleDisconnect = async (id: string) => {
-    try {
-      const result = await getAPI().mcp.disconnect(id)
-      if (result.success) {
+  const handleDisconnect = (id: string) =>
+    runIpcMutation(() => getAPI().mcp.disconnect(id), {
+      failMsg: t('toast.mcp.disconnectFailed'),
+      onOk: async () => {
         clearToolsState(id)
         await loadServers()
-      } else {
-        toast.error(result.error || t('toast.mcp.disconnectFailed'))
-      }
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
-  }
+      },
+    })
 
-  const handleToggleEnabled = async (id: string, enabled: boolean) => {
-    try {
-      const result = await getAPI().mcp.update(id, { enabled })
-      if (result.success) {
+  const handleToggleEnabled = (id: string, enabled: boolean) =>
+    runIpcMutation(() => getAPI().mcp.update(id, { enabled }), {
+      failMsg: t('toast.mcp.toggleFailed'),
+      onOk: async () => {
         toast.success(t('toast.mcp.updated'))
         // R3-4: 禁用时清理工具缓存(断开的 server 不应保留旧工具列表)
         if (!enabled) clearToolsState(id)
         await loadServers()
-      } else {
-        // R5-I18N-1 修复: 失败 fallback 不再用 "已更新" 文案,改用 toggleFailed
-        toast.error(result.error || t('toast.mcp.toggleFailed'))
-      }
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
-  }
+      },
+    })
 
-  const handleDelete = async (id: string) => {
-    try {
-      const result = await getAPI().mcp.remove(id)
-      if (result.success) {
+  const handleDelete = (id: string) =>
+    runIpcMutation(() => getAPI().mcp.remove(id), {
+      // 注意: 失败兜底沿用既有文案 removed(与成功文案相同,历史行为)
+      failMsg: t('toast.mcp.removed'),
+      onOk: async () => {
         toast.success(t('toast.mcp.removed'))
         if (selectedId === id) setSelectedId(null)
         // R3-4: 删除时清理该 server 的工具缓存/错误/代际
         clearToolsState(id)
         await loadServers()
-      } else {
-        toast.error(result.error || t('toast.mcp.removed'))
-      }
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
-  }
+      },
+    })
 
   const handleEdit = async (id: string) => {
     // listServers 不返回完整 config(command/args/env 等)
@@ -272,24 +248,21 @@ export function useMcpServers() {
     setShowForm(true)
   }
 
-  const handleFormSubmit = async (config: McpServerConfig) => {
-    try {
-      const isEdit = editingServer !== null
-      const result = isEdit
-        ? await getAPI().mcp.update(editingServer?.id, config)
-        : await getAPI().mcp.add(config)
-      if (result.success) {
-        toast.success(isEdit ? t('toast.mcp.updated') : t('toast.mcp.added'))
-        setShowForm(false)
-        setEditingServer(null)
-        setPresetDraft(null)
-        await loadServers()
-      } else {
-        toast.error(result.error || t('toast.mcp.toggleFailed'))
-      }
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
+  const handleFormSubmit = (config: McpServerConfig) => {
+    const isEdit = editingServer !== null
+    return runIpcMutation(
+      () => (isEdit ? getAPI().mcp.update(editingServer?.id, config) : getAPI().mcp.add(config)),
+      {
+        failMsg: t('toast.mcp.toggleFailed'),
+        onOk: async () => {
+          toast.success(isEdit ? t('toast.mcp.updated') : t('toast.mcp.added'))
+          setShowForm(false)
+          setEditingServer(null)
+          setPresetDraft(null)
+          await loadServers()
+        },
+      },
+    )
   }
 
   return {

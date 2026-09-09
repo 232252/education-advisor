@@ -7,7 +7,7 @@ import { extractText } from '../feishu/message-utils'
 import type { FeishuMessageEvent } from './types'
 
 /** 解析后的入站消息(过滤规则已通过、文本已提取) */
-export interface ParsedIncomingMessage {
+interface ParsedIncomingMessage {
   text: string
   messageId: string
   chatType: string

@@ -4,8 +4,9 @@
 // =============================================================
 
 import type { ClassEntity } from '@shared/types'
+import { ClassFilterSelect } from '../../../components/ClassFilterSelect'
 import { useT } from '../../../i18n'
-import { btnStyle, INPUT_BASE } from '../../../lib/ui-utils'
+import { btnStyle } from '../../../lib/ui-utils'
 
 export function DashboardToolbar({
   classFilter,
@@ -26,32 +27,30 @@ export function DashboardToolbar({
   return (
     <>
       {/* 班级筛选 */}
-      <select
+      <ClassFilterSelect
         value={classFilter}
-        onChange={(e) => onClassFilterChange(e.target.value)}
-        className={INPUT_BASE}
-        title="按班级筛选数据"
-        aria-label="按班级筛选数据"
-      >
-        <option value="__ALL__">全部班级</option>
-        <option value="__NONE__">未分班</option>
-        {activeClassList.map((c) => (
-          <option key={c.id} value={c.class_id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
+        onChange={onClassFilterChange}
+        classes={activeClassList}
+        allLabel={t('page.academics.class.all', '全部班级')}
+        noneLabel={t('page.classes.profile.unassigned', '未分班')}
+        title={t('page.students.toolbar.filterByClass', '按班级筛选')}
+      />
       {/* 班级对比模式开关 */}
       <button
         type="button"
         onClick={onCompareModeToggle}
         className={btnStyle(compareMode ? 'primary' : 'secondary')}
-        title="班级对比模式"
-        aria-label="班级对比模式"
+        title={t('page.dashboard.compareModeTitle')}
+        aria-label={t('page.dashboard.compareModeTitle')}
       >
-        班级对比
+        {t('page.dashboard.compareMode')}
       </button>
-      <button type="button" onClick={onRefresh} className={btnStyle('ghost')} aria-label="刷新数据">
+      <button
+        type="button"
+        onClick={onRefresh}
+        className={btnStyle('ghost')}
+        aria-label={t('page.dashboard.ariaRefreshData')}
+      >
         {t('page.dashboard.refresh')}
       </button>
     </>

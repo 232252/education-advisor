@@ -13,7 +13,9 @@ import { useSearchParams } from 'react-router-dom'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
-import { useT } from '../../i18n'
+import { TableSkeleton } from '../../components/Skeleton'
+import { useCtxMenuAction } from '../../hooks/useCtxMenuAction'
+import { tr, useT } from '../../i18n'
 import { btnStyle } from '../../lib/ui-utils'
 import { ClassProfile } from './ClassProfile'
 import { ClassFormDialog } from './components/ClassFormDialog'
@@ -96,7 +98,10 @@ export function ClassesPage() {
   // 组合框候选项
   // - 班级名称：预设 1班~20班，可下拉选也可自己输入
   // - 年级：从已有班级派生去重，便于复用
-  const nameOptions = useMemo(() => Array.from({ length: 20 }, (_, i) => `${i + 1}班`), [])
+  // 20 条字符串,直接每次渲染重建(随语言切换天然重算),不值得 memo
+  const nameOptions = Array.from({ length: 20 }, (_, i) =>
+    tr('page.classes.nameSuggestion', { n: i + 1 }),
+  )
   const gradeOptions = useMemo(
     () => Array.from(new Set(classes.map((c) => c.grade).filter((v): v is string => !!v))),
     [classes],
@@ -104,26 +109,16 @@ export function ClassesPage() {
 
   // 班级编号自动生成逻辑已提取到 class-id.ts（gradeToNumber/classNoFromName/computeAutoClassId）
 
-  // 右键菜单事件处理
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const ce = e as CustomEvent<{ action: string; target: HTMLElement }>
-      const action = ce.detail?.action
-      const target = ce.detail?.target
-      if (!action || !target) return
-      const classId = target.getAttribute('data-ctx-class-id')
-      if (!classId) return
-      const cls = classes.find((c) => c.id === classId)
-      if (!cls) return
-      if (action === 'view') setSelectedClass(cls)
-      else if (action === 'edit') openEdit(cls)
-      else if (action === 'archive') handleArchive(cls)
-      else if (action === 'restore') handleRestore(cls)
-      else if (action === 'delete') handleDelete(cls)
-    }
-    document.addEventListener('ctx-menu-action', handler)
-    return () => document.removeEventListener('ctx-menu-action', handler)
-  }, [classes, openEdit, handleDelete, handleRestore, handleArchive])
+  // 右键菜单事件处理(useCtxMenuAction 渲染期 ref 同步,classes 等依赖变化无需重绑监听器)
+  useCtxMenuAction('data-ctx-class-id', (action, classId) => {
+    const cls = classes.find((c) => c.id === classId)
+    if (!cls) return
+    if (action === 'view') setSelectedClass(cls)
+    else if (action === 'edit') openEdit(cls)
+    else if (action === 'archive') handleArchive(cls)
+    else if (action === 'restore') handleRestore(cls)
+    else if (action === 'delete') handleDelete(cls)
+  })
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -178,12 +173,12 @@ export function ClassesPage() {
           className={`overflow-auto px-6 py-4 transition-all duration-300 ${selectedClass ? 'w-[45%] border-r border-gray-200 dark:border-white/[0.06]' : 'w-full'}`}
         >
           {loading ? (
-            <div className="text-center text-sm text-gray-400 py-12">{t('common.loading')}</div>
+            <TableSkeleton rows={6} cols={4} />
           ) : visibleClasses.length === 0 ? (
             <EmptyState
               icon={<School className="h-6 w-6" />}
               title={t('page.classes.empty')}
-              description="点击右上角「+」按钮创建第一个班级"
+              description={t('page.classes.emptyDesc')}
             />
           ) : (
             <ClassTable

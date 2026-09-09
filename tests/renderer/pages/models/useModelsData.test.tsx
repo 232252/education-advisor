@@ -31,6 +31,8 @@ const toastMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../../../../src/renderer/lib/ipc-client', () => ({
+  // 与真实 errText 同义:Error 取 message,其余 String 化(OAuth 错误 toast 断言依赖)
+  errText: (err: unknown) => (err instanceof Error ? err.message : String(err)),
   getAPI: () => ({
     ai: {
       listProviders: mocks.listProviders,
@@ -148,7 +150,7 @@ describe('useModelsData', () => {
         await result.current.handleTestConnection('openai')
       })
 
-      expect(result.current.testResults.openai).toBe('请输入 API Key')
+      expect(result.current.testResults.openai).toEqual({ kind: 'info', key: 'page.models.test.noKey' })
       expect(mocks.testConnection).not.toHaveBeenCalled()
     })
 
@@ -167,7 +169,11 @@ describe('useModelsData', () => {
 
       expect(mocks.testConnection).toHaveBeenCalledWith('openai', 'sk-test')
       expect(mocks.setApiKey).toHaveBeenCalledWith('openai', 'sk-test')
-      expect(result.current.testResults.openai).toBe('连接成功 (5ms) [gpt-test]')
+      expect(result.current.testResults.openai).toEqual({
+        kind: 'ok',
+        key: 'page.models.test.ok',
+        vars: { ms: 5, model: 'gpt-test' },
+      })
       // 成功后触发 loadProviders 重新拉取
       expect(mocks.listProviders.mock.calls.length).toBeGreaterThanOrEqual(2)
     })
@@ -183,7 +189,11 @@ describe('useModelsData', () => {
         await result.current.handleTestConnection('openai')
       })
 
-      expect(result.current.testResults.openai).toBe('失败: rate limited')
+      expect(result.current.testResults.openai).toEqual({
+        kind: 'error',
+        key: 'page.models.test.fail',
+        vars: { err: 'rate limited' },
+      })
       expect(mocks.setApiKey).not.toHaveBeenCalled()
     })
 
@@ -198,7 +208,11 @@ describe('useModelsData', () => {
         await result.current.handleTestConnection('openai')
       })
 
-      expect(result.current.testResults.openai).toBe('失败: {"code":401}')
+      expect(result.current.testResults.openai).toEqual({
+        kind: 'error',
+        key: 'page.models.test.fail',
+        vars: { err: '{"code":401}' },
+      })
     })
 
     it('testConnection 抛异常: 显示 连接错误', async () => {
@@ -212,7 +226,7 @@ describe('useModelsData', () => {
         await result.current.handleTestConnection('openai')
       })
 
-      expect(result.current.testResults.openai).toBe('连接错误')
+      expect(result.current.testResults.openai).toEqual({ kind: 'error', key: 'page.models.test.error' })
     })
   })
   describe('handleDeleteApiKey', () => {
@@ -236,7 +250,7 @@ describe('useModelsData', () => {
 
       expect(mocks.deleteApiKey).toHaveBeenCalledWith('openai')
       expect(toastMocks.success).toHaveBeenCalledWith('已删除 openai 的 API Key')
-      expect(result.current.testResults.openai).toBe('已删除')
+      expect(result.current.testResults.openai).toEqual({ kind: 'ok', key: 'page.models.test.deleted' })
       // 缓存被 clear 后 loadProviders 重新加载,openai 模型被重新拉取一次
       const openaiCalls = mocks.listModels.mock.calls.filter((c) => c[0] === 'openai')
       expect(openaiCalls.length).toBe(1)
@@ -263,7 +277,10 @@ describe('useModelsData', () => {
         await result.current.handleOAuthLogin('anthropic')
       })
 
-      expect(result.current.testResults.anthropic).toContain('已在浏览器中打开登录页面')
+      expect(result.current.testResults.anthropic).toEqual({
+        kind: 'info',
+        key: 'page.models.test.oauthOpened',
+      })
       expect(toastMocks.info).toHaveBeenCalled()
     })
 
@@ -275,7 +292,11 @@ describe('useModelsData', () => {
         await result.current.handleOAuthLogin('anthropic')
       })
 
-      expect(result.current.testResults.anthropic).toBe('OAuth 失败: not supported')
+      expect(result.current.testResults.anthropic).toEqual({
+        kind: 'error',
+        key: 'page.models.test.oauthFail',
+        vars: { err: 'not supported' },
+      })
       expect(toastMocks.error).toHaveBeenCalled()
     })
 
@@ -287,7 +308,11 @@ describe('useModelsData', () => {
         await result.current.handleOAuthLogin('anthropic')
       })
 
-      expect(result.current.testResults.anthropic).toBe('OAuth 错误: ipc broken')
+      expect(result.current.testResults.anthropic).toEqual({
+        kind: 'error',
+        key: 'page.models.test.oauthError',
+        vars: { err: 'ipc broken' },
+      })
       expect(toastMocks.error).toHaveBeenCalledWith('OAuth 登录错误: ipc broken')
     })
   })
@@ -412,7 +437,7 @@ describe('useModelsData', () => {
         await result.current.handleUpdateCustomModel('openai', 'my-model', { name: 'New' })
       })
 
-      expect(toastMocks.error).toHaveBeenCalledWith('更新模型失败: Error: x')
+      expect(toastMocks.error).toHaveBeenCalledWith('更新模型失败: x')
     })
 
     it('handleDeleteCustomModel 成功: toast.success 并刷新', async () => {
@@ -435,7 +460,7 @@ describe('useModelsData', () => {
         await result.current.handleDeleteCustomModel('openai', 'my-model')
       })
 
-      expect(toastMocks.error).toHaveBeenCalledWith('删除模型失败: Error: x')
+      expect(toastMocks.error).toHaveBeenCalledWith('删除模型失败: x')
     })
   })
 

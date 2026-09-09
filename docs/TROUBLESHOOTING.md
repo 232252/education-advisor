@@ -190,7 +190,7 @@ If the error is in a path alias (`@main/*`, `@renderer/*`,
 **Error**:
 
 ```
-Error: preload not found at dist/main/preload.js
+Error: preload not found at dist/main/preload.cjs
 ```
 
 **Cause**: the main process Vite config didn't produce the
@@ -267,14 +267,14 @@ npm run package
 
 1. Check the log file:
    - **Windows**: `%APPDATA%\Education Advisor\logs\main-*.log`
-   - **macOS**: `~/Library/Logs/Education Advisor/main-*.log`
+   - **macOS**: `~/Library/Application Support/Education Advisor/logs/main-*.log`
    - **Linux**: `~/.config/Education Advisor/logs/main-*.log`
 2. If the log says "preload not found", run `npm run build`.
 3. If the log says "Cannot read settings.json", delete
    `userData/settings.json` and restart (you'll lose your
    in-app settings, but the shipped defaults will be re-applied).
-4. If the log says "Cannot open db.sqlite", delete
-   `userData/db.sqlite` and restart (you'll lose your chat
+4. If the log says "Cannot open workstation.db", delete
+   `userData/workstation.db` and restart (you'll lose your chat
    history, but the events are still in the EAA data
    directory).
 
@@ -343,7 +343,6 @@ EAA event log.
    `events.log`. If it's grown beyond 100 MB, consider
    exporting and archiving old events:
    `eaa export --format json --output-file archive-2025.json`
-   `eaa prune --before 2025-01-01`
 
 ---
 
@@ -525,7 +524,7 @@ missed something.
 
 **Fix**:
 
-1. Verify the privacy engine is enabled (Settings → Privacy →
+1. Verify the privacy engine is enabled (`settings.privacy.enabled` — no UI toggle yet; see
    "Enabled").
 2. Check the audit log for the LLM calls. Look for
    `entities_replaced: 0` on a call that should have
@@ -533,7 +532,7 @@ missed something.
 3. If the issue is a name pattern that the engine doesn't
    recognize, open an issue with a sample.
 
-### "Audit log is too large"
+### "[Not implemented — see PRIVACY_ENGINE.md honesty note] Audit log is too large"
 
 **Cause**: the audit log is append-only and never rotated.
 
@@ -578,7 +577,7 @@ for the full troubleshooting.
 
 **Cause**: timezone mismatch.
 
-**Fix**: set the `TZ` env var to your timezone. See
+**Fix**: set **Settings → General → Timezone** (`settings.general.timezone`) to your timezone. See
 [`CRON.md#time-zones`](./CRON.md#time-zones).
 
 ---

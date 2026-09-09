@@ -10,6 +10,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { ReportEntry, ReportListResult, ReportReadResult } from '@shared/types/reports'
 import { app } from 'electron'
+import { errText } from '../utils/err-text'
 
 const MAX_READ_BYTES = 5 * 1024 * 1024 // 5MB 上限,防超大文件拖垮渲染层
 
@@ -34,7 +35,7 @@ export function listReports(): ReportListResult {
     }
     entries = fs.readdirSync(dir, { withFileTypes: true })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     return { success: false, entries: [], error: msg }
   }
 
@@ -74,7 +75,7 @@ export function readReport(fileName: string): ReportReadResult {
     }
     return { success: true, content: fs.readFileSync(resolved, 'utf-8') }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errText(err)
     return { success: false, error: msg }
   }
 }

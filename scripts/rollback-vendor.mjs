@@ -2,7 +2,7 @@
 // =============================================================
 // scripts/rollback-vendor.mjs
 //
-// 一键回滚 vendor（pi-agent-core / pi-ai）到指定还原点。
+// 一键回滚 vendor（pi-agent-core / pi-ai / submitty 参照面）到指定还原点。
 // 默认还原到 pre-vendor-upgrade tag（0.75.5 可用状态）。
 //
 // 用法:
@@ -26,7 +26,7 @@ import { spawnSync } from 'node:child_process'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
-const VENDOR_DIRS = ['vendor/pi-agent-core', 'vendor/pi-ai']
+const VENDOR_DIRS = ['vendor/pi-agent-core', 'vendor/pi-ai', 'vendor/submitty']
 
 function log(level, msg) {
   const ts = new Date().toISOString()
@@ -102,6 +102,16 @@ runStep('重新编译 (npm run build)', 'npm', ['run', 'build'], { cwd: ROOT })
 // 4. 打印还原后版本，确认成功
 info('──────── 还原后 vendor 版本 ────────')
 for (const dir of VENDOR_DIRS) {
+  if (dir === 'vendor/submitty') {
+    // 参照面无 package.json，版本 = UPSTREAM.json 的 tag
+    try {
+      const upstream = JSON.parse(readFileSync(join(ROOT, dir, 'UPSTREAM.json'), 'utf-8'))
+      console.log(`  ${dir}  →  ${upstream.tag} (${String(upstream.commit ?? '').slice(0, 8)})`)
+    } catch (e) {
+      console.log(`  ${dir}  →  (读取 UPSTREAM.json 失败: ${e.message})`)
+    }
+    continue
+  }
   console.log(`  ${dir}  →  ${readPkgVersion(dir)}`)
 }
 info('回滚完成 ✅  当前 vendor 已还原到可靠状态。')

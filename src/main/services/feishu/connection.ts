@@ -3,6 +3,7 @@
 // 从 feishu-service.ts 拆出(纯重构,行为不变)
 // =============================================================
 
+import { errText } from '../../utils/err-text'
 import type { FeishuDomain } from './config'
 import { clearTokenCache, getTenantToken } from './token'
 
@@ -18,6 +19,6 @@ export async function testConnection(
     const { token, expireSec } = await getTenantToken(appId, appSecret, domain)
     return { success: true, token: `${token.slice(0, 8)}...`, expireSec }
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
+    return { success: false, error: errText(err) }
   }
 }

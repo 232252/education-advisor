@@ -4,17 +4,9 @@
 // =============================================================
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { mockFetchResponse } from './helpers/make'
 
 // mock fetch
-function mockFetchResponse(data: unknown, ok = true, status = 200) {
-  return {
-    ok,
-    status,
-    json: async () => data,
-    text: async () => JSON.stringify(data),
-  }
-}
-
 const fetchMock = vi.fn()
 
 beforeEach(() => {
@@ -122,15 +114,6 @@ describe('feishu-service — sendTextMessage', () => {
     const { sendTextMessage } = await import('../../src/main/services/feishu-service')
     const r = await sendTextMessage('app', 'secret', 'bad-user', 'hello')
     expect(r.success).toBe(false)
-  })
-})
-
-describe('feishu-service — feishuInfo', () => {
-  it('返回非空字符串', async () => {
-    const { feishuInfo } = await import('../../src/main/services/feishu-service')
-    const info = feishuInfo()
-    expect(typeof info).toBe('string')
-    expect(info.length).toBeGreaterThan(0)
   })
 })
 

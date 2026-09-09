@@ -1,17 +1,43 @@
 // =============================================================
 // Markdown 渲染组件 — 用于 AI/Agent 回复
 // 支持 GFM(表格/删除线/任务列表) + 数学公式(KaTeX) + 代码块
+// KaTeX 按需加载: 数学栈(remark-math+rehype-katex+katex ≈270KB)
+// 只在内容出现数学定界符时动态加载,纯文本消息(绝大多数)零 katex
+// 成本;加载后模块级缓存,后续公式消息即时渲染(首条公式消息在
+// 加载窗口内短暂显示原始定界符,渐进增强)。
 // =============================================================
 
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
-import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
+import type { Pluggable } from 'unified'
 import { cn } from '../lib/ui-utils'
 
-// KaTeX 样式（数学公式渲染必需）
-import 'katex/dist/katex.min.css'
+interface MathStack {
+  remarkMath: Pluggable
+  rehypeKatex: Pluggable
+}
+
+let mathStack: MathStack | null = null
+let mathStackPromise: Promise<MathStack> | null = null
+
+function loadMathStack(): Promise<MathStack> {
+  mathStackPromise ??= Promise.all([
+    import('remark-math'),
+    import('rehype-katex'),
+    import('katex/dist/katex.min.css'),
+  ]).then(([remarkMath, rehypeKatex]) => {
+    mathStack = { remarkMath: remarkMath.default, rehypeKatex: rehypeKatex.default }
+    return mathStack
+  })
+  return mathStackPromise
+}
+
+/** 内容含数学定界符才需要数学栈;保守扫描,宁误加载不漏渲染 */
+const MATH_HINT = /\$\$|\\[[(]|\$[^$\s]/
+function needsMath(content: string): boolean {
+  return MATH_HINT.test(content)
+}
 
 interface MarkdownProps {
   content: string
@@ -19,6 +45,23 @@ interface MarkdownProps {
 }
 
 function MarkdownImpl({ content, className }: MarkdownProps) {
+  const wantsMath = needsMath(content)
+  const [math, setMath] = useState<MathStack | null>(() => (wantsMath ? mathStack : null))
+
+  useEffect(() => {
+    if (!wantsMath || mathStack) {
+      if (mathStack && math !== mathStack) setMath(mathStack)
+      return
+    }
+    let cancelled = false
+    loadMathStack().then((stack) => {
+      if (!cancelled) setMath(stack)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [wantsMath, math])
+
   return (
     <div
       className={cn(
@@ -44,8 +87,8 @@ function MarkdownImpl({ content, className }: MarkdownProps) {
       )}
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        remarkPlugins={math ? [remarkGfm, math.remarkMath] : [remarkGfm]}
+        rehypePlugins={math ? [math.rehypeKatex] : []}
         components={{
           // 行内 code 与块级 code 区分: react-markdown 对行内 code 不传 `inline` prop(v10),
           // 用 node.position 是否存在 + 是否在 pre 内来区分不可靠, 故统一: pre>code 走 .prose 样式,

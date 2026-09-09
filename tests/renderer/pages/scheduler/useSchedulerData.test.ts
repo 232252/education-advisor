@@ -6,6 +6,8 @@
 // =============================================================
 
 import { act } from 'react'
+import { setWindowApi, clearWindowApi } from '../../helpers/window-api'
+import { toastMocks } from '../../helpers/mock-toast'
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentListItem, CronLogEntry, CronTask } from '@shared/types'
@@ -13,24 +15,7 @@ import { useSchedulerData } from '../../../../src/renderer/pages/Scheduler/hooks
 
 // ---------- toast mock ----------
 
-const toastMocks = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
-}))
-
-vi.mock('../../../../src/renderer/stores/toastStore', () => ({
-  toast: {
-    success: toastMocks.success,
-    error: toastMocks.error,
-    warning: toastMocks.warning,
-    info: toastMocks.info,
-    show: vi.fn(),
-    dismiss: vi.fn(),
-    clear: vi.fn(),
-  },
-}))
+vi.mock('../../../../src/renderer/stores/toastStore', async () => (await import('../../helpers/mock-toast')).mockToastStore)
 
 // ---------- window.api mock ----------
 
@@ -56,7 +41,7 @@ function installApi() {
     statusCallback = cb
     return unsubSpy
   })
-  ;(window as unknown as { api: unknown }).api = {
+  ;setWindowApi({
     cron: {
       list: apiMocks.cronList,
       add: apiMocks.cronAdd,
@@ -68,7 +53,7 @@ function installApi() {
       onStatusUpdate: apiMocks.onStatusUpdate,
     },
     agent: { list: apiMocks.agentList },
-  }
+  })
 }
 
 // ---------- 测试数据 ----------
@@ -113,7 +98,7 @@ describe('useSchedulerData', () => {
   })
 
   afterEach(() => {
-    delete (window as unknown as { api?: unknown }).api
+    clearWindowApi()
   })
 
   // ---------- 数据加载 ----------

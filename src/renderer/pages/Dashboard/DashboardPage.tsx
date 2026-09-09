@@ -13,6 +13,7 @@ import { Button } from '../../components/Button'
 import { PageHeader } from '../../components/PageHeader'
 import { PageSkeleton } from '../../components/Skeleton'
 import { useT } from '../../i18n'
+import { CLASS_FILTER_ALL } from '../../lib/class-filter'
 import { ClassComparisonPanel } from './components/ClassComparisonPanel'
 import { DashboardStatsRow } from './components/DashboardStatsRow'
 import { DashboardToolbar } from './components/DashboardToolbar'
@@ -45,6 +46,7 @@ export function DashboardPage() {
     allEvents,
     loading,
     errors,
+    readyKeys,
     reload,
   } = useDashboardData()
   // 班级筛选 / 对比模式状态 + 派生视图数据
@@ -97,7 +99,11 @@ export function DashboardPage() {
     reload()
   }, [reload])
 
-  if (loading) {
+  // 渐进渲染(流畅度 2026-09-02): 核心快源就绪即出页面,不再等 8 路全屏障 —
+  // 慢源(ranking 全量排行 / allEvents 180 天 range)由对应卡片先出骨架占位
+  const CORE_KEYS = ['stats', 'summary', 'allStudents', 'classList', 'tagData', 'eaaInfo'] as const
+  const coreReady = CORE_KEYS.every((k) => readyKeys.has(k))
+  if (!coreReady) {
     return (
       <div className="h-full overflow-y-auto bg-canvas">
         <PageHeader
@@ -165,19 +171,23 @@ export function DashboardPage() {
           />
         )}
 
-        {/* 概览卡片 — 按班级筛选时显示班级数据 */}
-        <DashboardStatsRow
-          isAllClasses={classFilter === '__ALL__'}
-          studentCount={classStats.total}
-          eventCount={classPeriodSummary.events.total}
-          revokedCount={s?.reverted_events ?? 0}
-          scoreChange={
-            classFilter === '__ALL__'
-              ? (s?.total_delta?.toFixed(1) ?? '-')
-              : classStats.avgScore.toFixed(1)
-          }
-          highRiskCount={classStats.highRisk}
-        />
+        {/* 概览卡片 — 按班级筛选时显示班级数据(eventCount 依赖慢源 allEvents,未就绪先出骨架) */}
+        {readyKeys.has('allEvents') ? (
+          <DashboardStatsRow
+            isAllClasses={classFilter === CLASS_FILTER_ALL}
+            studentCount={classStats.total}
+            eventCount={classPeriodSummary.events.total}
+            revokedCount={s?.reverted_events ?? 0}
+            scoreChange={
+              classFilter === CLASS_FILTER_ALL
+                ? (s?.total_delta?.toFixed(1) ?? '-')
+                : classStats.avgScore.toFixed(1)
+            }
+            highRiskCount={classStats.highRisk}
+          />
+        ) : (
+          <CardSkeleton />
+        )}
 
         {/* 图表区 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -185,16 +195,28 @@ export function DashboardPage() {
           <RiskDistChartCard riskDistribution={classStats.riskDistribution} />
         </div>
 
-        {/* 下半部分 */}
+        {/* 下半部分 — ReasonDist/PeriodSummary 依赖慢源 allEvents,Ranking 依赖全量排行 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <ReasonDistCard items={classReasonDist} />
-          <RankingCard
-            items={filteredRanking}
-            onSelectStudent={(entityId) =>
-              navigate(`/students?entity_id=${encodeURIComponent(entityId)}`)
-            }
-          />
-          <PeriodSummaryCard data={classPeriodSummary} period={summary?.period} />
+          {readyKeys.has('allEvents') ? (
+            <ReasonDistCard items={classReasonDist} />
+          ) : (
+            <CardSkeleton />
+          )}
+          {readyKeys.has('ranking') ? (
+            <RankingCard
+              items={filteredRanking}
+              onSelectStudent={(entityId) =>
+                navigate(`/students?entity_id=${encodeURIComponent(entityId)}`)
+              }
+            />
+          ) : (
+            <CardSkeleton />
+          )}
+          {readyKeys.has('allEvents') ? (
+            <PeriodSummaryCard data={classPeriodSummary} period={summary?.period} />
+          ) : (
+            <CardSkeleton />
+          )}
         </div>
 
         {/* 系统管理 & 诊断 */}
@@ -219,5 +241,12 @@ export function DashboardPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+/** 慢源数据未就绪时的卡片级骨架占位(渐进渲染配套) */
+function CardSkeleton() {
+  return (
+    <div className="h-48 rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white/70 dark:bg-surface-tertiary/70 animate-pulse" />
   )
 }

@@ -4,7 +4,7 @@ import type { McpServerConfig } from '@shared/types'
  * 校验错误:值为 i18n key(由调用方用 t() 翻译),而非硬编码文案。
  * R4-2 修复: 旧实现直接返回中文字符串,英文环境下表单错误仍是中文。
  */
-export type McpConfigErrors = Partial<Record<keyof McpServerConfig | 'id', string>>
+type McpConfigErrors = Partial<Record<keyof McpServerConfig | 'id', string>>
 
 const ID_RE = /^[a-zA-Z0-9_-]+$/
 const URL_RE = /^https?:\/\/.+/

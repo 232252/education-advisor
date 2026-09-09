@@ -5,6 +5,10 @@
 import type { AgentListItem, ClassEntity, EAAEventRecord, EAAStudent } from '@shared/types'
 import { describe, expect, it } from 'vitest'
 import {
+  makeAgent as makeAgentBase,
+  makeStudent as makeStudentBase,
+} from '../../../../../tests/renderer/__fixtures__/make'
+import {
   buildEventResults,
   groupResults,
   matchScore,
@@ -15,21 +19,9 @@ import {
   searchStudents,
 } from '../palette-search'
 
-function makeStudent(over: Partial<EAAStudent>): EAAStudent {
-  return {
-    name: '张三',
-    entity_id: 'stu-001',
-    score: 100,
-    delta: 0,
-    risk: '低',
-    status: 'Active',
-    events_count: 0,
-    groups: [],
-    roles: [],
-    class_id: null,
-    ...over,
-  }
-}
+// 历史默认字面值与共享工厂不同,用适配器保持原值
+const makeStudent = (over: Partial<EAAStudent>): EAAStudent =>
+  makeStudentBase({ name: '张三', entity_id: 'stu-001', ...over })
 
 function makeClass(over: Partial<ClassEntity>): ClassEntity {
   return {
@@ -45,20 +37,15 @@ function makeClass(over: Partial<ClassEntity>): ClassEntity {
   }
 }
 
-function makeAgent(over: Partial<AgentListItem>): AgentListItem {
-  return {
+const makeAgent = (over: Partial<AgentListItem>): AgentListItem =>
+  makeAgentBase({
     id: 'agent-1',
     name: '学情分析师',
     role: 'analyst',
     description: '分析班级学情数据',
-    enabled: true,
     modelTier: 'high_quality',
-    schedule: [],
-    capabilities: [],
-    status: 'idle',
     ...over,
-  }
-}
+  })
 
 const NAV = [
   { path: '/students', label: '学生管理', keywords: 'students 学生' },
@@ -118,6 +105,56 @@ describe('searchStudents', () => {
   })
   it('无匹配返回空数组', () => {
     expect(searchStudents('不存在', [makeStudent({})])).toHaveLength(0)
+  })
+})
+
+describe('拼音匹配层(R164)', () => {
+  it('首字母前缀命中: "zs" → 张三', () => {
+    const r = searchStudents('zs', [makeStudent({})])
+    expect(r).toHaveLength(1)
+    expect(r[0].title).toBe('张三')
+  })
+  it('全拼前缀命中: "zhang" / "zhangsan" → 张三', () => {
+    expect(searchStudents('zhang', [makeStudent({})])[0]?.title).toBe('张三')
+    expect(searchStudents('zhangsan', [makeStudent({})])[0]?.title).toBe('张三')
+  })
+  it('全拼子串命中: "angsan" → 张三(得分随位置衰减但仍 > 不匹配)', () => {
+    expect(searchStudents('angs', [makeStudent({})])[0]?.title).toBe('张三')
+  })
+  it('姓名直接命中优先于拼音命中', () => {
+    const r = searchStudents('zhang', [makeStudent({})])
+    // 直接中文查询仍走原路径,拼音层不参与
+    expect(searchStudents('张', [makeStudent({})])).toHaveLength(1)
+    expect(r).toHaveLength(1)
+  })
+  it('班级名拼音命中: "qnjyb" → 七年级一班', () => {
+    const r = searchClasses('qnjyb', [
+      { class_id: 'G7-1', name: '七年级一班', grade: '七年级', teacher: '' } as never,
+    ])
+    expect(r).toHaveLength(1)
+    expect(r[0].title).toBe('七年级一班')
+  })
+  it('Agent 中文名拼音命中', () => {
+    const r = searchAgents('jycm', [
+      {
+        id: 'a1',
+        name: '教育参谋',
+        description: '',
+        enabled: true,
+        tier: 'high',
+        tools: [],
+      } as never,
+    ])
+    expect(r).toHaveLength(1)
+    expect(r[0].title).toBe('教育参谋')
+  })
+  it('查询含汉字时不走拼音层(原行为不变)', () => {
+    expect(searchStudents('张s', [makeStudent({})])).toHaveLength(0)
+  })
+  it('英文原名仍按原路径直接命中且优先', () => {
+    const r = searchStudents('gpt', [makeStudent({ name: 'GPT Tutor', entity_id: 'x' })])
+    expect(r).toHaveLength(1)
+    expect(r[0].score).toBeGreaterThanOrEqual(100) // 直接前缀命中 100,非拼音 95
   })
 })
 

@@ -15,8 +15,9 @@ import type {
   ThinkingLevel,
 } from '@earendil-works/pi-agent-core'
 import { Agent } from '@earendil-works/pi-agent-core'
-import type { AgentExecution } from '@shared/types'
+import type { AgentConfig, AgentExecution, AgentStatus } from '@shared/types'
 import type { BrowserWindow } from 'electron'
+import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import { resolveApiKey, selectModel } from '../agent-model-selector'
 import {
@@ -26,6 +27,7 @@ import {
 } from '../compaction-helper'
 import { dbService } from '../db-service'
 import { ollamaService } from '../ollama-service'
+import { createAssistantPlaceholder } from '../pi-ai-helpers'
 import { settingsService } from '../settings-service'
 import { getClassContextSection } from './class-context'
 import { runContinuationLoop } from './continuation'
@@ -38,11 +40,88 @@ import { buildSystemPrompt } from './system-prompt'
 import { withTimeout } from './timeout'
 import type { AgentExecutionDeps } from './types'
 
+/** 成功/失败两条路径共用的执行记录头部(公共字段单一来源) */
+function buildExecutionBase(
+  agentId: string,
+  prompt: string,
+  output: string,
+  startedAt: number,
+  stats: { inputTokens: number; outputTokens: number; totalCost: number },
+): AgentExecution {
+  return {
+    id: `exec_${Date.now()}`,
+    agentId,
+    prompt,
+    output,
+    startedAt,
+    durationMs: Date.now() - startedAt,
+    tokenUsage: {
+      inputTokens: stats.inputTokens,
+      outputTokens: stats.outputTokens,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    },
+    cost: stats.totalCost,
+    status: 'success',
+  }
+}
+
 /** 内部已推送过 error 状态的错误(外层守卫据此去重,避免渲染进程收到两条错误) */
 function markedError(msg: string): Error {
   const err = new Error(msg)
   ;(err as { reportedToRenderer?: boolean }).reportedToRenderer = true
   return err
+}
+
+/**
+ * runAgent 入口(排队前)与出队后共用的可运行性守卫 — 排队期间配置可能被
+ * 删除/停用,两处判定必须一致。抛 markedError:入口路径的调用方(IPC/委托
+ * 工具)只消费 message;出队路径经外层守卫去重,不会二次推送渲染进程。
+ */
+function assertAgentRunnable(
+  config: AgentConfig | undefined,
+  id: string,
+  win: BrowserWindow | undefined,
+  setStatus: (id: string, status: AgentStatus) => void,
+): asserts config is AgentConfig {
+  if (!config) {
+    const msg = `Agent not found: ${id}`
+    sendAgentStatus(win, id, 'error', { error: msg })
+    throw markedError(msg)
+  }
+  if (!config.enabled) {
+    // P1-3: disabled 时先推送状态再抛错，渲染进程能看到
+    const msg = `Agent is disabled: ${id}`
+    setStatus(id, 'error')
+    sendAgentStatus(win, id, 'error', { error: msg })
+    throw markedError(msg)
+  }
+}
+
+/** abort 序列共用: controller.abort + agent.abort() 吞错(agent 已停止时会抛,无害) */
+async function abortAgentInstance(
+  agent: { abort: () => unknown },
+  abortController: AbortController,
+  id: string,
+): Promise<void> {
+  abortController.abort()
+  try {
+    await Promise.resolve(agent.abort())
+  } catch (err) {
+    console.warn(`[Agent] abort() threw for ${id}:`, errText(err))
+  }
+}
+
+/** setStatus + sendAgentStatus 成对推送 — 漏发其一曾是状态面/事件面分叉的根源 */
+function notifyStatus(
+  deps: AgentExecutionDeps,
+  win: BrowserWindow | undefined,
+  id: string,
+  status: AgentStatus,
+  extras: Record<string, unknown> = {},
+): void {
+  deps.setStatus(id, status)
+  sendAgentStatus(win, id, status, extras)
 }
 
 /**
@@ -57,8 +136,8 @@ export async function executeAgentRun(
   deps: AgentExecutionDeps,
   id: string,
   prompt: string,
-  win: BrowserWindow,
-  history?: Array<{ role: string; content: string }>,
+  win: BrowserWindow | undefined,
+  history?: Array<{ role: string; content: string; timestamp?: number }>,
   generation?: number,
 ): Promise<AgentExecution | undefined> {
   try {
@@ -66,10 +145,9 @@ export async function executeAgentRun(
   } catch (err) {
     const reported = (err as { reportedToRenderer?: boolean }).reportedToRenderer === true
     if (!reported) {
-      const raw = err instanceof Error ? err.message : String(err)
+      const raw = errText(err)
       console.error(`[AgentService] runAgent(${id}) failed before stream:`, raw)
-      deps.setStatus(id, 'error')
-      sendAgentStatus(win, id, 'error', { error: raw })
+      notifyStatus(deps, win, id, 'error', { error: raw })
     }
     throw err
   }
@@ -79,23 +157,13 @@ async function executeAgentRunInner(
   deps: AgentExecutionDeps,
   id: string,
   prompt: string,
-  win: BrowserWindow,
-  history?: Array<{ role: string; content: string }>,
+  win: BrowserWindow | undefined,
+  history?: Array<{ role: string; content: string; timestamp?: number }>,
   generation?: number,
 ): Promise<AgentExecution | undefined> {
+  // 排队期间可能被删除/停用 → 与 runAgent 入口共用同一守卫
   const config = deps.getConfig(id)
-  if (!config) {
-    const msg = `Agent not found: ${id}`
-    sendAgentStatus(win, id, 'error', { error: msg })
-    throw markedError(msg)
-  }
-  if (!config.enabled) {
-    // 排队期间被停用 → 与 runAgent 入口行为一致
-    const msg = `Agent is disabled: ${id}`
-    deps.setStatus(id, 'error')
-    sendAgentStatus(win, id, 'error', { error: msg })
-    throw markedError(msg)
-  }
+  assertAgentRunnable(config, id, win, deps.setStatus)
 
   // ── 隐私自动脱敏(fail-closed) ──
   // 开启 privacy.enabled + autoAnonymize 但隐私引擎未解锁 → 直接失败,
@@ -109,9 +177,8 @@ async function executeAgentRunInner(
         `[AgentService] runAgent(${id}) privacy guard active (${privacyGuard.mappingCount} mappings)`,
       )
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      deps.setStatus(id, 'error')
-      sendAgentStatus(win, id, 'error', { error: `隐私脱敏初始化失败: ${msg}` })
+      const msg = errText(err)
+      notifyStatus(deps, win, id, 'error', { error: `隐私脱敏初始化失败: ${msg}` })
       throw markedError(`隐私脱敏初始化失败: ${msg}`)
     }
   }
@@ -307,6 +374,24 @@ async function executeAgentRunInner(
   const collector = createEventCollector(win, id)
   const { stats } = collector
 
+  // 同步写入 DB(成功/失败两路径共用;dbExecId<0 = recordExecutionStart 未执行/失败)
+  const persistToDb = (
+    status: 'success' | 'failure' | 'aborted',
+    output: string,
+    error: string | undefined,
+  ): void => {
+    if (dbExecId >= 0) {
+      dbService.updateExecution(dbExecId, {
+        status,
+        output,
+        error,
+        tokensInput: stats.inputTokens,
+        tokensOutput: stats.outputTokens,
+        costTotal: stats.totalCost,
+      })
+    }
+  }
+
   // 脱敏开启时,流式增量先经 carry 过滤器安全还原(尾部疑似化名前缀的字符
   // 扣到下一段再判定,避免 "S_001" 被切成两半漏替换),再进入收集器 —
   // stats.outputText 与推送给渲染进程的内容因此都已是真名。
@@ -343,30 +428,18 @@ async function executeAgentRunInner(
     for (const msg of history) {
       if (!msg.content) continue
       const content = privacyGuard ? privacyGuard.anonymize(msg.content) : msg.content
+      // 时间戳透传: 全部重置为 now 会让模型无法区分"上周说的"和"刚才说的"
+      // (渲染端旧历史无时间戳时回退 now,保持兼容)
+      const timestamp = typeof msg.timestamp === 'number' ? msg.timestamp : Date.now()
       if (msg.role === 'user') {
         historyMessages.push({
           role: 'user' as const,
           content,
-          timestamp: Date.now(),
+          timestamp,
         })
       } else if (msg.role === 'assistant') {
-        historyMessages.push({
-          role: 'assistant' as const,
-          content: [{ type: 'text' as const, text: content }],
-          api: model.api,
-          provider: model.provider,
-          model: model.id,
-          usage: {
-            input: 0,
-            output: 0,
-            cacheRead: 0,
-            cacheWrite: 0,
-            totalTokens: 0,
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-          },
-          stopReason: 'stop' as const,
-          timestamp: Date.now(),
-        })
+        // 最小合法 AssistantMessage 占位(构造统一收口 pi-ai-helpers)
+        historyMessages.push(createAssistantPlaceholder(content, model, timestamp) as AgentMessage)
       }
       // system / toolResult 等角色跳过 — 不影响核心对话语义
     }
@@ -382,8 +455,7 @@ async function executeAgentRunInner(
     // M-4 修复: recordExecutionStart 移入 try 块,DB 抛错时走 catch 清理流程
     dbExecId = dbService.recordExecutionStart(id, prompt)
     // MEDIUM 修复: running 状态设置移入 try 块,避免 setup 阶段抛错导致状态永久卡死
-    deps.setStatus(id, 'running')
-    sendAgentStatus(win, id, 'running')
+    notifyStatus(deps, win, id, 'running')
     // ── 执行 Agent（含智能续跑）──
     console.log(`[AgentService] runAgent(${id}) calling agent.prompt()...`)
     // 诊断(走 logger debug): 记录 prompt 调用前的 model/apiKey/tools 状态
@@ -436,6 +508,9 @@ async function executeAgentRunInner(
       }
     }
 
+    // 攒批的输出 delta 必须在最终状态前刷出(否则最后 33ms 窗口内的文本丢失)
+    collector.flushPendingOutput()
+
     // 优化: 当输出为空且 LLM 返回了错误时,标记为 error 而非 success
     // 此前 stopReason=error 的空输出被标记为 success,用户看不到任何错误提示
     const hasError = stats.outputText.length === 0 && !!stats.lastErrorMessage
@@ -446,48 +521,32 @@ async function executeAgentRunInner(
 
     // 记录执行历史
     const execution: AgentExecution = {
-      id: `exec_${Date.now()}`,
-      agentId: id,
-      prompt,
-      output: finalOutput,
-      startedAt,
-      durationMs: Date.now() - startedAt,
-      tokenUsage: {
-        inputTokens: stats.inputTokens,
-        outputTokens: stats.outputTokens,
-        cacheReadTokens: 0,
-        cacheWriteTokens: 0,
-      },
-      cost: stats.totalCost,
+      ...buildExecutionBase(id, prompt, finalOutput, startedAt, stats),
       status: finalStatus,
       // R2+: 实际执行模型回传(tier→default→ollama 降级链的最终选择)
       model: `${model.provider}/${model.id}`,
     }
     deps.appendExecution(id, execution)
 
-    // 同步写入 DB
-    if (dbExecId >= 0) {
-      dbService.updateExecution(dbExecId, {
-        status: hasError ? 'failure' : 'success',
-        output: finalOutput,
-        error: hasError ? stats.lastErrorMessage : undefined,
-        tokensInput: stats.inputTokens,
-        tokensOutput: stats.outputTokens,
-        costTotal: stats.totalCost,
-      })
-    }
+    persistToDb(
+      hasError ? 'failure' : 'success',
+      finalOutput,
+      hasError ? stats.lastErrorMessage : undefined,
+    )
 
     // 更新状态
-    if (hasError) {
-      deps.setStatus(id, 'error')
-      sendAgentStatus(win, id, 'error', { error: stats.lastErrorMessage, result: execution })
-    } else {
-      deps.setStatus(id, 'idle')
-      sendAgentStatus(win, id, 'idle', { result: execution })
-    }
+    notifyStatus(
+      deps,
+      win,
+      id,
+      hasError ? 'error' : 'idle',
+      hasError ? { error: stats.lastErrorMessage, result: execution } : { result: execution },
+    )
     return execution
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err)
+    // 异常路径同样先刷出缓冲,保证渲染端已收到的流式输出完整
+    collector.flushPendingOutput()
+    const errorMsg = errText(err)
     // 诊断(走 logger): 错误用 warn 级别确保可见,附带 stack 定位
     log(
       'warn',
@@ -505,36 +564,13 @@ async function executeAgentRunInner(
     // cron 熔断器 isQuotaError 匹配不到 output,配额耗尽后 cron 继续空转。
     const catchOutput = stats.outputText ? `${stats.outputText}\n[error] ${errorMsg}` : errorMsg
     const execution: AgentExecution = {
-      id: `exec_${Date.now()}`,
-      agentId: id,
-      prompt,
-      output: catchOutput,
-      startedAt,
-      durationMs: Date.now() - startedAt,
-      tokenUsage: {
-        inputTokens: stats.inputTokens,
-        outputTokens: stats.outputTokens,
-        cacheReadTokens: 0,
-        cacheWriteTokens: 0,
-      },
-      cost: stats.totalCost,
+      ...buildExecutionBase(id, prompt, catchOutput, startedAt, stats),
       status: isAborted || isTimeout ? 'timeout' : 'error',
     }
     deps.appendExecution(id, execution)
 
-    // 同步写入 DB
-    // (DB schema CHECK(status IN ('running','success','failure','aborted')) 不含
-    // 'timeout',沿用既有 abort 路径的映射: 内存 'timeout' → DB 'aborted')
-    if (dbExecId >= 0) {
-      dbService.updateExecution(dbExecId, {
-        status: isAborted || isTimeout ? 'aborted' : 'failure',
-        output: catchOutput,
-        error: errorMsg,
-        tokensInput: stats.inputTokens,
-        tokensOutput: stats.outputTokens,
-        costTotal: stats.totalCost,
-      })
-    }
+    // DB schema CHECK 不含 'timeout',沿用既有映射: 内存 'timeout' → DB 'aborted'
+    persistToDb(isAborted || isTimeout ? 'aborted' : 'failure', catchOutput, errorMsg)
 
     // High 5.4 修复: abortAgent 与 runAgent finally 双重状态转移
     // 之前无论是 abort 还是真实 error 都设 'error' 状态,
@@ -542,8 +578,7 @@ async function executeAgentRunInner(
     // 修复: 如果是 abort 导致的,不设 error 状态(让 abortAgent 统一设 idle);
     // 只在真实 error 时设 error 状态
     if (!isAborted) {
-      deps.setStatus(id, 'error')
-      sendAgentStatus(win, id, 'error', { error: errorMsg })
+      notifyStatus(deps, win, id, 'error', { error: errorMsg })
     }
     // abort 路径: 不在此处发状态事件,由 abortAgent 统一发送 idle + aborted: true
     return execution
@@ -552,12 +587,7 @@ async function executeAgentRunInner(
     // 不再继续消耗 API token。abort() 是幂等的,已被 abortAgent 调用过时再调是 no-op。
     // 必须在 catch 块处理完之后再 abort(catch 中检查 isAborted 区分 abort 和真实 error)。
     if (!abortController.signal.aborted) {
-      abortController.abort()
-      try {
-        await agent.abort()
-      } catch {
-        /* agent.abort 可能因已停止而抛错,忽略 */
-      }
+      await abortAgentInstance(agent, abortController, id)
     }
     unsubscribe()
     deps.deleteRunning(id)

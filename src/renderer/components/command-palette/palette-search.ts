@@ -5,6 +5,8 @@
 // =============================================================
 
 import type { AgentListItem, ClassEntity, EAAEventRecord, EAAStudent } from '@shared/types'
+import { tr } from '../../i18n'
+import { pinyinScore } from '../../lib/pinyin-match'
 
 export type PaletteResultKind = 'nav' | 'student' | 'class' | 'agent' | 'event'
 
@@ -28,7 +30,7 @@ export interface NavCommand {
   keywords?: string
 }
 
-export interface PaletteData {
+interface PaletteData {
   students: EAAStudent[]
   classes: ClassEntity[]
   agents: AgentListItem[]
@@ -36,7 +38,7 @@ export interface PaletteData {
 }
 
 /** 每类结果在面板中的展示上限 */
-export const LIMITS = {
+const LIMITS = {
   students: 5,
   classes: 3,
   agents: 4,
@@ -67,10 +69,11 @@ export function searchStudents(query: string, students: EAAStudent[]): PaletteRe
   const out: PaletteResult[] = []
   for (const s of students) {
     const nameScore = matchScore(query, s.name)
-    const idScore = nameScore < 0 ? matchScore(query, s.entity_id) : -1
-    const score = Math.max(nameScore, idScore * 0.6) // id 命中权重低于姓名
+    const pyScore = nameScore < 0 ? pinyinScore(query, s.name) : -1
+    const idScore = nameScore < 0 && pyScore < 0 ? matchScore(query, s.entity_id) : -1
+    const score = Math.max(nameScore, pyScore, idScore * 0.6) // id 命中权重低于姓名/拼音
     if (score < 0) continue
-    const subtitleParts = [`分数 ${s.score}`]
+    const subtitleParts = [tr('palette.score', { score: s.score })]
     if (s.class_id) subtitleParts.push(s.class_id)
     out.push({
       id: `student:${s.entity_id}`,
@@ -89,14 +92,15 @@ export function searchClasses(query: string, classes: ClassEntity[]): PaletteRes
   const out: PaletteResult[] = []
   for (const c of classes) {
     const nameScore = matchScore(query, c.name)
-    const idScore = nameScore < 0 ? matchScore(query, c.class_id) : -1
-    const score = Math.max(nameScore, idScore * 0.6)
+    const pyScore = nameScore < 0 ? pinyinScore(query, c.name) : -1
+    const idScore = nameScore < 0 && pyScore < 0 ? matchScore(query, c.class_id) : -1
+    const score = Math.max(nameScore, pyScore, idScore * 0.6)
     if (score < 0) continue
     out.push({
       id: `class:${c.class_id}`,
       kind: 'class',
       title: c.name,
-      subtitle: `${c.class_id}${c.archived ? ' · 已存档' : ''}`,
+      subtitle: `${c.class_id}${c.archived ? ` · ${tr('palette.archived', {})}` : ''}`,
       score,
       target: `/classes?class_id=${encodeURIComponent(c.class_id)}`,
     })
@@ -109,8 +113,9 @@ export function searchAgents(query: string, agents: AgentListItem[]): PaletteRes
   const out: PaletteResult[] = []
   for (const a of agents) {
     const nameScore = matchScore(query, a.name)
-    const descScore = nameScore < 0 ? matchScore(query, a.description) * 0.5 : -1
-    const score = Math.max(nameScore, descScore)
+    const pyScore = nameScore < 0 ? pinyinScore(query, a.name) : -1
+    const descScore = nameScore < 0 && pyScore < 0 ? matchScore(query, a.description) * 0.5 : -1
+    const score = Math.max(nameScore, pyScore, descScore)
     if (score < 0) continue
     out.push({
       id: `agent:${a.id}`,
@@ -150,7 +155,7 @@ export function buildEventResults(events: EAAEventRecord[]): PaletteResult[] {
     id: `event:${e.event_id}`,
     kind: 'event' as const,
     title: e.name,
-    subtitle: `${e.reason_code}${e.score_delta >= 0 ? '+' : ''}${e.score_delta} · ${e.timestamp.slice(0, 10)}${e.is_valid ? '' : ' · 已撤销'}`,
+    subtitle: `${e.reason_code}${e.score_delta >= 0 ? '+' : ''}${e.score_delta} · ${e.timestamp.slice(0, 10)}${e.is_valid ? '' : ` · ${tr('palette.revoked', {})}`}`,
     score: 60, // 异步事件结果排在本地实体之后
     target: `/students?entity_id=${encodeURIComponent(e.entity_id)}`,
   }))

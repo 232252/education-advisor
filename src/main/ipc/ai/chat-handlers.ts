@@ -12,6 +12,8 @@ import type { StreamEvent } from '@shared/types'
 import { type BrowserWindow, ipcMain } from 'electron'
 import { isAutoAnonymizeEnabled, PrivacyGuard } from '../../services/agent/privacy-guard'
 import { piAIService } from '../../services/pi-ai-service'
+import { createDeltaBatcher } from '../../services/stream-batcher'
+import { errText } from '../../utils/err-text'
 import { chatState } from './state'
 
 export function registerAIChatHandlers(win: BrowserWindow): void {
@@ -49,7 +51,7 @@ export function registerAIChatHandlers(win: BrowserWindow): void {
           privacyGuard = await PrivacyGuard.create()
         } catch (err) {
           chatState.activeChatCount = Math.max(0, chatState.activeChatCount - 1)
-          const message = err instanceof Error ? err.message : String(err)
+          const message = errText(err)
           sendToRenderer({
             type: 'error',
             message: `隐私脱敏初始化失败: ${message}`,
@@ -81,11 +83,16 @@ export function registerAIChatHandlers(win: BrowserWindow): void {
 
           const deanon = privacyGuard?.createStreamDeanonymizer()
           let sawDone = false
+          // text_delta 攒批推送(33ms 窗口,见 services/stream-batcher.ts) —
+          // 此前对每个 SSE chunk 单独 send,长回复的 IPC send 是千级
+          const deltaBatcher = createDeltaBatcher((merged) => {
+            sendToRenderer({ type: 'text_delta', delta: merged })
+          })
           for await (const event of stream) {
             if (deanon && event.type === 'text_delta') {
               const restored = deanon.push(event.delta)
               if (restored) {
-                sendToRenderer({ type: 'text_delta', delta: restored })
+                deltaBatcher.push(restored)
               }
               if (event.type === 'text_delta') continue
             }
@@ -94,19 +101,21 @@ export function registerAIChatHandlers(win: BrowserWindow): void {
               sawDone = true
               if (deanon) {
                 const rest = deanon.flush()
-                if (rest) sendToRenderer({ type: 'text_delta', delta: rest })
+                if (rest) deltaBatcher.push(rest)
               }
+              deltaBatcher.flush() // done 前补齐缓冲,保持事件顺序
             }
             sendToRenderer(event)
           }
           if (deanon && !sawDone) {
             const rest = deanon.flush()
-            if (rest) sendToRenderer({ type: 'text_delta', delta: rest })
+            if (rest) deltaBatcher.push(rest)
           }
+          deltaBatcher.flush() // 流结束补尾,防最后窗口内的文本丢失
         } catch (err: unknown) {
           sendToRenderer({
             type: 'error',
-            message: err instanceof Error ? err.message : String(err),
+            message: errText(err),
             retryable: false,
           })
         } finally {

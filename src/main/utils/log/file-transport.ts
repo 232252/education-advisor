@@ -16,7 +16,7 @@ import { loggerState } from './state'
 export const ROTATE_CHECK_INTERVAL = 100
 
 /** 日志流类型 */
-export type LogStream = 'main' | 'chat' | 'renderer'
+type LogStream = 'main' | 'chat' | 'renderer'
 
 export function ensureDir(): void {
   try {

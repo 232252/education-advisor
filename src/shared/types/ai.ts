@@ -26,6 +26,8 @@ export interface ModelInfo {
   costCacheRead: number
   costCacheWrite: number
   supportsReasoning: boolean
+  /** 支持图像输入(视觉模型;试卷批改等场景的过滤依据) */
+  supportsImage?: boolean
   baseUrl: string
   isCustom?: boolean
 }
@@ -62,7 +64,7 @@ type StreamEventBase =
 export type StreamEvent = StreamEventBase & { sessionId?: string }
 
 /** 重试策略信息(从 settings.models.retry.* 读,附在 error 事件上供渲染端展示) */
-export interface RetryPolicyInfo {
+interface RetryPolicyInfo {
   enabled: boolean
   maxRetries: number
   baseDelayMs: number
