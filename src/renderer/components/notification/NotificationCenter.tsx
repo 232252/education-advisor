@@ -20,14 +20,16 @@ export function NotificationCenter() {
   const unread = useNotificationStore(selectUnreadCount)
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   // 点击外部关闭 / Esc 关闭
+  // 面板经 portal 挂到 body,必须同时判断铃铛容器与面板本身
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+      const target = e.target as Node
+      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return
+      setOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
@@ -63,10 +65,14 @@ export function NotificationCenter() {
         )}
       </button>
 
-      {/* 弹出面板 — 锚定在铃铛右侧,打开时懒挂载 */}
+      {/* 弹出面板 — portal 到 body,贴侧栏右缘;打开时懒挂载 */}
       {open && (
         <Suspense fallback={null}>
-          <NotificationPanel onClose={() => setOpen(false)} />
+          <NotificationPanel
+            onClose={() => setOpen(false)}
+            anchorRef={rootRef}
+            panelRef={panelRef}
+          />
         </Suspense>
       )}
     </div>
