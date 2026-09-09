@@ -6,7 +6,16 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 import { safeExecute } from './sanitize'
-import { assertEaaSuccess, nameParam, textResult } from './shared'
+import { sanitizeClassId } from '../../../utils/sanitize'
+import { classService } from '../../class-service'
+import { assertEaaSuccess, textResult } from './shared'
+
+const addStudentParams = Type.Object({
+  name: Type.String({ description: '学生姓名' }),
+  classId: Type.Optional(
+    Type.String({ description: '班级编号（如 G10-4）。提供则添加后立即分入该班' }),
+  ),
+})
 
 // =============================================================
 // GAP-1 补全：以下工具让 Agent 覆盖渲染端已有的数据操作能力
@@ -34,14 +43,30 @@ const deleteStudentParams = Type.Object({
 // =============================================================
 // 10. 添加新学生
 // =============================================================
-export const addStudentTool: AgentTool<typeof nameParam> = {
+export const addStudentTool: AgentTool<typeof addStudentParams> = {
   name: 'eaa_add_student',
   label: '添加学生',
-  description: '在操行系统中注册一名新学生',
-  parameters: nameParam,
+  description:
+    '在操行系统中注册一名新学生。可选 classId 立即分班。多名学生请用 eaa_import_students，不要逐人调用。',
+  parameters: addStudentParams,
   execute: async (_toolCallId, params, signal) => {
     const result = await safeExecute('add-student', [params.name], [], signal)
     assertEaaSuccess(result, '添加学生失败')
+    if (params.classId) {
+      const classId = sanitizeClassId(params.classId)
+      const exists = classService.list().some((c) => c.class_id === classId)
+      if (!exists) {
+        throw new Error(`学生已添加，但班级 "${classId}" 不存在。请先 eaa_create_class`)
+      }
+      const meta = await safeExecute(
+        'set-student-meta',
+        [params.name],
+        ['--class-id', classId],
+        signal,
+      )
+      assertEaaSuccess(meta, '学生已添加但分班失败')
+      return textResult(`学生已添加并分入 ${classId}: ${params.name}`)
+    }
     return textResult(`学生已添加: ${params.name}`)
   },
 }

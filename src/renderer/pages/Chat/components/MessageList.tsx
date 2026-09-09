@@ -82,7 +82,7 @@ export const MessageList = memo(function MessageList({
     <div
       ref={scrollContainerRef}
       onScroll={onUserScroll}
-      className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/30 dark:bg-transparent"
+      className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-6 py-4 space-y-4 bg-gray-50/30 dark:bg-transparent"
     >
       {messages.length === 0 && (
         <EmptyState

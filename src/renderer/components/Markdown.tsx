@@ -120,6 +120,22 @@ function MarkdownImpl({ content, className }: MarkdownProps) {
               </a>
             )
           },
+          table({ children, ...props }) {
+            return (
+              <div className="my-2 max-w-full overflow-x-auto">
+                <table className="w-full text-xs border-collapse" {...props}>
+                  {children}
+                </table>
+              </div>
+            )
+          },
+          pre({ children, ...props }) {
+            return (
+              <pre className="my-2 max-w-full overflow-x-auto" {...props}>
+                {children}
+              </pre>
+            )
+          },
         }}
       >
         {content}

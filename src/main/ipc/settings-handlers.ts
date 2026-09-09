@@ -27,6 +27,11 @@ import { handleIpc } from './handle'
  */
 const settingsGetCache = new TtlLruCache<UnifiedSettings>({ ttlMs: 2_000, maxEntries: 4 })
 
+/** 出厂重置后让 settings:get 不再返回旧快照 */
+export function invalidateSettingsGetCache(): void {
+  settingsGetCache.clear()
+}
+
 /**
  * 枚举字段校验表 (Bug R28-1 修复)
  * 对 UI 中使用 <select> 组件的字段,限制为合法的枚举值。

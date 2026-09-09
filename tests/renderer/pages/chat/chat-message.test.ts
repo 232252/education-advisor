@@ -4,7 +4,7 @@
 // =============================================================
 
 import { describe, expect, it } from 'vitest'
-import { toAgentHistory } from '../../../../src/renderer/pages/Chat/lib/chat-message'
+import { buildFinalText, toAgentHistory } from '../../../../src/renderer/pages/Chat/lib/chat-message'
 import type { ChatMessage } from '../../../../src/shared/types'
 
 function msg(partial: Partial<ChatMessage> & { role: ChatMessage['role'] }): ChatMessage {
@@ -107,5 +107,41 @@ describe('toAgentHistory', () => {
     // '{"content":"}' 前缀占 12 字符,120 - 12 = 108 个 y 后截断
     expect(out[0].content).toContain(`${'y'.repeat(108)}…`)
     expect(out[0].content).not.toContain('y'.repeat(120))
+  })
+})
+
+describe('buildFinalText', () => {
+  it('无附件时原样返回', () => {
+    expect(buildFinalText('你好', [])).toBe('你好')
+  })
+
+  it('Excel 只注入绝对路径，不灌 base64', () => {
+    const out = buildFinalText('录入系统', [
+      {
+        name: '4班.xlsx',
+        path: 'C:\\Users\\me\\Downloads\\4班.xlsx',
+        size: 4096,
+        content: 'UEsDB fake-zip-bytes',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      },
+    ])
+    expect(out).toContain('read_excel')
+    expect(out).toContain('C:\\Users\\me\\Downloads\\4班.xlsx')
+    expect(out).not.toContain('UEsDB')
+    expect(out).not.toContain('<untrusted_file_content>')
+  })
+
+  it('文本附件仍注入内容定界', () => {
+    const out = buildFinalText('看看', [
+      {
+        name: 'note.txt',
+        path: 'C:\\tmp\\note.txt',
+        size: 4,
+        content: 'hello',
+        mimeType: 'text/plain',
+      },
+    ])
+    expect(out).toContain('<untrusted_file_content>')
+    expect(out).toContain('hello')
   })
 })

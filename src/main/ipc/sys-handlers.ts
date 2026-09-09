@@ -6,9 +6,11 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import * as IPC from '@shared/ipc-channels'
 import { app, type BrowserWindow, dialog, ipcMain } from 'electron'
+import { factoryResetAll } from '../services/factory-reset'
 import { updateService } from '../services/update-service'
 import { validatePathSafety } from '../utils/sanitize'
 import { handleIpc } from './handle'
+import { invalidateSettingsGetCache } from './settings-handlers'
 
 export function registerSysHandlers(win: BrowserWindow) {
   // M31: 更新下载进度推送 (参考 ollama:pull-progress 模式:
@@ -128,6 +130,17 @@ export function registerSysHandlers(win: BrowserWindow) {
     return { success: true }
   })
 
+  // 出厂重置: 清空班级/学生/对话/成绩/记忆/密钥/设置。调用方随后 relaunch。
+  handleIpc(
+    IPC.IPC_SYS_FACTORY_RESET,
+    async () => {
+      await factoryResetAll()
+      invalidateSettingsGetCache()
+      return { success: true }
+    },
+    (msg) => ({ success: false, error: msg }),
+  )
+
   // 读取文件内容 — 用于 ChatPage 文件上传
   // 安全限制:
   //   1. 文件大小上限 10MB (避免内存爆炸)
@@ -176,6 +189,8 @@ export function registerSysHandlers(win: BrowserWindow) {
       '.sh': 'text/x-shellscript',
       '.sql': 'text/x-sql',
       '.log': 'text/plain',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.xls': 'application/vnd.ms-excel',
       '.pdf': 'application/pdf',
       '.png': 'image/png',
       '.jpg': 'image/jpeg',
