@@ -32,6 +32,7 @@ import { AddEventInline } from './components'
 import { useAgentAnalysis } from './hooks/useAgentAnalysis'
 import { useStudentProfileData } from './hooks/useStudentProfileData'
 import { type EventScoreFilter, type EventTimeRange, filterEvents } from './lib/event-filters'
+import type { StudentProfileTabId } from './lib/profile-tabs'
 
 // 6 个选项卡懒加载: 同一时刻仅渲染一个 tab,静态全量打包使 StudentsPage
 // 成最大页面 chunk(103KB);lazy 后首开档案只载 overview,切 tab 毫秒级取chunk
@@ -54,11 +55,13 @@ interface StudentProfileProps {
   student: EAAStudent
   onClose: () => void
   onRefresh: () => void
+  /** URL 定位时打开指定选项卡（如 tab=ai） */
+  initialTab?: StudentProfileTabId
 }
 
-type TabId = 'overview' | 'profile' | 'events' | 'academics' | 'ai' | 'home_school'
+type TabId = StudentProfileTabId
 
-export function StudentProfile({ student, onClose, onRefresh }: StudentProfileProps) {
+export function StudentProfile({ student, onClose, onRefresh, initialTab }: StudentProfileProps) {
   const { t } = useT()
   // 模块级常量 — StudentProfile 的 tabs 固定不变
   const STUDENT_PROFILE_TABS: Array<{ key: TabId; label: string; icon: LucideIcon }> = [
@@ -73,7 +76,7 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
       icon: MessageCircleHeart,
     },
   ]
-  const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab ?? 'overview')
   // 数据加载接入 Phase 1 useMultiLoader（替代原 loadAllData + currentNameRef stale guard）
   const {
     score,
@@ -265,7 +268,9 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
               }}
             />
           )}
-          {activeTab === 'academics' && <AcademicsTab studentName={student.name} isDark={isDark} />}
+          {activeTab === 'academics' && (
+            <AcademicsTab studentName={student.name} entityId={student.entity_id} isDark={isDark} />
+          )}
           {activeTab === 'ai' && (
             <AIAnalysisTab
               agents={agents}
@@ -278,6 +283,7 @@ export function StudentProfile({ student, onClose, onRefresh }: StudentProfilePr
               message={aiMessage}
               aiSaved={aiSaved}
               onSaveResult={saveAiResult}
+              entityId={student.entity_id}
             />
           )}
           {activeTab === 'home_school' && (

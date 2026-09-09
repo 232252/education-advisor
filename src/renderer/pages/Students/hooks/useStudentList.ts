@@ -23,8 +23,12 @@ import {
   useStudentStore,
 } from '../../../stores/student/store'
 import { toast } from '../../../stores/toastStore'
+import { parseStudentProfileTab, type StudentProfileTabId } from '../lib/profile-tabs'
 
-export function useStudentList(setSelectedStudent: (s: EAAStudent | null) => void) {
+export function useStudentList(
+  setSelectedStudent: (s: EAAStudent | null) => void,
+  onLocateTab?: (tab: StudentProfileTabId | null) => void,
+) {
   const { t } = useT()
   // 共享 store 订阅(原始数据含 Deleted,本页过滤后展示)
   const rawStudents = useStudentStore((s) => s.items)
@@ -102,8 +106,10 @@ export function useStudentList(setSelectedStudent: (s: EAAStudent | null) => voi
       return
     }
     const match = students.find((s) => s.entity_id === targetId)
+    const locateTab = parseStudentProfileTab(searchParams.get('tab'))
     if (match) {
       setSelectedStudent(match)
+      onLocateTab?.(locateTab)
       // 清除 query param,避免刷新或返回时重复选中
       setSearchParams({}, { replace: true })
     } else {
@@ -111,7 +117,7 @@ export function useStudentList(setSelectedStudent: (s: EAAStudent | null) => voi
       setSearchParams({}, { replace: true })
       toast.warning(tr('page.students.locate.notFound', { id: targetId }))
     }
-  }, [students, loading, searchParams, setSearchParams, setSelectedStudent])
+  }, [students, loading, searchParams, setSearchParams, setSelectedStudent, onLocateTab])
 
   // 已存档的班级 class_id 集合（用于默认隐藏这些班级的学生）
   const archivedClassIds = useMemo(

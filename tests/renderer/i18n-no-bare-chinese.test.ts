@@ -46,6 +46,18 @@ const ALLOWLIST_LINE: Record<string, Record<number, string>> = {
     32: '分数段 label 比对',
     33: '分数段 label 比对',
   },
+  'pages/Dashboard/dashboard-academic-stats.ts': {
+    13: '成绩分段数据层 key(与 SCORE_INTERVAL_LABELS 同款,渲染层经 i18n 映射)',
+    14: '成绩分段数据层 key',
+    15: '成绩分段数据层 key',
+    16: '成绩分段数据层 key',
+  },
+  'pages/Chat/lib/chat-message.ts': {
+    84: '上传 Excel 给 Agent 的数据定界提示(非 UI 文案)',
+    85: '上传 Excel 给 Agent 的数据定界提示',
+    86: '上传 Excel 给 Agent 的工具调用说明(非 UI 文案)',
+    87: '上传 Excel 给 Agent 的数据定界提示',
+  },
   'pages/Dashboard/components/RiskDistChartCard.tsx': {
     22: '风险等级枚举名比对选色(数据匹配)',
     33: 'echarts tooltip 模板串,{c} 人 为数值单位',
@@ -67,14 +79,14 @@ const ALLOWLIST_LINE: Record<string, Record<number, string>> = {
     14: '班级名预设数据项(1班~20班)',
   },
   'pages/Students/tabs/AIAnalysisTab.tsx': {
-    49: '解析 AI 输出的分节标题(数据匹配)',
-    50: '解析 AI 输出的分节标题',
-    51: '解析 AI 输出的分节标题',
-    52: '解析 AI 输出的分节标题',
-    109: '对自身 toast 消息文本做成功/失败分流(数据流 hack)',
+    53: '解析 AI 输出的分节标题(数据匹配)',
+    54: '解析 AI 输出的分节标题',
+    55: '解析 AI 输出的分节标题',
+    56: '解析 AI 输出的分节标题',
+    124: '对自身 toast 消息文本做成功/失败分流(数据流 hack)',
   },
   'pages/Students/tabs/ProfileTab.tsx': {
-    86: '对自身 toast 消息文本做成功/失败分流(数据流 hack)',
+    98: '对自身 toast 消息文本做成功/失败分流(数据流 hack)',
   },
   'pages/Students/tabs/EventsTab.tsx': {
     150: '撤销事件写入 EAA 的审计备注(业务数据非 UI 文案)',
