@@ -44,8 +44,8 @@ export const ContextStatusBar = memo(function ContextStatusBar({
   // 颜色: <60% 绿, 60-90% 黄, >90% 红(即将压缩)
   const barColor = pct < 60 ? 'bg-green-500' : pct < thresholdPct ? 'bg-yellow-500' : 'bg-red-500'
   return (
-    <div className="px-6 py-2 border-b border-gray-200/60 dark:border-white/[0.06] bg-gray-50/50 dark:bg-surface-tertiary/50">
-      <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400">
+    <div className="px-6 py-2 border-b border-gray-200/60 dark:border-white/[0.06] bg-gray-50/50 dark:bg-surface-tertiary/50 min-w-0">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="font-medium text-gray-700 dark:text-gray-300">
             {t('page.chat.context.label', '上下文')}
@@ -61,7 +61,9 @@ export const ContextStatusBar = memo(function ContextStatusBar({
         {lastModel && (
           <div className="flex items-center gap-1.5" title={t('page.chat.context.actualModelDesc')}>
             <span>{t('page.chat.context.actualModel', '实际模型')}</span>
-            <span className="font-mono">{lastModel}</span>
+            <span className="font-mono truncate max-w-[14rem]" title={lastModel}>
+              {lastModel}
+            </span>
           </div>
         )}
         {lastUsage && (

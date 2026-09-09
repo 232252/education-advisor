@@ -21,7 +21,7 @@ export function useFileUpload() {
         properties: ['openFile'],
         filters: [
           {
-            name: t('page.chat.upload.filterName', '文本/代码/图片'),
+            name: t('page.chat.upload.filterName', '文本/代码/图片/表格'),
             extensions: [
               'txt',
               'md',
@@ -29,6 +29,8 @@ export function useFileUpload() {
               'yaml',
               'yml',
               'csv',
+              'xlsx',
+              'xls',
               'html',
               'xml',
               'js',

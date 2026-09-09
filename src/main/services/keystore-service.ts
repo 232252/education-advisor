@@ -208,6 +208,19 @@ class KeystoreService {
     return safeStorage.isEncryptionAvailable()
   }
 
+  /** 出厂重置：清空内存缓存并删除 keystore.enc（含 API Key 与飞书密钥） */
+  async clearAll(): Promise<void> {
+    await this._ready
+    this.cache.clear()
+    this._lastError = null
+    try {
+      await fsp.unlink(this.keyStorePath)
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT') throw err
+    }
+  }
+
   /** 优雅关闭：等待所有待写入完成 */
   async flush(): Promise<void> {
     while (this._pendingWrites > 0) {

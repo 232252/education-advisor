@@ -31,4 +31,6 @@ export const sysApi: SysAPI = {
   readFile: (filePath: string) => ipcRenderer.invoke(IPC.IPC_SYS_READ_FILE, filePath),
   // [c] 重启应用(备份恢复后需重启加载数据;调用后进程立即退出)
   restartApp: () => ipcRenderer.invoke(IPC.IPC_SYS_RESTART_APP),
+  // [c] 出厂重置 — UI 层必须二次确认；成功后应 relaunch
+  factoryReset: () => ipcRenderer.invoke(IPC.IPC_SYS_FACTORY_RESET),
 }

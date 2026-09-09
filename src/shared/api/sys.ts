@@ -56,4 +56,6 @@ export interface SysAPI {
   }>
   /** 重启应用(备份恢复后调用;成功后进程立即退出) */
   restartApp: () => Promise<{ success: boolean; error?: string }>
+  /** 出厂重置：清空班级/学生/对话/成绩/记忆/模型密钥/设置。成功后应 relaunch */
+  factoryReset: () => Promise<{ success: boolean; error?: string }>
 }

@@ -34,6 +34,9 @@ import {
   revertEventTool,
   tagTool,
   deleteStudentTool,
+  createClassTool,
+  importStudentsTool,
+  listClassesTool,
 } from '../../src/main/services/eaa-tools'
 
 describe('getToolsByCapability — 通配符', () => {
@@ -79,8 +82,8 @@ describe('getToolsByCapability — 单项 capability', () => {
   it('search → [searchEventsTool]', () => {
     expect(getToolsByCapability(['search'])).toEqual([searchEventsTool])
   })
-  it('list → [listStudentsTool]', () => {
-    expect(getToolsByCapability(['list'])).toEqual([listStudentsTool])
+  it('list → [listStudentsTool, listClassesTool]', () => {
+    expect(getToolsByCapability(['list'])).toEqual([listStudentsTool, listClassesTool])
   })
   it('ranking → [rankingTool]', () => {
     expect(getToolsByCapability(['ranking'])).toEqual([rankingTool])
@@ -94,8 +97,8 @@ describe('getToolsByCapability — 单项 capability', () => {
   it('summary → [summaryTool]', () => {
     expect(getToolsByCapability(['summary'])).toEqual([summaryTool])
   })
-  it('add_student → [addStudentTool]', () => {
-    expect(getToolsByCapability(['add_student'])).toEqual([addStudentTool])
+  it('add_student → [addStudentTool, importStudentsTool]', () => {
+    expect(getToolsByCapability(['add_student'])).toEqual([addStudentTool, importStudentsTool])
   })
   it('range → [rangeTool]', () => {
     expect(getToolsByCapability(['range'])).toEqual([rangeTool])
@@ -111,6 +114,12 @@ describe('getToolsByCapability — 单项 capability', () => {
   })
   it('delete → [deleteStudentTool]', () => {
     expect(getToolsByCapability(['delete'])).toEqual([deleteStudentTool])
+  })
+  it('class → 列班 + 建班', () => {
+    expect(getToolsByCapability(['class'])).toEqual([listClassesTool, createClassTool])
+  })
+  it('import_students → [importStudentsTool]', () => {
+    expect(getToolsByCapability(['import_students'])).toEqual([importStudentsTool])
   })
 })
 
@@ -139,20 +148,28 @@ describe('getToolsByCapability — read / write 分组', () => {
     // P5: read 一并可见 2 个 AI 批改工具(与考试成绩同级敏感度)
     expect(names).toContain('eaa_grading_overview')
     expect(names).toContain('eaa_grading_student')
-    expect(tools.length).toBe(15)
+    expect(names).toContain('eaa_list_classes')
+    expect(tools.length).toBe(16)
   })
 
-  it('write 返回 add_event + add_student + set_student_meta + revert', () => {
+  it('write 返回 add_event + add_student + set_student_meta + revert + 建班/批量导入', () => {
     const tools = getToolsByCapability(['write'])
-    expect(tools).toEqual([addEventTool, addStudentTool, setStudentMetaTool, revertEventTool])
+    expect(tools).toEqual([
+      addEventTool,
+      addStudentTool,
+      setStudentMetaTool,
+      revertEventTool,
+      createClassTool,
+      importStudentsTool,
+    ])
     // 危险的 delete 不在 write 里
     expect(tools).not.toContain(deleteStudentTool)
   })
 
   it('read + write 应去重并合并', () => {
     const tools = getToolsByCapability(['read', 'write'])
-    // read(15,含 3 个考试 + 2 个批改工具) + write(4 个,均不在 read 中) = 19 (不含 delete)
-    expect(tools.length).toBe(19)
+    // read(16) + write(6,均不在 read 中) = 22 (不含 delete)
+    expect(tools.length).toBe(22)
     expect(tools).not.toContain(deleteStudentTool)
   })
 })
@@ -165,7 +182,7 @@ describe('getToolsByCapability — 组合 / 边界', () => {
 
   it('read + 单项 → 去重(单项已在 read 中)', () => {
     const tools = getToolsByCapability(['read', 'ranking'])
-    expect(tools.length).toBe(15) // ranking 已在 read 中,read 共 15 个(含批改 2 个)
+    expect(tools.length).toBe(16) // ranking 已在 read 中,read 共 16 个(含列班)
   })
 
   it('未知 capability → 空数组', () => {
@@ -188,10 +205,13 @@ describe('getToolsByCapability — 组合 / 边界', () => {
 })
 
 describe('allEAATools — 集合完整性', () => {
-  it('应包含全部 19 个安全工具(14 操行 + 3 考试 + 2 批改),且 name 唯一', () => {
-    expect(allEAATools.length).toBe(19)
+  it('应包含全部 22 个安全工具(17 操行含建班导入 + 3 考试 + 2 批改),且 name 唯一', () => {
+    expect(allEAATools.length).toBe(22)
     const names = allEAATools.map((t) => t.name)
-    expect(new Set(names).size).toBe(19)
+    expect(new Set(names).size).toBe(22)
+    expect(names).toContain('eaa_list_classes')
+    expect(names).toContain('eaa_create_class')
+    expect(names).toContain('eaa_import_students')
   })
 
   it('academics capability → 考试成绩 + AI 批改共 5 个只读工具', () => {

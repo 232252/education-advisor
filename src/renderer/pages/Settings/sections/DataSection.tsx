@@ -8,6 +8,7 @@
 import type { UnifiedSettings } from '@shared/types'
 import { useCallback, useEffect, useState } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { ONBOARDING_DONE_KEY } from '../../../components/onboarding/onboarding-done'
 import { useT } from '../../../i18n'
 import { validateCron } from '../../../lib/cron-utils'
 import { getAPI } from '../../../lib/ipc-client'
@@ -35,6 +36,8 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
     Array<{ fileName: string; sizeBytes: number; createdAt: number; kind: 'auto' | 'pre-restore' }>
   >([])
   const [confirmRestore, setConfirmRestore] = useState(false)
+  const [confirmFactoryReset, setConfirmFactoryReset] = useState(false)
+  const [factoryResetting, setFactoryResetting] = useState(false)
   const [pendingDeleteBackup, setPendingDeleteBackup] = useState<string | null>(null)
   const [confirmRestart, setConfirmRestart] = useState(false)
   // M33: 备份计划 cron 表达式本地编辑态(非法中间态不落盘,合法才 onSave)
@@ -110,6 +113,29 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
       toast.error(t('toast.backup.restoreFailed', '恢复失败'))
     } finally {
       setRestoring(false)
+    }
+  }
+
+  const executeFactoryReset = async () => {
+    setFactoryResetting(true)
+    try {
+      const result = await getAPI().sys.factoryReset()
+      if (!result.success) {
+        toast.error(`${t('settings.factoryReset.failed')}: ${result.error ?? ''}`)
+        return
+      }
+      try {
+        localStorage.removeItem(ONBOARDING_DONE_KEY)
+      } catch {
+        /* ignore */
+      }
+      toast.success(t('settings.factoryReset.done'))
+      void getAPI().sys.restartApp()
+    } catch (err) {
+      console.error('[Settings] factoryReset failed:', err)
+      toast.error(t('settings.factoryReset.failed'))
+    } finally {
+      setFactoryResetting(false)
     }
   }
 
@@ -304,6 +330,23 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
         </button>
       </SettingRow>
 
+      <SettingRow
+        label={t('settings.factoryReset')}
+        path="factoryReset"
+        description={t('settings.factoryReset.desc')}
+      >
+        <button
+          type="button"
+          onClick={() => setConfirmFactoryReset(true)}
+          disabled={factoryResetting}
+          className={`${btnStyle('danger')} text-xs`}
+        >
+          {factoryResetting
+            ? t('settings.factoryReset.done')
+            : t('settings.factoryReset.now')}
+        </button>
+      </SettingRow>
+
       <ConfirmDialog
         open={confirmRestore}
         title={t('settings.backup.restoreConfirmTitle', '从备份恢复')}
@@ -342,6 +385,18 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
           void getAPI().sys.restartApp()
         }}
         onCancel={() => setConfirmRestart(false)}
+      />
+      <ConfirmDialog
+        open={confirmFactoryReset}
+        title={t('settings.factoryReset')}
+        message={t('settings.factoryReset.confirm')}
+        variant="danger"
+        confirmText={t('settings.factoryReset.now')}
+        onConfirm={() => {
+          setConfirmFactoryReset(false)
+          void executeFactoryReset()
+        }}
+        onCancel={() => setConfirmFactoryReset(false)}
       />
     </Section>
   )

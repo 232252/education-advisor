@@ -62,14 +62,31 @@ export interface UploadedFile {
 /** 单文件内容截断上限 (32KB)，避免上下文爆炸 */
 const MAX_FILE_CONTENT_LENGTH = 32 * 1024
 
+const EXCEL_EXT = /\.(xlsx|xls)$/i
+const EXCEL_MIME =
+  /spreadsheet|excel|application\/vnd\.ms-excel|application\/vnd\.openxmlformats-officedocument\.spreadsheetml/i
+
+function isExcelUpload(file: UploadedFile): boolean {
+  return EXCEL_EXT.test(file.name) || EXCEL_EXT.test(file.path) || EXCEL_MIME.test(file.mimeType)
+}
+
 /**
  * 拼接上传文件内容到消息文本。
  * 文件内容以结构化方式注入,让 Agent 能识别文件边界和元信息。
+ * Excel 只注入绝对路径，禁止把 xlsx 的 base64 灌进上下文。
  */
 export function buildFinalText(text: string, uploadedFiles: UploadedFile[]): string {
   if (uploadedFiles.length === 0) return text
   const fileBlocks = uploadedFiles.map((f) => {
     const sizeKb = (f.size / 1024).toFixed(1)
+    if (isExcelUpload(f)) {
+      return (
+        `--- 文件: ${f.name} (${sizeKb}KB, ${f.mimeType}) — Excel 二进制，不要当文本解析 ---\n` +
+        `绝对路径: ${f.path}\n` +
+        `请用 read_excel 读取上述路径（表头/行数据）。身份证号/电话/住址不要写入系统。\n` +
+        `--- 文件结束 ---`
+      )
+    }
     const truncated = f.content.length > MAX_FILE_CONTENT_LENGTH
     const content = truncated ? f.content.slice(0, MAX_FILE_CONTENT_LENGTH) : f.content
     const truncationNote = truncated ? `\n[... 已截断,原始大小 ${sizeKb}KB ...]` : ''

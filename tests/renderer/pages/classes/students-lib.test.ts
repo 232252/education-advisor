@@ -14,6 +14,7 @@ import {
   classNoFromName,
   computeAutoClassId,
   gradeToNumber,
+  inferClassFromLabel,
 } from '../../../../src/renderer/pages/Classes/class-id'
 import { makeStudent as makeStudentBase } from '../../__fixtures__/make'
 
@@ -100,8 +101,14 @@ describe('gradeToNumber', () => {
     expect(gradeToNumber('Grade 8')).toBe('8')
   })
 
-  it('含中文数字即命中: 高一 → 1(按字符匹配)', () => {
-    expect(gradeToNumber('高一')).toBe('1')
+  it('「N班」是班号不是年级', () => {
+    expect(gradeToNumber('3班')).toBeNull()
+  })
+
+  it('高中优先于「一/二/三」: 高一 → 10, 高二 → 11, 高三 → 12', () => {
+    expect(gradeToNumber('高一')).toBe('10')
+    expect(gradeToNumber('高二')).toBe('11')
+    expect(gradeToNumber('高三')).toBe('12')
   })
 
   it('无法识别返回 null(含空字符串)', () => {
@@ -127,9 +134,21 @@ describe('computeAutoClassId', () => {
     expect(computeAutoClassId('七年级', '3班')).toBe('G7-3')
   })
 
+  it('高一4班 → G10-4（年级可从名称推断）', () => {
+    expect(computeAutoClassId('高一', '4班')).toBe('G10-4')
+    expect(computeAutoClassId('', '高一4班')).toBe('G10-4')
+  })
+
   it('年级或班号无法识别返回 null', () => {
     expect(computeAutoClassId('', '3班')).toBeNull()
     expect(computeAutoClassId('七年级', '无数字')).toBeNull()
     expect(computeAutoClassId('Prep', '3班')).toBeNull()
+  })
+})
+
+describe('inferClassFromLabel', () => {
+  it('从花名册标题抽出高一4班 → G10-4', () => {
+    const r = inferClassFromLabel('九龙高级中学高一4班')
+    expect(r).toEqual({ name: '高一4班', grade: '高一', class_id: 'G10-4' })
   })
 })
