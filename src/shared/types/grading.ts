@@ -46,6 +46,16 @@ export interface PaperFile {
   bytes: number
 }
 
+/** 卷面批注框(相对该页宽高的 0–1 比例,供复核台叠字) */
+export interface GradeAnnotationBox {
+  /** 试卷图片页下标(0 起) */
+  page: number
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 /** AI 单题结果(≈ autograding_testcase_data 逐项得分 + 判分依据) */
 export interface AiQuestionResult {
   questionId: string
@@ -56,6 +66,8 @@ export interface AiQuestionResult {
   comment?: string
   /** AI 选用的评分点下标(对应 RubricQuestion.presetMarks) */
   appliedMarks?: number[]
+  /** 错题/评语在卷面上的位置(没有则复核台只在右侧展示) */
+  box?: GradeAnnotationBox
 }
 
 /** AI 批改结果(整份试卷) */
@@ -63,7 +75,12 @@ export interface AiGradeResult {
   questions: AiQuestionResult[]
   totalScore: number
   model: { provider: string; model: string }
-  usage?: { input: number; output: number }
+  usage?: {
+    input: number
+    output: number
+    cacheRead?: number
+    cacheWrite?: number
+  }
   finishedAt: string
 }
 

@@ -34,6 +34,7 @@ vi.mock('../../src/main/services/grading/grading-service', () => ({
 import {
   buildGradingPrompt,
   isVisionModel,
+  parseAnnotationBox,
   parseGradeResponse,
   resolveGradingModelIds,
 } from '../../src/main/services/grading/grading-pipeline'
@@ -117,6 +118,14 @@ describe('parseGradeResponse', () => {
     expect(r.questions[0]?.evidence).toBe('第4题错')
   })
 
+  it('解析卷面 box 并钳制到 [0,1]', () => {
+    const r = parseGradeResponse(
+      '{"questions":[{"questionId":"q-1","score":10,"comment":"计算错","box":{"page":0,"x":0.2,"y":1.5,"w":0.3,"h":0.1}}]}',
+      RUBRIC,
+    )
+    expect(r.questions[0]?.box).toEqual({ page: 0, x: 0.2, y: 1, w: 0.3, h: 0.1 })
+  })
+
   it('剥离 markdown 围栏与前后噪声', () => {
     const r = parseGradeResponse(
       '好的，以下是批改结果：\n```json\n{"questions":[{"questionId":"q-1","score":25},{"questionId":"q-2","score":18}]}\n```\n以上。',
@@ -170,5 +179,26 @@ describe('parseGradeResponse', () => {
     )
     expect(r.questions[0]?.score).toBe(3)
     expect(r.questions[0]?.appliedMarks).toEqual([0, 1])
+  })
+
+  it('解析 box 并钳制到 [0,1];缺字段则丢弃', () => {
+    expect(parseAnnotationBox({ page: 0, x: -0.2, y: 0.5, w: 1.5, h: 0.1 })).toEqual({
+      page: 0,
+      x: 0,
+      y: 0.5,
+      w: 1,
+      h: 0.1,
+    })
+    expect(parseAnnotationBox({ page: 0, x: 0.1, y: 0.1, w: 0, h: 0.2 })).toBeUndefined()
+    expect(parseAnnotationBox({ page: 1.5, x: 0, y: 0, w: 0.2, h: 0.2 })).toBeUndefined()
+    expect(parseAnnotationBox(null)).toBeUndefined()
+  })
+
+  it('parseGradeResponse 保留合法 box', () => {
+    const r = parseGradeResponse(
+      '{"questions":[{"questionId":"q-1","score":10,"box":{"page":0,"x":0.2,"y":0.3,"w":0.4,"h":0.1}}]}',
+      RUBRIC,
+    )
+    expect(r.questions[0]?.box).toEqual({ page: 0, x: 0.2, y: 0.3, w: 0.4, h: 0.1 })
   })
 })

@@ -29,7 +29,10 @@ import {
 import { type AgentRunnerFn, executeCronTask } from './cron/task-executor'
 import {
   isUserTask,
+  persistScheduleOverridesFile,
   persistUserTasksFile,
+  readScheduleOverridesFile,
+  readScheduleOverridesFileSync,
   restoreUserTasksFile,
   syncAgentScheduleTasks,
 } from './cron/task-persistence'
@@ -49,6 +52,10 @@ class CronService {
   private logFilePath: string
   /** 用户任务持久化路径（R87 BUG-1 修复：补齐 cron.user.json 持久化） */
   private userTasksFilePath: string
+  /** 自动任务启用覆盖(agent-schedule-* 在 yaml 同步时会被重建,必须单独记住教师关掉的项) */
+  private scheduleOverridesFilePath: string
+  private scheduleOverrides: Map<string, boolean> = new Map()
+  private scheduleOverridesWriteTimer: NodeJS.Timeout | null = null
   /** 日志写入节流 */
   private logWriteTimer: NodeJS.Timeout | null = null
   /** 待写入的日志缓冲(经 logBufferState 视图由 ./cron/execution.ts 读写;测试直接戳实例字段) */
@@ -68,6 +75,9 @@ class CronService {
   constructor() {
     this.logFilePath = path.join(app.getPath('userData'), 'cron-logs.jsonl')
     this.userTasksFilePath = path.join(app.getPath('userData'), 'cron.user.json')
+    this.scheduleOverridesFilePath = path.join(app.getPath('userData'), 'cron.schedule-overrides.json')
+    // 同步预读覆盖: agentService.init 会立刻 syncSchedules,不能等 loadUserTasks 的 async
+    this.scheduleOverrides = readScheduleOverridesFileSync(this.scheduleOverridesFilePath)
   }
 
   /** 日志缓冲状态视图:字段本体留在实例上(测试直接戳实例 logBuffer 的访问路径),
@@ -78,6 +88,7 @@ class CronService {
 
   /** R87 BUG-1 修复：启动时从 cron.user.json 恢复用户任务（恢复逻辑见 ./cron/task-persistence.ts） */
   async loadUserTasks(): Promise<void> {
+    this.scheduleOverrides = await readScheduleOverridesFile(this.scheduleOverridesFilePath)
     await restoreUserTasksFile(this.userTasksFilePath, {
       addTask: (t) => this.addTask(t),
       tasks: this.tasks,
@@ -99,7 +110,18 @@ class CronService {
     for (const [id, task] of this.tasks) {
       if (isUserTask(id)) userTasks.push(task)
     }
-    await persistUserTasksFile(this.userTasksFilePath, userTasks)
+    await Promise.all([
+      persistUserTasksFile(this.userTasksFilePath, userTasks),
+      persistScheduleOverridesFile(this.scheduleOverridesFilePath, this.scheduleOverrides),
+    ])
+  }
+
+  private persistScheduleOverridesDebounced(): void {
+    if (this.scheduleOverridesWriteTimer) return
+    this.scheduleOverridesWriteTimer = setTimeout(() => {
+      this.scheduleOverridesWriteTimer = null
+      void persistScheduleOverridesFile(this.scheduleOverridesFilePath, this.scheduleOverrides)
+    }, 500)
   }
 
   setMainWindow(win: BrowserWindow) {
@@ -193,6 +215,10 @@ class CronService {
 
     // R87 BUG-1 修复：用户任务状态变更后落盘
     if (isUserTask(id)) this.persistUserTasksDebounced()
+    if (id.startsWith('agent-schedule-')) {
+      this.scheduleOverrides.set(id, enabled)
+      this.persistScheduleOverridesDebounced()
+    }
     return { success: true }
   }
 
@@ -265,6 +291,7 @@ class CronService {
       tasks: this.tasks,
       schedule: (id, task) => this.schedule(id, task),
       unschedule: (id) => this.unschedule(id),
+      enabledOverrides: this.scheduleOverrides,
     })
   }
 
@@ -340,6 +367,10 @@ class CronService {
     if (this.userTasksWriteTimer) {
       clearTimeout(this.userTasksWriteTimer)
       this.userTasksWriteTimer = null
+    }
+    if (this.scheduleOverridesWriteTimer) {
+      clearTimeout(this.scheduleOverridesWriteTimer)
+      this.scheduleOverridesWriteTimer = null
     }
     await Promise.all([this.flushLogs(), this.persistUserTasksNow()])
     for (const [, job] of this.scheduledJobs) {

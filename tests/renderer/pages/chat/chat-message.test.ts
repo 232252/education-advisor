@@ -132,6 +132,23 @@ describe('buildFinalText', () => {
     expect(out).not.toContain('<untrusted_file_content>')
   })
 
+  it('PDF/zip 只注入绝对路径,指引 eaa_grading_from_files', () => {
+    const out = buildFinalText('帮我批改', [
+      {
+        name: '作业.zip',
+        path: 'D:\\papers\\作业.zip',
+        size: 1024,
+        content: 'PK\x03\x04 should-not-appear',
+        mimeType: 'application/zip',
+      },
+    ])
+    expect(out).toContain('eaa_grading_from_files')
+    expect(out).toContain('D:\\papers\\作业.zip')
+    expect(out).toContain('homework_paths')
+    expect(out).not.toContain('should-not-appear')
+    expect(out).not.toContain('<untrusted_file_content>')
+  })
+
   it('文本附件仍注入内容定界', () => {
     const out = buildFinalText('看看', [
       {

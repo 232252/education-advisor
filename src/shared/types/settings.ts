@@ -20,6 +20,11 @@ export interface UnifiedSettings {
     agentTimeoutMins: number
     /** R57-3 H3: cron 任务最大并发数,默认 5 */
     maxConcurrentCronTasks: number
+    /**
+     * 定时任务总开关。false 时所有 cron 触发跳过(手动「立即执行」仍可用)。
+     * 默认 true 兼容旧用户;引导仪可把它关掉以免一上来就烧 Token。
+     */
+    schedulerEnabled: boolean
   }
   models: {
     defaultProvider: string

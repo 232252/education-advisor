@@ -5,7 +5,11 @@
 //     总评 + 生效总分实时合成(override 优先)。
 // =============================================================
 
-import { effectiveQuestionScore, effectiveTotalScore, markScoreFromSelection } from '@shared/grading-helpers'
+import {
+  effectiveQuestionScore,
+  effectiveTotalScore,
+  markScoreFromSelection,
+} from '@shared/grading-helpers'
 import type { GradingTask, TeacherReview } from '@shared/types'
 import { useEffect, useMemo, useState } from 'react'
 import { tr, useT } from '../../../i18n'
@@ -195,14 +199,40 @@ export function ReviewWorkbench({
               {t('page.grading.review.loadingImage')}
             </p>
           ) : (
-            imageUrls.map((url) => (
-              <img
-                key={url.slice(-48)}
-                src={url}
-                alt="paper-scan"
-                className="mx-auto mb-3 max-w-full rounded-lg border border-gray-200 shadow-sm dark:border-white/10"
-              />
-            ))
+            imageUrls.map((url, pageIdx) => {
+              const marks = (paper.ai?.questions ?? []).filter(
+                (q) => q.box && (q.box.page ?? 0) === pageIdx,
+              )
+              return (
+                <div
+                  key={url.slice(-48)}
+                  className="relative mx-auto mb-3 w-full max-w-full overflow-hidden rounded-lg border border-gray-200 shadow-sm dark:border-white/10"
+                >
+                  <img src={url} alt={`paper-scan-${pageIdx + 1}`} className="block w-full" />
+                  {marks.map((q) => {
+                    const box = q.box
+                    if (!box) return null
+                    const title =
+                      task.rubric.find((r) => r.id === q.questionId)?.title ?? q.questionId
+                    const text = q.comment || q.evidence || `${q.score}分`
+                    return (
+                      <div
+                        key={q.questionId}
+                        className="pointer-events-none absolute border border-red-500/80 bg-red-500/10 px-1 py-0.5 text-[10px] leading-tight text-red-700 dark:text-red-200"
+                        style={{
+                          left: `${box.x * 100}%`,
+                          top: `${box.y * 100}%`,
+                          width: `${Math.max(box.w * 100, 8)}%`,
+                          minHeight: `${Math.max(box.h * 100, 4)}%`,
+                        }}
+                      >
+                        <span className="font-semibold">{title}</span> {text}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })
           )}
         </div>
 
@@ -237,7 +267,7 @@ export function ReviewWorkbench({
                         const aiHit = (ai?.appliedMarks ?? []).includes(mi)
                         return (
                           <button
-                            key={`${q.id}-mk-${mi}`}
+                            key={`${q.id}-${m.note}-${m.points}`}
                             type="button"
                             onClick={() => toggleMark(q.id, mi, q.fullMark, q.presetMarks)}
                             title={

@@ -139,7 +139,12 @@ export async function identifyUnassignedPapers(
       const assistant = await completeSimple(
         model,
         { systemPrompt: prompt, messages },
-        { apiKey, maxTokens: Math.min(IDENTIFY_MAX_TOKENS, model.maxTokens || IDENTIFY_MAX_TOKENS) },
+        {
+          apiKey,
+          maxTokens: Math.min(IDENTIFY_MAX_TOKENS, model.maxTokens || IDENTIFY_MAX_TOKENS),
+          cacheRetention: 'short',
+          sessionId: `identify:${taskId}`,
+        },
       )
       const text = (assistant.content ?? [])
         .filter((p): p is { type: 'text'; text: string } => p.type === 'text')

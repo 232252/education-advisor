@@ -28,7 +28,9 @@ interface PapersTableProps {
   onIdentify?: () => void
 }
 
-const IMAGE_FILTERS = [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp'] }]
+const IMAGE_FILTERS = [
+  { name: 'Papers', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'pdf', 'zip'] },
+]
 
 /** 试卷状态 → i18n 键(显式枚举,i18n 静态收集可识别,不用模板动态键) */
 const PAPER_STATUS_KEYS = {
