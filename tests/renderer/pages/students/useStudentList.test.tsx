@@ -186,6 +186,30 @@ describe('useStudentList', () => {
       expect(result.current.students).toHaveLength(2)
     })
 
+    it('带 tab=ai: 选中学生并回传定位 Tab', async () => {
+      const onLocateTab = vi.fn()
+      const setSelectedStudent = vi.fn()
+      renderHook(() => useStudentList(setSelectedStudent, onLocateTab), {
+        wrapper: createWrapper(['/?entity_id=e1&tab=ai']),
+      })
+      await waitFor(() => {
+        expect(setSelectedStudent).toHaveBeenCalledWith(s1)
+      })
+      expect(onLocateTab).toHaveBeenCalledWith('ai')
+    })
+
+    it('非法 tab 回传 null，仍选中学生', async () => {
+      const onLocateTab = vi.fn()
+      const setSelectedStudent = vi.fn()
+      renderHook(() => useStudentList(setSelectedStudent, onLocateTab), {
+        wrapper: createWrapper(['/?entity_id=e1&tab=not-a-tab']),
+      })
+      await waitFor(() => {
+        expect(setSelectedStudent).toHaveBeenCalledWith(s1)
+      })
+      expect(onLocateTab).toHaveBeenCalledWith(null)
+    })
+
     it('entity_id 不存在: toast.warning 提示', async () => {
       const { setSelectedStudent } = setup(['/?entity_id=e-unknown'])
       await waitFor(() => {

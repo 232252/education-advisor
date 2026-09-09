@@ -130,6 +130,7 @@ export function useDashboardFilters({
     setCompareClassB,
     // 派生视图数据
     activeClassList,
+    filteredStudents,
     filteredRanking,
     classStats,
     scoreIntervals,

@@ -1,20 +1,28 @@
 // =============================================================
 // 仪表盘页面 — 编排层
 // 职责：数据 hooks 装配 + 区块组件布局。
-// 纯计算在 dashboard-stats.ts，图表 option 在各图表卡片组件内部构造，
-// 数据加载在 hooks/useDashboardData.ts，筛选/派生在 hooks/useDashboardFilters.ts，
+// 纯计算在 dashboard-stats.ts / dashboard-academic-stats.ts，
+// 图表 option 在各图表卡片组件内部构造，
+// 数据加载在 hooks/useDashboardData.ts + useDashboardAcademicData.ts，
+// 筛选/派生在 hooks/useDashboardFilters.ts，
 // 诊断动作在 hooks/useDashboardActions.ts，展示区块在 components/。
+//
+// 两种视图镜头（操行优先 / 成绩优先）共享页头、班级筛选与系统管理区，
+// 不是「班主任 / 科任」身份切换——班主任也可以切到成绩优先。
 // =============================================================
 
 import { AlertTriangle, RotateCw } from 'lucide-react'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../components/Button'
 import { PageHeader } from '../../components/PageHeader'
 import { PageSkeleton } from '../../components/Skeleton'
+import { useLocalStorage } from '../../hooks/useLocalStorage'
 import { useT } from '../../i18n'
 import { CLASS_FILTER_ALL } from '../../lib/class-filter'
+import { AcademicDashboardBody } from './components/AcademicDashboardBody'
 import { ClassComparisonPanel } from './components/ClassComparisonPanel'
+import { DashboardCardSkeleton } from './components/DashboardCardSkeleton'
 import { DashboardStatsRow } from './components/DashboardStatsRow'
 import { DashboardToolbar } from './components/DashboardToolbar'
 import { DoctorCard } from './components/DoctorCard'
@@ -27,6 +35,8 @@ import { RiskDistChartCard } from './components/RiskDistChartCard'
 import { ScoreDistChartCard } from './components/ScoreDistChartCard'
 import { TagsOverviewCard } from './components/TagsOverviewCard'
 import { ValidateCard } from './components/ValidateCard'
+import { DASHBOARD_LENS_KEY, parseDashboardLens } from './dashboard-lens'
+import { useDashboardAcademicData } from './hooks/useDashboardAcademicData'
 import { useDashboardActions } from './hooks/useDashboardActions'
 import { useDashboardData } from './hooks/useDashboardData'
 import { useDashboardFilters } from './hooks/useDashboardFilters'
@@ -34,7 +44,10 @@ import { useDashboardFilters } from './hooks/useDashboardFilters'
 export function DashboardPage() {
   const { t } = useT()
   const navigate = useNavigate()
-  // 8 路并行数据加载统一交给 useDashboardData（封装 useMultiLoader + IPC 解包）
+  const [storedLens, setStoredLens] = useLocalStorage<string>(DASHBOARD_LENS_KEY, 'conduct')
+  const lens = parseDashboardLens(storedLens)
+  const isGrades = lens === 'grades'
+
   const {
     stats,
     summary,
@@ -49,7 +62,7 @@ export function DashboardPage() {
     readyKeys,
     reload,
   } = useDashboardData()
-  // 班级筛选 / 对比模式状态 + 派生视图数据
+
   const {
     classFilter,
     setClassFilter,
@@ -60,6 +73,7 @@ export function DashboardPage() {
     compareClassB,
     setCompareClassB,
     activeClassList,
+    filteredStudents,
     filteredRanking,
     classStats,
     scoreIntervals,
@@ -70,7 +84,10 @@ export function DashboardPage() {
     compareDataA,
     compareDataB,
   } = useDashboardFilters({ classList, allStudents, ranking, allEvents })
-  // 系统管理 & 诊断动作（doctor / validate / replay / 导出 HTML）
+
+  const studentNames = useMemo(() => filteredStudents.map((s) => s.name), [filteredStudents])
+  const academic = useDashboardAcademicData({ enabled: isGrades, studentNames })
+
   const {
     doctorData,
     doctorRunning,
@@ -82,7 +99,6 @@ export function DashboardPage() {
     exportHtmlDashboard,
   } = useDashboardActions()
 
-  // 记录失败的部分到控制台,便于调试（与原 loadData 行为一致：仅 console.warn，不弹 toast）
   useEffect(() => {
     if (!loading && Object.keys(errors).length > 0) {
       const failed = Object.keys(errors)
@@ -90,25 +106,29 @@ export function DashboardPage() {
     }
   }, [loading, errors])
 
-  // M5: 部分失败派生值 — 告警条展示失败源名称(如 stats/ranking),给重试提供上下文
-  const failedSources = Object.keys(errors).join(', ')
-  const failedCount = Object.keys(errors).length
+  const failedSources = [
+    ...Object.keys(errors),
+    ...(isGrades ? Object.keys(academic.errors) : []),
+  ].join(', ')
+  const failedCount =
+    Object.keys(errors).length + (isGrades ? Object.keys(academic.errors).length : 0)
 
-  // 手动刷新：重新加载数据（Electron 版本无 invalidateCache，直接 reload）
   const handleRefresh = useCallback(() => {
     reload()
-  }, [reload])
+    if (isGrades) academic.reload()
+  }, [reload, isGrades, academic.reload])
 
-  // 渐进渲染(流畅度 2026-09-02): 核心快源就绪即出页面,不再等 8 路全屏障 —
-  // 慢源(ranking 全量排行 / allEvents 180 天 range)由对应卡片先出骨架占位
   const CORE_KEYS = ['stats', 'summary', 'allStudents', 'classList', 'tagData', 'eaaInfo'] as const
-  const coreReady = CORE_KEYS.every((k) => readyKeys.has(k))
+  const GRADES_CORE_KEYS = ['allStudents', 'classList'] as const
+  const coreReady = isGrades
+    ? GRADES_CORE_KEYS.every((k) => readyKeys.has(k))
+    : CORE_KEYS.every((k) => readyKeys.has(k))
   if (!coreReady) {
     return (
       <div className="h-full overflow-y-auto bg-canvas">
         <PageHeader
           title={t('page.dashboard.title')}
-          subtitle={t('page.dashboard.subtitle')}
+          subtitle={isGrades ? t('page.dashboard.subtitle.grades') : t('page.dashboard.subtitle')}
           size="md"
         />
         <PageSkeleton />
@@ -122,7 +142,7 @@ export function DashboardPage() {
     <div className="h-full overflow-y-auto bg-canvas">
       <PageHeader
         title={t('page.dashboard.title')}
-        subtitle={t('page.dashboard.subtitle')}
+        subtitle={isGrades ? t('page.dashboard.subtitle.grades') : t('page.dashboard.subtitle')}
         size="md"
         actions={
           <DashboardToolbar
@@ -132,11 +152,18 @@ export function DashboardPage() {
             compareMode={compareMode}
             onCompareModeToggle={() => setCompareMode(!compareMode)}
             onRefresh={handleRefresh}
+            lens={lens}
+            onLensChange={setStoredLens}
+            exams={academic.exams}
+            examId={academic.examId}
+            onExamIdChange={academic.setExamId}
+            subjects={academic.subjects}
+            subjectId={academic.subjectId}
+            onSubjectIdChange={academic.setSubjectId}
           />
         }
       />
       <div className="p-6 space-y-6">
-        {/* M5 修复: 部分数据源加载失败时显示告警条(此前仅 console.warn,用户看到空图无从分辨) */}
         {failedCount > 0 && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300/60 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 px-4 py-2.5">
             <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
@@ -157,69 +184,82 @@ export function DashboardPage() {
           </div>
         )}
 
-        {/* 班级对比模式: 显示对比表格 */}
-        {compareMode && (
-          <ClassComparisonPanel
-            classComparison={classComparison}
-            activeClassList={activeClassList}
-            compareClassA={compareClassA}
-            compareClassB={compareClassB}
-            onCompareClassAChange={setCompareClassA}
-            onCompareClassBChange={setCompareClassB}
-            compareDataA={compareDataA}
-            compareDataB={compareDataB}
-          />
-        )}
-
-        {/* 概览卡片 — 按班级筛选时显示班级数据(eventCount 依赖慢源 allEvents,未就绪先出骨架) */}
-        {readyKeys.has('allEvents') ? (
-          <DashboardStatsRow
-            isAllClasses={classFilter === CLASS_FILTER_ALL}
-            studentCount={classStats.total}
-            eventCount={classPeriodSummary.events.total}
-            revokedCount={s?.reverted_events ?? 0}
-            scoreChange={
-              classFilter === CLASS_FILTER_ALL
-                ? (s?.total_delta?.toFixed(1) ?? '-')
-                : classStats.avgScore.toFixed(1)
-            }
-            highRiskCount={classStats.highRisk}
+        {isGrades ? (
+          <AcademicDashboardBody
+            students={filteredStudents}
+            exams={academic.exams}
+            subjects={academic.subjects}
+            examId={academic.examId}
+            subjectId={academic.subjectId}
+            classGrades={academic.classGrades}
+            catalogReady={academic.catalogReady}
+            gradesReady={academic.gradesReady}
           />
         ) : (
-          <CardSkeleton />
+          <>
+            {compareMode && (
+              <ClassComparisonPanel
+                classComparison={classComparison}
+                activeClassList={activeClassList}
+                compareClassA={compareClassA}
+                compareClassB={compareClassB}
+                onCompareClassAChange={setCompareClassA}
+                onCompareClassBChange={setCompareClassB}
+                compareDataA={compareDataA}
+                compareDataB={compareDataB}
+              />
+            )}
+
+            {readyKeys.has('allEvents') ? (
+              <DashboardStatsRow
+                isAllClasses={classFilter === CLASS_FILTER_ALL}
+                studentCount={classStats.total}
+                eventCount={classPeriodSummary.events.total}
+                revokedCount={s?.reverted_events ?? 0}
+                scoreChange={
+                  classFilter === CLASS_FILTER_ALL
+                    ? (s?.total_delta?.toFixed(1) ?? '-')
+                    : classStats.avgScore.toFixed(1)
+                }
+                highRiskCount={classStats.highRisk}
+              />
+            ) : (
+              <DashboardCardSkeleton />
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <ScoreDistChartCard
+                scoreIntervals={scoreIntervals}
+                sortedScoreKeys={sortedScoreKeys}
+              />
+              <RiskDistChartCard riskDistribution={classStats.riskDistribution} />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {readyKeys.has('allEvents') ? (
+                <ReasonDistCard items={classReasonDist} />
+              ) : (
+                <DashboardCardSkeleton />
+              )}
+              {readyKeys.has('ranking') ? (
+                <RankingCard
+                  items={filteredRanking}
+                  onSelectStudent={(entityId) =>
+                    navigate(`/students?entity_id=${encodeURIComponent(entityId)}`)
+                  }
+                />
+              ) : (
+                <DashboardCardSkeleton />
+              )}
+              {readyKeys.has('allEvents') ? (
+                <PeriodSummaryCard data={classPeriodSummary} period={summary?.period} />
+              ) : (
+                <DashboardCardSkeleton />
+              )}
+            </div>
+          </>
         )}
 
-        {/* 图表区 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ScoreDistChartCard scoreIntervals={scoreIntervals} sortedScoreKeys={sortedScoreKeys} />
-          <RiskDistChartCard riskDistribution={classStats.riskDistribution} />
-        </div>
-
-        {/* 下半部分 — ReasonDist/PeriodSummary 依赖慢源 allEvents,Ranking 依赖全量排行 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {readyKeys.has('allEvents') ? (
-            <ReasonDistCard items={classReasonDist} />
-          ) : (
-            <CardSkeleton />
-          )}
-          {readyKeys.has('ranking') ? (
-            <RankingCard
-              items={filteredRanking}
-              onSelectStudent={(entityId) =>
-                navigate(`/students?entity_id=${encodeURIComponent(entityId)}`)
-              }
-            />
-          ) : (
-            <CardSkeleton />
-          )}
-          {readyKeys.has('allEvents') ? (
-            <PeriodSummaryCard data={classPeriodSummary} period={summary?.period} />
-          ) : (
-            <CardSkeleton />
-          )}
-        </div>
-
-        {/* 系统管理 & 诊断 */}
         <div>
           <div className="flex items-center gap-2 mb-4">
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
@@ -234,19 +274,11 @@ export function DashboardPage() {
           <ValidateCard data={validateData} running={validateRunning} onRun={runValidate} />
         </div>
 
-        {/* 标签概览 + 操作按钮区 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <TagsOverviewCard tagData={tagData} />
           <MaintenanceActionsCard onReplay={replayEvents} onExportHtml={exportHtmlDashboard} />
         </div>
       </div>
     </div>
-  )
-}
-
-/** 慢源数据未就绪时的卡片级骨架占位(渐进渲染配套) */
-function CardSkeleton() {
-  return (
-    <div className="h-48 rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white/70 dark:bg-surface-tertiary/70 animate-pulse" />
   )
 }
