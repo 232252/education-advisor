@@ -4,6 +4,7 @@
 
 export { useAutoDismiss } from './useAutoDismiss'
 export { type ChartTheme, useChartTheme } from './useChartTheme'
+export { useChatAgentBridge } from './useChatAgentBridge'
 export { useConfirmDialog } from './useConfirmDialog'
 export { useDebounce } from './useDebounce'
 export { useDebouncedCallback } from './useDebouncedCallback'
