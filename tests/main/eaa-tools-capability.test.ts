@@ -37,6 +37,8 @@ import {
   createClassTool,
   importStudentsTool,
   listClassesTool,
+  gradingFromFilesTool,
+  gradingPublishTool,
 } from '../../src/main/services/eaa-tools'
 
 describe('getToolsByCapability — 通配符', () => {
@@ -161,6 +163,8 @@ describe('getToolsByCapability — read / write 分组', () => {
       revertEventTool,
       createClassTool,
       importStudentsTool,
+      gradingFromFilesTool,
+      gradingPublishTool,
     ])
     // 危险的 delete 不在 write 里
     expect(tools).not.toContain(deleteStudentTool)
@@ -168,8 +172,11 @@ describe('getToolsByCapability — read / write 分组', () => {
 
   it('read + write 应去重并合并', () => {
     const tools = getToolsByCapability(['read', 'write'])
-    // read(16) + write(6,均不在 read 中) = 22 (不含 delete)
-    expect(tools.length).toBe(22)
+    // read(16) + write(8,其中 6 个不在 read 中: add_event 等 4 个已在? wait)
+    // write 8 个: addEvent 不在 read, addStudent 不在, setMeta 不在, revert 不在,
+    // createClass 不在, importStudents 不在, gradingFromFiles 不在, gradingPublish 不在
+    // → 16 + 8 = 24
+    expect(tools.length).toBe(24)
     expect(tools).not.toContain(deleteStudentTool)
   })
 })
@@ -205,13 +212,12 @@ describe('getToolsByCapability — 组合 / 边界', () => {
 })
 
 describe('allEAATools — 集合完整性', () => {
-  it('应包含全部 22 个安全工具(17 操行含建班导入 + 3 考试 + 2 批改),且 name 唯一', () => {
-    expect(allEAATools.length).toBe(22)
+  it('应包含全部 24 个安全工具(17 操行含建班导入 + 3 考试 + 2 批改读 + 2 批改写),且 name 唯一', () => {
+    expect(allEAATools.length).toBe(24)
     const names = allEAATools.map((t) => t.name)
-    expect(new Set(names).size).toBe(22)
-    expect(names).toContain('eaa_list_classes')
-    expect(names).toContain('eaa_create_class')
-    expect(names).toContain('eaa_import_students')
+    expect(new Set(names).size).toBe(24)
+    expect(names).toContain('eaa_grading_from_files')
+    expect(names).toContain('eaa_grading_publish')
   })
 
   it('academics capability → 考试成绩 + AI 批改共 5 个只读工具', () => {
@@ -229,5 +235,17 @@ describe('allEAATools — 集合完整性', () => {
   it('dangerousEAATools 仅含删除工具', () => {
     expect(dangerousEAATools).toEqual([deleteStudentTool])
     expect(allEAATools).not.toContain(deleteStudentTool)
+  })
+
+  it('grading capability → 读写 4 个批改工具', () => {
+    const names = getToolsByCapability(['grading'])
+      .map((t) => t.name)
+      .sort()
+    expect(names).toEqual([
+      'eaa_grading_from_files',
+      'eaa_grading_overview',
+      'eaa_grading_publish',
+      'eaa_grading_student',
+    ])
   })
 })

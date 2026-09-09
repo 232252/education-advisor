@@ -17,16 +17,18 @@ import {
   type Message,
   type Model,
 } from '@earendil-works/pi-ai/compat'
-import * as IPC from '@shared/ipc-channels'
 import { markScoreFromSelection, type StudentCandidate } from '@shared/grading-helpers'
+import * as IPC from '@shared/ipc-channels'
 import type {
   AiGradeResult,
   AiQuestionResult,
+  GradeAnnotationBox,
   GradingTask,
   RubricQuestion,
   UnifiedSettings,
 } from '@shared/types'
 import type { BrowserWindow } from 'electron'
+import { invalidateOnExamsWrite, invalidateOnGradesWrite } from '../../ipc/academic/cache'
 import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import { keystoreService } from '../keystore-service'
@@ -111,12 +113,13 @@ export function buildGradingPrompt(rubric: RubricQuestion[]): string {
     '',
     '输出格式（questions 数组必须覆盖量规中的每一个题目 id）:',
     hasMarks
-      ? '{"questions":[{"questionId":"q-1","score":25,"marks":[0,1],"evidence":"依据：学生第4题答案与评分标准…","comment":"评语(可选)"}]}'
-      : '{"questions":[{"questionId":"q-1","score":25,"evidence":"依据：学生第4题答案与评分标准…","comment":"评语(可选)"}]}',
+      ? '{"questions":[{"questionId":"q-1","score":25,"marks":[0,1],"evidence":"依据：学生第4题答案与评分标准…","comment":"评语(可选)","box":{"page":0,"x":0.1,"y":0.4,"w":0.35,"h":0.12}}]}'
+      : '{"questions":[{"questionId":"q-1","score":25,"evidence":"依据：学生第4题答案与评分标准…","comment":"评语(可选)","box":{"page":0,"x":0.1,"y":0.4,"w":0.35,"h":0.12}}]}',
     '规则:',
     '- score 为数字，取值 [0, 该题满分]，按评分标准的有效分给分，不要凭空加减',
     '- evidence 引用学生答卷的实际作答内容作为判分依据；字迹不清时保守给分并在 comment 说明',
     '- 全卷未作答的题 score 给 0 并在 comment 标注「未作答」',
+    '- box: 该题在卷面图片上的位置。page 为图片序号(从 0 起); x/y/w/h 为相对该页宽高的比例,取值 [0,1]。扣分或有评语的题必须给 box,便于在卷面上叠字批注',
     ...(hasMarks
       ? [
           '- 有评分点的题目: marks 填选中的评分点序号(可多选); score 必须等于 满分+所选评分点分值之和(钳制到[0,满分])',
@@ -200,6 +203,7 @@ export function parseGradeResponse(
       evidence: typeof r.evidence === 'string' ? r.evidence : undefined,
       comment: typeof r.comment === 'string' ? r.comment : undefined,
       appliedMarks: appliedMarks.length > 0 ? appliedMarks : undefined,
+      box: parseAnnotationBox(r.box),
     })
   }
   if (questions.length === 0) {
@@ -214,17 +218,46 @@ export function parseGradeResponse(
   }
 }
 
+function clamp01(n: number): number {
+  return Math.min(1, Math.max(0, n))
+}
+
+/** 解析卷面批注框;缺字段/非数字则丢弃(评语仍在右侧展示) */
+export function parseAnnotationBox(raw: unknown): GradeAnnotationBox | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const o = raw as Record<string, unknown>
+  const page = Number(o.page)
+  const x = Number(o.x)
+  const y = Number(o.y)
+  const w = Number(o.w)
+  const h = Number(o.h)
+  if (![page, x, y, w, h].every(Number.isFinite)) return undefined
+  if (!Number.isInteger(page) || page < 0 || page > 32) return undefined
+  if (w <= 0 || h <= 0) return undefined
+  return { page, x: clamp01(x), y: clamp01(y), w: clamp01(w), h: clamp01(h) }
+}
+
 /** 从 AssistantMessage 抽取文本与用量 */
 function extractResult(message: AssistantMessage): {
   text: string
-  usage?: { input: number; output: number }
+  usage?: { input: number; output: number; cacheRead?: number; cacheWrite?: number }
 } {
   const text = (message.content ?? [])
     .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
     .map((p) => p.text)
     .join('\n')
   const u = message.usage
-  return { text, usage: u ? { input: u.input, output: u.output } : undefined }
+  return {
+    text,
+    usage: u
+      ? {
+          input: u.input,
+          output: u.output,
+          cacheRead: u.cacheRead || undefined,
+          cacheWrite: u.cacheWrite || undefined,
+        }
+      : undefined,
+  }
 }
 
 /** 读取试卷扫描件为 ImageContent parts */
@@ -278,7 +311,14 @@ async function gradePaperOnce(
   const assistant = await completeSimple(
     model,
     { systemPrompt: buildGradingPrompt(task.rubric), messages },
-    { apiKey, maxTokens: GRADING_MAX_TOKENS, signal },
+    {
+      apiKey,
+      maxTokens: GRADING_MAX_TOKENS,
+      signal,
+      // 同一任务量规不变: 打开短缓存,整班 50–60 份时后续请求应大量 cacheRead
+      cacheRetention: 'short',
+      sessionId: `grading:${task.id}`,
+    },
   )
   if (assistant.stopReason === 'aborted') throw new Error('已中止')
   const { text, usage } = extractResult(assistant)
@@ -301,6 +341,7 @@ export async function startGrading(
   taskId: string,
   win: BrowserWindow | null,
   roster: StudentCandidate[] = [],
+  opts?: { autoPublish?: boolean },
 ): Promise<void> {
   if (activeRuns.has(taskId)) {
     throw new Error('该任务已在批改中')
@@ -353,6 +394,9 @@ export async function startGrading(
     let gradedCount = 0
     let failedCount = 0
     let aborted = false
+    let cacheRead = 0
+    let cacheWrite = 0
+    let inputTokens = 0
     try {
       for (const [i, paper] of targets.entries()) {
         if (controller.signal.aborted) {
@@ -371,6 +415,9 @@ export async function startGrading(
           const result = await gradePaperOnce(task, paper.id, model, apiKey, controller.signal)
           await gradingService.saveAiResult(taskId, paper.id, result)
           gradedCount++
+          inputTokens += result.usage?.input ?? 0
+          cacheRead += result.usage?.cacheRead ?? 0
+          cacheWrite += result.usage?.cacheWrite ?? 0
           pushProgress(win, {
             taskId,
             phase: 'graded',
@@ -408,6 +455,22 @@ export async function startGrading(
           await gradingService.setStatus(taskId, 'ready')
         } else {
           await gradingService.setStatus(taskId, 'review')
+          if (opts?.autoPublish && gradedCount > 0 && !aborted) {
+            try {
+              const published = await gradingService.publishTask(taskId)
+              invalidateOnExamsWrite()
+              invalidateOnGradesWrite(
+                published.task.papers.map((p) => p.studentName ?? '').filter((n) => n.length > 0),
+              )
+              log(
+                'info',
+                'grading',
+                `auto-published: ${taskId} (published=${published.published} skipped=${published.skipped.length})`,
+              )
+            } catch (err) {
+              log('warn', 'grading', `auto-publish failed: ${taskId}: ${errText(err)}`)
+            }
+          }
         }
       } catch (err) {
         log('error', 'grading', `setStatus after grading failed: ${errText(err)}`)
@@ -423,7 +486,7 @@ export async function startGrading(
       log(
         'info',
         'grading',
-        `grading finished: ${taskId} (graded=${gradedCount} failed=${failedCount} aborted=${aborted})`,
+        `grading finished: ${taskId} (graded=${gradedCount} failed=${failedCount} aborted=${aborted} input=${inputTokens} cacheRead=${cacheRead} cacheWrite=${cacheWrite})`,
       )
     }
   })()

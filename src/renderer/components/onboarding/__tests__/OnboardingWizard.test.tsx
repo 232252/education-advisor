@@ -38,6 +38,7 @@ function setupApi(overrides?: Record<string, unknown>) {
     eaa: { addStudent: addStudentMock },
     agent: { list: agentListMock, toggle: agentToggleMock },
     ai: { listProviders: listProvidersMock },
+    settings: { set: vi.fn().mockResolvedValue({ success: true }), get: vi.fn() },
     ...overrides,
   }
 }
@@ -271,11 +272,14 @@ describe('OnboardingWizard — Agent 步骤与完成', () => {
     await waitFor(() => screen.getByText('学情分析师'))
   }
 
-  it('Agent 列表默认全选', async () => {
+  it('Agent 列表默认全选;定时任务默认关闭', async () => {
     await openAgentsStep()
     const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[]
-    expect(boxes).toHaveLength(2)
-    expect(boxes.every((b) => b.checked)).toBe(true)
+    expect(boxes.length).toBeGreaterThanOrEqual(2)
+    expect(boxes[0]?.checked).toBe(true)
+    expect(boxes[1]?.checked).toBe(true)
+    const schedule = boxes[boxes.length - 1]
+    expect(schedule?.checked).toBe(false)
   })
 
   it('取消勾选一个 → 只 toggle 勾选的', async () => {
