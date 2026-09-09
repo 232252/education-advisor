@@ -12,7 +12,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Skill } from '@shared/types'
-import { getAppPaths } from './paths'
+import { errText } from '../utils/err-text'
+import { getAppPaths, resolveResourceDir } from './paths'
 
 class SkillService {
   private userSkillsDir: string
@@ -28,9 +29,7 @@ class SkillService {
     this.userSkillsDir = getAppPaths().userSkillsDir
     // 项目级: resources/skills/ (打包后) 或项目根目录 skills/ (开发)
     // app.isPackaged 在 `electron .` 启动时不可靠，优先检查 dev 路径
-    const devSkillsDir = path.join(__dirname, '..', '..', 'skills')
-    const prodSkillsDir = path.join(process.resourcesPath || '', 'skills')
-    this.projectSkillsDir = fs.existsSync(devSkillsDir) ? devSkillsDir : prodSkillsDir
+    this.projectSkillsDir = resolveResourceDir('skills')
 
     console.log(`[SkillService] Initialized`)
     console.log(`[SkillService]   user dir:   ${this.userSkillsDir}`)
@@ -124,7 +123,7 @@ class SkillService {
       console.log(`[SkillService] Saved skill: ${name}`)
       return { success: true }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       console.error(`[SkillService] Failed to save skill ${name}:`, err)
       return { success: false, error: msg }
     }
@@ -145,7 +144,7 @@ class SkillService {
       }
       return { success: false, error: 'Skill not found or is project-level (read-only)' }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = errText(err)
       console.error(`[SkillService] Failed to delete skill ${name}:`, err)
       return { success: false, error: msg }
     }
@@ -236,7 +235,8 @@ class SkillService {
     const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
     if (fmMatch) {
       const descMatch = fmMatch[1].match(/description:\s*(.+)/)
-      if (descMatch) return descMatch[1].trim()
+      // 限长: 技能描述原样注入 system prompt,不限长时一行恶意/超长描述就是注入点
+      if (descMatch) return descMatch[1].trim().slice(0, 200)
     }
 
     // 回退：取第一行非空非标题文字

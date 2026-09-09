@@ -3,7 +3,7 @@
 // 编排层：组合侧栏/工具栏/消息列表/输入区，持有状态与副作用
 // =============================================================
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
@@ -16,7 +16,7 @@ import { ContextStatusBar } from './components/ContextStatusBar'
 import { MessageList } from './components/MessageList'
 import { SessionSidebar } from './components/SessionSidebar'
 import { useFileUpload } from './hooks/useFileUpload'
-import { buildFinalText } from './lib/chat-message'
+import { buildFinalText, toAgentHistory } from './lib/chat-message'
 
 export function ChatPage() {
   const { t } = useT()
@@ -95,10 +95,12 @@ export function ChatPage() {
   // 直赋值 scrollTop:smooth 动画每 50ms flush 重启会抖动(2026-08-28 流畅度审计)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const followBottomRef = useRef(true)
-  const handleUserScroll = (e: React.UIEvent<HTMLDivElement>) => {
+  // useCallback 稳定化(流畅度审计 2026-09-02): ChatPage 每 50ms 流式 flush 重渲一次,
+  // 内联函数会让 memo 化的 MessageList/Toolbar/Sidebar/ContextStatusBar/Composer 全部击穿
+  const handleUserScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
     followBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-  }
+  }, [])
   // biome-ignore lint/correctness/useExhaustiveDependencies: 触发器式 effect，仅依赖消息变化来执行滚动
   useEffect(() => {
     if (!followBottomRef.current) return
@@ -106,29 +108,51 @@ export function ChatPage() {
     if (el) el.scrollTop = el.scrollHeight
   }, [messages, isStreaming])
 
-  const handleModelSelect = async (provider: string, model: string) => {
-    setModel(provider, model)
-    try {
-      await getAPI().settings.set('models.defaultProvider', provider)
-      await getAPI().settings.set('models.highQualityModel', model)
-    } catch {
-      // R2-14: 保存失败必须可见 — 静默回退会让用户以为已配置,重启后悄悄还原
-      toast.warning(t('toast.settings.saveFailed', '设置保存失败,重启后将恢复上次选择'))
-    }
-  }
+  const handleModelSelect = useCallback(
+    async (provider: string, model: string) => {
+      setModel(provider, model)
+      try {
+        await getAPI().settings.set('models.defaultProvider', provider)
+        await getAPI().settings.set('models.highQualityModel', model)
+      } catch {
+        // R2-14: 保存失败必须可见 — 静默回退会让用户以为已配置,重启后悄悄还原
+        toast.warning(t('toast.settings.saveFailed', '设置保存失败,重启后将恢复上次选择'))
+      }
+    },
+    [setModel, t],
+  )
 
-  const handleThinkingLevelChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-    setThinkingLevel(value)
-    try {
-      // C-1 修复: 写入 chat.thinkingLevel 而非 chat.maxTokens(后者是 number,会被字符串覆盖损坏)
-      await getAPI().settings.set('chat.thinkingLevel', value)
-    } catch {
-      toast.warning(t('toast.settings.saveFailed', '设置保存失败,重启后将恢复上次选择'))
-    }
-  }
+  const handleThinkingLevelChange = useCallback(
+    async (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = e.target.value
+      setThinkingLevel(value)
+      try {
+        // C-1 修复: 写入 chat.thinkingLevel 而非 chat.maxTokens(后者是 number,会被字符串覆盖损坏)
+        await getAPI().settings.set('chat.thinkingLevel', value)
+      } catch {
+        toast.warning(t('toast.settings.saveFailed', '设置保存失败,重启后将恢复上次选择'))
+      }
+    },
+    [setThinkingLevel, t],
+  )
 
-  const handleSend = async () => {
+  /** 回滚"发送即反馈"的乐观态: 移除末尾空气泡并复位流式标志 */
+  const rollbackOptimisticState = useCallback(() => {
+    useChatStore.setState((s) => {
+      const msgs = [...s.messages]
+      const last = msgs[msgs.length - 1]
+      if (last?.role === 'assistant' && !last.content) msgs.pop()
+      return {
+        messages: msgs,
+        isStreaming: false,
+        isThinking: false,
+        streamingAgentId: null,
+        streamSessionId: null,
+      }
+    })
+  }, [])
+
+  const handleSend = useCallback(async () => {
     if (!input.trim() || isStreaming) return
 
     const text = input.trim()
@@ -140,11 +164,9 @@ export function ChatPage() {
     }
 
     // 在添加新消息之前，抓取现有对话历史（用于传给 Agent 做上下文）
+    // toAgentHistory: 透传原始时间戳 + 附带工具结果快照(否则模型无法基于上一轮数据追问)
     const currentMessages = useChatStore.getState().messages
-    const history = currentMessages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }))
+    const history = toAgentHistory(currentMessages)
 
     // 拼接上传文件内容到消息文本
     const finalText = buildFinalText(text, uploadedFiles)
@@ -199,30 +221,25 @@ export function ChatPage() {
       rollbackOptimisticState()
       toast.error(t('toast.agents.runFailed'))
     }
-  }
+  }, [
+    input,
+    isStreaming,
+    selectedAgentId,
+    uploadedFiles,
+    setUploadedFiles,
+    rollbackOptimisticState,
+    t,
+  ])
 
-  /** 回滚"发送即反馈"的乐观态: 移除末尾空气泡并复位流式标志 */
-  const rollbackOptimisticState = () => {
-    useChatStore.setState((s) => {
-      const msgs = [...s.messages]
-      const last = msgs[msgs.length - 1]
-      if (last?.role === 'assistant' && !last.content) msgs.pop()
-      return {
-        messages: msgs,
-        isStreaming: false,
-        isThinking: false,
-        streamingAgentId: null,
-        streamSessionId: null,
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        handleSend()
       }
-    })
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
+    },
+    [handleSend],
+  )
 
   const hasAgent = selectedAgentId
   const canSend = !!hasAgent
@@ -231,12 +248,23 @@ export function ChatPage() {
   const enabledAgents = useMemo(() => agents.filter((a) => a.enabled), [agents])
 
   // 停止按钮的处理
-  const handleStop = () => {
+  const handleStop = useCallback(() => {
     if (selectedAgentId) {
       getAPI().agent.abort(selectedAgentId)
       useChatStore.setState({ isStreaming: false })
     }
-  }
+  }, [selectedAgentId])
+
+  // Composer 占位文本(memo 配套: 引用稳定避免击穿)
+  const composerPlaceholder = useMemo(
+    () =>
+      canSend
+        ? `${t('page.chat.input.sendTo', '向')} ${enabledAgents.find((a) => a.id === selectedAgentId)?.name ?? 'Agent'} ${t('page.chat.input.sendSuffix', '发送指令... (Enter 发送)')}`
+        : t('page.chat.input.loading', '正在加载...'),
+    [canSend, enabledAgents, selectedAgentId, t],
+  )
+
+  const createSessionHandler = useCallback(() => createSession(), [createSession])
 
   return (
     <div className="flex h-full animate-fade-in">
@@ -259,7 +287,7 @@ export function ChatPage() {
       <SessionSidebar
         sessions={sessions}
         currentSessionId={sessionId}
-        onCreateSession={() => createSession()}
+        onCreateSession={createSessionHandler}
         onSwitchSession={switchSession}
         onRequestDelete={setPendingDeleteSessionId}
       />
@@ -293,6 +321,7 @@ export function ChatPage() {
           messages={messages}
           isStreaming={isStreaming}
           canSend={canSend}
+          sessionKey={sessionId}
           messagesEndRef={messagesEndRef}
           scrollContainerRef={scrollContainerRef}
           onUserScroll={handleUserScroll}
@@ -304,11 +333,7 @@ export function ChatPage() {
           onInputChange={setInput}
           inputRef={inputRef}
           onKeyDown={handleKeyDown}
-          placeholder={
-            canSend
-              ? `${t('page.chat.input.sendTo', '向')} ${enabledAgents.find((a) => a.id === selectedAgentId)?.name ?? 'Agent'} ${t('page.chat.input.sendSuffix', '发送指令... (Enter 发送)')}`
-              : t('page.chat.input.loading', '正在加载...')
-          }
+          placeholder={composerPlaceholder}
           isStreaming={isStreaming}
           canSend={canSend}
           uploadedFiles={uploadedFiles}

@@ -24,6 +24,7 @@
 
 import type { ModelInfo, ProviderInfo } from '@shared/types'
 import { useCallback, useRef, useState } from 'react'
+import { tr } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
 
@@ -34,24 +35,21 @@ export function useProviderModelsCache() {
   // 追踪正在加载中的 provider（防止重复请求导致闪烁）
   const inflightRef = useRef<Set<string>>(new Set())
 
-  // 展开 Provider / 切换默认 Provider 时调用:已有缓存或正在加载则跳过
-  // 对应原 handleExpand 的模型拉取分支 (biome useExhaustiveDependencies 豁免原因:
-  // modelsMap 仅作缓存判断, stale closure 由 inflightRef 兜底)
-  const ensureLoaded = useCallback(
-    async (providerId: string) => {
-      // 如果已有缓存或正在加载中，不重复请求
-      if (modelsMap[providerId] || inflightRef.current.has(providerId)) {
-        return
-      }
-
+  // ensureLoaded/refresh 共用拉取骨架: inflight 守卫 + loading 置位 + 写缓存
+  const fetchModels = useCallback(
+    async (providerId: string, opts: { skipCached: boolean; force?: boolean }) => {
+      if (opts.skipCached && modelsMap[providerId]) return
+      if (inflightRef.current.has(providerId)) return
       inflightRef.current.add(providerId)
       setModelsLoading((p) => ({ ...p, [providerId]: true }))
       try {
         const models = await getAPI().ai.listModels(providerId)
         setModelsMap((p) => ({ ...p, [providerId]: models }))
-        setRefreshTime((p) => ({ ...p, [providerId]: Date.now() }))
+        // refreshTime 仅首次拉取(ensureLoaded)记录;手动 refresh 不改(测试锁定语义)
+        if (!opts.force) setRefreshTime((p) => ({ ...p, [providerId]: Date.now() }))
       } catch (err) {
         console.error(`[Models] Failed to load models for ${providerId}:`, err)
+        if (opts.force) toast.error(tr('models.refreshFailed', { id: providerId }))
       } finally {
         inflightRef.current.delete(providerId)
         setModelsLoading((p) => ({ ...p, [providerId]: false }))
@@ -60,24 +58,18 @@ export function useProviderModelsCache() {
     [modelsMap],
   )
 
+  // 展开 Provider / 切换默认 Provider 时调用:已有缓存或正在加载则跳过
+  const ensureLoaded = useCallback(
+    (providerId: string) => fetchModels(providerId, { skipCached: true }),
+    [fetchModels],
+  )
+
   // 强制刷新指定 Provider 的模型列表 (DefaultModelConfig / ProviderCard 的刷新按钮)
   // 使用 useCallback 稳定引用，避免 DefaultModelConfig.useEffect([onRefreshModels]) 无限循环
-  const refresh = useCallback(async (providerId: string) => {
-    // 如果已经在加载中，跳过（防止 DefaultModelConfig mount 时和 loadProviders 重复请求）
-    if (inflightRef.current.has(providerId)) return
-    inflightRef.current.add(providerId)
-    setModelsLoading((p) => ({ ...p, [providerId]: true }))
-    try {
-      const models = await getAPI().ai.listModels(providerId)
-      setModelsMap((p) => ({ ...p, [providerId]: models }))
-    } catch (err) {
-      console.error(`[Models] Failed to refresh models for ${providerId}:`, err)
-      toast.error(`刷新 ${providerId} 模型失败`)
-    } finally {
-      inflightRef.current.delete(providerId)
-      setModelsLoading((p) => ({ ...p, [providerId]: false }))
-    }
-  }, [])
+  const refresh = useCallback(
+    (providerId: string) => fetchModels(providerId, { skipCached: false, force: true }),
+    [fetchModels],
+  )
 
   // 批量加载多个已配置 Provider 的模型 (loadProviders 调用)
   // 直接操作 inflightRef, Promise.allSettled 保证单个失败不影响其他

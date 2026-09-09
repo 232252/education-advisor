@@ -6,7 +6,7 @@
 // 已是中文的消息(CLI 校验类)与未知消息原样透传,不做猜测。
 // =============================================================
 
-import { t } from '../i18n'
+import { t, tr } from '../i18n'
 
 interface ErrorPattern {
   /** 匹配原始消息的正则,捕获组 1 为细节(可选) */
@@ -45,8 +45,7 @@ export function translateEaaError(message: string): string | null {
     const m = trimmed.match(pattern)
     if (m) {
       const detail = (m[1] ?? '').trim()
-      const text = t(key, trimmed)
-      return detail ? text.replace('{0}', detail) : text
+      return detail ? tr(key, { 0: detail }, trimmed) : t(key, trimmed)
     }
   }
   return null

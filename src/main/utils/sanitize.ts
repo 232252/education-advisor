@@ -9,6 +9,8 @@
 // 安全关键:不要修改字符集逻辑,任何改动都需要安全审查。
 // =============================================================
 
+import path from 'node:path'
+
 /**
  * 剥离不可见 Unicode 字符(零宽空格、BOM、软连字符等)并 trim。
  * M17a 收敛: 此前 sanitizeName/sanitizeFreeText(本模块)、privacy/params.ts sanitize、
@@ -159,4 +161,42 @@ export function tokenizeQuery(query: string): string[] {
   }
   if (current.length > 0) tokens.push(current)
   return tokens
+}
+
+// =============================================================
+// 路径参数安全守卫 — NUL 字节 / `..` 遍历 / 扩展名白名单
+// 此前该三连检查在 eaa/params、excel-import、masking-handlers、
+// sys-handlers 各有一份手写副本,语义微差、文案漂移。
+// 返回 null = 通过;返回文案 = 直接作为该参数的结构化错误。
+// =============================================================
+
+export interface PathSafetyOptions {
+  /** 错误文案中的参数名(如 outputFile/filePath/destPath) */
+  field: string
+  /** 扩展名白名单(小写、含点);省略则不校验扩展名 */
+  allowedExts?: string[]
+  /** 无扩展名时放行(导出场景 CLI 会补默认扩展名);默认必须命中白名单 */
+  extOptional?: boolean
+  /** true = 仅拒绝 `..` 独立路径段(dialog 选出的规范化绝对路径场景,允许 a..b.txt 文件名);
+   *  false(默认) = 拒绝任意 `..` 子串(更严,拼接 CLI 参数的场景) */
+  segmentTraversal?: boolean
+}
+
+export function validatePathSafety(p: string, opts: PathSafetyOptions): string | null {
+  if (p.includes('\0')) {
+    return `${opts.field} contains null bytes`
+  }
+  const traversed = opts.segmentTraversal ? p.split(/[\\/]/).includes('..') : p.includes('..')
+  if (traversed) {
+    return `${opts.field} contains path traversal (..)`
+  }
+  if (opts.allowedExts) {
+    const ext = path.extname(p).toLowerCase()
+    if (ext || !opts.extOptional) {
+      if (!opts.allowedExts.includes(ext)) {
+        return `${opts.field} extension not supported: ${ext}, allowed: ${opts.allowedExts.join(', ')}`
+      }
+    }
+  }
+  return null
 }

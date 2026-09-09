@@ -6,8 +6,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppLogo } from '../../components/AppLogo'
+import { useT } from '../../i18n'
 
 export function WelcomePage() {
+  const { t } = useT()
   const navigate = useNavigate()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [showOverlay, setShowOverlay] = useState(true)
@@ -104,7 +106,7 @@ export function WelcomePage() {
           </div>
           <div>
             <div className="text-lg font-bold tracking-tight">Education Advisor</div>
-            <div className="text-xs text-white/70">教育操作系统 · 让老师回到讲台</div>
+            <div className="text-xs text-white/70">{t('page.welcome.brandTagline')}</div>
           </div>
         </div>
       </div>
@@ -117,10 +119,10 @@ export function WelcomePage() {
               showOverlay || ended ? 'opacity-100' : 'opacity-70'
             }`}
           >
-            让老师回到讲台
+            {t('page.welcome.headline')}
           </h1>
           <p className="mt-2 text-sm md:text-base text-white/80 drop-shadow">
-            18 个 Agent · 本地优先 · 可审计
+            {t('page.welcome.subline')}
           </p>
           <div className="mt-6 flex items-center justify-center gap-3">
             <button
@@ -128,7 +130,7 @@ export function WelcomePage() {
               onClick={handleEnter}
               className="px-7 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium shadow-lg shadow-blue-500/25 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
             >
-              进入系统 →
+              {t('page.welcome.enter')}
             </button>
             {ended && (
               <button
@@ -136,14 +138,14 @@ export function WelcomePage() {
                 onClick={handleReplay}
                 className="px-5 py-2.5 rounded-lg bg-white/15 hover:bg-white/25 backdrop-blur text-white text-sm font-medium border border-white/20 transition-colors"
               >
-                重播
+                {t('page.welcome.replay')}
               </button>
             )}
             <button
               type="button"
               onClick={handleUnmute}
               className="px-3 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 backdrop-blur text-white text-xs font-medium border border-white/20 transition-colors"
-              title={videoRef.current?.muted ? '取消静音' : '静音'}
+              title={videoRef.current?.muted ? t('page.welcome.unmute') : t('page.welcome.mute')}
             >
               {videoRef.current?.muted ? '🔇' : '🔊'}
             </button>
@@ -160,7 +162,7 @@ export function WelcomePage() {
             showOverlay ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         >
-          跳过介绍 →
+          {t('page.welcome.skip')}
         </button>
       )}
     </div>

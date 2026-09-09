@@ -17,7 +17,7 @@ import {
 } from '../components/compare'
 import { useCompareData } from '../hooks/useCompareData'
 
-export interface CompareTabProps {
+interface CompareTabProps {
   students: EAAStudent[]
   classList: ClassEntity[]
   subjects: SubjectDef[]

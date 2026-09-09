@@ -15,6 +15,7 @@
 - [TypeScript aliases](#typescript-aliases)
 - [The EAA data engine (Rust)](#the-eaa-data-engine-rust)
 - [The in-tree vendored pi packages](#the-in-tree-vendored-pi-packages)
+- [The vendored Submitty schema reference](#the-vendored-submitty-schema-reference)
 - [Running tests](#running-tests)
 - [Linting and formatting](#linting-and-formatting)
 - [Debugging tips](#debugging-tips)
@@ -56,6 +57,7 @@ to build and run the project end-to-end:
 | `src/main/`, `src/renderer/`, `src/shared/` | Electron + React + TypeScript desktop client |
 | `core/eaa-cli/` | Rust data engine — the EAA CLI (4 sub-crates: `eaa`, `eaa-core`, `eaa-crypto`, `eaa-sqlite`) |
 | `vendor/pi-agent-core/`, `vendor/pi-ai/` | The LLM SDK + agent core, vendored in-tree (no sibling monorepo required) |
+| `vendor/submitty/` | Pinned Submitty PostgreSQL schema dumps — the blueprint + drift guard for the built-in AI grading subsystem (see below) |
 | `resources/` | Bundled assets (icon, eaa binary, locale data) |
 | `docs/` | All documentation (architecture, agent authoring, EAA bridge, etc.) |
 | `.github/` | CI workflows, issue templates, CODEOWNERS |
@@ -167,22 +169,22 @@ Electron shell loads the renderer from `http://localhost:5173`
 ```
 src/
 ├── main/                # Electron main process (Node 22)
-│   ├── ipc/             # IPC handler modules — 11 files
+│   ├── ipc/             # IPC handler modules — 20 domains, handleIpc skeleton by default
 │   ├── services/        # Service modules — 13 files
 │   ├── preload/         # contextBridge bridge — 1 file
 │   ├── utils/           # logger etc.
 │   └── index.ts         # main entry
-├── renderer/            # React 18 renderer
-│   ├── pages/           # 9 page modules
+├── renderer/            # React 19 renderer
+│   ├── pages/           # 13 page modules
 │   ├── components/      # shared UI
-│   ├── hooks/           # 12 custom hooks
-│   ├── stores/          # 4 Zustand stores
+│   ├── hooks/           # 15 shared hooks (loading / confirm / mount-guard, ...)
+│   ├── stores/          # 7 Zustand stores
 │   ├── i18n/            # zh-CN + en-US
 │   ├── lib/             # typed IPC client
 │   └── main.tsx         # renderer entry
 └── shared/              # code shared by main + renderer
-    ├── ipc-channels.ts  # 90+ channel constants
-    └── types/           # 539 lines of shared types
+    ├── ipc-channels.ts  # 144 channel constants
+    └── types/           # 17 shared type modules
 ```
 
 See [`ARCHITECTURE.md`](./ARCHITECTURE.md#where-to-read-the-code)
@@ -213,8 +215,11 @@ for a 30-minute reading order.
 - **No inline styles** for anything that needs to be themable;
   use the Tailwind utility classes or the CSS variables in
   `src/renderer/styles/globals.css`.
-- **No `useEffect` for data fetching** — use the typed IPC client
-  in `src/renderer/lib/ipc-client.ts` and a Zustand store instead.
+- **No hand-written `useEffect` + `setState` data loading** — use the
+  shared hooks: `useIpcQuery` (single-source IPC load, stale-guarded),
+  `useMultiLoader` (multi-source parallel load), or a Zustand store
+  (`stores/lib/create-shared-list-store.ts` for list domains). The
+  typed IPC client (`lib/ipc-client.ts`) is what those hooks call.
 
 ### Linting
 
@@ -321,13 +326,50 @@ This means:
 - `git clone && npm ci` works without any sibling checkouts.
 - Patches you make to `vendor/pi-agent-core/` or `vendor/pi-ai/`
   are committed to this repo (no separate PR dance).
-- To update the vendored copy, run the vendoring script
-  (see `scripts/vendor-pi.mjs`, if present) or copy the new
-  `dist/` manually and re-commit.
+- To update the vendored copy, copy the new `dist/` manually,
+  re-commit, then run `npm run verify:vendor`
+  (`scripts/verify-vendor.mjs`) to validate the result.
 
 > **Why not published npm versions?** The pi packages are not yet
 > published to the public registry. Vendoring them is the only
 > way to ship a self-contained build.
+
+---
+
+## The vendored Submitty schema reference
+
+`vendor/submitty/` holds a small, pinned subset of the upstream
+[Submitty](https://github.com/Submitty/Submitty) project (BSD-3-Clause):
+the two authoritative PostgreSQL schema dumps
+(`migration/migrator/data/{course_tables,submitty_db}.sql`) plus the
+upstream `LICENSE.md`, recorded in `UPSTREAM.json` (tag / commit /
+per-file sha256).
+
+It is **not** the upstream application — the upstream PHP server is
+never executed. The dumps are the **data-model blueprint** for the
+built-in AI grading subsystem (「批改作业」 page): the native model in
+`src/main/services/grading/` mirrors Submitty's grading chain
+(`gradeable → gradeable_component → gradeable_component_mark →
+grade_override`, with `autograding_testcase` as the per-item scoring
+analogue of AI per-question grading).
+
+Guard rails:
+
+- `tests/main/submitty-vendor-drift.test.ts` fails when upstream
+  renames/removes a table or column our native model maps from —
+  pull a new reference, then update the mapping.
+- `npm run verify:vendor` validates the pin (existence + sha256).
+- `npm run rollback:vendor` also restores this directory.
+
+Updating (upstream releases monthly, `vYY.MM.NN`):
+
+```bash
+npm run update:vendor:submitty                  # latest release tag
+npm run update:vendor:submitty -- --tag v26.08.01
+```
+
+Then run the drift test; if red, update the native mapping before
+committing. See `vendor/submitty/README.md` for details.
 
 ---
 
@@ -529,6 +571,25 @@ gh pr create --fill
 
 CI runs the same four quality gates on every PR. Local green is
 the contract.
+
+### IPC contract checks
+
+Two complementary modes (both must pass before pushing):
+
+```bash
+# Static — pure text parsing, no Electron needed (also runs in CI):
+npm run ipc:contract
+
+# Runtime — deep test against a LIVE app: invokes ~20 key window.api
+# methods and validates return shapes against the contract.
+# Needs the app running with CDP enabled:
+ENABLE_CDP=1 EA_CDP_PORT=9444 npx electron .
+EA_CDP_PORT=9444 npm run ipc:runtime
+```
+
+The runtime mode catches gaps static parsing cannot see (e.g. a
+preload method removed while its channel constant survives, or a
+handler returning an unexpected envelope).
 
 ---
 

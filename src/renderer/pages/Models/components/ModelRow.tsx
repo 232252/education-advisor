@@ -5,10 +5,11 @@
 
 import type { ModelInfo } from '@shared/types'
 import { memo } from 'react'
+import { t as tf, useT } from '../../../i18n'
 
 /** 格式化 token 成本(美元/百万 token) */
 function formatCost(costPerToken: number): string {
-  if (costPerToken === 0) return '免费'
+  if (costPerToken === 0) return tf('page.models.freeCost', '免费')
   const perMillion = costPerToken * 1_000_000
   if (perMillion < 0.01) return `$${perMillion.toFixed(4)}/M`
   return `$${perMillion.toFixed(2)}/M`
@@ -46,6 +47,7 @@ export const ModelRow = memo(function ModelRow({
   onUpdateAvailable,
   onDeleteAvailable,
 }: ModelRowProps) {
+  const { t } = useT()
   if (isEditing && m.isCustom) {
     // 编辑模式：显示可编辑表单
     return (
@@ -56,7 +58,7 @@ export const ModelRow = memo(function ModelRow({
             <div className="text-gray-400 dark:text-gray-500 font-mono text-[10px]">{m.id}</div>
             {m.isCustom && (
               <span className="text-[9px] bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1 rounded">
-                自定义
+                {t('page.models.row.custom', '自定义')}
               </span>
             )}
           </td>
@@ -126,14 +128,14 @@ export const ModelRow = memo(function ModelRow({
                 onClick={onSaveEdit}
                 className="bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 rounded text-[10px] transition-colors"
               >
-                保存
+                {t('page.models.row.save', '保存')}
               </button>
               <button
                 type="button"
                 onClick={onCancelEdit}
                 className="bg-gray-400 hover:bg-gray-500 text-white px-2 py-0.5 rounded text-[10px] transition-colors"
               >
-                取消
+                {t('page.models.row.cancel', '取消')}
               </button>
             </div>
           </td>
@@ -149,7 +151,7 @@ export const ModelRow = memo(function ModelRow({
                 type="text"
                 value={editForm.baseUrl ?? ''}
                 onChange={(e) => onEditFormChange({ ...editForm, baseUrl: e.target.value })}
-                placeholder="留空使用 Provider 默认值"
+                placeholder={t('page.models.row.baseUrlPlaceholder', '留空使用 Provider 默认值')}
                 className="flex-1 bg-white dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded px-2 py-0.5 text-[10px] font-mono"
               />
             </div>
@@ -167,7 +169,7 @@ export const ModelRow = memo(function ModelRow({
         <div className="text-gray-400 dark:text-gray-500 font-mono text-[10px]">{m.id}</div>
         {m.isCustom && (
           <span className="text-[9px] bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1 rounded">
-            自定义
+            {t('page.models.row.custom', '自定义')}
           </span>
         )}
       </td>
@@ -190,7 +192,10 @@ export const ModelRow = memo(function ModelRow({
       </td>
       <td className="px-3 py-2 text-center">
         {m.supportsReasoning ? (
-          <span className="text-blue-500 dark:text-blue-400" title="支持推理">
+          <span
+            className="text-blue-500 dark:text-blue-400"
+            title={t('page.models.row.reasoningTitle', '支持推理')}
+          >
             R
           </span>
         ) : (
@@ -206,9 +211,9 @@ export const ModelRow = memo(function ModelRow({
                   type="button"
                   onClick={onStartEdit}
                   className="text-blue-500 hover:text-blue-400 text-[10px] transition-colors"
-                  title="编辑属性"
+                  title={t('page.models.row.editPropsTitle', '编辑属性')}
                 >
-                  编辑
+                  {t('page.models.row.edit', '编辑')}
                 </button>
               )}
               {onDelete && (
@@ -216,9 +221,9 @@ export const ModelRow = memo(function ModelRow({
                   type="button"
                   onClick={onDelete}
                   className="text-red-500 hover:text-red-400 text-[10px] transition-colors"
-                  title="删除"
+                  title={t('page.models.row.delete', '删除')}
                 >
-                  删除
+                  {t('page.models.row.delete', '删除')}
                 </button>
               )}
             </div>

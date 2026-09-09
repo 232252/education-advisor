@@ -7,6 +7,7 @@
 import { FileText, RefreshCw, Upload } from 'lucide-react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { EmptyState } from '../../../components/EmptyState'
+import { CardSkeleton } from '../../../components/Skeleton'
 import { useT } from '../../../i18n'
 import { btnStyle, cn } from '../../../lib/ui-utils'
 import { NewSkillForm } from '../components/NewSkillForm'
@@ -147,8 +148,10 @@ export function SkillsTab() {
         {/* 技能列表 */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {loading ? (
-            <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-8">
-              <div className="animate-pulse">{t('page.skills.loading')}</div>
+            <div className="space-y-2 p-2">
+              <CardSkeleton />
+              <CardSkeleton />
+              <CardSkeleton />
             </div>
           ) : skills.length === 0 ? (
             <EmptyState

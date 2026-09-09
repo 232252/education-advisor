@@ -33,9 +33,9 @@ Object.defineProperty(window, 'localStorage', {
 const { t, setLang, getLang, useT } = await import('../index')
 
 describe('i18n', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockLocalStorage.clear()
-    setLang('zh')
+    await setLang('zh')
   })
 
   afterEach(() => {
@@ -43,16 +43,16 @@ describe('i18n', () => {
   })
 
   describe('t()', () => {
-    it('zh 默认应返回中文', () => {
-      setLang('zh')
+    it('zh 默认应返回中文', async () => {
+      await setLang('zh')
       const sampleKey = Object.keys(zhDict)[0] as keyof typeof zhDict
       const expected = zhDict[sampleKey]
       const got = t(sampleKey)
       expect(got).toBe(expected)
     })
 
-    it('切换到 en 后应返回英文', () => {
-      setLang('en')
+    it('切换到 en 后应返回英文', async () => {
+      await setLang('en')
       const sampleKey = Object.keys(enDict)[0] as keyof typeof enDict
       const expected = enDict[sampleKey]
       const got = t(sampleKey)
@@ -67,10 +67,10 @@ describe('i18n', () => {
       expect(t('nonexistent.key')).toBe('nonexistent.key')
     })
 
-    it('同 key 在 zh/en 字典中应能切换', () => {
-      setLang('zh')
+    it('同 key 在 zh/en 字典中应能切换', async () => {
+      await setLang('zh')
       const zhVal = t('settings.title', 'fallback')
-      setLang('en')
+      await setLang('en')
       const enVal = t('settings.title', 'fallback')
       // 不要求完全相同(可能 i18n 不完整),但应该都能拿到 fallback
       expect(zhVal).toBeTruthy()
@@ -79,33 +79,120 @@ describe('i18n', () => {
   })
 
   describe('setLang / getLang', () => {
-    it('默认应为 zh', () => {
-      setLang('zh')
+    it('默认应为 zh', async () => {
+      await setLang('zh')
       expect(getLang()).toBe('zh')
     })
 
-    it('setLang(en) 后 getLang 应返回 en', () => {
-      setLang('en')
+    it('setLang(en) 后 getLang 应返回 en', async () => {
+      await setLang('en')
       expect(getLang()).toBe('en')
     })
 
-    it('setLang 应写入 localStorage', () => {
-      setLang('en')
+    it('setLang 应写入 localStorage', async () => {
+      await setLang('en')
       expect(mockLocalStorage.setItem).toHaveBeenCalledWith('education-advisor.lang', 'en')
     })
 
-    it('setLang(zh) 应写入 localStorage', () => {
-      setLang('zh')
+    it('setLang(zh) 应写入 localStorage', async () => {
+      await setLang('zh')
       expect(mockLocalStorage.setItem).toHaveBeenCalledWith('education-advisor.lang', 'zh')
     })
 
-    it('多次 setLang 应都更新', () => {
-      setLang('en')
+    it('多次 setLang 应都更新', async () => {
+      await setLang('en')
       expect(getLang()).toBe('en')
-      setLang('zh')
+      await setLang('zh')
       expect(getLang()).toBe('zh')
-      setLang('en')
+      await setLang('en')
       expect(getLang()).toBe('en')
+    })
+
+    it('healLangFromStorage — storage 晚就绪时自愈 boot 语言(竞态修复,幂等)', async () => {
+      vi.resetModules()
+      const {
+        healLangFromStorage,
+        setLang: setLangFresh,
+        getLang: getLangFresh,
+      } = await import('../index')
+      // 现场: boot 时读到旧值锁 zh,但 storage 实际偏好是 en
+      await setLangFresh('zh')
+      mockLocalStorage.setItem('education-advisor.lang', 'en')
+      await healLangFromStorage()
+      expect(getLangFresh()).toBe('en')
+      // 自愈走 setLang 语义: 偏好回写 + html lang 同步
+      expect(mockLocalStorage.setItem).toHaveBeenLastCalledWith('education-advisor.lang', 'en')
+      // 幂等: 连续调用一致即无操作
+      healLangFromStorage()
+      expect(getLangFresh()).toBe('en')
+    })
+
+    it('healLangFromStorage — storage 无有效值时不动', async () => {
+      vi.resetModules()
+      const {
+        healLangFromStorage,
+        setLang: setLangFresh,
+        getLang: getLangFresh,
+      } = await import('../index')
+      await setLangFresh('zh')
+      mockLocalStorage.clear()
+      await healLangFromStorage()
+      expect(getLangFresh()).toBe('zh')
+    })
+
+    it('startHealWatcher — 窗口内刷盘完成后自动对齐语言', async () => {
+      vi.resetModules()
+      const mod = await import('../index')
+      await mod.setLang('zh')
+      // 模拟: boot 后 storage 刷盘完成,显示真实偏好 en。
+      // 真实计时器 + 有界等待: watcher 首个 500ms 轮询即触发自愈;
+      // 自愈是 fire-and-forget 异步(内部含动态 import 的字典加载),
+      // 假时钟推进与 import 互锁是本用例此前假红/超时的根因,故不伪造时钟。
+      // 自愈成功后 watcher 自清(clearInterval),无计时器泄漏。
+      mockLocalStorage.setItem('education-advisor.lang', 'en')
+      mod.startHealWatcher()
+      await vi.waitFor(() => expect(mod.getLang()).toBe('en'), { timeout: 5_000, interval: 100 })
+      mockLocalStorage.clear()
+    })
+
+    it('外到场裸事件(setItem+dispatch)应经 setLang 补载懒字典 — t() 不落空字典', async () => {
+      const { renderHook } = await import('@testing-library/react')
+      vi.resetModules()
+      const mod = await import('../index') // boot zh: 仅 zh 字典就绪,en chunk 未加载
+      const { result } = await renderHook(() => mod.useT()) // 注册 i18n-changed 监听
+      // 模拟审计脚本式外到场切换: 不经 setLang,直接 setItem + 裸事件。
+      // 懒字典下若处理器直接翻 currentLang,t() 会落在未加载的 en 字典上
+      // (全部裸 key/fallback)—— 必须经 setLang 规范通道先补载字典。
+      mockLocalStorage.setItem('education-advisor.lang', 'en')
+      window.dispatchEvent(new CustomEvent('i18n-changed', { detail: 'en' }))
+      await vi.waitFor(() => expect(result.current.lang).toBe('en'), {
+        timeout: 5_000,
+        interval: 100,
+      })
+      expect(mod.getLang()).toBe('en')
+      const sampleKey = Object.keys(enDict)[0] as keyof typeof enDict
+      expect(mod.t(sampleKey)).toBe(enDict[sampleKey])
+      mockLocalStorage.clear()
+    })
+
+    it('startHealWatcher — 10s 窗口耗尽后停止轮询', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.resetModules()
+        const mod = await import('../index')
+        await mod.setLang('en')
+        mod.startHealWatcher()
+        // 窗口内 storage 一直是 zh: watcher 会不断拉回 zh
+        mockLocalStorage.setItem('education-advisor.lang', 'zh')
+        await vi.advanceTimersByTimeAsync(10_500)
+        expect(mod.getLang()).toBe('zh')
+        // 窗口已过: 改 storage 不再被拉回
+        mockLocalStorage.setItem('education-advisor.lang', 'en')
+        await vi.advanceTimersByTimeAsync(2000)
+        expect(mod.getLang()).toBe('zh')
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 

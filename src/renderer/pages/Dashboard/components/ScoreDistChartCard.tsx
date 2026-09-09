@@ -12,10 +12,11 @@ import {
   categoryAxis,
   containGrid,
   valueAxis,
+  verticalGradient,
 } from '../../../components/charts/option-builders'
 import { CHART_BRAND, type ChartTheme, useChartTheme } from '../../../hooks/useChartTheme'
 import { useT } from '../../../i18n'
-import { echarts } from '../../../lib/echarts-setup'
+import { SCORE_INTERVAL_I18N } from '../dashboard-stats'
 
 interface ScoreDistChartCardProps {
   /** 分数区间 → 人数 */
@@ -25,10 +26,20 @@ interface ScoreDistChartCardProps {
 }
 
 /** 构造分数分布柱状图 option（按分数区间分桶着色） */
+/** 分数段 label(后端枚举) → 渐变两端色(极高红/低橙/中黄/其余绿) */
+function scoreBandColors(label: string): [string, string] {
+  if (label.includes('极高')) return ['#ef4444', '#dc2626']
+  if (label.includes('低')) return ['#f97316', '#ea580c']
+  if (label.includes('中')) return ['#eab308', '#ca8a04']
+  return ['#22c55e', '#16a34a']
+}
+
 function buildScoreChartOption(
   scoreIntervals: Record<string, number>,
   sortedScoreKeys: string[],
   chartTheme: ChartTheme,
+  /** 区间键翻译(数据层 key 是中文常量,轴标签按当前语言渲染) */
+  translateKey: (key: string) => string,
 ) {
   return {
     animation: true,
@@ -36,7 +47,7 @@ function buildScoreChartOption(
     animationEasing: 'cubicOut' as const,
     tooltip: axisTooltip(chartTheme),
     grid: containGrid(28),
-    xAxis: categoryAxis(sortedScoreKeys, chartTheme, { hideTick: true }),
+    xAxis: categoryAxis(sortedScoreKeys.map(translateKey), chartTheme, { hideTick: true }),
     yAxis: valueAxis(chartTheme),
     series: [
       {
@@ -45,28 +56,7 @@ function buildScoreChartOption(
           value: count,
           itemStyle: {
             borderRadius: [6, 6, 0, 0],
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              {
-                offset: 0,
-                color: label.includes('极高')
-                  ? '#ef4444'
-                  : label.includes('低')
-                    ? '#f97316'
-                    : label.includes('中')
-                      ? '#eab308'
-                      : '#22c55e',
-              },
-              {
-                offset: 1,
-                color: label.includes('极高')
-                  ? '#dc2626'
-                  : label.includes('低')
-                    ? '#ea580c'
-                    : label.includes('中')
-                      ? '#ca8a04'
-                      : '#16a34a',
-              },
-            ]),
+            color: verticalGradient(...scoreBandColors(label)),
           },
         })),
         barWidth: '50%',
@@ -79,11 +69,19 @@ function buildScoreChartOption(
 }
 
 export function ScoreDistChartCard({ scoreIntervals, sortedScoreKeys }: ScoreDistChartCardProps) {
-  const { t } = useT()
+  // t 是模块级稳定引用,语言切换后 memo 重算必须依赖 lang
+  const { t, lang } = useT()
   const chartTheme = useChartTheme()
   const option = useMemo(
-    () => buildScoreChartOption(scoreIntervals, sortedScoreKeys, chartTheme),
-    [scoreIntervals, sortedScoreKeys, chartTheme],
+    () =>
+      buildScoreChartOption(
+        scoreIntervals,
+        sortedScoreKeys,
+        chartTheme,
+        (key) => t(SCORE_INTERVAL_I18N[key] ?? '', key),
+      ),
+    // lang 变化触发轴标签重译(t 为模块级稳定引用,不能作依赖)
+    [scoreIntervals, sortedScoreKeys, chartTheme, lang],
   )
   return (
     <ChartCard

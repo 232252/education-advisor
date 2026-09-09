@@ -5,9 +5,8 @@
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
-import { getErrorMessage } from '../../eaa-bridge'
 import { safeExecute } from './sanitize'
-import { nameParam, textResult } from './shared'
+import { assertEaaSuccess, nameParam, textResult } from './shared'
 
 // =============================================================
 // GAP-1 补全：以下工具让 Agent 覆盖渲染端已有的数据操作能力
@@ -42,9 +41,7 @@ export const addStudentTool: AgentTool<typeof nameParam> = {
   parameters: nameParam,
   execute: async (_toolCallId, params, signal) => {
     const result = await safeExecute('add-student', [params.name], [], signal)
-    if (!result.success) {
-      throw new Error(`添加学生失败: ${getErrorMessage(result)}`)
-    }
+    assertEaaSuccess(result, '添加学生失败')
     return textResult(`学生已添加: ${params.name}`)
   },
 }
@@ -72,9 +69,7 @@ export const setStudentMetaTool: AgentTool<typeof setStudentMetaParams> = {
       return textResult(`未提供任何待修改属性 (${params.name}),已跳过`)
     }
     const result = await safeExecute('set-student-meta', values, flags, signal)
-    if (!result.success) {
-      throw new Error(`设置学生属性失败: ${getErrorMessage(result)}`)
-    }
+    assertEaaSuccess(result, '设置学生属性失败')
     return textResult(`学生属性已更新: ${params.name}`)
   },
 }
@@ -93,9 +88,7 @@ export const deleteStudentTool: AgentTool<typeof deleteStudentParams> = {
       throw new Error('删除学生需要显式确认：请将 confirm 参数设为 true')
     }
     const result = await safeExecute('delete-student', [params.name], [], signal)
-    if (!result.success) {
-      throw new Error(`删除学生失败: ${getErrorMessage(result)}`)
-    }
+    assertEaaSuccess(result, '删除学生失败')
     return textResult(`学生已删除: ${params.name}`)
   },
 }

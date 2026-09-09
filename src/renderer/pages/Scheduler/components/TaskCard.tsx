@@ -6,7 +6,7 @@ import type { AgentListItem, CronTask } from '@shared/types'
 import { memo } from 'react'
 import { btnStyle, formatDateTime } from '../../../lib/ui-utils'
 import { ToggleSwitch } from '../../Settings/components/ToggleSwitch'
-import { cronStatusColor, cronStatusLabel, isAutoTask } from '../lib/scheduler-utils'
+import { cronStatusColor, cronStatusKey, isAutoTask } from '../lib/scheduler-utils'
 
 interface TaskCardProps {
   task: CronTask
@@ -67,7 +67,7 @@ export const TaskCard = memo(function TaskCard({
             <span className="font-medium text-sm whitespace-nowrap">{task.name}</span>
             {isAutoTask(task.id) && (
               <span className="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded whitespace-nowrap">
-                自动
+                {t('page.scheduler.task.auto')}
               </span>
             )}
           </div>
@@ -81,9 +81,9 @@ export const TaskCard = memo(function TaskCard({
         </div>
 
         <div className="text-right flex-shrink-0">
-          {task.lastStatus && (
+          {task.lastStatus && cronStatusKey(task.lastStatus) && (
             <div className={`text-xs ${cronStatusColor(task.lastStatus)}`}>
-              {cronStatusLabel(task.lastStatus)}
+              {t(cronStatusKey(task.lastStatus) as string)}
             </div>
           )}
           {task.lastRunAt && (
@@ -102,7 +102,7 @@ export const TaskCard = memo(function TaskCard({
             }}
             className={btnStyle('secondary')}
           >
-            执行
+            {t('page.scheduler.task.run')}
           </button>
           {!isAutoTask(task.id) && (
             <button
@@ -113,7 +113,7 @@ export const TaskCard = memo(function TaskCard({
               }}
               className={btnStyle('secondary')}
             >
-              编辑
+              {t('page.scheduler.task.edit')}
             </button>
           )}
           {!isAutoTask(task.id) && (
@@ -125,7 +125,7 @@ export const TaskCard = memo(function TaskCard({
               }}
               className={btnStyle('danger')}
             >
-              删除
+              {t('page.scheduler.task.delete')}
             </button>
           )}
         </div>

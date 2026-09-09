@@ -2,12 +2,17 @@
 // 技能工作台 — Tab 容器 (Skills / MCP / Plugins)
 // =============================================================
 
+import { lazy, Suspense } from 'react'
 import { PageHeader } from '../../components/PageHeader'
+import { CardSkeleton } from '../../components/Skeleton'
 import { useLocalStorage } from '../../hooks'
 import { useT } from '../../i18n'
-import { McpTab } from './tabs/McpTab'
-import { PluginsTab } from './tabs/PluginsTab'
-import { SkillsTab } from './tabs/SkillsTab'
+
+// 3 个选项卡懒加载: 同一时刻仅渲染一个 tab,静态全量打包使 SkillsPage
+// 达 44KB;lazy 后首开只载当前 tab
+const McpTab = lazy(() => import('./tabs/McpTab').then((m) => ({ default: m.McpTab })))
+const PluginsTab = lazy(() => import('./tabs/PluginsTab').then((m) => ({ default: m.PluginsTab })))
+const SkillsTab = lazy(() => import('./tabs/SkillsTab').then((m) => ({ default: m.SkillsTab })))
 
 type TabKey = 'skills' | 'mcp' | 'plugins'
 
@@ -79,9 +84,18 @@ export function SkillsPage() {
         aria-labelledby={`skills-tab-${tab}`}
         className="flex-1 overflow-hidden"
       >
-        {tab === 'skills' && <SkillsTab />}
-        {tab === 'mcp' && <McpTab />}
-        {tab === 'plugins' && <PluginsTab />}
+        <Suspense
+          fallback={
+            <div className="space-y-4">
+              <CardSkeleton />
+              <CardSkeleton />
+            </div>
+          }
+        >
+          {tab === 'skills' && <SkillsTab />}
+          {tab === 'mcp' && <McpTab />}
+          {tab === 'plugins' && <PluginsTab />}
+        </Suspense>
       </div>
     </section>
   )

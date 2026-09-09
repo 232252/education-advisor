@@ -8,35 +8,15 @@
 
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import type { AcademicConfig, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
+import { DEFAULT_EXAM_TYPES, DEFAULT_SUBJECTS } from '@shared/academic-defaults'
+import type { AcademicConfig, ExamDef, GradeRecord } from '@shared/types'
 import { atomicWrite } from '../utils/atomic-write'
 import { log } from '../utils/logger'
 import { getAppPaths } from './paths'
 
-const DEFAULT_SUBJECTS: SubjectDef[] = [
-  { id: 'chinese', name: '语文', category: 'core', fullMark: 150, isCore: true },
-  { id: 'math', name: '数学', category: 'core', fullMark: 150, isCore: true },
-  { id: 'english', name: '英语', category: 'core', fullMark: 150, isCore: true },
-  { id: 'physics', name: '物理', category: 'science', fullMark: 100 },
-  { id: 'chemistry', name: '化学', category: 'science', fullMark: 100 },
-  { id: 'biology', name: '生物', category: 'science', fullMark: 100 },
-  { id: 'politics', name: '政治', category: 'arts', fullMark: 100 },
-  { id: 'history', name: '历史', category: 'arts', fullMark: 100 },
-  { id: 'geography', name: '地理', category: 'arts', fullMark: 100 },
-  { id: 'pe', name: '体育', category: 'pe', fullMark: 100 },
-]
-
 const DEFAULT_CONFIG: AcademicConfig = {
   subjects: DEFAULT_SUBJECTS,
-  defaultExamTypes: [
-    { value: 'monthly', label: '月考' },
-    { value: 'midterm', label: '期中考试' },
-    { value: 'final', label: '期末考试' },
-    { value: 'quiz', label: '小测' },
-    { value: 'test', label: '单元测试' },
-    { value: 'mock', label: '模拟考试' },
-    { value: 'other', label: '其他' },
-  ],
+  defaultExamTypes: DEFAULT_EXAM_TYPES,
 }
 
 class AcademicService {

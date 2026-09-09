@@ -1,28 +1,9 @@
 // 飞书 botStart 错误路径 + diagnose + keystore 检查
-import WebSocket from 'ws'
+import { connectCdp, sleep } from '../lib/cdp-client.mjs'
 
-const res = await fetch('http://localhost:9222/json')
-const targets = await res.json()
-const page = targets.find((t) => t.type === 'page' && !t.url.startsWith('devtools'))
-const ws = new WebSocket(page.webSocketDebuggerUrl, { maxPayload: 256 * 1024 * 1024 })
-await new Promise((r, j) => { ws.on('open', r); ws.on('error', j) })
-let id = 0
-const pending = new Map()
-ws.on('message', (d) => {
-  const m = JSON.parse(d.toString())
-  if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id) }
+const { evl, close } = await connectCdp({
+  pageFilter: (t) => t.type === 'page' && !t.url.startsWith('devtools'),
 })
-const send = (method, params = {}) => new Promise((r) => {
-  const mid = ++id
-  pending.set(mid, r)
-  ws.send(JSON.stringify({ id: mid, method, params }))
-})
-const evl = async (expr) => {
-  const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true })
-  if (r.result?.exceptionDetails) return { __error: r.result.exceptionDetails.text + ' ' + (r.result.exceptionDetails.exception?.description || '').slice(0, 400) }
-  return r.result?.result?.value
-}
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // 1. keystore 里的飞书凭证是否存在
 const keys = await evl(`(async () => {
@@ -72,5 +53,5 @@ console.log(JSON.stringify(stopIdle))
 const st3 = await evl(`window.api.feishu.botStatus()`)
 console.log('final status:', JSON.stringify(st3))
 
-ws.close()
+close()
 process.exit(0)

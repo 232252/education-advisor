@@ -33,6 +33,8 @@ tools: [eaa_exams, eaa_exam_grades, eaa_student_grades, eaa_stats, eaa_summary, 
 - 「退步」要看至少两次考试的相对变化（eaa_student_grades 时间线），单次波动不下结论。
 - 满分差异 + 加权口径必须在报告开头声明，否则教师会误读数字。
 - 成绩与操行分是两套独立数据（考试 vs 行为事件），分析时明确标注数据来源，不要互相推断。
+- scope 标记 `ai-grading` 的考试来自「批改作业」页发布（科目形如「1.选择题/总分」）——
+  逐题依据与批改过程见 AI_GRADING 技能（eaa_grading_* 工具），两套口径不要混表比较。
 
 ## 输出建议
 

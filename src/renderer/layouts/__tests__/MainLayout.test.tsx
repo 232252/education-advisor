@@ -63,10 +63,10 @@ describe('MainLayout — 全局键盘快捷键', () => {
     expect(navigate).toHaveBeenCalledWith('/chat')
   })
 
-  it('Ctrl+9 → /scheduler (第 9 项)', () => {
+  it('Ctrl+9 → /skills (第 9 项;批改作业插入第 6 位后顺延)', () => {
     renderLayout()
     fireEvent.keyDown(window, { key: '9', ctrlKey: true })
-    expect(navigate).toHaveBeenCalledWith('/scheduler')
+    expect(navigate).toHaveBeenCalledWith('/skills')
   })
 
   it('Cmd(meta)+3 → /students', () => {

@@ -5,6 +5,7 @@
 // =============================================================
 
 import { act } from 'react'
+import { toastMocks } from '../../helpers/mock-toast'
 import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Skill } from '@shared/types'
@@ -14,13 +15,6 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   get: vi.fn(),
   delete: vi.fn(),
-}))
-
-const toastMocks = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
 }))
 
 vi.mock('../../../../src/renderer/lib/ipc-client', () => ({
@@ -34,9 +28,7 @@ vi.mock('../../../../src/renderer/lib/ipc-client', () => ({
   }),
 }))
 
-vi.mock('../../../../src/renderer/stores/toastStore', () => ({
-  toast: toastMocks,
-}))
+vi.mock('../../../../src/renderer/stores/toastStore', async () => (await import('../../helpers/mock-toast')).mockToastStore)
 
 import { useSkillsData } from '../../../../src/renderer/pages/Skills/hooks/useSkillsData'
 

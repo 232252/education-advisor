@@ -5,6 +5,7 @@
 // =============================================================
 
 import { debug } from '@shared/debug'
+import { errText } from '../../utils/err-text'
 import { parseExportFormatsFromHelp } from './output-parser'
 import { SUPPORTED_EXPORT_FORMATS } from './types'
 
@@ -40,7 +41,7 @@ export async function probeExportFormats(
   } catch (err) {
     console.warn(
       '[EAA] Failed to dynamically probe export formats, using static list:',
-      err instanceof Error ? err.message : String(err),
+      errText(err),
     )
   }
 

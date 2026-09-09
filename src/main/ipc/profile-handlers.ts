@@ -4,9 +4,9 @@
 
 import * as IPC from '@shared/ipc-channels'
 import type { StudentProfileData } from '@shared/types'
-import { ipcMain } from 'electron'
 import { profileService } from '../services/profile-service'
 import { stripInvisibleUnicode } from '../utils/sanitize'
+import { handleIpc } from './handle'
 
 /**
  * 有意保留的本地变体,不与 utils/sanitize.ts 的统一 sanitizeName 合并:
@@ -55,33 +55,34 @@ function sanitizeName(name: string): string {
 export function registerProfileHandlers() {
   // 读取学生扩展档案
   // H-7 修复: 加 try-catch,校验/service 调用失败返回结构化错误
-  ipcMain.handle(IPC.IPC_PROFILE_GET, async (_e, name: string) => {
-    try {
+  handleIpc(
+    IPC.IPC_PROFILE_GET,
+    async (_e, name: string) => {
       const safeName = sanitizeName(name)
       const data = await profileService.get(safeName)
       return { success: true, data }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] profile:get failed for "${name}":`, msg)
-      return { success: false, error: msg, data: null }
-    }
-  })
+    },
+    {
+      onError: (msg) => ({ success: false, error: msg, data: null }),
+      label: (name: string) => `profile:get failed for "${name}"`,
+    },
+  )
 
   // 写入学生扩展档案
   // H-7 修复: 加 try-catch,校验失败返回结构化错误而非抛出
-  ipcMain.handle(IPC.IPC_PROFILE_SET, async (_e, name: string, data: StudentProfileData) => {
-    try {
+  handleIpc(
+    IPC.IPC_PROFILE_SET,
+    async (_e, name: string, data: StudentProfileData) => {
       const safeName = sanitizeName(name)
       if (!data || typeof data !== 'object') {
         return { success: false, error: 'data must be a non-null object' }
       }
       return await profileService.update(safeName, data)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] profile:set failed for "${name}":`, msg)
-      return { success: false, error: msg }
-    }
-  })
+    },
+    {
+      label: (name: string) => `profile:set failed for "${name}"`,
+    },
+  )
 
   console.log('[IPC] Profile handlers registered')
 }

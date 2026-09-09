@@ -6,6 +6,7 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { examGradesTool, examsTool, studentGradesTool } from './academic-tools'
 import { addEventTool, revertEventTool } from './event-tools'
+import { gradingOverviewTool, gradingStudentTool } from './grading-tools'
 import { historyTool, queryScoreTool, searchEventsTool, tagTool } from './query-tools'
 import {
   codesTool,
@@ -44,6 +45,9 @@ export const allEAATools: AnyAgentTool[] = [
   examsTool,
   examGradesTool,
   studentGradesTool,
+  // AI 批改数据(grading-service 直读,只读)
+  gradingOverviewTool,
+  gradingStudentTool,
 ]
 
 /** 危险工具集：仅在 Agent 显式声明 'delete' capability 时才暴露 */
@@ -99,10 +103,18 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
       examsTool,
       examGradesTool,
       studentGradesTool,
+      gradingOverviewTool,
+      gradingStudentTool,
     ],
     write: [addEventTool, addStudentTool, setStudentMetaTool, revertEventTool],
     // 也可单独授予学业成绩(不需要整套 read)
-    academics: [examsTool, examGradesTool, studentGradesTool],
+    academics: [
+      examsTool,
+      examGradesTool,
+      studentGradesTool,
+      gradingOverviewTool,
+      gradingStudentTool,
+    ],
   }
 
   for (const cap of capSet) {

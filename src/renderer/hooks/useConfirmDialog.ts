@@ -6,7 +6,7 @@
 
 import { useCallback, useState } from 'react'
 
-export interface ConfirmDialogState<TPayload> {
+interface ConfirmDialogState<TPayload> {
   open: boolean
   payload: TPayload | null
 }

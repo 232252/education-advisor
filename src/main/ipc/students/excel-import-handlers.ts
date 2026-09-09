@@ -7,7 +7,6 @@
 // xlsx 依赖仅在 main 侧（复用 agent 侧 excel-tools 的读法），renderer 零增重
 // =============================================================
 
-import { startIpcTimer } from '@shared/debug'
 import * as IPC from '@shared/ipc-channels'
 import type {
   EAAStudentList,
@@ -16,12 +15,14 @@ import type {
   StudentImportResult,
   StudentImportTemplateResult,
 } from '@shared/types'
-import { type IpcMainInvokeEvent, ipcMain } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
 import * as XLSX from 'xlsx'
 import { classService } from '../../services/class-service'
 import { eaaBridge } from '../../services/eaa-bridge'
+import { errText } from '../../utils/err-text'
 import { sanitizeClassId, sanitizeName } from '../../utils/sanitize'
-import { invalidateStudentsCacheExternal } from '../eaa-handlers'
+import { invalidateStudentsCacheNow } from '../eaa/cache'
+import { handleIpc } from '../handle'
 import {
   buildClassIndex,
   parseStudentImportMatrix,
@@ -58,164 +59,146 @@ async function fetchExistingStudentNames(): Promise<Set<string>> {
 
 export function registerStudentExcelHandlers(): void {
   // ----- parse-excel: 解析 + 冲突检测，返回预览（不写入） -----
-  ipcMain.handle(
+  handleIpc(
     IPC.IPC_STUDENTS_PARSE_EXCEL,
     async (_e, filePath: string): Promise<StudentImportPreview> => {
-      const stop = startIpcTimer('students:parse-excel')
-      try {
-        const validated = validateExcelFilePath(filePath)
-        if (!validated.ok) {
-          return { success: false, error: validated.error, rows: [], errors: [], totalRows: 0 }
-        }
-        const matrix = readExcelMatrix(filePath)
-        const existingNames = await fetchExistingStudentNames()
-        const classIndex = buildClassIndex(classService.list())
-        return parseStudentImportMatrix(matrix, existingNames, classIndex)
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        console.error('[IPC] students:parse-excel failed:', msg)
-        return { success: false, error: msg, rows: [], errors: [], totalRows: 0 }
-      } finally {
-        stop()
+      const validated = validateExcelFilePath(filePath)
+      if (!validated.ok) {
+        return { success: false, error: validated.error, rows: [], errors: [], totalRows: 0 }
       }
+      const matrix = readExcelMatrix(filePath)
+      const existingNames = await fetchExistingStudentNames()
+      const classIndex = buildClassIndex(classService.list())
+      return parseStudentImportMatrix(matrix, existingNames, classIndex)
+    },
+    {
+      timer: 'students:parse-excel',
+      onError: (msg) => ({ success: false, error: msg, rows: [], errors: [], totalRows: 0 }),
     },
   )
 
   // ----- import-excel: 预览确认后逐条 add-student（+ set-student-meta 分班） -----
   // EAA 写命令经 writeQueue 串行化，循环调用安全但较慢（N 次 spawn），
   // 复用 class:assign 的 assign-progress 推送模式，避免前端长时间无反馈
-  ipcMain.handle(
+  handleIpc(
     IPC.IPC_STUDENTS_IMPORT_EXCEL,
     async (e: IpcMainInvokeEvent, params: StudentImportParams): Promise<StudentImportResult> => {
-      const stop = startIpcTimer('students:import-excel')
-      try {
-        if (!params || typeof params !== 'object' || !Array.isArray(params.rows)) {
-          return {
-            success: false,
-            error: 'params.rows must be an array',
-            total: 0,
-            imported: 0,
-            failed: [],
-          }
+      if (!params || typeof params !== 'object' || !Array.isArray(params.rows)) {
+        return {
+          success: false,
+          error: 'params.rows must be an array',
+          total: 0,
+          imported: 0,
+          failed: [],
         }
-        if (params.rows.length === 0) {
-          return {
-            success: false,
-            error: 'params.rows must not be empty',
-            total: 0,
-            imported: 0,
-            failed: [],
-          }
+      }
+      if (params.rows.length === 0) {
+        return {
+          success: false,
+          error: 'params.rows must not be empty',
+          total: 0,
+          imported: 0,
+          failed: [],
         }
-        const total = params.rows.length
-        const failed: StudentImportResult['failed'] = []
-        const seen = new Set<string>()
-        let imported = 0
-        let current = 0
-        const sendProgress = (
-          current: number,
-          total: number,
-          imported: number,
-          lastName: string,
-        ) => {
-          try {
-            if (!e.sender.isDestroyed()) {
-              e.sender.send(IPC.IPC_STUDENTS_IMPORT_PROGRESS, {
-                current,
-                total,
-                imported,
-                lastName,
-              })
-            }
-          } catch {
-            /* 渲染进程可能已卸载，忽略 */
+      }
+      const total = params.rows.length
+      const failed: StudentImportResult['failed'] = []
+      const seen = new Set<string>()
+      let imported = 0
+      let current = 0
+      const sendProgress = (current: number, total: number, imported: number, lastName: string) => {
+        try {
+          if (!e.sender.isDestroyed()) {
+            e.sender.send(IPC.IPC_STUDENTS_IMPORT_PROGRESS, {
+              current,
+              total,
+              imported,
+              lastName,
+            })
           }
+        } catch {
+          /* 渲染进程可能已卸载，忽略 */
         }
-        // 开始前先发一次 0/total，让前端立即进入「处理中」状态
-        sendProgress(0, total, 0, '')
-        for (const r of params.rows) {
-          const rowNo = Number.isInteger(r?.row) ? r.row : 0
-          let ok = false
-          let failErr = ''
-          let name = ''
-          try {
-            name = sanitizeName(String(r?.name ?? ''), 'name')
-            if (seen.has(name)) {
-              failErr = 'duplicate name in import request'
-            } else {
-              seen.add(name)
-              const res = await eaaBridge.execute({ command: 'add-student', args: [name] })
-              if (res.success) {
-                const rawClassId = typeof r?.classId === 'string' ? r.classId : ''
-                if (rawClassId) {
-                  const classId = sanitizeClassId(rawClassId)
-                  const meta = await eaaBridge.execute({
-                    command: 'set-student-meta',
-                    args: [name, '--class-id', classId],
-                  })
-                  if (meta.success) {
-                    ok = true
-                  } else {
-                    failErr = `class assign failed: ${meta.stderr || '未知错误'}`
-                  }
-                } else {
+      }
+      // 开始前先发一次 0/total，让前端立即进入「处理中」状态
+      sendProgress(0, total, 0, '')
+      for (const r of params.rows) {
+        const rowNo = Number.isInteger(r?.row) ? r.row : 0
+        let ok = false
+        let failErr = ''
+        let name = ''
+        try {
+          name = sanitizeName(String(r?.name ?? ''), 'name')
+          if (seen.has(name)) {
+            failErr = 'duplicate name in import request'
+          } else {
+            seen.add(name)
+            const res = await eaaBridge.execute({ command: 'add-student', args: [name] })
+            if (res.success) {
+              const rawClassId = typeof r?.classId === 'string' ? r.classId : ''
+              if (rawClassId) {
+                const classId = sanitizeClassId(rawClassId)
+                const meta = await eaaBridge.execute({
+                  command: 'set-student-meta',
+                  args: [name, '--class-id', classId],
+                })
+                if (meta.success) {
                   ok = true
+                } else {
+                  failErr = `class assign failed: ${meta.stderr || '未知错误'}`
                 }
               } else {
-                failErr = res.stderr || '未知错误'
+                ok = true
               }
+            } else {
+              failErr = res.stderr || '未知错误'
             }
-          } catch (err: unknown) {
-            failErr = err instanceof Error ? err.message : String(err)
           }
-          if (ok) {
-            imported += 1
-          } else {
-            failed.push({ row: rowNo, name, error: failErr })
-          }
-          current += 1
-          sendProgress(current, total, imported, name)
+        } catch (err: unknown) {
+          failErr = errText(err)
         }
-        // 导入后让 listStudents 缓存失效,下一次加载看到新学生
-        invalidateStudentsCacheExternal()
-        return { success: true, total, imported, failed }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        console.error('[IPC] students:import-excel failed:', msg)
-        return { success: false, error: msg, total: 0, imported: 0, failed: [] }
-      } finally {
-        stop()
+        if (ok) {
+          imported += 1
+        } else {
+          failed.push({ row: rowNo, name, error: failErr })
+        }
+        current += 1
+        sendProgress(current, total, imported, name)
       }
+      // 导入后让 listStudents 缓存失效,下一次加载看到新学生
+      invalidateStudentsCacheNow()
+      return { success: true, total, imported, failed }
+    },
+    {
+      timer: 'students:import-excel',
+      onError: (msg) => ({ success: false, error: msg, total: 0, imported: 0, failed: [] }),
     },
   )
 
   // ----- import-template: 生成 Excel 导入模板（name 必填；student_id/class_name 可选） -----
-  ipcMain.handle(
+  handleIpc(
     IPC.IPC_STUDENTS_IMPORT_TEMPLATE,
     async (_e, filePath: string): Promise<StudentImportTemplateResult> => {
-      const stop = startIpcTimer('students:import-template')
-      try {
-        // 模板只生成 .xlsx（路径来自 sys:save-dialog，filters 已限定 xlsx）
-        const validated = validateExcelFilePath(filePath, ['.xlsx'])
-        if (!validated.ok) {
-          return { success: false, error: validated.error }
-        }
-        const workbook = XLSX.utils.book_new()
-        const worksheet = XLSX.utils.aoa_to_sheet([[...TEMPLATE_HEADERS]])
-        worksheet['!cols'] = [{ wch: 24 }, { wch: 16 }, { wch: 20 }]
-        XLSX.utils.book_append_sheet(workbook, worksheet, TEMPLATE_SHEET_NAME)
-        // 注意：XLSX.writeFile 是同步阻塞调用，单表头行写入耗时可忽略
-        XLSX.writeFile(workbook, filePath)
-        return { success: true, filePath }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        console.error('[IPC] students:import-template failed:', msg)
-        return { success: false, error: msg }
-      } finally {
-        stop()
+      // 模板只生成 .xlsx（路径来自 sys:save-dialog，filters 已限定 xlsx）
+      const validated = validateExcelFilePath(filePath, ['.xlsx'])
+      if (!validated.ok) {
+        return { success: false, error: validated.error }
       }
+      const workbook = XLSX.utils.book_new()
+      const worksheet = XLSX.utils.aoa_to_sheet([[...TEMPLATE_HEADERS]])
+      worksheet['!cols'] = [{ wch: 24 }, { wch: 16 }, { wch: 20 }]
+      XLSX.utils.book_append_sheet(workbook, worksheet, TEMPLATE_SHEET_NAME)
+      // 注意：XLSX.writeFile 是同步阻塞调用，单表头行写入耗时可忽略
+      XLSX.writeFile(workbook, filePath)
+      return { success: true, filePath }
+    },
+    {
+      timer: 'students:import-template',
+      onError: (msg) => ({ success: false, error: msg }),
     },
   )
 
-  console.log('[IPC] Student Excel import handlers registered (parse/import/template)')
+  console.log(
+    '[IPC] Student Excel import handlers registered (parse/import/import-progress/template)',
+  )
 }

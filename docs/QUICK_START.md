@@ -106,9 +106,9 @@ npm run package         # electron-builder → release/*.exe
 
 The output:
 
-- `dist/main/index.js` + `dist/main/preload.js` — the main process bundle
+- `dist/main/index.cjs` + `dist/main/preload.cjs` — the main process bundle
 - `dist/renderer/index.html` + assets — the renderer bundle
-- `release/Education Advisor-Setup-0.1.0.exe` — the NSIS installer (~85 MB)
+- `release/Education-Advisor-Setup.exe` — the NSIS installer (~85 MB)
 - `release/Education Advisor-0.1.0-Portable.exe` — the portable .exe (~75 MB)
 
 ## 7. Configure the app
@@ -119,7 +119,7 @@ On first launch, the app will:
   - **Windows**: `%APPDATA%\Education Advisor\`
   - **macOS**: `~/Library/Application Support/Education Advisor/`
   - **Linux**: `~/.config/Education Advisor/`
-- Initialize a SQLite database at `userData/db.sqlite`.
+- Initialize a SQLite database at `userData/workstation.db`.
 - Open the Dashboard page with no data.
 
 To configure:
@@ -150,7 +150,7 @@ Visit **Agents** in the sidebar.
 
 ## 9. Set up the scheduler
 
-The default schedule has 18 jobs. Most are daily. To change them:
+The default schedule has 23 cron entries across 17 agents. Most are daily. To change them:
 
 - Visit **Scheduler** in the sidebar.
 - Click on a task. You'll see the cron expression and the agent it

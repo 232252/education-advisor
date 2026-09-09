@@ -15,7 +15,7 @@ interface McpServerFormProps {
    * id 被禁用、标题显示"编辑"。显式 mode 消除歧义。
    */
   mode?: 'add' | 'edit'
-  onSubmit: (config: McpServerConfig) => Promise<void> | void
+  onSubmit: (config: McpServerConfig) => unknown | Promise<unknown>
   onCancel: () => void
 }
 

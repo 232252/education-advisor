@@ -23,6 +23,7 @@ import { classApi } from './api/class'
 import { cronApi } from './api/cron'
 import { eaaApi } from './api/eaa'
 import { feishuApi } from './api/feishu'
+import { gradingApi } from './api/grading'
 import { logApi } from './api/log'
 import { mcpApi } from './api/mcp'
 import { memoryApi } from './api/memory'
@@ -95,5 +96,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // ----- 报告中心 (R2-12) -----
   reports: reportsApi,
+  // ----- AI 批改作业 -----
+  grading: gradingApi,
   memory: memoryApi,
 })

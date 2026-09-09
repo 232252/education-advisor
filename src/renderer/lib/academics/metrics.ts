@@ -6,6 +6,7 @@
 // =============================================================
 
 import type { EAAEventRecord, EAAStudent, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
+import { matchesClassFilter } from '../class-filter'
 import {
   aggregateConductDelta,
   compareClassGrades,
@@ -20,10 +21,10 @@ export function sortByDateAsc<T extends { date?: string }>(arr: T[]): T[] {
   return [...arr].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
 }
 
-/** 计算指定科目的平均分 (跨多次考试) */
+/** 计算指定科目的平均分 (跨多次考试;口径与 computeExamAverage 一致 — 仅排除缺考 null,0 分计入) */
 export function calcSubjectAvg(grades: GradeRecord[], subjectId: string): number | null {
   const scores = grades
-    .filter((g) => g.subjectId === subjectId && g.score != null && g.score > 0)
+    .filter((g) => g.subjectId === subjectId && g.score != null)
     .map((g) => g.score as number)
   if (scores.length === 0) return null
   return scores.reduce((a, b) => a + b, 0) / scores.length
@@ -38,11 +39,7 @@ export function filterStudents(
   const q = searchQuery.trim().toLowerCase()
   let list = students.filter((s) => s.status !== 'Deleted')
   // 班级筛选
-  if (classFilter === '__NONE__') {
-    list = list.filter((s) => !s.class_id)
-  } else if (classFilter !== '__ALL__') {
-    list = list.filter((s) => s.class_id === classFilter)
-  }
+  list = list.filter((s) => matchesClassFilter(s.class_id, classFilter))
   if (q) {
     list = list.filter((s) => s.name.toLowerCase().includes(q))
   }
@@ -95,12 +92,9 @@ export function buildGradeTableData(
 
 /** 当前班级的学生名 (按 classFilter 过滤, status 非 Deleted) — CompareTab */
 export function filterStudentNamesByClass(students: EAAStudent[], classFilter: string): string[] {
-  let list = students.filter((s) => s.status !== 'Deleted')
-  if (classFilter === '__NONE__') {
-    list = list.filter((s) => !s.class_id)
-  } else if (classFilter !== '__ALL__') {
-    list = list.filter((s) => s.class_id === classFilter)
-  }
+  const list = students.filter(
+    (s) => s.status !== 'Deleted' && matchesClassFilter(s.class_id, classFilter),
+  )
   return list.map((s) => s.name)
 }
 
@@ -133,7 +127,7 @@ export function computeStudentComparisons(
 // ---------------------------------------------------------------
 
 /** 偏科分析单科平均分 */
-export interface SubjectAverage {
+interface SubjectAverage {
   subjectId: string
   subject: string
   avg: number
@@ -162,11 +156,11 @@ export function groupGradesByExam(grades: GradeRecord[]): Record<string, GradeRe
   return m
 }
 
-/** 偏科分析: 计算各科目平均分（平均分降序,最强在前最弱在后） */
+/** 偏科分析: 计算各科目平均分（平均分降序,最强在前最弱在后;0 分计入,与考试平均分同口径） */
 export function analyzeSubjects(grades: GradeRecord[]): SubjectAnalysis {
   const subjectScores: Record<string, number[]> = {}
   for (const g of grades) {
-    if (g.score != null && g.score > 0) {
+    if (g.score != null) {
       if (!subjectScores[g.subjectId]) subjectScores[g.subjectId] = []
       subjectScores[g.subjectId].push(g.score)
     }

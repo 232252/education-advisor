@@ -8,17 +8,9 @@ import type { ExamDef, SubjectDef } from '@shared/types'
 import { useT } from '../../i18n'
 import { EXAM_TYPE_LABEL } from '../../lib/academics'
 import type { GradeSheetRow, SubjectStat } from './grade-sheet'
+import { printStamp, StatBox } from './primitives'
 
-function StatBox({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex-1 border border-gray-300 bg-gray-50 rounded px-3 py-2 text-center">
-      <div className="text-[10px] text-gray-500 mb-0.5">{label}</div>
-      <div className="text-base font-bold text-gray-900">{value}</div>
-    </div>
-  )
-}
-
-export interface ClassGradeSheetDocumentProps {
+interface ClassGradeSheetDocumentProps {
   exam: ExamDef
   subjects: SubjectDef[]
   rows: GradeSheetRow[]
@@ -37,8 +29,7 @@ export function ClassGradeSheetDocument({
   generatedAt = new Date(),
 }: ClassGradeSheetDocumentProps) {
   const { t } = useT()
-  // [R2-21 豁免] 打印文件名戳用 ISO 日期(YYYY-MM-DD),与展示用 formatDate 语义不同,勿改
-  const stamp = `${generatedAt.getFullYear()}-${String(generatedAt.getMonth() + 1).padStart(2, '0')}-${String(generatedAt.getDate()).padStart(2, '0')}`
+  const stamp = printStamp(generatedAt)
 
   const totals = rows.map((r) => r.total).filter((v): v is number => v != null)
   const totalAvg =

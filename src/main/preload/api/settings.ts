@@ -2,10 +2,11 @@
 // Preload API — 设置域
 // =============================================================
 
+import type { SettingsAPI } from '@shared/api/settings'
 import * as IPC from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 
-export const settingsApi = {
+export const settingsApi: SettingsAPI = {
   // [r] 读取设置
   get: () => ipcRenderer.invoke(IPC.IPC_SETTINGS_GET),
   // [w] 更新设置(dotPath + value)

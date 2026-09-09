@@ -13,11 +13,11 @@ import {
   categoryAxis,
   containGrid,
   valueAxis,
+  verticalGradient,
 } from '../../../../components/charts/option-builders'
 import { CHART_BRAND, useChartTheme } from '../../../../hooks/useChartTheme'
 import { useT } from '../../../../i18n'
 import { calcSubjectAvg, SUBJECT_COLORS } from '../../../../lib/academics'
-import { echarts } from '../../../../lib/echarts-setup'
 
 interface SubjectAvgChartCardProps {
   subjects: SubjectDef[]
@@ -38,10 +38,10 @@ export function SubjectAvgChartCard({ subjects, grades }: SubjectAvgChartCardPro
         hasData: avg != null,
         itemStyle: {
           borderRadius: [6, 6, 0, 0],
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: SUBJECT_COLORS[idx % SUBJECT_COLORS.length] },
-            { offset: 1, color: `${SUBJECT_COLORS[idx % SUBJECT_COLORS.length]}80` },
-          ]),
+          color: verticalGradient(
+            SUBJECT_COLORS[idx % SUBJECT_COLORS.length],
+            `${SUBJECT_COLORS[idx % SUBJECT_COLORS.length]}80`,
+          ),
         },
       }
     })

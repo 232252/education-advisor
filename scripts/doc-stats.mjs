@@ -15,41 +15,23 @@
 //       包裹的 Markdown 表格为本脚本唯一权威输出目标。
 // =============================================================
 
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { ROOT, parseIpcChannelConstants, readRepo, walkFiles } from './lib/gate-utils.mjs'
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const ARCH = join(ROOT, 'docs', 'ARCHITECTURE.md')
 
 const START = '<!-- doc-stats:start -->'
 const END = '<!-- doc-stats:end -->'
 
-/** 递归列出目录下所有文件（绝对路径） */
-function walk(dir, out = []) {
-  if (!existsSync(dir) || !statSync(dir).isDirectory()) return out
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name)
-    const st = statSync(p)
-    if (st.isDirectory()) walk(p, out)
-    else out.push(p)
-  }
-  return out
-}
+const read = readRepo
 
-function read(rel) {
-  return readFileSync(join(ROOT, rel), 'utf-8')
-}
-
-/** 统计目录下的 TypeScript 源文件数（排除声明/测试/快照）。 */
+/** 统计目录下的 TypeScript 源文件数（排除声明/测试/__tests__）。 */
 function countTsFiles(rel) {
-  return walk(join(ROOT, rel)).filter(
-    (f) =>
-      f.endsWith('.ts') &&
-      !f.endsWith('.d.ts') &&
-      !/\.(test|spec)\.tsx?$/.test(f) &&
-      !f.includes(`__tests__`) &&
-      !f.includes(`node_modules`),
+  return walkFiles(
+    join(ROOT, rel),
+    (f) => f.endsWith('.ts') && !f.endsWith('.d.ts') && !/\.(test|spec)\.tsx?$/.test(f),
+    ['node_modules', '__tests__'],
   ).length
 }
 
@@ -65,10 +47,9 @@ function countPages() {
   return (src.match(/lazy\(\(\)\s*=>/g) || []).length
 }
 
-/** IPC 通道数：ipc-channels.ts 中 export const IPC_* 的数量 */
+/** IPC 通道数：ipc-channels.ts 中 export const IPC_* 的数量(与 ipc-contract 共用解析) */
 function countIpcChannels() {
-  const src = read('src/shared/ipc-channels.ts')
-  return (src.match(/^export const IPC_/gm) || []).length
+  return parseIpcChannelConstants().size
 }
 
 /** Zustand store 模块数：stores 顶层 .ts + 各域的 store.ts */
@@ -110,7 +91,6 @@ function computeStats() {
     stores: countStores(),
     preloadApis: countTsFiles('src/main/preload/api'),
     sharedTypes: countTsFiles('src/shared/types'),
-    rendererIpcTypes: countTsFiles('src/renderer/lib/ipc'),
     agents: countAgents(),
   }
   return s
@@ -127,7 +107,6 @@ function renderBlock(s) {
     ['Zustand store 模块数', String(s.stores)],
     ['Preload API 文件数', String(s.preloadApis)],
     ['Shared 类型文件数', String(s.sharedTypes)],
-    ['Renderer IPC 类型文件数', String(s.rendererIpcTypes)],
     ['Agent 数', String(s.agents)],
   ]
   const lines = rows.map((r) => `| ${r[0]} | ${r[1]} |`)

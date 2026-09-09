@@ -33,7 +33,6 @@ export const IPC_AGENT_TOGGLE = 'agent:toggle'
 export const IPC_AGENT_SET_SOUL = 'agent:set-soul'
 export const IPC_AGENT_SET_RULES = 'agent:set-rules'
 export const IPC_AGENT_RUN_MANUAL = 'agent:run-manual'
-export const IPC_AGENT_GET_HISTORY = 'agent:get-history'
 export const IPC_AGENT_STATUS_UPDATE = 'agent:status-update'
 export const IPC_AGENT_ABORT = 'agent:abort'
 
@@ -161,6 +160,34 @@ export const IPC_STUDENTS_IMPORT_EXCEL = 'students:import-excel'
 export const IPC_STUDENTS_IMPORT_PROGRESS = 'students:import-progress'
 // 生成 Excel 导入模板（xlsx 在 main 侧动态构造，路径来自已有保存对话框 IPC）
 export const IPC_STUDENTS_IMPORT_TEMPLATE = 'students:import-template'
+
+// ===== AI 批改 (Grading) =====
+export const IPC_GRADING_LIST = 'grading:list'
+export const IPC_GRADING_GET = 'grading:get'
+export const IPC_GRADING_CREATE = 'grading:create'
+export const IPC_GRADING_UPDATE = 'grading:update'
+export const IPC_GRADING_DELETE = 'grading:delete'
+// 导入试卷扫描件(批次→拷贝进 files/<taskId>/,预览归组后 assign)
+export const IPC_GRADING_IMPORT_PAPERS = 'grading:import-papers'
+export const IPC_GRADING_ASSIGN_PAPER = 'grading:assign-paper'
+export const IPC_GRADING_REMOVE_PAPER = 'grading:remove-paper'
+// 教师复核结果落库
+export const IPC_GRADING_SAVE_REVIEW = 'grading:save-review'
+export const IPC_GRADING_SET_STATUS = 'grading:set-status'
+// 启动 AI 批改(异步作业:立即返回,进度经 grading:progress 推送)
+export const IPC_GRADING_RUN = 'grading:run'
+// 中止进行中的批改
+export const IPC_GRADING_ABORT = 'grading:abort'
+// 主→渲染: 批改进度(每份试卷开始/完成/失败 + 整批 done)
+export const IPC_GRADING_PROGRESS = 'grading:progress'
+// 复核工作台读取试卷扫描件(base64 预览)
+export const IPC_GRADING_READ_FILE = 'grading:read-paper-file'
+// 发布批改结果进学业管线(ExamDef+GradeRecord,幂等)
+export const IPC_GRADING_PUBLISH = 'grading:publish'
+// 样卷识别→量规草稿(视觉模型,无状态:图片只读不拷贝,结果不落盘)
+export const IPC_GRADING_EXTRACT_RUBRIC = 'grading:extract-rubric'
+// 从卷面手写姓名/编号识别归属(视觉模型;唯一命中才自动指派)
+export const IPC_GRADING_IDENTIFY_PAPERS = 'grading:identify-papers'
 
 // ===== 班级管理（本地：存档/删除） =====
 export const IPC_CLASS_LIST = 'class:list'

@@ -10,10 +10,10 @@
 
 import * as IPC from '@shared/ipc-channels'
 import type { BrowserWindow } from 'electron'
-import { ipcMain } from 'electron'
 import { TtlLruCache } from '../services/eaa-cache'
 import { ollamaService } from '../services/ollama-service'
 import { log } from '../utils/logger'
+import { handleIpc } from './handle'
 
 /**
  * PERF: ollama:detect 和 ollama:list-models 缓存
@@ -38,8 +38,9 @@ export function registerOllamaHandlers(win: BrowserWindow): void {
   // 检测 ollama 是否可用
   // H-6 修复: 加 try-catch
   // R112: 加 5s 缓存避免每 10s 轮询都 spawn
-  ipcMain.handle(IPC.IPC_OLLAMA_DETECT, async () => {
-    try {
+  handleIpc(
+    IPC.IPC_OLLAMA_DETECT,
+    async () => {
       const cached = ollamaDetectCache.get('response')
       if (cached) return cached
       const available = await ollamaService.detect()
@@ -51,65 +52,49 @@ export function registerOllamaHandlers(win: BrowserWindow): void {
       }
       ollamaDetectCache.set('response', result)
       return result
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] ollama:detect failed:', msg)
-      return { available: false, serveRunning: false, error: msg }
-    }
-  })
+    },
+    (msg) => ({ available: false, serveRunning: false, error: msg }),
+  )
 
   // 启动 serve
   // H-6 修复: 加 try-catch
   // R112: 启停后清缓存
-  ipcMain.handle(IPC.IPC_OLLAMA_START_SERVE, async () => {
-    try {
-      const ok = await ollamaService.startServe()
-      invalidateOllamaCaches()
-      return { success: ok }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] ollama:start-serve failed:', msg)
-      return { success: false, error: msg }
-    }
+  handleIpc(IPC.IPC_OLLAMA_START_SERVE, async () => {
+    const ok = await ollamaService.startServe()
+    invalidateOllamaCaches()
+    return { success: ok }
   })
 
   // 停止 serve
   // H-6 修复: 加 try-catch
   // R112: 启停后清缓存
-  ipcMain.handle(IPC.IPC_OLLAMA_STOP_SERVE, async () => {
-    try {
-      ollamaService.stopServe()
-      invalidateOllamaCaches()
-      return { success: true }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] ollama:stop-serve failed:', msg)
-      return { success: false, error: msg }
-    }
+  handleIpc(IPC.IPC_OLLAMA_STOP_SERVE, async () => {
+    ollamaService.stopServe()
+    invalidateOllamaCaches()
+    return { success: true }
   })
 
   // 列出已安装模型
   // H-6 修复: 加 try-catch
   // R112: 加 5s 缓存避免每 10s 轮询都 spawn
-  ipcMain.handle(IPC.IPC_OLLAMA_LIST_MODELS, async () => {
-    try {
+  handleIpc(
+    IPC.IPC_OLLAMA_LIST_MODELS,
+    async () => {
       const cached = ollamaListCache.get('response')
       if (cached) return cached
-      const models = await ollamaService.listModels()
+      const models = await ollamaService.listModels({ fresh: true })
       ollamaListCache.set('response', models)
       return models
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[IPC] ollama:list-models failed:', msg)
-      return []
-    }
-  })
+    },
+    () => [],
+  )
 
   // 下载模型(流式进度通过 IPC 事件推送)
   // H-6 修复: 加 try-catch
   // R112: 完成后清缓存
-  ipcMain.handle(IPC.IPC_OLLAMA_PULL_MODEL, async (_e, modelName: string) => {
-    try {
+  handleIpc(
+    IPC.IPC_OLLAMA_PULL_MODEL,
+    async (_e, modelName: string) => {
       log('info', 'ollama', `pull model: ${modelName}`)
       const result = await ollamaService.pullModel(modelName, (progress) => {
         // 推送进度到渲染进程
@@ -126,28 +111,27 @@ export function registerOllamaHandlers(win: BrowserWindow): void {
       // 模型列表变了, 失效缓存
       if (result.success) invalidateOllamaCaches()
       return result
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] ollama:pull-model failed for "${modelName}":`, msg)
-      return { success: false, error: msg }
-    }
-  })
+    },
+    {
+      label: (modelName: string) => `ollama:pull-model failed for "${modelName}"`,
+    },
+  )
 
   // 删除模型
   // H-6 修复: 加 try-catch
   // R112: 删除后清缓存
-  ipcMain.handle(IPC.IPC_OLLAMA_DELETE_MODEL, async (_e, modelName: string) => {
-    try {
+  handleIpc(
+    IPC.IPC_OLLAMA_DELETE_MODEL,
+    async (_e, modelName: string) => {
       log('info', 'ollama', `delete model: ${modelName}`)
       const result = await ollamaService.deleteModel(modelName)
       if (result.success) invalidateOllamaCaches()
       return result
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[IPC] ollama:delete-model failed for "${modelName}":`, msg)
-      return { success: false, error: msg }
-    }
-  })
+    },
+    {
+      label: (modelName: string) => `ollama:delete-model failed for "${modelName}"`,
+    },
+  )
 
   log('info', 'ollama-handlers', 'Ollama IPC handlers registered')
 }

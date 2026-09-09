@@ -5,9 +5,14 @@
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
-import { eaaBridge, getErrorMessage } from '../../eaa-bridge'
-import { safeExecute } from './sanitize'
-import { emptyParams, extractData, jsonResult } from './shared'
+import { executeWithSignal, safeExecute } from './sanitize'
+import {
+  assertEaaSuccess,
+  emptyParams,
+  extractData,
+  jsonResult,
+  withTruncationNotice,
+} from './shared'
 
 // =============================================================
 // Schema 定义
@@ -18,8 +23,14 @@ const rankingParams = Type.Object({
 })
 
 const summaryParams = Type.Object({
-  since: Type.Optional(Type.String({ description: '起始日期 YYYY-MM-DD' })),
-  until: Type.Optional(Type.String({ description: '截止日期 YYYY-MM-DD' })),
+  since: Type.Optional(Type.String({ description: '起始日期 YYYY-MM-DD(也可用 start,二者等价)' })),
+  until: Type.Optional(Type.String({ description: '截止日期 YYYY-MM-DD(也可用 end,二者等价)' })),
+  start: Type.Optional(
+    Type.String({ description: '起始日期 YYYY-MM-DD(since 的别名,与其他工具统一口径)' }),
+  ),
+  end: Type.Optional(
+    Type.String({ description: '截止日期 YYYY-MM-DD(until 的别名,与其他工具统一口径)' }),
+  ),
 })
 
 const rangeParams = Type.Object({
@@ -31,20 +42,35 @@ const rangeParams = Type.Object({
 // =============================================================
 // 5. 列出所有学生
 // =============================================================
+/** 单次注入的学生条数上限 — 大库(千级学生)全量 JSON 一次能挤占数十 K token,把当前任务细节挤出上下文 */
+const MAX_STUDENTS_LISTED = 200
+
 export const listStudentsTool: AgentTool<typeof emptyParams> = {
   name: 'eaa_list_students',
   label: '列出所有学生',
-  description: '获取所有学生的姓名、分数、风险等级概览',
+  description:
+    '获取所有学生的姓名、分数、风险等级概览(按姓名排序,超过 200 名时只返回前 200 并标注截断)',
   parameters: emptyParams,
   execute: async (_toolCallId, _params, signal) => {
-    // 仅 signal 存在时才传第二参(保持无 signal 时单参调用契约)
-    const result = await (signal
-      ? eaaBridge.execute({ command: 'list-students', args: [] }, { signal })
-      : eaaBridge.execute({ command: 'list-students', args: [] }))
-    if (!result.success) {
-      throw new Error(`列表获取失败: ${getErrorMessage(result)}`)
+    const result = await executeWithSignal({ command: 'list-students', args: [] }, signal)
+    assertEaaSuccess(result, '列表获取失败')
+    const data = extractData(result.data) as {
+      students?: unknown[]
+      total?: number
+      [key: string]: unknown
     }
-    return jsonResult(extractData(result.data), '全部学生列表')
+    if (Array.isArray(data.students) && data.students.length > MAX_STUDENTS_LISTED) {
+      const total = typeof data.total === 'number' ? data.total : data.students.length
+      return jsonResult(
+        {
+          ...data,
+          students: data.students.slice(0, MAX_STUDENTS_LISTED),
+          students_truncated: `仅返回前 ${MAX_STUDENTS_LISTED}/${total} 名(按姓名排序)。要核对特定学生请用 eaa_search,要看按分数排序的名单请用 eaa_ranking(传足够大的 n)`,
+        },
+        '全部学生列表',
+      )
+    }
+    return jsonResult(data, '全部学生列表')
   },
 }
 
@@ -54,7 +80,8 @@ export const listStudentsTool: AgentTool<typeof emptyParams> = {
 export const rankingTool: AgentTool<typeof rankingParams> = {
   name: 'eaa_ranking',
   label: '查看排行榜',
-  description: '查看操行分排行榜（默认前 10 名）',
+  description:
+    '查看操行分排行榜,按分数从高到低排列(默认前 10 名)。注意: 这是高分榜 — 要找低分/高风险学生时,传足够大的 n(如 999)取全量名单,从列表末尾找分数最低的学生',
   parameters: rankingParams,
   execute: async (_toolCallId, params, signal) => {
     // R86 软发现-1 修复：校验 n 类型，拒绝 NaN/Infinity/非正数/非数字
@@ -66,13 +93,8 @@ export const rankingTool: AgentTool<typeof rankingParams> = {
       throw new Error(`参数 n 必须是正整数,收到: ${JSON.stringify(params.n)}`)
     }
     const args = params.n ? [String(params.n)] : []
-    // 仅 signal 存在时才传第二参(保持无 signal 时单参调用契约)
-    const result = await (signal
-      ? eaaBridge.execute({ command: 'ranking', args }, { signal })
-      : eaaBridge.execute({ command: 'ranking', args }))
-    if (!result.success) {
-      throw new Error(`排行榜获取失败: ${getErrorMessage(result)}`)
-    }
+    const result = await executeWithSignal({ command: 'ranking', args }, signal)
+    assertEaaSuccess(result, '排行榜获取失败')
     return jsonResult(extractData(result.data), `排行榜 Top ${params.n ?? 10}`)
   },
 }
@@ -86,13 +108,8 @@ export const statsTool: AgentTool<typeof emptyParams> = {
   description: '获取操行系统的整体统计：学生数、事件数、分数分布、原因分布',
   parameters: emptyParams,
   execute: async (_toolCallId, _params, signal) => {
-    // 仅 signal 存在时才传第二参(保持无 signal 时单参调用契约)
-    const result = await (signal
-      ? eaaBridge.execute({ command: 'stats', args: [] }, { signal })
-      : eaaBridge.execute({ command: 'stats', args: [] }))
-    if (!result.success) {
-      throw new Error(`统计获取失败: ${getErrorMessage(result)}`)
-    }
+    const result = await executeWithSignal({ command: 'stats', args: [] }, signal)
+    assertEaaSuccess(result, '统计获取失败')
     return jsonResult(extractData(result.data), '操行系统统计数据')
   },
 }
@@ -106,13 +123,8 @@ export const codesTool: AgentTool<typeof emptyParams> = {
   description: '列出所有可用的操行原因码（加分/扣分/系统/实验室），含分值',
   parameters: emptyParams,
   execute: async (_toolCallId, _params, signal) => {
-    // 仅 signal 存在时才传第二参(保持无 signal 时单参调用契约)
-    const result = await (signal
-      ? eaaBridge.execute({ command: 'codes', args: [] }, { signal })
-      : eaaBridge.execute({ command: 'codes', args: [] }))
-    if (!result.success) {
-      throw new Error(`原因码获取失败: ${getErrorMessage(result)}`)
-    }
+    const result = await executeWithSignal({ command: 'codes', args: [] }, signal)
+    assertEaaSuccess(result, '原因码获取失败')
     return jsonResult(extractData(result.data), '可用原因码列表')
   },
 }
@@ -126,14 +138,16 @@ export const summaryTool: AgentTool<typeof summaryParams> = {
   description: '查看指定时间段内的操行摘要：事件统计、风险分布、进步/退步排名',
   parameters: summaryParams,
   execute: async (_toolCallId, params, signal) => {
+    // start/end 是 since/until 的别名 — 区间参数此前两套叫法(since/until vs start/end),
+    // 模型在相邻调用间容易串参;两个都传时显式 since/until 优先
+    const since = params.since ?? params.start
+    const until = params.until ?? params.end
     const values: string[] = []
     const flags: string[] = []
-    if (params.since) flags.push('--since', params.since)
-    if (params.until) flags.push('--until', params.until)
+    if (since) flags.push('--since', since)
+    if (until) flags.push('--until', until)
     const result = await safeExecute('summary', values, flags, signal)
-    if (!result.success) {
-      throw new Error(`摘要获取失败: ${getErrorMessage(result)}`)
-    }
+    assertEaaSuccess(result, '摘要获取失败')
     return jsonResult(extractData(result.data), '周期摘要')
   },
 }
@@ -152,9 +166,16 @@ export const rangeTool: AgentTool<typeof rangeParams> = {
     // L2 修复: 显式传默认值 — 与参数描述"默认 100"对齐(此前不传时由 CLI 自行决定)
     flags.push('--limit', String(params.limit ?? 100))
     const result = await safeExecute('range', values, flags, signal)
-    if (!result.success) {
-      throw new Error(`范围查询失败: ${getErrorMessage(result)}`)
+    assertEaaSuccess(result, '范围查询失败')
+    const data = extractData(result.data) as {
+      total?: number
+      showing?: number
+      [key: string]: unknown
     }
-    return jsonResult(extractData(result.data), `${params.start} ~ ${params.end} 事件`)
+    return withTruncationNotice(
+      data,
+      `${params.start} ~ ${params.end} 事件`,
+      '需要完整数据请调大 limit 参数',
+    )
   },
 }

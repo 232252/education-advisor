@@ -12,7 +12,7 @@ import { sendReply } from './reply'
 import type { FeishuMessageEvent } from './types'
 
 /** 事件回调所需依赖(由 facade 注入,保持本模块无状态) */
-export interface EventHandlerDeps {
+interface EventHandlerDeps {
   /** 已处理 message_id 去重缓存 */
   dedup: MessageDedupCache
   /** 消息处理串行队列(含排队深度限流) */

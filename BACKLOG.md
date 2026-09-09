@@ -81,8 +81,8 @@ These are smaller-scope improvements, usually a single PR:
 | International phone number support | 🔵 Considering | — | — |
 | Address parsing for non-mainland addresses | 🔵 Considering | — | — |
 | Per-class theming | 🔵 Considering | — | — |
-| Bulk student import from Excel | 🔵 Considering | — | — |
-| Bulk event rollback (with audit) | 🔵 Considering | — | — |
+| Bulk student import from Excel | 🟢 Shipped | — | — |
+| Event rollback (with audit) — single-event revert via `eaa:revert-event` shipped; bulk remains | 🔵 Considering | — | — |
 | Agent prompt versioning | 🔵 Considering | — | — |
 | Agent A/B testing framework | 🔵 Considering | — | — |
 | LLM call cost cap per agent | 🔵 Considering | — | — |

@@ -4,6 +4,7 @@
 
 import { useState } from 'react'
 import { useT } from '../../../i18n'
+import { pickFile } from '../../../lib/dialog'
 import { getAPI } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
 import type { UploadedFile } from '../lib/chat-message'
@@ -16,7 +17,7 @@ export function useFileUpload() {
   // 打开文件选择框并读取内容（文本/代码/图片, 最大 10MB）
   const handleUpload = async () => {
     try {
-      const result = (await getAPI().sys.openDialog({
+      const filePath = await pickFile({
         properties: ['openFile'],
         filters: [
           {
@@ -54,9 +55,8 @@ export function useFileUpload() {
           },
           { name: t('page.chat.upload.allFiles', '所有文件'), extensions: ['*'] },
         ],
-      })) as { canceled: boolean; filePaths: string[] }
-      if (result.canceled || result.filePaths.length === 0) return
-      const filePath = result.filePaths[0]
+      })
+      if (filePath === null) return
       const fileName = filePath.split(/[/\\]/).pop() || filePath
       toast.info(`${t('toast.chat.readingFile', '正在读取')}: ${fileName}`)
       // 真实读取文件内容

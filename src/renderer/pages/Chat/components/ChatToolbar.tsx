@@ -4,7 +4,7 @@
 // =============================================================
 
 import type { AgentListItem } from '@shared/types'
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { Button } from '../../../components/Button'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { ModelSelector } from '../../../components/ModelSelector'
@@ -24,7 +24,7 @@ interface ChatToolbarProps {
 }
 
 /** 顶部工具栏（Agent / 模型 / 思考级别 常驻） */
-export function ChatToolbar({
+export const ChatToolbar = memo(function ChatToolbar({
   enabledAgents,
   selectedAgentId,
   onSelectAgent,
@@ -119,4 +119,4 @@ export function ChatToolbar({
       />
     </div>
   )
-}
+})

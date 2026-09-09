@@ -13,14 +13,19 @@ import type {
   StudentImportProgress,
   StudentImportResult,
 } from '@shared/types'
-import { useCallback, useEffect, useState } from 'react'
-import { useT } from '../../../i18n'
-import { getAPI, getErrorMessage } from '../../../lib/ipc-client'
+import { useCallback, useState } from 'react'
+import { useConfirmAction } from '../../../hooks/useConfirmAction'
+import { useCtxMenuAction } from '../../../hooks/useCtxMenuAction'
+import { tr, useT } from '../../../i18n'
+import { pickFile, saveAs } from '../../../lib/dialog'
+import { errText, getAPI, getErrorMessage } from '../../../lib/ipc-client'
 import { toast } from '../../../stores/toastStore'
-import type { ConfirmState, OpenDialogResult, SaveDialogResult } from '../types'
+
+/** runFileAction 的调用结果形态(兼容 getErrorMessage 的 data/stderr 输入) */
+type FileActionResult = { success: boolean; error?: string; data?: unknown; stderr?: string }
 
 /** Excel 导入对话框状态（M30：解析预览 → 确认导入 → 结果/失败清单） */
-export interface ExcelImportState {
+interface ExcelImportState {
   open: boolean
   preview: StudentImportPreview | null
   importing: boolean
@@ -75,12 +80,8 @@ export function useStudentActions({
   setNewStudentClassId,
 }: UseStudentActionsOptions) {
   const { t } = useT()
-  // 自定义确认对话框（替代 window.confirm）
-  const [confirmState, setConfirmState] = useState<ConfirmState>({
-    open: false,
-    message: '',
-    onConfirm: () => {},
-  })
+  // 自定义确认对话框（替代 window.confirm;状态机统一走 useConfirmAction）
+  const { state: confirmState, setState: setConfirmState, ask } = useConfirmAction()
   // Excel 导入对话框状态（M30）
   const [excelImport, setExcelImport] = useState<ExcelImportState>({
     open: false,
@@ -127,62 +128,58 @@ export function useStudentActions({
   // 删除学生（使用自定义确认对话框）— PERF: useCallback 稳定引用,避免击穿 StudentRow memo
   const handleDeleteStudent = useCallback(
     (name: string) => {
-      setConfirmState({
-        open: true,
-        message: `${t('common.delete')}: "${name}"?`,
-        onConfirm: async () => {
-          setConfirmState((prev) => ({ ...prev, open: false }))
-          try {
-            const result = await getAPI().eaa.deleteStudent(name, '管理员操作')
-            setActionMessageAuto(
-              result.success
-                ? `${t('common.delete')}: ${name}`
-                : `${t('status.failed')}: ${getErrorMessage(result)}`,
-            )
-            if (result.success && selectedStudent?.name === name) setSelectedStudent(null)
-            if (result.success) loadStudents()
-          } catch (err) {
-            console.error('[Students] Delete failed:', err)
-            setActionMessageAuto(t('toast.common.deleteFailed'))
-          }
-        },
+      ask(`${t('common.delete')}: "${name}"?`, async () => {
+        setConfirmState((prev) => ({ ...prev, open: false }))
+        try {
+          const result = await getAPI().eaa.deleteStudent(name, '管理员操作')
+          setActionMessageAuto(
+            result.success
+              ? `${t('common.delete')}: ${name}`
+              : `${t('status.failed')}: ${getErrorMessage(result)}`,
+          )
+          if (result.success && selectedStudent?.name === name) setSelectedStudent(null)
+          if (result.success) loadStudents()
+        } catch (err) {
+          console.error('[Students] Delete failed:', err)
+          setActionMessageAuto(t('toast.common.deleteFailed'))
+        }
       })
     },
-    [t, selectedStudent, loadStudents, setActionMessageAuto, setSelectedStudent],
+    [
+      t,
+      selectedStudent,
+      loadStudents,
+      setActionMessageAuto,
+      setSelectedStudent,
+      ask,
+      setConfirmState,
+    ],
   )
 
   // 右键菜单事件处理: 响应 ContextMenu 组件派发的 ctx-menu-action
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const ce = e as CustomEvent<{ action: string; target: HTMLElement }>
-      const action = ce.detail?.action
-      const target = ce.detail?.target
-      if (!action || !target) return
-      const name = target.getAttribute('data-ctx-student-name')
-      if (!name) return
-      const student = students.find((s) => s.name === name)
-      if (!student) return
-      if (action === 'view') {
-        setSelectedStudent(student)
-      } else if (action === 'delete') {
-        handleDeleteStudent(name)
-      }
+  // (useCtxMenuAction 渲染期 ref 同步,students 等依赖变化无需重绑监听器)
+  useCtxMenuAction('data-ctx-student-name', (action, name) => {
+    const student = students.find((s) => s.name === name)
+    if (!student) return
+    if (action === 'view') {
+      setSelectedStudent(student)
+    } else if (action === 'delete') {
+      handleDeleteStudent(name)
     }
-    document.addEventListener('ctx-menu-action', handler)
-    return () => document.removeEventListener('ctx-menu-action', handler)
-  }, [students, handleDeleteStudent, setSelectedStudent])
+  })
 
   // 批量调班：将选中学生分入指定班级
   const handleBatchAssign = () => {
     const names = Array.from(selectedNames)
     if (names.length === 0 || !batchAssignTarget) return
     const targetClass = classList.find((c) => c.class_id === batchAssignTarget)
-    setConfirmState({
-      open: true,
-      message: t('page.students.batch.assignConfirm', '确认将选中的 {0} 名学生调入「{1}」?')
-        .replace('{0}', String(names.length))
-        .replace('{1}', targetClass?.name ?? batchAssignTarget),
-      onConfirm: async () => {
+    ask(
+      tr(
+        'page.students.batch.assignConfirm',
+        { 0: String(names.length), 1: targetClass?.name ?? batchAssignTarget },
+        '确认将选中的 {0} 名学生调入「{1}」?',
+      ),
+      async () => {
         setConfirmState((prev) => ({ ...prev, open: false }))
         setBatchAssigning(true)
         try {
@@ -196,37 +193,31 @@ export function useStudentActions({
             const assigned = res.assigned ?? 0
             const failed = res.failed ?? []
             if (failed.length === 0) {
-              toast.success(t('toast.students.batchAssignSuccess').replace('{0}', String(assigned)))
+              toast.success(tr('toast.students.batchAssignSuccess', { 0: String(assigned) }))
             } else {
               toast.warning(
-                `${t('page.students.batch.assignPartial', '调入 {0} 名, 失败 {1} 名')
-                  .replace('{0}', String(assigned))
-                  .replace('{1}', String(failed.length))}: ${failed.slice(0, 3).join('; ')}`,
+                `${tr('page.students.batch.assignPartial', { 0: String(assigned), 1: String(failed.length) }, '调入 {0} 名, 失败 {1} 名')}: ${failed.slice(0, 3).join('; ')}`,
               )
             }
           }
           exitSelectMode()
           await loadStudents()
         } catch (err) {
-          toast.error(
-            `${t('toast.students.assignException', '调班异常')}: ${err instanceof Error ? err.message : String(err)}`,
-          )
+          toast.error(`${t('toast.students.assignException', '调班异常')}: ${errText(err)}`)
         } finally {
           setBatchAssigning(false)
         }
       },
-    })
+    )
   }
 
   // 批量删除选中学生（使用自定义确认对话框，danger 变体）
   const handleBatchDelete = () => {
     const names = Array.from(selectedNames)
     if (names.length === 0) return
-    setConfirmState({
-      open: true,
-      message: t('page.students.batch.delete.confirm').replace('{0}', String(names.length)),
-      variant: 'danger',
-      onConfirm: async () => {
+    ask(
+      tr('page.students.batch.delete.confirm', { 0: String(names.length) }),
+      async () => {
         setConfirmState((prev) => ({ ...prev, open: false }))
         setBatchDeleting(true)
         let ok = 0
@@ -249,51 +240,73 @@ export function useStudentActions({
         }
         setBatchDeleting(false)
         setActionMessageAuto(
-          t('page.students.batch.deleted')
-            .replace('{0}', String(ok))
-            .replace('{1}', String(ok + fail)),
+          tr('page.students.batch.deleted', { 0: String(ok), 1: String(ok + fail) }),
         )
         exitSelectMode()
         await loadStudents()
       },
-    })
+      { variant: 'danger' },
+    )
+  }
+
+  /** 文件对话框 → API → toast 的通用骨架(选文件取消时静默返回)。
+   *  收敛 导入/模板下载/导出 三个最同构的 handler;Excel 预览/确认导入
+   *  有自己的进度订阅与状态机,保持独立实现。 */
+  const runFileAction = async (opts: {
+    /** console.error 中的动作名(如 'Import') */
+    label: string
+    dialog: () => Promise<string | null>
+    invoke: (filePath: string) => Promise<FileActionResult>
+    successKey: string
+    failKey: string
+    /** 失败详情提取(默认 getErrorMessage;模板下载走 error ?? unknown) */
+    detail?: (r: FileActionResult) => string
+    /** 成功后刷新学生列表 */
+    reload?: boolean
+  }): Promise<void> => {
+    try {
+      const filePath = await opts.dialog()
+      if (filePath === null) return
+      const r = await opts.invoke(filePath)
+      if (r.success) {
+        toast.success(t(opts.successKey))
+        if (opts.reload) loadStudents()
+      } else {
+        toast.error(`${t(opts.failKey)}: ${opts.detail ? opts.detail(r) : getErrorMessage(r)}`)
+      }
+    } catch (err) {
+      console.error(`[Students] ${opts.label} failed:`, err)
+      toast.error(t(opts.failKey))
+    }
   }
 
   // 批量导入学生
-  const handleImport = async () => {
-    try {
-      const result = (await getAPI().sys.openDialog({
-        title: t('page.students.import.dialogTitle', '选择导入文件'),
-        // main 侧 buildImportArgs 只支持 .json/.jsonl(Rust 端 serde_json 导入),
-        // 不再提供 CSV 选项避免用户选中后被拒绝
-        filters: [{ name: 'JSON', extensions: ['json', 'jsonl'] }],
-        properties: ['openFile'],
-      })) as OpenDialogResult
-      if (result.canceled || !result.filePaths?.length) return
-      const filePath = result.filePaths[0]
-      const importResult = await getAPI().eaa.import(filePath)
-      if (importResult.success) {
-        toast.success(t('toast.common.importSuccess'))
-        loadStudents()
-      } else {
-        toast.error(`${t('toast.common.importFailed')}: ${getErrorMessage(importResult)}`)
-      }
-    } catch (err) {
-      console.error('[Students] Import failed:', err)
-      toast.error(t('toast.common.importFailed'))
-    }
-  }
+  // main 侧 buildImportArgs 只支持 .json/.jsonl(Rust 端 serde_json 导入),
+  // 不再提供 CSV 选项避免用户选中后被拒绝
+  const handleImport = () =>
+    runFileAction({
+      label: 'Import',
+      dialog: () =>
+        pickFile({
+          title: t('page.students.import.dialogTitle', '选择导入文件'),
+          filters: [{ name: 'JSON', extensions: ['json', 'jsonl'] }],
+          properties: ['openFile'],
+        }),
+      invoke: (filePath) => getAPI().eaa.import(filePath),
+      successKey: 'toast.common.importSuccess',
+      failKey: 'toast.common.importFailed',
+      reload: true,
+    })
 
   // Excel 批量导入（M30）：选文件 → 主进程 parse-excel → 预览对话框确认
   const handleImportExcel = async () => {
     try {
-      const result = (await getAPI().sys.openDialog({
+      const filePath = await pickFile({
         title: t('page.students.import.excel.dialogTitle', '选择 Excel 文件'),
         filters: [{ name: 'Excel', extensions: ['xlsx', 'xls'] }],
         properties: ['openFile'],
-      })) as OpenDialogResult
-      if (result.canceled || !result.filePaths?.length) return
-      const filePath = result.filePaths[0]
+      })
+      if (filePath === null) return
       const preview = await getAPI().students.parseExcel(filePath)
       if (!preview.success) {
         toast.error(
@@ -332,14 +345,13 @@ export function useStudentActions({
       }
       setExcelImport((prev) => ({ ...prev, importing: false, result }))
       if (result.failed.length === 0) {
-        toast.success(
-          t('toast.students.excelImportSuccess').replace('{0}', String(result.imported)),
-        )
+        toast.success(tr('toast.students.excelImportSuccess', { 0: String(result.imported) }))
       } else {
         toast.warning(
-          t('toast.students.excelImportPartial')
-            .replace('{0}', String(result.imported))
-            .replace('{1}', String(result.failed.length)),
+          tr('toast.students.excelImportPartial', {
+            0: String(result.imported),
+            1: String(result.failed.length),
+          }),
         )
       }
       if (result.imported > 0) loadStudents()
@@ -359,50 +371,37 @@ export function useStudentActions({
   }
 
   // 下载 Excel 导入模板（走已有 sys:save-dialog → 主进程 xlsx 动态构造）
-  const handleDownloadExcelTemplate = async () => {
-    try {
-      const result = (await getAPI().sys.saveDialog({
-        title: t('page.students.import.excel.templateTitle', '保存导入模板'),
-        defaultPath: 'students-import-template.xlsx',
-        filters: [{ name: 'Excel', extensions: ['xlsx'] }],
-      })) as SaveDialogResult
-      if (!result || result.canceled || !result.filePath) return
-      const r = await getAPI().students.importTemplate(result.filePath)
-      if (r.success) {
-        toast.success(t('page.students.import.excel.templateSaved'))
-      } else {
-        toast.error(
-          `${t('page.students.import.excel.templateFailed')}: ${r.error ?? t('error.unknown')}`,
-        )
-      }
-    } catch (err) {
-      console.error('[Students] Excel template download failed:', err)
-      toast.error(t('page.students.import.excel.templateFailed'))
-    }
-  }
+  const handleDownloadExcelTemplate = () =>
+    runFileAction({
+      label: 'Excel template download',
+      dialog: () =>
+        saveAs({
+          title: t('page.students.import.excel.templateTitle', '保存导入模板'),
+          defaultPath: 'students-import-template.xlsx',
+          filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+        }),
+      invoke: (filePath) => getAPI().students.importTemplate(filePath),
+      successKey: 'page.students.import.excel.templateSaved',
+      failKey: 'page.students.import.excel.templateFailed',
+      detail: (r) => r.error ?? t('error.unknown'),
+    })
 
   // 导出排名
-  const handleExport = async (format: string) => {
-    try {
-      const ext = format === 'markdown' ? 'md' : format
-      const result = (await getAPI().sys.saveDialog({
-        title: t('page.students.export.rankTitle', '导出排名'),
-        defaultPath: `ranking.${ext}`,
-        filters: [{ name: format.toUpperCase(), extensions: [ext] }],
-      })) as SaveDialogResult
-      if (!result || result.canceled) return
-      const filePath = result.filePath
-      const exportResult = await getAPI().eaa.export(format, filePath)
-      if (exportResult.success) {
-        toast.success(t('toast.common.exportSuccess'))
-      } else {
-        toast.error(`${t('toast.common.exportFailed')}: ${getErrorMessage(exportResult)}`)
-      }
-    } catch (err) {
-      console.error('[Students] Export failed:', err)
-      toast.error(t('toast.common.exportFailed'))
-    }
-  }
+  const handleExport = (format: string) =>
+    runFileAction({
+      label: 'Export',
+      dialog: () => {
+        const ext = format === 'markdown' ? 'md' : format
+        return saveAs({
+          title: t('page.students.export.rankTitle', '导出排名'),
+          defaultPath: `ranking.${ext}`,
+          filters: [{ name: format.toUpperCase(), extensions: [ext] }],
+        })
+      },
+      invoke: (filePath) => getAPI().eaa.export(format, filePath),
+      successKey: 'toast.common.exportSuccess',
+      failKey: 'toast.common.exportFailed',
+    })
 
   return {
     handleAddStudent,

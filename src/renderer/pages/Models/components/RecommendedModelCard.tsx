@@ -4,6 +4,7 @@
 // =============================================================
 
 import type { OllamaModelInfo, OllamaPullProgressInfo } from '@shared/types'
+import { useT } from '../../../i18n'
 import type { RecommendedModel } from '../lib/local-models'
 
 interface RecommendedModelCardProps {
@@ -27,6 +28,7 @@ export function RecommendedModelCard({
   onToggleExpandedManual,
   onPull,
 }: RecommendedModelCardProps) {
+  const { t } = useT()
   const isInstalled = installed.some((i) => i.name === m.tag)
   const isPullingThis = pulling === m.tag
   const progPct =
@@ -38,7 +40,7 @@ export function RecommendedModelCard({
       <div className="flex items-start justify-between mb-1">
         <div>
           <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{m.name}</span>
-          <span className="ml-2 text-[10px] text-gray-400">{m.size}</span>
+          <span className="ml-2 text-[10px] text-gray-400">{m.sizeLabel}</span>
           <span
             className={`ml-1 text-[10px] px-1 py-0.5 rounded ${
               m.tier === 'GPU/大内存'
@@ -52,17 +54,18 @@ export function RecommendedModelCard({
           </span>
           <span
             className={`ml-1 text-[10px] px-1 py-0.5 rounded ${
-              m.chinese === '优秀'
+              m.chineseLevel === '优秀'
                 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
                 : 'bg-gray-100 text-gray-500 dark:bg-surface-elevated dark:text-gray-400'
             }`}
           >
-            中文{m.chinese}
+            {t('page.models.local.chinesePrefix')}
+            {m.chineseLevel}
           </span>
         </div>
         {isInstalled ? (
           <span className="text-[10px] text-emerald-500 dark:text-emerald-400 flex-shrink-0">
-            ✓ 已安装
+            {t('page.models.local.installed')}
           </span>
         ) : isPullingThis ? (
           <span className="text-[10px] text-indigo-500 flex-shrink-0">{progPct}%</span>
@@ -73,11 +76,13 @@ export function RecommendedModelCard({
             disabled={!serveRunning || !!pulling}
             className="text-[10px] px-2 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 disabled:opacity-40 transition-colors flex-shrink-0"
           >
-            下载
+            {t('page.models.local.download')}
           </button>
         )}
       </div>
-      <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">{m.desc}</p>
+      <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+        {m.description}
+      </p>
       {/* 下载进度条 */}
       {isPullingThis && (
         <div className="mt-2 h-1.5 bg-gray-200 dark:bg-surface-elevated rounded-full overflow-hidden">
@@ -94,11 +99,11 @@ export function RecommendedModelCard({
           onClick={() => onToggleExpandedManual(m.tag)}
           className="text-[10px] text-gray-400 hover:text-indigo-500 transition-colors"
         >
-          {expandedManual === m.tag ? '收起' : '手动下载'}
+          {expandedManual === m.tag ? t('common.collapse') : t('page.models.local.manualDownload')}
         </button>
         {expandedManual === m.tag && (
           <div className="flex gap-2">
-            {m.manual.map((url) => (
+            {m.manualUrls.map((url) => (
               <a
                 key={url.url}
                 href={url.url}

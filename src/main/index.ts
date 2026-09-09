@@ -22,6 +22,7 @@ import { keystoreService } from './services/keystore-service'
 import { ollamaService } from './services/ollama-service'
 import { settingsService } from './services/settings-service'
 import { destroyTray, getTrayStatus } from './services/tray-service'
+import { errText } from './utils/err-text'
 import { loadDevEnv } from './utils/load-dev-env'
 import { log } from './utils/logger'
 
@@ -34,7 +35,7 @@ if (devEnvLoaded > 0) {
 
 // 全局未捕获异常处理器 — 防止 Promise 拒绝和未捕获异常静默丢失
 process.on('unhandledRejection', (reason) => {
-  const msg = reason instanceof Error ? reason.message : String(reason)
+  const msg = errText(reason)
   const stack = reason instanceof Error ? reason.stack : ''
   console.error('[main] Unhandled rejection:', msg)
   if (stack) console.error(stack)
@@ -49,6 +50,11 @@ process.on('uncaughtException', (err) => {
 // 未设置时 Windows 以进程 exe 路径作为 AUMID, 开发模式下 electron.exe
 // 会被识别为 "Electron" 并显示默认图标分组
 app.setAppUserModelId('com.education-advisor.app')
+
+// 启动提速(2026-09-04): DB 初始化是纯 fs/SQLite 操作,不依赖 app.whenReady —
+// 在此提前开跑,与 Chromium 引导期并行,把 openDatabase/建表/预编译的耗时
+// 完全移出首帧关键路径(startApp 中的 await 直取同一 in-flight Promise)
+void dbService.init()
 
 // P0 修复: 注册 app:// 自定义协议，解决生产模式 file:// 协议下 ES Module CORS 问题
 // 必须在 app.whenReady() 之前调用
@@ -108,10 +114,7 @@ app
   .then(() => startApp())
   .catch((err) => {
     // 捕获 app.whenReady().then(async () => {...}) 中任何 await 抛出的异常
-    console.error(
-      '[main] App initialization failed:',
-      err instanceof Error ? err.message : String(err),
-    )
+    console.error('[main] App initialization failed:', errText(err))
     if (err instanceof Error && err.stack) console.error(err.stack)
   })
 
@@ -176,9 +179,18 @@ app.on('will-quit', (event) => {
   })
 })
 
-// 安全：阻止导航到外部页面
+// 安全：阻止导航到外部页面;权限白名单 — 仅剪贴板读写放行
+// (ContextMenu 复制/粘贴与各处复制按钮依赖),其余(地理/通知/媒体等)
+// 一律拒绝: 应用无此类需求,防渲染内容静默申请高权限 API
+const ALLOWED_PERMISSIONS = new Set(['clipboard-read', 'clipboard-sanitized-write'])
 app.on('web-contents-created', (_event, contents) => {
   contents.on('will-navigate', (event) => {
     event.preventDefault()
   })
+  contents.session.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(ALLOWED_PERMISSIONS.has(permission))
+  })
+  contents.session.setPermissionCheckHandler((_wc, permission) =>
+    ALLOWED_PERMISSIONS.has(permission),
+  )
 })
