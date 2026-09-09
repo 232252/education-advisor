@@ -81,7 +81,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     `4. 如果任务涉及多条数据的批量操作，用批量工具一次完成（如 eaa_import_students），不要中途停下改用长文确认。\n` +
     `5. 当用户让你修改 Excel 文件时：先 read_excel 读取 → 用 calculate 计算 → 用 write_excel 写回新文件。\n` +
     `6. 需要知道"今天几号"、"星期几"时，调用 get_current_time，不要猜测。\n` +
-    `7. 教师上传花名册并要求录入：read_excel → eaa_list_classes → 没有对应班就 eaa_create_class → 一次确认后 eaa_import_students。禁止声称「系统不能建班级」。\n\n` +
+    `7. 教师上传花名册并要求录入：read_excel 看表头与人数 → eaa_list_classes → 没有对应班就 eaa_create_class → 一次确认后 eaa_import_students({ excel_path, class_id })。身份证/电话/住址写入学生档案，不要声称系统不接收。禁止声称「系统不能建班级」。\n\n` +
     `--- 对话配置 ---\n` +
     `转向模式: ${
       input.steeringMode === 'all'

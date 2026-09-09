@@ -11,6 +11,7 @@ import { Type } from 'typebox'
 import * as XLSX from 'xlsx'
 import { checkFileSize, MAX_EXCEL_ROWS, validateFilePath } from './security'
 import { textResult, truncateForResult } from './shared'
+import { isPiiRosterHeader } from '@shared/roster-profile'
 
 // =============================================================
 // Schema 定义
@@ -104,17 +105,21 @@ export const readExcelTool: AgentTool<typeof readExcelParams> = {
     lines.push('---')
 
     if (rows.length > 0) {
-      // 表头
       const headers = (rows[0] as string[]).map(String)
+      const piiCols = headers.map((h, i) => (isPiiRosterHeader(h) ? i : -1)).filter((i) => i >= 0)
       lines.push(`表头: ${headers.join(' | ')}`)
+      if (piiCols.length > 0) {
+        lines.push(
+          '（身份证/电话/住址/邮箱等敏感列已对模型隐藏。导入花名册请把本文件绝对路径传给 eaa_import_students 的 excel_path，档案字段会写入学生档案并由隐私引擎登记。）',
+        )
+      }
       lines.push('')
 
-      // 数据行
       for (let i = 1; i < rows.length; i++) {
-        // F1 修复: 逐行循环中协作式中止检查点,避免大表格式化期间无法响应 abort
         if (signal?.aborted) return textResult('已取消')
         const row = rows[i] as unknown[]
-        const cells = row.map((cell) => {
+        const cells = row.map((cell, col) => {
+          if (piiCols.includes(col)) return '(已隐藏)'
           if (cell === null || cell === undefined || cell === '') return '(空)'
           return String(cell)
         })

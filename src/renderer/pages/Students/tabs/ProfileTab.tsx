@@ -4,6 +4,7 @@
 // =============================================================
 
 import type { EAAStudent, StudentProfileData } from '@shared/types'
+import { parseChineseIdCard } from '@shared/id-card'
 import {
   FileText,
   GraduationCap,
@@ -66,7 +67,18 @@ export function ProfileTab({
     setEditing(false)
   }
 
-  const updateForm = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }))
+  const updateForm = (key: string, value: string) => {
+    if (key === 'idCard') {
+      const parsed = parseChineseIdCard(value)
+      setForm((f) => ({
+        ...f,
+        idCard: value,
+        ...(parsed ? { gender: parsed.gender, birthDate: parsed.birthDate } : {}),
+      }))
+      return
+    }
+    setForm((f) => ({ ...f, [key]: value }))
+  }
 
   return (
     <div className="space-y-4">
@@ -134,6 +146,12 @@ export function ProfileTab({
             onChange={(v) => updateForm('enrollmentDate', v)}
           />
         </div>
+        <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
+          {t(
+            'page.students.profile.field.idCardHint',
+            '填写身份证号后自动识别性别和出生日期；电话/住址由隐私引擎登记脱敏。',
+          )}
+        </p>
       </ProfileSection>
 
       {/* 联系方式 */}
