@@ -6,6 +6,7 @@
 import * as IPC from '@shared/ipc-channels'
 import type { AgentExecution, CronLogEntry, CronTask } from '@shared/types'
 import type { BrowserWindow } from 'electron'
+import { sendToRenderer } from '../../ipc/broadcast'
 import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import { FEISHU_PUSH_AGENT_IDS, sendAgentAlert } from '../feishu/alerts'
@@ -98,13 +99,11 @@ export async function executeCronTask(
     )
     ctx.pushLog(applyCircuitBreakerSkip(task, taskId, Date.now()))
     // M7 修复: send 前判 isDestroyed,窗口销毁后此分支在 try 之外,异常会逃逸到 node-cron 回调
-    if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
-      ctx.mainWindow.webContents.send(IPC.IPC_CRON_STATUS_UPDATE, {
-        taskId,
-        lastRunAt: task.lastRunAt,
-        lastStatus: task.lastStatus,
-      })
-    }
+    sendToRenderer(ctx.mainWindow, IPC.IPC_CRON_STATUS_UPDATE, {
+      taskId,
+      lastRunAt: task.lastRunAt,
+      lastStatus: task.lastStatus,
+    })
     return
   }
 

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   dispatchEvent: vi.fn(),
   on: vi.fn(),
   removeListener: vi.fn(),
+  send: vi.fn(),
 }))
 
 vi.mock('electron', () => ({
@@ -17,15 +18,29 @@ vi.mock('electron', () => ({
     invoke: mocks.invoke,
     on: mocks.on,
     removeListener: mocks.removeListener,
+    send: mocks.send,
   },
 }))
 
+import { setIpcRuntime } from '../../src/shared/ipc-runtime'
 import * as IPC from '../../src/shared/ipc-channels'
 import { settingsApi } from '../../src/main/preload/api/settings'
 import { sysApi } from '../../src/main/preload/api/sys'
 import { skillApi } from '../../src/main/preload/api/skill'
 import { profileApi } from '../../src/main/preload/api/profile'
 import { privacyApi } from '../../src/main/preload/api/privacy'
+
+setIpcRuntime({
+  invoke: (channel, ...args) => mocks.invoke(channel, ...args) as Promise<unknown>,
+  on(channel, listener) {
+    const handler = (_e: unknown, data: unknown) => listener(data)
+    mocks.on(channel, handler)
+    return () => mocks.removeListener(channel, handler)
+  },
+  send: (channel, ...args) => {
+    mocks.send(channel, ...args)
+  },
+})
 
 describe('settingsApi / sysApi / skillApi / profileApi / privacyApi', () => {
   beforeAll(() => {
@@ -102,6 +117,15 @@ describe('settingsApi / sysApi / skillApi / profileApi / privacyApi', () => {
 
     void sysApi.readFile('C:/tmp/a.txt')
     expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_SYS_READ_FILE, 'C:/tmp/a.txt')
+
+    void sysApi.getWebUiStatus()
+    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_SYS_WEBUI_STATUS)
+
+    void sysApi.openWebUi()
+    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_SYS_WEBUI_OPEN)
+
+    void sysApi.regenerateWebUiToken()
+    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_SYS_WEBUI_REGEN_TOKEN)
   })
 
   // ===== sys (M31 自动更新) =====

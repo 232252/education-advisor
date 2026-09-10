@@ -127,6 +127,7 @@ This is a desktop app for class teachers. The threat model is:
 | Local privilege escalation | API keys are encrypted in the keystore (Electron's `safeStorage`); the privacy master password is Argon2-derived; sensitive files are written with `0600` (where supported). |
 | Data integrity | The event log is append-only with optional hash chaining; revert events are themselves events; the EAA CLI file-locks the log during writes. |
 | Phishing via LLM | The renderer uses `setWindowOpenHandler` to open external URLs in the system browser, not in-app; the LLM is never allowed to spawn a process or fetch a URL. |
+| Local WebUI | Off by default. Default bind is LAN: private IPv4 plus same-/64 IPv6, public sources refused. HTTPS (TLS 1.2+) unless the teacher chooses HTTP. Every request (pages and WebSocket) needs a persistent 256-bit token stored in the keystore (query / cookie / Bearer, constant-time compare, 12-fail lockout). Loopback-only and all-interfaces binds are opt-in. Custom cert/key in Advanced. |
 
 ---
 
@@ -157,6 +158,8 @@ This is a desktop app for class teachers. The threat model is:
 - TLS certificate verification is on by default
 - Proxy support via `models.customModels[].baseUrl` and `models.transport`
 - No outbound network calls except: LLM, auto-update, Feishu (opt-in)
+- Optional local WebUI defaults to **HTTPS** (HTTP is an explicit choice), binds LAN by default, and requires a persistent 256-bit token on every request. Default mode is off.
+- LAN bind refuses public internet sources. IPv6 GUA is only accepted when it shares this host's /64. Token comparison is SHA-256 + timing-safe. Failed auth is rate-limited per IP.
 
 ### Data at rest
 

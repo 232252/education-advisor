@@ -12,7 +12,17 @@
     "timezone": "Asia/Shanghai",
     "agentTimeoutMins": 5,
     "maxConcurrentCronTasks": 5,
-    "schedulerEnabled": true
+    "schedulerEnabled": true,
+    "webUiMode": "off",
+    "webUiPort": 18765,
+    "webUiScheduleStart": "08:00",
+    "webUiScheduleEnd": "22:00",
+    "webUiScheduleDays": [1, 2, 3, 4, 5],
+    "webUiProtocol": "https",
+    "webUiBind": "lan",
+    "webUiIpv6": true,
+    "webUiTlsCertPath": "",
+    "webUiTlsKeyPath": ""
   },
   "models": {
     "defaultProvider": "",

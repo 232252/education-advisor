@@ -77,6 +77,8 @@ scripts/link*.json
 
 # Download scratch (used by scripts/download-eaa-binaries.mjs and matrix MCP helpers)
 .tmp-eaa-download/
+# Leftover Cloudflare tunnel binaries (feature removed; do not commit)
+resources/cloudflared/
 /.tmp-*
 /*.tmp.json
 /.tmp-ico-prompt.json

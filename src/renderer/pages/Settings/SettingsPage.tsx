@@ -29,6 +29,7 @@ import {
   DiagnosticSection,
   FeishuSection,
   GeneralSection,
+  WebUiSection,
   LogSection,
   McpSection,
   MemorySection,
@@ -92,7 +93,11 @@ export function SettingsPage() {
     async (path: string, value: unknown) => {
       try {
         setSaving(true)
-        await getAPI().settings.set(path, value)
+        const result = await getAPI().settings.set(path, value)
+        if (!result?.success) {
+          toast.error(result?.error || `${t('settings.save.failed')}: ${path}`)
+          return
+        }
         setSettings((prev) => (prev ? deepSet(prev, path, value) : prev))
       } catch (err) {
         console.error('[Settings] Failed to save:', err)
@@ -191,6 +196,7 @@ export function SettingsPage() {
       <div className="p-6 space-y-5">
         {/* ===== 通用 ===== */}
         <GeneralSection settings={settings} onSave={handleSave} />
+        <WebUiSection settings={settings} onSave={handleSave} />
 
         {/* ===== 对话 ===== */}
         <ChatSection settings={settings} onSave={handleSave} />

@@ -22,6 +22,8 @@ export default defineConfig({
         'better-sqlite3',
         'node-cron',
         'cross-spawn',
+        'ws',
+        'selfsigned',
       ],
     },
     target: 'node24',

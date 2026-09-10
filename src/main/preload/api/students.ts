@@ -11,19 +11,19 @@ import type {
   StudentImportResult,
   StudentImportTemplateResult,
 } from '@shared/types'
-import { ipcRenderer } from 'electron'
+import { ipcInvoke } from '@shared/ipc-runtime'
 import { subscribe } from './subscribe'
 
 export const studentsApi: StudentsAPI = {
   // [r] 解析 Excel 文件返回预览(行数据 + 重名/已存在冲突检测)
   parseExcel: (filePath: string) =>
-    ipcRenderer.invoke(IPC.IPC_STUDENTS_PARSE_EXCEL, filePath) as Promise<StudentImportPreview>,
+    ipcInvoke(IPC.IPC_STUDENTS_PARSE_EXCEL, filePath) as Promise<StudentImportPreview>,
   // [w] 预览确认后逐条 add-student 批量导入
   importExcel: (params: StudentImportParams) =>
-    ipcRenderer.invoke(IPC.IPC_STUDENTS_IMPORT_EXCEL, params) as Promise<StudentImportResult>,
+    ipcInvoke(IPC.IPC_STUDENTS_IMPORT_EXCEL, params) as Promise<StudentImportResult>,
   // [w] 生成 Excel 导入模板到指定路径(路径来自 sys:save-dialog)
   importTemplate: (filePath: string) =>
-    ipcRenderer.invoke(
+    ipcInvoke(
       IPC.IPC_STUDENTS_IMPORT_TEMPLATE,
       filePath,
     ) as Promise<StudentImportTemplateResult>,
