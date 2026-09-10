@@ -5,20 +5,20 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import * as IPC from '@shared/ipc-channels'
-import { app, type BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, type BrowserWindow, dialog } from 'electron'
 import { factoryResetAll } from '../services/factory-reset'
 import { updateService } from '../services/update-service'
+import { webUiService } from '../services/webui-service'
 import { validatePathSafety } from '../utils/sanitize'
 import { handleIpc } from './handle'
+import { sendToRenderer } from './broadcast'
 import { invalidateSettingsGetCache } from './settings-handlers'
 
 export function registerSysHandlers(win: BrowserWindow) {
   // M31: 更新下载进度推送 (参考 ollama:pull-progress 模式:
   // 主进程事件 → webContents.send,窗口销毁后静默跳过)
   updateService.setProgressListener((p) => {
-    if (!win.isDestroyed()) {
-      win.webContents.send(IPC.IPC_SYS_UPDATE_PROGRESS, p)
-    }
+    sendToRenderer(win, IPC.IPC_SYS_UPDATE_PROGRESS, p)
   })
 
   // 打开文件选择对话框
@@ -52,7 +52,7 @@ export function registerSysHandlers(win: BrowserWindow) {
   )
 
   // R2-16: 版本号单一来源 — electron-builder 注入的 package.json version
-  ipcMain.handle(IPC.IPC_SYS_GET_VERSION, () => app.getVersion())
+  handleIpc(IPC.IPC_SYS_GET_VERSION, () => app.getVersion())
 
   // 获取系统路径
   // P1-34: app.getPath 合法入参是固定枚举,运行时窄化,
@@ -227,6 +227,10 @@ export function registerSysHandlers(win: BrowserWindow) {
       content,
     }
   })
+
+  handleIpc(IPC.IPC_SYS_WEBUI_STATUS, () => webUiService.getStatus())
+  handleIpc(IPC.IPC_SYS_WEBUI_OPEN, async () => webUiService.openInBrowser())
+  handleIpc(IPC.IPC_SYS_WEBUI_REGEN_TOKEN, async () => webUiService.regenerateToken())
 
   console.log('[IPC] System handlers registered')
 }

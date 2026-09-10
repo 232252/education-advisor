@@ -12,21 +12,29 @@ export interface SecretInputProps {
   onChange: (v: string) => void
   placeholder?: string
   onBlur?: () => void
+  inputClassName?: string
 }
 
-export function SecretInput({ value, onChange, placeholder, onBlur }: SecretInputProps) {
+export function SecretInput({
+  value,
+  onChange,
+  placeholder,
+  onBlur,
+  inputClassName,
+}: SecretInputProps) {
   const { t } = useT()
   const [revealed, setRevealed] = useState(false)
-  const display = value ? (revealed ? value : '••••••••') : ''
   return (
     <div className="flex items-center gap-1.5">
       <input
         type={revealed ? 'text' : 'password'}
-        value={display}
+        value={value}
         placeholder={placeholder ?? t('common.unset', '未设置')}
+        autoComplete="off"
+        spellCheck={false}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
-        className={cn(INPUT_SM, 'w-44')}
+        className={cn(INPUT_SM, inputClassName ?? 'w-44')}
       />
       {value && (
         <button

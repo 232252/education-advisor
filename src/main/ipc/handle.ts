@@ -11,12 +11,51 @@
 //   - opts.timer 接入 startIpcTimer 计时(原 try/finally stop 样板收口)
 //   - fn 首参是 IpcMainInvokeEvent(与原生 handle 一致),不用可写 _e
 //   - 兼容一期位置参数写法 handleIpc(ch, fn, onErrorFn)
+//   - 同时写入 IpcRegistry,供本机 HTTPS WebUI 走同一套 handler
 // =============================================================
 
 import { startIpcTimer } from '@shared/debug'
 import type { IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
 import { errText } from '../utils/err-text'
+
+type InvokeHandler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>
+type SendHandler = (event: IpcMainInvokeEvent, ...args: unknown[]) => void
+
+const invokeHandlers = new Map<string, InvokeHandler>()
+const sendHandlers = new Map<string, SendHandler>()
+
+export function hasInvokeHandler(channel: string): boolean {
+  return invokeHandlers.has(channel)
+}
+
+export async function invokeRegisteredHandler(
+  channel: string,
+  event: IpcMainInvokeEvent,
+  args: unknown[],
+): Promise<unknown> {
+  const fn = invokeHandlers.get(channel)
+  if (!fn) throw new Error(`Unknown IPC channel: ${channel}`)
+  return fn(event, ...args)
+}
+
+export function dispatchSendHandler(
+  channel: string,
+  event: IpcMainInvokeEvent,
+  args: unknown[],
+): boolean {
+  const fn = sendHandlers.get(channel)
+  if (!fn) return false
+  fn(event, ...args)
+  return true
+}
+
+export function registerSendHandler(channel: string, fn: SendHandler): void {
+  sendHandlers.set(channel, fn)
+  ipcMain.on(channel, (event, ...args: unknown[]) => {
+    fn(event as IpcMainInvokeEvent, ...args)
+  })
+}
 
 export function handleIpc<A extends unknown[]>(
   channel: string,
@@ -37,23 +76,39 @@ export function handleIpc<A extends unknown[]>(
         timer?: string
       },
 ): void {
-  ipcMain.handle(channel, async (event: IpcMainInvokeEvent, ...args: A) => {
-    // 全量计时: opts.timer 缺省用通道名。慢调用(>slowThresholdMs)在
-    // 任意环境可见(debug.ipc 仅控制常规逐调用日志),无需逐 handler 显式接 timer
+  const wrapped: InvokeHandler = async (event, ...args) => {
     const stop = startIpcTimer(
       opts && typeof opts !== 'function' && opts.timer ? opts.timer : channel,
     )
     try {
-      return await fn(event, ...args)
+      return await fn(event, ...(args as A))
     } catch (err: unknown) {
       const msg = errText(err)
       const onError = typeof opts === 'function' ? opts : opts?.onError
       const tag =
-        opts && typeof opts !== 'function' && opts.label ? opts.label(...args) : `${channel} failed`
+        opts && typeof opts !== 'function' && opts.label
+          ? opts.label(...args)
+          : `${channel} failed`
       console.error(`[IPC] ${tag}:`, msg)
       return onError ? onError(msg) : { success: false, error: msg }
     } finally {
       stop?.()
     }
-  })
+  }
+  invokeHandlers.set(channel, wrapped)
+  ipcMain.handle(channel, wrapped)
+}
+
+/** WebUI 调用进度推送用的假 IpcMainInvokeEvent(sender.send → 该 WS 连接) */
+export function createWebInvokeEvent(
+  send: (channel: string, payload: unknown) => void,
+): IpcMainInvokeEvent {
+  return {
+    sender: {
+      isDestroyed: () => false,
+      send: (channel: string, ...payload: unknown[]) => {
+        send(channel, payload.length <= 1 ? payload[0] : payload)
+      },
+    },
+  } as unknown as IpcMainInvokeEvent
 }

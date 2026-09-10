@@ -3,7 +3,7 @@
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
-import { type IpcMainInvokeEvent, ipcMain } from 'electron'
+import { type IpcMainInvokeEvent } from 'electron'
 import { invalidatePrivacyGuardCache } from '../../services/agent/privacy-guard'
 import { eaaBridge } from '../../services/eaa-bridge'
 import { handleIpc } from '../handle'
@@ -66,7 +66,7 @@ export function registerPrivacySessionHandlers(): void {
 
   // ----- status: 查询隐私引擎状态（是否已加载密码,是否已初始化） -----
   // 不返回密码本身,只返回布尔状态
-  ipcMain.handle(IPC.IPC_PRIVACY_STATUS, async () => {
+  handleIpc(IPC.IPC_PRIVACY_STATUS, async () => {
     return {
       unlocked: eaaBridge.hasPrivacyPassword(),
     }

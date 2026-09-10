@@ -58,4 +58,10 @@ export interface SysAPI {
   restartApp: () => Promise<{ success: boolean; error?: string }>
   /** 出厂重置：清空班级/学生/对话/成绩/记忆/模型密钥/设置。成功后应 relaunch */
   factoryReset: () => Promise<{ success: boolean; error?: string }>
+  /** 本机 WebUI 状态 */
+  getWebUiStatus: () => Promise<import('@shared/types').WebUiStatus>
+  /** 用系统浏览器打开当前 WebUI 地址 */
+  openWebUi: () => Promise<{ success: boolean; url?: string; error?: string }>
+  /** 重新生成 256-bit 访问令牌并立即生效 */
+  regenerateWebUiToken: () => Promise<{ success: boolean; error?: string }>
 }
