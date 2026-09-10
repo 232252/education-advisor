@@ -15,8 +15,11 @@ interface AgentsStepProps {
   /** 当前勾选的 Agent id 集合 */
   selectedAgentIds: Set<string>
   enablingAgents: boolean
+  /** 是否同时打开定时巡检(默认关,避免一上来就烧 Token) */
+  enableSchedules: boolean
   /** 切换单个 Agent 勾选状态 */
   onToggleAgent: (id: string) => void
+  onToggleSchedules: (v: boolean) => void
   /** 上一步 → 学生名单 */
   onBack: () => void
   /** 完成配置 → 启用勾选的 Agent 并进入完成页 */
@@ -28,7 +31,9 @@ export function AgentsStep({
   agentsLoading,
   selectedAgentIds,
   enablingAgents,
+  enableSchedules,
   onToggleAgent,
+  onToggleSchedules,
   onBack,
   onFinish,
 }: AgentsStepProps) {
@@ -41,7 +46,7 @@ export function AgentsStep({
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
         {t(
           'onboarding.agents.desc',
-          'Agent 负责定期分析学情、生成报告。可现在启用,稍后也可在「Agent」页调整。',
+          'Agent 可在对话里办事、生成报告。定时巡检默认关闭,避免一上来就消耗大量 Token。',
         )}
       </p>
       {agentsLoading ? (
@@ -97,6 +102,32 @@ export function AgentsStep({
           })}
         </div>
       )}
+      <label
+        className={cn(
+          'mt-4 flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer',
+          enableSchedules
+            ? 'border-amber-300 dark:border-amber-500/40 bg-amber-50/70 dark:bg-amber-500/[0.08]'
+            : 'border-gray-200/80 dark:border-white/[0.06]',
+        )}
+      >
+        <input
+          type="checkbox"
+          checked={enableSchedules}
+          onChange={(e) => onToggleSchedules(e.target.checked)}
+          className="mt-0.5 accent-amber-500"
+        />
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+            {t('onboarding.agents.enableSchedules', '同时启用定时任务')}
+          </div>
+          <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
+            {t(
+              'onboarding.agents.enableSchedulesWarn',
+              '默认关闭。打开后会按日程反复调用模型(晨/午/晚巡检等),Token 费用会很高,用钱会非常吃紧。建议先在对话里手动用,确认需要再开。',
+            )}
+          </p>
+        </div>
+      </label>
       <div className="flex items-center justify-end gap-2 mt-5">
         <button
           type="button"

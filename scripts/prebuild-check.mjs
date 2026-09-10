@@ -142,7 +142,6 @@ async function main() {
         info(`Attempting auto-fix: ${item.name}`)
         const fixed = await buildEAA()
         if (fixed) {
-          // 重新检查
           const recheck = checkResource(item)
           if (recheck.ok) {
             info(`✓ ${item.name}: OK after auto-fix`)

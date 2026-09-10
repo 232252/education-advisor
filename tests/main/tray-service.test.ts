@@ -36,6 +36,29 @@ vi.mock('electron', () => ({
 vi.mock('../../src/main/services/settings-service', () => ({
   settingsService: { getSettings: mocks.getSettings },
 }))
+vi.mock('../../src/main/services/webui-service', () => ({
+  webUiService: {
+    getStatus: () => ({
+      mode: 'off',
+      listening: false,
+      protocol: 'https',
+      bind: 'lan',
+      listenHost: '::',
+      ipv6: true,
+      port: 18765,
+      urls: [],
+      lanIpv4: [],
+      lanIpv6: [],
+      inSchedule: false,
+      fingerprintSha256: null,
+      usingCustomCert: false,
+      tokenBits: 256,
+      accessToken: 'test-token',
+      error: null,
+    }),
+    openInBrowser: vi.fn(),
+  },
+}))
 
 beforeAll(async () => {
   mocks.resourcesPath = resourcesDir

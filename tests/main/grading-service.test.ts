@@ -84,6 +84,11 @@ describe('gradingService — 任务与量规', () => {
       ],
     })
     expect(updated.rubric).toHaveLength(2)
+    await expect(
+      gradingService.updateTask(task.id, {
+        rubric: [{ id: 'q-1', title: '一', fullMark: 10, order: 1, presetMarks: [{ points: -1, note: '' }] }],
+      }),
+    ).rejects.toThrow('note')
   })
 
   it('updateTask: review 态量规锁定', async () => {
@@ -128,10 +133,15 @@ describe('gradingService — 试卷导入/归组/结果', () => {
     expect(stored).toHaveLength(3)
   })
 
-  it('importPapers: 非白名单扩展名/超限拒绝', async () => {
+  it('importPapers: 非白名单扩展名/空 PDF/超限拒绝', async () => {
     const pdf = path.join(mocks.userDataDir, 'a.pdf')
     await fsp.writeFile(pdf, 'x')
     await expect(gradingService.importPapers(taskId, [{ files: [{ path: pdf }] }])).rejects.toThrow(
+      '不是扫描件',
+    )
+    const txt = path.join(mocks.userDataDir, 'a.txt')
+    await fsp.writeFile(txt, 'x')
+    await expect(gradingService.importPapers(taskId, [{ files: [{ path: txt }] }])).rejects.toThrow(
       '不支持的文件类型',
     )
     await expect(gradingService.importPapers(taskId, [])).rejects.toThrow('批次')

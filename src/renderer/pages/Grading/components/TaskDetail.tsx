@@ -5,6 +5,8 @@
 // P4 接「复核/发布」入口。
 // =============================================================
 
+import type { GradingRosterEntry } from '@shared/api/grading'
+import { cleanPresetMarks } from '@shared/grading-helpers'
 import type {
   EAAStudent,
   GradingProgressEvent,
@@ -12,7 +14,7 @@ import type {
   RubricQuestion,
   TeacherReview,
 } from '@shared/types'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useIpcSubscription } from '../../../hooks/useIpcSubscription'
 import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
@@ -53,7 +55,8 @@ interface TaskDetailProps {
   ) => Promise<boolean>
   onAssignPaper: (taskId: string, paperId: string, studentName: string | null) => Promise<boolean>
   onRemovePaper: (taskId: string, paperId: string) => Promise<boolean>
-  onRunGrading: (taskId: string) => Promise<boolean>
+  onRunGrading: (taskId: string, roster?: GradingRosterEntry[]) => Promise<boolean>
+  onIdentifyPapers: (taskId: string, roster: GradingRosterEntry[]) => Promise<boolean>
   onAbortGrading: (taskId: string) => Promise<boolean>
   onRefresh: () => Promise<void>
   onPublish: (taskId: string) => Promise<boolean>
@@ -73,6 +76,7 @@ export function TaskDetail({
   onAssignPaper,
   onRemovePaper,
   onRunGrading,
+  onIdentifyPapers,
   onAbortGrading,
   onRefresh,
   onPublish,
@@ -106,9 +110,19 @@ export function TaskDetail({
   const pendingCount = task.papers.filter(
     (p) => p.studentName !== null && p.status === 'pending',
   ).length
+  const unassignedCount = task.papers.filter((p) => p.studentName === null).length
+  const roster = useMemo<GradingRosterEntry[]>(() => {
+    const active = students.filter((s) => s.status === 'Active')
+    const scoped = task.classId ? active.filter((s) => s.class_id === task.classId) : active
+    const pool = scoped.length > 0 ? scoped : active
+    return pool.map((s) => ({
+      name: s.name,
+      aliases: [s.entity_id, ...s.groups, ...s.roles].filter((x) => x.length > 0),
+    }))
+  }, [students, task.classId])
   const canRun =
-    (task.status === 'ready' || (task.status === 'review' && failedCount > 0)) &&
-    pendingCount + failedCount > 0
+    (task.status === 'ready' || task.status === 'review') &&
+    pendingCount + failedCount + unassignedCount > 0
   const running = task.status === 'grading'
   // 可复核 = 有 AI 结果的试卷(复核/已发布态)
   const reviewablePapers = task.papers.filter((p) => p.ai)
@@ -118,7 +132,10 @@ export function TaskDetail({
   const saveRubric = async () => {
     const cleaned = rubricDraft
       .filter((q) => q.title.trim().length > 0 && q.fullMark > 0)
-      .map((q, i) => ({ ...q, order: i + 1 }))
+      .map((q, i) => {
+        const marks = cleanPresetMarks(q.presetMarks)
+        return { ...q, order: i + 1, presetMarks: marks }
+      })
     await onUpdateTask(task.id, { rubric: cleaned })
   }
 
@@ -188,11 +205,11 @@ export function TaskDetail({
         {canRun && (
           <button
             type="button"
-            onClick={() => void onRunGrading(task.id)}
+            onClick={() => void onRunGrading(task.id, roster)}
             disabled={busy}
             className={btnStyle('primary')}
           >
-            {task.status === 'review'
+            {task.status === 'review' && failedCount > 0
               ? t('page.grading.run.retryFailed')
               : t('page.grading.run.start')}
           </button>
@@ -216,16 +233,19 @@ export function TaskDetail({
             {t('page.grading.review.open')}
           </button>
         )}
-        {task.status === 'review' && reviewablePapers.length > 0 && (
-          <button
-            type="button"
-            onClick={() => void onPublish(task.id)}
-            disabled={busy}
-            className={btnStyle('primary')}
-          >
-            {t('page.grading.publish')}
-          </button>
-        )}
+        {(task.status === 'review' || task.status === 'published') &&
+          reviewablePapers.length > 0 && (
+            <button
+              type="button"
+              onClick={() => void onPublish(task.id)}
+              disabled={busy}
+              className={btnStyle('primary')}
+            >
+              {task.status === 'published'
+                ? t('page.grading.republish')
+                : t('page.grading.publish')}
+            </button>
+          )}
         {confirmDelete ? (
           <span className="flex items-center gap-1">
             <button
@@ -290,11 +310,16 @@ export function TaskDetail({
                           index: progress.index ?? 0,
                           total: progress.total ?? 0,
                         })
-                      : tr('page.grading.progress.doing', {
-                          student: progress.studentName ?? '',
-                          index: progress.index ?? 0,
-                          total: progress.total ?? 0,
-                        })}
+                      : progress.phase === 'identify'
+                        ? tr('page.grading.progress.identify', {
+                            index: progress.index ?? 0,
+                            total: progress.total ?? 0,
+                          })
+                        : tr('page.grading.progress.doing', {
+                            student: progress.studentName ?? '',
+                            index: progress.index ?? 0,
+                            total: progress.total ?? 0,
+                          })}
                   </span>
                   <span className="font-mono">
                     {(progress.index ?? 0) / (progress.total ?? 1) > 0
@@ -358,6 +383,19 @@ export function TaskDetail({
                       {q.referenceAnswer}
                     </p>
                   )}
+                  {(q.presetMarks?.length ?? 0) > 0 && (
+                    <ul className="mt-1 flex flex-wrap gap-1">
+                      {(q.presetMarks ?? []).map((m, mi) => (
+                        <li
+                          key={`${q.id}-ro-${mi}`}
+                          className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300"
+                        >
+                          {m.points > 0 ? '+' : ''}
+                          {m.points} {m.note}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
             </ul>
@@ -377,6 +415,13 @@ export function TaskDetail({
             onAssign={onAssignPaper}
             onRemove={onRemovePaper}
             onReview={reviewable ? setReviewingPaperId : undefined}
+            onIdentify={
+              unassignedCount > 0 &&
+              roster.length > 0 &&
+              (task.status === 'draft' || task.status === 'ready' || task.status === 'review')
+                ? () => void onIdentifyPapers(task.id, roster)
+                : undefined
+            }
           />
         </section>
       </div>

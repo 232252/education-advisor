@@ -3,6 +3,7 @@
 // 创建即落草稿态;量规可留空后补(任务详情里继续编辑)。
 // =============================================================
 
+import { cleanPresetMarks } from '@shared/grading-helpers'
 import type { RubricQuestion } from '@shared/types'
 import { useState } from 'react'
 import { useT } from '../../../i18n'
@@ -57,7 +58,7 @@ export function TaskCreateDialog({
       subjectId: subjectId || undefined,
       rubric: rubric
         .filter((q) => q.title.trim().length > 0 && q.fullMark > 0)
-        .map((q, i) => ({ ...q, order: i + 1 })),
+        .map((q, i) => ({ ...q, order: i + 1, presetMarks: cleanPresetMarks(q.presetMarks) })),
     })
     if (ok) onClose()
   }

@@ -53,6 +53,7 @@ export function OnboardingWizardBody() {
   const [agentsLoading, setAgentsLoading] = useState(false)
   const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set())
   const [enablingAgents, setEnablingAgents] = useState(false)
+  const [enableSchedules, setEnableSchedules] = useState(false)
 
   const [summary, setSummary] = useState<OnboardingSummary>({
     className: null,
@@ -209,7 +210,11 @@ export function OnboardingWizardBody() {
   const handleEnableAgents = async () => {
     const ids = agents.filter((a) => selectedAgentIds.has(a.id) && !a.enabled).map((a) => a.id)
     if (ids.length === 0) {
-      // 无需启用 → 直接完成
+      try {
+        await getAPI().settings.set('general.schedulerEnabled', enableSchedules)
+      } catch {
+        /* ignore */
+      }
       setPhase('done')
       return
     }
@@ -225,6 +230,11 @@ export function OnboardingWizardBody() {
         }
       }
       setSummary((s) => ({ ...s, agentsEnabled: enabled }))
+      try {
+        await getAPI().settings.set('general.schedulerEnabled', enableSchedules)
+      } catch {
+        /* 总开关写入失败不阻断完成 */
+      }
       setPhase('done')
     } finally {
       setEnablingAgents(false)
@@ -324,6 +334,8 @@ export function OnboardingWizardBody() {
             agentsLoading={agentsLoading}
             selectedAgentIds={selectedAgentIds}
             enablingAgents={enablingAgents}
+            enableSchedules={enableSchedules}
+            onToggleSchedules={setEnableSchedules}
             onToggleAgent={toggleAgent}
             onBack={() => setPhase('students')}
             onFinish={handleEnableAgents}

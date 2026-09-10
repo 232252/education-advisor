@@ -5,9 +5,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   aiResultByQuestion,
+  cleanPresetMarks,
   effectiveQuestionScore,
   effectiveTotalScore,
+  groupPaperImportPaths,
+  markScoreFromSelection,
   matchPaperFilesToStudents,
+  matchIdentityToStudents,
+  paperGroupKey,
   rubricFullMark,
 } from '../../src/shared/grading-helpers'
 
@@ -63,6 +68,59 @@ describe('effectiveQuestionScore / effectiveTotalScore', () => {
   })
 })
 
+describe('markScoreFromSelection / cleanPresetMarks', () => {
+  const marks = [
+    { points: -2, note: '漏写单位' },
+    { points: -5, note: '公式错误' },
+    { points: 2, note: '步骤完整' },
+  ]
+
+  it('从满分加减并钳制到 [0, 满分]', () => {
+    expect(markScoreFromSelection(10, marks, [])).toBe(10)
+    expect(markScoreFromSelection(10, marks, [0])).toBe(8)
+    expect(markScoreFromSelection(10, marks, [0, 1])).toBe(3)
+    expect(markScoreFromSelection(10, marks, [1])).toBe(5)
+    expect(markScoreFromSelection(10, marks, [1, 2])).toBe(7)
+    expect(markScoreFromSelection(3, marks, [1])).toBe(0) // 10 会下溢,满分 3 → 0
+    expect(markScoreFromSelection(10, marks, [99])).toBe(10) // 越界下标忽略
+  })
+
+  it('清洗空备注/非法分值', () => {
+    expect(cleanPresetMarks(undefined)).toBeUndefined()
+    expect(cleanPresetMarks([])).toBeUndefined()
+    expect(cleanPresetMarks([{ points: -1, note: '  漏单位  ' }, { points: 1, note: '  ' }])).toEqual([
+      { points: -1, note: '漏单位' },
+    ])
+  })
+})
+
+describe('groupPaperImportPaths / paperGroupKey', () => {
+  it('中文名 + 页码 / 第N页 / pN 归为同一份', () => {
+    expect(paperGroupKey('张三_1.jpg')).toBe(paperGroupKey('张三_2.jpg'))
+    expect(paperGroupKey('张三第1页.png')).toBe(paperGroupKey('张三第2页.png'))
+    expect(paperGroupKey('lisi_p1.jpg')).toBe(paperGroupKey('lisi_p2.jpg'))
+    const grouped = groupPaperImportPaths([
+      'C:\\scan\\张三_1.jpg',
+      'C:\\scan\\张三_2.jpg',
+      'D:/scan/李四.jpg',
+    ])
+    expect(grouped).toHaveLength(2)
+    expect(grouped[0]?.files).toHaveLength(2)
+    expect(grouped[1]?.files).toHaveLength(1)
+  })
+
+  it('相机流水 IMG_001 不误合成一份', () => {
+    const grouped = groupPaperImportPaths(['IMG_001.jpg', 'IMG_002.jpg', 'scan_01.png'])
+    expect(grouped).toHaveLength(3)
+  })
+
+  it('空路径跳过; 保持选择顺序', () => {
+    expect(groupPaperImportPaths([])).toEqual([])
+    const grouped = groupPaperImportPaths(['b.jpg', '', 'a.jpg'])
+    expect(grouped.map((g) => g.files[0]?.path)).toEqual(['b.jpg', 'a.jpg'])
+  })
+})
+
 describe('matchPaperFilesToStudents', () => {
   const students = [
     { name: '张三' },
@@ -107,5 +165,43 @@ describe('matchPaperFilesToStudents', () => {
     expect(matchPaperFilesToStudents([{ paperId: 'x', fileName: 'a.jpg' }], [])).toEqual([
       { paperId: 'x', fileName: 'a.jpg', suggested: null, candidates: [] },
     ])
+  })
+})
+
+describe('matchIdentityToStudents', () => {
+  const roster = [
+    { name: '张三', aliases: ['202601'] },
+    { name: '张三丰', aliases: ['202602'] },
+    { name: '李四', aliases: ['15'] },
+  ]
+
+  it('卷面姓名唯一命中优先于编号; 同名子串不猜', () => {
+    expect(matchIdentityToStudents({ name: '李四', number: '' }, roster).suggested).toBe('李四')
+    // 双向子串:「张三」命中张三与张三丰 → 不猜
+    expect(matchIdentityToStudents({ name: '张三', number: '' }, roster).suggested).toBeNull()
+    // 卷面写全名同样命中两人(张三丰.includes(张三)),与文档「不猜」一致
+    expect(matchIdentityToStudents({ name: '张三丰', number: '' }, roster).suggested).toBeNull()
+    expect(new Set(matchIdentityToStudents({ name: '张三丰', number: '' }, roster).candidates)).toEqual(
+      new Set(['张三', '张三丰']),
+    )
+  })
+
+  it('编号精确/后缀唯一命中; 单位数不后缀误伤', () => {
+    expect(matchIdentityToStudents({ name: '', number: '202601' }, roster).suggested).toBe('张三')
+    expect(matchIdentityToStudents({ name: '', number: '15' }, roster).suggested).toBe('李四')
+    expect(matchIdentityToStudents({ name: '', number: '1' }, roster).suggested).toBeNull()
+  })
+
+  it('空白身份 → 无候选', () => {
+    expect(matchIdentityToStudents({ name: '', number: '' }, roster)).toEqual({
+      suggested: null,
+      candidates: [],
+    })
+  })
+
+  it('姓名歧义时编号可唯一定人', () => {
+    expect(matchIdentityToStudents({ name: '张三', number: '202602' }, roster).suggested).toBe(
+      '张三丰',
+    )
   })
 })

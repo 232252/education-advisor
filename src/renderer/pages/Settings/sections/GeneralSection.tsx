@@ -257,6 +257,17 @@ export function GeneralSection({ settings, onSave }: GeneralSectionProps) {
         invalidToast={t('toast.settings.maxConcurrentInvalid', '请输入 1-20 之间的整数')}
       />
 
+      <ToggleSettingRow
+        path="general.schedulerEnabled"
+        label={t('page.settings.general.schedulerEnabled', '启用定时任务')}
+        description={t(
+          'page.settings.general.schedulerEnabledDesc',
+          '关闭后所有自动巡检/日报不再触发。开启会按日程反复调用模型,Token 费用会很高。',
+        )}
+        value={settings.general.schedulerEnabled !== false}
+        onSave={onSave}
+      />
+
       <SelectSettingRow
         path="general.logLevel"
         label={t('settings.logLevel', '日志级别')}

@@ -7,6 +7,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ContextMenu } from './components/ContextMenu'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastContainer } from './components/ToastContainer'
+import { useChatAgentBridge } from './hooks/useChatAgentBridge'
 import { useForwardConsole } from './hooks/useForwardConsole'
 import { useTheme } from './hooks/useTheme'
 import { MainLayout } from './layouts/MainLayout'
@@ -91,6 +92,8 @@ export function App() {
     fetchAgents()
     initStatusListener()
   }, [fetchAgents, initStatusListener])
+  // 对话流桥必须常驻:离开 /chat 时 ChatPage 会卸载,订阅不能跟页面走
+  useChatAgentBridge()
 
   return (
     <ErrorBoundary>

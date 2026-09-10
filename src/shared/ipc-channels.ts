@@ -120,6 +120,8 @@ export const IPC_SYS_CHECK_UPDATE = 'sys:check-update'
 export const IPC_SYS_READ_FILE = 'sys:read-file'
 // 重启应用(备份恢复后数据文件已替换,需重启进程重新加载)
 export const IPC_SYS_RESTART_APP = 'sys:restart-app'
+/** 出厂重置：清空班级/学生/对话/设置/密钥，调用后应 relaunch */
+export const IPC_SYS_FACTORY_RESET = 'sys:factory-reset'
 // ===== 自动更新 (M31, electron-updater) =====
 // 触发下载新版本安装包(sha512 校验由 electron-updater 内置)
 export const IPC_SYS_DOWNLOAD_UPDATE = 'sys:download-update'
@@ -186,6 +188,8 @@ export const IPC_GRADING_READ_FILE = 'grading:read-paper-file'
 export const IPC_GRADING_PUBLISH = 'grading:publish'
 // 样卷识别→量规草稿(视觉模型,无状态:图片只读不拷贝,结果不落盘)
 export const IPC_GRADING_EXTRACT_RUBRIC = 'grading:extract-rubric'
+// 从卷面手写姓名/编号识别归属(视觉模型;唯一命中才自动指派)
+export const IPC_GRADING_IDENTIFY_PAPERS = 'grading:identify-papers'
 
 // ===== 班级管理（本地：存档/删除） =====
 export const IPC_CLASS_LIST = 'class:list'
@@ -234,3 +238,6 @@ export const IPC_LOG_WRITE_RENDERER = 'log:write-renderer'
 // ===== 系统（更新对话框扩展） =====
 // 此前已被 sys-handlers.ts 引用但未在常量表中，补齐
 export const IPC_SYS_SHOW_UPDATE_DIALOG = 'sys:show-update-dialog'
+export const IPC_SYS_WEBUI_STATUS = 'sys:webui-status'
+export const IPC_SYS_WEBUI_OPEN = 'sys:webui-open'
+export const IPC_SYS_WEBUI_REGEN_TOKEN = 'sys:webui-regen-token'

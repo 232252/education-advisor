@@ -11,8 +11,10 @@ import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { Skeleton } from '../../components/Skeleton'
 import { useT } from '../../i18n'
+import { getAPI } from '../../lib/ipc-client'
 import { btnStyle } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
+import { ToggleSwitch } from '../Settings/components/ToggleSwitch'
 import { ExecutionLogPanel } from './components/ExecutionLogPanel'
 import { NewTaskForm } from './components/NewTaskForm'
 import { TaskCard } from './components/TaskCard'
@@ -24,6 +26,8 @@ export function SchedulerPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   // CONCERN 修复: 编辑任务模式 — 当 editingTaskId 非空时,表单填充该任务数据
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [schedulerEnabled, setSchedulerEnabled] = useState(true)
+  const [masterConfirm, setMasterConfirm] = useState(false)
   const {
     tasks,
     logs,
@@ -38,6 +42,44 @@ export function SchedulerPage() {
     confirmState,
     setConfirmState,
   } = useSchedulerData()
+
+  useEffect(() => {
+    let cancelled = false
+    void getAPI()
+      .settings.get()
+      .then((s) => {
+        if (!cancelled) setSchedulerEnabled(s.general?.schedulerEnabled !== false)
+      })
+      .catch(() => {
+        /* 保持默认开,避免误关 */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const applyMaster = async (enabled: boolean) => {
+    try {
+      await getAPI().settings.set('general.schedulerEnabled', enabled)
+      setSchedulerEnabled(enabled)
+      toast.success(
+        enabled
+          ? t('toast.scheduler.masterOn', '定时任务已全部开启')
+          : t('toast.scheduler.masterOff', '定时任务已全部暂停'),
+      )
+    } catch (err) {
+      console.error('[Scheduler] Master toggle failed:', err)
+      toast.error(t('toast.scheduler.toggleFailed'))
+    }
+  }
+
+  const handleMasterToggle = (next: boolean) => {
+    if (next) {
+      setMasterConfirm(true)
+      return
+    }
+    void applyMaster(false)
+  }
 
   // MEDIUM 修复: 校验 editingTaskId 有效性
   // 场景: 用户点击"编辑"后,任务被外部(如 cron 状态更新触发的 loadData)替换或删除,
@@ -76,6 +118,19 @@ export function SchedulerPage() {
         size="md"
         actions={
           <>
+            <span className="flex items-center gap-2 mr-2">
+              <ToggleSwitch
+                size="sm"
+                checked={schedulerEnabled}
+                label={t('page.scheduler.master.label', '定时任务总开关')}
+                onChange={handleMasterToggle}
+              />
+              <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                {schedulerEnabled
+                  ? t('page.scheduler.master.on', '定时已开')
+                  : t('page.scheduler.master.off', '定时已关')}
+              </span>
+            </span>
             <button type="button" onClick={reload} className={btnStyle('secondary')}>
               {t('common.refresh', '刷新')}
             </button>
@@ -92,6 +147,16 @@ export function SchedulerPage() {
           </>
         }
       />
+
+      {/* 总开关关闭横幅 */}
+      {!schedulerEnabled && !loading && (
+        <div className="mx-4 mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          {t(
+            'page.scheduler.master.banner',
+            '定时任务总开关已关闭：日程不会自动跑。需要时再打开；打开会持续消耗大量 Token。',
+          )}
+        </div>
+      )}
 
       {/* 新建/编辑表单 */}
       {showForm && (
@@ -166,6 +231,20 @@ export function SchedulerPage() {
         </div>
       )}
 
+      <ConfirmDialog
+        open={masterConfirm}
+        title={t('page.scheduler.master.confirmTitle', '开启全部定时任务?')}
+        message={t(
+          'page.scheduler.master.confirm',
+          '开启后各 Agent 会按日程自动跑(晨检/午检/晚检/周报等),会消耗大量 Token。如果按量付费,费用会非常吃紧。确定要打开吗?',
+        )}
+        variant="danger"
+        onConfirm={() => {
+          setMasterConfirm(false)
+          void applyMaster(true)
+        }}
+        onCancel={() => setMasterConfirm(false)}
+      />
       <ConfirmDialog
         open={confirmState.open}
         title={confirmState.title}

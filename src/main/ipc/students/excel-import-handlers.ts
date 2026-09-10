@@ -1,12 +1,11 @@
 // =============================================================
 // 学生 Excel 批量导入 IPC 处理器（M30）
-//   - students/parse-excel      解析 + 冲突检测（重名/已存在学生），返回预览
-//   - students/import-excel     逐条 add-student（class_name 解析出 class_id 时
-//                               联动 set-student-meta 分班），assign-progress 同款进度推送
-//   - students/import-template  生成 Excel 模板（路径来自已有 sys:save-dialog）
-// xlsx 依赖仅在 main 侧（复用 agent 侧 excel-tools 的读法），renderer 零增重
+//   - students/parse-excel      解析 + 冲突检测，返回预览
+//   - students/import-excel     逐条 add-student + 分班 + 写入学生档案
+//   - students/import-template  生成 Excel 模板
 // =============================================================
 
+import { fieldsToProfilePatch } from '@shared/roster-profile'
 import * as IPC from '@shared/ipc-channels'
 import type {
   EAAStudentList,
@@ -19,6 +18,11 @@ import type { IpcMainInvokeEvent } from 'electron'
 import * as XLSX from 'xlsx'
 import { classService } from '../../services/class-service'
 import { eaaBridge } from '../../services/eaa-bridge'
+import {
+  applyStudentRosterProfile,
+  isAlreadyExistsError,
+  registerRosterPrivacy,
+} from '../../services/profile-import'
 import { errText } from '../../utils/err-text'
 import { sanitizeClassId, sanitizeName } from '../../utils/sanitize'
 import { invalidateStudentsCacheNow } from '../eaa/cache'
@@ -26,26 +30,11 @@ import { handleIpc } from '../handle'
 import {
   buildClassIndex,
   parseStudentImportMatrix,
+  readExcelMatrix,
   TEMPLATE_HEADERS,
   TEMPLATE_SHEET_NAME,
   validateExcelFilePath,
 } from './excel-import'
-
-/** 读取 Excel 首个工作表为矩阵（第一行作表头；空单元格补 ''） */
-function readExcelMatrix(filePath: string): unknown[][] {
-  // 注意：XLSX.readFile 是同步阻塞调用（xlsx 库无异步版本），
-  // 导入文件来自用户对话框且行数受限，可接受；try/catch 防崩溃
-  const workbook = XLSX.readFile(filePath)
-  if (workbook.SheetNames.length === 0) {
-    throw new Error('Excel 文件中没有工作表')
-  }
-  const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-  return XLSX.utils.sheet_to_json(worksheet, {
-    header: 1,
-    defval: '',
-    blankrows: true,
-  }) as unknown[][]
-}
 
 /** 获取现有学生名集合（非 Deleted），用于冲突检测 */
 async function fetchExistingStudentNames(): Promise<Set<string>> {
@@ -58,7 +47,6 @@ async function fetchExistingStudentNames(): Promise<Set<string>> {
 }
 
 export function registerStudentExcelHandlers(): void {
-  // ----- parse-excel: 解析 + 冲突检测，返回预览（不写入） -----
   handleIpc(
     IPC.IPC_STUDENTS_PARSE_EXCEL,
     async (_e, filePath: string): Promise<StudentImportPreview> => {
@@ -77,9 +65,6 @@ export function registerStudentExcelHandlers(): void {
     },
   )
 
-  // ----- import-excel: 预览确认后逐条 add-student（+ set-student-meta 分班） -----
-  // EAA 写命令经 writeQueue 串行化，循环调用安全但较慢（N 次 spawn），
-  // 复用 class:assign 的 assign-progress 推送模式，避免前端长时间无反馈
   handleIpc(
     IPC.IPC_STUDENTS_IMPORT_EXCEL,
     async (e: IpcMainInvokeEvent, params: StudentImportParams): Promise<StudentImportResult> => {
@@ -104,6 +89,8 @@ export function registerStudentExcelHandlers(): void {
       const total = params.rows.length
       const failed: StudentImportResult['failed'] = []
       const seen = new Set<string>()
+      const privacyItems: Array<{ name: string; patch: ReturnType<typeof fieldsToProfilePatch> }> =
+        []
       let imported = 0
       let current = 0
       const sendProgress = (current: number, total: number, imported: number, lastName: string) => {
@@ -120,7 +107,6 @@ export function registerStudentExcelHandlers(): void {
           /* 渲染进程可能已卸载，忽略 */
         }
       }
-      // 开始前先发一次 0/total，让前端立即进入「处理中」状态
       sendProgress(0, total, 0, '')
       for (const r of params.rows) {
         const rowNo = Number.isInteger(r?.row) ? r.row : 0
@@ -133,8 +119,16 @@ export function registerStudentExcelHandlers(): void {
             failErr = 'duplicate name in import request'
           } else {
             seen.add(name)
-            const res = await eaaBridge.execute({ command: 'add-student', args: [name] })
-            if (res.success) {
+            let added = false
+            if (!r.alreadyExists) {
+              const res = await eaaBridge.execute({ command: 'add-student', args: [name] })
+              if (res.success) {
+                added = true
+              } else if (!isAlreadyExistsError(res.stderr || '', res.data)) {
+                failErr = res.stderr || '未知错误'
+              }
+            }
+            if (!failErr) {
               const rawClassId = typeof r?.classId === 'string' ? r.classId : ''
               if (rawClassId) {
                 const classId = sanitizeClassId(rawClassId)
@@ -142,16 +136,33 @@ export function registerStudentExcelHandlers(): void {
                   command: 'set-student-meta',
                   args: [name, '--class-id', classId],
                 })
-                if (meta.success) {
-                  ok = true
-                } else {
-                  failErr = `class assign failed: ${meta.stderr || '未知错误'}`
+                if (!meta.success) {
+                  failErr = added
+                    ? `class assign failed (new student): ${meta.stderr || '未知错误'}`
+                    : `class assign failed (existing student): ${meta.stderr || '未知错误'}`
                 }
-              } else {
-                ok = true
               }
-            } else {
-              failErr = res.stderr || '未知错误'
+            }
+            if (!failErr) {
+              const patch = fieldsToProfilePatch({
+                studentId: r.studentId,
+                classId: r.classId,
+                idCard: r.idCard,
+                gender: r.gender,
+                birthDate: r.birthDate,
+                phone: r.phone,
+                address: r.address,
+                email: r.email,
+                fatherName: r.fatherName,
+                fatherPhone: r.fatherPhone,
+                motherName: r.motherName,
+                motherPhone: r.motherPhone,
+                enrollmentDate: r.enrollmentDate,
+                dormNumber: r.dormNumber,
+              })
+              await applyStudentRosterProfile(name, patch)
+              privacyItems.push({ name, patch })
+              ok = true
             }
           }
         } catch (err: unknown) {
@@ -165,7 +176,11 @@ export function registerStudentExcelHandlers(): void {
         current += 1
         sendProgress(current, total, imported, name)
       }
-      // 导入后让 listStudents 缓存失效,下一次加载看到新学生
+      try {
+        await registerRosterPrivacy(privacyItems)
+      } catch {
+        /* 档案已写入，隐私登记失败不回滚导入 */
+      }
       invalidateStudentsCacheNow()
       return { success: true, total, imported, failed }
     },
@@ -175,20 +190,17 @@ export function registerStudentExcelHandlers(): void {
     },
   )
 
-  // ----- import-template: 生成 Excel 导入模板（name 必填；student_id/class_name 可选） -----
   handleIpc(
     IPC.IPC_STUDENTS_IMPORT_TEMPLATE,
     async (_e, filePath: string): Promise<StudentImportTemplateResult> => {
-      // 模板只生成 .xlsx（路径来自 sys:save-dialog，filters 已限定 xlsx）
       const validated = validateExcelFilePath(filePath, ['.xlsx'])
       if (!validated.ok) {
         return { success: false, error: validated.error }
       }
       const workbook = XLSX.utils.book_new()
       const worksheet = XLSX.utils.aoa_to_sheet([[...TEMPLATE_HEADERS]])
-      worksheet['!cols'] = [{ wch: 24 }, { wch: 16 }, { wch: 20 }]
+      worksheet['!cols'] = TEMPLATE_HEADERS.map((h) => ({ wch: Math.max(12, h.length + 4) }))
       XLSX.utils.book_append_sheet(workbook, worksheet, TEMPLATE_SHEET_NAME)
-      // 注意：XLSX.writeFile 是同步阻塞调用，单表头行写入耗时可忽略
       XLSX.writeFile(workbook, filePath)
       return { success: true, filePath }
     },

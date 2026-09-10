@@ -1,6 +1,6 @@
 // =============================================================
 // Section — 设置页分区容器(可折叠)
-// 标题栏可点击展开/收起,默认展开
+// 标题栏可点击展开/收起,默认收起,避免一屏字段过多
 // =============================================================
 
 import { useState } from 'react'
@@ -13,7 +13,7 @@ export interface SectionProps {
   defaultOpen?: boolean
 }
 
-export function Section({ title, children, defaultOpen = true }: SectionProps) {
+export function Section({ title, children, defaultOpen = false }: SectionProps) {
   const { t } = useT()
   const [open, setOpen] = useState(defaultOpen)
   return (

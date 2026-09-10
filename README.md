@@ -191,6 +191,8 @@ When the app opens, go to `#/settings` and:
 - (Optional) Configure Feishu credentials in `#/settings` → Feishu panel.
 - (Optional) Initialize the privacy engine in `#/privacy`.
 
+Optional: open **Settings → 本机 WebUI**. Choose 长期开启 or 定时开启. Default protocol is **HTTPS** (TLS 1.2+) on the LAN; you can switch to HTTP. Access is gated by a persistent 256-bit token (URL / cookie / Bearer). Bind scope defaults to **局域网** (private/LAN sources only). The tray menu **在浏览器中打开 WebUI** opens a tokenized URL. Default mode is **关闭**.
+
 Then visit `#/agents`, click **Run manual** on `class-monitor`, and add a conduct event. The whole pipeline will fire end-to-end.
 
 ---

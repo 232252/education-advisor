@@ -20,6 +20,33 @@ export interface UnifiedSettings {
     agentTimeoutMins: number
     /** R57-3 H3: cron 任务最大并发数,默认 5 */
     maxConcurrentCronTasks: number
+    /**
+     * 定时任务总开关。false 时所有 cron 触发跳过(手动「立即执行」仍可用)。
+     * 默认 true 兼容旧用户;引导仪可把它关掉以免一上来就烧 Token。
+     */
+    schedulerEnabled: boolean
+    /**
+     * 本机 WebUI: off 关闭 / always 长开 / scheduled 定时开。
+     */
+    webUiMode: 'off' | 'always' | 'scheduled'
+    /** WebUI 端口(实际占用时顺延) */
+    webUiPort: number
+    /** 定时开: 开始时刻 HH:mm */
+    webUiScheduleStart: string
+    /** 定时开: 结束时刻 HH:mm(小于开始则跨午夜) */
+    webUiScheduleEnd: string
+    /** 定时开: 星期几, 0=周日 … 6=周六 */
+    webUiScheduleDays: number[]
+    /** http 明文 或 https（默认 https，TLS 1.2+） */
+    webUiProtocol: 'http' | 'https'
+    /** 仅本机 / 局域网私网+同前缀 IPv6 / 全部接口 */
+    webUiBind: 'loopback' | 'lan' | 'all'
+    /** 是否同时监听 IPv6 */
+    webUiIpv6: boolean
+    /** 高级: 局域网 HTTPS 用的证书路径(空则自签) */
+    webUiTlsCertPath: string
+    /** 高级: 局域网 HTTPS 用的私钥路径 */
+    webUiTlsKeyPath: string
   }
   models: {
     defaultProvider: string

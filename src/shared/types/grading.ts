@@ -46,6 +46,16 @@ export interface PaperFile {
   bytes: number
 }
 
+/** 卷面批注框(相对该页宽高的 0–1 比例,供复核台叠字) */
+export interface GradeAnnotationBox {
+  /** 试卷图片页下标(0 起) */
+  page: number
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 /** AI 单题结果(≈ autograding_testcase_data 逐项得分 + 判分依据) */
 export interface AiQuestionResult {
   questionId: string
@@ -54,6 +64,10 @@ export interface AiQuestionResult {
   evidence?: string
   /** 单题评语 */
   comment?: string
+  /** AI 选用的评分点下标(对应 RubricQuestion.presetMarks) */
+  appliedMarks?: number[]
+  /** 错题/评语在卷面上的位置(没有则复核台只在右侧展示) */
+  box?: GradeAnnotationBox
 }
 
 /** AI 批改结果(整份试卷) */
@@ -61,14 +75,19 @@ export interface AiGradeResult {
   questions: AiQuestionResult[]
   totalScore: number
   model: { provider: string; model: string }
-  usage?: { input: number; output: number }
+  usage?: {
+    input: number
+    output: number
+    cacheRead?: number
+    cacheWrite?: number
+  }
   finishedAt: string
 }
 
 /** 教师复核(≈ TA component_data 改分 + grade_override) */
 export interface TeacherReview {
-  /** 逐题覆盖: 缺省项沿用 AI 分 */
-  questions: Record<string, { score?: number; comment?: string }>
+  /** 逐题覆盖: 缺省项沿用 AI 分; marks 为点选的评分点下标 */
+  questions: Record<string, { score?: number; comment?: string; marks?: number[] }>
   overallComment?: string
   reviewedAt: string
 }
@@ -110,7 +129,7 @@ export interface GradingTask {
 /** AI 批改进度事件(主→渲染推送) */
 export interface GradingProgressEvent {
   taskId: string
-  phase: 'start' | 'graded' | 'failed' | 'done'
+  phase: 'start' | 'identify' | 'graded' | 'failed' | 'done'
   paperId?: string
   studentName?: string
   index?: number

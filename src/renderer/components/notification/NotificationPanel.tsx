@@ -2,6 +2,8 @@
 // NotificationPanel — 通知中心弹出面板(经 NotificationCenter 懒挂载)
 // 状态全部来自 notificationStore(与铃铛解耦,挂载即数据就绪);
 // 相对时间 60s 刷新 effect 随挂载启停(原 open 门控语义不变)。
+// 侧栏 aside 带 backdrop-blur,会裁切 absolute 溢出;面板改为 portal 到
+// document.body + fixed 定位,贴着侧栏右缘弹出,避免标题/未读数被挡住。
 // =============================================================
 
 import {
@@ -18,7 +20,8 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { type RefObject, useEffect, useLayoutEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { tr, useT } from '../../i18n'
 import { cn } from '../../lib/ui-utils'
@@ -50,12 +53,32 @@ const SOURCE_ICON = {
   system: Settings,
 } as const
 
+const PANEL_WIDTH = 360
+const PANEL_GAP = 8
+
 interface NotificationPanelProps {
   /** 点击带 target 的通知导航后由面板调用(同时关闭面板) */
   onClose: () => void
+  /** 铃铛容器,用来计算侧栏右缘与底部对齐 */
+  anchorRef: RefObject<HTMLElement | null>
+  /** 供铃铛侧判定"点击是否落在面板内"(portal 后不再是铃铛的 DOM 子节点) */
+  panelRef: RefObject<HTMLDivElement | null>
 }
 
-export function NotificationPanel({ onClose }: NotificationPanelProps) {
+function computePanelPosition(anchor: HTMLElement): { left: number; bottom: number } {
+  const bell = anchor.getBoundingClientRect()
+  const aside = anchor.closest('aside')
+  const sidebarRight = aside?.getBoundingClientRect().right ?? bell.right
+  const width = Math.min(PANEL_WIDTH, Math.max(240, window.innerWidth - PANEL_GAP * 2))
+  const left = Math.max(
+    PANEL_GAP,
+    Math.min(sidebarRight + PANEL_GAP, window.innerWidth - width - PANEL_GAP),
+  )
+  const bottom = Math.max(PANEL_GAP, window.innerHeight - bell.bottom)
+  return { left, bottom }
+}
+
+export function NotificationPanel({ onClose, anchorRef, panelRef }: NotificationPanelProps) {
   const { t } = useT()
   const navigate = useNavigate()
   const notifications = useNotificationStore((s) => s.notifications)
@@ -65,12 +88,29 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
   const remove = useNotificationStore((s) => s.remove)
   const clear = useNotificationStore((s) => s.clear)
 
+  const [pos, setPos] = useState({ left: PANEL_GAP, bottom: PANEL_GAP })
+
   // 挂载期间每 60s 刷新相对时间显示(面板仅在打开时挂载)
   const [, setTick] = useState(0)
   useEffect(() => {
     const timer = window.setInterval(() => setTick((v) => v + 1), 60_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current
+    if (!anchor) return
+    const update = () => setPos(computePanelPosition(anchor))
+    update()
+    window.addEventListener('resize', update)
+    const aside = anchor.closest('aside')
+    const ro = aside ? new ResizeObserver(update) : null
+    if (aside) ro?.observe(aside)
+    return () => {
+      window.removeEventListener('resize', update)
+      ro?.disconnect()
+    }
+  }, [anchorRef])
 
   const handleClick = (n: NotificationItem) => {
     if (!n.read) markRead(n.id)
@@ -80,27 +120,36 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     }
   }
 
-  return (
-    <div className="absolute left-full bottom-0 ml-2 w-[360px] max-w-[calc(100vw-90px)] bg-white dark:bg-surface-elevated rounded-xl shadow-2xl border border-gray-200/60 dark:border-white/[0.08] overflow-hidden z-[65] animate-scale-in">
-      {/* 头部 */}
-      <div className="flex items-center gap-2 px-4 h-11 border-b border-gray-200/70 dark:border-white/[0.07]">
-        <Bell size={14} className="text-gray-400 dark:text-gray-500" />
-        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-          {t('notification.title', '通知中心')}
-        </span>
-        {unread > 0 && (
-          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
-            {unread} {t('notification.unread', '条未读')}
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-1">
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
+    <div
+      ref={panelRef}
+      data-testid="notification-panel"
+      className="fixed w-[360px] max-w-[calc(100vw-16px)] bg-white dark:bg-surface-elevated rounded-xl shadow-2xl border border-gray-200/60 dark:border-white/[0.08] overflow-hidden z-[65] animate-scale-in"
+      style={{ left: pos.left, bottom: pos.bottom }}
+    >
+      {/* 头部: 标题与未读数上下排列,避免与「全部已读/清空」抢同一行被挡住 */}
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200/70 dark:border-white/[0.07]">
+        <Bell size={14} className="text-gray-400 dark:text-gray-500 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight">
+            {t('notification.title', '通知中心')}
+          </div>
+          {unread > 0 && (
+            <div className="text-[10px] text-blue-600 dark:text-blue-400 font-medium leading-tight mt-0.5 whitespace-nowrap">
+              {unread} {t('notification.unread', '条未读')}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
           {notifications.length > 0 && (
             <>
               <button
                 type="button"
                 onClick={markAllRead}
                 disabled={unread === 0}
-                className="inline-flex items-center gap-1 text-[11px] px-1.5 py-1 rounded text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center gap-1 text-[11px] px-1.5 py-1 rounded text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
               >
                 <CheckCheck size={12} />
                 {t('notification.markAllRead', '全部已读')}
@@ -108,7 +157,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
               <button
                 type="button"
                 onClick={clear}
-                className="inline-flex items-center gap-1 text-[11px] px-1.5 py-1 rounded text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                className="inline-flex items-center gap-1 text-[11px] px-1.5 py-1 rounded text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors whitespace-nowrap"
               >
                 <Eraser size={12} />
                 {t('notification.clear', '清空')}
@@ -195,6 +244,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
           })
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
