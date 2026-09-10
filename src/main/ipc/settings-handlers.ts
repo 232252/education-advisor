@@ -16,6 +16,9 @@ import { keystoreService } from '../services/keystore-service'
 import { settingsService } from '../services/settings-service'
 import { syncNativeTheme } from '../services/theme-service'
 import { updateTray } from '../services/tray-service'
+import { parseHhMm } from '../services/webui/schedule'
+import { LEGACY_CF_TUNNEL_SECRET_KEY, WEBUI_ACCESS_TOKEN_KEY } from '../services/webui/security'
+import { webUiService } from '../services/webui-service'
 import { log, setLogLevel } from '../utils/logger'
 import { handleIpc } from './handle'
 
@@ -42,6 +45,9 @@ const ENUM_VALIDATORS: Record<string, readonly string[]> = {
   'general.language': ['zh-CN', 'en-US', 'zh', 'en'],
   'general.closeBehavior': ['ask', 'tray', 'exit'],
   'general.logLevel': ['debug', 'info', 'warn', 'error', 'off'],
+  'general.webUiMode': ['off', 'always', 'scheduled'],
+  'general.webUiProtocol': ['http', 'https'],
+  'general.webUiBind': ['loopback', 'lan', 'all'],
   'chat.steeringMode': ['all', 'one-at-a-time'],
   'chat.followUpMode': ['all', 'one-at-a-time'],
   'chat.thinkingLevel': ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'],
@@ -121,6 +127,33 @@ export function registerSettingsHandlers(win: BrowserWindow) {
         }
       }
 
+      if (path === 'general.webUiPort') {
+        if (
+          typeof value !== 'number' ||
+          !Number.isInteger(value) ||
+          value < 1024 ||
+          value > 65535
+        ) {
+          return { success: false, error: 'webUiPort must be an integer between 1024 and 65535' }
+        }
+      }
+      if (path === 'general.webUiScheduleStart' || path === 'general.webUiScheduleEnd') {
+        if (typeof value !== 'string' || !parseHhMm(value)) {
+          return { success: false, error: `${path} must be HH:mm` }
+        }
+      }
+      if (path === 'general.webUiScheduleDays') {
+        if (
+          !Array.isArray(value) ||
+          value.some((d) => typeof d !== 'number' || !Number.isInteger(d) || d < 0 || d > 6)
+        ) {
+          return { success: false, error: 'webUiScheduleDays must be integers 0-6' }
+        }
+      }
+      if (path === 'general.webUiIpv6' && typeof value !== 'boolean') {
+        return { success: false, error: 'webUiIpv6 must be boolean' }
+      }
+
       settingsService.update(path, value)
       // PERF: set 后让 get 缓存失效,下次 get 重新读取最新值
       settingsGetCache.clear()
@@ -171,6 +204,22 @@ export function registerSettingsHandlers(win: BrowserWindow) {
         cronService.registerAutoBackup()
       }
 
+      if (
+        path === 'general.webUiMode' ||
+        path === 'general.webUiPort' ||
+        path === 'general.webUiScheduleStart' ||
+        path === 'general.webUiScheduleEnd' ||
+        path === 'general.webUiScheduleDays' ||
+        path === 'general.timezone' ||
+        path === 'general.webUiProtocol' ||
+        path === 'general.webUiBind' ||
+        path === 'general.webUiIpv6' ||
+        path === 'general.webUiTlsCertPath' ||
+        path === 'general.webUiTlsKeyPath'
+      ) {
+        void webUiService.syncFromSettings()
+      }
+
       return { success: true }
     },
     {
@@ -186,6 +235,8 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     settingsGetCache.clear()
     // 重置时也清除 keystore 中的飞书密钥
     keystoreService.deleteSecret('feishu-app-secret')
+    keystoreService.deleteSecret(WEBUI_ACCESS_TOKEN_KEY)
+    keystoreService.deleteSecret(LEGACY_CF_TUNNEL_SECRET_KEY)
     // 重置后停止飞书长连接
     await feishuBotService.stop().catch(() => {})
     // 重置后也要同步 autoStart(默认 false)
@@ -201,6 +252,7 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     cronService.registerBitableSync()
     // M33: 重置后 autoBackupEnabled 回到默认关闭,联动移除既有 auto-backup cron 任务
     cronService.registerAutoBackup()
+    void webUiService.syncFromSettings()
     log('info', 'settings', `settings reset; logLevel=${newSettings.general.logLevel}`)
     return { success: true }
   })

@@ -45,7 +45,7 @@ function parseHandledChannels() {
 function parsePreloadInvokes() {
   const dir = path.join(ROOT, 'src', 'main', 'preload', 'api')
   const set = new Set()
-  const re = /ipcRenderer\.invoke\(\s*IPC\.(IPC_[A-Z0-9_]+)/g
+  const re = /(?:ipcRenderer\.invoke|ipcInvoke)\(\s*IPC\.(IPC_[A-Z0-9_]+)/g
   for (const file of walkTsFiles(dir)) {
     const src = stripComments(fs.readFileSync(file, 'utf8'))
     let m

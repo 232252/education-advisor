@@ -238,3 +238,6 @@ export const IPC_LOG_WRITE_RENDERER = 'log:write-renderer'
 // ===== 系统（更新对话框扩展） =====
 // 此前已被 sys-handlers.ts 引用但未在常量表中，补齐
 export const IPC_SYS_SHOW_UPDATE_DIALOG = 'sys:show-update-dialog'
+export const IPC_SYS_WEBUI_STATUS = 'sys:webui-status'
+export const IPC_SYS_WEBUI_OPEN = 'sys:webui-open'
+export const IPC_SYS_WEBUI_REGEN_TOKEN = 'sys:webui-regen-token'

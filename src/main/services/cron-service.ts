@@ -10,6 +10,7 @@
 import path from 'node:path'
 import * as IPC from '@shared/ipc-channels'
 import type { AgentExecution, CronLogEntry, CronTask } from '@shared/types'
+import { sendToRenderer } from '../ipc/broadcast'
 import { app, type BrowserWindow } from 'electron'
 import type { ScheduledTask } from 'node-cron'
 import { registerAutoBackupTask } from './cron/auto-backup-task'
@@ -339,9 +340,7 @@ class CronService {
 
   /** 广播任务状态到渲染进程 */
   private broadcastStatus(taskId: string, task: CronTask) {
-    // M7 修复: send 前判 isDestroyed(与 agent 链路 sendAgentStatus 守卫模式对齐)
-    if (!this.mainWindow || this.mainWindow.isDestroyed()) return
-    this.mainWindow.webContents.send(IPC.IPC_CRON_STATUS_UPDATE, {
+    sendToRenderer(this.mainWindow, IPC.IPC_CRON_STATUS_UPDATE, {
       taskId,
       lastRunAt: task.lastRunAt,
       lastStatus: task.lastStatus,
