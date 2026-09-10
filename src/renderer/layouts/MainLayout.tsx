@@ -20,6 +20,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage'
 import { useT } from '../i18n'
 import { cn } from '../lib/ui-utils'
 import { useAgentStore } from '../stores/agent/store'
+import { useChatStore } from '../stores/chat/store'
 import { usePaletteStore } from '../stores/paletteStore'
 
 // 命令面板本体懒加载(560 行 + 搜索索引在 entry 之外);热键 shim 常驻本组件
@@ -50,6 +51,7 @@ export function MainLayout() {
   const { t } = useT()
   const location = useLocation()
   const agents = useAgentStore((s) => s.agents)
+  const chatStreaming = useChatStore((s) => s.isStreaming)
 
   // 可折叠侧边栏: 状态持久化到 localStorage, 折叠后只显示图标列
   // (历史值可能为明文 '1'/'0' 解析出的 1/0,Boolean 归一保证语义)
@@ -159,11 +161,17 @@ export function MainLayout() {
             const Icon = item.icon
             const shortcut = idx < 9 ? idx + 1 : null
             const label = t(item.labelKey)
+            const chatRunning = item.path === '/chat' && chatStreaming
+            const runningHint = t('nav.chat.running', '回复中')
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
-                title={collapsed ? `${label}${shortcut ? ` (Ctrl+${shortcut})` : ''}` : undefined}
+                title={
+                  collapsed
+                    ? `${label}${chatRunning ? ` · ${runningHint}` : ''}${shortcut ? ` (Ctrl+${shortcut})` : ''}`
+                    : undefined
+                }
                 className={({ isActive }) =>
                   cn(
                     'group relative flex items-center text-[13px] font-medium rounded-lg transition-all duration-200',
@@ -190,7 +198,20 @@ export function MainLayout() {
                       strokeWidth={isActive ? 2.4 : 2.0}
                       className="flex-shrink-0 transition-all duration-200"
                     />
+                    {chatRunning && collapsed && (
+                      <span
+                        className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse"
+                        aria-label={runningHint}
+                      />
+                    )}
                     {!collapsed && <span className="truncate flex-1">{label}</span>}
+                    {chatRunning && !collapsed && (
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse flex-shrink-0"
+                        title={runningHint}
+                        aria-label={runningHint}
+                      />
+                    )}
                     {/* 快捷键提示徽章 — 前 9 项显示数字, hover 时高亮(仅展开态) */}
                     {shortcut && !collapsed && (
                       <kbd className="ml-auto hidden md:inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded font-mono text-[10px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-white/[0.06] opacity-0 group-hover:opacity-100 transition-opacity duration-150">
@@ -225,9 +246,9 @@ export function MainLayout() {
       </aside>
 
       {/* ── 内容区 ── */}
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 min-h-0 overflow-hidden">
         <ErrorBoundary resetKey={location.pathname}>
-          <div className="h-full page-enter">
+          <div className="h-full min-h-0 page-enter">
             <Outlet />
           </div>
         </ErrorBoundary>

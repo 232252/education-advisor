@@ -11,6 +11,7 @@ import { Type } from 'typebox'
 import * as XLSX from 'xlsx'
 import { checkFileSize, MAX_EXCEL_ROWS, validateFilePath } from './security'
 import { textResult, truncateForResult } from './shared'
+import { isPiiRosterHeader } from '@shared/roster-profile'
 
 // =============================================================
 // Schema 定义
@@ -43,7 +44,7 @@ export const readExcelTool: AgentTool<typeof readExcelParams> = {
   name: 'read_excel',
   label: '读取 Excel',
   description:
-    '读取 Excel 文件（.xlsx/.xls）的内容。返回工作表数据，包括表头和所有行。可指定工作表名称和最大行数。',
+    '读取 Excel 文件（.xlsx/.xls）的内容。返回工作表数据，包括表头和所有行。可指定工作表名称和最大行数。身份证/电话/住址等敏感列会显示为「(已隐藏)」,不要把占位符写进 write_excel；花名册导入请把文件路径交给 eaa_import_students 的 excel_path。',
   parameters: readExcelParams,
   execute: async (_toolCallId, params, signal) => {
     // F1 修复: pi-agent-core 以 execute(id, args, signal) 传入 AbortSignal,入口协作式中止
@@ -104,17 +105,21 @@ export const readExcelTool: AgentTool<typeof readExcelParams> = {
     lines.push('---')
 
     if (rows.length > 0) {
-      // 表头
       const headers = (rows[0] as string[]).map(String)
+      const piiCols = headers.map((h, i) => (isPiiRosterHeader(h) ? i : -1)).filter((i) => i >= 0)
       lines.push(`表头: ${headers.join(' | ')}`)
+      if (piiCols.length > 0) {
+        lines.push(
+          '（身份证/电话/住址/邮箱等敏感列已对模型隐藏。禁止把「(已隐藏)」写进 write_excel。导入花名册请把本文件绝对路径传给 eaa_import_students 的 excel_path；整理无敏感列的表格可照常写回新文件。）',
+        )
+      }
       lines.push('')
 
-      // 数据行
       for (let i = 1; i < rows.length; i++) {
-        // F1 修复: 逐行循环中协作式中止检查点,避免大表格式化期间无法响应 abort
         if (signal?.aborted) return textResult('已取消')
         const row = rows[i] as unknown[]
-        const cells = row.map((cell) => {
+        const cells = row.map((cell, col) => {
+          if (piiCols.includes(col)) return '(已隐藏)'
           if (cell === null || cell === undefined || cell === '') return '(空)'
           return String(cell)
         })

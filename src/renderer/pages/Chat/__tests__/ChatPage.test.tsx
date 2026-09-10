@@ -56,7 +56,9 @@ vi.mock('../../../stores/agent/store', () => ({
   ),
 }))
 
-vi.mock('../../../stores/toastStore', () => ({ toast: vi.fn() }))
+vi.mock('../../../stores/toastStore', () => ({
+  toast: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() },
+}))
 
 vi.mock('../../../lib/ipc-client', () => ({
   getAPI: () => ({

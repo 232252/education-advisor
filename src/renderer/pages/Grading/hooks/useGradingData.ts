@@ -4,7 +4,7 @@
 // 失败消息进 errorMsg(页面顶部反馈条),成功后刷新列表与详情。
 // =============================================================
 
-import type { ImportPaperBatch } from '@shared/api/grading'
+import type { GradingRosterEntry, ImportPaperBatch } from '@shared/api/grading'
 import type { GradingTask, GradingTaskStatus, TeacherReview } from '@shared/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { tr, useT } from '../../../i18n'
@@ -138,15 +138,34 @@ export function useGradingData() {
 
   /** 启动 AI 批改(异步作业: 这里只负责启动反馈,进度走 onProgress 订阅) */
   const runGrading = useCallback(
-    async (taskId: string) => {
+    async (taskId: string, roster?: GradingRosterEntry[]) => {
       setBusy(true)
       setErrorMsg(null)
-      const r = await getAPI().grading.run(taskId)
+      const r = await getAPI().grading.run(taskId, roster)
       setBusy(false)
       if (!r.success) {
         setErrorMsg(r.error ?? t('page.grading.error.mutationFailed', '操作失败'))
         return false
       }
+      await refresh()
+      return true
+    },
+    [refresh, t],
+  )
+
+  const identifyPapers = useCallback(
+    async (taskId: string, roster: GradingRosterEntry[]) => {
+      setBusy(true)
+      setErrorMsg(null)
+      const r = await getAPI().grading.identifyPapers(taskId, roster)
+      setBusy(false)
+      if (!r.success) {
+        setErrorMsg(r.error ?? t('page.grading.error.mutationFailed', '操作失败'))
+        return false
+      }
+      const assigned = r.data?.assigned ?? 0
+      const unresolved = r.data?.unresolved ?? 0
+      setNotice(tr('page.grading.identify.done', { assigned, unresolved }))
       await refresh()
       return true
     },
@@ -224,6 +243,7 @@ export function useGradingData() {
     setStatus,
     refresh,
     runGrading,
+    identifyPapers,
     abortGrading,
     saveReview,
     publish,

@@ -58,6 +58,17 @@ export function parseScheduleEntries(raw: unknown): {
   return { expressions, prompts }
 }
 
+/** 将 yaml 默认能力与用户覆盖做并集。覆盖可增、不可靠一份旧快照删掉主配置后补的工具。 */
+export function mergeCapabilities(yamlCaps: unknown, overrideCaps?: string[]): string[] {
+  const base = Array.isArray(yamlCaps)
+    ? yamlCaps.filter((c): c is string => typeof c === 'string' && c.length > 0)
+    : []
+  if (!overrideCaps?.length) return base
+  const seen = new Set(base)
+  const extra = overrideCaps.filter((c) => typeof c === 'string' && c.length > 0 && !seen.has(c))
+  return extra.length === 0 ? base : [...base, ...extra]
+}
+
 /**
  * 将单条 yaml 条目叠加 user override 生成 AgentConfig。
  * 防御:条目必须有字符串 id,否则返回 null(调用方跳过)。
@@ -65,6 +76,10 @@ export function parseScheduleEntries(raw: unknown): {
  * R8-1 修复: 映射 yaml 的 mcp_servers → AgentConfig.mcpServers
  * (之前此字段在加载时丢失,导致 agent 永远拿不到 MCP 工具)
  * R6-1: override 优先(用户在 UI 配的 agent↔MCP 连接覆盖主配置)
+ * capabilities 例外: UI 能力列表只读,toggle/改名常把当时的名单整份写入
+ * agents.user.yaml。整份覆盖会冻住旧快照,主配置后加的 class/import_students
+ * 进不了运行时 → 模型按技能调用 eaa_create_class 却报 Tool not found。
+ * 因此能力取「yaml 默认 ∪ 覆盖」(yaml 保底,覆盖只增不减)。
  */
 export function buildAgentConfig(a: RawAgentEntry, override?: AgentOverride): AgentConfig | null {
   // 防御单条数据畸形：必须有字符串 id
@@ -83,7 +98,7 @@ export function buildAgentConfig(a: RawAgentEntry, override?: AgentOverride): Ag
       override?.modelTier ?? (a.model_tier as AgentConfig['modelTier'] | undefined) ?? 'low_cost',
     schedule: expressions,
     schedulePrompts: prompts.some((p) => p !== undefined) ? prompts : undefined,
-    capabilities: override?.capabilities ?? (a.capabilities as string[] | undefined) ?? [],
+    capabilities: mergeCapabilities(a.capabilities, override?.capabilities),
     riskThresholds: a.risk_thresholds as AgentConfig['riskThresholds'],
     mcpServers: override?.mcpServers ?? (a.mcp_servers as string[] | undefined),
   }

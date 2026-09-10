@@ -14,7 +14,8 @@ import { keystoreService } from '../services/keystore-service'
 import { resolveAppDataDir, resolveEaaDataDir } from '../services/paths'
 import { settingsService } from '../services/settings-service'
 import { syncNativeTheme } from '../services/theme-service'
-import { initTray } from '../services/tray-service'
+import { initTray, refreshTrayMenu } from '../services/tray-service'
+import { webUiService } from '../services/webui-service'
 import { updateService } from '../services/update-service'
 import { sweepAtomicTmpResidue } from '../utils/atomic-write'
 import { errText } from '../utils/err-text'
@@ -158,6 +159,15 @@ export async function startApp(): Promise<void> {
   } catch (err) {
     console.warn(`[Main] Tray init failed, degraded to no-tray mode: ${errText(err)}`)
   }
+
+  webUiService.setStatusListener(() => {
+    try {
+      refreshTrayMenu()
+    } catch {
+      /* tray 可能未创建 */
+    }
+  })
+  void webUiService.init()
 
   // 启动后延迟检查更新（避免启动卡顿）
   // L-6 修复: 保存 timer 引用,退出时清理

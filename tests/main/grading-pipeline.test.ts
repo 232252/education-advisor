@@ -34,6 +34,7 @@ vi.mock('../../src/main/services/grading/grading-service', () => ({
 import {
   buildGradingPrompt,
   isVisionModel,
+  parseAnnotationBox,
   parseGradeResponse,
   resolveGradingModelIds,
 } from '../../src/main/services/grading/grading-pipeline'
@@ -85,6 +86,25 @@ describe('buildGradingPrompt', () => {
     expect(prompt).toContain('"questions"')
     expect(prompt).toContain('只输出')
   })
+
+  it('有评分点时注入 marks 契约并从满分加减', () => {
+    const prompt = buildGradingPrompt([
+      {
+        id: 'q-1',
+        title: '解答题',
+        fullMark: 10,
+        order: 1,
+        presetMarks: [
+          { points: -2, note: '漏写单位' },
+          { points: -5, note: '公式错误' },
+        ],
+      },
+    ])
+    expect(prompt).toContain('漏写单位')
+    expect(prompt).toContain('[0]')
+    expect(prompt).toContain('"marks"')
+    expect(prompt).toContain('满分+所选评分点')
+  })
 })
 
 describe('parseGradeResponse', () => {
@@ -96,6 +116,14 @@ describe('parseGradeResponse', () => {
     expect(r.questions).toHaveLength(2)
     expect(r.totalScore).toBe(43)
     expect(r.questions[0]?.evidence).toBe('第4题错')
+  })
+
+  it('解析卷面 box 并钳制到 [0,1]', () => {
+    const r = parseGradeResponse(
+      '{"questions":[{"questionId":"q-1","score":10,"comment":"计算错","box":{"page":0,"x":0.2,"y":1.5,"w":0.3,"h":0.1}}]}',
+      RUBRIC,
+    )
+    expect(r.questions[0]?.box).toEqual({ page: 0, x: 0.2, y: 1, w: 0.3, h: 0.1 })
   })
 
   it('剥离 markdown 围栏与前后噪声', () => {
@@ -130,5 +158,47 @@ describe('parseGradeResponse', () => {
     expect(() => parseGradeResponse('{"foo":1}', RUBRIC)).toThrow('questions')
     expect(() => parseGradeResponse('{"questions":[{"questionId":"q-x","score":1}]}', RUBRIC)).toThrow()
     expect(() => parseGradeResponse('完全不是 JSON 的输出', RUBRIC)).toThrow()
+  })
+
+  it('评分点 marks 覆盖 score(从满分加减)', () => {
+    const rubric = [
+      {
+        id: 'q-1',
+        title: '解答',
+        fullMark: 10,
+        order: 1,
+        presetMarks: [
+          { points: -2, note: '漏单位' },
+          { points: -5, note: '公式错' },
+        ],
+      },
+    ]
+    const r = parseGradeResponse(
+      '{"questions":[{"questionId":"q-1","score":99,"marks":[0,1]}]}',
+      rubric,
+    )
+    expect(r.questions[0]?.score).toBe(3)
+    expect(r.questions[0]?.appliedMarks).toEqual([0, 1])
+  })
+
+  it('解析 box 并钳制到 [0,1];缺字段则丢弃', () => {
+    expect(parseAnnotationBox({ page: 0, x: -0.2, y: 0.5, w: 1.5, h: 0.1 })).toEqual({
+      page: 0,
+      x: 0,
+      y: 0.5,
+      w: 1,
+      h: 0.1,
+    })
+    expect(parseAnnotationBox({ page: 0, x: 0.1, y: 0.1, w: 0, h: 0.2 })).toBeUndefined()
+    expect(parseAnnotationBox({ page: 1.5, x: 0, y: 0, w: 0.2, h: 0.2 })).toBeUndefined()
+    expect(parseAnnotationBox(null)).toBeUndefined()
+  })
+
+  it('parseGradeResponse 保留合法 box', () => {
+    const r = parseGradeResponse(
+      '{"questions":[{"questionId":"q-1","score":10,"box":{"page":0,"x":0.2,"y":0.3,"w":0.4,"h":0.1}}]}',
+      RUBRIC,
+    )
+    expect(r.questions[0]?.box).toEqual({ page: 0, x: 0.2, y: 0.3, w: 0.4, h: 0.1 })
   })
 })

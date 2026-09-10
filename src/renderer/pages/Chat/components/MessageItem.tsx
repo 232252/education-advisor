@@ -46,7 +46,7 @@ export const MessageItem = memo(function MessageItem({
 
   return (
     <div
-      className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} ${msg.role !== 'user' ? 'gap-2.5 items-end' : ''}`}
+      className={`group flex min-w-0 ${msg.role === 'user' ? 'justify-end' : 'justify-start gap-2.5 items-end'}`}
     >
       {/* 助手头像 */}
       {msg.role !== 'user' && (
@@ -54,9 +54,9 @@ export const MessageItem = memo(function MessageItem({
           <Bot size={16} className="text-white" strokeWidth={2.2} />
         </div>
       )}
-      <div className={`flex flex-col ${msg.role !== 'user' ? 'max-w-[70%]' : ''}`}>
+      <div className="flex flex-col min-w-0 max-w-[min(70%,42rem)]">
         <div
-          className={`max-w-[70%] rounded-2xl px-4 py-3 text-sm leading-relaxed
+          className={`min-w-0 max-w-full overflow-x-auto rounded-2xl px-4 py-3 text-sm leading-relaxed
                   ${
                     msg.role === 'user'
                       ? 'bg-blue-600 text-white rounded-br-md shadow-md shadow-blue-500/15'
@@ -84,7 +84,7 @@ export const MessageItem = memo(function MessageItem({
           )}
           {/* 消息内容（放底部） — 助手用 Markdown 渲染, 用户保持纯文本 */}
           {msg.role === 'user' ? (
-            <div className="whitespace-pre-wrap">
+            <div className="whitespace-pre-wrap break-words">
               {msg.content || (isStreaming && isLast ? <TypingDots /> : '')}
             </div>
           ) : msg.content ? (

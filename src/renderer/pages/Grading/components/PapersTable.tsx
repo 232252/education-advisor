@@ -1,11 +1,12 @@
 // =============================================================
-// PapersTable — 试卷列表: 导入(多选文件) / 归属建议与指派 / 移除
-// 每个选中文件成为一份试卷;文件名含学生姓名时给出归属建议
+// PapersTable — 试卷列表: 导入(多选文件,同名多页归组) / 归属建议与指派 / 移除
+// 默认按文件名把多页合成一份试卷;「导入为同一份」强制合并当前所选。
 // (matchPaperFilesToStudents,唯一命中才建议,歧义留给人工)。
 // =============================================================
 
 import {
   effectiveTotalScore,
+  groupPaperImportPaths,
   matchPaperFilesToStudents,
   rubricFullMark,
 } from '@shared/grading-helpers'
@@ -22,11 +23,14 @@ interface PapersTableProps {
   onImport: (taskId: string, batches: Array<{ files: Array<{ path: string }> }>) => Promise<boolean>
   onAssign: (taskId: string, paperId: string, studentName: string | null) => Promise<boolean>
   onRemove: (taskId: string, paperId: string) => Promise<boolean>
-  /** 复核模式可用时(有 AI 结果且任务处于复核/已发布)点击行进入工作台 */
   onReview?: (paperId: string) => void
+  /** 从卷面识别未归组试卷的归属 */
+  onIdentify?: () => void
 }
 
-const IMAGE_FILTERS = [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp'] }]
+const IMAGE_FILTERS = [
+  { name: 'Papers', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'pdf', 'zip'] },
+]
 
 /** 试卷状态 → i18n 键(显式枚举,i18n 静态收集可识别,不用模板动态键) */
 const PAPER_STATUS_KEYS = {
@@ -44,6 +48,7 @@ export function PapersTable({
   onAssign,
   onRemove,
   onReview,
+  onIdentify,
 }: PapersTableProps) {
   const { t } = useT()
   const [importing, setImporting] = useState(false)
@@ -71,10 +76,15 @@ export function PapersTable({
     const paths = await pickFiles({ filters: IMAGE_FILTERS, properties: ['openFile'] })
     if (paths.length === 0) return
     setImporting(true)
-    await onImport(
-      task.id,
-      paths.map((p) => ({ files: [{ path: p }] })),
-    )
+    await onImport(task.id, groupPaperImportPaths(paths))
+    setImporting(false)
+  }
+
+  const handleImportMerged = async () => {
+    const paths = await pickFiles({ filters: IMAGE_FILTERS, properties: ['openFile'] })
+    if (paths.length === 0) return
+    setImporting(true)
+    await onImport(task.id, [{ files: paths.map((path) => ({ path })) }])
     setImporting(false)
   }
 
@@ -91,12 +101,32 @@ export function PapersTable({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={handleImport}
+          onClick={() => void handleImport()}
           disabled={!importable || busy || importing}
           className={btnStyle('primary')}
         >
           {importing ? t('page.grading.papers.importing') : t('page.grading.papers.import')}
         </button>
+        <button
+          type="button"
+          onClick={() => void handleImportMerged()}
+          disabled={!importable || busy || importing}
+          className={btnStyle('secondary')}
+          title={t('page.grading.papers.importMergedTitle')}
+        >
+          {t('page.grading.papers.importMerged')}
+        </button>
+        {onIdentify && (
+          <button
+            type="button"
+            onClick={() => onIdentify()}
+            disabled={busy || importing}
+            className={btnStyle('secondary')}
+            title={t('page.grading.identify.title')}
+          >
+            {t('page.grading.identify.run')}
+          </button>
+        )}
         {suggestionCount > 0 && (
           <button
             type="button"
@@ -144,7 +174,9 @@ export function PapersTable({
                     className="max-w-[16rem] truncate py-1.5 pr-2"
                     title={paper.files.map((f) => f.name).join(', ')}
                   >
-                    {paper.files.map((f) => f.name).join(', ')}
+                    {paper.files.length > 1
+                      ? `${paper.files[0]?.name ?? ''} (${tr('page.grading.papers.pages', { n: paper.files.length })})`
+                      : (paper.files[0]?.name ?? '')}
                   </td>
                   <td className="py-1.5 pr-2">
                     <select

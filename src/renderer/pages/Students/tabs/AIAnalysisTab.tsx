@@ -6,6 +6,7 @@
 import type { AgentListItem } from '@shared/types'
 import { Bot } from 'lucide-react'
 import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../../../components/Button'
 import { EmptyState } from '../../../components/EmptyState'
 import { useT } from '../../../i18n'
@@ -22,6 +23,7 @@ export function AIAnalysisTab({
   message,
   aiSaved,
   onSaveResult,
+  entityId,
 }: {
   agents: AgentListItem[]
   selectedAgents: Set<string>
@@ -33,8 +35,10 @@ export function AIAnalysisTab({
   message: string
   aiSaved: boolean
   onSaveResult: () => void
+  entityId?: string
 }) {
   const { t, lang } = useT()
+  const navigate = useNavigate()
   const enabledAgents = useMemo(() => agents.filter((a) => a.enabled), [agents])
 
   const sections = useMemo(() => {
@@ -78,6 +82,17 @@ export function AIAnalysisTab({
           {t('page.students.ai.title', 'AI 分析')}
         </h4>
         <div className="flex gap-2">
+          {entityId && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                navigate(`/academics?entity_id=${encodeURIComponent(entityId)}&tab=overview`)
+              }
+            >
+              {t('page.students.ai.openAcademics')}
+            </Button>
+          )}
           <Button onClick={onRunSelected} disabled={running || selectedAgents.size === 0}>
             {running
               ? t('page.students.ai.running', '运行中...')

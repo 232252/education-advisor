@@ -14,6 +14,7 @@ import { TtlLruCache } from '../services/eaa-cache'
 import { ollamaService } from '../services/ollama-service'
 import { log } from '../utils/logger'
 import { handleIpc } from './handle'
+import { sendToRenderer } from './broadcast'
 
 /**
  * PERF: ollama:detect 和 ollama:list-models 缓存
@@ -99,7 +100,7 @@ export function registerOllamaHandlers(win: BrowserWindow): void {
       const result = await ollamaService.pullModel(modelName, (progress) => {
         // 推送进度到渲染进程
         if (!win.isDestroyed()) {
-          win.webContents.send(IPC.IPC_OLLAMA_PULL_PROGRESS, {
+          sendToRenderer(win, IPC.IPC_OLLAMA_PULL_PROGRESS, {
             model: modelName,
             status: progress.status,
             completed: progress.completed,

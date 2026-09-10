@@ -8,7 +8,7 @@
 // =============================================================
 
 import type { ExtractedRubricQuestion } from '@shared/api/grading'
-import type { RubricQuestion } from '@shared/types'
+import type { PresetMark, RubricQuestion } from '@shared/types'
 import { useState } from 'react'
 import { tr, useT } from '../../../i18n'
 import { pickFiles } from '../../../lib/dialog'
@@ -40,6 +40,29 @@ export function RubricEditor({ value, onChange }: RubricEditorProps) {
 
   const patchQuestion = (id: string, patch: Partial<RubricQuestion>) => {
     onChange(value.map((q) => (q.id === id ? { ...q, ...patch } : q)))
+  }
+
+  const patchMarks = (id: string, marks: PresetMark[]) => {
+    patchQuestion(id, { presetMarks: marks.length > 0 ? marks : undefined })
+  }
+
+  const addMark = (id: string) => {
+    const q = value.find((x) => x.id === id)
+    patchMarks(id, [...(q?.presetMarks ?? []), { points: -1, note: '' }])
+  }
+
+  const updateMark = (id: string, index: number, patch: Partial<PresetMark>) => {
+    const q = value.find((x) => x.id === id)
+    const marks = [...(q?.presetMarks ?? [])]
+    const cur = marks[index]
+    if (!cur) return
+    marks[index] = { ...cur, ...patch }
+    patchMarks(id, marks)
+  }
+
+  const removeMark = (id: string, index: number) => {
+    const q = value.find((x) => x.id === id)
+    patchMarks(id, (q?.presetMarks ?? []).filter((_, i) => i !== index))
   }
 
   const addQuestion = () => {
@@ -141,6 +164,44 @@ export function RubricEditor({ value, onChange }: RubricEditorProps) {
               rows={2}
               className={`${INPUT_BASE} w-full resize-y`}
             />
+            <div className="space-y-1">
+              {(q.presetMarks ?? []).map((m, mi) => (
+                <div key={`${q.id}-m-${mi}`} className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    value={m.points}
+                    step={1}
+                    onChange={(e) => updateMark(q.id, mi, { points: Number(e.target.value) })}
+                    title={t('page.grading.rubric.markPoints')}
+                    aria-label={t('page.grading.rubric.markPoints')}
+                    className={`${INPUT_BASE} w-16`}
+                  />
+                  <input
+                    type="text"
+                    value={m.note}
+                    onChange={(e) => updateMark(q.id, mi, { note: e.target.value })}
+                    placeholder={t('page.grading.rubric.markNote')}
+                    className={`${INPUT_BASE} flex-1`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeMark(q.id, mi)}
+                    className={cn(btnStyle('ghost'), '!px-1.5 text-red-500')}
+                    aria-label={t('page.grading.rubric.removeMark')}
+                    title={t('page.grading.rubric.removeMark')}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => addMark(q.id)}
+                className={cn(btnStyle('ghost'), 'text-xs')}
+              >
+                + {t('page.grading.rubric.addMark')}
+              </button>
+            </div>
           </div>
           <button
             type="button"

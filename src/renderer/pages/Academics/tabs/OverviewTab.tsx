@@ -17,9 +17,12 @@ import {
   SubjectAvgChartCard,
   TrendChartCard,
 } from '../components/overview'
+import { StudentJumpBar } from '../components/StudentJumpBar'
 
 interface OverviewTabProps {
   studentName: string
+  /** 用于跳转学生档案 / AI 分析 */
+  entityId?: string
   subjects: SubjectDef[]
   exams: ExamDef[]
   grades: GradeRecord[]
@@ -32,6 +35,7 @@ interface OverviewTabProps {
 
 export function OverviewTab({
   studentName,
+  entityId,
   subjects,
   exams,
   grades,
@@ -51,51 +55,54 @@ export function OverviewTab({
   )
 
   return (
-    <TabStateBoundary
-      loading={gradesLoading}
-      error={gradesError}
-      onRetry={onRetry}
-      errorTitle={t('page.academics.overview.loadFailed', '成绩数据加载失败')}
-      errorHint={t(
-        'page.academics.overview.loadFailedDesc',
-        ' — 数据可能存在但未能读取,请重试;若持续失败请检查数据目录或查看日志',
-      )}
-      skeletonCount={3}
-      skeletonClassName="grid grid-cols-1 lg:grid-cols-3 gap-4"
-    >
-      {grades.length === 0 ? (
-        <EmptyState
-          icon={<BookOpen size={28} />}
-          title={t('page.academics.overview.noGrades', '暂无成绩数据')}
-          description={`${studentName}${t(
-            'page.academics.overview.noGradesDesc',
-            ' 还没有任何成绩记录,请先在"考试管理"中创建考试,然后在"成绩录入"中录入成绩',
-          )}`}
-        />
-      ) : (
-        <div className="space-y-4">
-          {/* 3 个图表 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* 趋势线图 (占两列) */}
-            <TrendChartCard
-              examsWithGrades={sortedExamsWithGrades}
-              subjects={subjects}
-              grades={grades}
-            />
-            {/* 科目柱状图 */}
-            <SubjectAvgChartCard subjects={subjects} grades={grades} />
-            {/* 雷达图 */}
-            <LatestRadarChartCard
-              examsWithGrades={sortedExamsWithGrades}
-              subjects={subjects}
-              grades={grades}
-            />
-          </div>
+    <div className="space-y-4">
+      {entityId && <StudentJumpBar entityId={entityId} />}
+      <TabStateBoundary
+        loading={gradesLoading}
+        error={gradesError}
+        onRetry={onRetry}
+        errorTitle={t('page.academics.overview.loadFailed', '成绩数据加载失败')}
+        errorHint={t(
+          'page.academics.overview.loadFailedDesc',
+          ' — 数据可能存在但未能读取,请重试;若持续失败请检查数据目录或查看日志',
+        )}
+        skeletonCount={3}
+        skeletonClassName="grid grid-cols-1 lg:grid-cols-3 gap-4"
+      >
+        {grades.length === 0 ? (
+          <EmptyState
+            icon={<BookOpen size={28} />}
+            title={t('page.academics.overview.noGrades', '暂无成绩数据')}
+            description={`${studentName}${t(
+              'page.academics.overview.noGradesDesc',
+              ' 还没有任何成绩记录,请先在"考试管理"中创建考试,然后在"成绩录入"中录入成绩',
+            )}`}
+          />
+        ) : (
+          <div className="space-y-4">
+            {/* 3 个图表 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* 趋势线图 (占两列) */}
+              <TrendChartCard
+                examsWithGrades={sortedExamsWithGrades}
+                subjects={subjects}
+                grades={grades}
+              />
+              {/* 科目柱状图 */}
+              <SubjectAvgChartCard subjects={subjects} grades={grades} />
+              {/* 雷达图 */}
+              <LatestRadarChartCard
+                examsWithGrades={sortedExamsWithGrades}
+                subjects={subjects}
+                grades={grades}
+              />
+            </div>
 
-          {/* 成绩表 */}
-          <GradeTableCard tableData={gradeTableData} subjects={subjects} />
-        </div>
-      )}
-    </TabStateBoundary>
+            {/* 成绩表 */}
+            <GradeTableCard tableData={gradeTableData} subjects={subjects} />
+          </div>
+        )}
+      </TabStateBoundary>
+    </div>
   )
 }

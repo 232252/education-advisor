@@ -162,6 +162,22 @@ describe('messages-slice', () => {
     expect(mockLoadMessages).not.toHaveBeenCalled()
   })
 
+  it('loadHistory: 流式进行中跳过,避免 DB 覆盖内存稿', async () => {
+    useChatStore.setState({
+      historyLoaded: false,
+      isStreaming: true,
+      messages: [
+        { role: 'user', content: '是', timestamp: 1 },
+        { role: 'assistant', content: '正在导入…', timestamp: 2 },
+      ],
+    } as never)
+    await store().loadHistory()
+    expect(mockLoadMessages).not.toHaveBeenCalled()
+    expect(store().messages[0]?.content).toBe('是')
+    expect(store().messages[1]?.content).toBe('正在导入…')
+    expect(store().historyLoaded).toBe(false)
+  })
+
   it('loadHistory: 运行时校验过滤畸形行与空 system 占位', async () => {
     mockLoadMessages.mockResolvedValue({
       success: true,

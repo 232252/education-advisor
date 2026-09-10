@@ -90,7 +90,10 @@ export const Composer = memo(function Composer({
               onClick={onUpload}
               className="flex-shrink-0"
               aria-label={t('page.chat.composer.upload', '上传文件')}
-              title={t('page.chat.composer.uploadTitle', '上传文件 (文本/代码/图片, 最大 10MB)')}
+              title={t(
+                'page.chat.composer.uploadTitle',
+                '上传文件 (文本/代码/图片/表格/PDF/zip 试卷包)',
+              )}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"

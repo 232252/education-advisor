@@ -22,9 +22,10 @@ import { atomicWrite } from '../../utils/atomic-write'
 import { log } from '../../utils/logger'
 import { academicService } from '../academic-service'
 import { getAppPaths } from '../paths'
+import { expandImportBatches, withTempDir } from './archive-import'
 import { buildPublishPayload, type PublishPayload } from './publish'
 
-/** 允许的图片扩展名(试卷扫描件;PDF 转图由渲染层完成后同样落此白名单) */
+/** 允许落盘的图片扩展名(zip/pdf 会先展开成这些) */
 const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp'])
 /** 单文件上限 25MB(扫描件留足余量) */
 const MAX_FILE_BYTES = 25 * 1024 * 1024
@@ -91,6 +92,18 @@ function validateRubric(rubric: RubricQuestion[]): void {
       throw new Error(`量规[${i}].fullMark 必须为正数`)
     }
     if (typeof q.order !== 'number') throw new Error(`量规[${i}].order 必须为数字`)
+    if (q.presetMarks !== undefined) {
+      if (!Array.isArray(q.presetMarks)) throw new Error(`量规[${i}].presetMarks 必须是数组`)
+      for (const [j, m] of q.presetMarks.entries()) {
+        if (!m || typeof m !== 'object') throw new Error(`量规[${i}].presetMarks[${j}] 必须是对象`)
+        if (typeof m.note !== 'string' || m.note.trim().length === 0) {
+          throw new Error(`量规[${i}].presetMarks[${j}].note 必须非空`)
+        }
+        if (!Number.isFinite(m.points)) {
+          throw new Error(`量规[${i}].presetMarks[${j}].points 必须是数字`)
+        }
+      }
+    }
   }
 }
 
@@ -299,56 +312,59 @@ class GradingService {
       if (task.status !== 'draft' && task.status !== 'ready') {
         throw new Error(`当前状态(${task.status})不可导入试卷`)
       }
-      if (task.papers.length + batches.length > MAX_PAPERS_PER_TASK) {
-        throw new Error(`超出单任务试卷上限 ${MAX_PAPERS_PER_TASK}`)
-      }
-      const destDir = this.taskFilesDir(taskId)
-      await fsp.mkdir(destDir, { recursive: true })
-      const now = new Date().toISOString()
-      for (const batch of batches) {
-        if (!Array.isArray(batch?.files) || batch.files.length === 0) {
-          throw new Error('每批必须包含至少一个文件')
+      return withTempDir(async (tmpDir) => {
+        const expanded = await expandImportBatches(batches, tmpDir)
+        if (task.papers.length + expanded.length > MAX_PAPERS_PER_TASK) {
+          throw new Error(`超出单任务试卷上限 ${MAX_PAPERS_PER_TASK}`)
         }
-        const paper: GradingPaper = {
-          id: newId('paper'),
-          studentName: null,
-          files: [],
-          uploadedAt: now,
-          status: 'unassigned',
+        const destDir = this.taskFilesDir(taskId)
+        await fsp.mkdir(destDir, { recursive: true })
+        const now = new Date().toISOString()
+        for (const batch of expanded) {
+          if (!Array.isArray(batch?.files) || batch.files.length === 0) {
+            throw new Error('每批必须包含至少一个文件')
+          }
+          const paper: GradingPaper = {
+            id: newId('paper'),
+            studentName: null,
+            files: [],
+            uploadedAt: now,
+            status: 'unassigned',
+          }
+          for (const f of batch.files) {
+            if (typeof f?.path !== 'string' || f.path.length === 0) {
+              throw new Error('文件路径不能为空')
+            }
+            const ext = path.extname(f.path).toLowerCase()
+            if (!ALLOWED_IMAGE_EXTS.has(ext)) {
+              throw new Error(`不支持的文件类型 ${ext}(支持 jpg/png/webp/bmp/pdf/zip)`)
+            }
+            const stat = await fsp.stat(f.path)
+            if (!stat.isFile()) throw new Error(`不是文件: ${f.path}`)
+            if (stat.size > MAX_FILE_BYTES) {
+              throw new Error(
+                `文件超过 ${MAX_FILE_BYTES / 1024 / 1024}MB 上限: ${path.basename(f.path)}`,
+              )
+            }
+            const original = f.name?.trim() || path.basename(f.path)
+            const storedName = `${paper.id}-${safeStoredName(original)}`
+            await fsp.copyFile(f.path, path.join(destDir, storedName))
+            const record: PaperFile = {
+              name: original,
+              storedName,
+              mime: mimeFromExt(ext),
+              bytes: stat.size,
+            }
+            paper.files.push(record)
+          }
+          if (paper.files.length === 0) throw new Error('每批至少一个文件')
+          task.papers.push(paper)
         }
-        for (const f of batch.files) {
-          if (typeof f?.path !== 'string' || f.path.length === 0) {
-            throw new Error('文件路径不能为空')
-          }
-          const ext = path.extname(f.path).toLowerCase()
-          if (!ALLOWED_IMAGE_EXTS.has(ext)) {
-            throw new Error(`不支持的文件类型 ${ext}(支持 jpg/png/webp/bmp)`)
-          }
-          const stat = await fsp.stat(f.path)
-          if (!stat.isFile()) throw new Error(`不是文件: ${f.path}`)
-          if (stat.size > MAX_FILE_BYTES) {
-            throw new Error(
-              `文件超过 ${MAX_FILE_BYTES / 1024 / 1024}MB 上限: ${path.basename(f.path)}`,
-            )
-          }
-          const original = f.name?.trim() || path.basename(f.path)
-          const storedName = `${paper.id}-${safeStoredName(original)}`
-          await fsp.copyFile(f.path, path.join(destDir, storedName))
-          const record: PaperFile = {
-            name: original,
-            storedName,
-            mime: mimeFromExt(ext),
-            bytes: stat.size,
-          }
-          paper.files.push(record)
-        }
-        if (paper.files.length === 0) throw new Error('每批至少一个文件')
-        task.papers.push(paper)
-      }
-      task.updatedAt = now
-      await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
-      log('info', 'grading', `papers imported: ${batches.length} batches → ${task.id}`)
-      return task
+        task.updatedAt = now
+        await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
+        log('info', 'grading', `papers imported: ${expanded.length} batches → ${task.id}`)
+        return task
+      })
     })
   }
 
@@ -451,13 +467,23 @@ class GradingService {
       }
       const fullMarkById = new Map(task.rubric.map((q) => [q.id, q.fullMark]))
       for (const [questionId, override] of Object.entries(review.questions ?? {})) {
-        const full = fullMarkById.get(questionId)
-        if (full === undefined) throw new Error(`复核含未知题目: ${questionId}`)
+        const qdef = task.rubric.find((q) => q.id === questionId)
+        const full = qdef ? fullMarkById.get(questionId) : undefined
+        if (full === undefined || !qdef) throw new Error(`复核含未知题目: ${questionId}`)
         if (
           override.score !== undefined &&
           (!Number.isFinite(override.score) || override.score < 0 || override.score > full)
         ) {
           throw new Error(`复核分数越界 [0, ${full}]: ${questionId} = ${override.score}`)
+        }
+        if (override.marks !== undefined) {
+          if (!Array.isArray(override.marks)) throw new Error(`复核 marks 必须是数组: ${questionId}`)
+          const n = qdef.presetMarks?.length ?? 0
+          for (const idx of override.marks) {
+            if (!Number.isInteger(idx) || idx < 0 || idx >= n) {
+              throw new Error(`复核评分点下标越界: ${questionId} = ${idx}`)
+            }
+          }
         }
       }
       paper.review = { ...review, reviewedAt: new Date().toISOString() }

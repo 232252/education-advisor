@@ -5,7 +5,11 @@
 //     总评 + 生效总分实时合成(override 优先)。
 // =============================================================
 
-import { effectiveQuestionScore, effectiveTotalScore } from '@shared/grading-helpers'
+import {
+  effectiveQuestionScore,
+  effectiveTotalScore,
+  markScoreFromSelection,
+} from '@shared/grading-helpers'
 import type { GradingTask, TeacherReview } from '@shared/types'
 import { useEffect, useMemo, useState } from 'react'
 import { tr, useT } from '../../../i18n'
@@ -40,6 +44,7 @@ export function ReviewWorkbench({
   // 改分/评语编辑态(初始 = 已存复核;输入为空 = 沿用 AI 值)
   const [scoreEdits, setScoreEdits] = useState<Record<string, string>>({})
   const [commentEdits, setCommentEdits] = useState<Record<string, string>>({})
+  const [selectedMarks, setSelectedMarks] = useState<Record<string, number[]>>({})
   const [overall, setOverall] = useState('')
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
@@ -55,6 +60,13 @@ export function ReviewWorkbench({
     setCommentEdits(
       Object.fromEntries(
         Object.entries(review?.questions ?? {}).map(([qid, o]) => [qid, o.comment ?? '']),
+      ),
+    )
+    setSelectedMarks(
+      Object.fromEntries(
+        Object.entries(review?.questions ?? {})
+          .filter(([, o]) => Array.isArray(o.marks) && o.marks.length > 0)
+          .map(([qid, o]) => [qid, o.marks ?? []]),
       ),
     )
     setOverall(review?.overallComment ?? '')
@@ -86,17 +98,43 @@ export function ReviewWorkbench({
     for (const q of task.rubric) {
       const scoreText = scoreEdits[q.id]?.trim()
       const commentText = commentEdits[q.id]?.trim()
+      const marks = selectedMarks[q.id]
       if (scoreText !== undefined && scoreText !== '') {
         questions[q.id] = {
           score: Number(scoreText),
           ...(commentText ? { comment: commentText } : {}),
+          ...(marks && marks.length > 0 ? { marks } : {}),
+        }
+      } else if (marks && marks.length > 0) {
+        questions[q.id] = {
+          score: markScoreFromSelection(q.fullMark, q.presetMarks ?? [], marks),
+          ...(commentText ? { comment: commentText } : {}),
+          marks,
         }
       } else if (commentText) {
         questions[q.id] = { comment: commentText }
       }
     }
     return { questions, overallComment: overall.trim() || undefined, reviewedAt: '' }
-  }, [scoreEdits, commentEdits, overall, task.rubric])
+  }, [scoreEdits, commentEdits, selectedMarks, overall, task.rubric])
+
+  const toggleMark = (
+    questionId: string,
+    index: number,
+    fullMark: number,
+    marks: (typeof task.rubric)[number]['presetMarks'],
+  ) => {
+    const preset = marks ?? []
+    const cur = selectedMarks[questionId] ?? []
+    const next = cur.includes(index)
+      ? cur.filter((x) => x !== index)
+      : [...cur, index].sort((a, b) => a - b)
+    setSelectedMarks((prev) => ({ ...prev, [questionId]: next }))
+    setScoreEdits((scores) => ({
+      ...scores,
+      [questionId]: next.length > 0 ? String(markScoreFromSelection(fullMark, preset, next)) : '',
+    }))
+  }
 
   if (!paper?.ai) return null
   // 生效总分(编辑中的草稿口径实时合成)
@@ -161,14 +199,40 @@ export function ReviewWorkbench({
               {t('page.grading.review.loadingImage')}
             </p>
           ) : (
-            imageUrls.map((url) => (
-              <img
-                key={url.slice(-48)}
-                src={url}
-                alt="paper-scan"
-                className="mx-auto mb-3 max-w-full rounded-lg border border-gray-200 shadow-sm dark:border-white/10"
-              />
-            ))
+            imageUrls.map((url, pageIdx) => {
+              const marks = (paper.ai?.questions ?? []).filter(
+                (q) => q.box && (q.box.page ?? 0) === pageIdx,
+              )
+              return (
+                <div
+                  key={url.slice(-48)}
+                  className="relative mx-auto mb-3 w-full max-w-full overflow-hidden rounded-lg border border-gray-200 shadow-sm dark:border-white/10"
+                >
+                  <img src={url} alt={`paper-scan-${pageIdx + 1}`} className="block w-full" />
+                  {marks.map((q) => {
+                    const box = q.box
+                    if (!box) return null
+                    const title =
+                      task.rubric.find((r) => r.id === q.questionId)?.title ?? q.questionId
+                    const text = q.comment || q.evidence || `${q.score}分`
+                    return (
+                      <div
+                        key={q.questionId}
+                        className="pointer-events-none absolute border border-red-500/80 bg-red-500/10 px-1 py-0.5 text-[10px] leading-tight text-red-700 dark:text-red-200"
+                        style={{
+                          left: `${box.x * 100}%`,
+                          top: `${box.y * 100}%`,
+                          width: `${Math.max(box.w * 100, 8)}%`,
+                          minHeight: `${Math.max(box.h * 100, 4)}%`,
+                        }}
+                      >
+                        <span className="font-semibold">{title}</span> {text}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })
           )}
         </div>
 
@@ -196,6 +260,35 @@ export function ReviewWorkbench({
                     <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{ai.evidence}</p>
                   )}
                   {ai?.comment && <p className="mt-1 text-xs text-blue-500">{ai.comment}</p>}
+                  {(q.presetMarks?.length ?? 0) > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {(q.presetMarks ?? []).map((m, mi) => {
+                        const on = (selectedMarks[q.id] ?? []).includes(mi)
+                        const aiHit = (ai?.appliedMarks ?? []).includes(mi)
+                        return (
+                          <button
+                            key={`${q.id}-${m.note}-${m.points}`}
+                            type="button"
+                            onClick={() => toggleMark(q.id, mi, q.fullMark, q.presetMarks)}
+                            title={
+                              aiHit
+                                ? t('page.grading.review.markAiPicked')
+                                : t('page.grading.review.markToggle')
+                            }
+                            className={cn(
+                              'rounded px-1.5 py-0.5 text-xs',
+                              on
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300',
+                            )}
+                          >
+                            {m.points > 0 ? '+' : ''}
+                            {m.points} {m.note}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                   <div className="mt-2 flex items-center gap-2">
                     <input
                       type="number"

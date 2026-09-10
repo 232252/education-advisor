@@ -45,6 +45,9 @@ export function createMessagesSlice(
 
     loadHistory: async () => {
       if (get().historyLoaded) return
+      // 跳页回来会重跑 ChatPage 的 loadHistory;流式中途不得用 DB 覆盖内存稿
+      // (assistant 要到 idle 才落库,否则刚发的用户消息还在、回复气泡被抹掉)
+      if (get().isStreaming) return
       // RISK 修复: 捕获当前 sessionId,await 后校验是否仍是当前 session
       // 之前用户快速切换 session 时,旧 loadHistory 的结果可能覆盖新 session 的消息
       const targetSessionId = get().sessionId

@@ -2,7 +2,7 @@
 // Chat Store 类型定义 — 会话 / 模式 / Agent 桥接事件 / 状态与 Actions
 // =============================================================
 
-import type { ChatMessage, TokenUsage } from '@shared/types'
+import type { AgentStatusPayload, ChatMessage, TokenUsage } from '@shared/types'
 import type { StoreApi } from 'zustand'
 
 export interface ChatSession {
@@ -12,17 +12,8 @@ export interface ChatSession {
   messageCount: number
 }
 
-interface AgentBridgeEvent {
-  agentId: string
-  status: string
-  output?: string
-  toolCall?: { name: string; args: unknown }
-  toolResult?: { name: string; isError: boolean; preview?: string }
-  result?: { output: string; tokenUsage?: TokenUsage; cost?: number; model?: string }
-  error?: string
-  /** 上下文压缩已发生(R2+ 可见性) */
-  compacted?: boolean
-}
+/** Agent → 对话气泡的事件;与 IPC AgentStatusPayload 同源 */
+export type AgentBridgeEvent = AgentStatusPayload
 
 export interface ChatState {
   messages: ChatMessage[]

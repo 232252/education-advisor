@@ -8,14 +8,28 @@
 export interface StudentImportRow {
   /** Excel 行号（1-based，含表头；表头为第 1 行，数据从第 2 行起） */
   row: number
-  /** 学生姓名（name 必填列） */
+  /** 学生姓名（name / 姓名 必填列） */
   name: string
-  /** 学号（student_id 可选列，仅预览展示，EAA 无对应字段） */
+  /** 学号（写入学生档案，EAA 操行侧无此字段） */
   studentId: string
-  /** 班级名（class_name 可选列，原文） */
+  /** 班级名（class_name / 班级 可选列，原文） */
   className: string
   /** className 解析出的 class_id（匹配本地班级列表的名称或编号；未填为 null） */
   classId: string | null
+  /** 已在操行系统中：跳过 add-student，仍写入/更新档案 */
+  alreadyExists?: boolean
+  idCard?: string
+  gender?: string
+  birthDate?: string
+  phone?: string
+  address?: string
+  email?: string
+  fatherName?: string
+  fatherPhone?: string
+  motherName?: string
+  motherPhone?: string
+  enrollmentDate?: string
+  dormNumber?: string
 }
 
 /** Excel 导入：行级问题（不导入的行） */
@@ -53,6 +67,20 @@ export interface StudentImportParams {
     row: number
     name: string
     classId?: string | null
+    alreadyExists?: boolean
+    studentId?: string
+    idCard?: string
+    gender?: string
+    birthDate?: string
+    phone?: string
+    address?: string
+    email?: string
+    fatherName?: string
+    fatherPhone?: string
+    motherName?: string
+    motherPhone?: string
+    enrollmentDate?: string
+    dormNumber?: string
   }>
 }
 

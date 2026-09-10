@@ -17,6 +17,7 @@ import { shutdownAutoBackup } from './services/backup-service'
 import { cronService } from './services/cron-service'
 import { dbService } from './services/db-service'
 import { eaaBridge } from './services/eaa-bridge'
+import { webUiService } from './services/webui-service'
 import { feishuBotService } from './services/feishu-bot-service'
 import { keystoreService } from './services/keystore-service'
 import { ollamaService } from './services/ollama-service'
@@ -148,6 +149,7 @@ app.on('before-quit', () => {
   // P1-10: 终止 in-flight EAA 子进程 + 清空读缓存 + 清空隐私密码
   // 同步操作, 放在 before-quit 避免阻塞 will-quit 的异步清理链
   eaaBridge.shutdown()
+  void webUiService.shutdown()
 })
 
 // H-1 修复: 应用退出前 flush settings/keystore 待写数据,避免数据丢失

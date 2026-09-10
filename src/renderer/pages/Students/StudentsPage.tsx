@@ -3,7 +3,7 @@
 // =============================================================
 import type { EAAStudent } from '@shared/types'
 import { Plus, Users } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
@@ -23,6 +23,7 @@ import {
 import { useStudentActions } from './hooks/useStudentActions'
 import { useStudentList } from './hooks/useStudentList'
 import { useStudentSelection } from './hooks/useStudentSelection'
+import type { StudentProfileTabId } from './lib/profile-tabs'
 import { countArchivedHidden, filterStudents, sortStudentsByRisk } from './lib/student-filters'
 import { StudentProfile } from './StudentProfile'
 
@@ -36,6 +37,7 @@ export function StudentsPage() {
     return () => clearTimeout(timer)
   }, [search])
   const [selectedStudent, setSelectedStudent] = useState<EAAStudent | null>(null)
+  const [profileTab, setProfileTab] = useState<StudentProfileTabId | undefined>()
   const [addingStudent, setAddingStudent] = useState(false)
   const [newStudentName, setNewStudentName] = useState('')
   const [newStudentClassId, setNewStudentClassId] = useState('')
@@ -45,6 +47,9 @@ export function StudentsPage() {
   // 班级筛选: '__ALL__' = 全部, '__NONE__' = 未分班, 其他 = class_id
   const [classFilter, setClassFilter] = useState<string>('__ALL__')
   // 数据加载域: 学生/班级/导出格式 + entity_id 自动选中 + 班级派生数据
+  const handleLocateTab = useCallback((tab: StudentProfileTabId | null) => {
+    setProfileTab(tab ?? undefined)
+  }, [])
   const {
     students,
     loading,
@@ -55,7 +60,7 @@ export function StudentsPage() {
     archivedClassIds,
     classIdToName,
     activeClassList,
-  } = useStudentList(setSelectedStudent)
+  } = useStudentList(setSelectedStudent, handleLocateTab)
   const filtered = useMemo(
     () =>
       filterStudents(students, classFilter, debouncedSearch, archivedClassIds, showArchivedClass),
@@ -221,7 +226,10 @@ export function StudentsPage() {
                     isChecked={selection.selectedNames.has(s.name)}
                     classNameLabel={s.class_id ? (classIdToName[s.class_id] ?? null) : null}
                     ctxMenuJson={studentCtxMenu}
-                    onSelect={setSelectedStudent}
+                    onSelect={(s) => {
+                      setProfileTab(undefined)
+                      setSelectedStudent(s)
+                    }}
                     onToggleCheck={selection.toggleSelect}
                     onDelete={actions.handleDeleteStudent}
                   />
@@ -237,7 +245,11 @@ export function StudentsPage() {
           <StudentProfile
             key={selectedStudent.entity_id}
             student={selectedStudent}
-            onClose={() => setSelectedStudent(null)}
+            initialTab={profileTab}
+            onClose={() => {
+              setSelectedStudent(null)
+              setProfileTab(undefined)
+            }}
             onRefresh={loadStudents}
           />
         </div>
