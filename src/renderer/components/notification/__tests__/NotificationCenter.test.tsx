@@ -85,6 +85,14 @@ describe('NotificationCenter — 面板交互', () => {
     expect(screen.getByText(/2 条未读/)).toBeDefined()
   })
 
+  it('面板 portal 到 document.body,避免被侧栏裁切', async () => {
+    renderCenter()
+    fireEvent.click(screen.getByRole('button', { name: '通知中心' }))
+    const panel = await screen.findByTestId('notification-panel')
+    expect(panel.parentElement).toBe(document.body)
+    expect(panel.className).toContain('fixed')
+  })
+
   it('点击通知标记已读,角标减少', async () => {
     useNotificationStore.getState().push({ source: 'agent', level: 'info', title: 'click me' })
     renderCenter()

@@ -7,6 +7,7 @@
 
 export { examGradesTool, examsTool, studentGradesTool } from './eaa/tools/academic-tools'
 export { addEventTool, revertEventTool } from './eaa/tools/event-tools'
+export { gradingFromFilesTool, gradingPublishTool } from './eaa/tools/grading-write-tools'
 export { historyTool, queryScoreTool, searchEventsTool, tagTool } from './eaa/tools/query-tools'
 export {
   allEAATools,
@@ -27,3 +28,4 @@ export {
   deleteStudentTool,
   setStudentMetaTool,
 } from './eaa/tools/student-tools'
+export { createClassTool, importStudentsTool, listClassesTool } from './eaa/tools/class-tools'

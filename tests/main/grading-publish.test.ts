@@ -115,4 +115,51 @@ describe('buildPublishPayload', () => {
     const payload = buildPublishPayload(makeTask({ examDate: undefined }))
     expect(payload.examInput.date).toBe('2026-09-08')
   })
+
+  it('同一学生两份试卷只发布先出现的,后者 skipped 不覆盖', () => {
+    const ai = {
+      questions: [
+        { questionId: 'q-1', score: 10 },
+        { questionId: 'q-2', score: 10 },
+      ],
+      totalScore: 20,
+      model: { provider: 'p', model: 'm' },
+      finishedAt: '2026-09-08T10:05:00.000Z',
+    }
+    const payload = buildPublishPayload(
+      makeTask({
+        papers: [
+          {
+            id: 'paper-first',
+            studentName: '张三',
+            files: [],
+            uploadedAt: '',
+            status: 'graded',
+            ai: { ...ai, totalScore: 20 },
+          },
+          {
+            id: 'paper-dup',
+            studentName: '张三',
+            files: [],
+            uploadedAt: '',
+            status: 'graded',
+            ai: { ...ai, totalScore: 50, questions: [
+              { questionId: 'q-1', score: 30 },
+              { questionId: 'q-2', score: 20 },
+            ] },
+          },
+        ],
+      }),
+    )
+    const totals = payload.records.filter((r) => r.subjectId === TOTAL_SUBJECT_ID)
+    expect(totals).toHaveLength(1)
+    expect(totals[0]?.score).toBe(20)
+    expect(payload.skipped).toEqual([
+      {
+        paperId: 'paper-dup',
+        studentName: '张三',
+        reason: '同学生已有另一份试卷，跳过以免覆盖成绩',
+      },
+    ])
+  })
 })

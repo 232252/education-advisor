@@ -8,6 +8,8 @@
 import type { ExamDef, GradeRecord } from '@shared/types'
 import { BookOpen } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Button } from '../../../components/Button'
 import { EmptyState } from '../../../components/EmptyState'
 import { TabStateBoundary } from '../../../components/TabStateBoundary'
 import { useConductEvents, useExamPairSelection } from '../../../hooks/useExamPair'
@@ -28,11 +30,14 @@ import { TrendChart } from '../components/academics/TrendChart'
 
 export function AcademicsTab({
   studentName,
+  entityId,
 }: {
   studentName: string
+  entityId?: string
   // isDark 保留为可选 prop 以维持调用方契约；主题色现由 useChartTheme 内部从 useTheme() 派生
   isDark?: boolean
 }) {
+  const navigate = useNavigate()
   // 从学业模块加载考试列表和该学生成绩(并行 + stale 防护由 useMultiLoader 提供;
   // fetcher 内解包 IPC 信封,失败抛本地化错误)
   const {
@@ -128,10 +133,23 @@ export function AcademicsTab({
             <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
               {t('page.students.academics.title', '学业成绩')}
             </h4>
-            <span className="text-xs text-gray-400 dark:text-gray-500">
-              {grades.length} {t('page.students.academics.gradeCount', '条成绩')} ·{' '}
-              {sortedExams.length} {t('page.students.academics.examCount', '场考试')}
-            </span>
+            <div className="flex items-center gap-2">
+              {entityId && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    navigate(`/academics?entity_id=${encodeURIComponent(entityId)}&tab=overview`)
+                  }
+                >
+                  {t('page.students.academics.openManager')}
+                </Button>
+              )}
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                {grades.length} {t('page.students.academics.gradeCount', '条成绩')} ·{' '}
+                {sortedExams.length} {t('page.students.academics.examCount', '场考试')}
+              </span>
+            </div>
           </div>
 
           {/* 各考试成绩卡片 */}

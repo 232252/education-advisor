@@ -171,4 +171,35 @@ describe('发送流程', () => {
     expect(mocks.runManual).toHaveBeenCalledTimes(1)
     resolveRun({ success: true })
   })
+
+  it('卸载对话页时流仍在继续 → 提示后台回复,且 store 消息不被清掉', async () => {
+    mocks.runManual.mockResolvedValue({ success: true })
+    const { unmount } = render(createElement(ChatPage))
+    fireEvent.change(textarea(), { target: { value: '是' } })
+    await act(async () => {
+      send()
+    })
+    expect(useChatStore.getState().isStreaming).toBe(true)
+    expect(useChatStore.getState().messages[0]?.content).toBe('是')
+    unmount()
+    expect(toastMocks.info).toHaveBeenCalled()
+    // 页面卸了,zustand 里的用户消息还在 — 回来还能看见
+    expect(useChatStore.getState().messages[0]?.content).toBe('是')
+    expect(useChatStore.getState().isStreaming).toBe(true)
+
+    // App 级桥仍会把后续事件写入 store(此处直接调 handleAgentEvent 模拟)
+    await act(async () => {
+      useChatStore.getState().handleAgentEvent({
+        agentId: 'ag1',
+        status: 'running',
+        output: '已创建班级并导入 54 名学生',
+      })
+      flushStreamDeltas()
+    })
+    expect(useChatStore.getState().messages.at(-1)?.content).toContain('已创建班级')
+
+    render(createElement(ChatPage))
+    expect(screen.getByText('是')).toBeTruthy()
+    expect(screen.getByText(/已创建班级/)).toBeTruthy()
+  })
 })

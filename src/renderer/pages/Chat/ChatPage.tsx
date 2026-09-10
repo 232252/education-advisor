@@ -37,7 +37,6 @@ export function ChatPage() {
   const sessionId = useChatStore((s) => s.sessionId)
   const sessions = useChatStore((s) => s.sessions)
   const selectedAgentId = useChatStore((s) => s.selectedAgentId)
-  const handleAgentEvent = useChatStore((s) => s.handleAgentEvent)
   const setModel = useChatStore((s) => s.setModel)
   const setThinkingLevel = useChatStore((s) => s.setThinkingLevel)
   const setSelectedAgent = useChatStore((s) => s.setSelectedAgent)
@@ -61,20 +60,17 @@ export function ChatPage() {
     }
   }, [agents, selectedAgentId, setSelectedAgent])
 
-  // 订阅 Agent 状态事件（始终接收，桥接到 chatStore）
-  // 修复双重订阅：不再独立调用 getAPI().agent.onStatusUpdate。
-  // agentStore 才是 IPC_AGENT_STATUS_UPDATE 的唯一主订阅者（由 MainLayout 启动），
-  // ChatPage 通过 useAgentStore.subscribeStatus 拿派生订阅。
-  // handleAgentEvent 是稳定函数，通过 useRef 保持引用以避免 effect 重跑。
-  const agentHandlerRef = useRef(handleAgentEvent)
-  agentHandlerRef.current = handleAgentEvent
-
+  // Agent 事件桥在 App 级 useChatAgentBridge 常驻订阅。
+  // 不可在本页订阅:卸载 = 退订,跳到其他页面后流式回复与落库都会停。
   useEffect(() => {
-    const unsub = useAgentStore.getState().subscribeStatus((data) => {
-      agentHandlerRef.current(data as Parameters<typeof handleAgentEvent>[0])
-    })
-    return unsub
-  }, [])
+    return () => {
+      if (useChatStore.getState().isStreaming) {
+        toast.info(
+          t('toast.chat.backgroundContinue', '助手仍在后台回复，回到「对话」即可查看进度'),
+        )
+      }
+    }
+  }, [t])
 
   // 加载会话列表和历史消息
   useEffect(() => {
@@ -267,7 +263,7 @@ export function ChatPage() {
   const createSessionHandler = useCallback(() => createSession(), [createSession])
 
   return (
-    <div className="flex h-full animate-fade-in">
+    <div className="flex h-full min-h-0 overflow-hidden animate-fade-in">
       <h1
         style={{
           position: 'absolute',
@@ -293,7 +289,7 @@ export function ChatPage() {
       />
 
       {/* 主对话区域 */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {/* 顶部工具栏 — 纯 Agent 模式: Agent 选择器 + 模型配置 + 思考级别 常驻显示 */}
         <ChatToolbar
           enabledAgents={enabledAgents}

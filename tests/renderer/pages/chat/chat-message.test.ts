@@ -4,7 +4,7 @@
 // =============================================================
 
 import { describe, expect, it } from 'vitest'
-import { toAgentHistory } from '../../../../src/renderer/pages/Chat/lib/chat-message'
+import { buildFinalText, toAgentHistory } from '../../../../src/renderer/pages/Chat/lib/chat-message'
 import type { ChatMessage } from '../../../../src/shared/types'
 
 function msg(partial: Partial<ChatMessage> & { role: ChatMessage['role'] }): ChatMessage {
@@ -107,5 +107,59 @@ describe('toAgentHistory', () => {
     // '{"content":"}' 前缀占 12 字符,120 - 12 = 108 个 y 后截断
     expect(out[0].content).toContain(`${'y'.repeat(108)}…`)
     expect(out[0].content).not.toContain('y'.repeat(120))
+  })
+})
+
+describe('buildFinalText', () => {
+  it('无附件时原样返回', () => {
+    expect(buildFinalText('你好', [])).toBe('你好')
+  })
+
+  it('Excel 只注入绝对路径，不灌 base64', () => {
+    const out = buildFinalText('录入系统', [
+      {
+        name: '4班.xlsx',
+        path: 'C:\\Users\\me\\Downloads\\4班.xlsx',
+        size: 4096,
+        content: 'UEsDB fake-zip-bytes',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      },
+    ])
+    expect(out).toContain('excel_path')
+    expect(out).toContain('C:\\Users\\me\\Downloads\\4班.xlsx')
+    expect(out).not.toContain('不要写入系统')
+    expect(out).not.toContain('UEsDB')
+    expect(out).not.toContain('<untrusted_file_content>')
+  })
+
+  it('PDF/zip 只注入绝对路径,指引 eaa_grading_from_files', () => {
+    const out = buildFinalText('帮我批改', [
+      {
+        name: '作业.zip',
+        path: 'D:\\papers\\作业.zip',
+        size: 1024,
+        content: 'PK\x03\x04 should-not-appear',
+        mimeType: 'application/zip',
+      },
+    ])
+    expect(out).toContain('eaa_grading_from_files')
+    expect(out).toContain('D:\\papers\\作业.zip')
+    expect(out).toContain('homework_paths')
+    expect(out).not.toContain('should-not-appear')
+    expect(out).not.toContain('<untrusted_file_content>')
+  })
+
+  it('文本附件仍注入内容定界', () => {
+    const out = buildFinalText('看看', [
+      {
+        name: 'note.txt',
+        path: 'C:\\tmp\\note.txt',
+        size: 4,
+        content: 'hello',
+        mimeType: 'text/plain',
+      },
+    ])
+    expect(out).toContain('<untrusted_file_content>')
+    expect(out).toContain('hello')
   })
 })

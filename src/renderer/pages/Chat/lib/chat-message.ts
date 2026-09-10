@@ -62,14 +62,50 @@ export interface UploadedFile {
 /** 单文件内容截断上限 (32KB)，避免上下文爆炸 */
 const MAX_FILE_CONTENT_LENGTH = 32 * 1024
 
+const EXCEL_EXT = /\.(xlsx|xls)$/i
+const EXCEL_MIME =
+  /spreadsheet|excel|application\/vnd\.ms-excel|application\/vnd\.openxmlformats-officedocument\.spreadsheetml/i
+const GRADING_ASSET = /\.(pdf|zip|jpe?g|png|webp|bmp)$/i
+
+function isExcelUpload(file: UploadedFile): boolean {
+  return EXCEL_EXT.test(file.name) || EXCEL_EXT.test(file.path) || EXCEL_MIME.test(file.mimeType)
+}
+
+function isGradingAsset(file: UploadedFile): boolean {
+  return (
+    GRADING_ASSET.test(file.name) ||
+    GRADING_ASSET.test(file.path) ||
+    file.mimeType === 'application/pdf' ||
+    file.mimeType === 'application/zip' ||
+    file.mimeType.startsWith('image/')
+  )
+}
+
 /**
  * 拼接上传文件内容到消息文本。
  * 文件内容以结构化方式注入,让 Agent 能识别文件边界和元信息。
+ * Excel 只注入绝对路径，禁止把 xlsx 的 base64 灌进上下文。
  */
 export function buildFinalText(text: string, uploadedFiles: UploadedFile[]): string {
   if (uploadedFiles.length === 0) return text
   const fileBlocks = uploadedFiles.map((f) => {
     const sizeKb = (f.size / 1024).toFixed(1)
+    if (isExcelUpload(f)) {
+      return (
+        `--- 文件: ${f.name} (${sizeKb}KB, ${f.mimeType}) — Excel 二进制，不要当文本解析 ---\n` +
+        `绝对路径: ${f.path}\n` +
+        `请用 read_excel 读取上述路径（表头/行数据）。花名册导入请把该绝对路径传给 eaa_import_students 的 excel_path，身份证/电话/住址会写入学生档案并由隐私引擎登记；不要在对话里复述完整身份证号。\n` +
+        `--- 文件结束 ---`
+      )
+    }
+    if (isGradingAsset(f)) {
+      return (
+        `--- 文件: ${f.name} (${sizeKb}KB, ${f.mimeType}) — 试卷/作业扫描件，不要当文本解析 ---\n` +
+        `绝对路径: ${f.path}\n` +
+        `若教师要批改作业: 原卷/答案卷路径放进 eaa_grading_from_files 的 sample_paths,学生作业(照片/PDF/zip)放进 homework_paths,confirm:true。不要尝试把二进制内容读进对话。\n` +
+        `--- 文件结束 ---`
+      )
+    }
     const truncated = f.content.length > MAX_FILE_CONTENT_LENGTH
     const content = truncated ? f.content.slice(0, MAX_FILE_CONTENT_LENGTH) : f.content
     const truncationNote = truncated ? `\n[... 已截断,原始大小 ${sizeKb}KB ...]` : ''

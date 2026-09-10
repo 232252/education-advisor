@@ -30,7 +30,7 @@ export const SessionSidebar = memo(function SessionSidebar({
   const { t } = useT()
 
   return (
-    <div className="w-64 flex-shrink-0 border-r border-gray-200/60 dark:border-white/[0.06] flex flex-col bg-gray-50/80 dark:bg-surface-tertiary">
+    <div className="w-64 flex-shrink-0 min-h-0 border-r border-gray-200/60 dark:border-white/[0.06] flex flex-col bg-gray-50/80 dark:bg-surface-tertiary">
       {/* 顶部操作区 */}
       <div className="p-3 border-b border-gray-200/60 dark:border-white/[0.06]">
         <Button variant="primary" fullWidth onClick={onCreateSession}>

@@ -9,7 +9,9 @@
 import type { ModelThinkingLevel } from '@earendil-works/pi-ai'
 import * as IPC from '@shared/ipc-channels'
 import type { StreamEvent } from '@shared/types'
-import { type BrowserWindow, ipcMain } from 'electron'
+import type { BrowserWindow } from 'electron'
+import { sendToRenderer } from '../broadcast'
+import { handleIpc } from '../handle'
 import { isAutoAnonymizeEnabled, PrivacyGuard } from '../../services/agent/privacy-guard'
 import { piAIService } from '../../services/pi-ai-service'
 import { createDeltaBatcher } from '../../services/stream-batcher'
@@ -19,7 +21,7 @@ import { chatState } from './state'
 export function registerAIChatHandlers(win: BrowserWindow): void {
   // ----- 流式对话 -----
   // 前端调用 ai:chat 后，主进程通过 ai:chat-stream 逐事件推送
-  ipcMain.handle(
+  handleIpc(
     IPC.IPC_AI_CHAT,
     async (
       _e,
@@ -38,10 +40,8 @@ export function registerAIChatHandlers(win: BrowserWindow): void {
       const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
       // F1 修复: 每个流事件附加 sessionId,渲染端按 sessionId 过滤本请求的事件,
       // 避免全窗口广播把无关 delta 串扰给其他订阅者(如 Chat 页 Agent 流)
-      const sendToRenderer = (event: StreamEvent) => {
-        if (!win.isDestroyed()) {
-          win.webContents.send(IPC.IPC_AI_CHAT_STREAM, { ...event, sessionId })
-        }
+      const sendToChat = (event: StreamEvent) => {
+        sendToRenderer(win, IPC.IPC_AI_CHAT_STREAM, { ...event, sessionId })
       }
 
       // 隐私守卫(可选): 出域 anonymize / 回域流式 deanonymize
@@ -52,7 +52,7 @@ export function registerAIChatHandlers(win: BrowserWindow): void {
         } catch (err) {
           chatState.activeChatCount = Math.max(0, chatState.activeChatCount - 1)
           const message = errText(err)
-          sendToRenderer({
+          sendToChat({
             type: 'error',
             message: `隐私脱敏初始化失败: ${message}`,
             retryable: false,
@@ -86,7 +86,7 @@ export function registerAIChatHandlers(win: BrowserWindow): void {
           // text_delta 攒批推送(33ms 窗口,见 services/stream-batcher.ts) —
           // 此前对每个 SSE chunk 单独 send,长回复的 IPC send 是千级
           const deltaBatcher = createDeltaBatcher((merged) => {
-            sendToRenderer({ type: 'text_delta', delta: merged })
+            sendToChat({ type: 'text_delta', delta: merged })
           })
           for await (const event of stream) {
             if (deanon && event.type === 'text_delta') {
@@ -105,7 +105,7 @@ export function registerAIChatHandlers(win: BrowserWindow): void {
               }
               deltaBatcher.flush() // done 前补齐缓冲,保持事件顺序
             }
-            sendToRenderer(event)
+            sendToChat(event)
           }
           if (deanon && !sawDone) {
             const rest = deanon.flush()
@@ -113,7 +113,7 @@ export function registerAIChatHandlers(win: BrowserWindow): void {
           }
           deltaBatcher.flush() // 流结束补尾,防最后窗口内的文本丢失
         } catch (err: unknown) {
-          sendToRenderer({
+          sendToChat({
             type: 'error',
             message: errText(err),
             retryable: false,

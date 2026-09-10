@@ -6,11 +6,25 @@
 
 import { existsSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
+import { parseChineseIdCard } from '@shared/id-card'
 import type { StudentProfileData } from '@shared/types'
 import { atomicWrite } from '../utils/atomic-write'
 import { errText } from '../utils/err-text'
 import { readJsonOr, safeFileName } from '../utils/json-file'
 import { getAppPaths } from './paths'
+
+function enrichFromIdCard(data: StudentProfileData): StudentProfileData {
+  const raw = data.idCard
+  if (typeof raw !== 'string' || !raw.trim()) return data
+  const parsed = parseChineseIdCard(raw)
+  if (!parsed) return data
+  return {
+    ...data,
+    idCard: parsed.idCard,
+    gender: parsed.gender,
+    birthDate: parsed.birthDate,
+  }
+}
 
 class ProfileService {
   private profilesDir: string
@@ -43,7 +57,7 @@ class ProfileService {
   async set(name: string, data: StudentProfileData): Promise<{ success: boolean; error?: string }> {
     try {
       const filePath = this.profilePath(name)
-      await atomicWrite(filePath, JSON.stringify(data, null, 2))
+      await atomicWrite(filePath, JSON.stringify(enrichFromIdCard(data), null, 2))
       return { success: true }
     } catch (err) {
       const msg = errText(err)

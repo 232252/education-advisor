@@ -143,6 +143,34 @@ describe('syncAgentScheduleTasks 消费 schedulePrompts', () => {
     expect(tasks.get('agent-schedule-governor-0')?.prompt).toBe('执行晨间数据质量检查。')
     expect(tasks.get('agent-schedule-governor-1')?.prompt).toBe('执行 督导 的定时任务')
   })
+
+  it('重建时保留教师关掉的自动任务', () => {
+    const tasks = new Map<string, CronTask>()
+    const scheduled: string[] = []
+    const unscheduled: string[] = []
+    const agent = {
+      id: 'governor',
+      name: '督导',
+      schedule: ['0 6 * * *'],
+      schedulePrompts: ['晨检'],
+      modelTier: 'low_cost' as const,
+    }
+    syncAgentScheduleTasks([agent], {
+      tasks,
+      schedule: (id) => scheduled.push(id),
+      unschedule: (id) => unscheduled.push(id),
+    })
+    const id = 'agent-schedule-governor-0'
+    const existing = tasks.get(id)
+    if (existing) existing.enabled = false
+    syncAgentScheduleTasks([agent], {
+      tasks,
+      schedule: () => {},
+      unschedule: () => {},
+      enabledOverrides: new Map([[id, false]]),
+    })
+    expect(tasks.get(id)?.enabled).toBe(false)
+  })
 })
 
 describe('parseEnvContent', () => {
