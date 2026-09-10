@@ -3,14 +3,15 @@
 // 展示当前分数 / 分数变动 / 加扣分事件数 + 基本信息 + 最近事件
 // =============================================================
 
-import type { EAAHistoryData, EAAStudent, EAAStudentScore } from '@shared/types'
+import type { EAAHistoryData, EAAStudent, EAAStudentScore, GradeRecord } from '@shared/types'
 import { ClipboardList } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { EChart } from '../../../components/charts/EChart'
 import { verticalGradient } from '../../../components/charts/option-builders'
 import { EmptyState } from '../../../components/EmptyState'
 import { CHART_BRAND, useChartTheme } from '../../../hooks/useChartTheme'
 import { useT } from '../../../i18n'
+import { getAPI } from '../../../lib/ipc-client'
 import { CARD_BASE, riskColor } from '../../../lib/ui-utils'
 import { EventMiniCard, InfoRow, MetricCard } from '../components'
 
@@ -26,6 +27,26 @@ export function OverviewTab({
   isDark?: boolean
 }) {
   const { t } = useT()
+  const [recentGrades, setRecentGrades] = useState<GradeRecord[]>([])
+  useEffect(() => {
+    let cancelled = false
+    void getAPI()
+      .academic.getGrades(student.name)
+      .then((r) => {
+        if (!cancelled && r.success && Array.isArray(r.data)) setRecentGrades(r.data)
+      })
+      .catch(() => {
+        /* 概览缺成绩不挡主流程 */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [student.name])
+
+  const latestTotals = useMemo(() => {
+    const totals = recentGrades.filter((g) => g.subjectId === '总分' || g.subjectId === 'total')
+    return totals.slice(-3).reverse()
+  }, [recentGrades])
   const recentEvents = history?.events?.slice(0, 5) ?? []
   const bonusCount = history?.events?.filter((e) => e.score_delta > 0).length ?? 0
   const deductCount = history?.events?.filter((e) => e.score_delta < 0).length ?? 0
@@ -73,6 +94,30 @@ export function OverviewTab({
           color="red"
         />
       </div>
+
+      {latestTotals.length > 0 && (
+        <div className={`${CARD_BASE} p-4 shadow-sm`}>
+          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {t('page.students.overview.recentExams', '最近考试')}
+          </h4>
+          <div className="space-y-1.5">
+            {latestTotals.map((g) => (
+              <div
+                key={`${g.examId}-${g.subjectId}`}
+                className="flex items-center justify-between text-xs"
+              >
+                <span className="truncate text-gray-600 dark:text-gray-400">
+                  {g.note || t('page.students.overview.examFallback', '考试成绩')}
+                </span>
+                <span className="font-mono shrink-0 ml-2">
+                  {g.score ?? '—'}
+                  <span className="text-gray-400">/{g.fullMark}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {scoreTimeline.dates.length > 1 && (
         <div className={`${CARD_BASE} p-4 shadow-sm`}>

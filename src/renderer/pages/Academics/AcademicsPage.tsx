@@ -18,6 +18,7 @@ import type { SubjectDef } from '@shared/types'
 import type { LucideIcon } from 'lucide-react'
 import { ArrowLeft, BarChart3, ClipboardList, PencilLine, TrendingUp } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Button } from '../../components/Button'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
@@ -28,6 +29,7 @@ import { extractSemesters, filterStudents } from '../../lib/academics'
 import { CLASS_FILTER_ALL } from '../../lib/class-filter'
 import { buildClassIdToNameMap } from '../../lib/class-utils'
 import { INPUT_BASE } from '../../lib/ui-utils'
+import { type AcademicsTab, parseAcademicsTab } from './academics-tabs'
 import { StudentSidebar } from './components/StudentSidebar'
 import { useAcademicsData } from './hooks/useAcademicsData'
 import { useStudentGrades } from './hooks/useStudentGrades'
@@ -49,10 +51,9 @@ const OverviewTab = lazy(() =>
 // 主组件
 // =============================================================
 
-type AcademicsTab = 'overview' | 'exams' | 'entry' | 'compare'
-
 export function AcademicsPage() {
   const { t } = useT()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const TAB_LIST: Array<{ key: AcademicsTab; label: string; icon: LucideIcon }> = [
     { key: 'overview', label: t('page.academics.tab.overview', '成绩总览'), icon: BarChart3 },
@@ -130,11 +131,32 @@ export function AcademicsPage() {
     [students, selectedStudent],
   )
 
-  // 默认选中第一个学生 — 原 loadInitialData 在每次成功拉取学生列表后均会重置选择,
-  // 此处用 useEffect 监听 students 保持一致行为
+  // 默认选中第一个学生；URL entity_id 优先。不清空已选中的学生（避免 reload 闪回第一名）。
   useEffect(() => {
-    if (students.length > 0) setSelectedStudent(students[0].name)
-  }, [students])
+    if (students.length === 0) {
+      setSelectedStudent(null)
+      return
+    }
+    const entityId = searchParams.get('entity_id')
+    const tab = parseAcademicsTab(searchParams.get('tab'))
+    if (entityId) {
+      const match = students.find((s) => s.entity_id === entityId)
+      if (match) setSelectedStudent(match.name)
+      else {
+        setSelectedStudent((prev) =>
+          prev && students.some((s) => s.name === prev) ? prev : students[0].name,
+        )
+      }
+    } else {
+      setSelectedStudent((prev) =>
+        prev && students.some((s) => s.name === prev) ? prev : students[0].name,
+      )
+    }
+    if (tab) setActiveTab(tab)
+    if (entityId || searchParams.get('tab')) {
+      setSearchParams({}, { replace: true })
+    }
+  }, [students, searchParams, setSearchParams])
 
   // ===== 事件处理 =====
 
@@ -251,6 +273,7 @@ export function AcademicsPage() {
             ) : activeTab === 'overview' ? (
               <OverviewTab
                 studentName={selectedStudent ?? ''}
+                entityId={selectedStudentObj?.entity_id}
                 subjects={subjects}
                 exams={filteredExams}
                 grades={grades}

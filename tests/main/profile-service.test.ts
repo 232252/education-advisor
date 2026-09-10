@@ -63,6 +63,17 @@ describe('profileService', () => {
     expect(got).toEqual(data)
   })
 
+  it('写入合法身份证时应自动填充性别和出生日期', async () => {
+    await profileService.set('伍思情', { idCard: '110101200801011230', phone: '13800001111' })
+    const got = await profileService.get('伍思情')
+    expect(got).toMatchObject({
+      idCard: '110101200801011230',
+      gender: '男',
+      birthDate: '2008-01-01',
+      phone: '13800001111',
+    })
+  })
+
   it('update 应合并（不覆盖）现有字段', async () => {
     await profileService.set('student-b', { a: 1, b: 2 })
     await profileService.update('student-b', { b: 3, c: 4 })

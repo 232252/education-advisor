@@ -26,7 +26,7 @@ function makeRef() {
 
 describe('MessageList 窗口化渲染', () => {
   it('短列表全部渲染,无"查看更早"按钮', () => {
-    render(
+    const { container } = render(
       <MessageList
         messages={makeMessages(10)}
         isStreaming={false}
@@ -37,6 +37,7 @@ describe('MessageList 窗口化渲染', () => {
     )
     expect(screen.getAllByText(/^消息\d+$/)).toHaveLength(10)
     expect(screen.queryByText(/查看更早消息/)).toBeNull()
+    expect(container.firstElementChild?.className).toContain('min-h-0')
   })
 
   it('长对话首屏只挂载最近 50 条,按钮显示隐藏条数', () => {

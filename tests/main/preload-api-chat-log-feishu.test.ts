@@ -21,10 +21,23 @@ vi.mock('electron', () => ({
   },
 }))
 
+import { setIpcRuntime } from '../../src/shared/ipc-runtime'
 import * as IPC from '../../src/shared/ipc-channels'
 import { chatApi } from '../../src/main/preload/api/chat'
 import { logApi } from '../../src/main/preload/api/log'
 import { feishuApi } from '../../src/main/preload/api/feishu'
+
+setIpcRuntime({
+  invoke: (channel, ...args) => mocks.invoke(channel, ...args) as Promise<unknown>,
+  on(channel, listener) {
+    const handler = (_e: unknown, data: unknown) => listener(data)
+    mocks.on(channel, handler)
+    return () => mocks.removeListener(channel, handler)
+  },
+  send: (channel, ...args) => {
+    mocks.send(channel, ...args)
+  },
+})
 
 describe('chatApi — invoke 通道与参数', () => {
   beforeEach(() => {

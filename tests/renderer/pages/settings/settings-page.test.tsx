@@ -124,6 +124,10 @@ describe('SettingsPage', () => {
     expect(screen.getByText('日志查看')).toBeTruthy()
     expect(screen.getByText('关于')).toBeTruthy()
     expect(api.settings.get).toHaveBeenCalled()
+    expect(screen.queryByText('Cloudflare 隧道')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /本机 WebUI/ }))
+    expect(screen.getByText('访问令牌')).toBeTruthy()
+    expect(screen.queryByText('Cloudflare 隧道')).toBeNull()
   })
 
   it('加载中显示 loading 态(挂起期间)', async () => {

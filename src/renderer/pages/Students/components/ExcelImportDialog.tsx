@@ -10,6 +10,7 @@ import type {
   StudentImportResult,
   StudentImportRowError,
 } from '@shared/types'
+import { maskIdCard, maskPhone } from '@shared/id-card'
 import { useEffect } from 'react'
 import { Button } from '../../../components/Button'
 import { tr, useT } from '../../../i18n'
@@ -63,6 +64,7 @@ export function ExcelImportDialog({
 
   const validRows = preview?.rows ?? []
   const errorRows = preview?.errors ?? []
+  const existingCount = validRows.filter((r) => r.alreadyExists).length
   const percent =
     progress && progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0
 
@@ -74,7 +76,7 @@ export function ExcelImportDialog({
       }}
     >
       <div
-        className="bg-white dark:bg-surface-elevated rounded-xl shadow-xl border border-gray-200/50 dark:border-white/[0.08] w-[560px] max-w-[90vw] max-h-[85vh] flex flex-col p-5 animate-scale-in"
+        className="bg-white dark:bg-surface-elevated rounded-xl shadow-xl border border-gray-200/50 dark:border-white/[0.08] w-[720px] max-w-[90vw] max-h-[85vh] flex flex-col p-5 animate-scale-in"
         role="dialog"
         aria-modal="true"
         aria-label={t('page.students.import.excel.previewTitle')}
@@ -148,6 +150,11 @@ export function ExcelImportDialog({
                 2: String(errorRows.length),
               })}
             </p>
+            {existingCount > 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                {tr('page.students.import.excel.existingNote', { 0: String(existingCount) })}
+              </p>
+            )}
             {validRows.length > 0 && (
               <div className="min-h-0 overflow-auto border border-gray-200 dark:border-white/[0.06] rounded-lg">
                 <table className="w-full text-sm">
@@ -158,6 +165,8 @@ export function ExcelImportDialog({
                       </th>
                       <th className={TABLE_TH}>{t('page.students.import.excel.colName')}</th>
                       <th className={TABLE_TH}>{t('page.students.import.excel.colStudentId')}</th>
+                      <th className={TABLE_TH}>{t('page.students.import.excel.colIdCard')}</th>
+                      <th className={TABLE_TH}>{t('page.students.import.excel.colPhone')}</th>
                       <th className={TABLE_TH}>{t('page.students.import.excel.colClass')}</th>
                     </tr>
                   </thead>
@@ -168,9 +177,22 @@ export function ExcelImportDialog({
                         className="border-b border-gray-100 dark:border-white/[0.06] last:border-b-0"
                       >
                         <td className={cn(TABLE_TD, 'text-gray-400 text-xs')}>{r.row}</td>
-                        <td className={TABLE_TD}>{r.name}</td>
+                        <td className={TABLE_TD}>
+                          {r.name}
+                          {r.alreadyExists ? (
+                            <span className="ml-1 text-[10px] text-amber-600 dark:text-amber-400">
+                              {t('page.students.import.excel.existingBadge')}
+                            </span>
+                          ) : null}
+                        </td>
                         <td className={cn(TABLE_TD, 'text-gray-500 dark:text-gray-400 text-xs')}>
                           {r.studentId || '—'}
+                        </td>
+                        <td className={cn(TABLE_TD, 'text-gray-500 dark:text-gray-400 text-xs')}>
+                          {maskIdCard(r.idCard) || '—'}
+                        </td>
+                        <td className={cn(TABLE_TD, 'text-gray-500 dark:text-gray-400 text-xs')}>
+                          {maskPhone(r.phone) || '—'}
                         </td>
                         <td className={cn(TABLE_TD, 'text-gray-500 dark:text-gray-400 text-xs')}>
                           {r.className || '—'}

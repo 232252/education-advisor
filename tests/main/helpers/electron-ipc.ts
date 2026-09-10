@@ -7,6 +7,7 @@
 // =============================================================
 
 import { vi } from 'vitest'
+import { setIpcRuntime } from '../../../src/shared/ipc-runtime'
 
 /** ipcRenderer mock 单例(invoke/on/removeListener/send;dispatchEvent 供 theme-changed 派发断言) */
 export const ipcMocks = {
@@ -16,6 +17,18 @@ export const ipcMocks = {
   send: vi.fn(),
   dispatchEvent: vi.fn(),
 }
+
+setIpcRuntime({
+  invoke: (channel, ...args) => ipcMocks.invoke(channel, ...args) as Promise<unknown>,
+  on(channel, listener) {
+    const handler = (_e: unknown, data: unknown) => listener(data)
+    ipcMocks.on(channel, handler)
+    return () => ipcMocks.removeListener(channel, handler)
+  },
+  send: (channel, ...args) => {
+    ipcMocks.send(channel, ...args)
+  },
+})
 
 /** vi.mock('electron', ...) 工厂 */
 export function mockIpcRendererModule() {

@@ -4,12 +4,12 @@
 
 import * as IPC from '@shared/ipc-channels'
 import type { ReportListResult, ReportReadResult } from '@shared/types/reports'
-import { ipcRenderer } from 'electron'
+import { ipcInvoke } from '@shared/ipc-runtime'
 
 export const reportsApi = {
   // [r] 列出全部产物
-  list: () => ipcRenderer.invoke(IPC.IPC_REPORTS_LIST) as Promise<ReportListResult>,
+  list: () => ipcInvoke(IPC.IPC_REPORTS_LIST) as Promise<ReportListResult>,
   // [r] 读取单个产物(文件名受服务端边界校验)
   read: (fileName: string) =>
-    ipcRenderer.invoke(IPC.IPC_REPORTS_READ, fileName) as Promise<ReportReadResult>,
+    ipcInvoke(IPC.IPC_REPORTS_READ, fileName) as Promise<ReportReadResult>,
 }

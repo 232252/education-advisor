@@ -198,6 +198,7 @@ export function GradingPage() {
               onAssignPaper={grading.assignPaper}
               onRemovePaper={grading.removePaper}
               onRunGrading={grading.runGrading}
+              onIdentifyPapers={grading.identifyPapers}
               onAbortGrading={grading.abortGrading}
               onRefresh={grading.refresh}
               onPublish={grading.publish}

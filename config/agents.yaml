@@ -2,7 +2,7 @@
 # Education Advisor Agent 配置
 # 整合 education-advisor 全部 Agent + 原有 Agent
 # capabilities 映射: score, add_event, history, search, list,
-#   ranking, stats, codes, summary, add_student, range,
+#   ranking, stats, codes, summary, add_student, range, class,
 #   read (= 只读工具集), write (= 写入工具集), all / *
 #   escalate (= 获得 escalate_to_main 紧急上报工具,仅安全类角色)
 # schedule.cron 条目支持两种形态(向后兼容):
@@ -42,6 +42,10 @@ agents:
       - codes
       - range
       - revert # R2-02:AGENTS.md 声明了 eaa_revert_event,补齐授权(主协调者直接处理"记错了,撤销")
+      - class # 建班/列班：花名册导入必须先建班级
+      - set_student_meta # 分班：eaa_add_student 后把学生归入班级
+      - import_students # 花名册批量导入（与 add_student 叠加，显式授权）
+      - grading # 对话里丢原卷+作业包自动建批改任务并发布成绩
     schedule:
       cron: []
     risk_thresholds:
@@ -315,6 +319,9 @@ agents:
     capabilities:
       - read
       - add_event
+      - add_student
+      - class
+      - set_student_meta
       - list
       - summary
     schedule:

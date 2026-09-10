@@ -5,18 +5,20 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import * as IPC from '@shared/ipc-channels'
-import { app, type BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, type BrowserWindow, dialog } from 'electron'
+import { factoryResetAll } from '../services/factory-reset'
 import { updateService } from '../services/update-service'
+import { webUiService } from '../services/webui-service'
 import { validatePathSafety } from '../utils/sanitize'
 import { handleIpc } from './handle'
+import { sendToRenderer } from './broadcast'
+import { invalidateSettingsGetCache } from './settings-handlers'
 
 export function registerSysHandlers(win: BrowserWindow) {
   // M31: 更新下载进度推送 (参考 ollama:pull-progress 模式:
   // 主进程事件 → webContents.send,窗口销毁后静默跳过)
   updateService.setProgressListener((p) => {
-    if (!win.isDestroyed()) {
-      win.webContents.send(IPC.IPC_SYS_UPDATE_PROGRESS, p)
-    }
+    sendToRenderer(win, IPC.IPC_SYS_UPDATE_PROGRESS, p)
   })
 
   // 打开文件选择对话框
@@ -50,7 +52,7 @@ export function registerSysHandlers(win: BrowserWindow) {
   )
 
   // R2-16: 版本号单一来源 — electron-builder 注入的 package.json version
-  ipcMain.handle(IPC.IPC_SYS_GET_VERSION, () => app.getVersion())
+  handleIpc(IPC.IPC_SYS_GET_VERSION, () => app.getVersion())
 
   // 获取系统路径
   // P1-34: app.getPath 合法入参是固定枚举,运行时窄化,
@@ -128,6 +130,17 @@ export function registerSysHandlers(win: BrowserWindow) {
     return { success: true }
   })
 
+  // 出厂重置: 清空班级/学生/对话/成绩/记忆/密钥/设置。调用方随后 relaunch。
+  handleIpc(
+    IPC.IPC_SYS_FACTORY_RESET,
+    async () => {
+      await factoryResetAll()
+      invalidateSettingsGetCache()
+      return { success: true }
+    },
+    (msg) => ({ success: false, error: msg }),
+  )
+
   // 读取文件内容 — 用于 ChatPage 文件上传
   // 安全限制:
   //   1. 文件大小上限 10MB (避免内存爆炸)
@@ -176,6 +189,8 @@ export function registerSysHandlers(win: BrowserWindow) {
       '.sh': 'text/x-shellscript',
       '.sql': 'text/x-sql',
       '.log': 'text/plain',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.xls': 'application/vnd.ms-excel',
       '.pdf': 'application/pdf',
       '.png': 'image/png',
       '.jpg': 'image/jpeg',
@@ -212,6 +227,10 @@ export function registerSysHandlers(win: BrowserWindow) {
       content,
     }
   })
+
+  handleIpc(IPC.IPC_SYS_WEBUI_STATUS, () => webUiService.getStatus())
+  handleIpc(IPC.IPC_SYS_WEBUI_OPEN, async () => webUiService.openInBrowser())
+  handleIpc(IPC.IPC_SYS_WEBUI_REGEN_TOKEN, async () => webUiService.regenerateToken())
 
   console.log('[IPC] System handlers registered')
 }

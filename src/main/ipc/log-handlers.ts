@@ -7,7 +7,7 @@
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
-import { dialog, ipcMain } from 'electron'
+import { dialog } from 'electron'
 import { errText } from '../utils/err-text'
 import type { LogLevel } from '../utils/logger'
 import {
@@ -19,11 +19,10 @@ import {
   readLogTailByLevel,
   searchLog,
 } from '../utils/logger'
+import { handleIpc, registerSendHandler } from './handle'
 
 export function registerLogHandlers(): void {
-  // 渲染进程 console 转发 (单向通知, 不需要 handle)
-  // C-1 修复: 原本只有 preload.send 但主进程无监听者,导致 renderer-*.log 永远不生成
-  ipcMain.on(IPC.IPC_LOG_WRITE_RENDERER, (_event, level: string, msg: string) => {
+  registerSendHandler(IPC.IPC_LOG_WRITE_RENDERER, (_event, level: unknown, msg: unknown) => {
     const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error']
     const lv = validLevels.includes(level as LogLevel) ? (level as LogLevel) : 'info'
     logRenderer(lv, String(msg))
@@ -35,7 +34,7 @@ export function registerLogHandlers(): void {
     fnName: string,
     fn: (...args: A) => Promise<unknown>,
   ): void {
-    ipcMain.handle(channel, async (_event, ...args: A) => {
+    handleIpc(channel, async (_event, ...args: A) => {
       try {
         return await fn(...args)
       } catch (err) {
@@ -50,7 +49,7 @@ export function registerLogHandlers(): void {
   registerPassThrough(IPC.IPC_LOG_FILTER, 'readLogTailByLevel', readLogTailByLevel)
   registerPassThrough(IPC.IPC_LOG_SEARCH, 'searchLog', searchLog)
 
-  ipcMain.handle(IPC.IPC_LOG_EXPORT_DIALOG, async (_event, sourceName: string) => {
+  handleIpc(IPC.IPC_LOG_EXPORT_DIALOG, async (_event, sourceName: string) => {
     try {
       const result = await dialog.showSaveDialog({
         title: '导出日志文件',

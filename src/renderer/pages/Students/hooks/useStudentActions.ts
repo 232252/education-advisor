@@ -336,7 +336,25 @@ export function useStudentActions({
     })
     try {
       const result = await getAPI().students.importExcel({
-        rows: preview.rows.map((r) => ({ row: r.row, name: r.name, classId: r.classId })),
+        rows: preview.rows.map((r) => ({
+          row: r.row,
+          name: r.name,
+          classId: r.classId,
+          alreadyExists: r.alreadyExists,
+          studentId: r.studentId,
+          idCard: r.idCard,
+          gender: r.gender,
+          birthDate: r.birthDate,
+          phone: r.phone,
+          address: r.address,
+          email: r.email,
+          fatherName: r.fatherName,
+          fatherPhone: r.fatherPhone,
+          motherName: r.motherName,
+          motherPhone: r.motherPhone,
+          enrollmentDate: r.enrollmentDate,
+          dormNumber: r.dormNumber,
+        })),
       })
       if (!result.success) {
         toast.error(`${t('toast.common.importFailed')}: ${result.error ?? t('error.unknown')}`)

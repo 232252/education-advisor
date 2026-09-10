@@ -3,7 +3,9 @@
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
+import { fieldsToProfilePatch } from '@shared/roster-profile'
 import type { StudentProfileData } from '@shared/types'
+import { registerRosterPrivacy } from '../services/profile-import'
 import { profileService } from '../services/profile-service'
 import { stripInvisibleUnicode } from '../utils/sanitize'
 import { handleIpc } from './handle'
@@ -77,7 +79,35 @@ export function registerProfileHandlers() {
       if (!data || typeof data !== 'object') {
         return { success: false, error: 'data must be a non-null object' }
       }
-      return await profileService.update(safeName, data)
+      const result = await profileService.update(safeName, data)
+      if (result.success) {
+        try {
+          await registerRosterPrivacy([
+            {
+              name: safeName,
+              patch: fieldsToProfilePatch({
+                studentNumber: typeof data.studentNumber === 'string' ? data.studentNumber : undefined,
+                classId: typeof data.classId === 'string' ? data.classId : undefined,
+                idCard: data.idCard,
+                gender: data.gender,
+                birthDate: data.birthDate,
+                phone: data.phone,
+                address: data.address,
+                email: typeof data.email === 'string' ? data.email : undefined,
+                fatherName: typeof data.fatherName === 'string' ? data.fatherName : undefined,
+                fatherPhone: typeof data.fatherPhone === 'string' ? data.fatherPhone : undefined,
+                motherName: typeof data.motherName === 'string' ? data.motherName : undefined,
+                motherPhone: typeof data.motherPhone === 'string' ? data.motherPhone : undefined,
+                enrollmentDate: data.enrollmentDate,
+                dormNumber: typeof data.dormNumber === 'string' ? data.dormNumber : undefined,
+              }),
+            },
+          ])
+        } catch {
+          /* 档案已保存，隐私登记失败不阻断 */
+        }
+      }
+      return result
     },
     {
       label: (name: string) => `profile:set failed for "${name}"`,

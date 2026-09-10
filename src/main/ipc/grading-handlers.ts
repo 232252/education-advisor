@@ -4,10 +4,12 @@
 // grading:run 为异步作业: 启动即返回,进度经 IPC_GRADING_PROGRESS 推送。
 // =============================================================
 
+import type { StudentCandidate } from '@shared/grading-helpers'
 import * as IPC from '@shared/ipc-channels'
 import type { GradingTaskStatus, TeacherReview } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { abortGrading, startGrading } from '../services/grading/grading-pipeline'
+import { identifyUnassignedPapers } from '../services/grading/identify-papers'
 import { gradingService } from '../services/grading/grading-service'
 import { extractRubricFromImages } from '../services/grading/rubric-extract'
 import { invalidateOnExamsWrite, invalidateOnGradesWrite } from './academic/cache'
@@ -15,6 +17,19 @@ import { handleIpc } from './handle'
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null
+}
+
+function parseRoster(v: unknown): StudentCandidate[] {
+  if (!Array.isArray(v)) return []
+  const out: StudentCandidate[] = []
+  for (const item of v) {
+    if (!isRecord(item) || typeof item.name !== 'string' || item.name.trim().length === 0) continue
+    const aliases = Array.isArray(item.aliases)
+      ? item.aliases.filter((a): a is string => typeof a === 'string' && a.trim().length > 0)
+      : undefined
+    out.push({ name: item.name.trim(), aliases })
+  }
+  return out
 }
 
 export function registerGradingHandlers(win: BrowserWindow): void {
@@ -100,10 +115,10 @@ export function registerGradingHandlers(win: BrowserWindow): void {
   })
 
   // 启动 AI 批改(异步作业: 校验同步完成即返回,进度经 grading:progress)
-  handleIpc(IPC.IPC_GRADING_RUN, async (_e, taskId: string) => {
+  handleIpc(IPC.IPC_GRADING_RUN, async (_e, taskId: string, roster?: unknown) => {
     if (typeof taskId !== 'string' || taskId.length === 0)
       throw new Error('taskId 必须是非空字符串')
-    await startGrading(taskId, win)
+    await startGrading(taskId, win, parseRoster(roster))
     return { success: true }
   })
 
@@ -145,5 +160,14 @@ export function registerGradingHandlers(win: BrowserWindow): void {
       throw new Error('paths 必须是 1~8 个非空字符串路径')
     }
     return { success: true, data: await extractRubricFromImages(paths as string[]) }
+  })
+
+  handleIpc(IPC.IPC_GRADING_IDENTIFY_PAPERS, async (_e, taskId: string, roster: unknown) => {
+    if (typeof taskId !== 'string' || taskId.length === 0) {
+      throw new Error('taskId 必须是非空字符串')
+    }
+    const parsed = parseRoster(roster)
+    if (parsed.length === 0) throw new Error('学生名单不能为空')
+    return { success: true, data: await identifyUnassignedPapers(taskId, parsed) }
   })
 }

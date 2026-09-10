@@ -12,6 +12,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app, type BrowserWindow, Menu, nativeImage, Tray } from 'electron'
 import { settingsService } from './settings-service'
+import { webUiService } from './webui-service'
 
 let tray: Tray | null = null
 let mainWindowRef: BrowserWindow | null = null
@@ -67,16 +68,21 @@ function loadTrayIcon(iconPath: string | undefined): Electron.NativeImage {
   return nativeImage.createFromPath(loadPath).resize({ width: 16, height: 16, quality: 'best' })
 }
 
-function createTrayInstance(iconPath: string | undefined): Tray | null {
-  const trayIcon = loadTrayIcon(iconPath)
-
-  const t = new Tray(trayIcon)
-  t.setToolTip('Education Advisor')
-
-  const contextMenu = Menu.buildFromTemplate([
+function buildTrayMenu(): Electron.Menu {
+  const web = webUiService.getStatus()
+  return Menu.buildFromTemplate([
     {
       label: '显示窗口',
       click: () => showWindow(),
+    },
+    {
+      label: web.listening
+        ? `在浏览器中打开 WebUI (${web.protocol === 'http' ? 'HTTP' : 'HTTPS'})`
+        : 'WebUI 未开启',
+      enabled: web.listening,
+      click: () => {
+        void webUiService.openInBrowser()
+      },
     },
     { type: 'separator' },
     {
@@ -86,8 +92,22 @@ function createTrayInstance(iconPath: string | undefined): Tray | null {
       },
     },
   ])
+}
 
-  t.setContextMenu(contextMenu)
+function applyTrayMenu(t: Tray): void {
+  t.setContextMenu(buildTrayMenu())
+}
+
+export function refreshTrayMenu(): void {
+  if (tray) applyTrayMenu(tray)
+}
+
+function createTrayInstance(iconPath: string | undefined): Tray | null {
+  const trayIcon = loadTrayIcon(iconPath)
+
+  const t = new Tray(trayIcon)
+  t.setToolTip('Education Advisor')
+  applyTrayMenu(t)
   t.on('double-click', () => showWindow())
   return t
 }

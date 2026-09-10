@@ -56,6 +56,7 @@ export function buildPublishPayload(task: GradingTask): PublishPayload {
 
   const records: PublishPayload['records'] = []
   const skipped: PublishPayload['skipped'] = []
+  const publishedStudents = new Set<string>()
   for (const paper of task.papers) {
     if (paper.studentName === null) {
       skipped.push({ paperId: paper.id, studentName: null, reason: '未归组' })
@@ -63,6 +64,14 @@ export function buildPublishPayload(task: GradingTask): PublishPayload {
     }
     if (!paper.ai) {
       skipped.push({ paperId: paper.id, studentName: paper.studentName, reason: '未批改' })
+      continue
+    }
+    if (publishedStudents.has(paper.studentName)) {
+      skipped.push({
+        paperId: paper.id,
+        studentName: paper.studentName,
+        reason: '同学生已有另一份试卷，跳过以免覆盖成绩',
+      })
       continue
     }
     const total = effectiveTotalScore(paper)
@@ -92,6 +101,7 @@ export function buildPublishPayload(task: GradingTask): PublishPayload {
       fullMark: fullMarkTotal,
       note,
     })
+    publishedStudents.add(paper.studentName)
   }
   return { examInput, records, skipped }
 }

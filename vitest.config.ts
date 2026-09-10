@@ -70,9 +70,17 @@ export default defineConfig({
             '@shared': path.resolve(__dirname, 'src/shared'),
           },
         },
+        ssr: {
+          external: ['selfsigned', 'node-forge', 'ws'],
+        },
         test: {
           name: 'main',
           globals: true,
+          server: {
+            deps: {
+              external: ['selfsigned', 'node-forge', 'ws'],
+            },
+          },
           include: [
             'src/main/**/*.{test,spec}.{ts,tsx}',
             'tests/main/**/*.{test,spec}.{ts,tsx}',

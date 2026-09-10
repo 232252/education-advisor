@@ -11,7 +11,18 @@
     "closeBehavior": "ask",
     "timezone": "Asia/Shanghai",
     "agentTimeoutMins": 5,
-    "maxConcurrentCronTasks": 5
+    "maxConcurrentCronTasks": 5,
+    "schedulerEnabled": true,
+    "webUiMode": "off",
+    "webUiPort": 18765,
+    "webUiScheduleStart": "08:00",
+    "webUiScheduleEnd": "22:00",
+    "webUiScheduleDays": [1, 2, 3, 4, 5],
+    "webUiProtocol": "https",
+    "webUiBind": "lan",
+    "webUiIpv6": true,
+    "webUiTlsCertPath": "",
+    "webUiTlsKeyPath": ""
   },
   "models": {
     "defaultProvider": "",
@@ -37,7 +48,7 @@
       "keepRecentTokens": 16000
     },
     "steeringMode": "all",
-    "followUpMode": "all",
+    "followUpMode": "one-at-a-time",
     "showImages": true,
     "maxTokens": 4096,
     "thinkingLevel": "medium",
