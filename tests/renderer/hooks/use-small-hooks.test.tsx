@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
-  pickFile: vi.fn(),
+  pickFiles: vi.fn(),
 }))
 
 vi.mock('../../../src/renderer/lib/ipc-client', () => ({
@@ -18,7 +18,8 @@ vi.mock('../../../src/renderer/lib/ipc-client', () => ({
 }))
 
 vi.mock('../../../src/renderer/lib/dialog', () => ({
-  pickFile: mocks.pickFile,
+  pickFiles: mocks.pickFiles,
+  pickFile: vi.fn(),
   saveAs: vi.fn(),
 }))
 
@@ -110,7 +111,7 @@ describe('useConfirmDialog', () => {
 
 describe('useFileUpload', () => {
   it('pickFile 取消 → 无任何动作', async () => {
-    mocks.pickFile.mockResolvedValue(null)
+    mocks.pickFiles.mockResolvedValue([])
     const { result } = renderHook(() => useFileUpload())
     await act(async () => {
       await result.current.handleUpload()
@@ -120,7 +121,7 @@ describe('useFileUpload', () => {
   })
 
   it('读取失败 → 错误提示且不入列', async () => {
-    mocks.pickFile.mockResolvedValue('/tmp/notes.txt')
+    mocks.pickFiles.mockResolvedValue(['/tmp/notes.txt'])
     mocks.readFile.mockResolvedValue({ success: false, error: 'too large' })
     const { result } = renderHook(() => useFileUpload())
     await act(async () => {
@@ -131,7 +132,7 @@ describe('useFileUpload', () => {
   })
 
   it('读取成功 → 入列(名称/大小/MIME)并成功提示', async () => {
-    mocks.pickFile.mockResolvedValue('/home/u/report.csv')
+    mocks.pickFiles.mockResolvedValue(['/home/u/report.csv'])
     mocks.readFile.mockResolvedValue({
       success: true,
       name: 'report.csv',
