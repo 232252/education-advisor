@@ -10,8 +10,8 @@ import { factoryResetAll } from '../services/factory-reset'
 import { updateService } from '../services/update-service'
 import { webUiService } from '../services/webui-service'
 import { validatePathSafety } from '../utils/sanitize'
-import { handleIpc } from './handle'
 import { sendToRenderer } from './broadcast'
+import { handleIpc } from './handle'
 import { invalidateSettingsGetCache } from './settings-handlers'
 
 export function registerSysHandlers(win: BrowserWindow) {

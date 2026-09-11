@@ -13,8 +13,8 @@ import type { BrowserWindow } from 'electron'
 import { TtlLruCache } from '../services/eaa-cache'
 import { ollamaService } from '../services/ollama-service'
 import { log } from '../utils/logger'
-import { handleIpc } from './handle'
 import { sendToRenderer } from './broadcast'
+import { handleIpc } from './handle'
 
 /**
  * PERF: ollama:detect 和 ollama:list-models 缓存

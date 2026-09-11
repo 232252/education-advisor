@@ -13,6 +13,5 @@ export const memoryApi: MemoryAPI = {
   deleteEntry: (agentId: string, entryId: string) =>
     ipcInvoke(IPC.IPC_MEMORY_DELETE_ENTRY, agentId, entryId) as Promise<MemoryOpResult>,
   // [w] 清空某 agent 全部记忆
-  clear: (agentId: string) =>
-    ipcInvoke(IPC.IPC_MEMORY_CLEAR, agentId) as Promise<MemoryOpResult>,
+  clear: (agentId: string) => ipcInvoke(IPC.IPC_MEMORY_CLEAR, agentId) as Promise<MemoryOpResult>,
 }

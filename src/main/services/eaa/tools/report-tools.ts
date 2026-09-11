@@ -5,6 +5,7 @@
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
+import { profileService } from '../../profile-service'
 import { executeWithSignal, safeExecute } from './sanitize'
 import {
   assertEaaSuccess,
@@ -13,7 +14,6 @@ import {
   jsonResult,
   withTruncationNotice,
 } from './shared'
-import { profileService } from '../../profile-service'
 
 // =============================================================
 // Schema 定义
@@ -171,7 +171,8 @@ export const rankingTool: AgentTool<typeof rankingParams> = {
 export const statsTool: AgentTool<typeof emptyParams> = {
   name: 'eaa_stats',
   label: '查看统计数据',
-  description: '获取操行系统的整体统计（全校）。看某一个班请用 eaa_list_students({ class_id }) 和 eaa_ranking({ class_id })，不要把课任班和其他班混在一起。',
+  description:
+    '获取操行系统的整体统计（全校）。看某一个班请用 eaa_list_students({ class_id }) 和 eaa_ranking({ class_id })，不要把课任班和其他班混在一起。',
   parameters: emptyParams,
   execute: async (_toolCallId, _params, signal) => {
     const result = await executeWithSignal({ command: 'stats', args: [] }, signal)

@@ -5,9 +5,9 @@
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
-import { safeExecute } from './sanitize'
 import { sanitizeClassId } from '../../../utils/sanitize'
 import { classService } from '../../class-service'
+import { safeExecute } from './sanitize'
 import { assertEaaSuccess, textResult } from './shared'
 
 const addStudentParams = Type.Object({

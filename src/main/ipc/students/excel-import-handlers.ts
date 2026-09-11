@@ -5,8 +5,8 @@
 //   - students/import-template  生成 Excel 模板
 // =============================================================
 
-import { fieldsToProfilePatch } from '@shared/roster-profile'
 import * as IPC from '@shared/ipc-channels'
+import { fieldsToProfilePatch } from '@shared/roster-profile'
 import type {
   EAAStudentList,
   StudentImportParams,

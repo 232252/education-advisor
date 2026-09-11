@@ -5,23 +5,23 @@
 // 已存在学生仍可导入——用于补写档案（身份证/电话等）
 // =============================================================
 
+import type { RosterHeaderIndexes, RosterProfilePatch } from '@shared/roster-profile'
 import {
-  ROSTER_TEMPLATE_HEADERS,
   findRosterHeaderRow,
   formatMissingRosterHeaderError,
   isNonStudentRosterName,
+  ROSTER_TEMPLATE_HEADERS,
   resolveRosterHeaders,
   rowToProfilePatch,
 } from '@shared/roster-profile'
-import type { RosterHeaderIndexes, RosterProfilePatch } from '@shared/roster-profile'
 import type {
   ClassEntity,
   StudentImportPreview,
   StudentImportRow,
   StudentImportRowError,
 } from '@shared/types'
-import { sanitizeName, validatePathSafety } from '../../utils/sanitize'
 import * as XLSX from 'xlsx'
+import { sanitizeName, validatePathSafety } from '../../utils/sanitize'
 
 /** 模板表头（中文列名；解析端同时接受 name/student_id 等英文别名） */
 export const TEMPLATE_HEADERS = ROSTER_TEMPLATE_HEADERS
@@ -83,7 +83,9 @@ export interface ParseStudentImportOptions {
   alreadySeenNames?: ReadonlySet<string>
 }
 
-function rowProfileFields(patch: RosterProfilePatch): Pick<
+function rowProfileFields(
+  patch: RosterProfilePatch,
+): Pick<
   StudentImportRow,
   | 'idCard'
   | 'gender'

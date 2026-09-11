@@ -3,7 +3,7 @@
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
-import { type IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
 import { invalidatePrivacyGuardCache } from '../../services/agent/privacy-guard'
 import { eaaBridge } from '../../services/eaa-bridge'
 import { handleIpc } from '../handle'

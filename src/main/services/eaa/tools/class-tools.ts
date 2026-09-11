@@ -5,20 +5,20 @@
 // =============================================================
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
-import { Type } from 'typebox'
 import { computeAutoClassId, inferClassFromLabel } from '@shared/class-id'
-import { fieldsToProfilePatch } from '@shared/roster-profile'
 import type { RosterProfilePatch } from '@shared/roster-profile'
-import { sanitizeClassId, sanitizeName } from '../../../utils/sanitize'
-import { invalidateClassContextCache } from '../../agent/class-context'
-import { classService } from '../../class-service'
-import { eaaBridge } from '../../eaa-bridge'
+import { fieldsToProfilePatch } from '@shared/roster-profile'
+import { Type } from 'typebox'
 import {
   buildClassIndex,
   parseStudentImportSheets,
   readExcelSheets,
   validateExcelFilePath,
 } from '../../../ipc/students/excel-import'
+import { sanitizeClassId, sanitizeName } from '../../../utils/sanitize'
+import { invalidateClassContextCache } from '../../agent/class-context'
+import { classService } from '../../class-service'
+import { eaaBridge } from '../../eaa-bridge'
 import {
   applyStudentRosterProfile,
   isAlreadyExistsError,
@@ -52,7 +52,9 @@ const updateClassParams = Type.Object({
   class_id: Type.String({ description: '要修改的班级编号，如 G12-5' }),
   name: Type.Optional(Type.String({ description: '新的显示名称' })),
   grade: Type.Optional(Type.String({ description: '年级' })),
-  teacher: Type.Optional(Type.String({ description: '班主任姓名。教师说「班主任填张三」时用这个' })),
+  teacher: Type.Optional(
+    Type.String({ description: '班主任姓名。教师说「班主任填张三」时用这个' }),
+  ),
   note: Type.Optional(Type.String({ description: '备注' })),
 })
 
@@ -103,7 +105,8 @@ const importStudentsParams = Type.Object({
   ),
   dry_run: Type.Optional(
     Type.Boolean({
-      description: '只解析花名册、返回将导入的姓名与人数，不写入。excel_path 不确定时先用这个核对。',
+      description:
+        '只解析花名册、返回将导入的姓名与人数，不写入。excel_path 不确定时先用这个核对。',
     }),
   ),
   replace_class: Type.Optional(
@@ -253,10 +256,7 @@ export const archiveClassTool: AgentTool<typeof archiveClassParams> = {
     const result = classService.archive(cls.id)
     if (!result.success) throw new Error(result.error || '存档失败')
     invalidateClassContextCache()
-    return jsonResult(
-      { class_id: classId, archived: true },
-      `班级已存档: ${cls.name} (${classId})`,
-    )
+    return jsonResult({ class_id: classId, archived: true }, `班级已存档: ${cls.name} (${classId})`)
   },
 }
 

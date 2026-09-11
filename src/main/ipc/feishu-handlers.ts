@@ -23,8 +23,8 @@ import {
 import { keystoreService } from '../services/keystore-service'
 import { settingsService } from '../services/settings-service'
 import { log } from '../utils/logger'
-import { handleIpc } from './handle'
 import { sendToRenderer } from './broadcast'
+import { handleIpc } from './handle'
 
 /** 内部辅助：从 keystore 获取飞书 appSecret，获取不到则返回空字符串 */
 function getFeishuSecret(): string {
@@ -49,7 +49,7 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
   // B6-5 修复: 跟踪上一次状态,仅在转入 error 时弹一次系统通知,避免重复打扰
   let lastBotStatus: string | undefined
   const statusHandler = (info: unknown) => {
-      sendToRenderer(win, IPC.IPC_FEISHU_BOT_STATUS_UPDATE, info)
+    sendToRenderer(win, IPC.IPC_FEISHU_BOT_STATUS_UPDATE, info)
     // B6-5: 飞书连接失败时发系统通知,让用户即使不在设置页也能察觉
     const statusInfo = info as { status?: string; error?: string }
     const cur = statusInfo?.status

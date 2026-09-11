@@ -341,9 +341,7 @@ export function DataSection({ settings, onSave }: DataSectionProps) {
           disabled={factoryResetting}
           className={`${btnStyle('danger')} text-xs`}
         >
-          {factoryResetting
-            ? t('settings.factoryReset.done')
-            : t('settings.factoryReset.now')}
+          {factoryResetting ? t('settings.factoryReset.done') : t('settings.factoryReset.now')}
         </button>
       </SettingRow>
 

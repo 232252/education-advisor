@@ -18,8 +18,7 @@ export const academicApi: AcademicAPI = {
   // [r] 读取学生全部成绩
   getGrades: (studentName: string) => ipcInvoke(IPC.IPC_ACADEMIC_GET_GRADES, studentName),
   // [w] 批量设置成绩
-  batchSetGrades: (records: unknown) =>
-    ipcInvoke(IPC.IPC_ACADEMIC_BATCH_SET_GRADES, records),
+  batchSetGrades: (records: unknown) => ipcInvoke(IPC.IPC_ACADEMIC_BATCH_SET_GRADES, records),
   // [r] 读取班级成绩(参数: studentNames[], examId, subjectId?)
   getClassGrades: (studentNames: string[], examId: string, subjectId?: string) =>
     ipcInvoke(IPC.IPC_ACADEMIC_GET_CLASS_GRADES, studentNames, examId, subjectId),

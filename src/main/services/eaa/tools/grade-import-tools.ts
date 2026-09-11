@@ -4,20 +4,20 @@
 // =============================================================
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
-import type { ExamType } from '@shared/types'
 import { DEFAULT_EXAM_TYPES } from '@shared/academic-defaults'
 import {
+  type GradeRosterStudent,
   matchGradeRowsToRoster,
   parseGradeSheetMatrix,
-  type GradeRosterStudent,
 } from '@shared/grade-sheet'
+import type { ExamType } from '@shared/types'
 import { Type } from 'typebox'
+import { readExcelSheets, validateExcelFilePath } from '../../../ipc/students/excel-import'
+import { sanitizeClassId } from '../../../utils/sanitize'
 import { academicService } from '../../academic-service'
 import { classService } from '../../class-service'
 import { eaaBridge } from '../../eaa-bridge'
 import { profileService } from '../../profile-service'
-import { readExcelSheets, validateExcelFilePath } from '../../../ipc/students/excel-import'
-import { sanitizeClassId } from '../../../utils/sanitize'
 import { jsonResult, textResult } from './shared'
 
 const EXAM_TYPES = new Set<ExamType>(DEFAULT_EXAM_TYPES.map((t) => t.value))
@@ -70,7 +70,9 @@ function todayIsoDate(): string {
 function parseExamType(raw?: string): ExamType {
   const t = (raw ?? '').trim()
   if (EXAM_TYPES.has(t as ExamType)) return t as ExamType
-  const hit = DEFAULT_EXAM_TYPES.find((x) => x.label === t || t.includes(x.label.replace('考试', '')))
+  const hit = DEFAULT_EXAM_TYPES.find(
+    (x) => x.label === t || t.includes(x.label.replace('考试', '')),
+  )
   return hit?.value ?? 'other'
 }
 
@@ -82,10 +84,11 @@ async function loadClassRoster(classId: string): Promise<GradeRosterStudent[]> {
     throw new Error(`读取花名册失败: ${result.stderr || '未知错误'}`)
   }
   const list = Array.isArray(result.data?.students) ? result.data.students : []
-  const names = list
-    .filter((s) => typeof s?.name === 'string' && s.name.trim().length > 0)
-    .filter((s) => (s.class_id ?? '') === classId)
-    .map((s) => s.name!.trim())
+  const names = list.flatMap((s) => {
+    const name = typeof s?.name === 'string' ? s.name.trim() : ''
+    if (!name || (s.class_id ?? '') !== classId) return []
+    return [name]
+  })
   const roster: GradeRosterStudent[] = []
   for (const name of names) {
     const profile = await profileService.get(name)
@@ -150,10 +153,7 @@ export const importGradesTool: AgentTool<typeof importGradesParams> = {
     }
     const { matched, unmatched } = matchGradeRowsToRoster(parsed.rows, roster)
     const subjectIds = [...new Set(matched.flatMap((r) => Object.keys(r.scores)))]
-    const warnings = [
-      ...parsed.errors,
-      ...matched.flatMap((r) => r.warnings),
-    ]
+    const warnings = [...parsed.errors, ...matched.flatMap((r) => r.warnings)]
 
     const preview = {
       class_id: classId,
@@ -177,7 +177,10 @@ export const importGradesTool: AgentTool<typeof importGradesParams> = {
     }
 
     if (params.dry_run) {
-      return jsonResult({ dry_run: true, ...preview }, `预览：对上 ${matched.length} 人，未对上 ${unmatched.length} 人`)
+      return jsonResult(
+        { dry_run: true, ...preview },
+        `预览：对上 ${matched.length} 人，未对上 ${unmatched.length} 人`,
+      )
     }
     if (matched.length === 0) {
       throw new Error(

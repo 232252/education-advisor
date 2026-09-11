@@ -3,8 +3,8 @@
 // 分组展示基础信息/联系方式/家庭/健康/在校/奖惩/备注/EAA元数据
 // =============================================================
 
-import type { EAAStudent, StudentProfileData } from '@shared/types'
 import { parseChineseIdCard } from '@shared/id-card'
+import type { EAAStudent, StudentProfileData } from '@shared/types'
 import {
   FileText,
   GraduationCap,

@@ -477,7 +477,8 @@ class GradingService {
           throw new Error(`复核分数越界 [0, ${full}]: ${questionId} = ${override.score}`)
         }
         if (override.marks !== undefined) {
-          if (!Array.isArray(override.marks)) throw new Error(`复核 marks 必须是数组: ${questionId}`)
+          if (!Array.isArray(override.marks))
+            throw new Error(`复核 marks 必须是数组: ${questionId}`)
           const n = qdef.presetMarks?.length ?? 0
           for (const idx of override.marks) {
             if (!Number.isInteger(idx) || idx < 0 || idx >= n) {
