@@ -24,8 +24,7 @@ export const agentApi: AgentAPI = {
   setSoul: (id: string, content: string) => ipcInvoke(IPC.IPC_AGENT_SET_SOUL, id, content),
 
   // [w] 写回 agent AGENTS.md (rules)
-  setRules: (id: string, content: string) =>
-    ipcInvoke(IPC.IPC_AGENT_SET_RULES, id, content),
+  setRules: (id: string, content: string) => ipcInvoke(IPC.IPC_AGENT_SET_RULES, id, content),
 
   // [w] 手动触发 agent 执行
   runManual: (id: string, prompt: string, history?: Array<{ role: string; content: string }>) =>

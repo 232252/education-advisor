@@ -86,7 +86,8 @@ export function registerProfileHandlers() {
             {
               name: safeName,
               patch: fieldsToProfilePatch({
-                studentNumber: typeof data.studentNumber === 'string' ? data.studentNumber : undefined,
+                studentNumber:
+                  typeof data.studentNumber === 'string' ? data.studentNumber : undefined,
                 classId: typeof data.classId === 'string' ? data.classId : undefined,
                 idCard: data.idCard,
                 gender: data.gender,

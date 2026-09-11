@@ -86,9 +86,7 @@ export function handleIpc<A extends unknown[]>(
       const msg = errText(err)
       const onError = typeof opts === 'function' ? opts : opts?.onError
       const tag =
-        opts && typeof opts !== 'function' && opts.label
-          ? opts.label(...args)
-          : `${channel} failed`
+        opts && typeof opts !== 'function' && opts.label ? opts.label(...args) : `${channel} failed`
       console.error(`[IPC] ${tag}:`, msg)
       return onError ? onError(msg) : { success: false, error: msg }
     } finally {

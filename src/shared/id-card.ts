@@ -16,10 +16,10 @@ const CHECK = ['1', '0', 'X', '9', '8', '7', '6', '5', '4', '3', '2'] as const
 
 /** 全角数字 → 半角；去空白、引号、尾部 X 统一大写 */
 export function normalizeIdCard(raw: string): string {
-  const half = raw.replace(/[\uFF10-\uFF19]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xff10 + 0x30))
-  return half
-    .replace(/[\s'"‘’“”]/g, '')
-    .replace(/x$/i, 'X')
+  const half = raw.replace(/[\uFF10-\uFF19]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xff10 + 0x30),
+  )
+  return half.replace(/[\s'"‘’“”]/g, '').replace(/x$/i, 'X')
 }
 
 function isValidYmd(year: number, month: number, day: number): boolean {

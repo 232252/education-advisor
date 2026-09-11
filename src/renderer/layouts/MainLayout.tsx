@@ -201,6 +201,7 @@ export function MainLayout() {
                     {chatRunning && collapsed && (
                       <span
                         className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse"
+                        role="status"
                         aria-label={runningHint}
                       />
                     )}
@@ -209,6 +210,7 @@ export function MainLayout() {
                       <span
                         className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse flex-shrink-0"
                         title={runningHint}
+                        role="status"
                         aria-label={runningHint}
                       />
                     )}

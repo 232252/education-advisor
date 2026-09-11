@@ -53,8 +53,7 @@ export const eaaApi: EaaAPI = {
   // [r] 健康检查
   doctor: () => ipcInvoke(IPC.IPC_EAA_DOCTOR),
   // [r] 摘要
-  summary: (since?: string, until?: string) =>
-    ipcInvoke(IPC.IPC_EAA_SUMMARY, since, until),
+  summary: (since?: string, until?: string) => ipcInvoke(IPC.IPC_EAA_SUMMARY, since, until),
   // [w] 生成 dashboard(写文件)
   dashboard: (outputDir?: string) => ipcInvoke(IPC.IPC_EAA_DASHBOARD, outputDir),
   // [r] 获取 EAA 支持的导出格式列表(不调用二进制,从静态配置返回)

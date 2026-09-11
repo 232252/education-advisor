@@ -3,8 +3,8 @@
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
-import type { ReportListResult, ReportReadResult } from '@shared/types/reports'
 import { ipcInvoke } from '@shared/ipc-runtime'
+import type { ReportListResult, ReportReadResult } from '@shared/types/reports'
 
 export const reportsApi = {
   // [r] 列出全部产物

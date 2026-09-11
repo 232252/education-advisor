@@ -3,8 +3,8 @@
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
-import type { StreamEvent } from '@shared/types'
 import { ipcInvoke } from '@shared/ipc-runtime'
+import type { StreamEvent } from '@shared/types'
 import { subscribe } from './subscribe'
 
 export const aiApi = {

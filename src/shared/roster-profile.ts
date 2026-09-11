@@ -3,8 +3,8 @@
 // 中文学校花名册常见列：姓名 / 身份证号 / 电话 / 家庭住址 …
 // =============================================================
 
-import type { StudentProfileData } from './types/academics'
 import { isCorruptedIdCardCell, parseChineseIdCard } from './id-card'
+import type { StudentProfileData } from './types/academics'
 
 /** 模板表头（中文，教师下载模板即用） */
 export const ROSTER_TEMPLATE_HEADERS = [
@@ -50,7 +50,17 @@ const HEADER_ALIASES: Record<string, string[]> = {
   ],
   address: ['address', '家庭住址', '家庭地址', '住址', '地址', '通讯地址'],
   email: ['email', 'e-mail', '邮箱', '电子邮箱'],
-  fatherName: ['father_name', 'fathername', '父亲姓名', '父亲', '爸爸', '家长姓名', '家长', '监护人', '监护人姓名'],
+  fatherName: [
+    'father_name',
+    'fathername',
+    '父亲姓名',
+    '父亲',
+    '爸爸',
+    '家长姓名',
+    '家长',
+    '监护人',
+    '监护人姓名',
+  ],
   fatherPhone: ['father_phone', 'fatherphone', '父亲电话', '父亲手机', '爸爸电话'],
   motherName: ['mother_name', 'mothername', '母亲姓名', '母亲', '妈妈'],
   motherPhone: ['mother_phone', 'motherphone', '母亲电话', '母亲手机', '妈妈电话'],
@@ -68,7 +78,7 @@ function normalizeHeader(raw: unknown): string {
   return String(raw ?? '')
     .trim()
     .toLowerCase()
-    .replace(/[\s_\-]/g, '')
+    .replace(/[\s_-]/g, '')
 }
 
 const ALIAS_INDEX = new Map<string, RosterHeaderKey>()
@@ -96,7 +106,11 @@ function applyFuzzyHeader(indexes: RosterHeaderIndexes, headerRow: unknown[]): v
       indexes.name = col
       return
     }
-    if (indexes.studentId === -1 && (n.includes('学号') || n.includes('学籍')) && !n.includes('考号')) {
+    if (
+      indexes.studentId === -1 &&
+      (n.includes('学号') || n.includes('学籍')) &&
+      !n.includes('考号')
+    ) {
       indexes.studentId = col
       return
     }
@@ -150,7 +164,9 @@ export function previewMatrixRows(matrix: unknown[][], maxRows = 4, maxCols = 8)
   const n = Math.min(maxRows, matrix.length)
   for (let i = 0; i < n; i++) {
     const cells = (matrix[i] ?? []).slice(0, maxCols).map((c) => {
-      const s = String(c ?? '').replace(/\s+/g, ' ').trim()
+      const s = String(c ?? '')
+        .replace(/\s+/g, ' ')
+        .trim()
       return s.length > 24 ? `${s.slice(0, 24)}…` : s || '(空)'
     })
     lines.push(`第${i + 1}行: ${cells.join(' | ') || '(空行)'}`)
@@ -334,7 +350,10 @@ export function fieldsToProfilePatch(fields: {
   return rowToProfilePatch(cells, header, pick(fields.classId) || null)
 }
 
-export function collectPrivacyTexts(name: string, patch: RosterProfilePatch): Array<{
+export function collectPrivacyTexts(
+  name: string,
+  patch: RosterProfilePatch,
+): Array<{
   entityType: 'person' | 'id_card' | 'phone' | 'place' | 'email' | 'student_id'
   text: string
 }> {

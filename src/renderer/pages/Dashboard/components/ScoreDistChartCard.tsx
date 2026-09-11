@@ -72,15 +72,12 @@ export function ScoreDistChartCard({ scoreIntervals, sortedScoreKeys }: ScoreDis
   // t 是模块级稳定引用,语言切换后 memo 重算必须依赖 lang
   const { t, lang } = useT()
   const chartTheme = useChartTheme()
+  // biome-ignore lint/correctness/useExhaustiveDependencies: t 身份不变，语言切换靠 lang
   const option = useMemo(
     () =>
-      buildScoreChartOption(
-        scoreIntervals,
-        sortedScoreKeys,
-        chartTheme,
-        (key) => t(SCORE_INTERVAL_I18N[key] ?? '', key),
+      buildScoreChartOption(scoreIntervals, sortedScoreKeys, chartTheme, (key) =>
+        t(SCORE_INTERVAL_I18N[key] ?? '', key),
       ),
-    // lang 变化触发轴标签重译(t 为模块级稳定引用,不能作依赖)
     [scoreIntervals, sortedScoreKeys, chartTheme, lang],
   )
   return (

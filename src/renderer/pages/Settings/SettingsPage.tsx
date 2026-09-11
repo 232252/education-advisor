@@ -29,10 +29,10 @@ import {
   DiagnosticSection,
   FeishuSection,
   GeneralSection,
-  WebUiSection,
   LogSection,
   McpSection,
   MemorySection,
+  WebUiSection,
 } from './sections'
 
 /**

@@ -62,7 +62,10 @@ export function RubricEditor({ value, onChange }: RubricEditorProps) {
 
   const removeMark = (id: string, index: number) => {
     const q = value.find((x) => x.id === id)
-    patchMarks(id, (q?.presetMarks ?? []).filter((_, i) => i !== index))
+    patchMarks(
+      id,
+      (q?.presetMarks ?? []).filter((_, i) => i !== index),
+    )
   }
 
   const addQuestion = () => {
@@ -166,6 +169,7 @@ export function RubricEditor({ value, onChange }: RubricEditorProps) {
             />
             <div className="space-y-1">
               {(q.presetMarks ?? []).map((m, mi) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: 评分点无稳定 id，同题内顺序即身份
                 <div key={`${q.id}-m-${mi}`} className="flex items-center gap-1.5">
                   <input
                     type="number"

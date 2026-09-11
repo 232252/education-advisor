@@ -14,8 +14,7 @@ export const privacyApi = {
   // [r] 列出映射(使用主进程内存中已缓存的密码,渲染进程无需再传密码)
   list: (password?: string) => ipcInvoke(IPC.IPC_PRIVACY_LIST, password),
   // [w] 新增映射
-  add: (entityType: string, text: string) =>
-    ipcInvoke(IPC.IPC_PRIVACY_ADD, entityType, text),
+  add: (entityType: string, text: string) => ipcInvoke(IPC.IPC_PRIVACY_ADD, entityType, text),
   // [r] dry-run 预览
   dryrun: (text: string) => ipcInvoke(IPC.IPC_PRIVACY_DRYRUN, text),
   // [c] 备份映射(写文件到 destPath) — UI 层应二次确认

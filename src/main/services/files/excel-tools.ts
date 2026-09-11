@@ -7,12 +7,12 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
+import { findGradeSheetHeaderRow } from '@shared/grade-sheet'
+import { findRosterHeaderRow, isPiiRosterHeader } from '@shared/roster-profile'
 import { Type } from 'typebox'
 import * as XLSX from 'xlsx'
 import { checkFileSize, MAX_EXCEL_ROWS, validateFilePath } from './security'
 import { textResult, truncateForResult } from './shared'
-import { findGradeSheetHeaderRow } from '@shared/grade-sheet'
-import { findRosterHeaderRow, isPiiRosterHeader } from '@shared/roster-profile'
 
 // =============================================================
 // Schema 定义

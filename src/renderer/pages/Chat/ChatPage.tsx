@@ -65,9 +65,7 @@ export function ChatPage() {
   useEffect(() => {
     return () => {
       if (useChatStore.getState().isStreaming) {
-        toast.info(
-          t('toast.chat.backgroundContinue', '助手仍在后台回复，回到「对话」即可查看进度'),
-        )
+        toast.info(t('toast.chat.backgroundContinue', '助手仍在后台回复，回到「对话」即可查看进度'))
       }
     }
   }, [t])
