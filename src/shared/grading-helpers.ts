@@ -6,6 +6,9 @@
 
 import type { AiGradeResult, GradingPaper, PresetMark, RubricQuestion } from './types'
 
+/** 卷面批注叠字最长字数(打印红框要短,避免盖住答卷) */
+const MARK_OVERLAY_TEXT_MAX = 48
+
 /** 单题生效分: 教师覆盖 > AI 分; 两者皆无 → null */
 export function effectiveQuestionScore(
   paper: Pick<GradingPaper, 'ai' | 'review'>,
@@ -60,7 +63,8 @@ export function cleanPresetMarks(marks: PresetMark[] | undefined): PresetMark[] 
   if (!Array.isArray(marks) || marks.length === 0) return undefined
   const cleaned = marks
     .filter(
-      (m) => m && typeof m.note === 'string' && m.note.trim().length > 0 && Number.isFinite(m.points),
+      (m) =>
+        m && typeof m.note === 'string' && m.note.trim().length > 0 && Number.isFinite(m.points),
     )
     .map((m) => ({ points: m.points, note: m.note.trim() }))
   return cleaned.length > 0 ? cleaned : undefined
@@ -71,6 +75,106 @@ export function aiResultByQuestion(
   ai: AiGradeResult | undefined,
 ): Map<string, AiGradeResult['questions'][number]> {
   return new Map((ai?.questions ?? []).map((q) => [q.questionId, q]))
+}
+
+/** 打印/导出用的逐题得分行 */
+export interface PaperMarkScoreRow {
+  questionId: string
+  title: string
+  fullMark: number
+  score: number | null
+  /** 教师评语优先,否则 AI 评语 */
+  comment: string
+  /** AI 判分依据 */
+  evidence: string
+  /** 生效评分点说明(已点选) */
+  markNotes: string[]
+}
+
+/** 卷面红框批注(相对页宽高 0–1) */
+export interface PaperMarkOverlay {
+  questionId: string
+  title: string
+  text: string
+  page: number
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+function clipMarkText(s: string, max = MARK_OVERLAY_TEXT_MAX): string {
+  const t = s.trim()
+  if (t.length <= max) return t
+  return `${t.slice(0, Math.max(0, max - 1))}…`
+}
+
+function formatMarkNote(m: PresetMark): string {
+  const sign = m.points > 0 ? '+' : ''
+  return `${sign}${m.points} ${m.note}`.trim()
+}
+
+/**
+ * 按量规列出逐题生效分/评语(教师覆盖优先)。
+ * 无 AI 结果时仍输出量规行,分数为 null。
+ */
+export function paperMarkScoreRows(
+  paper: Pick<GradingPaper, 'ai' | 'review'>,
+  rubric: RubricQuestion[],
+): PaperMarkScoreRow[] {
+  const aiById = aiResultByQuestion(paper.ai)
+  return rubric.map((q) => {
+    const ai = aiById.get(q.id)
+    const override = paper.review?.questions[q.id]
+    const markIdx = override?.marks ?? ai?.appliedMarks ?? []
+    const markNotes = (q.presetMarks ?? [])
+      .filter((_, i) => markIdx.includes(i))
+      .map(formatMarkNote)
+    return {
+      questionId: q.id,
+      title: q.title,
+      fullMark: q.fullMark,
+      score: effectiveQuestionScore(paper, q.id),
+      comment: (override?.comment ?? ai?.comment ?? '').trim(),
+      evidence: (ai?.evidence ?? '').trim(),
+      markNotes,
+    }
+  })
+}
+
+/**
+ * 有卷面 box 的题 → 打印/复核叠字。
+ * 文案用生效分 + 教师评语(否则 AI 评语/依据),过长截断。
+ */
+export function paperMarkOverlays(
+  paper: Pick<GradingPaper, 'ai' | 'review'>,
+  rubric: RubricQuestion[],
+): PaperMarkOverlay[] {
+  const rowsById = new Map(paperMarkScoreRows(paper, rubric).map((r) => [r.questionId, r]))
+  const out: PaperMarkOverlay[] = []
+  for (const q of paper.ai?.questions ?? []) {
+    const box = q.box
+    if (!box) continue
+    const row = rowsById.get(q.questionId)
+    const title = row?.title || q.questionId
+    const fullMark = row?.fullMark
+    const score = row?.score ?? q.score
+    const scoreText =
+      typeof score === 'number' ? (fullMark != null ? `${score}/${fullMark}` : String(score)) : ''
+    const comment = row?.comment || q.comment || q.evidence || ''
+    const text = clipMarkText([title, scoreText, comment].filter((s) => s.length > 0).join(' '))
+    out.push({
+      questionId: q.questionId,
+      title,
+      text,
+      page: box.page ?? 0,
+      x: box.x,
+      y: box.y,
+      w: box.w,
+      h: box.h,
+    })
+  }
+  return out
 }
 
 // ===== 文件名 → 学生匹配 =====
@@ -149,7 +253,11 @@ export function matchIdentityToStudents(
     const labels = [s.name, ...(s.aliases ?? [])]
     for (const lab of labels) {
       const ln = normalizeForMatch(lab)
-      if (nameNorm.length >= 2 && ln.length >= 2 && (nameNorm.includes(ln) || ln.includes(nameNorm))) {
+      if (
+        nameNorm.length >= 2 &&
+        ln.length >= 2 &&
+        (nameNorm.includes(ln) || ln.includes(nameNorm))
+      ) {
         nameHits.add(s.name)
       }
       if (numRaw.length === 0) continue

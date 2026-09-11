@@ -15,10 +15,13 @@ import type {
   TeacherReview,
 } from '@shared/types'
 import { useEffect, useMemo, useState } from 'react'
+import { GradingMarksDocument } from '../../../components/print/GradingMarksDocument'
+import { PrintOverlay } from '../../../components/print/PrintOverlay'
 import { useIpcSubscription } from '../../../hooks/useIpcSubscription'
 import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { btnStyle, cn } from '../../../lib/ui-utils'
+import { useGradingMarksPrint } from '../hooks/useGradingMarksPrint'
 import { PapersTable } from './PapersTable'
 import { ReviewWorkbench } from './ReviewWorkbench'
 import { RubricEditor } from './RubricEditor'
@@ -87,6 +90,7 @@ export function TaskDetail({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [progress, setProgress] = useState<GradingProgressEvent | null>(null)
   const [reviewingPaperId, setReviewingPaperId] = useState<string | null>(null)
+  const marksPrint = useGradingMarksPrint()
 
   // 批改进度订阅: 只关心当前任务;done 后刷新任务列表与详情
   useIpcSubscription<GradingProgressEvent>(
@@ -146,19 +150,38 @@ export function TaskDetail({
       </span>
     ) : null
 
+  const marksOverlay =
+    marksPrint.task && marksPrint.views ? (
+      <PrintOverlay
+        title={
+          marksPrint.views.length === 1
+            ? `${t('print.gradingMarks.title', '批阅痕迹')} — ${marksPrint.views[0]?.paper.studentName ?? t('print.gradingMarks.unassigned', '未归组')}`
+            : `${t('print.gradingMarks.title', '批阅痕迹')} — ${marksPrint.task.name} (${tr('page.grading.count.papers', { n: marksPrint.views.length })})`
+        }
+        onClose={marksPrint.close}
+      >
+        <GradingMarksDocument task={marksPrint.task} papers={marksPrint.views} />
+      </PrintOverlay>
+    ) : null
+
   // 复核模式: 双栏工作台替换详情主体
   if (reviewingPaperId) {
     const target = task.papers.find((p) => p.id === reviewingPaperId) ?? reviewablePapers[0] ?? null
     if (target) {
       return (
-        <ReviewWorkbench
-          task={task}
-          paperId={target.id}
-          reviewablePapers={reviewablePapers}
-          onClose={() => setReviewingPaperId(null)}
-          onNavigate={setReviewingPaperId}
-          onSaveReview={onSaveReview}
-        />
+        <>
+          <ReviewWorkbench
+            task={task}
+            paperId={target.id}
+            reviewablePapers={reviewablePapers}
+            onClose={() => setReviewingPaperId(null)}
+            onNavigate={setReviewingPaperId}
+            onSaveReview={onSaveReview}
+            onPrintMarks={(paper) => void marksPrint.printPapers(task, [paper])}
+            printLoading={marksPrint.loading}
+          />
+          {marksOverlay}
+        </>
       )
     }
     setReviewingPaperId(null)
@@ -167,7 +190,7 @@ export function TaskDetail({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* 头部: 名称 + 状态徽章 + 操作 */}
-      <div className="flex items-center gap-2 border-b border-gray-200 px-4 py-3 dark:border-white/[0.06]">
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-3 dark:border-white/[0.06]">
         <button
           type="button"
           onClick={onClose}
@@ -231,6 +254,19 @@ export function TaskDetail({
             className={btnStyle('primary')}
           >
             {t('page.grading.review.open')}
+          </button>
+        )}
+        {reviewablePapers.length > 0 && (
+          <button
+            type="button"
+            onClick={() => void marksPrint.printPapers(task, reviewablePapers)}
+            disabled={busy || marksPrint.loading}
+            className={btnStyle('secondary')}
+            title={t('page.grading.exportMarksTitle', '把卷面批注与得分导出为可打印 PDF')}
+          >
+            {marksPrint.loading
+              ? t('page.grading.exportMarksLoading', '正在准备打印…')
+              : t('page.grading.exportMarks', '导出批阅痕迹')}
           </button>
         )}
         {(task.status === 'review' || task.status === 'published') &&
@@ -310,11 +346,16 @@ export function TaskDetail({
                           index: progress.index ?? 0,
                           total: progress.total ?? 0,
                         })
-                      : tr('page.grading.progress.doing', {
-                          student: progress.studentName ?? '',
-                          index: progress.index ?? 0,
-                          total: progress.total ?? 0,
-                        })}
+                      : progress.phase === 'identify'
+                        ? tr('page.grading.progress.identify', {
+                            index: progress.index ?? 0,
+                            total: progress.total ?? 0,
+                          })
+                        : tr('page.grading.progress.doing', {
+                            student: progress.studentName ?? '',
+                            index: progress.index ?? 0,
+                            total: progress.total ?? 0,
+                          })}
                   </span>
                   <span className="font-mono">
                     {(progress.index ?? 0) / (progress.total ?? 1) > 0
@@ -380,9 +421,9 @@ export function TaskDetail({
                   )}
                   {(q.presetMarks?.length ?? 0) > 0 && (
                     <ul className="mt-1 flex flex-wrap gap-1">
-                      {(q.presetMarks ?? []).map((m, mi) => (
+                      {(q.presetMarks ?? []).map((m) => (
                         <li
-                          key={`${q.id}-ro-${mi}`}
+                          key={`${q.id}-ro-${m.note}-${m.points}`}
                           className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300"
                         >
                           {m.points > 0 ? '+' : ''}
@@ -410,6 +451,15 @@ export function TaskDetail({
             onAssign={onAssignPaper}
             onRemove={onRemovePaper}
             onReview={reviewable ? setReviewingPaperId : undefined}
+            onExportMarks={
+              reviewablePapers.length > 0
+                ? (paperId) => {
+                    const paper = task.papers.find((p) => p.id === paperId)
+                    if (paper) void marksPrint.printPapers(task, [paper])
+                  }
+                : undefined
+            }
+            exportMarksLoading={marksPrint.loading}
             onIdentify={
               unassignedCount > 0 &&
               roster.length > 0 &&
@@ -420,6 +470,7 @@ export function TaskDetail({
           />
         </section>
       </div>
+      {marksOverlay}
     </div>
   )
 }

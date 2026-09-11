@@ -13,6 +13,8 @@ import {
   matchPaperFilesToStudents,
   matchIdentityToStudents,
   paperGroupKey,
+  paperMarkOverlays,
+  paperMarkScoreRows,
   rubricFullMark,
 } from '../../src/shared/grading-helpers'
 
@@ -175,10 +177,15 @@ describe('matchIdentityToStudents', () => {
     { name: '李四', aliases: ['15'] },
   ]
 
-  it('卷面姓名唯一命中优先于编号', () => {
+  it('卷面姓名唯一命中优先于编号; 同名子串不猜', () => {
     expect(matchIdentityToStudents({ name: '李四', number: '' }, roster).suggested).toBe('李四')
+    // 双向子串:「张三」命中张三与张三丰 → 不猜
     expect(matchIdentityToStudents({ name: '张三', number: '' }, roster).suggested).toBeNull()
-    expect(matchIdentityToStudents({ name: '张三丰', number: '' }, roster).suggested).toBe('张三丰')
+    // 卷面写全名同样命中两人(张三丰.includes(张三)),与文档「不猜」一致
+    expect(matchIdentityToStudents({ name: '张三丰', number: '' }, roster).suggested).toBeNull()
+    expect(new Set(matchIdentityToStudents({ name: '张三丰', number: '' }, roster).candidates)).toEqual(
+      new Set(['张三', '张三丰']),
+    )
   })
 
   it('编号精确/后缀唯一命中; 单位数不后缀误伤', () => {
@@ -194,9 +201,87 @@ describe('matchIdentityToStudents', () => {
     })
   })
 
-  it('姓名歧义时编号可唯一定人', () => {
-    expect(matchIdentityToStudents({ name: '张三', number: '202602' }, roster).suggested).toBe(
-      '张三丰',
+  it('姓名唯一时即使考号对不上学号也按姓名归组', () => {
+    const roster = [
+      { name: '罗尧骋', aliases: ['20240005'] },
+      { name: '阿的叶呷', aliases: ['20240006'] },
+    ]
+    const r = matchIdentityToStudents({ name: '罗尧骋', number: '20261001' }, roster)
+    expect(r.suggested).toBe('罗尧骋')
+    expect(r.candidates).toEqual(['罗尧骋'])
+  })
+})
+
+describe('paperMarkScoreRows / paperMarkOverlays', () => {
+  const rubric = [
+    {
+      id: 'q-1',
+      title: '一、选择题',
+      fullMark: 20,
+      order: 1,
+      presetMarks: [{ points: -2, note: '漏写单位' }],
+    },
+    { id: 'q-2', title: '二、填空', fullMark: 10, order: 2 },
+  ]
+  const paper = {
+    ai: {
+      questions: [
+        {
+          questionId: 'q-1',
+          score: 18,
+          comment: 'AI 评语',
+          evidence: '第 3 小题错',
+          appliedMarks: [0],
+          box: { page: 0, x: 0.1, y: 0.2, w: 0.3, h: 0.1 },
+        },
+        { questionId: 'q-2', score: 10, comment: '全对' },
+      ],
+      totalScore: 28,
+      model: { provider: 'p', model: 'm' },
+      finishedAt: '2026-01-01T00:00:00Z',
+    },
+  }
+
+  it('逐题行: 教师评语/改分优先,评分点列出', () => {
+    const rows = paperMarkScoreRows(
+      {
+        ...paper,
+        review: {
+          questions: { 'q-1': { score: 16, comment: '  教师评语  ', marks: [0] } },
+          reviewedAt: '2026-01-02T00:00:00Z',
+        },
+      },
+      rubric,
     )
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({
+      title: '一、选择题',
+      fullMark: 20,
+      score: 16,
+      comment: '教师评语',
+      evidence: '第 3 小题错',
+      markNotes: ['-2 漏写单位'],
+    })
+    expect(rows[1].score).toBe(10)
+    expect(rows[1].comment).toBe('全对')
+  })
+
+  it('叠字只要有 box 的题;文案含生效分', () => {
+    const overlays = paperMarkOverlays(paper, rubric)
+    expect(overlays).toHaveLength(1)
+    expect(overlays[0]).toMatchObject({
+      questionId: 'q-1',
+      page: 0,
+      x: 0.1,
+      y: 0.2,
+    })
+    expect(overlays[0].text).toContain('一、选择题')
+    expect(overlays[0].text).toContain('18/20')
+    expect(overlays[0].text).toContain('AI 评语')
+  })
+
+  it('无 AI 结果仍输出量规行,无叠字', () => {
+    expect(paperMarkScoreRows({ ai: undefined }, rubric).map((r) => r.score)).toEqual([null, null])
+    expect(paperMarkOverlays({ ai: undefined }, rubric)).toEqual([])
   })
 })

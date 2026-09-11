@@ -427,4 +427,14 @@ body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+
+  /* 批阅痕迹: 每份试卷另起一页;扫描件尽量不断开 */
+  .print-root .grading-marks-paper:not(:last-of-type) {
+    page-break-after: always;
+    break-after: page;
+  }
+  .print-root .grading-marks-scan {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
 }
