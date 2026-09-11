@@ -125,7 +125,9 @@ describe('submitty vendor 完整性', () => {
     for (const f of upstream.files ?? []) {
       const file = join(VENDOR_DIR, f.path)
       expect(existsSync(file), `${f.path} 缺失`).toBe(true)
-      const actual = createHash('sha256').update(readFileSync(file)).digest('hex')
+      const actual = createHash('sha256')
+        .update(readFileSync(file).toString('utf8').replace(/\r\n/g, '\n'))
+        .digest('hex')
       expect(actual, `${f.path} sha256 与 pin 不符（参照面被改动或半更新）`).toBe(f.sha256)
     }
   })

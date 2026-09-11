@@ -33,6 +33,12 @@ describe('resolveWithinRoot', () => {
     )
   })
 
+  it('前导斜杠在 Windows 上也不跳出 root', () => {
+    const inside = resolveWithinRoot(root, '/index.html')
+    expect(inside).toBe(path.join(root, 'index.html'))
+    expect(inside?.startsWith(root)).toBe(true)
+  })
+
   it('.. 回溯逃逸返回 null', () => {
     expect(resolveWithinRoot(root, '/../../etc/passwd')).toBeNull()
     expect(resolveWithinRoot(root, '/assets/../../../../x')).toBeNull()
@@ -45,10 +51,11 @@ describe('resolveWithinRoot', () => {
 
 describe('createAppProtocolHandler', () => {
   it('域内请求转 file:// fetch 并透传响应', async () => {
-    const handler = createAppProtocolHandler('/tmp/ea-renderer-root2')
+    const root = path.resolve('/tmp/ea-renderer-root2')
+    const handler = createAppProtocolHandler(root)
     const res = await handler(new Request('app://index/index.html'))
     expect(res.status).toBe(200)
-    expect(await res.text()).toBe('served:file:///tmp/ea-renderer-root2/index.html')
+    expect(await res.text()).toBe(`served:file://${path.join(root, 'index.html')}`)
   })
 })
 
