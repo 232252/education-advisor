@@ -63,33 +63,19 @@ itself in the background. The flow:
 
 ### For maintainers
 
-Cutting a release is one command:
+安装包在 **GitHub Actions 云端**编译并发布，不要在本机 `npm run package`。
+
+1. 把 `package.json` 的 `version` 和 `CHANGELOG.md` 改好，推进 `main`。
+2. 打开 [Actions → Release → Run workflow](https://github.com/232252/education-advisor/actions/workflows/release.yml)：
+   - **tag**：如 `v3.3.0`（留空则用 `package.json`）
+   - **platforms**：`all`（Win / macOS / Linux）或 `win`（只要 Windows 安装包）
+3. 等 run 结束，到 [Releases](https://github.com/232252/education-advisor/releases) 核对安装包。
+
+也可以继续推 `v*.*.*` tag，效果相同。工作流会：只跑一次质量门禁 → 各平台编 Rust、打安装包 → 上传 GitHub Release。
 
 ```bash
-# 1. Update the version in package.json
-npm version minor  # or major / patch
-
-# 2. Update CHANGELOG.md
-
-# 3. Commit and tag
-git add -A
-git commit -m "Release v0.2.0"
-git tag v0.2.0
-
-# 4. Push
-git push && git push --tags
-
-# 5. Wait for the release workflow to finish (~10 minutes)
-# 6. Check the GitHub Releases page
+gh workflow run Release -f tag=v3.3.0 -f platforms=all
 ```
-
-The workflow will:
-
-1. Build the Windows, macOS, and Linux installers.
-2. Generate checksums.
-3. Sign the checksums with cosign.
-4. Create a GitHub Release with the installers, checksums, and
-   signatures.
 
 ### Configuring auto-update
 
