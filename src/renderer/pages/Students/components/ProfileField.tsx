@@ -5,6 +5,16 @@
 
 import { useT } from '../../../i18n'
 
+export type ProfileSelectOption = string | { value: string; label: string }
+
+function optionValue(o: ProfileSelectOption): string {
+  return typeof o === 'string' ? o : o.value
+}
+
+function optionLabel(o: ProfileSelectOption): string {
+  return typeof o === 'string' ? o : o.label
+}
+
 export function ProfileField({
   label,
   value,
@@ -19,7 +29,7 @@ export function ProfileField({
   value: string
   editing: boolean
   type?: string
-  options?: string[]
+  options?: ProfileSelectOption[]
   onChange?: (v: string) => void
   multiline?: boolean
   spanFull?: boolean
@@ -27,6 +37,10 @@ export function ProfileField({
   const { t } = useT()
   const baseClass =
     'w-full bg-gray-50 dark:bg-surface-primary border border-gray-300 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors'
+  const displayValue =
+    options
+      ?.map((o) => ({ value: optionValue(o), label: optionLabel(o) }))
+      .find((o) => o.value === value)?.label ?? value
   return (
     <div className={spanFull ? 'col-span-2' : ''}>
       {label && (
@@ -47,11 +61,14 @@ export function ProfileField({
             className={baseClass + (label ? ' mt-1' : '')}
           >
             <option value="">{t('common.unselected', '未选择')}</option>
-            {options.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
+            {options.map((o) => {
+              const v = optionValue(o)
+              return (
+                <option key={v} value={v}>
+                  {optionLabel(o)}
+                </option>
+              )
+            })}
           </select>
         ) : (
           <input
@@ -65,7 +82,7 @@ export function ProfileField({
         <div
           className={`${label ? 'mt-1 ' : ''}text-sm font-medium text-gray-700 dark:text-gray-200`}
         >
-          {value || '-'}
+          {displayValue || '-'}
         </div>
       )}
     </div>

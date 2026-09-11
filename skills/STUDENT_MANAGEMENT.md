@@ -1,7 +1,7 @@
 ---
 name: STUDENT_MANAGEMENT
 description: 学生操行数据操作手册 — 何时用哪些 eaa_* 工具、write 类工具的参数与约束（dry_run/force/撤销）；适合「怎么加分扣分/撤销/查名单」类操作问题。通用规则（先确认/数据即工具）不在此重复，见系统自动注入的公共规则。
-tools: [eaa_score, eaa_history, eaa_search, eaa_list_students, eaa_codes, eaa_stats, eaa_summary, eaa_ranking, eaa_range, eaa_tag, eaa_add_event, eaa_revert_event, eaa_add_student, eaa_list_classes, eaa_create_class, eaa_import_students, eaa_set_student_meta]
+tools: [eaa_score, eaa_history, eaa_search, eaa_list_students, eaa_codes, eaa_stats, eaa_summary, eaa_ranking, eaa_range, eaa_tag, eaa_add_event, eaa_revert_event, eaa_add_student, eaa_list_classes, eaa_create_class, eaa_update_class, eaa_archive_class, eaa_import_students, eaa_set_student_meta]
 ---
 
 # 学生管理操作手册（技能）
@@ -41,4 +41,5 @@ tools: [eaa_score, eaa_history, eaa_search, eaa_list_students, eaa_codes, eaa_st
 
 1. **记一条扣分**：先用 `eaa_codes` 查标准分值 → 复述给用户确认 → `eaa_add_event`（必要时 dry_run 预演 → 确认后再真实写入）
 2. **记错了**：`eaa_history` 拿 event_id → `eaa_revert_event` 并注明原因；**不要**用一条反向事件对冲（除非教师明确要求）
-3. **批量导入花名册**：`read_excel` 读附件路径看表头与人数 → `eaa_list_classes` → 没有对应班则 `eaa_create_class` → 一次确认后 `eaa_import_students({ excel_path, class_id })`。身份证/电话/住址写入学生档案并由隐私引擎登记；不要在回复里复述完整身份证号，不要凭空生成学生名单。
+3. **批量导入花名册**：`read_excel` 读附件路径看表头与人数 → `eaa_list_classes` → 没有对应班则 `eaa_create_class`（名称必须带年级）→ `eaa_import_students({ excel_path, class_id })`。工具会跳过标题行并识别「姓名/学生姓名/就读班级/学号/考号」。解析失败把错误告诉教师，禁止用 `students[]` 从对话或其他班抄名单。导入后 `eaa_list_students({ class_id })` 核对本班姓名。纠正错导名单时加 `replace_class: true`。身份证/电话/住址写入学生档案；不要在回复里复述完整身份证号，不要凭空生成学生名单。
+   **成绩表不是花名册**：表头有语文/数学/分数时不要调用 `eaa_import_students`，告知教师用主协调导入成绩或到「学业」页录入。考号经常不等于学号。

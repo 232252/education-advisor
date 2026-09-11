@@ -48,7 +48,15 @@ function currentSemester(): string {
 
 async function loadRoster(className?: string): Promise<StudentCandidate[]> {
   const result = await eaaBridge.execute<{
-    students?: Array<{ name?: string; aliases?: string[]; class_id?: string; class?: string }>
+    students?: Array<{
+      name?: string
+      aliases?: string[]
+      entity_id?: string
+      groups?: string[]
+      roles?: string[]
+      class_id?: string
+      class?: string
+    }>
   }>({ command: 'list-students', args: [] })
   if (!result.success) return []
   const list = Array.isArray(result.data?.students) ? result.data.students : []
@@ -60,10 +68,13 @@ async function loadRoster(className?: string): Promise<StudentCandidate[]> {
       const cls = (s.class_id ?? s.class ?? '').toString()
       if (cls.length > 0 && cls !== wanted && !cls.includes(wanted)) continue
     }
-    const aliases = Array.isArray(s.aliases)
-      ? s.aliases.filter((a): a is string => typeof a === 'string' && a.trim().length > 0)
-      : undefined
-    out.push({ name: s.name.trim(), aliases })
+    const aliases = [
+      s.entity_id,
+      ...(Array.isArray(s.groups) ? s.groups : []),
+      ...(Array.isArray(s.roles) ? s.roles : []),
+      ...(Array.isArray(s.aliases) ? s.aliases : []),
+    ].filter((a): a is string => typeof a === 'string' && a.trim().length > 0)
+    out.push({ name: s.name.trim(), aliases: aliases.length > 0 ? aliases : undefined })
   }
   return out
 }

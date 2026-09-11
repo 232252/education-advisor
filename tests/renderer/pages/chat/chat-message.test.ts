@@ -126,6 +126,8 @@ describe('buildFinalText', () => {
       },
     ])
     expect(out).toContain('excel_path')
+    expect(out).toContain('eaa_import_students')
+    expect(out).toContain('eaa_import_grades')
     expect(out).toContain('C:\\Users\\me\\Downloads\\4班.xlsx')
     expect(out).not.toContain('不要写入系统')
     expect(out).not.toContain('UEsDB')

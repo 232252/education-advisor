@@ -136,6 +136,53 @@ describe('file-tools', () => {
       expect(readText).toContain('李四')
     })
 
+    it('花名册标题行应跳过，表头取下一行，并提示用 excel_path 导入', async () => {
+      const filePath = path.join(tmpRoot, 'titled-roster.xlsx')
+      await writeExcelTool.execute('we-title', {
+        path: filePath,
+        sheets: [
+          {
+            name: 'Sheet1',
+            headers: ['九龙县2026年春季学期寄宿制学生核定表', '', ''],
+            rows: [
+              ['序号', '姓名', '就读班级'],
+              ['1', '罗尧骋', '高2024级5班'],
+            ],
+          },
+        ],
+      })
+      const result = await readExcelTool.execute('re-title', { path: filePath })
+      const text = (result.content[0] as { text: string }).text
+      expect(text).toContain('已跳过前 1 行标题')
+      expect(text).toContain('表头: 序号 | 姓名 | 就读班级')
+      expect(text).toContain('罗尧骋')
+      expect(text).toContain('excel_path')
+      expect(text).toContain('禁止把本表姓名抄进 students[]')
+    })
+
+    it('成绩表应提示 eaa_import_grades，而不是当花名册导入', async () => {
+      const filePath = path.join(tmpRoot, 'grades.xlsx')
+      await writeExcelTool.execute('we-grades', {
+        path: filePath,
+        sheets: [
+          {
+            name: 'Sheet1',
+            headers: ['高三5班第一次月考'],
+            rows: [
+              ['考号', '姓名', '学号', '语文', '数学'],
+              ['20261001', '罗尧骋', '20240005', '120', '135'],
+            ],
+          },
+        ],
+      })
+      const result = await readExcelTool.execute('re-grades', { path: filePath })
+      const text = (result.content[0] as { text: string }).text
+      expect(text).toContain('【成绩表】')
+      expect(text).toContain('eaa_import_grades')
+      expect(text).not.toContain('【花名册】')
+      expect(text).toContain('考号经常不等于学号')
+    })
+
     it('花名册敏感列应对模型隐藏', async () => {
       const filePath = path.join(tmpRoot, 'roster.xlsx')
       await writeExcelTool.execute('we-pii', {
@@ -168,7 +215,7 @@ describe('file-tools', () => {
       })
       const result = await readExcelTool.execute('re2', { path: filePath })
       const text = (result.content[0] as { text: string }).text
-      expect(text).toContain('工作表列表: A, B')
+      expect(text).toContain('工作表列表: A(2行), B(2行)')
       expect(text).toContain('工作表: A') // 默认读第一个
     })
 

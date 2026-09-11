@@ -36,6 +36,7 @@ describe('buildIdentifyPrompt', () => {
     expect(p).toContain('"name"')
     expect(p).toContain('"number"')
     expect(p).toContain('不要猜')
+    expect(p).toContain('考号经常不等于学号')
   })
 })
 

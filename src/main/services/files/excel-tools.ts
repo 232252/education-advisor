@@ -11,7 +11,8 @@ import { Type } from 'typebox'
 import * as XLSX from 'xlsx'
 import { checkFileSize, MAX_EXCEL_ROWS, validateFilePath } from './security'
 import { textResult, truncateForResult } from './shared'
-import { isPiiRosterHeader } from '@shared/roster-profile'
+import { findGradeSheetHeaderRow } from '@shared/grade-sheet'
+import { findRosterHeaderRow, isPiiRosterHeader } from '@shared/roster-profile'
 
 // =============================================================
 // Schema 定义
@@ -44,7 +45,10 @@ export const readExcelTool: AgentTool<typeof readExcelParams> = {
   name: 'read_excel',
   label: '读取 Excel',
   description:
-    '读取 Excel 文件（.xlsx/.xls）的内容。返回工作表数据，包括表头和所有行。可指定工作表名称和最大行数。',
+    '读取 Excel（.xlsx/.xls）。自动跳过标题行、列出全部工作表及行数。' +
+    '身份证/电话/住址等敏感列显示为「(已隐藏)」。' +
+    '花名册导入用 eaa_import_students 的 excel_path；成绩表（姓名+语文/数学或考号+分数）用 eaa_import_grades 的 excel_path。' +
+    '禁止把姓名/分数抄进对话，禁止编学生。考号经常不等于学号，按姓名对号，对不上的行报告给教师。',
   parameters: readExcelParams,
   execute: async (_toolCallId, params, signal) => {
     // F1 修复: pi-agent-core 以 execute(id, args, signal) 传入 AbortSignal,入口协作式中止
@@ -85,37 +89,61 @@ export const readExcelTool: AgentTool<typeof readExcelParams> = {
     const worksheet = workbook.Sheets[targetSheet]
     const maxRows = params.maxRows || MAX_EXCEL_ROWS
 
-    // 转为 JSON 数组（第一行作为表头）
     const data = XLSX.utils.sheet_to_json(worksheet, {
       header: 1,
       defval: '',
       blankrows: false,
     }) as unknown[][]
 
-    // 限制行数
     const truncated = data.length > maxRows
     const rows = truncated ? data.slice(0, maxRows) : data
 
-    // 格式化为可读文本
+    const sheetOverview = sheetNames.map((name) => {
+      const ws = workbook.Sheets[name]
+      const count = (
+        XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', blankrows: false }) as unknown[][]
+      ).length
+      return `${name}(${count}行)`
+    })
+
     const lines: string[] = []
     lines.push(`📊 Excel 文件: ${path.basename(resolvedPath)}`)
+    lines.push(`绝对路径: ${resolvedPath}`)
     lines.push(`工作表: ${targetSheet}`)
     lines.push(`总行数: ${data.length}${truncated ? `（已截断为 ${maxRows} 行）` : ''}`)
-    lines.push(`工作表列表: ${sheetNames.join(', ')}`)
+    lines.push(`工作表列表: ${sheetOverview.join(', ')}`)
     lines.push('---')
 
     if (rows.length > 0) {
-      const headers = (rows[0] as string[]).map(String)
+      const gradeLocated = findGradeSheetHeaderRow(rows)
+      const located = findRosterHeaderRow(rows)
+      const headerRowIndex = gradeLocated?.rowIndex ?? located?.rowIndex ?? 0
+      if (headerRowIndex > 0) {
+        const title = String((rows[0] as unknown[])[0] ?? '').trim()
+        lines.push(`已跳过前 ${headerRowIndex} 行标题${title ? `（${title.slice(0, 40)}）` : ''}`)
+      }
+      const headers = ((rows[headerRowIndex] as string[]) ?? []).map(String)
       const piiCols = headers.map((h, i) => (isPiiRosterHeader(h) ? i : -1)).filter((i) => i >= 0)
       lines.push(`表头: ${headers.join(' | ')}`)
+      if (gradeLocated) {
+        lines.push(
+          '【成绩表】已识别姓名列和科目/分数列。导入请调用 eaa_import_grades({ excel_path: 上面的绝对路径, class_id, exam_name })。' +
+            '考号经常不等于学号：按姓名匹配；对不上的行进 unmatched，禁止新建学生，禁止把分数抄进对话。不确定时先 dry_run:true。',
+        )
+      } else if (located) {
+        lines.push(
+          '【花名册】已识别姓名列。导入请调用 eaa_import_students({ excel_path: 上面的绝对路径, class_id })。' +
+            '禁止把本表姓名抄进 students[]，禁止使用其他班级或上一份文件的名单。解析失败时把错误告诉教师，不要编名单。',
+        )
+      }
       if (piiCols.length > 0) {
         lines.push(
-          '（身份证/电话/住址/邮箱等敏感列已对模型隐藏。导入花名册请把本文件绝对路径传给 eaa_import_students 的 excel_path，档案字段会写入学生档案并由隐私引擎登记。）',
+          '（身份证/电话/住址/邮箱等敏感列已对模型隐藏。禁止把「(已隐藏)」写进 write_excel。导入花名册请把本文件绝对路径传给 eaa_import_students 的 excel_path；整理无敏感列的表格可照常写回新文件。）',
         )
       }
       lines.push('')
 
-      for (let i = 1; i < rows.length; i++) {
+      for (let i = headerRowIndex + 1; i < rows.length; i++) {
         if (signal?.aborted) return textResult('已取消')
         const row = rows[i] as unknown[]
         const cells = row.map((cell, col) => {
@@ -123,7 +151,7 @@ export const readExcelTool: AgentTool<typeof readExcelParams> = {
           if (cell === null || cell === undefined || cell === '') return '(空)'
           return String(cell)
         })
-        lines.push(`第${i}行: ${cells.join(' | ')}`)
+        lines.push(`第${i - headerRowIndex}行: ${cells.join(' | ')}`)
       }
     } else {
       lines.push('(空表格)')

@@ -92,7 +92,7 @@ export const Composer = memo(function Composer({
               aria-label={t('page.chat.composer.upload', '上传文件')}
               title={t(
                 'page.chat.composer.uploadTitle',
-                '上传文件 (文本/代码/图片/PDF/zip 试卷包)',
+                '上传文件 (文本/代码/图片/表格/PDF/zip 试卷包)',
               )}
             >
               <svg

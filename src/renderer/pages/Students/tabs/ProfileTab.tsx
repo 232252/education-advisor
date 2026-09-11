@@ -116,7 +116,10 @@ export function ProfileTab({
             value={form.gender ?? ''}
             editing={editing}
             type="select"
-            options={[t('common.gender.male', '男'), t('common.gender.female', '女')]}
+            options={[
+              { value: '男', label: t('common.gender.male', '男') },
+              { value: '女', label: t('common.gender.female', '女') },
+            ]}
             onChange={(v) => updateForm('gender', v)}
           />
           <ProfileField
