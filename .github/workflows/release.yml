@@ -1,15 +1,30 @@
 name: Release
 
+# 云端打包并发布，不在本地编译安装包。
+# 触发方式：
+#   1. GitHub → Actions → Release → Run workflow（推荐）
+#   2. 推送 tag：v*.*.*（兼容旧流程）
 on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "版本 tag（如 v3.3.0）。留空则用 package.json 的 version"
+        required: false
+        type: string
+      platforms:
+        description: "打包平台"
+        type: choice
+        options:
+          - all
+          - win
+        default: all
 
-# Cancel in-progress runs for the same tag.
-# 组名带 -v2 后缀：历史上曾出现 run 卡死在 queued（无法 cancel/delete），
-# 改组名可绕开被卡死 run 占用的旧 concurrency 队列。
+# 组名带 -v3：dispatch 与 tag 共用同一版本号，避免重复跑。
 concurrency:
-  group: release-v2-${{ github.ref }}
+  group: release-v3-${{ github.event_name == 'workflow_dispatch' && (inputs.tag || github.sha) || github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -18,32 +33,120 @@ permissions:
 
 jobs:
   # ----------------------------------------------------------------
-  # Build all platform installers.
+  # 解析版本、生成矩阵；手动触发时打上 git tag（GITHUB_TOKEN 推 tag
+  # 不会再触发本 workflow，所以打包必须在这一次 run 里做完）。
+  # ----------------------------------------------------------------
+  prepare:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      matrix: ${{ steps.meta.outputs.matrix }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve tag, version, matrix
+        id: meta
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          INPUT_PLATFORMS: ${{ github.event.inputs.platforms }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            RAW="${INPUT_TAG:-}"
+            if [ -z "$RAW" ]; then
+              RAW="v$(node -p "require('./package.json').version")"
+            fi
+            PLATFORMS="${INPUT_PLATFORMS:-all}"
+          else
+            RAW="$REF_NAME"
+            PLATFORMS="all"
+          fi
+          RAW="${RAW#v}"
+          TAG="v${RAW}"
+          VERSION="$RAW"
+          PRE=false
+          case "$VERSION" in
+            *-rc*|*-beta*|*-alpha*) PRE=true ;;
+          esac
+
+          if [ "$PLATFORMS" = "win" ]; then
+            MATRIX='{"include":[{"os":"windows-latest","target":"win","arch":"x64"}]}'
+          else
+            MATRIX='{"include":[{"os":"windows-latest","target":"win","arch":"x64"},{"os":"macos-latest","target":"mac","arch":"x64"},{"os":"macos-latest","target":"mac","arch":"arm64"},{"os":"ubuntu-22.04","target":"linux","arch":"x64"}]}'
+          fi
+
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "prerelease=$PRE"
+            echo "matrix=$MATRIX"
+          } >> "$GITHUB_OUTPUT"
+          echo "Release $TAG (version=$VERSION platforms=$PLATFORMS prerelease=$PRE)"
+
+      - name: Ensure git tag exists
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "$TAG"
+          echo "Created and pushed $TAG"
+
+  # ----------------------------------------------------------------
+  # 质量门禁只跑一次（不再在每个打包机上重复 typecheck/lint/test）。
+  # ----------------------------------------------------------------
+  quality:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        env:
+          RELEASE_CI: "1"
+        run: npm run test
+
+  # ----------------------------------------------------------------
+  # 各平台只编 Rust + 打安装包。
   # ----------------------------------------------------------------
   build:
-    name: Build ${{ matrix.target }} (${{ matrix.os }})
+    name: Build ${{ matrix.target }} (${{ matrix.arch }})
+    needs: [prepare, quality]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # Windows x64 — NSIS + portable
-          - os: windows-latest
-            target: win
-            arch: x64
-          # macOS x64 (Intel) — dmg
-          - os: macos-latest
-            target: mac
-            arch: x64
-          # macOS arm64 (Apple Silicon) — dmg
-          - os: macos-latest
-            target: mac
-            arch: arm64
-          # Linux x64 — AppImage + deb
-          - os: ubuntu-22.04
-            target: linux
-            arch: x64
-
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -58,31 +161,10 @@ jobs:
         shell: bash
         run: npm ci
 
-      - name: Typecheck
-        shell: bash
-        run: npm run typecheck
-
-      - name: Lint
-        shell: bash
-        run: npm run lint
-
-      - name: Test
-        # RELEASE_CI=1 让 vitest 跳过重度 UI 压力测试
-        # (tests/e2e/user-flow-simulation.test.tsx),避免 Linux 上因 EAA
-        # 二进制在流水线中不可靠而阻塞发布。本地 npm run test 不受影响。
-        env:
-          RELEASE_CI: "1"
-        shell: bash
-        run: npm run test
-
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build Rust EAA binary from source
-        # We build from source (core/eaa-cli/) rather than downloading a
-        # prebuilt release: the Rust source IS in this monorepo, so there
-        # is no need to keep a separate release pipeline in sync. The
-        # binary is then placed in the location electron-builder expects.
         shell: bash
         run: |
           set -euo pipefail
@@ -107,27 +189,20 @@ jobs:
       - name: Package
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Code signing environment variables (set in repo settings)
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         shell: bash
         run: |
-          # electron-builder treats an EMPTY CSC_LINK as "set" and then
-          # path.resolve(currentDir, '') resolves to the project root,
-          # which is a directory not a file → "X not a file" error.
-          # Unset the code-signing env vars when they are empty so
-          # electron-builder skips code signing entirely.
           for var in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
             if [ -z "${!var}" ]; then unset "$var"; fi
           done
-          # CI 网络抖动时上传大安装包偶发 Request timed out（v3.2.0 曾因
-          # Setup.exe 上传 4 分钟超时失败），失败后整体重试一次。
-          # electron-builder 对已存在的同名资产会自动 overwrite，重试幂等。
-          ARGS=(--${{ matrix.target }} --${{ matrix.arch }} --publish onTag
-                --config.extraMetadata.version=${GITHUB_REF_NAME#v})
+          # 手动触发不在 tag ref 上，必须 --publish always；版本由 prepare 注入。
+          ARGS=(--${{ matrix.target }} --${{ matrix.arch }} --publish always
+                --config.extraMetadata.version="${RELEASE_VERSION}")
           if ! npx electron-builder "${ARGS[@]}"; then
             echo "::warning::electron-builder 打包/上传失败，60 秒后重试一次"
             sleep 60
@@ -138,11 +213,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: installer-${{ matrix.target }}-${{ matrix.arch }}
-          # electron-builder.yml 将输出目录设为 release-v*（如 release-v11），
-          # 上传路径需与之匹配；缺失某种平台文件类型时不应中断工作流。
-          # M31 自动更新: latest*.yml 是 electron-updater 的更新清单
-          # (electron-builder 打 NSIS/AppImage 目标时自动生成,含安装包真实
-          # sha512);*.blockmap 供差量下载。缺失时自动更新完全失效。
           path: |
             release-v*/*.exe
             release-v*/*.dmg
@@ -150,21 +220,20 @@ jobs:
             release-v*/*.deb
             release-v*/latest*.yml
             release-v*/*.blockmap
-            # R2-01: 官网演示视频随 release 上传为固定名资产,站点可零维护引用
             site-build/assets/media/eea-intro.mp4
           retention-days: 14
           if-no-files-found: warn
 
   # ----------------------------------------------------------------
-  # Publish the GitHub Release.
+  # 正式发布 GitHub Release（安装包已由 electron-builder 上传）。
   # ----------------------------------------------------------------
   publish:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
-    needs: build
+    needs: [prepare, build]
     permissions:
       contents: write
-      id-token: write # for sigstore / cosign signing
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -183,11 +252,7 @@ jobs:
           cat SHA256SUMS
 
       - name: Sign checksums (cosign)
-        # Cosign keyless OIDC signing requires a Fulcio server reachable
-        # from the runner AND OIDC token exchange. For pre-releases and
-        # local builds we just skip it. For GA releases, set the
-        # \`SIGN_CHECKSUMS\` repository variable to "true\" to enable.
-        if: startsWith(github.ref, 'refs/tags/v') && vars.SIGN_CHECKSUMS == 'true'
+        if: vars.SIGN_CHECKSUMS == 'true'
         env:
           COSIGN_EXPERIMENTAL: "1"
         run: |
@@ -200,15 +265,11 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: ${{ needs.prepare.outputs.tag }}
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
           generate_release_notes: true
-          # electron-builder --publish onTag 已把全部安装包、latest*.yml 与
-          # blockmap 直传到（草稿）Release；此处仅负责正式发布 Release 并补充
-          # 校验和。若再上传安装包，本地带空格的文件名会被 GitHub 规范化为
-          # 点号，与 electron-builder 的连字符命名并存形成重复资产。
           files: |
             artifacts/SHA256SUMS
             artifacts/SHA256SUMS.sig
