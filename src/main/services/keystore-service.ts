@@ -27,6 +27,8 @@ class KeystoreService {
   private _writing = false
   /** RISK 修复: 写盘期间有新修改,需要再写一次 */
   private _needsResave = false
+  /** clearAll 递增,使在途 save 的旧快照放弃落盘 */
+  private _writeEpoch = 0
 
   constructor() {
     this.keyStorePath = path.join(app.getPath('userData'), 'keystore.enc')
@@ -93,12 +95,15 @@ class KeystoreService {
     try {
       do {
         this._needsResave = false
+        const epoch = this._writeEpoch
         const obj = Object.fromEntries(this.cache)
         const json = JSON.stringify(obj)
         const encrypted = safeStorage.encryptString(json)
-        // M17b 收敛: 原子写入(fd+fsync+rename,带 EPERM/EACCES/EBUSY 重试)
-        // 统一走 utils/atomic-write,与 settings/persistence 共享同一实现
-        await atomicWrite(this.keyStorePath, encrypted)
+        if (epoch === this._writeEpoch) {
+          // M17b 收敛: 原子写入(fd+fsync+rename,带 EPERM/EACCES/EBUSY 重试)
+          // 统一走 utils/atomic-write,与 settings/persistence 共享同一实现
+          await atomicWrite(this.keyStorePath, encrypted)
+        }
       } while (this._needsResave)
     } catch (err) {
       const msg = errText(err)
@@ -211,8 +216,11 @@ class KeystoreService {
   /** 出厂重置：清空内存缓存并删除 keystore.enc（含 API Key 与飞书密钥） */
   async clearAll(): Promise<void> {
     await this._ready
+    this._writeEpoch++
     this.cache.clear()
     this._lastError = null
+    this._needsResave = false
+    await this.flush()
     try {
       await fsp.unlink(this.keyStorePath)
     } catch (err) {

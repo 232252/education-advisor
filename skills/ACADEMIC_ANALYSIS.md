@@ -9,8 +9,10 @@ tools: [eaa_exams, eaa_exam_grades, eaa_student_grades, eaa_stats, eaa_summary, 
 ## 何时用本技能
 
 教师问「这次考试怎么样」「谁退步了」「单科哪些人要补」「把成绩和操行放一起看看」时。
-成绩数据由教师在「学业」页录入；你只能查询（eaa_exams / eaa_exam_grades / eaa_student_grades 只读），
-**没有录入或修改成绩的工具**——缺数据时引导教师去学业页录入，不要自己编。
+成绩数据由教师在「学业」页录入，或由主协调从成绩表导入；
+本技能只查询（eaa_exams / eaa_exam_grades / eaa_student_grades 只读），
+**没有录入或修改成绩的工具**——缺数据时引导教师去学业页或让主协调导表，不要自己编。
+考号与学号经常不是同一个编号，对成绩时以姓名为准。
 
 ## 标准工作流
 

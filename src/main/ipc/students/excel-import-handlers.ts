@@ -138,8 +138,8 @@ export function registerStudentExcelHandlers(): void {
                 })
                 if (!meta.success) {
                   failErr = added
-                    ? `class assign failed: ${meta.stderr || '未知错误'}`
-                    : `class assign failed: ${meta.stderr || '未知错误'}`
+                    ? `class assign failed (new student): ${meta.stderr || '未知错误'}`
+                    : `class assign failed (existing student): ${meta.stderr || '未知错误'}`
                 }
               }
             }

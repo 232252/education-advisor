@@ -13,6 +13,7 @@ import {
   jsonResult,
   withTruncationNotice,
 } from './shared'
+import { profileService } from '../../profile-service'
 
 // =============================================================
 // Schema 定义
@@ -20,6 +21,12 @@ import {
 
 const rankingParams = Type.Object({
   n: Type.Optional(Type.Number({ description: '显示前 N 名，默认 10' })),
+  class_id: Type.Optional(
+    Type.String({
+      description:
+        '只看该班。教师问「我们班/高三5班排名」时必须传，否则会把课任班和其他班混在一起。',
+    }),
+  ),
 })
 
 const summaryParams = Type.Object({
@@ -39,19 +46,31 @@ const rangeParams = Type.Object({
   limit: Type.Optional(Type.Number({ description: '最大返回条数，默认 100' })),
 })
 
-// =============================================================
-// 5. 列出所有学生
-// =============================================================
+const listStudentsParams = Type.Object({
+  class_id: Type.Optional(
+    Type.String({
+      description:
+        '只列出该班级学生。核对某班花名册、查「我们班有哪些人」时必须传。不填会返回全校，容易把其他班的人当成该班的人。',
+    }),
+  ),
+})
+
 /** 单次注入的学生条数上限 — 大库(千级学生)全量 JSON 一次能挤占数十 K token,把当前任务细节挤出上下文 */
 const MAX_STUDENTS_LISTED = 200
 
-export const listStudentsTool: AgentTool<typeof emptyParams> = {
+function studentClassId(row: unknown): string {
+  if (!row || typeof row !== 'object') return ''
+  const cid = (row as { class_id?: unknown }).class_id
+  return typeof cid === 'string' ? cid : ''
+}
+
+export const listStudentsTool: AgentTool<typeof listStudentsParams> = {
   name: 'eaa_list_students',
-  label: '列出所有学生',
+  label: '列出学生',
   description:
-    '获取所有学生的姓名、分数、风险等级概览(按姓名排序,超过 200 名时只返回前 200 并标注截断)',
-  parameters: emptyParams,
-  execute: async (_toolCallId, _params, signal) => {
+    '列出学生姓名、分数、风险、班级、学号/考号（来自档案，便于对成绩表和卷面）。核对某班花名册时必须传 class_id，不要用全校名单冒充该班。超过 200 名时截断。',
+  parameters: listStudentsParams,
+  execute: async (_toolCallId, params, signal) => {
     const result = await executeWithSignal({ command: 'list-students', args: [] }, signal)
     assertEaaSuccess(result, '列表获取失败')
     const data = extractData(result.data) as {
@@ -59,18 +78,45 @@ export const listStudentsTool: AgentTool<typeof emptyParams> = {
       total?: number
       [key: string]: unknown
     }
-    if (Array.isArray(data.students) && data.students.length > MAX_STUDENTS_LISTED) {
-      const total = typeof data.total === 'number' ? data.total : data.students.length
-      return jsonResult(
-        {
-          ...data,
-          students: data.students.slice(0, MAX_STUDENTS_LISTED),
-          students_truncated: `仅返回前 ${MAX_STUDENTS_LISTED}/${total} 名(按姓名排序)。要核对特定学生请用 eaa_search,要看按分数排序的名单请用 eaa_ranking(传足够大的 n)`,
-        },
-        '全部学生列表',
-      )
+    let students = Array.isArray(data.students) ? data.students : []
+    const classId = params.class_id?.trim()
+    if (classId) {
+      students = students.filter((s) => studentClassId(s) === classId)
     }
-    return jsonResult(data, '全部学生列表')
+    const total = students.length
+    const truncated = students.length > MAX_STUDENTS_LISTED
+    const listed = truncated ? students.slice(0, MAX_STUDENTS_LISTED) : students
+    const withNumbers = await Promise.all(
+      listed.map(async (s) => {
+        if (!s || typeof s !== 'object') return s
+        const name = (s as { name?: unknown }).name
+        if (typeof name !== 'string' || !name.trim()) return s
+        const profile = await profileService.get(name)
+        const extra: { student_number?: string; exam_number?: string } = {}
+        if (typeof profile.studentNumber === 'string' && profile.studentNumber.trim()) {
+          extra.student_number = profile.studentNumber.trim()
+        }
+        if (typeof profile.examNumber === 'string' && profile.examNumber.trim()) {
+          extra.exam_number = profile.examNumber.trim()
+        }
+        return Object.keys(extra).length > 0 ? { ...s, ...extra } : s
+      }),
+    )
+    return jsonResult(
+      {
+        ...data,
+        class_id: classId || undefined,
+        students: withNumbers,
+        total,
+        names: withNumbers
+          .map((s) => (s && typeof s === 'object' ? (s as { name?: string }).name : ''))
+          .filter((n): n is string => Boolean(n)),
+        students_truncated: truncated
+          ? `仅返回前 ${MAX_STUDENTS_LISTED}/${total} 名。要核对特定学生请用 eaa_score，要看按分数排序请用 eaa_ranking({ class_id, n: 999 })`
+          : undefined,
+      },
+      classId ? `${classId} 学生 ${total} 人` : '全部学生列表',
+    )
   },
 }
 
@@ -81,21 +127,41 @@ export const rankingTool: AgentTool<typeof rankingParams> = {
   name: 'eaa_ranking',
   label: '查看排行榜',
   description:
-    '查看操行分排行榜,按分数从高到低排列(默认前 10 名)。注意: 这是高分榜 — 要找低分/高风险学生时,传足够大的 n(如 999)取全量名单,从列表末尾找分数最低的学生',
+    '查看操行分排行榜，按分数从高到低。教师问某班排名时必须传 class_id。' +
+    '这是高分榜 — 找低分/高风险学生时传足够大的 n（如 999），从列表末尾看。',
   parameters: rankingParams,
   execute: async (_toolCallId, params, signal) => {
-    // R86 软发现-1 修复：校验 n 类型，拒绝 NaN/Infinity/非正数/非数字
-    // 之前 ranking(-1/NaN/1e10/'abc') 全部返回 success（EAA 端容忍任意 n 并回退到 full ranking）
     if (
       params.n !== undefined &&
       (typeof params.n !== 'number' || !Number.isFinite(params.n) || params.n <= 0)
     ) {
       throw new Error(`参数 n 必须是正整数,收到: ${JSON.stringify(params.n)}`)
     }
-    const args = params.n ? [String(params.n)] : []
+    const classId = params.class_id?.trim()
+    const fetchN = classId ? Math.max(params.n ?? 0, 9999) : params.n
+    const args = fetchN ? [String(fetchN)] : []
     const result = await executeWithSignal({ command: 'ranking', args }, signal)
     assertEaaSuccess(result, '排行榜获取失败')
-    return jsonResult(extractData(result.data), `排行榜 Top ${params.n ?? 10}`)
+    const data = extractData(result.data) as {
+      ranking?: Array<{ name?: string; class_id?: string; [k: string]: unknown }>
+      [k: string]: unknown
+    }
+    if (!classId) {
+      return jsonResult(data, `排行榜 Top ${params.n ?? 10}`)
+    }
+    const ranking = Array.isArray(data.ranking) ? data.ranking : []
+    const filtered = ranking.filter((row) => row.class_id === classId)
+    const limit = params.n ?? filtered.length
+    const sliced = filtered.slice(0, limit)
+    return jsonResult(
+      {
+        ...data,
+        class_id: classId,
+        ranking: sliced,
+        total: filtered.length,
+      },
+      `${classId} 排行榜 ${sliced.length}/${filtered.length} 人`,
+    )
   },
 }
 
@@ -105,7 +171,7 @@ export const rankingTool: AgentTool<typeof rankingParams> = {
 export const statsTool: AgentTool<typeof emptyParams> = {
   name: 'eaa_stats',
   label: '查看统计数据',
-  description: '获取操行系统的整体统计：学生数、事件数、分数分布、原因分布',
+  description: '获取操行系统的整体统计（全校）。看某一个班请用 eaa_list_students({ class_id }) 和 eaa_ranking({ class_id })，不要把课任班和其他班混在一起。',
   parameters: emptyParams,
   execute: async (_toolCallId, _params, signal) => {
     const result = await executeWithSignal({ command: 'stats', args: [] }, signal)

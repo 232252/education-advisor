@@ -35,7 +35,10 @@ import {
   tagTool,
   deleteStudentTool,
   createClassTool,
+  updateClassTool,
+  archiveClassTool,
   importStudentsTool,
+  importGradesTool,
   listClassesTool,
   gradingFromFilesTool,
   gradingPublishTool,
@@ -117,11 +120,16 @@ describe('getToolsByCapability — 单项 capability', () => {
   it('delete → [deleteStudentTool]', () => {
     expect(getToolsByCapability(['delete'])).toEqual([deleteStudentTool])
   })
-  it('class → 列班 + 建班', () => {
-    expect(getToolsByCapability(['class'])).toEqual([listClassesTool, createClassTool])
+  it('class → 列班 + 建班 + 改班 + 存档', () => {
+    expect(getToolsByCapability(['class'])).toEqual([
+      listClassesTool,
+      createClassTool,
+      updateClassTool,
+      archiveClassTool,
+    ])
   })
-  it('import_students → [importStudentsTool]', () => {
-    expect(getToolsByCapability(['import_students'])).toEqual([importStudentsTool])
+  it('import_grades → [importGradesTool]', () => {
+    expect(getToolsByCapability(['import_grades'])).toEqual([importGradesTool])
   })
 })
 
@@ -154,7 +162,7 @@ describe('getToolsByCapability — read / write 分组', () => {
     expect(tools.length).toBe(16)
   })
 
-  it('write 返回 add_event + add_student + set_student_meta + revert + 建班/批量导入', () => {
+  it('write 返回 add_event + add_student + set_student_meta + revert + 建班/改班/存档/批量导入', () => {
     const tools = getToolsByCapability(['write'])
     expect(tools).toEqual([
       addEventTool,
@@ -162,11 +170,13 @@ describe('getToolsByCapability — read / write 分组', () => {
       setStudentMetaTool,
       revertEventTool,
       createClassTool,
+      updateClassTool,
+      archiveClassTool,
       importStudentsTool,
+      importGradesTool,
       gradingFromFilesTool,
       gradingPublishTool,
     ])
-    // 危险的 delete 不在 write 里
     expect(tools).not.toContain(deleteStudentTool)
   })
 
@@ -175,8 +185,8 @@ describe('getToolsByCapability — read / write 分组', () => {
     // read(16) + write(8,其中 6 个不在 read 中: add_event 等 4 个已在? wait)
     // write 8 个: addEvent 不在 read, addStudent 不在, setMeta 不在, revert 不在,
     // createClass 不在, importStudents 不在, gradingFromFiles 不在, gradingPublish 不在
-    // → 16 + 8 = 24
-    expect(tools.length).toBe(24)
+    // → 16 + 11 = 27
+    expect(tools.length).toBe(27)
     expect(tools).not.toContain(deleteStudentTool)
   })
 })
@@ -212,10 +222,13 @@ describe('getToolsByCapability — 组合 / 边界', () => {
 })
 
 describe('allEAATools — 集合完整性', () => {
-  it('应包含全部 24 个安全工具(17 操行含建班导入 + 3 考试 + 2 批改读 + 2 批改写),且 name 唯一', () => {
-    expect(allEAATools.length).toBe(24)
+  it('应包含全部 27 个安全工具(操行含建班导入 + 成绩导入 + 考试查询 + 批改读写),且 name 唯一', () => {
+    expect(allEAATools.length).toBe(27)
     const names = allEAATools.map((t) => t.name)
-    expect(new Set(names).size).toBe(24)
+    expect(new Set(names).size).toBe(27)
+    expect(names).toContain('eaa_update_class')
+    expect(names).toContain('eaa_archive_class')
+    expect(names).toContain('eaa_import_grades')
     expect(names).toContain('eaa_grading_from_files')
     expect(names).toContain('eaa_grading_publish')
   })

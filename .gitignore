@@ -197,3 +197,8 @@ src-tauri/
 # ===== syncthing 同步产物(9/6 灾难元凶,防再入版本库) =====
 *.sync-conflict-*
 .syncthing*
+
+# ===== 本地数据备份与工具会话状态(2026/9/9 手工备份,勿入库) =====
+.app-data.backup-*/
+.eaa-data.backup-*/
+.mimosa/

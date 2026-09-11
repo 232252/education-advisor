@@ -316,6 +316,41 @@ describe('parseStudentImportMatrix — 行解析与冲突检测', () => {
     expect(preview.success).toBe(false)
     expect(preview.error).toContain('5000')
   })
+
+  it('学校核定表: 跳过标题行与空表头残片, 解析 50 人花名册常见结构', () => {
+    const preview = parseStudentImportMatrix(
+      [
+        ['示例县2026年春季学期寄宿制学生核定表'],
+        ['序号', '姓名', '性别', '就读班级', '身份证号码', '家庭住址', '家长姓名', '联系电话'],
+        ['', '', '', '', '', '', '', '部门认定'],
+        ['1', '测试甲', '男', '高2024级5班', '990000200712130010', '示例镇甲', '测试家长甲', '13500000000'],
+        ['2', '测试乙', '男', '高2024级5班', '990000200707250018', '示例镇乙', '测试家长乙', '13500000001'],
+      ],
+      emptyExisting,
+      classIndex,
+      { fallbackClassId: 'G12-5' },
+    )
+    expect(preview.success).toBe(true)
+    expect(preview.rows.map((r) => r.name)).toEqual(['测试甲', '测试乙'])
+    expect(preview.rows[0]).toMatchObject({
+      classId: 'G12-5',
+      gender: '男',
+      fatherName: '测试家长甲',
+      phone: '13500000000',
+    })
+    expect(preview.error).toBeUndefined()
+  })
+
+  it('缺姓名表头时错误禁止改用 students[]', () => {
+    const preview = parseStudentImportMatrix(
+      [['这是标题'], ['学号', '分数'], ['1', '90']],
+      emptyExisting,
+      classIndex,
+    )
+    expect(preview.success).toBe(false)
+    expect(preview.error).toMatch(/students\[\]/)
+    expect(preview.error).toContain('第1行')
+  })
 })
 
 // =============================================================

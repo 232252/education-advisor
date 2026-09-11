@@ -5,7 +5,8 @@
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { examGradesTool, examsTool, studentGradesTool } from './academic-tools'
-import { createClassTool, importStudentsTool, listClassesTool } from './class-tools'
+import { importGradesTool } from './grade-import-tools'
+import { archiveClassTool, createClassTool, importStudentsTool, listClassesTool, updateClassTool } from './class-tools'
 import { addEventTool, revertEventTool } from './event-tools'
 import { gradingOverviewTool, gradingStudentTool } from './grading-tools'
 import { gradingFromFilesTool, gradingPublishTool } from './grading-write-tools'
@@ -45,11 +46,14 @@ export const allEAATools: AnyAgentTool[] = [
   tagTool,
   listClassesTool,
   createClassTool,
+  updateClassTool,
+  archiveClassTool,
   importStudentsTool,
   // 学业考试数据(academic-service 直读,不走 Rust CLI)
   examsTool,
   examGradesTool,
   studentGradesTool,
+  importGradesTool,
   // AI 批改数据(grading-service 直读,只读)
   gradingOverviewTool,
   gradingStudentTool,
@@ -120,12 +124,16 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
       setStudentMetaTool,
       revertEventTool,
       createClassTool,
+      updateClassTool,
+      archiveClassTool,
       importStudentsTool,
+      importGradesTool,
       gradingFromFilesTool,
       gradingPublishTool,
     ],
-    class: [listClassesTool, createClassTool],
+    class: [listClassesTool, createClassTool, updateClassTool, archiveClassTool],
     import_students: [importStudentsTool],
+    import_grades: [importGradesTool],
     // 也可单独授予学业成绩(不需要整套 read)
     academics: [
       examsTool,
