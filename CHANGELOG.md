@@ -19,6 +19,19 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - Windows ARM64 installer
 - Tauri parity build
 
+## [3.3.0] — 2026-09-11
+
+### Added
+- AI 批改作业：量规、卷面识别、复核、痕迹 PDF、发布进学业分析
+- 花名册按文件导入；身份证写入档案并由隐私引擎脱敏
+- 仪表盘操行 / 成绩双视图，学业与学生档案互跳
+- 局域网 WebUI（去掉 Cloudflare 隧道）
+
+### Changed
+- Pi 底层 0.84.2 → 0.85.1，模型列表改跟 pi 目录
+- 中文 README 封面；GitHub 社区标准文件（行为准则 / 贡献 / MIT / 安全）
+- Release 改为 GitHub Actions 手动触发即可云端打包发布，质量门禁只跑一次
+
 ## [0.1.0] — 2026-06-09
 
 > **The first open-source release of the desktop rewrite.**
@@ -132,5 +145,6 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - The `nul` file in the repository root (a Windows reparse-point residue from
   an earlier redirect) is git-ignored but can be safely removed by hand.
 
-[Unreleased]: https://github.com/232252/education-advisor/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.0...HEAD
+[3.3.0]: https://github.com/232252/education-advisor/releases/tag/v3.3.0
 [0.1.0]: https://github.com/232252/education-advisor/releases/tag/v0.1.0
