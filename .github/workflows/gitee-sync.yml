@@ -33,12 +33,32 @@ jobs:
       GITEE_REPO: education-advisor
     steps:
       - name: Resolve tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG="${{ inputs.tag }}"
           else
-            TAG="${{ github.event.workflow_run.head_branch }}"
+            # tag 推送触发 Release 时 head_branch 就是 v3.3.0；
+            # 在 main 上「Run workflow」时 head_branch 是 main，必须改查刚发布的 tag。
+            CANDIDATE="${{ github.event.workflow_run.head_branch }}"
+            if [[ "$CANDIDATE" == v*.*.* ]]; then
+              TAG="$CANDIDATE"
+            else
+              TAG=$(gh release list --repo "${{ github.repository }}" --limit 20 \
+                --json tagName,isDraft,isPrerelease,createdAt \
+                --jq '[.[] | select(.isDraft==false)] | sort_by(.createdAt) | reverse | .[0].tagName // empty')
+            fi
+          fi
+          if [ -z "${TAG:-}" ]; then
+            echo "::error::无法解析要同步的 Release tag"
+            exit 1
+          fi
+          if ! gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "::error::GitHub 上不存在 Release $TAG"
+            exit 1
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           echo "Syncing release $TAG to Gitee"
