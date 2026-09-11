@@ -10,15 +10,23 @@ import path from 'node:path'
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
-const mocks = vi.hoisted(() => ({
-  getPath: vi.fn((name: string) => {
-    if (name === 'userData') return path.join(os.tmpdir(), 'sys-h3-test')
-    if (name === 'home') return os.homedir()
-    if (name === 'temp') return os.tmpdir()
-    throw new Error(`Unexpected path: ${name}`)
-  }),
-  isPackaged: false,
-}))
+const mocks = vi.hoisted(() => {
+  if (typeof process.resourcesPath !== 'string' || !process.resourcesPath) {
+    Object.defineProperty(process, 'resourcesPath', {
+      value: process.env.TEMP || process.env.TMPDIR || '/tmp',
+      configurable: true,
+    })
+  }
+  return {
+    getPath: vi.fn((name: string) => {
+      if (name === 'userData') return path.join(os.tmpdir(), 'sys-h3-test')
+      if (name === 'home') return os.homedir()
+      if (name === 'temp') return os.tmpdir()
+      throw new Error(`Unexpected path: ${name}`)
+    }),
+    isPackaged: false,
+  }
+})
 
 vi.mock('electron', () => ({
   app: {
@@ -53,6 +61,14 @@ vi.mock('../../src/main/services/update-service', () => ({
     setProgressListener: vi.fn(),
     downloadUpdate: vi.fn(),
     installUpdate: vi.fn(),
+  },
+}))
+
+vi.mock('../../src/main/services/webui-service', () => ({
+  webUiService: {
+    getStatus: vi.fn(),
+    start: vi.fn(),
+    stop: vi.fn(),
   },
 }))
 
