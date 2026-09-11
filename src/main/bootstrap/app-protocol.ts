@@ -12,10 +12,13 @@ import { net, protocol } from 'electron'
  * 根自身(pathname='/')视为域内,返回 root。
  */
 export function resolveWithinRoot(root: string, pathname: string): string | null {
-  const resolved = path.normalize(path.join(root, pathname))
-  // 根自身(path.join 会带尾分隔符,如 '/tmp/x/')视为域内,返回归一化 root
-  if (resolved === root || resolved === root + path.sep) return root
-  return resolved.startsWith(root + path.sep) ? resolved : null
+  // URL pathname 以 / 开头。Windows 上 path.join(root, '/index.html') 会把后段
+  // 当成盘符根路径，拼成 C:\index.html 并误判逃逸。先剥掉前导分隔符再拼。
+  const relative = pathname.replace(/^[/\\]+/, '')
+  const rootNorm = path.normalize(root)
+  const resolved = path.normalize(path.join(rootNorm, relative))
+  if (resolved === rootNorm || resolved === rootNorm + path.sep) return rootNorm
+  return resolved.startsWith(rootNorm + path.sep) ? resolved : null
 }
 
 /** 构造 app:// 协议处理器(纯函数化便于测试);逃逸请求回 404 不落盘 */
