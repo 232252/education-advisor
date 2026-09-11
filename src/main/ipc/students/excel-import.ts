@@ -5,7 +5,14 @@
 // 已存在学生仍可导入——用于补写档案（身份证/电话等）
 // =============================================================
 
-import { ROSTER_TEMPLATE_HEADERS, resolveRosterHeaders, rowToProfilePatch } from '@shared/roster-profile'
+import {
+  ROSTER_TEMPLATE_HEADERS,
+  findRosterHeaderRow,
+  formatMissingRosterHeaderError,
+  isNonStudentRosterName,
+  resolveRosterHeaders,
+  rowToProfilePatch,
+} from '@shared/roster-profile'
 import type { RosterHeaderIndexes, RosterProfilePatch } from '@shared/roster-profile'
 import type {
   ClassEntity,
@@ -70,6 +77,10 @@ export interface ParseStudentImportOptions {
    * 不填则班级列无法匹配记 class_not_found。
    */
   fallbackClassId?: string | null
+  /** 错误信息里标注工作表名 */
+  sheetLabel?: string
+  /** 跨工作表去重：已见过的姓名 */
+  alreadySeenNames?: ReadonlySet<string>
 }
 
 function rowProfileFields(patch: RosterProfilePatch): Pick<
@@ -86,6 +97,7 @@ function rowProfileFields(patch: RosterProfilePatch): Pick<
   | 'motherPhone'
   | 'enrollmentDate'
   | 'dormNumber'
+  | 'examNumber'
 > {
   return {
     idCard: patch.idCard ?? '',
@@ -100,6 +112,7 @@ function rowProfileFields(patch: RosterProfilePatch): Pick<
     motherPhone: patch.motherPhone ?? '',
     enrollmentDate: patch.enrollmentDate ?? '',
     dormNumber: patch.dormNumber ?? '',
+    examNumber: patch.examNumber ?? '',
   }
 }
 
@@ -118,36 +131,38 @@ export function parseStudentImportMatrix(
   if (!Array.isArray(matrix) || matrix.length === 0) {
     return { ...empty, error: 'Excel 文件中没有工作表数据' }
   }
-  const header = resolveHeaderIndexes(matrix[0] ?? [])
-  if (!header) {
+  const located = findRosterHeaderRow(matrix)
+  if (!located) {
     return {
       ...empty,
-      error: `缺少必填列表头「姓名」或 "name"（模板列: ${TEMPLATE_HEADERS.join(', ')}）`,
+      error: formatMissingRosterHeaderError(matrix, options.sheetLabel),
     }
   }
-  const dataRows = matrix.slice(1)
+  const header = located.indexes
+  const dataRows = matrix.slice(located.rowIndex + 1)
   if (dataRows.length > MAX_IMPORT_ROWS) {
     return { ...empty, error: `数据行数过多: ${dataRows.length}（上限 ${MAX_IMPORT_ROWS} 行）` }
   }
 
   const rows: StudentImportRow[] = []
   const errors: StudentImportRowError[] = []
-  const seen = new Set<string>()
+  const seen = new Set<string>(options.alreadySeenNames ?? [])
   const fallback = options.fallbackClassId?.trim() || null
 
   for (let i = 0; i < dataRows.length; i++) {
     const cells = dataRows[i] ?? []
-    const excelRow = i + 2
+    const excelRow = located.rowIndex + i + 2
     const nameRaw = cellText(cells, header.name)
     const studentId = cellText(cells, header.studentId)
+    const examNumber = cellText(cells, header.examNumber)
     const className = cellText(cells, header.className)
     const allEmpty = cells.every((c) => c === null || c === undefined || String(c).trim() === '')
     if (allEmpty) {
       errors.push({ row: excelRow, name: '', reason: 'empty_row' })
       continue
     }
-    if (!nameRaw) {
-      errors.push({ row: excelRow, name: '', reason: 'missing_name' })
+    if (!nameRaw || isNonStudentRosterName(nameRaw)) {
+      errors.push({ row: excelRow, name: nameRaw, reason: 'missing_name' })
       continue
     }
     let name: string
@@ -181,6 +196,7 @@ export function parseStudentImportMatrix(
       row: excelRow,
       name,
       studentId,
+      examNumber: examNumber || patch.examNumber,
       className,
       classId,
       alreadyExists: existingNames.has(name),
@@ -192,15 +208,98 @@ export function parseStudentImportMatrix(
 
 /** 读取 Excel 首个工作表为矩阵（第一行作表头；raw:false 尽量保留身份证文本） */
 export function readExcelMatrix(filePath: string): unknown[][] {
+  const sheets = readExcelSheets(filePath)
+  if (sheets.length === 0) {
+    throw new Error('Excel 文件中没有工作表')
+  }
+  return sheets[0].matrix
+}
+
+export interface ExcelSheetMatrix {
+  name: string
+  matrix: unknown[][]
+}
+
+/** 读取全部工作表为矩阵（空表也返回，供导入端决定跳过） */
+export function readExcelSheets(filePath: string): ExcelSheetMatrix[] {
   const workbook = XLSX.readFile(filePath)
   if (workbook.SheetNames.length === 0) {
     throw new Error('Excel 文件中没有工作表')
   }
-  const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-  return XLSX.utils.sheet_to_json(worksheet, {
-    header: 1,
-    defval: '',
-    blankrows: true,
-    raw: false,
-  }) as unknown[][]
+  return workbook.SheetNames.map((name) => {
+    const worksheet = workbook.Sheets[name]
+    const matrix = XLSX.utils.sheet_to_json(worksheet, {
+      header: 1,
+      defval: '',
+      blankrows: true,
+      raw: false,
+    }) as unknown[][]
+    return { name, matrix }
+  })
+}
+
+function sheetHasAnyCell(matrix: unknown[][]): boolean {
+  return matrix.some((row) =>
+    (row ?? []).some((c) => c !== null && c !== undefined && String(c).trim() !== ''),
+  )
+}
+
+/**
+ * 合并所有含姓名表头的工作表（寄宿/走读分表常见）。
+ * 空表跳过；所有非空表都找不到表头则失败。
+ */
+export function parseStudentImportSheets(
+  sheets: ExcelSheetMatrix[],
+  existingNames: ReadonlySet<string>,
+  classIndex: ReadonlyMap<string, string>,
+  options: ParseStudentImportOptions = {},
+): StudentImportPreview & { sheets_used: string[] } {
+  const empty: StudentImportPreview & { sheets_used: string[] } = {
+    success: false,
+    rows: [],
+    errors: [],
+    totalRows: 0,
+    sheets_used: [],
+  }
+  const nonEmpty = sheets.filter((s) => sheetHasAnyCell(s.matrix))
+  if (nonEmpty.length === 0) {
+    return { ...empty, error: 'Excel 文件中没有工作表数据' }
+  }
+
+  const seen = new Set<string>()
+  const rows: StudentImportRow[] = []
+  const errors: StudentImportRowError[] = []
+  const sheetsUsed: string[] = []
+  const headerFails: string[] = []
+  let totalRows = 0
+
+  for (const sheet of nonEmpty) {
+    const preview = parseStudentImportMatrix(sheet.matrix, existingNames, classIndex, {
+      ...options,
+      sheetLabel: sheet.name,
+      alreadySeenNames: seen,
+    })
+    if (!preview.success) {
+      headerFails.push(preview.error || `${sheet.name}: 无法解析`)
+      continue
+    }
+    sheetsUsed.push(sheet.name)
+    totalRows += preview.totalRows
+    for (const row of preview.rows) {
+      seen.add(row.name)
+      rows.push(row)
+    }
+    errors.push(...preview.errors)
+  }
+
+  if (sheetsUsed.length === 0) {
+    return {
+      ...empty,
+      error:
+        headerFails.join('\n') ||
+        formatMissingRosterHeaderError(nonEmpty[0]?.matrix ?? [], nonEmpty[0]?.name),
+    }
+  }
+
+  return { success: true, rows, errors, totalRows, sheets_used: sheetsUsed }
 }

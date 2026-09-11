@@ -140,6 +140,29 @@ describe('eaa-tools execute — listStudentsTool', () => {
     expect(parsed.students).toHaveLength(50)
     expect(parsed.students_truncated).toBeUndefined()
   })
+
+  it('传 class_id 时只返回该班学生', async () => {
+    bridge.execute.mockResolvedValue({
+      success: true,
+      data: {
+        students: [
+          { name: '测试甲', class_id: 'G12-5' },
+          { name: '测试丁', class_id: 'G10-4' },
+          { name: '测试丙', class_id: 'G12-5' },
+        ],
+        total: 3,
+      },
+      stderr: '',
+      exitCode: 0,
+    })
+    const r = (await listStudentsTool.execute('t', { class_id: 'G12-5' })) as {
+      content: Array<{ type: string; text?: string }>
+    }
+    const parsed = JSON.parse(textOf(r)) as { students: Array<{ name: string }>; total: number; names: string[] }
+    expect(parsed.total).toBe(2)
+    expect(parsed.names).toEqual(['测试甲', '测试丙'])
+    expect(parsed.students.map((s) => s.name)).toEqual(['测试甲', '测试丙'])
+  })
 })
 
 describe('eaa-tools execute — summaryTool', () => {

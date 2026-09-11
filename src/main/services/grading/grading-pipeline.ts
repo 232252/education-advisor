@@ -29,6 +29,7 @@ import type {
 } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { invalidateOnExamsWrite, invalidateOnGradesWrite } from '../../ipc/academic/cache'
+import { sendToRenderer } from '../../ipc/broadcast'
 import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import { keystoreService } from '../keystore-service'
@@ -43,7 +44,7 @@ const GRADING_MAX_TOKENS = 4096
 /** 批改进度事件负载(主→渲染) */
 export interface GradingProgressPayload {
   taskId: string
-  phase: 'start' | 'graded' | 'failed' | 'done'
+  phase: 'start' | 'identify' | 'graded' | 'failed' | 'done'
   /** 当前/刚完成的试卷 */
   paperId?: string
   studentName?: string
@@ -106,20 +107,21 @@ export function buildGradingPrompt(rubric: RubricQuestion[]): string {
     .join('\n')
   const hasMarks = rubric.some((q) => (q.presetMarks?.length ?? 0) > 0)
   return [
-    '你是严格且公正的阅卷教师。按量规逐题批改图片中的试卷，只输出 JSON，不要任何解释或多余文字。',
+    '你是严格且公正的阅卷教师。按量规逐题批改图片中的试卷。',
+    '只输出一个 JSON 对象，不要解释、不要 markdown、不要在 JSON 前后加字。',
     '',
     '量规（每题独立给分）:',
     rubricLines,
     '',
-    '输出格式（questions 数组必须覆盖量规中的每一个题目 id）:',
+    '输出格式（questions 必须覆盖量规每一个 id）:',
     hasMarks
       ? '{"questions":[{"questionId":"q-1","score":25,"marks":[0,1],"evidence":"依据：学生第4题答案与评分标准…","comment":"评语(可选)","box":{"page":0,"x":0.1,"y":0.4,"w":0.35,"h":0.12}}]}'
       : '{"questions":[{"questionId":"q-1","score":25,"evidence":"依据：学生第4题答案与评分标准…","comment":"评语(可选)","box":{"page":0,"x":0.1,"y":0.4,"w":0.35,"h":0.12}}]}',
     '规则:',
     '- score 为数字，取值 [0, 该题满分]，按评分标准的有效分给分，不要凭空加减',
-    '- evidence 引用学生答卷的实际作答内容作为判分依据；字迹不清时保守给分并在 comment 说明',
+    '- evidence 写一句即可，引用学生卷面实际作答；字迹不清时保守给分并在 comment 说明',
     '- 全卷未作答的题 score 给 0 并在 comment 标注「未作答」',
-    '- box: 该题在卷面图片上的位置。page 为图片序号(从 0 起); x/y/w/h 为相对该页宽高的比例,取值 [0,1]。扣分或有评语的题必须给 box,便于在卷面上叠字批注',
+    '- box: page 从 0 起; x/y/w/h 为相对页宽高的 0–1。扣分或有评语的题必须给大概位置，不确定也给，不要省略整个 JSON',
     ...(hasMarks
       ? [
           '- 有评分点的题目: marks 填选中的评分点序号(可多选); score 必须等于 满分+所选评分点分值之和(钳制到[0,满分])',
@@ -276,12 +278,7 @@ async function buildPaperImages(taskId: string, files: GradingTask['papers'][num
 const activeRuns = new Map<string, AbortController>()
 
 function pushProgress(win: BrowserWindow | null, payload: GradingProgressPayload): void {
-  if (!win || win.isDestroyed()) return
-  try {
-    win.webContents.send(IPC.IPC_GRADING_PROGRESS, payload)
-  } catch {
-    /* 窗口关闭等场景忽略 */
-  }
+  sendToRenderer(win, IPC.IPC_GRADING_PROGRESS, payload)
 }
 
 /** 解析 provider 的 API key(keyless 本地 provider 给哨兵值);样卷识别等旁路复用 */
@@ -334,8 +331,9 @@ async function gradePaperOnce(
 
 /**
  * 启动整批 AI 批改(异步作业,立即返回):
- * ready|review → grading → 逐份 pending/failed 试卷 → review。
+ * ready|review → grading → (可选)卷面归组 → 逐份 pending/failed 试卷 → review。
  * 失败试卷记录 error,可再次 run(仅重试 failed/pending)。
+ * 识别与批改都在作业内执行,invoke 只做同步校验;进度经 grading:progress,可 abort。
  */
 export async function startGrading(
   taskId: string,
@@ -346,7 +344,7 @@ export async function startGrading(
   if (activeRuns.has(taskId)) {
     throw new Error('该任务已在批改中')
   }
-  let task = await gradingService.getTask(taskId)
+  const task = await gradingService.getTask(taskId)
   if (task.status !== 'ready' && task.status !== 'review') {
     throw new Error(`任务状态 ${task.status} 不能开始批改(需先标记就绪)`)
   }
@@ -354,15 +352,11 @@ export async function startGrading(
     throw new Error('量规为空,请先录入题目与评分标准')
   }
   const unassigned = task.papers.filter((p) => p.studentName === null)
-  if (unassigned.length > 0 && roster.length > 0) {
-    const { identifyUnassignedPapers } = await import('./identify-papers')
-    await identifyUnassignedPapers(taskId, roster)
-    task = await gradingService.getTask(taskId)
-  }
-  const targets = task.papers.filter(
+  const pendingNow = task.papers.filter(
     (p) => p.studentName !== null && (p.status === 'pending' || p.status === 'failed'),
   )
-  if (targets.length === 0) {
+  const willIdentify = unassigned.length > 0 && roster.length > 0
+  if (pendingNow.length === 0 && !willIdentify) {
     throw new Error('没有待批改的试卷(请先归组,或保证卷面姓名在班级名单中能唯一对上)')
   }
 
@@ -386,7 +380,7 @@ export async function startGrading(
   log(
     'info',
     'grading',
-    `grading started: ${taskId} (${targets.length} papers, ${model.provider}/${model.id})`,
+    `grading started: ${taskId} (pending=${pendingNow.length} identify=${willIdentify ? unassigned.length : 0}, ${model.provider}/${model.id})`,
   )
 
   // 异步作业: 不 await,完成/失败经进度事件与任务状态体现
@@ -397,61 +391,103 @@ export async function startGrading(
     let cacheRead = 0
     let cacheWrite = 0
     let inputTokens = 0
+    let targets = pendingNow
     try {
-      for (const [i, paper] of targets.entries()) {
-        if (controller.signal.aborted) {
-          aborted = true
-          break
-        }
-        pushProgress(win, {
-          taskId,
-          phase: 'start',
-          paperId: paper.id,
-          studentName: paper.studentName ?? undefined,
-          index: i + 1,
-          total: targets.length,
-        })
+      if (willIdentify) {
+        const { identifyUnassignedPapers } = await import('./identify-papers')
         try {
-          const result = await gradePaperOnce(task, paper.id, model, apiKey, controller.signal)
-          await gradingService.saveAiResult(taskId, paper.id, result)
-          gradedCount++
-          inputTokens += result.usage?.input ?? 0
-          cacheRead += result.usage?.cacheRead ?? 0
-          cacheWrite += result.usage?.cacheWrite ?? 0
-          pushProgress(win, {
-            taskId,
-            phase: 'graded',
-            paperId: paper.id,
-            studentName: paper.studentName ?? undefined,
-            index: i + 1,
-            total: targets.length,
-            score: result.totalScore,
+          await identifyUnassignedPapers(taskId, roster, {
+            signal: controller.signal,
+            allowWhileGrading: true,
+            onProgress: (p) => {
+              pushProgress(win, {
+                taskId,
+                phase: 'identify',
+                paperId: p.paperId,
+                index: p.index,
+                total: p.total,
+              })
+            },
           })
         } catch (err) {
+          log('warn', 'grading', `identify failed: ${taskId}: ${errText(err)}`)
+        }
+        if (controller.signal.aborted) {
+          aborted = true
+        } else {
+          const latest = await gradingService.getTask(taskId)
+          targets = latest.papers.filter(
+            (p) => p.studentName !== null && (p.status === 'pending' || p.status === 'failed'),
+          )
+        }
+      }
+
+      if (!aborted) {
+        const taskForGrade = await gradingService.getTask(taskId)
+        for (const [i, paper] of targets.entries()) {
           if (controller.signal.aborted) {
             aborted = true
             break
           }
-          failedCount++
-          const message = errText(err)
-          await gradingService.savePaperError(taskId, paper.id, message)
-          log('warn', 'grading', `paper failed: ${taskId}/${paper.id}: ${message}`)
           pushProgress(win, {
             taskId,
-            phase: 'failed',
+            phase: 'start',
             paperId: paper.id,
             studentName: paper.studentName ?? undefined,
             index: i + 1,
             total: targets.length,
-            error: message,
           })
+          try {
+            const result = await gradePaperOnce(
+              taskForGrade,
+              paper.id,
+              model,
+              apiKey,
+              controller.signal,
+            )
+            await gradingService.saveAiResult(taskId, paper.id, result)
+            gradedCount++
+            inputTokens += result.usage?.input ?? 0
+            cacheRead += result.usage?.cacheRead ?? 0
+            cacheWrite += result.usage?.cacheWrite ?? 0
+            pushProgress(win, {
+              taskId,
+              phase: 'graded',
+              paperId: paper.id,
+              studentName: paper.studentName ?? undefined,
+              index: i + 1,
+              total: targets.length,
+              score: result.totalScore,
+            })
+          } catch (err) {
+            if (controller.signal.aborted) {
+              aborted = true
+              break
+            }
+            failedCount++
+            const message = errText(err)
+            await gradingService.savePaperError(taskId, paper.id, message)
+            log('warn', 'grading', `paper failed: ${taskId}/${paper.id}: ${message}`)
+            pushProgress(win, {
+              taskId,
+              phase: 'failed',
+              paperId: paper.id,
+              studentName: paper.studentName ?? undefined,
+              index: i + 1,
+              total: targets.length,
+              error: message,
+            })
+          }
         }
       }
     } finally {
       activeRuns.delete(taskId)
-      // 终态: 中止且无任何成功 → 回 ready; 否则进 review 复核
+      // 终态: 中止且无任何成功 → 回 ready; 识别后仍无试卷 → 回 ready; 否则进 review 复核
       try {
-        if (aborted && gradedCount === 0) {
+        if (
+          (aborted && gradedCount === 0) ||
+          (gradedCount === 0 && failedCount === 0 && targets.length === 0)
+        ) {
           await gradingService.setStatus(taskId, 'ready')
         } else {
           await gradingService.setStatus(taskId, 'review')

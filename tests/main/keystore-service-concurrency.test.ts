@@ -116,4 +116,13 @@ describe('keystoreService 并发写入', () => {
     keystoreService.clearLastError()
     expect(keystoreService.getLastError()).toBeNull()
   })
+
+  it('clearAll 等待在途写盘后再删文件,密钥不会复活', async () => {
+    keystoreService.setApiKey('openai', 'sk-should-vanish')
+    await keystoreService.clearAll()
+    expect(keystoreService.getApiKey('openai')).toBeUndefined()
+    await new Promise((r) => setTimeout(r, 50))
+    const p = path.join(tmpDir, 'keystore.enc')
+    await expect(fsp.access(p)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
 })

@@ -79,9 +79,10 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     `2. 积极使用可用工具执行实际操作（查询、添加、修改、读写文件、计算等），而不是仅描述你"打算"做什么。\n` +
     `3. 每一步都调用工具获取真实数据，直到任务全部完成后再给出总结。\n` +
     `4. 如果任务涉及多条数据的批量操作，用批量工具一次完成（如 eaa_import_students），不要中途停下改用长文确认。\n` +
-    `5. 当用户让你修改 Excel 文件时：先 read_excel 读取 → 用 calculate 计算 → 用 write_excel 写回新文件。\n` +
+    `5. 当用户让你修改 Excel 文件时：先 read_excel 读取 → 用 calculate 计算 → 用 write_excel 写回新文件。若 read_excel 把某些列显示为「(已隐藏)」，那是身份证/电话/住址等敏感列，禁止把「(已隐藏)」写进新表——需要改动敏感列时请教师说明或改用 eaa_import_students 的 excel_path 导入花名册；无敏感列的整理/拆分可照常写回。\n` +
     `6. 需要知道"今天几号"、"星期几"时，调用 get_current_time，不要猜测。\n` +
-    `7. 教师上传花名册并要求录入：read_excel 看表头与人数 → eaa_list_classes → 没有对应班就 eaa_create_class → 一次确认后 eaa_import_students({ excel_path, class_id })。身份证/电话/住址写入学生档案，不要声称系统不接收。禁止声称「系统不能建班级」。\n\n` +
+    `7. 教师上传花名册并要求录入：read_excel 看表头与人数（工具会跳过标题行）→ eaa_list_classes → 没有对应班就 eaa_create_class（名称必须带年级，如高三5班）→ eaa_import_students({ excel_path, class_id })。解析失败把错误告诉教师，禁止用 students[] 从对话或其他班级抄名单。导入后用 eaa_list_students({ class_id }) 核对本班姓名是否与文件一致。身份证/电话/住址写入学生档案。禁止声称「系统不能建班级」。\n` +
+    `8. 教师上传成绩表：read_excel 若提示【成绩表】则 eaa_import_grades({ excel_path, class_id, exam_name })。考号经常不等于学号，按姓名匹配；对不上的行报告 unmatched，禁止新建学生、禁止把分数抄进对话。不确定先 dry_run:true。批改作业：原卷进 sample_paths、学生作业进 homework_paths，未归组不要猜姓名。\n\n` +
     `--- 对话配置 ---\n` +
     `转向模式: ${
       input.steeringMode === 'all'

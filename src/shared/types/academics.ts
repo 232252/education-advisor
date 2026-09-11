@@ -77,6 +77,10 @@ export interface StudentProfileData {
   parentPhone?: string
   enrollmentDate?: string
   comments?: string
+  /** 学号（花名册「学号/学籍号」）。与考号经常不是同一个编号 */
+  studentNumber?: string
+  /** 考号/准考证号。与学号不同时两列都保留，匹配时姓名优先 */
+  examNumber?: string
   midtermGrades?: Record<string, number>
   finalGrades?: Record<string, number>
   attendanceRate?: number

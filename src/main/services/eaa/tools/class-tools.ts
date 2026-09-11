@@ -15,8 +15,8 @@ import { classService } from '../../class-service'
 import { eaaBridge } from '../../eaa-bridge'
 import {
   buildClassIndex,
-  parseStudentImportMatrix,
-  readExcelMatrix,
+  parseStudentImportSheets,
+  readExcelSheets,
   validateExcelFilePath,
 } from '../../../ipc/students/excel-import'
 import {
@@ -32,17 +32,35 @@ const listClassesParams = Type.Object({})
 
 const createClassParams = Type.Object({
   name: Type.String({
-    description: '班级显示名称，如 高一4班。可从花名册标题原样填入',
+    description:
+      '班级显示名称，必须带年级，如 高三5班 / 高一4班。不要只写「5班」，否则会生成错误年级编号。',
   }),
-  grade: Type.Optional(Type.String({ description: '年级，如 高一 / 七年级。不填则从 name 推断' })),
+  grade: Type.Optional(
+    Type.String({ description: '年级，如 高三 / 高一 / 七年级。不填则从 name 推断' }),
+  ),
   teacher: Type.Optional(Type.String({ description: '班主任姓名' })),
   class_id: Type.Optional(
     Type.String({
       description:
-        '班级编号（字母数字/点/连字符，如 G10-4）。不填则按年级+班号自动生成：高一4班→G10-4，七年级3班→G7-3',
+        '班级编号（字母数字/点/连字符，如 G12-5）。不填则按年级+班号自动生成：高三5班→G12-5，高一4班→G10-4',
     }),
   ),
   note: Type.Optional(Type.String({ description: '备注' })),
+})
+
+const updateClassParams = Type.Object({
+  class_id: Type.String({ description: '要修改的班级编号，如 G12-5' }),
+  name: Type.Optional(Type.String({ description: '新的显示名称' })),
+  grade: Type.Optional(Type.String({ description: '年级' })),
+  teacher: Type.Optional(Type.String({ description: '班主任姓名。教师说「班主任填张三」时用这个' })),
+  note: Type.Optional(Type.String({ description: '备注' })),
+})
+
+const archiveClassParams = Type.Object({
+  class_id: Type.String({ description: '要存档的班级编号' }),
+  confirm: Type.Boolean({
+    description: '必须为 true。存档后日常列表隐藏该班，学生数据保留，可再恢复。',
+  }),
 })
 
 const rosterStudentParams = Type.Object({
@@ -60,21 +78,38 @@ const rosterStudentParams = Type.Object({
 })
 
 const importStudentsParams = Type.Object({
-  class_id: Type.String({ description: '目标班级编号（须已存在，如 G10-4）' }),
+  class_id: Type.String({ description: '目标班级编号（须已存在，如 G12-5）' }),
   excel_path: Type.Optional(
     Type.String({
       description:
-        '花名册 Excel 的绝对路径。身份证/电话/住址在主进程写入学生档案并由隐私引擎登记，不要把这些字段贴进对话。有花名册文件时优先用这个。',
+        '花名册 Excel 的绝对路径。有文件时必须用这个，不要把姓名从对话或其他班级抄进 students。身份证/电话/住址由主进程写入档案，不要贴进对话。',
+    }),
+  ),
+  sheet: Type.Optional(
+    Type.String({
+      description: '只导入该工作表。不填则自动合并所有含「姓名」列的工作表（空表跳过）。',
     }),
   ),
   names: Type.Optional(
     Type.Array(Type.String(), {
-      description: '仅姓名列表。有花名册文件时请改用 excel_path。',
+      description: '仅姓名列表。只用于教师口头报的几个人名。有 Excel 时禁止用这个。',
     }),
   ),
   students: Type.Optional(
     Type.Array(rosterStudentParams, {
-      description: '带档案字段的学生列表。有文件时请用 excel_path，避免身份证进入模型上下文。',
+      description:
+        '带档案字段的学生列表。有文件时禁止用：Excel 解析失败也不准从对话拼名单，应把错误告诉教师。',
+    }),
+  ),
+  dry_run: Type.Optional(
+    Type.Boolean({
+      description: '只解析花名册、返回将导入的姓名与人数，不写入。excel_path 不确定时先用这个核对。',
+    }),
+  ),
+  replace_class: Type.Optional(
+    Type.Boolean({
+      description:
+        'true=本文件视为该班完整花名册。导入后，该班里不在本次名单中的学生会被移出该班（不删除学生、不删操行记录）。纠正错导名单时必须为 true。',
     }),
   ),
 })
@@ -167,22 +202,90 @@ export const createClassTool: AgentTool<typeof createClassParams> = {
   },
 }
 
+function requireClass(classId: string) {
+  const cls = classService.list().find((c) => c.class_id === classId)
+  if (!cls) throw new Error(`班级编号 "${classId}" 不存在。请先用 eaa_list_classes 核对。`)
+  return cls
+}
+
+export const updateClassTool: AgentTool<typeof updateClassParams> = {
+  name: 'eaa_update_class',
+  label: '修改班级',
+  description:
+    '修改已有班级的显示名/年级/班主任/备注。教师说「G12-5 班主任改成张老师」时调用。不改学生名单。',
+  parameters: updateClassParams,
+  execute: async (_toolCallId, params) => {
+    const classId = sanitizeClassId(params.class_id)
+    const cls = requireClass(classId)
+    const result = classService.update(cls.id, {
+      name: params.name,
+      grade: params.grade,
+      teacher: params.teacher,
+      note: params.note,
+    })
+    if (!result.success) throw new Error(result.error || '修改班级失败')
+    invalidateClassContextCache()
+    const updated = requireClass(classId)
+    return jsonResult(
+      {
+        class_id: updated.class_id,
+        name: updated.name,
+        grade: updated.grade ?? '',
+        teacher: updated.teacher ?? '',
+      },
+      `班级已更新: ${updated.name} (${updated.class_id})`,
+    )
+  },
+}
+
+export const archiveClassTool: AgentTool<typeof archiveClassParams> = {
+  name: 'eaa_archive_class',
+  label: '存档班级',
+  description:
+    '把班级标记为存档（日常列表隐藏，学生与事件保留）。用于错误班级或已毕业班。必须 confirm:true。',
+  parameters: archiveClassParams,
+  execute: async (_toolCallId, params) => {
+    if (!params.confirm) {
+      throw new Error('存档班级需要 confirm: true')
+    }
+    const classId = sanitizeClassId(params.class_id)
+    const cls = requireClass(classId)
+    const result = classService.archive(cls.id)
+    if (!result.success) throw new Error(result.error || '存档失败')
+    invalidateClassContextCache()
+    return jsonResult(
+      { class_id: classId, archived: true },
+      `班级已存档: ${cls.name} (${classId})`,
+    )
+  },
+}
+
 interface RosterImportItem {
   name: string
   patch: RosterProfilePatch
 }
 
-async function collectExistingNames(): Promise<Set<string>> {
+interface ListedStudent {
+  name: string
+  status?: string
+  class_id?: string | null
+}
+
+async function listActiveStudents(): Promise<ListedStudent[]> {
   const result = await eaaBridge.execute({ command: 'list-students', args: [] })
-  if (!result?.success) return new Set()
-  const students = (result.data as { students?: Array<{ name: string; status?: string }> } | null)
-    ?.students
-  return new Set((students ?? []).filter((s) => s.status !== 'Deleted').map((s) => s.name))
+  if (!result?.success) return []
+  const students = (result.data as { students?: ListedStudent[] } | null)?.students ?? []
+  return students.filter((s) => s.status !== 'Deleted')
+}
+
+async function collectExistingNames(): Promise<Set<string>> {
+  return new Set((await listActiveStudents()).map((s) => s.name))
 }
 
 function resolveRosterItems(
   params: {
     excel_path?: string
+    sheet?: string
     names?: string[]
     students?: Array<{
       name: string
@@ -200,24 +303,41 @@ function resolveRosterItems(
   },
   classId: string,
   existingNames: Set<string>,
-): { items: RosterImportItem[]; parseErrors: Array<{ name: string; error: string }> } {
+): {
+  items: RosterImportItem[]
+  parseErrors: Array<{ name: string; error: string }>
+  sheetsUsed: string[]
+  source: 'excel_path' | 'students' | 'names'
+} {
   const parseErrors: Array<{ name: string; error: string }> = []
   if (params.excel_path) {
     const validated = validateExcelFilePath(params.excel_path)
     if (!validated.ok) throw new Error(validated.error)
-    const matrix = readExcelMatrix(params.excel_path)
-    const preview = parseStudentImportMatrix(matrix, existingNames, buildClassIndex(classService.list()), {
-      fallbackClassId: classId,
-    })
+    const sheets = readExcelSheets(params.excel_path)
+    const filtered = params.sheet ? sheets.filter((s) => s.name === params.sheet) : sheets
+    if (params.sheet && filtered.length === 0) {
+      throw new Error(
+        `工作表「${params.sheet}」不存在。可用工作表: ${sheets.map((s) => s.name).join(', ')}`,
+      )
+    }
+    const preview = parseStudentImportSheets(
+      filtered,
+      existingNames,
+      buildClassIndex(classService.list()),
+      { fallbackClassId: classId },
+    )
     if (!preview.success) throw new Error(preview.error || '无法解析花名册')
     for (const err of preview.errors) {
       parseErrors.push({ name: err.name || `(第${err.row}行)`, error: err.reason })
     }
     return {
+      source: 'excel_path',
+      sheetsUsed: preview.sheets_used,
       items: preview.rows.map((r) => ({
         name: r.name,
         patch: fieldsToProfilePatch({
           studentId: r.studentId,
+          examNumber: r.examNumber,
           classId,
           idCard: r.idCard,
           gender: r.gender,
@@ -238,6 +358,8 @@ function resolveRosterItems(
   }
   if (Array.isArray(params.students) && params.students.length > 0) {
     return {
+      source: 'students',
+      sheetsUsed: [],
       items: params.students.map((s) => ({
         name: String(s.name ?? ''),
         patch: fieldsToProfilePatch({
@@ -259,20 +381,26 @@ function resolveRosterItems(
   }
   if (Array.isArray(params.names) && params.names.length > 0) {
     return {
+      source: 'names',
+      sheetsUsed: [],
       items: params.names.map((n) => ({ name: String(n ?? ''), patch: { classId } })),
       parseErrors,
     }
   }
-  throw new Error('请提供 excel_path、students 或 names 之一')
+  throw new Error(
+    '请提供 excel_path（有花名册文件时必须用这个）。禁止从对话或其他班级抄名单填 students/names。',
+  )
 }
 
 export const importStudentsTool: AgentTool<typeof importStudentsParams> = {
   name: 'eaa_import_students',
   label: '批量导入学生',
   description:
-    '把多名学生加入指定班级，并把花名册里的身份证/电话/住址写入学生档案（操行系统仍只存姓名）。' +
-    '有 Excel 花名册时传 excel_path（推荐），不要把身份证号贴进对话。' +
-    '已存在的同名学生会跳过新增、更新档案并分入该班。' +
+    '把花名册导入指定班级，并把身份证/电话/住址写入学生档案。' +
+    '有 Excel 时必须传 excel_path（自动跳过标题行、识别「姓名/学生姓名/就读班级/学号/考号」等列，合并有数据的工作表）。' +
+    '解析失败时把错误告诉教师，禁止改用 students[] 从对话或其他班抄名单。' +
+    '已存在的同名学生会更新档案并分入该班。' +
+    '纠正错导名单时加 replace_class:true。' +
     `单次最多 ${MAX_IMPORT_NAMES} 人。`,
   parameters: importStudentsParams,
   execute: async (_toolCallId, params, signal) => {
@@ -284,13 +412,45 @@ export const importStudentsTool: AgentTool<typeof importStudentsParams> = {
     }
 
     const existingNames = await collectExistingNames()
-    const { items, parseErrors } = resolveRosterItems(params, classId, existingNames)
+    const { items, parseErrors, sheetsUsed, source } = resolveRosterItems(
+      params,
+      classId,
+      existingNames,
+    )
     if (items.length === 0) {
-      throw new Error('没有可导入的学生行')
+      const errHint = parseErrors
+        .slice(0, 8)
+        .map((e) => `${e.name}: ${e.error}`)
+        .join('；')
+      throw new Error(
+        `没有可导入的学生行。${errHint || '请检查表头是否含「姓名」'}。禁止改用 students[] 从对话抄名单。`,
+      )
     }
     if (items.length > MAX_IMPORT_NAMES) {
       throw new Error(`单次最多导入 ${MAX_IMPORT_NAMES} 人，本次 ${items.length} 人`)
     }
+
+    const previewNames = items.map((it) => String(it.name ?? '').trim()).filter(Boolean)
+    if (params.dry_run) {
+      return jsonResult(
+        {
+          dry_run: true,
+          class_id: classId,
+          source,
+          sheets_used: sheetsUsed,
+          count: previewNames.length,
+          names: previewNames,
+          parse_errors: parseErrors,
+          note: '未写入。核对姓名后去掉 dry_run 再导入。名单必须来自本文件，不要换成其他班的人。',
+        },
+        `预览 ${previewNames.length} 人，未写入`,
+      )
+    }
+
+    const sourceWarning =
+      source !== 'excel_path' && items.length >= 15
+        ? '未使用 excel_path，一次传入大量姓名很容易抄错班。若教师刚上传了 Excel，请改用 excel_path 重新导入。'
+        : undefined
 
     const imported: string[] = []
     const assignedExisting: string[] = []
@@ -368,23 +528,50 @@ export const importStudentsTool: AgentTool<typeof importStudentsParams> = {
       /* 档案已写入 */
     }
 
+    const unassigned: string[] = []
+    if (params.replace_class) {
+      const keep = new Set([...imported, ...assignedExisting])
+      const current = await listActiveStudents()
+      for (const s of current) {
+        if (s.class_id !== classId) continue
+        if (keep.has(s.name)) continue
+        const cleared = await eaaBridge.execute({
+          command: 'set-student-meta',
+          args: [s.name, '--clear-class-id'],
+        })
+        if (cleared.success) unassigned.push(s.name)
+        else {
+          failed.push({
+            name: s.name,
+            error: `移出班级失败: ${cleared.stderr || '未知错误'}`,
+          })
+        }
+      }
+    }
+
     invalidateClassContextCache()
     return jsonResult(
       {
         class_id: classId,
+        source,
+        sheets_used: sheetsUsed,
         requested: items.length,
         imported: imported.length,
         assigned_existing: assignedExisting.length,
         profiles_written: profilesWritten,
         id_cards_stored: idCardsStored,
         skipped_duplicates: skippedDuplicates,
+        unassigned_from_class: unassigned,
         failed,
         imported_names: imported,
         assigned_existing_names: assignedExisting,
-        note: '身份证/电话/住址已写入学生档案（非操行事件）。回复中不要复述完整身份证号。',
+        names_in_class: [...imported, ...assignedExisting],
+        warning: sourceWarning,
+        note: '身份证/电话/住址已写入学生档案（非操行事件）。回复中不要复述完整身份证号。请用 eaa_list_students({ class_id }) 核对本班名单是否与文件一致。',
       },
       `导入完成: 新增 ${imported.length} 人，已存在并更新档案 ${assignedExisting.length} 人，档案写入 ${profilesWritten} 人（含身份证 ${idCardsStored} 人），失败 ${failed.length} 人` +
-        (skippedDuplicates.length ? `，名单内重名跳过 ${skippedDuplicates.length} 人` : ''),
+        (skippedDuplicates.length ? `，名单内重名跳过 ${skippedDuplicates.length} 人` : '') +
+        (unassigned.length ? `，移出该班 ${unassigned.length} 人` : ''),
     )
   },
 }

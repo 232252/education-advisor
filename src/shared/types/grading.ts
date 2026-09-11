@@ -129,7 +129,7 @@ export interface GradingTask {
 /** AI 批改进度事件(主→渲染推送) */
 export interface GradingProgressEvent {
   taskId: string
-  phase: 'start' | 'graded' | 'failed' | 'done'
+  phase: 'start' | 'identify' | 'graded' | 'failed' | 'done'
   paperId?: string
   studentName?: string
   index?: number

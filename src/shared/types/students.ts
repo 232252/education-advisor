@@ -12,6 +12,8 @@ export interface StudentImportRow {
   name: string
   /** 学号（写入学生档案，EAA 操行侧无此字段） */
   studentId: string
+  /** 考号/准考证号（与学号经常不同；两列都保留） */
+  examNumber?: string
   /** 班级名（class_name / 班级 可选列，原文） */
   className: string
   /** className 解析出的 class_id（匹配本地班级列表的名称或编号；未填为 null） */

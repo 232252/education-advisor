@@ -6,6 +6,7 @@
 // =============================================================
 
 export { examGradesTool, examsTool, studentGradesTool } from './eaa/tools/academic-tools'
+export { importGradesTool } from './eaa/tools/grade-import-tools'
 export { addEventTool, revertEventTool } from './eaa/tools/event-tools'
 export { gradingFromFilesTool, gradingPublishTool } from './eaa/tools/grading-write-tools'
 export { historyTool, queryScoreTool, searchEventsTool, tagTool } from './eaa/tools/query-tools'
@@ -28,4 +29,4 @@ export {
   deleteStudentTool,
   setStudentMetaTool,
 } from './eaa/tools/student-tools'
-export { createClassTool, importStudentsTool, listClassesTool } from './eaa/tools/class-tools'
+export { archiveClassTool, createClassTool, importStudentsTool, listClassesTool, updateClassTool } from './eaa/tools/class-tools'

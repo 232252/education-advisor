@@ -16,6 +16,7 @@ import {
 import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import { resolveModel } from '../pi-ai/model-utils'
+import { profileService } from '../profile-service'
 import { settingsService } from '../settings-service'
 import { apiKeyFor, isVisionModel, resolveGradingModelIds } from './grading-pipeline'
 import { gradingService } from './grading-service'
@@ -27,16 +28,24 @@ export interface IdentifyPapersResult {
   unresolved: number
 }
 
+export interface IdentifyPapersOptions {
+  signal?: AbortSignal
+  /** 批改作业内调用: 任务已进入 grading 态 */
+  allowWhileGrading?: boolean
+  onProgress?: (p: { paperId: string; index: number; total: number }) => void
+}
+
 export function buildIdentifyPrompt(): string {
   return [
     '你是试卷身份识别助手。只看首页页眉、姓名栏、学号栏、座位号、考号，读出考生是谁。',
     '只输出 JSON，不要解释。不要把题目、选项、分数当成姓名。',
+    '考号经常不等于学号：number 原样抄卷面上的编号，不要改成你以为的学号。',
+    '先读姓名；姓名看不清再读编号。字迹不清宁可空着，不要猜。',
     '',
     '输出格式:',
     '{"name":"张三","number":"12"}',
     '- name: 卷面上的姓名,没有则空字符串',
-    '- number: 学号/座号/考号数字或编号,没有则空字符串',
-    '- 字迹不清时宁可空着,不要猜',
+    '- number: 学号/座号/考号数字或编号(原样),没有则空字符串',
     '- 只输出上述 JSON，不要 markdown 代码块标记',
   ].join('\n')
 }
@@ -86,21 +95,47 @@ export function parseIdentifyResponse(text: string): PaperIdentity {
   }
 }
 
+/** 把档案里的学号/考号并进别名。考号常与学号不同，两列都要能命中。 */
+export async function enrichRosterWithProfiles(
+  roster: StudentCandidate[],
+): Promise<StudentCandidate[]> {
+  return Promise.all(
+    roster.map(async (s) => {
+      const profile = await profileService.get(s.name)
+      const extra = [profile.studentNumber, profile.examNumber].filter(
+        (x): x is string => typeof x === 'string' && x.trim().length > 0,
+      )
+      if (extra.length === 0) return s
+      return { name: s.name, aliases: [...new Set([...(s.aliases ?? []), ...extra])] }
+    }),
+  )
+}
+
 export async function identifyUnassignedPapers(
   taskId: string,
   roster: StudentCandidate[],
+  opts?: IdentifyPapersOptions,
 ): Promise<IdentifyPapersResult> {
   if (roster.length === 0) {
     throw new Error('学生名单为空,无法从卷面归组')
   }
+  const rosterWithIds = await enrichRosterWithProfiles(roster)
   const task = await gradingService.getTask(taskId)
-  if (task.status === 'grading' || task.status === 'published') {
+  if (task.status === 'published') {
+    throw new Error(`任务状态 ${task.status} 不可识别归属`)
+  }
+  if (task.status === 'grading' && !opts?.allowWhileGrading) {
     throw new Error(`任务状态 ${task.status} 不可识别归属`)
   }
   const targets = task.papers.filter((p) => p.studentName === null && p.files.length > 0)
   if (targets.length === 0) {
     return { assigned: 0, unresolved: 0 }
   }
+  const taken = new Set(
+    task.papers
+      .map((p) => p.studentName)
+      .filter((n): n is string => typeof n === 'string' && n.length > 0),
+  )
 
   const ids = resolveGradingModelIds(settingsService.getSettings())
   const model = resolveModel(ids.providerId, ids.modelId)
@@ -118,12 +153,14 @@ export async function identifyUnassignedPapers(
   let assigned = 0
   let unresolved = 0
   const prompt = buildIdentifyPrompt()
-  for (const paper of targets) {
+  for (const [i, paper] of targets.entries()) {
+    if (opts?.signal?.aborted) break
     const first = paper.files[0]
     if (!first) {
       unresolved++
       continue
     }
+    opts?.onProgress?.({ paperId: paper.id, index: i + 1, total: targets.length })
     try {
       const buf = await fsp.readFile(gradingService.paperFilePath(taskId, first.storedName))
       const messages: Message[] = [
@@ -142,23 +179,27 @@ export async function identifyUnassignedPapers(
         {
           apiKey,
           maxTokens: Math.min(IDENTIFY_MAX_TOKENS, model.maxTokens || IDENTIFY_MAX_TOKENS),
+          signal: opts?.signal,
           cacheRetention: 'short',
           sessionId: `identify:${taskId}`,
         },
       )
+      if (assistant.stopReason === 'aborted' || opts?.signal?.aborted) break
       const text = (assistant.content ?? [])
         .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
         .map((p) => p.text)
         .join('\n')
       const identity = parseIdentifyResponse(text)
-      const match = matchIdentityToStudents(identity, roster)
-      if (match.suggested) {
+      const match = matchIdentityToStudents(identity, rosterWithIds)
+      if (match.suggested && !taken.has(match.suggested)) {
         await gradingService.assignPaper(taskId, paper.id, match.suggested)
+        taken.add(match.suggested)
         assigned++
       } else {
         unresolved++
       }
     } catch (err) {
+      if (opts?.signal?.aborted) break
       unresolved++
       log('warn', 'grading', `identify failed: ${paper.id} ${errText(err)}`)
     }
