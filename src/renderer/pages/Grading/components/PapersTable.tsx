@@ -24,6 +24,9 @@ interface PapersTableProps {
   onAssign: (taskId: string, paperId: string, studentName: string | null) => Promise<boolean>
   onRemove: (taskId: string, paperId: string) => Promise<boolean>
   onReview?: (paperId: string) => void
+  /** 导出单份批阅痕迹(打印/PDF) */
+  onExportMarks?: (paperId: string) => void
+  exportMarksLoading?: boolean
   /** 从卷面识别未归组试卷的归属 */
   onIdentify?: () => void
 }
@@ -48,6 +51,8 @@ export function PapersTable({
   onAssign,
   onRemove,
   onReview,
+  onExportMarks,
+  exportMarksLoading = false,
   onIdentify,
 }: PapersTableProps) {
   const { t } = useT()
@@ -233,6 +238,16 @@ export function PapersTable({
                         className="mr-2 text-xs text-blue-500 hover:underline"
                       >
                         {t('page.grading.review.open')}
+                      </button>
+                    )}
+                    {onExportMarks && paper.ai && (
+                      <button
+                        type="button"
+                        onClick={() => onExportMarks(paper.id)}
+                        disabled={exportMarksLoading}
+                        className="mr-2 text-xs text-blue-500 hover:underline disabled:opacity-50"
+                      >
+                        {t('page.grading.exportMarksOne', '导出痕迹')}
                       </button>
                     )}
                     {importable && (
