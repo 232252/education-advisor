@@ -5,9 +5,15 @@
 
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { examGradesTool, examsTool, studentGradesTool } from './academic-tools'
-import { importGradesTool } from './grade-import-tools'
-import { archiveClassTool, createClassTool, importStudentsTool, listClassesTool, updateClassTool } from './class-tools'
+import {
+  archiveClassTool,
+  createClassTool,
+  importStudentsTool,
+  listClassesTool,
+  updateClassTool,
+} from './class-tools'
 import { addEventTool, revertEventTool } from './event-tools'
+import { importGradesTool } from './grade-import-tools'
 import { gradingOverviewTool, gradingStudentTool } from './grading-tools'
 import { gradingFromFilesTool, gradingPublishTool } from './grading-write-tools'
 import { historyTool, queryScoreTool, searchEventsTool, tagTool } from './query-tools'

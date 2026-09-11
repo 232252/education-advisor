@@ -4,13 +4,13 @@
 // 进度条复用 class:assign-progress 的推送模式；完成后展示失败清单
 // =============================================================
 
+import { maskIdCard, maskPhone } from '@shared/id-card'
 import type {
   StudentImportPreview,
   StudentImportProgress,
   StudentImportResult,
   StudentImportRowError,
 } from '@shared/types'
-import { maskIdCard, maskPhone } from '@shared/id-card'
 import { useEffect } from 'react'
 import { Button } from '../../../components/Button'
 import { tr, useT } from '../../../i18n'

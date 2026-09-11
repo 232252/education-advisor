@@ -10,22 +10,31 @@ function normalizeHeader(raw: unknown): string {
   return String(raw ?? '')
     .trim()
     .toLowerCase()
-    .replace(/[\s_\-]/g, '')
+    .replace(/[\s_-]/g, '')
 }
 
 const NAME_ALIASES = new Set(
-  ['name', '姓名', '学生姓名', '学生', '名字', '学员姓名', '考生姓名', '姓名（必填）'].map(normalizeHeader),
+  ['name', '姓名', '学生姓名', '学生', '名字', '学员姓名', '考生姓名', '姓名（必填）'].map(
+    normalizeHeader,
+  ),
 )
 const STUDENT_ID_ALIASES = new Set(
-  ['student_id', 'studentid', '学号', '学籍号', '学籍编号', '学生学号', '学籍'].map(normalizeHeader),
+  ['student_id', 'studentid', '学号', '学籍号', '学籍编号', '学生学号', '学籍'].map(
+    normalizeHeader,
+  ),
 )
 const EXAM_NO_ALIASES = new Set(
-  ['exam_number', 'examnumber', 'exam_no', '考号', '考生号', '准考证号', '考试号'].map(normalizeHeader),
+  ['exam_number', 'examnumber', 'exam_no', '考号', '考生号', '准考证号', '考试号'].map(
+    normalizeHeader,
+  ),
 )
 
-const SKIP_SCORE_HEADERS = /^(总分|合计|总分成绩|总成绩|排名|班级排名|年级排名|名次|备注|说明|序号|编号|缺考)$/
+const SKIP_SCORE_HEADERS =
+  /^(总分|合计|总分成绩|总成绩|排名|班级排名|年级排名|名次|备注|说明|序号|编号|缺考)$/
 
-const GENERIC_SCORE_HEADERS = new Set(['分数', '成绩', '得分', 'score', 'grade'].map(normalizeHeader))
+const GENERIC_SCORE_HEADERS = new Set(
+  ['分数', '成绩', '得分', 'score', 'grade'].map(normalizeHeader),
+)
 
 const SUBJECT_INDEX = new Map<string, string>()
 for (const s of DEFAULT_SUBJECTS) {
@@ -107,7 +116,9 @@ function isGenericScoreHeader(raw: unknown): boolean {
 }
 
 /** 该行是否像成绩表头：有姓名列，且有科目列或「分数/成绩」列 */
-export function resolveGradeSheetHeaders(headerRow: unknown[]): Omit<GradeSheetHeader, 'rowIndex'> | null {
+export function resolveGradeSheetHeaders(
+  headerRow: unknown[],
+): Omit<GradeSheetHeader, 'rowIndex'> | null {
   let nameCol = -1
   let studentIdCol = -1
   let examNumberCol = -1
@@ -292,9 +303,10 @@ export function matchGradeRowsToRoster(
 
     if (hit && row.examNumber) {
       const examKey = compactId(row.examNumber)
-      const rosterNos = [compactId(hit.studentNumber ?? ''), compactId(hit.examNumber ?? '')].filter(
-        (x) => x.length > 0,
-      )
+      const rosterNos = [
+        compactId(hit.studentNumber ?? ''),
+        compactId(hit.examNumber ?? ''),
+      ].filter((x) => x.length > 0)
       if (rosterNos.length > 0 && !rosterNos.includes(examKey)) {
         warnings.push(
           `考号 ${row.examNumber} 与档案学号/考号不一致（已按${matchedBy === 'name' ? '姓名' : '编号'}匹配，未新建学生）`,

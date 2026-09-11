@@ -48,10 +48,7 @@ export async function applyStudentRosterProfile(
   return { written: true }
 }
 
-async function addPrivacyEntity(
-  entityType: string,
-  text: string,
-): Promise<boolean> {
+async function addPrivacyEntity(entityType: string, text: string): Promise<boolean> {
   try {
     const result = await eaaBridge.execute({
       command: 'privacy',

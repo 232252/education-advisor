@@ -10,9 +10,9 @@
 import path from 'node:path'
 import * as IPC from '@shared/ipc-channels'
 import type { AgentExecution, CronLogEntry, CronTask } from '@shared/types'
-import { sendToRenderer } from '../ipc/broadcast'
 import { app, type BrowserWindow } from 'electron'
 import type { ScheduledTask } from 'node-cron'
+import { sendToRenderer } from '../ipc/broadcast'
 import { registerAutoBackupTask } from './cron/auto-backup-task'
 import { executeBitableSyncOnce, registerBitableSyncTask } from './cron/bitable-sync'
 import {
@@ -76,7 +76,10 @@ class CronService {
   constructor() {
     this.logFilePath = path.join(app.getPath('userData'), 'cron-logs.jsonl')
     this.userTasksFilePath = path.join(app.getPath('userData'), 'cron.user.json')
-    this.scheduleOverridesFilePath = path.join(app.getPath('userData'), 'cron.schedule-overrides.json')
+    this.scheduleOverridesFilePath = path.join(
+      app.getPath('userData'),
+      'cron.schedule-overrides.json',
+    )
     // 同步预读覆盖: agentService.init 会立刻 syncSchedules,不能等 loadUserTasks 的 async
     this.scheduleOverrides = readScheduleOverridesFileSync(this.scheduleOverridesFilePath)
   }

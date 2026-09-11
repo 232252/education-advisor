@@ -4,8 +4,8 @@
 
 import type { GradingAPI, GradingRosterEntry } from '@shared/api/grading'
 import * as IPC from '@shared/ipc-channels'
-import type { GradingTaskStatus, TeacherReview } from '@shared/types'
 import { ipcInvoke } from '@shared/ipc-runtime'
+import type { GradingTaskStatus, TeacherReview } from '@shared/types'
 import { subscribe } from './subscribe'
 
 export const gradingApi: GradingAPI = {
@@ -16,8 +16,7 @@ export const gradingApi: GradingAPI = {
   // [w] 新建任务
   createTask: (input: unknown) => ipcInvoke(IPC.IPC_GRADING_CREATE, input),
   // [w] 更新任务
-  updateTask: (taskId: string, patch: unknown) =>
-    ipcInvoke(IPC.IPC_GRADING_UPDATE, taskId, patch),
+  updateTask: (taskId: string, patch: unknown) => ipcInvoke(IPC.IPC_GRADING_UPDATE, taskId, patch),
   // [c] 删除任务 — UI 二次确认
   deleteTask: (taskId: string) => ipcInvoke(IPC.IPC_GRADING_DELETE, taskId),
   // [w] 导入试卷
@@ -51,6 +50,5 @@ export const gradingApi: GradingAPI = {
   // [w] 样卷识别→量规草稿(视觉模型,无状态)
   extractRubric: (paths: string[]) => ipcInvoke(IPC.IPC_GRADING_EXTRACT_RUBRIC, paths),
   // [w] 从卷面手写姓名/编号识别归属(视觉模型;唯一命中才自动指派)
-  identifyPapers: (taskId, roster) =>
-    ipcInvoke(IPC.IPC_GRADING_IDENTIFY_PAPERS, taskId, roster),
+  identifyPapers: (taskId, roster) => ipcInvoke(IPC.IPC_GRADING_IDENTIFY_PAPERS, taskId, roster),
 }

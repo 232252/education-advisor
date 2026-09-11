@@ -41,6 +41,7 @@ export function AIAnalysisTab({
   const navigate = useNavigate()
   const enabledAgents = useMemo(() => agents.filter((a) => a.enabled), [agents])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: t 身份不变，语言切换靠 lang
   const sections = useMemo(() => {
     if (!output) return []
     const result: { title: string; content: string }[] = []
