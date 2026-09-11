@@ -6,6 +6,7 @@
  * https://api.kimi.com/coding as an `Authorization: Bearer` header.
  */
 import { getProviderEnvValue } from "../../utils/provider-env.js";
+import { sleep } from "../../utils/sleep.js";
 import { pollOAuthDeviceCodeFlow } from "./device-code.js";
 const CLIENT_ID = "17e5f671-d194-4dfb-9706-5516cb48c098";
 const DEFAULT_OAUTH_HOST = "https://auth.kimi.com";
@@ -166,20 +167,6 @@ async function pollForToken(oauthHost, device, signal) {
                 message: `Kimi Code device token request failed (status ${response.status})${typeof error === "string" ? `: ${error}${description}` : ""}`,
             };
         },
-    });
-}
-function sleep(ms, signal) {
-    return new Promise((resolve, reject) => {
-        signal.throwIfAborted();
-        const onAbort = () => {
-            clearTimeout(timeout);
-            reject(signal.reason);
-        };
-        const timeout = setTimeout(() => {
-            signal.removeEventListener("abort", onAbort);
-            resolve();
-        }, ms);
-        signal.addEventListener("abort", onAbort, { once: true });
     });
 }
 function isRetryableRefreshFailure(response) {

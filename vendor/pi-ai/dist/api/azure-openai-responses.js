@@ -3,6 +3,7 @@ import { clampThinkingLevel } from "../models.js";
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { headersToRecord } from "../utils/headers.js";
+import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { retryProviderRequest } from "../utils/provider-retry.js";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
@@ -121,7 +122,10 @@ export const streamSimple = (model, context, options) => {
     if (!apiKey) {
         throw new Error(`No API key for provider: ${model.provider}`);
     }
-    const base = buildBaseOptions(model, context, options, apiKey);
+    const base = {
+        ...buildBaseOptions(model, context, options, apiKey),
+        toolChoice: options?.toolChoice,
+    };
     const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;
     const reasoningEffort = clampedReasoning === "off" ? undefined : clampedReasoning;
     return stream(model, context, {
@@ -179,7 +183,7 @@ function resolveAzureConfig(model, options) {
     };
 }
 function createClient(model, apiKey, options) {
-    const headers = { ...model.headers };
+    const headers = { "User-Agent": getPiUserAgent(), ...model.headers };
     if (options?.headers) {
         Object.assign(headers, options.headers);
     }
@@ -215,6 +219,9 @@ function buildParams(model, context, options, deploymentName, grammarToolInputPr
             supportsStrictMode: model.compat?.supportsStrictMode ?? true,
             supportsOpenAIGrammarTools: model.compat?.supportsOpenAIGrammarTools ?? false,
         });
+    }
+    if (options?.toolChoice !== undefined) {
+        params.tool_choice = options.toolChoice;
     }
     if (model.reasoning) {
         if (options?.reasoningEffort || options?.reasoningSummary) {

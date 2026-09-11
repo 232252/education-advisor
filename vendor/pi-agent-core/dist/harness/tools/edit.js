@@ -14,6 +14,12 @@ const editSchema = Type.Object({
         description: "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.",
     }),
 }, {});
+function isSingleEditInput(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+        return false;
+    const edit = value;
+    return typeof edit.oldText === "string" && typeof edit.newText === "string";
+}
 function prepareEditArguments(input) {
     if (!input || typeof input !== "object")
         return input;
@@ -21,10 +27,17 @@ function prepareEditArguments(input) {
     if (typeof args.edits === "string") {
         try {
             const parsed = JSON.parse(args.edits);
-            if (Array.isArray(parsed))
+            if (Array.isArray(parsed)) {
                 args.edits = parsed;
+            }
+            else if (isSingleEditInput(parsed)) {
+                args.edits = [parsed];
+            }
         }
         catch { }
+    }
+    else if (isSingleEditInput(args.edits)) {
+        args.edits = [args.edits];
     }
     const legacy = args;
     if (typeof legacy.oldText !== "string" || typeof legacy.newText !== "string")
@@ -50,34 +63,34 @@ export function createEditTool() {
         description: "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
         parameters: editSchema,
         prepareArguments: prepareEditArguments,
-        async execute(_toolCallId, input, signal, _onUpdate, { env }) {
+        async execute(_toolCallId, input, _onUpdate, { env }, _invocation, context) {
             const { path, edits } = validateEditInput(input);
-            const absolutePath = await resolveToolPath(env, path, signal);
+            const absolutePath = await resolveToolPath(env, path, context);
             return withFileMutationQueue(env, absolutePath, async () => {
-                if (signal?.aborted)
+                if (context.abortSignal?.aborted)
                     throw new Error("Operation aborted");
-                const info = await env.fileInfo(absolutePath, signal);
+                const info = await env.fileInfo(absolutePath, context);
                 if (!info.ok)
                     throw editAccessError(path, info.error);
                 if (info.value.kind !== "file" && info.value.kind !== "symlink") {
                     throw new Error(`Could not edit file: ${path}. Path is not a file.`);
                 }
-                const readResult = await env.readTextFile(absolutePath, signal);
+                const readResult = await env.readTextFile(absolutePath, context);
                 if (!readResult.ok)
                     throw editAccessError(path, readResult.error);
-                if (signal?.aborted)
+                if (context.abortSignal?.aborted)
                     throw new Error("Operation aborted");
                 const { bom, text: content } = stripBom(readResult.value);
                 const originalEnding = detectLineEnding(content);
                 const normalizedContent = normalizeToLF(content);
                 const { baseContent, newContent } = applyEditsToNormalizedContent(normalizedContent, edits, path);
-                if (signal?.aborted)
+                if (context.abortSignal?.aborted)
                     throw new Error("Operation aborted");
                 const finalContent = bom + restoreLineEndings(newContent, originalEnding);
-                const writeResult = await env.writeFile(absolutePath, finalContent, signal);
+                const writeResult = await env.writeFile(absolutePath, finalContent, context);
                 if (!writeResult.ok)
                     throw editAccessError(path, writeResult.error);
-                if (signal?.aborted)
+                if (context.abortSignal?.aborted)
                     throw new Error("Operation aborted");
                 const diffResult = generateDiffString(baseContent, newContent);
                 return {
@@ -88,7 +101,7 @@ export function createEditTool() {
                         firstChangedLine: diffResult.firstChangedLine,
                     },
                 };
-            });
+            }, context);
         },
     };
 }

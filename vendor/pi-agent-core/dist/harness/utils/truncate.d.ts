@@ -40,6 +40,7 @@ export interface TruncationOptions {
     /** Maximum number of bytes (default: 50KB) */
     maxBytes?: number;
 }
+export declare function utf8ByteLength(content: string): number;
 /**
  * Format bytes as human-readable size.
  */

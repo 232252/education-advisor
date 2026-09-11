@@ -1,217 +1,274 @@
-import { SessionState } from "../state.js";
-import { SessionError, } from "../types.js";
-import { encodeHeader, encodeMutation, metadataFromHeader, parseHeader, parseMutation } from "./codec.js";
-import { fileResult, invalidFile, JsonlDecodeError } from "./errors.js";
-/**
- * Build a complete sibling temporary file, then atomically rename it over the destination.
- * The populate callback must create or overwrite `tempPath` with the complete file. The
- * destination is untouched until the rename commits, so a process crash while populating
- * can leave only the ignored `.tmp` file behind.
- *
- * Rejects when population or rename fails. On rejection, temporary-file removal is
- * best-effort and the original error is preserved. Callers must serialize publications to
- * the same destination because they share its deterministic `.tmp` path.
- */
-async function publishFileAtomically(fs, destinationPath, populate) {
-    const tempPath = `${destinationPath}.tmp`;
+import { uuidv7 } from "@earendil-works/pi-ai/utils/uuid";
+import { insertUsage } from "../commit.js";
+import { forkSnapshotWrites } from "../fork.js";
+import { InMemoryStorageState, } from "../in-memory-storage-state.js";
+import { parseJsonlSessionHeader } from "./codec.js";
+import { normalizeLegacyV3Header, normalizeLegacyV3Records } from "./legacy-v3.js";
+import { JSONL_STORAGE_VERSION } from "./types.js";
+function fileValue(result, action) {
+    if (!result.ok)
+        throw new Error(`${action}: ${result.error.message}`, { cause: result.error });
+    return result.value;
+}
+function isRecord(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function requireSafeInteger(value, field, minimum) {
+    if (!Number.isSafeInteger(value) || value < minimum)
+        throw new Error(`Invalid JSONL ${field}`);
+}
+function parseCommittedWrite(value) {
+    if (!isRecord(value))
+        throw new Error("Invalid JSONL transaction write");
+    requireSafeInteger(value.seq, "write seq", 1);
+    switch (value.kind) {
+        case "entry":
+            requireSafeInteger(value.timestamp, "entry timestamp", 0);
+            return value;
+        case "usage":
+            return value;
+        case "value":
+            if (value.op === "set")
+                return value;
+            if (value.op === "delete")
+                return value;
+            throw new Error(`Invalid JSONL value operation: ${String(value.op)}`);
+        case "list":
+            if (value.op === "append")
+                return value;
+            if (value.op === "delete")
+                return value;
+            throw new Error(`Invalid JSONL list operation: ${String(value.op)}`);
+        default:
+            throw new Error(`Invalid JSONL write kind: ${String(value.kind)}`);
+    }
+}
+function parseTransaction(line) {
+    let value;
     try {
-        await populate(tempPath);
-        fileResult(await fs.renameFile(tempPath, destinationPath), `Failed to publish staged file ${destinationPath}`);
+        value = JSON.parse(line);
     }
     catch (error) {
-        await fs.remove(tempPath, { force: true });
+        throw new Error("Invalid JSONL transaction: not valid JSON", { cause: error });
+    }
+    return (Array.isArray(value) ? value : [value]).map(parseCommittedWrite);
+}
+function serializeTransaction(writes) {
+    return JSON.stringify(writes.length === 1 ? writes[0] : writes);
+}
+function serializeStorage(header, transactions) {
+    return `${[JSON.stringify(header), ...transactions.map(serializeTransaction)].join("\n")}\n`;
+}
+function splitCompleteLines(content) {
+    if (content.endsWith("\n"))
+        return { lines: content.slice(0, -1).split("\n"), torn: false };
+    const lastNewline = content.lastIndexOf("\n");
+    if (lastNewline === -1)
+        return { lines: [], torn: true };
+    return { lines: content.slice(0, lastNewline).split("\n"), torn: true };
+}
+async function publishFileAtomically(fileSystem, destinationPath, content, context) {
+    const tempPath = `${destinationPath}.tmp`;
+    try {
+        fileValue(await fileSystem.writeFile(tempPath, content, context), `Failed to stage JSONL storage ${destinationPath}`);
+        fileValue(await fileSystem.renameFile(tempPath, destinationPath, context), `Failed to publish JSONL storage ${destinationPath}`);
+    }
+    catch (error) {
+        await fileSystem.remove(tempPath, { force: true }, context);
         throw error;
     }
 }
-export class JsonlSessionStorage {
-    fs;
-    metadata;
-    state = new SessionState();
-    tail = Promise.resolve();
-    constructor(fs, metadata) {
-        this.fs = fs;
-        this.metadata = structuredClone(metadata);
+/** JSONL storage backed by an injected filesystem capability. */
+export class JsonlStorage {
+    fileSystem;
+    path;
+    now;
+    header;
+    backing;
+    storageState = new InMemoryStorageState();
+    commitQueue = Promise.resolve();
+    state = "open";
+    closePromise;
+    constructor(options, header, backing) {
+        this.fileSystem = options.fileSystem;
+        this.path = options.path;
+        this.now = options.now ?? Date.now;
+        this.header = header;
+        this.backing = backing;
     }
-    static async create(fs, path, header) {
-        fileResult(await fs.writeFile(path, encodeHeader(header)), `Failed to initialize session ${path}`);
-        const fileInfo = fileResult(await fs.fileInfo(path), `Failed to read session metadata ${path}`);
-        return new JsonlSessionStorage(fs, metadataFromHeader(header, path, fileInfo.mtimeMs));
-    }
-    static async load(fs, path) {
-        const content = fileResult(await fs.readTextFile(path), `Failed to read session ${path}`);
-        const physicalLines = content.split("\n");
-        if (physicalLines.at(-1) === "")
-            physicalLines.pop();
-        if (physicalLines.length === 0 || !physicalLines[0]) {
-            throw invalidFile(path, 1, new JsonlDecodeError("schema", "is missing a header"));
-        }
-        const headerResult = parseHeader(physicalLines[0]);
-        if (!headerResult.ok)
-            throw invalidFile(path, 1, headerResult.error);
-        const fileInfo = fileResult(await fs.fileInfo(path), `Failed to read session metadata ${path}`);
-        const storage = new JsonlSessionStorage(fs, metadataFromHeader(headerResult.value, path, fileInfo.mtimeMs));
-        for (let index = 1; index < physicalLines.length; index++) {
-            const line = physicalLines[index];
-            const mutationResult = parseMutation(line);
-            if (!mutationResult.ok) {
-                const isTornTail = index === physicalLines.length - 1 && mutationResult.error.kind === "syntax";
-                if (isTornTail) {
-                    // Drop the unacknowledged partial append by atomically publishing the valid prefix.
-                    const validPrefix = `${physicalLines.slice(0, index).join("\n")}\n`;
-                    await publishFileAtomically(fs, path, async (tempPath) => {
-                        fileResult(await fs.writeFile(tempPath, validPrefix), `Failed to stage torn-tail repair ${path}`);
-                    });
-                    return storage;
-                }
-                throw invalidFile(path, index + 1, mutationResult.error);
-            }
-            try {
-                storage.applyMutation(mutationResult.value);
-            }
-            catch (error) {
-                if (error instanceof SessionError && error.code === "invalid_entry") {
-                    throw invalidFile(path, index + 1, error);
-                }
-                throw error;
-            }
-        }
-        if (!content.endsWith("\n")) {
-            fileResult(await fs.appendFile(path, "\n"), `Failed to repair unterminated session tail ${path}`);
-        }
+    static async create(options, header, initialWrites, context) {
+        const storage = new JsonlStorage(options, header, { kind: "v4" });
+        const prepared = storage.storageState.prepareCommit(initialWrites, storage.now());
+        const transactions = prepared.writes.length === 0 ? [] : [prepared.writes];
+        await publishFileAtomically(options.fileSystem, options.path, serializeStorage(header, transactions), context);
+        storage.storageState.applyValidated(prepared.writes);
         return storage;
     }
-    async fork(path, header, options) {
-        const mutations = this.state.createForkMutations(options);
-        await publishFileAtomically(this.fs, path, async (tempPath) => {
-            const targetStorage = await JsonlSessionStorage.create(this.fs, tempPath, header);
-            for (const mutation of mutations) {
-                await targetStorage.appendMutation(mutation);
-                targetStorage.applyMutation(mutation);
+    /** Atomically create storage from a complete prepared snapshot. */
+    static async createFromForkSnapshot(options, header, snapshot, context) {
+        const writes = forkSnapshotWrites(snapshot);
+        const snapshotHeader = { ...header, nextSeq: snapshot.nextSeq };
+        await publishFileAtomically(options.fileSystem, options.path, serializeStorage(snapshotHeader, writes.map((write) => [write])), context);
+        return JsonlStorage.open(options, context);
+    }
+    static async open(options, context) {
+        const content = fileValue(await options.fileSystem.readTextFile(options.path, context), `Failed to read JSONL storage ${options.path}`);
+        const { lines, torn } = splitCompleteLines(content);
+        if (lines[0] === undefined || lines[0] === "") {
+            throw new Error(`Invalid JSONL storage ${options.path}: missing header`);
+        }
+        const parsedHeader = parseJsonlSessionHeader(lines[0]);
+        if (!parsedHeader.ok) {
+            throw new Error(`Invalid JSONL storage ${options.path}: invalid header`, { cause: parsedHeader.error });
+        }
+        if (parsedHeader.value.format === "v3-legacy") {
+            return JsonlStorage.openLegacyV3(options, parsedHeader.value.header, lines.slice(1), context);
+        }
+        const header = parsedHeader.value.header;
+        if (header.storageVersion !== JSONL_STORAGE_VERSION) {
+            throw new Error(`Session ${header.id} uses unsupported storage version ${header.storageVersion}`);
+        }
+        const storage = new JsonlStorage(options, header, { kind: "v4" });
+        for (let index = 1; index < lines.length; index++) {
+            const line = lines[index];
+            try {
+                storage.replayCommitted(parseTransaction(line));
             }
-        });
-        return JsonlSessionStorage.load(this.fs, path);
-    }
-    async drain() {
-        await this.tail;
-    }
-    async getMetadata() {
-        return structuredClone(this.metadata);
-    }
-    async getLanes() {
-        return this.state.getLanes();
-    }
-    createLane(lane, at) {
-        return this.enqueue(async () => {
-            this.state.validateNewLane(lane);
-            this.state.validateTarget(at);
-            const mutation = { kind: "lane", seq: this.state.nextSequence, lane, leafId: at };
-            await this.appendMutation(mutation);
-            this.applyMutation(mutation);
-        });
-    }
-    moveLane(lane, to) {
-        return this.enqueue(async () => {
-            this.state.requireLane(lane);
-            this.state.validateTarget(to);
-            const mutation = { kind: "lane", seq: this.state.nextSequence, lane, leafId: to };
-            await this.appendMutation(mutation);
-            this.applyMutation(mutation);
-        });
-    }
-    appendEntry(newEntry, lane) {
-        return this.enqueue(async () => {
-            const parentId = this.state.requireLane(lane);
-            this.state.validateUnusedId(newEntry.id);
-            const entry = {
-                ...structuredClone(newEntry),
-                parentId,
-                seq: this.state.nextSequence,
-                timestamp: Date.now(),
-            };
-            const mutation = { kind: "entry", lane, entry };
-            await this.appendMutation(mutation);
-            this.applyMutation(mutation);
-            return structuredClone(entry);
-        });
-    }
-    appendRecord(newRecord) {
-        return this.enqueue(async () => {
-            this.state.requireLane(newRecord.lane);
-            this.state.validateUnusedId(newRecord.id);
-            const currentOpenOperationId = this.state.findOpenOperations(newRecord.lane, { limit: 1 })[0]?.id;
-            if (newRecord.type === "operation_started" && currentOpenOperationId !== undefined) {
-                throw new SessionError("storage", `Lane ${newRecord.lane} already has an open operation ${currentOpenOperationId}`);
+            catch (error) {
+                throw new Error(`Invalid JSONL storage ${options.path}: line ${index + 1}`, { cause: error });
             }
-            const record = {
-                ...structuredClone(newRecord),
-                seq: this.state.nextSequence,
-                timestamp: Date.now(),
-            };
-            const mutation = { kind: "record", record };
-            await this.appendMutation(mutation);
-            this.applyMutation(mutation);
-            return structuredClone(record);
+        }
+        if (header.nextSeq !== undefined)
+            storage.storageState.advanceNextSeq(header.nextSeq);
+        if (torn)
+            await publishFileAtomically(options.fileSystem, options.path, `${lines.join("\n")}\n`, context);
+        return storage;
+    }
+    static async openLegacyV3(options, header, recordLines, context) {
+        const { writes, importedUsage, nextSeq } = normalizeLegacyV3Records(recordLines);
+        const targetHeader = {
+            ...(await normalizeLegacyV3Header(options.fileSystem, header, context)),
+            nextSeq,
+        };
+        const storage = new JsonlStorage(options, targetHeader, {
+            kind: "v3",
+            importedUsage,
+            baselineWrites: writes,
         });
+        storage.replayCommitted(writes);
+        return storage;
     }
-    async getEntry(id) {
-        const entry = this.state.getEntry(id);
-        return entry === undefined ? undefined : structuredClone(entry);
+    replayCommitted(writes) {
+        this.storageState.validateCommitted(writes);
+        this.storageState.applyValidated(writes);
     }
-    async findEntries(query = {}) {
-        return structuredClone(this.state.findEntries(query));
-    }
-    async findEntriesOnBranch(query) {
-        return structuredClone(this.state.findEntriesOnBranch(query));
-    }
-    async findRecords(query = {}) {
-        return structuredClone(this.state.findRecords(query));
-    }
-    async findOpenOperations(lane, options) {
-        return structuredClone(this.state.findOpenOperations(lane, options));
-    }
-    async getLog(options = {}) {
-        return structuredClone(this.state.getLog(options));
-    }
-    async getName() {
-        return this.state.getName();
-    }
-    setName(name) {
-        return this.enqueue(async () => {
-            const mutation = { kind: "fact", seq: this.state.nextSequence, fact: "name", name };
-            await this.appendMutation(mutation);
-            this.applyMutation(mutation);
-        });
-    }
-    async getLabel(id) {
-        return this.state.getLabel(id);
-    }
-    setLabel(id, label) {
-        return this.enqueue(async () => {
-            this.state.validateTarget(id);
-            const mutation = {
-                kind: "fact",
-                seq: this.state.nextSequence,
-                fact: "label",
-                targetId: id,
-                label,
-            };
-            await this.appendMutation(mutation);
-            this.applyMutation(mutation);
-        });
-    }
-    async getStats() {
-        return structuredClone(this.state.getStats());
-    }
-    enqueue(operation) {
-        const result = this.tail.then(operation);
-        this.tail = result.then(() => undefined, () => undefined);
+    async commit(writes, context) {
+        if (this.state !== "open")
+            throw new Error("JsonlStorage is closed");
+        const result = this.commitQueue.then(() => this.applyCommit(writes, context));
+        this.commitQueue = result.then(() => undefined, () => undefined);
         return result;
     }
-    async appendMutation(mutation) {
-        fileResult(await this.fs.appendFile(this.metadata.path, encodeMutation(mutation)), `Failed to append session ${this.metadata.path}`);
+    async applyCommit(writes, context) {
+        if (this.backing.kind === "v3" && writes.length !== 0) {
+            return this.upgradeLegacyV3ToV4(this.backing, writes, context);
+        }
+        const prepared = this.storageState.prepareCommit(writes, this.now());
+        if (prepared.writes.length !== 0) {
+            fileValue(await this.fileSystem.appendFile(this.path, `${serializeTransaction(prepared.writes)}\n`, context), `Failed to append JSONL storage ${this.path}`);
+        }
+        const stats = this.storageState.applyValidated(prepared.writes);
+        return { ...prepared.result, stats: this.withImportedUsage(stats) };
     }
-    applyMutation(mutation) {
-        this.state.applyMutation(mutation);
+    /** Atomically upgrade legacy v3 backing and preserve the first caller write as a v4 transaction. */
+    async upgradeLegacyV3ToV4(backing, callerWrites, context) {
+        const timestamp = this.now();
+        const prepared = this.storageState.prepareCommit([
+            insertUsage({
+                id: uuidv7(timestamp),
+                usage: backing.importedUsage,
+                adjustment: true,
+                details: { source: "v3-import" },
+            }),
+            ...callerWrites,
+        ], timestamp);
+        const nextSeq = prepared.result.firstSeq + prepared.writes.length;
+        const upgradedHeader = { ...this.header, nextSeq };
+        await publishFileAtomically(this.fileSystem, this.path, serializeStorage(upgradedHeader, [...backing.baselineWrites.map((write) => [write]), prepared.writes]), context);
+        const stats = this.storageState.applyValidated(prepared.writes);
+        this.backing = { kind: "v4" };
+        // The first sequence belongs to the internal usage adjustment; return only caller-write sequences.
+        return {
+            ...prepared.result,
+            firstSeq: prepared.result.firstSeq + 1,
+            seqs: prepared.result.seqs.slice(1),
+            stats,
+        };
+    }
+    getEntries(ids, _context) {
+        if (this.state !== "open")
+            return Promise.reject(new Error("JsonlStorage is closed"));
+        return Promise.resolve(this.storageState.getEntries(ids));
+    }
+    getValue(address, _context) {
+        if (this.state !== "open")
+            return Promise.reject(new Error("JsonlStorage is closed"));
+        return Promise.resolve(this.storageState.getValue(address));
+    }
+    scanValues(prefix, _context) {
+        if (this.state !== "open")
+            return Promise.reject(new Error("JsonlStorage is closed"));
+        return Promise.resolve(this.storageState.scanValues(prefix));
+    }
+    async readList(address, options, _context) {
+        if (this.state !== "open")
+            throw new Error("JsonlStorage is closed");
+        return this.storageState.readList(address, options);
+    }
+    async scanBranch(query, _context) {
+        if (this.state !== "open")
+            throw new Error("JsonlStorage is closed");
+        return this.storageState.scanBranch(query);
+    }
+    async scanBranchStructure(query, _context) {
+        if (this.state !== "open")
+            throw new Error("JsonlStorage is closed");
+        return this.storageState.scanBranchStructure(query);
+    }
+    scanEntries(query, _context) {
+        if (this.state !== "open")
+            return Promise.reject(new Error("JsonlStorage is closed"));
+        return Promise.resolve(this.storageState.scanEntries(query));
+    }
+    scanUsage(query, _context) {
+        if (this.state !== "open")
+            return Promise.reject(new Error("JsonlStorage is closed"));
+        return Promise.resolve(this.storageState.scanUsage(query));
+    }
+    getStats(_context) {
+        if (this.state !== "open")
+            return Promise.reject(new Error("JsonlStorage is closed"));
+        return Promise.resolve(this.withImportedUsage(this.storageState.getStats()));
+    }
+    withImportedUsage(stats) {
+        return this.backing.kind === "v4" ? stats : { ...stats, usage: this.backing.importedUsage };
+    }
+    /** Capture the state needed to fork at one serialized boundary between commits. */
+    captureForkSource(_context) {
+        if (this.state !== "open")
+            return Promise.reject(new Error("JsonlStorage is closed"));
+        const result = this.commitQueue.then(() => this.storageState.snapshotEntriesAndValues());
+        this.commitQueue = result.then(() => undefined, () => undefined);
+        return result;
+    }
+    close(_context) {
+        if (this.closePromise !== undefined)
+            return this.closePromise;
+        this.state = "closing";
+        this.closePromise = this.commitQueue.then(() => {
+            this.state = "closed";
+        });
+        return this.closePromise;
     }
 }
 //# sourceMappingURL=storage.js.map

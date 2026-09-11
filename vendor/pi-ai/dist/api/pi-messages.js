@@ -99,6 +99,9 @@ function createEventConverter(model) {
                     usage: event.usage,
                     responseId: event.responseId,
                 });
+                if (event.providerThinkingLevel !== undefined) {
+                    partial.providerThinkingLevel = event.providerThinkingLevel;
+                }
                 appendRewriteDiagnostic(partial, event.rewrite);
                 return { type: "done", reason: event.reason, message: partial };
             case "error":
@@ -108,6 +111,9 @@ function createEventConverter(model) {
                     errorMessage: event.errorMessage,
                     responseId: event.responseId,
                 });
+                if (event.providerThinkingLevel !== undefined) {
+                    partial.providerThinkingLevel = event.providerThinkingLevel;
+                }
                 appendRewriteDiagnostic(partial, event.rewrite);
                 return { type: "error", reason: event.reason, error: partial };
             case "start":
@@ -300,7 +306,7 @@ export const streamSimple = (model, context, options) => {
     return stream(model, context, {
         ...options,
         reasoning: options?.reasoning,
-        toolChoice: extra?.toolChoice,
+        toolChoice: options?.toolChoice,
         debug: extra?.debug,
     });
 };

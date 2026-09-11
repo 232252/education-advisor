@@ -105,6 +105,26 @@ describe('piAIService', () => {
       expect(PROVIDER_NAMES.openai).toBe('OpenAI')
       expect(OAUTH_KEY_URLS['github-copilot']).toBe('https://github.com/settings/tokens')
     })
+
+    it('PROVIDER_NAMES 覆盖 pi 内置厂商,名称来自 pi 目录', async () => {
+      const { builtinProviders } = await import('@earendil-works/pi-ai/providers/all')
+      const catalog = builtinProviders()
+      expect(catalog.length).toBeGreaterThanOrEqual(20)
+      for (const p of catalog) {
+        expect(PROVIDER_NAMES[p.id]).toBe(p.name)
+      }
+      expect(PROVIDER_NAMES['minimax-cn']).toBe('MiniMax CN')
+      expect(PROVIDER_NAMES['kimi-coding']).toBe('Kimi For Coding')
+      expect(PROVIDER_NAMES.xiaomi).toBe('Xiaomi')
+    })
+
+    it('OAUTH_PROVIDERS 跟随 pi 的 auth.oauth 声明', () => {
+      expect(OAUTH_PROVIDERS.has('openai-codex')).toBe(true)
+      expect(OAUTH_PROVIDERS.has('xai')).toBe(true)
+      expect(OAUTH_PROVIDERS.has('kimi-coding')).toBe(true)
+      expect(OAUTH_PROVIDERS.has('openrouter')).toBe(true)
+      expect(OAUTH_PROVIDERS.has('radius')).toBe(true)
+    })
   })
 
   describe('API Key 管理', () => {
@@ -331,22 +351,22 @@ describe('piAIService', () => {
 
   describe('listProviders', () => {
     it('返回 provider 元数据: 名称/hasApiKey/modelCount', async () => {
-      piMocks.getProviders.mockReturnValue(['openai'])
       piMocks.keystoreListProviders.mockReturnValue(['openai'])
       piMocks.keystoreGetApiKey.mockImplementation((id: string) =>
         id === 'openai' ? 'sk-stored' : undefined,
       )
 
       const providers = await piAIService.listProviders()
+      const openai = providers.find((p) => p.id === 'openai')
 
-      expect(providers).toHaveLength(1)
-      expect(providers[0]).toMatchObject({
+      expect(providers.length).toBeGreaterThanOrEqual(20)
+      expect(openai).toMatchObject({
         id: 'openai',
         name: 'OpenAI',
         hasApiKey: true,
         supportsOAuth: false,
       })
-      expect(providers[0].modelCount).toBeGreaterThanOrEqual(1)
+      expect(openai?.modelCount).toBeGreaterThanOrEqual(1)
     })
 
     it('免费模型 provider 标记 hasFreeModels 且排序靠前', async () => {

@@ -1,12 +1,10 @@
-import type { SessionRepo } from "../types.ts";
-/** A fresh backend instance owned by one conformance case. */
-export interface SessionBackendFixture extends AsyncDisposable {
-    readonly repository: SessionRepo;
+import type { Storage } from "../types.ts";
+/** A fresh backend storage instance owned by one test or benchmark case. */
+export interface StorageFixture extends AsyncDisposable {
+    readonly storage: Storage;
 }
-/** Creates an isolated fixture for one conformance case. */
-export type SessionBackendFixtureFactory = () => Promise<SessionBackendFixture>;
 /** A runner-independent conformance case that can be registered with any test framework. */
-export interface SessionBackendConformanceCase {
+export interface ConformanceCase {
     readonly group: string;
     readonly name: string;
     run(): Promise<void>;

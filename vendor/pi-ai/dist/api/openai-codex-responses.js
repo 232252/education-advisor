@@ -354,7 +354,10 @@ export const streamSimple = (model, context, options) => {
     if (!apiKey) {
         throw new Error(`No API key for provider: ${model.provider}`);
     }
-    const base = buildBaseOptions(model, context, options, apiKey);
+    const base = {
+        ...buildBaseOptions(model, context, options, apiKey),
+        toolChoice: options?.toolChoice,
+    };
     const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;
     const reasoningEffort = clampedReasoning === "off" ? undefined : clampedReasoning;
     return stream(model, context, {
@@ -576,9 +579,10 @@ async function* parseSSE(response, signal) {
             if (signal?.aborted) {
                 throw new Error("Request was aborted");
             }
-            if (done)
-                break;
-            buffer += decoder.decode(value, { stream: true });
+            buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+            // Treat EOF as terminating the residual SSE frame.
+            if (done && buffer.trim())
+                buffer += "\n\n";
             let idx = buffer.indexOf("\n\n");
             while (idx !== -1) {
                 const chunk = buffer.slice(0, idx);
@@ -603,6 +607,8 @@ async function* parseSSE(response, signal) {
                 }
                 idx = buffer.indexOf("\n\n");
             }
+            if (done)
+                break;
         }
     }
     finally {

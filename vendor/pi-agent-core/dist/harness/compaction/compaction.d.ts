@@ -1,17 +1,18 @@
-import { type Api, type AssistantMessage, type Context, type Model, type Models, type RetryCallbacks, type RetryPolicy, type SimpleStreamOptions, type Usage } from "@earendil-works/pi-ai";
+import { type Context as AiContext, type Api, type AssistantMessage, type Model, type Models, type RetryCallbacks, type RetryPolicy, type SimpleStreamOptions, type Usage } from "@earendil-works/pi-ai";
 import type { AgentMessage, ThinkingLevel } from "../../types.ts";
-import type { Entry } from "../session/types.ts";
+import { type Context } from "../context.ts";
+import type { Entry, JsonValue } from "../session/types.ts";
 import { CompactionError, type Result } from "../types.ts";
 import { type FileOperations } from "./utils.ts";
 /** File-operation details stored on generated compaction entries. */
-export interface CompactionDetails {
+export interface CompactionDetails extends Record<string, JsonValue> {
     /** Files read in the compacted history. */
     readFiles: string[];
     /** Files modified in the compacted history. */
     modifiedFiles: string[];
 }
 /** Generated compaction data ready to be persisted as a compaction entry. */
-export interface CompactResult<T = unknown> {
+export interface CompactResult<T = JsonValue> {
     /** Summary text that replaces compacted history in future context. */
     summary: string;
     /** Estimated context tokens before compaction. */
@@ -23,7 +24,9 @@ export interface CompactResult<T = unknown> {
     /** Optional implementation-specific details stored with the compaction entry. */
     details?: T;
 }
-export declare function completeSimpleWithRetries(models: Models, model: Model<Api>, context: Context, options: SimpleStreamOptions, retry?: RetryPolicy, callbacks?: RetryCallbacks): Promise<AssistantMessage>;
+export type SummaryRequest = (aiContext: AiContext, options: SimpleStreamOptions, context: Context) => Promise<AssistantMessage>;
+export declare function createSummaryRequestOptions(options: SimpleStreamOptions, context: Context): SimpleStreamOptions;
+export declare function completeSimpleWithRetries(models: Models, model: Model<Api>, aiContext: AiContext, options: SimpleStreamOptions, retry: RetryPolicy | undefined, callbacks: RetryCallbacks | undefined, context: Context): Promise<AssistantMessage>;
 /** Compaction thresholds and retention settings. */
 export interface CompactionSettings {
     /** Enable automatic compaction decisions. */
@@ -71,9 +74,21 @@ export interface CutPointResult {
 export declare function findCutPoint(entries: Entry[], startIndex: number, endIndex: number, keepRecentTokens: number): CutPointResult;
 export declare const SUMMARIZATION_SYSTEM_PROMPT = "You are a context summarization assistant. Your task is to read a conversation between a user and an AI assistant, then produce a structured summary following the exact format specified.\n\nDo NOT continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured summary.";
 /** Generate or update a conversation summary for compaction. */
-export declare function generateSummary(currentMessages: AgentMessage[], models: Models, model: Model<Api>, reserveTokens: number, signal?: AbortSignal, customInstructions?: string, previousSummary?: string, thinkingLevel?: ThinkingLevel, retry?: RetryPolicy, callbacks?: RetryCallbacks): Promise<Result<string, CompactionError>>;
+export declare function generateSummary(currentMessages: AgentMessage[], models: Models, model: Model<Api>, reserveTokens: number, customInstructions: string | undefined, previousSummary: string | undefined, thinkingLevel: ThinkingLevel | undefined, retry: RetryPolicy | undefined, callbacks: RetryCallbacks | undefined, context: Context): Promise<Result<string, CompactionError>>;
 /** Generate or update a conversation summary and return its provider usage. */
-export declare function generateSummaryWithUsage(currentMessages: AgentMessage[], models: Models, model: Model<Api>, reserveTokens: number, signal?: AbortSignal, customInstructions?: string, previousSummary?: string, thinkingLevel?: ThinkingLevel, retry?: RetryPolicy, callbacks?: RetryCallbacks): Promise<Result<{
+export declare function generateSummaryWithUsage(currentMessages: AgentMessage[], models: Models, model: Model<Api>, reserveTokens: number, customInstructions: string | undefined, previousSummary: string | undefined, thinkingLevel: ThinkingLevel | undefined, retry: RetryPolicy | undefined, callbacks: RetryCallbacks | undefined, context: Context): Promise<Result<{
+    text: string;
+    usage: Usage;
+}, CompactionError>>;
+export interface SummaryGenerationOptions {
+    model: Model<Api>;
+    reserveTokens: number;
+    customInstructions?: string;
+    previousSummary?: string;
+    thinkingLevel?: ThinkingLevel;
+}
+/** Generate one summary through a caller-owned one-request boundary. */
+export declare function generateSummaryWithRequest(currentMessages: AgentMessage[], options: SummaryGenerationOptions, request: SummaryRequest, context: Context): Promise<Result<{
     text: string;
     usage: Usage;
 }, CompactionError>>;
@@ -100,5 +115,12 @@ export interface CompactionPreparation {
 export declare function prepareCompaction(pathEntries: Entry[], settings: CompactionSettings): Result<CompactionPreparation | undefined, CompactionError>;
 export { serializeConversation } from "./utils.ts";
 /** Generate compaction summary data from prepared session history. */
-export declare function compact(preparation: CompactionPreparation, models: Models, model: Model<Api>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, retry?: RetryPolicy, callbacks?: RetryCallbacks): Promise<Result<CompactResult, CompactionError>>;
+export declare function compact(preparation: CompactionPreparation, models: Models, model: Model<Api>, customInstructions: string | undefined, thinkingLevel: ThinkingLevel | undefined, retry: RetryPolicy | undefined, callbacks: RetryCallbacks | undefined, context: Context): Promise<Result<CompactResult, CompactionError>>;
+export interface CompactGenerationOptions {
+    model: Model<Api>;
+    customInstructions?: string;
+    thinkingLevel?: ThinkingLevel;
+}
+/** Generate compaction data through a caller-owned boundary for each provider request. */
+export declare function compactWithRequest(preparation: CompactionPreparation, options: CompactGenerationOptions, request: SummaryRequest, context: Context): Promise<Result<CompactResult, CompactionError>>;
 //# sourceMappingURL=compaction.d.ts.map

@@ -20,13 +20,16 @@ export type KnownProvider = "amazon-bedrock" | "ant-ling" | "anthropic" | "googl
 export type ProviderId = KnownProvider | string;
 export type KnownImagesProvider = "openrouter";
 export type ImagesProviderId = KnownImagesProvider | string;
+export type ToolChoice = "auto" | "none";
 export type ThinkingLevel = "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export type ModelThinkingLevel = "off" | ThinkingLevel;
 export type ThinkingLevelMap = Partial<Record<ModelThinkingLevel, string | null>>;
 export type ChatTemplateKwargValue = string | number | boolean | null | {
-    $var: "thinking.enabled" | "thinking.effort";
+    $var: "thinking.enabled" | "thinking.effort" | "thinking.budget";
     omitWhenOff?: boolean;
 };
+/** Top-level request field used to cap reasoning tokens on OpenAI-compatible servers. */
+export type ThinkingTokenBudgetField = "thinking_token_budget" | "thinking_budget" | "thinking_budget_tokens";
 /** Token budgets for each thinking level (token-based providers only) */
 export interface ThinkingBudgets {
     minimal?: number;
@@ -208,7 +211,14 @@ export interface ImagesOptions extends ProviderRequestOptions<ImagesModel<Images
     metadata?: Record<string, unknown>;
 }
 export type ProviderImagesOptions = ImagesOptions & Record<string, unknown>;
+export interface AnthropicAllowedFallbackModel {
+    provider: ProviderId;
+    model: string;
+    cost: ModelCost;
+}
 export interface SimpleStreamOptions extends StreamOptions {
+    /** Provider-neutral tool selection for simple requests. When omitted, adapters use provider-specific behavior. */
+    toolChoice?: ToolChoice;
     reasoning?: ThinkingLevel;
     /** Ask a capable provider to return a durable handle and continue the request asynchronously. */
     deferred?: boolean | {
@@ -275,7 +285,7 @@ export interface Usage {
     };
 }
 export type StopReason = "pending" | "stop" | "length" | "toolUse" | "error" | "aborted" | "deferred";
-export type JsonValue = string | number | boolean | null | JsonValue[] | {
+export type JsonValue = null | boolean | number | string | JsonValue[] | {
     [key: string]: JsonValue;
 };
 export interface DeferredHandle {
@@ -302,6 +312,8 @@ export interface AssistantMessage {
     model: string;
     responseModel?: string;
     responseId?: string;
+    /** Exact provider-native effort level used for this response. Absent for legacy or unmanaged responses. */
+    providerThinkingLevel?: string;
     diagnostics?: AssistantMessageDiagnostic[];
     usage: Usage;
     stopReason: StopReason;
@@ -382,10 +394,18 @@ export interface Context {
 /**
  * Event protocol for AssistantMessageEventStream.
  *
- * Streams should emit `start` before partial updates, then terminate with either:
- * - `done` carrying the final successful AssistantMessage, or
- * - `error` carrying the final AssistantMessage with stopReason "error" or "aborted"
- *   and errorMessage.
+ * Successful streams emit `start` before partial updates and terminate with
+ * `done`. A stream may terminate directly with `error` when request setup fails
+ * before generation starts; after `start`, failures also terminate with `error`.
+ * Direct `streamSimple()` calls throw synchronously when request auth is missing.
+ * Updates and `done` must never appear before `start`.
+ *
+ * `partial` is the shared live response-so-far helper, not an event-time
+ * snapshot. Text and thinking blocks are empty when their `*_start` event is
+ * emitted and grow only through their corresponding `*_delta` events until the
+ * authoritative `*_end`. Redacted thinking may be complete at start and emit no
+ * deltas. Tool-call arguments at `toolcall_start` are provider-specific;
+ * `toolcall_delta` carries subsequent JSON updates.
  */
 export type AssistantMessageEvent = {
     type: "start";
@@ -468,9 +488,9 @@ export interface OpenAICompletionsCompat {
     requiresReasoningContentOnAssistantMessages?: boolean;
     /** Format for reasoning/thinking parameter. "openai" uses reasoning_effort, "openrouter" uses reasoning: { effort }, "deepseek" uses thinking: { type } plus reasoning_effort when supported, "together" uses reasoning: { enabled } plus reasoning_effort when supported, "baseten" uses configurable chat_template_args plus reasoning_effort when supported, "zai" uses thinking: { type }, "qwen" uses top-level enable_thinking: boolean, "qwen-chat-template" uses chat_template_kwargs.enable_thinking and preserve_thinking, "chat-template" uses configurable chat_template_kwargs, "string-thinking" uses top-level thinking: string, and "ant-ling" uses reasoning: { effort } only when the mapped effort is non-null. Default: "openai". */
     thinkingFormat?: "openai" | "openrouter" | "deepseek" | "together" | "baseten" | "zai" | "qwen" | "chat-template" | "qwen-chat-template" | "string-thinking" | "ant-ling";
-    /** Kwargs to send as `chat_template_kwargs` when `thinkingFormat` is `chat-template`. Use `{ "$var": "thinking.enabled" }` or `{ "$var": "thinking.effort" }` for pi-controlled thinking values. */
+    /** Kwargs to send as `chat_template_kwargs` when `thinkingFormat` is `chat-template`. Use `{ "$var": "thinking.enabled" }`, `{ "$var": "thinking.effort" }`, or `{ "$var": "thinking.budget" }` for pi-controlled thinking values. */
     chatTemplateKwargs?: Record<string, ChatTemplateKwargValue>;
-    /** Arguments to send as `chat_template_args` when `thinkingFormat` is `baseten`. Use `{ "$var": "thinking.enabled" }` or `{ "$var": "thinking.effort" }` for pi-controlled thinking values. */
+    /** Arguments to send as `chat_template_args` when `thinkingFormat` is `baseten`. Use `{ "$var": "thinking.enabled" }`, `{ "$var": "thinking.effort" }`, or `{ "$var": "thinking.budget" }` for pi-controlled thinking values. */
     chatTemplateArgs?: Record<string, ChatTemplateKwargValue>;
     /** OpenRouter-compatible routing preferences sent as the `provider` request field. */
     openRouterRouting?: OpenRouterRouting;
@@ -478,7 +498,15 @@ export interface OpenAICompletionsCompat {
     vercelGatewayRouting?: VercelGatewayRouting;
     /** Whether z.ai supports top-level `tool_stream: true` for streaming tool call deltas. Default: false. */
     zaiToolStream?: boolean;
-    /** Whether the provider supports top-level `thinking_token_budget` to cap reasoning tokens (vLLM). Reasoning and the answer share `max_tokens` on these endpoints, so without a budget a reasoning-heavy turn can consume the whole response and emit no answer. Default: false. */
+    /**
+     * Top-level request field used to cap reasoning tokens from `thinkingBudgets`.
+     * Reasoning and the answer share `max_tokens` on these endpoints, so without a budget a
+     * reasoning-heavy turn can consume the whole response and emit no answer.
+     * `"thinking_token_budget"` is vLLM, `"thinking_budget"` is Qwen/DashScope/SGLang,
+     * `"thinking_budget_tokens"` is llama.cpp. Off by default; not set on the generated catalog.
+     */
+    thinkingTokenBudgetField?: ThinkingTokenBudgetField;
+    /** Alias for `thinkingTokenBudgetField: "thinking_token_budget"` (vLLM). Prefer `thinkingTokenBudgetField`. Default: false. */
     supportsThinkingTokenBudget?: boolean;
     /** Whether the provider supports OpenAI custom tools with Lark/regex grammar formats. When false, grammar-constrained tools fall back to normal function tools. Default: false; the generated model catalog enables it for capable models. */
     supportsOpenAIGrammarTools?: boolean;
@@ -494,6 +522,13 @@ export interface OpenAICompletionsCompat {
     sessionAffinityFormat?: SessionAffinityFormat;
     /** Whether the provider supports long prompt cache retention (`prompt_cache_retention: "24h"` or Anthropic-style `cache_control.ttl: "1h"`, depending on format). Default: true. */
     supportsLongCacheRetention?: boolean;
+    /**
+     * vLLM scheduler priority sent as the top-level `priority` request field (lower values are
+     * handled earlier; server default 0). Only meaningful when vLLM runs with
+     * `--scheduling-policy priority`; useful for keeping background/batch work from stalling
+     * interactive sessions. Off by default; not set on the generated catalog.
+     */
+    vllmPriority?: number;
 }
 /** Compatibility settings for OpenAI Responses APIs. */
 export interface OpenAIResponsesCompat {
@@ -501,7 +536,7 @@ export interface OpenAIResponsesCompat {
     supportsDeveloperRole?: boolean;
     /** Session-affinity header format: `openai` sends `session_id` and `x-client-request-id`; `openai-nosession` sends `x-client-request-id`; `openrouter` sends `x-session-id`. Does not affect the `prompt_cache_key` body param, which is governed by cache retention. Default: auto-detected. */
     sessionAffinityFormat?: SessionAffinityFormat;
-    /** Whether the provider supports `prompt_cache_retention: "24h"`. Default: true. */
+    /** Whether the provider supports long prompt cache retention. This uses `prompt_cache_options.ttl: "30m"` on GPT-5.6+ and `prompt_cache_retention: "24h"` on earlier models. Default: true. */
     supportsLongCacheRetention?: boolean;
     /** Whether the provider supports strict JSON-schema function tools. Defaults are API-specific; generated OpenAI models enable it explicitly. */
     supportsStrictMode?: boolean;
@@ -511,8 +546,10 @@ export interface OpenAIResponsesCompat {
     supportsAdditionalTools?: boolean;
     /** Whether the model supports client-executed tool search for deferred tools. Default: false. */
     supportsToolSearch?: boolean;
-    /** Whether the model accepts `prompt_cache_options` (OpenAI GPT-5.6+ explicit prompt caching). Older OpenAI models reject the parameter. Default: false. */
+    /** Whether the model accepts `prompt_cache_options` (OpenAI GPT-5.6+ prompt caching). Older OpenAI models reject the parameter. Default: false. */
     supportsExplicitPromptCacheMode?: boolean;
+    /** Whether the provider accepts the `max_output_tokens` parameter. Some Codex-protocol gateways reject it. Default: true. */
+    supportsMaxOutputTokens?: boolean;
 }
 /** Compatibility settings for Anthropic Messages-compatible APIs. */
 export interface AnthropicMessagesCompat {
@@ -562,6 +599,15 @@ export interface AnthropicMessagesCompat {
     allowEmptySignature?: boolean;
     /** Whether the provider supports Anthropic strict tool schemas. Default: false; generated Anthropic models enable it explicitly. */
     supportsStrictTools?: boolean;
+    /** Whether the exact model transport supports effort-only system messages and thinking binding controls. Default: false. */
+    supportsMidConvoEffort?: boolean;
+    /**
+     * Models Anthropic accepts in `fallbacks` for server-side refusal fallback,
+     * with local pricing metadata for returned fallback responses. When absent or
+     * empty, callers must omit `fallbacks`; Anthropic rejects the field for models
+     * with no permitted fallback targets.
+     */
+    allowedFallbackModels?: AnthropicAllowedFallbackModel[];
     /**
      * Whether the provider supports deferred tools loaded by `tool_reference`
      * blocks in tool results. Default: true for first-party Anthropic models

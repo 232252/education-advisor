@@ -5,11 +5,11 @@ function normalizeToolPath(path) {
     const normalized = path.replace(UNICODE_SPACES, " ");
     return normalized.startsWith("@") ? normalized.slice(1) : normalized;
 }
-export async function resolveToolPath(env, path, signal) {
-    return getOrThrow(await env.absolutePath(normalizeToolPath(path), signal));
+export async function resolveToolPath(env, path, context) {
+    return getOrThrow(await env.absolutePath(normalizeToolPath(path), context));
 }
-export async function resolveReadToolPath(env, path, signal) {
-    const resolved = await resolveToolPath(env, path, signal);
+export async function resolveReadToolPath(env, path, context) {
+    const resolved = await resolveToolPath(env, path, context);
     const variants = [
         resolved,
         resolved.replace(/ (AM|PM)\./gi, `${NARROW_NO_BREAK_SPACE}$1.`),
@@ -18,7 +18,7 @@ export async function resolveReadToolPath(env, path, signal) {
         resolved.normalize("NFD").replace(/'/g, "\u2019"),
     ];
     for (const variant of new Set(variants)) {
-        if (getOrThrow(await env.exists(variant, signal)))
+        if (getOrThrow(await env.exists(variant, context)))
             return variant;
     }
     return resolved;

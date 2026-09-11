@@ -2,13 +2,16 @@
  * Shared utilities for Google Generative AI and Google Vertex providers.
  */
 import { type Content, FinishReason, FunctionCallingConfigMode, type Part } from "@google/genai";
-import type { Context, Model, StopReason, StreamOptions, Tool } from "../types.ts";
+import type { Context, Model, ModelThinkingLevel, StopReason, StreamOptions, ThinkingLevel, Tool } from "../types.ts";
 type GoogleApiType = "google-generative-ai" | "google-vertex";
 /**
  * Thinking level for Gemini 3 models.
  * Mirrors Google's ThinkingLevel enum values.
  */
-export type GoogleThinkingLevel = "THINKING_LEVEL_UNSPECIFIED" | "MINIMAL" | "LOW" | "MEDIUM" | "HIGH";
+export type GoogleApiThinkingLevel = "THINKING_LEVEL_UNSPECIFIED" | "MINIMAL" | "LOW" | "MEDIUM" | "HIGH";
+export type ResolvedGoogleThinkingLevel = Exclude<ThinkingLevel, "xhigh" | "max">;
+/** Resolve a supported pi level or model-specific Google mapping to a standard Google level. */
+export declare function resolveGoogleThinkingLevel<T extends GoogleApiType>(model: Model<T>, level: ModelThinkingLevel): ResolvedGoogleThinkingLevel;
 /**
  * Determines whether a streamed Gemini `Part` should be treated as "thinking".
  *

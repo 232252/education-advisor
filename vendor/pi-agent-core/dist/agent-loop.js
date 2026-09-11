@@ -78,7 +78,7 @@ function createAgentStream() {
 async function runLoop(initialContext, newMessages, initialConfig, signal, emit, streamFunction) {
     let currentContext = initialContext;
     let config = initialConfig;
-    let firstTurn = true;
+    let lastCompletedTurn;
     // Check for steering messages at start (user may have typed while waiting)
     let pendingMessages = (await config.getSteeringMessages?.()) || [];
     // Outer loop: continues when queued follow-up messages arrive after agent would stop
@@ -86,11 +86,27 @@ async function runLoop(initialContext, newMessages, initialConfig, signal, emit,
         let hasMoreToolCalls = true;
         // Inner loop: process tool calls and steering messages
         while (hasMoreToolCalls || pendingMessages.length > 0) {
-            if (!firstTurn) {
+            if (lastCompletedTurn) {
+                const nextTurnSnapshot = await config.prepareNextTurn?.(lastCompletedTurn);
+                if (nextTurnSnapshot) {
+                    currentContext = nextTurnSnapshot.context ?? currentContext;
+                    config = {
+                        ...config,
+                        model: nextTurnSnapshot.model ?? config.model,
+                        reasoning: nextTurnSnapshot.thinkingLevel === undefined
+                            ? config.reasoning
+                            : nextTurnSnapshot.thinkingLevel === "off"
+                                ? undefined
+                                : nextTurnSnapshot.thinkingLevel,
+                    };
+                }
+                // Preparation can be long-running (for example, compaction). Pick up steering
+                // queued while it ran. Only poll again if the earlier poll returned nothing;
+                // otherwise one-at-a-time mode would deliver two messages in this turn.
+                if (pendingMessages.length === 0) {
+                    pendingMessages = (await config.getSteeringMessages?.()) || [];
+                }
                 await emit({ type: "turn_start" });
-            }
-            else {
-                firstTurn = false;
             }
             // Process pending messages (inject before next assistant response)
             if (pendingMessages.length > 0) {
@@ -129,31 +145,13 @@ async function runLoop(initialContext, newMessages, initialConfig, signal, emit,
                 }
             }
             await emit({ type: "turn_end", message, toolResults });
-            const nextTurnContext = {
+            lastCompletedTurn = {
                 message,
                 toolResults,
                 context: currentContext,
                 newMessages,
             };
-            const nextTurnSnapshot = await config.prepareNextTurn?.(nextTurnContext);
-            if (nextTurnSnapshot) {
-                currentContext = nextTurnSnapshot.context ?? currentContext;
-                config = {
-                    ...config,
-                    model: nextTurnSnapshot.model ?? config.model,
-                    reasoning: nextTurnSnapshot.thinkingLevel === undefined
-                        ? config.reasoning
-                        : nextTurnSnapshot.thinkingLevel === "off"
-                            ? undefined
-                            : nextTurnSnapshot.thinkingLevel,
-                };
-            }
-            if (await config.shouldStopAfterTurn?.({
-                message,
-                toolResults,
-                context: currentContext,
-                newMessages,
-            })) {
+            if (await config.shouldStopAfterTurn?.(lastCompletedTurn)) {
                 await emit({ type: "agent_end", messages: newMessages });
                 return;
             }
@@ -353,6 +351,15 @@ async function executeToolCallsParallel(currentContext, assistantMessage, toolCa
             continue;
         }
         finalizedCalls.push(async () => {
+            if (signal?.aborted) {
+                const finalized = {
+                    toolCall,
+                    result: createErrorToolResult("Operation aborted"),
+                    isError: true,
+                };
+                await emitToolExecutionEnd(finalized, emit);
+                return finalized;
+            }
             const executed = await executePreparedToolCall(preparation, signal, emit);
             const finalized = await finalizeExecutedToolCall(currentContext, assistantMessage, preparation, executed, config, signal);
             await emitToolExecutionEnd(finalized, emit);

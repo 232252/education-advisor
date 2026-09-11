@@ -12,7 +12,7 @@ export const DEFAULT_MAX_BYTES = 50 * 1024; // 50KB
 export const GREP_MAX_LINE_LENGTH = 500; // Max chars per grep match line
 const runtimeBuffer = globalThis.Buffer;
 const nonAsciiPattern = /[^\x00-\x7f]/;
-function utf8ByteLength(content) {
+export function utf8ByteLength(content) {
     if (runtimeBuffer)
         return runtimeBuffer.byteLength(content, "utf8");
     const firstNonAscii = content.search(nonAsciiPattern);

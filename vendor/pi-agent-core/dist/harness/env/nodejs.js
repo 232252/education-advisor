@@ -1,15 +1,17 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { constants, createReadStream } from "node:fs";
+import { constants, createReadStream, createWriteStream } from "node:fs";
 import { access, appendFile, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, writeFile, } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { homedir, constants as osConstants, tmpdir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { ExecutionError, err, FileError, ok, toError, } from "../types.js";
+import { OutputCapture } from "../utils/output-capture.js";
 const MAX_TIMEOUT_MS = 2_147_483_647;
 const MAX_TIMEOUT_SECONDS = MAX_TIMEOUT_MS / 1000;
 const EXIT_STDIO_GRACE_MS = 100;
+const SPILL_HIGH_WATER_MARK = 8 * 1024 * 1024;
 function resolveTimeoutMs(timeout) {
     if (timeout === undefined)
         return ok(undefined);
@@ -201,11 +203,13 @@ function getShellEnv(baseEnv, extraEnv, inheritEnv = true) {
 function killProcessTree(pid) {
     if (process.platform === "win32") {
         try {
-            spawn("taskkill", ["/F", "/T", "/PID", String(pid)], {
+            const child = spawn(join(process.env.SystemRoot ?? "C:\\Windows", "System32", "taskkill.exe"), ["/F", "/T", "/PID", String(pid)], {
                 stdio: "ignore",
                 detached: true,
                 windowsHide: true,
             });
+            // A failed spawn emits "error" asynchronously; consume it to avoid crashing Node.
+            child.once("error", () => { });
         }
         catch {
             // Ignore errors.
@@ -224,11 +228,12 @@ function killProcessTree(pid) {
         }
     }
 }
-function waitForChildProcess(child) {
+function waitForChildProcess(child, spillIsDraining) {
     return new Promise((resolvePromise, reject) => {
         let settled = false;
         let exited = false;
         let exitCode = null;
+        let exitSignal = null;
         let postExitTimer;
         let stdoutEnded = child.stdout === null;
         let stderrEnded = child.stderr === null;
@@ -243,23 +248,28 @@ function waitForChildProcess(child) {
             child.stdout?.removeListener("data", onData);
             child.stderr?.removeListener("data", onData);
         };
-        const finalize = (code) => {
+        const finalize = () => {
             if (settled)
                 return;
             settled = true;
             cleanup();
             child.stdout?.destroy();
             child.stderr?.destroy();
-            resolvePromise(code);
+            resolvePromise({ code: exitCode, signal: exitSignal });
         };
         const maybeFinalizeAfterExit = () => {
             if (exited && stdoutEnded && stderrEnded)
-                finalize(exitCode);
+                finalize();
         };
         const armIdleTimer = () => {
             if (postExitTimer)
                 clearTimeout(postExitTimer);
-            postExitTimer = setTimeout(() => finalize(exitCode), EXIT_STDIO_GRACE_MS);
+            postExitTimer = setTimeout(() => {
+                if (spillIsDraining())
+                    armIdleTimer();
+                else
+                    finalize();
+            }, EXIT_STDIO_GRACE_MS);
         };
         const onData = () => {
             if (exited && !settled)
@@ -280,14 +290,19 @@ function waitForChildProcess(child) {
             cleanup();
             reject(error);
         };
-        const onExit = (code) => {
+        const onExit = (code, signal) => {
             exited = true;
             exitCode = code;
+            exitSignal = signal;
             maybeFinalizeAfterExit();
             if (!settled)
                 armIdleTimer();
         };
-        const onClose = (code) => finalize(code);
+        const onClose = (code, signal) => {
+            exitCode = code;
+            exitSignal = signal;
+            finalize();
+        };
         child.stdout?.once("end", onStdoutEnd);
         child.stderr?.once("end", onStderrEnd);
         child.stdout?.on("data", onData);
@@ -307,14 +322,15 @@ export class NodeExecutionEnv {
         this.shellPath = options.shellPath;
         this.shellEnv = options.shellEnv;
     }
-    async absolutePath(path) {
+    async absolutePath(path, _context) {
         return ok(resolvePath(this.cwd, path));
     }
-    async joinPath(parts) {
+    async joinPath(parts, _context) {
         return ok(join(...parts));
     }
-    async exec(command, options) {
-        if (options?.abortSignal?.aborted)
+    async exec(command, options, context) {
+        const signal = context.abortSignal;
+        if (signal?.aborted)
             return err(new ExecutionError("aborted", "aborted"));
         const timeoutMsResult = resolveTimeoutMs(options?.timeout);
         if (!timeoutMsResult.ok)
@@ -332,29 +348,118 @@ export class NodeExecutionEnv {
             return err(new ExecutionError("spawn_error", `Working directory does not exist: ${cwd}\nCannot execute bash commands.`, cause));
         }
         return await new Promise((resolvePromise) => {
-            let stdout = "";
-            let stderr = "";
             let settled = false;
             let timedOut = false;
             let callbackError;
+            let spillError;
             let child;
             let timeoutId;
+            const spillPrefix = [];
+            let spillPath;
+            const spillQueue = [];
+            let spillStart;
+            let spillStream;
+            let spillBackpressured = false;
             const onAbort = () => {
-                if (child?.pid) {
-                    killProcessTree(child.pid);
-                }
-            };
-            const settle = (result) => {
-                if (timeoutId)
-                    clearTimeout(timeoutId);
-                if (options?.abortSignal)
-                    options.abortSignal.removeEventListener("abort", onAbort);
                 if (child?.pid)
-                    this.activeChildPids.delete(child.pid);
+                    killProcessTree(child.pid);
+            };
+            const failCallback = (error) => {
+                if (callbackError !== undefined)
+                    return;
+                const cause = toError(error);
+                callbackError = new ExecutionError("callback_error", cause.message, cause);
+                onAbort();
+            };
+            let capture;
+            try {
+                capture = new OutputCapture(options?.capture, context, {
+                    onUpdate: options?.onUpdate,
+                    onError: failCallback,
+                });
+            }
+            catch (error) {
+                const cause = toError(error);
+                resolvePromise(err(new ExecutionError("unknown", cause.message, cause)));
+                return;
+            }
+            const settle = (result) => {
                 if (settled)
                     return;
                 settled = true;
+                if (timeoutId)
+                    clearTimeout(timeoutId);
+                if (signal)
+                    signal.removeEventListener("abort", onAbort);
+                if (child?.pid)
+                    this.activeChildPids.delete(child.pid);
+                capture.dispose();
                 resolvePromise(result);
+            };
+            const pauseOutput = () => {
+                child?.stdout?.pause();
+                child?.stderr?.pause();
+            };
+            const resumeOutput = () => {
+                if (callbackError || spillError || timedOut || signal?.aborted || spillBackpressured)
+                    return;
+                child?.stdout?.resume();
+                child?.stderr?.resume();
+            };
+            const failSpill = (error) => {
+                if (spillError !== undefined)
+                    return;
+                const cause = toError(error);
+                spillError = new ExecutionError("unknown", `Failed to preserve complete shell output: ${cause.message}`, cause);
+                spillBackpressured = false;
+                onAbort();
+            };
+            const writeSpill = (chunk) => {
+                if (spillStream === undefined || chunk.length === 0)
+                    return;
+                if (spillStream.write(chunk) || spillBackpressured)
+                    return;
+                spillBackpressured = true;
+                pauseOutput();
+                spillStream.once("drain", () => {
+                    spillBackpressured = false;
+                    resumeOutput();
+                });
+            };
+            const startSpill = (chunk) => {
+                if (spillStream !== undefined) {
+                    writeSpill(chunk);
+                    return;
+                }
+                spillQueue.push(chunk);
+                if (spillStart !== undefined)
+                    return;
+                pauseOutput();
+                spillStart = (async () => {
+                    const created = await this.createTempFile({ prefix: "pi-output-", suffix: ".log" }, context);
+                    if (!created.ok)
+                        throw created.error;
+                    spillPath = created.value;
+                    capture.setSpillPath(spillPath);
+                    spillStream = createWriteStream(spillPath, { flags: "a", highWaterMark: SPILL_HIGH_WATER_MARK });
+                    spillStream.on("error", failSpill);
+                    for (const queued of spillQueue)
+                        writeSpill(queued);
+                    spillQueue.length = 0;
+                })()
+                    .catch(failSpill)
+                    .finally(resumeOutput);
+            };
+            const finishSpill = async () => {
+                await spillStart;
+                const stream = spillStream;
+                if (stream === undefined || spillError !== undefined || stream.destroyed)
+                    return;
+                await new Promise((resolveFinish) => {
+                    stream.once("error", () => resolveFinish());
+                    stream.once("finish", resolveFinish);
+                    stream.end();
+                });
             };
             try {
                 const commandFromStdin = shellConfig.value.commandTransport === "stdin";
@@ -378,47 +483,54 @@ export class NodeExecutionEnv {
                 return;
             }
             timeoutId =
-                timeoutMs !== undefined
-                    ? setTimeout(() => {
+                timeoutMs === undefined
+                    ? undefined
+                    : setTimeout(() => {
                         timedOut = true;
-                        if (child?.pid) {
-                            killProcessTree(child.pid);
-                        }
-                    }, timeoutMs)
-                    : undefined;
-            if (options?.abortSignal) {
-                if (options.abortSignal.aborted) {
+                        onAbort();
+                    }, timeoutMs);
+            if (signal) {
+                if (signal.aborted)
                     onAbort();
-                }
-                else {
-                    options.abortSignal.addEventListener("abort", onAbort, { once: true });
-                }
+                else
+                    signal.addEventListener("abort", onAbort, { once: true });
             }
-            child.stdout?.setEncoding("utf8");
-            child.stderr?.setEncoding("utf8");
-            child.stdout?.on("data", (chunk) => {
-                stdout += chunk;
+            const feed = (chunk) => {
                 try {
-                    options?.onStdout?.(chunk);
+                    const wasTruncated = capture.truncated;
+                    capture.push(chunk);
+                    if (!options?.capture?.spill || chunk.length === 0)
+                        return;
+                    if (spillPath !== undefined || wasTruncated) {
+                        startSpill(chunk);
+                    }
+                    else if (capture.truncated) {
+                        for (const prefix of spillPrefix)
+                            startSpill(prefix);
+                        spillPrefix.length = 0;
+                        startSpill(chunk);
+                    }
+                    else {
+                        spillPrefix.push(chunk);
+                    }
                 }
                 catch (error) {
-                    const cause = toError(error);
-                    callbackError = new ExecutionError("callback_error", cause.message, cause);
-                    onAbort();
+                    failCallback(error);
                 }
-            });
-            child.stderr?.on("data", (chunk) => {
-                stderr += chunk;
+            };
+            child.stdout?.on("data", feed);
+            child.stderr?.on("data", feed);
+            void waitForChildProcess(child, () => spillError === undefined &&
+                spillStart !== undefined &&
+                (spillStream === undefined || spillBackpressured)).then(async ({ code, signal: exitSignal }) => {
+                await finishSpill();
                 try {
-                    options?.onStderr?.(chunk);
+                    capture.finish();
+                    capture.flush();
                 }
                 catch (error) {
-                    const cause = toError(error);
-                    callbackError = new ExecutionError("callback_error", cause.message, cause);
-                    onAbort();
+                    failCallback(error);
                 }
-            });
-            void waitForChildProcess(child).then((code) => {
                 if (callbackError) {
                     settle(err(callbackError));
                     return;
@@ -427,29 +539,45 @@ export class NodeExecutionEnv {
                     settle(err(new ExecutionError("timeout", `timeout:${options?.timeout}`)));
                     return;
                 }
-                if (options?.abortSignal?.aborted) {
+                if (signal?.aborted) {
                     settle(err(new ExecutionError("aborted", "aborted")));
                     return;
                 }
-                settle(ok({ stdout, stderr, exitCode: code ?? 0 }));
+                if (spillError) {
+                    settle(err(spillError));
+                    return;
+                }
+                const output = capture.snapshot();
+                // A process killed by a signal (e.g. OOM killer) has no exit code; map it
+                // to the conventional 128 + signal number so callers do not mistake it
+                // for a successful exit.
+                const exitCode = code ?? (exitSignal ? 128 + (osConstants.signals[exitSignal] ?? 0) : 1);
+                settle(ok({
+                    exitCode,
+                    truncation: output.truncation,
+                    ...(output.spillPath === undefined ? {} : { spillPath: output.spillPath }),
+                    ...(output.lastLineBytes === undefined ? {} : { lastLineBytes: output.lastLineBytes }),
+                }));
             }, (error) => settle(err(new ExecutionError("spawn_error", error.message, error))));
         });
     }
-    async readTextFile(path, abortSignal) {
+    async readTextFile(path, context) {
         const resolved = resolvePath(this.cwd, path);
-        const aborted = abortResult(abortSignal, resolved);
+        const signal = context.abortSignal;
+        const aborted = abortResult(signal, resolved);
         if (aborted)
             return aborted;
         try {
-            return ok(await readFile(resolved, { encoding: "utf8", signal: abortSignal }));
+            return ok(await readFile(resolved, { encoding: "utf8", signal }));
         }
         catch (error) {
             return err(toFileError(error, resolved));
         }
     }
-    async readTextLines(path, options) {
+    async readTextLines(path, options, context) {
         const resolved = resolvePath(this.cwd, path);
-        const aborted = abortResult(options?.abortSignal, resolved);
+        const signal = context.abortSignal;
+        const aborted = abortResult(signal, resolved);
         if (aborted)
             return aborted;
         if (options?.maxLines !== undefined && options.maxLines <= 0)
@@ -457,18 +585,18 @@ export class NodeExecutionEnv {
         let stream;
         let lineReader;
         try {
-            stream = createReadStream(resolved, { encoding: "utf8", signal: options?.abortSignal });
+            stream = createReadStream(resolved, { encoding: "utf8", signal });
             lineReader = createInterface({ input: stream, crlfDelay: Infinity });
             const lines = [];
             for await (const line of lineReader) {
-                const loopAbort = abortResult(options?.abortSignal, resolved);
+                const loopAbort = abortResult(signal, resolved);
                 if (loopAbort)
                     return loopAbort;
                 lines.push(line);
                 if (options?.maxLines !== undefined && lines.length >= options.maxLines)
                     break;
             }
-            const afterReadAbort = abortResult(options?.abortSignal, resolved);
+            const afterReadAbort = abortResult(signal, resolved);
             if (afterReadAbort)
                 return afterReadAbort;
             return ok(lines);
@@ -481,50 +609,60 @@ export class NodeExecutionEnv {
             stream?.destroy();
         }
     }
-    async readBinaryFile(path, abortSignal) {
+    async readBinaryFile(path, context) {
         const resolved = resolvePath(this.cwd, path);
-        const aborted = abortResult(abortSignal, resolved);
+        const signal = context.abortSignal;
+        const aborted = abortResult(signal, resolved);
         if (aborted)
             return aborted;
         try {
-            return ok(await readFile(resolved, { signal: abortSignal }));
+            return ok(await readFile(resolved, { signal }));
         }
         catch (error) {
             return err(toFileError(error, resolved));
         }
     }
-    async writeFile(path, content, abortSignal) {
+    async writeFile(path, content, context) {
         const resolved = resolvePath(this.cwd, path);
-        const aborted = abortResult(abortSignal, resolved);
+        const signal = context.abortSignal;
+        const aborted = abortResult(signal, resolved);
         if (aborted)
             return aborted;
         try {
             await mkdir(resolve(resolved, ".."), { recursive: true });
-            const afterMkdirAbort = abortResult(abortSignal, resolved);
+            const afterMkdirAbort = abortResult(signal, resolved);
             if (afterMkdirAbort)
                 return afterMkdirAbort;
-            await writeFile(resolved, content, { signal: abortSignal });
+            await writeFile(resolved, content, { signal });
             return ok(undefined);
         }
         catch (error) {
             return err(toFileError(error, resolved));
         }
     }
-    async appendFile(path, content) {
+    async appendFile(path, content, context) {
         const resolved = resolvePath(this.cwd, path);
+        const signal = context.abortSignal;
+        const aborted = abortResult(signal, resolved);
+        if (aborted)
+            return aborted;
         try {
             await mkdir(resolve(resolved, ".."), { recursive: true });
+            const afterMkdirAbort = abortResult(signal, resolved);
+            if (afterMkdirAbort)
+                return afterMkdirAbort;
             await appendFile(resolved, content);
-            return ok(undefined);
+            const afterAppendAbort = abortResult(signal, resolved);
+            return afterAppendAbort ?? ok(undefined);
         }
         catch (error) {
             return err(toFileError(error, resolved));
         }
     }
-    async renameFile(sourcePath, destinationPath, abortSignal) {
+    async renameFile(sourcePath, destinationPath, context) {
         const source = resolvePath(this.cwd, sourcePath);
         const destination = resolvePath(this.cwd, destinationPath);
-        const aborted = abortResult(abortSignal, destination);
+        const aborted = abortResult(context.abortSignal, destination);
         if (aborted)
             return aborted;
         try {
@@ -535,8 +673,11 @@ export class NodeExecutionEnv {
             return err(toFileError(error, source));
         }
     }
-    async fileInfo(path) {
+    async fileInfo(path, context) {
         const resolved = resolvePath(this.cwd, path);
+        const aborted = abortResult(context.abortSignal, resolved);
+        if (aborted)
+            return aborted;
         try {
             return fileInfoFromStats(resolved, await lstat(resolved));
         }
@@ -544,16 +685,17 @@ export class NodeExecutionEnv {
             return err(toFileError(error, resolved));
         }
     }
-    async listDir(path, abortSignal) {
+    async listDir(path, context) {
         const resolved = resolvePath(this.cwd, path);
-        const aborted = abortResult(abortSignal, resolved);
+        const signal = context.abortSignal;
+        const aborted = abortResult(signal, resolved);
         if (aborted)
             return aborted;
         try {
             const entries = await readdir(resolved, { withFileTypes: true });
             const infos = [];
             for (const entry of entries) {
-                const loopAbort = abortResult(abortSignal, resolved);
+                const loopAbort = abortResult(signal, resolved);
                 if (loopAbort)
                     return loopAbort;
                 const entryPath = resolve(resolved, entry.name);
@@ -572,8 +714,11 @@ export class NodeExecutionEnv {
             return err(toFileError(error, resolved));
         }
     }
-    async canonicalPath(path) {
+    async canonicalPath(path, context) {
         const resolved = resolvePath(this.cwd, path);
+        const aborted = abortResult(context.abortSignal, resolved);
+        if (aborted)
+            return aborted;
         try {
             return ok(await realpath(resolved));
         }
@@ -581,16 +726,19 @@ export class NodeExecutionEnv {
             return err(toFileError(error, resolved));
         }
     }
-    async exists(path) {
-        const result = await this.fileInfo(path);
+    async exists(path, context) {
+        const result = await this.fileInfo(path, context);
         if (result.ok)
             return ok(true);
         if (result.error.code === "not_found")
             return ok(false);
         return err(result.error);
     }
-    async createDir(path, options) {
+    async createDir(path, options, context) {
         const resolved = resolvePath(this.cwd, path);
+        const aborted = abortResult(context.abortSignal, resolved);
+        if (aborted)
+            return aborted;
         try {
             await mkdir(resolved, { recursive: options?.recursive ?? true });
             return ok(undefined);
@@ -599,8 +747,11 @@ export class NodeExecutionEnv {
             return err(toFileError(error, resolved));
         }
     }
-    async remove(path, options) {
+    async remove(path, options, context) {
         const resolved = resolvePath(this.cwd, path);
+        const aborted = abortResult(context.abortSignal, resolved);
+        if (aborted)
+            return aborted;
         try {
             await rm(resolved, { recursive: options?.recursive ?? false, force: options?.force ?? false });
             return ok(undefined);
@@ -609,16 +760,20 @@ export class NodeExecutionEnv {
             return err(toFileError(error, resolved));
         }
     }
-    async createTempDir(prefix = "tmp-") {
+    async createTempDir(prefix, context) {
+        const aborted = abortResult(context.abortSignal);
+        if (aborted)
+            return aborted;
         try {
+            prefix ??= "tmp-";
             return ok(await mkdtemp(join(tmpdir(), prefix)));
         }
         catch (error) {
             return err(toFileError(error));
         }
     }
-    async createTempFile(options) {
-        const dir = await this.createTempDir("tmp-");
+    async createTempFile(options, context) {
+        const dir = await this.createTempDir("tmp-", context);
         if (!dir.ok)
             return dir;
         const filePath = join(dir.value, `${options?.prefix ?? ""}${randomUUID()}${options?.suffix ?? ""}`);
@@ -630,7 +785,7 @@ export class NodeExecutionEnv {
             return err(toFileError(error, filePath));
         }
     }
-    async cleanup() {
+    async cleanup(_context) {
         for (const pid of this.activeChildPids)
             killProcessTree(pid);
         this.activeChildPids.clear();
