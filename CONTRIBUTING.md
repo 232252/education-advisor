@@ -1,3 +1,19 @@
+# 贡献指南 / Contributing
+
+感谢你愿意改进这个给班主任用的本地工具。每一行代码都应该让老师的日子轻松一点，或让系统更可信一点。
+
+**动手前请先读：**
+
+- [行为准则](./CODE_OF_CONDUCT.md) — 禁止贴真实学生数据
+- [安全政策](./SECURITY.md) — 漏洞私下报告，不要开公开 Issue
+- [MIT 许可证](./LICENSE)
+
+**最短路径：** Fork → 从 `main` 开分支 → `npm ci` → `npm run typecheck && npm run lint && npm run test` → 按约定提交 PR。Issue 标签 `good first issue` 适合第一次贡献。
+
+下面是完整英文指南（GitHub 社区标准识别用）。
+
+---
+
 # Contributing to Education Advisor
 
 > **Thank you for taking the time to contribute.**
@@ -438,15 +454,14 @@ EOF
 
 ## Adding a new LLM provider
 
-The provider list lives in the `@earendil-works/pi-ai` package, **not** in this
-repository. To add a provider:
+The provider list is Pi’s catalog (vendored as `@earendil-works/pi-ai`).
+This app does **not** keep a parallel hardcoded roster. To add a provider:
 
 1. Open an issue here describing the use case.
-2. File a PR against
-   [`earendil-works/pi-ai`](https://github.com/earendil-works/pi-ai) with the
-   new provider file.
-3. Once the provider is merged upstream, open a PR here to pin the new
-   version in `package.json`.
+2. Contribute the provider upstream in
+   [`earendil-works/pi`](https://github.com/earendil-works/pi).
+3. Once it lands, open a PR here to bump the vendored `pi-ai` /
+   `pi-agent-core` version.
 
 ---
 
