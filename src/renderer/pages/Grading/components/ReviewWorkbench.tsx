@@ -9,12 +9,14 @@ import {
   effectiveQuestionScore,
   effectiveTotalScore,
   markScoreFromSelection,
+  paperMarkOverlays,
 } from '@shared/grading-helpers'
-import type { GradingTask, TeacherReview } from '@shared/types'
+import type { GradingPaper, GradingTask, TeacherReview } from '@shared/types'
 import { useEffect, useMemo, useState } from 'react'
+import { PaperScanPages } from '../../../components/print/PaperScanPages'
 import { tr, useT } from '../../../i18n'
-import { getAPI } from '../../../lib/ipc-client'
 import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
+import { loadPaperImageUrls } from '../lib/paper-images'
 
 interface ReviewWorkbenchProps {
   task: GradingTask
@@ -24,10 +26,9 @@ interface ReviewWorkbenchProps {
   onClose: () => void
   onNavigate: (paperId: string) => void
   onSaveReview: (taskId: string, paperId: string, review: TeacherReview) => Promise<boolean>
+  onPrintMarks?: (paper: GradingPaper) => void
+  printLoading?: boolean
 }
-
-/** base64 → data URL 缓存(paperId+storedName → url),避免重复 IPC 读取 */
-const imageUrlCache = new Map<string, string>()
 
 export function ReviewWorkbench({
   task,
@@ -36,6 +37,8 @@ export function ReviewWorkbench({
   onClose,
   onNavigate,
   onSaveReview,
+  onPrintMarks,
+  printLoading = false,
 }: ReviewWorkbenchProps) {
   const { t } = useT()
   const paper = task.papers.find((p) => p.id === paperId)
@@ -74,18 +77,7 @@ export function ReviewWorkbench({
     if (!paper) return
     let cancelled = false
     void (async () => {
-      const urls: string[] = []
-      for (const f of paper.files) {
-        const cacheKey = `${paper.id}:${f.storedName}`
-        let url = imageUrlCache.get(cacheKey)
-        if (!url) {
-          const r = await getAPI().grading.readPaperFile(task.id, f.storedName)
-          if (!r.success || !r.data) continue
-          url = `data:${r.data.mime};base64,${r.data.base64}`
-          imageUrlCache.set(cacheKey, url)
-        }
-        urls.push(url)
-      }
+      const urls = await loadPaperImageUrls(task.id, paper)
       if (!cancelled) setImageUrls(urls)
     })()
     return () => {
@@ -152,7 +144,7 @@ export function ReviewWorkbench({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* 头部: 学生 + 导航 */}
-      <div className="flex items-center gap-2 border-b border-gray-200 px-4 py-3 dark:border-white/[0.06]">
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-3 dark:border-white/[0.06]">
         <button
           type="button"
           onClick={onClose}
@@ -188,6 +180,19 @@ export function ReviewWorkbench({
         >
           {t('page.grading.review.next')}
         </button>
+        {onPrintMarks && (
+          <button
+            type="button"
+            onClick={() => onPrintMarks(draftPaper)}
+            disabled={printLoading}
+            className={btnStyle('secondary')}
+            title={t('page.grading.exportMarksTitle', '把卷面批注与得分导出为可打印 PDF')}
+          >
+            {printLoading
+              ? t('page.grading.exportMarksLoading', '正在准备打印…')
+              : t('page.grading.exportMarksOne', '导出痕迹')}
+          </button>
+        )}
       </div>
 
       {/* 双栏主体 */}
@@ -199,40 +204,10 @@ export function ReviewWorkbench({
               {t('page.grading.review.loadingImage')}
             </p>
           ) : (
-            imageUrls.map((url, pageIdx) => {
-              const marks = (paper.ai?.questions ?? []).filter(
-                (q) => q.box && (q.box.page ?? 0) === pageIdx,
-              )
-              return (
-                <div
-                  key={url.slice(-48)}
-                  className="relative mx-auto mb-3 w-full max-w-full overflow-hidden rounded-lg border border-gray-200 shadow-sm dark:border-white/10"
-                >
-                  <img src={url} alt={`paper-scan-${pageIdx + 1}`} className="block w-full" />
-                  {marks.map((q) => {
-                    const box = q.box
-                    if (!box) return null
-                    const title =
-                      task.rubric.find((r) => r.id === q.questionId)?.title ?? q.questionId
-                    const text = q.comment || q.evidence || `${q.score}分`
-                    return (
-                      <div
-                        key={q.questionId}
-                        className="pointer-events-none absolute border border-red-500/80 bg-red-500/10 px-1 py-0.5 text-[10px] leading-tight text-red-700 dark:text-red-200"
-                        style={{
-                          left: `${box.x * 100}%`,
-                          top: `${box.y * 100}%`,
-                          width: `${Math.max(box.w * 100, 8)}%`,
-                          minHeight: `${Math.max(box.h * 100, 4)}%`,
-                        }}
-                      >
-                        <span className="font-semibold">{title}</span> {text}
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })
+            <PaperScanPages
+              imageUrls={imageUrls}
+              overlays={paperMarkOverlays(draftPaper, task.rubric)}
+            />
           )}
         </div>
 
