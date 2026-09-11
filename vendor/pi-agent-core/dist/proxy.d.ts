@@ -50,11 +50,13 @@ export type ProxyAssistantMessageEvent = {
     type: "done";
     reason: Extract<StopReason, "stop" | "length" | "toolUse">;
     usage: AssistantMessage["usage"];
+    providerThinkingLevel?: string;
 } | {
     type: "error";
     reason: Extract<StopReason, "aborted" | "error">;
     errorMessage?: string;
     usage: AssistantMessage["usage"];
+    providerThinkingLevel?: string;
 };
 type ProxySerializableStreamOptions = Pick<SimpleStreamOptions, "temperature" | "samplingParams" | "maxTokens" | "reasoning" | "cacheRetention" | "sessionId" | "headers" | "metadata" | "transport" | "thinkingBudgets" | "maxRetryDelayMs">;
 export interface ProxyStreamOptions extends ProxySerializableStreamOptions {

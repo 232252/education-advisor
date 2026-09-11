@@ -1,44 +1,50 @@
-import { Session } from "./session.ts";
-import { type BranchBounds, type Entry, type EntryQuery, type ForkOptions, type LanePointer, type LaneRecord, type LogItem, type LogOptions, type NewRecord, type OperationStartedRecord, type ProvisionedEntry, type RecordQuery, type SessionCreateOptions, type SessionMetadata, type SessionRepo, type SessionStats, type SessionStorage } from "./types.ts";
-export declare class InMemorySessionStorage implements SessionStorage {
-    private readonly metadata;
-    private readonly state;
-    constructor(metadata: SessionMetadata);
-    fork(metadata: SessionMetadata, options: ForkOptions & SessionCreateOptions): InMemorySessionStorage;
-    getMetadata(): Promise<SessionMetadata>;
-    getLanes(): Promise<LanePointer[]>;
-    createLane(lane: string, at: string | null): Promise<void>;
-    moveLane(lane: string, to: string | null): Promise<void>;
-    appendEntry<TEntry extends Entry>(newEntry: ProvisionedEntry<TEntry>, lane: string): Promise<TEntry>;
-    appendRecord<TRecord extends LaneRecord>(newRecord: NewRecord<TRecord>): Promise<TRecord>;
-    getEntry(id: string): Promise<Entry | undefined>;
-    findEntries(query?: EntryQuery): Promise<Entry[]>;
-    findEntriesOnBranch(query: EntryQuery & BranchBounds & {
-        start: string;
-    }): Promise<Entry[]>;
-    findRecords<K extends LaneRecord["type"]>(query: RecordQuery & {
-        type: K;
-    }): Promise<Extract<LaneRecord, {
-        type: K;
-    }>[]>;
-    findRecords(query?: RecordQuery): Promise<LaneRecord[]>;
-    findOpenOperations(lane: string, options?: {
-        limit?: number;
-    }): Promise<OperationStartedRecord[]>;
-    getLog(options?: LogOptions): Promise<LogItem[]>;
-    getName(): Promise<string | undefined>;
-    setName(name: string | undefined): Promise<void>;
-    getLabel(id: string): Promise<string | undefined>;
-    setLabel(id: string, label: string | undefined): Promise<void>;
-    getStats(): Promise<SessionStats>;
+import type { Context } from "../context.ts";
+import { type ForkDestinationSnapshot, type ForkSourceSnapshot } from "./fork.ts";
+import type { CommitResult, Entry, EntryScan, EntryStructure, ForkOptions, Session, SessionCreateOptions, SessionMetadata, SessionRepo, SessionStats, Storage, StorageBranchScan, UsageRow, UsageScan, Write } from "./types.ts";
+import type { ListElement, ListReadOptions, StoredValue, Value, ValueList } from "./values.ts";
+export interface MemoryStorageOptions {
+    now?: () => number;
 }
-export declare class InMemorySessionRepo implements SessionRepo {
+export interface MemorySessionRepoOptions {
+    now?: () => number;
+}
+export declare class MemoryStorage implements Storage {
+    private readonly now;
+    private storageState;
+    private commitQueue;
+    private state;
+    private closePromise;
+    constructor(options?: MemoryStorageOptions);
+    commit(writes: Write[], _context: Context): Promise<CommitResult>;
+    getEntries(ids: string[], _context: Context): Promise<Map<string, Entry>>;
+    getValue<T>(address: Value<T>, _context: Context): Promise<StoredValue<T> | undefined>;
+    scanValues<T>(prefix: Value<T>, _context: Context): Promise<StoredValue<T>[]>;
+    readList<T>(address: ValueList<T>, options: ListReadOptions | undefined, _context: Context): Promise<ListElement<T>[]>;
+    scanBranch(query: StorageBranchScan, _context: Context): Promise<Entry[]>;
+    scanBranchStructure(query: StorageBranchScan, _context: Context): Promise<EntryStructure[]>;
+    scanEntries(query: EntryScan, _context: Context): Promise<Entry[]>;
+    scanUsage(query: UsageScan, _context: Context): Promise<UsageRow[]>;
+    getStats(_context: Context): Promise<SessionStats>;
+    /** Capture the state needed to fork at one serialized boundary between commits. */
+    captureForkSource(_context: Context): Promise<ForkSourceSnapshot>;
+    close(_context: Context): Promise<void>;
+    static fromSnapshot(options: MemoryStorageOptions, snapshot: ForkDestinationSnapshot): MemoryStorage;
+}
+export declare class MemorySessionRepo implements SessionRepo {
+    private readonly now;
     private readonly sessions;
-    create(options?: SessionCreateOptions): Promise<Session>;
-    open(metadata: SessionMetadata): Promise<Session>;
-    list(): Promise<SessionMetadata[]>;
-    delete(metadata: SessionMetadata): Promise<void>;
-    fork(source: SessionMetadata, options?: ForkOptions & SessionCreateOptions): Promise<Session>;
-    private requireStorage;
+    private readonly pendingIds;
+    private closed;
+    private closePromise;
+    constructor(options?: MemorySessionRepoOptions);
+    create(options: SessionCreateOptions, context: Context): Promise<Session>;
+    open(metadata: SessionMetadata, _context: Context): Promise<Session>;
+    list(_options: undefined, _context: Context): Promise<SessionMetadata[]>;
+    delete(metadata: SessionMetadata, context: Context): Promise<void>;
+    fork(source: SessionMetadata, options: ForkOptions, context: Context): Promise<Session>;
+    close(context: Context): Promise<void>;
+    private openRecord;
+    private reserveId;
+    private assertOpen;
 }
 //# sourceMappingURL=memory.d.ts.map

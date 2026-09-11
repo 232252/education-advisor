@@ -1,4 +1,5 @@
 import { type Static, Type } from "typebox";
+import type { Context } from "../context.ts";
 import type { AgentHarnessTool } from "../types.ts";
 import { type TruncationResult } from "../utils/truncate.ts";
 import type { ExecutionToolContext } from "./tool-context.ts";
@@ -22,7 +23,7 @@ export type ReadImageProcessorResult = {
 };
 export type ReadImageProcessor = (bytes: Uint8Array, mimeType: string, options: {
     autoResizeImages: boolean;
-}) => Promise<ReadImageProcessorResult>;
+}, context: Context) => Promise<ReadImageProcessorResult>;
 export interface ReadToolOptions {
     /** Whether an injected image processor should resize images. Default: true. */
     autoResizeImages?: boolean;

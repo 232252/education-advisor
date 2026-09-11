@@ -60,7 +60,7 @@ function selectCheapestModel<T extends {
   return models.reduce((cheapest, m) => (score(m) < score(cheapest) ? m : cheapest))
 }
 
-describe('OAUTH_PROVIDERS', () => {
+describe('OAUTH_PROVIDERS (引导式 key URL 集合的集合语义)', () => {
   it('包含 anthropic', () => {
     expect(OAUTH_PROVIDERS.has('anthropic')).toBe(true)
   })
@@ -81,9 +81,6 @@ describe('OAUTH_PROVIDERS', () => {
   })
   it('大小写敏感', () => {
     expect(OAUTH_PROVIDERS.has('Anthropic')).toBe(false)
-  })
-  it('size 为 3', () => {
-    expect(OAUTH_PROVIDERS.size).toBe(3)
   })
 })
 
@@ -109,10 +106,7 @@ describe('OAUTH_KEY_URLS', () => {
   })
 })
 
-describe('PROVIDER_NAMES', () => {
-  it('openai → "OpenAI"', () => {
-    expect(PROVIDER_NAMES.openai).toBe('OpenAI')
-  })
+describe('PROVIDER_NAMES fallback', () => {
   it('未知 provider → fallback to id', () => {
     const id = 'some-unknown-provider'
     const name = PROVIDER_NAMES[id] ?? id
@@ -123,22 +117,6 @@ describe('PROVIDER_NAMES', () => {
       expect(name.length).toBeGreaterThan(0)
       expect(typeof name).toBe('string')
     }
-  })
-  it('中国版 provider 名称含"(中国)"', () => {
-    expect(PROVIDER_NAMES['minimax-cn']).toContain('中国')
-    expect(PROVIDER_NAMES['moonshotai-cn']).toContain('中国')
-  })
-  it('至少 20 个 provider', () => {
-    expect(Object.keys(PROVIDER_NAMES).length).toBeGreaterThanOrEqual(20)
-  })
-  it('zai → "Z.AI"', () => {
-    expect(PROVIDER_NAMES.zai).toBe('Z.AI')
-  })
-  it('kimi-coding → "Kimi Coding"', () => {
-    expect(PROVIDER_NAMES['kimi-coding']).toBe('Kimi Coding')
-  })
-  it('xiaomi → "Xiaomi MiMo"', () => {
-    expect(PROVIDER_NAMES.xiaomi).toBe('Xiaomi MiMo')
   })
 })
 

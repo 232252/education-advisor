@@ -6,11 +6,11 @@ import { toError } from "./types.js";
  * Directory inputs load direct `.md` children non-recursively. File inputs load explicit `.md` files. Missing paths and
  * non-markdown files are skipped. Read and parse failures are returned as diagnostics.
  */
-export async function loadPromptTemplates(env, paths) {
+export async function loadPromptTemplates(env, paths, context) {
     const promptTemplates = [];
     const diagnostics = [];
     for (const path of Array.isArray(paths) ? paths : [paths]) {
-        const infoResult = await env.fileInfo(path);
+        const infoResult = await env.fileInfo(path, context);
         if (!infoResult.ok) {
             if (infoResult.error.code !== "not_found") {
                 diagnostics.push({
@@ -23,14 +23,14 @@ export async function loadPromptTemplates(env, paths) {
             continue;
         }
         const info = infoResult.value;
-        const kind = await resolveKind(env, info, diagnostics);
+        const kind = await resolveKind(env, info, diagnostics, context);
         if (kind === "directory") {
-            const result = await loadTemplatesFromDir(env, info.path);
+            const result = await loadTemplatesFromDir(env, info.path, context);
             promptTemplates.push(...result.promptTemplates);
             diagnostics.push(...result.diagnostics);
         }
         else if (kind === "file" && info.name.endsWith(".md")) {
-            const result = await loadTemplateFromFile(env, info.path, info.name);
+            const result = await loadTemplateFromFile(env, info.path, info.name, context);
             if (result.promptTemplate)
                 promptTemplates.push(result.promptTemplate);
             diagnostics.push(...result.diagnostics);
@@ -44,15 +44,15 @@ export async function loadPromptTemplates(env, paths) {
  * Source values are preserved exactly and attached to every loaded prompt template and diagnostic. The agent package does
  * not interpret source values; applications define their own provenance shape.
  */
-export async function loadSourcedPromptTemplates(env, inputs, mapPromptTemplate) {
+export async function loadSourcedPromptTemplates(env, inputs, mapPromptTemplate, context) {
     const promptTemplates = [];
     const diagnostics = [];
     for (const input of inputs) {
-        const result = await loadPromptTemplates(env, input.path);
+        const result = await loadPromptTemplates(env, input.path, context);
         for (const promptTemplate of result.promptTemplates) {
             promptTemplates.push({
                 promptTemplate: mapPromptTemplate
-                    ? mapPromptTemplate(promptTemplate, input.source)
+                    ? mapPromptTemplate(promptTemplate, input.source, context)
                     : promptTemplate,
                 source: input.source,
             });
@@ -62,10 +62,10 @@ export async function loadSourcedPromptTemplates(env, inputs, mapPromptTemplate)
     }
     return { promptTemplates, diagnostics };
 }
-async function loadTemplatesFromDir(env, dir) {
+async function loadTemplatesFromDir(env, dir, context) {
     const promptTemplates = [];
     const diagnostics = [];
-    const entriesResult = await env.listDir(dir);
+    const entriesResult = await env.listDir(dir, context);
     if (!entriesResult.ok) {
         diagnostics.push({
             type: "warning",
@@ -77,19 +77,19 @@ async function loadTemplatesFromDir(env, dir) {
     }
     const entries = entriesResult.value;
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-        const kind = await resolveKind(env, entry, diagnostics);
+        const kind = await resolveKind(env, entry, diagnostics, context);
         if (kind !== "file" || !entry.name.endsWith(".md"))
             continue;
-        const result = await loadTemplateFromFile(env, entry.path, entry.name);
+        const result = await loadTemplateFromFile(env, entry.path, entry.name, context);
         if (result.promptTemplate)
             promptTemplates.push(result.promptTemplate);
         diagnostics.push(...result.diagnostics);
     }
     return { promptTemplates, diagnostics };
 }
-async function loadTemplateFromFile(env, filePath, fileName) {
+async function loadTemplateFromFile(env, filePath, fileName, context) {
     const diagnostics = [];
-    const rawContent = await env.readTextFile(filePath);
+    const rawContent = await env.readTextFile(filePath, context);
     if (!rawContent.ok) {
         diagnostics.push({
             type: "warning",
@@ -126,10 +126,10 @@ async function loadTemplateFromFile(env, filePath, fileName) {
         diagnostics,
     };
 }
-async function resolveKind(env, info, diagnostics) {
+async function resolveKind(env, info, diagnostics, context) {
     if (info.kind === "file" || info.kind === "directory")
         return info.kind;
-    const canonicalPath = await env.canonicalPath(info.path);
+    const canonicalPath = await env.canonicalPath(info.path, context);
     if (!canonicalPath.ok) {
         if (canonicalPath.error.code !== "not_found") {
             diagnostics.push({
@@ -141,7 +141,7 @@ async function resolveKind(env, info, diagnostics) {
         }
         return undefined;
     }
-    const target = await env.fileInfo(canonicalPath.value);
+    const target = await env.fileInfo(canonicalPath.value, context);
     if (!target.ok) {
         if (target.error.code !== "not_found") {
             diagnostics.push({

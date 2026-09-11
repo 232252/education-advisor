@@ -6,7 +6,7 @@ const MINIMUM_INTERVAL_MS = 1000;
 const DEFAULT_POLL_INTERVAL_SECONDS = 5;
 // RFC 8628 section 3.5: `slow_down` means the polling interval must increase by 5 seconds.
 const SLOW_DOWN_INTERVAL_INCREMENT_MS = 5000;
-function abortableSleep(ms, signal, cancelMessage) {
+export function abortableSleep(ms, signal, cancelMessage) {
     return new Promise((resolve, reject) => {
         if (signal.aborted) {
             reject(new Error(cancelMessage));

@@ -3,9 +3,10 @@ import { calculateCost, clampThinkingLevel } from "../models.js";
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { providerHeadersToRecord } from "../utils/headers.js";
+import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
-import { convertMessages, convertTools, isThinkingPart, mapStopReason, resolveGoogleFunctionCallingMode, retainThoughtSignature, retryGoogleRequest, supportsGoogleStrictToolSampling, } from "./google-shared.js";
+import { convertMessages, convertTools, isThinkingPart, mapStopReason, resolveGoogleFunctionCallingMode, resolveGoogleThinkingLevel, retainThoughtSignature, retryGoogleRequest, supportsGoogleStrictToolSampling, } from "./google-shared.js";
 import { buildBaseOptions } from "./simple-options.js";
 const API_VERSION = "v1";
 const GCP_VERTEX_CREDENTIALS_MARKER = "gcp-vertex-credentials";
@@ -238,7 +239,10 @@ export const stream = (model, context, options) => {
     return stream;
 };
 export const streamSimple = (model, context, options) => {
-    const base = buildBaseOptions(model, context, options, undefined);
+    const base = {
+        ...buildBaseOptions(model, context, options, undefined),
+        toolChoice: options?.toolChoice,
+    };
     if (!options?.reasoning) {
         return stream(model, context, {
             ...base,
@@ -246,14 +250,14 @@ export const streamSimple = (model, context, options) => {
         });
     }
     const clampedReasoning = clampThinkingLevel(model, options.reasoning);
-    const effort = (clampedReasoning === "off" ? "high" : clampedReasoning);
+    const resolvedLevel = resolveGoogleThinkingLevel(model, clampedReasoning);
     const geminiModel = model;
     if (isGemini3ProModel(geminiModel) || isGemini3FlashModel(geminiModel)) {
         return stream(model, context, {
             ...base,
             thinking: {
                 enabled: true,
-                level: getGemini3ThinkingLevel(effort, geminiModel),
+                level: getGemini3ThinkingLevel(resolvedLevel, geminiModel),
             },
         });
     }
@@ -261,7 +265,7 @@ export const streamSimple = (model, context, options) => {
         ...base,
         thinking: {
             enabled: true,
-            budgetTokens: getGoogleBudget(geminiModel, effort, options.thinkingBudgets),
+            budgetTokens: getGoogleBudget(geminiModel, resolvedLevel, options.thinkingBudgets),
         },
     });
 };
@@ -294,7 +298,7 @@ function buildHttpOptions(model, optionsHeaders) {
             httpOptions.apiVersion = "";
         }
     }
-    const headers = providerHeadersToRecord({ ...model.headers, ...optionsHeaders });
+    const headers = providerHeadersToRecord({ "User-Agent": getPiUserAgent(), ...model.headers, ...optionsHeaders });
     if (headers) {
         httpOptions.headers = headers;
     }
@@ -439,9 +443,9 @@ function getGemini3ThinkingLevel(effort, model) {
             return "HIGH";
     }
 }
-function getGoogleBudget(model, effort, customBudgets) {
-    if (customBudgets?.[effort] !== undefined) {
-        return customBudgets[effort];
+function getGoogleBudget(model, level, customBudgets) {
+    if (customBudgets?.[level] !== undefined) {
+        return customBudgets[level];
     }
     if (model.id.includes("2.5-pro")) {
         const budgets = {
@@ -450,7 +454,7 @@ function getGoogleBudget(model, effort, customBudgets) {
             medium: 8192,
             high: 32768,
         };
-        return budgets[effort];
+        return budgets[level];
     }
     if (model.id.includes("2.5-flash")) {
         const budgets = {
@@ -459,7 +463,7 @@ function getGoogleBudget(model, effort, customBudgets) {
             medium: 8192,
             high: 24576,
         };
-        return budgets[effort];
+        return budgets[level];
     }
     return -1;
 }

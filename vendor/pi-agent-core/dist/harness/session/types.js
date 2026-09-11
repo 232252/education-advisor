@@ -1,10 +1,9 @@
-import "../messages.js";
-export class SessionError extends Error {
-    code;
-    constructor(code, message, cause) {
-        super(message, cause === undefined ? undefined : { cause });
-        this.name = "SessionError";
-        this.code = code;
-    }
+/** Copy only the uniform operation scope when constructing a successor leaf. */
+export function operationScopeOf(state) {
+    return {
+        control: state.control,
+        settings: state.settings,
+        latestAssistantEntryId: state.latestAssistantEntryId,
+    };
 }
 //# sourceMappingURL=types.js.map

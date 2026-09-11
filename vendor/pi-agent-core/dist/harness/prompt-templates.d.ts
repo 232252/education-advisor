@@ -1,3 +1,4 @@
+import type { Context } from "./context.ts";
 import { type ExecutionEnv, type PromptTemplate } from "./types.ts";
 export type PromptTemplateDiagnosticCode = "file_info_failed" | "list_failed" | "read_failed" | "parse_failed";
 /** Warning produced while loading prompt templates. */
@@ -17,7 +18,7 @@ export interface PromptTemplateDiagnostic {
  * Directory inputs load direct `.md` children non-recursively. File inputs load explicit `.md` files. Missing paths and
  * non-markdown files are skipped. Read and parse failures are returned as diagnostics.
  */
-export declare function loadPromptTemplates(env: ExecutionEnv, paths: string | string[]): Promise<{
+export declare function loadPromptTemplates(env: ExecutionEnv, paths: string | string[], context: Context): Promise<{
     promptTemplates: PromptTemplate[];
     diagnostics: PromptTemplateDiagnostic[];
 }>;
@@ -30,7 +31,7 @@ export declare function loadPromptTemplates(env: ExecutionEnv, paths: string | s
 export declare function loadSourcedPromptTemplates<TSource, TPromptTemplate extends PromptTemplate = PromptTemplate>(env: ExecutionEnv, inputs: Array<{
     path: string;
     source: TSource;
-}>, mapPromptTemplate?: (promptTemplate: PromptTemplate, source: TSource) => TPromptTemplate): Promise<{
+}>, mapPromptTemplate: ((promptTemplate: PromptTemplate, source: TSource, context: Context) => TPromptTemplate) | undefined, context: Context): Promise<{
     promptTemplates: Array<{
         promptTemplate: TPromptTemplate;
         source: TSource;

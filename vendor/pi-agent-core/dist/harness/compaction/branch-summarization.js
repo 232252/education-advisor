@@ -1,16 +1,15 @@
 import { contentText, } from "@earendil-works/pi-ai";
 import { convertToLlm, createBranchSummaryMessage, createCompactionSummaryMessage } from "../messages.js";
-import { SessionError } from "../session/index.js";
 import { BranchSummaryError, err, ok } from "../types.js";
-import { completeSimpleWithRetries, estimateTokens, SUMMARIZATION_SYSTEM_PROMPT } from "./compaction.js";
+import { completeSimpleWithRetries, createSummaryRequestOptions, estimateTokens, SUMMARIZATION_SYSTEM_PROMPT, } from "./compaction.js";
 import { computeFileLists, createFileOps, extractFileOpsFromMessage, formatFileOperations, serializeConversation, } from "./utils.js";
 /** Collect entries that should be summarized before navigating to a different session tree entry. */
-export async function collectEntriesForBranchSummary(session, oldLeafId, targetId) {
-    if (!oldLeafId) {
+export async function collectEntriesForBranchSummary(branch, session, oldTipId, targetId, context) {
+    if (!oldTipId) {
         return { entries: [], commonAncestorId: null };
     }
-    const oldPath = new Set((await session.findEntriesOnBranch({ start: oldLeafId })).map((entry) => entry.id));
-    const targetPath = await session.findEntriesOnBranch({ start: targetId });
+    const oldPath = new Set((await branch.findEntries({ start: oldTipId }, context)).map((entry) => entry.id));
+    const targetPath = await branch.findEntries({ start: targetId }, context);
     let commonAncestorId = null;
     for (const entry of targetPath) {
         if (oldPath.has(entry.id)) {
@@ -19,11 +18,11 @@ export async function collectEntriesForBranchSummary(session, oldLeafId, targetI
         }
     }
     const entries = [];
-    let current = oldLeafId;
+    let current = oldTipId;
     while (current && current !== commonAncestorId) {
-        const entry = await session.getEntry(current);
+        const entry = await session.getEntry(current, context);
         if (!entry)
-            throw new SessionError("invalid_entry", `Entry ${current} not found`);
+            throw new Error(`Corrupt session: entry ${current} not found`);
         entries.push(entry);
         current = entry.parentId;
     }
@@ -40,9 +39,6 @@ function getMessageFromEntry(entry) {
             return createBranchSummaryMessage(entry.summary, entry.fromId, entry.timestamp);
         case "compaction":
             return createCompactionSummaryMessage(entry.summary, entry.tokensBefore, entry.timestamp);
-        case "thinking_level_change":
-        case "model_change":
-        case "active_tools_change":
         case "custom":
             return undefined;
     }
@@ -53,16 +49,22 @@ export function prepareBranchEntries(entries, tokenBudget = 0) {
     const fileOps = createFileOps();
     let totalTokens = 0;
     for (const entry of entries) {
-        if (entry.type === "branch_summary" && entry.details) {
-            const details = entry.details;
-            if (Array.isArray(details.readFiles)) {
-                for (const f of details.readFiles)
-                    fileOps.read.add(f);
+        if (entry.type !== "branch_summary" ||
+            typeof entry.details !== "object" ||
+            entry.details === null ||
+            Array.isArray(entry.details)) {
+            continue;
+        }
+        if (Array.isArray(entry.details.readFiles)) {
+            for (const path of entry.details.readFiles) {
+                if (typeof path === "string")
+                    fileOps.read.add(path);
             }
-            if (Array.isArray(details.modifiedFiles)) {
-                for (const f of details.modifiedFiles) {
-                    fileOps.edited.add(f);
-                }
+        }
+        if (Array.isArray(entry.details.modifiedFiles)) {
+            for (const path of entry.details.modifiedFiles) {
+                if (typeof path === "string")
+                    fileOps.edited.add(path);
             }
         }
     }
@@ -120,11 +122,16 @@ Use this EXACT format:
 
 Keep each section concise. Preserve exact file paths, function names, and error messages.`;
 /** Generate a summary for abandoned branch entries. */
-export async function generateBranchSummary(entries, options) {
-    const { models, model, signal, customInstructions, replaceInstructions, reserveTokens = 16384, retry, callbacks, } = options;
+export function generateBranchSummary(entries, options, context) {
+    const { models, model, customInstructions, replaceInstructions, reserveTokens = 16384, retry, callbacks } = options;
     const contextWindow = model.contextWindow || 128000;
-    const tokenBudget = contextWindow - reserveTokens;
-    const { messages, fileOps } = prepareBranchEntries(entries, tokenBudget);
+    const preparation = prepareBranchEntries(entries, contextWindow - reserveTokens);
+    return generateBranchSummaryWithRequest(preparation, { customInstructions, replaceInstructions }, (aiContext, requestOptions, requestContext) => completeSimpleWithRetries(models, model, aiContext, requestOptions, retry, callbacks, requestContext), context);
+}
+/** Generate a prepared branch summary through a caller-owned one-request boundary. */
+export async function generateBranchSummaryWithRequest(preparation, options, request, context) {
+    const { customInstructions, replaceInstructions } = options;
+    const { messages, fileOps } = preparation;
     if (messages.length === 0) {
         return ok({ summary: "No content to summarize", readFiles: [], modifiedFiles: [] });
     }
@@ -148,7 +155,7 @@ export async function generateBranchSummary(entries, options) {
             timestamp: Date.now(),
         },
     ];
-    const response = await completeSimpleWithRetries(models, model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, { signal, maxTokens: 2048 }, retry, callbacks);
+    const response = await request({ systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, createSummaryRequestOptions({ maxTokens: 2048 }, context), context);
     if (response.stopReason === "aborted") {
         return err(new BranchSummaryError("aborted", response.errorMessage || "Branch summary aborted"));
     }

@@ -1,227 +1,361 @@
-import { uuidv7 } from "@earendil-works/pi-ai";
-import { SessionError } from "./types.js";
-function invalidPayload(reason) {
-    throw new SessionError("invalid_payload", `Durable payload ${reason}`);
-}
-function assertValidLimit(limit) {
-    if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
-        throw new SessionError("invalid_query", "limit must be a positive integer");
+import { uuidv7 } from "@earendil-works/pi-ai/utils/uuid";
+import { insertEntry } from "./commit.js";
+import { MutationLine } from "./mutation-line.js";
+import { appendList as appendListWrite, branchTip, deleteList as deleteListWrite, deleteValue as deleteValueWrite, entryLabel, sessionName, setValue as setValueWrite, } from "./values.js";
+/** Durable session state is internally inconsistent and cannot be safely advanced. */
+export class SessionInvariantError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "SessionInvariantError";
     }
 }
-function assertValidCursor(afterSeq) {
-    if (afterSeq !== undefined && (!Number.isInteger(afterSeq) || afterSeq < 0)) {
-        throw new SessionError("invalid_query", "cursor sequence must be a non-negative integer");
+/** A requested Branch name is invalid. */
+export class SessionInvalidBranchError extends Error {
+    branch;
+    reason;
+    constructor(branch, reason) {
+        super(`Invalid branch ${JSON.stringify(branch)}: ${reason}`);
+        this.name = "SessionInvalidBranchError";
+        this.branch = branch;
+        this.reason = reason;
     }
 }
-export function assertJsonSerializable(value) {
-    const active = new WeakSet();
-    const stack = [{ value }];
-    while (stack.length > 0) {
-        const frame = stack.pop();
-        if ("exit" in frame) {
-            active.delete(frame.exit);
-            continue;
-        }
-        const candidate = frame.value;
-        if (candidate === null || typeof candidate === "string" || typeof candidate === "boolean") {
-            continue;
-        }
-        if (typeof candidate === "number") {
-            if (!Number.isFinite(candidate))
-                invalidPayload("contains a non-finite number");
-            continue;
-        }
-        if (typeof candidate !== "object")
-            invalidPayload(`contains ${typeof candidate}`);
-        if (active.has(candidate))
-            invalidPayload("contains a cycle");
-        active.add(candidate);
-        stack.push({ exit: candidate });
-        if (Array.isArray(candidate)) {
-            if (Object.getPrototypeOf(candidate) !== Array.prototype) {
-                invalidPayload("contains a non-standard array");
-            }
-            if (Object.getOwnPropertySymbols(candidate).length > 0 ||
-                Object.getOwnPropertyNames(candidate).length !== candidate.length + 1) {
-                invalidPayload("contains an array with unsupported properties");
-            }
-            for (let index = candidate.length - 1; index >= 0; index--) {
-                if (!Object.hasOwn(candidate, index))
-                    invalidPayload("contains a sparse array");
-                const descriptor = Object.getOwnPropertyDescriptor(candidate, index);
-                if (!("value" in descriptor))
-                    invalidPayload("contains an array accessor");
-                stack.push({ value: descriptor.value });
-            }
-            continue;
-        }
-        const prototype = Object.getPrototypeOf(candidate);
-        if (prototype !== Object.prototype && prototype !== null) {
-            invalidPayload("contains a non-plain object");
-        }
-        if (Object.getOwnPropertySymbols(candidate).length > 0) {
-            invalidPayload("contains a symbol-keyed property");
-        }
-        const keys = Object.keys(candidate);
-        if (Object.getOwnPropertyNames(candidate).length !== keys.length) {
-            invalidPayload("contains a non-enumerable property");
-        }
-        for (let index = keys.length - 1; index >= 0; index--) {
-            const descriptor = Object.getOwnPropertyDescriptor(candidate, keys[index]);
-            if (!("value" in descriptor))
-                invalidPayload("contains an accessor");
-            stack.push({ value: descriptor.value });
-        }
+/** A requested branch already exists. */
+export class SessionBranchExistsError extends Error {
+    branch;
+    constructor(branch) {
+        super(`Branch already exists: ${branch}`);
+        this.name = "SessionBranchExistsError";
+        this.branch = branch;
     }
 }
-export class Session {
+/** A pending assistant message cannot be persisted as a session entry. */
+export class SessionPendingAssistantMessageError extends Error {
+    constructor() {
+        super("Cannot persist a pending assistant message");
+        this.name = "SessionPendingAssistantMessageError";
+    }
+}
+/** A requested session entry target does not exist. */
+export class SessionUnknownTargetError extends Error {
+    targetId;
+    constructor(targetId) {
+        super(`Unknown target: ${targetId}`);
+        this.name = "SessionUnknownTargetError";
+        this.targetId = targetId;
+    }
+}
+class StorageBackedSessionMutation {
     storage;
-    idGenerator;
-    constructor(storage, options = {}) {
+    release;
+    active = true;
+    commitResult;
+    endPromise;
+    constructor(storage, release) {
         this.storage = storage;
-        this.idGenerator = options.idGenerator ?? { next: () => uuidv7() };
+        this.release = release;
     }
-    async getMetadata() {
-        return this.storage.getMetadata();
+    commit(writes, context) {
+        this.assertActive();
+        if (this.commitResult !== undefined)
+            return Promise.reject(new Error("SessionMutator commit already attempted"));
+        try {
+            for (const write of writes) {
+                if (write.kind === "entry" &&
+                    write.entry.type === "message" &&
+                    write.entry.message.role === "assistant" &&
+                    write.entry.message.stopReason === "pending") {
+                    throw new SessionPendingAssistantMessageError();
+                }
+            }
+            this.commitResult = this.storage.commit(writes, context);
+        }
+        catch (error) {
+            this.commitResult = Promise.reject(error);
+        }
+        return this.commitResult;
     }
-    view(lane) {
-        if (lane === "main")
-            return this;
-        return {
-            getLeafId: () => this.getLeafIdForLane(lane),
-            getEntry: (id) => this.getEntry(id),
-            getStats: () => this.getStats(),
-            getName: () => this.getName(),
-            setName: (name) => this.setName(name),
-            getLabel: (targetId) => this.getLabel(targetId),
-            setLabel: (targetId, label) => this.setLabel(targetId, label),
-            findEntries: (query) => this.queryEntries(query),
-            findEntry: async (query = {}) => (await this.queryEntries(query, 1))[0],
-            findEntriesOnBranch: (query) => this.queryBranchEntries(lane, query),
-            findEntryOnBranch: async (query = {}) => (await this.queryBranchEntries(lane, query, 1))[0],
-            appendMessage: (message) => this.appendMessageToLane(lane, message),
-            appendCustomEntry: (customType, data) => this.appendCustomEntryToLane(lane, customType, data),
-        };
+    end(_context) {
+        if (this.endPromise !== undefined)
+            return this.endPromise;
+        this.active = false;
+        this.endPromise = this.settle().finally(this.release);
+        return this.endPromise;
     }
-    async getLeafId() {
-        return this.getLeafIdForLane("main");
+    getEntries(ids, context) {
+        this.assertActive();
+        return this.storage.getEntries(ids, context);
     }
-    async getEntry(id) {
-        return this.storage.getEntry(id);
+    getStats(context) {
+        this.assertActive();
+        return this.storage.getStats(context);
     }
-    async getStats() {
-        return this.storage.getStats();
+    getValue(address, context) {
+        this.assertActive();
+        return this.storage.getValue(address, context);
     }
-    async getName() {
-        return this.storage.getName();
+    scanValues(prefix, context) {
+        this.assertActive();
+        return this.storage.scanValues(prefix, context);
     }
-    async setName(name) {
-        await this.storage.setName(name);
+    readList(address, options, context) {
+        this.assertActive();
+        return this.storage.readList(address, options, context);
     }
-    async getLabel(targetId) {
-        return this.storage.getLabel(targetId);
+    scanBranch(query, context) {
+        this.assertActive();
+        return this.storage.scanBranch(query, context);
     }
-    async setLabel(targetId, label) {
-        await this.storage.setLabel(targetId, label);
+    settle() {
+        return (this.commitResult?.then(() => undefined, () => undefined) ?? Promise.resolve());
     }
-    async findEntries(query) {
-        return this.queryEntries(query);
+    assertActive() {
+        if (!this.active)
+            throw new Error("SessionMutator cannot be used outside its mutation callback");
     }
-    async findEntry(query = {}) {
-        return (await this.queryEntries(query, 1))[0];
+}
+class StorageBackedBranch {
+    name;
+    session;
+    constructor(name, session) {
+        this.name = name;
+        this.session = session;
     }
-    async findEntriesOnBranch(query) {
-        return this.queryBranchEntries("main", query);
+    getTipId(context) {
+        return this.session.getBranchTip(this.name, context);
     }
-    async findEntryOnBranch(query = {}) {
-        return (await this.queryBranchEntries("main", query, 1))[0];
-    }
-    async appendMessage(message) {
-        return this.appendMessageToLane("main", message);
-    }
-    async appendCustomEntry(customType, data) {
-        return this.appendCustomEntryToLane("main", customType, data);
-    }
-    async getLanes() {
-        return this.storage.getLanes();
-    }
-    async createLane(lane, at) {
-        await this.storage.createLane(lane, at);
-    }
-    async moveLane(lane, to) {
-        await this.storage.moveLane(lane, to);
-    }
-    async appendEntry(entry, lane) {
-        return this.commitEntry(entry, lane);
-    }
-    async appendRecord(record) {
-        return this.commitRecord(record);
-    }
-    async findRecords(query) {
-        return this.queryRecords(query);
-    }
-    async findOpenOperations(lane, options) {
-        assertValidLimit(options?.limit);
-        return this.storage.findOpenOperations(lane, options);
-    }
-    async getLog(options) {
-        return this.queryLog(options);
-    }
-    /** Returns the lane's current leaf, or null when empty. Throws when the lane does not exist. */
-    async getLeafIdForLane(lane) {
-        const pointer = (await this.getLanes()).find((candidate) => candidate.lane === lane);
-        if (!pointer)
-            throw new SessionError("invalid_lane", `Lane not found: ${lane}`);
-        return pointer.leafId;
-    }
-    async queryEntries(query = {}, resultLimit = query.limit) {
-        assertValidLimit(query.limit);
-        assertValidCursor(query.cursor?.afterSeq);
-        return this.storage.findEntries(resultLimit === query.limit ? query : { ...query, limit: resultLimit });
-    }
-    /**
-     * Queries from `query.start` toward the root, defaulting to the lane's current leaf.
-     * `resultLimit` lets single-entry queries cap results without changing the caller's query.
-     */
-    async queryBranchEntries(defaultLane, query = {}, resultLimit = query.limit) {
-        assertValidLimit(query.limit);
-        assertValidCursor(query.cursor?.afterSeq);
-        const start = query.start ?? (await this.getLeafIdForLane(defaultLane));
+    async findEntries(query, context) {
+        query ??= {};
+        const start = query.start ?? (await this.getTipId(context));
         if (start === null)
             return [];
-        const storageQuery = resultLimit === query.limit ? query : { ...query, limit: resultLimit };
-        return this.storage.findEntriesOnBranch({ ...storageQuery, start });
+        return this.session.scanBranch({ ...query, start, order: query.order ?? "newestFirst" }, context);
     }
-    async queryRecords(query = {}) {
-        assertValidLimit(query.limit);
-        assertValidCursor(query.afterSeq);
-        if (query.operationKind !== undefined && query.type !== "operation_started") {
-            throw new SessionError("invalid_query", 'operationKind requires type "operation_started"');
+    async findEntry(query, context) {
+        query ??= {};
+        return (await this.findEntries({ ...query, limit: query.limit === undefined ? 1 : Math.min(query.limit, 1) }, context))[0];
+    }
+    appendMessage(message, context) {
+        return this.session.appendToBranch(this.name, { type: "message", message }, context);
+    }
+    appendCustomEntry(customType, data, context) {
+        return this.session.appendToBranch(this.name, { type: "custom", customType, ...(data === undefined ? {} : { data }) }, context);
+    }
+}
+/** Package-internal typed boundary shared by concrete session repositories. */
+export class StorageBackedSession {
+    metadata;
+    idGenerator;
+    storage;
+    mutationLine;
+    onClose;
+    branches = new Map();
+    closedError = new Error("Session is closed");
+    state = "open";
+    closePromise;
+    constructor(metadata, storage, options = {}) {
+        this.metadata = metadata;
+        this.idGenerator = options.idGenerator ?? { next: uuidv7 };
+        this.storage = storage;
+        this.mutationLine = options.mutationLine ?? new MutationLine();
+        this.onClose = options.onClose;
+    }
+    async beginMutation(_context) {
+        this.assertOpen();
+        let grant;
+        let rejectGrant;
+        const granted = new Promise((resolve, reject) => {
+            grant = resolve;
+            rejectGrant = reject;
+        });
+        let release;
+        const finished = new Promise((resolve) => {
+            release = resolve;
+        });
+        const line = this.mutationLine.run(async () => {
+            grant(new StorageBackedSessionMutation(this.storage, release));
+            await finished;
+        });
+        void line.catch(rejectGrant);
+        return granted;
+    }
+    async mutate(mutation, context) {
+        const mutator = await this.beginMutation(context);
+        try {
+            return await mutation(mutator, context);
         }
-        return this.storage.findRecords(query);
+        finally {
+            await mutator.end(context);
+        }
     }
-    async queryLog(options = {}) {
-        assertValidLimit(options.limit);
-        assertValidCursor(options.afterSeq);
-        return this.storage.getLog(options);
+    async getEntries(ids, context) {
+        this.assertOpen();
+        return this.storage.getEntries(ids, context);
     }
-    async appendMessageToLane(lane, message) {
-        const entry = await this.commitEntry({ type: "message", id: this.idGenerator.next(), message }, lane);
-        return entry.id;
+    async getEntry(id, context) {
+        return (await this.getEntries([id], context)).get(id);
     }
-    async appendCustomEntryToLane(lane, customType, data) {
-        const entry = await this.commitEntry(data === undefined
-            ? { type: "custom", id: this.idGenerator.next(), customType }
-            : { type: "custom", id: this.idGenerator.next(), customType, data }, lane);
-        return entry.id;
+    async getValue(address, context) {
+        this.assertOpen();
+        return this.storage.getValue(address, context);
     }
-    async commitEntry(entry, lane) {
-        assertJsonSerializable(entry);
-        return this.storage.appendEntry(entry, lane);
+    async scanValues(prefix, context) {
+        this.assertOpen();
+        return this.storage.scanValues(prefix, context);
     }
-    async commitRecord(record) {
-        assertJsonSerializable(record);
-        return this.storage.appendRecord(record);
+    async readList(address, options, context) {
+        this.assertOpen();
+        return this.storage.readList(address, options, context);
+    }
+    async scanBranch(query, context) {
+        this.assertOpen();
+        return this.storage.scanBranch(query, context);
+    }
+    async getStats(context) {
+        this.assertOpen();
+        return this.storage.getStats(context);
+    }
+    async getName(context) {
+        return (await this.getValue(sessionName, context))?.value;
+    }
+    async getLabel(targetId, context) {
+        return (await this.getValue(entryLabel(targetId), context))?.value;
+    }
+    async findEntries(query, context) {
+        query ??= {};
+        this.assertOpen();
+        const order = query.order ?? "desc";
+        if (query.cursor !== undefined) {
+            if (order === "asc" && query.cursor.seq === Number.MAX_SAFE_INTEGER)
+                return [];
+            if (order === "desc" && query.cursor.seq <= 1)
+                return [];
+        }
+        return this.storage.scanEntries({
+            type: query.type,
+            customType: query.customType,
+            order,
+            limit: query.limit,
+            ...(query.cursor === undefined
+                ? {}
+                : order === "asc"
+                    ? { fromSeq: query.cursor.seq + 1 }
+                    : { toSeq: query.cursor.seq - 1 }),
+        }, context);
+    }
+    async findEntry(query, context) {
+        query ??= {};
+        return (await this.findEntries({ ...query, limit: query.limit === undefined ? 1 : Math.min(query.limit, 1) }, context))[0];
+    }
+    async branch(name, context) {
+        this.assertValidBranchName(name);
+        if ((await this.getValue(branchTip(name), context)) === undefined)
+            return undefined;
+        return this.getOrCreateBranchObject(name);
+    }
+    async createBranch(name, at, context) {
+        this.assertOpen();
+        this.assertValidBranchName(name);
+        await this.mutate(async (mutator) => {
+            if ((await mutator.getValue(branchTip(name), context)) !== undefined) {
+                throw new SessionBranchExistsError(name);
+            }
+            if (at !== null && !(await mutator.getEntries([at], context)).has(at)) {
+                throw new SessionUnknownTargetError(at);
+            }
+            await mutator.commit([setValueWrite(branchTip(name), at)], context);
+        }, context);
+        return this.getOrCreateBranchObject(name);
+    }
+    setValue(address, next, context) {
+        return this.mutate(async (mutator) => {
+            await mutator.commit([setValueWrite(address, next)], context);
+        }, context);
+    }
+    deleteValue(address, context) {
+        return this.mutate(async (mutator) => {
+            await mutator.commit([deleteValueWrite(address)], context);
+        }, context);
+    }
+    appendList(address, element, context) {
+        return this.mutate(async (mutator) => {
+            await mutator.commit([appendListWrite(address, element)], context);
+        }, context);
+    }
+    deleteList(address, context) {
+        return this.mutate(async (mutator) => {
+            await mutator.commit([deleteListWrite(address)], context);
+        }, context);
+    }
+    setName(name, context) {
+        return name === undefined ? this.deleteValue(sessionName, context) : this.setValue(sessionName, name, context);
+    }
+    setLabel(targetId, label, context) {
+        const address = entryLabel(targetId);
+        return label === undefined ? this.deleteValue(address, context) : this.setValue(address, label, context);
+    }
+    close(context) {
+        if (this.closePromise !== undefined)
+            return this.closePromise;
+        this.state = "closing";
+        this.closePromise = this.mutationLine
+            .seal(this.closedError)
+            .then(() => this.storage.close(context))
+            .finally(() => {
+            this.state = "closed";
+            this.onClose?.();
+        });
+        return this.closePromise;
+    }
+    async getBranchTip(name, context) {
+        const stored = await this.getValue(branchTip(name), context);
+        if (stored === undefined)
+            throw new SessionInvariantError(`Unknown branch: ${name}`);
+        return stored.value;
+    }
+    async appendToBranch(name, entry, context) {
+        this.assertOpen();
+        if (entry.type === "message" && entry.message.role === "assistant" && entry.message.stopReason === "pending") {
+            throw new SessionPendingAssistantMessageError();
+        }
+        const id = this.idGenerator.next();
+        await this.mutate(async (mutator) => {
+            const tip = await mutator.getValue(branchTip(name), context);
+            if (tip === undefined)
+                throw new SessionInvariantError(`Unknown branch: ${name}`);
+            await mutator.commit([
+                insertEntry(entry.type === "message"
+                    ? { id, parentId: tip.value, type: "message", message: entry.message }
+                    : {
+                        id,
+                        parentId: tip.value,
+                        type: "custom",
+                        customType: entry.customType,
+                        ...(entry.data === undefined ? {} : { data: entry.data }),
+                    }),
+                setValueWrite(branchTip(name), id),
+            ], context);
+        }, context);
+        return id;
+    }
+    getOrCreateBranchObject(name) {
+        let branch = this.branches.get(name);
+        if (branch === undefined) {
+            branch = new StorageBackedBranch(name, this);
+            this.branches.set(name, branch);
+        }
+        return branch;
+    }
+    assertValidBranchName(name) {
+        if (name.length === 0)
+            throw new SessionInvalidBranchError(name, "branch name must not be empty");
+        if (name.includes("\u0000")) {
+            throw new SessionInvalidBranchError(name, "branch name must not contain \\u0000");
+        }
+    }
+    assertOpen() {
+        if (this.state !== "open")
+            throw this.closedError;
     }
 }
 //# sourceMappingURL=session.js.map

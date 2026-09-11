@@ -77,6 +77,7 @@ export type PiMessagesEvent = {
     reason: Extract<PiMessagesStopReason, "stop" | "length" | "toolUse">;
     usage: PiMessagesUsage;
     responseId?: string;
+    providerThinkingLevel?: string;
     rewrite?: PiMessagesRewriteImpact;
 } | {
     type: "error";
@@ -84,6 +85,7 @@ export type PiMessagesEvent = {
     usage: PiMessagesUsage;
     errorMessage?: string;
     responseId?: string;
+    providerThinkingLevel?: string;
     rewrite?: PiMessagesRewriteImpact;
 };
 export declare class PiMessagesResponseError extends Error {

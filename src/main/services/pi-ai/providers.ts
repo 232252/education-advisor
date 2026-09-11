@@ -1,67 +1,36 @@
 // =============================================================
 // Pi AI — Provider 元数据: 常量表 / 列表 / OAuth 引导登录
-// 从 pi-ai-service.ts 拆出。逻辑零修改(逐行对照搬迁)。
+// 厂商与模型目录以 vendor/pi-ai 为准,不在本文件维护平行清单。
 // =============================================================
 
-import { getEnvApiKey, getProviders } from '@earendil-works/pi-ai/compat'
+import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
+import { builtinProviders } from '@earendil-works/pi-ai/providers/all'
 import type { ProviderInfo } from '@shared/types'
 import { keystoreService } from '../keystore-service'
 import { settingsService } from '../settings-service'
 import { safeGetModels } from './model-utils'
 
-// OAuth 支持的 provider 列表
-export const OAUTH_PROVIDERS = new Set(['anthropic', 'github-copilot', 'openai-codex'])
+const builtin = builtinProviders()
 
-// OAuth provider 的 API Key 获取页面
+/** 显示名 = pi 内置 Provider.name(升级 vendor 后自动跟上) */
+export const PROVIDER_NAMES: Record<string, string> = Object.fromEntries(
+  builtin.map((p) => [p.id, p.name]),
+)
+
+/** pi 声明了 oauth 的厂商(升级 vendor 后自动跟上) */
+export const OAUTH_PROVIDERS = new Set(
+  builtin.filter((p) => Boolean(p.auth.oauth)).map((p) => p.id),
+)
+
+/** 引导式 API Key 页面。未列出的 OAuth 厂商仍可走 pi 的 oauth 标记,但本应用只打开已知 URL。 */
 export const OAUTH_KEY_URLS: Record<string, string> = {
   anthropic: 'https://console.anthropic.com/settings/keys',
   'github-copilot': 'https://github.com/settings/tokens',
   'openai-codex': 'https://platform.openai.com/api-keys',
-}
-
-// Provider 显示名称映射
-export const PROVIDER_NAMES: Record<string, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  google: 'Google (Gemini)',
-  'google-vertex': 'Google Vertex AI',
-  'amazon-bedrock': 'Amazon Bedrock',
-  'azure-openai-responses': 'Azure OpenAI',
-  'openai-codex': 'OpenAI Codex',
-  deepseek: 'DeepSeek',
-  'github-copilot': 'GitHub Copilot',
-  xai: 'xAI (Grok)',
-  groq: 'Groq',
-  cerebras: 'Cerebras',
-  openrouter: 'OpenRouter',
-  'vercel-ai-gateway': 'Vercel AI Gateway',
-  zai: 'Z.AI',
-  mistral: 'Mistral',
-  minimax: 'MiniMax',
-  'minimax-cn': 'MiniMax (中国)',
-  moonshotai: 'Moonshot AI',
-  'moonshotai-cn': 'Moonshot AI (中国)',
-  huggingface: 'Hugging Face',
-  fireworks: 'Fireworks AI',
-  together: 'Together AI',
-  opencode: 'OpenCode',
-  'opencode-go': 'OpenCode Go',
-  'kimi-coding': 'Kimi Coding',
-  'cloudflare-workers-ai': 'Cloudflare Workers AI',
-  'cloudflare-ai-gateway': 'Cloudflare AI Gateway',
-  // pi-ai 0.84.2 新增厂商（对照 vendor/pi-ai/dist/models.generated.js 注册表）
-  baseten: 'Baseten',
-  radius: 'Radius',
-  'ant-ling': 'Ant Ling (蚂蚁灵)',
-  nvidia: 'NVIDIA',
-  'qwen-token-plan': 'Qwen Token Plan',
-  'qwen-token-plan-cn': 'Qwen Token Plan (中国)',
-  'qwen-token-plan-individual': 'Qwen Token Plan (个人)',
-  'zai-coding-cn': 'Z.AI Coding (中国)',
-  xiaomi: 'Xiaomi MiMo',
-  'xiaomi-token-plan-cn': 'Xiaomi (中国)',
-  'xiaomi-token-plan-ams': 'Xiaomi (AMS)',
-  'xiaomi-token-plan-sgp': 'Xiaomi (SGP)',
+  xai: 'https://console.x.ai',
+  'kimi-coding': 'https://platform.kimi.com',
+  openrouter: 'https://openrouter.ai/settings/keys',
+  radius: 'https://radius.pi.dev',
 }
 
 /** 列出所有已注册的 Provider（标记黑名单而非过滤） */
@@ -77,11 +46,11 @@ export async function listProviders(): Promise<ProviderInfo[]> {
   console.log(
     `[PiAI] transport=${transport} cacheRetention=${cacheRetention} enabledModels=[${enabledModels.join(', ') || 'all'}]`,
   )
-  const providerIds = getProviders()
+  const providerIds = builtin.map((p) => p.id)
 
   const keystoreProviders = keystoreService.listProviders()
   const envKeyProviders = providerIds.filter((id) => !!getEnvApiKey(id))
-  console.log(`[PiAI] getProviders() returned ${providerIds.length} providers`)
+  console.log(`[PiAI] builtinProviders() returned ${providerIds.length} providers`)
   console.log(`[PiAI] Keystore has keys for: [${keystoreProviders.join(', ')}]`)
   console.log(`[PiAI] Env API keys found for: [${envKeyProviders.join(', ')}]`)
 

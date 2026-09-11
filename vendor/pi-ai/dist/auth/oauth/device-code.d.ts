@@ -18,6 +18,7 @@ export type OAuthDeviceCodePollOptions<T> = {
     poll: () => Promise<OAuthDeviceCodePollResult<T>>;
     signal: AbortSignal;
 };
+export declare function abortableSleep(ms: number, signal: AbortSignal, cancelMessage: string): Promise<void>;
 export declare function pollOAuthDeviceCodeFlow<T>(options: OAuthDeviceCodePollOptions<T>): Promise<T>;
 export {};
 //# sourceMappingURL=device-code.d.ts.map
