@@ -1,4 +1,5 @@
-import type { ExactTelemetryAttributes, SchemaTelemetrySpan, TelemetryContext, TelemetrySchemaSpanEndAttributes, TelemetrySchemaSpanEventAttributes, TelemetrySchemaSpanEventName, TelemetrySchemaSpanName, TelemetrySchemaSpanStartAttributes, TelemetrySchemaSpanUnion } from "@earendil-works/pi-telemetry";
+import type { ExactTelemetryAttributes, SchemaTelemetrySpan, TelemetrySchemaSpanEndAttributes, TelemetrySchemaSpanEventAttributes, TelemetrySchemaSpanEventName, TelemetrySchemaSpanName, TelemetrySchemaSpanStartAttributes, TelemetrySchemaSpanUnion } from "@earendil-works/pi-telemetry";
+import { type Context } from "./context.ts";
 export type { AttributeValue, ExactTelemetryAttributes, SchemaTelemetrySpan, SpanAttributes, SpanOptions, SpanStatus, TelemetryAttributeDefinition, TelemetryAttributeMetadata, TelemetryAttributeType, TelemetryContext, TelemetryEventAttributeDefinition, TelemetryEventDefinition, TelemetryParentDefinition, TelemetrySchemaDefinition, TelemetrySchemaSpanEndAttributes, TelemetrySchemaSpanEventAttributes, TelemetrySchemaSpanEventName, TelemetrySchemaSpanName, TelemetrySchemaSpanStartAttributes, TelemetrySchemaSpanUnion, TelemetrySpan, TelemetrySpanDefinition, TelemetryStartAttributeDefinition, TypedSpanStarter, } from "@earendil-works/pi-telemetry";
 export declare const AI_TELEMETRY_SCHEMA: {
     readonly version: 1;
@@ -117,7 +118,7 @@ export type AiSpanEventName<Name extends AiSpanName> = TelemetrySchemaSpanEventN
 export type AiSpanEventAttributes<Name extends AiSpanName, EventName extends AiSpanEventName<Name>> = TelemetrySchemaSpanEventAttributes<typeof AI_TELEMETRY_SCHEMA, Name, EventName>;
 export type AiTelemetrySpan<Name extends AiSpanName> = SchemaTelemetrySpan<typeof AI_TELEMETRY_SCHEMA, Name>;
 export type AiSpan = TelemetrySchemaSpanUnion<typeof AI_TELEMETRY_SCHEMA>;
-export declare function startAiSpan<Name extends AiSpanName, const Attributes extends AiSpanStartAttributes<Name>, Result>(telemetryContext: TelemetryContext, name: Name, attributes: ExactTelemetryAttributes<AiSpanStartAttributes<Name>, Attributes>, callback: (span: AiTelemetrySpan<Name>) => Result | Promise<Result>): Promise<Result>;
+export declare function startAiSpan<Name extends AiSpanName, const Attributes extends AiSpanStartAttributes<Name>, Result>(name: Name, attributes: ExactTelemetryAttributes<AiSpanStartAttributes<Name>, Attributes>, callback: (span: AiTelemetrySpan<Name>, context: Context) => Result | Promise<Result>, context: Context): Promise<Result>;
 export declare const HARNESS_TELEMETRY_SCHEMA: {
     readonly version: 1;
     readonly spans: {
@@ -317,7 +318,7 @@ export declare const HARNESS_TELEMETRY_SCHEMA: {
                 readonly "pi.checkpoint.kind": {
                     readonly type: "string";
                     readonly required: true;
-                    readonly values: readonly ["normal", "failure_drain", "abort_reconcile"];
+                    readonly values: readonly ["normal", "abort_reconcile"];
                     readonly description: "Checkpoint purpose";
                 };
             };
@@ -488,13 +489,13 @@ export declare const HARNESS_TELEMETRY_SCHEMA: {
                 readonly "pi.hook.name": {
                     readonly type: "string";
                     readonly required: true;
-                    readonly values: readonly ["before_run", "before_resume", "before_run_end", "transform_context", "before_request", "before_payload", "after_response", "before_tool", "after_tool", "before_compaction", "before_navigation"];
+                    readonly values: readonly ["before_run", "before_drive", "before_run_end", "transform_context", "before_request", "before_payload", "after_response", "before_tool", "after_tool", "before_compaction", "before_navigation"];
                     readonly description: "Hook name";
                 };
                 readonly "pi.hook.registration_id": {
                     readonly type: "string";
                     readonly required: false;
-                    readonly description: "Stable hook registration id";
+                    readonly description: "Optional hook registration metadata";
                 };
             };
             readonly endAttributes: {
@@ -513,7 +514,7 @@ export declare const HARNESS_TELEMETRY_SCHEMA: {
             readonly description: "One retry delay";
             readonly parents: {
                 readonly kind: "spans";
-                readonly spans: readonly ["pi.harness.step", "pi.harness.run"];
+                readonly spans: readonly ["pi.harness.run", "pi.harness.compaction", "pi.harness.navigation", "pi.harness.turn", "pi.harness.checkpoint"];
             };
             readonly startAttributes: {
                 readonly "pi.operation.id": {
@@ -550,7 +551,7 @@ export declare const HARNESS_TELEMETRY_SCHEMA: {
                     readonly type: "string";
                     readonly required: true;
                     readonly cardinality: "low";
-                    readonly values: readonly ["run_start", "run_resume", "run_suspend", "run_abort", "run_end", "fault", "handler_error", "turn_start", "turn_end", "retry_scheduled", "retry_start", "retry_end", "message_start", "message_update", "message_end", "tool_start", "tool_update", "tool_end", "entry_added", "write_pending", "queue_update", "fact_update", "config_update", "compaction_start", "compaction_end", "navigation_start", "navigation_end", "lane_created", "usage"];
+                    readonly values: readonly ["run_start", "run_resume", "run_suspend", "operation_abort", "run_end", "fault", "handler_error", "turn_start", "turn_end", "retry_scheduled", "retry_start", "retry_end", "message_start", "message_update", "message_end", "tool_start", "tool_update", "tool_end", "entry_added", "queue_update", "value_update", "config_update", "compaction_start", "compaction_end", "navigation_start", "navigation_end", "lane_created", "usage"];
                     readonly description: "Delivered harness event type";
                 };
                 readonly "pi.lane.name": {
@@ -567,44 +568,54 @@ export declare const HARNESS_TELEMETRY_SCHEMA: {
             };
         };
         readonly "pi.session.write": {
-            readonly description: "One committed session mutation";
+            readonly description: "One committed session transaction";
             readonly parents: {
                 readonly kind: "any";
             };
             readonly startAttributes: {
-                readonly "pi.lane.name": {
+                readonly "pi.session.id": {
                     readonly type: "string";
                     readonly required: true;
                     readonly cardinality: "high";
-                    readonly description: "Lane name";
+                    readonly description: "Session id";
+                };
+                readonly "pi.lane.name": {
+                    readonly type: "string";
+                    readonly required: false;
+                    readonly cardinality: "high";
+                    readonly description: "Lane name when supplied by the caller";
                 };
                 readonly "pi.operation.id": {
                     readonly type: "string";
                     readonly required: false;
                     readonly cardinality: "high";
-                    readonly description: "Durable operation id when accepted";
+                    readonly description: "Durable operation id when supplied by the caller";
                 };
-                readonly "pi.session.mutation": {
-                    readonly type: "string";
+                readonly "pi.session.item_count": {
+                    readonly type: "number";
                     readonly required: true;
-                    readonly values: readonly ["entry", "record", "lane", "fact"];
-                    readonly description: "Session mutation kind";
+                    readonly description: "Number of writes in the transaction";
                 };
-                readonly "pi.session.item_type": {
-                    readonly type: "string";
-                    readonly required: false;
-                    readonly description: "Entry, record, lane, or fact subtype";
+                readonly "pi.session.item_kinds": {
+                    readonly type: "string[]";
+                    readonly required: true;
+                    readonly elementValues: readonly ["entry", "usage", "value", "list"];
+                    readonly description: "Distinct write kinds in the transaction";
                 };
             };
             readonly endAttributes: {
-                readonly "pi.session.seq": {
+                readonly "pi.session.first_seq": {
                     readonly type: "number";
-                    readonly description: "Committed session sequence when exposed";
+                    readonly description: "First committed sequence in the transaction";
+                };
+                readonly "pi.session.last_seq": {
+                    readonly type: "number";
+                    readonly description: "Last committed sequence in the transaction";
                 };
             };
             readonly status: {
                 readonly default: "ok";
-                readonly errorWhen: "Storage rejects the mutation";
+                readonly errorWhen: "Storage rejects the transaction";
             };
         };
     };
@@ -917,7 +928,7 @@ export declare const AGENT_TELEMETRY_SCHEMAS: readonly [{
                 readonly "pi.checkpoint.kind": {
                     readonly type: "string";
                     readonly required: true;
-                    readonly values: readonly ["normal", "failure_drain", "abort_reconcile"];
+                    readonly values: readonly ["normal", "abort_reconcile"];
                     readonly description: "Checkpoint purpose";
                 };
             };
@@ -1088,13 +1099,13 @@ export declare const AGENT_TELEMETRY_SCHEMAS: readonly [{
                 readonly "pi.hook.name": {
                     readonly type: "string";
                     readonly required: true;
-                    readonly values: readonly ["before_run", "before_resume", "before_run_end", "transform_context", "before_request", "before_payload", "after_response", "before_tool", "after_tool", "before_compaction", "before_navigation"];
+                    readonly values: readonly ["before_run", "before_drive", "before_run_end", "transform_context", "before_request", "before_payload", "after_response", "before_tool", "after_tool", "before_compaction", "before_navigation"];
                     readonly description: "Hook name";
                 };
                 readonly "pi.hook.registration_id": {
                     readonly type: "string";
                     readonly required: false;
-                    readonly description: "Stable hook registration id";
+                    readonly description: "Optional hook registration metadata";
                 };
             };
             readonly endAttributes: {
@@ -1113,7 +1124,7 @@ export declare const AGENT_TELEMETRY_SCHEMAS: readonly [{
             readonly description: "One retry delay";
             readonly parents: {
                 readonly kind: "spans";
-                readonly spans: readonly ["pi.harness.step", "pi.harness.run"];
+                readonly spans: readonly ["pi.harness.run", "pi.harness.compaction", "pi.harness.navigation", "pi.harness.turn", "pi.harness.checkpoint"];
             };
             readonly startAttributes: {
                 readonly "pi.operation.id": {
@@ -1150,7 +1161,7 @@ export declare const AGENT_TELEMETRY_SCHEMAS: readonly [{
                     readonly type: "string";
                     readonly required: true;
                     readonly cardinality: "low";
-                    readonly values: readonly ["run_start", "run_resume", "run_suspend", "run_abort", "run_end", "fault", "handler_error", "turn_start", "turn_end", "retry_scheduled", "retry_start", "retry_end", "message_start", "message_update", "message_end", "tool_start", "tool_update", "tool_end", "entry_added", "write_pending", "queue_update", "fact_update", "config_update", "compaction_start", "compaction_end", "navigation_start", "navigation_end", "lane_created", "usage"];
+                    readonly values: readonly ["run_start", "run_resume", "run_suspend", "operation_abort", "run_end", "fault", "handler_error", "turn_start", "turn_end", "retry_scheduled", "retry_start", "retry_end", "message_start", "message_update", "message_end", "tool_start", "tool_update", "tool_end", "entry_added", "queue_update", "value_update", "config_update", "compaction_start", "compaction_end", "navigation_start", "navigation_end", "lane_created", "usage"];
                     readonly description: "Delivered harness event type";
                 };
                 readonly "pi.lane.name": {
@@ -1167,44 +1178,54 @@ export declare const AGENT_TELEMETRY_SCHEMAS: readonly [{
             };
         };
         readonly "pi.session.write": {
-            readonly description: "One committed session mutation";
+            readonly description: "One committed session transaction";
             readonly parents: {
                 readonly kind: "any";
             };
             readonly startAttributes: {
-                readonly "pi.lane.name": {
+                readonly "pi.session.id": {
                     readonly type: "string";
                     readonly required: true;
                     readonly cardinality: "high";
-                    readonly description: "Lane name";
+                    readonly description: "Session id";
+                };
+                readonly "pi.lane.name": {
+                    readonly type: "string";
+                    readonly required: false;
+                    readonly cardinality: "high";
+                    readonly description: "Lane name when supplied by the caller";
                 };
                 readonly "pi.operation.id": {
                     readonly type: "string";
                     readonly required: false;
                     readonly cardinality: "high";
-                    readonly description: "Durable operation id when accepted";
+                    readonly description: "Durable operation id when supplied by the caller";
                 };
-                readonly "pi.session.mutation": {
-                    readonly type: "string";
+                readonly "pi.session.item_count": {
+                    readonly type: "number";
                     readonly required: true;
-                    readonly values: readonly ["entry", "record", "lane", "fact"];
-                    readonly description: "Session mutation kind";
+                    readonly description: "Number of writes in the transaction";
                 };
-                readonly "pi.session.item_type": {
-                    readonly type: "string";
-                    readonly required: false;
-                    readonly description: "Entry, record, lane, or fact subtype";
+                readonly "pi.session.item_kinds": {
+                    readonly type: "string[]";
+                    readonly required: true;
+                    readonly elementValues: readonly ["entry", "usage", "value", "list"];
+                    readonly description: "Distinct write kinds in the transaction";
                 };
             };
             readonly endAttributes: {
-                readonly "pi.session.seq": {
+                readonly "pi.session.first_seq": {
                     readonly type: "number";
-                    readonly description: "Committed session sequence when exposed";
+                    readonly description: "First committed sequence in the transaction";
+                };
+                readonly "pi.session.last_seq": {
+                    readonly type: "number";
+                    readonly description: "Last committed sequence in the transaction";
                 };
             };
             readonly status: {
                 readonly default: "ok";
-                readonly errorWhen: "Storage rejects the mutation";
+                readonly errorWhen: "Storage rejects the transaction";
             };
         };
     };
@@ -1217,5 +1238,5 @@ export type HarnessSpanEventName<Name extends HarnessSpanName> = TelemetrySchema
 export type HarnessSpanEventAttributes<Name extends HarnessSpanName, EventName extends HarnessSpanEventName<Name>> = TelemetrySchemaSpanEventAttributes<typeof HARNESS_TELEMETRY_SCHEMA, Name, EventName>;
 export type HarnessTelemetrySpan<Name extends HarnessSpanName> = SchemaTelemetrySpan<typeof HARNESS_TELEMETRY_SCHEMA, Name>;
 export type HarnessSpan = TelemetrySchemaSpanUnion<typeof HARNESS_TELEMETRY_SCHEMA>;
-export declare function startHarnessSpan<Name extends HarnessSpanName, const Attributes extends HarnessSpanStartAttributes<Name>, Result>(telemetryContext: TelemetryContext, name: Name, attributes: ExactTelemetryAttributes<HarnessSpanStartAttributes<Name>, Attributes>, callback: (span: HarnessTelemetrySpan<Name>) => Result | Promise<Result>): Promise<Result>;
+export declare function startHarnessSpan<Name extends HarnessSpanName, const Attributes extends HarnessSpanStartAttributes<Name>, Result>(name: Name, attributes: ExactTelemetryAttributes<HarnessSpanStartAttributes<Name>, Attributes>, callback: (span: HarnessTelemetrySpan<Name>, context: Context) => Result | Promise<Result>, context: Context): Promise<Result>;
 //# sourceMappingURL=telemetry.d.ts.map

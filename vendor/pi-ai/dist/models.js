@@ -397,7 +397,7 @@ class ModelsImpl {
     async completeSimple(model, context, options) {
         return this.streamSimple(model, context, options).result();
     }
-    async fetchDeferred(model, handle, options) {
+    streamDeferred(model, handle, options) {
         return lazyStream(model, async () => {
             const provider = this.requireProvider(model);
             if (!provider.fetchDeferred) {
@@ -405,7 +405,10 @@ class ModelsImpl {
             }
             const { requestModel, requestOptions } = await this.applyAuth(model, options);
             return provider.fetchDeferred(requestModel, handle, requestOptions);
-        }).result();
+        });
+    }
+    async fetchDeferred(model, handle, options) {
+        return this.streamDeferred(model, handle, options).result();
     }
     async cancelDeferred(model, handle, options) {
         const provider = this.requireProvider(model);

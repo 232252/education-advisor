@@ -1,22 +1,10 @@
 import type { AgentMessage } from "../../types.ts";
-import type { CustomEntry, Entry } from "./types.ts";
-export interface SessionContext {
-    messages: AgentMessage[];
-    thinkingLevel: string;
-    model: {
-        provider: string;
-        modelId: string;
-    } | null;
-    activeToolNames: string[] | null;
-}
-export type ContextEntryTransform = (entries: readonly Entry[]) => readonly Entry[];
-export type CustomEntryContextMessageProjector = (entry: CustomEntry, index: number, entries: readonly Entry[]) => readonly AgentMessage[] | undefined;
+import type { Context } from "../context.ts";
+import type { Entry, EntryProjector } from "./types.ts";
 export interface SessionContextBuildOptions {
-    entryTransforms?: readonly ContextEntryTransform[];
-    entryProjectors?: Readonly<Record<string, CustomEntryContextMessageProjector>>;
+    entryProjectors?: Readonly<Record<string, EntryProjector>>;
 }
-export declare function defaultContextEntryTransform(pathEntries: readonly Entry[]): Entry[];
-export declare function buildContextEntries(pathEntries: readonly Entry[], options?: SessionContextBuildOptions): Entry[];
-export declare function sessionEntryToContextMessages(entry: Entry, index: number, entries: readonly Entry[], options?: SessionContextBuildOptions): AgentMessage[];
-export declare function buildSessionContext(pathEntries: readonly Entry[], options?: SessionContextBuildOptions): SessionContext;
+export declare function buildContextEntries(pathEntries: readonly Entry[]): Entry[];
+export declare function sessionEntryToContextMessages(entry: Entry): AgentMessage[];
+export declare function buildSessionContext(pathEntries: readonly Entry[], options: SessionContextBuildOptions | undefined, context: Context): Promise<AgentMessage[]>;
 //# sourceMappingURL=context.d.ts.map

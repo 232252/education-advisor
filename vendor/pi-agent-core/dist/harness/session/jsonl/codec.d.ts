@@ -1,10 +1,21 @@
 import { type Result } from "../../types.ts";
-import type { SessionMutation } from "../state.ts";
-import { JsonlDecodeError } from "./errors.ts";
-import type { JsonlSessionMetadata, JsonlV4Header } from "./types.ts";
-export declare function parseHeader(line: string): Result<JsonlV4Header, JsonlDecodeError>;
-export declare function encodeHeader(header: JsonlV4Header): string;
-export declare function metadataFromHeader(header: JsonlV4Header, path: string, modifiedAt: number): JsonlSessionMetadata;
-export declare function parseMutation(line: string): Result<SessionMutation, JsonlDecodeError>;
-export declare function encodeMutation(mutation: SessionMutation): string;
+import { type JsonlStorageHeader } from "./types.ts";
+export interface LegacyV3SessionHeader {
+    type: "session";
+    version: 3;
+    id: string;
+    timestamp: string;
+    cwd: string;
+    parentSession?: string;
+}
+export declare function isLegacyV3SessionHeader(value: unknown): value is LegacyV3SessionHeader;
+export declare function isJsonlStorageHeader(value: unknown): value is JsonlStorageHeader;
+export type JsonlParsedSessionHeader = {
+    format: "v4";
+    header: JsonlStorageHeader;
+} | {
+    format: "v3-legacy";
+    header: LegacyV3SessionHeader;
+};
+export declare function parseJsonlSessionHeader(line: string): Result<JsonlParsedSessionHeader, Error>;
 //# sourceMappingURL=codec.d.ts.map

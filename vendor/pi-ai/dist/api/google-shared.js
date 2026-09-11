@@ -6,6 +6,22 @@ import { retryProviderRequest } from "../utils/provider-retry.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
 import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.js";
 import { transformMessages } from "./transform-messages.js";
+/** Resolve a supported pi level or model-specific Google mapping to a standard Google level. */
+export function resolveGoogleThinkingLevel(model, level) {
+    if (level === "off")
+        return "high";
+    const mapped = model.thinkingLevelMap?.[level];
+    const resolvedLevel = typeof mapped === "string" ? mapped.toLowerCase() : level;
+    switch (resolvedLevel) {
+        case "minimal":
+        case "low":
+        case "medium":
+        case "high":
+            return resolvedLevel;
+        default:
+            throw new Error(`Unsupported Google thinking level mapping for ${model.provider}/${model.id}: ${level} -> ${String(mapped)}`);
+    }
+}
 /**
  * Determines whether a streamed Gemini `Part` should be treated as "thinking".
  *

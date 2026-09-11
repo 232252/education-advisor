@@ -4,16 +4,18 @@ import type { Context, Model, OpenAICompletionsCompat, SimpleStreamOptions, Stre
 export interface OpenAICompletionsOptions extends StreamOptions {
     toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
     reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-    /** Token budgets per thinking level. Only used when `compat.supportsThinkingTokenBudget` is set. */
+    /** Token budgets per thinking level. Used when `compat.thinkingTokenBudgetField` or `compat.supportsThinkingTokenBudget` is set, or by `{ "$var": "thinking.budget" }`. */
     thinkingBudgets?: ThinkingBudgets;
 }
 export interface ConvertCompletionsMessagesOptions {
     grammarToolInputProperties?: ReadonlyMap<string, string>;
 }
-type ResolvedOpenAICompletionsCompat = Omit<Required<OpenAICompletionsCompat>, "cacheControlFormat" | "deferredToolsMode" | "supportsThinkingTokenBudget"> & {
+type ResolvedOpenAICompletionsCompat = Omit<Required<OpenAICompletionsCompat>, "cacheControlFormat" | "deferredToolsMode" | "supportsThinkingTokenBudget" | "thinkingTokenBudgetField" | "vllmPriority"> & {
     cacheControlFormat?: OpenAICompletionsCompat["cacheControlFormat"];
     deferredToolsMode?: OpenAICompletionsCompat["deferredToolsMode"];
     supportsThinkingTokenBudget?: OpenAICompletionsCompat["supportsThinkingTokenBudget"];
+    thinkingTokenBudgetField?: OpenAICompletionsCompat["thinkingTokenBudgetField"];
+    vllmPriority?: OpenAICompletionsCompat["vllmPriority"];
 };
 export declare const stream: StreamFunction<"openai-completions", OpenAICompletionsOptions>;
 export declare const streamSimple: StreamFunction<"openai-completions", SimpleStreamOptions>;

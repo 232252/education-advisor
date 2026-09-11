@@ -1,50 +1,82 @@
 import type { AgentMessage } from "../../types.ts";
-import type { BranchBounds, Entry, EntryQuery, IdGenerator, LanePointer, LaneRecord, LogItem, LogOptions, NewRecord, OperationStartedRecord, ProvisionedEntry, RecordBase, RecordQuery, SessionMetadata, SessionStats, SessionStorage, SessionTree } from "./types.ts";
-export declare function assertJsonSerializable(value: unknown): void;
-export declare class Session<TMetadata extends SessionMetadata = SessionMetadata> implements SessionTree {
-    private readonly storage;
+import type { Context } from "../context.ts";
+import { MutationLine } from "./mutation-line.ts";
+import type { Branch, Entry, EntryQuery, IdGenerator, JsonValue, Session, SessionMetadata, SessionMutation, SessionMutationCallback, SessionStats, Storage, StorageBranchScan } from "./types.ts";
+import { type ListElement, type ListReadOptions, type StoredValue, type Value, type ValueList } from "./values.ts";
+export interface StorageBackedSessionOptions {
+    mutationLine?: MutationLine;
+    idGenerator?: IdGenerator;
+    onClose?: () => void;
+}
+/** Durable session state is internally inconsistent and cannot be safely advanced. */
+export declare class SessionInvariantError extends Error {
+    constructor(message: string);
+}
+/** A requested Branch name is invalid. */
+export declare class SessionInvalidBranchError extends Error {
+    readonly branch: string;
+    readonly reason: string;
+    constructor(branch: string, reason: string);
+}
+/** A requested branch already exists. */
+export declare class SessionBranchExistsError extends Error {
+    readonly branch: string;
+    constructor(branch: string);
+}
+/** A pending assistant message cannot be persisted as a session entry. */
+export declare class SessionPendingAssistantMessageError extends Error {
+    constructor();
+}
+/** A requested session entry target does not exist. */
+export declare class SessionUnknownTargetError extends Error {
+    readonly targetId: string;
+    constructor(targetId: string);
+}
+/** Package-internal typed boundary shared by concrete session repositories. */
+export declare class StorageBackedSession<TMetadata extends SessionMetadata = SessionMetadata> implements Session<TMetadata> {
+    readonly metadata: TMetadata;
     readonly idGenerator: IdGenerator;
-    constructor(storage: SessionStorage<TMetadata>, options?: {
-        idGenerator?: IdGenerator;
-    });
-    getMetadata(): Promise<TMetadata>;
-    view(lane: string): SessionTree;
-    getLeafId(): Promise<string | null>;
-    getEntry(id: string): Promise<Entry | undefined>;
-    getStats(): Promise<SessionStats>;
-    getName(): Promise<string | undefined>;
-    setName(name: string | undefined): Promise<void>;
-    getLabel(targetId: string): Promise<string | undefined>;
-    setLabel(targetId: string, label: string | undefined): Promise<void>;
-    findEntries(query?: EntryQuery): Promise<Entry[]>;
-    findEntry(query?: EntryQuery): Promise<Entry | undefined>;
-    findEntriesOnBranch(query?: EntryQuery & BranchBounds): Promise<Entry[]>;
-    findEntryOnBranch(query?: EntryQuery & BranchBounds): Promise<Entry | undefined>;
-    appendMessage(message: AgentMessage): Promise<string>;
-    appendCustomEntry(customType: string, data?: unknown): Promise<string>;
-    getLanes(): Promise<LanePointer[]>;
-    createLane(lane: string, at: string | null): Promise<void>;
-    moveLane(lane: string, to: string | null): Promise<void>;
-    appendEntry<TEntry extends Entry>(entry: ProvisionedEntry<TEntry>, lane: string): Promise<TEntry>;
-    appendRecord<TNewRecord extends NewRecord>(record: TNewRecord): Promise<TNewRecord & Pick<RecordBase, "seq" | "timestamp">>;
-    findRecords<K extends LaneRecord["type"]>(query: RecordQuery & {
-        type: K;
-    }): Promise<Extract<LaneRecord, {
-        type: K;
-    }>[]>;
-    findRecords(query?: RecordQuery): Promise<LaneRecord[]>;
-    findOpenOperations(lane: string, options?: {
-        limit?: number;
-    }): Promise<OperationStartedRecord[]>;
-    getLog(options?: LogOptions): Promise<LogItem[]>;
-    private getLeafIdForLane;
-    private queryEntries;
-    private queryBranchEntries;
-    private queryRecords;
-    private queryLog;
-    private appendMessageToLane;
-    private appendCustomEntryToLane;
-    private commitEntry;
-    private commitRecord;
+    private readonly storage;
+    private readonly mutationLine;
+    private readonly onClose;
+    private readonly branches;
+    private readonly closedError;
+    private state;
+    private closePromise;
+    constructor(metadata: TMetadata, storage: Storage, options?: StorageBackedSessionOptions);
+    beginMutation(_context: Context): Promise<SessionMutation>;
+    mutate<T>(mutation: SessionMutationCallback<T>, context: Context): Promise<T>;
+    getEntries(ids: string[], context: Context): Promise<Map<string, Entry>>;
+    getEntry(id: string, context: Context): Promise<Entry | undefined>;
+    getValue<T>(address: Value<T>, context: Context): Promise<StoredValue<T> | undefined>;
+    scanValues<T>(prefix: Value<T>, context: Context): Promise<StoredValue<T>[]>;
+    readList<T>(address: ValueList<T>, options: ListReadOptions | undefined, context: Context): Promise<ListElement<T>[]>;
+    scanBranch(query: StorageBranchScan, context: Context): Promise<Entry[]>;
+    getStats(context: Context): Promise<SessionStats>;
+    getName(context: Context): Promise<string | undefined>;
+    getLabel(targetId: string, context: Context): Promise<string | undefined>;
+    findEntries(query: EntryQuery | undefined, context: Context): Promise<Entry[]>;
+    findEntry(query: EntryQuery | undefined, context: Context): Promise<Entry | undefined>;
+    branch(name: string, context: Context): Promise<Branch | undefined>;
+    createBranch(name: string, at: string | null, context: Context): Promise<Branch>;
+    setValue<T>(address: Value<T>, next: NoInfer<T>, context: Context): Promise<void>;
+    deleteValue<T>(address: Value<T>, context: Context): Promise<void>;
+    appendList<T>(address: ValueList<T>, element: NoInfer<T>, context: Context): Promise<void>;
+    deleteList<T>(address: ValueList<T>, context: Context): Promise<void>;
+    setName(name: string | undefined, context: Context): Promise<void>;
+    setLabel(targetId: string, label: string | undefined, context: Context): Promise<void>;
+    close(context: Context): Promise<void>;
+    getBranchTip(name: string, context: Context): Promise<string | null>;
+    appendToBranch(name: string, entry: {
+        type: "message";
+        message: AgentMessage;
+    } | {
+        type: "custom";
+        customType: string;
+        data?: JsonValue;
+    }, context: Context): Promise<string>;
+    private getOrCreateBranchObject;
+    private assertValidBranchName;
+    private assertOpen;
 }
 //# sourceMappingURL=session.d.ts.map

@@ -3,8 +3,9 @@ import { calculateCost, clampThinkingLevel } from "../models.js";
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { providerHeadersToRecord } from "../utils/headers.js";
+import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
-import { convertMessages, convertTools, isThinkingPart, mapStopReason, resolveGoogleFunctionCallingMode, retainThoughtSignature, retryGoogleRequest, supportsGoogleStrictToolSampling, } from "./google-shared.js";
+import { convertMessages, convertTools, isThinkingPart, mapStopReason, resolveGoogleFunctionCallingMode, resolveGoogleThinkingLevel, retainThoughtSignature, retryGoogleRequest, supportsGoogleStrictToolSampling, } from "./google-shared.js";
 import { buildBaseOptions } from "./simple-options.js";
 // Counter for generating unique tool call IDs
 let toolCallCounter = 0;
@@ -233,19 +234,22 @@ export const streamSimple = (model, context, options) => {
     if (!apiKey) {
         throw new Error(`No API key for provider: ${model.provider}`);
     }
-    const base = buildBaseOptions(model, context, options, apiKey);
+    const base = {
+        ...buildBaseOptions(model, context, options, apiKey),
+        toolChoice: options?.toolChoice,
+    };
     if (!options?.reasoning) {
         return stream(model, context, { ...base, thinking: { enabled: false } });
     }
     const clampedReasoning = clampThinkingLevel(model, options.reasoning);
-    const effort = (clampedReasoning === "off" ? "high" : clampedReasoning);
+    const resolvedLevel = resolveGoogleThinkingLevel(model, clampedReasoning);
     const googleModel = model;
     if (isGemini3ProModel(googleModel) || isGemini3FlashModel(googleModel) || isGemma4Model(googleModel)) {
         return stream(model, context, {
             ...base,
             thinking: {
                 enabled: true,
-                level: getThinkingLevel(effort, googleModel),
+                level: getThinkingLevel(resolvedLevel, googleModel),
             },
         });
     }
@@ -253,7 +257,7 @@ export const streamSimple = (model, context, options) => {
         ...base,
         thinking: {
             enabled: true,
-            budgetTokens: getGoogleBudget(googleModel, effort, options.thinkingBudgets),
+            budgetTokens: getGoogleBudget(googleModel, resolvedLevel, options.thinkingBudgets),
         },
     });
 };
@@ -263,7 +267,7 @@ function createClient(model, apiKey, optionsHeaders) {
         httpOptions.baseUrl = model.baseUrl;
         httpOptions.apiVersion = ""; // baseUrl already includes version path, don't append
     }
-    const headers = providerHeadersToRecord({ ...model.headers, ...optionsHeaders });
+    const headers = providerHeadersToRecord({ "User-Agent": getPiUserAgent(), ...model.headers, ...optionsHeaders });
     if (headers) {
         httpOptions.headers = headers;
     }
@@ -299,7 +303,7 @@ function buildParams(model, context, options = {}) {
     if (options.thinking?.enabled && model.reasoning) {
         const thinkingConfig = { includeThoughts: true };
         if (options.thinking.level !== undefined) {
-            // Cast to any since our GoogleThinkingLevel mirrors Google's ThinkingLevel enum values
+            // Cast to any since our GoogleApiThinkingLevel mirrors Google's ThinkingLevel enum values
             thinkingConfig.thinkingLevel = options.thinking.level;
         }
         else if (options.thinking.budgetTokens !== undefined) {
@@ -381,9 +385,9 @@ function getThinkingLevel(effort, model) {
             return "HIGH";
     }
 }
-function getGoogleBudget(model, effort, customBudgets) {
-    if (customBudgets?.[effort] !== undefined) {
-        return customBudgets[effort];
+function getGoogleBudget(model, level, customBudgets) {
+    if (customBudgets?.[level] !== undefined) {
+        return customBudgets[level];
     }
     if (model.id.includes("2.5-pro")) {
         const budgets = {
@@ -392,7 +396,7 @@ function getGoogleBudget(model, effort, customBudgets) {
             medium: 8192,
             high: 32768,
         };
-        return budgets[effort];
+        return budgets[level];
     }
     if (model.id.includes("2.5-flash-lite")) {
         const budgets = {
@@ -401,7 +405,7 @@ function getGoogleBudget(model, effort, customBudgets) {
             medium: 8192,
             high: 24576,
         };
-        return budgets[effort];
+        return budgets[level];
     }
     if (model.id.includes("2.5-flash")) {
         const budgets = {
@@ -410,7 +414,7 @@ function getGoogleBudget(model, effort, customBudgets) {
             medium: 8192,
             high: 24576,
         };
-        return budgets[effort];
+        return budgets[level];
     }
     return -1;
 }

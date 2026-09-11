@@ -4,6 +4,7 @@ import { splitDeferredTools } from "../utils/deferred-tools.js";
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { headersToRecord } from "../utils/headers.js";
+import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { retryProviderRequest } from "../utils/provider-retry.js";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
@@ -57,10 +58,22 @@ function getCompat(model) {
         supportsAdditionalTools: model.compat?.supportsAdditionalTools ?? false,
         supportsToolSearch: model.compat?.supportsToolSearch ?? false,
         supportsExplicitPromptCacheMode: model.compat?.supportsExplicitPromptCacheMode ?? false,
+        supportsMaxOutputTokens: model.compat?.supportsMaxOutputTokens ?? true,
     };
 }
 function getPromptCacheRetention(compat, cacheRetention) {
-    return cacheRetention === "long" && compat.supportsLongCacheRetention ? "24h" : undefined;
+    return cacheRetention === "long" && compat.supportsLongCacheRetention && !compat.supportsExplicitPromptCacheMode
+        ? "24h"
+        : undefined;
+}
+function getPromptCacheOptions(compat, cacheRetention) {
+    if (!compat.supportsExplicitPromptCacheMode)
+        return undefined;
+    if (cacheRetention === "none")
+        return { mode: "explicit" };
+    if (cacheRetention === "long" && compat.supportsLongCacheRetention)
+        return { ttl: "30m" };
+    return undefined;
 }
 function formatOpenAIResponsesError(error) {
     return formatProviderError(normalizeProviderError(error), "OpenAI API error");
@@ -148,7 +161,10 @@ export const stream = (model, context, options) => {
 };
 export const streamSimple = (model, context, options) => {
     getClientApiKey(model.provider, options?.apiKey, options?.headers);
-    const base = buildBaseOptions(model, context, options, options?.apiKey);
+    const base = {
+        ...buildBaseOptions(model, context, options, options?.apiKey),
+        toolChoice: options?.toolChoice,
+    };
     const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;
     const reasoningEffort = clampedReasoning === "off" ? undefined : clampedReasoning;
     return stream(model, context, {
@@ -158,7 +174,7 @@ export const streamSimple = (model, context, options) => {
 };
 function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId) {
     const compat = getCompat(model);
-    const headers = { ...model.headers };
+    const headers = { "User-Agent": getPiUserAgent(), ...model.headers };
     if (model.provider === "github-copilot") {
         const hasImages = hasCopilotVisionInput(context.messages);
         const copilotHeaders = buildCopilotDynamicHeaders({
@@ -207,17 +223,16 @@ function buildParams(model, context, options, compat = getCompat(model), grammar
         },
     });
     const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
-    const disableImplicitPromptCache = cacheRetention === "none" && compat.supportsExplicitPromptCacheMode;
     const params = {
         model: model.id,
         input: messages,
         stream: true,
         prompt_cache_key: cacheRetention === "none" ? undefined : clampOpenAIPromptCacheKey(options?.sessionId),
         prompt_cache_retention: getPromptCacheRetention(compat, cacheRetention),
-        prompt_cache_options: disableImplicitPromptCache ? { mode: "explicit" } : undefined,
+        prompt_cache_options: getPromptCacheOptions(compat, cacheRetention),
         store: false,
     };
-    if (options?.maxTokens) {
+    if (options?.maxTokens && compat.supportsMaxOutputTokens) {
         params.max_output_tokens = Math.max(options.maxTokens, OPENAI_RESPONSES_MIN_OUTPUT_TOKENS);
     }
     if (options?.temperature !== undefined) {

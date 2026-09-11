@@ -1,7 +1,9 @@
 import { contentText, retryAssistantCall, uuidv7, } from "@earendil-works/pi-ai";
+import { getTelemetryContext } from "../context.js";
 import { convertToLlm, createBranchSummaryMessage, createCompactionSummaryMessage } from "../messages.js";
-import { buildSessionContext } from "../session/context.js";
+import { buildContextEntries, sessionEntryToContextMessages } from "../session/context.js";
 import { CompactionError, err, ok } from "../types.js";
+import { addUsage } from "../utils/usage.js";
 import { computeFileLists, createFileOps, extractFileOpsFromMessage, formatFileOperations, serializeConversation, } from "./utils.js";
 function safeJsonStringify(value) {
     try {
@@ -15,15 +17,20 @@ function extractFileOperations(messages, entries, prevCompactionIndex) {
     const fileOps = createFileOps();
     if (prevCompactionIndex >= 0) {
         const prevCompaction = entries[prevCompactionIndex];
-        if (prevCompaction.details) {
-            const details = prevCompaction.details;
-            if (Array.isArray(details.readFiles)) {
-                for (const f of details.readFiles)
-                    fileOps.read.add(f);
+        if (typeof prevCompaction.details === "object" &&
+            prevCompaction.details !== null &&
+            !Array.isArray(prevCompaction.details)) {
+            if (Array.isArray(prevCompaction.details.readFiles)) {
+                for (const path of prevCompaction.details.readFiles) {
+                    if (typeof path === "string")
+                        fileOps.read.add(path);
+                }
             }
-            if (Array.isArray(details.modifiedFiles)) {
-                for (const f of details.modifiedFiles)
-                    fileOps.edited.add(f);
+            if (Array.isArray(prevCompaction.details.modifiedFiles)) {
+                for (const path of prevCompaction.details.modifiedFiles) {
+                    if (typeof path === "string")
+                        fileOps.edited.add(path);
+                }
             }
         }
     }
@@ -50,36 +57,19 @@ function getMessageFromEntryForCompaction(entry) {
     }
     return getMessageFromEntry(entry);
 }
-export async function completeSimpleWithRetries(models, model, context, options, retry, callbacks) {
-    // Summaries are standalone requests, so isolate routing and avoid cache writes that cannot be reused.
-    const requestOptions = {
-        ...options,
-        cacheRetention: "none",
-        sessionId: uuidv7(),
-    };
-    return retryAssistantCall(() => models.completeSimple(model, context, requestOptions), retry, requestOptions.signal, callbacks);
-}
-function combineUsage(first, second) {
+export function createSummaryRequestOptions(options, context) {
     return {
-        input: first.input + second.input,
-        output: first.output + second.output,
-        cacheRead: first.cacheRead + second.cacheRead,
-        cacheWrite: first.cacheWrite + second.cacheWrite,
-        ...(first.cacheWrite1h !== undefined || second.cacheWrite1h !== undefined
-            ? { cacheWrite1h: (first.cacheWrite1h ?? 0) + (second.cacheWrite1h ?? 0) }
-            : {}),
-        ...(first.reasoning !== undefined || second.reasoning !== undefined
-            ? { reasoning: (first.reasoning ?? 0) + (second.reasoning ?? 0) }
-            : {}),
-        totalTokens: first.totalTokens + second.totalTokens,
-        cost: {
-            input: first.cost.input + second.cost.input,
-            output: first.cost.output + second.cost.output,
-            cacheRead: first.cost.cacheRead + second.cost.cacheRead,
-            cacheWrite: first.cost.cacheWrite + second.cost.cacheWrite,
-            total: first.cost.total + second.cost.total,
-        },
+        ...options,
+        signal: context.abortSignal,
+        telemetryContext: getTelemetryContext(context),
+        cacheRetention: "none",
+        sessionId: options.sessionId ?? uuidv7(),
     };
+}
+export async function completeSimpleWithRetries(models, model, aiContext, options, retry, callbacks, context) {
+    // Summaries are standalone requests, so isolate routing and avoid cache writes that cannot be reused.
+    const requestOptions = createSummaryRequestOptions(options, context);
+    return retryAssistantCall(() => models.completeSimple(model, aiContext, requestOptions), retry, requestOptions.signal, callbacks);
 }
 /** Default compaction settings used by the harness. */
 export const DEFAULT_COMPACTION_SETTINGS = {
@@ -233,9 +223,6 @@ function findValidCutPoints(entries, startIndex, endIndex) {
                 }
                 break;
             }
-            case "thinking_level_change":
-            case "model_change":
-            case "active_tools_change":
             case "compaction":
             case "branch_summary":
             case "custom":
@@ -379,12 +366,17 @@ Use this EXACT format:
 
 Keep each section concise. Preserve exact file paths, function names, and error messages.`;
 /** Generate or update a conversation summary for compaction. */
-export async function generateSummary(currentMessages, models, model, reserveTokens, signal, customInstructions, previousSummary, thinkingLevel, retry, callbacks) {
-    const result = await generateSummaryWithUsage(currentMessages, models, model, reserveTokens, signal, customInstructions, previousSummary, thinkingLevel, retry, callbacks);
+export async function generateSummary(currentMessages, models, model, reserveTokens, customInstructions, previousSummary, thinkingLevel, retry, callbacks, context) {
+    const result = await generateSummaryWithUsage(currentMessages, models, model, reserveTokens, customInstructions, previousSummary, thinkingLevel, retry, callbacks, context);
     return result.ok ? ok(result.value.text) : err(result.error);
 }
 /** Generate or update a conversation summary and return its provider usage. */
-export async function generateSummaryWithUsage(currentMessages, models, model, reserveTokens, signal, customInstructions, previousSummary, thinkingLevel, retry, callbacks) {
+export function generateSummaryWithUsage(currentMessages, models, model, reserveTokens, customInstructions, previousSummary, thinkingLevel, retry, callbacks, context) {
+    return generateSummaryWithRequest(currentMessages, { model, reserveTokens, customInstructions, previousSummary, thinkingLevel }, (aiContext, options, requestContext) => completeSimpleWithRetries(models, model, aiContext, options, retry, callbacks, requestContext), context);
+}
+/** Generate one summary through a caller-owned one-request boundary. */
+export async function generateSummaryWithRequest(currentMessages, options, request, context) {
+    const { model, reserveTokens, customInstructions, previousSummary, thinkingLevel } = options;
     const maxTokens = Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY);
     let basePrompt = previousSummary ? UPDATE_SUMMARIZATION_PROMPT : SUMMARIZATION_PROMPT;
     if (customInstructions) {
@@ -405,9 +397,9 @@ export async function generateSummaryWithUsage(currentMessages, models, model, r
         },
     ];
     const completionOptions = model.reasoning && thinkingLevel && thinkingLevel !== "off"
-        ? { maxTokens, signal, reasoning: thinkingLevel }
-        : { maxTokens, signal };
-    const response = await completeSimpleWithRetries(models, model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, completionOptions, retry, callbacks);
+        ? { maxTokens, reasoning: thinkingLevel }
+        : { maxTokens };
+    const response = await request({ systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, createSummaryRequestOptions(completionOptions, context), context);
     if (response.stopReason === "aborted") {
         return err(new CompactionError("aborted", response.errorMessage || "Summarization aborted"));
     }
@@ -445,7 +437,7 @@ export function prepareCompaction(pathEntries, settings) {
         compactableEntries = [...virtualRetainedEntries, ...pathEntries.slice(prevCompactionIndex + 1)];
     }
     const boundaryEnd = compactableEntries.length;
-    const tokensBefore = estimateContextTokens(buildSessionContext(pathEntries).messages).tokens;
+    const tokensBefore = estimateContextTokens(buildContextEntries(pathEntries).flatMap(sessionEntryToContextMessages)).tokens;
     const cutPoint = findCutPoint(compactableEntries, 0, boundaryEnd, settings.keepRecentTokens);
     const historyEnd = cutPoint.isSplitTurn ? cutPoint.turnStartIndex : cutPoint.firstKeptEntryIndex;
     const messagesToSummarize = [];
@@ -501,7 +493,12 @@ Summarize the prefix to provide context for the retained suffix:
 Be concise. Focus on what's needed to understand the kept suffix.`;
 export { serializeConversation } from "./utils.js";
 /** Generate compaction summary data from prepared session history. */
-export async function compact(preparation, models, model, customInstructions, signal, thinkingLevel, retry, callbacks) {
+export function compact(preparation, models, model, customInstructions, thinkingLevel, retry, callbacks, context) {
+    return compactWithRequest(preparation, { model, customInstructions, thinkingLevel }, (aiContext, options, requestContext) => completeSimpleWithRetries(models, model, aiContext, options, retry, callbacks, requestContext), context);
+}
+/** Generate compaction data through a caller-owned boundary for each provider request. */
+export async function compactWithRequest(preparation, options, request, context) {
+    const { model, customInstructions, thinkingLevel } = options;
     const { messagesToSummarize, turnPrefixMessages, retainedTail, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = preparation;
     let summary;
     let summaryUsage;
@@ -509,22 +506,20 @@ export async function compact(preparation, models, model, customInstructions, si
         let historyText = "No prior history.";
         let historyUsage;
         if (messagesToSummarize.length > 0) {
-            const historyResult = await generateSummaryWithUsage(messagesToSummarize, models, model, settings.reserveTokens, signal, customInstructions, previousSummary, thinkingLevel, retry, callbacks);
+            const historyResult = await generateSummaryWithRequest(messagesToSummarize, { model, reserveTokens: settings.reserveTokens, customInstructions, previousSummary, thinkingLevel }, request, context);
             if (!historyResult.ok)
                 return err(historyResult.error);
             historyText = historyResult.value.text;
             historyUsage = historyResult.value.usage;
         }
-        const turnPrefixResult = await generateTurnPrefixSummary(turnPrefixMessages, models, model, settings.reserveTokens, signal, thinkingLevel, retry, callbacks);
+        const turnPrefixResult = await generateTurnPrefixSummary(turnPrefixMessages, model, settings.reserveTokens, thinkingLevel, request, context);
         if (!turnPrefixResult.ok)
             return err(turnPrefixResult.error);
         summary = `${historyText}\n\n---\n\n**Turn Context (split turn):**\n\n${turnPrefixResult.value.text}`;
-        summaryUsage = historyUsage
-            ? combineUsage(historyUsage, turnPrefixResult.value.usage)
-            : turnPrefixResult.value.usage;
+        summaryUsage = historyUsage ? addUsage(historyUsage, turnPrefixResult.value.usage) : turnPrefixResult.value.usage;
     }
     else {
-        const summaryResult = await generateSummaryWithUsage(messagesToSummarize, models, model, settings.reserveTokens, signal, customInstructions, previousSummary, thinkingLevel, retry, callbacks);
+        const summaryResult = await generateSummaryWithRequest(messagesToSummarize, { model, reserveTokens: settings.reserveTokens, customInstructions, previousSummary, thinkingLevel }, request, context);
         if (!summaryResult.ok)
             return err(summaryResult.error);
         summary = summaryResult.value.text;
@@ -532,15 +527,10 @@ export async function compact(preparation, models, model, customInstructions, si
     }
     const { readFiles, modifiedFiles } = computeFileLists(fileOps);
     summary += formatFileOperations(readFiles, modifiedFiles);
-    return ok({
-        summary,
-        tokensBefore,
-        usage: summaryUsage,
-        retainedTail,
-        details: { readFiles, modifiedFiles },
-    });
+    const details = { readFiles, modifiedFiles };
+    return ok({ summary, tokensBefore, usage: summaryUsage, retainedTail, details });
 }
-async function generateTurnPrefixSummary(messages, models, model, reserveTokens, signal, thinkingLevel, retry, callbacks) {
+async function generateTurnPrefixSummary(messages, model, reserveTokens, thinkingLevel, request, context) {
     const maxTokens = Math.min(Math.floor(0.5 * reserveTokens), model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY);
     const llmMessages = convertToLlm(messages);
     const conversationText = serializeConversation(llmMessages);
@@ -553,9 +543,9 @@ async function generateTurnPrefixSummary(messages, models, model, reserveTokens,
         },
     ];
     const completionOptions = model.reasoning && thinkingLevel && thinkingLevel !== "off"
-        ? { maxTokens, signal, reasoning: thinkingLevel }
-        : { maxTokens, signal };
-    const response = await completeSimpleWithRetries(models, model, { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, completionOptions, retry, callbacks);
+        ? { maxTokens, reasoning: thinkingLevel }
+        : { maxTokens };
+    const response = await request({ systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages }, createSummaryRequestOptions(completionOptions, context), context);
     if (response.stopReason === "aborted") {
         return err(new CompactionError("aborted", response.errorMessage || "Turn prefix summarization aborted"));
     }

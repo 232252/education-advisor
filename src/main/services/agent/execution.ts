@@ -326,7 +326,7 @@ async function executeAgentRunInner(
   }
 
   const agent = new Agent({
-    // pi-agent-core 0.84: streamFn 必填(旧版可选),显式传入 pi-ai 的流式实现
+    // pi-agent-core 0.85: streamFn 必填,显式传入 pi-ai 的流式实现
     // R2+: 经 createRetryingStreamFn 包装 — 建流阶段(429/超时/网络)按
     // models.retry.* 指数退避重试,与直连聊天路径同策略(此前 agent 链路零重试)
     streamFn: createRetryingStreamFn(),

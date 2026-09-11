@@ -1,3 +1,4 @@
+import type { Context } from "./context.ts";
 import { type ExecutionEnv, type Skill } from "./types.ts";
 export type SkillDiagnosticCode = "file_info_failed" | "list_failed" | "read_failed" | "parse_failed" | "invalid_metadata";
 /** Warning produced while loading skills. */
@@ -16,10 +17,11 @@ export declare function formatSkillInvocation(skill: Skill, additionalInstructio
 /**
  * Load skills from one or more directories.
  *
- * Traverses directories recursively, loads `SKILL.md` files, loads direct root `.md` files as skills, honors ignore files,
- * and returns diagnostics for invalid skill files. Missing input directories are skipped.
+ * Traverses directories recursively, loads `SKILL.md` files, loads direct root `.md` files with skill
+ * frontmatter, honors ignore files, and returns diagnostics for invalid declared skill files. Missing input
+ * directories are skipped.
  */
-export declare function loadSkills(env: ExecutionEnv, dirs: string | string[]): Promise<{
+export declare function loadSkills(env: ExecutionEnv, dirs: string | string[], context: Context): Promise<{
     skills: Skill[];
     diagnostics: SkillDiagnostic[];
 }>;
@@ -32,7 +34,7 @@ export declare function loadSkills(env: ExecutionEnv, dirs: string | string[]): 
 export declare function loadSourcedSkills<TSource, TSkill extends Skill = Skill>(env: ExecutionEnv, inputs: Array<{
     path: string;
     source: TSource;
-}>, mapSkill?: (skill: Skill, source: TSource) => TSkill): Promise<{
+}>, mapSkill: ((skill: Skill, source: TSource, context: Context) => TSkill) | undefined, context: Context): Promise<{
     skills: Array<{
         skill: TSkill;
         source: TSource;

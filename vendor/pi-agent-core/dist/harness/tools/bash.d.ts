@@ -1,6 +1,6 @@
 import { type Static, Type } from "typebox";
-import type { AgentHarnessTool } from "../types.ts";
-import { type TruncationResult } from "../utils/truncate.ts";
+import type { Context } from "../context.ts";
+import type { AgentHarnessTool, ShellOutputTruncation } from "../types.ts";
 import type { ExecutionToolContext } from "./tool-context.ts";
 declare const bashSchema: Type.TObject<{
     command: Type.TString;
@@ -8,7 +8,7 @@ declare const bashSchema: Type.TObject<{
 }>;
 export type BashToolInput = Static<typeof bashSchema>;
 export interface BashToolDetails {
-    truncation?: TruncationResult;
+    truncation?: ShellOutputTruncation;
     fullOutputPath?: string;
 }
 export interface BashExecution {
@@ -17,7 +17,7 @@ export interface BashExecution {
     env: Record<string, string>;
     inheritEnv: boolean;
 }
-export type BashPrepare<TContext extends ExecutionToolContext = ExecutionToolContext> = (execution: BashExecution, context: TContext, signal?: AbortSignal) => void | Promise<void>;
+export type BashPrepare<TContext extends ExecutionToolContext = ExecutionToolContext> = (execution: BashExecution, toolContext: TContext, context: Context) => void | Promise<void>;
 export interface BashToolOptions<TContext extends ExecutionToolContext = ExecutionToolContext> {
     commandPrefix?: string;
     prepare?: BashPrepare<TContext>;

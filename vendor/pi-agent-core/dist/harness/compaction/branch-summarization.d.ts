@@ -1,7 +1,9 @@
 import { type Api, type Model, type Models, type RetryCallbacks, type RetryPolicy, type Usage } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "../../types.ts";
-import { type Entry, type Session } from "../session/index.ts";
+import type { Context } from "../context.ts";
+import type { Branch, Entry, Session } from "../session/index.ts";
 import { BranchSummaryError, type Result } from "../types.ts";
+import { type SummaryRequest } from "./compaction.ts";
 import { type FileOperations } from "./utils.ts";
 /** Generated branch summary data ready to be persisted as a branch-summary entry. */
 export interface BranchSummaryResult {
@@ -31,7 +33,7 @@ export interface BranchPreparation {
 export interface CollectEntriesResult {
     /** Entries to summarize in chronological order. */
     entries: Entry[];
-    /** Deepest common ancestor between the previous leaf and target entry. */
+    /** Deepest common ancestor between the previous tip and target entry. */
     commonAncestorId: string | null;
 }
 /** Options for generating a branch summary. */
@@ -40,8 +42,6 @@ export interface GenerateBranchSummaryOptions {
     models: Models;
     /** Model used for summarization. */
     model: Model<Api>;
-    /** Abort signal for the summarization request. */
-    signal: AbortSignal;
     /** Optional instructions appended to or replacing the default prompt. */
     customInstructions?: string;
     /** Replace the default prompt with custom instructions instead of appending them. */
@@ -54,9 +54,15 @@ export interface GenerateBranchSummaryOptions {
     callbacks?: RetryCallbacks;
 }
 /** Collect entries that should be summarized before navigating to a different session tree entry. */
-export declare function collectEntriesForBranchSummary(session: Session, oldLeafId: string | null, targetId: string): Promise<CollectEntriesResult>;
+export declare function collectEntriesForBranchSummary(branch: Pick<Branch, "findEntries">, session: Pick<Session, "getEntry">, oldTipId: string | null, targetId: string, context: Context): Promise<CollectEntriesResult>;
 /** Prepare branch entries for summarization within an optional token budget. */
 export declare function prepareBranchEntries(entries: Entry[], tokenBudget?: number): BranchPreparation;
 /** Generate a summary for abandoned branch entries. */
-export declare function generateBranchSummary(entries: Entry[], options: GenerateBranchSummaryOptions): Promise<Result<BranchSummaryResult, BranchSummaryError>>;
+export declare function generateBranchSummary(entries: Entry[], options: GenerateBranchSummaryOptions, context: Context): Promise<Result<BranchSummaryResult, BranchSummaryError>>;
+export interface PreparedBranchSummaryOptions {
+    customInstructions?: string;
+    replaceInstructions?: boolean;
+}
+/** Generate a prepared branch summary through a caller-owned one-request boundary. */
+export declare function generateBranchSummaryWithRequest(preparation: BranchPreparation, options: PreparedBranchSummaryOptions, request: SummaryRequest, context: Context): Promise<Result<BranchSummaryResult, BranchSummaryError>>;
 //# sourceMappingURL=branch-summarization.d.ts.map

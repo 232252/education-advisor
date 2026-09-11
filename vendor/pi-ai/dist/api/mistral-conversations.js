@@ -3,6 +3,7 @@ import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { shortHash } from "../utils/hash.js";
 import { headersToRecord } from "../utils/headers.js";
 import { parseStreamingJson } from "../utils/json-parse.js";
+import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
 import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.js";
 import { buildBaseOptions } from "./simple-options.js";
@@ -64,7 +65,10 @@ export const streamSimple = (model, context, options) => {
     if (!apiKey) {
         throw new Error(`No API key for provider: ${model.provider}`);
     }
-    const base = buildBaseOptions(model, context, options, apiKey);
+    const base = {
+        ...buildBaseOptions(model, context, options, apiKey),
+        toolChoice: options?.toolChoice,
+    };
     const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;
     const reasoning = clampedReasoning === "off" ? undefined : clampedReasoning;
     const shouldUseReasoning = model.reasoning && reasoning !== undefined;
@@ -186,6 +190,7 @@ class MistralHttpError extends Error {
 }
 function buildMistralHeaders(model, apiKey, options) {
     const headers = new Headers({
+        "User-Agent": getPiUserAgent(),
         accept: "text/event-stream",
         authorization: `Bearer ${apiKey}`,
         "content-type": "application/json",
@@ -513,7 +518,7 @@ async function consumeChatStream(model, output, stream, mistralStream) {
             const callId = toolCall.id && toolCall.id !== "null"
                 ? toolCall.id
                 : deriveMistralToolCallId(`toolcall:${toolCall.index ?? 0}`, 0);
-            const key = `${callId}:${toolCall.index || 0}`;
+            const key = toolCall.index ?? callId;
             const existingIndex = toolBlocksByKey.get(key);
             let block;
             if (existingIndex !== undefined) {
