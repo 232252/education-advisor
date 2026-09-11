@@ -1,3 +1,13 @@
+# 行为准则 / Code of Conduct
+
+本项目采用 [Contributor Covenant 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/)。参与即表示你同意遵守。
+
+**对本仓库特别重要：** 禁止在 Issue、PR、讨论区粘贴真实学生姓名、身份证、成绩或未脱敏截图。教育数据属于未成年人隐私，公开仓库一律用虚构样例。不可接受行为请按文末方式私下联系维护者。
+
+下面是完整英文正文（GitHub 社区标准识别用）。
+
+---
+
 # Contributor Covenant Code of Conduct
 
 ## Our Pledge

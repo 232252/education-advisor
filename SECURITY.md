@@ -1,3 +1,11 @@
+# 安全政策 / Security Policy
+
+发现安全问题请**不要**开公开 GitHub Issue。请按下方邮箱私下报告（含复现步骤）。我们 48 小时内回复。
+
+本应用处理学生操行与成绩，属于高敏感数据。本地 AES-256-GCM 脱敏、WebUI 默认关闭、写操作需确认 —— 详见下文威胁模型。许可证见 [MIT License](./LICENSE)。
+
+---
+
 # Security Policy
 
 > **TL;DR**: If you find a security issue, **do not** open a public GitHub
