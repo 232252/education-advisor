@@ -137,7 +137,7 @@ docs/plans|research/*channel* / *feishu*
 
 ### 主要文件
 
-- `src/shared/class-rank.ts` + `src/shared/__tests__/class-rank.test.ts`
+- `src/shared/class-rank.ts` + `tests/shared/class-rank.test.ts`
 - `src/main/services/academic-service.ts`（batchSet 挂钩）
 - `src/renderer/pages/Classes/lib/class-avg-trend.ts` (+ test)
 - `src/renderer/pages/Classes/components/ClassAvgTrendCard.tsx`
