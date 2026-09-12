@@ -19,6 +19,12 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - Windows ARM64 installer
 - Tauri parity build
 
+## [3.3.2] — 2026-09-12
+
+### Fixed
+- Windows 安装包启动弹出 **A JavaScript error occurred in the main process**（窗口标题 Error）：`require("@earendil-works/chord/context")` 命中 ESM-only `exports`，抛出 `ERR_PACKAGE_PATH_NOT_EXPORTED`。已把 `@earendil-works/*` 打进主进程 CJS bundle。
+- 生产 `app://` 改为用 `fs.readFile` 读渲染文件，避免再走 `net.fetch(file://)`。
+
 ## [3.3.1] — 2026-09-12
 
 ### Fixed
@@ -150,7 +156,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - The `nul` file in the repository root (a Windows reparse-point residue from
   an earlier redirect) is git-ignored but can be safely removed by hand.
 
-[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.1...HEAD
+[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.2...HEAD
+[3.3.2]: https://github.com/232252/education-advisor/releases/tag/v3.3.2
 [3.3.1]: https://github.com/232252/education-advisor/releases/tag/v3.3.1
 [3.3.0]: https://github.com/232252/education-advisor/releases/tag/v3.3.0
 [0.1.0]: https://github.com/232252/education-advisor/releases/tag/v0.1.0
