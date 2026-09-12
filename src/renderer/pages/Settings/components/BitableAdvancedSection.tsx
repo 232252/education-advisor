@@ -33,7 +33,7 @@ export function BitableAdvancedSection({
 }: BitableAdvancedSectionProps) {
   const { t } = useT()
   const handleListBitable = useBitableList({
-    appId: settings.feishu.appId,
+    appId: settings.feishu?.appId ?? '',
     bitableAppToken,
     dispatchBitList,
     setBitableListInfo,
@@ -114,11 +114,11 @@ export function BitableAdvancedSection({
         >
           <input
             type="text"
-            value={settings.feishu.bitableTableId ?? ''}
+            value={settings.feishu?.bitableTableId ?? ''}
             placeholder={t('page.settings.feishu.bitableTableIdPh', 'tblXXXXXXXX(留空用 log)')}
             onChange={(e) => onSave('feishu.bitableTableId', e.target.value)}
             className={cn(INPUT_SM, 'w-48')}
-            disabled={!settings.feishu.bitableSync.enabled}
+            disabled={!settings.feishu?.bitableSync?.enabled}
           />
         </SettingRow>
 
@@ -140,11 +140,11 @@ export function BitableAdvancedSection({
         >
           <input
             type="text"
-            value={settings.feishu.bitableSync.syncInterval}
+            value={settings.feishu?.bitableSync?.syncInterval ?? ''}
             placeholder="0 */6 * * *"
             onChange={(e) => onSave('feishu.bitableSync.syncInterval', e.target.value)}
             className={cn(INPUT_SM, 'w-40')}
-            disabled={!settings.feishu.bitableSync.enabled}
+            disabled={!settings.feishu?.bitableSync?.enabled}
           />
         </SettingRow>
       </div>

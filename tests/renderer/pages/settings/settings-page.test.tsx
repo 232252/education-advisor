@@ -67,7 +67,7 @@ const stableT = vi.hoisted(() => {
     'settings.section.general': '通用',
     'settings.section.chat': '对话',
     'settings.section.channels': '连接中心',
-    'settings.section.feishuIntegration': '飞书集成(数据源)',
+    'settings.channels.datasource.title': '数据源集成',
     'settings.section.mcp': 'MCP 集成',
     'settings.section.data': '数据与备份',
     'settings.section.logs': '日志查看',
@@ -124,7 +124,6 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(screen.getByText('通用')).toBeTruthy())
     expect(screen.getByText('对话')).toBeTruthy()
     expect(screen.getByText('连接中心')).toBeTruthy()
-    expect(screen.getByText('飞书集成(数据源)')).toBeTruthy()
     expect(screen.getByText('MCP 集成')).toBeTruthy()
     expect(screen.getByText('数据与备份')).toBeTruthy()
     expect(screen.getByText('日志查看')).toBeTruthy()
@@ -134,6 +133,11 @@ describe('SettingsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /本机 WebUI/ }))
     expect(screen.getByText('访问令牌')).toBeTruthy()
     expect(screen.queryByText('Cloudflare 隧道')).toBeNull()
+    // 阶段 2: 数据源集成并入连接中心(展开后可见,替代原「飞书集成」区)
+    fireEvent.click(screen.getByText('连接中心'))
+    await waitFor(() => expect(screen.getByText('数据源集成')).toBeTruthy())
+    expect(screen.getByText('飞书多维表格同步')).toBeTruthy()
+    expect(screen.getByText('教师推送')).toBeTruthy()
   })
 
   it('加载中显示 loading 态(挂起期间)', async () => {
