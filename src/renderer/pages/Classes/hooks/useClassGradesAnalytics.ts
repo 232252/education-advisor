@@ -1,7 +1,8 @@
 // =============================================================
 // useClassGradesAnalytics — class-scoped exam catalog, single-exam
-// grades, and lightweight two-exam comparison. Reuses academic APIs
-// only (listExams / getConfig / getClassGrades). No new IPC.
+// grades, lightweight two-exam comparison, and multi-exam class
+// average trend. Reuses academic APIs only (listExams / getConfig /
+// getClassGrades). No new IPC.
 // =============================================================
 
 import { DEFAULT_SUBJECTS } from '@shared/academic-defaults'
@@ -13,6 +14,7 @@ import { computeStudentComparisons, sortByDateAsc, sortByDateDesc } from '../../
 import { getAPI } from '../../../lib/ipc-client'
 import { pickLatestExamId } from '../../Dashboard/dashboard-academic-stats'
 import { SUBJECT_FILTER_ALL } from '../../Dashboard/dashboard-lens'
+import { buildClassAvgTrend, pickTrendExams } from '../lib/class-avg-trend'
 import { summarizeScoreMovement } from '../lib/grade-movement'
 
 const CATALOG_FALLBACKS = {
@@ -27,6 +29,10 @@ const GRADES_FALLBACKS = {
 const COMPARE_FALLBACKS = {
   gradesA: {} as Record<string, GradeRecord[]>,
   gradesB: {} as Record<string, GradeRecord[]>,
+}
+
+const TREND_FALLBACKS = {
+  gradesByExam: {} as Record<string, Record<string, GradeRecord[]>>,
 }
 
 async function unwrapExams(): Promise<ExamDef[]> {
@@ -122,6 +128,34 @@ export function useClassGradesAnalytics({
     },
   )
 
+  const trendExams = useMemo(() => (examId ? pickTrendExams(exams, examId) : []), [exams, examId])
+  const trendExamIdsKey = trendExams.map((e) => e.id).join(',')
+  const trendEnabled = enabled && trendExams.length >= 2 && studentNames.length > 0
+
+  const trendLoader = useMultiLoader(
+    {
+      gradesByExam: async (): Promise<Record<string, Record<string, GradeRecord[]>>> => {
+        const entries = await Promise.all(
+          trendExams.map(async (exam) => {
+            const res = await getAPI().academic.getClassGrades(studentNames, exam.id)
+            return [exam.id, res.success && res.data ? res.data : {}] as const
+          }),
+        )
+        return Object.fromEntries(entries)
+      },
+    },
+    {
+      enabled: trendEnabled,
+      deps: [trendExamIdsKey, namesKey],
+      fallbacks: TREND_FALLBACKS,
+    },
+  )
+
+  const trendPoints = useMemo(
+    () => buildClassAvgTrend(trendExams, trendLoader.data.gradesByExam, subjectId),
+    [trendExams, trendLoader.data.gradesByExam, subjectId],
+  )
+
   const studentComparisons = useMemo(() => {
     if (!compareEnabled) return []
     return computeStudentComparisons(
@@ -139,10 +173,7 @@ export function useClassGradesAnalytics({
     subjectNameMap,
   ])
 
-  const movement = useMemo(
-    () => summarizeScoreMovement(studentComparisons),
-    [studentComparisons],
-  )
+  const movement = useMemo(() => summarizeScoreMovement(studentComparisons), [studentComparisons])
 
   const catalogReady = catalog.readyKeys.has('exams') && catalog.readyKeys.has('config')
   const gradesReady =
@@ -153,15 +184,26 @@ export function useClassGradesAnalytics({
     !compareEnabled ||
     (compareLoader.readyKeys.has('gradesA') && compareLoader.readyKeys.has('gradesB')) ||
     Boolean(compareLoader.errors.gradesA || compareLoader.errors.gradesB)
+  const trendReady =
+    !trendEnabled ||
+    trendLoader.readyKeys.has('gradesByExam') ||
+    Boolean(trendLoader.errors.gradesByExam)
+
+  const selectedExam = useMemo(
+    () => sortedExams.find((e) => e.id === examId) ?? null,
+    [sortedExams, examId],
+  )
 
   const catalogReload = catalog.reload
   const gradesReload = gradesLoader.reload
   const compareReload = compareLoader.reload
+  const trendReload = trendLoader.reload
   const reload = useCallback(() => {
     catalogReload()
     gradesReload()
     compareReload()
-  }, [catalogReload, gradesReload, compareReload])
+    trendReload()
+  }, [catalogReload, gradesReload, compareReload, trendReload])
 
   return {
     exams: sortedExams,
@@ -170,6 +212,7 @@ export function useClassGradesAnalytics({
     setExamId,
     subjectId,
     setSubjectId,
+    selectedExam,
     classGrades: gradesLoader.data.classGrades,
     examAId,
     setExamAId,
@@ -178,13 +221,20 @@ export function useClassGradesAnalytics({
     studentComparisons,
     movement,
     canCompare: compareEnabled,
+    trendPoints,
+    trendReady,
     catalogReady,
     gradesReady,
     compareReady,
     catalogLoading: catalog.loading,
     gradesLoading: gradesLoader.loading,
     compareLoading: compareLoader.loading,
-    errors: { ...catalog.errors, ...gradesLoader.errors, ...compareLoader.errors },
+    errors: {
+      ...catalog.errors,
+      ...gradesLoader.errors,
+      ...compareLoader.errors,
+      ...trendLoader.errors,
+    },
     reload,
   }
 }

@@ -2,7 +2,7 @@
 
 > 日期：2026-09-12  
 > 仓库：education-advisor @ tip `b06749d`（以最新提交为准）  
-> 状态：**已在 feat/class-grades-analytics 实现 MVP**  
+> 状态：**MVP + 二期已在 feat/class-grades-analytics 实现**  
 > 关联调研：班级管理缺成绩入口；分析能力已在 Dashboard 成绩镜头 + Academics 对比/总览成熟
 
 ## 1. 已拍板
@@ -101,15 +101,46 @@ docs/plans|research/*channel* / *feishu*
 4. 学生 Tab 点姓名 → 进入 `/academics` 且能定位到该生  
 5. 未改飞书/通讯相关文件（`git diff` 自检）
 
-## 7. 二期（明确延后）
+## 7. 二期（原延后项 — 见 §9 完成说明）
 
-- 多场班级均分趋势折线（或暴露 `getExamGrades` / 多场聚合 API）
-- 录入后自动计算 `classRank`
-- 班级成绩一页纸打印/导出
-- 演示样例数据包（当前 live academics 常为空）
+- ~~多场班级均分趋势折线~~ → 已做
+- ~~录入后自动计算 `classRank`~~ → 已做
+- ~~班级成绩一页纸打印/导出~~ → 已做
+- ~~演示样例数据包~~ → 已做（文档级 fixture）
 
 ## 8. 开放附录（已关闭）
 
 - ~~升降档位~~ → **轻量两场对比**
 - ~~点学生跳转~~ → **/academics**
 - ~~是否先写代码~~ → **先定稿方案，待命实现**
+
+## 9. 二期完成
+
+> 分支：`feat/class-grades-analytics`（在 MVP `b94d9b6` 之上）  
+> 约束：仍未改动 feishu* / webui* / `handle.ts`；**无新 IPC**（趋势复用多次 `getClassGrades`）。
+
+### 已交付
+
+| 项 | 说明 |
+|----|------|
+| 多场班级均分趋势 | `ClassAvgTrendCard` + `class-avg-trend.ts`；同学期优先，否则最近 8 场；全科百分制 / 单科原始分；`<2` 场有数据时空态 |
+| 自动 classRank | `shared/class-rank.ts` → `academic-service.batchSetGrades`：同一考试+科目且 ≥2 名学生有分时，按分数降序**竞争排名**（同分同名次，下一名次跳过，如 1,2,2,4）并**覆盖**该批手填排名；仅 1 名学生的科目组（全科逐人保存）**不改动**已有排名，避免误伤 |
+| 一页纸打印 | 成绩分析工具栏复用 `useExamGradeSheet` + `ClassGradeSheetDocument` + `PrintOverlay`（与学业考试管理同一套） |
+| 演示样例 | `docs/fixtures/class-grades-demo/` + README（复制到 `academics/`，无需改工厂重置） |
+
+### 弃做 / 仍延后
+
+- 未暴露 `getExamGrades` / 新多场聚合 IPC（趋势用多次现有 API 足够）
+- 自动排名**不**跨「未出现在本批保存」的学生重算（依赖录入时班级筛选下的名单；部分覆盖保存时排名仅相对本批有分学生）
+- 未做独立 PDF 引擎（继续系统打印 / 另存为 PDF）
+- 样例不自动注入 userData；需按 README 手动覆盖 `academics/`
+
+### 主要文件
+
+- `src/shared/class-rank.ts` + `src/shared/__tests__/class-rank.test.ts`
+- `src/main/services/academic-service.ts`（batchSet 挂钩）
+- `src/renderer/pages/Classes/lib/class-avg-trend.ts` (+ test)
+- `src/renderer/pages/Classes/components/ClassAvgTrendCard.tsx`
+- `src/renderer/pages/Classes/components/ClassGradesTab.tsx` / `hooks/useClassGradesAnalytics.ts`
+- `docs/fixtures/class-grades-demo/**`
+- i18n：`page.classes.grades.trend*` / `printSheet`

@@ -1,0 +1,45 @@
+{
+  "subjects": [
+    {
+      "id": "chinese",
+      "name": "语文",
+      "category": "core",
+      "fullMark": 150,
+      "isCore": true
+    },
+    {
+      "id": "math",
+      "name": "数学",
+      "category": "core",
+      "fullMark": 150,
+      "isCore": true
+    },
+    {
+      "id": "english",
+      "name": "英语",
+      "category": "core",
+      "fullMark": 150,
+      "isCore": true
+    },
+    {
+      "id": "physics",
+      "name": "物理",
+      "category": "science",
+      "fullMark": 100
+    }
+  ],
+  "defaultExamTypes": [
+    {
+      "value": "monthly",
+      "label": "月考"
+    },
+    {
+      "value": "midterm",
+      "label": "期中考试"
+    },
+    {
+      "value": "final",
+      "label": "期末考试"
+    }
+  ]
+}
