@@ -98,6 +98,21 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     }
   }
 
+  /**
+   * 企微频道凭证/开关变化后按需重连(与钉钉同款语义,阶段 3)。
+   */
+  const reconnectWecomBot = async () => {
+    const s = settingsService.getSettings()
+    const secret = keystoreService.getSecret('wecom-secret')
+    if (s.channels.wecom.enabled && s.channels.wecom.botId && secret) {
+      await channelManager.start('wecom').catch((err) => {
+        log('warn', 'settings', `wecom channel reconnect failed: ${err}`)
+      })
+    } else {
+      await channelManager.stop('wecom').catch(() => {})
+    }
+  }
+
   // H-9 修复: 加 try-catch
   handleIpc(IPC.IPC_SETTINGS_GET, async () => {
     // PERF: 命中缓存直接返回(避免 structuredClone + keystore 查询)
@@ -112,6 +127,9 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     if (keystoreService.getSecret('dingtalk-client-secret')) {
       settings.channels.dingtalk.clientSecret = SECRET_PLACEHOLDER
     }
+    if (keystoreService.getSecret('wecom-secret')) {
+      settings.channels.wecom.secret = SECRET_PLACEHOLDER
+    }
     settingsGetCache.set('response', settings)
     return settings
   })
@@ -120,9 +138,8 @@ export function registerSettingsHandlers(win: BrowserWindow) {
   handleIpc(
     IPC.IPC_SETTINGS_SET,
     async (_e, path: string, value: unknown) => {
-      // 飞书凭据统一去首尾空白: 粘贴带入的空格/换行会让飞书返回
-      // 10003(appId/secret 为空或含空白)或 10014(secret 含空白),保存前先归一化
-      // 钉钉同理(Stream 建连对凭证空白敏感)
+      // 飞书/钉钉/企微凭据统一去首尾空白: 粘贴带入的空格/换行会让
+      // 飞书返回 10003/10014,钉钉与企微 WS 建连对凭证空白同样敏感
       if (
         typeof value === 'string' &&
         (path === 'feishu.appId' ||
@@ -130,9 +147,32 @@ export function registerSettingsHandlers(win: BrowserWindow) {
           path === 'channels.feishu.appId' ||
           path === 'channels.feishu.appSecret' ||
           path === 'channels.dingtalk.clientId' ||
-          path === 'channels.dingtalk.clientSecret')
+          path === 'channels.dingtalk.clientSecret' ||
+          path === 'channels.wecom.botId' ||
+          path === 'channels.wecom.secret')
       ) {
         value = value.trim()
+      }
+
+      // 企微渠道 secret(阶段 3): 与钉钉同一协议 —
+      // keystore 加密存储('wecom-secret'),不写 settings.json;清空 = 删除密钥
+      if (path === 'channels.wecom.secret' && typeof value === 'string') {
+        if (value === SECRET_PLACEHOLDER) {
+          return { success: true }
+        }
+        if (value.length === 0) {
+          keystoreService.deleteSecret('wecom-secret')
+          settingsService.update('channels.wecom.secret', '')
+          settingsGetCache.clear()
+          log('info', 'settings', 'channels.wecom.secret cleared (empty input)')
+          await reconnectWecomBot()
+          return { success: true }
+        }
+        keystoreService.setSecret('wecom-secret', value)
+        log('info', 'settings', 'channels.wecom.secret saved to keystore (encrypted)')
+        settingsGetCache.clear()
+        await reconnectWecomBot()
+        return { success: true }
       }
 
       // 钉钉渠道 secret(阶段 2): 与飞书同一协议 —
@@ -298,6 +338,17 @@ export function registerSettingsHandlers(win: BrowserWindow) {
         await reconnectDingtalkBot()
       }
 
+      // 企微渠道(阶段 3): 任一配置变化保存即重连(botId/secret 影响建连,
+      // allowGroups/agentId 在 start 时读取)
+      if (
+        path === 'channels.wecom.botId' ||
+        path === 'channels.wecom.enabled' ||
+        path === 'channels.wecom.allowGroups' ||
+        path === 'channels.wecom.agentId'
+      ) {
+        await reconnectWecomBot()
+      }
+
       // T5: 日志级别:实时切换
       if (path === 'general.logLevel' && typeof value === 'string') {
         setLogLevel(value as 'debug' | 'info' | 'warn' | 'error' | 'off')
@@ -358,14 +409,16 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     settingsService.reset()
     // PERF: reset 后让 get 缓存失效
     settingsGetCache.clear()
-    // 重置时也清除 keystore 中的飞书/钉钉密钥
+    // 重置时也清除 keystore 中的飞书/钉钉/企微密钥
     keystoreService.deleteSecret('feishu-app-secret')
     keystoreService.deleteSecret('dingtalk-client-secret')
+    keystoreService.deleteSecret('wecom-secret')
     keystoreService.deleteSecret(WEBUI_ACCESS_TOKEN_KEY)
     keystoreService.deleteSecret(LEGACY_CF_TUNNEL_SECRET_KEY)
-    // 重置后停止飞书/钉钉长连接
+    // 重置后停止飞书/钉钉/企微长连接
     await feishuBotService.stop().catch(() => {})
     await channelManager.stop('dingtalk').catch(() => {})
+    await channelManager.stop('wecom').catch(() => {})
     // 重置后也要同步 autoStart(默认 false)
     app.setLoginItemSettings({ openAtLogin: false })
     // 重置后也要重建托盘

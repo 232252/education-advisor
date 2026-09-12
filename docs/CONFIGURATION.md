@@ -474,9 +474,35 @@ Legacy `feishu.appId`/`feishu.domain` values are migrated forward on
 first run (one-time `.bak-channels-migration` backup;
 `src/main/services/settings/migrate-channels.ts`), and `channels.feishu.appId`/`domain`
 mirror back to `feishu.*` so outbound integrations (alerts / Bitable)
-keep working. New channels (e.g. DingTalk, coming soon) add a
-`channels.<id>` block the same way — the UI is generated from the
-manifest, no new settings code.
+keep working. New channels add a `channels.<id>` block the same way —
+the UI is generated from the manifest, no new settings code.
+
+DingTalk (Stream Mode, stage 2):
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `channels.dingtalk.enabled` | `true` | Master switch; auto-starts the Stream-Mode bot on app launch. |
+| `channels.dingtalk.clientId` | (empty) | DingTalk app Client ID. |
+| `channels.dingtalk.clientSecret` | (empty, in keystore) | **Stored encrypted in the OS keystore** (key `dingtalk-client-secret`); written via the `__keystore__` placeholder protocol. |
+| `channels.dingtalk.allowGroups` | `true` | Whether the bot responds in group chats (requires @bot). |
+| `channels.dingtalk.agentId` | `main` | Which agent answers channel messages. |
+| `channels.dingtalk.cardTemplateId` | (empty) | AI card template ID; empty = official public streaming template. |
+
+WeCom smart bot (long-connection mode, stage 3, beta):
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `channels.wecom.enabled` | `true` | Master switch; auto-starts the smart-bot long connection on app launch. |
+| `channels.wecom.botId` | (empty) | Smart-bot Bot ID (from the admin console API-mode page). |
+| `channels.wecom.secret` | (empty, in keystore) | Long-connection Secret (not the CorpSecret). **Stored encrypted in the OS keystore** (key `wecom-secret`); written via the `__keystore__` placeholder protocol. |
+| `channels.wecom.allowGroups` | `true` | Whether the bot responds in group chats. |
+| `channels.wecom.agentId` | `main` | Which agent answers channel messages. |
+
+WeCom replies stream over `aibot_respond_msg` (same `req_id` re-sent,
+finish flag ends the stream, 10-minute hard window guarded 30s early);
+attachments are downloaded and AES-256-CBC decrypted immediately on
+receipt (URL valid for 5 minutes). Proactive push requires the user to
+have messaged the bot first (`pushPolicy: require-prior-message`).
 
 ### Feishu (data-source integrations)
 
