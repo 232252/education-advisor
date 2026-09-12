@@ -1,17 +1,21 @@
 // =============================================================
-// ChannelsSection — 连接中心(消息频道卡片墙,M5)
-// 信息架构(实施文档 §4.1):「消息频道」分组 = 卡片墙(飞书 + 即将支持占位),
-// 「数据源集成」分组 = 提示(bitable/推送设置仍在下方"飞书集成"区,阶段 3 迁入)。
+// ChannelsSection — 连接中心(阶段 2 收口: 消息频道 + 数据源集成)
+// 信息架构(实施文档 §4.1 + 阶段 2 迁入):
+//   「消息频道」= 渠道卡片墙(manifest 驱动,飞书/钉钉/…)
+//   「数据源集成」= 出站集成(bitable 同步/教师推送,原 FeishuSection 迁入)
 // 数据: channels:list(挂载拉取) + IPC_CHANNELS_STATUS_UPDATE 订阅实时态;
 // 配置保存走 settings:set(dotPath) — 保存即重连在主进程联动。
 // =============================================================
 
 import type { ChannelInstanceInfo, ChannelStatusInfo, UnifiedSettings } from '@shared/types'
-import { useEffect, useState } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { Section } from '../components'
+import { BitableAdvancedSection } from '../components/BitableAdvancedSection'
 import { FeishuNetworkDiagnostics } from '../components/FeishuNetworkDiagnostics'
+import { ToggleSettingRow } from '../components/ToggleSettingRow'
+import type { BitListAction, BitListStatus } from '../hooks/useBitableList'
 import { ChannelCard } from './ChannelCard'
 import { ChannelConfigPanel } from './ChannelConfigPanel'
 
@@ -20,11 +24,30 @@ interface ChannelsSectionProps {
   onSave: (path: string, value: unknown) => void
 }
 
+// T4 状态机(与 useBitableList 的动作类型对齐;原 FeishuSection 同款)
+function bitListReducer(state: BitListStatus, action: BitListAction): BitListStatus {
+  if (action.type === 'LIST' && state === 'idle') return 'listing'
+  if (action.type === 'SUCCESS' && state === 'listing') return 'success'
+  if (action.type === 'ERROR' && (state === 'idle' || state === 'listing')) return 'error'
+  if (action.type === 'RESET') return 'idle'
+  return state
+}
+
 export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
   const { t } = useT()
   const [instances, setInstances] = useState<ChannelInstanceInfo[]>([])
   const [liveStatus, setLiveStatus] = useState<Record<string, ChannelStatusInfo>>({})
   const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  // 数据源集成(bitable)本地编辑态(原 FeishuSection 迁入)
+  const [bitableAppToken, setBitableAppToken] = useState<string>(
+    settings.feishu?.bitableAppToken ?? '',
+  )
+  useEffect(() => {
+    setBitableAppToken(settings.feishu?.bitableAppToken ?? '')
+  }, [settings.feishu?.bitableAppToken])
+  const [bitableListStatus, dispatchBitList] = useReducer(bitListReducer, 'idle')
+  const [bitableListInfo, setBitableListInfo] = useState<string>('')
 
   // 挂载拉取渠道目录 + 订阅状态变化(卸载时取消订阅防泄漏)
   useEffect(() => {
@@ -53,7 +76,7 @@ export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
   }, [settings.channels])
 
   return (
-    <Section title={t('settings.section.channels', '连接中心(消息频道)')}>
+    <Section title={t('settings.section.channels', '连接中心')}>
       <div className="px-5 py-4">
         <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3">
           {t(
@@ -88,12 +111,58 @@ export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
           )}
         </div>
 
-        <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-3">
-          {t(
-            'settings.channels.integrationHint',
-            '多维表格同步/教师推送等数据源集成设置在下方「飞书集成」区,后续将并入连接中心。',
-          )}
-        </p>
+        {/* ===== 数据源集成(出站;原「飞书集成」区迁入,阶段 2 收口) ===== */}
+        <div className="mt-5">
+          <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
+            {t('settings.channels.datasource.title', '数据源集成')}
+          </h4>
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-2 leading-relaxed">
+            {t(
+              'settings.channels.datasource.intro',
+              'AI 结果的出站去向(与消息频道共用飞书凭证):定时同步报告到多维表格、把定时任务结果推送给教师。',
+            )}
+          </p>
+          <div className="rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary shadow-sm">
+            <div className="px-4 py-3 border-b border-gray-100 dark:border-white/[0.04] flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                {t('settings.channels.datasource.feishu', '飞书多维表格同步')}
+              </span>
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded ${
+                  settings.feishu?.bitableSync?.enabled
+                    ? 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400'
+                    : 'bg-gray-100 dark:bg-surface-elevated text-gray-500 dark:text-gray-400'
+                }`}
+              >
+                {settings.feishu?.bitableSync?.enabled
+                  ? t('common.enabled', '已启用')
+                  : t('common.disabled', '已停用')}
+              </span>
+            </div>
+            <BitableAdvancedSection
+              settings={settings}
+              onSave={onSave}
+              bitableAppToken={bitableAppToken}
+              setBitableAppToken={setBitableAppToken}
+              bitableListStatus={bitableListStatus}
+              dispatchBitList={dispatchBitList}
+              bitableListInfo={bitableListInfo}
+              setBitableListInfo={setBitableListInfo}
+            />
+            <div className="divide-y divide-gray-200 dark:divide-gray-700/60">
+              <ToggleSettingRow
+                path="feishu.agentPushEnabled"
+                label={t('settings.channels.datasource.agentPush', '教师推送')}
+                description={t(
+                  'settings.channels.datasource.agentPush.desc',
+                  '定时任务(周报/风险预警)完成后把结果推送给教师,默认关闭',
+                )}
+                value={settings.feishu?.agentPushEnabled === true}
+                onSave={onSave}
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </Section>
   )
