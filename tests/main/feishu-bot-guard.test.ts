@@ -76,7 +76,7 @@ vi.mock('../../src/main/services/channels/runtime/command/router', () => ({
   CommandContext: {},
 }))
 
-import { feishuBotService } from '../../src/main/services/feishu-bot-service'
+import { feishuBotService } from '../../src/main/services/channels/adapters/feishu/connection'
 
 const VALID_APP_ID = `cli_${'a'.repeat(16)}`
 

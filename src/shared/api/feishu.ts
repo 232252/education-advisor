@@ -3,8 +3,6 @@
 // appSecret 从 keystore 读取，不再通过参数传递
 // =============================================================
 
-import type { FeishuBotStatusInfo } from '@shared/types'
-
 export interface FeishuAPI {
   test: (
     appId: string,
@@ -19,15 +17,6 @@ export interface FeishuAPI {
   }>
   // [r] 查 token 缓存状态(诊断用,不返回 token 本体)
   status: () => Promise<string>
-  // 飞书长连接机器人
-  botStart: () => Promise<{
-    success: boolean
-    error?: string
-    status?: FeishuBotStatusInfo
-  }>
-  botStop: () => Promise<{ success: boolean; status?: FeishuBotStatusInfo }>
-  botStatus: () => Promise<FeishuBotStatusInfo>
-  onBotStatusUpdate: (callback: (info: FeishuBotStatusInfo) => void) => () => void
   diagnose: () => Promise<{
     steps: Array<{
       name: string

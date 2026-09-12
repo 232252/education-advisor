@@ -130,29 +130,11 @@ describe('feishuApi — invoke 通道与参数', () => {
     expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_FEISHU_STATUS)
   })
 
-  it('botStart / botStop / botStatus / diagnose', () => {
-    void feishuApi.botStart()
-    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_FEISHU_BOT_START)
-    void feishuApi.botStop()
-    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_FEISHU_BOT_STOP)
-    void feishuApi.botStatus()
-    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_FEISHU_BOT_STATUS)
+  it('diagnose(阶段 2: bot* 已退役,走 channels:*)', () => {
     void feishuApi.diagnose()
     expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_FEISHU_DIAGNOSE)
-  })
-
-  it('onBotStatusUpdate: 订阅/回调/取消订阅', () => {
-    mocks.on.mockReset()
-    mocks.removeListener.mockReset()
-    const cb = vi.fn()
-    const unsub = feishuApi.onBotStatusUpdate(cb)
-
-    const [channel, handler] = mocks.on.mock.calls[0]
-    expect(channel).toBe(IPC.IPC_FEISHU_BOT_STATUS_UPDATE)
-    handler({}, { connected: true })
-    expect(cb).toHaveBeenCalledWith({ connected: true })
-
-    unsub()
-    expect(mocks.removeListener).toHaveBeenCalledWith(IPC.IPC_FEISHU_BOT_STATUS_UPDATE, handler)
+    expect(mocks.invoke).not.toHaveBeenCalledWith(
+      expect.stringContaining('feishu:bot'),
+    )
   })
 })
