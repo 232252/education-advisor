@@ -39,7 +39,7 @@ export async function saveUploadedBuffer(
   uploadsDir: string,
   originalName: string,
   buf: Buffer,
-): Promise<UploadOk> {
+): Promise<UploadResult> {
   const safeName = sanitizeUploadFilename(originalName)
   await fsp.mkdir(uploadsDir, { recursive: true })
   const destName = `${Date.now()}-${randomBytes(4).toString('hex')}-${safeName}`
