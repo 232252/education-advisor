@@ -5,6 +5,7 @@
 import type { ClassEntity, EAAStudent } from '@shared/types'
 import { Users } from 'lucide-react'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '../../../components/EmptyState'
 import { tr, useT } from '../../../i18n'
 import { errText, getAPI } from '../../../lib/ipc-client'
@@ -31,6 +32,7 @@ export function StudentsTab({
   onRefresh: () => void
 }) {
   const { t } = useT()
+  const navigate = useNavigate()
   // 转班状态: 正在转班的学生名 → 选中的目标 class_id
   const [transferTarget, setTransferTarget] = useState<Record<string, string>>({})
   const [transferring, setTransferring] = useState<string | null>(null)
@@ -97,7 +99,18 @@ export function StudentsTab({
         <tbody>
           {students.map((s) => (
             <tr key={s.entity_id} className={TABLE_ROW}>
-              <td className={cn(TABLE_TD, 'font-medium')}>{s.name}</td>
+              <td className={cn(TABLE_TD, 'font-medium')}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(`/academics?entity_id=${encodeURIComponent(s.entity_id)}`)
+                  }
+                  title={t('page.classes.grades.openAcademics')}
+                  className="text-blue-600 dark:text-blue-400 hover:underline bg-transparent border-0 p-0 cursor-pointer font-medium"
+                >
+                  {s.name}
+                </button>
+              </td>
               <td className={cn(TABLE_TD, riskColor(s.risk))}>{s.risk}</td>
               <td className={cn(TABLE_TD, 'text-center text-gray-500 dark:text-gray-400')}>
                 {s.score}
