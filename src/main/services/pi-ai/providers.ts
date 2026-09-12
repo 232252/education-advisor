@@ -1,10 +1,11 @@
 // =============================================================
 // Pi AI — Provider 元数据: 常量表 / 列表 / OAuth 引导登录
-// 厂商与模型目录以 vendor/pi-ai 为准,不在本文件维护平行清单。
+// 厂商与模型目录以 vendor/pi-ai builtinProviders() 为准;中文显示名见 @shared/provider-labels。
 // =============================================================
 
 import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import { builtinProviders } from '@earendil-works/pi-ai/providers/all'
+import { providerDisplayName } from '@shared/provider-labels'
 import type { ProviderInfo } from '@shared/types'
 import { keystoreService } from '../keystore-service'
 import { settingsService } from '../settings-service'
@@ -12,7 +13,7 @@ import { safeGetModels } from './model-utils'
 
 const builtin = builtinProviders()
 
-/** 显示名 = pi 内置 Provider.name(升级 vendor 后自动跟上) */
+/** 显示名 = 中文常用名(若有)否则 pi 内置 Provider.name */
 export const PROVIDER_NAMES: Record<string, string> = Object.fromEntries(
   builtin.map((p) => [p.id, p.name]),
 )
@@ -69,7 +70,7 @@ export async function listProviders(): Promise<ProviderInfo[]> {
 
     return {
       id,
-      name: PROVIDER_NAMES[id] ?? id,
+      name: providerDisplayName(id, PROVIDER_NAMES[id] ?? id),
       supportsOAuth: OAUTH_PROVIDERS.has(id),
       hasApiKey,
       modelCount: filteredModels.length,

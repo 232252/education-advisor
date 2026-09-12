@@ -369,6 +369,26 @@ describe('piAIService', () => {
       expect(openai?.modelCount).toBeGreaterThanOrEqual(1)
     })
 
+    it('列出 pi 全部内置厂商,智谱中国版是 zai-coding-cn', async () => {
+      const { builtinProviders } = await import('@earendil-works/pi-ai/providers/all')
+      const catalog = builtinProviders()
+      const providers = await piAIService.listProviders()
+      const ids = new Set(providers.map((p) => p.id))
+      expect(catalog.filter((p) => !ids.has(p.id)).map((p) => p.id)).toEqual([])
+
+      expect(providers.find((p) => p.id === 'zai')?.name).toBe('智谱 Z.AI（国际）')
+      expect(providers.find((p) => p.id === 'zai-coding-cn')).toMatchObject({
+        id: 'zai-coding-cn',
+        name: '智谱（中国）',
+      })
+      expect(providers.find((p) => p.id === 'minimax-cn')?.name).toBe('MiniMax（中国）')
+      expect(providers.find((p) => p.id === 'moonshotai-cn')?.name).toBe('Moonshot AI（中国）')
+      expect(providers.find((p) => p.id === 'qwen-token-plan-cn')?.name).toBe(
+        '通义千问 Token Plan（中国）',
+      )
+      expect(providers.find((p) => p.id === 'zai-cn')).toBeUndefined()
+    })
+
     it('免费模型 provider 标记 hasFreeModels 且排序靠前', async () => {
       piMocks.getProviders.mockReturnValue(['openai', 'zai'])
       piMocks.keystoreListProviders.mockReturnValue([])
