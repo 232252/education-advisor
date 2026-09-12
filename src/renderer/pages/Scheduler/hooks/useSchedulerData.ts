@@ -96,11 +96,14 @@ export function useSchedulerData() {
       t('scheduler.confirmDelete'),
       async () => {
         try {
-          await getAPI().cron.remove(id)
-          reload()
-        } catch (err) {
-          console.error('[Scheduler] Remove failed:', err)
-          toast.error(t('toast.scheduler.deleteFailed'))
+          // 与 create/edit 一致: cron:remove 失败返回 {success:false} 不抛异常,必须检查
+          await runIpcMutation(() => getAPI().cron.remove(id), {
+            onOk: () => reload(),
+            failMsg: t('toast.scheduler.deleteFailed'),
+            failLog: '[Scheduler] Remove rejected:',
+            catchMsg: t('toast.scheduler.deleteFailed'),
+            catchLog: '[Scheduler] Remove failed:',
+          })
         } finally {
           close()
         }
