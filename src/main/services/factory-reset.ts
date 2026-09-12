@@ -68,6 +68,9 @@ export async function factoryResetAll(): Promise<void> {
   // 阶段 2: 钉钉频道一并停止(keystore 已 clearAll,凭证同时清空)
   const { dingtalkBotService } = await import('./channels/adapters/dingtalk/connection')
   await dingtalkBotService.stop().catch(() => {})
+  // 阶段 3: 企微频道同上
+  const { wecomBotService } = await import('./channels/adapters/wecom/connection')
+  await wecomBotService.stop().catch(() => {})
   app.setLoginItemSettings({ openAtLogin: false })
   const newSettings = settingsService.getSettings()
   updateTray(newSettings.general.minimizeToTray)

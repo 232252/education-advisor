@@ -12,6 +12,7 @@ import type { BrowserWindow } from 'electron'
 import { Notification } from 'electron'
 import { createDingtalkAdapter } from '../services/channels/adapters/dingtalk'
 import { createFeishuAdapter } from '../services/channels/adapters/feishu'
+import { createWecomAdapter } from '../services/channels/adapters/wecom'
 import { channelManager } from '../services/channels/manager'
 import { log } from '../utils/logger'
 import { sendToRenderer } from './broadcast'
@@ -21,6 +22,7 @@ import { handleIpc } from './handle'
 function registerChannelRegistry(): void {
   channelManager.register(createFeishuAdapter)
   channelManager.register(createDingtalkAdapter)
+  channelManager.register(createWecomAdapter)
 }
 
 /** 渠道显示名(通知文案用;从 manager manifest 目录取) */

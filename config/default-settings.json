@@ -102,6 +102,13 @@
       "allowGroups": true,
       "agentId": "main",
       "cardTemplateId": ""
+    },
+    "wecom": {
+      "enabled": true,
+      "botId": "",
+      "secret": "",
+      "allowGroups": true,
+      "agentId": "main"
     }
   },
   "shortcuts": {

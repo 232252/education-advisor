@@ -291,9 +291,9 @@ convention and review):
 
 ## The channel layer (connection hub)
 
-Chat platforms (Feishu today, DingTalk next) reach the app through a
-four-layer pipeline so that adding a channel means writing one adapter
-directory plus one manifest — queueing, agent dispatch, streaming
+Chat platforms (Feishu, DingTalk, and WeCom today) reach the app
+through a four-layer pipeline so that adding a channel means writing
+one adapter directory plus one manifest — queueing, agent dispatch, streaming
 cards, dedup, file handling, status reporting, and settings UI are all
 shared. Everything lives under `src/main/services/channels/`:
 
@@ -347,10 +347,19 @@ Key contracts (wire types in
 
 The Feishu implementation lives in
 [`adapters/feishu/`](../src/main/services/channels/adapters/feishu/)
-(WS long-connection, CardKit streaming, group policy); the old
-`src/main/services/feishu-bot/` files and `feishu-bot-service.ts` are
-thin re-export shims kept for import compatibility and the legacy
-`feishu:bot-*` IPC, to be retired when DingTalk lands.
+(WS long-connection, CardKit streaming, group policy). DingTalk
+(stage 2, `adapters/dingtalk/`) self-implements Stream Mode (WSS
+gateway + ticket handshake, business-dedup on `msgId`, AI-card
+typewriter streaming with a text-fallback via `sessionWebhook`,
+two-hop `downloadCode` file downloads). WeCom (stage 3, beta,
+`adapters/wecom/`) self-implements the smart-bot long-connection
+protocol (subscribe/ping frames, `aibot_respond_msg` streaming on the
+callback's `req_id` with a 10-minute hard window guarded 30s early,
+`disconnected_event` takeover = no reconnect, attachments prefetched
+and AES-256-CBC decrypted on receipt because their URL expires in 5
+minutes). The legacy `src/main/services/feishu-bot/` files,
+`feishu-bot-service.ts`, and the `feishu:bot-*` IPC were retired with
+stage 2.
 
 ---
 

@@ -239,8 +239,11 @@ describe('DingtalkApiClient(API 形状)', () => {
   })
 
   it('文件下载两跳: downloadCode → downloadUrl → GET 落盘', async () => {
+    // os.tmpdir() 前缀: mkdtemp 相对前缀会在仓库 CWD 泄漏测试目录
+    const os = await import('node:os')
+    const pathMod = await import('node:path')
     const tmpDir = await import('node:fs/promises').then((fsp) =>
-      fsp.mkdtemp('dt-test-attachments-'),
+      fsp.mkdtemp(pathMod.join(os.tmpdir(), 'dt-test-attachments-')),
     )
     const requests: RecordedRequest[] = []
     const fileBytes = new TextEncoder().encode('hello,dingtalk')
