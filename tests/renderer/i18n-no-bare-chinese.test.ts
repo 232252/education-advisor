@@ -23,12 +23,16 @@ const ALLOWLIST: Record<string, string> = {
   'components/print/PrintOverlay.tsx': '打印界面向教师输出,保持单语中文打印体验(产品决策)',
   'components/print/ParentReportDocument.tsx': '家长报告打印文档,与 PrintOverlay 同一单语打印体验(产品决策)',
   'components/onboarding/steps/WelcomeStep.tsx': 'onboarding 步骤文案与页面标题联动,R3 与 Welcome 页一并处理',
+  'pages/Classes/lib/class-grades-ai-prompt.ts': '学业分析 AI 提示词,发给模型的上下文文本(非 UI 文案,同 chat-message.ts 先例)',
 }
 
 /** R2-13 长尾白名单(行级,必须注明理由;只允许「数据即文案」行,UI 文案必须接线) */
 const ALLOWLIST_LINE: Record<string, Record<number, string>> = {
   'pages/Classes/ClassesPage.tsx': {
     99: '动态生成班级名数据(如 "3班")',
+  },
+  'pages/Classes/components/ClassGradesAiPanel.tsx': {
+    140: 'ai.message 错误态字符串比对(失败/fail),非展示文案',
   },
   'pages/Dashboard/components/ClassComparisonPanel.tsx': {
     93: 'EAARiskLevel 数据键值(极高/高/中/低 来自后端枚举,属性访问非文案)',
