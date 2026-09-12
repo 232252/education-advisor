@@ -51,6 +51,57 @@ export function selectCheapestModel(models: Model<Api>[]): Model<Api> {
 }
 
 /**
+ * 套餐配额 SKU:目录里标价为 0,但只对特定订阅开放。
+ * 智谱 Highspeed 即此类——连接测试若选它,普通套餐会 429/1311。
+ */
+export function isQuotaGatedProbeModel(model: { id: string; name?: string }): boolean {
+  return /high[\s_-]*speed/i.test(`${model.id} ${model.name ?? ''}`)
+}
+
+/**
+ * 连接探测候选:排除套餐专属模型后按成本升序。
+ * 若全部都是套餐专属,回退到全量列表,避免无模型可测。
+ */
+export function rankProbeModels(models: Model<Api>[]): Model<Api>[] {
+  const eligible = models.filter((m) => !isQuotaGatedProbeModel(m))
+  const pool = eligible.length > 0 ? eligible : models
+  return pool.slice().sort((a, b) => costScore(a) - costScore(b))
+}
+
+/** 连接测试用探测模型(最便宜的非套餐专属)。空列表抛错。 */
+export function selectProbeModel(models: Model<Api>[]): Model<Api> {
+  const ranked = rankProbeModels(models)
+  if (ranked.length === 0) {
+    throw new Error('selectProbeModel: empty model list')
+  }
+  return ranked[0]
+}
+
+/** 密钥本身无效,换模型重试没有意义。 */
+export function isAuthRejectedError(message: string): boolean {
+  const lower = message.toLowerCase()
+  return (
+    /\b401\b/.test(message) ||
+    lower.includes('invalid api key') ||
+    lower.includes('incorrect api key') ||
+    lower.includes('invalid_api_key') ||
+    lower.includes('unauthorized') ||
+    lower.includes('authentication failed')
+  )
+}
+
+/** 当前探测模型对这张密钥的套餐未开放,可换更便宜/更通用的模型再试。 */
+export function isModelPlanDeniedError(message: string): boolean {
+  return (
+    message.includes('1311') ||
+    message.includes('暂未开放') ||
+    (message.includes('套餐') && message.includes('权限')) ||
+    /does not have access/i.test(message) ||
+    /not available.*(plan|subscription|your)/i.test(message)
+  )
+}
+
+/**
  * 将 pi-ai 的 AssistantMessageEvent 映射为前端 StreamEvent。
  * - `start` 事件返回 null(chatStream 中手动 yield,避免重复)
  * - `error` 事件的 retryable 仅在 reason === 'aborted' 时为 true

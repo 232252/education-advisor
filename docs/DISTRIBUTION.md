@@ -75,7 +75,7 @@ itself in the background. The flow:
 gh workflow run Release -f tag=v3.3.3 -f platforms=win
 ```
 
-工作流会：只跑一次质量门禁 → 各平台编 Rust、打安装包 → 上传 GitHub Release。同一版本已发布过时，后续 main 推送会跳过发版。
+工作流会：只跑一次质量门禁 → 各平台编 Rust、打安装包 → 上传 GitHub Release。同一版本已发布过时，后续 main 推送会跳过发版——要按当前 `main` 重打同一版本，必须手动 `gh workflow run`，不能指望再推一次 main。
 
 ### Configuring auto-update
 

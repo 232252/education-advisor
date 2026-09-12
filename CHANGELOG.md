@@ -27,6 +27,9 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 ### Changed
 - 推送 `main` 且 `package.json` 版本尚未发过时，由 GitHub Actions 云端打包并发布安装包（不再依赖本机编译或手动 Run workflow）。
 
+### Fixed
+- 智谱测试连接不再选用 Highspeed 套餐模型（目录标价 0），避免普通套餐 429/1311 被误判为密钥无效。
+
 ## [3.3.2] — 2026-09-12
 
 ### Fixed
