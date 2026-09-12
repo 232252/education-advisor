@@ -1,0 +1,44 @@
+[
+  {
+    "id": "exam-demo-0901",
+    "name": "九月月考",
+    "type": "monthly",
+    "date": "2025-09-15",
+    "semester": "2025-秋",
+    "subjects": [
+      "chinese",
+      "math",
+      "english",
+      "physics"
+    ],
+    "createdAt": "2025-09-10T00:00:00.000Z"
+  },
+  {
+    "id": "exam-demo-1015",
+    "name": "十月月考",
+    "type": "monthly",
+    "date": "2025-10-20",
+    "semester": "2025-秋",
+    "subjects": [
+      "chinese",
+      "math",
+      "english",
+      "physics"
+    ],
+    "createdAt": "2025-10-15T00:00:00.000Z"
+  },
+  {
+    "id": "exam-demo-mid",
+    "name": "期中考试",
+    "type": "midterm",
+    "date": "2025-11-10",
+    "semester": "2025-秋",
+    "subjects": [
+      "chinese",
+      "math",
+      "english",
+      "physics"
+    ],
+    "createdAt": "2025-11-01T00:00:00.000Z"
+  }
+]

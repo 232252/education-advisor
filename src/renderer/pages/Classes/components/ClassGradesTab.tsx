@@ -1,17 +1,20 @@
 // =============================================================
 // ClassProfile — Grades tab: single-exam analytics + lightweight
-// two-exam movement. Reuses Dashboard Grade* cards and Academics
-// SubjectAvgChartCard / comparison helpers. No new IPC.
+// two-exam movement + multi-exam class avg trend + print sheet.
+// Reuses Dashboard Grade* cards, Academics SubjectAvgChartCard /
+// comparison helpers, and existing ClassGradeSheetDocument print.
 // =============================================================
 
 import type { EAAStudent } from '@shared/types'
-import { BookOpen, PencilLine, TrendingUp, Users } from 'lucide-react'
+import { BookOpen, PencilLine, Printer, TrendingUp, Users } from 'lucide-react'
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../../components/Button'
 import { Card } from '../../../components/Card'
 import { DeltaBadge } from '../../../components/DeltaBadge'
 import { EmptyState } from '../../../components/EmptyState'
+import { ClassGradeSheetDocument } from '../../../components/print/ClassGradeSheetDocument'
+import { PrintOverlay } from '../../../components/print/PrintOverlay'
 import { useT } from '../../../i18n'
 import {
   cn,
@@ -22,6 +25,7 @@ import {
   TABLE_TH,
 } from '../../../lib/ui-utils'
 import { SubjectAvgChartCard } from '../../Academics/components/overview/SubjectAvgChartCard'
+import { useExamGradeSheet } from '../../Academics/hooks/useExamGradeSheet'
 import { AcademicStatsRow } from '../../Dashboard/components/AcademicStatsRow'
 import { DashboardCardSkeleton } from '../../Dashboard/components/DashboardCardSkeleton'
 import { GradeBandChartCard } from '../../Dashboard/components/GradeBandChartCard'
@@ -37,8 +41,16 @@ import {
 } from '../../Dashboard/dashboard-academic-stats'
 import { SUBJECT_FILTER_ALL } from '../../Dashboard/dashboard-lens'
 import { useClassGradesAnalytics } from '../hooks/useClassGradesAnalytics'
+import { ClassAvgTrendCard } from './ClassAvgTrendCard'
 
-export function ClassGradesTab({ students }: { students: EAAStudent[] }) {
+export function ClassGradesTab({
+  students,
+  classLabel,
+}: {
+  students: EAAStudent[]
+  /** Class display name for print sheet header */
+  classLabel?: string
+}) {
   const { t } = useT()
   const navigate = useNavigate()
   const analytics = useClassGradesAnalytics({ students })
@@ -49,6 +61,7 @@ export function ClassGradesTab({ students }: { students: EAAStudent[] }) {
     setExamId,
     subjectId,
     setSubjectId,
+    selectedExam,
     classGrades,
     examAId,
     setExamAId,
@@ -57,11 +70,15 @@ export function ClassGradesTab({ students }: { students: EAAStudent[] }) {
     studentComparisons,
     movement,
     canCompare,
+    trendPoints,
+    trendReady,
     catalogReady,
     gradesReady,
     compareReady,
     reload,
   } = analytics
+
+  const gradeSheet = useExamGradeSheet(students)
 
   const entityByName = useMemo(() => {
     const m = new Map<string, string>()
@@ -159,6 +176,15 @@ export function ClassGradesTab({ students }: { students: EAAStudent[] }) {
         <Button variant="ghost" size="sm" onClick={reload} aria-label={t('common.refresh')}>
           {t('common.refresh')}
         </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!selectedExam || gradeSheet.loading}
+          onClick={() => selectedExam && void gradeSheet.printSheet(selectedExam)}
+        >
+          <Printer size={14} strokeWidth={2} />
+          {t('page.classes.grades.printSheet')}
+        </Button>
         <Button variant="secondary" size="sm" onClick={() => openAcademicsTab('entry')}>
           <PencilLine size={14} strokeWidth={2} />
           {t('page.classes.grades.shortcutEntry')}
@@ -180,6 +206,7 @@ export function ClassGradesTab({ students }: { students: EAAStudent[] }) {
             </div>
           )}
           <AcademicStatsRow stats={stats} avgLabel={avgLabel} />
+          <ClassAvgTrendCard points={trendPoints} subjectId={subjectId} ready={trendReady} />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <GradeBandChartCard bands={bands} />
             <SubjectAvgChartCard subjects={subjects} grades={flatGrades} />
@@ -193,7 +220,10 @@ export function ClassGradesTab({ students }: { students: EAAStudent[] }) {
         <DashboardCardSkeleton />
       )}
 
-      <details className="rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary p-3" open>
+      <details
+        className="rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary p-3"
+        open
+      >
         <summary className="cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-200">
           {t('page.classes.grades.compareTitle')}
         </summary>
@@ -364,6 +394,21 @@ export function ClassGradesTab({ students }: { students: EAAStudent[] }) {
           )}
         </div>
       </details>
+
+      {gradeSheet.sheet && (
+        <PrintOverlay
+          title={`${t('print.gradeSheet.title', '成绩单')} — ${gradeSheet.sheet.exam.name}`}
+          onClose={gradeSheet.closeSheet}
+        >
+          <ClassGradeSheetDocument
+            exam={gradeSheet.sheet.exam}
+            subjects={subjects}
+            rows={gradeSheet.sheet.rows}
+            subjectStats={gradeSheet.sheet.subjectStats}
+            classLabel={classLabel}
+          />
+        </PrintOverlay>
+      )}
     </div>
   )
 }
