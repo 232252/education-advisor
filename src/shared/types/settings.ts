@@ -147,6 +147,18 @@ export interface UnifiedSettings {
       /** AI 卡片模板 ID;空 = 官方公共模板 */
       cardTemplateId: string
     }
+    wecom: {
+      /** 连接开关(与运行状态正交) */
+      enabled: boolean
+      /** 智能机器人 bot_id(管理端可见) */
+      botId: string
+      /** 恒为空串或 '__keystore__' 占位符(真实值在 keystore 'wecom-secret') */
+      secret: string
+      /** 群聊响应;关闭后只处理单聊 */
+      allowGroups: boolean
+      /** 该频道的消息交给哪个 Agent 处理(避免多渠道抢占 main 队列) */
+      agentId: string
+    }
   }
   // R2-03 清理:原 advanced.shellPath/sessionDir/httpIdleTimeoutMs 为死配置(全仓无消费方),已删除
   mcp: {
