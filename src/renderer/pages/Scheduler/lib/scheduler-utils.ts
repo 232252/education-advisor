@@ -59,7 +59,17 @@ export function getRecentLogs(logs: CronLogEntry[], limit: number): CronLogEntry
   return [...logs].reverse().slice(0, limit)
 }
 
-/** 是否为 Agent schedule 自动生成的任务（不可编辑/删除） */
+/** 是否为 Agent schedule 自动生成的任务（不可在表单中编辑表达式；可删除并写入覆盖） */
 export function isAutoTask(id: string): boolean {
   return id.startsWith('agent-schedule-')
+}
+
+/** 系统内置任务（飞书同步/自动备份）— UI 不提供删除，避免删了又被 register* 重建 */
+export function isProtectedSystemTask(id: string): boolean {
+  return id === 'feishu-bitable-sync' || id === 'auto-backup'
+}
+
+/** 调度中心是否允许删除该任务 */
+export function canDeleteTask(id: string): boolean {
+  return !isProtectedSystemTask(id)
 }
