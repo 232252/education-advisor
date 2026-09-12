@@ -35,6 +35,9 @@ export async function getTenantToken(
   appSecret: string,
   domain: FeishuDomain,
 ): Promise<{ token: string; expireSec: number }> {
+  // 凭据去首尾空白: 粘贴带入的空格/换行会让飞书返回 10003/10014 鉴权失败
+  appId = appId.trim()
+  appSecret = appSecret.trim()
   // 命中缓存: 必须同时满足 appId 一致 + domain 一致 + 未过期(距过期 >5 分钟)
   if (
     cachedToken &&
