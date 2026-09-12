@@ -69,7 +69,9 @@ vi.mock('../../src/main/services/eaa-bridge', () => ({
   eaaBridge: { execute: vi.fn() },
   getErrorMessage: vi.fn((r: { stderr?: string }) => r?.stderr ?? 'error'),
 }))
-vi.mock('../../src/main/services/feishu-bot/command-router', () => ({
+// M3: 命令路由实现已上提 channels/runtime/command/router(原 feishu-bot/command-router 为兼容壳),
+// mock 需指向真实模块路径才能被连接层拦截
+vi.mock('../../src/main/services/channels/runtime/command/router', () => ({
   createDefaultRouter: () => ({ dispatch: mocks.dispatchMock }),
   CommandContext: {},
 }))
@@ -183,6 +185,8 @@ describe('M3: 内部 stop 不污染 userStopped', () => {
 })
 
 describe('H3: 事件不阻塞 ack + 去重 + 队列上限', () => {
+  // 阶段 0 起:非命令文本走"合并窗口→Agent 流式"路径,不再经过 router.dispatch;
+  // 以下用 /echo 命令文本验证同一组语义(命令不等待合并窗口,直接 dispatch)。
   it('事件回调同步返回(不等待消息处理完成)', async () => {
     await feishuBotService.start(VALID_APP_ID, 'secret', null)
     const handler = mocks.registeredHandles?.['im.message.receive_v1']
@@ -195,7 +199,7 @@ describe('H3: 事件不阻塞 ack + 去重 + 队列上限', () => {
           resolveDispatch = r
         }),
     )
-    const ret = handler!(makeTextEvent('mid_h3_1'))
+    const ret = handler!(makeTextEvent('mid_h3_1', '/echo hi'))
     // 回调应返回 undefined(同步路径,未 await 队列)
     expect(ret).toBeUndefined()
     // 等队列消化到 dispatch(异步)
@@ -208,9 +212,9 @@ describe('H3: 事件不阻塞 ack + 去重 + 队列上限', () => {
   it('相同 message_id 重投 → 去重跳过,只处理一次', async () => {
     await feishuBotService.start(VALID_APP_ID, 'secret', null)
     const handler = mocks.registeredHandles?.['im.message.receive_v1']
-    handler!(makeTextEvent('mid_dup_1'))
-    handler!(makeTextEvent('mid_dup_1'))
-    handler!(makeTextEvent('mid_dup_1'))
+    handler!(makeTextEvent('mid_dup_1', '/echo hi'))
+    handler!(makeTextEvent('mid_dup_1', '/echo hi'))
+    handler!(makeTextEvent('mid_dup_1', '/echo hi'))
     await vi.waitFor(() => expect(mocks.dispatchMock).toHaveBeenCalledTimes(1))
     // 再多等一拍,确认没有第 2 次处理
     await new Promise((r) => setTimeout(r, 20))
@@ -220,7 +224,7 @@ describe('H3: 事件不阻塞 ack + 去重 + 队列上限', () => {
   it('排队超过 16 条 → 多余消息丢弃并回复"繁忙"', async () => {
     await feishuBotService.start(VALID_APP_ID, 'secret', null)
     const handler = mocks.registeredHandles?.['im.message.receive_v1']
-    // 第一条挂起,占住串行队列
+    // 第一条命令挂起,占住会话处理位
     let resolveDispatch!: (v: string) => void
     mocks.dispatchMock.mockImplementation(
       () =>
@@ -228,14 +232,14 @@ describe('H3: 事件不阻塞 ack + 去重 + 队列上限', () => {
           resolveDispatch = r
         }),
     )
-    handler!(makeTextEvent('mid_full_0'))
+    handler!(makeTextEvent('mid_full_0', '/echo hang'))
     // 等第一条进入 dispatch(占住处理位)
     await vi.waitFor(() => expect(mocks.dispatchMock).toHaveBeenCalledTimes(1))
-    // 再投 16 条填满 pending(处理中1 + 排队15 = 16)
-    for (let i = 1; i <= 16; i++) {
+    // 再投 15 条同会话消息填满 pending(处理中1 + 合并窗口中15 = 16)
+    for (let i = 1; i <= 15; i++) {
       handler!(makeTextEvent(`mid_full_${i}`))
     }
-    // 第 17 条应被丢弃并触发"繁忙"回复
+    // 第 16 条待处理消息应被丢弃并触发"繁忙"回复
     mocks.replyMock.mockClear()
     handler!(makeTextEvent('mid_full_overflow'))
     expect(mocks.replyMock).toHaveBeenCalledTimes(1)
@@ -244,7 +248,7 @@ describe('H3: 事件不阻塞 ack + 去重 + 队列上限', () => {
     ) as { text: string }
     expect(replyContent.text).toContain('繁忙')
 
-    // 放行: 后续 15 条排队消息立即 resolve,避免悬挂队列污染后续测试
+    // 放行: 后续排队消息立即 resolve,避免悬挂队列污染后续测试
     mocks.dispatchMock.mockImplementation(() => Promise.resolve('ok'))
     resolveDispatch('ok')
     await new Promise((r) => setTimeout(r, 50))

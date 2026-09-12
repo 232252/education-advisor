@@ -102,6 +102,7 @@ export function createWebInvokeEvent(
   send: (channel: string, payload: unknown) => void,
 ): IpcMainInvokeEvent {
   return {
+    webUi: true,
     sender: {
       isDestroyed: () => false,
       send: (channel: string, ...payload: unknown[]) => {
@@ -109,4 +110,9 @@ export function createWebInvokeEvent(
       },
     },
   } as unknown as IpcMainInvokeEvent
+}
+
+/** WebUI 假事件 — 不能弹主机文件对话框,否则在跑应用的电脑上选文件 */
+export function isWebUiInvokeEvent(event: unknown): boolean {
+  return Boolean(event && typeof event === 'object' && (event as { webUi?: boolean }).webUi)
 }

@@ -9,6 +9,7 @@
 import * as IPC from '@shared/ipc-channels'
 import type { UnifiedSettings } from '@shared/types'
 import { app, type BrowserWindow } from 'electron'
+import { channelManager } from '../services/channels/manager'
 import { cronService } from '../services/cron-service'
 import { TtlLruCache } from '../services/eaa-cache'
 import { feishuBotService } from '../services/feishu-bot-service'
@@ -51,6 +52,7 @@ const ENUM_VALIDATORS: Record<string, readonly string[]> = {
   'chat.steeringMode': ['all', 'one-at-a-time'],
   'chat.followUpMode': ['all', 'one-at-a-time'],
   'chat.thinkingLevel': ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'],
+  'channels.feishu.domain': ['feishu', 'lark'],
 }
 
 export function registerSettingsHandlers(win: BrowserWindow) {
@@ -59,23 +61,22 @@ export function registerSettingsHandlers(win: BrowserWindow) {
   app.setLoginItemSettings({ openAtLogin: currentSettings.general.autoStart })
 
   /**
-   * 飞书 appId 或 appSecret 变化后，若两者均已配置则重连长连接机器人；
-   * 若 appId 被清空则停止。实现"保存即生效"，无需重启 app。
+   * 飞书频道凭证/开关变化后按需重连(保存即生效,无需重启 app)。
+   * M4: 经 ChannelManager 走统一频道链路(凭证读 channels.feishu + keystore);
+   * 旧路径(feishu.appId)保存时已镜像到 channels.feishu,同样收敛到这里。
    */
   const reconnectFeishuBot = async () => {
-    // M3 修复: 本函数仅在用户保存 appId/appSecret 时触发,本身就是明确的连接意图,
+    // M3 修复: 本函数仅在用户保存 appId/appSecret/开关时触发,本身就是明确的连接意图,
     // 不再因 userStopped(曾手动点"停止")而跳过 — 此前保存新凭证后机器人不会自动连,
     // 必须再手动点一次"连接"才生效
     const s = settingsService.getSettings()
     const secret = keystoreService.getSecret('feishu-app-secret')
-    if (s.feishu.appId && secret) {
-      // start 内部已做幂等：若 appId 相同且已连接则跳过
-      const feishuDomain = s.feishu.domain === 'lark' ? 'lark' : 'feishu'
-      await feishuBotService.start(s.feishu.appId, secret, win, feishuDomain).catch((err) => {
-        log('warn', 'settings', `feishu bot reconnect failed: ${err}`)
+    if (s.channels.feishu.enabled && s.channels.feishu.appId && secret) {
+      await channelManager.start('feishu').catch((err) => {
+        log('warn', 'settings', `feishu channel reconnect failed: ${err}`)
       })
     } else {
-      await feishuBotService.stop().catch(() => {})
+      await channelManager.stop('feishu').catch(() => {})
     }
   }
 
@@ -88,6 +89,7 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     // 如果 keystore 中有飞书 appSecret，用占位符标记（不返回真实密钥）
     if (keystoreService.getSecret('feishu-app-secret')) {
       settings.feishu.appSecret = '__keystore__'
+      settings.channels.feishu.appSecret = '__keystore__'
     }
     settingsGetCache.set('response', settings)
     return settings
@@ -99,11 +101,36 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     async (_e, path: string, value: unknown) => {
       // 飞书凭据统一去首尾空白: 粘贴带入的空格/换行会让飞书返回
       // 10003(appId/secret 为空或含空白)或 10014(secret 含空白),保存前先归一化
-      if (typeof value === 'string' && (path === 'feishu.appId' || path === 'feishu.appSecret')) {
+      if (
+        typeof value === 'string' &&
+        (path === 'feishu.appId' ||
+          path === 'feishu.appSecret' ||
+          path === 'channels.feishu.appId' ||
+          path === 'channels.feishu.appSecret')
+      ) {
         value = value.trim()
       }
 
-      // 飞书 appSecret:存入 keystore 加密存储，不写入 settings.json
+      // M4: 渠道 secret(channels.feishu.appSecret)与旧路径(feishu.appSecret)
+      // 同一协议:keystore 加密存储,不写 settings.json;清空 = 删除密钥
+      if (path === 'channels.feishu.appSecret' && typeof value === 'string') {
+        if (value === '__keystore__') {
+          return { success: true }
+        }
+        if (value.length === 0) {
+          keystoreService.deleteSecret('feishu-app-secret')
+          settingsService.update('channels.feishu.appSecret', '')
+          settingsGetCache.clear()
+          log('info', 'settings', 'channels.feishu.appSecret cleared (empty input)')
+          await reconnectFeishuBot()
+          return { success: true }
+        }
+        keystoreService.setSecret('feishu-app-secret', value)
+        log('info', 'settings', 'channels.feishu.appSecret saved to keystore (encrypted)')
+        settingsGetCache.clear()
+        await reconnectFeishuBot()
+        return { success: true }
+      }
       if (path === 'feishu.appSecret' && typeof value === 'string') {
         // 如果是 keystore 占位符，说明用户没修改，跳过
         if (value === '__keystore__') {
@@ -185,6 +212,31 @@ export function registerSettingsHandlers(win: BrowserWindow) {
 
       // 飞书 appId 变化：保存即重连长连接(appSecret 从 keystore 读取)
       if (path === 'feishu.appId') {
+        // M4 镜像: 旧 UI 路径写入时同步到 channels.feishu(权威位置)
+        if (typeof value === 'string') {
+          settingsService.update('channels.feishu.appId', value)
+          settingsGetCache.clear()
+        }
+        await reconnectFeishuBot()
+      }
+
+      // M4: 新路径(channels.feishu.*)保存即生效 —
+      // appId/domain 镜像回 feishu.*(出站集成共用凭证);
+      // appId/enabled/allowGroups 变化触发重连(allowGroups 在连接建立时读取)
+      if (path === 'channels.feishu.appId' || path === 'channels.feishu.domain') {
+        const s = settingsService.getSettings()
+        settingsService.update('feishu.appId', s.channels.feishu.appId)
+        settingsService.update('feishu.domain', s.channels.feishu.domain)
+        settingsGetCache.clear()
+        if (path === 'channels.feishu.appId') {
+          await reconnectFeishuBot()
+        }
+      }
+      if (
+        path === 'channels.feishu.enabled' ||
+        path === 'channels.feishu.allowGroups' ||
+        path === 'channels.feishu.agentId'
+      ) {
         await reconnectFeishuBot()
       }
 

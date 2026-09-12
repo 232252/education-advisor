@@ -39,6 +39,7 @@ function startGw(tls: ReturnType<typeof ensureWebUiTls>, extra: Partial<GatewayO
     ipv6: true,
     tls,
     rendererRoot: tmpDir,
+    uploadsDir: path.join(tmpDir, 'uploads'),
     ...extra,
   })
 }
@@ -274,6 +275,107 @@ describe('webui tls / gateway', () => {
       })
       ws.on('error', reject)
     })
+    await gw.close()
+  })
+
+  it('POST /upload 把浏览器文件落到主机目录；无令牌 401；GET 405', async () => {
+    const tls = ensureWebUiTls(tmpDir)
+    const gw = await startGw(tls, {
+      protocol: 'http',
+      token: 'up-token',
+      ipv6: false,
+      bind: 'loopback',
+    })
+    const uploadsDir = path.join(tmpDir, 'uploads')
+
+    await new Promise<void>((resolve, reject) => {
+      const req = http.request(
+        {
+          hostname: '127.0.0.1',
+          port: gw.port,
+          path: '/upload',
+          method: 'POST',
+          headers: { 'Content-Length': '3', 'X-Filename': 'a.txt' },
+        },
+        (res) => {
+          try {
+            expect(res.statusCode).toBe(401)
+            res.resume()
+            resolve()
+          } catch (err) {
+            reject(err)
+          }
+        },
+      )
+      req.on('error', reject)
+      req.end('abc')
+    })
+
+    await new Promise<void>((resolve, reject) => {
+      const req = http.request(
+        {
+          hostname: '127.0.0.1',
+          port: gw.port,
+          path: '/upload?k=up-token',
+          method: 'GET',
+        },
+        (res) => {
+          try {
+            expect(res.statusCode).toBe(405)
+            res.resume()
+            resolve()
+          } catch (err) {
+            reject(err)
+          }
+        },
+      )
+      req.on('error', reject)
+      req.end()
+    })
+
+    const body = Buffer.from('roster-bytes')
+    const saved = await new Promise<{ status: number; json: { success: boolean; path: string; name: string } }>(
+      (resolve, reject) => {
+        const req = http.request(
+          {
+            hostname: '127.0.0.1',
+            port: gw.port,
+            path: '/upload',
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'Content-Length': body.length,
+              'X-Filename': encodeURIComponent('花名册.xlsx'),
+              'X-EA-Token': 'up-token',
+            },
+          },
+          (res) => {
+            const chunks: Buffer[] = []
+            res.on('data', (c) => chunks.push(c as Buffer))
+            res.on('end', () => {
+              try {
+                const json = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+                  success: boolean
+                  path: string
+                  name: string
+                }
+                resolve({ status: res.statusCode || 0, json })
+              } catch (err) {
+                reject(err)
+              }
+            })
+          },
+        )
+        req.on('error', reject)
+        req.end(body)
+      },
+    )
+    expect(saved.status).toBe(200)
+    expect(saved.json.success).toBe(true)
+    expect(saved.json.name).toBe('花名册.xlsx')
+    expect(path.dirname(saved.json.path)).toBe(uploadsDir)
+    expect(await fsp.readFile(saved.json.path)).toEqual(body)
+
     await gw.close()
   })
 })

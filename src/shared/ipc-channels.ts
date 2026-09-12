@@ -224,6 +224,14 @@ export const IPC_FEISHU_BOT_STATUS_UPDATE = 'feishu:bot-status-update'
 // 网络诊断:排查飞书远程访问连接问题
 export const IPC_FEISHU_DIAGNOSE = 'feishu:diagnose'
 
+// ===== 消息频道(连接中心,阶段 1 频道化) =====
+// 渠道目录/启停/测试连接 + 状态推送(主→渲染,renderer 与 WebUI 共用)
+export const IPC_CHANNELS_LIST = 'channels:list'
+export const IPC_CHANNELS_START = 'channels:start'
+export const IPC_CHANNELS_STOP = 'channels:stop'
+export const IPC_CHANNELS_TEST = 'channels:test'
+export const IPC_CHANNELS_STATUS_UPDATE = 'channels:status-update'
+
 // ===== 日志 =====
 // arch-P0-1 修复：原硬编码字符串，迁入共享常量
 export const IPC_LOG_LIST = 'log:list'

@@ -23,6 +23,10 @@ import { app } from 'electron'
 import { DEFAULT_SETTINGS } from './settings/defaults'
 import { loadOrDefaultSync } from './settings/merge'
 import {
+  backupSettingsForMigration,
+  migrateFeishuChannelSettings,
+} from './settings/migrate-channels'
+import {
   flush as flushPersistence,
   type PersistenceState,
   saveNow as saveNowPersistence,
@@ -51,6 +55,16 @@ class SettingsService {
       writing: false,
       needsResave: false,
       lastError: null,
+    }
+
+    // M4: feishu.* → channels.feishu.* 一次性迁移(幂等;变更前自动备份)
+    try {
+      if (migrateFeishuChannelSettings(this.settings)) {
+        backupSettingsForMigration(this.settingsPath)
+        void saveNowPersistence(this.persistence, () => this.settings)
+      }
+    } catch (err) {
+      console.warn('[SettingsService] channels migration failed (non-blocking):', err)
     }
 
     // 初始化时设置默认数据目录（P1-24：调 saveNow 持久化）

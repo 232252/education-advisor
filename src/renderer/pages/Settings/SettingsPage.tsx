@@ -24,6 +24,7 @@ import { btnStyle, cn, INPUT_BASE } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
 import {
   AboutSection,
+  ChannelsSection,
   ChatSection,
   DataSection,
   DiagnosticSection,
@@ -204,7 +205,10 @@ export function SettingsPage() {
         {/* ===== MCP (education-advisor 特有 feature flag) ===== */}
         <McpSection settings={settings} onSave={handleSave} />
 
-        {/* ===== 飞书 ===== */}
+        {/* ===== 连接中心(消息频道,阶段 1 频道化) ===== */}
+        <ChannelsSection settings={settings} onSave={handleSave} />
+
+        {/* ===== 飞书集成(数据源;bitable 等,阶段 3 并入连接中心) ===== */}
         <FeishuSection settings={settings} onSave={handleSave} />
 
         {/* ===== 诊断 & 维护(状态自持) ===== */}

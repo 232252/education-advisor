@@ -1,8 +1,8 @@
 // =============================================================
 // SettingsPage — 页面级冒烟与关键契约测试
-// 覆盖: 加载态→渲染九大 Section、settings.get 失败的错误态+重试、
+// 覆盖: 加载态→渲染各 Section、settings.get 失败的错误态+重试、
 //       语言切换写入 general.language、重置确认弹窗流、
-//       feishu.onBotStatusUpdate 订阅退订
+//       channels.onStatusUpdate 订阅退订(连接中心)
 // getAPI 用深度自动 mock(任意属性链返回可调用节点,默认
 // resolve {success:true,data:[]}),仅对少数方法给精确 override。
 // =============================================================
@@ -53,6 +53,10 @@ api.eaa.validate = vi.fn(async () => ({ valid: true, total_events: 0, errors: []
 api.log.list = vi.fn(async () => ({ success: true, data: [] }))
 api.memory.list = vi.fn(async () => ({ success: true, data: [] }))
 api.backup.listAuto = vi.fn(async () => ({ success: true, data: [] }))
+// channels.list 必须返回数组(深度自动 mock 返回 {success,data} 对象,
+// 会让 ChannelsSection 的 instances.map 崩掉),给精确 override
+api.channels.list = vi.fn(async () => [])
+api.channels.onStatusUpdate = vi.fn(() => () => {})
 void overrides
 
 const mocks = vi.hoisted(() => ({ setLang: vi.fn(() => Promise.resolve()) }))
@@ -62,7 +66,8 @@ const stableT = vi.hoisted(() => {
   const DICT: Record<string, string> = {
     'settings.section.general': '通用',
     'settings.section.chat': '对话',
-    'settings.section.feishu': '飞书',
+    'settings.section.channels': '连接中心',
+    'settings.section.feishuIntegration': '飞书集成(数据源)',
     'settings.section.mcp': 'MCP 集成',
     'settings.section.data': '数据与备份',
     'settings.section.logs': '日志查看',
@@ -118,7 +123,8 @@ describe('SettingsPage', () => {
     render(createElement(DumpBoundary, null, createElement(SettingsPage)))
     await waitFor(() => expect(screen.getByText('通用')).toBeTruthy())
     expect(screen.getByText('对话')).toBeTruthy()
-    expect(screen.getByText('飞书')).toBeTruthy()
+    expect(screen.getByText('连接中心')).toBeTruthy()
+    expect(screen.getByText('飞书集成(数据源)')).toBeTruthy()
     expect(screen.getByText('MCP 集成')).toBeTruthy()
     expect(screen.getByText('数据与备份')).toBeTruthy()
     expect(screen.getByText('日志查看')).toBeTruthy()
@@ -169,11 +175,11 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(api.settings.reset).toHaveBeenCalled())
   })
 
-  it('feishu bot 状态订阅在卸载时退订', async () => {
+  it('channels 状态订阅在卸载时退订(连接中心接管 bot 状态)', async () => {
     const unsub = vi.fn()
-    api.feishu.onBotStatusUpdate = vi.fn(() => unsub)
+    api.channels.onStatusUpdate = vi.fn(() => unsub)
     const { unmount } = render(createElement(DumpBoundary, null, createElement(SettingsPage)))
-    await waitFor(() => expect(api.feishu.onBotStatusUpdate).toHaveBeenCalled())
+    await waitFor(() => expect(api.channels.onStatusUpdate).toHaveBeenCalled())
     unmount()
     expect(unsub).toHaveBeenCalled()
   })

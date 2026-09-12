@@ -32,6 +32,7 @@ import {
   type WebUiProtocol,
 } from './security'
 import type { TlsMaterial } from './tls'
+import { receiveUpload } from './upload'
 
 const requireWs = createRequire(import.meta.url)
 const { WebSocketServer } = requireWs('ws') as {
@@ -81,6 +82,8 @@ export interface GatewayOptions {
   ipv6: boolean
   tls?: TlsMaterial
   rendererRoot: string
+  /** 浏览器上传落盘目录(聊天附件 / 花名册 / 试卷) */
+  uploadsDir: string
   devProxyUrl?: string
 }
 
@@ -322,6 +325,40 @@ export function startWebUiGateway(opts: GatewayOptions): Promise<GatewayHandle> 
     const url = new URL(req.url || '/', 'https://webui.local')
     if (url.pathname === '/ws') {
       write(res, 426, 'upgrade required', 'text/plain; charset=utf-8')
+      return
+    }
+    if (url.pathname === '/upload') {
+      if (req.method !== 'POST') {
+        write(res, 405, 'method not allowed', 'text/plain; charset=utf-8')
+        return
+      }
+      void (async () => {
+        try {
+          const result = await receiveUpload(req, opts.uploadsDir)
+          if (!result.ok) {
+            write(res, result.status, result.error, 'text/plain; charset=utf-8')
+            return
+          }
+          write(
+            res,
+            200,
+            JSON.stringify({
+              success: true,
+              path: result.path,
+              name: result.name,
+              size: result.size,
+            }),
+            'application/json',
+          )
+        } catch (err) {
+          write(
+            res,
+            500,
+            err instanceof Error ? err.message : 'upload failed',
+            'text/plain; charset=utf-8',
+          )
+        }
+      })()
       return
     }
     if (opts.devProxyUrl) {

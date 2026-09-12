@@ -31,6 +31,7 @@ import type {
   AgentDetail,
   AgentExecution,
   AgentListItem,
+  AgentRunSource,
   AgentStatus,
 } from '@shared/types'
 import { app, type BrowserWindow } from 'electron'
@@ -117,11 +118,12 @@ class AgentService {
    * main 的运行走自己的串行队列,结果经状态事件/飞书推送呈现。
    */
   private readonly escalationBridge: EscalationToolDeps = {
-    enqueueMainReport: async (text) => {
+      enqueueMainReport: async (text) => {
       try {
         const main = this.agents.get('main')
         if (!main?.enabled) return false
-        void this.runAgent('main', text, undefined as unknown as BrowserWindow).catch((err) =>
+        // M0: 后台上报触发的 main 运行标 'cron'(非用户即时操作,不进聊天流、不受 UI abort)
+        void this.runAgent('main', text, undefined as unknown as BrowserWindow, undefined, 'cron').catch((err) =>
           console.warn(
             '[AgentService] escalated main run failed:',
             err instanceof Error ? err.message : err,
@@ -160,8 +162,10 @@ class AgentService {
     await this.scheduler.loadUserOverrides()
     await this.loadAgents()
 
-    // 将 runAgent 注册给 cron service，作为定时任务的执行入口
-    cronService.setAgentRunner((agentId, prompt, w) => this.runAgent(agentId, prompt, w))
+    // 将 runAgent 注册给 cron service，作为定时任务的执行入口(M0: 标记 cron 来源)
+    cronService.setAgentRunner((agentId, prompt, w) =>
+      this.runAgent(agentId, prompt, w, undefined, 'cron'),
+    )
 
     // 将 agent 的 schedule 字段同步为 cron 任务
     this.syncSchedules()
@@ -393,34 +397,35 @@ class AgentService {
     prompt: string,
     win: BrowserWindow,
     history?: Array<{ role: string; content: string }>,
+    source: AgentRunSource = 'ui',
   ): Promise<AgentExecution | undefined> {
     // 同步校验(排队前): 不存在 / 已停用立即抛错,行为与之前一致
     const config = this.agents.get(id)
     if (!config) {
       const msg = `Agent not found: ${id}`
-      this.sendStatus(win, id, 'error', { error: msg })
+      this.sendStatus(win, id, 'error', { error: msg, source })
       throw new Error(msg)
     }
     if (!config.enabled) {
       // P1-3: disabled 时先推送状态再抛错，渲染进程能看到
       const msg = `Agent is disabled: ${id}`
       this.agentStatus.set(id, 'error')
-      this.sendStatus(win, id, 'error', { error: msg })
+      this.sendStatus(win, id, 'error', { error: msg, source })
       throw new Error(msg)
     }
 
     const depth = this.runQueue.getDepth(id)
     if (depth >= this.runQueue.maxDepth) {
       const msg = `Agent 正忙且排队已满,请稍后重试: ${id}`
-      this.sendStatus(win, id, 'error', { error: msg })
+      this.sendStatus(win, id, 'error', { error: msg, source })
       throw new Error(msg)
     }
     if (depth > 0 || this.runningAgents.has(id)) {
-      console.log(`[AgentService] runAgent(${id}) queued (depth=${depth + 1})`)
+      console.log(`[AgentService] runAgent(${id}) queued (depth=${depth + 1}, source=${source})`)
     }
 
     return this.runQueue.enqueue(id, (generation) =>
-      this.executeRun(id, prompt, win, history, generation),
+      this.executeRun(id, prompt, win, history, generation, source),
     )
   }
 
@@ -432,8 +437,9 @@ class AgentService {
     win: BrowserWindow,
     history?: Array<{ role: string; content: string }>,
     generation?: number,
+    source: AgentRunSource = 'ui',
   ): Promise<AgentExecution | undefined> {
-    return executeAgentRun(this.executionDeps, id, prompt, win, history, generation)
+    return executeAgentRun(this.executionDeps, id, prompt, win, history, generation, source)
   }
 
   /**
@@ -458,9 +464,25 @@ class AgentService {
 
   /** 中止正在运行的 Agent
    *  P1-40 修复:等 agent 进入 idle 状态后再返回(2 秒超时),避免前端误判
+   *  M0 来源隔离: 默认只中止 'ui' 来源的在途运行 — 渲染层 switchSession/停止按钮
+   *  的 abort 不再误杀飞书(channel)/定时(cron)触发的运行(此前 UI 与飞书共用
+   *  main agent + 状态通道,切个聊天会话就把飞书侧运行杀掉,只回半截话)。
+   *  opts.force: 进程退出(shutdown)等场景无视来源强制中止。
+   *  排队任务的 abort 不区分来源(runQueue 只按代数清理,历史语义保留)。
    */
-  async abortAgent(id: string, win?: BrowserWindow): Promise<boolean> {
+  async abortAgent(
+    id: string,
+    win?: BrowserWindow,
+    opts?: { force?: boolean },
+  ): Promise<boolean> {
     const running = this.runningAgents.get(id)
+    if (running && !opts?.force && running.source && running.source !== 'ui') {
+      const queued = this.runQueue.abortQueued(id)
+      console.log(
+        `[AgentService] abortAgent(${id}) skipped: ${running.source} 运行不受 UI abort 影响 (queued cleared: ${queued})`,
+      )
+      return queued
+    }
     const queued = this.runQueue.abortQueued(id)
     if (!running && !queued) return false
     if (!running) {
@@ -469,6 +491,7 @@ class AgentService {
       this.sendStatus(win, id, 'idle', { aborted: true })
       return true
     }
+    const source = running.source ?? 'ui'
     running.abortController.abort()
     try {
       await Promise.resolve(running.agent.abort())
@@ -486,7 +509,8 @@ class AgentService {
     }
     this.runningAgents.delete(id)
     this.agentStatus.set(id, 'idle')
-    this.sendStatus(win, id, 'idle', { aborted: true })
+    // 显式带 source: 执行方 finally 可能已清理登记表(见 status-tracking)
+    this.sendStatus(win, id, 'idle', { aborted: true, source })
     return true
   }
 
@@ -519,8 +543,9 @@ class AgentService {
     // 清空所有排队队列(代数 +1 让出队任务放弃执行)
     this.runQueue.clearAllQueued()
     // 并发 abort 所有运行中的 agent, 每个 2 秒超时(复用 abortAgent 内部 waitForIdle 超时)
+    // M0: 退出路径无视来源强制中止(shutdown 后没有任何运行能继续)
     const abortPromises = runningIds.map((id) =>
-      this.abortAgent(id).catch((err) => {
+      this.abortAgent(id, undefined, { force: true }).catch((err) => {
         console.warn(`[AgentService] shutdown: abort ${id} failed:`, err)
       }),
     )
