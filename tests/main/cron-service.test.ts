@@ -249,6 +249,23 @@ describe('cronService', () => {
     expect(tasks.find((t) => t.id === 'agent-schedule-a3-0')).toBeUndefined()
   })
 
+
+  it('removeTask agent-schedule after sync stays deleted', () => {
+    cronService.syncAgentSchedules([
+      { id: 'a1', name: 'A1', schedule: ['0 8 * * *', '0 12 * * *'], modelTier: 'low_cost' },
+    ])
+    const id0 = 'agent-schedule-a1-0'
+    const id1 = 'agent-schedule-a1-1'
+    expect(cronService.listTasks().some((t) => t.id === id0)).toBe(true)
+    expect(cronService.removeTask(id0).success).toBe(true)
+    expect(cronService.listTasks().some((t) => t.id === id0)).toBe(false)
+    cronService.syncAgentSchedules([
+      { id: 'a1', name: 'A1', schedule: ['0 8 * * *', '0 12 * * *'], modelTier: 'low_cost' },
+    ])
+    expect(cronService.listTasks().some((t) => t.id === id0)).toBe(false)
+    expect(cronService.listTasks().some((t) => t.id === id1)).toBe(true)
+  })
+
   it('loadPersistedLogs 无文件时应静默返回', async () => {
     // 不应抛错
     await expect(cronService.loadPersistedLogs()).resolves.toBeUndefined()
