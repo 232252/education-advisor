@@ -85,8 +85,16 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
         return { success: false, error: 'appId must be a non-empty string' }
       }
       const appSecret = getFeishuSecret()
+      // 空 secret 不外发: 飞书对空 app_secret 返回 10003 invalid param,
+      // 直接给出可操作的提示,而不是让用户面对晦涩的错误码
+      if (!appSecret.trim()) {
+        return {
+          success: false,
+          error: 'App Secret 未保存到本地,请先在 App Secret 输入框填写并保存',
+        }
+      }
       log('info', 'feishu', `test connection, appId=${appId.slice(0, 8)}...`)
-      return await testConnection(appId, appSecret, getFeishuDomain())
+      return await testConnection(appId.trim(), appSecret, getFeishuDomain())
     },
     {
       label: (appId: string) => `feishu:test failed for "${appId}"`,
