@@ -65,17 +65,17 @@ itself in the background. The flow:
 
 安装包在 **GitHub Actions 云端**编译并发布，不要在本机 `npm run package`。
 
-1. 把 `package.json` 的 `version` 和 `CHANGELOG.md` 改好，推进 `main`。
-2. 打开 [Actions → Release → Run workflow](https://github.com/232252/education-advisor/actions/workflows/release.yml)：
-   - **tag**：如 `v3.3.0`（留空则用 `package.json`）
-   - **platforms**：`all`（Win / macOS / Linux）或 `win`（只要 Windows 安装包）
-3. 等 run 结束，到 [Releases](https://github.com/232252/education-advisor/releases) 核对安装包。
+1. 改 `package.json` 的 `version` 和 `CHANGELOG.md`。
+2. `git push origin main`。版本在 GitHub 上还没有 Release 时，Release 工作流会自动打 tag、打包、发布。
+3. 等 [Actions → Release](https://github.com/232252/education-advisor/actions/workflows/release.yml) 结束，到 [Releases](https://github.com/232252/education-advisor/releases) 核对安装包。
 
-也可以继续推 `v*.*.*` tag，效果相同。工作流会：只跑一次质量门禁 → 各平台编 Rust、打安装包 → 上传 GitHub Release。
+补发或只要 Windows 包时，仍可手动 Run workflow / 推 `v*.*.*` tag：
 
 ```bash
-gh workflow run Release -f tag=v3.3.0 -f platforms=all
+gh workflow run Release -f tag=v3.3.3 -f platforms=win
 ```
+
+工作流会：只跑一次质量门禁 → 各平台编 Rust、打安装包 → 上传 GitHub Release。同一版本已发布过时，后续 main 推送会跳过发版。
 
 ### Configuring auto-update
 
