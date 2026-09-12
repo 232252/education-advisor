@@ -1,8 +1,7 @@
 // =============================================================
-// 班级详情面板 — 概览 / 学生名单 / 调班
-// 学生数据来自父组件已加载的 listStudents（按 class_id 过滤），避免重复请求。
-// 调班：批量分入（循环 EAA set-student-meta --class-id）、单个移出（--clear-class-id）。
-// 编排层：持有 tab 状态，组合三个 Tab 组件。
+// Class profile panel — overview / roster / grades / assign
+// Student data comes from the parent listStudents payload (filtered
+// by class_id here) to avoid a second fetch.
 // =============================================================
 
 import type { ClassEntity, EAAStudent } from '@shared/types'
@@ -12,21 +11,22 @@ import { Tabs } from '../../components/Tabs'
 import { tr, useT } from '../../i18n'
 import { btnStyle } from '../../lib/ui-utils'
 import { AssignTab } from './components/AssignTab'
+import { ClassGradesTab } from './components/ClassGradesTab'
 import { OverviewTab } from './components/OverviewTab'
 import { StudentsTab } from './components/StudentsTab'
 import { filterAssignableStudents, filterClassStudents, formatDate } from './lib/students'
 
 interface ClassProfileProps {
   classEntity: ClassEntity
-  /** 全量学生列表（由父组件传入，按 class_id 在本组件内过滤） */
+  /** Full student list (filtered by class_id inside this component) */
   allStudents: EAAStudent[]
-  /** 其他可用班级列表（非存档、非当前班），用于转班 */
+  /** Other usable classes (not archived, not current) for transfer */
   allClasses: ClassEntity[]
   onClose: () => void
   onRefresh: () => void
 }
 
-type TabId = 'overview' | 'students' | 'assign'
+type TabId = 'overview' | 'students' | 'grades' | 'assign'
 
 export function ClassProfile({
   classEntity,
@@ -38,17 +38,14 @@ export function ClassProfile({
   const { t } = useT()
   const [tab, setTab] = useState<TabId>('overview')
 
-  // 本班学生（按 class_id 过滤 + 按风险排序）
   const classStudents = useMemo(() => {
     return filterClassStudents(allStudents, classEntity.class_id)
   }, [allStudents, classEntity.class_id])
 
-  // 可分入的学生：未分班 + 其他班（不含本班）
   const assignableStudents = useMemo(() => {
     return filterAssignableStudents(allStudents, classEntity.class_id)
   }, [allStudents, classEntity.class_id])
 
-  // tabs memo 化（含动态计数，但只在 classStudents.length 变化时重建）
   const tabs = useMemo<{ key: TabId; label: string }[]>(
     () => [
       { key: 'overview', label: t('page.classes.profile.tabOverview') },
@@ -56,6 +53,7 @@ export function ClassProfile({
         key: 'students',
         label: `${t('page.classes.profile.tabStudents')} (${classStudents.length})`,
       },
+      { key: 'grades', label: t('page.classes.profile.tabGrades') },
       { key: 'assign', label: t('page.classes.profile.tabAssign') },
     ],
     [t, classStudents.length],
@@ -65,7 +63,6 @@ export function ClassProfile({
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-surface-primary">
-      {/* 头部 */}
       <PageHeader
         title={classEntity.name}
         subtitle={`${classEntity.class_id} · ${tr('page.classes.profile.studentCount', { 0: String(classStudents.length) })}`}
@@ -89,7 +86,6 @@ export function ClassProfile({
         }
       />
 
-      {/* Tab 导航 */}
       <Tabs
         tabs={tabs}
         active={tab}
@@ -100,18 +96,19 @@ export function ClassProfile({
         className="px-3 gap-1"
       />
 
-      {/* Tab 内容 */}
       <div className="flex-1 overflow-y-auto p-4">
         {tab === 'overview' && (
           <OverviewTab
             classEntity={classEntity}
             createdStr={createdStr}
             studentCount={classStudents.length}
+            onViewGrades={() => setTab('grades')}
           />
         )}
         {tab === 'students' && (
           <StudentsTab students={classStudents} otherClasses={allClasses} onRefresh={onRefresh} />
         )}
+        {tab === 'grades' && <ClassGradesTab students={classStudents} />}
         {tab === 'assign' && (
           <AssignTab
             classEntity={classEntity}
