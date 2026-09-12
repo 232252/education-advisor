@@ -19,6 +19,11 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - Windows ARM64 installer
 - Tauri parity build
 
+## [3.3.1] — 2026-09-12
+
+### Fixed
+- Windows 安装包打开后窗口标题为 Error、页面 403：`app://` 把 `/index.html` 拼成盘符根路径。现改为相对拼接，并用 `pathToFileURL` 读本地文件。
+
 ## [3.3.0] — 2026-09-11
 
 ### Added
@@ -145,6 +150,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - The `nul` file in the repository root (a Windows reparse-point residue from
   an earlier redirect) is git-ignored but can be safely removed by hand.
 
-[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.0...HEAD
+[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.1...HEAD
+[3.3.1]: https://github.com/232252/education-advisor/releases/tag/v3.3.1
 [3.3.0]: https://github.com/232252/education-advisor/releases/tag/v3.3.0
 [0.1.0]: https://github.com/232252/education-advisor/releases/tag/v0.1.0
