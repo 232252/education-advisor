@@ -125,36 +125,63 @@ interface AgentScheduleSyncCtx {
    * 重建时必须保留,否则每次 agent 配置同步都会把开关打回 true。
    */
   enabledOverrides?: Map<string, boolean>
+  /**
+   * 教师在调度中心删除的自动任务 id。
+   * 重建时跳过,否则 sync 会立刻把刚删的 agent-schedule-* 加回来。
+   */
+  deletedOverrides?: Set<string>
 }
 
-/** 读取 cron.schedule-overrides.json: agent-schedule-* id → enabled */
-export async function readScheduleOverridesFile(filePath: string): Promise<Map<string, boolean>> {
+export interface ScheduleOverridesState {
+  enabled: Map<string, boolean>
+  deleted: Set<string>
+}
+
+function emptyScheduleOverrides(): ScheduleOverridesState {
+  return { enabled: new Map(), deleted: new Set() }
+}
+
+/** 读取 cron.schedule-overrides.json: enabled + deleted(agent-schedule-*) */
+export async function readScheduleOverridesFile(filePath: string): Promise<ScheduleOverridesState> {
   try {
     await fsp.access(filePath, fs.constants.F_OK)
     return parseScheduleOverrides(await fsp.readFile(filePath, 'utf-8'))
   } catch {
-    return new Map()
+    return emptyScheduleOverrides()
   }
 }
 
 /** 启动期同步读取(agent schedule 重建早于 loadUserTasks) */
-export function readScheduleOverridesFileSync(filePath: string): Map<string, boolean> {
+export function readScheduleOverridesFileSync(filePath: string): ScheduleOverridesState {
   try {
-    if (!fs.existsSync(filePath)) return new Map()
+    if (!fs.existsSync(filePath)) return emptyScheduleOverrides()
     return parseScheduleOverrides(fs.readFileSync(filePath, 'utf-8'))
   } catch {
-    return new Map()
+    return emptyScheduleOverrides()
   }
 }
 
-function parseScheduleOverrides(raw: string): Map<string, boolean> {
-  const out = new Map<string, boolean>()
+function parseScheduleOverrides(raw: string): ScheduleOverridesState {
+  const out = emptyScheduleOverrides()
   try {
-    const parsed = JSON.parse(raw) as { enabled?: Record<string, boolean> }
-    if (!parsed?.enabled || typeof parsed.enabled !== 'object') return out
-    for (const [id, enabled] of Object.entries(parsed.enabled)) {
-      if (id.startsWith('agent-schedule-') && typeof enabled === 'boolean') {
-        out.set(id, enabled)
+    const parsed = JSON.parse(raw) as {
+      enabled?: Record<string, boolean>
+      deleted?: string[] | Record<string, boolean>
+    }
+    if (parsed?.enabled && typeof parsed.enabled === 'object') {
+      for (const [id, enabled] of Object.entries(parsed.enabled)) {
+        if (id.startsWith('agent-schedule-') && typeof enabled === 'boolean') {
+          out.enabled.set(id, enabled)
+        }
+      }
+    }
+    if (Array.isArray(parsed?.deleted)) {
+      for (const id of parsed.deleted) {
+        if (typeof id === 'string' && id.startsWith('agent-schedule-')) out.deleted.add(id)
+      }
+    } else if (parsed?.deleted && typeof parsed.deleted === 'object') {
+      for (const [id, flag] of Object.entries(parsed.deleted)) {
+        if (id.startsWith('agent-schedule-') && flag) out.deleted.add(id)
       }
     }
   } catch (err) {
@@ -163,17 +190,22 @@ function parseScheduleOverrides(raw: string): Map<string, boolean> {
   return out
 }
 
-/** 将自动任务启用覆盖落盘 */
+/** 将自动任务启用/删除覆盖落盘 */
 export async function persistScheduleOverridesFile(
   filePath: string,
   enabled: Map<string, boolean>,
+  deleted: Set<string> = new Set(),
 ): Promise<void> {
   const obj: Record<string, boolean> = {}
   for (const [id, value] of enabled) {
     if (id.startsWith('agent-schedule-')) obj[id] = value
   }
+  const deletedList = [...deleted].filter((id) => id.startsWith('agent-schedule-')).sort()
   try {
-    await atomicWrite(filePath, JSON.stringify({ enabled: obj, savedAt: Date.now() }, null, 2))
+    await atomicWrite(
+      filePath,
+      JSON.stringify({ enabled: obj, deleted: deletedList, savedAt: Date.now() }, null, 2),
+    )
   } catch (err) {
     console.error('[CronService] Failed to persist schedule overrides:', err)
   }
@@ -193,6 +225,7 @@ export function syncAgentScheduleTasks(
   for (const [id, task] of ctx.tasks) {
     if (id.startsWith('agent-schedule-')) prevEnabled.set(id, task.enabled)
   }
+  const deleted = ctx.deletedOverrides ?? new Set<string>()
 
   // 清理已有的 agent-schedule-* 前缀任务
   for (const [id] of ctx.tasks) {
@@ -209,6 +242,9 @@ export function syncAgentScheduleTasks(
       if (!cron.validate(expression)) continue
 
       const id = `agent-schedule-${agent.id}-${i}`
+      // 调度中心删除过的自动任务: 跳过重建,避免删了又被 sync 加回
+      if (deleted.has(id)) continue
+
       const task: CronTask = {
         id,
         name: `${agent.name} 定时任务 ${i + 1}`,

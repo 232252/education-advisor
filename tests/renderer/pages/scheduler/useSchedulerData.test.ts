@@ -275,6 +275,26 @@ describe('useSchedulerData', () => {
     expect(result.current.confirmState.open).toBe(false)
   })
 
+  it('handleRemove success:false: error toast 且不刷新', async () => {
+    apiMocks.cronRemove.mockResolvedValue({ success: false, error: 'Task not found' })
+    const { result } = renderHook(() => useSchedulerData())
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+    const before = apiMocks.cronList.mock.calls.length
+
+    act(() => {
+      result.current.handleRemove('t1')
+    })
+    await act(async () => {
+      await result.current.confirmState.onConfirm()
+    })
+
+    expect(toastMocks.error).toHaveBeenCalledTimes(1)
+    expect(apiMocks.cronList.mock.calls.length).toBe(before)
+    expect(result.current.confirmState.open).toBe(false)
+  })
+
   // ---------- handleCreate ----------
 
   it('handleCreate 成功: 返回 true 并刷新', async () => {

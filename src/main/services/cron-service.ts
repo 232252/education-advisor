@@ -56,6 +56,8 @@ class CronService {
   /** 自动任务启用覆盖(agent-schedule-* 在 yaml 同步时会被重建,必须单独记住教师关掉的项) */
   private scheduleOverridesFilePath: string
   private scheduleOverrides: Map<string, boolean> = new Map()
+  /** 调度中心删除的自动任务(sync 时跳过,否则删了又被 agent schedule 重建) */
+  private scheduleDeleted: Set<string> = new Set()
   private scheduleOverridesWriteTimer: NodeJS.Timeout | null = null
   /** 日志写入节流 */
   private logWriteTimer: NodeJS.Timeout | null = null
@@ -81,7 +83,9 @@ class CronService {
       'cron.schedule-overrides.json',
     )
     // 同步预读覆盖: agentService.init 会立刻 syncSchedules,不能等 loadUserTasks 的 async
-    this.scheduleOverrides = readScheduleOverridesFileSync(this.scheduleOverridesFilePath)
+    const bootOverrides = readScheduleOverridesFileSync(this.scheduleOverridesFilePath)
+    this.scheduleOverrides = bootOverrides.enabled
+    this.scheduleDeleted = bootOverrides.deleted
   }
 
   /** 日志缓冲状态视图:字段本体留在实例上(测试直接戳实例 logBuffer 的访问路径),
@@ -92,7 +96,9 @@ class CronService {
 
   /** R87 BUG-1 修复：启动时从 cron.user.json 恢复用户任务（恢复逻辑见 ./cron/task-persistence.ts） */
   async loadUserTasks(): Promise<void> {
-    this.scheduleOverrides = await readScheduleOverridesFile(this.scheduleOverridesFilePath)
+    const overrides = await readScheduleOverridesFile(this.scheduleOverridesFilePath)
+    this.scheduleOverrides = overrides.enabled
+    this.scheduleDeleted = overrides.deleted
     await restoreUserTasksFile(this.userTasksFilePath, {
       addTask: (t) => this.addTask(t),
       tasks: this.tasks,
@@ -116,7 +122,11 @@ class CronService {
     }
     await Promise.all([
       persistUserTasksFile(this.userTasksFilePath, userTasks),
-      persistScheduleOverridesFile(this.scheduleOverridesFilePath, this.scheduleOverrides),
+      persistScheduleOverridesFile(
+        this.scheduleOverridesFilePath,
+        this.scheduleOverrides,
+        this.scheduleDeleted,
+      ),
     ])
   }
 
@@ -124,7 +134,11 @@ class CronService {
     if (this.scheduleOverridesWriteTimer) return
     this.scheduleOverridesWriteTimer = setTimeout(() => {
       this.scheduleOverridesWriteTimer = null
-      void persistScheduleOverridesFile(this.scheduleOverridesFilePath, this.scheduleOverrides)
+      void persistScheduleOverridesFile(
+        this.scheduleOverridesFilePath,
+        this.scheduleOverrides,
+        this.scheduleDeleted,
+      )
     }, 500)
   }
 
@@ -199,6 +213,12 @@ class CronService {
     this.circuitBreaker.reset(id)
     // R87 BUG-1 修复：用户任务删除后落盘
     if (isUserTask(id)) this.persistUserTasksDebounced()
+    // 自动任务删除必须记入 deleted 覆盖,否则下次 syncAgentSchedules 会按 yaml 重建
+    if (id.startsWith('agent-schedule-')) {
+      this.scheduleDeleted.add(id)
+      this.scheduleOverrides.delete(id)
+      this.persistScheduleOverridesDebounced()
+    }
     return { success: true }
   }
 
@@ -296,6 +316,7 @@ class CronService {
       schedule: (id, task) => this.schedule(id, task),
       unschedule: (id) => this.unschedule(id),
       enabledOverrides: this.scheduleOverrides,
+      deletedOverrides: this.scheduleDeleted,
     })
   }
 
