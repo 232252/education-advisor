@@ -1,14 +1,28 @@
 // =============================================================
 // Pi AI — Provider 连接测试(最小请求验证 API Key)
-// 从 pi-ai-service.ts testConnection 下沉(纯重构,行为零变化)
+// 从 pi-ai-service.ts testConnection 下沉
 // =============================================================
 
-import { type Context, completeSimple, getEnvApiKey } from '@earendil-works/pi-ai/compat'
+import {
+  type Api,
+  type Context,
+  completeSimple,
+  getEnvApiKey,
+  type Model,
+} from '@earendil-works/pi-ai/compat'
 import type { TestConnectionResult } from '@shared/types'
 import { errText } from '../../utils/err-text'
 import { keystoreService } from '../keystore-service'
-import { selectCheapestModel } from '../pi-ai-helpers'
+import {
+  isAuthRejectedError,
+  isModelPlanDeniedError,
+  rankProbeModels,
+  selectProbeModel,
+} from '../pi-ai-helpers'
 import { safeGetModels } from './model-utils'
+
+/** 套餐无权限时最多换几个探测模型。密钥无效(401)不换。 */
+const MAX_CONNECTION_PROBES = 3
 
 /** 测试 Provider 连接（发送一个最小请求验证 API Key） */
 export async function testProviderConnection(
@@ -33,50 +47,63 @@ export async function testProviderConnection(
     }
   }
 
-  // 选择最便宜的模型做测试
-  const testModel = selectCheapestModel(models)
+  // 跳过 Highspeed 等套餐专属 SKU(目录标价 0,普通套餐会 429/1311)
+  const probeModel = selectProbeModel(models)
 
   if (!resolvedApiKey) {
     return {
       success: false,
       latencyMs: Date.now() - start,
-      model: testModel.id,
+      model: probeModel.id,
       error: `No API key for provider: ${providerId}`,
     }
   }
 
-  try {
-    const context: Context = {
-      messages: [{ role: 'user', content: 'ping', timestamp: Date.now() }],
-    }
+  const candidates = rankProbeModels(models).slice(0, MAX_CONNECTION_PROBES)
+  let lastModelId = probeModel.id
+  let lastError = 'Unknown error'
 
-    const result = await completeSimple(testModel, context, {
-      apiKey: resolvedApiKey,
-      maxTokens: 5,
-    })
-
-    const latencyMs = Date.now() - start
-
-    if (result.stopReason === 'error') {
+  for (const testModel of candidates) {
+    lastModelId = testModel.id
+    const probed = await probeOnce(testModel, resolvedApiKey)
+    if (probed.ok) {
       return {
-        success: false,
-        latencyMs,
+        success: true,
+        latencyMs: Date.now() - start,
         model: testModel.id,
-        error: result.errorMessage ?? 'Unknown error',
       }
     }
+    lastError = probed.error
+    if (isAuthRejectedError(lastError) || !isModelPlanDeniedError(lastError)) {
+      break
+    }
+  }
 
-    return {
-      success: true,
-      latencyMs,
-      model: testModel.id,
+  return {
+    success: false,
+    latencyMs: Date.now() - start,
+    model: lastModelId,
+    error: lastError,
+  }
+}
+
+async function probeOnce(
+  testModel: Model<Api>,
+  apiKey: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const context: Context = {
+    messages: [{ role: 'user', content: 'ping', timestamp: Date.now() }],
+  }
+  try {
+    const result = await completeSimple(testModel, context, {
+      apiKey,
+      maxTokens: 5,
+    })
+    if (result.stopReason === 'error') {
+      return { ok: false, error: result.errorMessage ?? 'Unknown error' }
     }
+    return { ok: true }
   } catch (err: unknown) {
-    return {
-      success: false,
-      latencyMs: Date.now() - start,
-      model: testModel.id,
-      error: errText(err),
-    }
+    return { ok: false, error: errText(err) }
   }
 }

@@ -187,7 +187,7 @@ class PiAIService {
   // ===========================================================
   // 以下纯函数已迁移到 ./pi-ai-helpers.ts:
   //   - dedupeModels: 按 id 去重模型列表
-  //   - selectCheapestModel: 选择成本最低的模型(用于连接测试)
+  //   - selectCheapestModel / selectProbeModel: 连接测试选探测模型(跳过套餐专属 SKU)
   //   - mapEvent: pi-ai AssistantMessageEvent → 前端 StreamEvent
   //   - extractPartialToolCall: 从 partial AssistantMessage 提取 toolCall
   //   - isRetryableError: 判定错误是否可重试(网络/限流/5xx)
