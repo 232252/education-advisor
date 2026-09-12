@@ -116,7 +116,7 @@ export async function startApp(): Promise<void> {
 
   // 监听页面加载失败
   win.webContents.on('did-fail-load', (_event, errorCode, errorDesc, validatedURL) => {
-    console.error(`[Renderer] Load failed: ${errorCode} ${errorDesc} URL=${validatedURL}`)
+    log('error', 'main', `[Renderer] Load failed: ${errorCode} ${errorDesc} URL=${validatedURL}`)
   })
 
   // 初始化完成后显示窗口

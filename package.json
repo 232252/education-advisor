@@ -1,7 +1,7 @@
 {
   "name": "education-advisor",
   "productName": "Education Advisor",
-  "version": "3.3.1",
+  "version": "3.3.2",
   "description": "Education Advisor — desktop upgrade of the multi-agent education management system. 18 specialized agents, privacy-preserving PII engine, and cross-platform LLM orchestration, all wrapped in a native-feeling Electron app.",
   "private": false,
   "type": "module",
@@ -68,7 +68,7 @@
     "ipc:runtime": "node scripts/ipc-contract-test.mjs",
     "prompt:lint": "node scripts/prompt-lint.mjs",
     "doc:check": "node scripts/doc-stats.mjs --check",
-    "check:bundle": "node scripts/bundle-shape-check.mjs",
+    "check:bundle": "node scripts/bundle-shape-check.mjs && node scripts/main-cjs-exports-check.mjs",
     "doc:stats": "node scripts/doc-stats.mjs --write",
     "clean": "rimraf dist release"
   },
