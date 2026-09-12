@@ -86,6 +86,16 @@
     },
     "agentPushEnabled": false
   },
+  "channels": {
+    "feishu": {
+      "enabled": true,
+      "domain": "feishu",
+      "appId": "",
+      "appSecret": "",
+      "allowGroups": true,
+      "agentId": "main"
+    }
+  },
   "shortcuts": {
     "chat.new": "Ctrl+N",
     "chat.send": "Enter",

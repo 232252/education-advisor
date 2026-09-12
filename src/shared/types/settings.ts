@@ -115,6 +115,26 @@ export interface UnifiedSettings {
     /** 定时任务(周报/风险预警等)完成后把结果推送给教师,默认关闭 */
     agentPushEnabled: boolean
   }
+  /**
+   * 消息频道(阶段 1 频道化):每渠道一段,键 = 渠道 manifest.id。
+   * 凭证协议:secret 类字段只存 keystore,settings.json 里恒为空串,
+   * settings:get 响应用 '__keystore__' 占位符回显。
+   * appId/domain 与 feishu.*(出站集成共用凭证)保持镜像(见 settings:set)。
+   */
+  channels: {
+    feishu: {
+      /** 连接开关(与运行状态正交) */
+      enabled: boolean
+      domain: 'feishu' | 'lark'
+      appId: string
+      /** 恒为空串或 '__keystore__' 占位符(真实值在 keystore 'feishu-app-secret') */
+      appSecret: string
+      /** 群聊响应(需 @机器人);关闭后只处理私聊 */
+      allowGroups: boolean
+      /** 该频道的消息交给哪个 Agent 处理(避免多渠道抢占 main 队列) */
+      agentId: string
+    }
+  }
   // R2-03 清理:原 advanced.shellPath/sessionDir/httpIdleTimeoutMs 为死配置(全仓无消费方),已删除
   mcp: {
     /** MCP 集成 feature flag (默认 false,关闭时 McpService 进入 no-op 模式) */

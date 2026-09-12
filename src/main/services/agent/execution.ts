@@ -15,7 +15,7 @@ import type {
   ThinkingLevel,
 } from '@earendil-works/pi-agent-core'
 import { Agent } from '@earendil-works/pi-agent-core'
-import type { AgentConfig, AgentExecution, AgentStatus } from '@shared/types'
+import type { AgentConfig, AgentExecution, AgentRunSource, AgentStatus } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
@@ -35,7 +35,7 @@ import { createEventCollector } from './event-collector'
 import { memoryService } from './memory-service'
 import { assertPrivacyReadyForRun, isAutoAnonymizeEnabled, PrivacyGuard } from './privacy-guard'
 import { createRetryingStreamFn } from './retrying-stream'
-import { sendAgentStatus } from './status-tracking'
+import { sendAgentStatus, setActiveRunSource, clearActiveRunSource } from './status-tracking'
 import { buildSystemPrompt } from './system-prompt'
 import { withTimeout } from './timeout'
 import type { AgentExecutionDeps } from './types'
@@ -139,9 +139,10 @@ export async function executeAgentRun(
   win: BrowserWindow | undefined,
   history?: Array<{ role: string; content: string; timestamp?: number }>,
   generation?: number,
+  source: AgentRunSource = 'ui',
 ): Promise<AgentExecution | undefined> {
   try {
-    return await executeAgentRunInner(deps, id, prompt, win, history, generation)
+    return await executeAgentRunInner(deps, id, prompt, win, history, generation, source)
   } catch (err) {
     const reported = (err as { reportedToRenderer?: boolean }).reportedToRenderer === true
     if (!reported) {
@@ -160,10 +161,15 @@ async function executeAgentRunInner(
   win: BrowserWindow | undefined,
   history?: Array<{ role: string; content: string; timestamp?: number }>,
   generation?: number,
+  source: AgentRunSource = 'ui',
 ): Promise<AgentExecution | undefined> {
   // 排队期间可能被删除/停用 → 与 runAgent 入口共用同一守卫
   const config = deps.getConfig(id)
   assertAgentRunnable(config, id, win, deps.setStatus)
+
+  // M0: 登记本次运行来源 — 本函数内所有 sendAgentStatus(含事件收集器)
+  // 经 status-tracking 登记表自动盖上 source;finally 清除。
+  setActiveRunSource(id, source)
 
   // ── 隐私自动脱敏(fail-closed) ──
   // 开启 privacy.enabled + autoAnonymize 但隐私引擎未解锁 → 直接失败,
@@ -367,8 +373,8 @@ async function executeAgentRunInner(
       ? agent.waitForIdle()
       : withTimeout(agent.waitForIdle(), idleTimeoutMs, label)
 
-  // 记录运行时实例
-  deps.setRunning(id, { agent, abortController, agentId: id, startedAt })
+  // 记录运行时实例(M0: 含 source,abortAgent 据此做来源隔离)
+  deps.setRunning(id, { agent, abortController, agentId: id, startedAt, source })
 
   // M16: 事件收集器(输出/token/turn 聚合 + 渲染进程状态转发,实现拆到 event-collector.ts)
   const collector = createEventCollector(win, id)
@@ -514,7 +520,12 @@ async function executeAgentRunInner(
     // 优化: 当输出为空且 LLM 返回了错误时,标记为 error 而非 success
     // 此前 stopReason=error 的空输出被标记为 success,用户看不到任何错误提示
     const hasError = stats.outputText.length === 0 && !!stats.lastErrorMessage
-    const finalStatus: AgentExecution['status'] = hasError ? 'error' : 'success'
+    // M0: 外部 abort 后 pi-agent-core 把 abort 变成正常 turn 结束,prompt() 照常
+    // resolve 并走到这里 — 半截输出不得伪装 success(飞书会把半截话当完整回复
+    // 发出,DB 还记 success)。检测 abortController 并改记 aborted。
+    const wasAborted = abortController.signal.aborted
+    let finalStatus: AgentExecution['status'] = hasError ? 'error' : 'success'
+    if (wasAborted) finalStatus = 'aborted'
     const rawOutput = stats.outputText || (hasError ? `[LLM 错误] ${stats.lastErrorMessage}` : '')
     // 兜底还原(流式过滤器已处理绝大多数;对非化名文本是 no-op)
     const finalOutput = privacyGuard ? privacyGuard.deanonymize(rawOutput) : rawOutput
@@ -529,19 +540,19 @@ async function executeAgentRunInner(
     deps.appendExecution(id, execution)
 
     persistToDb(
-      hasError ? 'failure' : 'success',
+      wasAborted ? 'aborted' : hasError ? 'failure' : 'success',
       finalOutput,
       hasError ? stats.lastErrorMessage : undefined,
     )
 
     // 更新状态
-    notifyStatus(
-      deps,
-      win,
-      id,
-      hasError ? 'error' : 'idle',
-      hasError ? { error: stats.lastErrorMessage, result: execution } : { result: execution },
-    )
+    if (wasAborted) {
+      notifyStatus(deps, win, id, 'idle', { result: execution, aborted: true })
+    } else if (hasError) {
+      notifyStatus(deps, win, id, 'error', { error: stats.lastErrorMessage, result: execution })
+    } else {
+      notifyStatus(deps, win, id, 'idle', { result: execution })
+    }
     return execution
   } catch (err: unknown) {
     // 异常路径同样先刷出缓冲,保证渲染端已收到的流式输出完整
@@ -591,5 +602,7 @@ async function executeAgentRunInner(
     }
     unsubscribe()
     deps.deleteRunning(id)
+    // M0: 清除来源登记(放在 deleteRunning 旁,与 setRunning 对称)
+    clearActiveRunSource(id)
   }
 }

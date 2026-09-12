@@ -4,19 +4,21 @@
 
 import type { Agent, AgentTool } from '@earendil-works/pi-agent-core'
 
-import type { AgentConfig, AgentExecution, AgentStatus } from '@shared/types'
+import type { AgentConfig, AgentExecution, AgentRunSource, AgentStatus } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import type { PrivacyGuard } from './privacy-guard'
 
-// =============================================================
+// ===========================================================
 // Agent 运行时实例（每次执行创建一个）
-// =============================================================
+// ===========================================================
 
 interface RunningAgent {
   agent: InstanceType<typeof Agent>
   abortController: AbortController
   agentId: string
   startedAt: number
+  /** M0: 本次运行来源 — abortAgent 据此隔离 UI abort(ui 以外不允许被 UI 误杀) */
+  source: AgentRunSource
 }
 
 export type { RunningAgent }

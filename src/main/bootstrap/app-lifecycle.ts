@@ -7,10 +7,9 @@ import { debug } from '@shared/debug'
 import { app, BrowserWindow } from 'electron'
 import { registerAllHandlers } from '../ipc/index'
 import { initAutoBackup } from '../services/backup-service'
+import { channelManager } from '../services/channels/manager'
 import { cronService } from '../services/cron-service'
 import { dbService } from '../services/db-service'
-import { feishuBotService } from '../services/feishu-bot-service'
-import { keystoreService } from '../services/keystore-service'
 import { resolveAppDataDir, resolveEaaDataDir } from '../services/paths'
 import { settingsService } from '../services/settings-service'
 import { syncNativeTheme } from '../services/theme-service'
@@ -136,20 +135,13 @@ export async function startApp(): Promise<void> {
   // 启动自动备份调度(每小时检查一次设置,到期则备份并清理旧备份)
   initAutoBackup()
 
-  // 若已配置飞书 appId + appSecret，自动启动长连接机器人
-  // 长连接模式无需公网地址，启动后即可在飞书里与机器人对话
+  // M4: 已配置且开关打开的消息频道自动启动(飞书长连接,无需公网地址)
+  // 经 ChannelManager 统一链路(注册表/状态聚合/五态派生)
   try {
-    const s = settingsService.getSettings()
-    const secret = keystoreService.getSecret('feishu-app-secret')
-    if (s.feishu.appId && secret) {
-      const feishuDomain = s.feishu.domain === 'lark' ? 'lark' : 'feishu'
-      feishuBotService.start(s.feishu.appId, secret, win, feishuDomain).catch((err) => {
-        log('warn', 'main', `feishu bot auto-start failed: ${err}`)
-      })
-      log('info', 'main', `feishu bot auto-starting, appId=${s.feishu.appId}`)
-    }
+    channelManager.setWindow(win)
+    await channelManager.autoStart()
   } catch (err) {
-    log('warn', 'main', `feishu bot auto-start skipped: ${err}`)
+    log('warn', 'main', `channels auto-start skipped: ${err}`)
   }
 
   // 读取设置，按需创建系统托盘(委托给 tray-service)

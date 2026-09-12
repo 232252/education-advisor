@@ -1,3 +1,4 @@
+export { ChannelsSection } from '../channels/ChannelsSection'
 export { AboutSection } from './AboutSection'
 export { ChatSection } from './ChatSection'
 export { DataSection } from './DataSection'

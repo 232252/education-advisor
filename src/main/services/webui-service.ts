@@ -11,6 +11,7 @@ import { errText } from '../utils/err-text'
 import { log } from '../utils/logger'
 import { openExternalUrl } from '../utils/open-external'
 import { keystoreService } from './keystore-service'
+import { resolveAppDataDir } from './paths'
 import { settingsService } from './settings-service'
 import { type GatewayHandle, startWebUiGateway } from './webui/gateway'
 import { shouldWebUiListen } from './webui/schedule'
@@ -246,6 +247,7 @@ class WebUiService {
             ipv6,
             tls,
             rendererRoot: this.rendererRoot(),
+            uploadsDir: path.join(resolveAppDataDir(), 'webui-uploads'),
             devProxyUrl,
           })
           lastErr = null

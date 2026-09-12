@@ -16,7 +16,7 @@ import { ensureDataDirStructure } from './eaa/legacy-migration'
 import { eaaBridge } from './eaa-bridge'
 import { feishuBotService } from './feishu-bot-service'
 import { keystoreService } from './keystore-service'
-import { getAppPaths } from './paths'
+import { getAppPaths, resolveAppDataDir } from './paths'
 import { settingsService } from './settings-service'
 import { syncNativeTheme } from './theme-service'
 import { updateTray } from './tray-service'
@@ -50,6 +50,7 @@ export async function factoryResetAll(): Promise<void> {
   await emptyDir(paths.profilesDir)
   await emptyDir(paths.memoryDir)
   await emptyDir(paths.userSkillsDir)
+  await emptyDir(path.join(resolveAppDataDir(), 'webui-uploads'))
 
   const userData = app.getPath('userData')
   await unlinkIfExists(path.join(userData, 'cron.user.json'))

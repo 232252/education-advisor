@@ -7,6 +7,7 @@ import type { AcademicAPI } from '@shared/api/academic'
 import type { AgentAPI } from '@shared/api/agent'
 import type { AiAPI } from '@shared/api/ai'
 import type { BackupAPI } from '@shared/api/backup'
+import type { ChannelsAPI } from '@shared/api/channels'
 import type { ChatAPI } from '@shared/api/chat'
 import type { ClassAPI } from '@shared/api/class'
 import type { CronAPI } from '@shared/api/cron'
@@ -47,6 +48,8 @@ export interface WindowAPI {
   log: LogAPI
   // T7: 飞书集成 API (appSecret 从 keystore 读取，不再通过参数传递)
   feishu: FeishuAPI
+  // 阶段 1 频道化: 消息频道/连接中心 API
+  channels: ChannelsAPI
   // 全量数据备份/恢复
   backup: BackupAPI
   sys: SysAPI

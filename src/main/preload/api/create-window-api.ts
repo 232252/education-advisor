@@ -6,6 +6,7 @@ import { academicApi } from './academic'
 import { agentApi } from './agent'
 import { aiApi } from './ai'
 import { backupApi } from './backup'
+import { channelsApi } from './channels'
 import { chatApi } from './chat'
 import { classApi } from './class'
 import { cronApi } from './cron'
@@ -43,6 +44,7 @@ export function createWindowApi() {
     chat: chatApi,
     log: logApi,
     feishu: feishuApi,
+    channels: channelsApi,
     backup: backupApi,
     reports: reportsApi,
     grading: gradingApi,

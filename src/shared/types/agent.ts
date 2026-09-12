@@ -7,6 +7,16 @@ import type { TokenUsage } from './ai'
 export type AgentStatus = 'idle' | 'running' | 'error'
 
 /**
+ * 一次 Agent 运行的触发来源(M0 abort 来源隔离):
+ *   - 'ui'      渲染进程聊天/手动运行(用户在界面上发起)
+ *   - 'channel' 消息频道(飞书 bot 等,后续钉钉/企微同)
+ *   - 'cron'    定时任务/后台上报(escalate_to 的 main 续跑同)
+ * UI 侧 abort 只允许中止 'ui' 来源的在途运行;状态事件携带 source
+ * 供渲染层过滤(channel/cron 的输出不写入聊天会话)。
+ */
+export type AgentRunSource = 'ui' | 'channel' | 'cron'
+
+/**
  * F4 修复: IPC_AGENT_STATUS_UPDATE 负载的统一契约。
  * 字段以 main 侧 status-tracking.ts 实际发送为准(见 agent-service.ts / agent/execution.ts):
  *   - output: 流式文本增量(text_delta)
@@ -19,6 +29,8 @@ export type AgentStatus = 'idle' | 'running' | 'error'
 export interface AgentStatusPayload {
   agentId: string
   status: AgentStatus
+  /** 本次运行的触发来源(见 AgentRunSource);缺省视为 'ui'(向后兼容) */
+  source?: AgentRunSource
   output?: string
   toolCall?: { name: string; args: unknown }
   toolResult?: { name: string; isError: boolean; preview?: string }
@@ -71,7 +83,7 @@ export interface AgentExecution {
   durationMs: number
   tokenUsage: TokenUsage
   cost: number
-  status: 'success' | 'error' | 'timeout'
+  status: 'success' | 'error' | 'timeout' | 'aborted'
   /** 实际执行的模型(provider/id) — 降级链回退后与用户设置可能不同,R2+ 可见性 */
   model?: string
 }
