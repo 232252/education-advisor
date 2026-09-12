@@ -94,6 +94,14 @@
       "appSecret": "",
       "allowGroups": true,
       "agentId": "main"
+    },
+    "dingtalk": {
+      "enabled": true,
+      "clientId": "",
+      "clientSecret": "",
+      "allowGroups": true,
+      "agentId": "main",
+      "cardTemplateId": ""
     }
   },
   "shortcuts": {

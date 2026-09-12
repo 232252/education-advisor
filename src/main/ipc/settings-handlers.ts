@@ -31,6 +31,9 @@ import { handleIpc } from './handle'
  */
 const settingsGetCache = new TtlLruCache<UnifiedSettings>({ ttlMs: 2_000, maxEntries: 4 })
 
+/** keystore 回显占位符: secret 永不离开本机,界面只显示"已加密保存" */
+const SECRET_PLACEHOLDER = '__keystore__'
+
 /** 出厂重置后让 settings:get 不再返回旧快照 */
 export function invalidateSettingsGetCache(): void {
   settingsGetCache.clear()
@@ -80,6 +83,21 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     }
   }
 
+  /**
+   * 钉钉频道凭证/开关变化后按需重连(与飞书同款语义,阶段 2)。
+   */
+  const reconnectDingtalkBot = async () => {
+    const s = settingsService.getSettings()
+    const secret = keystoreService.getSecret('dingtalk-client-secret')
+    if (s.channels.dingtalk.enabled && s.channels.dingtalk.clientId && secret) {
+      await channelManager.start('dingtalk').catch((err) => {
+        log('warn', 'settings', `dingtalk channel reconnect failed: ${err}`)
+      })
+    } else {
+      await channelManager.stop('dingtalk').catch(() => {})
+    }
+  }
+
   // H-9 修复: 加 try-catch
   handleIpc(IPC.IPC_SETTINGS_GET, async () => {
     // PERF: 命中缓存直接返回(避免 structuredClone + keystore 查询)
@@ -88,8 +106,11 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     const settings = settingsService.getSettings()
     // 如果 keystore 中有飞书 appSecret，用占位符标记（不返回真实密钥）
     if (keystoreService.getSecret('feishu-app-secret')) {
-      settings.feishu.appSecret = '__keystore__'
-      settings.channels.feishu.appSecret = '__keystore__'
+      settings.feishu.appSecret = SECRET_PLACEHOLDER
+      settings.channels.feishu.appSecret = SECRET_PLACEHOLDER
+    }
+    if (keystoreService.getSecret('dingtalk-client-secret')) {
+      settings.channels.dingtalk.clientSecret = SECRET_PLACEHOLDER
     }
     settingsGetCache.set('response', settings)
     return settings
@@ -101,14 +122,38 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     async (_e, path: string, value: unknown) => {
       // 飞书凭据统一去首尾空白: 粘贴带入的空格/换行会让飞书返回
       // 10003(appId/secret 为空或含空白)或 10014(secret 含空白),保存前先归一化
+      // 钉钉同理(Stream 建连对凭证空白敏感)
       if (
         typeof value === 'string' &&
         (path === 'feishu.appId' ||
           path === 'feishu.appSecret' ||
           path === 'channels.feishu.appId' ||
-          path === 'channels.feishu.appSecret')
+          path === 'channels.feishu.appSecret' ||
+          path === 'channels.dingtalk.clientId' ||
+          path === 'channels.dingtalk.clientSecret')
       ) {
         value = value.trim()
+      }
+
+      // 钉钉渠道 secret(阶段 2): 与飞书同一协议 —
+      // keystore 加密存储('dingtalk-client-secret'),不写 settings.json;清空 = 删除密钥
+      if (path === 'channels.dingtalk.clientSecret' && typeof value === 'string') {
+        if (value === SECRET_PLACEHOLDER) {
+          return { success: true }
+        }
+        if (value.length === 0) {
+          keystoreService.deleteSecret('dingtalk-client-secret')
+          settingsService.update('channels.dingtalk.clientSecret', '')
+          settingsGetCache.clear()
+          log('info', 'settings', 'channels.dingtalk.clientSecret cleared (empty input)')
+          await reconnectDingtalkBot()
+          return { success: true }
+        }
+        keystoreService.setSecret('dingtalk-client-secret', value)
+        log('info', 'settings', 'channels.dingtalk.clientSecret saved to keystore (encrypted)')
+        settingsGetCache.clear()
+        await reconnectDingtalkBot()
+        return { success: true }
       }
 
       // M4: 渠道 secret(channels.feishu.appSecret)与旧路径(feishu.appSecret)
@@ -240,6 +285,19 @@ export function registerSettingsHandlers(win: BrowserWindow) {
         await reconnectFeishuBot()
       }
 
+      // 钉钉渠道(阶段 2): 任一配置变化保存即重连
+      // (clientId/secret 直接影响建连;allowGroups/agentId 在 start 时读取;
+      //  cardTemplateId 在 start 时定格进引擎凭证)
+      if (
+        path === 'channels.dingtalk.clientId' ||
+        path === 'channels.dingtalk.enabled' ||
+        path === 'channels.dingtalk.allowGroups' ||
+        path === 'channels.dingtalk.agentId' ||
+        path === 'channels.dingtalk.cardTemplateId'
+      ) {
+        await reconnectDingtalkBot()
+      }
+
       // T5: 日志级别:实时切换
       if (path === 'general.logLevel' && typeof value === 'string') {
         setLogLevel(value as 'debug' | 'info' | 'warn' | 'error' | 'off')
@@ -300,12 +358,14 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     settingsService.reset()
     // PERF: reset 后让 get 缓存失效
     settingsGetCache.clear()
-    // 重置时也清除 keystore 中的飞书密钥
+    // 重置时也清除 keystore 中的飞书/钉钉密钥
     keystoreService.deleteSecret('feishu-app-secret')
+    keystoreService.deleteSecret('dingtalk-client-secret')
     keystoreService.deleteSecret(WEBUI_ACCESS_TOKEN_KEY)
     keystoreService.deleteSecret(LEGACY_CF_TUNNEL_SECRET_KEY)
-    // 重置后停止飞书长连接
+    // 重置后停止飞书/钉钉长连接
     await feishuBotService.stop().catch(() => {})
+    await channelManager.stop('dingtalk').catch(() => {})
     // 重置后也要同步 autoStart(默认 false)
     app.setLoginItemSettings({ openAtLogin: false })
     // 重置后也要重建托盘

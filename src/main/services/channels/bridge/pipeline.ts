@@ -52,6 +52,8 @@ export interface ChannelPipelineDeps {
   recentFiles: RecentFilesStore
   /** 运行 Agent(流式回调累计全量文本) */
   runStream: (prompt: string, onChunk: (accumulatedText: string) => void) => Promise<string>
+  /** 渠道显示名(注入文件类 prompt,如"用户通过钉钉发来了文件";缺省"聊天软件") */
+  channelLabel?: string
 }
 
 /**
@@ -132,7 +134,7 @@ export function createChannelPipeline(deps: ChannelPipelineDeps): {
         if (saved.length > 0 || failed.length > 0) {
           const fileLines = saved.map((s) => `- 《${s.name}》已保存到本机:${s.path}`)
           if (failed.length > 0) fileLines.push(...failed.map((f) => `- (接收失败)${f}`))
-          prompt = `用户通过飞书发来了文件:\n${fileLines.join('\n')}\n\n用户的说明:\n${texts.join('\n')}`
+          prompt = `用户通过${deps.channelLabel ?? '聊天软件'}发来了文件:\n${fileLines.join('\n')}\n\n用户的说明:\n${texts.join('\n')}`
         } else {
           prompt = texts.join('\n')
           // 注入最近文件上下文,让"这个你看得到吗"能解析到具体文件

@@ -85,5 +85,6 @@ export function createBatchPipeline(
     activeSessions: deps.activeSessions,
     recentFiles: deps.recentFiles,
     runStream: (prompt, onChunk) => runAgentStreaming(prompt, win, onChunk, deps.agentId),
+    channelLabel: '飞书',
   })
 }
