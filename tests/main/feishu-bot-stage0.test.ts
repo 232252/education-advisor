@@ -7,7 +7,7 @@
 // =============================================================
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { FeishuMessageEvent } from '../../src/main/services/feishu-bot/types'
+import type { FeishuMessageEvent } from '../../src/main/services/channels/adapters/feishu/types'
 
 // chat-queue/reply 经 logger 依赖 electron app,vitest 环境下 mock 掉
 vi.mock('electron', () => ({
@@ -44,7 +44,7 @@ function makeEvent(overrides: {
 describe('message-parsing — file/image/post(阶段 0)', () => {
   it('file 消息解析为附件(此前被静默丢弃)', async () => {
     const { parseIncomingMessage } = await import(
-      '../../src/main/services/feishu-bot/message-parsing'
+      '../../src/main/services/channels/adapters/feishu/parsing'
     )
     const parsed = parseIncomingMessage(
       makeEvent({ type: 'file', content: { file_key: 'fk_1', file_name: '统计表.xlsx' } }),
@@ -59,7 +59,7 @@ describe('message-parsing — file/image/post(阶段 0)', () => {
 
   it('image 消息解析为附件', async () => {
     const { parseIncomingMessage } = await import(
-      '../../src/main/services/feishu-bot/message-parsing'
+      '../../src/main/services/channels/adapters/feishu/parsing'
     )
     const parsed = parseIncomingMessage(makeEvent({ type: 'image', content: { image_key: 'img_1' } }))
     expect(parsed?.attachments).toEqual([{ kind: 'image', fileKey: 'img_1' }])
@@ -67,7 +67,7 @@ describe('message-parsing — file/image/post(阶段 0)', () => {
 
   it('post 富文本提取文字段(含标题)', async () => {
     const { parseIncomingMessage } = await import(
-      '../../src/main/services/feishu-bot/message-parsing'
+      '../../src/main/services/channels/adapters/feishu/parsing'
     )
     const parsed = parseIncomingMessage(
       makeEvent({
@@ -92,7 +92,7 @@ describe('message-parsing — file/image/post(阶段 0)', () => {
 
   it('群聊未 @机器人 → 忽略(对所有类型生效)', async () => {
     const { parseIncomingMessage } = await import(
-      '../../src/main/services/feishu-bot/message-parsing'
+      '../../src/main/services/channels/adapters/feishu/parsing'
     )
     expect(
       parseIncomingMessage(makeEvent({ type: 'file', content: { file_key: 'f' }, chatType: 'group' })),
@@ -102,7 +102,7 @@ describe('message-parsing — file/image/post(阶段 0)', () => {
 
   it('不支持的消息类型(如 audio)返回 null', async () => {
     const { parseIncomingMessage, SUPPORTED_MESSAGE_TYPES } = await import(
-      '../../src/main/services/feishu-bot/message-parsing'
+      '../../src/main/services/channels/adapters/feishu/parsing'
     )
     expect(SUPPORTED_MESSAGE_TYPES.has('audio')).toBe(false)
     expect(parseIncomingMessage(makeEvent({ type: 'audio', content: { file_key: 'a' } }))).toBeNull()
@@ -128,7 +128,7 @@ describe('chat-queue — 合并窗口/会话并行/命令直通(阶段 0)', () =
   }
 
   it('合并窗口内的连发消息合成一批', async () => {
-    const { ChatMessageQueue } = await import('../../src/main/services/feishu-bot/chat-queue')
+    const { ChatMessageQueue } = await import('../../src/main/services/channels/runtime/chat-queue')
     const batches: string[][] = []
     const q = new ChatMessageQueue({
       onPlaceholder: async () => null,
@@ -144,7 +144,7 @@ describe('chat-queue — 合并窗口/会话并行/命令直通(阶段 0)', () =
   })
 
   it('不同会话并行:会话 A 阻塞不会卡住会话 B', async () => {
-    const { ChatMessageQueue } = await import('../../src/main/services/feishu-bot/chat-queue')
+    const { ChatMessageQueue } = await import('../../src/main/services/channels/runtime/chat-queue')
     const done: string[] = []
     let releaseA!: () => void
     const gateA = new Promise<void>((r) => {
@@ -169,7 +169,7 @@ describe('chat-queue — 合并窗口/会话并行/命令直通(阶段 0)', () =
   })
 
   it('斜杠命令不等待合并窗口,立即成批', async () => {
-    const { ChatMessageQueue } = await import('../../src/main/services/feishu-bot/chat-queue')
+    const { ChatMessageQueue } = await import('../../src/main/services/channels/runtime/chat-queue')
     const order: string[] = []
     const q = new ChatMessageQueue({
       onPlaceholder: async () => null,
@@ -188,7 +188,7 @@ describe('chat-queue — 合并窗口/会话并行/命令直通(阶段 0)', () =
   })
 
   it('占位回调收到排队位置(前一批未完成时为 1)', async () => {
-    const { ChatMessageQueue } = await import('../../src/main/services/feishu-bot/chat-queue')
+    const { ChatMessageQueue } = await import('../../src/main/services/channels/runtime/chat-queue')
     let release!: () => void
     const gate = new Promise<void>((r) => {
       release = r
@@ -214,7 +214,7 @@ describe('chat-queue — 合并窗口/会话并行/命令直通(阶段 0)', () =
   })
 
   it('全局 pending 上限:第 17 条 submit 返回 false', async () => {
-    const { ChatMessageQueue } = await import('../../src/main/services/feishu-bot/chat-queue')
+    const { ChatMessageQueue } = await import('../../src/main/services/channels/runtime/chat-queue')
     const q = new ChatMessageQueue({
       onPlaceholder: async () => null,
       onBatch: async () => {},
@@ -232,7 +232,7 @@ describe('chat-queue — 合并窗口/会话并行/命令直通(阶段 0)', () =
   })
 
   it('cancelAll 对未处理消息回调 onDrop(含占位会话)', async () => {
-    const { ChatMessageQueue } = await import('../../src/main/services/feishu-bot/chat-queue')
+    const { ChatMessageQueue } = await import('../../src/main/services/channels/runtime/chat-queue')
     const dropped: Array<{ count: number }> = []
     const fakeSession = { update: () => {}, finalize: async () => {}, fail: async () => {} }
     const q = new ChatMessageQueue({
@@ -257,7 +257,7 @@ describe('chat-queue — 合并窗口/会话并行/命令直通(阶段 0)', () =
 
 describe('recent-files — 每会话最近文件记忆(阶段 0)', () => {
   it('fresh 只返回有效期内的文件,最新在前', async () => {
-    const { RecentFilesStore } = await import('../../src/main/services/feishu-bot/recent-files')
+    const { RecentFilesStore } = await import('../../src/main/services/channels/runtime/recent-files')
     const store = new RecentFilesStore()
     const now = Date.now()
     store.note('c1', { name: 'a.xlsx', path: '/tmp/a.xlsx' }, now - 40 * 60 * 1000) // 超期
@@ -278,7 +278,7 @@ describe('reply — 限流/网络错误有限重试(阶段 0)', () => {
       .mockResolvedValueOnce({ code: 230020, msg: 'rate limit' })
       .mockResolvedValueOnce({ code: 0, msg: 'ok' })
     const fakeClient = { im: { message: { reply: replyMock } } }
-    const { sendReply } = await import('../../src/main/services/feishu-bot/reply')
+    const { sendReply } = await import('../../src/main/services/channels/adapters/feishu/reply')
     await sendReply(fakeClient as never, 'om_1', 'hi')
     expect(replyMock).toHaveBeenCalledTimes(2)
   })
@@ -286,7 +286,7 @@ describe('reply — 限流/网络错误有限重试(阶段 0)', () => {
   it('非限流业务码(230002)不重试', async () => {
     const replyMock = vi.fn().mockResolvedValue({ code: 230002, msg: 'expired' })
     const fakeClient = { im: { message: { reply: replyMock } } }
-    const { sendReply } = await import('../../src/main/services/feishu-bot/reply')
+    const { sendReply } = await import('../../src/main/services/channels/adapters/feishu/reply')
     await sendReply(fakeClient as never, 'om_1', 'hi')
     expect(replyMock).toHaveBeenCalledTimes(1)
   })

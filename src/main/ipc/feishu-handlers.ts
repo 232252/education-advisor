@@ -1,19 +1,17 @@
 // =============================================================
-// Feishu IPC Handlers — 飞书集成 IPC 通道
+// Feishu IPC Handlers — 飞书出站集成 IPC 通道
 // feishu:test          测连接(返回 token 前 8 位 + 过期秒数)
 // feishu:bitable       列 bitable 表
 // feishu:status        返回当前 token 缓存状态
-// feishu:bot-start     启动长连接机器人
-// feishu:bot-stop      停止长连接机器人
-// feishu:bot-status    查询机器人状态
+// feishu:diagnose      网络诊断
+// (机器人启停/状态/错误通知已统一走 channels:*(channel-handlers),
+//  阶段 2 退役 feishu:bot-* 四条旧通道)
 // appSecret 统一从 keystore 读取，不再通过 IPC 参数传递
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
 import type { BrowserWindow } from 'electron'
-import { Notification } from 'electron'
 import { feishuInfo } from '../services/feishu/token'
-import { feishuBotService } from '../services/feishu-bot-service'
 import {
   diagnoseConnection,
   type FeishuDomain,
@@ -23,7 +21,6 @@ import {
 import { keystoreService } from '../services/keystore-service'
 import { settingsService } from '../services/settings-service'
 import { log } from '../utils/logger'
-import { sendToRenderer } from './broadcast'
 import { handleIpc } from './handle'
 
 /** 内部辅助：从 keystore 获取飞书 appSecret，获取不到则返回空字符串 */
@@ -37,46 +34,7 @@ function getFeishuDomain(): FeishuDomain {
   return domain === 'lark' ? 'lark' : 'feishu'
 }
 
-/** M-9 修复: 记录上次注册的 status handler,只移除自己的监听器,不影响外部监听器 */
-let prevStatusHandler: ((info: unknown) => void) | null = null
-
-export function registerFeishuHandlers(win: BrowserWindow): void {
-  // 机器人状态变化时推送给渲染进程(设置页徽章实时更新)
-  // M-9 修复: 只移除自己注册的 listener,不影响外部监听器
-  if (prevStatusHandler) {
-    feishuBotService.off('status', prevStatusHandler)
-  }
-  // B6-5 修复: 跟踪上一次状态,仅在转入 error 时弹一次系统通知,避免重复打扰
-  let lastBotStatus: string | undefined
-  const statusHandler = (info: unknown) => {
-    sendToRenderer(win, IPC.IPC_FEISHU_BOT_STATUS_UPDATE, info)
-    // B6-5: 飞书连接失败时发系统通知,让用户即使不在设置页也能察觉
-    const statusInfo = info as { status?: string; error?: string }
-    const cur = statusInfo?.status
-    if (cur === 'error' && lastBotStatus !== 'error') {
-      try {
-        if (Notification.isSupported()) {
-          const n = new Notification({
-            title: '飞书机器人连接失败',
-            body: statusInfo?.error
-              ? `原因: ${String(statusInfo.error).slice(0, 120)}`
-              : '请检查 appId/appSecret 及事件订阅配置',
-            silent: false,
-          })
-          n.on('click', () => {
-            if (!win.isDestroyed()) win.show()
-          })
-          n.show()
-        }
-      } catch {
-        // 通知失败不影响主流程
-      }
-    }
-    lastBotStatus = cur
-  }
-  prevStatusHandler = statusHandler
-  feishuBotService.on('status', statusHandler)
-
+export function registerFeishuHandlers(_win: BrowserWindow): void {
   // H-5 修复: 加 try-catch
   handleIpc(
     IPC.IPC_FEISHU_TEST,
@@ -120,40 +78,6 @@ export function registerFeishuHandlers(win: BrowserWindow): void {
     {
       label: (_appId: string, appToken: string) => `feishu:bitable failed for "${appToken}"`,
     },
-  )
-
-  // ===== 飿书长连接机器人 =====
-  // 启动:从 settings 读 appId + keystore 读 appSecret,启动长连接
-  // H-5 修复: 加 try-catch
-  handleIpc(IPC.IPC_FEISHU_BOT_START, async () => {
-    const settings = settingsService.getSettings()
-    const appId = settings.feishu.appId
-    const appSecret = getFeishuSecret()
-    if (!appId || !appSecret) {
-      return { success: false, error: '请先填写 App ID 和 App Secret 并保存' }
-    }
-    await feishuBotService.start(appId, appSecret, win, getFeishuDomain())
-    const status = feishuBotService.getStatus()
-    return { success: status.status === 'connected', status }
-  })
-
-  // 停止
-  // H-5 修复: 加 try-catch
-  handleIpc(
-    IPC.IPC_FEISHU_BOT_STOP,
-    async () => {
-      await feishuBotService.stop()
-      return { success: true, status: feishuBotService.getStatus() }
-    },
-    (msg) => ({ success: false, error: msg, status: feishuBotService.getStatus() }),
-  )
-
-  // 查询状态
-  // H-5 修复: 加 try-catch
-  handleIpc(
-    IPC.IPC_FEISHU_BOT_STATUS,
-    () => feishuBotService.getStatus(),
-    (msg) => ({ status: 'unknown', error: msg }),
   )
 
   // 网络诊断:检测 DNS/HTTPS/鉴权/WebSocket 端点,排查远程访问问题

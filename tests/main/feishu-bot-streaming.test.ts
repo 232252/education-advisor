@@ -9,9 +9,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { RecentFilesStore } from '../../src/main/services/feishu-bot/recent-files'
-import type { ReplySession } from '../../src/main/services/feishu-bot/streaming-card'
-import type { FeishuCommandRouter } from '../../src/main/services/feishu-bot/command-router'
+import { RecentFilesStore } from '../../src/main/services/channels/runtime/recent-files'
+import type { ReplySession } from '../../src/main/services/channels/adapters/feishu/reply-session'
+import type { FeishuCommandRouter } from '../../src/main/services/channels/runtime/command/router'
 
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '/tmp'), isPackaged: false },
@@ -85,7 +85,7 @@ describe('streaming-card — CardKit 流式会话(阶段 0)', () => {
       return jsonResponse({ code: 0 })
     })
     const { createReplySession } = await import(
-      '../../src/main/services/feishu-bot/streaming-card'
+      '../../src/main/services/channels/adapters/feishu/reply-session'
     )
     const session = await createReplySession(
       { getSdkClient: () => fakeSdkClient() as never, getAccessToken: async () => 'tok' },
@@ -124,7 +124,7 @@ describe('streaming-card — CardKit 流式会话(阶段 0)', () => {
   it('CardKit 失败(缺权限)→ 降级纯文本占位 + 最终纯文本', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ code: 99991672, msg: 'no permission' }))
     const { createReplySession } = await import(
-      '../../src/main/services/feishu-bot/streaming-card'
+      '../../src/main/services/channels/adapters/feishu/reply-session'
     )
     const session = await createReplySession(
       { getSdkClient: () => fakeSdkClient() as never, getAccessToken: async () => 'tok' },
@@ -143,7 +143,7 @@ describe('streaming-card — CardKit 流式会话(阶段 0)', () => {
 
   it('拿不到 token → 直接降级纯文本', async () => {
     const { createReplySession } = await import(
-      '../../src/main/services/feishu-bot/streaming-card'
+      '../../src/main/services/channels/adapters/feishu/reply-session'
     )
     const session = await createReplySession(
       { getSdkClient: () => fakeSdkClient() as never, getAccessToken: async () => null },
@@ -163,7 +163,7 @@ describe('streaming-card — CardKit 流式会话(阶段 0)', () => {
 
 describe('file-receive — 文件名清洗/下载落盘(阶段 0)', () => {
   it('sanitizeFileName 去路径分隔与穿越片段', async () => {
-    const { sanitizeFileName } = await import('../../src/main/services/feishu-bot/file-receive')
+    const { sanitizeFileName } = await import('../../src/main/services/channels/adapters/feishu/file-receive')
     expect(sanitizeFileName('../../evil.xlsx')).toBe('.._.._evil.xlsx')
     expect(sanitizeFileName('a/b\\c.txt')).toBe('a_b_c.txt')
     expect(sanitizeFileName('..')).toBe('file')
@@ -175,7 +175,7 @@ describe('file-receive — 文件名清洗/下载落盘(阶段 0)', () => {
     try {
       const bytes = new TextEncoder().encode('xlsx-bytes')
       fetchMock.mockResolvedValue(binaryResponse(bytes))
-      const { saveAttachment } = await import('../../src/main/services/feishu-bot/file-receive')
+      const { saveAttachment } = await import('../../src/main/services/channels/adapters/feishu/file-receive')
       const r = await saveAttachment({
         getAccessToken: async () => 'tok',
         messageId: 'om_9',
@@ -199,7 +199,7 @@ describe('file-receive — 文件名清洗/下载落盘(阶段 0)', () => {
 
   it('飞书返回业务错误(缺权限)→ ok:false 且提示权限', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ code: 99991672, msg: 'no permission' }))
-    const { saveAttachment } = await import('../../src/main/services/feishu-bot/file-receive')
+    const { saveAttachment } = await import('../../src/main/services/channels/adapters/feishu/file-receive')
     const r = await saveAttachment({
       getAccessToken: async () => 'tok',
       messageId: 'om_9',
@@ -257,7 +257,7 @@ describe('message-handler — 批流水线(阶段 0)', () => {
       routeFetch(bytes)
       const { agentService } = await import('../../src/main/services/agent-service')
       const { createBatchPipeline } = await import(
-        '../../src/main/services/feishu-bot/message-handler'
+        '../../src/main/services/channels/adapters/feishu/message-handler'
       )
       const deps = baseDeps(dir)
       const pipeline = createBatchPipeline(deps, { runEAA: vi.fn(), listAgents: () => [], runAgent: vi.fn() }, null)
@@ -293,7 +293,7 @@ describe('message-handler — 批流水线(阶段 0)', () => {
         })
       })
       const { createBatchPipeline } = await import(
-        '../../src/main/services/feishu-bot/message-handler'
+        '../../src/main/services/channels/adapters/feishu/message-handler'
       )
       const deps = baseDeps(dir)
       const pipeline = createBatchPipeline(
@@ -336,7 +336,7 @@ describe('message-handler — 批流水线(阶段 0)', () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'feishu-pipeline-'))
     try {
       const { createBatchPipeline } = await import(
-        '../../src/main/services/feishu-bot/message-handler'
+        '../../src/main/services/channels/adapters/feishu/message-handler'
       )
       const deps = baseDeps(dir)
       const pipeline = createBatchPipeline(

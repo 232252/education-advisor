@@ -217,13 +217,8 @@ export const IPC_FEISHU_TEST = 'feishu:test'
 export const IPC_FEISHU_BITABLE = 'feishu:bitable'
 export const IPC_FEISHU_STATUS = 'feishu:status'
 // 飞书长连接机器人:启动/停止/状态查询 + 状态推送(主→渲染)
-export const IPC_FEISHU_BOT_START = 'feishu:bot-start'
-export const IPC_FEISHU_BOT_STOP = 'feishu:bot-stop'
-export const IPC_FEISHU_BOT_STATUS = 'feishu:bot-status'
-export const IPC_FEISHU_BOT_STATUS_UPDATE = 'feishu:bot-status-update'
 // 网络诊断:排查飞书远程访问连接问题
 export const IPC_FEISHU_DIAGNOSE = 'feishu:diagnose'
-
 // ===== 消息频道(连接中心,阶段 1 频道化) =====
 // 渠道目录/启停/测试连接 + 状态推送(主→渲染,renderer 与 WebUI 共用)
 export const IPC_CHANNELS_LIST = 'channels:list'

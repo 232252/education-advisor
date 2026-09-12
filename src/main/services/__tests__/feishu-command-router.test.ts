@@ -8,7 +8,7 @@ import {
   type CommandContext,
   createDefaultRouter,
   parseCommand,
-} from '../feishu-bot/command-router'
+} from '../channels/runtime/command/router'
 
 function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
