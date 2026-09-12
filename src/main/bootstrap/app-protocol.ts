@@ -4,6 +4,7 @@
 // =============================================================
 
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { net, protocol } from 'electron'
 
 /**
@@ -38,7 +39,7 @@ export function createAppProtocolHandler(
     if (!filePath) {
       return Promise.resolve(new Response('forbidden', { status: 403 }))
     }
-    return net.fetch(`file://${filePath}`)
+    return net.fetch(pathToFileURL(filePath).href)
   }
 }
 
