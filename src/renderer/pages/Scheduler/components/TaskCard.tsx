@@ -6,7 +6,7 @@ import type { AgentListItem, CronTask } from '@shared/types'
 import { memo } from 'react'
 import { btnStyle, formatDateTime } from '../../../lib/ui-utils'
 import { ToggleSwitch } from '../../Settings/components/ToggleSwitch'
-import { cronStatusColor, cronStatusKey, isAutoTask } from '../lib/scheduler-utils'
+import { canDeleteTask, cronStatusColor, cronStatusKey, isAutoTask } from '../lib/scheduler-utils'
 
 interface TaskCardProps {
   task: CronTask
@@ -116,7 +116,7 @@ export const TaskCard = memo(function TaskCard({
               {t('page.scheduler.task.edit')}
             </button>
           )}
-          {!isAutoTask(task.id) && (
+          {canDeleteTask(task.id) && (
             <button
               type="button"
               onClick={(e) => {

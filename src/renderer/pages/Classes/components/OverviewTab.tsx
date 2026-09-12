@@ -1,20 +1,22 @@
 // =============================================================
-// 班级详情 — 概览 Tab：基础信息字段列表
+// Class profile — Overview tab: basic class fields
 // =============================================================
 
 import type { ClassEntity } from '@shared/types'
 import { useMemo } from 'react'
 import { useT } from '../../../i18n'
 
-/** 概览 Tab：class_id/名称/年级/教师/学生数/创建日期/备注 */
+/** Overview tab: class_id / name / grade / teacher / count / created / note */
 export function OverviewTab({
   classEntity,
   createdStr,
   studentCount,
+  onViewGrades,
 }: {
   classEntity: ClassEntity
   createdStr: string
   studentCount: number
+  onViewGrades?: () => void
 }) {
   const { t } = useT()
   const rows = useMemo<{ label: string; value: string }[]>(
@@ -46,6 +48,17 @@ export function OverviewTab({
           <span className="flex-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
             {classEntity.note}
           </span>
+        </div>
+      )}
+      {onViewGrades && (
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={onViewGrades}
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            {t('page.classes.grades.viewTab')}
+          </button>
         </div>
       )}
     </div>
