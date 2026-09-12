@@ -1,0 +1,110 @@
+[
+  {
+    "examId": "exam-demo-0901",
+    "subjectId": "chinese",
+    "studentName": "演示丁",
+    "score": 132,
+    "fullMark": 150,
+    "classRank": 1,
+    "updatedAt": "2025-11-12T00:00:00.000Z"
+  },
+  {
+    "examId": "exam-demo-0901",
+    "subjectId": "math",
+    "studentName": "演示丁",
+    "score": 140,
+    "fullMark": 150,
+    "classRank": 1,
+    "updatedAt": "2025-11-12T00:00:00.000Z"
+  },
+  {
+    "examId": "exam-demo-0901",
+    "subjectId": "english",
+    "studentName": "演示丁",
+    "score": 138,
+    "fullMark": 150,
+    "classRank": 1,
+    "updatedAt": "2025-11-12T00:00:00.000Z"
+  },
+  {
+    "examId": "exam-demo-0901",
+    "subjectId": "physics",
+    "studentName": "演示丁",
+    "score": 95,
+    "fullMark": 100,
+    "classRank": 1,
+    "updatedAt": "2025-11-12T00:00:00.000Z"
+  },
+  {
+    "examId": "exam-demo-1015",
+    "subjectId": "chinese",
+    "studentName": "演示丁",
+    "score": 135,
+    "fullMark": 150,
+    "classRank": 1,
+    "updatedAt": "2025-11-12T00:00:00.000Z"
+  },
+  {
+    "examId": "exam-demo-1015",
+    "subjectId": "math",
+    "studentName": "演示丁",
+    "score": 142,
+    "fullMark": 150,
+    "classRank": 1,
+    "updatedAt": "2025-11-12T00:00:00.000Z"
+  },
+  {
+    "examId": "exam-demo-1015",
+    "subjectId": "english",
+    "studentName": "演示丁",
+    "score": 140,
+    "fullMark": 150,
+    "classRank": 1,
+    "updatedAt": "2025-11-12T00:00:00.000Z"
+  },
+  {
+    "examId": "exam-demo-1015",
+    "subjectId": "physics",
+    "studentName": "演示丁",
+    "score": 96,
+    "fullMark": 100,
+    "classRank": 1,
+    "updatedAt": "2025-11-12T00:00:00.000Z"
+  },
+  {
+    "examId": "exam-demo-mid",
+    "subjectId": "chinese",
+    "studentName": "演示丁",
+    "score": 140,
+    "fullMark": 150,
+    "classRank": 1,
+    "updatedAt": "2025-11-12T00:00:00.000Z"
+  },
+  {
+    "examId": "exam-demo-mid",
+    "subjectId": "math",
+    "studentName": "演示丁",
+    "score": 145,
+    "fullMark": 150,
+    "classRank": 1,
+    "updatedAt": "2025-11-12T00:00:00.000Z"
+  },
+  {
+    "examId": "exam-demo-mid",
+    "subjectId": "english",
+    "studentName": "演示丁",
+    "score": 142,
+    "fullMark": 150,
+    "classRank": 1,
+    "updatedAt": "2025-11-12T00:00:00.000Z"
+  },
+  {
+    "examId": "exam-demo-mid",
+    "subjectId": "physics",
+    "studentName": "演示丁",
+    "score": 98,
+    "fullMark": 100,
+    "classRank": 1,
+    "updatedAt": "2025-11-12T00:00:00.000Z"
+  }
+]

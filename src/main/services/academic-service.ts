@@ -9,6 +9,7 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { DEFAULT_EXAM_TYPES, DEFAULT_SUBJECTS } from '@shared/academic-defaults'
+import { applyAutoClassRanks } from '@shared/class-rank'
 import type { AcademicConfig, ExamDef, GradeRecord } from '@shared/types'
 import { atomicWrite } from '../utils/atomic-write'
 import { log } from '../utils/logger'
@@ -221,8 +222,11 @@ class AcademicService {
       }
     }
 
+    // Auto classRank: >=2 students per exam+subject -> competition ranks (see shared/class-rank.ts)
+    const rankedRecords = applyAutoClassRanks(records)
+
     const byStudent = new Map<string, Omit<GradeRecord, 'updatedAt'>[]>()
-    for (const r of records) {
+    for (const r of rankedRecords) {
       const arr = byStudent.get(r.studentName)
       if (arr) {
         arr.push(r)
