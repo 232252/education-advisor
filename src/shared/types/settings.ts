@@ -134,6 +134,19 @@ export interface UnifiedSettings {
       /** 该频道的消息交给哪个 Agent 处理(避免多渠道抢占 main 队列) */
       agentId: string
     }
+    dingtalk: {
+      /** 连接开关(与运行状态正交) */
+      enabled: boolean
+      clientId: string
+      /** 恒为空串或 '__keystore__' 占位符(真实值在 keystore 'dingtalk-client-secret') */
+      clientSecret: string
+      /** 群聊响应(群内需 @机器人);关闭后只处理私聊 */
+      allowGroups: boolean
+      /** 该频道的消息交给哪个 Agent 处理(避免多渠道抢占 main 队列) */
+      agentId: string
+      /** AI 卡片模板 ID;空 = 官方公共模板 */
+      cardTemplateId: string
+    }
   }
   // R2-03 清理:原 advanced.shellPath/sessionDir/httpIdleTimeoutMs 为死配置(全仓无消费方),已删除
   mcp: {

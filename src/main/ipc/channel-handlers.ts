@@ -9,7 +9,7 @@
 import * as IPC from '@shared/ipc-channels'
 import type { ChannelStatusInfo } from '@shared/types'
 import type { BrowserWindow } from 'electron'
-import { dingtalkManifest } from '../services/channels/adapters/dingtalk/manifest'
+import { createDingtalkAdapter } from '../services/channels/adapters/dingtalk'
 import { createFeishuAdapter } from '../services/channels/adapters/feishu'
 import { channelManager } from '../services/channels/manager'
 import { log } from '../utils/logger'
@@ -19,7 +19,7 @@ import { handleIpc } from './handle'
 /** 注册渠道静态注册表(新渠道在此追加一行;comingSoon 只注册 manifest) */
 function registerChannelRegistry(): void {
   channelManager.register(createFeishuAdapter)
-  channelManager.registerManifest(dingtalkManifest)
+  channelManager.register(createDingtalkAdapter)
 }
 
 export function registerChannelHandlers(win: BrowserWindow): void {
