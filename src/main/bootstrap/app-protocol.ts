@@ -3,9 +3,35 @@
 // ES Module CORS 限制),带域内路径约束(防 .. 逃逸读任意文件)
 // =============================================================
 
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { net, protocol } from 'electron'
+import { protocol } from 'electron'
+
+const MIME_BY_EXT: Record<string, string> = {
+  '.css': 'text/css; charset=utf-8',
+  '.gif': 'image/gif',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.mp4': 'video/mp4',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.ttf': 'font/ttf',
+  '.webm': 'video/webm',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+}
+
+/** 按扩展名给出 Content-Type;未知类型回退 octet-stream */
+export function mimeForPath(filePath: string): string {
+  return MIME_BY_EXT[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream'
+}
 
 /**
  * 把 URL pathname 约束在 root 内。
@@ -22,24 +48,55 @@ export function resolveWithinRoot(root: string, pathname: string): string | null
   return resolved.startsWith(rootNorm + path.sep) ? resolved : null
 }
 
-/** 构造 app:// 协议处理器(纯函数化便于测试);逃逸请求回 404 不落盘 */
+function isMissingPathError(err: unknown): boolean {
+  const code = (err as NodeJS.ErrnoException | undefined)?.code
+  return code === 'ENOENT' || code === 'ENOTDIR'
+}
+
+async function serveFile(filePath: string): Promise<Response> {
+  try {
+    const data = await readFile(filePath)
+    return new Response(data, {
+      status: 200,
+      headers: { 'content-type': mimeForPath(filePath) },
+    })
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException | undefined)?.code
+    // pathname=/ 时 resolve 得到目录本身;缺省落到 index.html。
+    if (code === 'EISDIR') {
+      const indexPath = path.join(filePath, 'index.html')
+      if (resolveWithinRoot(filePath, 'index.html') !== indexPath) {
+        return new Response('forbidden', { status: 403 })
+      }
+      return serveFile(indexPath)
+    }
+    if (isMissingPathError(err)) {
+      return new Response('not found', { status: 404 })
+    }
+    return new Response('read error', { status: 500 })
+  }
+}
+
+/** 构造 app:// 协议处理器(纯函数化便于测试);逃逸请求回 403,缺失回 404 */
 export function createAppProtocolHandler(
   rendererRoot: string,
 ): (request: Request) => Promise<Response> {
-  return (request) => {
+  return async (request) => {
     const { pathname } = new URL(request.url)
     // host = 'index' (from app://index/...), pathname = '/index.html' or '/assets/...'
     let decoded: string
     try {
       decoded = decodeURIComponent(pathname)
     } catch {
-      return Promise.resolve(new Response('bad path', { status: 400 }))
+      return new Response('bad path', { status: 400 })
     }
     const filePath = resolveWithinRoot(rendererRoot, decoded)
     if (!filePath) {
-      return Promise.resolve(new Response('forbidden', { status: 403 }))
+      return new Response('forbidden', { status: 403 })
     }
-    return net.fetch(pathToFileURL(filePath).href)
+    // 必须走 Node/Electron fs: net.fetch(file://…app.asar…) 读不出 asar 内文件,
+    // 安装包会落到 Chromium Error 页。Electron 给 fs 打了 asar 补丁,readFile 可以。
+    return serveFile(filePath)
   }
 }
 

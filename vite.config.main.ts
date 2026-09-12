@@ -39,9 +39,10 @@ export default defineConfig({
     // noExternal 强制 rollup 把包内联到 bundle
     // - typebox: 1.x 是 ESM-only (package.json `type: "module"` + 所有 .mjs)，
     //   必须在 CJS 产物中由 rollup 转译
-    // - pi-telemetry: exports 仅含 "import" 条件无 "require"/"default"，
-    //   CJS 产物运行时 require 会抛 ERR_PACKAGE_PATH_NOT_EXPORTED，必须内联
-    noExternal: ['typebox', '@earendil-works/pi-telemetry'],
+    // - @earendil-works/* (chord / pi-telemetry / pi-ai …): exports 只有
+    //   "import" 没有 "require"/"default"。CJS 主进程 `require("@earendil-works/chord/context")`
+    //   会抛 ERR_PACKAGE_PATH_NOT_EXPORTED，安装包启动只剩 Error 对话框。
+    noExternal: ['typebox', /^@earendil-works\//],
   },
   resolve: {
     alias: {
