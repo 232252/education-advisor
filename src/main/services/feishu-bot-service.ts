@@ -110,6 +110,9 @@ class FeishuBotService extends EventEmitter {
     win: BrowserWindow | null,
     domain: FeishuDomain = 'feishu',
   ): Promise<void> {
+    // 凭据去首尾空白: 粘贴带入的空格/换行会让飞书返回 10003/10014 鉴权失败
+    appId = appId.trim()
+    appSecret = appSecret.trim()
     // 根据域名版本设置 base(单例:fetchRequest / validateCredentials 读取该模块级变量)
     setFeishuBase(domain)
     // SDK 使用的 Domain 枚举

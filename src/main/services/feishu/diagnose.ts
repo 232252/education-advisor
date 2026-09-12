@@ -33,6 +33,9 @@ export async function diagnoseConnection(
   appSecret: string,
   domain: FeishuDomain,
 ): Promise<DiagnoseResult> {
+  // 凭据去首尾空白: 粘贴带入的空格/换行会让飞书返回 10003/10014 鉴权失败
+  appId = appId.trim()
+  appSecret = appSecret.trim()
   const apiBase = getApiBase(domain)
   const hostname = domain === 'lark' ? 'open.larksuite.com' : 'open.feishu.cn'
   const steps: DiagnoseStep[] = []
@@ -202,7 +205,9 @@ function getSuggestionForAuthError(code: number): string {
     case 10002:
       return 'App ID 不正确,请检查飞书后台的 App ID 是否以 cli_ 开头'
     case 10003:
-      return '应用已被停用,请在飞书后台重新启用该应用'
+      // 实测: appId/secret 为空或含空白字符时飞书返回 10003 invalid param,
+      // 应用被停用时也可能返回该码 — 先查凭据,再查应用状态
+      return 'App ID/App Secret 为空或含空白字符(常见于粘贴带入空格/换行),请重新填写并保存;若凭据无误,请到飞书后台确认应用未被停用'
     case 10014:
       return 'App Secret 已失效,请在飞书后台重置后更新设置页'
     case 110000:

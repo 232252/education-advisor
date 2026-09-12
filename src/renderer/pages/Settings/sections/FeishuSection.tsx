@@ -108,7 +108,7 @@ export function FeishuSection({ settings, onSave }: FeishuSectionProps) {
           type="text"
           value={settings.feishu.appId}
           placeholder="cli_xxxxxxxx"
-          onChange={(e) => onSave('feishu.appId', e.target.value)}
+          onChange={(e) => onSave('feishu.appId', e.target.value.trim())}
           className={cn(
             INPUT_SM,
             'w-48',
@@ -129,7 +129,7 @@ export function FeishuSection({ settings, onSave }: FeishuSectionProps) {
           <div className="flex items-center gap-2">
             <SecretInput
               value={settings.feishu.appSecret}
-              onChange={(v) => onSave('feishu.appSecret', v)}
+              onChange={(v) => onSave('feishu.appSecret', v.trim())}
             />
             <button
               type="button"

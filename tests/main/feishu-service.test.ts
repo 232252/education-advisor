@@ -64,6 +64,32 @@ describe('feishu-service — testConnection', () => {
   })
 })
 
+describe('feishu-service — 凭据去空白 (trim)', () => {
+  it('appId/appSecret 带首尾空白时,发送到飞书的 body 已去除空白', async () => {
+    // 回归: 粘贴带入的空格/换行曾原样外发,飞书返回 10003 invalid param
+    fetchMock.mockResolvedValue(
+      mockFetchResponse({
+        code: 0,
+        msg: 'ok',
+        tenant_access_token: 'tok',
+        expire: 7200,
+      }),
+    )
+    const { testConnection } = await import('../../src/main/services/feishu-service')
+    const r = await testConnection(' app-id \n', ' secret\t ', 'feishu')
+    expect(r.success).toBe(true)
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(body.app_id).toBe('app-id')
+    expect(body.app_secret).toBe('secret')
+  })
+
+  it('仅含空白的 appId 归一化为空,仍按原失败路径处理', async () => {
+    const { testConnection } = await import('../../src/main/services/feishu-service')
+    const r = await testConnection('   ', 'secret')
+    expect(r.success).toBe(false)
+  })
+})
+
 describe('feishu-service — token 缓存 (getTenantToken 内部)', () => {
   it('getTenantToken 第二次调用应命中缓存', async () => {
     // testConnection 每次清缓存,但内部 getTenantToken 有缓存逻辑

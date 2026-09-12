@@ -16,10 +16,11 @@ export async function validateCredentials(
   appSecret: string,
 ): Promise<string | null> {
   try {
+    // 凭据去首尾空白: 粘贴带入的空格/换行会让飞书返回 10003/10014 鉴权失败
     const res = await fetch(`${getFeishuBase()}/open-apis/auth/v3/tenant_access_token/internal`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
+      body: JSON.stringify({ app_id: appId.trim(), app_secret: appSecret.trim() }),
       signal: AbortSignal.timeout(10_000),
     })
     const data = (await res.json()) as { code?: number; msg?: string }

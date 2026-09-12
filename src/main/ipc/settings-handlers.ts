@@ -97,10 +97,25 @@ export function registerSettingsHandlers(win: BrowserWindow) {
   handleIpc(
     IPC.IPC_SETTINGS_SET,
     async (_e, path: string, value: unknown) => {
+      // 飞书凭据统一去首尾空白: 粘贴带入的空格/换行会让飞书返回
+      // 10003(appId/secret 为空或含空白)或 10014(secret 含空白),保存前先归一化
+      if (typeof value === 'string' && (path === 'feishu.appId' || path === 'feishu.appSecret')) {
+        value = value.trim()
+      }
+
       // 飞书 appSecret:存入 keystore 加密存储，不写入 settings.json
-      if (path === 'feishu.appSecret' && typeof value === 'string' && value.length > 0) {
+      if (path === 'feishu.appSecret' && typeof value === 'string') {
         // 如果是 keystore 占位符，说明用户没修改，跳过
         if (value === '__keystore__') {
+          return { success: true }
+        }
+        // 清空输入 = 清除 keystore 已存 secret(避免"输入框已空但仍在用旧密钥"的假状态)
+        if (value.length === 0) {
+          keystoreService.deleteSecret('feishu-app-secret')
+          settingsService.update('feishu.appSecret', '')
+          settingsGetCache.clear()
+          log('info', 'settings', 'feishu.appSecret cleared (empty input)')
+          await reconnectFeishuBot()
           return { success: true }
         }
         keystoreService.setSecret('feishu-app-secret', value)
