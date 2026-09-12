@@ -278,6 +278,42 @@ describe('piAIService', () => {
       expect(context.messages[0]).toMatchObject({ role: 'user', content: 'ping' })
       expect(options).toMatchObject({ apiKey: 'sk-good', maxTokens: 5 })
     })
+
+    it('智谱连接测试跳过 Highspeed 套餐模型', async () => {
+      piMocks.completeSimple.mockResolvedValue({ stopReason: 'stop' })
+      const result = await piAIService.testConnection('zai-coding-cn', 'sk-good')
+      expect(result.success).toBe(true)
+      const calledModel = piMocks.completeSimple.mock.calls[0][0] as { id: string }
+      expect(calledModel.id).not.toMatch(/highspeed/i)
+      expect(result.model).toBe(calledModel.id)
+    })
+
+    it('探测模型套餐无权限时换下一个便宜模型', async () => {
+      piMocks.completeSimple
+        .mockResolvedValueOnce({
+          stopReason: 'error',
+          errorMessage: '429: {"code":"1311","message":"当前订阅套餐暂未开放GLM-5.3-Flash权限"}',
+        })
+        .mockResolvedValueOnce({ stopReason: 'stop' })
+      const result = await piAIService.testConnection('zai-coding-cn', 'sk-good')
+      expect(result.success).toBe(true)
+      expect(piMocks.completeSimple).toHaveBeenCalledTimes(2)
+      const first = piMocks.completeSimple.mock.calls[0][0] as { id: string }
+      const second = piMocks.completeSimple.mock.calls[1][0] as { id: string }
+      expect(first.id).not.toBe(second.id)
+      expect(result.model).toBe(second.id)
+    })
+
+    it('401 密钥无效时不换模型重试', async () => {
+      piMocks.completeSimple.mockResolvedValue({
+        stopReason: 'error',
+        errorMessage: '401 Unauthorized',
+      })
+      const result = await piAIService.testConnection('openai', 'sk-bad')
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('401 Unauthorized')
+      expect(piMocks.completeSimple).toHaveBeenCalledTimes(1)
+    })
   })
   describe('listModels 缓存与自定义模型合并', () => {
     it('TTL 缓存: 30s 内重复调用不再重建列表', async () => {
