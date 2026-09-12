@@ -72,6 +72,8 @@ vi.mock('../../src/main/services/webui-service', () => ({
   },
 }))
 
+import { dialog } from 'electron'
+import { createWebInvokeEvent } from '../../src/main/ipc/handle'
 import { registerSysHandlers } from '../../src/main/ipc/sys-handlers'
 import * as IPC from '@shared/ipc-channels'
 
@@ -128,5 +130,27 @@ describe('H-2: IPC_SYS_READ_FILE 路径穿越防御', () => {
       success: false,
       error: expect.any(String),
     })
+  })
+})
+
+describe('WebUI 不弹主机文件框', () => {
+  beforeAll(() => {
+    if (!handlers.has(IPC.IPC_SYS_OPEN_DIALOG)) {
+      registerSysHandlers({} as never)
+    }
+  })
+
+  it('open-dialog 来自 WebUI 时 canceled 且不调用 showOpenDialog', async () => {
+    const handler = handlers.get(IPC.IPC_SYS_OPEN_DIALOG)!
+    const result = await handler(createWebInvokeEvent(() => {}), { properties: ['openFile'] })
+    expect(result).toMatchObject({ canceled: true, filePaths: [] })
+    expect(dialog.showOpenDialog).not.toHaveBeenCalled()
+  })
+
+  it('save-dialog 来自 WebUI 时 canceled 且不调用 showSaveDialog', async () => {
+    const handler = handlers.get(IPC.IPC_SYS_SAVE_DIALOG)!
+    const result = await handler(createWebInvokeEvent(() => {}), { defaultPath: 'a.txt' })
+    expect(result).toMatchObject({ canceled: true, filePath: '' })
+    expect(dialog.showSaveDialog).not.toHaveBeenCalled()
   })
 })

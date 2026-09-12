@@ -9,6 +9,7 @@ import { registerAcademicHandlers } from './academic-handlers'
 import { registerAgentHandlers } from './agent-handlers'
 import { registerAIHandlers } from './ai-handlers'
 import { registerBackupHandlers } from './backup-handlers'
+import { registerChannelHandlers } from './channel-handlers'
 import { registerClassHandlers } from './class-handlers'
 import { registerCronHandlers } from './cron-handlers'
 import { registerEAAHandlers } from './eaa-handlers'
@@ -35,6 +36,7 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerSkillHandlers(win)
   registerSettingsHandlers(win)
   registerSysHandlers(win)
+  registerChannelHandlers(win)
   registerReportsHandlers()
   registerProfileHandlers()
   registerLogHandlers()

@@ -50,6 +50,11 @@ export function createAgentBridgeSlice(
 
     // === Agent 事件桥接 — 把 AgentStatusUpdate 映射到 chat 消息 ===
     handleAgentEvent: (data) => {
+      // M0 来源隔离: channel(飞书等)/cron 触发的运行不写入聊天会话 —
+      // 此前飞书运行会把 UI 置为 streaming,切会话时 switchSession 的 abort
+      // 误杀飞书侧运行,且飞书输出被落库到当前聊天(串台)。
+      // 缺省 source 视为 'ui'(向后兼容旧事件)。
+      if (data.source && data.source !== 'ui') return
       const state = get()
       // High 3.2 修复: 切 agent 时旧 agent 的 idle/error 被过滤导致 isStreaming 卡死
       // 之前直接 return,旧 agent 的 idle/error 事件被丢弃,isStreaming 永远不会重置

@@ -4,6 +4,7 @@
 // =============================================================
 
 import { setIpcRuntime } from '@shared/ipc-runtime'
+import { setWebUiRuntime } from './runtime-env'
 
 interface RpcResult {
   id?: string
@@ -62,6 +63,7 @@ export function installWebBridge(): Promise<boolean> {
       if (settled) return
       settled = true
       window.clearTimeout(timer)
+      setWebUiRuntime(true)
       setIpcRuntime({
         invoke(channel, ...args) {
           const id = String(nextId++)

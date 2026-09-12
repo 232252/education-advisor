@@ -11,7 +11,7 @@ import { updateService } from '../services/update-service'
 import { webUiService } from '../services/webui-service'
 import { validatePathSafety } from '../utils/sanitize'
 import { sendToRenderer } from './broadcast'
-import { handleIpc } from './handle'
+import { handleIpc, isWebUiInvokeEvent } from './handle'
 import { invalidateSettingsGetCache } from './settings-handlers'
 
 export function registerSysHandlers(win: BrowserWindow) {
@@ -23,9 +23,13 @@ export function registerSysHandlers(win: BrowserWindow) {
 
   // 打开文件选择对话框
   // H-8 修复: 加 try-catch
+  // WebUI 必须走浏览器 <input type="file"> + POST /upload,不能弹主机对话框
   handleIpc(
     IPC.IPC_SYS_OPEN_DIALOG,
-    async (_e, options: Electron.OpenDialogOptions) => {
+    async (e, options: Electron.OpenDialogOptions) => {
+      if (isWebUiInvokeEvent(e)) {
+        return { canceled: true, filePaths: [] } as Electron.OpenDialogReturnValue
+      }
       return await dialog.showOpenDialog(win, options)
     },
     (msg) =>
@@ -40,7 +44,10 @@ export function registerSysHandlers(win: BrowserWindow) {
   // H-8 修复: 加 try-catch
   handleIpc(
     IPC.IPC_SYS_SAVE_DIALOG,
-    async (_e, options: Electron.SaveDialogOptions) => {
+    async (e, options: Electron.SaveDialogOptions) => {
+      if (isWebUiInvokeEvent(e)) {
+        return { canceled: true, filePath: '' } as Electron.SaveDialogReturnValue
+      }
       return await dialog.showSaveDialog(win, options)
     },
     (msg) =>
