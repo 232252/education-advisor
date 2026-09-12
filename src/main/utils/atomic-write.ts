@@ -109,12 +109,20 @@ export async function atomicWrite(
 /** 本模块生成的 tmp 后缀形态: .tmp.<pid>.<ts>.<rand>,只有 atomicWrite 会产生 */
 const TMP_SUFFIX_RE = /\.tmp\.\d+\.\d+\.[a-z0-9]{2,8}$/
 
+/** 从 tmp 文件名解析写入进程 pid,解析失败返回 NaN */
+function tmpOwnerPid(name: string): number {
+  const seg = name.split('.tmp.')[1]?.split('.')[0]
+  return seg === undefined ? Number.NaN : Number.parseInt(seg, 10)
+}
+
 /**
  * 启动时清扫原子写残留(2026-09-05 根因修复):
  * write 成功但 rename 前进程崩溃/SIGKILL 时 tmp 文件永久残留
  * (实证:userData/仓库根累积过 9 个 agents.user.yaml.tmp.*)。
- * 只在 app boot 调用一次 — 此时不可能有 in-flight 写入,无并发风险;
- * 目录不存在(首次运行)属正常,静默跳过。
+ * 只在 app boot 调用一次;目录不存在(首次运行)属正常,静默跳过。
+ * 跳过同 pid 的 tmp:boot 期存在在途写入(settings 频道迁移的防抖落盘,
+ * 实证 2026-09-12: sweep 误删在写的 settings.json.tmp.<pid> → rename ENOENT,
+ * 迁移永远落不了盘);崩溃残留来自已死进程,pid 必不相同,下次启动仍会清。
  */
 export async function sweepAtomicTmpResidue(dirs: string[]): Promise<number> {
   let removed = 0
@@ -127,6 +135,7 @@ export async function sweepAtomicTmpResidue(dirs: string[]): Promise<number> {
     }
     for (const name of entries) {
       if (!TMP_SUFFIX_RE.test(name)) continue
+      if (tmpOwnerPid(name) === process.pid) continue
       try {
         await fsp.unlink(path.join(dir, name))
         removed++
