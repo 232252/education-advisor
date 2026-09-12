@@ -1881,5 +1881,16 @@
   "reports.loadFailed": "加载失败",
   "reports.readFailed": "读取失败: {err}",
   "reports.readError": "读取异常: {err}",
-  "reports.unknownError": "未知错误"
+  "reports.unknownError": "未知错误",
+  "page.classes.grades.ai.title": "AI 分析本班",
+  "page.classes.grades.ai.run": "AI 分析本班",
+  "page.classes.grades.ai.running": "分析中…",
+  "page.classes.grades.ai.clear": "清除",
+  "page.classes.grades.ai.done": "班级 AI 分析完成",
+  "page.classes.grades.ai.failed": "分析失败",
+  "page.classes.grades.ai.noAgent": "没有可用的 Agent，请先在「Agent」页启用学业分析师",
+  "page.classes.grades.ai.loadingAgents": "加载 Agent…",
+  "page.classes.grades.ai.usingAgent": "将使用：{name}",
+  "page.classes.grades.ai.hint": "仅附带班级名、考试、摘要统计、排行/待关注与升降人数等上下文，不会整表导出原始成绩。",
+  "page.classes.grades.ai.streaming": "正在生成…"
 }
