@@ -32,6 +32,19 @@ describe('sweepAtomicTmpResidue', () => {
     expect(left).not.toContain('agents.user.yaml.tmp.1234.1788562215471.bpxom5')
   })
 
+  it('跳过同 pid 的 tmp(boot 期在途写入,如 settings 频道迁移防抖落盘)', async () => {
+    const dir = await makeDir()
+    // 当前进程 pid 形态的 tmp = 可能正在写入,清扫不得删除
+    const inFlight = `settings.json.tmp.${process.pid}.1789224496993.bpwe6k`
+    await fsp.writeFile(path.join(dir, inFlight), 'x')
+
+    const removed = await sweepAtomicTmpResidue([dir])
+
+    expect(removed).toBe(0)
+    const left = await fsp.readdir(dir)
+    expect(left).toContain(inFlight)
+  })
+
   it('目录不存在 → 返回 0 不抛出(首次运行场景)', async () => {
     const removed = await sweepAtomicTmpResidue([path.join(os.tmpdir(), 'ea-nonexistent-xyz')])
     expect(removed).toBe(0)
