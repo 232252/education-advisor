@@ -342,6 +342,16 @@ precedence and this file is no longer consulted.
       "syncInterval": 300
     }
   },
+  "channels": {
+    "feishu": {
+      "enabled": true,
+      "domain": "feishu",
+      "appId": "",
+      "appSecret": "",
+      "allowGroups": true,
+      "agentId": "main"
+    }
+  },
   "advanced": {
     "shellPath": "",
     "sessionDir": "",
@@ -445,15 +455,40 @@ configuration. The full list of settings and their descriptions:
 | Enabled | `true` | Whether the privacy engine is active. |
 | Auto anonymize | `true` | Whether to anonymize before any LLM call. |
 
-### Feishu
+### Channels (connection hub)
+
+The bot connection settings live under `channels.<id>.*`, rendered by
+the connection hub (`Settings → 连接中心`) from each channel's manifest
+(`src/main/services/channels/adapters/<id>/manifest.ts`). Feishu:
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| App ID | (empty) | The Feishu app ID. |
-| App secret | (empty, in keystore) | The Feishu app secret. **Stored encrypted in the OS keystore.** |
+| `channels.feishu.enabled` | `true` | Master switch; auto-starts the long-connection bot on app launch. |
+| `channels.feishu.domain` | `feishu` | `feishu` (China) or `lark` (International); must match the app's platform. |
+| `channels.feishu.appId` | (empty) | Feishu app ID starting with `cli_`. Mirrored to `feishu.appId` for outbound integrations. |
+| `channels.feishu.appSecret` | (empty, in keystore) | App secret. **Stored encrypted in the OS keystore** (key `feishu-app-secret`, unchanged); written via the `__keystore__` placeholder protocol. |
+| `channels.feishu.allowGroups` | `true` | Whether the bot responds in group chats. |
+| `channels.feishu.agentId` | `main` | Which agent answers channel messages. |
+
+Legacy `feishu.appId`/`feishu.domain` values are migrated forward on
+first run (one-time `.bak-channels-migration` backup;
+`src/main/services/settings/migrate-channels.ts`), and `channels.feishu.appId`/`domain`
+mirror back to `feishu.*` so outbound integrations (alerts / Bitable)
+keep working. New channels (e.g. DingTalk, coming soon) add a
+`channels.<id>` block the same way — the UI is generated from the
+manifest, no new settings code.
+
+### Feishu (data-source integrations)
+
+| Setting | Default | Description |
+| --- | --- | --- |
 | User Open ID | (empty) | The user's open_id for direct messages. |
 | Bitable sync enabled | `false` | Whether to sync to a Bitable. |
 | Bitable sync interval | `300` seconds | How often to sync. |
+
+The bot connection itself (credentials, domain, groups) moved to the
+connection hub above; this section keeps Bitable sync and teacher-push
+data-source settings.
 
 ### Advanced
 
