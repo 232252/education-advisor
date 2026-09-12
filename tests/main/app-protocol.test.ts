@@ -6,6 +6,7 @@
 // =============================================================
 
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { protocol } from 'electron'
 import {
@@ -55,7 +56,7 @@ describe('createAppProtocolHandler', () => {
     const handler = createAppProtocolHandler(root)
     const res = await handler(new Request('app://index/index.html'))
     expect(res.status).toBe(200)
-    expect(await res.text()).toBe(`served:file://${path.join(root, 'index.html')}`)
+    expect(await res.text()).toBe(`served:${pathToFileURL(path.join(root, 'index.html')).href}`)
   })
 })
 
