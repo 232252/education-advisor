@@ -1,7 +1,6 @@
 // =============================================================
 // adapters/feishu/connection — 飞书长连接机器人(连接层/编排)
-// (M3 从 feishu-bot-service.ts 整体搬入,行为不变;
-//   src/main/services/feishu-bot-service.ts 保留为 re-export 兼容壳)
+// (M3 从 feishu-bot-service.ts 整体搬入;阶段 2 兼容壳 feishu-bot/* 已删除)
 //
 // 使用 @larksuiteoapi/node-sdk 的 WSClient(长连接模式)接收飞书消息,
 // 无需公网地址/内网穿透。收到消息后:

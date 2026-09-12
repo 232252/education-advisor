@@ -3,7 +3,7 @@
 // =============================================================
 
 import { app, type BrowserWindow, dialog } from 'electron'
-import { feishuBotService } from '../services/feishu-bot-service'
+import { feishuBotService } from '../services/channels/adapters/feishu/connection'
 import { settingsService } from '../services/settings-service'
 import { getTrayStatus } from '../services/tray-service'
 import { mainState } from './state'

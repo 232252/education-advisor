@@ -56,14 +56,14 @@ vi.mock('../../src/main/services/eaa-bridge', () => ({
   eaaBridge: { execute: mocks.eaaExecute },
   getErrorMessage: vi.fn((r: { stderr?: string }) => r?.stderr ?? 'error'),
 }))
-vi.mock('../../src/main/services/feishu-bot/command-router', () => ({
+vi.mock('../../src/main/services/channels/runtime/command/router', () => ({
   createDefaultRouter: () => ({
     dispatch: vi.fn().mockResolvedValue(null),
   }),
   CommandContext: {},
 }))
 
-import { feishuBotService } from '../../src/main/services/feishu-bot-service'
+import { feishuBotService } from '../../src/main/services/channels/adapters/feishu/connection'
 
 describe('FeishuBotService — 初始状态', () => {
   it('初始 status 为 idle', () => {

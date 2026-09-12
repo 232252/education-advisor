@@ -9,6 +9,7 @@
 import * as IPC from '@shared/ipc-channels'
 import type { ChannelStatusInfo } from '@shared/types'
 import type { BrowserWindow } from 'electron'
+import { Notification } from 'electron'
 import { createDingtalkAdapter } from '../services/channels/adapters/dingtalk'
 import { createFeishuAdapter } from '../services/channels/adapters/feishu'
 import { channelManager } from '../services/channels/manager'
@@ -20,6 +21,11 @@ import { handleIpc } from './handle'
 function registerChannelRegistry(): void {
   channelManager.register(createFeishuAdapter)
   channelManager.register(createDingtalkAdapter)
+}
+
+/** 渠道显示名(通知文案用;从 manager manifest 目录取) */
+function channelLabel(id: string): string {
+  return channelManager.listManifests().find((m) => m.id === id)?.label ?? id
 }
 
 export function registerChannelHandlers(win: BrowserWindow): void {
@@ -45,11 +51,37 @@ export function registerChannelHandlers(win: BrowserWindow): void {
   handleIpc(IPC.IPC_CHANNELS_TEST, async (_e, id: string) => channelManager.test(id))
 
   // 状态推送:adapter → Manager 聚合 → renderer + WebUI
+  // B6-5(阶段 2 泛化): 渠道转入 error 时弹一次系统通知,
+  // 让用户即使不在设置页也能察觉(原 feishu:bot-* 时代的行为平移)
+  let lastErrorChannels = new Set<string>()
   channelManager.on('status', (info: ChannelStatusInfo) => {
     try {
       sendToRenderer(win, IPC.IPC_CHANNELS_STATUS_UPDATE, info)
     } catch (err) {
       log('warn', 'channels', `status fanout failed: ${err}`)
+    }
+    if (info.status === 'error' && !lastErrorChannels.has(info.channel)) {
+      lastErrorChannels.add(info.channel)
+      try {
+        if (Notification.isSupported()) {
+          const label = channelLabel(info.channel)
+          const n = new Notification({
+            title: `${label}连接失败`,
+            body: info.detail
+              ? `原因: ${String(info.detail).slice(0, 120)}`
+              : '请检查凭证与网络后在连接中心重试',
+            silent: false,
+          })
+          n.on('click', () => {
+            if (!win.isDestroyed()) win.show()
+          })
+          n.show()
+        }
+      } catch {
+        /* 通知失败不影响主流程 */
+      }
+    } else if (info.status !== 'error') {
+      lastErrorChannels.delete(info.channel)
     }
   })
 

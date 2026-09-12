@@ -64,10 +64,13 @@ export function usePluginsOverview() {
           }).length,
         }
       },
-      // 飞书机器人状态
+      // 飞书频道状态(channels:list 派生;阶段 2 起 bot 状态统一走连接中心)
       feishu: async (): Promise<FeishuOverview> => {
-        const info = await api.feishu.botStatus()
-        const status = (info as { status?: string })?.status ?? null
+        const list = await api.channels.list()
+        const info = (Array.isArray(list) ? list : []).find(
+          (i) => (i as { manifest?: { id?: string } })?.manifest?.id === 'feishu',
+        ) as { status?: { status?: string } } | undefined
+        const status = info?.status?.status ?? null
         return { status }
       },
       // Ollama 本地模型
