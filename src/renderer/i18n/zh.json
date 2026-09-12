@@ -259,7 +259,6 @@
   "settings.section.general": "通用",
   "settings.section.chat": "对话",
   "settings.section.channels": "连接中心",
-  "settings.section.feishuIntegration": "飞书集成(数据源)",
   "settings.section.about": "关于",
   "settings.section.logs": "日志查看",
   "settings.section.mcp": "MCP 集成",
@@ -342,7 +341,6 @@
   "settings.chat.mode.all": "全部",
   "settings.chat.mode.oneAtATime": "一次一个",
   "settings.channels.intro": "让手机/平板上的聊天软件直接指挥这台电脑上的 AI 助教。长连接模式,无需公网 IP。",
-  "settings.channels.integrationHint": "多维表格同步/教师推送等数据源集成设置在下方「飞书集成」区,后续将并入连接中心。",
   "settings.channels.empty": "没有可用渠道",
   "settings.channels.beta": "Beta",
   "settings.channels.comingSoon": "即将支持",
@@ -1050,7 +1048,7 @@
   "page.settings.feishu.bitableTableIdPh": "tblXXXXXXXX(留空用 log)",
   "page.settings.feishu.syncInterval": "同步间隔",
   "page.settings.feishu.syncIntervalDesc": "自动同步的时间间隔，支持 cron 表达式（如 0 */6 * * *）或分钟数",
-    "page.settings.feishu.connecting": "连接中...",
+  "page.settings.feishu.connecting": "连接中...",
   "page.settings.feishu.connectFailed": "连接失败",
   "page.settings.feishu.notConfigured": "未配置 · 请填写 App ID 和 App Secret 并保存",
   "page.settings.feishu.notSaved": "未保存 · 请点击下方\"保存\"按钮将凭证写入本地加密存储",
@@ -1907,5 +1905,10 @@
   "page.classes.grades.ai.loadingAgents": "加载 Agent…",
   "page.classes.grades.ai.usingAgent": "将使用：{name}",
   "page.classes.grades.ai.hint": "仅附带班级名、考试、摘要统计、排行/待关注与升降人数等上下文，不会整表导出原始成绩。",
-  "page.classes.grades.ai.streaming": "正在生成…"
+  "page.classes.grades.ai.streaming": "正在生成…",
+  "settings.channels.datasource.title": "数据源集成",
+  "settings.channels.datasource.intro": "AI 结果的出站去向(与消息频道共用飞书凭证):定时同步报告到多维表格、把定时任务结果推送给教师。",
+  "settings.channels.datasource.feishu": "飞书多维表格同步",
+  "settings.channels.datasource.agentPush": "教师推送",
+  "settings.channels.datasource.agentPush.desc": "定时任务(周报/风险预警)完成后把结果推送给教师,默认关闭"
 }

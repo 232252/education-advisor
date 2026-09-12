@@ -28,7 +28,6 @@ import {
   ChatSection,
   DataSection,
   DiagnosticSection,
-  FeishuSection,
   GeneralSection,
   LogSection,
   McpSection,
@@ -207,9 +206,6 @@ export function SettingsPage() {
 
         {/* ===== 连接中心(消息频道,阶段 1 频道化) ===== */}
         <ChannelsSection settings={settings} onSave={handleSave} />
-
-        {/* ===== 飞书集成(数据源;bitable 等,阶段 3 并入连接中心) ===== */}
-        <FeishuSection settings={settings} onSave={handleSave} />
 
         {/* ===== 诊断 & 维护(状态自持) ===== */}
         <DiagnosticSection />

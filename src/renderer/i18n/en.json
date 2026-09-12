@@ -260,7 +260,6 @@
   "settings.section.general": "General",
   "settings.section.chat": "Chat",
   "settings.section.channels": "Connection Hub",
-  "settings.section.feishuIntegration": "Feishu (Data Integrations)",
   "settings.section.about": "About",
   "settings.section.logs": "Log Viewer",
   "settings.section.mcp": "MCP Integration",
@@ -343,7 +342,6 @@
   "settings.chat.mode.all": "All",
   "settings.chat.mode.oneAtATime": "One at a Time",
   "settings.channels.intro": "Let chat apps on your phone/tablet drive the AI tutor on this PC. Long-connection mode, no public IP needed.",
-  "settings.channels.integrationHint": "Data-source integrations (Bitable sync, teacher push) live in the Feishu section below and will move here later.",
   "settings.channels.empty": "No channels available",
   "settings.channels.beta": "Beta",
   "settings.channels.comingSoon": "Coming Soon",
@@ -1051,7 +1049,7 @@
   "page.settings.feishu.bitableTableIdPh": "tblXXXXXXXX (defaults to log)",
   "page.settings.feishu.syncInterval": "Sync Interval",
   "page.settings.feishu.syncIntervalDesc": "Auto sync interval; accepts a cron expression (e.g. 0 */6 * * *) or minutes",
-    "page.settings.feishu.connecting": "Connecting...",
+  "page.settings.feishu.connecting": "Connecting...",
   "page.settings.feishu.connectFailed": "Connection failed",
   "page.settings.feishu.notConfigured": "Not configured · Fill in App ID and App Secret, then save",
   "page.settings.feishu.notSaved": "Not saved · Click the Save button below to store credentials in local encrypted storage",
@@ -1907,5 +1905,10 @@
   "page.classes.grades.ai.loadingAgents": "Loading agents…",
   "page.classes.grades.ai.usingAgent": "Using: {name}",
   "page.classes.grades.ai.hint": "Sends class name, exam, summary stats, top/watchlist, and rise/fall counts — not a full raw grade export.",
-  "page.classes.grades.ai.streaming": "Generating…"
+  "page.classes.grades.ai.streaming": "Generating…",
+  "settings.channels.datasource.title": "Data Integrations",
+  "settings.channels.datasource.intro": "Outbound destinations for AI results (sharing Feishu credentials with messaging channels): scheduled report sync to Bitable, and cron results pushed to teachers.",
+  "settings.channels.datasource.feishu": "Feishu Bitable Sync",
+  "settings.channels.datasource.agentPush": "Teacher Push",
+  "settings.channels.datasource.agentPush.desc": "Push cron results (weekly report / risk alerts) to teachers when finished. Off by default."
 }
