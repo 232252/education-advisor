@@ -171,6 +171,34 @@ describe('syncAgentScheduleTasks 消费 schedulePrompts', () => {
     })
     expect(tasks.get(id)?.enabled).toBe(false)
   })
+
+  it('deletedOverrides 跳过已删除的自动任务,sync 不再重建', () => {
+    const tasks = new Map<string, CronTask>()
+    const agent = {
+      id: 'governor',
+      name: '督导',
+      schedule: ['0 6 * * *', '0 12 * * *'],
+      schedulePrompts: ['晨检', '午检'],
+      modelTier: 'low_cost' as const,
+    }
+    syncAgentScheduleTasks([agent], {
+      tasks,
+      schedule: () => {},
+      unschedule: () => {},
+    })
+    expect(tasks.has('agent-schedule-governor-0')).toBe(true)
+    expect(tasks.has('agent-schedule-governor-1')).toBe(true)
+
+    syncAgentScheduleTasks([agent], {
+      tasks,
+      schedule: () => {},
+      unschedule: () => {},
+      deletedOverrides: new Set(['agent-schedule-governor-0']),
+    })
+    expect(tasks.has('agent-schedule-governor-0')).toBe(false)
+    expect(tasks.has('agent-schedule-governor-1')).toBe(true)
+    expect(tasks.get('agent-schedule-governor-1')?.prompt).toBe('午检')
+  })
 })
 
 describe('parseEnvContent', () => {
