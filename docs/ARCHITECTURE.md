@@ -33,6 +33,7 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 - [Overview](#overview)
 - [The three processes](#the-three-processes)
 - [The IPC contract](#the-ipc-contract)
+- [The channel layer (connection hub)](#the-channel-layer-connection-hub)
 - [The data flow](#the-data-flow)
 - [The state model](#the-state-model)
 - [The build pipeline](#the-build-pipeline)
@@ -285,6 +286,71 @@ convention and review):
    the renderer's `getErrorMessage` reads `data`/`stderr` first),
    privacy uses `{success,data}` (error text lives in `data`),
    `cron:*`/`agent:*` run/abort use `{success,message}`.
+
+---
+
+## The channel layer (connection hub)
+
+Chat platforms (Feishu today, DingTalk next) reach the app through a
+four-layer pipeline so that adding a channel means writing one adapter
+directory plus one manifest — queueing, agent dispatch, streaming
+cards, dedup, file handling, status reporting, and settings UI are all
+shared. Everything lives under `src/main/services/channels/`:
+
+```
+Renderer 连接中心 (Settings/channels/*: card wall, SchemaForm)
+        │  channels:list / start / stop / test  +  status push
+        ▼
+ChannelManager (manager.ts)  ── registry, lifecycle, status fan-out,
+        │                       settings: channels.<id>.* + keystore
+        ▼
+ChannelAdapter (types.ts)    ── per-platform: connect/disconnect/
+        │                       getStatus/sendReply/push/fetchAttachment
+        ▼
+bridge/pipeline.ts           ── platform-agnostic inbound pipeline:
+        │                       dedup → chat-queue (merge window) →
+        │                       command router → agent-runner
+        │                       (streaming, source='channel') → reply
+        ▼
+runtime/                     ── chat-queue, dedup-cache, recent-files,
+                                attachment-store, command/router
+```
+
+Key contracts (wire types in
+[`src/shared/types/channel.ts`](../src/shared/types/channel.ts)):
+
+- **Manifest-driven UI.** Each adapter ships a `manifest.ts`
+  (id, name, icon, `configSchema: ConfigField[]` with `showIf` /
+  patterns, `setupGuide` steps, `capabilities`). The renderer renders
+  the config form from the schema — a new channel needs zero new UI
+  components. `manifest.ts` validates manifests at registration.
+- **Secrets never round-trip.** Secrets are stored in the OS keystore
+  and surfaced to the renderer only as the `__keystore__` placeholder;
+  saving the literal means "change", saving the placeholder means
+  "keep".
+- **Five-state status.** `not-configured / disabled / connecting /
+  connected / error` (+ `degraded` substate when streaming falls back
+  to edit-message). The manager derives status from settings and
+  merges live adapter status, fanning it out over
+  `channels:status-update` to both the desktop renderer and the WebUI
+  (phone browser) — channels:* handlers go through `handleIpc`, so the
+  WebUI gateway inherits them for free.
+- **Agent source isolation.** Channel-triggered agent runs are stamped
+  `source: 'channel'`; the UI's abort/switch-session only cancels
+  `ui` runs, and the renderer filters non-ui status events out of the
+  chat view (`AgentRunSource` in `src/shared/types/agent.ts`).
+- **Settings migration.** Legacy `feishu.appId/domain` migrate to
+  `channels.feishu.*` once (with a `.bak-channels-migration` backup)
+  and mirror back bidirectionally, because outbound integrations
+  (alerts, Bitable sync) still read `feishu.*`
+  (`src/main/services/settings/migrate-channels.ts`).
+
+The Feishu implementation lives in
+[`adapters/feishu/`](../src/main/services/channels/adapters/feishu/)
+(WS long-connection, CardKit streaming, group policy); the old
+`src/main/services/feishu-bot/` files and `feishu-bot-service.ts` are
+thin re-export shims kept for import compatibility and the legacy
+`feishu:bot-*` IPC, to be retired when DingTalk lands.
 
 ---
 
