@@ -2,7 +2,7 @@
 
 > 日期：2026-09-12  
 > 仓库：education-advisor @ tip `b06749d`（以最新提交为准）  
-> 状态：**MVP + 二期已在 feat/class-grades-analytics 实现**  
+> 状态：**MVP + 二期 + AI 接入已在 feat/class-grades-analytics 实现**  
 > 关联调研：班级管理缺成绩入口；分析能力已在 Dashboard 成绩镜头 + Academics 对比/总览成熟
 
 ## 1. 已拍板
@@ -144,3 +144,36 @@ docs/plans|research/*channel* / *feishu*
 - `src/renderer/pages/Classes/components/ClassGradesTab.tsx` / `hooks/useClassGradesAnalytics.ts`
 - `docs/fixtures/class-grades-demo/**`
 - i18n：`page.classes.grades.trend*` / `printSheet`
+
+## 10. AI 接入（MVP stitch）
+
+> 分支同 `feat/class-grades-analytics`。仍**不**改 feishu* / webui* / `handle.ts`；无新 IPC。
+
+### 已有 AI 能力（调研）
+
+| 入口 | 路径 | 说明 |
+|------|------|------|
+| 学生档案 AI 分析 | `Students/tabs/AIAnalysisTab` + `useAgentAnalysis` | `agent.runManual(id, prompt)` + `useAgentStreamOutput` |
+| 家校话术 | `useCommunicationScript` + `home-school.ts` | 同构 runManual + 纯函数 prompt |
+| Chat | `/chat` + chat store | 无 query 预填；agent 事件桥接到消息 |
+| Agents | `academic` / `data-analyst` / `class-monitor` 等 | academic 已含 `eaa_exams` / `eaa_exam_grades` |
+
+### 本班成绩 AI 接法
+
+- **入口**：`ClassGradesTab` 工具栏下 `ClassGradesAiPanel`（「AI 分析本班」）
+- **Agent**：优先启用的 `academic`，否则第一个 enabled agent
+- **上下文**：班级名、考试、科目范围、摘要统计、排行 Top5、待关注 Top5、两场升降人数 + 进步/退步各 Top3 姓名Δ — **不**整表 dump 原始成绩
+- **文件**：`lib/class-grades-ai-prompt.ts`、`hooks/useClassGradesAiAnalysis.ts`、`components/ClassGradesAiPanel.tsx`
+- **i18n**：`page.classes.grades.ai.*`（zh+en）
+
+### 如何试用
+
+1. Agent 页启用「学业分析师」(academic)，并配置可用模型
+2. 班级详情 → 成绩分析 → 选有数据的考试 → 点「AI 分析本班」
+3. 查看流式输出；可清除后换科目/考试再跑
+
+### 弃做
+
+- 未新建独立 agent / 未改 Chat 路由预填
+- 未走飞书/通讯通道；未改 `handle.ts`
+- 未把全班原始分矩阵塞进 prompt

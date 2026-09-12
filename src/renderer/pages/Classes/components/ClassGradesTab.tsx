@@ -1,6 +1,7 @@
 // =============================================================
 // ClassProfile — Grades tab: single-exam analytics + lightweight
-// two-exam movement + multi-exam class avg trend + print sheet.
+// two-exam movement + multi-exam class avg trend + print sheet +
+// AI class analysis (academic agent, aggregate context).
 // Reuses Dashboard Grade* cards, Academics SubjectAvgChartCard /
 // comparison helpers, and existing ClassGradeSheetDocument print.
 // =============================================================
@@ -42,6 +43,7 @@ import {
 import { SUBJECT_FILTER_ALL } from '../../Dashboard/dashboard-lens'
 import { useClassGradesAnalytics } from '../hooks/useClassGradesAnalytics'
 import { ClassAvgTrendCard } from './ClassAvgTrendCard'
+import { ClassGradesAiPanel } from './ClassGradesAiPanel'
 
 export function ClassGradesTab({
   students,
@@ -110,6 +112,23 @@ export function ClassGradesTab({
     const avg = scored.reduce((acc, r) => acc + (r.displayScore as number), 0) / scored.length
     return subjectId === SUBJECT_FILTER_ALL ? `${avg.toFixed(1)}%` : avg.toFixed(1)
   }, [rows, subjectId])
+
+  const subjectLabel = useMemo(() => {
+    if (subjectId === SUBJECT_FILTER_ALL) return t('page.dashboard.academic.filter.allSubjects')
+    return subjects.find((s) => s.id === subjectId)?.name ?? subjectId
+  }, [subjectId, subjects, t])
+
+  const examAName = useMemo(() => exams.find((e) => e.id === examAId)?.name, [exams, examAId])
+  const examBName = useMemo(() => exams.find((e) => e.id === examBId)?.name, [exams, examBId])
+
+  const aiMovers = useMemo(
+    () =>
+      studentComparisons.map((sc) => ({
+        studentName: sc.studentName,
+        totalScoreDelta: sc.totalScoreDelta,
+      })),
+    [studentComparisons],
+  )
 
   if (!catalogReady) {
     return <DashboardCardSkeleton />
@@ -194,6 +213,25 @@ export function ClassGradesTab({
           {t('page.classes.grades.shortcutCompare')}
         </Button>
       </div>
+
+      {gradesReady && selectedExam && (
+        <ClassGradesAiPanel
+          classLabel={classLabel}
+          examName={selectedExam.name}
+          examDate={selectedExam.date}
+          subjectLabel={subjectLabel}
+          stats={stats}
+          avgLabel={avgLabel}
+          ranked={ranked}
+          watchlist={watchlist}
+          movement={movement}
+          canCompare={canCompare && compareReady}
+          examAName={examAName}
+          examBName={examBName}
+          movers={aiMovers}
+          disabled={stats.recordedCount === 0}
+        />
+      )}
 
       {gradesReady ? (
         <>
