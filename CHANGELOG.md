@@ -19,6 +19,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - Windows ARM64 installer
 - Tauri parity build
 
+## [3.3.3] — 2026-09-12
+
+### Added
+- 模型供应商列出 pi 全部内置厂商；智谱 / MiniMax / 通义千问 / 小米等中国区显示中文名，可用「智谱」「中国版」搜索。
+
+### Changed
+- 推送 `main` 且 `package.json` 版本尚未发过时，由 GitHub Actions 云端打包并发布安装包（不再依赖本机编译或手动 Run workflow）。
+
 ## [3.3.2] — 2026-09-12
 
 ### Fixed
@@ -156,7 +164,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - The `nul` file in the repository root (a Windows reparse-point residue from
   an earlier redirect) is git-ignored but can be safely removed by hand.
 
-[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.2...HEAD
+[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.3...HEAD
+[3.3.3]: https://github.com/232252/education-advisor/releases/tag/v3.3.3
 [3.3.2]: https://github.com/232252/education-advisor/releases/tag/v3.3.2
 [3.3.1]: https://github.com/232252/education-advisor/releases/tag/v3.3.1
 [3.3.0]: https://github.com/232252/education-advisor/releases/tag/v3.3.0
