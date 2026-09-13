@@ -38,6 +38,10 @@ describe('buildIdentifyPrompt', () => {
     expect(p).toContain('不要猜')
     expect(p).toContain('考号经常不等于学号')
   })
+
+  it('编号要求原样保留前导零(01 不写成 1)', () => {
+    expect(buildIdentifyPrompt()).toContain('前导零')
+  })
 })
 
 describe('parseIdentifyResponse', () => {
