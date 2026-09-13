@@ -202,3 +202,9 @@ src-tauri/
 .app-data.backup-*/
 .eaa-data.backup-*/
 .mimosa/
+
+# ===== 机器本地状态与调试草稿(勿入库) =====
+# agents.user.yaml: UI 自动生成的用户 Agent 覆盖配置(每台机器不同)
+agents.user.yaml
+# tmp/: 一次性验证脚本与产物
+tmp/
