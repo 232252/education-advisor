@@ -51,6 +51,7 @@
   --animate-slide-up: slide-up 0.3s ease-out both;
   --animate-slide-in-right: slide-in-right 0.25s ease-out both;
   --animate-scale-in: scale-in 0.2s ease-out both;
+  --animate-slide-in-left: slide-in-left 0.2s ease-out both;
 }
 
 /* v4 关键帧需在 @theme 之外用标准 @keyframes 定义,Tailwind 通过
@@ -242,6 +243,16 @@ body {
     transform: scale(1);
   }
 }
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
 @keyframes shimmer {
   0% {
     background-position: -200% 0;
@@ -263,6 +274,9 @@ body {
 }
 .animate-scale-in {
   animation: scale-in 0.2s ease-out both;
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.2s ease-out both;
 }
 .animate-shimmer {
   animation: shimmer 1.5s linear infinite;

@@ -1,9 +1,14 @@
 // =============================================================
-// Section — 设置页分区容器(可折叠)
-// 标题栏可点击展开/收起,默认收起,避免一屏字段过多
+// Section — 设置页分区容器(可折叠 + 锚点揭示)
+// 标题栏可点击展开/收起,默认收起,避免一屏字段过多。
+// 锚点揭示: 传 id 后,URL hash 命中 `#<id>` 时自动展开并滚动定位
+// (连接中心面板等入口经 navigate('/settings#connection') 深链到此);
+// 经 useLocation 监听,路由切换(pushState 不触发 hashchange)也能命中。
+// 其余未传 id 的 Section 行为零变化。
 // =============================================================
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useT } from '../../../i18n'
 import { CARD_BASE } from '../../../lib/ui-utils'
 
@@ -11,13 +16,36 @@ export interface SectionProps {
   title: string
   children: React.ReactNode
   defaultOpen?: boolean
+  /** 锚点 id: URL hash 为 #<id> 时自动展开 + 滚动定位 */
+  id?: string
 }
 
-export function Section({ title, children, defaultOpen = false }: SectionProps) {
+export function Section({ title, children, defaultOpen = false, id }: SectionProps) {
   const { t } = useT()
   const [open, setOpen] = useState(defaultOpen)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const location = useLocation()
+
+  useEffect(() => {
+    if (!id || location.hash !== `#${id}`) return
+    setOpen(true)
+    // 等展开内容渲染出高度后再滚动(双 rAF + 兜底 timeout)
+    const raf = requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }),
+    )
+    const timer = window.setTimeout(() => {
+      containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 120)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.clearTimeout(timer)
+    }
+  }, [id, location.hash])
+
   return (
-    <div className={`${CARD_BASE} overflow-hidden`}>
+    <div ref={containerRef} id={id} className={`${CARD_BASE} overflow-hidden scroll-mt-3`}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

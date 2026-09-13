@@ -9,6 +9,7 @@ import { lazy, Suspense, useCallback } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AppLogo } from '../components/AppLogo'
 import { usePaletteHotkey } from '../components/command-palette/use-palette-hotkey'
+import { ConnectionCenter } from '../components/connection-center/ConnectionCenter'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { NotificationCenter } from '../components/notification/NotificationCenter'
 import { useNotificationListener } from '../components/notification/useNotificationListener'
@@ -230,13 +231,14 @@ export function MainLayout() {
         {/* Agent 状态 — 折叠态只显示状态点列 */}
         <AgentStatusBar agents={agents} collapsed={collapsed} />
 
-        {/* 底部工具区: 通知中心 + 主题切换 (折叠态纵向堆叠,展开态横向排列) */}
+        {/* 底部工具区: 连接中心 + 通知中心 + 主题切换 (折叠态纵向堆叠,展开态横向排列) */}
         <div
           className={cn(
             'border-t border-gray-200/60 dark:border-white/[0.06]',
             collapsed ? 'p-2 flex flex-col items-center gap-1' : 'p-3 flex items-center gap-2',
           )}
         >
+          <ConnectionCenter />
           <NotificationCenter />
           {!collapsed && (
             <div className="flex-1 min-w-0">

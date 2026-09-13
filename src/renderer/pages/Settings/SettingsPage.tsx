@@ -196,6 +196,11 @@ export function SettingsPage() {
       <div className="p-6 space-y-5">
         {/* ===== 通用 ===== */}
         <GeneralSection settings={settings} onSave={handleSave} />
+
+        {/* ===== 连接中心(消息频道;侧栏连接中心面板的「完整版」,#connection 深链) ===== */}
+        <ChannelsSection settings={settings} onSave={handleSave} />
+
+        {/* ===== 本机 WebUI(#webui 深链;与连接中心面板的「手机/浏览器接入」对应) ===== */}
         <WebUiSection settings={settings} onSave={handleSave} />
 
         {/* ===== 对话 ===== */}
@@ -203,9 +208,6 @@ export function SettingsPage() {
 
         {/* ===== MCP (education-advisor 特有 feature flag) ===== */}
         <McpSection settings={settings} onSave={handleSave} />
-
-        {/* ===== 连接中心(消息频道,阶段 1 频道化) ===== */}
-        <ChannelsSection settings={settings} onSave={handleSave} />
 
         {/* ===== 诊断 & 维护(状态自持) ===== */}
         <DiagnosticSection />
