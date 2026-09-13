@@ -19,11 +19,11 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 | --- | --- |
 | 页面数 | 14 |
 | 路由数 | 16 |
-| IPC 通道数 | 164 |
-| Service 文件数 | 165 |
-| IPC handler 文件数 | 49 |
+| IPC 通道数 | 165 |
+| Service 文件数 | 197 |
+| IPC handler 文件数 | 50 |
 | Zustand store 模块数 | 7 |
-| Preload API 文件数 | 23 |
+| Preload API 文件数 | 24 |
 | Shared 类型文件数 | 19 |
 | Agent 数 | 18 |
 <!-- doc-stats:end -->
