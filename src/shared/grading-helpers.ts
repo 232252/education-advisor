@@ -6,8 +6,8 @@
 
 import type { AiGradeResult, GradingPaper, PresetMark, RubricQuestion } from './types'
 
-/** 卷面批注叠字最长字数(打印红框要短,避免盖住答卷) */
-const MARK_OVERLAY_TEXT_MAX = 48
+/** 页边批注全文最长字数(边栏空间有限,超出截断) */
+const MARK_NOTE_TEXT_MAX = 120
 
 /** 单题生效分: 教师覆盖 > AI 分; 两者皆无 → null */
 export function effectiveQuestionScore(
@@ -95,7 +95,10 @@ export interface PaperMarkScoreRow {
 export interface PaperMarkOverlay {
   questionId: string
   title: string
-  text: string
+  /** 框角角标短文(仅得分,如 12/28);贴框外角,不遮作答 */
+  badge: string
+  /** 页边批注全文(题名+得分+评语/依据),放边栏 */
+  note: string
   page: number
   x: number
   y: number
@@ -103,7 +106,7 @@ export interface PaperMarkOverlay {
   h: number
 }
 
-function clipMarkText(s: string, max = MARK_OVERLAY_TEXT_MAX): string {
+function clipMarkText(s: string, max = MARK_NOTE_TEXT_MAX): string {
   const t = s.trim()
   if (t.length <= max) return t
   return `${t.slice(0, Math.max(0, max - 1))}…`
@@ -143,30 +146,26 @@ export function paperMarkScoreRows(
 }
 
 /**
- * 有卷面 box 的题 → 打印/复核叠字。
- * 文案用生效分 + 教师评语(否则 AI 评语/依据),过长截断。
+ * 有卷面 box 的题 → 卷面叠字(按量规题序,角标序号稳定)。
+ * 框内不排文字:badge 只放得分贴框外角,note 全文放页边边栏,避免遮挡作答。
  */
 export function paperMarkOverlays(
   paper: Pick<GradingPaper, 'ai' | 'review'>,
   rubric: RubricQuestion[],
 ): PaperMarkOverlay[] {
-  const rowsById = new Map(paperMarkScoreRows(paper, rubric).map((r) => [r.questionId, r]))
+  const aiById = aiResultByQuestion(paper.ai)
   const out: PaperMarkOverlay[] = []
-  for (const q of paper.ai?.questions ?? []) {
-    const box = q.box
+  for (const row of paperMarkScoreRows(paper, rubric)) {
+    const box = aiById.get(row.questionId)?.box
     if (!box) continue
-    const row = rowsById.get(q.questionId)
-    const title = row?.title || q.questionId
-    const fullMark = row?.fullMark
-    const score = row?.score ?? q.score
-    const scoreText =
-      typeof score === 'number' ? (fullMark != null ? `${score}/${fullMark}` : String(score)) : ''
-    const comment = row?.comment || q.comment || q.evidence || ''
-    const text = clipMarkText([title, scoreText, comment].filter((s) => s.length > 0).join(' '))
+    const scoreText = typeof row.score === 'number' ? `${row.score}/${row.fullMark}` : ''
+    const comment = row.comment || row.evidence || ''
+    const note = clipMarkText([row.title, scoreText, comment].filter((s) => s.length > 0).join(' '))
     out.push({
-      questionId: q.questionId,
-      title,
-      text,
+      questionId: row.questionId,
+      title: row.title,
+      badge: scoreText,
+      note,
       page: box.page ?? 0,
       x: box.x,
       y: box.y,
@@ -237,8 +236,19 @@ export interface PaperIdentity {
 }
 
 /**
+ * 编号归一:仅纯数字参与编号比较,去前导零后等价(01 ≡ 1)。
+ * 非数字别名(如 entity_id 十六进制、班级/角色名)一律不进编号匹配,
+ * 防止「考号 01」被 ent_xxx01 之类的尾巴误命中(2026-09-13 实测案例)。
+ */
+function normalizeNumberForMatch(s: string): string | null {
+  const t = s.replace(/[\s.]/g, '')
+  if (!/^\d+$/.test(t)) return null
+  return t.replace(/^0+(?=\d)/, '')
+}
+
+/**
  * 把卷面姓名/编号对到学生名单。
- * 姓名唯一命中优先;否则编号(对 name/aliases 精确或后缀)唯一命中;
+ * 姓名唯一命中优先;否则编号对纯数字别名精确(含前导零等价)唯一命中;
  * 都歧义则 suggested=null,candidates 供人工指认。
  */
 export function matchIdentityToStudents(
@@ -246,7 +256,7 @@ export function matchIdentityToStudents(
   students: StudentCandidate[],
 ): { suggested: string | null; candidates: string[] } {
   const nameNorm = normalizeForMatch(identity.name)
-  const numRaw = identity.number.replace(/\s+/g, '').toLowerCase()
+  const num = normalizeNumberForMatch(identity.number)
   const nameHits = new Set<string>()
   const numberHits = new Set<string>()
   for (const s of students) {
@@ -260,15 +270,11 @@ export function matchIdentityToStudents(
       ) {
         nameHits.add(s.name)
       }
-      if (numRaw.length === 0) continue
-      const labCompact = lab.replace(/\s+/g, '').toLowerCase()
-      if (labCompact === numRaw || ln === numRaw) {
-        numberHits.add(s.name)
-        continue
-      }
-      // 编号至少 2 位才允许后缀命中,避免「3」误中一串 id
-      if (numRaw.length >= 2 && (labCompact.endsWith(numRaw) || ln.endsWith(numRaw))) {
-        numberHits.add(s.name)
+      if (num !== null) {
+        const labNum = normalizeNumberForMatch(lab)
+        if (labNum !== null && labNum === num) {
+          numberHits.add(s.name)
+        }
       }
     }
   }

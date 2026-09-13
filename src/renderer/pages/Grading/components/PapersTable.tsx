@@ -198,6 +198,45 @@ export function PapersTable({
                         </option>
                       ))}
                     </select>
+                    {/* 卷面识别留痕:读到什么显示什么,候选一键归组(没识别成功也不黑盒) */}
+                    {paper.studentName === null && paper.identity && (
+                      <div className="mt-1 text-[11px] leading-relaxed">
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {tr('page.grading.papers.readIdentity', {
+                            text:
+                              [
+                                paper.identity.name,
+                                paper.identity.number
+                                  ? tr('page.grading.papers.identityNumber', {
+                                      n: paper.identity.number,
+                                    })
+                                  : '',
+                              ]
+                                .filter((s) => s.length > 0)
+                                .join('｜') || t('page.grading.papers.identityEmpty'),
+                          })}
+                        </span>
+                        {paper.identity.candidates.length > 0 ? (
+                          <span className="ml-1 inline-flex flex-wrap gap-1">
+                            {paper.identity.candidates.map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => void onAssign(task.id, paper.id, c)}
+                                disabled={busy}
+                                className="rounded bg-blue-50 px-1.5 py-px text-blue-600 hover:bg-blue-100 disabled:opacity-50 dark:bg-blue-500/15 dark:text-blue-300"
+                              >
+                                {c}
+                              </button>
+                            ))}
+                          </span>
+                        ) : (
+                          <span className="ml-1 text-amber-600 dark:text-amber-400">
+                            {t('page.grading.papers.identityNoMatch')}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="py-1.5 pr-2 text-xs">
                     {paper.studentName === null ? (
