@@ -30,6 +30,16 @@ vi.mock('../../stores/agent/store', () => {
   }
 })
 
+// 连接中心入口(底部工具区)挂载即拉渠道目录 + 订阅状态广播 — mock IPC 面
+vi.mock('../../lib/ipc-client', () => ({
+  getAPI: () => ({
+    channels: {
+      list: () => Promise.resolve([]),
+      onStatusUpdate: () => () => {},
+    },
+  }),
+}))
+
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { MainLayout } from '../MainLayout'
 
