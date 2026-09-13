@@ -37,6 +37,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     historyLoaded: false,
     sessions: [],
     selectedAgentId: '',
+    queuedInputs: [],
 
     appendStreamDelta: (delta) => queueStreamDelta(delta, set),
     appendThinkingDelta: (delta) => queueThinkingDelta(delta, set),

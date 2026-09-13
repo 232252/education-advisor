@@ -97,6 +97,8 @@ export function createSessionsSlice(
           streamSessionId: state.sessionId,
         })
       }
+      // P2-7: 排队消息属于旧会话的对话流,切换会话即作废(避免串到新会话开头)
+      set({ queuedInputs: [] })
       set(sessionViewReset(id))
       // 加载该会话的历史消息
       get().loadHistory()

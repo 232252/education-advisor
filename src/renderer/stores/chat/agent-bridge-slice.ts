@@ -207,9 +207,16 @@ export function createAgentBridgeSlice(
           // Agent 执行完成 — 保存消息并结束 streaming
           const msgs = get().messages
           const lastMsg = msgs[msgs.length - 1]
+          const hasContent = lastMsg?.role === 'assistant' && lastMsg.content.trim().length > 0
           // 空内容守卫(2026-08-28 智能轮核查): abort 后零输出的空气泡不落库,
           // 否则重开会话会加载出一条空气泡(与 switchSession 部分落库的守卫同口径)
-          if (lastMsg?.role === 'assistant' && lastMsg.content.trim().length > 0) {
+          // P0-1(09-13 深查 B1): 空气泡同时从界面移除 — 此前只跳过落库,
+          // 气泡残留在会话末尾直到刷新,叠加"零提示"构成纯沉默体验
+          if (lastMsg?.role === 'assistant' && !hasContent) {
+            const trimmed = msgs.slice(0, -1)
+            set({ messages: trimmed })
+          }
+          if (hasContent) {
             getAPI()
               .chat.saveMessage({
                 sessionId: get().sessionId,
@@ -221,6 +228,20 @@ export function createAgentBridgeSlice(
                 model: data.agentId,
               })
               .catch((err) => warnSaveFailed('agent', err))
+          }
+          // P0-1 停止可见化: 中止后的 idle 事件此前与正常完成不可区分 —
+          // 不提示、不落库,用户面对沉默(09-13 22:05 实锤)。现在:
+          //   - 用户主动停止 → toast 确认;部分输出已在上面临时落库保留
+          //   - 超时映射 → toast 指引(可重发/调大设置)
+          if (data.aborted) {
+            toast.info(
+              data.abortReason === 'timeout'
+                ? t(
+                    'page.chat.runTimeoutNotice',
+                    '运行超时已停止 — 可重发消息，或在 设置→通用 调大运行超时',
+                  )
+                : t('page.chat.stoppedNotice', '已停止生成'),
+            )
           }
           // R2+: 会话自动起名 — 默认标题时用首条用户消息派生(error 轮也起名,见 helper)
           autoNameSessionIfDefault(get, set)
@@ -252,6 +273,9 @@ export function createAgentBridgeSlice(
           if (data.error) {
             const msgs = get().messages
             const lastMsg = msgs[msgs.length - 1]
+            // P1-5 去重: 主进程对"部分输出+错误"已附 [中断] 标注行,
+            // 渲染层不再重复追加第二份错误文本
+            const alreadyMarked = !!lastMsg?.content?.includes('[中断]')
             if (!state.isStreaming || !lastMsg || lastMsg.role !== 'assistant') {
               // streaming 未开始,或最后消息不是 assistant → 新建一条承载错误
               // 注意: 不必先 set isStreaming:true,因为 addMessage 不依赖它,
@@ -261,12 +285,30 @@ export function createAgentBridgeSlice(
                 content: `**错误:** ${formatLlmError(data.error)}`,
                 timestamp: Date.now(),
               })
-            } else {
+            } else if (!alreadyMarked) {
               // 最后消息是 assistant → 追加错误信息(追加后立即 flush,
               // 终止时刻的 UI/落库不得再等 50ms 批处理周期)
               get().appendStreamDelta(`\n\n**错误:** ${formatLlmError(data.error)}`)
               get().flushDeltas()
             }
+          }
+          // P1-5 落库补角: 错误终态的回复(部分输出+错误标注)此前只在内存,
+          // 切走会话/重启后整轮回复从历史里消失;与 idle 分支同口径落库
+          get().flushDeltas()
+          const errFinalMsgs = get().messages
+          const errLast = errFinalMsgs[errFinalMsgs.length - 1]
+          if (errLast?.role === 'assistant' && errLast.content.trim().length > 0) {
+            getAPI()
+              .chat.saveMessage({
+                sessionId: get().sessionId,
+                role: 'assistant',
+                content: errLast.content,
+                thinking: errLast.thinking,
+                timestamp: errLast.timestamp,
+                provider: `agent:${data.agentId}`,
+                model: data.agentId,
+              })
+              .catch((err) => warnSaveFailed('agent-error', err))
           }
           set({
             isStreaming: false,

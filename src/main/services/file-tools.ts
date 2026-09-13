@@ -8,11 +8,13 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { writeCsvTool } from './files/csv-tools'
 import { readExcelTool, writeExcelTool } from './files/excel-tools'
+import { readImageTool } from './files/image-tools'
 import { listDirTool, readFileTool } from './files/read-tools'
 import { writeFileTool } from './files/write-text'
 
 export { writeCsvTool } from './files/csv-tools'
 export { readExcelTool, writeExcelTool } from './files/excel-tools'
+export { readImageTool } from './files/image-tools'
 export { listDirTool, readFileTool } from './files/read-tools'
 export { validateFilePath } from './files/security'
 export { writeFileTool } from './files/write-text'
@@ -25,6 +27,7 @@ export { writeFileTool } from './files/write-text'
 export const allFileTools: AgentTool<any>[] = [
   readFileTool,
   readExcelTool,
+  readImageTool,
   listDirTool,
   writeFileTool,
   writeExcelTool,

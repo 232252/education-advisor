@@ -61,6 +61,7 @@ const ALLOWLIST_LINE: Record<string, Record<number, string>> = {
     85: '上传 Excel 给 Agent 的数据定界提示',
     86: '上传 Excel 给 Agent 的工具调用说明(非 UI 文案)',
     87: '上传 Excel 给 Agent 的数据定界提示',
+    109: '发给模型的图片附件视觉提示语(非 UI 文案,同 84-87 先例)',
   },
   'pages/Dashboard/components/RiskDistChartCard.tsx': {
     22: '风险等级枚举名比对选色(数据匹配)',

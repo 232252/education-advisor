@@ -116,7 +116,13 @@ describe('settingsApi / sysApi / skillApi / profileApi / privacyApi', () => {
     expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_SYS_SHOW_UPDATE_DIALOG)
 
     void sysApi.readFile('C:/tmp/a.txt')
-    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_SYS_READ_FILE, 'C:/tmp/a.txt')
+    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_SYS_READ_FILE, 'C:/tmp/a.txt', undefined)
+
+    // P0-3: metaOnly 元信息模式透传
+    void sysApi.readFile('C:/tmp/a.jpg', { metaOnly: true })
+    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_SYS_READ_FILE, 'C:/tmp/a.jpg', {
+      metaOnly: true,
+    })
 
     void sysApi.getWebUiStatus()
     expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_SYS_WEBUI_STATUS)
