@@ -37,6 +37,13 @@ export interface AgentStatusPayload {
   result?: AgentExecution
   error?: string
   aborted?: boolean
+  /**
+   * 中止原因(P0-1 停止可见化):
+   *   - 'user'   外部主动停止(UI 停止按钮/切换会话/退出)
+   *   - 'timeout' 运行级超时(waitForIdle 超时映射)
+   * 仅 aborted:true 时有意义;缺省视为 'user'(向后兼容旧事件)。
+   */
+  abortReason?: 'user' | 'timeout'
   /** 上下文压缩已发生(R2+ 可见性,running 事件携带) */
   compacted?: boolean
 }

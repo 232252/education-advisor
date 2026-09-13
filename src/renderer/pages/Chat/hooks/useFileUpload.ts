@@ -77,17 +77,29 @@ export function useFileUpload() {
       for (const filePath of filePaths) {
         const fileName = filePath.split(/[/\\]/).pop() || filePath
         if (ARCHIVE_OR_SCAN.test(fileName)) {
+          // P0-3(09-13 深查 C1): 二进制附件只取元信息(真实大小),不读内容。
+          // 此前 size 硬编码 0 → 发给模型的附件标注 "(0.0KB)",模型不信任
+          // 元信息满盘找文件(实测 20+ 次 list_dir,回复拖慢 4 分钟)。
+          let size = 0
+          try {
+            const meta = await getAPI().sys.readFile(filePath, { metaOnly: true })
+            if (meta?.success && typeof meta.size === 'number') size = meta.size
+          } catch {
+            /* 元信息失败降级 0,不阻断上传 */
+          }
           setUploadedFiles((prev) => [
             ...prev,
             {
               name: fileName,
               path: filePath,
-              size: 0,
+              size,
               content: '',
               mimeType: mimeOf(fileName),
             },
           ])
-          toast.success(`${t('toast.chat.readSuccess', '已读取')}: ${fileName}`)
+          toast.success(
+            `${t('toast.chat.readSuccess', '已读取')}: ${fileName} (${(size / 1024).toFixed(1)}KB)`,
+          )
           continue
         }
         toast.info(`${t('toast.chat.readingFile', '正在读取')}: ${fileName}`)

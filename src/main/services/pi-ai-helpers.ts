@@ -159,10 +159,13 @@ export function mapEvent(event: AssistantMessageEvent): StreamEvent | null {
 
     case 'error': {
       const msg = event.error
+      // P2-9 口径统一: 可重试 = 网络类错误(isRetryableError) 或流被 abort
+      // (与 agent 链路 retrying-stream 的重试判定同源;此前仅看 reason==='aborted',
+      // 流内 429/超时/网络错误在直连路径不带重试提示,两链路行为分裂)
       return {
         type: 'error',
         message: msg.errorMessage ?? 'Unknown error',
-        retryable: event.reason === 'aborted',
+        retryable: event.reason === 'aborted' || isRetryableError(msg.errorMessage ?? ''),
       }
     }
 
@@ -239,6 +242,14 @@ export function backoffDelayMs(baseDelayMs: number, attempt: number): number {
  * 注意:原始实现使用大小写敏感的 includes(非 toLowerCase),
  * 为保持行为一致这里也保留大小写敏感——例如 "ECONNRESET" 匹配但
  * "econnreset" 不匹配。这是历史行为,测试应覆盖大写形式。
+ *
+ * P0-2(2026-09-13 深查)扩口径,两条新匹配刻意跨大小写:
+ *   - 'Request was aborted': 首字节超时 abort 的 reason 在部分 SDK 路径下
+ *     会被替换为该文案(09-13 22:05 挂死 180s 一次重试都没发生的原因)。
+ *     用户主动停止不会误重试 — 调用方(retrying-stream/streaming)均以
+ *     signal.aborted 门先行拦截。
+ *   - /timed?\s*out/i: openai SDK 超时文案为 "Request timed out."(含空格),
+ *     历史的 includes('timeout') 匹配不到。
  */
 export function isRetryableError(message: string): boolean {
   return (
@@ -250,6 +261,8 @@ export function isRetryableError(message: string): boolean {
     message.includes('503') ||
     message.includes('504') ||
     message.includes('ECONNRESET') ||
-    message.includes('ECONNREFUSED')
+    message.includes('ECONNREFUSED') ||
+    message.includes('Request was aborted') ||
+    /timed?\s*out/i.test(message)
   )
 }

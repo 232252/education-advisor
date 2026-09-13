@@ -35,6 +35,7 @@ import type { PrivacyGuard } from './privacy-guard'
 const UNIVERSAL_TOOL_NAMES = new Set([
   'read_file',
   'read_excel',
+  'read_image',
   'write_file',
   'write_excel',
   'write_csv',
@@ -108,17 +109,23 @@ export async function buildAgentTools(
   delegateDeps?: DelegateToolDeps,
   escalationDeps?: EscalationToolDeps,
   privacyGuard?: PrivacyGuard,
+  /** P2-8: 模型具备视觉输入能力(model.input 含 'image')时才注入 read_image;
+   *  无视觉能力的模型调用它只会得到 "(see attached image)" 占位,徒增困惑 */
+  visionEnabled?: boolean,
   // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
 ): Promise<AgentTool<any>[]> {
   const mcpTools = await getMcpToolsForAgent(id, config.mcpServers)
   const rawEaaTools = getToolsByCapability(config.capabilities)
   const eaaTools = privacyGuard ? rawEaaTools.map((t) => privacyGuard.wrapTool(t)) : rawEaaTools
   // R2-07: 只读文件工具纳入脱敏包装;MCP 是外部扩展宁可过保护 — 全部包装
-  const fileTools = privacyGuard
-    ? allFileTools.map((t) =>
-        READ_SIDE_FILE_TOOL_NAMES.has(t.name) ? privacyGuard.wrapTool(t) : t,
-      )
-    : allFileTools
+  // P2-8: read_image 不包装 — 图片是二进制块,无可脱敏文本;文本段仅含文件名
+  const fileTools = (
+    privacyGuard
+      ? allFileTools.map((t) =>
+          READ_SIDE_FILE_TOOL_NAMES.has(t.name) ? privacyGuard.wrapTool(t) : t,
+        )
+      : allFileTools
+  ).filter((t) => t.name !== 'read_image' || visionEnabled !== false)
   const guardedMcpTools = privacyGuard ? mcpTools.map((t) => privacyGuard.wrapTool(t)) : mcpTools
   // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
   const tools: AgentTool<any>[] = [

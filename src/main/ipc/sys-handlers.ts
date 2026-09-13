@@ -150,10 +150,13 @@ export function registerSysHandlers(win: BrowserWindow) {
 
   // 读取文件内容 — 用于 ChatPage 文件上传
   // 安全限制:
-  //   1. 文件大小上限 10MB (避免内存爆炸)
+  //   1. 文件大小上限 10MB (避免内存爆炸; metaOnly 不受此限 — 只 stat 不读内容)
   //   2. 路径 sanitize (拒绝 null bytes 和 .. 路径段,防穿越)
   //   3. 自动推断 MIME 类型
-  handleIpc(IPC.IPC_SYS_READ_FILE, async (_e, filePath: string) => {
+  // P0-3(09-13 深查 C1): 新增 opts.metaOnly — 只返回元信息不读内容。
+  //   此前二进制附件(pdf/照片/zip)上传时渲染层拿不到大小硬编码 0,
+  //   发给模型的附件标注 "(0.0KB)" → 模型不信任元信息满盘找文件(实测 20+ 次 list_dir)。
+  handleIpc(IPC.IPC_SYS_READ_FILE, async (_e, filePath: string, opts?: { metaOnly?: boolean }) => {
     if (typeof filePath !== 'string' || filePath.length === 0) {
       return { success: false, error: 'filePath must be a non-empty string' }
     }
@@ -165,10 +168,6 @@ export function registerSysHandlers(win: BrowserWindow) {
     const stats = await fsp.stat(filePath)
     if (!stats.isFile()) {
       throw new Error(`Not a regular file: ${filePath}`)
-    }
-    const MAX_SIZE = 10 * 1024 * 1024 // 10MB
-    if (stats.size > MAX_SIZE) {
-      throw new Error(`File too large: ${stats.size} bytes (max ${MAX_SIZE})`)
     }
     const ext = path.extname(filePath).toLowerCase()
     // 简单 MIME 推断
@@ -207,6 +206,19 @@ export function registerSysHandlers(win: BrowserWindow) {
       '.webp': 'image/webp',
     }
     const mimeType = MIME_MAP[ext] || 'application/octet-stream'
+    if (opts?.metaOnly) {
+      return {
+        success: true,
+        path: filePath,
+        name: path.basename(filePath),
+        size: stats.size,
+        mimeType,
+      }
+    }
+    const MAX_SIZE = 10 * 1024 * 1024 // 10MB
+    if (stats.size > MAX_SIZE) {
+      throw new Error(`File too large: ${stats.size} bytes (max ${MAX_SIZE})`)
+    }
     const isText = mimeType.startsWith('text/') || mimeType === 'application/json'
     const isBinary = !isText
     if (isBinary) {

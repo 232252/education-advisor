@@ -206,8 +206,15 @@ async function executeAgentRunInner(
   // 选择工具(三层 MCP 合并,抽出为 buildAgentTools 方法)
   // M32: 传入 win — main 的 delegate_to 委托运行需复用该窗口推送状态
   // privacyGuard 非空时 EAA 工具会被包装(入参化名→真名,结果真名→化名)
+  // P2-8: 视觉模型注入 read_image(聊天视觉通道)
   // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
-  const tools: AgentTool<any>[] = await deps.buildAgentTools(config, id, win, privacyGuard)
+  const tools: AgentTool<any>[] = await deps.buildAgentTools(
+    config,
+    id,
+    win,
+    privacyGuard,
+    Array.isArray(model.input) && model.input.includes('image'),
+  )
 
   // MEDIUM-2 修复: 启动竞态窗口 — buildAgentTools 等 await 期间 runningAgents 尚未注册,
   // 此窗口内的 abortAgent 靠"无条件递增 generation"生效,此处出 await 后立即检查。
@@ -519,14 +526,24 @@ async function executeAgentRunInner(
 
     // 优化: 当输出为空且 LLM 返回了错误时,标记为 error 而非 success
     // 此前 stopReason=error 的空输出被标记为 success,用户看不到任何错误提示
-    const hasError = stats.outputText.length === 0 && !!stats.lastErrorMessage
+    // P1-5(09-13 深查 B3): 不再要求输出为空 — 半截输出+中途错误同样按 error
+    // 收尾。此前该场景被记 success,截断回复伪装完整、错误信息对用户/DB 双丢。
+    // (stale error 已由 event-collector 清除: 后续非 error 轮会清空 lastErrorMessage)
+    const hasError = !!stats.lastErrorMessage
     // M0: 外部 abort 后 pi-agent-core 把 abort 变成正常 turn 结束,prompt() 照常
     // resolve 并走到这里 — 半截输出不得伪装 success(飞书会把半截话当完整回复
     // 发出,DB 还记 success)。检测 abortController 并改记 aborted。
     const wasAborted = abortController.signal.aborted
     let finalStatus: AgentExecution['status'] = hasError ? 'error' : 'success'
     if (wasAborted) finalStatus = 'aborted'
-    const rawOutput = stats.outputText || (hasError ? `[LLM 错误] ${stats.lastErrorMessage}` : '')
+    // 中断标注: 有部分输出时附 [中断] 行 — 渲染层错误分支据此去重(不二次追加)
+    const rawOutput = stats.outputText
+      ? hasError
+        ? `${stats.outputText}\n\n[中断] ${stats.lastErrorMessage}`
+        : stats.outputText
+      : hasError
+        ? `[LLM 错误] ${stats.lastErrorMessage}`
+        : ''
     // 兜底还原(流式过滤器已处理绝大多数;对非化名文本是 no-op)
     const finalOutput = privacyGuard ? privacyGuard.deanonymize(rawOutput) : rawOutput
 
@@ -547,7 +564,12 @@ async function executeAgentRunInner(
 
     // 更新状态
     if (wasAborted) {
-      notifyStatus(deps, win, id, 'idle', { result: execution, aborted: true })
+      // P0-1: 中止原因随事件下发 — 渲染层据此提示"已停止/超时"而非纯沉默
+      notifyStatus(deps, win, id, 'idle', {
+        result: execution,
+        aborted: true,
+        abortReason: 'user',
+      })
     } else if (hasError) {
       notifyStatus(deps, win, id, 'error', { error: stats.lastErrorMessage, result: execution })
     } else {

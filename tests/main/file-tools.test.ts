@@ -36,12 +36,13 @@ afterAll(async () => {
 
 describe('file-tools', () => {
   describe('allFileTools 导出', () => {
-    it('应包含 6 个工具', () => {
-      expect(allFileTools).toHaveLength(6)
+    it('应包含 7 个工具(含 read_image 视觉通道)', () => {
+      expect(allFileTools).toHaveLength(7)
       expect(allFileTools.map((t) => t.name)).toEqual(
         expect.arrayContaining([
           'read_file',
           'read_excel',
+          'read_image',
           'list_dir',
           'write_file',
           'write_excel',

@@ -41,6 +41,10 @@ export interface ChatState {
   streamingAgentId: string | null
   /** 流启动时所在的会话 id — 切换会话后,旧流的后续事件/落库不得写入新会话(串台修复) */
   streamSessionId: string | null
+  /** P2-7(09-13 深查 B4): 运行中发送的消息排队(deferred queue),
+   *  当前回复结束(idle/error)后自动逐条发出。
+   *  快照 text(气泡展示原文)/finalText(含附件拼装,入队时定稿) */
+  queuedInputs: Array<{ text: string; finalText: string }>
 
   // Actions
   addMessage: (msg: ChatMessage) => void

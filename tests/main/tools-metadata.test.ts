@@ -89,8 +89,8 @@ describe('工具分组 — 各组完整性', () => {
     expect(names).toContain('eaa_search')
   })
 
-  it('文件工具应包含 6 个工具', () => {
-    expect(allFileTools.length).toBe(6)
+  it('文件工具应包含 7 个工具(含 read_image 视觉通道)', () => {
+    expect(allFileTools.length).toBe(7)
     const names = allFileTools.map((t) => t.name)
     expect(names).toContain('read_file')
     expect(names).toContain('write_file')
@@ -98,6 +98,7 @@ describe('工具分组 — 各组完整性', () => {
     expect(names).toContain('write_excel')
     expect(names).toContain('write_csv')
     expect(names).toContain('list_dir')
+    expect(names).toContain('read_image')
   })
 
   it('实用工具应包含 2 个工具(time + calculate)', () => {
