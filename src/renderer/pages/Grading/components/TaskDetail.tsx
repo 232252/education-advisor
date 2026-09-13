@@ -119,10 +119,10 @@ export function TaskDetail({
     const active = students.filter((s) => s.status === 'Active')
     const scoped = task.classId ? active.filter((s) => s.class_id === task.classId) : active
     const pool = scoped.length > 0 ? scoped : active
-    return pool.map((s) => ({
-      name: s.name,
-      aliases: [s.entity_id, ...s.groups, ...s.roles].filter((x) => x.length > 0),
-    }))
+    // 只送姓名:卷面上只会出现姓名/学号/考号,entity_id 等非数字别名
+    // 对身份匹配没有意义,反而会把「考号 01」误配到 ent_xxx01(09-13 实测)。
+    // 学号/考号别名由主进程 enrichRosterWithProfiles 从档案补齐。
+    return pool.map((s) => ({ name: s.name }))
   }, [students, task.classId])
   const canRun =
     (task.status === 'ready' || task.status === 'review') &&

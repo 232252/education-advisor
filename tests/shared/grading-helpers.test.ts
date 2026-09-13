@@ -188,10 +188,34 @@ describe('matchIdentityToStudents', () => {
     )
   })
 
-  it('编号精确/后缀唯一命中; 单位数不后缀误伤', () => {
+  it('编号精确(含前导零等价)唯一命中; 单位数不误伤', () => {
     expect(matchIdentityToStudents({ name: '', number: '202601' }, roster).suggested).toBe('张三')
     expect(matchIdentityToStudents({ name: '', number: '15' }, roster).suggested).toBe('李四')
     expect(matchIdentityToStudents({ name: '', number: '1' }, roster).suggested).toBeNull()
+    // 前导零等价: 01 ≡ 1
+    expect(
+      matchIdentityToStudents({ name: '', number: '01' }, [{ name: '王五', aliases: ['1'] }])
+        .suggested,
+    ).toBe('王五')
+  })
+
+  it('编号匹配不被十六进制 id/长数字尾巴污染(09-13 实测案例)', () => {
+    const roster = [
+      { name: '阿扭雪梅', aliases: ['01'] }, // 档案学号 01(真实命中)
+      { name: '余佳坤', aliases: ['ent_ebfd51445201'] }, // entity_id 十六进制,不得后缀误中
+      { name: '毛丹', aliases: ['202601'] }, // 长纯数字别名,不得被 "01" 后缀误中
+    ]
+    const r = matchIdentityToStudents({ name: '', number: '01' }, roster)
+    expect(r.suggested).toBe('阿扭雪梅')
+    expect(r.candidates).toEqual(['阿扭雪梅'])
+  })
+
+  it('非数字别名(角色/群组)不进编号匹配', () => {
+    const r = matchIdentityToStudents(
+      { name: '', number: '15' },
+      [{ name: '某生', aliases: ['G12-5', '课代表'] }],
+    )
+    expect(r.suggested).toBeNull()
   })
 
   it('空白身份 → 无候选', () => {
@@ -266,7 +290,7 @@ describe('paperMarkScoreRows / paperMarkOverlays', () => {
     expect(rows[1].comment).toBe('全对')
   })
 
-  it('叠字只要有 box 的题;文案含生效分', () => {
+  it('叠字只要有 box 的题;角标仅得分,边栏全文含题名/得分/评语', () => {
     const overlays = paperMarkOverlays(paper, rubric)
     expect(overlays).toHaveLength(1)
     expect(overlays[0]).toMatchObject({
@@ -275,9 +299,10 @@ describe('paperMarkScoreRows / paperMarkOverlays', () => {
       x: 0.1,
       y: 0.2,
     })
-    expect(overlays[0].text).toContain('一、选择题')
-    expect(overlays[0].text).toContain('18/20')
-    expect(overlays[0].text).toContain('AI 评语')
+    expect(overlays[0].badge).toBe('18/20')
+    expect(overlays[0].note).toContain('一、选择题')
+    expect(overlays[0].note).toContain('18/20')
+    expect(overlays[0].note).toContain('AI 评语')
   })
 
   it('无 AI 结果仍输出量规行,无叠字', () => {

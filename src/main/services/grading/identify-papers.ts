@@ -13,6 +13,7 @@ import {
   type PaperIdentity,
   type StudentCandidate,
 } from '@shared/grading-helpers'
+import type { GradingPaper } from '@shared/types'
 import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import { resolveModel } from '../pi-ai/model-utils'
@@ -40,12 +41,13 @@ export function buildIdentifyPrompt(): string {
     '你是试卷身份识别助手。只看首页页眉、姓名栏、学号栏、座位号、考号，读出考生是谁。',
     '只输出 JSON，不要解释。不要把题目、选项、分数当成姓名。',
     '考号经常不等于学号：number 原样抄卷面上的编号，不要改成你以为的学号。',
+    '编号原样保留所有位数和前导零：卷面写 01 就输出 "01"，不要写成 "1"。',
     '先读姓名；姓名看不清再读编号。字迹不清宁可空着，不要猜。',
     '',
     '输出格式:',
     '{"name":"张三","number":"12"}',
     '- name: 卷面上的姓名,没有则空字符串',
-    '- number: 学号/座号/考号数字或编号(原样),没有则空字符串',
+    '- number: 学号/座号/考号数字或编号(原样含前导零),没有则空字符串',
     '- 只输出上述 JSON，不要 markdown 代码块标记',
   ].join('\n')
 }
@@ -111,6 +113,90 @@ export async function enrichRosterWithProfiles(
   )
 }
 
+// ===== 首页顶部放大截图(姓名/考号栏通常在页眉,整页缩小后手写小字难读) =====
+
+/** 顶部裁剪高度占整页比例(页眉+姓名栏+考号栏一般在前 1/4) */
+const HEADER_CROP_RATIO = 0.28
+/** 裁剪区放大后目标宽度(px):够读手写,又不至于把图撑太大 */
+const HEADER_TARGET_WIDTH_PX = 1400
+
+/**
+ * 用 @napi-rs/canvas 把首页顶部裁出来放大成 JPEG(识别辅助图)。
+ * 失败(解码不了/无 canvas)返回 null,调用方退回仅整页识别 — 增强永不阻断。
+ */
+export async function buildHeaderCrop(buf: Buffer): Promise<Buffer | null> {
+  try {
+    const { loadImage, createCanvas } = await import('@napi-rs/canvas')
+    const img = await loadImage(buf)
+    const cropH = Math.max(1, Math.floor(img.height * HEADER_CROP_RATIO))
+    const scale = Math.min(4, Math.max(1, HEADER_TARGET_WIDTH_PX / img.width))
+    const outW = Math.floor(img.width * scale)
+    const outH = Math.floor(cropH * scale)
+    const canvas = createCanvas(outW, outH)
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, outW, outH)
+    ctx.drawImage(img, 0, 0, img.width, cropH, 0, 0, outW, outH)
+    return canvas.toBuffer('image/jpeg', 0.9)
+  } catch (err) {
+    log('warn', 'grading', `header crop skipped: ${errText(err)}`)
+    return null
+  }
+}
+
+/** 对一份试卷读身份:首页为主,顶部放大图优先;两图都空再试次页(最多 2 张) */
+async function readIdentity(
+  taskId: string,
+  files: GradingPaper['files'],
+  model: NonNullable<ReturnType<typeof resolveModel>>,
+  apiKey: string,
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<PaperIdentity> {
+  const lookAt = files.slice(0, 2)
+  for (const [i, f] of lookAt.entries()) {
+    const buf = await fsp.readFile(gradingService.paperFilePath(taskId, f.storedName))
+    const header =
+      i === 0 && (f.mime === 'image/jpeg' || f.mime === 'image/png')
+        ? await buildHeaderCrop(buf)
+        : null
+    const content: Array<
+      { type: 'image'; data: string; mimeType: string } | { type: 'text'; text: string }
+    > = []
+    if (header) {
+      content.push({ type: 'image', data: header.toString('base64'), mimeType: 'image/jpeg' })
+    }
+    content.push({ type: 'image', data: buf.toString('base64'), mimeType: f.mime })
+    content.push({
+      type: 'text',
+      text: header
+        ? '第 1 张图是试卷首页顶部的放大截图(优先从中读姓名/编号)；第 2 张是整页原图。只输出 JSON。'
+        : '请读出这份试卷页面上的姓名和编号，只输出 JSON。',
+    })
+    const messages: Message[] = [{ role: 'user', content, timestamp: Date.now() }]
+    const assistant = await completeSimple(
+      model,
+      { systemPrompt: prompt, messages },
+      {
+        apiKey,
+        maxTokens: Math.min(IDENTIFY_MAX_TOKENS, model.maxTokens || IDENTIFY_MAX_TOKENS),
+        signal,
+        cacheRetention: 'short',
+        sessionId: `identify:${taskId}`,
+      },
+    )
+    if (assistant.stopReason === 'aborted') throw new Error('已中止')
+    const text = (assistant.content ?? [])
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map((p) => p.text)
+      .join('\n')
+    const identity = parseIdentifyResponse(text)
+    // 读到任一字段就不再翻下一张
+    if (identity.name.length > 0 || identity.number.length > 0) return identity
+  }
+  return { name: '', number: '' }
+}
+
 export async function identifyUnassignedPapers(
   taskId: string,
   roster: StudentCandidate[],
@@ -155,42 +241,29 @@ export async function identifyUnassignedPapers(
   const prompt = buildIdentifyPrompt()
   for (const [i, paper] of targets.entries()) {
     if (opts?.signal?.aborted) break
-    const first = paper.files[0]
-    if (!first) {
+    if (paper.files.length === 0) {
       unresolved++
       continue
     }
     opts?.onProgress?.({ paperId: paper.id, index: i + 1, total: targets.length })
     try {
-      const buf = await fsp.readFile(gradingService.paperFilePath(taskId, first.storedName))
-      const messages: Message[] = [
-        {
-          role: 'user',
-          content: [
-            { type: 'image', data: buf.toString('base64'), mimeType: first.mime },
-            { type: 'text', text: '请读出这份试卷首页上的姓名和编号，只输出 JSON。' },
-          ],
-          timestamp: Date.now(),
-        },
-      ]
-      const assistant = await completeSimple(
-        model,
-        { systemPrompt: prompt, messages },
-        {
-          apiKey,
-          maxTokens: Math.min(IDENTIFY_MAX_TOKENS, model.maxTokens || IDENTIFY_MAX_TOKENS),
-          signal: opts?.signal,
-          cacheRetention: 'short',
-          sessionId: `identify:${taskId}`,
-        },
-      )
-      if (assistant.stopReason === 'aborted' || opts?.signal?.aborted) break
-      const text = (assistant.content ?? [])
-        .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-        .map((p) => p.text)
-        .join('\n')
-      const identity = parseIdentifyResponse(text)
+      const identity = await readIdentity(taskId, paper.files, model, apiKey, prompt, opts?.signal)
+      if (opts?.signal?.aborted) break
       const match = matchIdentityToStudents(identity, rosterWithIds)
+      // 读到什么记什么:归组成功与否都留痕,试卷表回显 + 排查有据
+      await gradingService.savePaperIdentity(taskId, paper.id, {
+        name: identity.name,
+        number: identity.number,
+        candidates: match.candidates,
+        ...(match.suggested ? { matched: match.suggested } : {}),
+        readAt: new Date().toISOString(),
+      })
+      log(
+        'info',
+        'grading',
+        `identify read: ${paper.id} name="${identity.name}" number="${identity.number}"` +
+          ` → ${match.suggested ? `matched ${match.suggested}` : `unresolved(candidates: ${match.candidates.join('/') || '无'})`}`,
+      )
       if (match.suggested && !taken.has(match.suggested)) {
         await gradingService.assignPaper(taskId, paper.id, match.suggested)
         taken.add(match.suggested)

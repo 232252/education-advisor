@@ -68,12 +68,11 @@ async function loadRoster(className?: string): Promise<StudentCandidate[]> {
       const cls = (s.class_id ?? s.class ?? '').toString()
       if (cls.length > 0 && cls !== wanted && !cls.includes(wanted)) continue
     }
-    const aliases = [
-      s.entity_id,
-      ...(Array.isArray(s.groups) ? s.groups : []),
-      ...(Array.isArray(s.roles) ? s.roles : []),
-      ...(Array.isArray(s.aliases) ? s.aliases : []),
-    ].filter((a): a is string => typeof a === 'string' && a.trim().length > 0)
+    // 卷面只会出现姓名/学号/考号: entity_id(十六进制)/群组/角色对身份匹配
+    // 没有意义,混进别名反而污染编号匹配(09-13 实测 ent_xxx01 误中考号 01)。
+    const aliases = (Array.isArray(s.aliases) ? s.aliases : []).filter(
+      (a): a is string => typeof a === 'string' && a.trim().length > 0,
+    )
     out.push({ name: s.name.trim(), aliases: aliases.length > 0 ? aliases : undefined })
   }
   return out

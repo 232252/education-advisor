@@ -92,6 +92,19 @@ export interface TeacherReview {
   reviewedAt: string
 }
 
+/** 卷面身份识别留痕:读到什么记什么,归组与否都保留供复核/排查 */
+export interface PaperIdentityRecord {
+  /** 卷面读到的姓名原文(空 = 未读出/字迹不清) */
+  name: string
+  /** 卷面读到的编号原文(学号/座号/考号,原样含前导零) */
+  number: string
+  /** 名单匹配候选(歧义时供一键指认;空 = 名单里对不上) */
+  candidates: string[]
+  /** 唯一命中并已自动归组的学生名 */
+  matched?: string
+  readAt: string
+}
+
 /** 一份试卷(一个学生的一次提交,可含多页扫描) */
 export interface GradingPaper {
   id: string
@@ -104,6 +117,8 @@ export interface GradingPaper {
   /** 批改失败原因 */
   error?: string
   review?: TeacherReview
+  /** 最近一次卷面身份识别的结果 */
+  identity?: PaperIdentityRecord
 }
 
 /** 批改任务(≈ gradeable) */

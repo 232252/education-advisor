@@ -15,6 +15,7 @@ import type {
   GradingTask,
   GradingTaskStatus,
   PaperFile,
+  PaperIdentityRecord,
   RubricQuestion,
   TeacherReview,
 } from '@shared/types'
@@ -448,6 +449,43 @@ class GradingService {
       const paper = this.findPaper(task, paperId)
       paper.status = 'failed'
       paper.error = error
+      task.updatedAt = new Date().toISOString()
+      await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
+      return task
+    })
+  }
+
+  /**
+   * 卷面身份识别留痕:读到什么记什么(归组成功与否都写),
+   * 供复核台/试卷表回显与排查;不影响 status/studentName。
+   */
+  async savePaperIdentity(
+    taskId: string,
+    paperId: string,
+    identity: PaperIdentityRecord,
+  ): Promise<GradingTask> {
+    assertTaskId(taskId)
+    assertPaperId(paperId)
+    if (!identity || typeof identity !== 'object') throw new Error('identity 必须是对象')
+    for (const key of ['name', 'number'] as const) {
+      if (typeof identity[key] !== 'string') throw new Error(`identity.${key} 必须是字符串`)
+    }
+    if (
+      !Array.isArray(identity.candidates) ||
+      identity.candidates.some((c) => typeof c !== 'string')
+    ) {
+      throw new Error('identity.candidates 必须是字符串数组')
+    }
+    return this.withTaskLock(taskId, async () => {
+      const task = await this.getTask(taskId)
+      const paper = this.findPaper(task, paperId)
+      paper.identity = {
+        name: identity.name,
+        number: identity.number,
+        candidates: identity.candidates,
+        ...(identity.matched ? { matched: identity.matched } : {}),
+        readAt: identity.readAt || new Date().toISOString(),
+      }
       task.updatedAt = new Date().toISOString()
       await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
       return task

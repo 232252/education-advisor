@@ -122,6 +122,7 @@ export function buildGradingPrompt(rubric: RubricQuestion[]): string {
     '- evidence 写一句即可，引用学生卷面实际作答；字迹不清时保守给分并在 comment 说明',
     '- 全卷未作答的题 score 给 0 并在 comment 标注「未作答」',
     '- box: page 从 0 起; x/y/w/h 为相对页宽高的 0–1。扣分或有评语的题必须给大概位置，不确定也给，不要省略整个 JSON',
+    '- box 要框住该题的作答区域，宽高宁小勿大，不要把相邻题目的作答一起框进来',
     ...(hasMarks
       ? [
           '- 有评分点的题目: marks 填选中的评分点序号(可多选); score 必须等于 满分+所选评分点分值之和(钳制到[0,满分])',
