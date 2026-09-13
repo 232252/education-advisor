@@ -24,6 +24,10 @@ export default defineConfig({
         'cross-spawn',
         'ws',
         'selfsigned',
+        // PDF 栅格化运行时依赖(ssr 模式默认已 external,此处显式声明意图):
+        // pdfjs-dist 子路径(legacy/build/pdf.mjs)经动态 import 引入
+        /^pdfjs-dist(\/|$)/,
+        /^@napi-rs\/canvas(\/|$)/,
       ],
     },
     target: 'node24',

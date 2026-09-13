@@ -133,11 +133,11 @@ describe('gradingService — 试卷导入/归组/结果', () => {
     expect(stored).toHaveLength(3)
   })
 
-  it('importPapers: 非白名单扩展名/空 PDF/超限拒绝', async () => {
+  it('importPapers: 非白名单扩展名/损坏 PDF/超限拒绝', async () => {
     const pdf = path.join(mocks.userDataDir, 'a.pdf')
     await fsp.writeFile(pdf, 'x')
     await expect(gradingService.importPapers(taskId, [{ files: [{ path: pdf }] }])).rejects.toThrow(
-      '不是扫描件',
+      '不是有效的 PDF',
     )
     const txt = path.join(mocks.userDataDir, 'a.txt')
     await fsp.writeFile(txt, 'x')
