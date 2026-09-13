@@ -18,10 +18,10 @@ const fromFilesParams = Type.Object({
   class_name: Type.Optional(Type.String({ description: '班级名,用于过滤花名册识别卷面姓名' })),
   exam_date: Type.Optional(Type.String({ description: '考试日期 YYYY-MM-DD' })),
   sample_paths: Type.Array(Type.String(), {
-    description: '原卷或答案卷的本地绝对路径(图片或扫描 PDF),用于抽取量规',
+    description: '原卷或答案卷的本地绝对路径(图片或 PDF,电子版/扫描件均可),用于抽取量规',
   }),
   homework_paths: Type.Array(Type.String(), {
-    description: '学生作业本地绝对路径:照片 / 扫描 PDF / 照片 zip(可按姓名分文件夹)',
+    description: '学生作业本地绝对路径:照片 / PDF(电子版或扫描件) / 照片 zip(可按姓名分文件夹)',
   }),
   auto_publish: Type.Optional(
     Type.Boolean({

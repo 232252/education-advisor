@@ -1,7 +1,10 @@
 // =============================================================
-// Archive Import — zip / PDF 扫描件展开为图片批次
+// Archive Import — zip / PDF 展开为图片批次
 // zip: 解析 Central Directory,解压 store/deflate 条目中的图片(及嵌套 PDF)。
-// PDF: 抽出内嵌 JPEG(扫描卷的常见形态);矢量 PDF 没有内嵌图则明确报错。
+// PDF: 三种形态统一出图 —
+//   1. 扫描件(每页一张内嵌 JPEG): 原字节直通,零再压缩;
+//   2. 电子排版/Flate 图/图文混排: pdfjs 逐页栅格化为 JPEG(pdf-rasterize);
+//   3. pdfjs 都打不开的损坏件: 裸抽内嵌 JPEG 兜底,抽不到才报错。
 // 纯函数 + 落临时文件,供 grading-service.importPapers 与对话批改工具复用。
 // =============================================================
 
@@ -10,12 +13,15 @@ import os from 'node:os'
 import path from 'node:path'
 import { inflateRawSync } from 'node:zlib'
 import { groupPaperImportPaths } from '@shared/grading-helpers'
+import { openPdf } from './pdf-rasterize'
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp'])
 const MAX_ZIP_FILES = 500
 const MAX_ENTRY_BYTES = 25 * 1024 * 1024
 const MAX_TOTAL_BYTES = 200 * 1024 * 1024
 const MIN_JPEG_BYTES = 8 * 1024
+/** 单个 PDF 渲染页数上限(zip 内每个 PDF 独立计数) */
+const MAX_PDF_PAGES = 100
 
 export function isZipPath(p: string): boolean {
   return path.extname(p).toLowerCase() === '.zip'
@@ -63,6 +69,68 @@ function dedupeByPrefix(bufs: Buffer[]): Buffer[] {
     out.push(b)
   }
   return out
+}
+
+/** 读 JPEG SOF 段的像素尺寸;格式异常返回 null */
+export function jpegSize(buf: Buffer): { width: number; height: number } | null {
+  let i = 2
+  while (i + 9 < buf.length) {
+    if (buf[i] !== 0xff) {
+      i++
+      continue
+    }
+    const marker = buf[i + 1]
+    if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd9)) {
+      i += 2
+      continue
+    }
+    if (i + 4 > buf.length) break
+    const segLen = buf.readUInt16BE(i + 2)
+    const isSof =
+      marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc
+    if (isSof) {
+      return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) }
+    }
+    i += 2 + segLen
+  }
+  return null
+}
+
+/** JPEG 像素尺寸是否铺满页面(≥ 页面 pt 尺寸的一半) — 判定"整页照片"用 */
+function coversPage(jpeg: Buffer, page: { width: number; height: number } | undefined): boolean {
+  if (!page) return false
+  const size = jpegSize(jpeg)
+  if (!size) return false
+  return size.width >= page.width * 0.5 && size.height >= page.height * 0.5
+}
+
+/**
+ * 任意 PDF → 每页一张 JPEG。判定顺序:
+ * 内嵌 JPEG 数 == 页数且每张铺满对应页 → 扫描件直通(保留原始扫描字节);
+ * 否则 pdfjs 栅格化全部页;pdfjs 打不开时裸抽内嵌 JPEG 兜底。
+ */
+export async function pdfToPageJpegs(buf: Buffer, label: string): Promise<Buffer[]> {
+  let handle: Awaited<ReturnType<typeof openPdf>>
+  try {
+    handle = await openPdf(buf)
+  } catch (err) {
+    const salvaged = extractJpegsFromPdf(buf)
+    if (salvaged.length > 0) return salvaged
+    throw new Error(`PDF「${label}」${err instanceof Error ? err.message : '无法解析'}`)
+  }
+  try {
+    const embedded = extractJpegsFromPdf(buf)
+    if (embedded.length === handle.numPages) {
+      const sizes = await handle.getPageSizes()
+      if (embedded.every((jpeg, i) => coversPage(jpeg, sizes[i]))) {
+        return embedded
+      }
+    }
+    const rendered = await handle.renderAllPages(MAX_PDF_PAGES)
+    return rendered.map((p) => p.jpeg)
+  } finally {
+    await handle.destroy()
+  }
 }
 
 interface ZipEntry {
@@ -212,12 +280,7 @@ export async function materializePaperBatches(
           const dest = await writeBuf(m.data, mExt || '.jpg', zipDisplayName(m.name))
           zipImages.push(dest)
         } else if (mExt === '.pdf') {
-          const pages = extractJpegsFromPdf(m.data)
-          if (pages.length === 0) {
-            throw new Error(
-              `zip 内 PDF「${m.name}」不是扫描件(没有内嵌图片)。请导出为照片或把照片打成 zip`,
-            )
-          }
+          const pages = await pdfToPageJpegs(m.data, m.name)
           const pageFiles: Array<{ path: string; name?: string }> = []
           for (const [i, jpeg] of pages.entries()) {
             const dest = await writeBuf(jpeg, '.jpg', `${zipDisplayName(m.name)}-p${i + 1}`)
@@ -231,12 +294,7 @@ export async function materializePaperBatches(
       }
     } else if (ext === '.pdf') {
       const pdfBuf = await fsp.readFile(src.path)
-      const pages = extractJpegsFromPdf(pdfBuf)
-      if (pages.length === 0) {
-        throw new Error(
-          `PDF「${path.basename(src.path)}」不是扫描件(没有内嵌图片)。请把卷面拍成照片打成 zip,或把 PDF 导出为 JPG/PNG`,
-        )
-      }
+      const pages = await pdfToPageJpegs(pdfBuf, path.basename(src.path))
       const base = src.name?.trim() || path.basename(src.path)
       const pageFiles: Array<{ path: string; name?: string }> = []
       for (const [i, jpeg] of pages.entries()) {
