@@ -102,9 +102,16 @@ export function buildFinalText(text: string, uploadedFiles: UploadedFile[]): str
       )
     }
     if (isGradingAsset(f)) {
+      // P2-8: 图片类附件提示可用 read_image 直接查看(视觉模型已注入该工具;
+      // 纯文本模型没有此工具,措辞保持条件式避免误导)
+      const isImage = f.mimeType.startsWith('image/') || /\.(jpe?g|png|webp|bmp|gif)$/i.test(f.name)
+      const visionHint = isImage
+        ? `需要查看图片内容时,若你的工具列表里有 read_image,可直接传入上述绝对路径查看(能识别卷面文字与图形);没有该工具则只基于路径与教师描述工作。\n`
+        : ''
       return (
         `--- 文件: ${f.name} (${sizeKb}KB, ${f.mimeType}) — 试卷/作业扫描件，不要当文本解析 ---\n` +
         `绝对路径: ${f.path}\n` +
+        visionHint +
         `若教师要批改作业: 原卷/答案卷路径放进 eaa_grading_from_files 的 sample_paths,学生作业(照片/PDF/zip)放进 homework_paths,class_name 填班级,confirm:true。未归组不要猜姓名。不要尝试把二进制内容读进对话。\n` +
         `--- 文件结束 ---`
       )

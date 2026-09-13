@@ -1944,5 +1944,11 @@
   "settings.channels.datasource.intro": "AI 结果的出站去向(与消息频道共用飞书凭证):定时同步报告到多维表格、把定时任务结果推送给教师。",
   "settings.channels.datasource.feishu": "飞书多维表格同步",
   "settings.channels.datasource.agentPush": "教师推送",
-  "settings.channels.datasource.agentPush.desc": "定时任务(周报/风险预警)完成后把结果推送给教师,默认关闭"
+  "settings.channels.datasource.agentPush.desc": "定时任务(周报/风险预警)完成后把结果推送给教师,默认关闭",
+  "page.chat.stoppedNotice": "已停止生成",
+  "page.chat.runTimeoutNotice": "运行超时已停止 — 可重发消息，或在 设置→通用 调大运行超时",
+  "page.chat.queuedNotice": "已排队，当前回复完成后自动发送",
+  "page.chat.queuedBadge": "已排队",
+  "page.chat.composer.queueSend": "排队发送",
+  "page.chat.composer.queueSendTitle": "当前回复完成后自动发送"
 }

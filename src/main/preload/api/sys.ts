@@ -28,7 +28,9 @@ export const sysApi: SysAPI = {
   onUpdateProgress: (callback) => subscribe(IPC.IPC_SYS_UPDATE_PROGRESS, callback),
   // [r] 读取文件内容(文本 utf-8 / 二进制 base64),用于文件上传
   //   安全限制: 文件大小 ≤ 10MB,自动推断 MIME 类型
-  readFile: (filePath: string) => ipcInvoke(IPC.IPC_SYS_READ_FILE, filePath),
+  //   opts.metaOnly=true 只取元信息不读内容(P0-3: 二进制附件取真实大小)
+  readFile: (filePath: string, opts?: { metaOnly?: boolean }) =>
+    ipcInvoke(IPC.IPC_SYS_READ_FILE, filePath, opts),
   // [c] 重启应用(备份恢复后需重启加载数据;调用后进程立即退出)
   restartApp: () => ipcInvoke(IPC.IPC_SYS_RESTART_APP),
   // [c] 出厂重置 — UI 层必须二次确认；成功后应 relaunch

@@ -21,6 +21,8 @@ interface ComposerProps {
   onRemoveFile: (idx: number) => void
   onSend: () => void
   onStop: () => void
+  /** P2-7: 排队待发消息数(运行中发送时入队) */
+  queuedCount: number
 }
 
 /** 底部输入区：文件上传 + 多行输入 + 发送/停止按钮 */
@@ -37,6 +39,7 @@ export const Composer = memo(function Composer({
   onRemoveFile,
   onSend,
   onStop,
+  queuedCount,
 }: ComposerProps) {
   const { t } = useT()
   // 输入框自动增高：1→6 行平滑增长，超过 6 行才滚动（发送后清空也会复位）
@@ -117,21 +120,50 @@ export const Composer = memo(function Composer({
               rows={1}
               ref={inputRef}
               className="flex-1 bg-transparent border-0 text-sm leading-relaxed focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 resize-none max-h-40 overflow-y-auto py-1 transition-[height] duration-100"
-              disabled={isStreaming || !canSend}
+              disabled={!canSend}
             />
           </div>
         </div>
-        <Button
-          variant={isStreaming ? 'danger' : 'primary'}
-          onClick={isStreaming ? onStop : onSend}
-          className="self-end px-6 py-3"
-          disabled={!isStreaming && (!input.trim() || !canSend)}
-          aria-label={
-            isStreaming ? t('page.chat.composer.stop', '停止') : t('page.chat.send', '发送')
-          }
-        >
-          {isStreaming ? t('page.chat.composer.stop', '停止') : t('page.chat.send', '发送')}
-        </Button>
+        {/* P2-7: 运行中可输入可排队 — 停止按钮常驻,有输入时排队发送按钮并排 */}
+        <div className="flex gap-2 self-end">
+          {queuedCount > 0 && (
+            <span className="self-center mr-1 text-[11px] text-blue-500 dark:text-blue-400 whitespace-nowrap">
+              {t('page.chat.queuedBadge', '已排队')} {queuedCount}
+            </span>
+          )}
+          {isStreaming && input.trim() && (
+            <Button
+              variant="primary"
+              onClick={onSend}
+              className="px-6 py-3"
+              disabled={!canSend}
+              aria-label={t('page.chat.composer.queueSend', '排队发送')}
+              title={t('page.chat.composer.queueSendTitle', '当前回复完成后自动发送')}
+            >
+              {t('page.chat.composer.queueSend', '排队发送')}
+            </Button>
+          )}
+          {isStreaming ? (
+            <Button
+              variant="danger"
+              onClick={onStop}
+              className="px-6 py-3"
+              aria-label={t('page.chat.composer.stop', '停止')}
+            >
+              {t('page.chat.composer.stop', '停止')}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              onClick={onSend}
+              className="px-6 py-3"
+              disabled={!input.trim() || !canSend}
+              aria-label={t('page.chat.send', '发送')}
+            >
+              {t('page.chat.send', '发送')}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )

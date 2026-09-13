@@ -82,7 +82,13 @@ export async function startApp(): Promise<void> {
   mainState.mainWindow = win
 
   // 注册所有 IPC 处理器（同步注册 + 异步初始化）
-  await registerAllHandlers(win)
+  // P1-6(09-13 深查 A7): 兜底 — 此前此处抛错会让 startApp 中断,窗口已创建
+  // 但永不 loadURL(白窗无恢复);现在记日志后继续加载渲染层(核心对话仍可用)
+  try {
+    await registerAllHandlers(win)
+  } catch (err) {
+    log('error', 'main', `[Startup] registerAllHandlers failed (degraded): ${errText(err)}`)
+  }
 
   // R2+(2026-08-28 流畅度审计): loadURL 提前 — handler 注册完成即加载渲染层,
   // cron/飞书/托盘/更新检查改在首帧之后初始化,EAA doctor 已后台预热
@@ -109,13 +115,69 @@ export async function startApp(): Promise<void> {
   })
 
   // 监听渲染进程崩溃
+  // P1-4(09-13 深查 A5): 此前仅记日志 — 渲染进程崩溃后白屏,只能手动重启。
+  // 现在自动 reload,限 3 次/本次启动防崩溃循环;超限保留日志等用户处理。
+  // 09-13 13:40 renderer ErrorBoundary 连环错误实证渲染层确实会坏。
+  let rendererReloadCount = 0
+  const RENDERER_MAX_AUTO_RELOAD = 3
   win.webContents.on('render-process-gone', (_event, details) => {
     console.error(`[Renderer] Process gone: ${details.reason} (exitCode=${details.exitCode})`)
+    if (details.reason === 'clean-exit') return
+    if (rendererReloadCount >= RENDERER_MAX_AUTO_RELOAD) {
+      log(
+        'error',
+        'main',
+        `[Renderer] Auto-reload limit reached (${rendererReloadCount}), giving up — please restart the app`,
+      )
+      return
+    }
+    rendererReloadCount++
+    log('warn', 'main', `[Renderer] Auto-reload ${rendererReloadCount}/${RENDERER_MAX_AUTO_RELOAD}`)
+    setTimeout(() => {
+      try {
+        win.webContents.reload()
+      } catch (err) {
+        log('warn', 'main', `[Renderer] Auto-reload failed: ${errText(err)}`)
+      }
+    }, 500)
   })
 
   // 监听页面加载失败
-  win.webContents.on('did-fail-load', (_event, errorCode, errorDesc, validatedURL) => {
-    log('error', 'main', `[Renderer] Load failed: ${errorCode} ${errorDesc} URL=${validatedURL}`)
+  // P1-4(09-13 深查 A6): 此前仅记日志 — app:// 加载失败即白屏。
+  // 现在: 主帧失败(忽略 -3 ABORTED 重载竞态) → 1s 后重试一次;
+  // 再失败 → data: URL 兜底页(给出可读指引,不再是纯白屏)。
+  let loadRetryDone = false
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDesc, validatedURL, isMainFrame) => {
+    log(
+      'error',
+      'main',
+      `[Renderer] Load failed: ${errorCode} ${errorDesc} URL=${validatedURL} mainFrame=${isMainFrame}`,
+    )
+    if (!isMainFrame || errorCode === -3 /* ERR_ABORTED: reload 竞态 */) return
+    if (loadRetryDone) {
+      const fallbackHtml =
+        'data:text/html;charset=utf-8,' +
+        encodeURIComponent(
+          '<html><body style="font-family:system-ui;background:#111418;color:#e6e6e6;' +
+            'display:flex;align-items:center;justify-content:center;height:100vh;margin:0">' +
+            '<div style="text-align:center;max-width:420px">' +
+            '<h2 style="margin:0 0 12px">页面加载失败</h2>' +
+            '<p style="color:#9aa0a6;line-height:1.6">界面资源加载连续失败。<br/>' +
+            '请关闭应用后重新启动;若反复出现,请查看日志目录下的 main-*.log。</p>' +
+            '</div></body></html>',
+        )
+      win.loadURL(fallbackHtml).catch(() => {})
+      return
+    }
+    loadRetryDone = true
+    setTimeout(() => {
+      log('warn', 'main', '[Renderer] Retrying loadURL after did-fail-load')
+      const target =
+        process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL
+          ? process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
+          : 'app://index/index.html'
+      win.loadURL(target).catch(() => {})
+    }, 1000)
   })
 
   // 初始化完成后显示窗口

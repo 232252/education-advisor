@@ -1944,5 +1944,11 @@
   "settings.channels.datasource.intro": "Outbound destinations for AI results (sharing Feishu credentials with messaging channels): scheduled report sync to Bitable, and cron results pushed to teachers.",
   "settings.channels.datasource.feishu": "Feishu Bitable Sync",
   "settings.channels.datasource.agentPush": "Teacher Push",
-  "settings.channels.datasource.agentPush.desc": "Push cron results (weekly report / risk alerts) to teachers when finished. Off by default."
+  "settings.channels.datasource.agentPush.desc": "Push cron results (weekly report / risk alerts) to teachers when finished. Off by default.",
+  "page.chat.stoppedNotice": "Generation stopped",
+  "page.chat.runTimeoutNotice": "Run timed out and was stopped — resend the message, or raise the run timeout in Settings → General",
+  "page.chat.queuedNotice": "Queued — will send automatically after the current reply",
+  "page.chat.queuedBadge": "Queued",
+  "page.chat.composer.queueSend": "Queue send",
+  "page.chat.composer.queueSendTitle": "Will send automatically after the current reply"
 }

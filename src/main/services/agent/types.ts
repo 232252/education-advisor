@@ -43,11 +43,13 @@ export interface AgentExecutionDeps {
   buildSkillsSection(capabilities: string[]): string
   // M32: win 用于 delegate_to 委托运行的状态推送(仅 main 会注入该工具)
   // privacyGuard: 开启自动脱敏的运行传入,用于包装 EAA 工具(见 agent/privacy-guard.ts)
+  // visionEnabled: P2-8 — 模型具备视觉输入时注入 read_image(见 agent/tools.ts)
   buildAgentTools(
     config: AgentConfig,
     id: string,
     win?: BrowserWindow,
     privacyGuard?: PrivacyGuard,
+    visionEnabled?: boolean,
     // biome-ignore lint/suspicious/noExplicitAny: TSchema constraint requires any
   ): Promise<AgentTool<any>[]>
   isCurrentGeneration(id: string, generation: number): boolean

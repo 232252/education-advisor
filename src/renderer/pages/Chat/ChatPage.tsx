@@ -26,6 +26,7 @@ export function ChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messages = useChatStore((s) => s.messages)
   const isStreaming = useChatStore((s) => s.isStreaming)
+  const queuedCount = useChatStore((s) => s.queuedInputs.length)
   const currentProvider = useChatStore((s) => s.currentProvider)
   const currentModel = useChatStore((s) => s.currentModel)
   const currentModelContext = useChatStore((s) => s.currentModelContext)
@@ -146,84 +147,114 @@ export function ChatPage() {
     })
   }, [])
 
-  const handleSend = useCallback(async () => {
-    if (!input.trim() || isStreaming) return
+  /** 实际执行一次发送(直发与排队 flush 共用) — text 为气泡展示原文,finalText 含附件拼装 */
+  const performSend = useCallback(
+    async (text: string, finalText: string) => {
+      if (!selectedAgentId) {
+        toast.warning(t('toast.chat.selectAgentFirst'))
+        return
+      }
+      // 在添加新消息之前，抓取现有对话历史（用于传给 Agent 做上下文）
+      // toAgentHistory: 透传原始时间戳 + 附带工具结果快照(否则模型无法基于上一轮数据追问)
+      const currentMessages = useChatStore.getState().messages
+      const history = toAgentHistory(currentMessages)
 
+      // 添加用户消息 (显示原始文本,但传给 Agent 的是 finalText)
+      useChatStore.getState().addMessage({
+        role: 'user',
+        content: text,
+        timestamp: Date.now(),
+      })
+      // 用户发消息 = 明确回到对话底部,重新启用自动跟随
+      followBottomRef.current = true
+
+      // 发送即反馈(R2+ 审计 HIGH): 乐观创建空气泡+置位流式态 —
+      // 此前 runAgent 排队/buildAgentTools 期间界面完全静止,用户不知道消息是否发出。
+      // running 事件到达后走"复用末条 assistant"路径,不会重复建气泡。
+      useChatStore.getState().addMessage({
+        role: 'assistant',
+        content: '',
+        toolCalls: [],
+        timestamp: Date.now(),
+      })
+      useChatStore.setState((s) => ({
+        isStreaming: true,
+        isThinking: true,
+        streamingAgentId: selectedAgentId,
+        streamSessionId: s.sessionId,
+      }))
+
+      // 启动 Agent（fire-and-forget，事件通过 onStatusUpdate 桥接）
+      // 传入对话历史和包含文件内容的最终文本
+      try {
+        // 渲染端补角(2026-08-28 智能轮核查): runManual 前置校验失败(agent 不存在/
+        // 已停用等)返回 {success:false} 而非 reject — 此前返回值无人检查,
+        // 也不会有任何 agent 事件到达 → 空气泡+流式态永久卡死。现在显式回滚。
+        const res = await getAPI().agent.runManual(selectedAgentId, finalText, history)
+        if (res && typeof res === 'object' && 'success' in res && !res.success) {
+          const reason = res.message ?? ''
+          rollbackOptimisticState()
+          toast.error(reason || t('toast.agents.runFailed'))
+          return
+        }
+      } catch (err) {
+        console.error('[Chat] Agent run failed:', err)
+        // 回滚乐观态: invoke 本身失败时不会有 agent 事件来清理(空气泡一并移除)
+        rollbackOptimisticState()
+        toast.error(t('toast.agents.runFailed'))
+      }
+    },
+    [selectedAgentId, t, rollbackOptimisticState],
+  )
+
+  const handleSend = useCallback(() => {
     const text = input.trim()
-    setInput('')
-
+    if (!text) return
     if (!selectedAgentId) {
       toast.warning(t('toast.chat.selectAgentFirst'))
       return
     }
 
-    // 在添加新消息之前，抓取现有对话历史（用于传给 Agent 做上下文）
-    // toAgentHistory: 透传原始时间戳 + 附带工具结果快照(否则模型无法基于上一轮数据追问)
-    const currentMessages = useChatStore.getState().messages
-    const history = toAgentHistory(currentMessages)
-
-    // 拼接上传文件内容到消息文本
+    // 拼接上传文件内容到消息文本(text=气泡展示原文,finalText=发给 Agent 的)
+    const displayText =
+      uploadedFiles.length > 0
+        ? `${text}\n\n[${t('page.chat.input.attachPrefix', '已附加')} ${uploadedFiles.length} ${t('page.chat.input.attachUnit', '个文件')}: ${uploadedFiles.map((f) => f.name).join(', ')}]`
+        : text
     const finalText = buildFinalText(text, uploadedFiles)
-
-    // 添加用户消息 (显示原始文本,但传给 Agent 的是 finalText)
-    useChatStore.getState().addMessage({
-      role: 'user',
-      content:
-        uploadedFiles.length > 0
-          ? `${text}\n\n[${t('page.chat.input.attachPrefix', '已附加')} ${uploadedFiles.length} ${t('page.chat.input.attachUnit', '个文件')}: ${uploadedFiles.map((f) => f.name).join(', ')}]`
-          : text,
-      timestamp: Date.now(),
-    })
-    // 用户发消息 = 明确回到对话底部,重新启用自动跟随
-    followBottomRef.current = true
-
-    // 发送即反馈(R2+ 审计 HIGH): 乐观创建空气泡+置位流式态 —
-    // 此前 runAgent 排队/buildAgentTools 期间界面完全静止,用户不知道消息是否发出。
-    // running 事件到达后走"复用末条 assistant"路径,不会重复建气泡。
-    useChatStore.getState().addMessage({
-      role: 'assistant',
-      content: '',
-      toolCalls: [],
-      timestamp: Date.now(),
-    })
-    useChatStore.setState((s) => ({
-      isStreaming: true,
-      isThinking: true,
-      streamingAgentId: selectedAgentId,
-      streamSessionId: s.sessionId,
-    }))
-
-    // 清空已上传文件
+    setInput('')
     setUploadedFiles([])
 
-    // 启动 Agent（fire-and-forget，事件通过 onStatusUpdate 桥接）
-    // 传入对话历史和包含文件内容的最终文本
-    try {
-      // 渲染端补角(2026-08-28 智能轮核查): runManual 前置校验失败(agent 不存在/
-      // 已停用等)返回 {success:false} 而非 reject — 此前返回值无人检查,
-      // 也不会有任何 agent 事件到达 → 空气泡+流式态永久卡死。现在显式回滚。
-      const res = await getAPI().agent.runManual(selectedAgentId, finalText, history)
-      if (res && typeof res === 'object' && 'success' in res && !res.success) {
-        const reason = res.message ?? ''
-        rollbackOptimisticState()
-        toast.error(reason || t('toast.agents.runFailed'))
-        return
-      }
-    } catch (err) {
-      console.error('[Chat] Agent run failed:', err)
-      // 回滚乐观态: invoke 本身失败时不会有 agent 事件来清理(空气泡一并移除)
-      rollbackOptimisticState()
-      toast.error(t('toast.agents.runFailed'))
+    // P2-7(09-13 深查 B4): 运行中不再锁死输入 — 消息入队(快照定稿),
+    // 当前回复结束(idle/error)后自动发送。此前 isStreaming 期间只能干等
+    // 或停止重发,4 分钟长任务无法追问。
+    if (isStreaming) {
+      useChatStore.setState((s) => ({
+        queuedInputs: [...s.queuedInputs, { text: displayText, finalText }],
+      }))
+      toast.info(t('page.chat.queuedNotice', '已排队，当前回复完成后自动发送'))
+      return
     }
-  }, [
-    input,
-    isStreaming,
-    selectedAgentId,
-    uploadedFiles,
-    setUploadedFiles,
-    rollbackOptimisticState,
-    t,
-  ])
+    void performSend(displayText, finalText)
+  }, [input, isStreaming, selectedAgentId, uploadedFiles, setUploadedFiles, performSend, t])
+
+  // P2-7: 排队消息自动发送 — isStreaming 由 true 翻回 false(回复终止)时出队一条。
+  // 渲染层 deferral 保证入队消息发出时携带完整历史(含刚结束的回复),
+  // 语义优于把消息立刻塞进主进程 run-queue(那时终态回复还未落历史)。
+  const prevStreamingRef = useRef(false)
+  useEffect(() => {
+    const wasStreaming = prevStreamingRef.current
+    prevStreamingRef.current = isStreaming
+    if (!wasStreaming || isStreaming) return
+    const q = useChatStore.getState().queuedInputs
+    if (q.length === 0) return
+    const [next, ...rest] = q
+    useChatStore.setState({ queuedInputs: rest })
+    // 短延迟: 让终止态的状态清理批次先完成,再开新一轮乐观态
+    const timer = setTimeout(() => {
+      void performSend(next.text, next.finalText)
+    }, 80)
+    return () => clearTimeout(timer)
+  }, [isStreaming, performSend])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -335,6 +366,7 @@ export function ChatPage() {
           onRemoveFile={removeFile}
           onSend={handleSend}
           onStop={handleStop}
+          queuedCount={queuedCount}
         />
       </div>
       <ConfirmDialog

@@ -43,7 +43,11 @@ export interface SysAPI {
   installUpdate: () => Promise<{ success: boolean; portable: boolean; error?: string }>
   /** 订阅更新下载进度 (返回取消订阅函数) */
   onUpdateProgress: (callback: (info: UpdateProgressInfo) => void) => () => void
-  readFile: (filePath: string) => Promise<{
+  readFile: (
+    filePath: string,
+    /** P0-3: metaOnly=true 只取元信息(名称/大小/MIME),不读内容 — 二进制附件用 */
+    opts?: { metaOnly?: boolean },
+  ) => Promise<{
     success: boolean
     /** 成功时回传的源路径(失败信封不含;渲染端用本地 filePath 变量) */
     path?: string
