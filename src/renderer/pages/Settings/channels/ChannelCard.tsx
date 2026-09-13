@@ -1,13 +1,18 @@
 // =============================================================
-// ChannelCard — 渠道卡片(连接中心卡片墙的单卡,M5)
-// 内容清单(竞品蒸馏 P2):图标/名称/状态点/启用开关/关键绑定信息/
-// 配置展开;「即将支持」占位卡(manifest.comingSoon)只读展示。
+// ChannelCard — 渠道卡片(连接中心卡片墙的单卡,M5;2026-09-13 视觉升级)
+// 内容清单:品牌瓦片/名称/状态 pill/启用开关/关键绑定信息/配置展开;
+// 「即将支持」占位卡(manifest.comingSoon)只读展示。
+// 品牌瓦片与五态徽标与连接中心面板共用(components/channel)。
 // =============================================================
 
 import type { ChannelInstanceInfo, ChannelStatusInfo } from '@shared/types'
-import { useT } from '../../../i18n'
+import { ChevronDown } from 'lucide-react'
+import { useEffect, useReducer } from 'react'
+import { ChannelBrandIcon } from '../../../components/channel/ChannelBrandIcon'
+import { ChannelStatusBadge } from '../../../components/channel/ChannelStatusBadge'
+import { tr, useT } from '../../../i18n'
+import { cn, formatDateTime } from '../../../lib/ui-utils'
 import { ToggleSwitch } from '../components'
-import { ChannelStatusDot } from './ChannelStatusDot'
 
 interface ChannelCardProps {
   info: ChannelInstanceInfo
@@ -20,16 +25,16 @@ interface ChannelCardProps {
   children?: React.ReactNode
 }
 
-/** 渠道图标占位(manifest.icon → 简单字母徽标;正式图标随渠道接入补) */
-function ChannelIcon({ icon, label }: { icon: string; label: string }) {
-  return (
-    <span
-      aria-hidden
-      className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm font-bold select-none"
-    >
-      {label.slice(0, 1) || icon.slice(0, 1).toUpperCase()}
-    </span>
-  )
+/** 连接时长短格式(§10.6): 刚刚 / N 分钟 / H 小时 M 分 / N 天 */
+function formatUptime(ms: number, t: (key: string, fallback: string) => string): string {
+  const minutes = Math.floor(ms / 60_000)
+  if (minutes < 1) return t('settings.channels.uptime.justNow', '刚刚')
+  if (minutes < 60) return tr('settings.channels.uptime.minutes', { n: minutes }, '{n} 分钟')
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) {
+    return tr('settings.channels.uptime.hours', { h: hours, m: minutes % 60 }, '{h} 小时 {m} 分')
+  }
+  return tr('settings.channels.uptime.days', { n: Math.floor(hours / 24) }, '{n} 天')
 }
 
 export function ChannelCard({
@@ -44,17 +49,40 @@ export function ChannelCard({
   const status = liveStatus ?? info.status
   const comingSoon = info.manifest.comingSoon === true
 
+  // 已连接时长随时间自增(60s 重算;§10.6)
+  const [, tickUptime] = useReducer((x: number) => x + 1, 0)
+  useEffect(() => {
+    const id = window.setInterval(tickUptime, 60_000)
+    return () => window.clearInterval(id)
+  }, [])
+
   return (
     <div className="flex flex-col">
       <div
-        className={`p-4 flex flex-col gap-2.5 ${
+        className={cn(
+          'group p-4 flex flex-col gap-2.5 rounded-xl transition-all duration-200',
           comingSoon
-            ? 'border border-dashed border-gray-300 dark:border-white/[0.12] rounded-xl opacity-70'
-            : ''
-        }`}
+            ? 'border border-dashed border-gray-300 dark:border-white/[0.12] opacity-70'
+            : cn(
+                'border shadow-sm',
+                'border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-surface-elevated/50',
+                // 展开态收起悬浮效果(表单操作时卡片不该晃)
+                !expanded &&
+                  'hover:shadow-md hover:border-gray-300/80 dark:hover:border-white/[0.12] hover:-translate-y-0.5',
+              ),
+        )}
       >
         <div className="flex items-center gap-3">
-          <ChannelIcon icon={info.manifest.icon} label={info.manifest.label} />
+          <ChannelBrandIcon
+            channelId={info.manifest.id}
+            label={info.manifest.label}
+            icon={info.manifest.icon}
+            muted={comingSoon}
+            className={cn(
+              'transition-transform duration-200',
+              !expanded && !comingSoon && 'group-hover:scale-105',
+            )}
+          />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
@@ -71,11 +99,28 @@ export function ChannelCard({
                 </span>
               )}
             </div>
-            <ChannelStatusDot
-              status={status.status}
-              degraded={status.degraded}
-              detail={status.detail}
-            />
+            <div className="flex items-center gap-1.5 min-w-0">
+              <ChannelStatusBadge
+                status={status.status}
+                degraded={status.degraded}
+                detail={status.detail}
+              />
+              {status.status === 'connected' && status.connectedAt != null && (
+                <span
+                  className="text-[10px] text-gray-400 dark:text-gray-500 flex-shrink-0"
+                  title={t('settings.channels.uptime.since', '连接建立于 {time}').replace(
+                    '{time}',
+                    formatDateTime(status.connectedAt),
+                  )}
+                >
+                  {tr(
+                    'settings.channels.uptime',
+                    { dur: formatUptime(Date.now() - status.connectedAt, t) },
+                    '已运行 {dur}',
+                  )}
+                </span>
+              )}
+            </div>
           </div>
           {!comingSoon && (
             <ToggleSwitch
@@ -106,18 +151,22 @@ export function ChannelCard({
             <button
               type="button"
               onClick={onToggleExpand}
-              className="text-[11px] px-2 py-1 rounded-lg border border-gray-300 dark:border-white/[0.08] text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.04] transition-colors"
+              aria-expanded={expanded}
+              className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border border-gray-300 dark:border-white/[0.08] text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.04] transition-colors"
             >
               {expanded
                 ? t('settings.channels.collapse', '收起')
                 : t('settings.channels.configure', '配置')}
-              <span className="ml-1">{expanded ? '▴' : '▾'}</span>
+              <ChevronDown
+                size={12}
+                className={cn('transition-transform duration-200', expanded && 'rotate-180')}
+              />
             </button>
           )}
         </div>
       </div>
       {expanded && !comingSoon && (
-        <div className="mt-1 border border-gray-200 dark:border-white/[0.08] rounded-xl overflow-hidden bg-gray-50/50 dark:bg-surface-elevated/30">
+        <div className="mt-1 border border-gray-200 dark:border-white/[0.08] rounded-xl overflow-hidden bg-gray-50/50 dark:bg-surface-elevated/30 animate-slide-up">
           {children}
         </div>
       )}

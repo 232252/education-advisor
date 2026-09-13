@@ -11,6 +11,8 @@
 | `cdp-eval.mjs` | 在页面上下文执行 JS 并取回结果 |
 | `cdp-interact.mjs` | 模拟点击/输入等交互 |
 | `cdp-shot.mjs` | 截图 |
+| `cdp-shot-clip.mjs` | 元素区域 2x 特写截图(clip 与视口取交集并封顶尺寸,超宽屏/超视口 clip 会挂起) |
+| `cdp-shot-panel.mjs` | 一条龙打开连接中心面板并连拍浅/深两张特写(单连接内完成,避免懒挂载时序竞争) |
 | `cdp-tour.mjs` | 页面遍历 |
 | `cdp-diag-import.mjs` | 诊断数据导入 |
 | `cdp-perf-check.mjs` | 性能抽查 |

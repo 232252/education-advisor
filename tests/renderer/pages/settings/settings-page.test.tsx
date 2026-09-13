@@ -113,6 +113,20 @@ class DumpBoundary extends Component<{ children: ReactNode }, { err: Error | nul
 
 import { SettingsPage } from '../../../../src/renderer/pages/Settings/SettingsPage'
 
+// Section 组件经 useLocation 做锚点揭示(#connection/#webui),需要 Router 上下文
+// (真实应用挂在 HashRouter 下);统一经 renderPage 包 MemoryRouter。
+import { MemoryRouter } from 'react-router-dom'
+
+function renderPage() {
+  return render(
+    createElement(
+      DumpBoundary,
+      null,
+      createElement(MemoryRouter, { initialEntries: ['/'] }, createElement(SettingsPage)),
+    ),
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   api.settings.get = vi.fn(async () => ({}))
@@ -120,7 +134,7 @@ beforeEach(() => {
 
 describe('SettingsPage', () => {
   it('加载后渲染全部 Section 标题', async () => {
-    render(createElement(DumpBoundary, null, createElement(SettingsPage)))
+    renderPage()
     await waitFor(() => expect(screen.getByText('通用')).toBeTruthy())
     expect(screen.getByText('对话')).toBeTruthy()
     expect(screen.getByText('连接中心')).toBeTruthy()
@@ -142,7 +156,7 @@ describe('SettingsPage', () => {
 
   it('加载中显示 loading 态(挂起期间)', async () => {
     api.settings.get = vi.fn(() => new Promise(() => {})) // 永不 resolve
-    render(createElement(DumpBoundary, null, createElement(SettingsPage)))
+    renderPage()
     expect(screen.getByText('加载中...')).toBeTruthy()
     expect(screen.queryByText('通用')).toBeNull()
   })
@@ -151,7 +165,7 @@ describe('SettingsPage', () => {
     api.settings.get = vi.fn(async () => {
       throw new Error('IPC 断开')
     })
-    render(createElement(DumpBoundary, null, createElement(SettingsPage)))
+    renderPage()
     await waitFor(() => expect(screen.getByText(/重试/)).toBeTruthy())
     // 重试成功
     api.settings.get = vi.fn(async () => ({}))
@@ -160,7 +174,7 @@ describe('SettingsPage', () => {
   })
 
   it('语言切换保存 general.language', async () => {
-    render(createElement(DumpBoundary, null, createElement(SettingsPage)))
+    renderPage()
     await waitFor(() => expect(screen.getByText('通用')).toBeTruthy())
     const select = screen.getByLabelText(/切换界面语言/)
     fireEvent.change(select, { target: { value: 'en' } })
@@ -170,7 +184,7 @@ describe('SettingsPage', () => {
   })
 
   it('重置走确认弹窗,确认后调用 settings.reset', async () => {
-    render(createElement(DumpBoundary, null, createElement(SettingsPage)))
+    renderPage()
     await waitFor(() => expect(screen.getByText('通用')).toBeTruthy())
     fireEvent.click(screen.getByLabelText('恢复默认'))
     // 确认弹窗出现 → 点确认
@@ -182,7 +196,7 @@ describe('SettingsPage', () => {
   it('channels 状态订阅在卸载时退订(连接中心接管 bot 状态)', async () => {
     const unsub = vi.fn()
     api.channels.onStatusUpdate = vi.fn(() => unsub)
-    const { unmount } = render(createElement(DumpBoundary, null, createElement(SettingsPage)))
+    const { unmount } = renderPage()
     await waitFor(() => expect(api.channels.onStatusUpdate).toHaveBeenCalled())
     unmount()
     expect(unsub).toHaveBeenCalled()

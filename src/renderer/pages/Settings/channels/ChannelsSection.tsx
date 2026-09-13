@@ -8,6 +8,7 @@
 // =============================================================
 
 import type { ChannelInstanceInfo, ChannelStatusInfo, UnifiedSettings } from '@shared/types'
+import { Smartphone } from 'lucide-react'
 import { useEffect, useReducer, useState } from 'react'
 import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
@@ -76,13 +77,16 @@ export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
   }, [settings.channels])
 
   return (
-    <Section title={t('settings.section.channels', '连接中心')}>
+    <Section id="connection" title={t('settings.section.channels', '连接中心')}>
       <div className="px-5 py-4">
-        <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3">
-          {t(
-            'settings.channels.intro',
-            '让手机/平板上的聊天软件直接指挥这台电脑上的 AI 助教。长连接模式,无需公网 IP。',
-          )}
+        <p className="flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3">
+          <Smartphone size={13} className="flex-shrink-0 mt-0.5 text-gray-400 dark:text-gray-500" />
+          <span>
+            {t(
+              'settings.channels.intro',
+              '让手机/平板上的聊天软件直接指挥这台电脑上的 AI 助教。长连接模式,无需公网 IP。',
+            )}
+          </span>
         </p>
         <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
           {instances.map((info) => (
@@ -113,7 +117,7 @@ export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
 
         {/* ===== 数据源集成(出站;原「飞书集成」区迁入,阶段 2 收口) ===== */}
         <div className="mt-5">
-          <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
+          <h4 className="text-[10px] uppercase tracking-widest font-semibold text-gray-400 dark:text-gray-500 mb-2">
             {t('settings.channels.datasource.title', '数据源集成')}
           </h4>
           <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-2 leading-relaxed">

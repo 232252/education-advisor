@@ -3,6 +3,7 @@
 // =============================================================
 
 import type { UnifiedSettings, WebUiStatus } from '@shared/types'
+import { QrCode as QrCodeIcon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useT } from '../../../i18n'
 import { pickFile } from '../../../lib/dialog'
@@ -102,7 +103,7 @@ export function WebUiSection({ settings, onSave }: WebUiSectionProps) {
   }
 
   return (
-    <Section title={t('page.settings.webui.title', '本机 WebUI')}>
+    <Section id="webui" title={t('page.settings.webui.title', '本机 WebUI')}>
       <SelectSettingRow
         path="general.webUiMode"
         label={t('page.settings.webui.mode', '开关')}
@@ -197,7 +198,13 @@ export function WebUiSection({ settings, onSave }: WebUiSectionProps) {
           {status?.error && <span className="text-xs text-red-500">{status.error}</span>}
           {status?.listening && status.urls[0] && (
             <>
-              <code className="text-[11px] break-all text-right text-gray-500 dark:text-gray-400">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)] animate-pulse" />
+                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  {t('connectionCenter.webui.listening', '监听中')} · {scheme}
+                </span>
+              </div>
+              <code className="text-[11px] font-mono break-all text-right text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-white/[0.04] rounded-lg px-2 py-1">
                 {status.urls.find((u) => u.includes('127.0.0.1')) || status.urls[0]}
               </code>
               <div className="flex gap-2">
@@ -222,6 +229,10 @@ export function WebUiSection({ settings, onSave }: WebUiSectionProps) {
                   {t('page.settings.webui.open', '在浏览器打开')}
                 </button>
               </div>
+              <span className="flex items-center justify-end gap-1 text-[10px] text-gray-400">
+                <QrCodeIcon size={12} className="flex-shrink-0" />
+                {t('page.settings.webui.qrHint', '手机扫码接入可按 Alt+C 打开连接中心')}
+              </span>
             </>
           )}
           {status?.listening && bind !== 'loopback' && (
