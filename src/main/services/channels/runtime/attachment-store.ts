@@ -56,7 +56,7 @@ export async function writeAttachmentBytes(opts: {
   bytes: Uint8Array
   /** 原始文件名(清洗后保存);缺省用 kind-时间戳.bin */
   fileName?: string
-  kind: 'file' | 'image'
+  kind: 'file' | 'image' | 'video' | 'audio'
   dir: string
   /** 日志作用域(渠道 id) */
   logScope?: string

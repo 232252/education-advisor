@@ -237,6 +237,9 @@ class ChannelManager extends EventEmitter {
       status: base.status,
       detail: base.detail,
       connectedAt: base.connectedAt,
+      lastMessageAt: (base as { lastMessageAt?: number }).lastMessageAt,
+      lastErrorAt: (base as { lastErrorAt?: number }).lastErrorAt,
+      reconnectAttempt: (base as { reconnectAttempt?: number }).reconnectAttempt,
       processingCount: stats.processingCount,
       pendingCount: stats.pendingCount,
     }
@@ -282,3 +285,4 @@ class ChannelManager extends EventEmitter {
 
 export const channelManager = new ChannelManager()
 export type { ChannelRunStatus }
+
