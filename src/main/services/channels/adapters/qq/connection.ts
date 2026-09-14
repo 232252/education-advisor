@@ -132,7 +132,7 @@ class QqBotService extends EventEmitter {
       sendText: async (messageId, text) => {
         const delivery = this.deliveries.get(messageId)
         if (!delivery) throw new Error(`消息 ${messageId} 的投递信息已失效`)
-        await api.replyText(delivery, text)
+        await api.replyOutbound(delivery, text)
       },
       createSession: async (messageId) => {
         const delivery = this.deliveries.get(messageId)
