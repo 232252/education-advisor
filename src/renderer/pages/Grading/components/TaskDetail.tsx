@@ -45,6 +45,13 @@ const TASK_MODE_KEYS = {
   lenient: 'page.grading.mode.lenient',
 } as const
 
+/** 批改模式 → i18n 键(显式枚举,不用模板动态键) */
+const TASK_STRATEGY_KEYS = {
+  fast: 'page.grading.strategy.fast',
+  standard: 'page.grading.strategy.standard',
+  dual: 'page.grading.strategy.dual',
+} as const
+
 const STATUS_BADGE_CLS: Record<GradingTask['status'], string> = {
   draft: 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300',
   ready: 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300',
@@ -142,8 +149,10 @@ export function TaskDetail({
     (task.status === 'ready' || task.status === 'review') &&
     pendingCount + failedCount + unassignedCount > 0
   const running = task.status === 'grading'
-  // 可复核 = 有 AI 结果的试卷(复核/已发布态)
-  const reviewablePapers = task.papers.filter((p) => p.ai)
+  // 可复核 = 有 AI 结果的试卷(复核/已发布态);双评分歧卷置顶(教师优先仲裁)
+  const reviewablePapers = task.papers
+    .filter((p) => p.ai)
+    .sort((a, b) => (b.disputedQuestions?.length ?? 0) - (a.disputedQuestions?.length ?? 0))
   const reviewable =
     (task.status === 'review' || task.status === 'published') && reviewablePapers.length > 0
 
@@ -167,6 +176,11 @@ export function TaskDetail({
   // 口径归一: 历史/手改任务 JSON 可能缺字段或带非法值,一律按正常展示
   const gradingMode =
     task.gradingMode === 'strict' || task.gradingMode === 'lenient' ? task.gradingMode : 'normal'
+  // 模式归一: 缺省/非法回落 standard
+  const gradingStrategy: 'fast' | 'standard' | 'dual' =
+    task.gradingStrategy === 'fast' || task.gradingStrategy === 'dual'
+      ? task.gradingStrategy
+      : 'standard'
 
   const marksOverlay =
     marksPrint.task && marksPrint.views ? (
@@ -386,6 +400,35 @@ export function TaskDetail({
               </select>
             </label>
           )}
+          {task.status === 'grading' ? (
+            metaChip(t('page.grading.strategy.label'), t(TASK_STRATEGY_KEYS[gradingStrategy]))
+          ) : (
+            <label
+              className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300"
+              title={t(
+                'page.grading.strategy.title',
+                '批改流程档位：调用次数与准确率的权衡；改动后对之后的批改/重改生效',
+              )}
+            >
+              {t('page.grading.strategy.label', '批改模式')}
+              <select
+                value={gradingStrategy}
+                onChange={(e) =>
+                  void onUpdateTask(task.id, { gradingStrategy: e.target.value as never })
+                }
+                disabled={busy}
+                className="cursor-pointer bg-transparent font-medium outline-none"
+              >
+                <option value="fast">{t('page.grading.strategy.fast', '快改 · 整卷一次')}</option>
+                <option value="standard">
+                  {t('page.grading.strategy.standard', '标准 · 分题细改+复验')}
+                </option>
+                <option value="dual">
+                  {t('page.grading.strategy.dual', '双评 · 双AI独立批改')}
+                </option>
+              </select>
+            </label>
+          )}
         </div>
 
         {/* 批改进度(running 时实时;done 后保留汇总直到刷新) */}
@@ -426,6 +469,15 @@ export function TaskDetail({
                     %
                   </span>
                 </div>
+                {progress.phase === 'stage' && (
+                  <div className="text-[11px] text-amber-600/90 dark:text-amber-300/80">
+                    {tr('page.grading.progress.stage', {
+                      stage: progress.stage ?? '',
+                      index: progress.stageIndex ?? 0,
+                      total: progress.stageTotal ?? 0,
+                    })}
+                  </div>
+                )}
                 <div className="h-1.5 overflow-hidden rounded-full bg-amber-100 dark:bg-amber-500/20">
                   <div
                     className="h-full rounded-full bg-amber-400 transition-all"

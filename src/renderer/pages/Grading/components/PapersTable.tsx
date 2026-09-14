@@ -258,8 +258,28 @@ export function PapersTable({
                         <span className="text-gray-400">{t('page.grading.papers.unassigned')}</span>
                       )
                     ) : paper.status === 'graded' && paper.ai ? (
-                      <span className="font-medium text-green-600 dark:text-green-400">
-                        {effectiveTotalScore(paper) ?? paper.ai.totalScore}/{fullMark}
+                      <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                        <span className="font-medium text-green-600 dark:text-green-400">
+                          {effectiveTotalScore(paper) ?? paper.ai.totalScore}/{fullMark}
+                        </span>
+                        {(paper.disputedQuestions?.length ?? 0) > 0 && (
+                          <span
+                            className="rounded-full bg-amber-100 px-1.5 py-px text-[10px] text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                            title={t(
+                              'page.grading.papers.disputedTitle',
+                              '双评两个模型给分分歧超阈值，请教师在复核台仲裁',
+                            )}
+                          >
+                            {tr('page.grading.papers.disputed', {
+                              n: paper.disputedQuestions?.length ?? 0,
+                            })}
+                          </span>
+                        )}
+                        {paper.aiSecondary && (paper.disputedQuestions?.length ?? 0) === 0 && (
+                          <span className="rounded-full bg-blue-50 px-1.5 py-px text-[10px] text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
+                            {t('page.grading.review.dualBadge', '双评')}
+                          </span>
+                        )}
                       </span>
                     ) : (
                       <span

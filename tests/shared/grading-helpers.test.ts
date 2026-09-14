@@ -3,9 +3,13 @@
 // =============================================================
 
 import { describe, expect, it } from 'vitest'
+import type { AiGradeResult } from '../../src/shared/types'
 import {
   aiResultByQuestion,
   cleanPresetMarks,
+  dualTolerance,
+  mergeDualResults,
+  normalizeGradingStrategy,
   effectiveQuestionScore,
   effectiveTotalScore,
   groupPaperImportPaths,
@@ -392,5 +396,78 @@ describe('paperMarkScoreRows / paperMarkOverlays', () => {
     expect(overlays[0]?.note).toContain('-2 单位未换算')
     expect(overlays[0]?.note).toContain('6/10')
     expect(overlays[0]?.note).toContain('结果对但过程跳步')
+  })
+})
+
+describe('批改模式归一 + 双评合并', () => {
+  it('normalizeGradingStrategy: 合法透传,非法/缺省回落 standard', () => {
+    expect(normalizeGradingStrategy('fast')).toBe('fast')
+    expect(normalizeGradingStrategy('dual')).toBe('dual')
+    expect(normalizeGradingStrategy('standard')).toBe('standard')
+    expect(normalizeGradingStrategy(undefined)).toBe('standard')
+    expect(normalizeGradingStrategy('turbo')).toBe('standard')
+  })
+
+  it('dualTolerance: 满分 1/6 且至少 1 分', () => {
+    expect(dualTolerance(18)).toBe(3)
+    expect(dualTolerance(30)).toBe(5)
+    expect(dualTolerance(4)).toBe(1)
+    expect(dualTolerance(5)).toBe(1)
+  })
+
+  const rubric = [
+    { id: 'q-1', title: '一、单选题', fullMark: 30, order: 1 },
+    { id: 'q-2', title: '三、计算题', fullMark: 18, order: 2 },
+  ]
+  const primary: AiGradeResult = {
+    questions: [
+      { questionId: 'q-1', score: 24 },
+      { questionId: 'q-2', score: 18 },
+    ],
+    totalScore: 42,
+    model: { provider: 'a', model: 'A' },
+    finishedAt: '2026-01-01T00:00:00Z',
+  }
+  const secondary: AiGradeResult = {
+    questions: [
+      { questionId: 'q-1', score: 24 },
+      { questionId: 'q-2', score: 9 },
+    ],
+    totalScore: 33,
+    model: { provider: 'b', model: 'B' },
+    finishedAt: '2026-01-01T00:00:01Z',
+  }
+
+  it('阈值内取均值(四舍五入);超阈值保留主模型分并记分歧;总分重算', () => {
+    const { merged, disputes } = mergeDualResults(primary, secondary, rubric)
+    // q-1 两评一致 → 24;q-2 分差 9 > tol(3) → 保留主评 18 + 分歧
+    expect(merged.questions[0]?.score).toBe(24)
+    expect(merged.questions[1]?.score).toBe(18)
+    expect(disputes).toEqual(['q-2'])
+    expect(merged.totalScore).toBe(42)
+  })
+
+  it('阈值内但非相等 → 取均值', () => {
+    const near: AiGradeResult = {
+      ...secondary,
+      questions: [
+        { questionId: 'q-1', score: 30 },
+        { questionId: 'q-2', score: 17 },
+      ],
+    }
+    const { merged, disputes } = mergeDualResults(primary, near, rubric)
+    // q-1: 24 vs 30 分差 6 > tol(5) → 分歧;q-2: 18 vs 17 差 1 ≤ 3 → 均值 18(17.5→18)
+    expect(merged.questions[1]?.score).toBe(18)
+    expect(disputes).toEqual(['q-1'])
+  })
+
+  it('第二模型缺题不扩散;无副题照抄', () => {
+    const partial: AiGradeResult = {
+      ...secondary,
+      questions: [{ questionId: 'q-1', score: 30 }],
+    }
+    const { merged, disputes } = mergeDualResults(primary, partial, rubric)
+    expect(merged.questions[1]?.score).toBe(18)
+    expect(disputes).toEqual(['q-1']) // 24 vs 30 分差 6 > 5
   })
 })

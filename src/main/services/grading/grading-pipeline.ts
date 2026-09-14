@@ -19,6 +19,8 @@ import {
 } from '@earendil-works/pi-ai/compat'
 import {
   markScoreFromSelection,
+  mergeDualResults,
+  normalizeGradingStrategy,
   questionKind,
   type StudentCandidate,
 } from '@shared/grading-helpers'
@@ -43,6 +45,7 @@ import { KEYLESS_PROVIDERS } from '../ollama/constants'
 import { resolveModel } from '../pi-ai/model-utils'
 import { settingsService } from '../settings-service'
 import { gradingService } from './grading-service'
+import { gradePaperStaged, type StagedStageInfo } from './staged-pipeline'
 
 /** 单份试卷批改的输出 token 上限(逐题 JSON+box+批注;每题都出 box 后上调) */
 const GRADING_MAX_TOKENS = 8192
@@ -50,7 +53,7 @@ const GRADING_MAX_TOKENS = 8192
 /** 批改进度事件负载(主→渲染) */
 export interface GradingProgressPayload {
   taskId: string
-  phase: 'start' | 'identify' | 'graded' | 'failed' | 'done'
+  phase: 'start' | 'identify' | 'stage' | 'graded' | 'failed' | 'done'
   /** 当前/刚完成的试卷 */
   paperId?: string
   studentName?: string
@@ -62,6 +65,10 @@ export interface GradingProgressPayload {
   gradedCount?: number
   failedCount?: number
   aborted?: boolean
+  /** phase=stage: 分阶段批改的当前批次(如「定位每题作答区域」「批改 三、计算题」) */
+  stage?: string
+  stageIndex?: number
+  stageTotal?: number
 }
 
 // ===== 纯函数(测试覆盖) =====
@@ -89,6 +96,15 @@ export function resolveGradingModelIds(settings: Pick<UnifiedSettings, 'grading'
   }
 }
 
+/** 双评第二模型: settings.grading.provider2/model2 显式配置;未配置返回 null */
+export function resolveSecondaryGradingModelIds(
+  settings: Pick<UnifiedSettings, 'grading'>,
+): { providerId: string; modelId: string } | null {
+  const g = settings.grading
+  if (g?.provider2 && g?.model2) return { providerId: g.provider2, modelId: g.model2 }
+  return null
+}
+
 function formatPresetMarks(q: RubricQuestion): string {
   const marks = q.presetMarks ?? []
   if (marks.length === 0) return ''
@@ -110,7 +126,7 @@ export function gradingModeLabel(mode: GradingStrictness): string {
 }
 
 /** 三档批改口径的给分松紧规则(注入 prompt;normal 为基线,不另加松紧条目) */
-const MODE_RULES: Record<GradingStrictness, string[]> = {
+export const MODE_RULES: Record<GradingStrictness, string[]> = {
   strict: [
     '按评分标准逐点从严核对: 步骤缺失/跳步、符号或单位错误、表述不严谨、未化简到要求形式,每处都按评分点扣分',
     '结果正确但过程不完整的,只给结果对应的部分分,过程分不给',
@@ -406,6 +422,76 @@ async function gradePaperOnce(
   }
 }
 
+/** 一份试卷按策略批改的产出: 双评档携带第二模型原始结果与分歧清单 */
+export interface PaperGradeOutcome {
+  result: AiGradeResult
+  secondary?: AiGradeResult
+  disputes?: string[]
+}
+
+/**
+ * 三档批改策略路由(任务 gradingStrategy 字段):
+ * fast=整卷一次调用(快改,不复验); standard=分阶段管线+同模型条件复验;
+ * dual=两个视觉模型各跑分阶段管线,阈值内取均值/超阈值记分歧(教师仲裁)。
+ */
+async function gradePaperByStrategy(
+  task: GradingTask,
+  paperId: string,
+  model: Model<Api>,
+  model2: Model<Api> | undefined,
+  apiKey: string,
+  apiKey2: string | undefined,
+  signal: AbortSignal,
+  onStage?: (info: StagedStageInfo) => void,
+): Promise<PaperGradeOutcome> {
+  const strategy = normalizeGradingStrategy(task.gradingStrategy)
+  if (strategy === 'fast') {
+    return { result: await gradePaperOnce(task, paperId, model, apiKey, signal) }
+  }
+  if (strategy === 'dual' && model2 && apiKey2) {
+    const primary = await gradePaperStaged({
+      task,
+      paperId,
+      model,
+      apiKey,
+      signal,
+      selfVerify: false,
+      onStage,
+    })
+    const secondary = await gradePaperStaged({
+      task,
+      paperId,
+      model: model2,
+      apiKey: apiKey2,
+      signal,
+      selfVerify: false,
+      onStage,
+    })
+    const { merged, disputes } = mergeDualResults(primary, secondary, task.rubric)
+    // 用量合并双模型(诚实计量)
+    if (merged.usage && secondary.usage) {
+      merged.usage.input += secondary.usage.input
+      merged.usage.output += secondary.usage.output
+      const cr = (merged.usage.cacheRead ?? 0) + (secondary.usage.cacheRead ?? 0)
+      const cw = (merged.usage.cacheWrite ?? 0) + (secondary.usage.cacheWrite ?? 0)
+      merged.usage.cacheRead = cr > 0 ? cr : undefined
+      merged.usage.cacheWrite = cw > 0 ? cw : undefined
+    }
+    return { result: merged, secondary, disputes }
+  }
+  return {
+    result: await gradePaperStaged({
+      task,
+      paperId,
+      model,
+      apiKey,
+      signal,
+      selfVerify: true,
+      onStage,
+    }),
+  }
+}
+
 /**
  * 启动整批 AI 批改(异步作业,立即返回):
  * ready|review → grading → (可选)卷面归组 → 逐份 pending/failed 试卷 → review。
@@ -450,6 +536,24 @@ export async function startGrading(
   if (!apiKey) {
     throw new Error(`Provider ${ids.providerId} 未配置 API Key`)
   }
+  // 批改策略与双评第二模型(双评未配置第二模型在启动前同步报错,不进作业)
+  const settings = settingsService.getSettings()
+  const strategy = normalizeGradingStrategy(task.gradingStrategy)
+  const secondIds = strategy === 'dual' ? resolveSecondaryGradingModelIds(settings) : null
+  if (strategy === 'dual' && !secondIds) {
+    throw new Error('双评模式未配置第二模型(设置→模型→批改模型)')
+  }
+  const model2 = secondIds ? resolveModel(secondIds.providerId, secondIds.modelId) : undefined
+  if (secondIds && !model2) {
+    throw new Error(`双评第二模型不存在: ${secondIds.providerId}/${secondIds.modelId}`)
+  }
+  if (model2 && !isVisionModel(model2)) {
+    throw new Error(`双评第二模型 ${model2.id} 不支持图像输入,请更换视觉模型`)
+  }
+  const apiKey2 = secondIds ? apiKeyFor(secondIds.providerId) : undefined
+  if (secondIds && !apiKey2) {
+    throw new Error(`双评第二模型 Provider ${secondIds.providerId} 未配置 API Key`)
+  }
 
   await gradingService.setStatus(taskId, 'grading')
   const controller = new AbortController()
@@ -457,7 +561,7 @@ export async function startGrading(
   log(
     'info',
     'grading',
-    `grading started: ${taskId} (pending=${pendingNow.length} identify=${willIdentify ? unassigned.length : 0}, ${model.provider}/${model.id})`,
+    `grading started: ${taskId} (pending=${pendingNow.length} identify=${willIdentify ? unassigned.length : 0}, ${model.provider}/${model.id}, strategy=${strategy}${secondIds ? ` + ${secondIds.providerId}/${secondIds.modelId}` : ''})`,
   )
 
   // 异步作业: 不 await,完成/失败经进度事件与任务状态体现
@@ -515,14 +619,44 @@ export async function startGrading(
             total: targets.length,
           })
           try {
-            const result = await gradePaperOnce(
+            const onStage = (info: StagedStageInfo) =>
+              pushProgress(win, {
+                taskId,
+                phase: 'stage',
+                paperId: paper.id,
+                studentName: paper.studentName ?? undefined,
+                index: i + 1,
+                total: targets.length,
+                stage: info.label,
+                stageIndex: info.index,
+                stageTotal: info.total,
+              })
+            const outcome = await gradePaperByStrategy(
               taskForGrade,
               paper.id,
               model,
+              model2,
               apiKey,
+              apiKey2,
               controller.signal,
+              onStage,
             )
-            await gradingService.saveAiResult(taskId, paper.id, result)
+            const result = outcome.result
+            await gradingService.saveAiResult(
+              taskId,
+              paper.id,
+              result,
+              outcome.secondary || (outcome.disputes?.length ?? 0) > 0
+                ? { aiSecondary: outcome.secondary, disputedQuestions: outcome.disputes }
+                : undefined,
+            )
+            if ((outcome.disputes?.length ?? 0) > 0) {
+              log(
+                'info',
+                'grading',
+                `dual disputes: ${taskId}/${paper.id}: ${outcome.disputes?.join(',')}`,
+              )
+            }
             gradedCount++
             inputTokens += result.usage?.input ?? 0
             cacheRead += result.usage?.cacheRead ?? 0
@@ -646,12 +780,32 @@ export async function regradePapers(
   }
   const apiKey = apiKeyFor(config.providerId)
   if (!apiKey) throw new Error(`Provider ${config.providerId} 未配置 API Key`)
+  // 批改策略与双评第二模型(沿用任务批改时的策略;双评缺第二模型同步报错)
+  const settings = settingsService.getSettings()
+  const strategy = normalizeGradingStrategy(task.gradingStrategy)
+  const secondIds = strategy === 'dual' ? resolveSecondaryGradingModelIds(settings) : null
+  if (strategy === 'dual' && !secondIds) {
+    throw new Error('双评模式未配置第二模型(设置→模型→批改模型)')
+  }
+  const model2 = secondIds ? resolveModel(secondIds.providerId, secondIds.modelId) : undefined
+  if (secondIds && !model2) {
+    throw new Error(`双评第二模型不存在: ${secondIds.providerId}/${secondIds.modelId}`)
+  }
+  if (model2 && !isVisionModel(model2)) {
+    throw new Error(`双评第二模型 ${model2.id} 不支持图像输入,请更换视觉模型`)
+  }
+  const apiKey2 = secondIds ? apiKeyFor(secondIds.providerId) : undefined
+  if (secondIds && !apiKey2) {
+    throw new Error(`双评第二模型 Provider ${secondIds.providerId} 未配置 API Key`)
+  }
 
   // 重置前快照旧结果: 重改失败/中止时回滚,不因一次模型抽风丢掉旧分数与复核
   const snapshots = new Map<
     string,
     {
       ai: GradingPaper['ai']
+      aiSecondary: GradingPaper['aiSecondary']
+      disputedQuestions: GradingPaper['disputedQuestions']
       review: GradingPaper['review']
       error?: string
       status: GradingPaper['status']
@@ -662,6 +816,8 @@ export async function regradePapers(
     if (!paper) throw new Error(`试卷不存在: ${paperId}`)
     snapshots.set(paperId, {
       ai: paper.ai,
+      aiSecondary: paper.aiSecondary,
+      disputedQuestions: paper.disputedQuestions,
       review: paper.review,
       error: paper.error,
       status: paper.status,
@@ -683,6 +839,8 @@ export async function regradePapers(
     try {
       await gradingService.applyPaperSnapshot(taskId, paperId, {
         ai: snap.ai,
+        aiSecondary: snap.aiSecondary,
+        disputedQuestions: snap.disputedQuestions,
         review: snap.review,
         error: newError ?? snap.error,
         status: newError ? 'failed' : snap.status,
@@ -714,19 +872,48 @@ export async function regradePapers(
         })
         try {
           // 重试一次: 小模型偶发空输出/非 JSON(实测 0.5s 瞬时失败),重试通常即过
-          let result: Awaited<ReturnType<typeof gradePaperOnce>> | null = null
+          const onStage = (info: StagedStageInfo) =>
+            pushProgress(win, {
+              taskId,
+              phase: 'stage',
+              paperId,
+              studentName: paper?.studentName ?? undefined,
+              index: i + 1,
+              total: ids.length,
+              stage: info.label,
+              stageIndex: info.index,
+              stageTotal: info.total,
+            })
+          let outcome: PaperGradeOutcome | null = null
           let lastErr: unknown = null
           for (let attempt = 0; attempt < 2 && !controller.signal.aborted; attempt++) {
             try {
-              result = await gradePaperOnce(taskForGrade, paperId, model, apiKey, controller.signal)
+              outcome = await gradePaperByStrategy(
+                taskForGrade,
+                paperId,
+                model,
+                model2,
+                apiKey,
+                apiKey2,
+                controller.signal,
+                onStage,
+              )
               break
             } catch (err) {
               lastErr = err
               if (controller.signal.aborted) throw err
             }
           }
-          if (!result) throw lastErr ?? new Error('批改未产出结果')
-          await gradingService.saveAiResult(taskId, paperId, result)
+          if (!outcome) throw lastErr ?? new Error('批改未产出结果')
+          const result = outcome.result
+          await gradingService.saveAiResult(
+            taskId,
+            paperId,
+            result,
+            outcome.secondary || (outcome.disputes?.length ?? 0) > 0
+              ? { aiSecondary: outcome.secondary, disputedQuestions: outcome.disputes }
+              : undefined,
+          )
           gradedCount++
           pushProgress(win, {
             taskId,

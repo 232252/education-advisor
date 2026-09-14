@@ -4,7 +4,14 @@
 // - 文件名 → 学生匹配建议(上传归组用)
 // =============================================================
 
-import type { AiGradeResult, GradingPaper, PresetMark, RubricQuestion } from './types'
+import type {
+  AiGradeResult,
+  AiQuestionResult,
+  GradingPaper,
+  GradingStrategy,
+  PresetMark,
+  RubricQuestion,
+} from './types'
 
 /** 页边批注全文最长字数(边栏空间有限,超出截断) */
 const MARK_NOTE_TEXT_MAX = 160
@@ -56,6 +63,66 @@ export function effectiveTotalScore(paper: Pick<GradingPaper, 'ai' | 'review'>):
 /** 量规满分合计 */
 export function rubricFullMark(rubric: RubricQuestion[]): number {
   return rubric.reduce((sum, q) => sum + (Number.isFinite(q.fullMark) ? q.fullMark : 0), 0)
+}
+
+// ===== 批改模式(流程档位)与双评合并 =====
+
+/** 合法批改模式 */
+export const GRADING_STRATEGIES: GradingStrategy[] = ['fast', 'standard', 'dual']
+
+/** 校验/归一批改模式;非法或缺失一律回落 standard(推荐档) */
+export function normalizeGradingStrategy(v: unknown): GradingStrategy {
+  return typeof v === 'string' && (GRADING_STRATEGIES as string[]).includes(v)
+    ? (v as GradingStrategy)
+    : 'standard'
+}
+
+/**
+ * 双评分差阈值(高考网上阅卷口径: 约题目分值的 1/6,至少 1 分):
+ * 两次评分差 ≤ 阈值取均值,超阈值记分歧交教师仲裁。
+ */
+export function dualTolerance(fullMark: number): number {
+  const full = Number.isFinite(fullMark) && fullMark > 0 ? fullMark : 0
+  return Math.max(1, Math.round(full / 6))
+}
+
+/** 双评取分: 阈值内取两次均值(四舍五入),越界保留主模型分(分歧由教师仲裁) */
+function dualEffectiveScore(a: number, b: number, fullMark: number): number {
+  const tol = dualTolerance(fullMark)
+  if (Math.abs(a - b) > tol) return a
+  const avg = Math.floor((a + b) / 2 + 0.5) // 四舍五入到整数分
+  return Math.min(Math.max(avg, 0), fullMark)
+}
+
+/**
+ * 双评合并: 以主模型结果为基底,逐题与第二模型比对 —
+ * 阈值内改写为均值分,超阈值保留主模型分并记入分歧清单。
+ * 只在主结果中出现的题照抄(第二模型缺题不扩散);总分按合并后逐题重算。
+ */
+export function mergeDualResults(
+  primary: AiGradeResult,
+  secondary: AiGradeResult,
+  rubric: RubricQuestion[],
+): { merged: AiGradeResult; disputes: string[] } {
+  const fullById = new Map(rubric.map((q) => [q.id, q.fullMark]))
+  const secondById = new Map(secondary.questions.map((q) => [q.questionId, q]))
+  const disputes: string[] = []
+  const questions: AiQuestionResult[] = primary.questions.map((p) => {
+    const full = fullById.get(p.questionId) ?? 0
+    const s = secondById.get(p.questionId)
+    if (!s || !Number.isFinite(s.score)) return p
+    if (Math.abs(p.score - s.score) > dualTolerance(full)) {
+      disputes.push(p.questionId)
+      return p
+    }
+    const score = dualEffectiveScore(p.score, s.score, full)
+    if (score === p.score) return p
+    return { ...p, score }
+  })
+  return {
+    merged: { ...primary, questions, totalScore: questions.reduce((sum, q) => sum + q.score, 0) },
+    disputes,
+  }
 }
 
 /**

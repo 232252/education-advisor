@@ -15,9 +15,17 @@ export type GradingTaskStatus = 'draft' | 'ready' | 'grading' | 'review' | 'publ
 
 /**
  * 批改口径(给分松紧): strict=按步从严/瑕疵必扣, normal=常规,
- * lenient=思路对从宽/小瑕疵少扣。影响批改 prompt 与批注风格,不改量规本身。
+ * lenient=思路对从宽/小瑕疵少扣。影响批改 prompt 的给分松紧,不改量规本身。
  */
 export type GradingStrictness = 'strict' | 'normal' | 'lenient'
+
+/**
+ * 批改模式(流程档位): fast=快改(整卷一次调用,不复验),
+ * standard=标准(逐题细改+定位裁剪+条件复验,推荐), dual=双评
+ * (两个视觉模型各自独立批改,阈值内取均值,分歧题交教师仲裁)。
+ * 与 gradingMode(给分松紧口径)正交。
+ */
+export type GradingStrategy = 'fast' | 'standard' | 'dual'
 
 /** 预设评分点(≈ gradeable_component_mark) */
 export interface PresetMark {
@@ -130,6 +138,10 @@ export interface GradingPaper {
   uploadedAt: string
   status: GradingPaperStatus
   ai?: AiGradeResult
+  /** 双评模式: 第二模型的独立批改结果(原始保留,供复核台双屏对比) */
+  aiSecondary?: AiGradeResult
+  /** 双评分歧题(两次评分差超阈值,置顶复核由教师仲裁) */
+  disputedQuestions?: string[]
   /** 批改失败原因 */
   error?: string
   review?: TeacherReview
@@ -150,6 +162,8 @@ export interface GradingTask {
   status: GradingTaskStatus
   /** 批改口径(缺省 normal);影响批改 prompt 的给分松紧 */
   gradingMode?: GradingStrictness
+  /** 批改模式(缺省 standard);fast/standard/dual 见 GradingStrategy */
+  gradingStrategy?: GradingStrategy
   rubric: RubricQuestion[]
   papers: GradingPaper[]
   createdAt: string
@@ -162,11 +176,16 @@ export interface GradingTask {
 /** AI 批改进度事件(主→渲染推送) */
 export interface GradingProgressEvent {
   taskId: string
-  phase: 'start' | 'identify' | 'graded' | 'failed' | 'done'
+  phase: 'start' | 'identify' | 'stage' | 'graded' | 'failed' | 'done'
   paperId?: string
   studentName?: string
   index?: number
   total?: number
+  /** phase=stage: 当前批次的阶段名(如「定位版面」「批改 三、计算题」) */
+  stage?: string
+  /** phase=stage: 批次序号(1 起)与该卷批次总数 */
+  stageIndex?: number
+  stageTotal?: number
   /** phase=graded: 本份得分; phase=failed: 错误信息 */
   score?: number
   error?: string

@@ -28,8 +28,11 @@ export const GradingModelConfig = memo(function GradingModelConfig({
   const { t } = useT()
   const [provider, setProvider] = useState('')
   const [model, setModel] = useState('')
+  const [provider2, setProvider2] = useState('')
+  const [model2, setModel2] = useState('')
   const [saveToast, setSaveToast] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshing2, setRefreshing2] = useState(false)
   const setSaveToastAuto = useAutoDismiss<string>(setSaveToast, '', 3000)
   const initialLoadDone = useRef(false)
 
@@ -41,6 +44,8 @@ export const GradingModelConfig = memo(function GradingModelConfig({
         const settings = await getAPI().settings.get()
         setProvider(settings?.grading?.provider || '')
         setModel(settings?.grading?.model || '')
+        setProvider2(settings?.grading?.provider2 || '')
+        setModel2(settings?.grading?.model2 || '')
       } catch (err) {
         console.error('[GradingModelConfig] Failed to load settings:', err)
       }
@@ -75,6 +80,35 @@ export const GradingModelConfig = memo(function GradingModelConfig({
   const handleModelChange = (value: string) => {
     setModel(value)
     void save('grading.model', value)
+  }
+
+  // 双评第二模型(独立 provider/model;换 provider 时清模型)
+  const visionModels2 = (provider2 ? (modelsMap[provider2] ?? []) : []).filter(
+    (m) => m.supportsImage === true,
+  )
+  const isLoadingModels2 = provider2 ? (modelsLoading[provider2] ?? false) : false
+
+  const handleProvider2Change = (value: string) => {
+    setProvider2(value)
+    setModel2('')
+    void save('grading.provider2', value)
+    void save('grading.model2', '')
+    if (value) void onRefreshModels(value)
+  }
+
+  const handleModel2Change = (value: string) => {
+    setModel2(value)
+    void save('grading.model2', value)
+  }
+
+  const handleRefresh2 = async () => {
+    if (!provider2) return
+    setRefreshing2(true)
+    try {
+      await onRefreshModels(provider2)
+    } finally {
+      setRefreshing2(false)
+    }
   }
 
   const handleRefresh = async () => {
@@ -184,6 +218,91 @@ export const GradingModelConfig = memo(function GradingModelConfig({
             )}
           </>
         )}
+
+        <div className="border-t border-gray-200 pt-4 dark:border-white/[0.06]">
+          <div className="mb-3">
+            <h3 className="text-sm font-semibold">
+              {t('page.grading.model.secondTitle', '第二模型（双评批改用）')}
+            </h3>
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {t(
+                'page.grading.model.secondDesc',
+                '「双评」批改模式的第二位阅卷 AI，与主模型独立批改后交叉比对；不配置时双评任务无法启动',
+              )}
+            </p>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                {t('page.models.default.provider', '默认 Provider')}
+              </span>
+              <select
+                value={provider2}
+                onChange={(e) => handleProvider2Change(e.target.value)}
+                className={cn(INPUT_BASE, 'w-80')}
+              >
+                <option value="">{t('page.grading.model.secondNone', '不配置（禁用双评）')}</option>
+                {configuredProviders.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {provider2 && (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500 dark:text-gray-500">
+                    {isLoadingModels2
+                      ? t('page.models.provider.loadingModels')
+                      : tr('page.models.default.modelsAvailable', { count: visionModels2.length })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRefresh2}
+                    disabled={refreshing2 || isLoadingModels2}
+                    className={btnStyle('secondary')}
+                    aria-label={t('page.models.default.refresh', '刷新模型列表')}
+                  >
+                    {refreshing2 || isLoadingModels2
+                      ? t('page.models.default.refreshing')
+                      : t('page.models.default.refreshList')}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {t('page.grading.model.pick', '视觉模型')}
+                  </span>
+                  <select
+                    value={model2}
+                    onChange={(e) => handleModel2Change(e.target.value)}
+                    disabled={visionModels2.length === 0}
+                    className={cn(INPUT_BASE, 'w-80')}
+                  >
+                    <option value="">{t('common.select', '请选择...')}</option>
+                    {visionModels2.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {tr('page.models.default.optionCost', {
+                          name: m.name,
+                          in: formatCost(m.costPerInputToken),
+                          out: formatCost(m.costPerOutputToken),
+                        })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {visionModels2.length === 0 && !isLoadingModels2 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    {t(
+                      'page.grading.model.noVision',
+                      '该 Provider 暂无已知视觉模型（可刷新或更换 Provider）',
+                    )}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
