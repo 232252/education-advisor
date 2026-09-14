@@ -19,6 +19,11 @@ import { createEmailAdapter } from '../services/channels/adapters/email'
 import { createMqttAdapter } from '../services/channels/adapters/mqtt'
 import { createYuanbaoAdapter } from '../services/channels/adapters/yuanbao'
 import { createXiaoyiAdapter } from '../services/channels/adapters/xiaoyi'
+import { createDiscordAdapter } from '../services/channels/adapters/discord'
+import { createTelegramAdapter } from '../services/channels/adapters/telegram'
+import { createSlackAdapter } from '../services/channels/adapters/slack'
+import { createMatrixAdapter } from '../services/channels/adapters/matrix'
+import { createMattermostAdapter } from '../services/channels/adapters/mattermost'
 import { channelLoginSessions } from '../services/channels/login/session-manager'
 import { buildQwenpawPendingManifests } from '@shared/channel-catalog'
 import { channelManager } from '../services/channels/manager'
@@ -37,6 +42,11 @@ function registerChannelRegistry(): void {
   channelManager.register(createMqttAdapter)
   channelManager.register(createYuanbaoAdapter)
   channelManager.register(createXiaoyiAdapter)
+  channelManager.register(createDiscordAdapter)
+  channelManager.register(createTelegramAdapter)
+  channelManager.register(createSlackAdapter)
+  channelManager.register(createMatrixAdapter)
+  channelManager.register(createMattermostAdapter)
   // QwenPaw 全量目录占位(「更多」Drawer);已实现 id 不会覆盖 adapters
   for (const manifest of buildQwenpawPendingManifests()) {
     if (channelManager.getAdapter(manifest.id)) continue
@@ -117,3 +127,4 @@ export function registerChannelHandlers(win: BrowserWindow): void {
 
   console.log('[IPC] Channel handlers registered')
 }
+
