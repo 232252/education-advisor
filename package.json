@@ -83,7 +83,7 @@
     "electron-updater": "^6.8.9",
     "mqtt": "^5.15.2",
     "node-cron": "^4.6.0",
-    "nodemailer": "^7.0.9",
+    "nodemailer": "^7.0.13",
     "pdfjs-dist": "^6.3.289",
     "pinyin-pro": "^3.29.3",
     "selfsigned": "^2.4.1",
@@ -103,6 +103,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/cross-spawn": "^6.0.6",
     "@types/node": "^26.1.2",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
@@ -128,8 +129,7 @@
     "typescript": "^7.0.2",
     "vite": "^8.2.0",
     "vitest": "^4.1.10",
-    "zustand": "^5.0.14",
-    "@types/nodemailer": "^6.4.17"
+    "zustand": "^5.0.14"
   },
   "allowScripts": {
     "electron@43.2.0": true,
