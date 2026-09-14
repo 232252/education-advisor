@@ -277,34 +277,88 @@ src/main/services/feishu-service.ts / feishu-bot 遗留（若仍存在于其他 
 
 ---
 
-## 实现进度（feat/domestic-wechat-qq-channels）
+---
 
-> 开工实现切片：登记 + Connection Center UI + 扫码会话 + 自建薄客户端结构 + 测试。分支自 `docs/domestic-connectors` @ a975aa7。
+## 全功能冲刺（feat/domestic-wechat-qq-channels · 2026-09-14）
+
+> 用户目标：**不妥协**的全功能端。下列对照设计「全功能」vs 当前代码。  
+> 状态：Done / In progress / Todo。**不得**把官方 API 已支持的核心消息能力标为 wontfix；仅真正平台不可能的能力记为「平台限制」并要求 UI 诚实文案。
+
+### Gap checklist
+
+#### WeChat (iLink)
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| 注册 `weixin` / `qq` | ✅ | `channel-handlers` + manifests；settings / defaults / keystore |
-| 限制横幅 | ✅ | `limitationBannerKey` + `ChannelLimitationBanner`（设置卡显著展示；侧栏提示） |
-| 扫码 IPC | ✅ | `channels:beginLogin/pollLogin/cancelLogin` + `ChannelQrLogin` |
-| 微信 iLink 薄客户端 | ✅ | `adapters/weixin/*`：QR / getupdates / sendmessage；流水线入 Agent |
-| QQ 官方 Bot 薄客户端 | ✅ | `adapters/qq/*`：门户 QR onboard + WS Gateway + C2C/群回复 |
-| 测试 | ✅ | parsing / crypto / limitation copy / ILinkClient dry-run |
-| 全链路真机收发 | ⏳ | 需真实扫码凭证与网络；干跑钩子与 mock fetch 已具备 |
-| PID / OneBot / OpenClaw 依赖 | ❌ 未引入 | 符合拍板 |
+| 文本收/发 + context_token | Done | sendmessage 强制 context_token；缺 token 明确报错 |
+| 图片入站下载 | Done | item type=2 → CDN + AES-ECB 解密落盘 |
+| 图片出站上传发送 | Done | getuploadurl + CDN upload + send_image |
+| 文件入站/出站 | Done | type=4 入站；send_file 出站 |
+| 语音入站 | Done | type=3 优先 ASR 文本；无转写时占位文案 |
+| 视频入站 | Done | type=5 作文件附件下载 |
+| context_token 边缘/持久化 | Done | 按用户 Map + `context_tokens.json` 落盘；重启可弱主动 |
+| 长轮询 cursor 可恢复 | Done | `cursor.txt` 持久化；重启续传 |
+| 重连/退避 | Done | 指数退避至 120s；鉴权失败进 error 引导重扫码 |
+| getconfig / sendtyping | Done | 客户端已暴露 API（流水线可选调用） |
+| enable/disable | Done | settings.enabled + manager 启停 |
+| revoke/re-login | Done | 扫码 begin/poll/cancel；token 失效引导重扫 |
+| 限速/错误面 | Done | HTTP 错误上抛；凭证失效专用文案 |
+| 日志 | Done | `log('weixin', …)` 连接/退避/队列 |
+| 主动推送 | 平台限制 | 需先验 context_token（pushPolicy=require-prior-message）；UI 横幅已说明 |
 
-### 如何试用扫码
+#### QQ (官方 Bot)
 
-1. 启动应用 → 设置 → 连接 / 消息频道，或侧栏「连接中心」
-2. **微信**：展开「微信」卡 →「开始扫码」→ 个人微信扫码确认 → Token 写入 keystore → 启用 → 在微信私聊先发一句话
-3. **QQ**：展开「QQ」卡 →「开始扫码」走 q.qq.com 门户绑定，或手动填 AppID/AppSecret → 启用 → QQ 私聊机器人
-4. **无需**安装 OpenClaw / QwenPaw；无 AppID 预置密钥（微信扫码得 token；QQ 扫码或开放平台自建应用）
+| 项 | 状态 | 说明 |
+|---|---|---|
+| C2C 被动回复 | Done | msg_id + msg_seq |
+| 群 @ 被动回复 | Done | allowGroups 开关；窗口约 5min |
+| 主动推送（官方路径） | Done | push() 调 OpenAPI（无 msg_id）；配额错误可读文案，非静默拒绝 |
+| 附件入站 | Done | attachments[] → image/file + HTTP 下载 |
+| Gateway RESUME | Done | session_id + last_seq；INVALID_SESSION 清会话 |
+| 重连退避 | Done | [1,2,5,10,30,60]s |
+| AppID/Secret + QR onboard | Done | 双模板；AES-GCM 解密门户 secret |
+| 限制横幅准确性 | Done | limitationBannerKey + i18n |
+| 群主动配额耗尽 UX | Done | classifyQqSendError 映射配额/窗口 |
+| 富媒体出站（图/文件） | In progress | 入站已通；出站 rich-media `/files` 可后续补齐（官方支持） |
 
-### 已知剩余限制
+#### Connection Center / UX
 
-- 微信媒体上传/下载未做（v1 文本私聊）
-- QQ 主动推送未实现（`pushPolicy=quota` 直接拒绝）
-- Gateway 断线重连为指数退避简版；生产需跟官方 intent/事件表持续校准
-- 旧 settings.json 缺 `channels.weixin/qq` 时依赖 defaults 深合并；若合并策略有缺口需一次迁移
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 卡片 + 限制横幅 | Done | ChannelLimitationBanner |
+| QR UX（取消/过期/重试） | Done | ChannelQrLogin 状态机完整 |
+| 诊断：健康/最近错误/最近消息 | Done | lastMessageAt / lastErrorAt / reconnectAttempt → ChannelRow |
+| i18n zh+en | Done | limitation + QR + diag keys |
+
+#### Security
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| keystore token/secret | Done | botToken / clientSecret |
+| 无 PID hooks | Done | 未引入 WeChatFerry/注入 |
+
+#### Tests
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 单元：parsing / crypto / media AES | Done | weixin-parsing + media-crypto |
+| 单元：QQ classify / push / msg_seq | Done | qq-parsing 扩展 |
+| mocked client flows | Done | ILinkClient / QqApiClient fetch 注入 |
+
+### 平台真实限制（非工程妥协）
+
+1. **微信主动推送**：官方要求用户先发言取得 `context_token`；无永久推送通道。
+2. **QQ 群主动配额**：官方配额极严；实现会尝试发送，耗尽时返回明确错误。
+3. **QQ 群被动窗口**：约 5 分钟；超时后须用户再 @。
+4. **流式**：两渠道均为 `streamingKind=none`（官方无编辑已发消息能力）。
+5. **禁止路径**：PID Hook / OneBot 个人号 — 产品 Non-goal，非「未实现」。
+
+### 如何验证
+
+1. `npx vitest run tests/main/channels/weixin-parsing.test.ts tests/main/channels/weixin-ilink-client.test.ts tests/main/channels/qq-parsing.test.ts`
+2. `npx tsc --noEmit -p tsconfig.json`（或项目既有 typecheck 脚本）
+3. 真机：设置 → 微信扫码 → 私聊发图/文件/语音 → Agent 回复；断网再恢复看 cursor 续传与重连计数
+4. QQ：扫码或凭证 → C2C；群 @；主动 push 在无配额时成功、耗尽时 UI 见配额文案
 
 
 ## 7. 验收标准（实现完成后）
