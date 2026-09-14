@@ -62,6 +62,7 @@ interface TaskDetailProps {
   onAssignPaper: (taskId: string, paperId: string, studentName: string | null) => Promise<boolean>
   onRemovePaper: (taskId: string, paperId: string) => Promise<boolean>
   onRunGrading: (taskId: string, roster?: GradingRosterEntry[]) => Promise<boolean>
+  onRegradePapers: (taskId: string, paperIds: string[]) => Promise<boolean>
   onIdentifyPapers: (taskId: string, roster: GradingRosterEntry[]) => Promise<boolean>
   onAbortGrading: (taskId: string) => Promise<boolean>
   onRefresh: () => Promise<void>
@@ -82,6 +83,7 @@ export function TaskDetail({
   onAssignPaper,
   onRemovePaper,
   onRunGrading,
+  onRegradePapers,
   onIdentifyPapers,
   onAbortGrading,
   onRefresh,
@@ -486,6 +488,11 @@ export function TaskDetail({
                 : undefined
             }
             exportMarksLoading={marksPrint.loading}
+            onRegrade={
+              !running && task.status !== 'draft' && task.status !== 'ready'
+                ? (paperId) => onRegradePapers(task.id, [paperId])
+                : undefined
+            }
             onIdentify={
               unassignedCount > 0 &&
               roster.length > 0 &&

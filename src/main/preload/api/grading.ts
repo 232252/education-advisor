@@ -37,6 +37,9 @@ export const gradingApi: GradingAPI = {
   // [w] 启动 AI 批改(异步作业,进度经 onProgress)
   run: (taskId: string, roster?: GradingRosterEntry[]) =>
     ipcInvoke(IPC.IPC_GRADING_RUN, taskId, roster),
+  // [w] 重改指定试卷(覆盖上次 AI 结果与复核)
+  regrade: (taskId: string, paperIds: string[]) =>
+    ipcInvoke(IPC.IPC_GRADING_REGRADE, taskId, paperIds),
   // [w] 中止批改
   abort: (taskId: string) => ipcInvoke(IPC.IPC_GRADING_ABORT, taskId),
   // [event] 批改进度

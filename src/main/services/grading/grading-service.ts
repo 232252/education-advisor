@@ -39,7 +39,7 @@ const ALLOWED_TRANSITIONS: Record<GradingTaskStatus, GradingTaskStatus[]> = {
   ready: ['grading', 'draft'],
   grading: ['review', 'ready'], // ready = 批改中止/全部失败回退
   review: ['published', 'grading'],
-  published: ['review'], // 发布后发现错误 → 回复核改分后重新发布
+  published: ['review', 'grading'], // 重改 = 重跑 AI 后回复核再重新发布
 }
 
 function newId(prefix: string): string {
@@ -449,6 +449,28 @@ class GradingService {
       const paper = this.findPaper(task, paperId)
       paper.status = 'failed'
       paper.error = error
+      task.updatedAt = new Date().toISOString()
+      await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
+      return task
+    })
+  }
+
+  /**
+   * 重改前置重置: 清掉上次的 AI 结果/复核/失败原因,回到 pending。
+   * 归属(studentName/identity)与扫描件保留;已发布任务重改后需重新发布。
+   */
+  async resetPaperForRegrade(taskId: string, paperId: string): Promise<GradingTask> {
+    assertTaskId(taskId)
+    assertPaperId(paperId)
+    return this.withTaskLock(taskId, async () => {
+      const task = await this.getTask(taskId)
+      if (task.status === 'grading') throw new Error('任务正在批改中,不能重改')
+      const paper = this.findPaper(task, paperId)
+      if (paper.files.length === 0) throw new Error('该试卷没有扫描件,无法重改')
+      paper.ai = undefined
+      paper.review = undefined
+      paper.error = undefined
+      paper.status = 'pending'
       task.updatedAt = new Date().toISOString()
       await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
       return task

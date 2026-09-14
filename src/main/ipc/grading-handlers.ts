@@ -8,7 +8,7 @@ import type { StudentCandidate } from '@shared/grading-helpers'
 import * as IPC from '@shared/ipc-channels'
 import type { GradingTaskStatus, TeacherReview } from '@shared/types'
 import type { BrowserWindow } from 'electron'
-import { abortGrading, startGrading } from '../services/grading/grading-pipeline'
+import { abortGrading, regradePapers, startGrading } from '../services/grading/grading-pipeline'
 import { gradingService } from '../services/grading/grading-service'
 import { identifyUnassignedPapers } from '../services/grading/identify-papers'
 import { extractRubricFromImages } from '../services/grading/rubric-extract'
@@ -119,6 +119,23 @@ export function registerGradingHandlers(win: BrowserWindow): void {
     if (typeof taskId !== 'string' || taskId.length === 0)
       throw new Error('taskId 必须是非空字符串')
     await startGrading(taskId, win, parseRoster(roster))
+    return { success: true }
+  })
+
+  // 重改指定试卷(异步作业: 覆盖上次 AI 结果与复核,进度经 grading:progress)
+  handleIpc(IPC.IPC_GRADING_REGRADE, async (_e, taskId: string, paperIds: unknown) => {
+    if (typeof taskId !== 'string' || taskId.length === 0) {
+      throw new Error('taskId 必须是非空字符串')
+    }
+    if (
+      !Array.isArray(paperIds) ||
+      paperIds.length === 0 ||
+      paperIds.length > 200 ||
+      paperIds.some((p) => typeof p !== 'string' || p.length === 0)
+    ) {
+      throw new Error('paperIds 必须是 1~200 个非空字符串')
+    }
+    await regradePapers(taskId, paperIds as string[], win)
     return { success: true }
   })
 
