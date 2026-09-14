@@ -1,6 +1,6 @@
 // =============================================================
 // adapters/qq/gateway — QQ Bot WebSocket Gateway 薄客户端
-// 可注入 WsFactory / fetch 便于干跑测试(对齐钉钉 stream-client 的 WsLike)
+// RESUME + 指数退避重连 + session_id/last_seq 保持
 // =============================================================
 
 import { EventEmitter } from 'node:events'
@@ -14,7 +14,10 @@ import {
   QQ_OP_HEARTBEAT,
   QQ_OP_HELLO,
   QQ_OP_IDENTIFY,
+  QQ_OP_INVALID_SESSION,
   QQ_OP_RECONNECT,
+  QQ_OP_RESUME,
+  QQ_RECONNECT_DELAYS_MS,
 } from './constants'
 import { fetchQqAccessToken, fetchQqGatewayUrl, type FetchLike } from './token'
 
@@ -48,11 +51,18 @@ export class QqGatewayClient extends EventEmitter {
   private ws: WsLike | null = null
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
   private lastSeq: number | null = null
+  private sessionId: string | null = null
   private stopped = false
   private reconnectAttempt = 0
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private accessToken = ''
 
   constructor(private readonly opts: QqGatewayOptions) {
     super()
+  }
+
+  getReconnectAttempt(): number {
+    return this.reconnectAttempt
   }
 
   async connect(): Promise<void> {
@@ -64,6 +74,7 @@ export class QqGatewayClient extends EventEmitter {
       this.opts.clientSecret,
       fetchImpl,
     )
+    this.accessToken = tokenCache.accessToken
     const url = await fetchQqGatewayUrl(
       tokenCache.accessToken,
       this.opts.apiBase || QQ_DEFAULT_API_BASE,
@@ -96,7 +107,7 @@ export class QqGatewayClient extends EventEmitter {
       ws.on('error', onError)
     })
 
-    ws.on('message', (raw) => this.onMessage(raw, tokenCache.accessToken))
+    ws.on('message', (raw) => this.onMessage(raw))
     ws.on('close', () => {
       this.clearHeartbeat()
       if (!this.stopped) {
@@ -109,7 +120,7 @@ export class QqGatewayClient extends EventEmitter {
     })
   }
 
-  private onMessage(raw: Buffer | string, accessToken: string): void {
+  private onMessage(raw: Buffer | string): void {
     let payload: { op?: number; s?: number | null; t?: string; d?: unknown }
     try {
       payload = JSON.parse(String(raw))
@@ -122,29 +133,61 @@ export class QqGatewayClient extends EventEmitter {
       const d = (payload.d as { heartbeat_interval?: number }) || {}
       const interval = Number(d.heartbeat_interval ?? 41250)
       this.startHeartbeat(interval)
-      this.sendIdentify(accessToken)
+      if (this.sessionId && this.lastSeq != null) {
+        this.sendResume()
+      } else {
+        this.sendIdentify()
+      }
       return
     }
     if (op === QQ_OP_DISPATCH) {
       const t = String(payload.t ?? '')
+      if (t === 'READY') {
+        const d = (payload.d as { session_id?: string }) || {}
+        if (d.session_id) this.sessionId = String(d.session_id)
+        this.reconnectAttempt = 0
+        this.emit('status', 'connected')
+      } else if (t === 'RESUMED') {
+        this.reconnectAttempt = 0
+        this.emit('status', 'connected')
+      }
       if (t) this.opts.onDispatch(t, payload.d)
-      if (t === 'READY') this.emit('status', 'connected')
       return
     }
     if (op === QQ_OP_RECONNECT) {
       this.ws?.close()
+      return
+    }
+    if (op === QQ_OP_INVALID_SESSION) {
+      const canResume = Boolean(payload.d)
+      if (!canResume) {
+        this.sessionId = null
+        this.lastSeq = null
+      }
+      this.ws?.close()
     }
   }
 
-  private sendIdentify(accessToken: string): void {
+  private sendIdentify(): void {
     const intents =
       QQ_INTENT_GROUP_AND_C2C | QQ_INTENT_PUBLIC_GUILD_MESSAGES | QQ_INTENT_DIRECT_MESSAGE
     this.send({
       op: QQ_OP_IDENTIFY,
       d: {
-        token: `QQBot ${accessToken}`,
+        token: `QQBot ${this.accessToken}`,
         intents,
         shard: [0, 1],
+      },
+    })
+  }
+
+  private sendResume(): void {
+    this.send({
+      op: QQ_OP_RESUME,
+      d: {
+        token: `QQBot ${this.accessToken}`,
+        session_id: this.sessionId,
+        seq: this.lastSeq,
       },
     })
   }
@@ -171,9 +214,15 @@ export class QqGatewayClient extends EventEmitter {
 
   private scheduleReconnect(): void {
     if (this.stopped) return
-    const delay = Math.min(30_000, 1000 * 2 ** Math.min(this.reconnectAttempt, 5))
+    if (this.reconnectTimer) return
+    const delay =
+      QQ_RECONNECT_DELAYS_MS[
+        Math.min(this.reconnectAttempt, QQ_RECONNECT_DELAYS_MS.length - 1)
+      ] ?? 30_000
     this.reconnectAttempt++
-    setTimeout(() => {
+    this.emit('reconnect', this.reconnectAttempt, delay)
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
       if (this.stopped) return
       void this.connect().catch((err) => {
         this.emit('status', 'error', err instanceof Error ? err.message : String(err))
@@ -185,6 +234,10 @@ export class QqGatewayClient extends EventEmitter {
   stop(): void {
     this.stopped = true
     this.clearHeartbeat()
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
     try {
       this.ws?.close()
     } catch {

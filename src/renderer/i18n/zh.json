@@ -1967,5 +1967,9 @@
   "channels.qr.error": "扫码失败",
   "channels.qr.cancel": "取消",
   "channels.qr.retry": "重新扫码",
-  "connectionCenter.limitationHint": "有能力限制"
+  "connectionCenter.limitationHint": "有能力限制",
+  "connectionCenter.diag.lastMsg": "最近消息",
+  "connectionCenter.diag.reconnect": "重连",
+  "connectionCenter.diag.lastError": "最近错误"
 }
+

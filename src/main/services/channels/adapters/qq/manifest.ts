@@ -25,7 +25,7 @@ export const qqManifest: ChannelManifest = {
     replyWindowMs: QQ_GROUP_REPLY_WINDOW_MS,
     streamWindowMs: null,
     pushPolicy: 'quota',
-    receivesFiles: false,
+    receivesFiles: true,
   },
   configSchema: [
     {
@@ -68,3 +68,4 @@ export const qqManifest: ChannelManifest = {
     ],
   },
 }
+

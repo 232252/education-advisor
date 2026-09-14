@@ -34,3 +34,7 @@ export const RECEIVED_FILES_DIR_NAME = 'channels/qq/files'
 
 /** 扫码 onboard 的 source 标识(门户统计用) */
 export const QQ_BIND_SOURCE = 'education-advisor'
+
+/** Gateway 断线重连退避(秒级对齐官方实践) */
+export const QQ_RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000, 60_000] as const
+
