@@ -45,17 +45,33 @@ describe('buildRubricExtractPrompt', () => {
     expect(prompt).toContain('AI 草稿') // 自答草稿的确认钩子
     expect(prompt).toContain('"questions"')
     expect(prompt).toContain('只输出')
+    expect(prompt).toContain('"type"') // 题类契约(客观/主观)
+    expect(prompt).toContain('objective')
   })
 })
 
 describe('parseRubricExtractResponse', () => {
-  it('标准 JSON 解析', () => {
+  it('标准 JSON 解析(含题类)', () => {
     const r = parseRubricExtractResponse(
-      '{"questions":[{"title":"一、选择题","fullMark":50,"referenceAnswer":"1-5 BACDA"},{"title":"二、解答题","fullMark":20}]}',
+      '{"questions":[{"title":"一、选择题","type":"objective","fullMark":50,"referenceAnswer":"1-5 BACDA"},{"title":"二、解答题","fullMark":20}]}',
     )
     expect(r).toHaveLength(2)
-    expect(r[0]).toEqual({ title: '一、选择题', fullMark: 50, referenceAnswer: '1-5 BACDA' })
+    expect(r[0]).toEqual({
+      title: '一、选择题',
+      fullMark: 50,
+      type: 'objective',
+      referenceAnswer: '1-5 BACDA',
+    })
+    expect(r[1]?.type).toBeUndefined()
     expect(r[1]?.referenceAnswer).toBeUndefined()
+  })
+
+  it('type 白名单外的值丢弃为 undefined', () => {
+    const r = parseRubricExtractResponse(
+      '{"questions":[{"title":"甲","type":"essay","fullMark":5},{"title":"乙","type":"subjective","fullMark":5}]}',
+    )
+    expect(r[0]?.type).toBeUndefined()
+    expect(r[1]?.type).toBe('subjective')
   })
 
   it('剥离 markdown 围栏与前后噪声', () => {

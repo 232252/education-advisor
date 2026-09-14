@@ -77,7 +77,7 @@ describe('resolveGradingModelIds', () => {
 })
 
 describe('buildGradingPrompt', () => {
-  it('注入题目 id/满分/评分标准与 JSON 契约', () => {
+  it('注入题目 id/题类/满分/评分标准与 JSON 契约', () => {
     const prompt = buildGradingPrompt(RUBRIC)
     expect(prompt).toContain('q-1')
     expect(prompt).toContain('q-2')
@@ -85,6 +85,18 @@ describe('buildGradingPrompt', () => {
     expect(prompt).toContain('BACDA')
     expect(prompt).toContain('"questions"')
     expect(prompt).toContain('只输出')
+    // 题类标注: 选择题→客观,解答题→主观(标题关键词推导)
+    expect(prompt).toContain('客观')
+    expect(prompt).toContain('主观')
+  })
+
+  it('红笔痕迹契约: 每题都给 box,comment 仅主观题 30 字以内', () => {
+    const prompt = buildGradingPrompt(RUBRIC)
+    expect(prompt).toContain('box 每题都要给')
+    expect(prompt).toContain('全对的题也要给')
+    expect(prompt).toContain('仅主观题')
+    expect(prompt).toContain('30 字以内')
+    expect(prompt).toContain('客观题(选择/填空/判断)不要写 comment')
   })
 
   it('有评分点时注入 marks 契约并从满分加减', () => {

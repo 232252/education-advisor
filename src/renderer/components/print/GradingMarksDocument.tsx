@@ -1,6 +1,8 @@
 // =============================================================
-// GradingMarksDocument — 批阅痕迹打印版式
-// 每份试卷: 页眉(学生/总分) → 逐题得分表 → 总评 → 扫描件叠红框。
+// GradingMarksDocument — 批阅痕迹打印版式(两种模式)
+// paper(痕迹卷,默认): 原卷扫描件整页输出,红笔痕迹(✓/✗/得分/页边批注)
+//   直接落在原卷对应位置 —— 就是一张"批过的原卷",无页眉无得分表。
+// report(批阅报告): 页眉(学生/总分) → 逐题得分表 → 总评 → 卷面页。
 // 打印对话框选「另存为 PDF」或送到打印机;多份试卷自动分页。
 // =============================================================
 
@@ -20,21 +22,58 @@ export interface GradingMarksPaperView {
   imageUrls: string[]
 }
 
+/** 打印模式: 痕迹卷(原卷落痕) / 批阅报告(得分表+卷面) */
+export type GradingMarksMode = 'paper' | 'report'
+
 interface GradingMarksDocumentProps {
   task: Pick<GradingTask, 'name' | 'semester' | 'className' | 'examDate' | 'rubric'>
   papers: GradingMarksPaperView[]
+  mode?: GradingMarksMode
   generatedAt?: Date
 }
 
 export function GradingMarksDocument({
   task,
   papers,
+  mode = 'paper',
   generatedAt = new Date(),
 }: GradingMarksDocumentProps) {
   const { t } = useT()
   const stamp = printStamp(generatedAt)
   const fullMark = rubricFullMark(task.rubric)
 
+  // ===== 痕迹卷: 原卷整页 + 红笔痕迹,每份卷尾一行小字防全班混卷 =====
+  if (mode === 'paper') {
+    return (
+      <div className="text-gray-900">
+        {papers.map((item) => {
+          const { paper } = item
+          const total = effectiveTotalScore(paper)
+          const overlays = paperMarkOverlays(paper, task.rubric)
+          const student = paper.studentName ?? t('print.gradingMarks.unassigned', '未归组')
+          return (
+            <section key={paper.id} className="marked-paper-student">
+              <PaperScanPages
+                imageUrls={item.imageUrls}
+                overlays={overlays}
+                variant="print"
+                paper
+                emptyLabel={t('print.gradingMarks.noScans', '本份试卷没有扫描件')}
+              />
+              <p className="mt-0.5 text-right text-[8px] text-gray-400">
+                {student} · {total ?? '—'}/{fullMark}
+                {item.imageUrls.length > 1
+                  ? ` · ${tr('print.gradingMarks.page', { n: item.imageUrls.length }, '共 {n} 页')}`
+                  : ''}
+              </p>
+            </section>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // ===== 批阅报告: 页眉 + 逐题得分表 + 总评 + 卷面页 =====
   return (
     <div className="text-gray-900">
       {papers.map((item, idx) => {
@@ -73,7 +112,10 @@ export function GradingMarksDocument({
             </div>
 
             <p className="mt-2 text-[10px] text-red-700">
-              {t('print.gradingMarks.legend', '红框为批阅痕迹（扣分或评语位置）')}
+              {t(
+                'print.gradingMarks.legend',
+                '✓ 全对 · ✗ 零分 · 数字为该题得分；红笔字迹为页边批注',
+              )}
             </p>
 
             <table className="mt-3 w-full border-collapse text-xs">

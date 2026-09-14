@@ -81,6 +81,7 @@
     "better-sqlite3": "^13.0.2",
     "cross-spawn": "^7.0.6",
     "electron-updater": "^6.8.9",
+    "lxgw-wenkai-webfont": "^1.7.0",
     "node-cron": "^4.6.0",
     "pdfjs-dist": "^6.3.289",
     "pinyin-pro": "^3.29.3",

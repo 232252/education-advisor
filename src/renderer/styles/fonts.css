@@ -1,4 +1,13 @@
 /* =============================================================
+   阅卷红笔手写体(批注/✓/✗/得分): 霞鹜文楷 LXGW WenKai Light。
+   只引 light 单字重(97 个 unicode-range 分片,按需加载):
+   观感是细笔楷书,省墨且贴近老师红笔字。回退链见 .handwriting-mark
+   (globals.css): KaiTi/楷体/STKaiti。
+   注意: @import 必须位于本文件所有规则之前(CSS 规范),否则被丢弃。
+   ============================================================= */
+@import 'lxgw-wenkai-webfont/lxgwwenkai-light.css';
+
+/* =============================================================
    西文字体 latin 子集声明(Inter Variable 主字体)
    取代 @fontsource-variable/inter 整包导入: 整包含 7 个 unicode 子集
    (西里尔/希腊/越南语等),本应用 UI 为中文+西文,仅 latin/latin-ext
@@ -29,7 +38,7 @@
   src: url("../../../node_modules/@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2")
     format("woff2-variations");
   unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
-    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
-    U+2113, U+2C60-2C7F, U+A720-A7FF;
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
 }

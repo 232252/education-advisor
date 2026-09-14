@@ -190,6 +190,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* ─── 阅卷红笔手写体(批注/✓/✗/得分): 霞鹜文楷细体,回退系统楷体 ─── */
+.handwriting-mark {
+  font-family: 'LXGW WenKai', 'KaiTi', '楷体', 'STKaiti', 'Kaiti SC', 'TW-Kai', serif;
+  font-weight: 300;
+}
+
 /* ─── 渐变文字(统计数字/强调标题) ─── */
 .text-gradient {
   background: linear-gradient(135deg, #3b82f6 0%, #6366f1 60%, #8b5cf6 100%);
@@ -442,7 +448,7 @@ body {
     print-color-adjust: exact;
   }
 
-  /* 批阅痕迹: 每份试卷另起一页;扫描件尽量不断开 */
+  /* 批阅痕迹报告: 每份试卷另起一页;扫描件尽量不断开 */
   .print-root .grading-marks-paper:not(:last-of-type) {
     page-break-after: always;
     break-after: page;
@@ -450,5 +456,19 @@ body {
   .print-root .grading-marks-scan {
     page-break-inside: avoid;
     break-inside: avoid;
+  }
+
+  /* 痕迹卷: 原卷每页独占一张纸(页内不被切断),下一份卷另起一页 */
+  .print-root .marked-paper-student .marked-paper-page {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .print-root .marked-paper-student .marked-paper-page:not(:last-of-type) {
+    page-break-after: always;
+    break-after: page;
+  }
+  .print-root .marked-paper-student + .marked-paper-student .marked-paper-page:first-of-type {
+    page-break-before: always;
+    break-before: page;
   }
 }
