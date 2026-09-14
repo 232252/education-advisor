@@ -8,6 +8,11 @@ import type {
 import type { ChannelAdapter, ChannelRuntimeContext } from '../../types'
 import { XIAOYI_MANIFEST_ID, xiaoyiManifest } from './manifest'
 
+/**
+ * 华为小艺云 A2A:平台作为 client 调用开发者 Agent 的 HTTP(JSON-RPC/SSE)端点。
+ * 与「桌面端主动连 IM」模型相反 — EA 需作为 A2A agent-server 暴露公网/可达 URL。
+ * 本期:凭证校验 + 诚实说明,不伪造长连接成功。
+ */
 export class XiaoyiChannelAdapter implements ChannelAdapter {
   readonly id = XIAOYI_MANIFEST_ID
   readonly manifest = xiaoyiManifest
@@ -30,15 +35,23 @@ export class XiaoyiChannelAdapter implements ChannelAdapter {
   }
 
   async connect(ctx: ChannelRuntimeContext): Promise<void> {
+    ctx.bridge.onStatus({ status: 'connecting' })
+    const endpointHint = String(ctx.config.publicEndpoint ?? '').trim()
     this.status = 'error'
     this.detail =
-      '小艺 A2A WebSocket 适配进行中:凭证可保存校验,长连接尚未打通。助手出站语义,非班级群通道。'
+      '小艺云 A2A 是「平台调用你的 Agent HTTP 端点」(JSON-RPC + SSE),不是桌面端主动连 IM。' +
+      (endpointHint
+        ? `已记录公网端点提示: ${endpointHint}。`
+        : '尚未填写 publicEndpoint。') +
+      '本版未内置可对外服务的 A2A agent-server / 公网隧道,故不能伪造成功连接。' +
+      '产品语义:将本机 Agent 挂到小艺,非班级 IM 群播报。'
     ctx.bridge.onStatus({ status: 'error', detail: this.detail, lastErrorAt: Date.now() })
     throw new Error(this.detail)
   }
 
   async disconnect(): Promise<void> {
     this.status = 'disabled'
+    this.detail = undefined
   }
 
   getStatus() {
@@ -46,11 +59,11 @@ export class XiaoyiChannelAdapter implements ChannelAdapter {
   }
 
   async sendReply(_msg: InboundMessage, _content: OutboundContent): Promise<{ messageId?: string }> {
-    throw new Error('小艺出站尚未就绪')
+    throw new Error('小艺出站尚未就绪:需 A2A agent-server')
   }
 
   async push(_target: PushTarget, _content: OutboundContent): Promise<{ messageId?: string }> {
-    throw new Error('小艺主动推送尚未就绪')
+    throw new Error('小艺主动推送尚未就绪:需 A2A agent-server')
   }
 }
 

@@ -1993,7 +1993,12 @@
   "connectionCenter.more.tag.qr": "扫码",
   "connectionCenter.more.tag.weakPush": "弱主动",
   "connectionCenter.more.browseSettings": "浏览更多频道",
-  "channels.yuanbao.limitation": "元宝为助手出站通道，protobuf 长连接适配进行中；不适合班级群播报。",
-  "channels.xiaoyi.limitation": "小艺为助手出站（A2A），非班级 IM；长连接适配进行中。",
-  "channels.email.limitation": "当前已验证 SMTP 发信；IMAP IDLE 收信将在后续版本启用。"
+  "channels.yuanbao.limitation": "元宝为助手出站通道。可探活 sign-token；完整收发需 protobuf WS 编解码（尚未内置）。不适合班级群播报。",
+  "channels.xiaoyi.limitation": "小艺云 A2A 是平台回调你的 HTTP Agent，不是桌面主动连 IM；需后续 agent-server。非班级群通道。",
+  "channels.email.limitation": "SMTP 发信 + IMAP IDLE/轮询收信已接入；IDLE 失败会自动降级轮询。建议专用通知邮箱。",
+  "channels.discord.limitation": "海外频道：需 Discord Bot Token 与 Message Content Intent；国内网络常需系统代理。",
+  "channels.telegram.limitation": "海外频道：BotFather Token + 长轮询；可用 apiBase 反代。国内常需代理。",
+  "channels.slack.limitation": "海外频道：需 Socket Mode（xoxb + xapp）；国内常需代理。",
+  "channels.matrix.limitation": "海外/联邦：homeserver + access_token；Bot 须已加入目标房间。",
+  "channels.mattermost.limitation": "可自托管：服务器 URL + Bot Token。国内私有化友好。"
 }
