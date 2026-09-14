@@ -33,10 +33,22 @@ function base(partial: Partial<ChannelManifest> & Pick<ChannelManifest, 'id' | '
 }
 
 describe('resolveCatalogStatus', () => {
-  it('unsupportedReason 优先', () => {
+  it('unsupportedReason 无显式 status 时视为 unsupported', () => {
     expect(
       resolveCatalogStatus(base({ id: 'onebot', label: 'OneBot', unsupportedReason: '合规' })),
     ).toBe('unsupported')
+  })
+  it('later 可携带 unsupportedReason 仍为 later', () => {
+    expect(
+      resolveCatalogStatus(
+        base({
+          id: 'sip',
+          label: 'SIP',
+          catalogStatus: 'later',
+          unsupportedReason: '需媒体栈',
+        }),
+      ),
+    ).toBe('later')
   })
   it('later / comingSoon / enabled', () => {
     expect(resolveCatalogStatus(base({ id: 'a', label: 'A', catalogStatus: 'later' }))).toBe('later')
@@ -58,11 +70,12 @@ describe('groupCatalogManifests', () => {
         category: 'overseas',
         region: 'foreign',
         priority: 70,
-        catalogStatus: 'later',
+        catalogStatus: 'enabled',
       }),
       base({
         id: 'onebot',
         label: 'OneBot',
+        catalogStatus: 'unsupported',
         unsupportedReason: '禁',
         priority: 90,
       }),
@@ -95,7 +108,7 @@ describe('pickPrimaryChannelIds', () => {
     const ids = pickPrimaryChannelIds(
       [
         base({ id: 'feishu', label: '飞书', region: 'domestic', priority: 10 }),
-        base({ id: 'discord', label: 'Discord', region: 'foreign', catalogStatus: 'later' }),
+        base({ id: 'discord', label: 'Discord', region: 'foreign', catalogStatus: 'enabled' }),
         base({ id: 'mqtt', label: 'MQTT', region: 'neutral', comingSoon: true }),
         base({ id: 'qq', label: 'QQ', region: 'domestic', priority: 21 }),
       ],
@@ -106,18 +119,15 @@ describe('pickPrimaryChannelIds', () => {
 })
 
 describe('buildQwenpawPendingManifests', () => {
-  it('覆盖助手/邮件/MQTT/海外/OneBot 且 id 合法', () => {
+  it('仅保留重依赖 later/unsupported;海外 Bot 已迁出 pending', () => {
     const pending = buildQwenpawPendingManifests()
     const ids = pending.map((m) => m.id)
-    expect(ids).toEqual(
-      expect.arrayContaining([
-        'discord',
-        'telegram',
-        'onebot',
-        'azure-bot',
-        'sip',
-      ]),
-    )
+    expect(ids).toEqual(expect.arrayContaining(['onebot', 'azure-bot', 'sip', 'voice', 'imessage']))
+    expect(ids).not.toContain('discord')
+    expect(ids).not.toContain('telegram')
+    expect(ids).not.toContain('slack')
+    expect(ids).not.toContain('matrix')
+    expect(ids).not.toContain('mattermost')
     expect(ids).not.toContain('yuanbao')
     expect(ids).not.toContain('mqtt')
     expect(ids).not.toContain('email')
@@ -126,5 +136,9 @@ describe('buildQwenpawPendingManifests', () => {
     const onebot = pending.find((m) => m.id === 'onebot')!
     expect(resolveCatalogStatus(onebot)).toBe('unsupported')
     expect(resolveCatalogGroup(onebot)).toBe('unsupported')
+    const sip = pending.find((m) => m.id === 'sip')!
+    expect(resolveCatalogStatus(sip)).toBe('later')
+    expect(sip.unsupportedReason).toBeTruthy()
+    expect(resolveCatalogGroup(sip)).toBe('voice')
   })
 })

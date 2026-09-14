@@ -375,7 +375,7 @@ push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string
 
 ## 9. 实现进度（feat/connection-center-more-channels）
 
-> 更新：2026-09-15（Asia/Shanghai）
+> 更新：2026-09-15（Asia/Shanghai）· Sprint 3
 
 ### Sprint 1 — 已落地
 
@@ -394,15 +394,37 @@ push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string
 | id | 状态 | 备注 |
 |---|---|---|
 | feishu / dingtalk / wecom / weixin / qq | ✅ 生产向 | 仅补目录元数据；飞书深路径未改行为 |
-| email | ✅ 薄客户端 | SMTP `verify` + `push` 发信；IMAP IDLE 待续（limitation banner） |
+| email | ✅ 薄客户端 → Sprint3 双向 | 见 Sprint 3 |
 | mqtt | ✅ 薄客户端 | `mqtt.js` 订阅/发布；缺依赖时可读错误 |
-| yuanbao / xiaoyi | ✅ 骨架 | 凭证校验 + 诚实「协议适配中」错误，非静默失败 |
-| sip / voice / discord / telegram / slack / matrix / mattermost / imessage / azure-bot | 目录 later | pendingManifests 展示 |
+| yuanbao / xiaoyi | ✅ 骨架 → Sprint3 增强 | 见 Sprint 3 |
+| discord / telegram / slack / matrix / mattermost | ✅ 薄客户端(Sprint3) | region=foreign；见 Sprint 3 |
+| sip / voice / imessage / azure-bot | 目录 later | 清晰 unsupportedReason；见 Sprint 3 |
 | onebot | 目录 unsupported | `unsupportedReason` 合规文案 |
+
+
+### Sprint 3 — 双向邮件 + 海外薄客户端 + 助手 UX(本轮)
+
+| id | 状态 | 备注 |
+|---|---|---|
+| email | ✅ 薄客户端双向 | SMTP 发信 + IMAP IDLE(imapflow),失败降级轮询;再失败 SMTP-only 降级 |
+| discord | ✅ 薄客户端 | Gateway WS + REST;region=foreign 徽标保留 |
+| telegram | ✅ 薄客户端 | getUpdates 长轮询 + sendMessage;editMessageText 流式会话 |
+| slack | ✅ 薄客户端 | Socket Mode(xoxb+xapp) + chat.postMessage |
+| matrix | ✅ 薄客户端 | /sync 长轮询 + m.room.message |
+| mattermost | ✅ 薄客户端 | WS + posts REST;可自托管 |
+| yuanbao | ✅ 骨架增强 | 官方 HMAC sign-token 探活;protobuf WS 编解码未内置 → 诚实 error |
+| xiaoyi | ✅ 骨架增强 | 澄清云 A2A=平台回调 HTTP Agent;需后续 agent-server → 诚实 error |
+| sip / voice / imessage / azure-bot | later + 清晰原因 | `unsupportedReason` 说明重依赖;状态仍为 later(非伪装 unsupported) |
+| onebot | unsupported | 保持合规禁止 |
+
+依赖:`imapflow` 入站;`nodemailer`/`mqtt`/`ws` 沿用。
 
 ### 如何试用
 
 1. 启动应用 → 侧栏 **连接中心**（Alt+C）→ 主列表国内优先 ≤6 → 点 **「更多」** 打开 Drawer 全量目录。
 2. 设置 → 连接中心 → **浏览更多频道** 打开同一 Drawer。
 3. QQ：连接后被动回复走 `QqBotAdapter.sendReply` → 引擎 `replyOutbound`（与流水线共用投递缓存）。
+4. **邮件双向**：设置 → 邮件 → 填 IMAP/SMTP → 连接；向该邮箱发信应入站；`push`/`sendReply` 走 SMTP。
+5. **海外薄客户端**：更多 → 展开海外 → Discord/Telegram/Slack/Matrix/Mattermost → 填 Token（国内需系统代理）→ 连接。
+6. **元宝/小艺**：可保存凭证；连接会诚实报错并说明 blocker（protobuf / A2A server）。
 
