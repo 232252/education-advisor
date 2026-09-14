@@ -478,6 +478,41 @@ class GradingService {
   }
 
   /**
+   * 重改失败回滚: 恢复重置前的 AI 结果/复核,不让一次模型抽风把旧结果丢掉。
+   * 仅 grading/review 态可写(重改作业失败/中止路径专用)。
+   */
+  async applyPaperSnapshot(
+    taskId: string,
+    paperId: string,
+    snap: {
+      ai?: GradingPaper['ai']
+      review?: GradingPaper['review']
+      error?: string
+      status: GradingPaper['status']
+    },
+  ): Promise<GradingTask> {
+    assertTaskId(taskId)
+    assertPaperId(paperId)
+    if (!['unassigned', 'pending', 'graded', 'failed'].includes(snap.status)) {
+      throw new Error(`非法试卷状态: ${String(snap.status)}`)
+    }
+    return this.withTaskLock(taskId, async () => {
+      const task = await this.getTask(taskId)
+      if (task.status !== 'grading' && task.status !== 'review') {
+        throw new Error(`任务状态 ${task.status} 不可回滚试卷`)
+      }
+      const paper = this.findPaper(task, paperId)
+      paper.ai = snap.ai
+      paper.review = snap.review
+      paper.error = snap.error
+      paper.status = snap.status
+      task.updatedAt = new Date().toISOString()
+      await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
+      return task
+    })
+  }
+
+  /**
    * 卷面身份识别留痕:读到什么记什么(归组成功与否都写),
    * 供复核台/试卷表回显与排查;不影响 status/studentName。
    */
