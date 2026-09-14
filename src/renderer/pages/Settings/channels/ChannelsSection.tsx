@@ -8,8 +8,10 @@
 // =============================================================
 
 import type { ChannelInstanceInfo, ChannelStatusInfo, UnifiedSettings } from '@shared/types'
-import { Smartphone } from 'lucide-react'
-import { useEffect, useReducer, useState } from 'react'
+import { resolveCatalogStatus } from '@shared/channel-catalog'
+import { LayoutGrid, Smartphone } from 'lucide-react'
+import { useEffect, useMemo, useReducer, useState } from 'react'
+import { MoreChannelsDrawer } from '../../../components/connection-center/MoreChannelsDrawer'
 import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { Section } from '../components'
@@ -39,6 +41,7 @@ export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
   const [instances, setInstances] = useState<ChannelInstanceInfo[]>([])
   const [liveStatus, setLiveStatus] = useState<Record<string, ChannelStatusInfo>>({})
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   // 数据源集成(bitable)本地编辑态(原 FeishuSection 迁入)
   const [bitableAppToken, setBitableAppToken] = useState<string>(
@@ -76,6 +79,13 @@ export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
       .catch(() => {})
   }, [settings.channels])
 
+  // 主墙:仅已启用可配置渠道(国内优先排序);全量走「更多」Drawer
+  const wallInstances = useMemo(() => {
+    return instances
+      .filter((i) => resolveCatalogStatus(i.manifest) === 'enabled')
+      .sort((a, b) => (a.manifest.priority ?? 999) - (b.manifest.priority ?? 999))
+  }, [instances])
+
   return (
     <Section id="connection" title={t('settings.section.channels', '连接中心')}>
       <div className="px-5 py-4">
@@ -89,31 +99,56 @@ export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
           </span>
         </p>
         <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
-          {instances.map((info) => (
-            <ChannelCard
-              key={info.manifest.id}
-              info={info}
-              liveStatus={liveStatus[info.manifest.id]}
-              expanded={expandedId === info.manifest.id}
-              onToggleExpand={() =>
-                setExpandedId((cur) => (cur === info.manifest.id ? null : info.manifest.id))
-              }
-              onSave={onSave}
-            >
-              <ChannelConfigPanel
+          {wallInstances.map((info) => (
+            <div key={info.manifest.id} id={`channel-${info.manifest.id}`}>
+              <ChannelCard
                 info={info}
-                settings={settings}
+                liveStatus={liveStatus[info.manifest.id]}
+                expanded={expandedId === info.manifest.id}
+                onToggleExpand={() =>
+                  setExpandedId((cur) => (cur === info.manifest.id ? null : info.manifest.id))
+                }
                 onSave={onSave}
-                extra={info.manifest.id === 'feishu' ? <FeishuNetworkDiagnostics /> : null}
-              />
-            </ChannelCard>
+              >
+                <ChannelConfigPanel
+                  info={info}
+                  settings={settings}
+                  onSave={onSave}
+                  extra={info.manifest.id === 'feishu' ? <FeishuNetworkDiagnostics /> : null}
+                />
+              </ChannelCard>
+            </div>
           ))}
-          {instances.length === 0 && (
+          {wallInstances.length === 0 && (
             <p className="text-xs text-gray-400 dark:text-gray-500">
               {t('settings.channels.empty', '没有可用渠道')}
             </p>
           )}
         </div>
+
+        <div className="mt-3">
+          <button
+            type="button"
+            data-testid="settings-browse-more-channels"
+            onClick={() => setMoreOpen(true)}
+            className="inline-flex items-center gap-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            <LayoutGrid size={14} />
+            {t('connectionCenter.more.browseSettings', '浏览更多频道')}
+          </button>
+        </div>
+        <MoreChannelsDrawer
+          open={moreOpen}
+          onClose={() => setMoreOpen(false)}
+          instances={instances}
+          liveStatus={liveStatus}
+          onConfigure={(id) => {
+            setMoreOpen(false)
+            setExpandedId(id)
+            const el = document.getElementById(`channel-${id}`)
+            el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+          }}
+        />
 
         {/* ===== 数据源集成(出站;原「飞书集成」区迁入,阶段 2 收口) ===== */}
         <div className="mt-5">
