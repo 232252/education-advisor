@@ -27,7 +27,7 @@ export async function saveAttachment(opts: {
   /** 附件所在消息的 message_id(下载接口按消息定位资源) */
   messageId: string
   fileKey: string
-  kind: 'file' | 'image'
+  kind: 'file' | 'image' | 'video' | 'audio'
   fileName?: string
   dir: string
 }): Promise<{ ok: true; saved: SavedAttachment } | { ok: false; error: string }> {
@@ -36,7 +36,8 @@ export async function saveAttachment(opts: {
   if (!token) {
     return { ok: false, error: `《${displayName}》无法获取访问令牌` }
   }
-  const bytes = await downloadResource(token, opts.messageId, opts.fileKey, opts.kind)
+  const downloadKind = opts.kind === 'image' ? 'image' : 'file'
+  const bytes = await downloadResource(token, opts.messageId, opts.fileKey, downloadKind)
   if (!bytes) {
     return {
       ok: false,

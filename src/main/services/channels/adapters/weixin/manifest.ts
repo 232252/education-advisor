@@ -14,6 +14,11 @@ export const weixinManifest: ChannelManifest = {
   description:
     '用个人微信扫码连接本机 AI 助教(官方 iLink/ClawBot)。偏私聊问答;主动推送弱(需用户先发言取得会话令牌)。无需安装 OpenClaw。',
   icon: 'weixin',
+  category: 'consumer-im',
+  region: 'domestic',
+  priority: 20,
+  qwenpawKey: 'wechat',
+  catalogStatus: 'enabled',
   beta: true,
   loginKinds: ['qr', 'credentials'],
   limitationBannerKey: 'channels.weixin.limitation',

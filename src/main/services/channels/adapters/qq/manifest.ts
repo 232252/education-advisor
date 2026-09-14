@@ -14,6 +14,11 @@ export const qqManifest: ChannelManifest = {
   description:
     '用 QQ 官方机器人与本机 AI 助教对话。支持扫码绑定或填写 AppID/Secret;适合私聊问答。群主动消息配额极严,不适合定时群播报。',
   icon: 'qq',
+  category: 'consumer-im',
+  region: 'domestic',
+  priority: 21,
+  qwenpawKey: 'qq',
+  catalogStatus: 'enabled',
   beta: true,
   loginKinds: ['qr', 'credentials'],
   limitationBannerKey: 'channels.qq.limitation',

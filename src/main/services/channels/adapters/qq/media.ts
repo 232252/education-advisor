@@ -48,9 +48,9 @@ export function isHttpUrl(s: string): boolean {
 /** 解析 Agent 出站文本中的 [IMAGE:…] / [FILE:…] / [DOCUMENT:…] 标记 */
 export function parseQqOutboundMediaMarkers(text: string): {
   cleanedText: string
-  media: Array<{ kind: 'image' | 'file'; source: string; fileName?: string }>
+  media: Array<{ kind: 'image' | 'file' | 'video' | 'audio'; source: string; fileName?: string }>
 } {
-  const media: Array<{ kind: 'image' | 'file'; source: string; fileName?: string }> = []
+  const media: Array<{ kind: 'image' | 'file' | 'video' | 'audio'; source: string; fileName?: string }> = []
   const re = /\[(IMAGE|PHOTO|FILE|DOCUMENT)\s*:\s*([^\]]+)\]/gi
   const cleanedText = text
     .replace(re, (_m, kindRaw: string, targetRaw: string) => {
