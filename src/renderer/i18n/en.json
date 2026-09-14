@@ -1993,7 +1993,12 @@
   "connectionCenter.more.tag.qr": "QR login",
   "connectionCenter.more.tag.weakPush": "Limited push",
   "connectionCenter.more.browseSettings": "Browse more channels",
-  "channels.yuanbao.limitation": "Yuanbao is an assistant outbound channel; protobuf WS still in progress. Not for class broadcasts.",
-  "channels.xiaoyi.limitation": "Xiaoyi is assistant outbound (A2A), not class IM; WS adapter still in progress.",
-  "channels.email.limitation": "SMTP send is verified; IMAP IDLE inbox will arrive in a later release."
+  "channels.yuanbao.limitation": "Yuanbao is assistant-outbound. sign-token can be probed; full chat needs protobuf WS codec (not bundled yet). Not for class broadcasts.",
+  "channels.xiaoyi.limitation": "Xiaoyi cloud A2A calls your HTTP Agent (not desktop-initiated IM); agent-server comes later. Not class IM.",
+  "channels.email.limitation": "SMTP send + IMAP IDLE/polling inbound are live; IDLE falls back to polling. Prefer a dedicated notify mailbox.",
+  "channels.discord.limitation": "Overseas: Discord Bot Token + Message Content Intent; system proxy often required in CN.",
+  "channels.telegram.limitation": "Overseas: BotFather Token + long poll; optional apiBase reverse-proxy. Proxy often needed in CN.",
+  "channels.slack.limitation": "Overseas: Socket Mode (xoxb + xapp); proxy often needed in CN.",
+  "channels.matrix.limitation": "Overseas/federated: homeserver + access_token; bot must join target rooms.",
+  "channels.mattermost.limitation": "Self-host friendly: server URL + bot token."
 }

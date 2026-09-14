@@ -128,7 +128,7 @@ function CatalogCard({
             )}
           </div>
           <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400 line-clamp-2 leading-snug">
-            {status === 'unsupported' && manifest.unsupportedReason
+            {(status === 'unsupported' || status === 'later') && manifest.unsupportedReason
               ? manifest.unsupportedReason
               : manifest.description}
           </p>
