@@ -1,11 +1,12 @@
 // =============================================================
-// adapters/weixin/connection — 微信 iLink 长轮询引擎
-// start: 凭证 → 流水线 → getupdates 循环; stop: 停轮询 + 排空
+// adapters/weixin/connection — 微信 iLink 长轮询引擎(全功能)
+// start: 凭证 → 恢复 cursor/context → 流水线 → getupdates 循环
+// 退避 + 游标持久化 + 媒体下载 + 诊断字段
 // =============================================================
 
 import { EventEmitter } from 'node:events'
 import path from 'node:path'
-import type { ReplySession } from '@shared/types'
+import type { InboundAttachment, ReplySession } from '@shared/types'
 import { app, type BrowserWindow } from 'electron'
 import { errText } from '../../../../utils/err-text'
 import { log } from '../../../../utils/logger'
@@ -16,9 +17,22 @@ import { ChatMessageQueue } from '../../runtime/chat-queue'
 import { type CommandRouter, createDefaultRouter } from '../../runtime/command/router'
 import { MessageDedupCache } from '../../runtime/dedup-cache'
 import { RecentFilesStore } from '../../runtime/recent-files'
-import { RECEIVED_FILES_DIR_NAME, WEIXIN_DEFAULT_BASE_URL } from './constants'
+import { writeAttachmentBytes } from '../../runtime/attachment-store'
+import {
+  RECEIVED_FILES_DIR_NAME,
+  STATE_DIR_NAME,
+  WEIXIN_DEFAULT_BASE_URL,
+  WEIXIN_POLL_BACKOFF_MS,
+} from './constants'
 import { ILinkClient, type FetchLike } from './ilink-client'
-import { extractUpdatesPayload, parseWeixinMessage, type WeixinDeliveryInfo } from './parsing'
+import { downloadILinkMedia } from './media'
+import {
+  decodeWeixinMediaKey,
+  extractUpdatesPayload,
+  parseWeixinMessage,
+  type WeixinDeliveryInfo,
+} from './parsing'
+import { loadWeixinPersist, saveWeixinContextTokens, saveWeixinCursor } from './persist'
 import { createWeixinReplySession } from './reply-session'
 
 export type WeixinBotStatus = 'idle' | 'connecting' | 'connected' | 'error'
@@ -29,6 +43,9 @@ export interface WeixinBotStatusInfo {
   connectedAt?: number
   processingCount: number
   pendingCount: number
+  lastMessageAt?: number
+  lastErrorAt?: number
+  reconnectAttempt?: number
 }
 
 const DELIVERY_CACHE_MAX = 256
@@ -39,11 +56,15 @@ class WeixinBotService extends EventEmitter {
   private currentStatus: WeixinBotStatus = 'idle'
   private lastError?: string
   private connectedAt?: number
+  private lastMessageAt?: number
+  private lastErrorAt?: number
+  private reconnectAttempt = 0
   private processingCount = 0
   private dedup = new MessageDedupCache()
   private pipeline: { queue: ChatMessageQueue; activeSessions: Set<ReplySession> } | null = null
   private readonly recentFiles = new RecentFilesStore()
   private filesDir = ''
+  private stateDir = ''
   private userStopped = false
   private pollAbort: AbortController | null = null
   private cursor = ''
@@ -64,6 +85,9 @@ class WeixinBotService extends EventEmitter {
       connectedAt: this.connectedAt,
       processingCount: this.processingCount,
       pendingCount: this.pipeline?.queue.pendingCount ?? 0,
+      lastMessageAt: this.lastMessageAt,
+      lastErrorAt: this.lastErrorAt,
+      reconnectAttempt: this.reconnectAttempt,
     }
   }
 
@@ -73,6 +97,18 @@ class WeixinBotService extends EventEmitter {
 
   getContextToken(userId: string): string | undefined {
     return this.contextByUser.get(userId)
+  }
+
+  private resolveDirs(): void {
+    try {
+      const root = app.getPath('userData')
+      this.filesDir = path.join(root, RECEIVED_FILES_DIR_NAME)
+      this.stateDir = path.join(root, STATE_DIR_NAME)
+    } catch {
+      const tmp = process.env.TEMP ?? process.env.TMP ?? '.'
+      this.filesDir = path.join(tmp, RECEIVED_FILES_DIR_NAME)
+      this.stateDir = path.join(tmp, STATE_DIR_NAME)
+    }
   }
 
   async start(
@@ -99,8 +135,16 @@ class WeixinBotService extends EventEmitter {
     this.userStopped = false
     this.dedup = new MessageDedupCache()
     this.deliveries.clear()
-    this.cursor = ''
+    this.reconnectAttempt = 0
     this.setStatus('connecting')
+    this.resolveDirs()
+
+    const persisted = loadWeixinPersist(this.stateDir)
+    this.cursor = persisted.cursor
+    this.contextByUser.clear()
+    for (const [k, v] of Object.entries(persisted.contextByUser)) {
+      this.contextByUser.set(k, v)
+    }
 
     const client = new ILinkClient({
       botToken,
@@ -108,12 +152,6 @@ class WeixinBotService extends EventEmitter {
       fetchImpl: opts.fetchImpl,
     })
     this.client = client
-
-    try {
-      this.filesDir = path.join(app.getPath('userData'), RECEIVED_FILES_DIR_NAME)
-    } catch {
-      this.filesDir = path.join(process.env.TEMP ?? process.env.TMP ?? '.', RECEIVED_FILES_DIR_NAME)
-    }
 
     const boundAgentId = opts.agentId || undefined
     const activeSessions = new Set<ReplySession>()
@@ -130,7 +168,7 @@ class WeixinBotService extends EventEmitter {
         if (!delivery) throw new Error(`消息 ${messageId} 的投递信息已失效`)
         return createWeixinReplySession(client, delivery)
       },
-      downloadAttachment: async () => ({ ok: false, error: '微信 v1 暂不支持附件下载' }),
+      downloadAttachment: async (_messageId, att) => this.downloadAttachment(att),
       filesDir: this.filesDir,
       onProcessingStart: () => {
         this.processingCount++
@@ -149,7 +187,40 @@ class WeixinBotService extends EventEmitter {
     this.connectedAt = Date.now()
     this.setStatus('connected')
     void this.pollLoop()
-    log('info', 'weixin', 'long-poll started')
+    log('info', 'weixin', `long-poll started (cursor=${this.cursor ? 'resumed' : 'fresh'})`)
+  }
+
+  private async downloadAttachment(
+    att: InboundAttachment,
+  ): Promise<{ ok: true; saved: { name: string; path: string; bytes: number } } | { ok: false; error: string }> {
+    const client = this.client
+    if (!client) return { ok: false, error: '微信未连接' }
+    const meta = decodeWeixinMediaKey(att.fileKey)
+    if (!meta) return { ok: false, error: '无效的微信媒体引用' }
+    const safeName = path.basename(meta.fileName || att.fileName || 'media.bin')
+    const dest = path.join(this.filesDir, `_tmp_${Date.now()}_${safeName}`)
+    try {
+      await downloadILinkMedia(client, {
+        encryptQueryParam: meta.encryptQueryParam,
+        aesKey: meta.aesKey,
+        destPath: dest,
+      })
+      const bytes = await import('node:fs').then((fs) => fs.readFileSync(dest))
+      try {
+        await import('node:fs').then((fs) => fs.unlinkSync(dest))
+      } catch {
+        /* ignore tmp cleanup */
+      }
+      return writeAttachmentBytes({
+        bytes,
+        fileName: safeName,
+        kind: att.kind === 'image' ? 'image' : 'file',
+        dir: this.filesDir,
+        logScope: 'weixin',
+      })
+    } catch (err) {
+      return { ok: false, error: errText(err) }
+    }
   }
 
   private async pollLoop(): Promise<void> {
@@ -160,24 +231,41 @@ class WeixinBotService extends EventEmitter {
       try {
         const data = await client.getUpdates(this.cursor)
         if (abort.signal.aborted) break
-        const { msgs, cursor } = extractUpdatesPayload(data)
-        if (cursor) this.cursor = cursor
+        const { msgs, cursor, ret } = extractUpdatesPayload(data)
+        if (cursor) {
+          this.cursor = cursor
+          saveWeixinCursor(this.stateDir, this.cursor)
+        }
+        this.reconnectAttempt = 0
         for (const raw of msgs) {
           this.handleIncoming(raw)
+        }
+        // ret=-1: 长轮询空闲超时,属正常
+        if (ret !== 0 && ret !== -1 && msgs.length === 0) {
+          log('warn', 'weixin', `getupdates ret=${ret}, brief pause`)
+          await sleep(3_000)
         }
       } catch (err) {
         if (abort.signal.aborted || this.userStopped) break
         const msg = errText(err)
-        // 超时属长轮询正常路径,继续;鉴权失败则进 error
         if (/abort|timeout|TimeoutError|AbortError/i.test(msg)) {
           continue
         }
         if (/401|403|token|鉴权|unauthorized/i.test(msg)) {
+          this.lastErrorAt = Date.now()
           this.setStatus('error', { error: `微信凭证失效,请重新扫码: ${msg}` })
           break
         }
-        log('warn', 'weixin', `getupdates error, retry: ${msg}`)
-        await sleep(2000)
+        this.reconnectAttempt++
+        this.lastErrorAt = Date.now()
+        this.lastError = msg
+        const delay =
+          WEIXIN_POLL_BACKOFF_MS[
+            Math.min(this.reconnectAttempt - 1, WEIXIN_POLL_BACKOFF_MS.length - 1)
+          ] ?? 30_000
+        log('warn', 'weixin', `getupdates error, backoff ${delay}ms (attempt ${this.reconnectAttempt}): ${msg}`)
+        this.emit('status', this.getStatus())
+        await sleep(delay)
       }
     }
   }
@@ -191,7 +279,10 @@ class WeixinBotService extends EventEmitter {
     this.rememberDelivery(inbound.providerMessageId, delivery)
     if (delivery.contextToken) {
       this.contextByUser.set(delivery.toUserId, delivery.contextToken)
+      saveWeixinContextTokens(this.stateDir, this.contextByUser)
     }
+    this.lastMessageAt = Date.now()
+    this.emit('status', this.getStatus())
     const queue = this.pipeline?.queue
     if (!queue) return
     if (
@@ -222,6 +313,12 @@ class WeixinBotService extends EventEmitter {
     this.userStopped = opts?.userInitiated !== false
     this.pollAbort?.abort()
     this.pollAbort = null
+    if (this.stateDir && this.contextByUser.size > 0) {
+      saveWeixinContextTokens(this.stateDir, this.contextByUser)
+    }
+    if (this.stateDir && this.cursor) {
+      saveWeixinCursor(this.stateDir, this.cursor)
+    }
     if (this.pipeline) {
       const { queue, activeSessions } = this.pipeline
       this.pipeline = null
@@ -256,7 +353,10 @@ class WeixinBotService extends EventEmitter {
 
   private setStatus(status: WeixinBotStatus, opts?: { error?: string }): void {
     this.currentStatus = status
-    if (opts?.error !== undefined) this.lastError = opts.error
+    if (opts?.error !== undefined) {
+      this.lastError = opts.error
+      this.lastErrorAt = Date.now()
+    }
     if (status === 'connected') this.lastError = undefined
     if (status === 'idle') this.lastError = undefined
     this.emit('status', this.getStatus())
@@ -280,3 +380,4 @@ function sleep(ms: number): Promise<void> {
 }
 
 export const weixinBotService = new WeixinBotService()
+
