@@ -17,7 +17,11 @@ import {
   type Message,
   type Model,
 } from '@earendil-works/pi-ai/compat'
-import { markScoreFromSelection, type StudentCandidate } from '@shared/grading-helpers'
+import {
+  markScoreFromSelection,
+  questionKind,
+  type StudentCandidate,
+} from '@shared/grading-helpers'
 import * as IPC from '@shared/ipc-channels'
 import type {
   AiGradeResult,
@@ -38,8 +42,8 @@ import { resolveModel } from '../pi-ai/model-utils'
 import { settingsService } from '../settings-service'
 import { gradingService } from './grading-service'
 
-/** 单份试卷批改的输出 token 上限(逐题 JSON + 依据,余量充足) */
-const GRADING_MAX_TOKENS = 4096
+/** 单份试卷批改的输出 token 上限(逐题 JSON+box+批注;每题都出 box 后上调) */
+const GRADING_MAX_TOKENS = 8192
 
 /** 批改进度事件负载(主→渲染) */
 export interface GradingProgressPayload {
@@ -95,12 +99,14 @@ function formatPresetMarks(q: RubricQuestion): string {
   return ` | 评分点: ${items}`
 }
 
-/** 构造批改 system prompt: 量规 + 严格 JSON 契约 */
+/** 构造批改 system prompt: 量规 + 严格 JSON 契约(红笔痕迹口径) */
 export function buildGradingPrompt(rubric: RubricQuestion[]): string {
   const rubricLines = rubric
     .map(
       (q) =>
-        `- id: ${q.id} | 题目: ${q.title} | 满分: ${q.fullMark}${
+        `- id: ${q.id} | 题目: ${q.title} | 题类: ${
+          questionKind(q) === 'objective' ? '客观' : '主观'
+        } | 满分: ${q.fullMark}${
           q.referenceAnswer ? ` | 评分标准: ${q.referenceAnswer.replace(/\s+/g, ' ').trim()}` : ''
         }${formatPresetMarks(q)}`,
     )
@@ -121,8 +127,9 @@ export function buildGradingPrompt(rubric: RubricQuestion[]): string {
     '- score 为数字，取值 [0, 该题满分]，按评分标准的有效分给分，不要凭空加减',
     '- evidence 写一句即可，引用学生卷面实际作答；字迹不清时保守给分并在 comment 说明',
     '- 全卷未作答的题 score 给 0 并在 comment 标注「未作答」',
-    '- box: page 从 0 起; x/y/w/h 为相对页宽高的 0–1。扣分或有评语的题必须给大概位置，不确定也给，不要省略整个 JSON',
-    '- box 要框住该题的作答区域，宽高宁小勿大，不要把相邻题目的作答一起框进来',
+    '- comment 像老师的红笔批注: 仅主观题(简答/计算/作文等)填写，30 字以内，面向学生，写清错因或给一句鼓励；客观题(选择/填空/判断)不要写 comment',
+    '- box 每题都要给: 框住该题作答区域，全对的题也要给（打勾定位用）；宽高宁小勿大，不要把相邻题目的作答一起框进来',
+    '- box: page 从 0 起; x/y/w/h 为相对页宽高的 0–1。不确定位置也给个大概，不要省略',
     ...(hasMarks
       ? [
           '- 有评分点的题目: marks 填选中的评分点序号(可多选); score 必须等于 满分+所选评分点分值之和(钳制到[0,满分])',

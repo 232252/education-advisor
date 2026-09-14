@@ -8,6 +8,7 @@
 // =============================================================
 
 import type { ExtractedRubricQuestion } from '@shared/api/grading'
+import { questionKind } from '@shared/grading-helpers'
 import type { PresetMark, RubricQuestion } from '@shared/types'
 import { useState } from 'react'
 import { tr, useT } from '../../../i18n'
@@ -91,6 +92,7 @@ export function RubricEditor({ value, onChange }: RubricEditorProps) {
       items.map((it, i) => ({
         id: `q-${i + 1}`,
         title: it.title,
+        type: it.type,
         fullMark: it.fullMark,
         referenceAnswer: it.referenceAnswer ?? '',
         order: i + 1,
@@ -149,6 +151,25 @@ export function RubricEditor({ value, onChange }: RubricEditorProps) {
                 placeholder={t('page.grading.rubric.titlePlaceholder')}
                 className={`${INPUT_BASE} flex-1`}
               />
+              <select
+                value={q.type ?? questionKind(q)}
+                onChange={(e) =>
+                  patchQuestion(q.id, {
+                    type: e.target.value as RubricQuestion['type'],
+                  })
+                }
+                title={t(
+                  'page.grading.rubric.kindTitle',
+                  '题类：客观题只标✓/✗/得分，主观题才出页边批注',
+                )}
+                aria-label={t('page.grading.rubric.kindTitle', '题类')}
+                className={`${INPUT_BASE} w-24`}
+              >
+                <option value="subjective">
+                  {t('page.grading.rubric.kindSubjective', '主观')}
+                </option>
+                <option value="objective">{t('page.grading.rubric.kindObjective', '客观')}</option>
+              </select>
               <input
                 type="number"
                 value={q.fullMark}

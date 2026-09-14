@@ -35,6 +35,8 @@ export interface IdentifyPapersResult {
 /** 样卷识别抽出的量规题草稿(IPC 契约层类型,非持久化任务模型,不进 types/grading.ts) */
 export interface ExtractedRubricQuestion {
   title: string
+  /** 题类: 客观(选择/判断/填空)只标符号/得分,主观(简答/计算/作文)加页边批注 */
+  type?: 'objective' | 'subjective'
   fullMark: number
   /** 照录答案页原文;AI 自答草稿尾部带「AI 草稿」尾注供教师核对 */
   referenceAnswer?: string

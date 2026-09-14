@@ -11,6 +11,7 @@ import { type ReactNode, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '../../components/Button'
 import { useT } from '../../i18n'
+import { cn } from '../../lib/ui-utils'
 
 interface PrintOverlayProps {
   /** 屏幕预览标题(工具栏显示) */
@@ -19,9 +20,19 @@ interface PrintOverlayProps {
   onClose: () => void
   /** 报告文档(打印本体) */
   children: ReactNode
+  /** 工具栏扩展(如版式切换);仅屏幕预览可见,打印时随工具栏隐藏 */
+  toolbarExtra?: ReactNode
+  /** 纸张容器附加类(如痕迹卷贴边打印覆盖默认内边距) */
+  contentClassName?: string
 }
 
-export function PrintOverlay({ title, onClose, children }: PrintOverlayProps) {
+export function PrintOverlay({
+  title,
+  onClose,
+  children,
+  toolbarExtra,
+  contentClassName,
+}: PrintOverlayProps) {
   const { t } = useT()
 
   // Esc 关闭 + 打开期间锁定背景滚动
@@ -45,6 +56,7 @@ export function PrintOverlay({ title, onClose, children }: PrintOverlayProps) {
         <span className="hidden sm:inline text-xs text-gray-400 truncate">
           {t('print.hint.pdf', '打印对话框中选择「另存为 PDF」可导出 PDF 文件')}
         </span>
+        {toolbarExtra}
         <div className="ml-auto flex items-center gap-2 flex-shrink-0">
           <Button type="button" onClick={() => window.print()} variant="primary" size="sm">
             <Printer size={13} />
@@ -62,7 +74,12 @@ export function PrintOverlay({ title, onClose, children }: PrintOverlayProps) {
       </div>
 
       {/* A4 纸张预览(210mm 宽) — 打印时由 .print-root 规则还原为全宽 */}
-      <div className="print-root w-[210mm] max-w-full min-h-[297mm] mx-auto my-6 bg-white text-gray-900 shadow-2xl rounded-sm px-10 py-8">
+      <div
+        className={cn(
+          'print-root w-[210mm] max-w-full min-h-[297mm] mx-auto my-6 bg-white text-gray-900 shadow-2xl rounded-sm px-10 py-8',
+          contentClassName,
+        )}
+      >
         {children}
       </div>
     </div>,
