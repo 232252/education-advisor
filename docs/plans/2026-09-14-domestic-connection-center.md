@@ -319,7 +319,7 @@ src/main/services/feishu-service.ts / feishu-bot 遗留（若仍存在于其他 
 | AppID/Secret + QR onboard | Done | 双模板；AES-GCM 解密门户 secret |
 | 限制横幅准确性 | Done | limitationBannerKey + i18n |
 | 群主动配额耗尽 UX | Done | classifyQqSendError 映射配额/窗口 |
-| 富媒体出站（图/文件） | In progress | 入站已通；出站 rich-media `/files` 可后续补齐（官方支持） |
+| 富媒体出站（图/文件） | Done | 官方 /files 上传 + msg_type=7；URL 或本地 base64；push/reply 出站；配额/大小可读错误 |
 
 #### Connection Center / UX
 
@@ -342,7 +342,7 @@ src/main/services/feishu-service.ts / feishu-bot 遗留（若仍存在于其他 
 | 项 | 状态 | 说明 |
 |---|---|---|
 | 单元：parsing / crypto / media AES | Done | weixin-parsing + media-crypto |
-| 单元：QQ classify / push / msg_seq | Done | qq-parsing 扩展 |
+| 单元：QQ classify / push / msg_seq / rich-media | Done | qq-parsing + qq-media |
 | mocked client flows | Done | ILinkClient / QqApiClient fetch 注入 |
 
 ### 平台真实限制（非工程妥协）

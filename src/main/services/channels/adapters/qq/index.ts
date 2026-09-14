@@ -116,8 +116,8 @@ export class QqBotAdapter implements ChannelAdapter {
   }
 
   /**
-   * 配额感知主动推送:真正调用官方 OpenAPI。
-   * 成功则返回;配额/窗口错误以可读 Error 抛出(UI 展示,非静默拒绝)。
+   * 配额感知主动推送:真正调用官方 OpenAPI(文本 + 可选富媒体 /files)。
+   * 成功则返回;配额/窗口/媒体错误以可读 Error 抛出(UI 展示,非静默拒绝)。
    */
   async push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string }> {
     const api = qqBotService.getApi()
@@ -125,17 +125,20 @@ export class QqBotAdapter implements ChannelAdapter {
     const isGroup = Boolean(target.chatId && target.senderId && target.chatId !== target.senderId)
     // 约定: group 用 chatId=groupOpenid; c2c 用 chatId=user openid
     if (isGroup || (target as { kind?: string }).kind === 'group') {
-      await api.pushText({
+      const media = content.media ?? []
+      await api.pushOutbound({
         kind: 'group',
         openid: target.senderId || '',
         groupOpenid: target.chatId,
         text: content.text,
+        media,
       })
     } else {
-      await api.pushText({
+      await api.pushOutbound({
         kind: 'c2c',
         openid: target.chatId,
         text: content.text,
+        media: content.media ?? [],
       })
     }
     return {}
