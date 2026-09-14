@@ -45,7 +45,7 @@ export function classifyQqSendError(status: number, body: string): string {
 }
 
 export interface QqMediaSource {
-  kind?: 'image' | 'file'
+  kind?: 'image' | 'file' | 'video' | 'audio'
   /** 本地绝对路径或 http(s) URL */
   source: string
   fileName?: string

@@ -82,4 +82,22 @@ export interface ChannelAdapter {
 
   /** 接收附件(capabilities.receivesFiles 时必须实现):下载到 filesDir 并返回本地路径 */
   fetchAttachment?(msg: InboundMessage, att: InboundAttachment): Promise<ChannelFetchedAttachment>
+
+  /** Webhook/HTTP 入站(azure_bot / 部分 voice):由主进程 HTTP 网关回调 */
+  handleHttpWebhook?(req: {
+    path: string
+    headers: Record<string, string>
+    body: Buffer | string
+  }): Promise<{ status: number; body?: string }>
+
+  /** Token/会话刷新(长轮询渠道掉线自愈) */
+  refreshCredentials?(ctx: ChannelRuntimeContext): Promise<void>
+
+  /** 渠道级访问策略快照(可选;UI 展示 + Bridge 预检) */
+  getAccessPolicy?(): {
+    dm: 'open' | 'allowlist'
+    group: 'open' | 'allowlist'
+    allowFrom: string[]
+    requireMention: boolean
+  }
 }

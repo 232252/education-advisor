@@ -110,9 +110,19 @@ export class QqBotAdapter implements ChannelAdapter {
   }
 
   async sendReply(msg: InboundMessage, content: OutboundContent): Promise<{ messageId?: string }> {
-    void msg
-    void content
-    throw new Error('QQ 回复由引擎流水线内完成(不经适配器入口)')
+    await qqBotService.replyOutboundFromMessage(
+      msg.providerMessageId,
+      content.text,
+      content.media ?? [],
+    )
+    return {}
+  }
+
+  async createReplySession(
+    msg: InboundMessage,
+    _placeholderText: string,
+  ): Promise<import('@shared/types').ReplySession> {
+    return qqBotService.createReplySessionFromMessage(msg.providerMessageId, [])
   }
 
   /**

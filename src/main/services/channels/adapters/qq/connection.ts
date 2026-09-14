@@ -4,7 +4,7 @@
 
 import { EventEmitter } from 'node:events'
 import path from 'node:path'
-import type { InboundAttachment, ReplySession } from '@shared/types'
+import type { InboundAttachment, OutboundMediaRef, ReplySession } from '@shared/types'
 import { app, type BrowserWindow } from 'electron'
 import { errText } from '../../../../utils/err-text'
 import { log } from '../../../../utils/logger'
@@ -190,6 +190,36 @@ class QqBotService extends EventEmitter {
       this.gateway = null
       this.api = null
     }
+  }
+
+
+  /** 统一引擎出站:按 providerMessageId 查投递缓存后 replyOutbound */
+  async replyOutboundFromMessage(
+    providerMessageId: string,
+    text: string,
+    media: OutboundMediaRef[] = [],
+  ): Promise<void> {
+    const api = this.api
+    if (!api) throw new Error('QQ 未连接')
+    const delivery = this.deliveries.get(providerMessageId)
+    if (!delivery) throw new Error(`消息 ${providerMessageId} 的投递信息已失效`)
+    await api.replyOutbound(delivery, text, media)
+  }
+
+  /** 统一引擎流式会话:按 providerMessageId 建 ReplySession */
+  createReplySessionFromMessage(
+    providerMessageId: string,
+    media: OutboundMediaRef[] = [],
+  ): ReplySession {
+    const api = this.api
+    if (!api) throw new Error('QQ 未连接')
+    const delivery = this.deliveries.get(providerMessageId)
+    if (!delivery) throw new Error(`消息 ${providerMessageId} 的投递信息已失效`)
+    return createQqReplySession(api, delivery, media)
+  }
+
+  getDelivery(providerMessageId: string): QqDeliveryInfo | undefined {
+    return this.deliveries.get(providerMessageId)
   }
 
   private async downloadAttachment(

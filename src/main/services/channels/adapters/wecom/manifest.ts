@@ -18,6 +18,11 @@ export const wecomManifest: ChannelManifest = {
   description:
     '在企业微信里私聊或 @机器人,远程指挥这台电脑上的 AI 助教。智能机器人长连接模式,无需公网 IP;回复以流式消息逐字呈现。',
   icon: 'wecom',
+  category: 'enterprise-im',
+  region: 'domestic',
+  priority: 12,
+  qwenpawKey: 'wecom',
+  catalogStatus: 'enabled',
   beta: true,
   capabilities: {
     receivesVia: 'ws',

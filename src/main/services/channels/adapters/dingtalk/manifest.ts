@@ -17,6 +17,11 @@ export const dingtalkManifest: ChannelManifest = {
   description:
     '在钉钉里私聊或 @机器人,远程指挥这台电脑上的 AI 助教。Stream 模式 WebSocket 长连接,无需公网 IP;回复以 AI 卡片打字机流式呈现。',
   icon: 'dingtalk',
+  category: 'enterprise-im',
+  region: 'domestic',
+  priority: 11,
+  qwenpawKey: 'dingtalk',
+  catalogStatus: 'enabled',
   capabilities: {
     receivesVia: 'ws',
     streamingKind: 'card-stream',
