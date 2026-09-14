@@ -98,10 +98,18 @@ export interface ChannelStatusInfo {
   pendingCount: number
 }
 
+/** 出站媒体引用(QQ /files 等;本地路径或公网 URL) */
+export interface OutboundMediaRef {
+  kind: 'image' | 'file'
+  /** 本地绝对路径或 http(s) URL */
+  source: string
+  fileName?: string
+}
+
 /** 出站内容(sendReply/push;流式场景用 createReplySession) */
 export type OutboundContent =
-  | { kind: 'text'; text: string }
-  | { kind: 'markdown'; text: string }
+  | { kind: 'text'; text: string; media?: OutboundMediaRef[] }
+  | { kind: 'markdown'; text: string; media?: OutboundMediaRef[] }
 
 /** 主动推送目标(cron 通知/告警);adapter 按能力位自查 pushPolicy 前置条件 */
 export interface PushTarget {
