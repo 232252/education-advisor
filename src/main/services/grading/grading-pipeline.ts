@@ -27,6 +27,7 @@ import type {
   AiGradeResult,
   AiQuestionResult,
   GradeAnnotationBox,
+  GradingPaper,
   GradingTask,
   RubricQuestion,
   UnifiedSettings,
@@ -578,6 +579,26 @@ export async function regradePapers(
   const apiKey = apiKeyFor(config.providerId)
   if (!apiKey) throw new Error(`Provider ${config.providerId} 未配置 API Key`)
 
+  // 重置前快照旧结果: 重改失败/中止时回滚,不因一次模型抽风丢掉旧分数与复核
+  const snapshots = new Map<
+    string,
+    {
+      ai: GradingPaper['ai']
+      review: GradingPaper['review']
+      error?: string
+      status: GradingPaper['status']
+    }
+  >()
+  for (const paperId of ids) {
+    const paper = task.papers.find((p) => p.id === paperId)
+    if (!paper) throw new Error(`试卷不存在: ${paperId}`)
+    snapshots.set(paperId, {
+      ai: paper.ai,
+      review: paper.review,
+      error: paper.error,
+      status: paper.status,
+    })
+  }
   // 重置在状态迁移前逐份完成(无扫描件等校验失败直接抛,不进作业)
   for (const paperId of ids) {
     await gradingService.resetPaperForRegrade(taskId, paperId)
@@ -586,6 +607,22 @@ export async function regradePapers(
   const controller = new AbortController()
   activeRuns.set(taskId, controller)
   log('info', 'grading', `regrade started: ${taskId} (papers=${ids.length})`)
+
+  /** 回滚一份卷: 保留旧 ai/复核;本轮有新错误则标 failed 留错误信息,否则恢复原状态 */
+  const rollbackPaper = async (paperId: string, newError?: string) => {
+    const snap = snapshots.get(paperId)
+    if (!snap) return
+    try {
+      await gradingService.applyPaperSnapshot(taskId, paperId, {
+        ai: snap.ai,
+        review: snap.review,
+        error: newError ?? snap.error,
+        status: newError ? 'failed' : snap.status,
+      })
+    } catch (err) {
+      log('error', 'grading', `regrade rollback failed: ${taskId}/${paperId}: ${errText(err)}`)
+    }
+  }
 
   void (async () => {
     let gradedCount = 0
@@ -608,13 +645,19 @@ export async function regradePapers(
           total: ids.length,
         })
         try {
-          const result = await gradePaperOnce(
-            taskForGrade,
-            paperId,
-            model,
-            apiKey,
-            controller.signal,
-          )
+          // 重试一次: 小模型偶发空输出/非 JSON(实测 0.5s 瞬时失败),重试通常即过
+          let result: Awaited<ReturnType<typeof gradePaperOnce>> | null = null
+          let lastErr: unknown = null
+          for (let attempt = 0; attempt < 2 && !controller.signal.aborted; attempt++) {
+            try {
+              result = await gradePaperOnce(taskForGrade, paperId, model, apiKey, controller.signal)
+              break
+            } catch (err) {
+              lastErr = err
+              if (controller.signal.aborted) throw err
+            }
+          }
+          if (!result) throw lastErr ?? new Error('批改未产出结果')
           await gradingService.saveAiResult(taskId, paperId, result)
           gradedCount++
           pushProgress(win, {
@@ -633,7 +676,7 @@ export async function regradePapers(
           }
           failedCount++
           const message = errText(err)
-          await gradingService.savePaperError(taskId, paperId, message)
+          await rollbackPaper(paperId, message)
           log('warn', 'grading', `regrade paper failed: ${taskId}/${paperId}: ${message}`)
           pushProgress(win, {
             taskId,
@@ -646,10 +689,16 @@ export async function regradePapers(
           })
         }
       }
+      if (aborted) {
+        // 未轮到的卷恢复重改前原状
+        for (const paperId of ids.slice(gradedCount + failedCount)) {
+          await rollbackPaper(paperId)
+        }
+      }
     } finally {
       activeRuns.delete(taskId)
       try {
-        // 回 review(中止/失败也如此): 重置过的卷可从此处再批,已发布的重新发布
+        // 回 review(中止/失败也如此): 回滚的卷保留旧结果可复核,已发布的重新发布
         await gradingService.setStatus(taskId, 'review')
       } catch (err) {
         log('error', 'grading', `setStatus after regrade failed: ${taskId}: ${errText(err)}`)
