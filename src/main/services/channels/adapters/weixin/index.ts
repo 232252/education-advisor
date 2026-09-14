@@ -16,12 +16,25 @@ import type { ChannelAdapter, ChannelRuntimeContext } from '../../types'
 import { weixinBotService } from './connection'
 import { WEIXIN_DEFAULT_BASE_URL, WEIXIN_MANIFEST_ID } from './constants'
 import { weixinManifest } from './manifest'
+import { decodeWeixinMediaKey } from './parsing'
+import { downloadILinkMedia } from './media'
+import path from 'node:path'
+import { app } from 'electron'
+import { RECEIVED_FILES_DIR_NAME } from './constants'
+import { errText } from '../../../../utils/err-text'
 
 export class WeixinILinkAdapter implements ChannelAdapter {
   readonly id = WEIXIN_MANIFEST_ID
   readonly manifest = weixinManifest
   private engineStatusHandler:
-    | ((info: { status: string; error?: string; connectedAt?: number }) => void)
+    | ((info: {
+        status: string
+        error?: string
+        connectedAt?: number
+        lastMessageAt?: number
+        lastErrorAt?: number
+        reconnectAttempt?: number
+      }) => void)
     | null = null
 
   async validateConfig(
@@ -64,7 +77,17 @@ export class WeixinILinkAdapter implements ChannelAdapter {
     status: string
     error?: string
     connectedAt?: number
-  }): { status: ChannelRunStatus; detail?: string; connectedAt?: number } {
+    lastMessageAt?: number
+    lastErrorAt?: number
+    reconnectAttempt?: number
+  }): {
+    status: ChannelRunStatus
+    detail?: string
+    connectedAt?: number
+    lastMessageAt?: number
+    lastErrorAt?: number
+    reconnectAttempt?: number
+  } {
     const status: ChannelRunStatus =
       s.status === 'connected'
         ? 'connected'
@@ -73,7 +96,14 @@ export class WeixinILinkAdapter implements ChannelAdapter {
           : s.status === 'error'
             ? 'error'
             : 'disabled'
-    return { status, detail: s.error, connectedAt: s.connectedAt }
+    return {
+      status,
+      detail: s.error,
+      connectedAt: s.connectedAt,
+      lastMessageAt: s.lastMessageAt,
+      lastErrorAt: s.lastErrorAt,
+      reconnectAttempt: s.reconnectAttempt,
+    }
   }
 
   getStatus() {
@@ -88,7 +118,8 @@ export class WeixinILinkAdapter implements ChannelAdapter {
   async sendReply(msg: InboundMessage, content: OutboundContent): Promise<{ messageId?: string }> {
     const client = weixinBotService.getClient()
     if (!client) throw new Error('微信未连接')
-    const token = weixinBotService.getContextToken(msg.chat.id) || weixinBotService.getContextToken(msg.sender.id)
+    const token =
+      weixinBotService.getContextToken(msg.chat.id) || weixinBotService.getContextToken(msg.sender.id)
     if (!token) throw new Error('缺少 context_token')
     await client.sendText(msg.chat.id, content.text, token)
     return {}
@@ -101,9 +132,29 @@ export class WeixinILinkAdapter implements ChannelAdapter {
 
   async fetchAttachment(
     _msg: InboundMessage,
-    _att: InboundAttachment,
+    att: InboundAttachment,
   ): Promise<ChannelFetchedAttachment> {
-    return { ok: false, error: '微信 v1 暂不支持附件' }
+    const client = weixinBotService.getClient()
+    if (!client) return { ok: false, error: '微信未连接' }
+    const meta = decodeWeixinMediaKey(att.fileKey)
+    if (!meta) return { ok: false, error: '无效的微信媒体引用' }
+    let filesDir = ''
+    try {
+      filesDir = path.join(app.getPath('userData'), RECEIVED_FILES_DIR_NAME)
+    } catch {
+      filesDir = path.join(process.env.TEMP ?? process.env.TMP ?? '.', RECEIVED_FILES_DIR_NAME)
+    }
+    const dest = path.join(filesDir, `${Date.now()}_${path.basename(meta.fileName)}`)
+    try {
+      const { bytes } = await downloadILinkMedia(client, {
+        encryptQueryParam: meta.encryptQueryParam,
+        aesKey: meta.aesKey,
+        destPath: dest,
+      })
+      return { ok: true, path: dest, bytes }
+    } catch (err) {
+      return { ok: false, error: errText(err) }
+    }
   }
 }
 
