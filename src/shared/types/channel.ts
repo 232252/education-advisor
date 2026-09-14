@@ -8,7 +8,7 @@
 import type { AgentRunSource } from './agent'
 
 /** 渠道如何收到平台消息(决定桌面端能否直连,UI 前置声明部署约束) */
-export type ChannelReceiveMode = 'ws' | 'polling' | 'imap-idle' | 'webhook' | 'relay-ws'
+export type ChannelReceiveMode = 'ws' | 'polling' | 'imap-idle' | 'webhook' | 'relay-ws' | 'mqtt' | 'sip'
 
 /**
  * 流式输出形态(能力位核心):
@@ -39,7 +39,7 @@ export interface ChannelCapabilities {
 
 /** 入站附件引用(未下载;Bridge 经 adapter.fetchAttachment 按需取) */
 export interface InboundAttachment {
-  kind: 'file' | 'image'
+  kind: 'file' | 'image' | 'video' | 'audio'
   /** 飞书 file_key / 钉钉 downloadCode / Telegram file_id */
   fileKey: string
   fileName?: string
@@ -100,7 +100,7 @@ export interface ChannelStatusInfo {
 
 /** 出站媒体引用(QQ /files 等;本地路径或公网 URL) */
 export interface OutboundMediaRef {
-  kind: 'image' | 'file'
+  kind: 'image' | 'file' | 'video' | 'audio'
   /** 本地绝对路径或 http(s) URL */
   source: string
   fileName?: string
@@ -172,6 +172,31 @@ export interface ChannelManifest {
   loginKinds?: Array<'credentials' | 'qr'>
   /** i18n key for fixed limitation banner (QQ 弱主动 / 微信偏私聊) */
   limitationBannerKey?: string
+  /** 目录分组(「更多」Drawer 网格) */
+  category?:
+    | 'enterprise-im'
+    | 'consumer-im'
+    | 'assistant'
+    | 'iot'
+    | 'voice'
+    | 'overseas'
+    | 'local'
+    | 'email'
+  /** 区域策略: domestic 优先展示 */
+  region?: 'domestic' | 'foreign' | 'neutral'
+  /** 排序权重;越小越靠前。缺省按注册序 */
+  priority?: number
+  /** 外链到平台开放文档 */
+  docsUrl?: string
+  /** 映射 QwenPaw 配置键(如 weixin → wechat) */
+  qwenpawKey?: string
+  /** 目录展示但不可启用(合规等);有值时 UI 标「不支持」 */
+  unsupportedReason?: string
+  /**
+   * 目录生命周期(与 comingSoon 并存时以本字段为准展示态):
+   * enabled=可配置; comingSoon=即将推出; later=海外/稍后; unsupported=合规禁止
+   */
+  catalogStatus?: 'enabled' | 'comingSoon' | 'later' | 'unsupported'
 }
 
 /** 渠道实例摘要(channels:list IPC 返回,渲染卡片墙) */

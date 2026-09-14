@@ -16,6 +16,11 @@ export const feishuManifest: ChannelManifest = {
   description:
     '在飞书里私聊或 @机器人,远程指挥这台电脑上的 AI 助教。WebSocket 长连接,无需公网 IP。',
   icon: 'feishu',
+  category: 'enterprise-im',
+  region: 'domestic',
+  priority: 10,
+  qwenpawKey: 'feishu',
+  catalogStatus: 'enabled',
   capabilities: {
     receivesVia: 'ws',
     streamingKind: 'card-stream',

@@ -15,7 +15,12 @@ import { createFeishuAdapter } from '../services/channels/adapters/feishu'
 import { createWecomAdapter } from '../services/channels/adapters/wecom'
 import { createWeixinAdapter } from '../services/channels/adapters/weixin'
 import { createQqAdapter } from '../services/channels/adapters/qq'
+import { createEmailAdapter } from '../services/channels/adapters/email'
+import { createMqttAdapter } from '../services/channels/adapters/mqtt'
+import { createYuanbaoAdapter } from '../services/channels/adapters/yuanbao'
+import { createXiaoyiAdapter } from '../services/channels/adapters/xiaoyi'
 import { channelLoginSessions } from '../services/channels/login/session-manager'
+import { buildQwenpawPendingManifests } from '@shared/channel-catalog'
 import { channelManager } from '../services/channels/manager'
 import { log } from '../utils/logger'
 import { sendToRenderer } from './broadcast'
@@ -28,6 +33,15 @@ function registerChannelRegistry(): void {
   channelManager.register(createWecomAdapter)
   channelManager.register(createWeixinAdapter)
   channelManager.register(createQqAdapter)
+  channelManager.register(createEmailAdapter)
+  channelManager.register(createMqttAdapter)
+  channelManager.register(createYuanbaoAdapter)
+  channelManager.register(createXiaoyiAdapter)
+  // QwenPaw 全量目录占位(「更多」Drawer);已实现 id 不会覆盖 adapters
+  for (const manifest of buildQwenpawPendingManifests()) {
+    if (channelManager.getAdapter(manifest.id)) continue
+    channelManager.registerManifest(manifest)
+  }
 }
 
 /** 渠道显示名(通知文案用;从 manager manifest 目录取) */
