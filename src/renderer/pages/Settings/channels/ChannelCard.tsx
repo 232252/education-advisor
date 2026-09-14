@@ -10,6 +10,7 @@ import { ChevronDown } from 'lucide-react'
 import { useEffect, useReducer } from 'react'
 import { ChannelBrandIcon } from '../../../components/channel/ChannelBrandIcon'
 import { ChannelStatusBadge } from '../../../components/channel/ChannelStatusBadge'
+import { ChannelLimitationBanner } from '../../../components/connection-center/ChannelLimitationBanner'
 import { tr, useT } from '../../../i18n'
 import { cn, formatDateTime } from '../../../lib/ui-utils'
 import { ToggleSwitch } from '../components'
@@ -134,6 +135,10 @@ export function ChannelCard({
         <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-2">
           {info.manifest.description}
         </p>
+
+        {info.manifest.limitationBannerKey && (
+          <ChannelLimitationBanner bannerKey={info.manifest.limitationBannerKey} />
+        )}
 
         <div className="flex items-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
           {status.status === 'connected' && status.processingCount > 0 && (

@@ -199,7 +199,7 @@ export class DingtalkApiClient {
   async downloadAttachment(opts: {
     downloadCode: string
     fileName?: string
-    kind: 'file' | 'image'
+    kind: 'file' | 'image' | 'video' | 'audio'
     dir: string
   }): Promise<{ ok: true; saved: SavedAttachment } | { ok: false; error: string }> {
     try {

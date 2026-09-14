@@ -168,7 +168,12 @@ export function ChannelRow({ info, liveStatus, onConfigure }: ChannelRowProps) {
             detail={status.detail}
             variant="pill"
           />
-          {status.status === 'connected' && status.processingCount > 0 && (
+          {info.manifest.limitationBannerKey && status.status === 'not-configured' && (
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 truncate">
+              {t('connectionCenter.limitationHint', '有能力限制')}
+            </span>
+          )}
+                    {status.status === 'connected' && status.processingCount > 0 && (
             <span className="text-[10px] text-blue-500 dark:text-blue-400 flex-shrink-0">
               {t('settings.channels.processing', '处理中')} {status.processingCount}
             </span>
@@ -179,8 +184,27 @@ export function ChannelRow({ info, liveStatus, onConfigure }: ChannelRowProps) {
             </span>
           )}
         </div>
+        {(status.lastMessageAt || status.detail || (status.reconnectAttempt ?? 0) > 0) && (
+          <div className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500 truncate" title={status.detail || undefined}>
+            {status.lastMessageAt
+              ? t('connectionCenter.diag.lastMsg', '最近消息') +
+                ' ' +
+                new Date(status.lastMessageAt).toLocaleString()
+              : null}
+            {(status.reconnectAttempt ?? 0) > 0
+              ? (status.lastMessageAt ? ' · ' : '') +
+                t('connectionCenter.diag.reconnect', '重连') +
+                ' #' +
+                status.reconnectAttempt
+              : null}
+            {status.status === 'error' && status.detail
+              ? (status.lastMessageAt || (status.reconnectAttempt ?? 0) > 0 ? ' · ' : '') + status.detail
+              : null}
+          </div>
+        )}
       </div>
       {renderAction()}
     </div>
   )
 }
+
