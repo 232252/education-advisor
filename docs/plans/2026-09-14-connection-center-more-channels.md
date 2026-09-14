@@ -25,6 +25,18 @@
 
 ---
 
+## 0.5 已拍板（本轮锁定）
+
+| # | 议题 | 决定 | 备注 |
+|---|---|---|---|
+| 1 | 「更多」UX 形态 | **Drawer 网格展开** | 否决：独立设置子页。点「更多」后右侧/加宽 Drawer 展开**全量 QwenPaw 栏目**（搜索 + 合理分组网格） |
+| 2 | QQ `sendReply` | **立即收敛到统一引擎** | 否决：过渡旗标 `replyViaEngine`。实现轮开工时作为 **P0 接口工作**，与「更多」壳并行或略先 |
+| 3 | 本轮交付边界 | **仅调计划文档** | **不写**「更多」UI / 适配器 / QQ 收敛代码；代码留待实现轮 |
+
+未选本轮、仍作开放问题（见 §6）：小艺/元宝分区、国外 later vs 实验 Token、Mattermost/SIP 等。
+
+---
+
 ## 1. 已有统一接口评估（QQ / 微信是否已统一）
 
 ### 1.1 结论（一句话）
@@ -60,7 +72,9 @@
 
 ### 1.4 QQ 统一性的已知裂缝
 
-`QqBotAdapter.sendReply` 当前抛出「回复由引擎流水线内完成」。连接中心启停/状态/push **仍走统一接口**，但 **被动回复路径与飞书/钉钉不完全同构**。计划：P0 巩固期把 QQ 回复收敛进 `sendReply`/`createReplySession`（或明确文档化「引擎旁路」为过渡态，设 sunset）。
+`QqBotAdapter.sendReply` 当前抛出「回复由引擎流水线内完成」。连接中心启停/状态/push **仍走统一接口**，但 **被动回复路径与飞书/钉钉不完全同构**。
+
+**已拍板**：实现轮 **立即收敛** QQ 被动回复进 `sendReply` / `createReplySession`（与飞书等同构），**不**引入 `capabilities.replyViaEngine` 过渡旗标。此项列为 **P0 接口工作**（编码开工时优先于或并行于「更多」壳）。
 
 ---
 
@@ -149,7 +163,7 @@ push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string
 // push 前 Bridge 读 capabilities.pushPolicy
 ```
 
-**P0 要求**：所有已注册适配器（含 QQ）对 `sendReply` 行为可预期（实现或显式 `capabilities.replyViaEngine: true` 过渡旗标——二选一，推荐实现收敛）。
+**P0 要求（已拍板）**：所有已注册适配器（含 QQ）对 `sendReply` 行为可预期——**立即实现收敛**到统一 `sendReply`/`createReplySession`，**不**采用 `replyViaEngine` 过渡旗标。
 
 ### 2.6 是否「必须」扩大才能做「更多」？
 
@@ -166,50 +180,75 @@ push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string
 
 ## 3. 「更多」IA / UI
 
+> **已拍板**：展开形态 = **Drawer 网格**（非设置子页）。点「更多」后展开 **全量 QwenPaw 栏目**。
+
 ### 3.1 入口位置
 
-**Connection Center 弹出面板**（`ConnectionCenterPanel`）：
+**Connection Center 弹出面板**（`ConnectionCenterPanel`）— 主列表保持精简；「更多」为二级展开，不挤爆 400px 面板：
 
 ```
 ┌─ 连接中心 ───────────── 3/5 已连接 ─┐
-│ 飞书  钉钉  企微  微信  QQ          │  ← 主列表：已注册且 region=domestic 优先
+│ 飞书  钉钉  企微  微信  QQ          │  ← 主列表：已注册 · region=domestic 优先（≤6）
 │ ───────────────────────────────── │
-│ 〔 更多 〕  浏览全部频道目录 →       │  ← 新入口（瓦片或行按钮）
+│ 〔 ⊞ 更多 〕  浏览全部频道目录 →     │  ← 入口：LayoutGrid / MoreHorizontal
 │ 手机·浏览器接入 …                   │
 │ 完整设置                            │
 └─────────────────────────────────────┘
+         │ 点击「更多」
+         ▼
+┌─ 全部频道 ──────────────────── ✕ ─┐  ← 右侧 Drawer（≥520px）或加宽 Panel
+│ 🔍 搜索频道…                        │
+│ [国内企业] [国内个人] [助手] …      │  ← 分组 Tab；海外默认次要/可折叠
+│ ┌──────┐ ┌──────┐                  │
+│ │ 飞书 │ │ 钉钉 │   … 网格 2 列    │  ← 全量 QwenPaw 映射卡
+│ └──────┘ └──────┘                  │
+│ ┌──────┐ ┌──────┐                  │
+│ │元宝  │ │ MQTT │   comingSoon 等  │
+│ └──────┘ └──────┘                  │
+└─────────────────────────────────────┘
 ```
 
-设置页 `ChannelsSection` 同步：主墙仍国内优先；底部或顶栏 **「浏览更多频道」** 打开同一全量目录（Drawer / 全屏 Sheet，避免双实现）。
+设置页 `ChannelsSection` 同步：主墙仍国内优先；底部或顶栏 **「浏览更多频道」** 打开**同一** Drawer 目录组件（单实现，禁止双份 UI）。
 
-### 3.2 展开形态（推荐）
+### 3.2 展开形态（已拍板：Drawer 网格）
 
-**右侧 Drawer 或加宽 Panel（≥520px）「全部频道」**：
+**右侧 Drawer（首选）或加宽 Panel ≥520px「全部频道」**：
 
-1. **搜索框**：按 label / id / description 过滤。  
-2. **分组 Tab 或粘性分组头**：  
-   - 国内企业 · 国内个人 · 国内助手 · 物联网 · 语音 · 海外 · 不可用  
-3. **卡片网格**（2 列）：品牌色瓦片 + 名称 + 一行能力标签（WS / 扫码 / Webhook）+ 状态徽标：  
+1. **搜索框**：按 label / id / description / `qwenpawKey` 过滤；空态提示「未找到匹配频道」。  
+2. **合理分组**（粘性分组头 **或** 顶部分组 Tab，二选一实现，推荐粘性头 + 轻量 Tab 跳转）：  
+
+   | 分组 | 内容（对齐 QwenPaw catalog） |
+   |---|---|
+   | 国内企业 | 飞书 / 钉钉 / 企微 |
+   | 国内个人 | 微信 / QQ |
+   | 国内助手 | 元宝 / 小艺（占位，产品语义见开放问题） |
+   | 物联网 | MQTT |
+   | 语音 | SIP / Voice（占位） |
+   | 海外 | Discord / Telegram / Slack / Matrix / Mattermost / … |
+   | 不可用 | OneBot 等（`unsupportedReason`） |
+
+3. **卡片网格**（2 列，宽屏可 3）：品牌色瓦片 + 名称 + 一行能力标签（WS / 扫码 / Webhook / MQTT）+ 状态徽标：  
    - `已连接` / `可配置` / `即将推出` / `海外·稍后` / `不支持`  
-4. **点击**：  
-   - 已实现 → 跳设置锚点 `#channel-<id>` 或内嵌 SchemaForm  
+4. **点击行为**：  
+   - 已实现 → 跳设置锚点 `#channel-<id>` 或 Drawer 内嵌 SchemaForm  
    - comingSoon → 只读说明 + 「关注更新」  
    - unsupported → 展示 `unsupportedReason`（如 OneBot 合规）  
-   - foreign later → 文案「欢迎 PR / 后续版本」  
+   - foreign later → 「欢迎 PR / 后续版本」  
 
-### 3.3 视觉 polish 指南
+### 3.3 视觉 polish（好看、可读）
 
-- 与现有 `ChannelBrandIcon` / 渐变瓦片语言一致；「更多」入口用中性 `MoreHorizontal` 或 `LayoutGrid`，避免假扮某一品牌。  
-- 海外组默认 **折叠** 或次要透明度，突出国内。  
-- `comingSoon` 灰阶 + 虚线边；`beta` 保留现有徽标。  
-- 限制条（QQ/微信）在详情仍用 `limitationBannerKey`，目录卡上仅短标签「弱主动」。  
-- 深色模式：沿用 `dark:ring-white/[0.07]` 体系；网格间距 8–12px。  
-- 无障碍：分组 `role="tablist"`；搜索 `aria-label`；Esc 关闭 Drawer。
+- 与现有 `ChannelBrandIcon` / 渐变瓦片语言一致；「更多」入口用中性 `LayoutGrid`（或 `MoreHorizontal`），**不**假扮某一品牌。  
+- **国内组靠前、视觉权重高**；海外组默认 **折叠** 或降低不透明度，突出国内优先策略。  
+- `comingSoon`：灰阶 + 虚线边；`beta` 保留现有徽标；`unsupported` 更淡 + 禁止图标。  
+- 限制条（QQ/微信）在详情仍用 `limitationBannerKey`；目录卡上仅短标签「弱主动」。  
+- 深色模式：沿用 `dark:ring-white/[0.07]`；网格 gap 8–12px；卡片圆角与主列表一致。  
+- 动效：Drawer 滑入 200–250ms ease；网格 stagger 可选（≤6 张首屏，避免卡顿）。  
+- 无障碍：分组 `role="tablist"` 或 `aria-labelledby` 分组头；搜索 `aria-label`；Esc / 遮罩点击关闭 Drawer；焦点陷阱在打开时。
 
 ### 3.4 数据源
 
 单一来源：`channelManager.list()` / `listManifests()`。  
-「更多」目录 = **已注册 adapters ∪ pendingManifests（comingSoon 占位）∪ 静态 catalog 扩展表**（仅文档化的未实现项，实现前用 `registerManifest` 注入，无 factory）。
+「更多」目录 = **已注册 adapters ∪ pendingManifests（comingSoon 占位）∪ 静态 catalog 扩展表**（仅文档化的未实现项，实现前用 `registerManifest` 注入，无 factory）— **覆盖调研文档中的全量 QwenPaw 栏目**。
 
 禁止前端硬编码第二份频道列表（QwenPaw 早期 Console 坑：#371）。
 
@@ -222,9 +261,9 @@ push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string
 | 项 | 内容 |
 |---|---|
 | 已有 | 飞书、钉钉、企微、微信(`weixin`)、QQ |
-| UI | 「更多」入口 + 全量目录（占位卡来自 catalog） |
-| 接口 | Manifest `category`/`region`/`qwenpawKey`；QQ `sendReply` 收敛或过渡旗标 |
-| 文档 | 本计划 + 调研已完成 |
+| UI | 「更多」入口 → **Drawer 网格**展开全量 QwenPaw 目录（占位卡来自 catalog） |
+| 接口 | Manifest `category`/`region`/`qwenpawKey`；**QQ `sendReply` 立即收敛到统一引擎**（P0 接口优先项，无过渡旗标） |
+| 文档 | 本计划 + 调研已完成（**本轮仅文档，不写代码**） |
 
 ### P1 — 国内助手 / 物联网（对齐 QwenPaw）
 
@@ -299,21 +338,25 @@ push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string
 
 ### 开放问题（需用户拍板）
 
-1. 「更多」默认展开 **网格 Drawer** 还是 **独立设置子页**？  
-2. **小艺 / 元宝** 是否进 P1 消息频道，或单独「助手出站」？  
-3. **Mattermost** 国内私有化是否升为 P1？  
-4. **SIP/Voice** 进连接中心还是新「语音」分区？  
-5. QQ `sendReply`：**立即收敛** vs **过渡旗标**？  
-6. 国外卡：仅 comingSoon 文案，还是允许用户填 Token 但标「实验·需代理」？
+已关闭（见 §0.5）：「更多」UX → Drawer 网格；QQ `sendReply` → 立即收敛；本轮只调文档。
+
+仍开放：
+
+1. **小艺 / 元宝** 是否进 P1 消息频道，或单独「助手出站」分区？  
+2. **Mattermost** 国内私有化是否升为 P1？  
+3. **SIP/Voice** 进连接中心还是新「语音」分区？  
+4. 国外卡：仅 later / comingSoon 文案，还是允许用户填 Token 但标「实验·需代理」？
 
 ---
 
 ## 7. 建议实施顺序（实现轮，非本提交）
 
+> 本提交 / 本轮：**只更新本文档**，下列步骤在编码开工后执行。
+
 1. Manifest 元数据 + `registerManifest` 注入 QwenPaw 全量占位。  
-2. Connection Center 「更多」Drawer（搜索/分组/状态）。  
-3. QQ 回复路径收敛。  
-4. P1 选 1～2 个国内增量（建议元宝或 MQTT，小艺待拍板）。  
+2. **QQ `sendReply` / `createReplySession` 立即收敛到统一引擎**（P0 接口；与步骤 3 可并行，建议略先或同 PR）。  
+3. Connection Center 「更多」**Drawer 网格**（搜索 / 合理分组 / 全量栏目 / 状态徽标）。  
+4. P1 选 1～2 个国内增量（建议元宝或 MQTT；小艺分区待拍板）。  
 5. 接口：`InboundAttachment` 媒体扩展；Webhook hook 待 Azure/Voice 立项再做。
 
 ---
@@ -322,6 +365,7 @@ push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string
 
 - [x] 调研文档列出 QwenPaw 内置 18 + 插件 1  
 - [x] 明确 QQ/微信已在统一 `ChannelAdapter`  
-- [x] 给出接口扩展提案与「更多」IA  
+- [x] 给出接口扩展提案与「更多」IA（**Drawer 网格**已拍板）  
 - [x] 分批 P0–P3 + 国外/禁止策略  
-- [ ] （实现轮）UI/适配器 — **明确不在本提交**
+- [x] 「已拍板」：Drawer UX + QQ `sendReply` 立即收敛 + 本轮仅文档  
+- [ ] （实现轮）UI/适配器 / QQ 收敛 — **明确不在本提交**
