@@ -5,7 +5,12 @@
 // =============================================================
 
 import type { GradingRosterEntry, ImportPaperBatch } from '@shared/api/grading'
-import type { GradingTask, GradingTaskStatus, TeacherReview } from '@shared/types'
+import type {
+  GradingStrictness,
+  GradingTask,
+  GradingTaskStatus,
+  TeacherReview,
+} from '@shared/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
@@ -16,6 +21,8 @@ export interface RubricInput {
   examDate?: string
   className?: string
   subjectId?: string
+  /** 批改口径(给分松紧);缺省 normal */
+  gradingMode?: GradingStrictness
 }
 
 export function useGradingData() {

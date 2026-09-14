@@ -4,7 +4,7 @@
 // =============================================================
 
 import { cleanPresetMarks } from '@shared/grading-helpers'
-import type { RubricQuestion } from '@shared/types'
+import type { GradingStrictness, RubricQuestion } from '@shared/types'
 import { useState } from 'react'
 import { useT } from '../../../i18n'
 import { getCurrentSemester } from '../../../lib/academics'
@@ -27,6 +27,7 @@ interface TaskCreateDialogProps {
     examDate?: string
     className?: string
     subjectId?: string
+    gradingMode?: GradingStrictness
     rubric: RubricQuestion[]
   }) => Promise<boolean>
 }
@@ -44,6 +45,7 @@ export function TaskCreateDialog({
   const [examDate, setExamDate] = useState('')
   const [className, setClassName] = useState('')
   const [subjectId, setSubjectId] = useState('')
+  const [gradingMode, setGradingMode] = useState<GradingStrictness>('normal')
   const [rubric, setRubric] = useState<RubricQuestion[]>([])
 
   const canSave = name.trim().length > 0 && semester.trim().length > 0 && !saving
@@ -56,6 +58,7 @@ export function TaskCreateDialog({
       examDate: examDate || undefined,
       className: className.trim() || undefined,
       subjectId: subjectId || undefined,
+      gradingMode,
       rubric: rubric
         .filter((q) => q.title.trim().length > 0 && q.fullMark > 0)
         .map((q, i) => ({ ...q, order: i + 1, presetMarks: cleanPresetMarks(q.presetMarks) })),
@@ -148,6 +151,28 @@ export function TaskCreateDialog({
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="grading-task-mode">
+                {t('page.grading.mode.label', '批改口径')}
+              </label>
+              <select
+                id="grading-task-mode"
+                value={gradingMode}
+                onChange={(e) => setGradingMode(e.target.value as GradingStrictness)}
+                title={t('page.grading.mode.title', '给分松紧口径，影响 AI 批改的扣分尺度')}
+                className={`${INPUT_BASE} mt-1 w-full`}
+              >
+                <option value="normal">{t('page.grading.mode.normal', '正常')}</option>
+                <option value="strict">{t('page.grading.mode.strict', '严格')}</option>
+                <option value="lenient">{t('page.grading.mode.lenient', '宽松')}</option>
+              </select>
+              <p className="mt-1 text-[11px] leading-4 text-gray-400">
+                {t(
+                  'page.grading.mode.hint',
+                  '严格=按步扣分不放过瑕疵；宽松=思路对小瑕疵少扣；随时可改，重改生效',
+                )}
+              </p>
             </div>
           </div>
           <div>

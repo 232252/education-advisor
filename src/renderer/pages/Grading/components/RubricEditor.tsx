@@ -38,6 +38,9 @@ export function RubricEditor({ value, onChange }: RubricEditorProps) {
   const [extracting, setExtracting] = useState(false)
   const [confirmOverwrite, setConfirmOverwrite] = useState(false)
   const [extractError, setExtractError] = useState<string | null>(null)
+  const [refining, setRefining] = useState(false)
+  const [confirmRefine, setConfirmRefine] = useState(false)
+  const [refineNotice, setRefineNotice] = useState<string | null>(null)
 
   const patchQuestion = (id: string, patch: Partial<RubricQuestion>) => {
     onChange(value.map((q) => (q.id === id ? { ...q, ...patch } : q)))
@@ -127,6 +130,50 @@ export function RubricEditor({ value, onChange }: RubricEditorProps) {
       return
     }
     void runExtract()
+  }
+
+  const runRefine = async () => {
+    setConfirmRefine(false)
+    setRefineNotice(null)
+    setExtractError(null)
+    const targets = value.filter(
+      (q) => (q.referenceAnswer ?? '').trim().length > 0 && q.title.trim().length > 0,
+    )
+    if (targets.length === 0) {
+      setExtractError(t('page.grading.rubric.refineNoTarget', '请先填写参考答案/评分标准再细化'))
+      return
+    }
+    setRefining(true)
+    try {
+      const res = await getAPI().grading.refineRubric(value)
+      if (!res.success || !res.data) {
+        throw new Error(res.error || t('page.grading.rubric.refineFailed', '细化失败'))
+      }
+      const byId = new Map(res.data.map((r) => [r.id, r.presetMarks]))
+      onChange(value.map((q) => (byId.has(q.id) ? { ...q, presetMarks: byId.get(q.id) } : q)))
+      setRefineNotice(
+        tr('page.grading.rubric.refineDone', {
+          n: res.data.length,
+          skipped: value.length - res.data.length,
+        }),
+      )
+    } catch (err) {
+      setExtractError(
+        err instanceof Error ? err.message : t('page.grading.rubric.refineFailed', '细化失败'),
+      )
+    } finally {
+      setRefining(false)
+    }
+  }
+
+  const handleRefine = () => {
+    setRefineNotice(null)
+    // 已有评分点将被替换 — 先内联确认(同从样卷识别的两段式惯例)
+    if (value.some((q) => (q.presetMarks?.length ?? 0) > 0) && !confirmRefine) {
+      setConfirmRefine(true)
+      return
+    }
+    void runRefine()
   }
 
   const total = value.reduce((sum, q) => sum + (Number.isFinite(q.fullMark) ? q.fullMark : 0), 0)
@@ -253,6 +300,37 @@ export function RubricEditor({ value, onChange }: RubricEditorProps) {
           >
             {extracting ? t('page.grading.rubric.extracting') : t('page.grading.rubric.fromPaper')}
           </button>
+          <button
+            type="button"
+            onClick={handleRefine}
+            disabled={refining || value.length === 0}
+            title={t(
+              'page.grading.rubric.refineTitle',
+              '按参考答案为每题生成扣分点（教师可再修改）；需先填写参考答案/评分标准',
+            )}
+            className={btnStyle('secondary')}
+          >
+            {refining
+              ? t('page.grading.rubric.refining', '细化中…')
+              : t('page.grading.rubric.refine', '自动细化评分标准')}
+          </button>
+          {confirmRefine && !refining && (
+            <span className="flex items-center gap-1 text-xs">
+              <span className="text-amber-600 dark:text-amber-300">
+                {t('page.grading.rubric.refineConfirm', '已手写的评分点将被替换，继续？')}
+              </span>
+              <button type="button" onClick={() => void runRefine()} className={btnStyle('danger')}>
+                {t('common.confirm')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmRefine(false)}
+                className={btnStyle('ghost')}
+              >
+                {t('common.cancel')}
+              </button>
+            </span>
+          )}
           {confirmOverwrite && !extracting && (
             <span className="flex items-center gap-1 text-xs">
               <span className="text-amber-600 dark:text-amber-300">
@@ -281,6 +359,19 @@ export function RubricEditor({ value, onChange }: RubricEditorProps) {
           </span>
         )}
       </div>
+      {refineNotice && (
+        <div className="flex items-start justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-1.5 text-xs text-blue-600 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300">
+          <span className="break-all">{refineNotice}</span>
+          <button
+            type="button"
+            onClick={() => setRefineNotice(null)}
+            aria-label={t('common.close')}
+            className="shrink-0"
+          >
+            ×
+          </button>
+        </div>
+      )}
       {extractError && (
         <div className="flex items-start justify-between gap-2 rounded-lg border border-red-200 bg-red-50/60 px-3 py-1.5 text-xs text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
           <span className="break-all">

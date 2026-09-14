@@ -235,6 +235,21 @@ export function ReviewWorkbench({
                     <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{ai.evidence}</p>
                   )}
                   {ai?.comment && <p className="mt-1 text-xs text-blue-500">{ai.comment}</p>}
+                  {(ai?.deductions?.length ?? 0) > 0 && (
+                    <div className="mt-1.5 rounded-md bg-red-50/60 px-2 py-1 dark:bg-red-500/10">
+                      <p className="text-[11px] font-medium text-red-600 dark:text-red-300">
+                        {t('page.grading.review.deductions', '扣分说明')}
+                      </p>
+                      <ul className="mt-0.5 space-y-0.5">
+                        {(ai?.deductions ?? []).map((d, di) => (
+                          // biome-ignore lint/suspicious/noArrayIndexKey: 扣分项无稳定 id,顺序即身份
+                          <li key={di} className="text-xs text-red-500 dark:text-red-300">
+                            -{d.points} · {d.reason}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   {(q.presetMarks?.length ?? 0) > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {(q.presetMarks ?? []).map((m, mi) => {

@@ -65,6 +65,29 @@ describe('gradingService — 任务与量规', () => {
     await expect(gradingService.createTask({ name: 'x', semester: '' })).rejects.toThrow('学期')
   })
 
+  it('createTask/updateTask: 批改口径 gradingMode 落盘; 非法值拒绝', async () => {
+    const task = await gradingService.createTask({
+      name: '口径卷',
+      semester: 's',
+      gradingMode: 'strict',
+    })
+    expect(task.gradingMode).toBe('strict')
+    expect((await gradingService.getTask(task.id)).gradingMode).toBe('strict')
+
+    await gradingService.updateTask(task.id, { gradingMode: 'lenient' })
+    expect((await gradingService.getTask(task.id)).gradingMode).toBe('lenient')
+
+    await gradingService.updateTask(task.id, { gradingMode: 'normal' })
+    expect((await gradingService.getTask(task.id)).gradingMode).toBe('normal')
+
+    await expect(
+      gradingService.createTask({ name: 'x', semester: 's', gradingMode: 'lazy' }),
+    ).rejects.toThrow('批改口径')
+    await expect(gradingService.updateTask(task.id, { gradingMode: 'easy' })).rejects.toThrow(
+      '批改口径',
+    )
+  })
+
   it('updateTask: 量规重复 id / 非正满分拒绝; 合法量规通过', async () => {
     const task = await gradingService.createTask({ name: 't', semester: 's' })
     await expect(

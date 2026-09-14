@@ -361,4 +361,36 @@ describe('paperMarkScoreRows / paperMarkOverlays', () => {
     expect(paperMarkScoreRows({ ai: undefined }, rubric).map((r) => r.score)).toEqual([null, null])
     expect(paperMarkOverlays({ ai: undefined }, rubric)).toEqual([])
   })
+
+  it('扣分说明: 行内 deductionNotes 格式化;主观题页边批注带扣分点', () => {
+    const deductPaper = {
+      ai: {
+        questions: [
+          {
+            questionId: 'q-2',
+            score: 6,
+            comment: '结果对但过程跳步',
+            deductions: [
+              { points: 2, reason: '受力分析缺失' },
+              { points: 2, reason: '单位未换算' },
+            ],
+            box: { page: 0, x: 0.1, y: 0.4, w: 0.5, h: 0.2 },
+          },
+        ],
+        totalScore: 6,
+        model: { provider: 'p', model: 'm' },
+        finishedAt: '2026-01-01T00:00:00Z',
+      },
+    }
+    const rows = paperMarkScoreRows(deductPaper, [{ id: 'q-2', title: '解答题', fullMark: 10, order: 1 }])
+    expect(rows[0]?.deductionNotes).toEqual(['-2 受力分析缺失', '-2 单位未换算'])
+
+    const overlays = paperMarkOverlays(deductPaper, [
+      { id: 'q-2', title: '解答题', fullMark: 10, order: 1 },
+    ])
+    expect(overlays[0]?.note).toContain('-2 受力分析缺失')
+    expect(overlays[0]?.note).toContain('-2 单位未换算')
+    expect(overlays[0]?.note).toContain('6/10')
+    expect(overlays[0]?.note).toContain('结果对但过程跳步')
+  })
 })

@@ -114,7 +114,7 @@ export function GradingMarksDocument({
             <p className="mt-2 text-[10px] text-red-700">
               {t(
                 'print.gradingMarks.legend',
-                '✓ 全对 · ✗ 零分 · 数字为该题得分；红笔字迹为页边批注',
+                '✓ 全对 · ✗ 零分 · 数字为该题得分；红字为扣分说明，红笔字迹为页边批注',
               )}
             </p>
 
@@ -143,6 +143,12 @@ export function GradingMarksDocument({
                     <td className="py-1.5 pr-2 font-mono">{row.score ?? '—'}</td>
                     <td className="py-1.5">
                       {row.comment || row.evidence || '—'}
+                      {row.deductionNotes.length > 0 && (
+                        <span className="mt-0.5 block text-[10px] text-red-600">
+                          {t('print.gradingMarks.deductions', '扣分')}:{' '}
+                          {row.deductionNotes.join(' · ')}
+                        </span>
+                      )}
                       {row.markNotes.length > 0 && (
                         <span className="mt-0.5 block text-[10px] text-gray-500">
                           {row.markNotes.join(' · ')}
