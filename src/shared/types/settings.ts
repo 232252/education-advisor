@@ -162,6 +162,22 @@ export interface UnifiedSettings {
       /** 该频道的消息交给哪个 Agent 处理(避免多渠道抢占 main 队列) */
       agentId: string
     }
+    weixin: {
+      enabled: boolean
+      /** iLink API 基址(扫码后可能覆盖) */
+      baseUrl: string
+      /** 恒为空串或 '__keystore__'(真实值在 keystore 'weixin-bot-token') */
+      botToken: string
+      agentId: string
+    }
+    qq: {
+      enabled: boolean
+      appId: string
+      /** 恒为空串或 '__keystore__'(真实值在 keystore 'qq-client-secret') */
+      clientSecret: string
+      allowGroups: boolean
+      agentId: string
+    }
   }
   // R2-03 清理:原 advanced.shellPath/sessionDir/httpIdleTimeoutMs 为死配置(全仓无消费方),已删除
   mcp: {

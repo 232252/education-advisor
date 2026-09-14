@@ -10,6 +10,8 @@ import { useState } from 'react'
 import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { BTN_SM_BLUE } from '../../../lib/ui-utils'
+import { ChannelLimitationBanner } from '../../../components/connection-center/ChannelLimitationBanner'
+import { ChannelQrLogin } from '../../../components/connection-center/ChannelQrLogin'
 import { SchemaForm } from './SchemaForm'
 
 interface ChannelConfigPanelProps {
@@ -45,8 +47,27 @@ export function ChannelConfigPanel({ info, settings, onSave, extra }: ChannelCon
     }
   }
 
+  const supportsQr = info.manifest.loginKinds?.includes('qr') === true
+
   return (
     <div className="divide-y divide-gray-200 dark:divide-white/[0.06]">
+      {info.manifest.limitationBannerKey && (
+        <div className="px-5 py-3">
+          <ChannelLimitationBanner bannerKey={info.manifest.limitationBannerKey} />
+        </div>
+      )}
+
+      {supportsQr && (
+        <div className="px-5 py-4">
+          <ChannelQrLogin
+            channelId={channelId}
+            onConfirmed={() => {
+              // 凭证已写入;提示用户可测试/启用
+            }}
+          />
+        </div>
+      )}
+
       {/* ① manifest 声明的配置表单(schema 驱动,新渠道零代码) */}
       <SchemaForm
         basePath={`channels.${channelId}`}

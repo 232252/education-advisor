@@ -7,14 +7,16 @@
 // =============================================================
 
 import type { ChannelInstanceInfo, ChannelStatusInfo } from '@shared/types'
-import { PlugZap, Settings, X } from 'lucide-react'
+import { LayoutGrid, PlugZap, Settings, X } from 'lucide-react'
 import { type RefObject, useEffect, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { tr, useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { cn } from '../../lib/ui-utils'
+import { pickPrimaryChannelIds } from '@shared/channel-catalog'
 import { ChannelRow } from './ChannelRow'
+import { MoreChannelsDrawer } from './MoreChannelsDrawer'
 import { WebUiConnectBlock } from './WebUiConnectBlock'
 
 const PANEL_WIDTH = 400
@@ -51,6 +53,7 @@ export function ConnectionCenterPanel({
   const [instances, setInstances] = useState<ChannelInstanceInfo[]>([])
   const [liveStatus, setLiveStatus] = useState<Record<string, ChannelStatusInfo>>({})
   const [pos, setPos] = useState({ left: PANEL_GAP, bottom: PANEL_GAP })
+  const [moreOpen, setMoreOpen] = useState(false)
 
   // 挂载拉取渠道目录 + 订阅状态变化(卸载退订;与设置页各自订阅同一广播,状态天然收敛)
   useEffect(() => {
@@ -91,8 +94,15 @@ export function ConnectionCenterPanel({
     navigate(`/settings${hash}`)
   }
 
-  // 汇总:不计占位渠道;connected 数取实时覆写
-  const real = instances.filter((i) => i.manifest.comingSoon !== true)
+  // 主列表精简:国内优先已启用(≤6);「更多」展示全量目录
+  const primaryIds = pickPrimaryChannelIds(instances.map((i) => i.manifest), 6)
+  const primarySet = new Set(primaryIds)
+  const primaryInstances = instances.filter((i) => primarySet.has(i.manifest.id))
+  const real = instances.filter((i) => {
+    const s = i.manifest.catalogStatus
+    if (s === 'unsupported' || s === 'later') return false
+    return i.manifest.comingSoon !== true && !i.manifest.unsupportedReason
+  })
   const connectedCount = real.filter(
     (i) => (liveStatus[i.manifest.id] ?? i.status).status === 'connected',
   ).length
@@ -106,6 +116,7 @@ export function ConnectionCenterPanel({
   if (typeof document === 'undefined') return null
 
   return createPortal(
+    <>
     <div
       ref={panelRef}
       data-testid="connection-center-panel"
@@ -158,20 +169,48 @@ export function ConnectionCenterPanel({
           {t('connectionCenter.section.channels', '消息频道')}
         </div>
         <div className="mx-3 mb-1 rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-gray-50/60 dark:bg-white/[0.02] divide-y divide-gray-100 dark:divide-white/[0.04] overflow-hidden">
-          {instances.length === 0 ? (
+          {primaryInstances.length === 0 ? (
             <p className="px-3 py-4 text-xs text-gray-400 dark:text-gray-500">
               {t('settings.channels.empty', '没有可用渠道')}
             </p>
           ) : (
-            instances.map((info) => (
+            primaryInstances.map((info) => (
               <ChannelRow
                 key={info.manifest.id}
                 info={info}
                 liveStatus={liveStatus[info.manifest.id]}
-                onConfigure={() => openSettings('#connection')}
+                onConfigure={() => openSettings(`#channel-${info.manifest.id}`)}
               />
             ))
           )}
+        </div>
+
+        {/* 「更多」入口 → Drawer 全量目录 */}
+        <div className="mx-3 mb-2">
+          <button
+            type="button"
+            data-testid="connection-center-more"
+            onClick={() => setMoreOpen(true)}
+            className={cn(
+              'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl',
+              'border border-dashed border-gray-300/80 dark:border-white/[0.12]',
+              'bg-white/60 dark:bg-white/[0.02]',
+              'hover:border-blue-400/60 hover:bg-blue-50/50 dark:hover:bg-blue-500/10',
+              'transition-colors text-left',
+            )}
+          >
+            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center ring-1 ring-white/15 flex-shrink-0">
+              <LayoutGrid size={14} className="text-white" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-medium text-gray-800 dark:text-gray-200">
+                {t('connectionCenter.more.entry', '更多')}
+              </span>
+              <span className="block text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                {t('connectionCenter.more.entryHint', '浏览全部频道目录 →')}
+              </span>
+            </span>
+          </button>
         </div>
 
         {/* ── 手机 / 浏览器接入 ── */}
@@ -198,7 +237,18 @@ export function ConnectionCenterPanel({
           Alt+C
         </kbd>
       </div>
-    </div>,
+    </div>
+    <MoreChannelsDrawer
+      open={moreOpen}
+      onClose={() => setMoreOpen(false)}
+      instances={instances}
+      liveStatus={liveStatus}
+      onConfigure={(id) => {
+        setMoreOpen(false)
+        openSettings(`#channel-${id}`)
+      }}
+    />
+    </>,
     document.body,
   )
 }

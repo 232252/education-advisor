@@ -117,6 +117,19 @@
       "secret": "",
       "allowGroups": true,
       "agentId": "main"
+    },
+    "weixin": {
+      "enabled": true,
+      "baseUrl": "https://ilinkai.weixin.qq.com",
+      "botToken": "",
+      "agentId": "main"
+    },
+    "qq": {
+      "enabled": true,
+      "appId": "",
+      "clientSecret": "",
+      "allowGroups": true,
+      "agentId": "main"
     }
   },
   "shortcuts": {

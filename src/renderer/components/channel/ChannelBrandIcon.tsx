@@ -33,6 +33,70 @@ const BRAND: Record<string, { gradient: string; shadow: string }> = {
     gradient: 'from-[#00A944] to-[#33C46E]',
     shadow: 'shadow-[0_2px_8px_rgba(0,169,68,0.35)]',
   },
+  weixin: {
+    gradient: 'from-[#07C160] to-[#06AD56]',
+    shadow: 'shadow-[0_2px_8px_rgba(7,193,96,0.35)]',
+  },
+  qq: {
+    gradient: 'from-[#12B7F5] to-[#1296DB]',
+    shadow: 'shadow-[0_2px_8px_rgba(18,183,245,0.35)]',
+  },
+  yuanbao: {
+    gradient: 'from-[#2B5AED] to-[#6B8CFF]',
+    shadow: 'shadow-[0_2px_8px_rgba(43,90,237,0.35)]',
+  },
+  xiaoyi: {
+    gradient: 'from-[#CF0A2C] to-[#FF4D6A]',
+    shadow: 'shadow-[0_2px_8px_rgba(207,10,44,0.35)]',
+  },
+  email: {
+    gradient: 'from-[#EA4335] to-[#FBBC04]',
+    shadow: 'shadow-[0_2px_8px_rgba(234,67,53,0.3)]',
+  },
+  mqtt: {
+    gradient: 'from-[#660066] to-[#9933CC]',
+    shadow: 'shadow-[0_2px_8px_rgba(102,0,102,0.35)]',
+  },
+  sip: {
+    gradient: 'from-[#0EA5E9] to-[#6366F1]',
+    shadow: 'shadow-[0_2px_8px_rgba(14,165,233,0.3)]',
+  },
+  voice: {
+    gradient: 'from-[#F59E0B] to-[#EF4444]',
+    shadow: 'shadow-[0_2px_8px_rgba(245,158,11,0.3)]',
+  },
+  discord: {
+    gradient: 'from-[#5865F2] to-[#7289DA]',
+    shadow: 'shadow-[0_2px_8px_rgba(88,101,242,0.35)]',
+  },
+  telegram: {
+    gradient: 'from-[#2AABEE] to-[#229ED9]',
+    shadow: 'shadow-[0_2px_8px_rgba(42,171,238,0.35)]',
+  },
+  slack: {
+    gradient: 'from-[#4A154B] to-[#E01E5A]',
+    shadow: 'shadow-[0_2px_8px_rgba(74,21,75,0.35)]',
+  },
+  matrix: {
+    gradient: 'from-[#0DBD8B] to-[#0B6E4F]',
+    shadow: 'shadow-[0_2px_8px_rgba(13,189,139,0.3)]',
+  },
+  mattermost: {
+    gradient: 'from-[#0058CC] to-[#1E325C]',
+    shadow: 'shadow-[0_2px_8px_rgba(0,88,204,0.3)]',
+  },
+  imessage: {
+    gradient: 'from-[#34C759] to-[#30D158]',
+    shadow: 'shadow-[0_2px_8px_rgba(52,199,89,0.3)]',
+  },
+  'azure-bot': {
+    gradient: 'from-[#0078D4] to-[#50E6FF]',
+    shadow: 'shadow-[0_2px_8px_rgba(0,120,212,0.3)]',
+  },
+  onebot: {
+    gradient: 'from-gray-500 to-gray-600',
+    shadow: '',
+  },
 }
 
 const DEFAULT_BRAND = {
