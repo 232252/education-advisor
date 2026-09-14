@@ -113,6 +113,30 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     }
   }
 
+  const reconnectWeixinBot = async () => {
+    const s = settingsService.getSettings()
+    const secret = keystoreService.getSecret('weixin-bot-token')
+    if (s.channels.weixin?.enabled && secret) {
+      await channelManager.start('weixin').catch((err) => {
+        log('warn', 'settings', `weixin channel reconnect failed: ${err}`)
+      })
+    } else {
+      await channelManager.stop('weixin').catch(() => {})
+    }
+  }
+
+  const reconnectQqBot = async () => {
+    const s = settingsService.getSettings()
+    const secret = keystoreService.getSecret('qq-client-secret')
+    if (s.channels.qq?.enabled && s.channels.qq?.appId && secret) {
+      await channelManager.start('qq').catch((err) => {
+        log('warn', 'settings', `qq channel reconnect failed: ${err}`)
+      })
+    } else {
+      await channelManager.stop('qq').catch(() => {})
+    }
+  }
+
   // H-9 修复: 加 try-catch
   handleIpc(IPC.IPC_SETTINGS_GET, async () => {
     // PERF: 命中缓存直接返回(避免 structuredClone + keystore 查询)
@@ -129,6 +153,12 @@ export function registerSettingsHandlers(win: BrowserWindow) {
     }
     if (keystoreService.getSecret('wecom-secret')) {
       settings.channels.wecom.secret = SECRET_PLACEHOLDER
+    }
+    if (keystoreService.getSecret('weixin-bot-token') && settings.channels.weixin) {
+      settings.channels.weixin.botToken = SECRET_PLACEHOLDER
+    }
+    if (keystoreService.getSecret('qq-client-secret') && settings.channels.qq) {
+      settings.channels.qq.clientSecret = SECRET_PLACEHOLDER
     }
     settingsGetCache.set('response', settings)
     return settings
@@ -149,7 +179,11 @@ export function registerSettingsHandlers(win: BrowserWindow) {
           path === 'channels.dingtalk.clientId' ||
           path === 'channels.dingtalk.clientSecret' ||
           path === 'channels.wecom.botId' ||
-          path === 'channels.wecom.secret')
+          path === 'channels.wecom.secret' ||
+          path === 'channels.weixin.botToken' ||
+          path === 'channels.weixin.baseUrl' ||
+          path === 'channels.qq.appId' ||
+          path === 'channels.qq.clientSecret')
       ) {
         value = value.trim()
       }
@@ -347,6 +381,23 @@ export function registerSettingsHandlers(win: BrowserWindow) {
         path === 'channels.wecom.agentId'
       ) {
         await reconnectWecomBot()
+      }
+
+      if (
+        path === 'channels.weixin.enabled' ||
+        path === 'channels.weixin.baseUrl' ||
+        path === 'channels.weixin.agentId'
+      ) {
+        await reconnectWeixinBot()
+      }
+
+      if (
+        path === 'channels.qq.appId' ||
+        path === 'channels.qq.enabled' ||
+        path === 'channels.qq.allowGroups' ||
+        path === 'channels.qq.agentId'
+      ) {
+        await reconnectQqBot()
       }
 
       // T5: 日志级别:实时切换

@@ -13,6 +13,9 @@ import { Notification } from 'electron'
 import { createDingtalkAdapter } from '../services/channels/adapters/dingtalk'
 import { createFeishuAdapter } from '../services/channels/adapters/feishu'
 import { createWecomAdapter } from '../services/channels/adapters/wecom'
+import { createWeixinAdapter } from '../services/channels/adapters/weixin'
+import { createQqAdapter } from '../services/channels/adapters/qq'
+import { channelLoginSessions } from '../services/channels/login/session-manager'
 import { channelManager } from '../services/channels/manager'
 import { log } from '../utils/logger'
 import { sendToRenderer } from './broadcast'
@@ -23,6 +26,8 @@ function registerChannelRegistry(): void {
   channelManager.register(createFeishuAdapter)
   channelManager.register(createDingtalkAdapter)
   channelManager.register(createWecomAdapter)
+  channelManager.register(createWeixinAdapter)
+  channelManager.register(createQqAdapter)
 }
 
 /** 渠道显示名(通知文案用;从 manager manifest 目录取) */
@@ -51,6 +56,15 @@ export function registerChannelHandlers(win: BrowserWindow): void {
 
   // [w] 测试连接(validateConfig + 显式鉴权,不建长连接)
   handleIpc(IPC.IPC_CHANNELS_TEST, async (_e, id: string) => channelManager.test(id))
+
+  // 扫码登录会话(微信 iLink / QQ 门户 bind)
+  handleIpc(IPC.IPC_CHANNELS_BEGIN_LOGIN, async (_e, id: string) => channelLoginSessions.begin(id))
+  handleIpc(IPC.IPC_CHANNELS_POLL_LOGIN, async (_e, loginId: string) =>
+    channelLoginSessions.poll(loginId),
+  )
+  handleIpc(IPC.IPC_CHANNELS_CANCEL_LOGIN, async (_e, loginId: string) =>
+    channelLoginSessions.cancel(loginId),
+  )
 
   // 状态推送:adapter → Manager 聚合 → renderer + WebUI
   // B6-5(阶段 2 泛化): 渠道转入 error 时弹一次系统通知,

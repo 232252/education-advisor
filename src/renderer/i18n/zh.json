@@ -1954,5 +1954,18 @@
   "page.chat.queuedNotice": "已排队，当前回复完成后自动发送",
   "page.chat.queuedBadge": "已排队",
   "page.chat.composer.queueSend": "排队发送",
-  "page.chat.composer.queueSendTitle": "当前回复完成后自动发送"
+  "page.chat.composer.queueSendTitle": "当前回复完成后自动发送",
+  "channels.qq.limitation": "QQ 群主动消息配额极严(约每月数条),被动回复窗口约 5 分钟。适合私聊问答;定时群播报请用飞书/钉钉/邮件。",
+  "channels.weixin.limitation": "微信(个人 iLink)偏私聊;主动推送弱,需用户先发言取得会话令牌。不适合作为定时告警主通道。",
+  "channels.qr.title": "扫码连接",
+  "channels.qr.start": "开始扫码",
+  "channels.qr.loading": "正在获取二维码…",
+  "channels.qr.scanHint": "请用对应 App 扫描二维码",
+  "channels.qr.scanned": "已扫码,请在手机上确认",
+  "channels.qr.confirmed": "绑定成功",
+  "channels.qr.expired": "二维码已过期",
+  "channels.qr.error": "扫码失败",
+  "channels.qr.cancel": "取消",
+  "channels.qr.retry": "重新扫码",
+  "connectionCenter.limitationHint": "有能力限制"
 }
