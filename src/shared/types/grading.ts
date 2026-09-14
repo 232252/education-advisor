@@ -25,6 +25,11 @@ export interface RubricQuestion {
   id: string
   /** 题号/题名 */
   title: string
+  /**
+   * 题类: objective=客观(选择/判断/填空,只标✓/✗/得分)
+   * subjective=主观(简答/计算/作文,加页边批注)。缺省按标题关键词推导。
+   */
+  type?: 'objective' | 'subjective'
   /** 满分(≈ gc_max_value) */
   fullMark: number
   /** 参考答案/评分标准(喂给 AI 的判分依据) */

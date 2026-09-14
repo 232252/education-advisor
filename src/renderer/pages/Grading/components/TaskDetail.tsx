@@ -15,7 +15,10 @@ import type {
   TeacherReview,
 } from '@shared/types'
 import { useEffect, useMemo, useState } from 'react'
-import { GradingMarksDocument } from '../../../components/print/GradingMarksDocument'
+import {
+  GradingMarksDocument,
+  type GradingMarksMode,
+} from '../../../components/print/GradingMarksDocument'
 import { PrintOverlay } from '../../../components/print/PrintOverlay'
 import { useIpcSubscription } from '../../../hooks/useIpcSubscription'
 import { tr, useT } from '../../../i18n'
@@ -91,6 +94,8 @@ export function TaskDetail({
   const [progress, setProgress] = useState<GradingProgressEvent | null>(null)
   const [reviewingPaperId, setReviewingPaperId] = useState<string | null>(null)
   const marksPrint = useGradingMarksPrint()
+  // 打印版式: 痕迹卷(原卷落痕,默认) / 批阅报告(得分表+卷面)
+  const [marksMode, setMarksMode] = useState<GradingMarksMode>('paper')
 
   // 批改进度订阅: 只关心当前任务;done 后刷新任务列表与详情
   useIpcSubscription<GradingProgressEvent>(
@@ -159,8 +164,29 @@ export function TaskDetail({
             : `${t('print.gradingMarks.title', '批阅痕迹')} — ${marksPrint.task.name} (${tr('page.grading.count.papers', { n: marksPrint.views.length })})`
         }
         onClose={marksPrint.close}
+        toolbarExtra={
+          <span className="flex items-center gap-1 rounded-md bg-white/10 p-0.5">
+            {(['paper', 'report'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMarksMode(m)}
+                className={
+                  marksMode === m
+                    ? 'rounded bg-white px-2 py-0.5 text-xs font-medium text-gray-900'
+                    : 'rounded px-2 py-0.5 text-xs text-gray-300 hover:text-white'
+                }
+              >
+                {t(
+                  m === 'paper' ? 'page.grading.printMode.paper' : 'page.grading.printMode.report',
+                )}
+              </button>
+            ))}
+          </span>
+        }
+        contentClassName={marksMode === 'paper' ? '!px-2 !py-2' : undefined}
       >
-        <GradingMarksDocument task={marksPrint.task} papers={marksPrint.views} />
+        <GradingMarksDocument task={marksPrint.task} papers={marksPrint.views} mode={marksMode} />
       </PrintOverlay>
     ) : null
 

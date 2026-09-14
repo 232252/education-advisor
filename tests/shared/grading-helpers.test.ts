@@ -15,8 +15,22 @@ import {
   paperGroupKey,
   paperMarkOverlays,
   paperMarkScoreRows,
+  questionKind,
   rubricFullMark,
 } from '../../src/shared/grading-helpers'
+
+describe('questionKind 题类推导', () => {
+  it('量规显式标注优先,缺省按标题关键词推导,默认主观', () => {
+    expect(questionKind({ title: '一、选择题' })).toBe('objective')
+    expect(questionKind({ title: '二、填空题' })).toBe('objective')
+    expect(questionKind({ title: '三、判断正误' })).toBe('objective')
+    expect(questionKind({ title: '四、计算题' })).toBe('subjective')
+    expect(questionKind({ title: '五、作文' })).toBe('subjective')
+    expect(questionKind({ title: '未知题型' })).toBe('subjective')
+    expect(questionKind({ title: '未知题型', type: 'objective' })).toBe('objective')
+    expect(questionKind({ title: '一、选择题', type: 'subjective' })).toBe('subjective')
+  })
+})
 
 describe('effectiveQuestionScore / effectiveTotalScore', () => {
   const paper = {
@@ -290,19 +304,57 @@ describe('paperMarkScoreRows / paperMarkOverlays', () => {
     expect(rows[1].comment).toBe('全对')
   })
 
-  it('叠字只要有 box 的题;角标仅得分,边栏全文含题名/得分/评语', () => {
+  it('叠字只要有 box 的题;客观题部分对只标得分不出页边批注', () => {
     const overlays = paperMarkOverlays(paper, rubric)
     expect(overlays).toHaveLength(1)
     expect(overlays[0]).toMatchObject({
       questionId: 'q-1',
+      kind: 'objective', // 「一、选择题」标题推导
+      verdict: 'partial',
+      mark: '18/20',
+      note: '', // 客观题不占页边批注
       page: 0,
       x: 0.1,
       y: 0.2,
     })
-    expect(overlays[0].badge).toBe('18/20')
-    expect(overlays[0].note).toContain('一、选择题')
-    expect(overlays[0].note).toContain('18/20')
-    expect(overlays[0].note).toContain('AI 评语')
+  })
+
+  it('主观题: 全对只打✓,零分打✗带批注,部分对标得分带批注', () => {
+    const subjRubric = [
+      { id: 'q-1', title: '三、计算题', fullMark: 10, order: 1 },
+      { id: 'q-2', title: '四、简答题', fullMark: 10, order: 2 },
+      { id: 'q-3', title: '五、作文', fullMark: 40, order: 3 },
+    ]
+    const subjPaper = {
+      ai: {
+        questions: [
+          { questionId: 'q-1', score: 10, box: { page: 0, x: 0, y: 0.1, w: 0.5, h: 0.1 } },
+          {
+            questionId: 'q-2',
+            score: 0,
+            comment: '未作答',
+            box: { page: 0, x: 0, y: 0.3, w: 0.5, h: 0.1 },
+          },
+          {
+            questionId: 'q-3',
+            score: 28,
+            comment: '结构完整，论据稍单薄',
+            box: { page: 0, x: 0, y: 0.5, w: 0.5, h: 0.2 },
+          },
+        ],
+        totalScore: 38,
+        model: { provider: 'p', model: 'm' },
+        finishedAt: '2026-01-01T00:00:00Z',
+      },
+    }
+    const overlays = paperMarkOverlays(subjPaper, subjRubric)
+    expect(overlays).toHaveLength(3)
+    expect(overlays[0]).toMatchObject({ verdict: 'full', mark: '✓', note: '' })
+    expect(overlays[1]).toMatchObject({ verdict: 'zero', mark: '✗' })
+    expect(overlays[1].note).toContain('未作答')
+    expect(overlays[2]).toMatchObject({ verdict: 'partial', mark: '28/40' })
+    expect(overlays[2].note).toContain('结构完整')
+    expect(overlays[2].note).toContain('28/40')
   })
 
   it('无 AI 结果仍输出量规行,无叠字', () => {

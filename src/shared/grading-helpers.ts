@@ -7,7 +7,25 @@
 import type { AiGradeResult, GradingPaper, PresetMark, RubricQuestion } from './types'
 
 /** 页边批注全文最长字数(边栏空间有限,超出截断) */
-const MARK_NOTE_TEXT_MAX = 120
+const MARK_NOTE_TEXT_MAX = 160
+
+// ===== 题类推导(批注策略: 客观题只标符号/得分,主观题加页边批注) =====
+
+export type QuestionKind = 'objective' | 'subjective'
+
+const OBJECTIVE_TITLE_RE = /选择|单选|多选|判断|填空|连线|匹配/
+const SUBJECTIVE_TITLE_RE = /作文|写作|论述|简答|问答|计算|解答|实验|证明|应用/
+
+/**
+ * 题类: 量规显式标注优先;缺省按标题关键词推导,仍无法判断按主观处理
+ * (宁多一条批注,不漏一条)。旧任务无 type 字段也能直接受益。
+ */
+export function questionKind(q: Pick<RubricQuestion, 'title' | 'type'>): QuestionKind {
+  if (q.type === 'objective' || q.type === 'subjective') return q.type
+  if (OBJECTIVE_TITLE_RE.test(q.title)) return 'objective'
+  if (SUBJECTIVE_TITLE_RE.test(q.title)) return 'subjective'
+  return 'subjective'
+}
 
 /** 单题生效分: 教师覆盖 > AI 分; 两者皆无 → null */
 export function effectiveQuestionScore(
@@ -91,13 +109,20 @@ export interface PaperMarkScoreRow {
   markNotes: string[]
 }
 
-/** 卷面红框批注(相对页宽高 0–1) */
+/**
+ * 卷面批注痕迹(相对页宽高 0–1)。打印/屏幕共用同一份策略产物:
+ * 卷面只落红笔符号/得分(✓/✗/12/28),页边批注全文放边栏,永不压作答。
+ */
 export interface PaperMarkOverlay {
   questionId: string
   title: string
-  /** 框角角标短文(仅得分,如 12/28);贴框外角,不遮作答 */
-  badge: string
-  /** 页边批注全文(题名+得分+评语/依据),放边栏 */
+  /** 题类: 客观题只落符号/得分,主观题才出页边批注 */
+  kind: QuestionKind
+  /** 判分结论(由生效分推导) */
+  verdict: 'full' | 'zero' | 'partial'
+  /** 卷面红笔短文: ✓(全对) / ✗(零分) / "12/28"(部分对) */
+  mark: string
+  /** 页边批注全文(题名+得分+评语);仅主观题且非全对时有值 */
   note: string
   page: number
   x: number
@@ -146,8 +171,11 @@ export function paperMarkScoreRows(
 }
 
 /**
- * 有卷面 box 的题 → 卷面叠字(按量规题序,角标序号稳定)。
- * 框内不排文字:badge 只放得分贴框外角,note 全文放页边边栏,避免遮挡作答。
+ * 有卷面 box 的题 → 卷面痕迹(阅卷红笔口径,按量规题序稳定输出):
+ * - 全对 → ✓(不打分、无批注,省墨省纸);
+ * - 零分 → ✗,主观题仍给页边批注(解释原因);
+ * - 部分对 → 红笔得分(如 12/28),仅主观题出页边批注(题名+得分+评语);
+ * - 客观题一律不占页边批注;无生效分或无 box 的题不落痕迹(得分表里已有)。
  */
 export function paperMarkOverlays(
   paper: Pick<GradingPaper, 'ai' | 'review'>,
@@ -157,14 +185,33 @@ export function paperMarkOverlays(
   const out: PaperMarkOverlay[] = []
   for (const row of paperMarkScoreRows(paper, rubric)) {
     const box = aiById.get(row.questionId)?.box
-    if (!box) continue
-    const scoreText = typeof row.score === 'number' ? `${row.score}/${row.fullMark}` : ''
+    if (!box || row.score === null) continue
+    const kind = questionKind(rubric.find((q) => q.id === row.questionId) ?? { title: row.title })
+    const scoreText = `${row.score}/${row.fullMark}`
+    let verdict: PaperMarkOverlay['verdict']
+    let mark: string
+    if (row.fullMark > 0 && row.score >= row.fullMark) {
+      verdict = 'full'
+      mark = '✓'
+    } else if (row.score <= 0) {
+      verdict = 'zero'
+      mark = '✗'
+    } else {
+      verdict = 'partial'
+      mark = scoreText
+    }
+    // 页边批注: 仅主观题且非全对;评语(教师覆盖优先)缺省用 AI 判分依据
     const comment = row.comment || row.evidence || ''
-    const note = clipMarkText([row.title, scoreText, comment].filter((s) => s.length > 0).join(' '))
+    const note =
+      kind === 'subjective' && verdict !== 'full'
+        ? clipMarkText([row.title, scoreText, comment].filter((s) => s.length > 0).join(' '))
+        : ''
     out.push({
       questionId: row.questionId,
       title: row.title,
-      badge: scoreText,
+      kind,
+      verdict,
+      mark,
       note,
       page: box.page ?? 0,
       x: box.x,

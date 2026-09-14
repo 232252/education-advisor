@@ -59,11 +59,12 @@ export function buildRubricExtractPrompt(): string {
     '',
     '每题字段:',
     '- title: 题号与题干摘要（如「一、选择题（每小题 5 分，共 10 小题）」）',
+    '- type: 题类。"objective"=客观（选择/判断/填空/连线），"subjective"=主观（简答/计算/解答/作文/论述/实验）',
     '- fullMark: 该题满分，数字。卷面有标注按标注；「每小题 x 分共 n 小题」自行相乘求和；无标注时按题型合理估计',
     '- referenceAnswer: 若照片中有参考答案或评分标准则照录；没有则给出该题的答题要点草稿，并在末尾加上「（AI 草稿，请核对后删此标注）」',
     '',
     '输出格式:',
-    '{"questions":[{"title":"一、选择题（每小题 5 分，共 10 小题）","fullMark":50,"referenceAnswer":"…"}]}',
+    '{"questions":[{"title":"一、选择题（每小题 5 分，共 10 小题）","type":"objective","fullMark":50,"referenceAnswer":"…"}]}',
     '- 只输出上述 JSON，不要 markdown 代码块标记',
   ].join('\n')
 }
@@ -118,11 +119,14 @@ export function parseRubricExtractResponse(text: string): ExtractedRubricQuestio
     let fullMark = Number(r.fullMark)
     if (!Number.isFinite(fullMark) || fullMark <= 0) fullMark = 10 // 与「添加题目」默认一致
     fullMark = Math.min(fullMark, 1000)
+    // 题类白名单校验;非法值丢弃(渲染层 questionKind 会按标题推导兜底)
+    const type: ExtractedRubricQuestion['type'] =
+      r.type === 'objective' || r.type === 'subjective' ? r.type : undefined
     const referenceAnswer =
       typeof r.referenceAnswer === 'string' && r.referenceAnswer.trim().length > 0
         ? r.referenceAnswer.trim()
         : undefined
-    questions.push({ title, fullMark, referenceAnswer })
+    questions.push({ title, fullMark, type, referenceAnswer })
   }
   if (questions.length === 0) {
     throw new Error('未识别出题目')
