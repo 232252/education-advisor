@@ -548,3 +548,125 @@ export function abortGrading(taskId: string): boolean {
 export function isGradingActive(taskId: string): boolean {
   return activeRuns.has(taskId)
 }
+
+/**
+ * 重改: 对指定试卷重新跑一次 AI 批改(覆盖上次结果与复核)。
+ * 异步作业,与 startGrading 共用 activeRuns/进度通道/中止;结束回 review 态
+ * (published 任务重改后需重新发布才进学业分析)。
+ */
+export async function regradePapers(
+  taskId: string,
+  paperIds: string[],
+  win: BrowserWindow | null,
+): Promise<void> {
+  if (activeRuns.has(taskId)) throw new Error('该任务已在批改中')
+  const ids = [...new Set(paperIds)].filter((id) => typeof id === 'string' && id.length > 0)
+  if (ids.length === 0) throw new Error('没有要重改的试卷')
+  const task = await gradingService.getTask(taskId)
+  if (task.status === 'grading') throw new Error('任务正在批改中,不能重改')
+  if (task.rubric.length === 0) throw new Error('量规为空,无法重改')
+
+  // 模型与鉴权(同步失败直接抛,不改任务状态)
+  const config = resolveGradingModelIds(settingsService.getSettings())
+  const model = resolveModel(config.providerId, config.modelId)
+  if (!model) {
+    throw new Error(`批改模型不存在: ${config.providerId}/${config.modelId}(请在设置→模型中配置)`)
+  }
+  if (!isVisionModel(model)) {
+    throw new Error(`模型 ${model.id} 不支持图像输入,请在设置→模型中选择视觉模型批改`)
+  }
+  const apiKey = apiKeyFor(config.providerId)
+  if (!apiKey) throw new Error(`Provider ${config.providerId} 未配置 API Key`)
+
+  // 重置在状态迁移前逐份完成(无扫描件等校验失败直接抛,不进作业)
+  for (const paperId of ids) {
+    await gradingService.resetPaperForRegrade(taskId, paperId)
+  }
+  await gradingService.setStatus(taskId, 'grading')
+  const controller = new AbortController()
+  activeRuns.set(taskId, controller)
+  log('info', 'grading', `regrade started: ${taskId} (papers=${ids.length})`)
+
+  void (async () => {
+    let gradedCount = 0
+    let failedCount = 0
+    let aborted = false
+    try {
+      const taskForGrade = await gradingService.getTask(taskId)
+      for (const [i, paperId] of ids.entries()) {
+        if (controller.signal.aborted) {
+          aborted = true
+          break
+        }
+        const paper = taskForGrade.papers.find((p) => p.id === paperId)
+        pushProgress(win, {
+          taskId,
+          phase: 'start',
+          paperId,
+          studentName: paper?.studentName ?? undefined,
+          index: i + 1,
+          total: ids.length,
+        })
+        try {
+          const result = await gradePaperOnce(
+            taskForGrade,
+            paperId,
+            model,
+            apiKey,
+            controller.signal,
+          )
+          await gradingService.saveAiResult(taskId, paperId, result)
+          gradedCount++
+          pushProgress(win, {
+            taskId,
+            phase: 'graded',
+            paperId,
+            studentName: paper?.studentName ?? undefined,
+            index: i + 1,
+            total: ids.length,
+            score: result.totalScore,
+          })
+        } catch (err) {
+          if (controller.signal.aborted) {
+            aborted = true
+            break
+          }
+          failedCount++
+          const message = errText(err)
+          await gradingService.savePaperError(taskId, paperId, message)
+          log('warn', 'grading', `regrade paper failed: ${taskId}/${paperId}: ${message}`)
+          pushProgress(win, {
+            taskId,
+            phase: 'failed',
+            paperId,
+            studentName: paper?.studentName ?? undefined,
+            index: i + 1,
+            total: ids.length,
+            error: message,
+          })
+        }
+      }
+    } finally {
+      activeRuns.delete(taskId)
+      try {
+        // 回 review(中止/失败也如此): 重置过的卷可从此处再批,已发布的重新发布
+        await gradingService.setStatus(taskId, 'review')
+      } catch (err) {
+        log('error', 'grading', `setStatus after regrade failed: ${taskId}: ${errText(err)}`)
+      }
+      pushProgress(win, {
+        taskId,
+        phase: 'done',
+        total: ids.length,
+        gradedCount,
+        failedCount,
+        aborted,
+      })
+      log(
+        'info',
+        'grading',
+        `regrade finished: ${taskId} (graded=${gradedCount} failed=${failedCount} aborted=${aborted})`,
+      )
+    }
+  })()
+}

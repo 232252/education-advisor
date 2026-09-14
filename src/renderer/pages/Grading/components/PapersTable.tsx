@@ -27,6 +27,8 @@ interface PapersTableProps {
   /** 导出单份批阅痕迹(打印/PDF) */
   onExportMarks?: (paperId: string) => void
   exportMarksLoading?: boolean
+  /** 重改单份试卷(重新 AI 批改,覆盖上次结果与复核) */
+  onRegrade?: (paperId: string) => Promise<boolean>
   /** 从卷面识别未归组试卷的归属 */
   onIdentify?: () => void
 }
@@ -53,10 +55,13 @@ export function PapersTable({
   onReview,
   onExportMarks,
   exportMarksLoading = false,
+  onRegrade,
   onIdentify,
 }: PapersTableProps) {
   const { t } = useT()
   const [importing, setImporting] = useState(false)
+  // 重改两段式确认(覆盖上次 AI 结果与复核,需显式确认;同 TaskDetail.confirmDelete 惯例)
+  const [confirmRegradeId, setConfirmRegradeId] = useState<string | null>(null)
 
   const activeStudents = useMemo(() => students.filter((s) => s.status === 'Active'), [students])
 
@@ -288,6 +293,45 @@ export function PapersTable({
                       >
                         {t('page.grading.exportMarksOne', '导出痕迹')}
                       </button>
+                    )}
+                    {onRegrade && paper.ai && (
+                      <span className="mr-2 inline-flex items-center gap-1">
+                        {confirmRegradeId === paper.id ? (
+                          <>
+                            <span className="text-xs text-amber-600 dark:text-amber-300">
+                              {t('page.grading.regrade.confirm')}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfirmRegradeId(null)
+                                void onRegrade(paper.id)
+                              }}
+                              disabled={busy}
+                              className="text-xs font-medium text-amber-600 hover:underline disabled:opacity-50 dark:text-amber-300"
+                            >
+                              {t('common.confirm')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmRegradeId(null)}
+                              className="text-xs text-gray-400 hover:underline"
+                            >
+                              {t('common.cancel')}
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRegradeId(paper.id)}
+                            disabled={busy}
+                            title={t('page.grading.regrade.title')}
+                            className="text-xs text-amber-600 hover:underline disabled:opacity-50 dark:text-amber-300"
+                          >
+                            {t('page.grading.regrade.action')}
+                          </button>
+                        )}
+                      </span>
                     )}
                     {importable && (
                       <button

@@ -208,6 +208,36 @@ describe('gradingService — 试卷导入/归组/结果', () => {
     ).rejects.toThrow('尚无 AI 结果')
   })
 
+  it('resetPaperForRegrade: 清 AI 结果/复核回 pending; grading 态拒绝', async () => {
+    const task = await gradingService.getTask(taskId)
+    const graded = task.papers[0]
+    expect(graded.status).toBe('graded')
+    const reset = await gradingService.resetPaperForRegrade(taskId, graded.id)
+    const paper = reset.papers[0]
+    expect(paper.status).toBe('pending')
+    expect(paper.ai).toBeUndefined()
+    expect(paper.review).toBeUndefined()
+    expect(paper.error).toBeUndefined()
+    // 归属与文件保留,可重新落 AI 结果(重改闭环)
+    expect(paper.studentName).toBe('张三')
+    expect(paper.files).toHaveLength(2)
+    const again = await gradingService.saveAiResult(taskId, graded.id, {
+      questions: [
+        { questionId: 'q-1', score: 30 },
+        { questionId: 'q-2', score: 18 },
+      ],
+      totalScore: 48,
+      model: { provider: 'p', model: 'm' },
+      finishedAt: new Date().toISOString(),
+    })
+    expect(again.papers[0].status).toBe('graded')
+    expect(again.papers[0].ai?.totalScore).toBe(48)
+    // grading 进行中拒绝重改
+    await gradingService.setStatus(taskId, 'grading')
+    await expect(gradingService.resetPaperForRegrade(taskId, graded.id)).rejects.toThrow('批改中')
+    await gradingService.setStatus(taskId, 'review')
+  })
+
   it('removePaper: 连带文件删除', async () => {
     const task = await gradingService.getTask(taskId)
     const victim = task.papers[1]
@@ -229,7 +259,7 @@ describe('gradingService — 状态机与删除', () => {
     expect(same.status).toBe('draft')
   })
 
-  it('published → review 允许(改错回流), deleteTask 清理文件目录', async () => {
+  it('published → review/grading 允许(改错回流/重改), deleteTask 清理文件目录', async () => {
     const task = await gradingService.createTask({ name: 't', semester: 's' })
     const img = await makeImage('x.jpg', 8)
     await gradingService.importPapers(task.id, [{ files: [{ path: img }] }])
@@ -239,6 +269,11 @@ describe('gradingService — 状态机与删除', () => {
     await gradingService.setStatus(task.id, 'published')
     const back = await gradingService.setStatus(task.id, 'review')
     expect(back.status).toBe('review')
+    // 重改: published 也允许直接进 grading 重跑
+    await gradingService.setStatus(task.id, 'published')
+    const regrade = await gradingService.setStatus(task.id, 'grading')
+    expect(regrade.status).toBe('grading')
+    await gradingService.setStatus(task.id, 'review')
     await gradingService.deleteTask(task.id)
     await expect(gradingService.getTask(task.id)).rejects.toThrow('不存在')
     expect(await fsp.readdir(path.join(baseDir, 'files', task.id)).catch(() => [])).toEqual([])

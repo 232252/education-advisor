@@ -153,6 +153,23 @@ export function useGradingData() {
     [refresh, t],
   )
 
+  /** 重改指定试卷(覆盖上次 AI 结果与复核;进度走 onProgress 订阅) */
+  const regradePapers = useCallback(
+    async (taskId: string, paperIds: string[]) => {
+      setBusy(true)
+      setErrorMsg(null)
+      const r = await getAPI().grading.regrade(taskId, paperIds)
+      setBusy(false)
+      if (!r.success) {
+        setErrorMsg(r.error ?? t('page.grading.error.mutationFailed', '操作失败'))
+        return false
+      }
+      await refresh()
+      return true
+    },
+    [refresh, t],
+  )
+
   const identifyPapers = useCallback(
     async (taskId: string, roster: GradingRosterEntry[]) => {
       setBusy(true)
@@ -243,6 +260,7 @@ export function useGradingData() {
     setStatus,
     refresh,
     runGrading,
+    regradePapers,
     identifyPapers,
     abortGrading,
     saveReview,
