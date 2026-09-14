@@ -15,7 +15,7 @@
 | 1 | 微信 P0 范围 | **接受**「个人微信 iLink、偏私聊、弱主动推送」作为首发上线标准 |
 | 2 | QQ P0 范围 | **仍上架**；弱主动群发须在连接中心/设置卡做 **显著提示**（警告条 + i18n + 文档） |
 | 3 | 技术路径 | **纯自建薄客户端**直连官方 HTTP/WS；**不要求**、不捆绑 OpenClaw / cc-connect sidecar |
-| 4 | 本期交付 | **只改文档**；不实现 `adapters/weixin`、`adapters/qq`，不改 `channel-handlers` 注册表 |
+| 4 | 本期交付（文档轮） | 原：**只改文档**。**实现轮已开工**：见下方「实现进度」 |
 | 5 | PID Hook | **继续禁止**（含隐藏高级选项）；不做进程注入 / WeChatFerry / 剪贴板桥 |
 
 ### 本轮未拍板（仍开放）
@@ -273,6 +273,39 @@ src/main/services/feishu-service.ts / feishu-bot 遗留（若仍存在于其他 
 4. GitHub 443 失败时推 **gitee** 同名分支
 
 ---
+
+
+---
+
+## 实现进度（feat/domestic-wechat-qq-channels）
+
+> 开工实现切片：登记 + Connection Center UI + 扫码会话 + 自建薄客户端结构 + 测试。分支自 `docs/domestic-connectors` @ a975aa7。
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 注册 `weixin` / `qq` | ✅ | `channel-handlers` + manifests；settings / defaults / keystore |
+| 限制横幅 | ✅ | `limitationBannerKey` + `ChannelLimitationBanner`（设置卡显著展示；侧栏提示） |
+| 扫码 IPC | ✅ | `channels:beginLogin/pollLogin/cancelLogin` + `ChannelQrLogin` |
+| 微信 iLink 薄客户端 | ✅ | `adapters/weixin/*`：QR / getupdates / sendmessage；流水线入 Agent |
+| QQ 官方 Bot 薄客户端 | ✅ | `adapters/qq/*`：门户 QR onboard + WS Gateway + C2C/群回复 |
+| 测试 | ✅ | parsing / crypto / limitation copy / ILinkClient dry-run |
+| 全链路真机收发 | ⏳ | 需真实扫码凭证与网络；干跑钩子与 mock fetch 已具备 |
+| PID / OneBot / OpenClaw 依赖 | ❌ 未引入 | 符合拍板 |
+
+### 如何试用扫码
+
+1. 启动应用 → 设置 → 连接 / 消息频道，或侧栏「连接中心」
+2. **微信**：展开「微信」卡 →「开始扫码」→ 个人微信扫码确认 → Token 写入 keystore → 启用 → 在微信私聊先发一句话
+3. **QQ**：展开「QQ」卡 →「开始扫码」走 q.qq.com 门户绑定，或手动填 AppID/AppSecret → 启用 → QQ 私聊机器人
+4. **无需**安装 OpenClaw / QwenPaw；无 AppID 预置密钥（微信扫码得 token；QQ 扫码或开放平台自建应用）
+
+### 已知剩余限制
+
+- 微信媒体上传/下载未做（v1 文本私聊）
+- QQ 主动推送未实现（`pushPolicy=quota` 直接拒绝）
+- Gateway 断线重连为指数退避简版；生产需跟官方 intent/事件表持续校准
+- 旧 settings.json 缺 `channels.weixin/qq` 时依赖 defaults 深合并；若合并策略有缺口需一次迁移
+
 
 ## 7. 验收标准（实现完成后）
 

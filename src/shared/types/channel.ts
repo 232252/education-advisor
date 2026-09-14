@@ -154,6 +154,10 @@ export interface ChannelManifest {
   beta?: boolean
   /** 即将支持: 渲染占位卡,不注册运行时 */
   comingSoon?: boolean
+  /** 支持的登录方式(扫码型渠道声明 'qr';凭证型省略或仅 'credentials') */
+  loginKinds?: Array<'credentials' | 'qr'>
+  /** i18n key for fixed limitation banner (QQ 弱主动 / 微信偏私聊) */
+  limitationBannerKey?: string
 }
 
 /** 渠道实例摘要(channels:list IPC 返回,渲染卡片墙) */
