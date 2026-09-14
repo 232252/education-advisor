@@ -6,6 +6,8 @@ import type {
   GradingProgressEvent,
   GradingTask,
   GradingTaskStatus,
+  PresetMark,
+  RubricQuestion,
   TeacherReview,
 } from '@shared/types'
 
@@ -40,6 +42,12 @@ export interface ExtractedRubricQuestion {
   fullMark: number
   /** 照录答案页原文;AI 自答草稿尾部带「AI 草稿」尾注供教师核对 */
   referenceAnswer?: string
+}
+
+/** 评分标准细化结果: 每题一组扣分点(只有可细化的题出现;教师校对后随量规保存) */
+export interface RefinedRubricMarks {
+  id: string
+  presetMarks: PresetMark[]
 }
 
 export interface GradingAPI {
@@ -93,6 +101,8 @@ export interface GradingAPI {
   >
   // [w] 从样卷照片识别量规草稿(走视觉模型,复用批改模型配置;无状态不落盘)
   extractRubric: (paths: string[]) => Promise<GradingResult<ExtractedRubricQuestion[]>>
+  // [w] 评分标准自动细化: 参考答案→逐题扣分点(纯文本模型;无状态,教师校对后保存)
+  refineRubric: (questions: RubricQuestion[]) => Promise<GradingResult<RefinedRubricMarks[]>>
   // [w] 从卷面手写姓名/编号识别归属(视觉模型;唯一命中才自动指派)
   identifyPapers: (
     taskId: string,

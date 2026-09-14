@@ -28,6 +28,12 @@ const fromFilesParams = Type.Object({
       description: '批改完成后是否写入学业成绩(学生学业页/档案可查)。默认 true',
     }),
   ),
+  grading_mode: Type.Optional(
+    Type.Union([Type.Literal('strict'), Type.Literal('normal'), Type.Literal('lenient')], {
+      description:
+        '批改口径: strict=严格(按步扣分不放过瑕疵) / normal=正常(默认) / lenient=宽松(思路对小瑕疵少扣)',
+    }),
+  ),
 })
 
 const publishParams = Type.Object({
@@ -54,6 +60,7 @@ export const gradingFromFilesTool: AgentTool<typeof fromFilesParams> = {
       semester: params.semester,
       className: params.class_name,
       examDate: params.exam_date,
+      gradingMode: params.grading_mode,
       samplePaths: params.sample_paths,
       homeworkPaths: params.homework_paths,
       autoPublish: params.auto_publish,

@@ -52,6 +52,8 @@ export const gradingApi: GradingAPI = {
   publish: (taskId: string) => ipcInvoke(IPC.IPC_GRADING_PUBLISH, taskId),
   // [w] 样卷识别→量规草稿(视觉模型,无状态)
   extractRubric: (paths: string[]) => ipcInvoke(IPC.IPC_GRADING_EXTRACT_RUBRIC, paths),
+  // [w] 评分标准自动细化: 参考答案→逐题扣分点(纯文本模型,无状态)
+  refineRubric: (questions) => ipcInvoke(IPC.IPC_GRADING_REFINE_RUBRIC, questions),
   // [w] 从卷面手写姓名/编号识别归属(视觉模型;唯一命中才自动指派)
   identifyPapers: (taskId, roster) => ipcInvoke(IPC.IPC_GRADING_IDENTIFY_PAPERS, taskId, roster),
 }

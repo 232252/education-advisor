@@ -38,6 +38,13 @@ const TASK_STATUS_KEYS = {
   published: 'page.grading.status.published',
 } as const
 
+/** 批改口径 → i18n 键(显式枚举,不用模板动态键) */
+const TASK_MODE_KEYS = {
+  strict: 'page.grading.mode.strict',
+  normal: 'page.grading.mode.normal',
+  lenient: 'page.grading.mode.lenient',
+} as const
+
 const STATUS_BADGE_CLS: Record<GradingTask['status'], string> = {
   draft: 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300',
   ready: 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300',
@@ -156,6 +163,10 @@ export function TaskDetail({
         {label}: {value}
       </span>
     ) : null
+
+  // 口径归一: 历史/手改任务 JSON 可能缺字段或带非法值,一律按正常展示
+  const gradingMode =
+    task.gradingMode === 'strict' || task.gradingMode === 'lenient' ? task.gradingMode : 'normal'
 
   const marksOverlay =
     marksPrint.task && marksPrint.views ? (
@@ -344,13 +355,36 @@ export function TaskDetail({
 
       <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
         {/* 元信息 */}
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {metaChip(t('page.grading.task.semester'), task.semester)}
           {metaChip(t('page.grading.task.date'), task.examDate)}
           {metaChip(t('page.grading.task.class'), task.className)}
           {metaChip(
             t('page.grading.task.subject'),
             task.subjectId ? subjectNameById.get(task.subjectId) : undefined,
+          )}
+          {task.status === 'grading' ? (
+            metaChip(t('page.grading.mode.label'), t(TASK_MODE_KEYS[gradingMode]))
+          ) : (
+            <label
+              className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300"
+              title={t(
+                'page.grading.mode.title',
+                '给分松紧口径，影响 AI 批改的扣分尺度；改动后对之后的批改/重改生效',
+              )}
+            >
+              {t('page.grading.mode.label', '批改口径')}
+              <select
+                value={gradingMode}
+                onChange={(e) => void onUpdateTask(task.id, { gradingMode: e.target.value })}
+                disabled={busy}
+                className="cursor-pointer bg-transparent font-medium outline-none"
+              >
+                <option value="normal">{t('page.grading.mode.normal', '正常')}</option>
+                <option value="strict">{t('page.grading.mode.strict', '严格')}</option>
+                <option value="lenient">{t('page.grading.mode.lenient', '宽松')}</option>
+              </select>
+            </label>
           )}
         </div>
 

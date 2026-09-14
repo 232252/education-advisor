@@ -12,6 +12,7 @@ import path from 'node:path'
 import type {
   AiGradeResult,
   GradingPaper,
+  GradingStrictness,
   GradingTask,
   GradingTaskStatus,
   PaperFile,
@@ -44,6 +45,16 @@ const ALLOWED_TRANSITIONS: Record<GradingTaskStatus, GradingTaskStatus[]> = {
 
 function newId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+/** 合法批改口径(给分松紧) */
+const GRADING_STRICTNESS: GradingStrictness[] = ['strict', 'normal', 'lenient']
+
+/** 校验批改口径;undefined 放行(缺省 normal),非法值抛错 */
+function assertGradingMode(mode: unknown): void {
+  if (mode !== undefined && !GRADING_STRICTNESS.includes(mode as GradingStrictness)) {
+    throw new Error(`非法批改口径: ${String(mode)}(strict/normal/lenient)`)
+  }
 }
 
 /** 任务 id 白名单(防路径拼接攻击) */
@@ -190,6 +201,7 @@ class GradingService {
     className?: string
     subjectId?: string
     examDate?: string
+    gradingMode?: GradingStrictness
     rubric?: RubricQuestion[]
   }): Promise<GradingTask> {
     if (!input?.name || typeof input.name !== 'string' || input.name.trim().length === 0) {
@@ -198,6 +210,7 @@ class GradingService {
     if (!input?.semester || typeof input.semester !== 'string') {
       throw new Error('学期不能为空')
     }
+    assertGradingMode(input.gradingMode)
     const rubric = input.rubric ?? []
     validateRubric(rubric)
     await this.ensureDirs()
@@ -211,6 +224,7 @@ class GradingService {
       subjectId: input.subjectId,
       examDate: input.examDate,
       status: 'draft',
+      gradingMode: input.gradingMode,
       rubric,
       papers: [],
       createdAt: now,
@@ -230,7 +244,14 @@ class GradingService {
     patch: Partial<
       Pick<
         GradingTask,
-        'name' | 'semester' | 'classId' | 'className' | 'subjectId' | 'examDate' | 'rubric'
+        | 'name'
+        | 'semester'
+        | 'classId'
+        | 'className'
+        | 'subjectId'
+        | 'examDate'
+        | 'gradingMode'
+        | 'rubric'
       >
     >,
   ): Promise<GradingTask> {
@@ -245,6 +266,10 @@ class GradingService {
           throw new Error('已有批改结果,量规锁定(如需修改请新建任务)')
         }
         validateRubric(patch.rubric)
+      }
+      if (patch.gradingMode !== undefined) {
+        assertGradingMode(patch.gradingMode)
+        task.gradingMode = patch.gradingMode
       }
       if (patch.name !== undefined) {
         if (typeof patch.name !== 'string' || patch.name.trim().length === 0) {

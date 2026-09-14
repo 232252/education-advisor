@@ -117,6 +117,33 @@ describe('buildGradingPrompt', () => {
     expect(prompt).toContain('"marks"')
     expect(prompt).toContain('满分+所选评分点')
   })
+
+  it('三档批改口径: 各注入专属规则; 缺省/非法回落正常', () => {
+    const strict = buildGradingPrompt(RUBRIC, 'strict')
+    expect(strict).toContain('批改口径: 严格模式')
+    expect(strict).toContain('步骤缺失/跳步')
+    expect(strict).toContain('不做善意解读')
+
+    const lenient = buildGradingPrompt(RUBRIC, 'lenient')
+    expect(lenient).toContain('批改口径: 宽松模式')
+    expect(lenient).toContain('每处最多扣 1 分')
+    expect(lenient).toContain('向有利于学生的方向')
+
+    // 正常为基线: 三种等价写法内容一致
+    const normalDefault = buildGradingPrompt(RUBRIC)
+    const normalExplicit = buildGradingPrompt(RUBRIC, 'normal')
+    const normalFallback = buildGradingPrompt(RUBRIC, 'lazy' as never)
+    expect(normalDefault).toBe(normalExplicit)
+    expect(normalDefault).toBe(normalFallback)
+    expect(normalDefault).toContain('批改口径: 正常模式')
+    expect(normalDefault).not.toContain('严格模式')
+
+    // 扣分说明契约在三档下都在
+    for (const p of [strict, lenient, normalDefault]) {
+      expect(p).toContain('"deductions"')
+      expect(p).toContain('凡 score < 满分的题都要给')
+    }
+  })
 })
 
 describe('parseGradeResponse', () => {
@@ -212,5 +239,45 @@ describe('parseGradeResponse', () => {
       RUBRIC,
     )
     expect(r.questions[0]?.box).toEqual({ page: 0, x: 0.2, y: 0.3, w: 0.4, h: 0.1 })
+  })
+
+  it('扣分说明 deductions: 合法解析/负数取绝对值/越界钳制/满分题丢弃', () => {
+    const r = parseGradeResponse(
+      JSON.stringify({
+        questions: [
+          {
+            questionId: 'q-1',
+            score: 26,
+            deductions: [
+              { points: -2, reason: '单位未换算' },
+              { points: 1.5, reason: ' 结果计算错误 ' },
+              { points: 999, reason: '离谱大扣分' },
+              { points: 0, reason: '零分项丢弃' },
+              { points: 3, reason: '' },
+              'not-an-object',
+            ],
+          },
+          { questionId: 'q-2', score: 20, deductions: [{ points: 1, reason: '满分不应有' }] },
+        ],
+      }),
+      RUBRIC,
+    )
+    expect(r.questions[0]?.deductions).toEqual([
+      { points: 2, reason: '单位未换算' },
+      { points: 1.5, reason: '结果计算错误' },
+      { points: 30, reason: '离谱大扣分' }, // 钳到该题满分 30
+    ])
+    // 满分题不保留扣分说明
+    expect(r.questions[1]?.deductions).toBeUndefined()
+  })
+
+  it('扣分说明: 缺 deductions/非数组 → undefined,不影响得分', () => {
+    const r = parseGradeResponse(
+      '{"questions":[{"questionId":"q-1","score":10},{"questionId":"q-2","score":3,"deductions":"oops"}]}',
+      RUBRIC,
+    )
+    expect(r.questions[0]?.deductions).toBeUndefined()
+    expect(r.questions[1]?.deductions).toBeUndefined()
+    expect(r.totalScore).toBe(13)
   })
 })
