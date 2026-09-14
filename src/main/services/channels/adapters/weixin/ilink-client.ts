@@ -1,6 +1,7 @@
 // =============================================================
 // adapters/weixin/ilink-client — 自研 iLink HTTP 薄客户端
-// 端点: get_bot_qrcode / get_qrcode_status / getupdates / sendmessage
+// 端点: get_bot_qrcode / get_qrcode_status / getupdates / sendmessage /
+//       getconfig / sendtyping / getuploadurl (+ CDN via rawFetch)
 // 可注入 fetch 便于 vitest 干跑;不依赖 OpenClaw / 第三方 SDK
 // =============================================================
 
@@ -55,6 +56,36 @@ export class ILinkClient {
     return `${this.baseUrl}/${apiPath.replace(/^\//, '')}`
   }
 
+  /** 通用 fetch(可跳过鉴权头,用于 CDN) */
+  async rawFetch(
+    fullUrl: string,
+    opts: {
+      method?: 'GET' | 'POST'
+      body?: BodyInit | null
+      headers?: Record<string, string>
+      timeoutMs?: number
+      auth?: boolean
+    } = {},
+  ): Promise<Response> {
+    const timeoutMs = opts.timeoutMs ?? WEIXIN_DEFAULT_TIMEOUT_MS
+    const ac = new AbortController()
+    const timer = setTimeout(() => ac.abort(), timeoutMs)
+    try {
+      const headers: Record<string, string> = { ...(opts.headers ?? {}) }
+      if (opts.auth !== false) {
+        Object.assign(headers, makeILinkHeaders(this.botToken))
+      }
+      return await this.fetchImpl(fullUrl, {
+        method: opts.method ?? 'GET',
+        headers,
+        body: opts.body ?? undefined,
+        signal: ac.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   private async requestJson(
     method: 'GET' | 'POST',
     apiPath: string,
@@ -67,23 +98,18 @@ export class ILinkClient {
       for (const [k, v] of Object.entries(opts.params)) q.set(k, String(v))
       full += `?${q.toString()}`
     }
-    const ac = new AbortController()
-    const timer = setTimeout(() => ac.abort(), timeoutMs)
-    try {
-      const res = await this.fetchImpl(full, {
-        method,
-        headers: makeILinkHeaders(this.botToken),
-        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-        signal: ac.signal,
-      })
-      if (!res.ok) {
-        const text = await res.text().catch(() => '')
-        throw new Error(`iLink HTTP ${res.status}: ${text.slice(0, 200) || res.statusText}`)
-      }
-      return (await res.json()) as Record<string, unknown>
-    } finally {
-      clearTimeout(timer)
+    const res = await this.rawFetch(full, {
+      method,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : null,
+      timeoutMs,
+      auth: true,
+      headers: makeILinkHeaders(this.botToken),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`iLink HTTP ${res.status}: ${text.slice(0, 200) || res.statusText}`)
     }
+    return (await res.json()) as Record<string, unknown>
   }
 
   /** 取登录二维码 */
@@ -94,7 +120,6 @@ export class ILinkClient {
     const qrcode = String(data.qrcode ?? '')
     if (!qrcode) throw new Error('iLink get_bot_qrcode 未返回 qrcode')
     const img = data.qrcode_img_content != null ? String(data.qrcode_img_content) : undefined
-    // 扫码内容优先官方返回的可扫描串;否则拼 liteapp 回退 URL
     const scanUrl =
       (typeof data.qrcode_img_content === 'string' && data.qrcode_img_content.startsWith('http')
         ? data.qrcode_img_content
@@ -129,6 +154,13 @@ export class ILinkClient {
     })
   }
 
+  /** 发原始消息体(文本/图片/文件共用) */
+  async sendRawMessage(msg: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return this.requestJson('POST', 'ilink/bot/sendmessage', {
+      body: { msg, base_info: { channel_version: WEIXIN_CHANNEL_VERSION } },
+    })
+  }
+
   /** 发文本(必须带 context_token) */
   async sendText(toUserId: string, text: string, contextToken: string): Promise<Record<string, unknown>> {
     if (!contextToken) throw new Error('微信回复需要 context_token(用户须先发言)')
@@ -141,8 +173,53 @@ export class ILinkClient {
       context_token: contextToken,
       item_list: [{ type: WEIXIN_ITEM_TYPE_TEXT, text_item: { text } }],
     }
-    return this.requestJson('POST', 'ilink/bot/sendmessage', {
-      body: { msg, base_info: { channel_version: WEIXIN_CHANNEL_VERSION } },
+    return this.sendRawMessage(msg)
+  }
+
+  /** 取 typing_ticket 等会话配置 */
+  async getConfig(toUserId: string, contextToken = ''): Promise<Record<string, unknown>> {
+    const body: Record<string, unknown> = {
+      to_user_id: toUserId,
+      base_info: { channel_version: WEIXIN_CHANNEL_VERSION },
+    }
+    if (contextToken) body.context_token = contextToken
+    return this.requestJson('POST', 'ilink/bot/getconfig', { body })
+  }
+
+  /** 发送/刷新输入中状态 status=1 开始 / 0 停止 */
+  async sendTyping(toUserId: string, typingTicket: string, status = 1): Promise<Record<string, unknown>> {
+    return this.requestJson('POST', 'ilink/bot/sendtyping', {
+      body: {
+        to_user_id: toUserId,
+        typing_ticket: typingTicket,
+        status,
+        base_info: { channel_version: WEIXIN_CHANNEL_VERSION },
+      },
+    })
+  }
+
+  /** 申请媒体上传地址 */
+  async getUploadUrl(params: {
+    filekey: string
+    mediaType: number
+    toUserId: string
+    rawsize: number
+    rawfilemd5: string
+    filesize: number
+    aeskey: string
+  }): Promise<Record<string, unknown>> {
+    return this.requestJson('POST', 'ilink/bot/getuploadurl', {
+      body: {
+        filekey: params.filekey,
+        media_type: params.mediaType,
+        to_user_id: params.toUserId,
+        rawsize: params.rawsize,
+        rawfilemd5: params.rawfilemd5,
+        filesize: params.filesize,
+        aeskey: params.aeskey,
+        base_info: { channel_version: WEIXIN_CHANNEL_VERSION },
+      },
+      timeoutMs: 30_000,
     })
   }
 }

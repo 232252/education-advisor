@@ -25,7 +25,7 @@ export const weixinManifest: ChannelManifest = {
     replyWindowMs: null,
     streamWindowMs: null,
     pushPolicy: 'require-prior-message',
-    receivesFiles: false,
+    receivesFiles: true,
   },
   configSchema: [
     {
@@ -61,3 +61,4 @@ export const weixinManifest: ChannelManifest = {
     ],
   },
 }
+
