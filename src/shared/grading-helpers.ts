@@ -107,6 +107,13 @@ export interface PaperMarkScoreRow {
   evidence: string
   /** 生效评分点说明(已点选) */
   markNotes: string[]
+  /** 扣分说明(「-2 单位未换算」;AI 逐项给出,复核台/打印共用) */
+  deductionNotes: string[]
+}
+
+/** 扣分项 → 展示文本(复核台/批阅报告/页边批注共用口径) */
+export function formatDeductionNote(d: { points: number; reason: string }): string {
+  return `-${d.points} ${d.reason}`
 }
 
 /**
@@ -166,6 +173,7 @@ export function paperMarkScoreRows(
       comment: (override?.comment ?? ai?.comment ?? '').trim(),
       evidence: (ai?.evidence ?? '').trim(),
       markNotes,
+      deductionNotes: (ai?.deductions ?? []).map(formatDeductionNote),
     }
   })
 }
@@ -200,11 +208,16 @@ export function paperMarkOverlays(
       verdict = 'partial'
       mark = scoreText
     }
-    // 页边批注: 仅主观题且非全对;评语(教师覆盖优先)缺省用 AI 判分依据
+    // 页边批注: 仅主观题且非全对;评语(教师覆盖优先)缺省用 AI 判分依据;扣分说明紧跟得分
     const comment = row.comment || row.evidence || ''
+    const deductionText = row.deductionNotes.join('；')
     const note =
       kind === 'subjective' && verdict !== 'full'
-        ? clipMarkText([row.title, scoreText, comment].filter((s) => s.length > 0).join(' '))
+        ? clipMarkText(
+            [row.title, scoreText, ...(deductionText.length > 0 ? [deductionText] : []), comment]
+              .filter((s) => s.length > 0)
+              .join(' '),
+          )
         : ''
     out.push({
       questionId: row.questionId,

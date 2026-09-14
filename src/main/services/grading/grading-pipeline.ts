@@ -28,6 +28,7 @@ import type {
   AiQuestionResult,
   GradeAnnotationBox,
   GradingPaper,
+  GradingStrictness,
   GradingTask,
   RubricQuestion,
   UnifiedSettings,
@@ -100,8 +101,40 @@ function formatPresetMarks(q: RubricQuestion): string {
   return ` | 评分点: ${items}`
 }
 
-/** 构造批改 system prompt: 量规 + 严格 JSON 契约(红笔痕迹口径) */
-export function buildGradingPrompt(rubric: RubricQuestion[]): string {
+/** 合法批改口径 */
+const GRADING_MODES: GradingStrictness[] = ['strict', 'normal', 'lenient']
+
+/** 口径名(日志/错误信息用) */
+export function gradingModeLabel(mode: GradingStrictness): string {
+  return mode === 'strict' ? '严格' : mode === 'lenient' ? '宽松' : '正常'
+}
+
+/** 三档批改口径的给分松紧规则(注入 prompt;normal 为基线,不另加松紧条目) */
+const MODE_RULES: Record<GradingStrictness, string[]> = {
+  strict: [
+    '按评分标准逐点从严核对: 步骤缺失/跳步、符号或单位错误、表述不严谨、未化简到要求形式,每处都按评分点扣分',
+    '结果正确但过程不完整的,只给结果对应的部分分,过程分不给',
+    '字迹或表述不清的按未达标处理,保守给分,不做善意解读',
+    '同一处错误在本题与后续题中重复传导的,后续题同样扣分(不重复豁免)',
+  ],
+  normal: [
+    '按评分标准常规给分: 对给分、错扣分,过程分与结果分按标准划分,字迹不清时保守给分并在 comment 说明',
+  ],
+  lenient: [
+    '思路和方法正确、结果正确即给该题绝大部分分数: 笔误、漏写单位、誊抄错误等小瑕疵每处最多扣 1 分',
+    '结果错误但公式与思路正确的,给过程分为主,不因结果错全扣',
+    '字迹不清时按最合理解读给分,不因卷面潦草减分',
+    '给分处于两档之间时,向有利于学生的方向裁量,并在 comment 点出可改进处',
+  ],
+}
+
+/** 构造批改 system prompt: 量规 + 批改口径 + 严格 JSON 契约(红笔痕迹口径) */
+export function buildGradingPrompt(
+  rubric: RubricQuestion[],
+  mode: GradingStrictness = 'normal',
+): string {
+  // 历史任务/手改 JSON 可能缺字段或带非法值 — 一律回落正常口径
+  const m: GradingStrictness = GRADING_MODES.includes(mode) ? mode : 'normal'
   const rubricLines = rubric
     .map(
       (q) =>
@@ -120,15 +153,19 @@ export function buildGradingPrompt(rubric: RubricQuestion[]): string {
     '量规（每题独立给分）:',
     rubricLines,
     '',
+    `批改口径: ${gradingModeLabel(m)}模式`,
+    ...MODE_RULES[m],
+    '',
     '输出格式（questions 必须覆盖量规每一个 id）:',
     hasMarks
-      ? '{"questions":[{"questionId":"q-1","score":25,"marks":[0,1],"evidence":"依据：学生第4题答案与评分标准…","comment":"评语(可选)","box":{"page":0,"x":0.1,"y":0.4,"w":0.35,"h":0.12}}]}'
-      : '{"questions":[{"questionId":"q-1","score":25,"evidence":"依据：学生第4题答案与评分标准…","comment":"评语(可选)","box":{"page":0,"x":0.1,"y":0.4,"w":0.35,"h":0.12}}]}',
+      ? '{"questions":[{"questionId":"q-1","score":25,"marks":[0,1],"evidence":"依据：学生第4题答案与评分标准…","comment":"评语(可选)","deductions":[{"points":2,"reason":"单位未换算"}],"box":{"page":0,"x":0.1,"y":0.4,"w":0.35,"h":0.12}}]}'
+      : '{"questions":[{"questionId":"q-1","score":25,"evidence":"依据：学生第4题答案与评分标准…","comment":"评语(可选)","deductions":[{"points":2,"reason":"单位未换算"}],"box":{"page":0,"x":0.1,"y":0.4,"w":0.35,"h":0.12}}]}',
     '规则:',
     '- score 为数字，取值 [0, 该题满分]，按评分标准的有效分给分，不要凭空加减',
     '- evidence 写一句即可，引用学生卷面实际作答；字迹不清时保守给分并在 comment 说明',
     '- 全卷未作答的题 score 给 0 并在 comment 标注「未作答」',
     '- comment 像老师的红笔批注: 仅主观题(简答/计算/作文等)填写，30 字以内，面向学生，写清错因或给一句鼓励；客观题(选择/填空/判断)不要写 comment',
+    '- deductions 扣分说明: 凡 score < 满分的题都要给，逐项列出扣分点；points 为该处扣掉的分数(正数，所有项合计 ≈ 满分 - score)，reason 一句话写清扣分原因(20 字以内，面向学生)；全对的题不要给 deductions',
     '- box 每题都要给: 框住该题作答区域，全对的题也要给（打勾定位用）；宽高宁小勿大，不要把相邻题目的作答一起框进来',
     '- box: page 从 0 起; x/y/w/h 为相对页宽高的 0–1。不确定位置也给个大概，不要省略',
     ...(hasMarks
@@ -215,6 +252,7 @@ export function parseGradeResponse(
       comment: typeof r.comment === 'string' ? r.comment : undefined,
       appliedMarks: appliedMarks.length > 0 ? appliedMarks : undefined,
       box: parseAnnotationBox(r.box),
+      deductions: parseDeductions(r.deductions, full, score),
     })
   }
   if (questions.length === 0) {
@@ -231,6 +269,33 @@ export function parseGradeResponse(
 
 function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n))
+}
+
+/**
+ * 解析扣分说明: points 取绝对值(模型偶给负数)、钳到 (0, 满分],
+ * reason 非空裁 60 字,最多 8 项;满分题不保留(无扣分可述)。
+ * 合计与 满分-score 不一致时不修正 — score 是权威值,扣分项仅作解释。
+ */
+export function parseDeductions(
+  raw: unknown,
+  fullMark: number,
+  score: number,
+): AiQuestionResult['deductions'] {
+  if (!Array.isArray(raw)) return undefined
+  const out: NonNullable<AiQuestionResult['deductions']> = []
+  for (const item of raw.slice(0, 8)) {
+    if (typeof item !== 'object' || item === null) continue
+    const o = item as Record<string, unknown>
+    const pts = Math.abs(Number(o.points))
+    const reason = typeof o.reason === 'string' ? o.reason.trim() : ''
+    if (!Number.isFinite(pts) || pts <= 0 || reason.length === 0) continue
+    out.push({
+      points: Math.min(Math.round(pts * 100) / 100, fullMark),
+      reason: reason.slice(0, 60),
+    })
+  }
+  if (out.length === 0 || score >= fullMark) return undefined
+  return out
 }
 
 /** 解析卷面批注框;缺字段/非数字则丢弃(评语仍在右侧展示) */
@@ -316,7 +381,10 @@ async function gradePaperOnce(
   ]
   const assistant = await completeSimple(
     model,
-    { systemPrompt: buildGradingPrompt(task.rubric), messages },
+    {
+      systemPrompt: buildGradingPrompt(task.rubric, task.gradingMode ?? 'normal'),
+      messages,
+    },
     {
       apiKey,
       maxTokens: GRADING_MAX_TOKENS,

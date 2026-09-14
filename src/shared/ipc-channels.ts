@@ -190,6 +190,8 @@ export const IPC_GRADING_READ_FILE = 'grading:read-paper-file'
 export const IPC_GRADING_PUBLISH = 'grading:publish'
 // 样卷识别→量规草稿(视觉模型,无状态:图片只读不拷贝,结果不落盘)
 export const IPC_GRADING_EXTRACT_RUBRIC = 'grading:extract-rubric'
+// 评分标准自动细化: 参考答案→逐题扣分点(纯文本模型,无状态不落盘)
+export const IPC_GRADING_REFINE_RUBRIC = 'grading:refine-rubric'
 // 从卷面手写姓名/编号识别归属(视觉模型;唯一命中才自动指派)
 export const IPC_GRADING_IDENTIFY_PAPERS = 'grading:identify-papers'
 

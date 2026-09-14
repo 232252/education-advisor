@@ -13,6 +13,12 @@
 /** 任务状态机: 草稿→就绪→AI批改中→待复核→已发布 */
 export type GradingTaskStatus = 'draft' | 'ready' | 'grading' | 'review' | 'published'
 
+/**
+ * 批改口径(给分松紧): strict=按步从严/瑕疵必扣, normal=常规,
+ * lenient=思路对从宽/小瑕疵少扣。影响批改 prompt 与批注风格,不改量规本身。
+ */
+export type GradingStrictness = 'strict' | 'normal' | 'lenient'
+
 /** 预设评分点(≈ gradeable_component_mark) */
 export interface PresetMark {
   points: number
@@ -73,6 +79,11 @@ export interface AiQuestionResult {
   appliedMarks?: number[]
   /** 错题/评语在卷面上的位置(没有则复核台只在右侧展示) */
   box?: GradeAnnotationBox
+  /**
+   * 扣分说明(未得满分的题逐项列出): points 为扣掉的分数(正数),
+   * reason 为面向学生的扣分原因。满分题不应有扣分项。
+   */
+  deductions?: Array<{ points: number; reason: string }>
 }
 
 /** AI 批改结果(整份试卷) */
@@ -137,6 +148,8 @@ export interface GradingTask {
   /** 考试/作业日期(yyyy-mm-dd,发布时作为 ExamDef.date) */
   examDate?: string
   status: GradingTaskStatus
+  /** 批改口径(缺省 normal);影响批改 prompt 的给分松紧 */
+  gradingMode?: GradingStrictness
   rubric: RubricQuestion[]
   papers: GradingPaper[]
   createdAt: string

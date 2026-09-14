@@ -4,7 +4,7 @@
 // =============================================================
 
 import type { StudentCandidate } from '@shared/grading-helpers'
-import type { RubricQuestion } from '@shared/types'
+import type { GradingStrictness, RubricQuestion } from '@shared/types'
 import { eaaBridge } from '../eaa-bridge'
 import { materializePaperBatches, withTempDir } from './archive-import'
 import { startGrading } from './grading-pipeline'
@@ -17,6 +17,8 @@ export interface GradingFromFilesInput {
   semester?: string
   className?: string
   examDate?: string
+  /** 批改口径(给分松紧);缺省 normal */
+  gradingMode?: GradingStrictness
   /** 原卷/答案扫描(图片或 PDF) */
   samplePaths: string[]
   /** 学生作业(图片 / PDF / zip) */
@@ -112,6 +114,7 @@ export async function startGradingFromFiles(
     semester,
     className: input.className?.trim() || undefined,
     examDate: input.examDate?.trim() || undefined,
+    gradingMode: input.gradingMode,
   })
 
   const extracted = await withTempDir(async (tmp) => {

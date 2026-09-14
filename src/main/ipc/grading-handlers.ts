@@ -6,12 +6,13 @@
 
 import type { StudentCandidate } from '@shared/grading-helpers'
 import * as IPC from '@shared/ipc-channels'
-import type { GradingTaskStatus, TeacherReview } from '@shared/types'
+import type { GradingTaskStatus, RubricQuestion, TeacherReview } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { abortGrading, regradePapers, startGrading } from '../services/grading/grading-pipeline'
 import { gradingService } from '../services/grading/grading-service'
 import { identifyUnassignedPapers } from '../services/grading/identify-papers'
 import { extractRubricFromImages } from '../services/grading/rubric-extract'
+import { refineRubricStandards } from '../services/grading/rubric-refine'
 import { invalidateOnExamsWrite, invalidateOnGradesWrite } from './academic/cache'
 import { handleIpc } from './handle'
 
@@ -177,6 +178,27 @@ export function registerGradingHandlers(win: BrowserWindow): void {
       throw new Error('paths 必须是 1~8 个非空字符串路径')
     }
     return { success: true, data: await extractRubricFromImages(paths as string[]) }
+  })
+
+  // 评分标准自动细化: 量规草稿→逐题扣分点(轻校验;结构清洗在 rubric-refine)
+  handleIpc(IPC.IPC_GRADING_REFINE_RUBRIC, async (_e, questions: unknown) => {
+    if (!Array.isArray(questions) || questions.length === 0) {
+      throw new Error('questions 必须是非空数组')
+    }
+    for (const q of questions) {
+      if (
+        !isRecord(q) ||
+        typeof q.id !== 'string' ||
+        typeof q.title !== 'string' ||
+        !Number.isFinite(Number(q.fullMark))
+      ) {
+        throw new Error('questions 每项需含 id/title/fullMark')
+      }
+    }
+    return {
+      success: true,
+      data: await refineRubricStandards(questions as RubricQuestion[]),
+    }
   })
 
   handleIpc(IPC.IPC_GRADING_IDENTIFY_PAPERS, async (_e, taskId: string, roster: unknown) => {

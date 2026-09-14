@@ -27,12 +27,17 @@ const paper: GradingPaper = {
         questionId: 'q-1',
         score: 16,
         comment: '第3小题错',
+        deductions: [{ points: 4, reason: '第3小题计算错误' }],
         box: { page: 0, x: 0.1, y: 0.2, w: 0.3, h: 0.08 },
       },
       {
         questionId: 'q-2',
         score: 6,
         comment: '要点缺一步',
+        deductions: [
+          { points: 2, reason: '受力分析缺失' },
+          { points: 2, reason: '单位未换算' },
+        ],
         box: { page: 0, x: 0.1, y: 0.5, w: 0.3, h: 0.08 },
       },
     ],
@@ -131,6 +136,27 @@ describe('GradingMarksDocument — 批阅报告模式', () => {
     expect(screen.getAllByText(/单位漏写/).length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText(/要点缺一步/).length).toBe(2)
     expect(redFrameCount()).toBe(0)
+  })
+
+  it('扣分说明进报告得分表(红字)与页边批注', () => {
+    const { container } = render(
+      <GradingMarksDocument
+        task={task}
+        papers={[{ paper, imageUrls: [PIXEL] }]}
+        mode="report"
+        generatedAt={new Date('2026-09-11T12:00:00')}
+      />,
+    )
+    // 得分表红字扣分行: 两题各一条,扣分点以「·」连接
+    const redDeduct = container.querySelectorAll('span.text-red-600')
+    const redText = [...redDeduct].map((el) => el.textContent).join('\n')
+    expect(redText).toContain('-4 第3小题计算错误')
+    expect(redText).toContain('-2 受力分析缺失')
+    expect(redText).toContain('-2 单位未换算')
+    // 主观题(q-2)页边批注同样带扣分点
+    const marginNotes = container.querySelectorAll('.handwriting-mark')
+    const noteText = [...marginNotes].map((el) => el.textContent).join('\n')
+    expect(noteText).toContain('-2 受力分析缺失')
   })
 
   it('未归组试卷显示占位名,无扫描件给空状态', () => {
