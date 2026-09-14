@@ -5,6 +5,7 @@
 // =============================================================
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { GradingPaper } from '@shared/types'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 
@@ -236,6 +237,55 @@ describe('gradingService — 试卷导入/归组/结果', () => {
     await gradingService.setStatus(taskId, 'grading')
     await expect(gradingService.resetPaperForRegrade(taskId, graded.id)).rejects.toThrow('批改中')
     await gradingService.setStatus(taskId, 'review')
+  })
+
+  it('applyPaperSnapshot: 重改失败回滚旧结果并标 failed; 非法状态拒绝', async () => {
+    // 上一用例的重置已清复核,先补存一份,让"回滚恢复复核"可断言
+    const before = await gradingService.getTask(taskId)
+    await gradingService.saveReview(taskId, before.papers[0].id, {
+      questions: { 'q-1': { score: 25 } },
+    })
+    const task = await gradingService.getTask(taskId)
+    const paper = task.papers[0]
+    const snapshot = {
+      ai: paper.ai,
+      review: paper.review,
+      status: paper.status as GradingPaper['status'],
+    }
+    // 模拟重改: 重置(review 态) → 进 grading → 新一轮失败 → 回滚旧结果 + 新错误信息
+    await gradingService.resetPaperForRegrade(taskId, paper.id)
+    await gradingService.setStatus(taskId, 'grading')
+    const rolled = await gradingService.applyPaperSnapshot(taskId, paper.id, {
+      ...snapshot,
+      error: '批改输出不是有效 JSON',
+      status: 'failed',
+    })
+    expect(rolled.papers[0].status).toBe('failed')
+    expect(rolled.papers[0].error).toBe('批改输出不是有效 JSON')
+    // 旧 AI 结果/复核回来了(重改失败不再丢分)
+    expect(rolled.papers[0].ai?.totalScore).toBe(48)
+    expect(rolled.papers[0].review?.questions).toBeDefined()
+    // 非法状态拒绝
+    await expect(
+      gradingService.applyPaperSnapshot(taskId, paper.id, { ...snapshot, status: 'oops' as never }),
+    ).rejects.toThrow('非法试卷状态')
+    await gradingService.setStatus(taskId, 'review')
+    // review 态也允许回滚(中止路径兜底)
+    const inReview = await gradingService.applyPaperSnapshot(taskId, paper.id, {
+      ...snapshot,
+      status: 'graded',
+    })
+    expect(inReview.papers[0].status).toBe('graded')
+    // draft 态拒绝
+    const draftTask = await gradingService.createTask({ name: 't-snap', semester: 's' })
+    const img = await makeImage('snap.jpg', 8)
+    const imported = await gradingService.importPapers(draftTask.id, [{ files: [{ path: img }] }])
+    await expect(
+      gradingService.applyPaperSnapshot(draftTask.id, imported.papers[0].id, {
+        status: 'graded',
+      }),
+    ).rejects.toThrow('不可回滚')
+    await gradingService.deleteTask(draftTask.id)
   })
 
   it('removePaper: 连带文件删除', async () => {
