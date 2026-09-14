@@ -1,6 +1,6 @@
 # 设计文档：连接中心「更多」— 对齐 QwenPaw 全量频道目录
 
-> 日期：2026-09-14 ｜ 分支：`docs/qwenpaw-channels-more` ｜ 性质：**设计与分阶段计划（本文档不实现频道代码）**  
+> 日期：2026-09-14 ｜ 分支：`feat/connection-center-more-channels` ｜ 性质：**设计 + 实现进度**  
 > 上游调研：[QwenPaw 频道全量目录](../research/2026-09-14-qwenpaw-channel-catalog.md)  
 > 既有： [国内连接中心](./2026-09-14-domestic-connection-center.md)、[频道架构实施](./2026-09-12-channel-architecture-implementation.md)、[连接中心 UI](./2026-09-13-connection-center-ui-implementation.md)  
 > 代码基线：`education-advisor-connectors` @ `feat/domestic-wechat-qq-channels` tip（已含 `weixin`/`qq` 适配器）
@@ -368,4 +368,41 @@ push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string
 - [x] 给出接口扩展提案与「更多」IA（**Drawer 网格**已拍板）  
 - [x] 分批 P0–P3 + 国外/禁止策略  
 - [x] 「已拍板」：Drawer UX + QQ `sendReply` 立即收敛 + 本轮仅文档  
-- [ ] （实现轮）UI/适配器 / QQ 收敛 — **明确不在本提交**
+- [x] （实现轮）UI/适配器 / QQ 收敛 — 见 §9
+
+
+---
+
+## 9. 实现进度（feat/connection-center-more-channels）
+
+> 更新：2026-09-15（Asia/Shanghai）
+
+### Sprint 1 — 已落地
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| Manifest 元数据 | ✅ | `category` / `region` / `priority` / `docsUrl` / `qwenpawKey` / `unsupportedReason` / `catalogStatus` |
+| Receive / 媒体扩展 | ✅ | `mqtt`/`sip`；入站/出站 `video`/`audio` |
+| Adapter 可选方法 | ✅ | `handleHttpWebhook` / `refreshCredentials` / `getAccessPolicy` |
+| 「更多」Drawer 网格 | ✅ | `MoreChannelsDrawer`：搜索、分组、状态徽标、Esc/遮罩关闭；连接中心 + 设置页共用 |
+| QQ `sendReply` 收敛 | ✅ | 立即经 `replyOutboundFromMessage`；`createReplySession` 同构；无过渡旗标 |
+| i18n zh+en | ✅ | `connectionCenter.more.*` + 助手/邮件限制文案 |
+| 纯函数测试 | ✅ | `channel-catalog.test.ts` + `qq-sendreply.test.ts`；`tsc --noEmit` 绿 |
+
+### Sprint 2 — 适配器矩阵
+
+| id | 状态 | 备注 |
+|---|---|---|
+| feishu / dingtalk / wecom / weixin / qq | ✅ 生产向 | 仅补目录元数据；飞书深路径未改行为 |
+| email | ✅ 薄客户端 | SMTP `verify` + `push` 发信；IMAP IDLE 待续（limitation banner） |
+| mqtt | ✅ 薄客户端 | `mqtt.js` 订阅/发布；缺依赖时可读错误 |
+| yuanbao / xiaoyi | ✅ 骨架 | 凭证校验 + 诚实「协议适配中」错误，非静默失败 |
+| sip / voice / discord / telegram / slack / matrix / mattermost / imessage / azure-bot | 目录 later | pendingManifests 展示 |
+| onebot | 目录 unsupported | `unsupportedReason` 合规文案 |
+
+### 如何试用
+
+1. 启动应用 → 侧栏 **连接中心**（Alt+C）→ 主列表国内优先 ≤6 → 点 **「更多」** 打开 Drawer 全量目录。
+2. 设置 → 连接中心 → **浏览更多频道** 打开同一 Drawer。
+3. QQ：连接后被动回复走 `QqBotAdapter.sendReply` → 引擎 `replyOutbound`（与流水线共用投递缓存）。
+
