@@ -1,10 +1,10 @@
 // =============================================================
-// adapters/qq/connection — QQ 机器人引擎(WS + 流水线)
+// adapters/qq/connection — QQ 机器人引擎(WS + 流水线 + 诊断)
 // =============================================================
 
 import { EventEmitter } from 'node:events'
 import path from 'node:path'
-import type { ReplySession } from '@shared/types'
+import type { InboundAttachment, ReplySession } from '@shared/types'
 import { app, type BrowserWindow } from 'electron'
 import { errText } from '../../../../utils/err-text'
 import { log } from '../../../../utils/logger'
@@ -15,6 +15,7 @@ import { ChatMessageQueue } from '../../runtime/chat-queue'
 import { type CommandRouter, createDefaultRouter } from '../../runtime/command/router'
 import { MessageDedupCache } from '../../runtime/dedup-cache'
 import { RecentFilesStore } from '../../runtime/recent-files'
+import { writeAttachmentBytes } from '../../runtime/attachment-store'
 import { QqApiClient } from './api'
 import { RECEIVED_FILES_DIR_NAME } from './constants'
 import { QqGatewayClient, type WsFactory } from './gateway'
@@ -30,6 +31,9 @@ export interface QqBotStatusInfo {
   connectedAt?: number
   processingCount: number
   pendingCount: number
+  lastMessageAt?: number
+  lastErrorAt?: number
+  reconnectAttempt?: number
 }
 
 const DELIVERY_CACHE_MAX = 256
@@ -41,6 +45,9 @@ class QqBotService extends EventEmitter {
   private currentStatus: QqBotStatus = 'idle'
   private lastError?: string
   private connectedAt?: number
+  private lastMessageAt?: number
+  private lastErrorAt?: number
+  private reconnectAttempt = 0
   private processingCount = 0
   private dedup = new MessageDedupCache()
   private pipeline: { queue: ChatMessageQueue; activeSessions: Set<ReplySession> } | null = null
@@ -48,6 +55,7 @@ class QqBotService extends EventEmitter {
   private filesDir = ''
   private userStopped = false
   private readonly deliveries = new Map<string, QqDeliveryInfo>()
+  private fetchImpl: FetchLike = fetch
 
   constructor() {
     super()
@@ -62,6 +70,9 @@ class QqBotService extends EventEmitter {
       connectedAt: this.connectedAt,
       processingCount: this.processingCount,
       pendingCount: this.pipeline?.queue.pendingCount ?? 0,
+      lastMessageAt: this.lastMessageAt,
+      lastErrorAt: this.lastErrorAt,
+      reconnectAttempt: this.reconnectAttempt,
     }
   }
 
@@ -94,6 +105,8 @@ class QqBotService extends EventEmitter {
     this.userStopped = false
     this.dedup = new MessageDedupCache()
     this.deliveries.clear()
+    this.reconnectAttempt = 0
+    this.fetchImpl = opts.fetchImpl ?? fetch
     this.setStatus('connecting')
 
     const api = new QqApiClient(appId, clientSecret, undefined, opts.fetchImpl)
@@ -126,7 +139,7 @@ class QqBotService extends EventEmitter {
         if (!delivery) throw new Error(`消息 ${messageId} 的投递信息已失效`)
         return createQqReplySession(api, delivery)
       },
-      downloadAttachment: async () => ({ ok: false, error: 'QQ v1 暂不支持附件' }),
+      downloadAttachment: async (_messageId, att) => this.downloadAttachment(att),
       filesDir: this.filesDir,
       onProcessingStart: () => {
         this.processingCount++
@@ -151,6 +164,7 @@ class QqBotService extends EventEmitter {
     this.gateway.on('status', (status: string, detail?: string) => {
       if (status === 'connected') {
         this.connectedAt = Date.now()
+        this.reconnectAttempt = 0
         this.setStatus('connected')
         return
       }
@@ -161,6 +175,11 @@ class QqBotService extends EventEmitter {
       if (status === 'error') {
         this.setStatus('error', { error: detail ?? 'QQ Gateway 连接失败' })
       }
+    })
+    this.gateway.on('reconnect', (attempt: number, delay: number) => {
+      this.reconnectAttempt = attempt
+      log('info', 'qq', `gateway reconnect attempt=${attempt} delay=${delay}ms`)
+      this.emit('status', this.getStatus())
     })
 
     try {
@@ -173,12 +192,36 @@ class QqBotService extends EventEmitter {
     }
   }
 
+  private async downloadAttachment(
+    att: InboundAttachment,
+  ): Promise<{ ok: true; saved: { name: string; path: string; bytes: number } } | { ok: false; error: string }> {
+    const url = att.fileKey
+    if (!/^https?:\/\//i.test(url)) return { ok: false, error: '无效的 QQ 附件 URL' }
+    try {
+      const res = await this.fetchImpl(url)
+      if (!res.ok) return { ok: false, error: `下载失败 HTTP ${res.status}` }
+      const buf = Buffer.from(await res.arrayBuffer())
+      const name = path.basename(att.fileName || url.split('?')[0] || 'qq-file.bin')
+      return writeAttachmentBytes({
+        bytes: buf,
+        fileName: name,
+        kind: att.kind === 'image' ? 'image' : 'file',
+        dir: this.filesDir,
+        logScope: 'qq',
+      })
+    } catch (err) {
+      return { ok: false, error: errText(err) }
+    }
+  }
+
   private handleDispatch(eventType: string, data: unknown, allowGroups: boolean): void {
     const result = parseQqDispatchEvent(eventType, data, { allowGroups })
     if (!result) return
     if (this.dedup.has(result.parsed.messageId)) return
     this.dedup.remember(result.parsed.messageId)
     this.rememberDelivery(result.parsed.messageId, result.delivery)
+    this.lastMessageAt = Date.now()
+    this.emit('status', this.getStatus())
     const queue = this.pipeline?.queue
     if (!queue) return
     if (!queue.submit({ parsed: result.parsed })) {
@@ -226,10 +269,14 @@ class QqBotService extends EventEmitter {
 
   private setStatus(status: QqBotStatus, opts?: { error?: string }): void {
     this.currentStatus = status
-    if (opts?.error !== undefined) this.lastError = opts.error
+    if (opts?.error !== undefined) {
+      this.lastError = opts.error
+      this.lastErrorAt = Date.now()
+    }
     if (status === 'connected' || status === 'idle') this.lastError = undefined
     this.emit('status', this.getStatus())
   }
 }
 
 export const qqBotService = new QqBotService()
+

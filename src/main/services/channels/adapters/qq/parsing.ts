@@ -1,5 +1,5 @@
 // =============================================================
-// adapters/qq/parsing — QQ 事件归一化(纯函数)
+// adapters/qq/parsing — QQ 事件归一化(纯函数) + 附件提取
 // =============================================================
 
 import type { InboundAttachment } from '@shared/types'
@@ -30,6 +30,30 @@ function extractContent(d: Record<string, unknown>): string {
   return typeof content === 'string' ? content.trim() : ''
 }
 
+/** 从 attachments 字段提取图片/文件引用 */
+export function extractQqAttachments(d: Record<string, unknown>): InboundAttachment[] {
+  const raw = d.attachments
+  if (!Array.isArray(raw)) return []
+  const out: InboundAttachment[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    const url = String(rec.url ?? rec.image_url ?? '')
+    const contentType = String(rec.content_type ?? rec.contentType ?? '')
+    const filename = String(rec.filename ?? rec.file_name ?? '') || undefined
+    if (!url) continue
+    const isImage =
+      contentType.startsWith('image/') ||
+      /\.(png|jpe?g|gif|webp|bmp)$/i.test(filename || url.split('?')[0] || '')
+    out.push({
+      kind: isImage ? 'image' : 'file',
+      fileKey: url,
+      fileName: filename,
+    })
+  }
+  return out
+}
+
 /** 解析 WS dispatch 事件;非消息或过滤后返回 null */
 export function parseQqDispatchEvent(
   eventType: string,
@@ -39,7 +63,8 @@ export function parseQqDispatchEvent(
   if (!data || typeof data !== 'object') return null
   const d = data as Record<string, unknown>
   const text = extractContent(d).replace(/^<@!\d+>\s*/, '').trim()
-  if (!text) return null
+  const attachments = extractQqAttachments(d)
+  if (!text && attachments.length === 0) return null
 
   if (eventType === 'C2C_MESSAGE_CREATE') {
     const author = (d.author as Record<string, unknown> | undefined) ?? {}
@@ -48,11 +73,11 @@ export function parseQqDispatchEvent(
     if (!openid || !msgId) return null
     return {
       parsed: {
-        text,
+        text: text || (attachments.length ? `[收到 ${attachments.length} 个附件]` : ''),
         messageId: msgId,
         chatId: openid,
         chatType: 'p2p',
-        attachments: [],
+        attachments,
       },
       delivery: { kind: 'c2c', openid, msgId },
     }
@@ -67,11 +92,11 @@ export function parseQqDispatchEvent(
     if (!groupOpenid || !msgId) return null
     return {
       parsed: {
-        text,
+        text: text || (attachments.length ? `[收到 ${attachments.length} 个附件]` : ''),
         messageId: msgId,
         chatId: groupOpenid,
         chatType: 'group',
-        attachments: [],
+        attachments,
       },
       delivery: { kind: 'group', openid, groupOpenid, msgId },
     }
