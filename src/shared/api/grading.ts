@@ -73,6 +73,8 @@ export interface GradingAPI {
   setStatus: (taskId: string, status: GradingTaskStatus) => Promise<GradingResult<GradingTask>>
   // [w] 启动 AI 批改(异步作业:同步校验失败即返回错误,进度经 onProgress)
   run: (taskId: string, roster?: GradingRosterEntry[]) => Promise<GradingResult<void>>
+  // [w] 重改指定试卷(覆盖上次 AI 结果与复核;异步作业,进度经 onProgress)
+  regrade: (taskId: string, paperIds: string[]) => Promise<GradingResult<void>>
   // [w] 中止批改(返回是否确有进行中的作业)
   abort: (taskId: string) => Promise<GradingResult<boolean>>
   // [event] 批改进度(每份开始/完成/失败 + 整批 done)
