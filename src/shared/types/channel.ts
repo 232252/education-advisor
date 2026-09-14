@@ -88,6 +88,12 @@ export interface ChannelStatusInfo {
   /** 降级子态(阶段 0 降级链:CardKit 不可用时纯文本续命) */
   degraded?: boolean
   connectedAt?: number
+  /** 最近成功收到消息的时间戳 */
+  lastMessageAt?: number
+  /** 最近错误时间戳 */
+  lastErrorAt?: number
+  /** 当前重连尝试次数(0=稳定) */
+  reconnectAttempt?: number
   processingCount: number
   pendingCount: number
 }
@@ -172,3 +178,4 @@ export interface ChannelInstanceInfo {
 
 /** 渠道运行来源(与 AgentRunSource 对齐:渠道触发的 Agent 运行标 'channel') */
 export type { AgentRunSource }
+

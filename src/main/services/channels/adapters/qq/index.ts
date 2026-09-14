@@ -21,7 +21,14 @@ export class QqBotAdapter implements ChannelAdapter {
   readonly id = QQ_MANIFEST_ID
   readonly manifest = qqManifest
   private engineStatusHandler:
-    | ((info: { status: string; error?: string; connectedAt?: number }) => void)
+    | ((info: {
+        status: string
+        error?: string
+        connectedAt?: number
+        lastMessageAt?: number
+        lastErrorAt?: number
+        reconnectAttempt?: number
+      }) => void)
     | null = null
 
   async validateConfig(
@@ -64,7 +71,17 @@ export class QqBotAdapter implements ChannelAdapter {
     status: string
     error?: string
     connectedAt?: number
-  }): { status: ChannelRunStatus; detail?: string; connectedAt?: number } {
+    lastMessageAt?: number
+    lastErrorAt?: number
+    reconnectAttempt?: number
+  }): {
+    status: ChannelRunStatus
+    detail?: string
+    connectedAt?: number
+    lastMessageAt?: number
+    lastErrorAt?: number
+    reconnectAttempt?: number
+  } {
     const status: ChannelRunStatus =
       s.status === 'connected'
         ? 'connected'
@@ -73,7 +90,14 @@ export class QqBotAdapter implements ChannelAdapter {
           : s.status === 'error'
             ? 'error'
             : 'disabled'
-    return { status, detail: s.error, connectedAt: s.connectedAt }
+    return {
+      status,
+      detail: s.error,
+      connectedAt: s.connectedAt,
+      lastMessageAt: s.lastMessageAt,
+      lastErrorAt: s.lastErrorAt,
+      reconnectAttempt: s.reconnectAttempt,
+    }
   }
 
   getStatus() {
@@ -88,18 +112,62 @@ export class QqBotAdapter implements ChannelAdapter {
   async sendReply(msg: InboundMessage, content: OutboundContent): Promise<{ messageId?: string }> {
     void msg
     void content
-    throw new Error('QQ 回复由引擎流水线内完成(v1 不经适配器入口)')
+    throw new Error('QQ 回复由引擎流水线内完成(不经适配器入口)')
   }
 
-  async push(_target: PushTarget, _content: OutboundContent): Promise<{ messageId?: string }> {
-    throw new Error('QQ 主动推送受配额限制(pushPolicy=quota);v1 不支持主动推送')
+  /**
+   * 配额感知主动推送:真正调用官方 OpenAPI。
+   * 成功则返回;配额/窗口错误以可读 Error 抛出(UI 展示,非静默拒绝)。
+   */
+  async push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string }> {
+    const api = qqBotService.getApi()
+    if (!api) throw new Error('QQ 未连接')
+    const isGroup = Boolean(target.chatId && target.senderId && target.chatId !== target.senderId)
+    // 约定: group 用 chatId=groupOpenid; c2c 用 chatId=user openid
+    if (isGroup || (target as { kind?: string }).kind === 'group') {
+      await api.pushText({
+        kind: 'group',
+        openid: target.senderId || '',
+        groupOpenid: target.chatId,
+        text: content.text,
+      })
+    } else {
+      await api.pushText({
+        kind: 'c2c',
+        openid: target.chatId,
+        text: content.text,
+      })
+    }
+    return {}
   }
 
   async fetchAttachment(
     _msg: InboundMessage,
-    _att: InboundAttachment,
+    att: InboundAttachment,
   ): Promise<ChannelFetchedAttachment> {
-    return { ok: false, error: 'QQ v1 暂不支持附件' }
+    if (!/^https?:\/\//i.test(att.fileKey)) {
+      return { ok: false, error: '无效的 QQ 附件 URL' }
+    }
+    try {
+      const res = await fetch(att.fileKey)
+      if (!res.ok) return { ok: false, error: `下载失败 HTTP ${res.status}` }
+      const buf = Buffer.from(await res.arrayBuffer())
+      const { app } = await import('electron')
+      const pathMod = await import('node:path')
+      const fs = await import('node:fs')
+      let dir = ''
+      try {
+        dir = pathMod.join(app.getPath('userData'), 'channels/qq/files')
+      } catch {
+        dir = pathMod.join(process.env.TEMP ?? '.', 'channels/qq/files')
+      }
+      fs.mkdirSync(dir, { recursive: true })
+      const dest = pathMod.join(dir, `${Date.now()}_${pathMod.basename(att.fileName || 'qq-file.bin')}`)
+      fs.writeFileSync(dest, buf)
+      return { ok: true, path: dest, bytes: buf.length }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
   }
 }
 

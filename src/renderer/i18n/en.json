@@ -1967,5 +1967,9 @@
   "channels.qr.error": "QR login failed",
   "channels.qr.cancel": "Cancel",
   "channels.qr.retry": "Retry QR",
-  "connectionCenter.limitationHint": "Limits apply"
+  "connectionCenter.limitationHint": "Limits apply",
+  "connectionCenter.diag.lastMsg": "Last message",
+  "connectionCenter.diag.reconnect": "Reconnect",
+  "connectionCenter.diag.lastError": "Last error"
 }
+
