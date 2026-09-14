@@ -33,6 +33,14 @@ const BRAND: Record<string, { gradient: string; shadow: string }> = {
     gradient: 'from-[#00A944] to-[#33C46E]',
     shadow: 'shadow-[0_2px_8px_rgba(0,169,68,0.35)]',
   },
+  weixin: {
+    gradient: 'from-[#07C160] to-[#06AD56]',
+    shadow: 'shadow-[0_2px_8px_rgba(7,193,96,0.35)]',
+  },
+  qq: {
+    gradient: 'from-[#12B7F5] to-[#1296DB]',
+    shadow: 'shadow-[0_2px_8px_rgba(18,183,245,0.35)]',
+  },
 }
 
 const DEFAULT_BRAND = {

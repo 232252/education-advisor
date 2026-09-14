@@ -168,6 +168,11 @@ export function ChannelRow({ info, liveStatus, onConfigure }: ChannelRowProps) {
             detail={status.detail}
             variant="pill"
           />
+          {info.manifest.limitationBannerKey && status.status === 'not-configured' && (
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 truncate">
+              {t('connectionCenter.limitationHint', '有能力限制')}
+            </span>
+          )}
           {status.status === 'connected' && status.processingCount > 0 && (
             <span className="text-[10px] text-blue-500 dark:text-blue-400 flex-shrink-0">
               {t('settings.channels.processing', '处理中')} {status.processingCount}

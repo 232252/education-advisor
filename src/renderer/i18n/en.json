@@ -1954,5 +1954,18 @@
   "page.chat.queuedNotice": "Queued — will send automatically after the current reply",
   "page.chat.queuedBadge": "Queued",
   "page.chat.composer.queueSend": "Queue send",
-  "page.chat.composer.queueSendTitle": "Will send automatically after the current reply"
+  "page.chat.composer.queueSendTitle": "Will send automatically after the current reply",
+  "channels.qq.limitation": "QQ group proactive messages have a very low monthly quota; passive reply window is ~5 minutes. Best for private chat Q&A — use Feishu/DingTalk/email for scheduled broadcasts.",
+  "channels.weixin.limitation": "WeChat (personal iLink) is private-chat oriented; proactive push is weak and requires a prior user message (context token). Not ideal as the primary alert channel.",
+  "channels.qr.title": "Scan to connect",
+  "channels.qr.start": "Start QR login",
+  "channels.qr.loading": "Fetching QR code…",
+  "channels.qr.scanHint": "Scan with the matching mobile app",
+  "channels.qr.scanned": "Scanned — confirm on your phone",
+  "channels.qr.confirmed": "Bound successfully",
+  "channels.qr.expired": "QR code expired",
+  "channels.qr.error": "QR login failed",
+  "channels.qr.cancel": "Cancel",
+  "channels.qr.retry": "Retry QR",
+  "connectionCenter.limitationHint": "Limits apply"
 }

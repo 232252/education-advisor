@@ -18,4 +18,7 @@ export const channelsApi = {
   // [r] 订阅渠道状态变化(返回取消订阅函数)
   onStatusUpdate: (callback: (info: unknown) => void) =>
     subscribe(IPC.IPC_CHANNELS_STATUS_UPDATE, callback),
+  beginLogin: (id: string) => ipcInvoke(IPC.IPC_CHANNELS_BEGIN_LOGIN, id),
+  pollLogin: (loginId: string) => ipcInvoke(IPC.IPC_CHANNELS_POLL_LOGIN, loginId),
+  cancelLogin: (loginId: string) => ipcInvoke(IPC.IPC_CHANNELS_CANCEL_LOGIN, loginId),
 }
