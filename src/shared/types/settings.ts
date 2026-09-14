@@ -99,6 +99,9 @@ export interface UnifiedSettings {
   grading: {
     provider: string
     model: string
+    /** 双评第二模型(双评批改模式用;空 = 未配置,启动双评时同步报错) */
+    provider2: string
+    model2: string
   }
   feishu: {
     /** 域名版本: 'feishu' 国内版(open.feishu.cn) / 'lark' 国际版(open.larksuite.com) */

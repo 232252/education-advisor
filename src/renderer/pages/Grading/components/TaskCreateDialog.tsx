@@ -4,7 +4,7 @@
 // =============================================================
 
 import { cleanPresetMarks } from '@shared/grading-helpers'
-import type { GradingStrictness, RubricQuestion } from '@shared/types'
+import type { GradingStrategy, GradingStrictness, RubricQuestion } from '@shared/types'
 import { useState } from 'react'
 import { useT } from '../../../i18n'
 import { getCurrentSemester } from '../../../lib/academics'
@@ -28,6 +28,7 @@ interface TaskCreateDialogProps {
     className?: string
     subjectId?: string
     gradingMode?: GradingStrictness
+    gradingStrategy?: GradingStrategy
     rubric: RubricQuestion[]
   }) => Promise<boolean>
 }
@@ -46,6 +47,7 @@ export function TaskCreateDialog({
   const [className, setClassName] = useState('')
   const [subjectId, setSubjectId] = useState('')
   const [gradingMode, setGradingMode] = useState<GradingStrictness>('normal')
+  const [gradingStrategy, setGradingStrategy] = useState<GradingStrategy>('standard')
   const [rubric, setRubric] = useState<RubricQuestion[]>([])
 
   const canSave = name.trim().length > 0 && semester.trim().length > 0 && !saving
@@ -59,6 +61,7 @@ export function TaskCreateDialog({
       className: className.trim() || undefined,
       subjectId: subjectId || undefined,
       gradingMode,
+      gradingStrategy,
       rubric: rubric
         .filter((q) => q.title.trim().length > 0 && q.fullMark > 0)
         .map((q, i) => ({ ...q, order: i + 1, presetMarks: cleanPresetMarks(q.presetMarks) })),
@@ -171,6 +174,35 @@ export function TaskCreateDialog({
                 {t(
                   'page.grading.mode.hint',
                   '严格=按步扣分不放过瑕疵；宽松=思路对小瑕疵少扣；随时可改，重改生效',
+                )}
+              </p>
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="grading-task-strategy">
+                {t('page.grading.strategy.label', '批改模式')}
+              </label>
+              <select
+                id="grading-task-strategy"
+                value={gradingStrategy}
+                onChange={(e) => setGradingStrategy(e.target.value as GradingStrategy)}
+                title={t(
+                  'page.grading.strategy.title',
+                  '批改流程档位：调用次数与准确率的权衡；改动后对之后的批改/重改生效',
+                )}
+                className={`${INPUT_BASE} mt-1 w-full`}
+              >
+                <option value="fast">{t('page.grading.strategy.fast', '快改 · 整卷一次')}</option>
+                <option value="standard">
+                  {t('page.grading.strategy.standard', '标准 · 分题细改+复验')}
+                </option>
+                <option value="dual">
+                  {t('page.grading.strategy.dual', '双评 · 双AI独立批改')}
+                </option>
+              </select>
+              <p className="mt-1 text-[11px] leading-4 text-gray-400">
+                {t(
+                  'page.grading.strategy.hint',
+                  '快改=整卷一次调用最快最省；标准=逐题定位裁剪+条件复验，准确率优先；双评=两个视觉模型独立批改，阈值内取均值、分歧题交老师仲裁（需在设置→模型配置第二模型）',
                 )}
               </p>
             </div>

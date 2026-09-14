@@ -12,6 +12,7 @@ import path from 'node:path'
 import type {
   AiGradeResult,
   GradingPaper,
+  GradingStrategy,
   GradingStrictness,
   GradingTask,
   GradingTaskStatus,
@@ -54,6 +55,18 @@ const GRADING_STRICTNESS: GradingStrictness[] = ['strict', 'normal', 'lenient']
 function assertGradingMode(mode: unknown): void {
   if (mode !== undefined && !GRADING_STRICTNESS.includes(mode as GradingStrictness)) {
     throw new Error(`非法批改口径: ${String(mode)}(strict/normal/lenient)`)
+  }
+}
+
+/** 校验批改模式;undefined 放行(缺省 standard),非法值抛错 */
+function assertGradingStrategy(strategy: unknown): void {
+  if (
+    strategy !== undefined &&
+    strategy !== 'fast' &&
+    strategy !== 'standard' &&
+    strategy !== 'dual'
+  ) {
+    throw new Error(`非法批改模式: ${String(strategy)}(fast/standard/dual)`)
   }
 }
 
@@ -202,6 +215,7 @@ class GradingService {
     subjectId?: string
     examDate?: string
     gradingMode?: GradingStrictness
+    gradingStrategy?: GradingStrategy
     rubric?: RubricQuestion[]
   }): Promise<GradingTask> {
     if (!input?.name || typeof input.name !== 'string' || input.name.trim().length === 0) {
@@ -211,6 +225,7 @@ class GradingService {
       throw new Error('学期不能为空')
     }
     assertGradingMode(input.gradingMode)
+    assertGradingStrategy(input.gradingStrategy)
     const rubric = input.rubric ?? []
     validateRubric(rubric)
     await this.ensureDirs()
@@ -225,6 +240,7 @@ class GradingService {
       examDate: input.examDate,
       status: 'draft',
       gradingMode: input.gradingMode,
+      gradingStrategy: input.gradingStrategy,
       rubric,
       papers: [],
       createdAt: now,
@@ -251,6 +267,7 @@ class GradingService {
         | 'subjectId'
         | 'examDate'
         | 'gradingMode'
+        | 'gradingStrategy'
         | 'rubric'
       >
     >,
@@ -270,6 +287,10 @@ class GradingService {
       if (patch.gradingMode !== undefined) {
         assertGradingMode(patch.gradingMode)
         task.gradingMode = patch.gradingMode
+      }
+      if (patch.gradingStrategy !== undefined) {
+        assertGradingStrategy(patch.gradingStrategy)
+        task.gradingStrategy = patch.gradingStrategy
       }
       if (patch.name !== undefined) {
         if (typeof patch.name !== 'string' || patch.name.trim().length === 0) {
@@ -436,8 +457,13 @@ class GradingService {
 
   // ===== 批改结果 =====
 
-  /** AI 结果落库(P3 管线逐份调用);分数越界在入口即拒 */
-  async saveAiResult(taskId: string, paperId: string, result: AiGradeResult): Promise<GradingTask> {
+  /** AI 结果落库(P3 管线逐份调用);分数越界在入口即拒;双评附第二模型结果与分歧清单 */
+  async saveAiResult(
+    taskId: string,
+    paperId: string,
+    result: AiGradeResult,
+    extras?: { aiSecondary?: AiGradeResult; disputedQuestions?: string[] },
+  ): Promise<GradingTask> {
     assertTaskId(taskId)
     assertPaperId(paperId)
     return this.withTaskLock(taskId, async () => {
@@ -456,7 +482,23 @@ class GradingService {
           throw new Error(`AI 分数越界 [0, ${full}]: ${q.questionId} = ${q.score}`)
         }
       }
+      if (extras?.aiSecondary) {
+        for (const q of extras.aiSecondary.questions) {
+          const full = fullMarkById.get(q.questionId)
+          if (full === undefined) {
+            throw new Error(`双评第二模型结果含未知题目: ${q.questionId}`)
+          }
+          if (!Number.isFinite(q.score) || q.score < 0 || q.score > full) {
+            throw new Error(`双评第二模型分数越界 [0, ${full}]: ${q.questionId} = ${q.score}`)
+          }
+        }
+      }
       paper.ai = result
+      paper.aiSecondary = extras?.aiSecondary
+      paper.disputedQuestions =
+        extras?.disputedQuestions && extras.disputedQuestions.length > 0
+          ? extras.disputedQuestions
+          : undefined
       paper.error = undefined
       paper.status = 'graded'
       task.updatedAt = new Date().toISOString()
@@ -493,6 +535,8 @@ class GradingService {
       const paper = this.findPaper(task, paperId)
       if (paper.files.length === 0) throw new Error('该试卷没有扫描件,无法重改')
       paper.ai = undefined
+      paper.aiSecondary = undefined
+      paper.disputedQuestions = undefined
       paper.review = undefined
       paper.error = undefined
       paper.status = 'pending'
@@ -511,6 +555,8 @@ class GradingService {
     paperId: string,
     snap: {
       ai?: GradingPaper['ai']
+      aiSecondary?: GradingPaper['aiSecondary']
+      disputedQuestions?: GradingPaper['disputedQuestions']
       review?: GradingPaper['review']
       error?: string
       status: GradingPaper['status']
@@ -528,6 +574,8 @@ class GradingService {
       }
       const paper = this.findPaper(task, paperId)
       paper.ai = snap.ai
+      paper.aiSecondary = snap.aiSecondary
+      paper.disputedQuestions = snap.disputedQuestions
       paper.review = snap.review
       paper.error = snap.error
       paper.status = snap.status

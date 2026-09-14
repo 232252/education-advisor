@@ -161,6 +161,24 @@ export function ReviewWorkbench({
               total: reviewablePapers.length,
             })}
           </span>
+          {paper.aiSecondary && (
+            <span className="ml-2 inline-flex items-center gap-1">
+              <span className="rounded-full bg-blue-50 px-1.5 py-px text-[10px] text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
+                {t('page.grading.review.dualBadge', '双评')}
+              </span>
+              {(paper.disputedQuestions?.length ?? 0) > 0 && (
+                <span
+                  className="rounded-full bg-amber-100 px-1.5 py-px text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                  title={t(
+                    'page.grading.papers.disputedTitle',
+                    '双评两个模型给分分歧超阈值，请教师在复核台仲裁',
+                  )}
+                >
+                  {tr('page.grading.papers.disputed', { n: paper.disputedQuestions?.length ?? 0 })}
+                </span>
+              )}
+            </span>
+          )}
         </h2>
         <button
           type="button"
@@ -217,10 +235,20 @@ export function ReviewWorkbench({
             {task.rubric.map((q, i) => {
               const ai = paper.ai?.questions.find((a) => a.questionId === q.id)
               const effective = effectiveQuestionScore(draftPaper, q.id)
+              const secondaryScore = paper.aiSecondary?.questions.find(
+                (a) => a.questionId === q.id,
+              )?.score
+              const disputed = paper.disputedQuestions?.includes(q.id) ?? false
+              const dual = paper.aiSecondary && ai !== undefined && secondaryScore !== undefined
               return (
                 <div
                   key={q.id}
-                  className="rounded-lg border border-gray-200 p-3 dark:border-white/10"
+                  className={cn(
+                    'rounded-lg border p-3',
+                    disputed
+                      ? 'border-amber-300 bg-amber-50/50 dark:border-amber-500/40 dark:bg-amber-500/5'
+                      : 'border-gray-200 dark:border-white/10',
+                  )}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">
@@ -231,6 +259,29 @@ export function ReviewWorkbench({
                       <span className="text-xs text-gray-400">/{q.fullMark}</span>
                     </span>
                   </div>
+                  {dual && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="rounded bg-blue-50 px-1.5 py-px text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
+                        {t('page.grading.review.dualPrimary', 'AI甲')} {ai?.score}
+                      </span>
+                      <span className="rounded bg-purple-50 px-1.5 py-px text-purple-600 dark:bg-purple-500/15 dark:text-purple-300">
+                        {t('page.grading.review.dualSecondary', 'AI乙')} {secondaryScore}
+                      </span>
+                      {disputed ? (
+                        <span className="rounded-full bg-amber-100 px-1.5 py-px text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                          {t('page.grading.review.dualDispute', '分歧，请仲裁')}
+                        </span>
+                      ) : ai?.score === secondaryScore ? (
+                        <span className="text-gray-400">
+                          {t('page.grading.review.dualAgree', '两评一致')}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">
+                          {t('page.grading.review.dualAveraged', '阈值内取均值')}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {ai?.evidence && (
                     <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{ai.evidence}</p>
                   )}

@@ -357,3 +357,144 @@ describe('gradingService — 状态机与删除', () => {
     await expect(gradingService.getTask('grading-../../x')).rejects.toThrow('非法任务 id')
   })
 })
+
+describe('gradingService — 批改模式与双评附加字段', () => {
+  it('createTask/updateTask: gradingStrategy 落盘;非法值拒绝', async () => {
+    const task = await gradingService.createTask({
+      name: '双评测试',
+      semester: '2026-秋',
+      gradingStrategy: 'dual',
+    })
+    expect(task.gradingStrategy).toBe('dual')
+    const updated = await gradingService.updateTask(task.id, { gradingStrategy: 'fast' })
+    expect(updated.gradingStrategy).toBe('fast')
+    await expect(
+      gradingService.updateTask(task.id, { gradingStrategy: 'turbo' as never }),
+    ).rejects.toThrow('非法批改模式')
+    await expect(
+      gradingService.createTask({ name: 'x', semester: 's', gradingStrategy: 'xx' as never }),
+    ).rejects.toThrow('非法批改模式')
+  })
+
+  it('saveAiResult: 双评附加字段落库/清空;第二模型越界拒绝;重置清双评;快照回滚含双评', async () => {
+    const task = await gradingService.createTask({
+      name: '双评落库',
+      semester: '2026-秋',
+      gradingStrategy: 'dual',
+      rubric: [
+        { id: 'q-1', title: '一、单选题', fullMark: 30, order: 1 },
+        { id: 'q-2', title: '三、计算题', fullMark: 18, order: 2 },
+      ],
+    })
+    const img = await makeImage('dual-a.jpg')
+    const afterImport = await gradingService.importPapers(task.id, [{ files: [{ path: img }] }])
+    const paperId = afterImport.papers[0]?.id as string
+    await gradingService.assignPaper(task.id, paperId, '张三')
+
+    const ok = await gradingService.saveAiResult(
+      task.id,
+      paperId,
+      {
+        questions: [
+          { questionId: 'q-1', score: 24 },
+          { questionId: 'q-2', score: 18 },
+        ],
+        totalScore: 42,
+        model: { provider: 'a', model: 'A' },
+        finishedAt: '2026-01-01T00:00:00Z',
+      },
+      {
+        aiSecondary: {
+          questions: [
+            { questionId: 'q-1', score: 24 },
+            { questionId: 'q-2', score: 9 },
+          ],
+          totalScore: 33,
+          model: { provider: 'b', model: 'B' },
+          finishedAt: '2026-01-01T00:00:01Z',
+        },
+        disputedQuestions: ['q-2'],
+      },
+    )
+    const paper = afterImport === null ? null : ok.papers.find((p) => p.id === paperId)
+    expect(paper?.aiSecondary?.model.model).toBe('B')
+    expect(paper?.disputedQuestions).toEqual(['q-2'])
+
+    // 第二模型未知题/越界拒绝(先重置回 pending,绕开状态门卫直达校验)
+    await gradingService.resetPaperForRegrade(task.id, paperId)
+    await expect(
+      gradingService.saveAiResult(
+        task.id,
+        paperId,
+        {
+          questions: [{ questionId: 'q-1', score: 1 }],
+          totalScore: 1,
+          model: { provider: 'a', model: 'A' },
+          finishedAt: '2026-01-01T00:00:00Z',
+        },
+        {
+          aiSecondary: {
+            questions: [{ questionId: 'q-9', score: 1 }],
+            totalScore: 1,
+            model: { provider: 'b', model: 'B' },
+            finishedAt: '2026-01-01T00:00:00Z',
+          },
+        },
+      ),
+    ).rejects.toThrow('未知题目')
+    await expect(
+      gradingService.saveAiResult(
+        task.id,
+        paperId,
+        {
+          questions: [{ questionId: 'q-1', score: 1 }],
+          totalScore: 1,
+          model: { provider: 'a', model: 'A' },
+          finishedAt: '2026-01-01T00:00:00Z',
+        },
+        {
+          aiSecondary: {
+            questions: [{ questionId: 'q-1', score: 99 }],
+            totalScore: 99,
+            model: { provider: 'b', model: 'B' },
+            finishedAt: '2026-01-01T00:00:00Z',
+          },
+        },
+      ),
+    ).rejects.toThrow('越界')
+
+    // 重置清双评
+    await gradingService.resetPaperForRegrade(task.id, paperId)
+    const afterReset = await gradingService.getTask(task.id)
+    const resetPaper = afterReset.papers.find((p) => p.id === paperId)
+    expect(resetPaper?.ai).toBeUndefined()
+    expect(resetPaper?.aiSecondary).toBeUndefined()
+    expect(resetPaper?.disputedQuestions).toBeUndefined()
+
+    // 快照回滚恢复双评字段(draft→ready→grading→review 合法链)
+    await gradingService.setStatus(task.id, 'ready')
+    await gradingService.setStatus(task.id, 'grading')
+    await gradingService.setStatus(task.id, 'review')
+    await gradingService.applyPaperSnapshot(task.id, paperId, {
+      ai: {
+        questions: [{ questionId: 'q-1', score: 24 }],
+        totalScore: 24,
+        model: { provider: 'a', model: 'A' },
+        finishedAt: '2026-01-01T00:00:00Z',
+      },
+      aiSecondary: {
+        questions: [{ questionId: 'q-1', score: 30 }],
+        totalScore: 30,
+        model: { provider: 'b', model: 'B' },
+        finishedAt: '2026-01-01T00:00:00Z',
+      },
+      disputedQuestions: ['q-1'],
+      status: 'graded',
+    })
+    const afterRoll = await gradingService.getTask(task.id)
+    const rolled = afterRoll.papers.find((p) => p.id === paperId)
+    expect(rolled?.aiSecondary?.totalScore).toBe(30)
+    expect(rolled?.disputedQuestions).toEqual(['q-1'])
+    await gradingService.deleteTask(task.id)
+  })
+})

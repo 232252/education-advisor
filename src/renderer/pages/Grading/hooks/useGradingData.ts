@@ -6,6 +6,7 @@
 
 import type { GradingRosterEntry, ImportPaperBatch } from '@shared/api/grading'
 import type {
+  GradingStrategy,
   GradingStrictness,
   GradingTask,
   GradingTaskStatus,
@@ -23,6 +24,8 @@ export interface RubricInput {
   subjectId?: string
   /** 批改口径(给分松紧);缺省 normal */
   gradingMode?: GradingStrictness
+  /** 批改模式(流程档位);缺省 standard */
+  gradingStrategy?: GradingStrategy
 }
 
 export function useGradingData() {
