@@ -13,6 +13,11 @@ import type {
 import { log } from '../../../../utils/logger'
 import type { ChannelAdapter, ChannelRuntimeContext } from '../../types'
 import { jsonFetch, outboundText, proxyHint } from '../_shared/bot-http'
+import {
+  createBackoffState,
+  nextBackoffDelay,
+  resetBackoff,
+} from '../_shared/reconnect'
 import { TELEGRAM_MANIFEST_ID, telegramManifest } from './manifest'
 
 type TgUpdate = {
@@ -38,6 +43,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
   private offset = 0
   private stopRequested = false
   private loopPromise: Promise<void> | null = null
+  private pollBackoff = createBackoffState({ delaysMs: [1_000, 2_000, 5_000, 10_000, 30_000], maxAttempts: 100 })
 
   async validateConfig(
     ctx: Pick<ChannelRuntimeContext, 'config' | 'getSecret'>,
@@ -124,15 +130,19 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         const msg = err instanceof Error ? err.message : String(err)
         log('warn', 'telegram', `poll error: ${msg}`)
         this.detail = `长轮询异常,将重试: ${msg}`
+        const delay = nextBackoffDelay(this.pollBackoff) ?? 60_000
         ctx.bridge.onStatus({
           status: 'connected',
           connectedAt: this.connectedAt,
           detail: this.detail,
           degraded: true,
           lastErrorAt: Date.now(),
+          reconnectAttempt: this.pollBackoff.attempts,
         })
-        await new Promise((r) => setTimeout(r, 3000))
+        await new Promise((r) => setTimeout(r, delay))
+        continue
       }
+      resetBackoff(this.pollBackoff)
     }
   }
 
