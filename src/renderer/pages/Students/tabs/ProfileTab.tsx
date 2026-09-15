@@ -5,9 +5,8 @@
 
 import { parseChineseIdCard } from '@shared/id-card'
 import type { EAAStudent, StudentProfileData } from '@shared/types'
-import { parseChineseIdCard } from '@shared/id-card'
 import {
-  FileText,
+	FileText,
   GraduationCap,
   HeartPulse,
   Home,

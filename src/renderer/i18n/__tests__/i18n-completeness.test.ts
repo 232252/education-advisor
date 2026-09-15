@@ -118,7 +118,9 @@ describe('i18n 字典 — 死键守卫', () => {
         else if (/\.tsx?$/.test(name) && !/\.test\./.test(name)) files.push(p)
       }
     }
+    // 键面引用源含 src/shared(如 channel-catalog 的 labelKey 数据面字面量)
     walk(join(process.cwd(), 'src', 'renderer'))
+    walk(join(process.cwd(), 'src', 'shared'))
     const quoted = new Set<string>()
     const dynPrefixes: string[] = []
     for (const f of files) {
