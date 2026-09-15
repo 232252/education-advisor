@@ -81,6 +81,7 @@
     "better-sqlite3": "^13.0.2",
     "cross-spawn": "^7.0.6",
     "electron-updater": "^6.8.9",
+    "imapflow": "^2.0.3",
     "lxgw-wenkai-webfont": "^1.7.0",
     "mqtt": "^5.15.2",
     "node-cron": "^4.6.0",

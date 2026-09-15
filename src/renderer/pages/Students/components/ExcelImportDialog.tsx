@@ -11,7 +11,6 @@ import type {
   StudentImportResult,
   StudentImportRowError,
 } from '@shared/types'
-import { maskIdCard, maskPhone } from '@shared/id-card'
 import { useEffect } from 'react'
 import { Button } from '../../../components/Button'
 import { tr, useT } from '../../../i18n'
