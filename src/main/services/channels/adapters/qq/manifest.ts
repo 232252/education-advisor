@@ -55,6 +55,27 @@ export const qqManifest: ChannelManifest = {
       default: true,
     },
     {
+      name: 'allowFrom',
+      label: '允许的用户/群 openid',
+      description: '逗号分隔白名单;与 aclDm/aclGroup=allowlist 联用(QwenPaw allow_from)',
+      type: 'string',
+      default: '',
+    },
+    {
+      name: 'aclDm',
+      label: '私聊 ACL',
+      type: 'string',
+      default: 'open',
+      description: 'open | allowlist | deny',
+    },
+    {
+      name: 'aclGroup',
+      label: '群聊 ACL',
+      type: 'string',
+      default: 'open',
+      description: 'open | allowlist | deny',
+    },
+    {
       name: 'agentId',
       label: '绑定 Agent',
       description: '该频道的消息交给哪个 Agent 处理(默认 main)',

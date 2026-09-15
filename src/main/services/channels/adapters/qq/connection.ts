@@ -16,6 +16,7 @@ import { type CommandRouter, createDefaultRouter } from '../../runtime/command/r
 import { MessageDedupCache } from '../../runtime/dedup-cache'
 import { RecentFilesStore } from '../../runtime/recent-files'
 import { writeAttachmentBytes } from '../../runtime/attachment-store'
+import { checkAcl, policyFromConfig, type AclPolicy } from '../_shared/acl'
 import { QqApiClient } from './api'
 import { RECEIVED_FILES_DIR_NAME } from './constants'
 import { QqGatewayClient, type WsFactory } from './gateway'
@@ -56,6 +57,7 @@ class QqBotService extends EventEmitter {
   private userStopped = false
   private readonly deliveries = new Map<string, QqDeliveryInfo>()
   private fetchImpl: FetchLike = fetch
+  private acl: AclPolicy = { dm: 'open', group: 'open', allowFrom: [] }
 
   constructor() {
     super()
@@ -89,6 +91,7 @@ class QqBotService extends EventEmitter {
       agentId?: string
       fetchImpl?: FetchLike
       wsFactory?: WsFactory
+      config?: Record<string, unknown>
     } = {},
   ): Promise<void> {
     appId = appId.trim()
@@ -124,6 +127,10 @@ class QqBotService extends EventEmitter {
     }
 
     const allowGroups = opts.allowGroups !== false
+    this.acl = policyFromConfig(opts.config ?? {})
+    if (!allowGroups) {
+      this.acl = { ...this.acl, group: 'deny' }
+    }
     const boundAgentId = opts.agentId || undefined
     const activeSessions = new Set<ReplySession>()
     const pipeline = createChannelPipeline({
@@ -249,6 +256,23 @@ class QqBotService extends EventEmitter {
     if (!result) return
     if (this.dedup.has(result.parsed.messageId)) return
     this.dedup.remember(result.parsed.messageId)
+
+    const chatType = result.delivery.kind === 'group' ? 'group' : 'p2p'
+    const senderId = result.delivery.openid
+    const chatId =
+      result.delivery.kind === 'group'
+        ? result.delivery.groupOpenid || result.parsed.chatId
+        : result.delivery.openid
+    const acl = checkAcl(this.acl, {
+      chatType,
+      senderId,
+      chatId,
+    })
+    if (acl.decision !== 'allow') {
+      log('info', 'qq', `ACL ${acl.decision}: ${acl.reason} sender=${senderId}`)
+      return
+    }
+
     this.rememberDelivery(result.parsed.messageId, result.delivery)
     this.lastMessageAt = Date.now()
     this.emit('status', this.getStatus())
