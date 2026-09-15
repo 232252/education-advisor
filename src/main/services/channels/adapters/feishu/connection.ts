@@ -19,7 +19,6 @@
 import { EventEmitter } from 'node:events'
 import path from 'node:path'
 import * as lark from '@larksuiteoapi/node-sdk'
-<<<<<<< HEAD:src/main/services/channels/adapters/feishu/connection.ts
 import type { ReplySession } from '@shared/types'
 import { app, type BrowserWindow, powerMonitor } from 'electron'
 import { errText } from '../../../../utils/err-text'
@@ -38,26 +37,6 @@ import { createMessageReceiveHandler } from './event-handler'
 import { fetchHttpInstance, setFeishuBase } from './http-instance'
 import { createBatchPipeline, type MessageHandlerDeps } from './message-handler'
 import type { BotStatus, BotStatusInfo } from './types'
-=======
-import { type BrowserWindow, powerMonitor } from 'electron'
-import { errText } from '../utils/err-text'
-import { log } from '../utils/logger'
-import { createCommandContext } from './feishu-bot/command-context'
-import {
-  type CommandContext,
-  createDefaultRouter,
-  type FeishuCommandRouter,
-} from './feishu-bot/command-router'
-import { APP_ID_PATTERN, MAX_GUARD_ATTEMPTS } from './feishu-bot/constants'
-import { validateCredentials } from './feishu-bot/credentials'
-import { MessageDedupCache } from './feishu-bot/dedup-cache'
-import { createMessageReceiveHandler } from './feishu-bot/event-handler'
-import { fetchHttpInstance, setFeishuBase } from './feishu-bot/http-instance'
-import { handleIncomingMessage } from './feishu-bot/message-handler'
-import { SerialMessageQueue } from './feishu-bot/message-queue'
-import type { BotStatus, BotStatusInfo, FeishuMessageEvent } from './feishu-bot/types'
-import type { FeishuDomain } from './feishu-service'
->>>>>>> gitee/main:src/main/services/feishu-bot-service.ts
 
 export type { BotStatus, BotStatusInfo } from './types'
 
