@@ -100,4 +100,19 @@ export interface ChannelAdapter {
     allowFrom: string[]
     requireMention: boolean
   }
+
+  /**
+   * 诊断快照(重连次数/计数器/末次错误);Connection Center 与日志用。
+   * 对齐 QwenPaw ChannelManager health 的可选钩子。
+   */
+  getHealthDiagnostics?(): {
+    status: string
+    detail?: string
+    connectedAt?: number
+    lastMessageAt?: number
+    lastErrorAt?: number
+    reconnectAttempt?: number
+    counters: Record<string, number>
+    lastError?: string
+  }
 }
