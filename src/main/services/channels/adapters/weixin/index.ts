@@ -9,6 +9,7 @@ import type {
   InboundAttachment,
   InboundMessage,
   OutboundContent,
+  OutboundMediaRef,
   PushTarget,
 } from '@shared/types'
 import { settingsService } from '../../../settings-service'
@@ -58,6 +59,10 @@ export class WeixinILinkAdapter implements ChannelAdapter {
     await weixinBotService.start(token, ctx.getWin(), {
       baseUrl,
       agentId: typeof channelCfg?.agentId === 'string' ? channelCfg.agentId : undefined,
+      config: {
+        ...(channelCfg as Record<string, unknown> | undefined),
+        ...ctx.config,
+      },
     })
     const st = weixinBotService.getStatus()
     if (st.status === 'error') {
@@ -116,12 +121,15 @@ export class WeixinILinkAdapter implements ChannelAdapter {
   }
 
   async sendReply(msg: InboundMessage, content: OutboundContent): Promise<{ messageId?: string }> {
-    const client = weixinBotService.getClient()
-    if (!client) throw new Error('微信未连接')
     const token =
       weixinBotService.getContextToken(msg.chat.id) || weixinBotService.getContextToken(msg.sender.id)
     if (!token) throw new Error('缺少 context_token')
-    await client.sendText(msg.chat.id, content.text, token)
+    const media: OutboundMediaRef[] = content.media ?? []
+    await weixinBotService.replyOutboundFromDelivery(
+      { toUserId: msg.chat.id, contextToken: token },
+      content.text,
+      media,
+    )
     return {}
   }
 

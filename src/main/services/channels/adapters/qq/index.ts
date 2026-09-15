@@ -54,6 +54,10 @@ export class QqBotAdapter implements ChannelAdapter {
     await qqBotService.start(appId, secret, ctx.getWin(), {
       allowGroups: channelCfg?.allowGroups !== false,
       agentId: typeof channelCfg?.agentId === 'string' ? channelCfg.agentId : undefined,
+      config: {
+        ...(channelCfg as Record<string, unknown> | undefined),
+        ...ctx.config,
+      },
     })
     const st = qqBotService.getStatus()
     if (st.status === 'error') throw new Error(st.error ?? 'QQ 连接失败')

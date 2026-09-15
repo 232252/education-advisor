@@ -18,6 +18,8 @@ import { type CommandRouter, createDefaultRouter } from '../../runtime/command/r
 import { MessageDedupCache } from '../../runtime/dedup-cache'
 import { RecentFilesStore } from '../../runtime/recent-files'
 import { writeAttachmentBytes } from '../../runtime/attachment-store'
+import { checkAcl, policyFromConfig, type AclPolicy } from '../_shared/acl'
+import { InboundDebouncer, mergeTextMessages } from '../_shared/debounce'
 import {
   RECEIVED_FILES_DIR_NAME,
   STATE_DIR_NAME,
@@ -26,6 +28,7 @@ import {
 } from './constants'
 import { ILinkClient, type FetchLike } from './ilink-client'
 import { downloadILinkMedia } from './media'
+import { sendWeixinOutbound } from './outbound'
 import {
   decodeWeixinMediaKey,
   extractUpdatesPayload,
@@ -34,6 +37,7 @@ import {
 } from './parsing'
 import { loadWeixinPersist, saveWeixinContextTokens, saveWeixinCursor } from './persist'
 import { createWeixinReplySession } from './reply-session'
+import { WeixinTypingManager } from './typing'
 
 export type WeixinBotStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
@@ -71,6 +75,16 @@ class WeixinBotService extends EventEmitter {
   private readonly deliveries = new Map<string, WeixinDeliveryInfo>()
   /** 按用户缓存最近 context_token(弱主动推送用) */
   private readonly contextByUser = new Map<string, string>()
+  private acl: AclPolicy = { dm: 'open', group: 'open', allowFrom: [] }
+  private debouncer: InboundDebouncer<{
+    messageId: string
+    chatId: string
+    chatType: 'p2p' | 'group'
+    text: string
+    attachments: import('@shared/types').InboundAttachment[]
+    delivery: WeixinDeliveryInfo
+  }> | null = null
+  private readonly typing = new WeixinTypingManager()
 
   constructor() {
     super()
@@ -118,6 +132,8 @@ class WeixinBotService extends EventEmitter {
       baseUrl?: string
       agentId?: string
       fetchImpl?: FetchLike
+      /** channel settings for ACL / debounce */
+      config?: Record<string, unknown>
     } = {},
   ): Promise<void> {
     botToken = botToken.trim()
@@ -146,6 +162,25 @@ class WeixinBotService extends EventEmitter {
       this.contextByUser.set(k, v)
     }
 
+    this.acl = policyFromConfig(opts.config ?? {})
+    const debounceMs = Math.max(0, Number(opts.config?.debounceMs ?? 0) || 0)
+    this.debouncer?.clear()
+    this.typing.clear()
+    this.debouncer = new InboundDebouncer({
+      keyOf: (item) => item.chatId || item.delivery.toUserId,
+      windowMs: debounceMs,
+      onAppend: (existing, incoming) => {
+        // 有附件则立刻 flush 前批,再单独处理本条(对齐 QwenPaw no-text / media bypass)
+        if ((incoming.attachments?.length ?? 0) > 0 || (existing.some((e) => (e.attachments?.length ?? 0) > 0))) {
+          return [...existing, incoming]
+        }
+        return mergeTextMessages(existing, incoming)
+      },
+      flush: (_key, items) => {
+        for (const item of items) this.enqueueParsed(item)
+      },
+    })
+
     const client = new ILinkClient({
       botToken,
       baseUrl: opts.baseUrl || WEIXIN_DEFAULT_BASE_URL,
@@ -161,12 +196,14 @@ class WeixinBotService extends EventEmitter {
       sendText: async (messageId, text) => {
         const delivery = this.deliveries.get(messageId)
         if (!delivery) throw new Error(`消息 ${messageId} 的投递信息已失效`)
-        await client.sendText(delivery.toUserId, text, delivery.contextToken)
+        await sendWeixinOutbound(client, delivery, text)
       },
       createSession: async (messageId, _placeholder) => {
         const delivery = this.deliveries.get(messageId)
         if (!delivery) throw new Error(`消息 ${messageId} 的投递信息已失效`)
-        return createWeixinReplySession(client, delivery)
+        return createWeixinReplySession(client, delivery, [], (sendCancel) => {
+          this.typing.stopForUser(delivery.toUserId, sendCancel !== false)
+        })
       },
       downloadAttachment: async (_messageId, att) => this.downloadAttachment(att),
       filesDir: this.filesDir,
@@ -281,23 +318,65 @@ class WeixinBotService extends EventEmitter {
       this.contextByUser.set(delivery.toUserId, delivery.contextToken)
       saveWeixinContextTokens(this.stateDir, this.contextByUser)
     }
+
+    const acl = checkAcl(this.acl, {
+      chatType: inbound.chat.type === 'group' ? 'group' : 'p2p',
+      senderId: inbound.sender.id,
+      chatId: inbound.chat.id,
+    })
+    if (acl.decision !== 'allow') {
+      log('info', 'weixin', `ACL ${acl.decision}: ${acl.reason} sender=${inbound.sender.id}`)
+      return
+    }
+
     this.lastMessageAt = Date.now()
     this.emit('status', this.getStatus())
+
+    // typing indicator (QwenPaw: start on receive, refresh until reply done)
+    if (this.client && delivery.contextToken) {
+      void this.typing.start(this.client, delivery.toUserId, delivery.contextToken)
+    }
+
+    const item = {
+      messageId: inbound.providerMessageId,
+      chatId: inbound.chat.id,
+      chatType: (inbound.chat.type === 'group' ? 'group' : 'p2p') as 'p2p' | 'group',
+      text: inbound.text,
+      attachments: inbound.attachments,
+      delivery,
+    }
+    if (this.debouncer) {
+      this.debouncer.push(item)
+    } else {
+      this.enqueueParsed(item)
+    }
+  }
+
+  private enqueueParsed(item: {
+    messageId: string
+    chatId: string
+    chatType: 'p2p' | 'group'
+    text: string
+    attachments: import('@shared/types').InboundAttachment[]
+    delivery: WeixinDeliveryInfo
+  }): void {
     const queue = this.pipeline?.queue
     if (!queue) return
+    this.rememberDelivery(item.messageId, item.delivery)
     if (
       !queue.submit({
         parsed: {
-          messageId: inbound.providerMessageId,
-          chatId: inbound.chat.id,
-          chatType: inbound.chat.type,
-          text: inbound.text,
-          attachments: inbound.attachments,
+          messageId: item.messageId,
+          chatId: item.chatId,
+          chatType: item.chatType,
+          text: item.text,
+          attachments: item.attachments,
         },
       })
     ) {
       log('warn', 'weixin', `pending queue full (${queue.pendingCount}), drop message`)
-      void clientSendBusy(this.client, delivery)
+      this.typing.stopForUser(item.delivery.toUserId, true)
+      void clientSendBusy(this.client, item.delivery)
     }
   }
 
@@ -313,6 +392,10 @@ class WeixinBotService extends EventEmitter {
     this.userStopped = opts?.userInitiated !== false
     this.pollAbort?.abort()
     this.pollAbort = null
+    this.debouncer?.flushAll()
+    this.debouncer?.clear()
+    this.debouncer = null
+    this.typing.clear()
     if (this.stateDir && this.contextByUser.size > 0) {
       saveWeixinContextTokens(this.stateDir, this.contextByUser)
     }
@@ -348,7 +431,26 @@ class WeixinBotService extends EventEmitter {
     if (!client) throw new Error('微信未连接')
     const token = this.contextByUser.get(userId)
     if (!token) throw new Error('无可用 context_token:用户须先在微信私聊发言')
-    await client.sendText(userId, text, token)
+    await sendWeixinOutbound(
+      client,
+      { toUserId: userId, contextToken: token },
+      text,
+    )
+  }
+
+  /** 统一引擎出站(文本 + 媒体标记/显式 media) */
+  async replyOutboundFromDelivery(
+    delivery: WeixinDeliveryInfo,
+    text: string,
+    media: import('@shared/types').OutboundMediaRef[] = [],
+  ): Promise<void> {
+    const client = this.client
+    if (!client) throw new Error('微信未连接')
+    try {
+      await sendWeixinOutbound(client, delivery, text, media)
+    } finally {
+      this.typing.stopForUser(delivery.toUserId, true)
+    }
   }
 
   private setStatus(status: WeixinBotStatus, opts?: { error?: string }): void {

@@ -15,6 +15,11 @@ import {
   type QqMediaFileType,
 } from './media'
 import type { QqDeliveryInfo } from './parsing'
+import {
+  aggressiveSanitizeQqText,
+  isQqUrlContentError,
+  sanitizeQqText,
+} from './sanitize'
 import { fetchQqAccessToken, type FetchLike, type QqTokenCache } from './token'
 
 const msgSeqMap = new Map<string, number>()
@@ -231,6 +236,11 @@ export class QqApiClient {
           ? QQ_FILE_TYPE_FILE
           : guessQqFileType(hintName)
 
+    // QwenPaw: Group does NOT support file_type=4 (file) — skip rather than fail the whole reply
+    if (opts.kind === 'group' && fileType === QQ_FILE_TYPE_FILE) {
+      return
+    }
+
     const uploaded = isHttpUrl(source)
       ? await this.uploadMedia({
           kind: opts.kind,
@@ -333,6 +343,25 @@ export class QqApiClient {
   }
 
   private async sendText(opts: {
+    kind: 'c2c' | 'group'
+    openid: string
+    groupOpenid?: string
+    text: string
+    msgId?: string
+    seqKey: string
+  }): Promise<void> {
+    // QwenPaw _sanitize_qq_text on all outbound text
+    let content = sanitizeQqText(opts.text).text
+    try {
+      await this.postTextMessage({ ...opts, text: content })
+    } catch (err) {
+      if (!isQqUrlContentError(err)) throw err
+      content = aggressiveSanitizeQqText(content).text
+      await this.postTextMessage({ ...opts, text: content })
+    }
+  }
+
+  private async postTextMessage(opts: {
     kind: 'c2c' | 'group'
     openid: string
     groupOpenid?: string
