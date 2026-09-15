@@ -113,6 +113,8 @@ export function TaskDetail({
   const marksPrint = useGradingMarksPrint()
   // 打印版式: 痕迹卷(原卷落痕,默认) / 批阅报告(得分表+卷面)
   const [marksMode, setMarksMode] = useState<GradingMarksMode>('paper')
+  // 套打版式下因未定位排不出的痕迹数(由 OverlayPrintDocument 上报,拦系统打印按钮)
+  const [overlayUnplaced, setOverlayUnplaced] = useState(0)
 
   // 批改进度订阅: 只关心当前任务;done 后刷新任务列表与详情
   useIpcSubscription<GradingProgressEvent>(
@@ -192,6 +194,15 @@ export function TaskDetail({
             : `${t('print.gradingMarks.title', '批阅痕迹')} — ${marksPrint.task.name} (${tr('page.grading.count.papers', { n: marksPrint.views.length })})`
         }
         onClose={marksPrint.close}
+        printBlockReason={
+          marksMode === 'overlay' && overlayUnplaced > 0
+            ? () =>
+                t(
+                  'page.grading.overlay.blockPrint',
+                  '有卷未定位: 只能回写总分,每题痕迹/大题批注不会打印 — 请先「自动定位四点」或手动四点',
+                )
+            : undefined
+        }
         toolbarExtra={
           <span className="flex items-center gap-1 rounded-md bg-white/10 p-0.5">
             {(['paper', 'report', 'overlay'] as const).map((m) => (
@@ -229,6 +240,7 @@ export function TaskDetail({
             task={marksPrint.task}
             views={marksPrint.views}
             onRefresh={onRefresh}
+            onUnplacedChange={setOverlayUnplaced}
           />
         ) : (
           <GradingMarksDocument task={marksPrint.task} papers={marksPrint.views} mode={marksMode} />

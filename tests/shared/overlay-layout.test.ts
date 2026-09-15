@@ -305,6 +305,50 @@ describe('layoutOverlayPaper: 缺页/校准', () => {
     expect(layout.warnings.some((w) => w.includes('第 2 页'))).toBe(true)
   })
 
+  it('未排痕迹计数: 无任何定位时逐页 unplacedMarks=可排题数,总分仍必排', () => {
+    const layout = layoutOf(aiOf({}), { quads: [], imageSizes: [] })
+    expect(layout.pages[0]?.unplacedMarks).toBe(4)
+    expect(layout.pages[0]?.marks).toHaveLength(0)
+    expect(layout.pages[0]?.notes).toHaveLength(0)
+    expect(layout.warnings.some((w) => w.includes('没有定位四点'))).toBe(true)
+    // 总分不需要定位,照排(这正是「只有总分」的机制)
+    expect(layout.total?.mainText).toBe('23')
+  })
+
+  it('正常定位页 unplacedMarks=0', () => {
+    const layout = layoutOf(aiOf({}))
+    expect(layout.pages[0]?.unplacedMarks).toBe(0)
+    expect(layout.pages[0]?.marks).toHaveLength(4)
+  })
+
+  it('四点退化(共线)也算未排', () => {
+    const degenerate: PageQuad = {
+      tl: { x: 0, y: 0 },
+      tr: { x: 500, y: 0 },
+      br: { x: 1000, y: 0 },
+      bl: { x: 250, y: 0 },
+      source: 'manual',
+      confidence: 1,
+      imageWidth: 1000,
+      imageHeight: 1414,
+    }
+    const layout = layoutOf(aiOf({}), { quads: [degenerate] })
+    expect(layout.pages[0]?.unplacedMarks).toBe(4)
+    expect(layout.warnings.some((w) => w.includes('四点退化'))).toBe(true)
+  })
+
+  it('模板 box 有作答区也可计入未排(模板页无四点时)', () => {
+    const layout = layoutOf(aiOf({}), {
+      quads: [],
+      imageSizes: [],
+      template: {
+        boxes: { 'q-1': { page: 0, x: 0.05, y: 0.08, w: 0.5, h: 0.06 } },
+        quads: [null],
+      },
+    })
+    expect(layout.pages[0]?.unplacedMarks).toBe(4)
+  })
+
   it('校准 dx/dy/scale 全元素生效', () => {
     const base = layoutOf(aiOf({}))
     const shifted = layoutOf(aiOf({}), {

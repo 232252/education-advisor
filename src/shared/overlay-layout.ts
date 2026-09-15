@@ -109,6 +109,8 @@ export interface OverlayPageLayout {
   page: number
   marks: OverlayMarkElement[]
   notes: OverlayNoteElement[]
+  /** 有作答区+生效分,但该页无定位映射(未定位/四点退化)而未排的痕迹数(打印拦截用) */
+  unplacedMarks: number
 }
 
 export interface OverlayPaperLayout {
@@ -239,6 +241,13 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
     q ? quadToPaperMapper(q, spec) : null,
   )
 
+  /** 该页有作答区(模板优先)+生效分、但因缺映射排不出去的题数 */
+  const countUnplaced = (page: number): number =>
+    rows.filter((r) => {
+      const box = templateBoxes?.[r.questionId] ?? aiById.get(r.questionId)?.box
+      return box !== undefined && (box.page ?? 0) === page && r.score !== null
+    }).length
+
   for (let page = 0; page < pageCount; page++) {
     const quad = input.quads[page]
     const size = input.imageSizes[page]
@@ -246,23 +255,18 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
     const marks: OverlayMarkElement[] = []
     const notes: OverlayNoteElement[] = []
     if ((!quad || !size) && !templateMapper) {
-      const orphaned = rows.filter((r) => {
-        const box = aiById.get(r.questionId)?.box
-        return box && (box.page ?? 0) === page && r.score !== null
-      })
-      if (orphaned.length > 0) {
-        warnings.push(
-          `第 ${page + 1} 页没有定位四点,${orphaned.length} 处痕迹未排(请重检或手动四点)`,
-        )
+      const unplaced = countUnplaced(page)
+      if (unplaced > 0) {
+        warnings.push(`第 ${page + 1} 页没有定位四点,${unplaced} 处痕迹未排(请重检或手动四点)`)
       }
-      pages.push({ page, marks, notes })
+      pages.push({ page, marks, notes, unplacedMarks: unplaced })
       continue
     }
 
     const mapper = templateMapper ?? (quad ? quadToPaperMapper(quad, spec) : null)
     if (!mapper) {
       warnings.push(`第 ${page + 1} 页四点退化,无法换算(请手动四点或标定母版)`)
-      pages.push({ page, marks, notes })
+      pages.push({ page, marks, notes, unplacedMarks: countUnplaced(page) })
       continue
     }
 
@@ -386,7 +390,7 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
       prevBottom = bottom
     })
 
-    pages.push({ page, marks, notes })
+    pages.push({ page, marks, notes, unplacedMarks: 0 })
   }
 
   // --- 总分: 首页右上安全区 ---
