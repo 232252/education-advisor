@@ -76,6 +76,16 @@ export class YuanbaoTokenManager {
     return this.doFetch()
   }
 
+  /** Auth headers for Yuanbao REST (upload / download). QwenPaw get_auth_headers. */
+  async getAuthHeaders(): Promise<Record<string, string>> {
+    const tokenData = await this.getToken()
+    return {
+      'X-ID': tokenData.botId,
+      'X-Token': tokenData.token,
+      'X-Source': tokenData.source,
+    }
+  }
+
   close(): void {
     if (this.refreshTimer) clearTimeout(this.refreshTimer)
     this.refreshTimer = null

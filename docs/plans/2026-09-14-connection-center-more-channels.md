@@ -412,7 +412,7 @@ push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string
 | slack | ✅ 薄客户端 | Socket Mode(xoxb+xapp) + chat.postMessage |
 | matrix | ✅ 薄客户端 | /sync 长轮询 + m.room.message |
 | mattermost | ✅ 薄客户端 | WS + posts REST;可自托管 |
-| yuanbao | ✅ 全功能(Sprint4) | sign-token + protobuf WS AuthBind/收发文本 |
+| yuanbao | ✅ 全功能(Sprint4) | sign-token + protobuf WS；文本 + 图片/文件媒体 |
 | xiaoyi | ✅ 全功能(Sprint4) | 双 WS A2A 客户端(非本地 agent-server) |
 | sip / voice / imessage / azure-bot | later + 清晰原因 | `unsupportedReason` 说明重依赖;状态仍为 later(非伪装 unsupported) |
 | onebot | unsupported | 保持合规禁止 |
@@ -452,7 +452,7 @@ push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string
 | AuthBind / Ping / PushAck | ✅ |
 | 入站 InboundMessagePush → InboundMessage | ✅ DM+群文本 |
 | 出站 send_c2c / send_group | ✅ |
-| 媒体上传 | ⏳ later（QwenPaw media.py 可后续移植） |
+| 媒体上传 | ✅ `media.ts` COS genUploadInfo + TIMImage/TIMFile；入站解析 image/file/audio |
 
 #### C — 小艺 xiaoyi
 

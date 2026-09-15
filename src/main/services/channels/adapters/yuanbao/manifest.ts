@@ -6,7 +6,7 @@ export const yuanbaoManifest: ChannelManifest = {
   id: YUANBAO_MANIFEST_ID,
   label: '腾讯元宝',
   description:
-    '腾讯元宝 Bot：AppID + Secret → sign-token → protobuf WebSocket（AuthBind/Ping/C2C+群文本）',
+    '腾讯元宝 Bot：AppID + Secret → sign-token → protobuf WebSocket（文本 + 图片/文件媒体）',
   icon: 'yuanbao',
   category: 'assistant',
   region: 'domestic',
@@ -24,7 +24,7 @@ export const yuanbaoManifest: ChannelManifest = {
     replyWindowMs: null,
     streamWindowMs: null,
     pushPolicy: 'free',
-    receivesFiles: false,
+    receivesFiles: true,
   },
   configSchema: [
     { name: 'appId', label: 'AppID / App Key', type: 'string', required: true },
@@ -68,7 +68,7 @@ export const yuanbaoManifest: ChannelManifest = {
     steps: [
       '在腾讯元宝开放平台创建 Bot，取得 AppID / AppSecret',
       '填写凭证并连接：将自动 sign-token → protobuf AuthBind',
-      '支持私聊/群聊文本收发；媒体上传后续迭代',
+      '支持私聊/群聊文本与图片/文件（COS 上传后 TIMImageElem / TIMFileElem）',
       '产品语义：助手出站，非班级群播报',
     ],
   },
