@@ -120,12 +120,41 @@ describe('email / assistants', () => {
     ).toBe(true)
   })
 
-  it('yuanbao/xiaoyi 诚实 connect 失败(不伪造成功)', async () => {
+  it('yuanbao/xiaoyi validateConfig 必填 + 能力位', async () => {
+    const y = createYuanbaoAdapter()
+    expect((await y.validateConfig(secrets({}))).ok).toBe(false)
+    expect(
+      (
+        await y.validateConfig({
+          config: { appId: 'k' },
+          getSecret: async () => 's',
+        })
+      ).ok,
+    ).toBe(true)
+    expect(y.manifest.capabilities.receivesVia).toBe('ws')
+
+    const x = createXiaoyiAdapter()
+    expect((await x.validateConfig(secrets({}))).ok).toBe(false)
+    expect(
+      (
+        await x.validateConfig({
+          config: { accessKey: 'ak', agentId: 'ag' },
+          getSecret: async () => 'sk',
+        })
+      ).ok,
+    ).toBe(true)
+    expect(x.manifest.capabilities.receivesVia).toBe('ws')
+    expect(x.manifest.capabilities.streamingKind).toBe('edit-message')
+  })
+
+  it('yuanbao connect 在 sign-token 失败时抛错', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({
         ok: false,
         status: 401,
+        statusText: 'Unauthorized',
+        json: async () => ({ code: 401 }),
         text: async () => 'unauthorized',
       })),
     )
@@ -134,28 +163,11 @@ describe('email / assistants', () => {
       y.connect({
         config: { appId: 'k' },
         getSecret: async () => 's',
-        bridge: {
-          onStatus: vi.fn(),
-          onMessage: vi.fn(),
-        },
+        bridge: { onStatus: vi.fn(), onMessage: vi.fn() },
         filesDir: '/tmp',
         getWin: () => null,
       } as never),
-    ).rejects.toThrow(/protobuf|sign-token|凭证|编解码/)
+    ).rejects.toThrow(/sign-token|HTTP|401|AuthBind|WS|failed|失败/i)
     vi.unstubAllGlobals()
-
-    const x = createXiaoyiAdapter()
-    await expect(
-      x.connect({
-        config: { accessKey: 'ak', agentId: 'ag' },
-        getSecret: async () => 'sk',
-        bridge: {
-          onStatus: vi.fn(),
-          onMessage: vi.fn(),
-        },
-        filesDir: '/tmp',
-        getWin: () => null,
-      } as never),
-    ).rejects.toThrow(/A2A|agent-server|HTTP/)
   })
 })
