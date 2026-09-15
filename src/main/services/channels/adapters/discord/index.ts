@@ -25,8 +25,9 @@ export class DiscordChannelAdapter implements ChannelAdapter {
   private status: ChannelRunStatus = 'disabled'
   private detail?: string
   private connectedAt?: number
-  private lastMessageAt?: number
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: connect() 写入、异步收包回调读取,规则误报
   private ctx: ChannelRuntimeContext | null = null
+  private lastMessageAt?: number
   private ws: WebSocket | null = null
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
   private sequence: number | null = null
@@ -86,7 +87,11 @@ export class DiscordChannelAdapter implements ChannelAdapter {
                 d: {
                   token: this.token,
                   intents: INTENTS,
-                  properties: { os: 'windows', browser: 'education-advisor', device: 'education-advisor' },
+                  properties: {
+                    os: 'windows',
+                    browser: 'education-advisor',
+                    device: 'education-advisor',
+                  },
                 },
               }),
             )
@@ -231,4 +236,4 @@ export function createDiscordAdapter(): ChannelAdapter {
   return new DiscordChannelAdapter()
 }
 
-export { discordManifest, DISCORD_MANIFEST_ID }
+export { DISCORD_MANIFEST_ID, discordManifest }

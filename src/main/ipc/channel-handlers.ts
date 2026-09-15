@@ -6,26 +6,26 @@
 // (dotPath + 枚举校验 + keystore 占位符协议),不另设 save-config。
 // =============================================================
 
+import { buildQwenpawPendingManifests } from '@shared/channel-catalog'
 import * as IPC from '@shared/ipc-channels'
 import type { ChannelStatusInfo } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { Notification } from 'electron'
 import { createDingtalkAdapter } from '../services/channels/adapters/dingtalk'
-import { createFeishuAdapter } from '../services/channels/adapters/feishu'
-import { createWecomAdapter } from '../services/channels/adapters/wecom'
-import { createWeixinAdapter } from '../services/channels/adapters/weixin'
-import { createQqAdapter } from '../services/channels/adapters/qq'
-import { createEmailAdapter } from '../services/channels/adapters/email'
-import { createMqttAdapter } from '../services/channels/adapters/mqtt'
-import { createYuanbaoAdapter } from '../services/channels/adapters/yuanbao'
-import { createXiaoyiAdapter } from '../services/channels/adapters/xiaoyi'
 import { createDiscordAdapter } from '../services/channels/adapters/discord'
-import { createTelegramAdapter } from '../services/channels/adapters/telegram'
-import { createSlackAdapter } from '../services/channels/adapters/slack'
+import { createEmailAdapter } from '../services/channels/adapters/email'
+import { createFeishuAdapter } from '../services/channels/adapters/feishu'
 import { createMatrixAdapter } from '../services/channels/adapters/matrix'
 import { createMattermostAdapter } from '../services/channels/adapters/mattermost'
+import { createMqttAdapter } from '../services/channels/adapters/mqtt'
+import { createQqAdapter } from '../services/channels/adapters/qq'
+import { createSlackAdapter } from '../services/channels/adapters/slack'
+import { createTelegramAdapter } from '../services/channels/adapters/telegram'
+import { createWecomAdapter } from '../services/channels/adapters/wecom'
+import { createWeixinAdapter } from '../services/channels/adapters/weixin'
+import { createXiaoyiAdapter } from '../services/channels/adapters/xiaoyi'
+import { createYuanbaoAdapter } from '../services/channels/adapters/yuanbao'
 import { channelLoginSessions } from '../services/channels/login/session-manager'
-import { buildQwenpawPendingManifests } from '@shared/channel-catalog'
 import { channelManager } from '../services/channels/manager'
 import { log } from '../utils/logger'
 import { sendToRenderer } from './broadcast'
@@ -93,7 +93,7 @@ export function registerChannelHandlers(win: BrowserWindow): void {
   // 状态推送:adapter → Manager 聚合 → renderer + WebUI
   // B6-5(阶段 2 泛化): 渠道转入 error 时弹一次系统通知,
   // 让用户即使不在设置页也能察觉(原 feishu:bot-* 时代的行为平移)
-  let lastErrorChannels = new Set<string>()
+  const lastErrorChannels = new Set<string>()
   channelManager.on('status', (info: ChannelStatusInfo) => {
     try {
       sendToRenderer(win, IPC.IPC_CHANNELS_STATUS_UPDATE, info)
@@ -127,4 +127,3 @@ export function registerChannelHandlers(win: BrowserWindow): void {
 
   console.log('[IPC] Channel handlers registered')
 }
-

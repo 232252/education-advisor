@@ -7,8 +7,8 @@
 // 配置保存走 settings:set(dotPath) — 保存即重连在主进程联动。
 // =============================================================
 
-import type { ChannelInstanceInfo, ChannelStatusInfo, UnifiedSettings } from '@shared/types'
 import { resolveCatalogStatus } from '@shared/channel-catalog'
+import type { ChannelInstanceInfo, ChannelStatusInfo, UnifiedSettings } from '@shared/types'
 import { LayoutGrid, Smartphone } from 'lucide-react'
 import { useEffect, useMemo, useReducer, useState } from 'react'
 import { MoreChannelsDrawer } from '../../../components/connection-center/MoreChannelsDrawer'
@@ -77,7 +77,7 @@ export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
       .channels.list()
       .then((list) => setInstances(list))
       .catch(() => {})
-  }, [settings.channels])
+  }, [])
 
   // 主墙:仅已启用可配置渠道(国内优先排序);全量走「更多」Drawer
   const wallInstances = useMemo(() => {

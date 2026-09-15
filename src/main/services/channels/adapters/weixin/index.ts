@@ -2,6 +2,7 @@
 // adapters/weixin/index — WeixinILinkAdapter(个人微信 iLink)
 // =============================================================
 
+import path from 'node:path'
 import type {
   ChannelConfigValidation,
   ChannelFetchedAttachment,
@@ -11,17 +12,15 @@ import type {
   OutboundContent,
   PushTarget,
 } from '@shared/types'
+import { app } from 'electron'
+import { errText } from '../../../../utils/err-text'
 import { settingsService } from '../../../settings-service'
 import type { ChannelAdapter, ChannelRuntimeContext } from '../../types'
 import { weixinBotService } from './connection'
-import { WEIXIN_DEFAULT_BASE_URL, WEIXIN_MANIFEST_ID } from './constants'
+import { RECEIVED_FILES_DIR_NAME, WEIXIN_DEFAULT_BASE_URL, WEIXIN_MANIFEST_ID } from './constants'
 import { weixinManifest } from './manifest'
-import { decodeWeixinMediaKey } from './parsing'
 import { downloadILinkMedia } from './media'
-import path from 'node:path'
-import { app } from 'electron'
-import { RECEIVED_FILES_DIR_NAME } from './constants'
-import { errText } from '../../../../utils/err-text'
+import { decodeWeixinMediaKey } from './parsing'
 
 export class WeixinILinkAdapter implements ChannelAdapter {
   readonly id = WEIXIN_MANIFEST_ID
@@ -119,7 +118,8 @@ export class WeixinILinkAdapter implements ChannelAdapter {
     const client = weixinBotService.getClient()
     if (!client) throw new Error('微信未连接')
     const token =
-      weixinBotService.getContextToken(msg.chat.id) || weixinBotService.getContextToken(msg.sender.id)
+      weixinBotService.getContextToken(msg.chat.id) ||
+      weixinBotService.getContextToken(msg.sender.id)
     if (!token) throw new Error('缺少 context_token')
     await client.sendText(msg.chat.id, content.text, token)
     return {}
@@ -162,5 +162,5 @@ export function createWeixinAdapter(): ChannelAdapter {
   return new WeixinILinkAdapter()
 }
 
-export { weixinManifest } from './manifest'
 export { WEIXIN_MANIFEST_ID } from './constants'
+export { weixinManifest } from './manifest'

@@ -82,11 +82,11 @@ export class WecomAibotAdapter implements ChannelAdapter {
   }
 
   /** 引擎状态 → 渠道状态 */
-  private mapEngineStatus(s: {
-    status: string
-    error?: string
+  private mapEngineStatus(s: { status: string; error?: string; connectedAt?: number }): {
+    status: ChannelRunStatus
+    detail?: string
     connectedAt?: number
-  }): { status: ChannelRunStatus; detail?: string; connectedAt?: number } {
+  } {
     const status: ChannelRunStatus =
       s.status === 'connected'
         ? 'connected'

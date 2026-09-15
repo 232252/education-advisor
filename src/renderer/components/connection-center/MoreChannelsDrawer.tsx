@@ -3,15 +3,15 @@
 // 数据源: channels.list() manifests;分组/搜索纯函数见 @shared/channel-catalog
 // =============================================================
 
-import type { ChannelInstanceInfo, ChannelManifest, ChannelStatusInfo } from '@shared/types'
 import {
+  type CatalogCardStatus,
   filterCatalogManifests,
   groupCatalogManifests,
   resolveCatalogStatus,
-  type CatalogCardStatus,
 } from '@shared/channel-catalog'
+import type { ChannelInstanceInfo, ChannelManifest, ChannelStatusInfo } from '@shared/types'
 import { Ban, Clock, LayoutGrid, Search, Sparkles, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { tr, useT } from '../../i18n'
 import { cn } from '../../lib/ui-utils'
@@ -33,8 +33,7 @@ function statusBadge(
     case 'enabled':
       return {
         label: t('connectionCenter.more.status.enabled', '可配置'),
-        className:
-          'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/20',
+        className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/20',
       }
     case 'comingSoon':
       return {

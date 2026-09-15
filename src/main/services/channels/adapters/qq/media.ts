@@ -21,16 +21,7 @@ export const QQ_MSG_TYPE_MEDIA = 7
 /** base64 直传软上限(避免撑爆内存;大文件应改分片 upload_prepare) */
 export const QQ_MAX_BASE64_UPLOAD_BYTES = 20 * 1024 * 1024
 
-const IMAGE_EXTS = new Set([
-  '.png',
-  '.jpg',
-  '.jpeg',
-  '.gif',
-  '.bmp',
-  '.webp',
-  '.tif',
-  '.tiff',
-])
+const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.tif', '.tiff'])
 
 export type QqMediaFileType = typeof QQ_FILE_TYPE_IMAGE | typeof QQ_FILE_TYPE_FILE
 
@@ -50,7 +41,11 @@ export function parseQqOutboundMediaMarkers(text: string): {
   cleanedText: string
   media: Array<{ kind: 'image' | 'file' | 'video' | 'audio'; source: string; fileName?: string }>
 } {
-  const media: Array<{ kind: 'image' | 'file' | 'video' | 'audio'; source: string; fileName?: string }> = []
+  const media: Array<{
+    kind: 'image' | 'file' | 'video' | 'audio'
+    source: string
+    fileName?: string
+  }> = []
   const re = /\[(IMAGE|PHOTO|FILE|DOCUMENT)\s*:\s*([^\]]+)\]/gi
   const cleanedText = text
     .replace(re, (_m, kindRaw: string, targetRaw: string) => {

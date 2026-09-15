@@ -11,10 +11,7 @@
 import type { ReplySession } from '@shared/types'
 import { log } from '../../../../utils/logger'
 import type { DingtalkApiClient } from './api'
-import {
-  normalizeForCard,
-  streamFrameContent,
-} from './card-format'
+import { normalizeForCard, streamFrameContent } from './card-format'
 import { AI_CARD_STATUS, STREAM_UPDATE_INTERVAL_MS } from './constants'
 import type { DingtalkDeliveryInfo } from './parsing'
 

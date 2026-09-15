@@ -32,5 +32,5 @@ export async function jsonFetch(
 export function proxyHint(proxyUrl: string | undefined): string | undefined {
   const p = (proxyUrl ?? '').trim()
   if (!p) return undefined
-  return '已配置 proxyUrl=' + p + '；请确保系统/环境代理可达目标 API'
+  return `已配置 proxyUrl=${p}；请确保系统/环境代理可达目标 API`
 }

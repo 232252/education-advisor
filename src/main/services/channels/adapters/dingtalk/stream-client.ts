@@ -16,6 +16,7 @@
 import { EventEmitter } from 'node:events'
 import { errText } from '../../../../utils/err-text'
 import { log } from '../../../../utils/logger'
+import type { FetchLike } from './api'
 import {
   DINGTALK_API_BASE,
   DINGTALK_BOT_TOPIC,
@@ -24,7 +25,6 @@ import {
   MAX_GUARD_ATTEMPTS,
   WS_KEEPALIVE_INTERVAL_MS,
 } from './constants'
-import type { FetchLike } from './api'
 
 /** 下行帧(Stream 协议信封) */
 interface StreamFrame {
@@ -267,11 +267,16 @@ export class DingtalkStreamClient extends EventEmitter {
       if (this.guardAttempts >= MAX_GUARD_ATTEMPTS) {
         this.gaveUp = true
         this.guardAttempts = 0
-        this.emit('status', 'error' as StreamClientStatus, '自动重连多次失败,请检查网络/凭证后重新连接')
+        this.emit(
+          'status',
+          'error' as StreamClientStatus,
+          '自动重连多次失败,请检查网络/凭证后重新连接',
+        )
         return
       }
       const delay =
-        delayOverride ?? Math.min(GUARD_BACKOFF_BASE_MS * 2 ** this.guardAttempts, GUARD_BACKOFF_MAX_MS)
+        delayOverride ??
+        Math.min(GUARD_BACKOFF_BASE_MS * 2 ** this.guardAttempts, GUARD_BACKOFF_MAX_MS)
       this.guardAttempts++
       this.emit('status', 'connecting' as StreamClientStatus)
       await new Promise<void>((resolve) => {
@@ -352,8 +357,7 @@ export class DingtalkStreamClient extends EventEmitter {
   /** ws 包懒加载(测试注入假工厂时不引真 ws) */
   private createSocket(url: string): WsLike {
     if (this.wsFactory) return this.wsFactory(url)
-    // biome-ignore lint/correctness/noNodejsModules: 主进程服务按需加载原生 ws
-    // ws 包 CJS 导出即构造函数(module.exports = WebSocket)
+    // ws 包 CJS 导出即构造函数(module.exports = WebSocket);主进程服务按需加载原生 ws
     const WS = require('ws') as unknown as new (url: string) => WsLike
     return new WS(url)
   }

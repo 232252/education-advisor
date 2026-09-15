@@ -26,8 +26,9 @@ export class DingtalkAdapter implements ChannelAdapter {
   readonly id = DINGTALK_MANIFEST_ID
   readonly manifest = dingtalkManifest
   /** connect 时注册的引擎状态监听(disconnect 时摘除,防监听器泄漏) */
-  private engineStatusHandler: ((info: { status: string; error?: string; connectedAt?: number }) => void) | null =
-    null
+  private engineStatusHandler:
+    | ((info: { status: string; error?: string; connectedAt?: number }) => void)
+    | null = null
 
   async validateConfig(
     ctx: Pick<ChannelRuntimeContext, 'config' | 'getSecret'>,
@@ -54,7 +55,8 @@ export class DingtalkAdapter implements ChannelAdapter {
       dingtalkBotService.on('status', this.engineStatusHandler)
     }
     await dingtalkBotService.start(clientId, clientSecret, ctx.getWin(), {
-      cardTemplateId: typeof channelCfg?.cardTemplateId === 'string' ? channelCfg.cardTemplateId : undefined,
+      cardTemplateId:
+        typeof channelCfg?.cardTemplateId === 'string' ? channelCfg.cardTemplateId : undefined,
       allowGroups: channelCfg?.allowGroups !== false,
       agentId: typeof channelCfg?.agentId === 'string' ? channelCfg.agentId : undefined,
     })
@@ -73,11 +75,11 @@ export class DingtalkAdapter implements ChannelAdapter {
   }
 
   /** 引擎状态(五态语义) → 渠道状态 */
-  private mapEngineStatus(s: {
-    status: string
-    error?: string
+  private mapEngineStatus(s: { status: string; error?: string; connectedAt?: number }): {
+    status: ChannelRunStatus
+    detail?: string
     connectedAt?: number
-  }): { status: ChannelRunStatus; detail?: string; connectedAt?: number } {
+  } {
     const status: ChannelRunStatus =
       s.status === 'connected'
         ? 'connected'
@@ -115,7 +117,7 @@ export class DingtalkAdapter implements ChannelAdapter {
     return {}
   }
 
-  createReplySession(msg: InboundMessage, placeholderText: string): Promise<ReplySession> {
+  createReplySession(_msg: InboundMessage, _placeholderText: string): Promise<ReplySession> {
     throw new Error('钉钉回复会话由引擎流水线内创建(v1 不经适配器入口)')
   }
 

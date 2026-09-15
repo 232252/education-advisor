@@ -12,8 +12,7 @@ export const WEIXIN_DEFAULT_BASE_URL = 'https://ilinkai.weixin.qq.com'
 export const WEIXIN_CDN_BASE = 'https://novac2c.cdn.weixin.qq.com/c2c'
 
 /** 扫码页回退(官方 liteapp;qrcode 参数来自 get_bot_qrcode) */
-export const WEIXIN_QR_SCAN_FALLBACK =
-  'https://liteapp.weixin.qq.com/q/7GiQu1'
+export const WEIXIN_QR_SCAN_FALLBACK = 'https://liteapp.weixin.qq.com/q/7GiQu1'
 
 /** bot_type=3: ClawBot / iLink 个人微信 Bot */
 export const WEIXIN_BOT_TYPE = 3
@@ -51,7 +50,9 @@ export const WEIXIN_MEDIA_TYPE_FILE = 3
 export const WEIXIN_MEDIA_TYPE_VOICE = 4
 
 /** 长轮询失败退避 */
-export const WEIXIN_POLL_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000, 60_000, 120_000] as const
+export const WEIXIN_POLL_BACKOFF_MS = [
+  1_000, 2_000, 5_000, 10_000, 30_000, 60_000, 120_000,
+] as const
 
 export const RECEIVED_FILES_DIR_NAME = 'channels/weixin/files'
 export const STATE_DIR_NAME = 'channels/weixin/state'

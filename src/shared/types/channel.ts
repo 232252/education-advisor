@@ -8,7 +8,14 @@
 import type { AgentRunSource } from './agent'
 
 /** 渠道如何收到平台消息(决定桌面端能否直连,UI 前置声明部署约束) */
-export type ChannelReceiveMode = 'ws' | 'polling' | 'imap-idle' | 'webhook' | 'relay-ws' | 'mqtt' | 'sip'
+export type ChannelReceiveMode =
+  | 'ws'
+  | 'polling'
+  | 'imap-idle'
+  | 'webhook'
+  | 'relay-ws'
+  | 'mqtt'
+  | 'sip'
 
 /**
  * 流式输出形态(能力位核心):
@@ -123,9 +130,7 @@ export type ChannelFetchedAttachment =
   | { ok: false; error: string }
 
 /** 配置校验结果(测试连接 = validateConfig + 轻量探活) */
-export type ChannelConfigValidation =
-  | { ok: true }
-  | { ok: false; message: string; field?: string }
+export type ChannelConfigValidation = { ok: true } | { ok: false; message: string; field?: string }
 
 // ===========================================================
 // Manifest — 渠道自描述(驱动连接中心卡片/表单/指引,LangBot 模式)
@@ -211,4 +216,3 @@ export interface ChannelInstanceInfo {
 
 /** 渠道运行来源(与 AgentRunSource 对齐:渠道触发的 Agent 运行标 'channel') */
 export type { AgentRunSource }
-

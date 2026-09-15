@@ -21,7 +21,9 @@ export function makeILinkHeaders(botToken = ''): Record<string, string> {
 }
 
 /** 归一化 QR 状态字符串(官方偶发 scaned 拼写) */
-export function normalizeQrStatus(raw: string): 'pending' | 'scanned' | 'confirmed' | 'expired' | 'error' {
+export function normalizeQrStatus(
+  raw: string,
+): 'pending' | 'scanned' | 'confirmed' | 'expired' | 'error' {
   const s = (raw || '').toLowerCase().trim()
   if (s === 'waiting' || s === 'wait' || s === 'pending') return 'pending'
   if (s === 'scanned' || s === 'scaned') return 'scanned'

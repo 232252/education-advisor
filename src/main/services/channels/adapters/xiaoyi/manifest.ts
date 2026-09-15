@@ -14,7 +14,8 @@ export const xiaoyiManifest: ChannelManifest = {
   qwenpawKey: 'xiaoyi',
   catalogStatus: 'enabled',
   beta: true,
-  docsUrl: 'https://developer.huawei.com/consumer/cn/doc/doccenter-celia/agent2agent-0000002498656261',
+  docsUrl:
+    'https://developer.huawei.com/consumer/cn/doc/doccenter-celia/agent2agent-0000002498656261',
   limitationBannerKey: 'channels.xiaoyi.limitation',
   capabilities: {
     receivesVia: 'webhook',

@@ -13,18 +13,18 @@ import { log } from '../../../../utils/logger'
 import { runAgentStreaming } from '../../bridge/agent-runner'
 import { createCommandContext } from '../../bridge/command-context'
 import { createChannelPipeline } from '../../bridge/pipeline'
+import { writeAttachmentBytes } from '../../runtime/attachment-store'
 import { ChatMessageQueue } from '../../runtime/chat-queue'
 import { type CommandRouter, createDefaultRouter } from '../../runtime/command/router'
 import { MessageDedupCache } from '../../runtime/dedup-cache'
 import { RecentFilesStore } from '../../runtime/recent-files'
-import { writeAttachmentBytes } from '../../runtime/attachment-store'
 import {
   RECEIVED_FILES_DIR_NAME,
   STATE_DIR_NAME,
   WEIXIN_DEFAULT_BASE_URL,
   WEIXIN_POLL_BACKOFF_MS,
 } from './constants'
-import { ILinkClient, type FetchLike } from './ilink-client'
+import { type FetchLike, ILinkClient } from './ilink-client'
 import { downloadILinkMedia } from './media'
 import {
   decodeWeixinMediaKey,
@@ -192,7 +192,10 @@ class WeixinBotService extends EventEmitter {
 
   private async downloadAttachment(
     att: InboundAttachment,
-  ): Promise<{ ok: true; saved: { name: string; path: string; bytes: number } } | { ok: false; error: string }> {
+  ): Promise<
+    | { ok: true; saved: { name: string; path: string; bytes: number } }
+    | { ok: false; error: string }
+  > {
     const client = this.client
     if (!client) return { ok: false, error: '微信未连接' }
     const meta = decodeWeixinMediaKey(att.fileKey)
@@ -263,7 +266,11 @@ class WeixinBotService extends EventEmitter {
           WEIXIN_POLL_BACKOFF_MS[
             Math.min(this.reconnectAttempt - 1, WEIXIN_POLL_BACKOFF_MS.length - 1)
           ] ?? 30_000
-        log('warn', 'weixin', `getupdates error, backoff ${delay}ms (attempt ${this.reconnectAttempt}): ${msg}`)
+        log(
+          'warn',
+          'weixin',
+          `getupdates error, backoff ${delay}ms (attempt ${this.reconnectAttempt}): ${msg}`,
+        )
         this.emit('status', this.getStatus())
         await sleep(delay)
       }
@@ -380,4 +387,3 @@ function sleep(ms: number): Promise<void> {
 }
 
 export const weixinBotService = new WeixinBotService()
-

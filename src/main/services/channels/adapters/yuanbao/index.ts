@@ -29,7 +29,12 @@ function beijingTimestamp(): string {
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}+08:00`
 }
 
-function computeSignature(nonce: string, timestamp: string, appKey: string, appSecret: string): string {
+function computeSignature(
+  nonce: string,
+  timestamp: string,
+  appKey: string,
+  appSecret: string,
+): string {
   const payload = `${nonce}${timestamp}${appKey}${appSecret}`
   return createHmac('sha256', appSecret).update(payload, 'utf8').digest('hex')
 }
@@ -122,7 +127,10 @@ export class YuanbaoChannelAdapter implements ChannelAdapter {
     return { status: this.status, detail: this.detail }
   }
 
-  async sendReply(_msg: InboundMessage, _content: OutboundContent): Promise<{ messageId?: string }> {
+  async sendReply(
+    _msg: InboundMessage,
+    _content: OutboundContent,
+  ): Promise<{ messageId?: string }> {
     throw new Error('元宝出站尚未就绪:缺少 protobuf WS 编解码')
   }
 
@@ -135,4 +143,4 @@ export function createYuanbaoAdapter(): ChannelAdapter {
   return new YuanbaoChannelAdapter()
 }
 
-export { yuanbaoManifest, YUANBAO_MANIFEST_ID }
+export { YUANBAO_MANIFEST_ID, yuanbaoManifest }

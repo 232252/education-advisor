@@ -19,14 +19,10 @@ import { type CommandRouter, createDefaultRouter } from '../../runtime/command/r
 import { MessageDedupCache } from '../../runtime/dedup-cache'
 import { RecentFilesStore } from '../../runtime/recent-files'
 import { RECEIVED_FILES_DIR_NAME, WECOM_CMD } from './constants'
-import {
-  parseWecomMessage,
-  type WecomDeliveryInfo,
-  type WecomAttachmentContext,
-} from './parsing'
-import { createWecomReplySession } from './reply-session'
 import { decryptWecomFile } from './crypto'
-import { WecomWsClient, type WecomFrame } from './ws-client'
+import { parseWecomMessage, type WecomAttachmentContext, type WecomDeliveryInfo } from './parsing'
+import { createWecomReplySession } from './reply-session'
+import { type WecomFrame, WecomWsClient } from './ws-client'
 
 export type WecomBotStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
@@ -43,7 +39,9 @@ export interface WecomBotStatusInfo {
 const DELIVERY_CACHE_MAX = 256
 
 /** 附件下载结果(引擎内完成下载+解密) */
-type AttachmentResult = { ok: true; saved: { name: string; path: string; bytes: number } } | { ok: false; error: string }
+type AttachmentResult =
+  | { ok: true; saved: { name: string; path: string; bytes: number } }
+  | { ok: false; error: string }
 
 class WecomBotService extends EventEmitter {
   private client: WecomWsClient | null = null
@@ -85,7 +83,11 @@ class WecomBotService extends EventEmitter {
     botId: string,
     secret: string,
     win: BrowserWindow | null,
-    opts: { allowGroups?: boolean; agentId?: string; wsFactory?: WecomWsClient['opts']['wsFactory'] } = {},
+    opts: {
+      allowGroups?: boolean
+      agentId?: string
+      wsFactory?: WecomWsClient['opts']['wsFactory']
+    } = {},
   ): Promise<void> {
     botId = botId.trim()
     secret = secret.trim()
@@ -258,7 +260,10 @@ class WecomBotService extends EventEmitter {
   }
 
   /** 预取附件结果(msgId:url → 已落盘),downloadAttachment 批内直取 */
-  private readonly pendingAttachments = new Map<string, { name: string; path: string; bytes: number }>()
+  private readonly pendingAttachments = new Map<
+    string,
+    { name: string; path: string; bytes: number }
+  >()
 
   private rememberDelivery(msgId: string, delivery: WecomDeliveryInfo): void {
     if (this.deliveries.size >= DELIVERY_CACHE_MAX) {

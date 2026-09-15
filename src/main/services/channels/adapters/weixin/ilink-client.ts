@@ -162,7 +162,11 @@ export class ILinkClient {
   }
 
   /** 发文本(必须带 context_token) */
-  async sendText(toUserId: string, text: string, contextToken: string): Promise<Record<string, unknown>> {
+  async sendText(
+    toUserId: string,
+    text: string,
+    contextToken: string,
+  ): Promise<Record<string, unknown>> {
     if (!contextToken) throw new Error('微信回复需要 context_token(用户须先发言)')
     const msg = {
       from_user_id: '',
@@ -187,7 +191,11 @@ export class ILinkClient {
   }
 
   /** 发送/刷新输入中状态 status=1 开始 / 0 停止 */
-  async sendTyping(toUserId: string, typingTicket: string, status = 1): Promise<Record<string, unknown>> {
+  async sendTyping(
+    toUserId: string,
+    typingTicket: string,
+    status = 1,
+  ): Promise<Record<string, unknown>> {
     return this.requestJson('POST', 'ilink/bot/sendtyping', {
       body: {
         to_user_id: toUserId,

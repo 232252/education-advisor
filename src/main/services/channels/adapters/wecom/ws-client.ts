@@ -15,6 +15,7 @@
 import { EventEmitter } from 'node:events'
 import { errText } from '../../../../utils/err-text'
 import { log } from '../../../../utils/logger'
+import type { WsFactory, WsLike } from '../dingtalk/stream-client'
 import {
   AUTH_TIMEOUT_MS,
   GUARD_BACKOFF_BASE_MS,
@@ -26,7 +27,6 @@ import {
   WECOM_CMD,
   WECOM_WS_URL,
 } from './constants'
-import type { WsFactory, WsLike } from '../dingtalk/stream-client'
 
 /** 上/下行帧通用形状 */
 export interface WecomFrame {
@@ -165,9 +165,7 @@ export class WecomWsClient extends EventEmitter {
   }
 
   /** 发送订阅帧并等认证结果 */
-  private waitAuthResult(
-    reqId: string,
-  ): Promise<{ ok: true } | { ok: false; message: string }> {
+  private waitAuthResult(reqId: string): Promise<{ ok: true } | { ok: false; message: string }> {
     return new Promise((resolve) => {
       let settled = false
       const ws = this.ws
@@ -214,9 +212,7 @@ export class WecomWsClient extends EventEmitter {
     // 有 cmd 的帧 = 平台推送(消息/事件)
     if (frame.cmd === WECOM_CMD.CALLBACK || frame.cmd === WECOM_CMD.EVENT_CALLBACK) {
       // disconnected_event: 新连接接管,服务端将断开本连接 — 不重连
-      const eventType = (
-        frame.body?.event as { eventtype?: string } | undefined
-      )?.eventtype
+      const eventType = (frame.body?.event as { eventtype?: string } | undefined)?.eventtype
       if (eventType === 'disconnected_event') {
         log('warn', 'wecom', 'disconnected_event: 被新连接接管,本连接停止(不重连)')
         this.stopped = true
@@ -228,7 +224,11 @@ export class WecomWsClient extends EventEmitter {
           /* ignore */
         }
         this.ws = null
-        this.emit('status', 'error' as WecomClientStatus, '连接被新的连接接管(企微每机器人仅允许一条长连接)')
+        this.emit(
+          'status',
+          'error' as WecomClientStatus,
+          '连接被新的连接接管(企微每机器人仅允许一条长连接)',
+        )
         return
       }
       try {
@@ -263,7 +263,10 @@ export class WecomWsClient extends EventEmitter {
         return
       }
       this.missedPong++
-      this.sendJson({ cmd: WECOM_CMD.HEARTBEAT, headers: { req_id: this.reqId(WECOM_CMD.HEARTBEAT) } })
+      this.sendJson({
+        cmd: WECOM_CMD.HEARTBEAT,
+        headers: { req_id: this.reqId(WECOM_CMD.HEARTBEAT) },
+      })
     }, HEARTBEAT_INTERVAL_MS)
   }
 
@@ -321,7 +324,8 @@ export class WecomWsClient extends EventEmitter {
         return
       }
       const delay =
-        delayOverride ?? Math.min(GUARD_BACKOFF_BASE_MS * 2 ** this.guardAttempts, GUARD_BACKOFF_MAX_MS)
+        delayOverride ??
+        Math.min(GUARD_BACKOFF_BASE_MS * 2 ** this.guardAttempts, GUARD_BACKOFF_MAX_MS)
       this.guardAttempts++
       this.emit('status', 'connecting' as WecomClientStatus)
       await new Promise<void>((resolve) => {

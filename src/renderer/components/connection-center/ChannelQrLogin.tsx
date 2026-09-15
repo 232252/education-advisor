@@ -60,7 +60,10 @@ export function ChannelQrLogin({ channelId, onConfirmed, className }: ChannelQrL
       mounted.current = false
       stopPoll()
       const id = loginIdRef.current
-      if (id) void getAPI().channels.cancelLogin(id).catch(() => {})
+      if (id)
+        void getAPI()
+          .channels.cancelLogin(id)
+          .catch(() => {})
     }
   }, [stopPoll])
 
@@ -125,7 +128,10 @@ export function ChannelQrLogin({ channelId, onConfirmed, className }: ChannelQrL
   return (
     <div
       data-testid="channel-qr-login"
-      className={cn('flex flex-col gap-2 rounded-lg border border-gray-200 dark:border-white/[0.08] p-3', className)}
+      className={cn(
+        'flex flex-col gap-2 rounded-lg border border-gray-200 dark:border-white/[0.08] p-3',
+        className,
+      )}
     >
       <div className="flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-200">
         <QrIcon size={14} />
@@ -177,7 +183,10 @@ export function ChannelQrLogin({ channelId, onConfirmed, className }: ChannelQrL
       {(phase === 'expired' || phase === 'error') && (
         <div className="flex flex-col gap-2">
           <p className="text-[11px] text-red-500 dark:text-red-400">
-            {detail || (phase === 'expired' ? t('channels.qr.expired', '二维码已过期') : t('channels.qr.error', '扫码失败'))}
+            {detail ||
+              (phase === 'expired'
+                ? t('channels.qr.expired', '二维码已过期')
+                : t('channels.qr.error', '扫码失败'))}
           </p>
           <button
             type="button"
