@@ -11,8 +11,13 @@
 //                      主进程单例,保持可在 vitest 中直接测试。
 // =============================================================
 
+<<<<<<< HEAD:src/main/services/channels/runtime/command/router.ts
 import { errText } from '../../../../utils/err-text'
 import { type EAAResult, getErrorMessage } from '../../../eaa/types'
+=======
+import { errText } from '../../utils/err-text'
+import { type EAAResult, getErrorMessage } from '../eaa/types'
+>>>>>>> gitee/main:src/main/services/feishu-bot/command-router.ts
 
 /** 命令解析结果 */
 interface ParsedCommand {

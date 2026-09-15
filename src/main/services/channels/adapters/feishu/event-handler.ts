@@ -15,7 +15,11 @@ import { parseIncomingMessage, SUPPORTED_MESSAGE_TYPES } from './parsing'
 import { sendReply } from './reply'
 import type { FeishuMessageEvent } from './types'
 
+<<<<<<< HEAD:src/main/services/channels/adapters/feishu/event-handler.ts
 /** 事件回调所需依赖(由连接层注入,保持本模块无状态) */
+=======
+/** 事件回调所需依赖(由 facade 注入,保持本模块无状态) */
+>>>>>>> gitee/main:src/main/services/feishu-bot/event-handler.ts
 interface EventHandlerDeps {
   /** 已处理 message_id 去重缓存 */
   dedup: MessageDedupCache
