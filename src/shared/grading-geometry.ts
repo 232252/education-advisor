@@ -258,6 +258,26 @@ const ELECTRON_PAGE_SIZES: Partial<Record<string, 'A4' | 'A3'>> = {
 }
 
 /**
+ * 印制版定位点位置(mm): 四角各一枚实心方块(边长 4mm,距两边各 10mm)。
+ * 落在硬件可打印区外缘(≥6mm)与内容安全区之间;未来扫描件按■检测
+ * 即走 Tier B 高精度定位。
+ */
+export function anchorSquarePositionsMm(spec: PaperSpec): Array<{
+  x: number
+  y: number
+  sizeMm: number
+}> {
+  const m = 10
+  const s = 4
+  return [
+    { x: m, y: m, sizeMm: s },
+    { x: spec.widthMm - m - s, y: m, sizeMm: s },
+    { x: spec.widthMm - m - s, y: spec.heightMm - m - s, sizeMm: s },
+    { x: m, y: spec.heightMm - m - s, sizeMm: s },
+  ]
+}
+
+/**
  * 纸张规格 → webContents.print 的 pageSize 参数:
  * A4/A3 用原生枚举,其余(B5/8K/16K)按微米自定义(1mm = 1000μm)。
  */

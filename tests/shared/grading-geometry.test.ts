@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PageQuad, QuadPoint } from '../../src/shared/grading-geometry'
 import {
+  anchorSquarePositionsMm,
   matchPaperSpec,
   mapPoint,
   orientQuadForSpec,
@@ -199,6 +200,23 @@ describe('quadIsUsable / quadAreaPx / rescaleQuad', () => {
     expect(scaled.imageWidth).toBe(500)
     expect(scaled.tl.x).toBeCloseTo(15, 6)
     expect(scaled.bl.y).toBeCloseTo(690, 0)
+  })
+})
+
+describe('anchorSquarePositionsMm', () => {
+  it('四枚 4mm 方块,距两边各 10mm,不越纸面', () => {
+    const anchors = anchorSquarePositionsMm(paperSpecById('a4'))
+    expect(anchors.length).toBe(4)
+    for (const a of anchors) {
+      expect(a.sizeMm).toBe(4)
+      expect(a.x).toBeGreaterThanOrEqual(6)
+      expect(a.y).toBeGreaterThanOrEqual(6)
+      expect(a.x + a.sizeMm).toBeLessThanOrEqual(210 - 6)
+      expect(a.y + a.sizeMm).toBeLessThanOrEqual(297 - 6)
+    }
+    // tl 与 br 对角
+    expect(anchors[0]).toEqual({ x: 10, y: 10, sizeMm: 4 })
+    expect(anchors[2]).toEqual({ x: 196, y: 283, sizeMm: 4 })
   })
 })
 

@@ -2090,5 +2090,10 @@
   "page.grading.overlay.tplCalibrate": "Calibrate template",
   "page.grading.overlay.tplRecalibrate": "Recalibrate template",
   "page.grading.overlay.tplActive": "Template active: {n} questions unified, per-paper locating not needed",
-  "page.grading.overlay.tplNoFiles": "Pick template images first"
+  "page.grading.overlay.tplNoFiles": "Pick template images first",
+  "page.grading.overlay.masterPrint": "Master copy (with anchors)",
+  "page.grading.overlay.masterBack": "Back to overlay preview",
+  "page.grading.overlay.masterHint": "Reprint the sample paper with corner anchor marks as the master for future exams",
+  "page.grading.overlay.masterNote": "Master copy: print at 100% actual size — it becomes the original paper for future exams (corner anchor squares, overlay-ready by design); keep 1:1 when photocopying.",
+  "page.grading.overlay.silentMaster": "Master copy view is active — return to overlay preview first"
 }
