@@ -57,10 +57,10 @@ function statusBadge(
   }
 }
 
-function capabilityTag(m: ChannelManifest): string {
+function capabilityTag(m: ChannelManifest, pollingLabel: string): string {
   const via = m.capabilities?.receivesVia
   if (via === 'ws') return 'WS'
-  if (via === 'polling') return '轮询'
+  if (via === 'polling') return pollingLabel
   if (via === 'webhook') return 'Webhook'
   if (via === 'mqtt') return 'MQTT'
   if (via === 'sip') return 'SIP'
@@ -144,9 +144,9 @@ function CatalogCard({
               {connected ? t('connectionCenter.more.status.connected', '已连接') : badge.label}
               {!connected && badge.icon}
             </span>
-            {capabilityTag(manifest) && (
+            {capabilityTag(manifest, t('connectionCenter.more.viaPolling', '轮询')) && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/[0.06] text-gray-500 dark:text-gray-400">
-                {capabilityTag(manifest)}
+                {capabilityTag(manifest, t('connectionCenter.more.viaPolling', '轮询'))}
               </span>
             )}
             {manifest.loginKinds?.includes('qr') && (

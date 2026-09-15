@@ -230,9 +230,9 @@ export const IPC_CHANNELS_START = 'channels:start'
 export const IPC_CHANNELS_STOP = 'channels:stop'
 export const IPC_CHANNELS_TEST = 'channels:test'
 export const IPC_CHANNELS_STATUS_UPDATE = 'channels:status-update'
-export const IPC_CHANNELS_BEGIN_LOGIN = 'channels:beginLogin'
-export const IPC_CHANNELS_POLL_LOGIN = 'channels:pollLogin'
-export const IPC_CHANNELS_CANCEL_LOGIN = 'channels:cancelLogin'
+export const IPC_CHANNELS_BEGIN_LOGIN = 'channels:begin-login'
+export const IPC_CHANNELS_POLL_LOGIN = 'channels:poll-login'
+export const IPC_CHANNELS_CANCEL_LOGIN = 'channels:cancel-login'
 
 // ===== 日志 =====
 // arch-P0-1 修复：原硬编码字符串，迁入共享常量
