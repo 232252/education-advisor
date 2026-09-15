@@ -3,11 +3,18 @@
 // Protocol port from QwenPaw yuanbao/ (Apache-2.0 study → TS rewrite)
 // =============================================================
 
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { randomBytes } from 'node:crypto'
 import type {
   ChannelConfigValidation,
+  ChannelFetchedAttachment,
   ChannelRunStatus,
+  InboundAttachment,
   InboundMessage,
   OutboundContent,
+  OutboundMediaRef,
   PushTarget,
 } from '@shared/types'
 import { log } from '../../../../utils/logger'
@@ -18,6 +25,7 @@ import { YuanbaoTokenManager } from './auth'
 import {
   buildSendC2cMsg,
   buildSendGroupMsg,
+  extractAttachmentsFromMsgBody,
   extractTextFromMsgBody,
   initYuanbaoProto,
   type InboundYuanbaoMessage,
@@ -28,6 +36,13 @@ import {
   TEXT_CHUNK_LIMIT,
 } from './constants'
 import { YUANBAO_MANIFEST_ID, yuanbaoManifest } from './manifest'
+import {
+  buildFileMsgBody,
+  buildImageMsgBody,
+  downloadAndUploadMedia,
+  resolveDownloadUrl,
+  type FetchLike,
+} from './media'
 import { YuanbaoWsClient } from './ws-client'
 
 function outboundText(content: OutboundContent): string {
@@ -52,6 +67,13 @@ export class YuanbaoChannelAdapter implements ChannelAdapter {
   private acl: AclPolicy = { dm: 'open', group: 'open', allowFrom: [] }
   private health = new HealthTracker()
   private botId = ''
+  private apiDomain = DEFAULT_API_DOMAIN
+  private fetchImpl: FetchLike = (url, init) => fetch(url, init)
+  private mediaDir: string
+
+  constructor() {
+    this.mediaDir = join(tmpdir(), 'ea-yuanbao-media')
+  }
 
   async validateConfig(
     ctx: Pick<ChannelRuntimeContext, 'config' | 'getSecret'>,
@@ -77,6 +99,10 @@ export class YuanbaoChannelAdapter implements ChannelAdapter {
     const apiDomain = String(ctx.config.apiDomain ?? DEFAULT_API_DOMAIN).replace(/\/$/, '')
     const routeEnv = String(ctx.config.routeEnv ?? '').trim() || undefined
     const wsUrl = String(ctx.config.wsUrl ?? DEFAULT_WS_URL).trim() || DEFAULT_WS_URL
+    this.apiDomain = apiDomain || DEFAULT_API_DOMAIN
+    if (typeof ctx.config.mediaDir === 'string' && ctx.config.mediaDir.trim()) {
+      this.mediaDir = ctx.config.mediaDir.trim()
+    }
 
     initYuanbaoProto()
     this.tokenManager = new YuanbaoTokenManager(appKey, appSecret, apiDomain)
@@ -132,7 +158,8 @@ export class YuanbaoChannelAdapter implements ChannelAdapter {
   private handleInbound(native: InboundYuanbaoMessage): void {
     if (!this.ctx) return
     const text = extractTextFromMsgBody(native.msg_body)
-    if (!text) {
+    const media = extractAttachmentsFromMsgBody(native.msg_body)
+    if (!text && media.length === 0) {
       this.health.inc('inbound_empty')
       return
     }
@@ -150,18 +177,26 @@ export class YuanbaoChannelAdapter implements ChannelAdapter {
       return
     }
 
+    // fileKey holds CDN URL (QQ/wecom pattern); fetchAttachment resolves + downloads
+    const attachments: InboundAttachment[] = media.map((m) => ({
+      kind: m.type,
+      fileKey: m.url,
+      fileName: m.name,
+    }))
+
     const inbound: InboundMessage = {
       channel: this.id,
       providerMessageId: native.msg_id || native.msg_key || `${native.msg_seq}:${native.msg_time}`,
       chat: { id: chatId || senderId, type: isGroup ? 'group' : 'p2p' },
       sender: { id: senderId, name: native.sender_nickname || undefined },
-      text,
-      attachments: [],
+      text: text || (media.length ? `[${media.map((m) => m.type).join(',')}]` : ''),
+      attachments,
       receivedAt: Date.now(),
       raw: native,
     }
     this.health.lastMessageAt = Date.now()
     this.health.inc('inbound')
+    if (media.length) this.health.inc('inbound_media')
     this.ctx.bridge.onMessage(inbound)
     this.ctx.bridge.onStatus({
       status: 'connected',
@@ -213,39 +248,118 @@ export class YuanbaoChannelAdapter implements ChannelAdapter {
     return this.health.snapshot()
   }
 
-  private sendText(toAccount: string, text: string, groupCode?: string): { messageId?: string } {
+  private sendMsgBody(
+    toAccount: string,
+    msgBody: Array<{ msg_type: string; msg_content: Record<string, unknown> }>,
+    groupCode?: string,
+  ): { messageId?: string } {
     if (!this.client?.isConnected) throw new Error('元宝未连接')
+    const built = groupCode
+      ? buildSendGroupMsg({ groupCode, msgBody, fromAccount: this.botId })
+      : buildSendC2cMsg({ toAccount, msgBody, fromAccount: this.botId })
+    if (!built) throw new Error('元宝消息编码失败')
+    if (!this.client.sendRaw(built.raw)) throw new Error('元宝发送失败: WS 未就绪')
+    this.health.inc('outbound')
+    return { messageId: built.msgId }
+  }
+
+  private sendText(toAccount: string, text: string, groupCode?: string): { messageId?: string } {
     let lastId: string | undefined
     for (const chunk of chunkText(text)) {
       const body = [{ msg_type: 'TIMTextElem', msg_content: { text: chunk } }]
-      const built = groupCode
-        ? buildSendGroupMsg({ groupCode, msgBody: body, fromAccount: this.botId })
-        : buildSendC2cMsg({ toAccount, msgBody: body, fromAccount: this.botId })
-      if (!built) throw new Error('元宝消息编码失败')
-      if (!this.client.sendRaw(built.raw)) throw new Error('元宝发送失败: WS 未就绪')
-      lastId = built.msgId
-      this.health.inc('outbound')
+      const r = this.sendMsgBody(toAccount, body, groupCode)
+      lastId = r.messageId
+    }
+    return { messageId: lastId }
+  }
+
+  private async sendMediaRef(
+    toAccount: string,
+    ref: OutboundMediaRef,
+    groupCode?: string,
+  ): Promise<{ messageId?: string }> {
+    if (!this.tokenManager) throw new Error('元宝未连接')
+    const authHeaders = await this.tokenManager.getAuthHeaders()
+    try {
+      const result = await downloadAndUploadMedia(
+        ref.source,
+        this.fetchImpl,
+        this.apiDomain,
+        authHeaders,
+      )
+      const asImage = ref.kind === 'image' || result.mimeType.startsWith('image/')
+      const msgBody = asImage ? buildImageMsgBody(result) : buildFileMsgBody(result)
+      const r = this.sendMsgBody(toAccount, msgBody, groupCode)
+      this.health.inc('outbound_media')
+      log('info', 'yuanbao', `sent media ${result.filename} → ${result.url.slice(0, 60)}`)
+      return r
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      log('error', 'yuanbao', `media upload/send failed: ${msg}`)
+      this.health.inc('outbound_media_fail')
+      if (ref.source.startsWith('http://') || ref.source.startsWith('https://')) {
+        return this.sendText(toAccount, ref.source, groupCode)
+      }
+      throw err
+    }
+  }
+
+  private async sendOutbound(
+    toAccount: string,
+    content: OutboundContent,
+    groupCode?: string,
+  ): Promise<{ messageId?: string }> {
+    let lastId: string | undefined
+    const text = outboundText(content)
+    if (text.trim()) {
+      lastId = this.sendText(toAccount, text, groupCode).messageId
+    }
+    for (const ref of content.media ?? []) {
+      lastId = (await this.sendMediaRef(toAccount, ref, groupCode)).messageId ?? lastId
     }
     return { messageId: lastId }
   }
 
   async sendReply(msg: InboundMessage, content: OutboundContent): Promise<{ messageId?: string }> {
-    const text = outboundText(content)
-    if (!text.trim()) return {}
     const groupCode = msg.chat.type === 'group' ? msg.chat.id : undefined
     const toAccount = msg.chat.type === 'group' ? msg.sender.id : msg.chat.id
-    return this.sendText(toAccount, text, groupCode)
+    return this.sendOutbound(toAccount, content, groupCode)
   }
 
   async push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string }> {
-    const text = outboundText(content)
-    if (!text.trim()) return {}
-    // Heuristic: chatId that looks like group uses group send
     const asGroup = Boolean(target.senderId)
-    if (asGroup) {
-      return this.sendText(target.senderId ?? target.chatId, text, target.chatId)
+    const toAccount = asGroup ? (target.senderId ?? target.chatId) : target.chatId
+    const groupCode = asGroup ? target.chatId : undefined
+    return this.sendOutbound(toAccount, content, groupCode)
+  }
+
+  /** Resolve CDN/resourceId URL and download to mediaDir (QQ-style fileKey=URL). */
+  async fetchAttachment(
+    _msg: InboundMessage,
+    att: InboundAttachment,
+  ): Promise<ChannelFetchedAttachment> {
+    try {
+      let url = att.fileKey
+      if (!/^https?:\/\//i.test(url)) {
+        return { ok: false, error: '元宝附件 fileKey 不是 http(s) URL' }
+      }
+      if (this.tokenManager) {
+        const headers = await this.tokenManager.getAuthHeaders()
+        url = await resolveDownloadUrl(url, this.fetchImpl, this.apiDomain, headers)
+      }
+      const res = await this.fetchImpl(url)
+      if (!res.ok) return { ok: false, error: `下载失败 HTTP ${res.status}` }
+      const buf = Buffer.from(await res.arrayBuffer())
+      await mkdir(this.mediaDir, { recursive: true })
+      const name = att.fileName || `yb-${randomBytes(8).toString('hex')}`
+      const path = join(this.mediaDir, name)
+      await writeFile(path, buf)
+      this.health.inc('fetch_attachment')
+      return { ok: true, path, bytes: buf.byteLength }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      return { ok: false, error }
     }
-    return this.sendText(target.chatId, text)
   }
 }
 
@@ -262,6 +376,15 @@ export {
   encodeConnMsg,
   buildSendC2cMsg,
   extractTextFromMsgBody,
+  extractAttachmentsFromMsgBody,
   resetCodecForTests,
 } from './codec'
 export { computeSignature, beijingTimestamp, generateNonce, YuanbaoTokenManager } from './auth'
+export {
+  downloadAndUploadMedia,
+  buildImageMsgBody,
+  buildFileMsgBody,
+  signCosRequest,
+  parseImageSize,
+  guessMime,
+} from './media'

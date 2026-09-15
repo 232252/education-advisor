@@ -5,6 +5,9 @@
 export const DEFAULT_WS_URL = 'wss://bot-wss.yuanbao.tencent.com/wss/connection'
 export const DEFAULT_API_DOMAIN = 'https://bot.yuanbao.tencent.com'
 export const SIGN_TOKEN_PATH = '/api/v5/robotLogic/sign-token'
+export const UPLOAD_INFO_PATH = '/api/resource/genUploadInfo'
+export const DOWNLOAD_INFO_PATH = '/api/resource/v1/download'
+export const MAX_UPLOAD_MB = 20
 
 export const RETRYABLE_SIGN_CODE = 10099
 export const SIGN_MAX_RETRIES = 3
