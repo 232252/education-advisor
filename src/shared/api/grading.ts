@@ -147,4 +147,14 @@ export interface GradingAPI {
     taskId: string,
     opts: { deviceName?: string; paperSpecId?: string },
   ) => Promise<GradingResult<{ ok: boolean; reason?: string }>>
+  // [w] 套打回写: 母版标定(样卷留档+AI 模板逐题定位)
+  calibrateOverlayTemplate: (
+    taskId: string,
+    paths: string[],
+  ) => Promise<
+    GradingResult<{
+      task: GradingTask
+      result: { located: number; missing: string[]; pages: number; quadsOk: number }
+    }>
+  >
 }

@@ -66,4 +66,7 @@ export const gradingApi: GradingAPI = {
   // [w] 套打回写: 静默连打
   overlaySilentPrint: (taskId, opts) =>
     ipcInvoke(IPC.IPC_GRADING_OVERLAY_SILENT_PRINT, taskId, opts),
+  // [w] 套打回写: 母版标定
+  calibrateOverlayTemplate: (taskId, paths) =>
+    ipcInvoke(IPC.IPC_GRADING_CALIBRATE_TEMPLATE, taskId, paths),
 }

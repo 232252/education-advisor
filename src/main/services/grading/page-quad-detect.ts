@@ -59,6 +59,24 @@ async function toAnalysisGray(buf: Buffer): Promise<{
   }
 }
 
+/**
+ * 单图四点检测(CV→AI 自动链): 母版标定/单页补检共用。
+ * useAi=false 只跑本地 CV。
+ */
+export async function detectQuadForBuffer(
+  buf: Buffer,
+  taskId: string,
+  useAi = true,
+): Promise<{ quad: PageQuad | null; error?: string }> {
+  let quad = await detectQuadFromImage(buf)
+  if ((!quad || quad.confidence < CV_CONFIDENCE_AI_THRESHOLD) && useAi) {
+    const ai = await aiDetectQuad(buf, taskId)
+    if (ai.quad) quad = ai.quad
+    else if (!quad) return { quad: null, error: ai.error ?? 'CV 未定位,AI 兜底失败' }
+  }
+  return { quad }
+}
+
 /** CV 检测一张图(结果换算回原图像素坐标);失败返回 null */
 export async function detectQuadFromImage(buf: Buffer): Promise<PageQuad | null> {
   try {
@@ -151,15 +169,9 @@ export async function detectQuadsForTask(
       let error: string | undefined
       try {
         const buf = await fsp.readFile(gradingService.paperFilePath(taskId, f.storedName))
-        quad = await detectQuadFromImage(buf)
-        if ((!quad || quad.confidence < CV_CONFIDENCE_AI_THRESHOLD) && useAi) {
-          const ai = await aiDetectQuad(buf, taskId)
-          if (ai.quad) {
-            quad = ai.quad
-          } else if (!quad) {
-            error = ai.error ? `CV 未定位,AI 兜底失败: ${ai.error}` : 'CV 未定位,AI 兜底失败'
-          }
-        }
+        const r = await detectQuadForBuffer(buf, taskId, useAi)
+        quad = r.quad
+        if (!quad) error = r.error ?? '未检出'
       } catch (err) {
         error = errText(err)
       }

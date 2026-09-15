@@ -783,6 +783,90 @@ class GradingService {
     })
   }
 
+  /** 母版样卷目录(files/<taskId>/template/) */
+  templateDirPath(taskId: string): string {
+    assertTaskId(taskId)
+    return path.join(this.taskFilesDir(taskId), 'template')
+  }
+
+  /**
+   * 母版标定落库: 文件档案 + 每页四点 + 逐题作答区。
+   * 深校验(quads 走 sanitizeQuad;boxes 坐标钳制 0-1 且题号须在量规内)。
+   */
+  async saveOverlayTemplate(
+    taskId: string,
+    template: {
+      files: PaperFile[]
+      quads?: Array<PageQuad | null>
+      boxes?: Record<string, import('@shared/types').GradeAnnotationBox>
+      calibratedAt?: string
+    },
+  ): Promise<GradingTask> {
+    assertTaskId(taskId)
+    if (!Array.isArray(template.files) || template.files.length === 0) {
+      throw new Error('template.files 必须是非空数组')
+    }
+    if (template.files.length > 20) throw new Error('样卷页数异常(>20)')
+    for (const f of template.files) {
+      if (
+        !isRecordLike(f) ||
+        typeof f.name !== 'string' ||
+        typeof f.storedName !== 'string' ||
+        typeof f.mime !== 'string' ||
+        !Number.isFinite(Number(f.bytes))
+      ) {
+        throw new Error('template.files 每项需含 name/storedName/mime/bytes')
+      }
+      if (
+        f.storedName.includes('/') ||
+        f.storedName.includes('\\') ||
+        f.storedName.includes('..')
+      ) {
+        throw new Error('非法样卷存储名')
+      }
+    }
+    const quads = Array.isArray(template.quads)
+      ? template.quads.map((q) => this.sanitizeQuad(q))
+      : undefined
+    let boxes: Record<string, import('@shared/types').GradeAnnotationBox> | undefined
+    if (template.boxes && typeof template.boxes === 'object') {
+      const task = await this.getTask(taskId)
+      const known = new Set(task.rubric.map((q) => q.id))
+      const clean: Record<string, import('@shared/types').GradeAnnotationBox> = {}
+      for (const [qid, box] of Object.entries(template.boxes)) {
+        if (!known.has(qid) || !isRecordLike(box)) continue
+        const x = Number(box.x)
+        const y = Number(box.y)
+        const w = Number(box.w)
+        const h = Number(box.h)
+        const page = Number(box.page)
+        if (![x, y, w, h].every(Number.isFinite)) continue
+        clean[qid] = {
+          page: Number.isInteger(page) && page >= 0 ? page : 0,
+          x: Math.min(Math.max(x, 0), 1),
+          y: Math.min(Math.max(y, 0), 1),
+          w: Math.min(Math.max(w, 0.02), 1),
+          h: Math.min(Math.max(h, 0.02), 1),
+        }
+      }
+      boxes = clean
+    }
+    return this.withTaskLock(taskId, async () => {
+      const task = await this.getTask(taskId)
+      task.overlayTemplate = {
+        files: template.files,
+        ...(quads ? { quads } : {}),
+        ...(boxes ? { boxes } : {}),
+        ...(typeof template.calibratedAt === 'string' && template.calibratedAt.length > 0
+          ? { calibratedAt: template.calibratedAt }
+          : {}),
+      }
+      task.updatedAt = new Date().toISOString()
+      await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
+      return task
+    })
+  }
+
   /** 试卷扫描件的绝对路径(预览/P3 批改读取用) */
   paperFilePath(taskId: string, storedName: string): string {
     assertTaskId(taskId)

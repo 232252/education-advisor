@@ -20,6 +20,7 @@ import { identifyUnassignedPapers } from '../services/grading/identify-papers'
 import { detectQuadsForTask } from '../services/grading/page-quad-detect'
 import { extractRubricFromImages } from '../services/grading/rubric-extract'
 import { refineRubricStandards } from '../services/grading/rubric-refine'
+import { calibrateOverlayTemplate } from '../services/grading/template-calibrate'
 import { invalidateOnExamsWrite, invalidateOnGradesWrite } from './academic/cache'
 import { handleIpc } from './handle'
 
@@ -263,6 +264,24 @@ export function registerGradingHandlers(win: BrowserWindow): void {
       }
     },
   )
+
+  // 母版标定: 样卷留档 + AI 模板逐题定位(视觉模型)
+  handleIpc(IPC.IPC_GRADING_CALIBRATE_TEMPLATE, async (_e, taskId: string, paths: unknown) => {
+    if (typeof taskId !== 'string' || taskId.length === 0) {
+      throw new Error('taskId 必须是非空字符串')
+    }
+    if (
+      !Array.isArray(paths) ||
+      paths.length === 0 ||
+      paths.length > 8 ||
+      paths.some((p) => typeof p !== 'string' || p.length === 0)
+    ) {
+      throw new Error('paths 必须是 1~8 个非空字符串路径')
+    }
+    const result = await calibrateOverlayTemplate(taskId, paths as string[])
+    const task = await gradingService.getTask(taskId)
+    return { success: true, data: { task, result } }
+  })
 
   // 静默连打: 打印当前窗口(套打模式 DOM 已由打印 CSS 滤成纯红痕层);
   // 参数写死 实际尺寸+无边距,根除驱动「适合页面」缩放风险

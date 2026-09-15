@@ -21,7 +21,7 @@ import {
   questionKind,
   rubricFullMark,
 } from './grading-helpers'
-import type { GradingPaper, RubricQuestion } from './types'
+import type { GradeAnnotationBox, GradingPaper, OverlayTemplate, RubricQuestion } from './types'
 
 /** 字号层级(pt;CSS 直接用 pt 单位,1pt=0.3528mm) */
 export interface OverlayTypography {
@@ -121,7 +121,12 @@ export interface OverlayPaperLayout {
 export interface OverlayLayoutInput {
   paper: Pick<GradingPaper, 'id' | 'ai' | 'review'>
   rubric: RubricQuestion[]
-  /** 每页基准四点(页下标对齐;null/缺 = 该页无定位) */
+  /**
+   * 母版标定(Tier B): 有 boxes+四点时痕迹位统一走模板坐标
+   * (消除逐卷 AI box 抖动,学生卷无需自己的四点);模板缺的题回落 AI box。
+   */
+  template?: Pick<OverlayTemplate, 'boxes' | 'quads'>
+  /** 每页基准四点(页下标对齐;null/缺 = 该页无定位;有模板时可缺) */
   quads: Array<PageQuad | null | undefined>
   /** 每页扫描图自然像素尺寸(页下标对齐) */
   imageSizes: Array<{ width: number; height: number } | undefined>
@@ -228,12 +233,19 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
   const noteLineMm = typo.notePt * 0.3528 * typo.noteLineHeight
   const noteGapMm = noteLineMm * 0.6
 
+  // 母版标定: 模板图 → 纸毫米 的统一映射(逐页,页下标对齐模板页)
+  const templateBoxes = input.template?.boxes
+  const templateMappers = (input.template?.quads ?? []).map((q) =>
+    q ? quadToPaperMapper(q, spec) : null,
+  )
+
   for (let page = 0; page < pageCount; page++) {
     const quad = input.quads[page]
     const size = input.imageSizes[page]
+    const templateMapper = templateMappers[page] ?? null
     const marks: OverlayMarkElement[] = []
     const notes: OverlayNoteElement[] = []
-    if (!quad || !size) {
+    if ((!quad || !size) && !templateMapper) {
       const orphaned = rows.filter((r) => {
         const box = aiById.get(r.questionId)?.box
         return box && (box.page ?? 0) === page && r.score !== null
@@ -247,9 +259,9 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
       continue
     }
 
-    const mapper = quadToPaperMapper(quad, spec)
+    const mapper = templateMapper ?? (quad ? quadToPaperMapper(quad, spec) : null)
     if (!mapper) {
-      warnings.push(`第 ${page + 1} 页四点退化,无法换算(请手动四点)`)
+      warnings.push(`第 ${page + 1} 页四点退化,无法换算(请手动四点或标定母版)`)
       pages.push({ page, marks, notes })
       continue
     }
@@ -259,7 +271,7 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
     let contentRightMm = 0
     for (const row of rows) {
       const ai = aiById.get(row.questionId)
-      const box = ai?.box
+      const box: GradeAnnotationBox | undefined = templateBoxes?.[row.questionId] ?? ai?.box
       if (!box || (box.page ?? 0) !== page || row.score === null) continue
       const def = rubric.find((r) => r.id === row.questionId)
       const kind = questionKind({ title: row.title, type: def?.type })
