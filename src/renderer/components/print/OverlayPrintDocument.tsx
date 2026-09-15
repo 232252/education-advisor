@@ -9,7 +9,13 @@
 
 import type { PrinterInfo } from '@shared/api/sys'
 import type { PageQuad, PaperSpec } from '@shared/grading-geometry'
-import { matchPaperSpec, PAPER_SPECS, paperSpecById, rescaleQuad } from '@shared/grading-geometry'
+import {
+  anchorSquarePositionsMm,
+  matchPaperSpec,
+  PAPER_SPECS,
+  paperSpecById,
+  rescaleQuad,
+} from '@shared/grading-geometry'
 import {
   DEFAULT_OVERLAY_CALIBRATION,
   layoutOverlayPaper,
@@ -58,6 +64,7 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
   const [deviceName, setDeviceName] = useState<string>(() => task.overlayPrint?.deviceName ?? '')
   const [silentPrinting, setSilentPrinting] = useState(false)
   const [tplDialog, setTplDialog] = useState(false)
+  const [masterUrls, setMasterUrls] = useState<string[] | null>(null)
 
   // 打印机清单(静默连打选设备;取不到就留空走系统默认)
   useEffect(() => {
@@ -73,10 +80,33 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
     }
   }, [])
 
+  // 印制版: 读母版样卷图(留档在 files/<taskId>/template/)
+  const loadMaster = async () => {
+    if (masterUrls) return
+    const tpl = task.overlayTemplate
+    if (!tpl || tpl.files.length === 0) return
+    const urls: string[] = []
+    for (const f of tpl.files) {
+      try {
+        const res = await getAPI().grading.readPaperFile(task.id, f.storedName)
+        if (res.success && res.data) {
+          urls.push(`data:${res.data.mime};base64,${res.data.base64}`)
+        }
+      } catch {
+        /* 单页读失败跳过 */
+      }
+    }
+    setMasterUrls(urls)
+  }
+
   // 静默连打: 参数写死 实际尺寸+无边距,按顺序出全部套打页
   const silentPrint = async () => {
     if (showCalibrationPage) {
       toast.warning(t('page.grading.overlay.silentCalib', '请先取消勾选校准页,再静默连打'))
+      return
+    }
+    if (masterUrls) {
+      toast.warning(t('page.grading.overlay.silentMaster', '当前是印制版母版,请先返回套打预览'))
       return
     }
     setSilentPrinting(true)
@@ -291,12 +321,36 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
               : t('page.grading.overlay.tplCalibrate', '母版标定')}
           </button>
           {templateActive && (
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-              {t(
-                'page.grading.overlay.tplActive',
-                `母版生效: ${tplLocated} 题统一痕迹位,学生卷免定位`,
-              )}
-            </span>
+            <>
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                {t(
+                  'page.grading.overlay.tplActive',
+                  `母版生效: ${tplLocated} 题统一痕迹位,学生卷免定位`,
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCalibrationPage(false)
+                  if (masterUrls) setMasterUrls(null)
+                  else void loadMaster()
+                }}
+                className={cn(
+                  'rounded px-2.5 py-1 font-medium',
+                  masterUrls
+                    ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-500/15 dark:text-amber-200'
+                    : 'border border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-300',
+                )}
+                title={t(
+                  'page.grading.overlay.masterHint',
+                  '把样卷带四角定位点重新打印,作下次考试的印制母版',
+                )}
+              >
+                {masterUrls
+                  ? t('page.grading.overlay.masterBack', '返回套打预览')
+                  : t('page.grading.overlay.masterPrint', '印制版(带定位点)')}
+              </button>
+            </>
           )}
           <button
             type="button"
@@ -443,6 +497,40 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
       {/* ===== 页面 ===== */}
       {showCalibrationPage ? (
         <CalibrationPrintPage spec={spec} />
+      ) : masterUrls && masterUrls.length > 0 ? (
+        <div className="overlay-paper mb-6">
+          <p className="overlay-screen-only mb-1 text-xs text-amber-700 dark:text-amber-300">
+            {t(
+              'page.grading.overlay.masterNote',
+              '印制版母版: 按 100% 实际大小打印后即为下次考试的原卷(四角带■定位点,天生可精准套打);复印/胶印请保持 1:1。',
+            )}
+          </p>
+          {masterUrls.map((url, i) => (
+            <div
+              key={`master-${url.slice(-16)}`}
+              className="overlay-page relative mx-auto overflow-hidden bg-white"
+              style={{ width: `${spec.widthMm}mm`, height: `${spec.heightMm}mm` }}
+            >
+              <img
+                src={url}
+                alt={`master-${i + 1}`}
+                className="absolute inset-0 h-full w-full object-fill"
+              />
+              {anchorSquarePositionsMm(spec).map((a) => (
+                <div
+                  key={`anchor-${a.x}-${a.y}`}
+                  className="absolute bg-black"
+                  style={{
+                    left: `${a.x}mm`,
+                    top: `${a.y}mm`,
+                    width: `${a.sizeMm}mm`,
+                    height: `${a.sizeMm}mm`,
+                  }}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
       ) : (
         views.map((view, vi) => {
           const layout = layouts[vi]

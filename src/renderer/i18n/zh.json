@@ -2090,5 +2090,10 @@
   "page.grading.overlay.tplCalibrate": "母版标定",
   "page.grading.overlay.tplRecalibrate": "重新标定母版",
   "page.grading.overlay.tplActive": "母版生效: {n} 题统一痕迹位,学生卷免定位",
-  "page.grading.overlay.tplNoFiles": "请先选择样卷图片"
+  "page.grading.overlay.tplNoFiles": "请先选择样卷图片",
+  "page.grading.overlay.masterPrint": "印制版(带定位点)",
+  "page.grading.overlay.masterBack": "返回套打预览",
+  "page.grading.overlay.masterHint": "把样卷带四角定位点重新打印,作下次考试的印制母版",
+  "page.grading.overlay.masterNote": "印制版母版: 按 100% 实际大小打印后即为下次考试的原卷(四角带■定位点,天生可精准套打);复印/胶印请保持 1:1。",
+  "page.grading.overlay.silentMaster": "当前是印制版母版,请先返回套打预览"
 }
