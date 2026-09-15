@@ -142,4 +142,9 @@ export interface GradingAPI {
     taskId: string,
     patch: OverlayPrintSettings,
   ) => Promise<GradingResult<GradingTask>>
+  // [w] 套打回写: 静默连打(打印当前窗口;参数写死 100% 无边距)
+  overlaySilentPrint: (
+    taskId: string,
+    opts: { deviceName?: string; paperSpecId?: string },
+  ) => Promise<GradingResult<{ ok: boolean; reason?: string }>>
 }

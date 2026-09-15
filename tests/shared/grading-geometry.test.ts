@@ -10,6 +10,7 @@ import {
   orientQuadForSpec,
   PAPER_SPECS,
   paperSpecById,
+  paperSpecToPrintPageSize,
   quadAreaPx,
   quadIsUsable,
   quadToPaperMapper,
@@ -198,6 +199,28 @@ describe('quadIsUsable / quadAreaPx / rescaleQuad', () => {
     expect(scaled.imageWidth).toBe(500)
     expect(scaled.tl.x).toBeCloseTo(15, 6)
     expect(scaled.bl.y).toBeCloseTo(690, 0)
+  })
+})
+
+describe('paperSpecToPrintPageSize', () => {
+  it('A4/A3 用 Electron 原生枚举', () => {
+    expect(paperSpecToPrintPageSize(paperSpecById('a4'))).toBe('A4')
+    expect(paperSpecToPrintPageSize(paperSpecById('a3'))).toBe('A3')
+  })
+
+  it('B5/8K/16K 输出微米自定义尺寸', () => {
+    expect(paperSpecToPrintPageSize(paperSpecById('16k'))).toEqual({
+      width: 195000,
+      height: 270000,
+    })
+    expect(paperSpecToPrintPageSize(paperSpecById('8k'))).toEqual({
+      width: 270000,
+      height: 390000,
+    })
+  })
+
+  it('未知 id 回落 A4', () => {
+    expect(paperSpecToPrintPageSize(paperSpecById('nope'))).toBe('A4')
   })
 })
 

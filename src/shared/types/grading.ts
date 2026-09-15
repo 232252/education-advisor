@@ -89,6 +89,8 @@ export interface OverlayPrintSettings {
   /** 纸张规格 id(@shared/grading-geometry PAPER_SPECS) */
   paperSpecId?: string
   calibration?: OverlayCalibration
+  /** 静默连打记忆的打印机名 */
+  deviceName?: string
 }
 
 /** AI 单题结果(≈ autograding_testcase_data 逐项得分 + 判分依据) */

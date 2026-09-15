@@ -250,3 +250,21 @@ export function rescaleQuad(quad: PageQuad, newWidth: number, newHeight: number)
 export function mmToPt(mm: number): number {
   return mm * 2.834645669
 }
+
+/** Electron print 原生支持的纸张名 */
+const ELECTRON_PAGE_SIZES: Partial<Record<string, 'A4' | 'A3'>> = {
+  a4: 'A4',
+  a3: 'A3',
+}
+
+/**
+ * 纸张规格 → webContents.print 的 pageSize 参数:
+ * A4/A3 用原生枚举,其余(B5/8K/16K)按微米自定义(1mm = 1000μm)。
+ */
+export function paperSpecToPrintPageSize(
+  spec: PaperSpec,
+): 'A4' | 'A3' | { width: number; height: number } {
+  const native = ELECTRON_PAGE_SIZES[spec.id]
+  if (native) return native
+  return { width: Math.round(spec.widthMm * 1000), height: Math.round(spec.heightMm * 1000) }
+}
