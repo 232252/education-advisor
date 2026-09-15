@@ -31,11 +31,18 @@ import { ChatMessageQueue } from '../../runtime/chat-queue'
 import { type CommandRouter, createDefaultRouter } from '../../runtime/command/router'
 import { MessageDedupCache } from '../../runtime/dedup-cache'
 import { RecentFilesStore } from '../../runtime/recent-files'
+import { policyFromConfig, type AclPolicy } from '../_shared/acl'
+import type { InboundDebouncer } from '../_shared/debounce'
 import { APP_ID_PATTERN, MAX_GUARD_ATTEMPTS, RECEIVED_FILES_DIR_NAME } from './constants'
 import { validateCredentials } from './credentials'
-import { createMessageReceiveHandler } from './event-handler'
+import {
+  createFeishuInboundDebouncer,
+  createMessageReceiveHandler,
+} from './event-handler'
 import { fetchHttpInstance, setFeishuBase } from './http-instance'
 import { createBatchPipeline, type MessageHandlerDeps } from './message-handler'
+import type { ParsedIncomingMessage } from './parsing'
+import { sendReply } from './reply'
 import type { BotStatus, BotStatusInfo } from './types'
 
 export type { BotStatus, BotStatusInfo } from './types'
@@ -76,6 +83,12 @@ class FeishuBotService extends EventEmitter {
   private restarting = false
   private statusTimer: ReturnType<typeof setInterval> | null = null
   private connectStartTime = 0
+  private acl: AclPolicy = { dm: 'open', group: 'open', allowFrom: [], requireMention: true }
+  private debouncer: InboundDebouncer<ParsedIncomingMessage> | null = null
+  private lastMessageAt?: number
+  private lastErrorAt?: number
+  /** 配置透传(connect 时注入;缺省读 settings.channels.feishu) */
+  private channelConfig: Record<string, unknown> = {}
 
   constructor() {
     super()
@@ -93,7 +106,14 @@ class FeishuBotService extends EventEmitter {
       connectedAt: this.connectedAt,
       processingCount: this.processingCount,
       pendingCount: this.pipeline?.queue.pendingCount ?? 0,
+      lastMessageAt: this.lastMessageAt,
+      lastErrorAt: this.lastErrorAt,
+      reconnectAttempt: this.guardAttempts,
     }
+  }
+
+  getAclSnapshot(): AclPolicy {
+    return { ...this.acl, allowFrom: [...this.acl.allowFrom] }
   }
 
   /** M3: 当前 SDK Client(适配器经此发消息/建卡片;stop 后为 null) */
@@ -133,6 +153,7 @@ class FeishuBotService extends EventEmitter {
     appSecret: string,
     win: BrowserWindow | null,
     domain: FeishuDomain = 'feishu',
+    opts: { config?: Record<string, unknown> } = {},
   ): Promise<void> {
     // 凭据去首尾空白: 粘贴带入的空格/换行会让飞书返回 10003/10014 鉴权失败
     appId = appId.trim()
@@ -192,10 +213,30 @@ class FeishuBotService extends EventEmitter {
     // 构造命令上下文(注入 EAA + Agent 能力)
     const ctx = createCommandContext(win)
 
-    // M4: 渠道设置(channels.feishu.*)— Agent 绑定与群聊开关
-    const channelCfg = settingsService.getSettings().channels?.feishu
-    const allowGroups = channelCfg?.allowGroups !== false
-    const boundAgentId = typeof channelCfg?.agentId === 'string' ? channelCfg.agentId : undefined
+    // M4 + Sprint4c: 渠道设置 + connect 透传 config(ACL/debounce)
+    const channelCfg = {
+      ...(settingsService.getSettings().channels?.feishu as Record<string, unknown> | undefined),
+      ...(opts.config ?? {}),
+    }
+    this.channelConfig = channelCfg
+    const allowGroups = channelCfg.allowGroups !== false
+    const boundAgentId = typeof channelCfg.agentId === 'string' ? channelCfg.agentId : undefined
+    this.acl = policyFromConfig(channelCfg)
+    // allowGroups=false → 群聊 deny(与 QQ 对齐)
+    if (!allowGroups) this.acl = { ...this.acl, group: 'deny' }
+    // 飞书默认群需 @(QwenPaw require_mention / group_at_only)
+    if (channelCfg.requireMention === undefined) {
+      this.acl = { ...this.acl, requireMention: true }
+    }
+    const debounceMs = Math.max(0, Number(channelCfg.debounceMs ?? 0) || 0)
+    this.debouncer?.clear()
+    this.debouncer = createFeishuInboundDebouncer((item) => {
+      this.lastMessageAt = Date.now()
+      if (!this.pipeline?.queue.submit({ parsed: item })) {
+        log('warn', 'feishu-bot', 'pending queue full on debounce flush')
+        void sendReply(this.sdkClient, item.messageId, '当前消息处理繁忙,请稍后再发。').catch(() => {})
+      }
+    }, debounceMs)
 
     // 阶段 0 批处理流水线:秒回占位 → 流式卡片 → 终稿;纯文件批回确认
     const activeSessions = new Set<ReplySession>()
@@ -227,7 +268,17 @@ class FeishuBotService extends EventEmitter {
         messageQueue: this.pipeline.queue,
         getSdkClient: () => this.sdkClient,
         allowGroups,
+        acl: this.acl,
+        debounceMs,
+        debouncer: this.debouncer ?? undefined,
+        getAccessToken: () => this.getAccessToken(),
+        onAccepted: () => {
+          this.lastMessageAt = Date.now()
+        },
       }),
+      // QwenPaw: 静默消费 reaction 事件,避免 processor not found 刷屏
+      'im.message.reaction.created_v1': () => {},
+      'im.message.reaction.deleted_v1': () => {},
     })
     // M1: 留存 dispatcher,守护重启时复用
     this.eventDispatcher = eventDispatcher
@@ -433,6 +484,8 @@ class FeishuBotService extends EventEmitter {
     }
     this.stopStatusPolling()
     this.detachResumeListener()
+    this.debouncer?.clear()
+    this.debouncer = null
     // 阶段 0: 先让消息队列排空收尾 — 排队中的消息回"未处理"提示,
     // 运行中的占位卡片立即写入中断说明。此时 sdkClient 仍可用。
     if (this.pipeline) {
@@ -473,7 +526,10 @@ class FeishuBotService extends EventEmitter {
   /** 更新状态并广播(供设置页徽章/ChannelManager 订阅) */
   private setStatus(status: BotStatus, extra?: { error?: string; connectedAt?: number }): void {
     this.currentStatus = status
-    if (extra?.error !== undefined) this.lastError = extra.error
+    if (extra?.error !== undefined) {
+      this.lastError = extra.error
+      this.lastErrorAt = Date.now()
+    }
     if (status === 'connected') this.lastError = undefined
     if (extra?.connectedAt !== undefined) this.connectedAt = extra.connectedAt
     if (status === 'idle' || status === 'error') this.connectedAt = undefined

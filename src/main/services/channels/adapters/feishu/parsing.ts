@@ -26,6 +26,10 @@ export interface ParsedIncomingMessage {
   messageId: string
   chatId: string
   chatType: string
+  /** 发送者 open_id(优先) / user_id,供 ACL */
+  senderId: string
+  /** 群聊是否 @了机器人(mentions 非空) */
+  mentioned: boolean
   attachments: IncomingAttachment[]
 }
 
@@ -81,25 +85,32 @@ function extractPostText(content: string): string {
 
 /**
  * 解析一条收到的飞书消息,不满足处理条件时返回 null。
- * 安全过滤:只响应 P2P 私聊,或群里 @了机器人的消息(对全部消息类型生效)。
+ * 安全过滤:私聊直通;群聊默认需 @机器人(requireMention)。
  * @param opts.allowGroups false 时忽略全部群聊消息(channels.feishu.allowGroups)
+ * @param opts.requireMention false 时群聊不强制 @ (QwenPaw require_mention/group_at_only)
  */
 export function parseIncomingMessage(
   data: FeishuMessageEvent,
-  opts: { allowGroups?: boolean } = {},
+  opts: { allowGroups?: boolean; requireMention?: boolean } = {},
 ): ParsedIncomingMessage | null {
   const msg = data.message
   if (!msg) return null
 
   if (!SUPPORTED_MESSAGE_TYPES.has(msg.message_type)) return null
 
-  // 安全过滤:群聊必须 @机器人;p2p 直接处理;allowGroups=false 时忽略全部群聊
   const chatType = msg.chat_type
-  if (chatType !== 'p2p') {
-    if (opts.allowGroups === false) return null
-    const mentions = msg.mentions ?? []
-    if (mentions.length === 0) return null // 群里没 @机器人,忽略
-  }
+  const mentions = msg.mentions ?? []
+  const mentioned = chatType === 'p2p' ? true : mentions.length > 0
+  // allowGroups=false 时忽略全部群聊(ACL group:deny 由上层再挡一层)
+  if (chatType !== 'p2p' && opts.allowGroups === false) return null
+  // 默认仍要求群 @(opts.requireMention !== false);关闭后交给 ACL 细控
+  if (chatType !== 'p2p' && opts.requireMention !== false && !mentioned) return null
+
+  const senderId =
+    data.sender?.sender_id?.open_id ||
+    data.sender?.sender_id?.user_id ||
+    data.sender?.sender_id?.union_id ||
+    ''
 
   let text = ''
   const attachments: IncomingAttachment[] = []
@@ -131,5 +142,13 @@ export function parseIncomingMessage(
   // 既无文字也无附件(如空 post / 内容解析失败) → 不处理
   if (!text.trim() && attachments.length === 0) return null
 
-  return { text, messageId: msg.message_id, chatId: msg.chat_id, chatType, attachments }
+  return {
+    text,
+    messageId: msg.message_id,
+    chatId: msg.chat_id,
+    chatType,
+    senderId,
+    mentioned,
+    attachments,
+  }
 }

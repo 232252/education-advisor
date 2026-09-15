@@ -71,3 +71,18 @@
 | QQ 群 file_type=4 跳过 | group 不发 file | ✅ `sendRichMedia` 群文件静默 skip |
 
 **总判**: WeChat/QQ 功能对等 **YES**（剩余仅平台 N/A：微信弱主动/context_token 限额、QQ 群主动配额——产品限制，非实现缺口）。
+
+
+### Sprint 4c — Feishu vs QwenPaw 补齐（2026-09-15）
+
+详见 `docs/plans/feishu-parity-matrix.md`。
+
+| 能力 | 状态 |
+|---|---|
+| 出站图片/文件 | ✅ `adapters/feishu/outbound.ts` |
+| ACL + debounce | ✅ `_shared` 接线 event-handler / connection |
+| Typing/DONE reaction | ✅ `reactions.ts` |
+| health diagnostics | ✅ Adapter `getHealthDiagnostics` |
+| reaction no-op | ✅ EventDispatcher |
+
+**总判**: Feishu **YES**（话题线程会话键 / IM tool_guard 卡 / Webhook = 产品或平台 N/A）。

@@ -99,7 +99,12 @@
       "appId": "",
       "appSecret": "",
       "allowGroups": true,
-      "agentId": "main"
+      "agentId": "main",
+      "allowFrom": "",
+      "aclDm": "open",
+      "aclGroup": "open",
+      "requireMention": true,
+      "debounceMs": 0
     },
     "dingtalk": {
       "enabled": true,

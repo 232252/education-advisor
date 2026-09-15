@@ -18,6 +18,9 @@ export interface BotStatusInfo {
   processingCount?: number
   /** 排队中 + 处理中的消息总数(诊断用) */
   pendingCount?: number
+  lastMessageAt?: number
+  lastErrorAt?: number
+  reconnectAttempt?: number
 }
 
 /**
