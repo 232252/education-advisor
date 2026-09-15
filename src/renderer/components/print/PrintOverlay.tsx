@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom'
 import { Button } from '../../components/Button'
 import { useT } from '../../i18n'
 import { cn } from '../../lib/ui-utils'
+import { toast } from '../../stores/toastStore'
 
 interface PrintOverlayProps {
   /** 屏幕预览标题(工具栏显示) */
@@ -24,6 +25,8 @@ interface PrintOverlayProps {
   toolbarExtra?: ReactNode
   /** 纸张容器附加类(如痕迹卷贴边打印覆盖默认内边距) */
   contentClassName?: string
+  /** 打印拦截: 返回阻断原因(toast 提示并放弃本次打印);null/undefined 放行 */
+  printBlockReason?: () => string | null
 }
 
 export function PrintOverlay({
@@ -32,6 +35,7 @@ export function PrintOverlay({
   children,
   toolbarExtra,
   contentClassName,
+  printBlockReason,
 }: PrintOverlayProps) {
   const { t } = useT()
 
@@ -58,7 +62,19 @@ export function PrintOverlay({
         </span>
         {toolbarExtra}
         <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-          <Button type="button" onClick={() => window.print()} variant="primary" size="sm">
+          <Button
+            type="button"
+            onClick={() => {
+              const blocked = printBlockReason?.() ?? null
+              if (blocked) {
+                toast.error(blocked)
+                return
+              }
+              window.print()
+            }}
+            variant="primary"
+            size="sm"
+          >
             <Printer size={13} />
             {t('print.action', '打印 / 导出 PDF')}
           </Button>

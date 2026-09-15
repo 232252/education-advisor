@@ -40,6 +40,8 @@ interface OverlayPrintDocumentProps {
   task: GradingTask
   views: OverlayPrintView[]
   onRefresh: () => Promise<void>
+  /** 未定位而排不出的痕迹数变化时上报(父层拦系统打印用);不传则只影响本组件拦截 */
+  onUnplacedChange?: (count: number) => void
 }
 
 /** 量出来的扫描图尺寸(页下标对齐;测量完成前 undefined) */
@@ -49,7 +51,12 @@ function ptToMm(pt: number): number {
   return pt * 0.3528
 }
 
-export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDocumentProps) {
+export function OverlayPrintDocument({
+  task,
+  views,
+  onRefresh,
+  onUnplacedChange,
+}: OverlayPrintDocumentProps) {
   const { t } = useT()
   const [sizes, setSizes] = useState<SizeMap>({})
   const [specId, setSpecId] = useState<string>(() => task.overlayPrint?.paperSpecId ?? '')
@@ -101,6 +108,15 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
 
   // 静默连打: 参数写死 实际尺寸+无边距,按顺序出全部套打页
   const silentPrint = async () => {
+    if (unplacedTotal > 0) {
+      toast.error(
+        t(
+          'page.grading.overlay.silentBlocked',
+          '有卷未定位: 只能回写总分,每题痕迹/大题批注不会打印 — 请先「自动定位四点」或手动四点',
+        ),
+      )
+      return
+    }
     if (showCalibrationPage) {
       toast.warning(t('page.grading.overlay.silentCalib', '请先取消勾选校准页,再静默连打'))
       return
@@ -181,6 +197,15 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
       })
     })
   }, [views, task, sizes, spec, calibration])
+
+  // 未定位而排不出的痕迹数: 红色横幅 + 静默连打/系统打印拦截 共用
+  const unplacedTotal = useMemo(
+    () => layouts.reduce((s, l) => s + l.pages.reduce((x, p) => x + p.unplacedMarks, 0), 0),
+    [layouts],
+  )
+  useEffect(() => {
+    onUnplacedChange?.(unplacedTotal)
+  }, [unplacedTotal, onUnplacedChange])
 
   // 纸张规格/校准/打印机持久化(跳过首帧)
   const savedRef = useRef({
@@ -264,6 +289,18 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
       )
   }, [views, task, templateActive])
 
+  // 进套打页自动定位一次: 本任务从未定位过(所有卷 quads 为空)且当前有未定位卷才触发;
+  // 已尝试过(含失败存 [null])不打扰,剩余交给手动四点逃生门
+  const detectRef = useRef(detect)
+  detectRef.current = detect
+  const autoDetectRef = useRef(false)
+  const anyQuadAttempted = task.papers.some((p) => (p.overlayQuads?.length ?? 0) > 0)
+  useEffect(() => {
+    if (autoDetectRef.current || anyQuadAttempted || needManual.length === 0) return
+    autoDetectRef.current = true
+    void detectRef.current()
+  }, [anyQuadAttempted, needManual])
+
   const stepCalibration = (key: keyof OverlayCalibration, delta: number) => {
     setCalibration((c) => {
       const step = key === 'scalePct' ? 0.1 : 0.5
@@ -294,6 +331,15 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
 
       {/* ===== 控制面板(仅屏幕) ===== */}
       <div className="overlay-screen-only mx-auto mb-4 w-[210mm] max-w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs dark:border-white/10 dark:bg-white/5 dark:text-gray-200">
+        {unplacedTotal > 0 && !masterUrls && !showCalibrationPage && (
+          <div className="mb-2 rounded bg-red-50 px-2 py-1.5 text-[12px] font-medium text-red-700 dark:bg-red-500/15 dark:text-red-300">
+            {tr(
+              'page.grading.overlay.unplacedBanner',
+              { n: unplacedTotal },
+              `⚠ ${unplacedTotal} 处痕迹未定位排不出: 这些卷只会回写总分,每题痕迹/大题批注不会打印 — 请先「自动定位四点」或手动四点`,
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <label className="flex items-center gap-1.5">
             {t('page.grading.overlay.paperSpec', '纸张')}
