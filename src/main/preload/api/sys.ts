@@ -38,4 +38,6 @@ export const sysApi: SysAPI = {
   getWebUiStatus: () => ipcInvoke(IPC.IPC_SYS_WEBUI_STATUS),
   openWebUi: () => ipcInvoke(IPC.IPC_SYS_WEBUI_OPEN),
   regenerateWebUiToken: () => ipcInvoke(IPC.IPC_SYS_WEBUI_REGEN_TOKEN),
+  // [r] 系统打印机清单(套打静默连打选设备)
+  listPrinters: () => ipcInvoke(IPC.IPC_SYS_LIST_PRINTERS),
 } as SysAPI

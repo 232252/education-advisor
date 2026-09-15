@@ -63,4 +63,7 @@ export const gradingApi: GradingAPI = {
     ipcInvoke(IPC.IPC_GRADING_SAVE_QUADS, taskId, paperId, quads),
   // [w] 套打回写: 保存纸张规格与试打校准
   saveOverlayPrint: (taskId, patch) => ipcInvoke(IPC.IPC_GRADING_SAVE_OVERLAY_PRINT, taskId, patch),
+  // [w] 套打回写: 静默连打
+  overlaySilentPrint: (taskId, opts) =>
+    ipcInvoke(IPC.IPC_GRADING_OVERLAY_SILENT_PRINT, taskId, opts),
 }

@@ -710,6 +710,11 @@ class GradingService {
         throw new Error(`非法纸张规格: ${String(patch.paperSpecId)}`)
       }
     }
+    if (patch.deviceName !== undefined) {
+      if (typeof patch.deviceName !== 'string' || patch.deviceName.length > 200) {
+        throw new Error('deviceName 必须是 ≤200 字符的字符串')
+      }
+    }
     if (patch.calibration !== undefined) {
       const c = patch.calibration
       if (!isRecordLike(c)) throw new Error('calibration 必须是对象')
@@ -724,11 +729,13 @@ class GradingService {
     }
     const nextSpecId = patch.paperSpecId
     const nextCalibration = patch.calibration
+    const nextDevice = patch.deviceName
     return this.withTaskLock(taskId, async () => {
       const task = await this.getTask(taskId)
       const current: OverlayPrintSettings = { ...(task.overlayPrint ?? {}) }
       if (nextSpecId !== undefined) current.paperSpecId = nextSpecId
       if (nextCalibration !== undefined) current.calibration = nextCalibration
+      if (nextDevice !== undefined) current.deviceName = nextDevice
       task.overlayPrint = current
       task.updatedAt = new Date().toISOString()
       await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))

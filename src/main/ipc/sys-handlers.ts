@@ -247,6 +247,16 @@ export function registerSysHandlers(win: BrowserWindow) {
     }
   })
 
+  // 系统打印机清单(套打静默连打选设备用)
+  handleIpc(IPC.IPC_SYS_LIST_PRINTERS, async () => {
+    const printers = await win.webContents.getPrintersAsync()
+    return printers.map((p) => ({
+      name: p.name,
+      description: p.description,
+      displayName: p.displayName,
+    }))
+  })
+
   handleIpc(IPC.IPC_SYS_WEBUI_STATUS, () => webUiService.getStatus())
   handleIpc(IPC.IPC_SYS_WEBUI_OPEN, async () => webUiService.openInBrowser())
   handleIpc(IPC.IPC_SYS_WEBUI_REGEN_TOKEN, async () => webUiService.regenerateToken())

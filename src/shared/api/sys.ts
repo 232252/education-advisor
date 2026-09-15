@@ -27,6 +27,15 @@ export interface UpdateProgressInfo {
   message: string
 }
 
+/** 系统打印机信息(套打静默连打选设备用) */
+export interface PrinterInfo {
+  /** OS 层打印机名(静默连打 deviceName 用这个) */
+  name: string
+  description: string
+  /** 打印预览里显示的名字 */
+  displayName: string
+}
+
 export interface SysAPI {
   openDialog: (options: unknown) => Promise<unknown>
   saveDialog: (options: unknown) => Promise<unknown>
@@ -68,4 +77,6 @@ export interface SysAPI {
   openWebUi: () => Promise<{ success: boolean; url?: string; error?: string }>
   /** 重新生成 256-bit 访问令牌并立即生效 */
   regenerateWebUiToken: () => Promise<{ success: boolean; error?: string }>
+  // [r] 系统打印机清单(套打静默连打选设备)
+  listPrinters: () => Promise<{ success: boolean; data?: PrinterInfo[]; error?: string }>
 }

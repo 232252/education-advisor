@@ -2068,5 +2068,12 @@
   "page.grading.overlay.cornerBr": "右下",
   "page.grading.overlay.cornerBl": "左下",
   "page.grading.overlay.calibrationSample": "① 9/12\n-2 单位未换算\n-1 未画受力图",
-  "common.saveFailed": "保存失败"
+  "common.saveFailed": "保存失败",
+  "page.grading.overlay.printer": "打印机",
+  "page.grading.overlay.systemDefault": "系统默认",
+  "page.grading.overlay.silentPrint": "静默连打",
+  "page.grading.overlay.silentDoing": "打印中…",
+  "page.grading.overlay.silentOk": "已发送到打印机,请按屏幕顺序放卷",
+  "page.grading.overlay.silentFail": "打印失败",
+  "page.grading.overlay.silentCalib": "请先取消勾选校准页,再静默连打"
 }

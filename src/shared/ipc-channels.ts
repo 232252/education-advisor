@@ -200,6 +200,8 @@ export const IPC_GRADING_DETECT_QUADS = 'grading:detect-quads'
 export const IPC_GRADING_SAVE_QUADS = 'grading:save-quads'
 // 套打回写: 保存纸张规格与试打校准
 export const IPC_GRADING_SAVE_OVERLAY_PRINT = 'grading:save-overlay-print'
+// 套打回写: 静默连打(参数写死 100%/无边距,根除驱动缩放风险)
+export const IPC_GRADING_OVERLAY_SILENT_PRINT = 'grading:overlay-silent-print'
 
 // ===== 班级管理（本地：存档/删除） =====
 export const IPC_CLASS_LIST = 'class:list'
@@ -254,6 +256,7 @@ export const IPC_LOG_WRITE_RENDERER = 'log:write-renderer'
 // ===== 系统（更新对话框扩展） =====
 // 此前已被 sys-handlers.ts 引用但未在常量表中，补齐
 export const IPC_SYS_SHOW_UPDATE_DIALOG = 'sys:show-update-dialog'
+export const IPC_SYS_LIST_PRINTERS = 'sys:list-printers'
 export const IPC_SYS_WEBUI_STATUS = 'sys:webui-status'
 export const IPC_SYS_WEBUI_OPEN = 'sys:webui-open'
 export const IPC_SYS_WEBUI_REGEN_TOKEN = 'sys:webui-regen-token'

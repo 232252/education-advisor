@@ -2068,5 +2068,12 @@
   "page.grading.overlay.cornerBr": "BR",
   "page.grading.overlay.cornerBl": "BL",
   "page.grading.overlay.calibrationSample": "1) 9/12\n-2 units not converted\n-1 no force diagram",
-  "common.saveFailed": "Save failed"
+  "common.saveFailed": "Save failed",
+  "page.grading.overlay.printer": "Printer",
+  "page.grading.overlay.systemDefault": "System default",
+  "page.grading.overlay.silentPrint": "Silent batch print",
+  "page.grading.overlay.silentDoing": "Printing…",
+  "page.grading.overlay.silentOk": "Sent to printer — feed sheets in screen order",
+  "page.grading.overlay.silentFail": "Print failed",
+  "page.grading.overlay.silentCalib": "Uncheck the calibration sheet before silent printing"
 }

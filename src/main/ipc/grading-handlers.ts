@@ -4,7 +4,7 @@
 // grading:run 为异步作业: 启动即返回,进度经 IPC_GRADING_PROGRESS 推送。
 // =============================================================
 
-import type { PageQuad } from '@shared/grading-geometry'
+import { type PageQuad, paperSpecById, paperSpecToPrintPageSize } from '@shared/grading-geometry'
 import type { StudentCandidate } from '@shared/grading-helpers'
 import * as IPC from '@shared/ipc-channels'
 import type {
@@ -263,4 +263,31 @@ export function registerGradingHandlers(win: BrowserWindow): void {
       }
     },
   )
+
+  // 静默连打: 打印当前窗口(套打模式 DOM 已由打印 CSS 滤成纯红痕层);
+  // 参数写死 实际尺寸+无边距,根除驱动「适合页面」缩放风险
+  handleIpc(IPC.IPC_GRADING_OVERLAY_SILENT_PRINT, async (_e, taskId: string, opts: unknown) => {
+    if (typeof taskId !== 'string' || taskId.length === 0) {
+      throw new Error('taskId 必须是非空字符串')
+    }
+    const o = isRecord(opts) ? opts : {}
+    const specId = typeof o.paperSpecId === 'string' ? o.paperSpecId : undefined
+    const deviceName =
+      typeof o.deviceName === 'string' && o.deviceName.length > 0 ? o.deviceName : undefined
+    const pageSize = paperSpecToPrintPageSize(paperSpecById(specId))
+    return await new Promise<{ success: boolean; data?: { ok: boolean; reason?: string } }>(
+      (resolve) => {
+        win.webContents.print(
+          {
+            silent: true,
+            deviceName,
+            pageSize,
+            margins: { marginType: 'none' },
+            printBackground: true,
+          },
+          (ok, reason) => resolve({ success: true, data: { ok, reason } }),
+        )
+      },
+    )
+  })
 }

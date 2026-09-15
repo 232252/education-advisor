@@ -7,6 +7,7 @@
 // 版式规范: docs/research/2026-09-15-overlay-print-annotation-research.md
 // =============================================================
 
+import type { PrinterInfo } from '@shared/api/sys'
 import type { PageQuad, PaperSpec } from '@shared/grading-geometry'
 import { matchPaperSpec, PAPER_SPECS, paperSpecById, rescaleQuad } from '@shared/grading-geometry'
 import {
@@ -52,6 +53,52 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
   const [showCalibrationPage, setShowCalibrationPage] = useState(false)
   const [detecting, setDetecting] = useState(false)
   const [quadEditor, setQuadEditor] = useState<{ paperId: string; page: number } | null>(null)
+  const [printers, setPrinters] = useState<PrinterInfo[]>([])
+  const [deviceName, setDeviceName] = useState<string>(() => task.overlayPrint?.deviceName ?? '')
+  const [silentPrinting, setSilentPrinting] = useState(false)
+
+  // 打印机清单(静默连打选设备;取不到就留空走系统默认)
+  useEffect(() => {
+    let alive = true
+    getAPI()
+      .sys.listPrinters()
+      .then((res) => {
+        if (alive && res.success && res.data) setPrinters(res.data)
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // 静默连打: 参数写死 实际尺寸+无边距,按顺序出全部套打页
+  const silentPrint = async () => {
+    if (showCalibrationPage) {
+      toast.warning(t('page.grading.overlay.silentCalib', '请先取消勾选校准页,再静默连打'))
+      return
+    }
+    setSilentPrinting(true)
+    try {
+      if (deviceName) {
+        await getAPI().grading.saveOverlayPrint(task.id, { deviceName })
+      }
+      const res = await getAPI().grading.overlaySilentPrint(task.id, {
+        deviceName: deviceName || undefined,
+        paperSpecId: effectiveSpecId,
+      })
+      if (res.data?.ok) {
+        toast.success(t('page.grading.overlay.silentOk', '已发送到打印机,请按屏幕顺序放卷'))
+      } else {
+        toast.error(
+          res.data?.reason || res.error || t('page.grading.overlay.silentFail', '打印失败'),
+        )
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSilentPrinting(false)
+    }
+  }
 
   // 纸张规格: 未保存过时按首页图片宽高比给建议
   const suggestedSpecId = useMemo(() => {
@@ -102,10 +149,11 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
     })
   }, [views, task, sizes, spec, calibration])
 
-  // 纸张规格/校准持久化(跳过首帧)
+  // 纸张规格/校准/打印机持久化(跳过首帧)
   const savedRef = useRef({
     spec: task.overlayPrint?.paperSpecId,
     calib: task.overlayPrint?.calibration,
+    device: task.overlayPrint?.deviceName,
   })
   useEffect(() => {
     if (showCalibrationPage) return
@@ -115,19 +163,25 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
       const prev = savedRef.current.calib
       const wantSaveCalib =
         !prev || prev.dxMm !== c.dxMm || prev.dyMm !== c.dyMm || prev.scalePct !== c.scalePct
-      if (!wantSaveSpec && !wantSaveCalib) return
+      const wantSaveDevice = deviceName !== savedRef.current.device
+      if (!wantSaveSpec && !wantSaveCalib && !wantSaveDevice) return
       getAPI()
         .grading.saveOverlayPrint(task.id, {
           ...(wantSaveSpec ? { paperSpecId: specId } : {}),
           ...(wantSaveCalib ? { calibration: c } : {}),
+          ...(wantSaveDevice ? { deviceName } : {}),
         })
         .then(() => {
-          savedRef.current = { spec: wantSaveSpec ? specId : savedRef.current.spec, calib: c }
+          savedRef.current = {
+            spec: wantSaveSpec ? specId : savedRef.current.spec,
+            calib: c,
+            device: deviceName,
+          }
         })
         .catch(() => undefined)
     }, 500)
     return () => window.clearTimeout(timer)
-  }, [specId, calibration, task.id, showCalibrationPage])
+  }, [specId, calibration, task.id, showCalibrationPage, deviceName])
 
   // 自动定位四点(CV→AI 自动链)
   const detect = async () => {
@@ -244,6 +298,36 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
             />
             {t('page.grading.overlay.calibrationPage', '校准页')}
           </label>
+          {printers.length > 0 && (
+            <label className="flex items-center gap-1.5">
+              {t('page.grading.overlay.printer', '打印机')}
+              <select
+                value={deviceName}
+                onChange={(e) => setDeviceName(e.target.value)}
+                className="max-w-44 rounded border border-gray-300 bg-white px-1.5 py-0.5 dark:border-white/20 dark:bg-white/10"
+              >
+                <option value="">{t('page.grading.overlay.systemDefault', '系统默认')}</option>
+                {printers.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.displayName || p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button
+            type="button"
+            onClick={() => void silentPrint()}
+            disabled={silentPrinting}
+            className={cn(
+              'rounded px-2.5 py-1 font-medium text-white',
+              silentPrinting ? 'bg-gray-400' : 'bg-emerald-600 hover:bg-emerald-700',
+            )}
+          >
+            {silentPrinting
+              ? t('page.grading.overlay.silentDoing', '打印中…')
+              : t('page.grading.overlay.silentPrint', '静默连打')}
+          </button>
           <div className="ml-auto flex items-center gap-1 font-mono">
             <span className="text-gray-500">dx</span>
             <button
