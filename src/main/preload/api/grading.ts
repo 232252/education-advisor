@@ -56,4 +56,11 @@ export const gradingApi: GradingAPI = {
   refineRubric: (questions) => ipcInvoke(IPC.IPC_GRADING_REFINE_RUBRIC, questions),
   // [w] 从卷面手写姓名/编号识别归属(视觉模型;唯一命中才自动指派)
   identifyPapers: (taskId, roster) => ipcInvoke(IPC.IPC_GRADING_IDENTIFY_PAPERS, taskId, roster),
+  // [w] 套打回写: 全任务定位四点检测(CV→AI 自动链)
+  detectQuads: (taskId, opts) => ipcInvoke(IPC.IPC_GRADING_DETECT_QUADS, taskId, opts),
+  // [w] 套打回写: 保存单份试卷四点(人工四点校正)
+  saveQuads: (taskId, paperId, quads) =>
+    ipcInvoke(IPC.IPC_GRADING_SAVE_QUADS, taskId, paperId, quads),
+  // [w] 套打回写: 保存纸张规格与试打校准
+  saveOverlayPrint: (taskId, patch) => ipcInvoke(IPC.IPC_GRADING_SAVE_OVERLAY_PRINT, taskId, patch),
 }

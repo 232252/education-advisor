@@ -471,4 +471,21 @@ body {
     page-break-before: always;
     break-before: page;
   }
+
+  /* 套打回写: 每页一张纸,页间强制分页;垫底预览与控制面板不进打印 */
+  .print-root .overlay-page {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    page-break-after: always;
+    break-after: page;
+    box-shadow: none !important;
+  }
+  .print-root .overlay-paper:last-child .overlay-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  .print-root .overlay-underlay,
+  .print-root .overlay-screen-only {
+    display: none !important;
+  }
 }

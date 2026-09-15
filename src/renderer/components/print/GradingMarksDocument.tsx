@@ -22,8 +22,11 @@ export interface GradingMarksPaperView {
   imageUrls: string[]
 }
 
-/** 打印模式: 痕迹卷(原卷落痕) / 批阅报告(得分表+卷面) */
-export type GradingMarksMode = 'paper' | 'report'
+/**
+ * 打印模式: 痕迹卷(原卷落痕) / 批阅报告(得分表+卷面) / 回写原件(套打,
+ * 由 OverlayPrintDocument 渲染,本组件不处理该模式)。
+ */
+export type GradingMarksMode = 'paper' | 'report' | 'overlay'
 
 interface GradingMarksDocumentProps {
   task: Pick<GradingTask, 'name' | 'semester' | 'className' | 'examDate' | 'rubric'>

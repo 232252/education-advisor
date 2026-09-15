@@ -194,6 +194,12 @@ export const IPC_GRADING_EXTRACT_RUBRIC = 'grading:extract-rubric'
 export const IPC_GRADING_REFINE_RUBRIC = 'grading:refine-rubric'
 // 从卷面手写姓名/编号识别归属(视觉模型;唯一命中才自动指派)
 export const IPC_GRADING_IDENTIFY_PAPERS = 'grading:identify-papers'
+// 套打回写: 全任务定位四点检测(CV→AI 自动链,结果落库)
+export const IPC_GRADING_DETECT_QUADS = 'grading:detect-quads'
+// 套打回写: 保存单份试卷四点(人工四点校正/复检结果)
+export const IPC_GRADING_SAVE_QUADS = 'grading:save-quads'
+// 套打回写: 保存纸张规格与试打校准
+export const IPC_GRADING_SAVE_OVERLAY_PRINT = 'grading:save-overlay-print'
 
 // ===== 班级管理（本地：存档/删除） =====
 export const IPC_CLASS_LIST = 'class:list'

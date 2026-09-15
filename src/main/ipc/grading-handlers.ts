@@ -4,13 +4,20 @@
 // grading:run 为异步作业: 启动即返回,进度经 IPC_GRADING_PROGRESS 推送。
 // =============================================================
 
+import type { PageQuad } from '@shared/grading-geometry'
 import type { StudentCandidate } from '@shared/grading-helpers'
 import * as IPC from '@shared/ipc-channels'
-import type { GradingTaskStatus, RubricQuestion, TeacherReview } from '@shared/types'
+import type {
+  GradingTaskStatus,
+  OverlayPrintSettings,
+  RubricQuestion,
+  TeacherReview,
+} from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { abortGrading, regradePapers, startGrading } from '../services/grading/grading-pipeline'
 import { gradingService } from '../services/grading/grading-service'
 import { identifyUnassignedPapers } from '../services/grading/identify-papers'
+import { detectQuadsForTask } from '../services/grading/page-quad-detect'
 import { extractRubricFromImages } from '../services/grading/rubric-extract'
 import { refineRubricStandards } from '../services/grading/rubric-refine'
 import { invalidateOnExamsWrite, invalidateOnGradesWrite } from './academic/cache'
@@ -209,4 +216,51 @@ export function registerGradingHandlers(win: BrowserWindow): void {
     if (parsed.length === 0) throw new Error('学生名单不能为空')
     return { success: true, data: await identifyUnassignedPapers(taskId, parsed) }
   })
+
+  // ===== 套打回写 =====
+
+  // 全任务定位四点检测(CV→AI 自动链;useAiFallback=false 只跑本地 CV)
+  handleIpc(IPC.IPC_GRADING_DETECT_QUADS, async (_e, taskId: string, opts?: unknown) => {
+    if (typeof taskId !== 'string' || taskId.length === 0) {
+      throw new Error('taskId 必须是非空字符串')
+    }
+    const useAiFallback = !(isRecord(opts) && opts.useAiFallback === false)
+    const results = await detectQuadsForTask(taskId, { useAiFallback })
+    const task = await gradingService.getTask(taskId)
+    return { success: true, data: { task, results } }
+  })
+
+  // 保存单份试卷四点(人工四点校正)
+  handleIpc(
+    IPC.IPC_GRADING_SAVE_QUADS,
+    async (_e, taskId: string, paperId: string, quads: unknown) => {
+      if (typeof taskId !== 'string' || typeof paperId !== 'string') {
+        throw new Error('taskId/paperId 必须是字符串')
+      }
+      if (!Array.isArray(quads) || quads.length === 0) throw new Error('quads 必须是非空数组')
+      return {
+        success: true,
+        data: await gradingService.saveOverlayQuads(
+          taskId,
+          paperId,
+          quads as Array<PageQuad | null>,
+        ),
+      }
+    },
+  )
+
+  // 保存套打设置(纸张规格/试打校准)
+  handleIpc(
+    IPC.IPC_GRADING_SAVE_OVERLAY_PRINT,
+    async (_e, taskId: string, patch: OverlayPrintSettings) => {
+      if (typeof taskId !== 'string' || taskId.length === 0) {
+        throw new Error('taskId 必须是非空字符串')
+      }
+      if (!isRecord(patch)) throw new Error('patch 必须是对象')
+      return {
+        success: true,
+        data: await gradingService.saveOverlayPrintSettings(taskId, patch as never),
+      }
+    },
+  )
 }

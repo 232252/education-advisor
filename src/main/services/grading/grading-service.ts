@@ -9,6 +9,7 @@
 
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import { PAPER_SPECS, type PageQuad, quadIsUsable } from '@shared/grading-geometry'
 import type {
   AiGradeResult,
   GradingPaper,
@@ -16,6 +17,7 @@ import type {
   GradingStrictness,
   GradingTask,
   GradingTaskStatus,
+  OverlayPrintSettings,
   PaperFile,
   PaperIdentityRecord,
   RubricQuestion,
@@ -86,6 +88,11 @@ function assertPaperId(id: string): void {
 /** 存储文件名净化(保留中文,去路径分隔符等危险字符) */
 function safeStoredName(name: string): string {
   return name.replace(/[/\\:*?"<>|\s]+/g, '_').slice(-120)
+}
+
+/** 入参对象形状检查(四点/校准等松散结构用) */
+function isRecordLike(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null
 }
 
 /** MIME 由扩展名推导(白名单已保证) */
@@ -616,6 +623,113 @@ class GradingService {
         ...(identity.matched ? { matched: identity.matched } : {}),
         readAt: identity.readAt || new Date().toISOString(),
       }
+      task.updatedAt = new Date().toISOString()
+      await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
+      return task
+    })
+  }
+
+  // ===== 套打回写(定位四点/设置) =====
+
+  /** 校验并净化单页四点(非法返回 null) */
+  private sanitizeQuad(v: unknown): PageQuad | null {
+    if (v === null) return null
+    if (!isRecordLike(v)) return null
+    const source = v.source
+    if (source !== 'corner' && source !== 'anchors' && source !== 'ai' && source !== 'manual') {
+      return null
+    }
+    const pt = (p: unknown): { x: number; y: number } | null => {
+      if (!isRecordLike(p)) return null
+      const x = Number(p.x)
+      const y = Number(p.y)
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+      return { x, y }
+    }
+    const tl = pt(v.tl)
+    const tr = pt(v.tr)
+    const br = pt(v.br)
+    const bl = pt(v.bl)
+    const imageWidth = Number(v.imageWidth)
+    const imageHeight = Number(v.imageHeight)
+    const confidence = Number(v.confidence)
+    if (!tl || !tr || !br || !bl) return null
+    if (!Number.isFinite(imageWidth) || imageWidth <= 0) return null
+    if (!Number.isFinite(imageHeight) || imageHeight <= 0) return null
+    const quad: PageQuad = {
+      tl,
+      tr,
+      br,
+      bl,
+      source,
+      confidence: Number.isFinite(confidence) ? Math.min(Math.max(confidence, 0), 1) : 0.5,
+      imageWidth,
+      imageHeight,
+      ...(typeof v.detectedAt === 'string' && v.detectedAt.length > 0
+        ? { detectedAt: v.detectedAt }
+        : {}),
+    }
+    // 人工四点是最终真相,不再过几何可用性检查
+    if (source !== 'manual' && !quadIsUsable(quad)) return null
+    return quad
+  }
+
+  /**
+   * 套打定位四点落库(页下标对齐;自动检测/人工四点共用)。
+   * 单页不可用存 null(渲染层显示失败列表);整份无文件抛错。
+   */
+  async saveOverlayQuads(
+    taskId: string,
+    paperId: string,
+    quads: Array<PageQuad | null>,
+  ): Promise<GradingTask> {
+    assertTaskId(taskId)
+    assertPaperId(paperId)
+    if (!Array.isArray(quads) || quads.length === 0) throw new Error('quads 必须是非空数组')
+    if (quads.length > 20) throw new Error('单份试卷页数异常(>20)')
+    const cleaned = quads.map((q) => this.sanitizeQuad(q))
+    return this.withTaskLock(taskId, async () => {
+      const task = await this.getTask(taskId)
+      const paper = this.findPaper(task, paperId)
+      if (paper.files.length === 0) throw new Error('该试卷没有扫描件')
+      paper.overlayQuads = cleaned
+      task.updatedAt = new Date().toISOString()
+      await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
+      return task
+    })
+  }
+
+  /** 套打设置落库(纸张规格 + 试打校准);打印属读侧操作,不限任务状态 */
+  async saveOverlayPrintSettings(
+    taskId: string,
+    patch: OverlayPrintSettings,
+  ): Promise<GradingTask> {
+    assertTaskId(taskId)
+    if (patch.paperSpecId !== undefined) {
+      if (!PAPER_SPECS.some((s) => s.id === patch.paperSpecId)) {
+        throw new Error(`非法纸张规格: ${String(patch.paperSpecId)}`)
+      }
+    }
+    if (patch.calibration !== undefined) {
+      const c = patch.calibration
+      if (!isRecordLike(c)) throw new Error('calibration 必须是对象')
+      const scale = Number(c.scalePct)
+      const dx = Number(c.dxMm)
+      const dy = Number(c.dyMm)
+      if (!Number.isFinite(scale) || scale < 90 || scale > 110) {
+        throw new Error('scalePct 必须在 90–110 之间')
+      }
+      if (!Number.isFinite(dx) || Math.abs(dx) > 30) throw new Error('dxMm 必须在 ±30mm 内')
+      if (!Number.isFinite(dy) || Math.abs(dy) > 30) throw new Error('dyMm 必须在 ±30mm 内')
+    }
+    const nextSpecId = patch.paperSpecId
+    const nextCalibration = patch.calibration
+    return this.withTaskLock(taskId, async () => {
+      const task = await this.getTask(taskId)
+      const current: OverlayPrintSettings = { ...(task.overlayPrint ?? {}) }
+      if (nextSpecId !== undefined) current.paperSpecId = nextSpecId
+      if (nextCalibration !== undefined) current.calibration = nextCalibration
+      task.overlayPrint = current
       task.updatedAt = new Date().toISOString()
       await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
       return task
