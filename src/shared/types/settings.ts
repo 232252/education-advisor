@@ -133,6 +133,12 @@ export interface UnifiedSettings {
       allowGroups: boolean
       /** 该频道的消息交给哪个 Agent 处理(避免多渠道抢占 main 队列) */
       agentId: string
+      /** QwenPaw ACL / debounce(可选;缺省 open + requireMention) */
+      allowFrom?: string
+      aclDm?: string
+      aclGroup?: string
+      requireMention?: boolean
+      debounceMs?: number
     }
     dingtalk: {
       /** 连接开关(与运行状态正交) */

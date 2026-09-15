@@ -34,3 +34,5 @@ export const RECEIVED_FILES_DIR_NAME = 'feishu-files'
 export const RECEIVED_FILE_RETENTION_DAYS = 7
 /** 单个接收文件大小上限(100MB) */
 export const MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024
+/** 出站上传文件/图片上限(飞书官方 30MB,与 QwenPaw 一致) */
+export const FEISHU_FILE_MAX_BYTES = 30 * 1024 * 1024

@@ -18,6 +18,7 @@ import type { ReplySession } from '@shared/types'
 import { log } from '../../../../utils/logger'
 import { closeCardStream, createStreamingCard, sendCardReply, updateCardElement } from './api'
 import { STREAM_UPDATE_INTERVAL_MS } from './constants'
+import { addMessageReaction } from './reactions'
 import { sendReply } from './reply'
 
 // ReplySession 接口已提升为共享契约(@shared/types/channel)。
@@ -111,6 +112,7 @@ function createCardSession(token: string, cardId: string, initialText: string): 
         })
       await chain
       log('info', 'feishu-bot', `streaming card finalized (${text.length} chars)`)
+      addMessageReaction(deps.getSdkClient(), messageId, 'DONE', deps.getAccessToken)
     },
     async fail(errorText: string): Promise<void> {
       if (finished) return
@@ -126,6 +128,7 @@ function createCardSession(token: string, cardId: string, initialText: string): 
           await closeCardStream(token, cardId, ++sequence, summarize(errorText))
         })
       await chain
+      addMessageReaction(deps.getSdkClient(), messageId, 'DONE', deps.getAccessToken)
     },
   }
 }
@@ -142,11 +145,13 @@ function createTextFallbackSession(deps: ReplySessionDeps, messageId: string): R
       if (finished) return
       finished = true
       await sendReply(deps.getSdkClient(), messageId, finalText)
+      addMessageReaction(deps.getSdkClient(), messageId, 'DONE', deps.getAccessToken)
     },
     async fail(errorText: string): Promise<void> {
       if (finished) return
       finished = true
       await sendReply(deps.getSdkClient(), messageId, errorText)
+      addMessageReaction(deps.getSdkClient(), messageId, 'DONE', deps.getAccessToken)
     },
   }
 }

@@ -19,6 +19,7 @@ import type {
   ReplySession,
 } from '@shared/types'
 import type { FeishuDomain } from '../../../feishu-service'
+import { settingsService } from '../../../settings-service'
 import type { ChannelAdapter, ChannelRuntimeContext } from '../../types'
 import { feishuBotService } from './connection'
 import { APP_ID_PATTERN } from './constants'
@@ -26,7 +27,7 @@ import { validateCredentials } from './credentials'
 import { saveAttachment } from './file-receive'
 import { setFeishuBase } from './http-instance'
 import { FEISHU_MANIFEST_ID, feishuManifest } from './manifest'
-import { sendReply } from './reply'
+import { sendFeishuOutboundPush, sendFeishuOutboundReply } from './outbound'
 import { createReplySession } from './reply-session'
 import type { BotStatusInfo } from './types'
 
@@ -68,7 +69,13 @@ export class FeishuAdapter implements ChannelAdapter {
       feishuBotService.on('status', this.engineStatusHandler)
     }
     // start 对格式/凭证错误不抛错而是置 error 状态 — 转成异常交给 Manager 记 error
-    await feishuBotService.start(appId, appSecret, ctx.getWin(), domain)
+    const channelCfg = settingsService.getSettings().channels?.feishu
+    await feishuBotService.start(appId, appSecret, ctx.getWin(), domain, {
+      config: {
+        ...(channelCfg as Record<string, unknown> | undefined),
+        ...ctx.config,
+      },
+    })
     const st = feishuBotService.getStatus()
     if (st.status === 'error') {
       throw new Error(st.error ?? '飞书连接失败')
@@ -97,7 +104,14 @@ export class FeishuAdapter implements ChannelAdapter {
           : s.status === 'error'
             ? 'error'
             : 'disabled'
-    return { status, detail: s.error, connectedAt: s.connectedAt }
+    return {
+      status,
+      detail: s.error,
+      connectedAt: s.connectedAt,
+      lastMessageAt: s.lastMessageAt,
+      lastErrorAt: s.lastErrorAt,
+      reconnectAttempt: s.reconnectAttempt,
+    }
   }
 
   getStatus() {
@@ -110,25 +124,44 @@ export class FeishuAdapter implements ChannelAdapter {
   }
 
   async sendReply(msg: InboundMessage, content: OutboundContent): Promise<{ messageId?: string }> {
-    await sendReply(feishuBotService.getSdkClient(), msg.providerMessageId, content.text)
+    await sendFeishuOutboundReply({
+      sdkClient: feishuBotService.getSdkClient(),
+      getAccessToken: () => feishuBotService.getAccessToken(),
+      messageId: msg.providerMessageId,
+      text: content.text,
+      media: content.media,
+    })
     return {}
   }
 
   async push(target: PushTarget, content: OutboundContent): Promise<{ messageId?: string }> {
     const client = feishuBotService.getSdkClient()
     if (!client) throw new Error('飞书未连接,无法主动推送')
-    const res = (await client.im.message.create({
-      params: { receive_id_type: 'chat_id' },
-      data: {
-        receive_id: target.chatId,
-        content: JSON.stringify({ text: content.text }),
-        msg_type: 'text',
+    return sendFeishuOutboundPush({
+      sdkClient: client,
+      getAccessToken: () => feishuBotService.getAccessToken(),
+      chatId: target.chatId,
+      text: content.text,
+      media: content.media,
+    })
+  }
+
+  getHealthDiagnostics() {
+    const s = feishuBotService.getStatus()
+    return {
+      status: s.status,
+      detail: s.error,
+      connectedAt: s.connectedAt,
+      lastMessageAt: s.lastMessageAt,
+      lastErrorAt: s.lastErrorAt,
+      reconnectAttempt: s.reconnectAttempt ?? 0,
+      counters: {
+        processing: s.processingCount ?? 0,
+        pending: s.pendingCount ?? 0,
+        aclAllowFrom: feishuBotService.getAclSnapshot().allowFrom.length,
       },
-    })) as { code?: number; msg?: string; data?: { message_id?: string } }
-    if (typeof res.code === 'number' && res.code !== 0) {
-      throw new Error(`飞书推送失败(code=${res.code}): ${res.msg ?? ''}`)
+      lastError: s.error,
     }
-    return { messageId: res.data?.message_id }
   }
 
   createReplySession(msg: InboundMessage, placeholderText: string): Promise<ReplySession> {
