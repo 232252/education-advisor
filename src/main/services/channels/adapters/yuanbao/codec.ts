@@ -426,6 +426,76 @@ export function extractTextFromMsgBody(
   return parts.join('\n').trim()
 }
 
+
+
+export type YuanbaoInboundAttachment = {
+  type: 'image' | 'file' | 'audio'
+  url: string
+  name?: string
+  mimeType?: string
+  size?: number
+  width?: number
+  height?: number
+}
+
+const AUDIO_EXTS = new Set([
+  '.mp3', '.wav', '.m4a', '.ogg', '.opus', '.silk', '.amr', '.aac', '.flac',
+])
+
+function classifyFilename(name: string): 'audio' | 'file' {
+  const i = name.lastIndexOf('.')
+  const ext = i >= 0 ? name.slice(i).toLowerCase() : ''
+  return AUDIO_EXTS.has(ext) ? 'audio' : 'file'
+}
+
+/** Extract image/file/audio attachments from inbound msg_body (QwenPaw _parse_msg_body). */
+export function extractAttachmentsFromMsgBody(
+  body: Array<{ msg_type: string; msg_content: Record<string, unknown> }>,
+): YuanbaoInboundAttachment[] {
+  const out: YuanbaoInboundAttachment[] = []
+  for (const el of body) {
+    const content = el.msg_content ?? {}
+    if (el.msg_type === 'TIMImageElem') {
+      let imageUrl = ''
+      const arr = content.image_info_array
+      if (Array.isArray(arr)) {
+        for (const info of arr) {
+          if (info && typeof info === 'object' && typeof (info as { url?: string }).url === 'string') {
+            imageUrl = (info as { url: string }).url
+            break
+          }
+        }
+      }
+      if (!imageUrl && typeof content.url === 'string') imageUrl = content.url
+      if (imageUrl) {
+        const first = Array.isArray(arr) && arr[0] && typeof arr[0] === 'object' ? (arr[0] as Record<string, unknown>) : {}
+        out.push({
+          type: 'image',
+          url: imageUrl,
+          name: 'image.jpg',
+          mimeType: 'image/jpeg',
+          size: typeof first.size === 'number' ? first.size : undefined,
+          width: typeof first.width === 'number' ? first.width : undefined,
+          height: typeof first.height === 'number' ? first.height : undefined,
+        })
+      }
+    } else if (el.msg_type === 'TIMFileElem') {
+      const fileUrl = typeof content.url === 'string' ? content.url : ''
+      const filename = (typeof content.file_name === 'string' && content.file_name) || 'file'
+      if (fileUrl) {
+        const kind = classifyFilename(filename)
+        out.push({
+          type: kind,
+          url: fileUrl,
+          name: filename,
+          size: typeof content.file_size === 'number' ? content.file_size : undefined,
+        })
+      }
+    }
+  }
+  return out
+}
+
 /** Reset module state (tests). */
 export function resetCodecForTests(): void {
   root = null
