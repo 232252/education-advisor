@@ -14,7 +14,6 @@ import type { ReplySession } from '@shared/types'
 import { app, type BrowserWindow, powerMonitor } from 'electron'
 import { errText } from '../../../../utils/err-text'
 import { log } from '../../../../utils/logger'
-import { settingsService } from '../../../settings-service'
 import { runAgentStreaming } from '../../bridge/agent-runner'
 import { createCommandContext } from '../../bridge/command-context'
 import { createChannelPipeline } from '../../bridge/pipeline'
@@ -24,7 +23,7 @@ import { MessageDedupCache } from '../../runtime/dedup-cache'
 import { RecentFilesStore } from '../../runtime/recent-files'
 import { DingtalkApiClient, type FetchLike } from './api'
 import { RECEIVED_FILES_DIR_NAME } from './constants'
-import { parseDingtalkMessage, type DingtalkDeliveryInfo } from './parsing'
+import { type DingtalkDeliveryInfo, parseDingtalkMessage } from './parsing'
 import { createDingtalkReplySession } from './reply-session'
 import { DingtalkStreamClient, type WsFactory } from './stream-client'
 
@@ -126,7 +125,11 @@ class DingtalkBotService extends EventEmitter {
 
     this.currentClientId = clientId
     this.setStatus('connecting')
-    this.creds = { clientId, clientSecret, cardTemplateId: opts.cardTemplateId?.trim() || undefined }
+    this.creds = {
+      clientId,
+      clientSecret,
+      cardTemplateId: opts.cardTemplateId?.trim() || undefined,
+    }
 
     // 凭证预检(不建长连接): 错凭证立即报错而非无限"连接中"
     const api = new DingtalkApiClient({ clientId, clientSecret, fetchImpl: opts.fetchImpl })

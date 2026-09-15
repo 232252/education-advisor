@@ -174,4 +174,4 @@ export function createMqttAdapter(): ChannelAdapter {
   return new MqttChannelAdapter()
 }
 
-export { mqttManifest, MQTT_MANIFEST_ID }
+export { MQTT_MANIFEST_ID, mqttManifest }

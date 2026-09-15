@@ -19,7 +19,7 @@ import {
   QQ_OP_RESUME,
   QQ_RECONNECT_DELAYS_MS,
 } from './constants'
-import { fetchQqAccessToken, fetchQqGatewayUrl, type FetchLike } from './token'
+import { type FetchLike, fetchQqAccessToken, fetchQqGatewayUrl } from './token'
 
 /** WebSocket 最小接口(与钉钉 WsLike 同构;测试可注入假实现) */
 export interface WsLike {
@@ -69,19 +69,14 @@ export class QqGatewayClient extends EventEmitter {
     this.stopped = false
     this.emit('status', 'connecting')
     const fetchImpl = this.opts.fetchImpl ?? fetch
-    const tokenCache = await fetchQqAccessToken(
-      this.opts.appId,
-      this.opts.clientSecret,
-      fetchImpl,
-    )
+    const tokenCache = await fetchQqAccessToken(this.opts.appId, this.opts.clientSecret, fetchImpl)
     this.accessToken = tokenCache.accessToken
     const url = await fetchQqGatewayUrl(
       tokenCache.accessToken,
       this.opts.apiBase || QQ_DEFAULT_API_BASE,
       fetchImpl,
     )
-    const factory =
-      this.opts.wsFactory ?? ((u: string) => new WebSocket(u) as unknown as WsLike)
+    const factory = this.opts.wsFactory ?? ((u: string) => new WebSocket(u) as unknown as WsLike)
     const ws = factory(url)
     this.ws = ws
 
@@ -216,9 +211,8 @@ export class QqGatewayClient extends EventEmitter {
     if (this.stopped) return
     if (this.reconnectTimer) return
     const delay =
-      QQ_RECONNECT_DELAYS_MS[
-        Math.min(this.reconnectAttempt, QQ_RECONNECT_DELAYS_MS.length - 1)
-      ] ?? 30_000
+      QQ_RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, QQ_RECONNECT_DELAYS_MS.length - 1)] ??
+      30_000
     this.reconnectAttempt++
     this.emit('reconnect', this.reconnectAttempt, delay)
     this.reconnectTimer = setTimeout(() => {

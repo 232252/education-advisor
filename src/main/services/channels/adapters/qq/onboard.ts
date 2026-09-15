@@ -9,12 +9,7 @@ import {
   QQ_POLL_BIND_PATH,
   QQ_PORTAL_HOST,
 } from './constants'
-import {
-  decodePollToken,
-  decryptBindSecret,
-  encodePollToken,
-  generateBindKey,
-} from './crypto-bind'
+import { decodePollToken, decryptBindSecret, encodePollToken, generateBindKey } from './crypto-bind'
 
 export type FetchLike = typeof fetch
 
@@ -25,7 +20,10 @@ export interface QqQrBeginResult {
 
 export type QqQrPollResult =
   | { status: 'pending' | 'scanned' | 'expired' | 'error'; message?: string }
-  | { status: 'confirmed'; credentials: { appId: string; clientSecret: string; userOpenId?: string } }
+  | {
+      status: 'confirmed'
+      credentials: { appId: string; clientSecret: string; userOpenId?: string }
+    }
 
 export async function beginQqQrBind(fetchImpl: FetchLike = fetch): Promise<QqQrBeginResult> {
   const aesKey = generateBindKey()

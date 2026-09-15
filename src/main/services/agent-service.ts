@@ -127,12 +127,18 @@ class AgentService {
    * main 的运行走自己的串行队列,结果经状态事件/飞书推送呈现。
    */
   private readonly escalationBridge: EscalationToolDeps = {
-      enqueueMainReport: async (text) => {
+    enqueueMainReport: async (text) => {
       try {
         const main = this.agents.get('main')
         if (!main?.enabled) return false
         // M0: 后台上报触发的 main 运行标 'cron'(非用户即时操作,不进聊天流、不受 UI abort)
-        void this.runAgent('main', text, undefined as unknown as BrowserWindow, undefined, 'cron').catch((err) =>
+        void this.runAgent(
+          'main',
+          text,
+          undefined as unknown as BrowserWindow,
+          undefined,
+          'cron',
+        ).catch((err) =>
           console.warn(
             '[AgentService] escalated main run failed:',
             err instanceof Error ? err.message : err,
@@ -479,11 +485,7 @@ class AgentService {
    *  opts.force: 进程退出(shutdown)等场景无视来源强制中止。
    *  排队任务的 abort 不区分来源(runQueue 只按代数清理,历史语义保留)。
    */
-  async abortAgent(
-    id: string,
-    win?: BrowserWindow,
-    opts?: { force?: boolean },
-  ): Promise<boolean> {
+  async abortAgent(id: string, win?: BrowserWindow, opts?: { force?: boolean }): Promise<boolean> {
     const running = this.runningAgents.get(id)
     if (running && !opts?.force && running.source && running.source !== 'ui') {
       const queued = this.runQueue.abortQueued(id)

@@ -9,10 +9,10 @@
 import * as IPC from '@shared/ipc-channels'
 import type { UnifiedSettings } from '@shared/types'
 import { app, type BrowserWindow } from 'electron'
+import { feishuBotService } from '../services/channels/adapters/feishu/connection'
 import { channelManager } from '../services/channels/manager'
 import { cronService } from '../services/cron-service'
 import { TtlLruCache } from '../services/eaa-cache'
-import { feishuBotService } from '../services/channels/adapters/feishu/connection'
 import { keystoreService } from '../services/keystore-service'
 import { settingsService } from '../services/settings-service'
 import { syncNativeTheme } from '../services/theme-service'
@@ -58,7 +58,7 @@ const ENUM_VALIDATORS: Record<string, readonly string[]> = {
   'channels.feishu.domain': ['feishu', 'lark'],
 }
 
-export function registerSettingsHandlers(win: BrowserWindow) {
+export function registerSettingsHandlers(_win: BrowserWindow) {
   // 启动时同步 autoStart 设置到系统
   const currentSettings = settingsService.getSettings()
   app.setLoginItemSettings({ openAtLogin: currentSettings.general.autoStart })

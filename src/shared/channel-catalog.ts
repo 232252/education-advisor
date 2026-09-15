@@ -29,7 +29,11 @@ export interface ChannelCatalogGroup {
 
 /** 分组展示顺序(国内优先) */
 export const CHANNEL_CATALOG_GROUPS: ChannelCatalogGroup[] = [
-  { id: 'enterprise-im', labelKey: 'connectionCenter.more.group.enterprise', labelDefault: '国内企业' },
+  {
+    id: 'enterprise-im',
+    labelKey: 'connectionCenter.more.group.enterprise',
+    labelDefault: '国内企业',
+  },
   { id: 'consumer-im', labelKey: 'connectionCenter.more.group.consumer', labelDefault: '国内个人' },
   { id: 'assistant', labelKey: 'connectionCenter.more.group.assistant', labelDefault: '国内助手' },
   { id: 'email', labelKey: 'connectionCenter.more.group.email', labelDefault: '邮件' },
@@ -98,9 +102,7 @@ export function filterCatalogManifests(
   const q = query.trim().toLowerCase()
   if (!q) return manifests
   return manifests.filter((m) => {
-    const hay = [m.id, m.label, m.description, m.qwenpawKey ?? '', m.icon]
-      .join('\n')
-      .toLowerCase()
+    const hay = [m.id, m.label, m.description, m.qwenpawKey ?? '', m.icon].join('\n').toLowerCase()
     return hay.includes(q)
   })
 }
@@ -161,7 +163,8 @@ export function buildQwenpawPendingManifests(): ChannelManifest[] {
     {
       id: 'sip',
       label: 'SIP 语音',
-      description: 'SIP/RTP 或 LiveKit 语音边车 + STT/TTS。建议独立「语音」分区,不宜硬塞纯文本 IM。',
+      description:
+        'SIP/RTP 或 LiveKit 语音边车 + STT/TTS。建议独立「语音」分区,不宜硬塞纯文本 IM。',
       icon: 'sip',
       category: 'voice',
       region: 'neutral',

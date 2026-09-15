@@ -21,8 +21,9 @@ export class MattermostChannelAdapter implements ChannelAdapter {
   private status: ChannelRunStatus = 'disabled'
   private detail?: string
   private connectedAt?: number
-  private lastMessageAt?: number
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: connect() 写入、异步收包回调读取,规则误报
   private ctx: ChannelRuntimeContext | null = null
+  private lastMessageAt?: number
   private baseUrl = ''
   private botToken = ''
   private botUserId = ''
@@ -60,7 +61,7 @@ export class MattermostChannelAdapter implements ChannelAdapter {
     }
     this.botUserId = String((me.json as { id?: string } | null)?.id ?? '')
 
-    const wsUrl = this.baseUrl.replace(/^http/, 'ws') + '/api/v4/websocket'
+    const wsUrl = `${this.baseUrl.replace(/^http/, 'ws')}/api/v4/websocket`
     await new Promise<void>((resolve, reject) => {
       const ws = new WebSocket(wsUrl, {
         headers: { Authorization: `Bearer ${this.botToken}` },
@@ -196,7 +197,8 @@ export class MattermostChannelAdapter implements ChannelAdapter {
       },
       body: JSON.stringify({ channel_id, message: outboundText(content) }),
     })
-    if (!res.ok) throw new Error(`Mattermost 发送失败 HTTP ${res.status}: ${res.text.slice(0, 200)}`)
+    if (!res.ok)
+      throw new Error(`Mattermost 发送失败 HTTP ${res.status}: ${res.text.slice(0, 200)}`)
     return { messageId: (res.json as { id?: string } | null)?.id }
   }
 }
@@ -205,4 +207,4 @@ export function createMattermostAdapter(): ChannelAdapter {
   return new MattermostChannelAdapter()
 }
 
-export { mattermostManifest, MATTERMOST_MANIFEST_ID }
+export { MATTERMOST_MANIFEST_ID, mattermostManifest }

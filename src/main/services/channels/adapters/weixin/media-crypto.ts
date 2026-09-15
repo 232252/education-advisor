@@ -16,7 +16,9 @@ function pkcs7Unpad(data: Buffer): Buffer {
   if (data.length === 0 || data.length % BLOCK !== 0) {
     throw new Error('Invalid PKCS7 block length')
   }
-  const pad = data[data.length - 1]!
+  const padByte = data[data.length - 1]
+  if (padByte === undefined) throw new Error('Invalid PKCS7 block length')
+  const pad = padByte
   if (pad < 1 || pad > BLOCK) throw new Error('Invalid PKCS7 padding')
   for (let i = 0; i < pad; i++) {
     if (data[data.length - 1 - i] !== pad) throw new Error('Invalid PKCS7 padding bytes')

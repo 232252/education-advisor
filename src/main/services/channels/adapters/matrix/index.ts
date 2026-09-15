@@ -20,8 +20,9 @@ export class MatrixChannelAdapter implements ChannelAdapter {
   private status: ChannelRunStatus = 'disabled'
   private detail?: string
   private connectedAt?: number
-  private lastMessageAt?: number
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: connect() 写入、异步收包回调读取,规则误报
   private ctx: ChannelRuntimeContext | null = null
+  private lastMessageAt?: number
   private homeserver = ''
   private userId = ''
   private accessToken = ''
@@ -200,4 +201,4 @@ export function createMatrixAdapter(): ChannelAdapter {
   return new MatrixChannelAdapter()
 }
 
-export { matrixManifest, MATRIX_MANIFEST_ID }
+export { MATRIX_MANIFEST_ID, matrixManifest }

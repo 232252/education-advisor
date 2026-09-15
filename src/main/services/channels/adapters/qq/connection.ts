@@ -11,11 +11,11 @@ import { log } from '../../../../utils/logger'
 import { runAgentStreaming } from '../../bridge/agent-runner'
 import { createCommandContext } from '../../bridge/command-context'
 import { createChannelPipeline } from '../../bridge/pipeline'
+import { writeAttachmentBytes } from '../../runtime/attachment-store'
 import { ChatMessageQueue } from '../../runtime/chat-queue'
 import { type CommandRouter, createDefaultRouter } from '../../runtime/command/router'
 import { MessageDedupCache } from '../../runtime/dedup-cache'
 import { RecentFilesStore } from '../../runtime/recent-files'
-import { writeAttachmentBytes } from '../../runtime/attachment-store'
 import { QqApiClient } from './api'
 import { RECEIVED_FILES_DIR_NAME } from './constants'
 import { QqGatewayClient, type WsFactory } from './gateway'
@@ -53,6 +53,7 @@ class QqBotService extends EventEmitter {
   private pipeline: { queue: ChatMessageQueue; activeSessions: Set<ReplySession> } | null = null
   private readonly recentFiles = new RecentFilesStore()
   private filesDir = ''
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: stop() 置位、轮询/重连回调读取,规则误报
   private userStopped = false
   private readonly deliveries = new Map<string, QqDeliveryInfo>()
   private fetchImpl: FetchLike = fetch
@@ -192,7 +193,6 @@ class QqBotService extends EventEmitter {
     }
   }
 
-
   /** 统一引擎出站:按 providerMessageId 查投递缓存后 replyOutbound */
   async replyOutboundFromMessage(
     providerMessageId: string,
@@ -224,7 +224,10 @@ class QqBotService extends EventEmitter {
 
   private async downloadAttachment(
     att: InboundAttachment,
-  ): Promise<{ ok: true; saved: { name: string; path: string; bytes: number } } | { ok: false; error: string }> {
+  ): Promise<
+    | { ok: true; saved: { name: string; path: string; bytes: number } }
+    | { ok: false; error: string }
+  > {
     const url = att.fileKey
     if (!/^https?:\/\//i.test(url)) return { ok: false, error: '无效的 QQ 附件 URL' }
     try {
@@ -256,9 +259,7 @@ class QqBotService extends EventEmitter {
     if (!queue) return
     if (!queue.submit({ parsed: result.parsed })) {
       log('warn', 'qq', `pending queue full (${queue.pendingCount}), drop`)
-      void this.api
-        ?.replyText(result.delivery, '当前消息队列繁忙,请稍后重试')
-        .catch(() => {})
+      void this.api?.replyText(result.delivery, '当前消息队列繁忙,请稍后重试').catch(() => {})
     }
   }
 
@@ -309,4 +310,3 @@ class QqBotService extends EventEmitter {
 }
 
 export const qqBotService = new QqBotService()
-

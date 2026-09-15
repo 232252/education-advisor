@@ -32,6 +32,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
   private detail?: string
   private connectedAt?: number
   private lastMessageAt?: number
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: connect() 写入、异步收包回调读取,规则误报
   private ctx: ChannelRuntimeContext | null = null
   private token = ''
   private apiBase = 'https://api.telegram.org'
@@ -84,10 +85,9 @@ export class TelegramChannelAdapter implements ChannelAdapter {
   private async pollLoop(ctx: ChannelRuntimeContext): Promise<void> {
     while (!this.stopRequested) {
       try {
-        const res = await jsonFetch(
-          `${this.api('getUpdates')}?timeout=25&offset=${this.offset}`,
-          { timeoutMs: 35_000 },
-        )
+        const res = await jsonFetch(`${this.api('getUpdates')}?timeout=25&offset=${this.offset}`, {
+          timeoutMs: 35_000,
+        })
         const body = res.json as { ok?: boolean; result?: TgUpdate[] } | null
         if (!res.ok || !body?.ok) {
           throw new Error(res.text.slice(0, 200) || `HTTP ${res.status}`)
@@ -157,10 +157,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     return this.push({ chatId: msg.chat.id }, content)
   }
 
-  async createReplySession(
-    msg: InboundMessage,
-    placeholderText: string,
-  ): Promise<ReplySession> {
+  async createReplySession(msg: InboundMessage, placeholderText: string): Promise<ReplySession> {
     const sent = await this.sendReply(msg, { kind: 'text', text: placeholderText })
     const messageId = sent.messageId
     const chatId = msg.chat.id
@@ -202,11 +199,17 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         text: outboundText(content).slice(0, 4096),
       }),
     })
-    const body = res.json as { ok?: boolean; result?: { message_id?: number }; description?: string } | null
+    const body = res.json as {
+      ok?: boolean
+      result?: { message_id?: number }
+      description?: string
+    } | null
     if (!res.ok || !body?.ok) {
       throw new Error(body?.description || res.text.slice(0, 200) || `HTTP ${res.status}`)
     }
-    return { messageId: body.result?.message_id != null ? String(body.result.message_id) : undefined }
+    return {
+      messageId: body.result?.message_id != null ? String(body.result.message_id) : undefined,
+    }
   }
 }
 
@@ -214,4 +217,4 @@ export function createTelegramAdapter(): ChannelAdapter {
   return new TelegramChannelAdapter()
 }
 
-export { telegramManifest, TELEGRAM_MANIFEST_ID }
+export { TELEGRAM_MANIFEST_ID, telegramManifest }

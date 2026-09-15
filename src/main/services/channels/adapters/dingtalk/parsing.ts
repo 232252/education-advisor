@@ -158,7 +158,13 @@ export function parseDingtalkMessage(
       const recognition = str(content.recognition)
       const text = recognition || '[语音消息]'
       const attachments = downloadCode
-        ? [{ kind: 'file' as const, fileKey: downloadCode, fileName: str(content.fileName) || 'voice.amr' }]
+        ? [
+            {
+              kind: 'file' as const,
+              fileKey: downloadCode,
+              fileName: str(content.fileName) || 'voice.amr',
+            },
+          ]
         : []
       return { parsed: { ...base, text, attachments }, delivery }
     }

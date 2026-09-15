@@ -62,7 +62,9 @@ export function parseQqDispatchEvent(
 ): ParsedQqIncoming | null {
   if (!data || typeof data !== 'object') return null
   const d = data as Record<string, unknown>
-  const text = extractContent(d).replace(/^<@!\d+>\s*/, '').trim()
+  const text = extractContent(d)
+    .replace(/^<@!\d+>\s*/, '')
+    .trim()
   const attachments = extractQqAttachments(d)
   if (!text && attachments.length === 0) return null
 

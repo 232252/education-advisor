@@ -6,6 +6,7 @@
 // body + fixed,贴侧栏右缘、底部对齐锚点。
 // =============================================================
 
+import { pickPrimaryChannelIds } from '@shared/channel-catalog'
 import type { ChannelInstanceInfo, ChannelStatusInfo } from '@shared/types'
 import { LayoutGrid, PlugZap, Settings, X } from 'lucide-react'
 import { type RefObject, useEffect, useLayoutEffect, useState } from 'react'
@@ -14,7 +15,6 @@ import { useNavigate } from 'react-router-dom'
 import { tr, useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { cn } from '../../lib/ui-utils'
-import { pickPrimaryChannelIds } from '@shared/channel-catalog'
 import { ChannelRow } from './ChannelRow'
 import { MoreChannelsDrawer } from './MoreChannelsDrawer'
 import { WebUiConnectBlock } from './WebUiConnectBlock'
@@ -95,7 +95,10 @@ export function ConnectionCenterPanel({
   }
 
   // 主列表精简:国内优先已启用(≤6);「更多」展示全量目录
-  const primaryIds = pickPrimaryChannelIds(instances.map((i) => i.manifest), 6)
+  const primaryIds = pickPrimaryChannelIds(
+    instances.map((i) => i.manifest),
+    6,
+  )
   const primarySet = new Set(primaryIds)
   const primaryInstances = instances.filter((i) => primarySet.has(i.manifest.id))
   const real = instances.filter((i) => {
@@ -117,137 +120,137 @@ export function ConnectionCenterPanel({
 
   return createPortal(
     <>
-    <div
-      ref={panelRef}
-      data-testid="connection-center-panel"
-      className="fixed w-[400px] max-w-[calc(100vw-16px)] bg-white dark:bg-surface-elevated rounded-xl shadow-2xl dark:shadow-[0_24px_64px_rgba(0,0,0,0.6)] dark:ring-1 dark:ring-white/[0.07] border border-gray-200/60 dark:border-white/[0.08] overflow-hidden z-[65] animate-slide-in-left flex flex-col max-h-[min(560px,calc(100vh-16px))]"
-      style={{ left: pos.left, bottom: pos.bottom }}
-    >
-      {/* 头部: 品牌瓦片(§10.1,与频道瓦片同语言) + 标题 + 汇总 pill + 关闭 */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-200/70 dark:border-white/[0.07]">
-        <span
-          aria-hidden
-          className={cn(
-            'w-6 h-6 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500',
-            'ring-1 ring-white/20 shadow-[0_2px_8px_rgba(59,130,246,0.35)]',
-            'flex items-center justify-center flex-shrink-0',
-          )}
-        >
-          <PlugZap size={13} className="text-white" />
-        </span>
-        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight flex-1">
-          {t('connectionCenter.title', '连接中心')}
-        </div>
-        {real.length > 0 && (
+      <div
+        ref={panelRef}
+        data-testid="connection-center-panel"
+        className="fixed w-[400px] max-w-[calc(100vw-16px)] bg-white dark:bg-surface-elevated rounded-xl shadow-2xl dark:shadow-[0_24px_64px_rgba(0,0,0,0.6)] dark:ring-1 dark:ring-white/[0.07] border border-gray-200/60 dark:border-white/[0.08] overflow-hidden z-[65] animate-slide-in-left flex flex-col max-h-[min(560px,calc(100vh-16px))]"
+        style={{ left: pos.left, bottom: pos.bottom }}
+      >
+        {/* 头部: 品牌瓦片(§10.1,与频道瓦片同语言) + 标题 + 汇总 pill + 关闭 */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-200/70 dark:border-white/[0.07]">
           <span
+            aria-hidden
             className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ring-1',
-              summaryTone,
+              'w-6 h-6 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500',
+              'ring-1 ring-white/20 shadow-[0_2px_8px_rgba(59,130,246,0.35)]',
+              'flex items-center justify-center flex-shrink-0',
             )}
           >
-            {tr(
-              'connectionCenter.summary',
-              { n: String(connectedCount), m: String(real.length) },
-              '{n}/{m} 已连接',
-            )}
+            <PlugZap size={13} className="text-white" />
           </span>
-        )}
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('common.close', '关闭')}
-          className="p-1 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.08] transition-colors"
-        >
-          <X size={14} />
-        </button>
-      </div>
-
-      {/* 内容区 */}
-      <div className="overflow-y-auto">
-        {/* ── 消息频道 ── */}
-        <div className="px-4 pt-3 pb-1 text-[10px] uppercase tracking-widest font-semibold text-gray-400 dark:text-gray-500">
-          {t('connectionCenter.section.channels', '消息频道')}
-        </div>
-        <div className="mx-3 mb-1 rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-gray-50/60 dark:bg-white/[0.02] divide-y divide-gray-100 dark:divide-white/[0.04] overflow-hidden">
-          {primaryInstances.length === 0 ? (
-            <p className="px-3 py-4 text-xs text-gray-400 dark:text-gray-500">
-              {t('settings.channels.empty', '没有可用渠道')}
-            </p>
-          ) : (
-            primaryInstances.map((info) => (
-              <ChannelRow
-                key={info.manifest.id}
-                info={info}
-                liveStatus={liveStatus[info.manifest.id]}
-                onConfigure={() => openSettings(`#channel-${info.manifest.id}`)}
-              />
-            ))
+          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight flex-1">
+            {t('connectionCenter.title', '连接中心')}
+          </div>
+          {real.length > 0 && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ring-1',
+                summaryTone,
+              )}
+            >
+              {tr(
+                'connectionCenter.summary',
+                { n: String(connectedCount), m: String(real.length) },
+                '{n}/{m} 已连接',
+              )}
+            </span>
           )}
-        </div>
-
-        {/* 「更多」入口 → Drawer 全量目录 */}
-        <div className="mx-3 mb-2">
           <button
             type="button"
-            data-testid="connection-center-more"
-            onClick={() => setMoreOpen(true)}
-            className={cn(
-              'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl',
-              'border border-dashed border-gray-300/80 dark:border-white/[0.12]',
-              'bg-white/60 dark:bg-white/[0.02]',
-              'hover:border-blue-400/60 hover:bg-blue-50/50 dark:hover:bg-blue-500/10',
-              'transition-colors text-left',
-            )}
+            onClick={onClose}
+            aria-label={t('common.close', '关闭')}
+            className="p-1 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.08] transition-colors"
           >
-            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center ring-1 ring-white/15 flex-shrink-0">
-              <LayoutGrid size={14} className="text-white" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-xs font-medium text-gray-800 dark:text-gray-200">
-                {t('connectionCenter.more.entry', '更多')}
-              </span>
-              <span className="block text-[11px] text-gray-500 dark:text-gray-400 truncate">
-                {t('connectionCenter.more.entryHint', '浏览全部频道目录 →')}
-              </span>
-            </span>
+            <X size={14} />
           </button>
         </div>
 
-        {/* ── 手机 / 浏览器接入 ── */}
-        <div className="px-4 pt-3 pb-1 text-[10px] uppercase tracking-widest font-semibold text-gray-400 dark:text-gray-500">
-          {t('connectionCenter.section.remote', '手机 / 浏览器接入')}
-        </div>
-        <div className="mx-3 mb-2 rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-gray-50/60 dark:bg-white/[0.02] overflow-hidden">
-          <WebUiConnectBlock onOpenSettings={openSettings} />
-        </div>
-      </div>
+        {/* 内容区 */}
+        <div className="overflow-y-auto">
+          {/* ── 消息频道 ── */}
+          <div className="px-4 pt-3 pb-1 text-[10px] uppercase tracking-widest font-semibold text-gray-400 dark:text-gray-500">
+            {t('connectionCenter.section.channels', '消息频道')}
+          </div>
+          <div className="mx-3 mb-1 rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-gray-50/60 dark:bg-white/[0.02] divide-y divide-gray-100 dark:divide-white/[0.04] overflow-hidden">
+            {primaryInstances.length === 0 ? (
+              <p className="px-3 py-4 text-xs text-gray-400 dark:text-gray-500">
+                {t('settings.channels.empty', '没有可用渠道')}
+              </p>
+            ) : (
+              primaryInstances.map((info) => (
+                <ChannelRow
+                  key={info.manifest.id}
+                  info={info}
+                  liveStatus={liveStatus[info.manifest.id]}
+                  onConfigure={() => openSettings(`#channel-${info.manifest.id}`)}
+                />
+              ))
+            )}
+          </div>
 
-      {/* 底栏: 完整设置 + 快捷键提示 */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-t border-gray-200/70 dark:border-white/[0.07]">
-        <button
-          type="button"
-          onClick={() => openSettings('#connection')}
-          className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-        >
-          <Settings size={12} />
-          {t('connectionCenter.openSettings', '完整设置')} →
-        </button>
-        <div className="flex-1" />
-        <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/[0.06] text-gray-400 dark:text-gray-500">
-          Alt+C
-        </kbd>
+          {/* 「更多」入口 → Drawer 全量目录 */}
+          <div className="mx-3 mb-2">
+            <button
+              type="button"
+              data-testid="connection-center-more"
+              onClick={() => setMoreOpen(true)}
+              className={cn(
+                'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl',
+                'border border-dashed border-gray-300/80 dark:border-white/[0.12]',
+                'bg-white/60 dark:bg-white/[0.02]',
+                'hover:border-blue-400/60 hover:bg-blue-50/50 dark:hover:bg-blue-500/10',
+                'transition-colors text-left',
+              )}
+            >
+              <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center ring-1 ring-white/15 flex-shrink-0">
+                <LayoutGrid size={14} className="text-white" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-medium text-gray-800 dark:text-gray-200">
+                  {t('connectionCenter.more.entry', '更多')}
+                </span>
+                <span className="block text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                  {t('connectionCenter.more.entryHint', '浏览全部频道目录 →')}
+                </span>
+              </span>
+            </button>
+          </div>
+
+          {/* ── 手机 / 浏览器接入 ── */}
+          <div className="px-4 pt-3 pb-1 text-[10px] uppercase tracking-widest font-semibold text-gray-400 dark:text-gray-500">
+            {t('connectionCenter.section.remote', '手机 / 浏览器接入')}
+          </div>
+          <div className="mx-3 mb-2 rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-gray-50/60 dark:bg-white/[0.02] overflow-hidden">
+            <WebUiConnectBlock onOpenSettings={openSettings} />
+          </div>
+        </div>
+
+        {/* 底栏: 完整设置 + 快捷键提示 */}
+        <div className="flex items-center gap-2 px-4 py-2.5 border-t border-gray-200/70 dark:border-white/[0.07]">
+          <button
+            type="button"
+            onClick={() => openSettings('#connection')}
+            className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          >
+            <Settings size={12} />
+            {t('connectionCenter.openSettings', '完整设置')} →
+          </button>
+          <div className="flex-1" />
+          <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/[0.06] text-gray-400 dark:text-gray-500">
+            Alt+C
+          </kbd>
+        </div>
       </div>
-    </div>
-    <MoreChannelsDrawer
-      open={moreOpen}
-      onClose={() => setMoreOpen(false)}
-      instances={instances}
-      liveStatus={liveStatus}
-      onConfigure={(id) => {
-        setMoreOpen(false)
-        openSettings(`#channel-${id}`)
-      }}
-    />
+      <MoreChannelsDrawer
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        instances={instances}
+        liveStatus={liveStatus}
+        onConfigure={(id) => {
+          setMoreOpen(false)
+          openSettings(`#channel-${id}`)
+        }}
+      />
     </>,
     document.body,
   )

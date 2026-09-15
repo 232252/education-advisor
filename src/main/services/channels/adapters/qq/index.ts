@@ -175,7 +175,10 @@ export class QqBotAdapter implements ChannelAdapter {
         dir = pathMod.join(process.env.TEMP ?? '.', 'channels/qq/files')
       }
       fs.mkdirSync(dir, { recursive: true })
-      const dest = pathMod.join(dir, `${Date.now()}_${pathMod.basename(att.fileName || 'qq-file.bin')}`)
+      const dest = pathMod.join(
+        dir,
+        `${Date.now()}_${pathMod.basename(att.fileName || 'qq-file.bin')}`,
+      )
       fs.writeFileSync(dest, buf)
       return { ok: true, path: dest, bytes: buf.length }
     } catch (err) {
@@ -188,5 +191,5 @@ export function createQqAdapter(): ChannelAdapter {
   return new QqBotAdapter()
 }
 
-export { qqManifest } from './manifest'
 export { QQ_MANIFEST_ID } from './constants'
+export { qqManifest } from './manifest'
