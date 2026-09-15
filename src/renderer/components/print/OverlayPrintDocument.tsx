@@ -23,6 +23,7 @@ import { getAPI } from '../../lib/ipc-client'
 import { cn } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
 import { QuadEditorDialog } from './QuadEditorDialog'
+import { TemplateCalibrateDialog } from './TemplateCalibrateDialog'
 
 export interface OverlayPrintView {
   paper: GradingPaper
@@ -56,6 +57,7 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
   const [printers, setPrinters] = useState<PrinterInfo[]>([])
   const [deviceName, setDeviceName] = useState<string>(() => task.overlayPrint?.deviceName ?? '')
   const [silentPrinting, setSilentPrinting] = useState(false)
+  const [tplDialog, setTplDialog] = useState(false)
 
   // 打印机清单(静默连打选设备;取不到就留空走系统默认)
   useEffect(() => {
@@ -145,6 +147,7 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
         imageSizes: sizes[view.paper.id] ?? [],
         spec,
         calibration,
+        template: task.overlayTemplate,
       })
     })
   }, [views, task, sizes, spec, calibration])
@@ -213,14 +216,23 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
   }
 
   // 需要人工兜底的卷: 有扫描件但存在未定位页
+  // 母版标定生效: 模板有逐题 boxes 且至少一页有四点 → 学生卷免定位
+  const templateActive = useMemo(() => {
+    const tpl = task.overlayTemplate
+    return !!tpl?.boxes && Object.keys(tpl.boxes).length > 0 && !!tpl.quads?.some((q) => q != null)
+  }, [task])
+  const tplLocated = Object.keys(task.overlayTemplate?.boxes ?? {}).length
+
+  // 需要人工兜底的卷: 有扫描件但存在未定位页(母版生效时不逐卷定位)
   const needManual = useMemo(() => {
+    if (templateActive) return []
     const byId = new Map(task.papers.map((p) => [p.id, p]))
     return views
       .map((v) => byId.get(v.paper.id) ?? v.paper)
       .filter(
         (p) => p.files.length > 0 && (!p.overlayQuads || p.overlayQuads.some((q) => q == null)),
       )
-  }, [views, task])
+  }, [views, task, templateActive])
 
   const stepCalibration = (key: keyof OverlayCalibration, delta: number) => {
     setCalibration((c) => {
@@ -269,6 +281,23 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
               ))}
             </select>
           </label>
+          <button
+            type="button"
+            onClick={() => setTplDialog(true)}
+            className="rounded border border-blue-500 px-2.5 py-1 font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-500/10"
+          >
+            {templateActive
+              ? t('page.grading.overlay.tplRecalibrate', '重新标定母版')
+              : t('page.grading.overlay.tplCalibrate', '母版标定')}
+          </button>
+          {templateActive && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+              {t(
+                'page.grading.overlay.tplActive',
+                `母版生效: ${tplLocated} 题统一痕迹位,学生卷免定位`,
+              )}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => void detect()}
@@ -439,6 +468,15 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
             </div>
           )
         })
+      )}
+
+      {/* ===== 母版标定 ===== */}
+      {tplDialog && (
+        <TemplateCalibrateDialog
+          taskId={task.id}
+          onClose={() => setTplDialog(false)}
+          onDone={onRefresh}
+        />
       )}
 
       {/* ===== 手动四点逃生门 ===== */}

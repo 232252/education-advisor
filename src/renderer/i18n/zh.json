@@ -2075,5 +2075,20 @@
   "page.grading.overlay.silentDoing": "打印中…",
   "page.grading.overlay.silentOk": "已发送到打印机,请按屏幕顺序放卷",
   "page.grading.overlay.silentFail": "打印失败",
-  "page.grading.overlay.silentCalib": "请先取消勾选校准页,再静默连打"
+  "page.grading.overlay.silentCalib": "请先取消勾选校准页,再静默连打",
+  "page.grading.overlay.tplTitle": "母版标定(全班痕迹位统一)",
+  "page.grading.overlay.tplHint": "用一份空白/干净的样卷(每页一张图)。标定后 AI 在样卷上一次性标出每题作答区,全班套打共用这套位置 —— 学生卷不再需要逐份定位,痕迹位一致且更准(模板缺的题自动回落该卷 AI 定位)。",
+  "page.grading.overlay.tplPick": "选择样卷图片",
+  "page.grading.overlay.tplPickTitle": "选择样卷图片(1-8 页)",
+  "page.grading.overlay.tplPicked": "{n} 张已选",
+  "page.grading.overlay.tplNone": "未选择",
+  "page.grading.overlay.tplRun": "开始标定",
+  "page.grading.overlay.tplBusy": "标定中…",
+  "page.grading.overlay.tplDone": "母版已标定: 定位 {n} 题",
+  "page.grading.overlay.tplResult": "{pages} 页 · 四点 {quads}/{pages} · 定位 {located} 题",
+  "page.grading.overlay.tplMissing": "未定位题(回落逐卷定位):",
+  "page.grading.overlay.tplCalibrate": "母版标定",
+  "page.grading.overlay.tplRecalibrate": "重新标定母版",
+  "page.grading.overlay.tplActive": "母版生效: {n} 题统一痕迹位,学生卷免定位",
+  "page.grading.overlay.tplNoFiles": "请先选择样卷图片"
 }

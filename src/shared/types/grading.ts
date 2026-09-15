@@ -84,6 +84,21 @@ export interface OverlayCalibration {
   scalePct: number
 }
 
+/**
+ * 母版标定(Tier B): 样卷留档 + 模板逐题作答区。
+ * 标定后全班痕迹位统一走模板坐标(消除逐卷 AI box 抖动,
+ * 学生卷不再需要自己的定位四点);模板缺的题回落该卷 AI box。
+ */
+export interface OverlayTemplate {
+  /** 样卷页存档记录(files/<taskId>/template/ 下) */
+  files: PaperFile[]
+  /** 每页定位四点(页下标对齐;null=该页未定位) */
+  quads?: Array<PageQuad | null>
+  /** 逐题作答区(模板图 0-1 坐标,questionId → box) */
+  boxes?: Record<string, GradeAnnotationBox>
+  calibratedAt?: string
+}
+
 /** 套打回写设置(任务级) */
 export interface OverlayPrintSettings {
   /** 纸张规格 id(@shared/grading-geometry PAPER_SPECS) */
@@ -196,6 +211,8 @@ export interface GradingTask {
   publishedExamId?: string
   /** 套打回写设置(纸张规格 + 试打校准) */
   overlayPrint?: OverlayPrintSettings
+  /** 套打母版标定(样卷留档 + 模板逐题作答区) */
+  overlayTemplate?: OverlayTemplate
 }
 
 /** AI 批改进度事件(主→渲染推送) */

@@ -241,6 +241,64 @@ describe('layoutOverlayPaper: 页边批注自适应', () => {
   })
 })
 
+describe('layoutOverlayPaper: 母版标定(Tier B)', () => {
+  const TPL_QUAD: PageQuad = {
+    tl: { x: 0, y: 0 },
+    tr: { x: 1200, y: 0 },
+    br: { x: 1200, y: 1697 },
+    bl: { x: 0, y: 1697 },
+    source: 'anchors',
+    confidence: 0.95,
+    imageWidth: 1200,
+    imageHeight: 1697,
+  }
+
+  it('模板 boxes 生效: 无学生四点也能出痕迹(位置走模板坐标)', () => {
+    const layout = layoutOf(aiOf({}), {
+      quads: [null],
+      template: {
+        boxes: {
+          'q-1': { page: 0, x: 0.05, y: 0.08, w: 0.5, h: 0.06 },
+          'q-2': { page: 0, x: 0.1, y: 0.3, w: 0.6, h: 0.2 },
+          'q-3': { page: 0, x: 0.05, y: 0.5, w: 0.5, h: 0.15 },
+          'q-4': { page: 0, x: 0.05, y: 0.72, w: 0.5, h: 0.18 },
+        },
+        quads: [TPL_QUAD],
+      },
+    })
+    const marks = layout.pages[0]?.marks ?? []
+    expect(marks.length).toBe(4)
+    // 无需 per-paper 四点也不出缺页警告
+    expect(layout.warnings.some((w) => w.includes('没有定位四点'))).toBe(false)
+  })
+
+  it('模板位置优先于学生卷 AI box', () => {
+    // 学生卷 AI box 在 y=0.25;模板把 q-2 放到 y=0.6 → 痕迹应跟模板
+    const layout = layoutOf(aiOf({}), {
+      quads: [FULL_QUAD],
+      template: {
+        boxes: { 'q-2': { page: 0, x: 0.1, y: 0.6, w: 0.6, h: 0.2 } },
+        quads: [TPL_QUAD],
+      },
+    })
+    const m2 = layout.pages[0]?.marks.find((m) => m.questionId === 'q-2')
+    // 模板 y=0.6 → mm≈178;AI box y=0.25 → mm≈74
+    expect(m2?.yMm).toBeGreaterThan(150)
+  })
+
+  it('模板缺的题回落学生卷 AI box', () => {
+    const layout = layoutOf(aiOf({}), {
+      quads: [FULL_QUAD],
+      template: { boxes: { 'q-1': { page: 0, x: 0.05, y: 0.08, w: 0.5, h: 0.06 } }, quads: [TPL_QUAD] },
+    })
+    const marks = layout.pages[0]?.marks ?? []
+    expect(marks.length).toBe(4)
+    // q-2 走学生卷 box(y=0.25 → ≈74mm)
+    const m2 = marks.find((m) => m.questionId === 'q-2')
+    expect(m2 ? m2.yMm : 0).toBeLessThan(90)
+  })
+})
+
 describe('layoutOverlayPaper: 缺页/校准', () => {
   it('无四点的页给警告', () => {
     const layout = layoutOf(aiOf({ page4: 1 }), { quads: [FULL_QUAD, null] })

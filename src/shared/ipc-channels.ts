@@ -202,6 +202,8 @@ export const IPC_GRADING_SAVE_QUADS = 'grading:save-quads'
 export const IPC_GRADING_SAVE_OVERLAY_PRINT = 'grading:save-overlay-print'
 // 套打回写: 静默连打(参数写死 100%/无边距,根除驱动缩放风险)
 export const IPC_GRADING_OVERLAY_SILENT_PRINT = 'grading:overlay-silent-print'
+// 套打回写: 母版标定(样卷留档+模板逐题定位,Tier B)
+export const IPC_GRADING_CALIBRATE_TEMPLATE = 'grading:calibrate-overlay-template'
 
 // ===== 班级管理（本地：存档/删除） =====
 export const IPC_CLASS_LIST = 'class:list'

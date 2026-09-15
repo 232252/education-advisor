@@ -2075,5 +2075,20 @@
   "page.grading.overlay.silentDoing": "Printing…",
   "page.grading.overlay.silentOk": "Sent to printer — feed sheets in screen order",
   "page.grading.overlay.silentFail": "Print failed",
-  "page.grading.overlay.silentCalib": "Uncheck the calibration sheet before silent printing"
+  "page.grading.overlay.silentCalib": "Uncheck the calibration sheet before silent printing",
+  "page.grading.overlay.tplTitle": "Template calibration (unified mark positions)",
+  "page.grading.overlay.tplHint": "Use one blank/clean answer-sheet original (one image per page). The AI marks each question's answer region once on the template and the whole class shares those positions — no per-paper locating needed, marks land consistently and more accurately (questions missing from the template fall back to that paper's AI boxes).",
+  "page.grading.overlay.tplPick": "Pick template images",
+  "page.grading.overlay.tplPickTitle": "Pick template images (1-8 pages)",
+  "page.grading.overlay.tplPicked": "{n} selected",
+  "page.grading.overlay.tplNone": "None selected",
+  "page.grading.overlay.tplRun": "Calibrate",
+  "page.grading.overlay.tplBusy": "Calibrating…",
+  "page.grading.overlay.tplDone": "Template calibrated: {n} questions located",
+  "page.grading.overlay.tplResult": "{pages} pages · quads {quads}/{pages} · {located} questions located",
+  "page.grading.overlay.tplMissing": "Not located (falls back to per-paper):",
+  "page.grading.overlay.tplCalibrate": "Calibrate template",
+  "page.grading.overlay.tplRecalibrate": "Recalibrate template",
+  "page.grading.overlay.tplActive": "Template active: {n} questions unified, per-paper locating not needed",
+  "page.grading.overlay.tplNoFiles": "Pick template images first"
 }
