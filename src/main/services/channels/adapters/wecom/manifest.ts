@@ -48,7 +48,8 @@ export const wecomManifest: ChannelManifest = {
     {
       name: 'secret',
       label: '长连接 Secret',
-      description: 'API 模式选择「长连接」后生成的专用 Secret(非企业 CorpSecret),加密保存到本地 keystore',
+      description:
+        'API 模式选择「长连接」后生成的专用 Secret(非企业 CorpSecret),加密保存到本地 keystore',
       type: 'secret',
       required: true,
     },

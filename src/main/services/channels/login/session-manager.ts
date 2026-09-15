@@ -7,11 +7,11 @@ import { randomUUID } from 'node:crypto'
 import { log } from '../../../utils/logger'
 import { keystoreService } from '../../keystore-service'
 import { settingsService } from '../../settings-service'
-import { ILinkClient } from '../adapters/weixin/ilink-client'
-import { normalizeQrStatus } from '../adapters/weixin/headers'
-import { WEIXIN_DEFAULT_BASE_URL, WEIXIN_MANIFEST_ID } from '../adapters/weixin/constants'
-import { beginQqQrBind, pollQqQrBind } from '../adapters/qq/onboard'
 import { QQ_MANIFEST_ID } from '../adapters/qq/constants'
+import { beginQqQrBind, pollQqQrBind } from '../adapters/qq/onboard'
+import { WEIXIN_DEFAULT_BASE_URL, WEIXIN_MANIFEST_ID } from '../adapters/weixin/constants'
+import { normalizeQrStatus } from '../adapters/weixin/headers'
+import { ILinkClient } from '../adapters/weixin/ilink-client'
 import type { ChannelLoginBeginResult, ChannelLoginPollResult, ChannelLoginStatus } from './types'
 
 interface SessionBase {
@@ -59,7 +59,11 @@ class ChannelLoginSessionManager {
       session.status = 'expired'
       return { status: 'expired', detail: '二维码已过期,请重新扫码' }
     }
-    if (session.status === 'confirmed' || session.status === 'error' || session.status === 'expired') {
+    if (
+      session.status === 'confirmed' ||
+      session.status === 'error' ||
+      session.status === 'expired'
+    ) {
       return this.toPollResult(session)
     }
 

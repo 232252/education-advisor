@@ -117,7 +117,6 @@ export function DashboardPage() {
   // 备忘卡片独立于 lens/班级筛选,挂全局刷新即可(refreshKey 递增触发重载)
   const [memoRefreshKey, setMemoRefreshKey] = useState(0)
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: setMemoRefreshKey 是 useState setter(稳定引用),列与不列均被该规则误报
   const handleRefresh = useCallback(() => {
     reload()
     if (isGrades) academic.reload()

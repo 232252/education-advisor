@@ -192,7 +192,7 @@ body {
 
 /* ─── 阅卷红笔手写体(批注/✓/✗/得分): 霞鹜文楷细体,回退系统楷体 ─── */
 .handwriting-mark {
-  font-family: 'LXGW WenKai', 'KaiTi', '楷体', 'STKaiti', 'Kaiti SC', 'TW-Kai', serif;
+  font-family: "LXGW WenKai", "KaiTi", "楷体", "STKaiti", "Kaiti SC", "TW-Kai", serif;
   font-weight: 300;
 }
 

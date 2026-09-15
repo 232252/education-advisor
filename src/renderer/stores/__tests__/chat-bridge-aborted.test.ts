@@ -127,14 +127,12 @@ describe('handleAgentEvent — P1-5 错误落库与去重', () => {
       { role: 'user', content: '查数据' },
       { role: 'assistant', content: '查到一半的结果\n\n[中断] 429 Too Many Requests' },
     ])
-    useChatStore
-      .getState()
-      .handleAgentEvent({
-        agentId: 'main',
-        status: 'error',
-        source: 'ui',
-        error: '429 Too Many Requests',
-      })
+    useChatStore.getState().handleAgentEvent({
+      agentId: 'main',
+      status: 'error',
+      source: 'ui',
+      error: '429 Too Many Requests',
+    })
     const msgs = useChatStore.getState().messages
     const last = msgs[msgs.length - 1]
     expect(last.role).toBe('assistant')

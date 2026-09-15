@@ -118,9 +118,7 @@ export class EmailChannelAdapter implements ChannelAdapter {
     this.status = 'connected'
     this.connectedAt = Date.now()
     this.detail =
-      this.inboundMode === 'idle'
-        ? 'SMTP + IMAP IDLE 双向已就绪'
-        : 'SMTP + IMAP 轮询收信已就绪'
+      this.inboundMode === 'idle' ? 'SMTP + IMAP IDLE 双向已就绪' : 'SMTP + IMAP 轮询收信已就绪'
     ctx.bridge.onStatus({
       status: 'connected',
       connectedAt: this.connectedAt,
@@ -246,8 +244,7 @@ export class EmailChannelAdapter implements ChannelAdapter {
       const text = `主题: ${subject}\n\n${body}`.trim()
       const inbound: InboundMessage = {
         channel: this.id,
-        providerMessageId:
-          msg.envelope?.messageId || `email:uid:${msg.uid}:${Date.now()}`,
+        providerMessageId: msg.envelope?.messageId || `email:uid:${msg.uid}:${Date.now()}`,
         chat: { id: fromAddr, type: 'p2p' },
         sender: { id: fromAddr, name: from?.name },
         text,
@@ -315,7 +312,7 @@ export class EmailChannelAdapter implements ChannelAdapter {
     const ctx = this.ctx
     if (!ctx) throw new Error('邮件未连接')
     const to = target.chatId || target.senderId
-    if (!to || !to.includes('@')) {
+    if (!to?.includes('@')) {
       throw new Error('邮件推送目标须为邮箱地址(chatId)')
     }
     const nodemailer = (await import('nodemailer')) as unknown as {
@@ -362,4 +359,4 @@ export function createEmailAdapter(): ChannelAdapter {
   return new EmailChannelAdapter()
 }
 
-export { emailManifest, EMAIL_MANIFEST_ID }
+export { EMAIL_MANIFEST_ID, emailManifest }

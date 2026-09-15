@@ -21,8 +21,9 @@ export class SlackChannelAdapter implements ChannelAdapter {
   private status: ChannelRunStatus = 'disabled'
   private detail?: string
   private connectedAt?: number
-  private lastMessageAt?: number
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: connect() 写入、异步收包回调读取,规则误报
   private ctx: ChannelRuntimeContext | null = null
+  private lastMessageAt?: number
   private botToken = ''
   private ws: WebSocket | null = null
   private stopRequested = false
@@ -50,7 +51,10 @@ export class SlackChannelAdapter implements ChannelAdapter {
 
     const auth = await jsonFetch('https://slack.com/api/auth.test', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${this.botToken}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        Authorization: `Bearer ${this.botToken}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
       body: '',
     })
     const authBody = auth.json as { ok?: boolean; user_id?: string; error?: string } | null
@@ -76,8 +80,9 @@ export class SlackChannelAdapter implements ChannelAdapter {
       throw new Error(msg)
     }
 
+    const socketUrl = connBody.url
     await new Promise<void>((resolve, reject) => {
-      const ws = new WebSocket(connBody.url!)
+      const ws = new WebSocket(socketUrl)
       this.ws = ws
       let ready = false
       ws.on('message', (data) => {
@@ -115,7 +120,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
             ws.send(JSON.stringify({ envelope_id: pkt.envelope_id }))
           }
           const ev = pkt.payload?.event
-          if (!ev || ev.type !== 'message' || ev.bot_id || ev.subtype) return
+          if (ev?.type !== 'message' || ev.bot_id || ev.subtype) return
           if (ev.user && ev.user === this.botUserId) return
           if (!ev.text?.trim() || !ev.channel) return
           const inbound: InboundMessage = {
@@ -215,4 +220,4 @@ export function createSlackAdapter(): ChannelAdapter {
   return new SlackChannelAdapter()
 }
 
-export { slackManifest, SLACK_MANIFEST_ID }
+export { SLACK_MANIFEST_ID, slackManifest }

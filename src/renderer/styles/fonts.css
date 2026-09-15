@@ -5,7 +5,7 @@
    (globals.css): KaiTi/楷体/STKaiti。
    注意: @import 必须位于本文件所有规则之前(CSS 规范),否则被丢弃。
    ============================================================= */
-@import 'lxgw-wenkai-webfont/lxgwwenkai-light.css';
+@import "lxgw-wenkai-webfont/lxgwwenkai-light.css";
 
 /* =============================================================
    西文字体 latin 子集声明(Inter Variable 主字体)

@@ -4,18 +4,18 @@
 
 import { QQ_DEFAULT_API_BASE } from './constants'
 import {
-  QQ_FILE_TYPE_FILE,
-  QQ_FILE_TYPE_IMAGE,
-  QQ_MSG_TYPE_MEDIA,
   classifyQqMediaError,
   guessQqFileType,
   isHttpUrl,
   parseQqOutboundMediaMarkers,
-  readLocalFileForUpload,
+  QQ_FILE_TYPE_FILE,
+  QQ_FILE_TYPE_IMAGE,
+  QQ_MSG_TYPE_MEDIA,
   type QqMediaFileType,
+  readLocalFileForUpload,
 } from './media'
 import type { QqDeliveryInfo } from './parsing'
-import { fetchQqAccessToken, type FetchLike, type QqTokenCache } from './token'
+import { type FetchLike, fetchQqAccessToken, type QqTokenCache } from './token'
 
 const msgSeqMap = new Map<string, number>()
 

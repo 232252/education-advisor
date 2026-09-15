@@ -4,8 +4,8 @@
 // =============================================================
 
 import { describe, expect, it, vi } from 'vitest'
-import type { EAAResult } from '../eaa/types'
 import { type CommandContext, createDefaultRouter } from '../channels/runtime/command/router'
+import type { EAAResult } from '../eaa/types'
 
 function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext {
   return {

@@ -12,9 +12,9 @@
 
 import { errText } from '../../../../utils/err-text'
 import { log } from '../../../../utils/logger'
-import { writeAttachmentBytes, type SavedAttachment } from '../../runtime/attachment-store'
+import { type SavedAttachment, writeAttachmentBytes } from '../../runtime/attachment-store'
 import {
-  AI_CARD_STATUS,
+  type AI_CARD_STATUS,
   CARD_API_MAX_QPS,
   DEFAULT_AI_CARD_TEMPLATE_ID,
   DINGTALK_API_BASE,
@@ -389,7 +389,11 @@ async function apiError(resp: Response): Promise<DingtalkApiError> {
   } catch {
     /* 非 JSON 错误体保持 HTTP 状态描述 */
   }
-  return new DingtalkApiError(`钉钉 API 错误(${resp.status}${code ? ` code=${code}` : ''}): ${msg}`, resp.status, code)
+  return new DingtalkApiError(
+    `钉钉 API 错误(${resp.status}${code ? ` code=${code}` : ''}): ${msg}`,
+    resp.status,
+    code,
+  )
 }
 
 /** 测试辅助: 重置模块级限流器状态(避免用例间退避残留) */

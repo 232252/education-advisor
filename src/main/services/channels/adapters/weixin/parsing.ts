@@ -130,7 +130,10 @@ export function extractAttachmentsFromItems(itemList: unknown): InboundAttachmen
 }
 
 /** 解析单条 iLink 消息;非用户消息或空内容返回 null */
-export function parseWeixinMessage(raw: unknown, receivedAt = Date.now()): ParsedWeixinMessage | null {
+export function parseWeixinMessage(
+  raw: unknown,
+  receivedAt = Date.now(),
+): ParsedWeixinMessage | null {
   if (!raw || typeof raw !== 'object') return null
   const msg = raw as Record<string, unknown>
   const msgType = Number(msg.message_type ?? 0)

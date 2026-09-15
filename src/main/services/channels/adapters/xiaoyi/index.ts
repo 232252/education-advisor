@@ -40,9 +40,7 @@ export class XiaoyiChannelAdapter implements ChannelAdapter {
     this.status = 'error'
     this.detail =
       '小艺云 A2A 是「平台调用你的 Agent HTTP 端点」(JSON-RPC + SSE),不是桌面端主动连 IM。' +
-      (endpointHint
-        ? `已记录公网端点提示: ${endpointHint}。`
-        : '尚未填写 publicEndpoint。') +
+      (endpointHint ? `已记录公网端点提示: ${endpointHint}。` : '尚未填写 publicEndpoint。') +
       '本版未内置可对外服务的 A2A agent-server / 公网隧道,故不能伪造成功连接。' +
       '产品语义:将本机 Agent 挂到小艺,非班级 IM 群播报。'
     ctx.bridge.onStatus({ status: 'error', detail: this.detail, lastErrorAt: Date.now() })
@@ -58,7 +56,10 @@ export class XiaoyiChannelAdapter implements ChannelAdapter {
     return { status: this.status, detail: this.detail }
   }
 
-  async sendReply(_msg: InboundMessage, _content: OutboundContent): Promise<{ messageId?: string }> {
+  async sendReply(
+    _msg: InboundMessage,
+    _content: OutboundContent,
+  ): Promise<{ messageId?: string }> {
     throw new Error('小艺出站尚未就绪:需 A2A agent-server')
   }
 
@@ -71,4 +72,4 @@ export function createXiaoyiAdapter(): ChannelAdapter {
   return new XiaoyiChannelAdapter()
 }
 
-export { xiaoyiManifest, XIAOYI_MANIFEST_ID }
+export { XIAOYI_MANIFEST_ID, xiaoyiManifest }

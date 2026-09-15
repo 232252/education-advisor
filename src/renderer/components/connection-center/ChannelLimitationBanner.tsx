@@ -53,9 +53,15 @@ function limitationText(key: string, t: (key: string, fallback?: string) => stri
     case 'channels.slack.limitation':
       return t('channels.slack.limitation', '海外频道:需 Socket Mode(xoxb + xapp);国内常需代理。')
     case 'channels.matrix.limitation':
-      return t('channels.matrix.limitation', '海外/联邦:homeserver + access_token;Bot 须已加入目标房间。')
+      return t(
+        'channels.matrix.limitation',
+        '海外/联邦:homeserver + access_token;Bot 须已加入目标房间。',
+      )
     case 'channels.mattermost.limitation':
-      return t('channels.mattermost.limitation', '可自托管:服务器 URL + Bot Token。国内私有化友好。')
+      return t(
+        'channels.mattermost.limitation',
+        '可自托管:服务器 URL + Bot Token。国内私有化友好。',
+      )
     default:
       return t(key, key)
   }
@@ -76,7 +82,10 @@ export function ChannelLimitationBanner({ bannerKey, className }: ChannelLimitat
         className,
       )}
     >
-      <AlertTriangle size={14} className="flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+      <AlertTriangle
+        size={14}
+        className="flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400"
+      />
       <span>{text}</span>
     </div>
   )

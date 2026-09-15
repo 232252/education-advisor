@@ -7,11 +7,11 @@
 
 import type { ChannelInstanceInfo } from '@shared/types'
 import { useState } from 'react'
+import { ChannelLimitationBanner } from '../../../components/connection-center/ChannelLimitationBanner'
+import { ChannelQrLogin } from '../../../components/connection-center/ChannelQrLogin'
 import { useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { BTN_SM_BLUE } from '../../../lib/ui-utils'
-import { ChannelLimitationBanner } from '../../../components/connection-center/ChannelLimitationBanner'
-import { ChannelQrLogin } from '../../../components/connection-center/ChannelQrLogin'
 import { SchemaForm } from './SchemaForm'
 
 interface ChannelConfigPanelProps {
@@ -118,6 +118,7 @@ export function ChannelConfigPanel({ info, settings, onSave, extra }: ChannelCon
           </p>
           <ol className="list-decimal list-inside space-y-1">
             {info.manifest.setupGuide.steps.map((step, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: 静态安装指引步骤,不会重排
               <li key={i} className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
                 {step}
               </li>

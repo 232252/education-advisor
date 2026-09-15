@@ -59,6 +59,10 @@ export function saveWeixinContextTokens(stateDir: string, map: Map<string, strin
       'utf8',
     )
   } catch (err) {
-    log('debug', 'weixin', `save context_tokens failed: ${err instanceof Error ? err.message : err}`)
+    log(
+      'debug',
+      'weixin',
+      `save context_tokens failed: ${err instanceof Error ? err.message : err}`,
+    )
   }
 }

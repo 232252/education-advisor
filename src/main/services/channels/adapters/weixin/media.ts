@@ -8,7 +8,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   WEIXIN_CDN_BASE,
-  WEIXIN_CHANNEL_VERSION,
   WEIXIN_ITEM_TYPE_FILE,
   WEIXIN_ITEM_TYPE_IMAGE,
   WEIXIN_MEDIA_TYPE_FILE,
@@ -89,7 +88,9 @@ export async function uploadILinkMedia(
   if (!uploadUrl) {
     const uploadParam = String(uploadResp.upload_param ?? '')
     if (!uploadParam) {
-      throw new Error(`getuploadurl missing upload_full_url/upload_param: ${JSON.stringify(uploadResp).slice(0, 200)}`)
+      throw new Error(
+        `getuploadurl missing upload_full_url/upload_param: ${JSON.stringify(uploadResp).slice(0, 200)}`,
+      )
     }
     uploadUrl = `${WEIXIN_CDN_BASE}/upload?encrypted_query_param=${encodeURIComponent(uploadParam)}&filekey=${filekey}`
   }
@@ -188,4 +189,3 @@ export async function sendFileMessage(
   }
   return client.sendRawMessage(msg)
 }
-
