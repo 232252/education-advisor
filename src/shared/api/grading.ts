@@ -2,10 +2,12 @@
 // 批改域 API 类型(单一来源: preload 实现按此注解)
 // =============================================================
 
+import type { PageQuad } from '@shared/grading-geometry'
 import type {
   GradingProgressEvent,
   GradingTask,
   GradingTaskStatus,
+  OverlayPrintSettings,
   PresetMark,
   RubricQuestion,
   TeacherReview,
@@ -48,6 +50,22 @@ export interface ExtractedRubricQuestion {
 export interface RefinedRubricMarks {
   id: string
   presetMarks: PresetMark[]
+}
+
+/** 套打四点检测单页结果 */
+export interface OverlayQuadPageResult {
+  page: number
+  ok: boolean
+  source?: PageQuad['source']
+  confidence?: number
+  error?: string
+}
+
+/** 套打四点检测结果(单份试卷) */
+export interface OverlayQuadDetectResult {
+  paperId: string
+  studentName: string | null
+  pages: OverlayQuadPageResult[]
 }
 
 export interface GradingAPI {
@@ -108,4 +126,20 @@ export interface GradingAPI {
     taskId: string,
     roster: GradingRosterEntry[],
   ) => Promise<GradingResult<IdentifyPapersResult>>
+  // [w] 套打回写: 全任务定位四点检测(CV→AI 自动链;useAiFallback=false 只跑本地 CV)
+  detectQuads: (
+    taskId: string,
+    opts?: { useAiFallback?: boolean },
+  ) => Promise<GradingResult<{ task: GradingTask; results: OverlayQuadDetectResult[] }>>
+  // [w] 套打回写: 保存单份试卷四点(人工四点校正)
+  saveQuads: (
+    taskId: string,
+    paperId: string,
+    quads: Array<PageQuad | null>,
+  ) => Promise<GradingResult<GradingTask>>
+  // [w] 套打回写: 保存纸张规格与试打校准
+  saveOverlayPrint: (
+    taskId: string,
+    patch: OverlayPrintSettings,
+  ) => Promise<GradingResult<GradingTask>>
 }

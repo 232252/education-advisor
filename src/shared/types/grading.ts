@@ -10,6 +10,8 @@
 //   TeacherReview    ≈ gradeable_component_data(TA 改分) + grade_override(覆盖)
 // =============================================================
 
+import type { PageQuad } from '../grading-geometry'
+
 /** 任务状态机: 草稿→就绪→AI批改中→待复核→已发布 */
 export type GradingTaskStatus = 'draft' | 'ready' | 'grading' | 'review' | 'published'
 
@@ -73,6 +75,20 @@ export interface GradeAnnotationBox {
   y: number
   w: number
   h: number
+}
+
+/** 套打校准(试打实测录入): 缩放 + 全局平移 */
+export interface OverlayCalibration {
+  dxMm: number
+  dyMm: number
+  scalePct: number
+}
+
+/** 套打回写设置(任务级) */
+export interface OverlayPrintSettings {
+  /** 纸张规格 id(@shared/grading-geometry PAPER_SPECS) */
+  paperSpecId?: string
+  calibration?: OverlayCalibration
 }
 
 /** AI 单题结果(≈ autograding_testcase_data 逐项得分 + 判分依据) */
@@ -147,6 +163,11 @@ export interface GradingPaper {
   review?: TeacherReview
   /** 最近一次卷面身份识别的结果 */
   identity?: PaperIdentityRecord
+  /**
+   * 套打定位四点(页下标对齐;null=该页未定位)。
+   * 自动链 CV→AI 产出,人工四点可覆盖;详见 @shared/grading-geometry。
+   */
+  overlayQuads?: Array<PageQuad | null>
 }
 
 /** 批改任务(≈ gradeable) */
@@ -171,6 +192,8 @@ export interface GradingTask {
   /** 发布时间与生成的考试 ID(发布后回填) */
   publishedAt?: string
   publishedExamId?: string
+  /** 套打回写设置(纸张规格 + 试打校准) */
+  overlayPrint?: OverlayPrintSettings
 }
 
 /** AI 批改进度事件(主→渲染推送) */

@@ -19,6 +19,7 @@ import {
   GradingMarksDocument,
   type GradingMarksMode,
 } from '../../../components/print/GradingMarksDocument'
+import { OverlayPrintDocument } from '../../../components/print/OverlayPrintDocument'
 import { PrintOverlay } from '../../../components/print/PrintOverlay'
 import { useIpcSubscription } from '../../../hooks/useIpcSubscription'
 import { tr, useT } from '../../../i18n'
@@ -193,7 +194,7 @@ export function TaskDetail({
         onClose={marksPrint.close}
         toolbarExtra={
           <span className="flex items-center gap-1 rounded-md bg-white/10 p-0.5">
-            {(['paper', 'report'] as const).map((m) => (
+            {(['paper', 'report', 'overlay'] as const).map((m) => (
               <button
                 key={m}
                 type="button"
@@ -205,15 +206,33 @@ export function TaskDetail({
                 }
               >
                 {t(
-                  m === 'paper' ? 'page.grading.printMode.paper' : 'page.grading.printMode.report',
+                  m === 'paper'
+                    ? 'page.grading.printMode.paper'
+                    : m === 'report'
+                      ? 'page.grading.printMode.report'
+                      : 'page.grading.printMode.overlay',
                 )}
               </button>
             ))}
           </span>
         }
-        contentClassName={marksMode === 'paper' ? '!px-2 !py-2' : undefined}
+        contentClassName={
+          marksMode === 'paper'
+            ? '!px-2 !py-2'
+            : marksMode === 'overlay'
+              ? '!w-auto !max-w-none !min-h-0 !px-2 !py-2'
+              : undefined
+        }
       >
-        <GradingMarksDocument task={marksPrint.task} papers={marksPrint.views} mode={marksMode} />
+        {marksMode === 'overlay' ? (
+          <OverlayPrintDocument
+            task={marksPrint.task}
+            views={marksPrint.views}
+            onRefresh={onRefresh}
+          />
+        ) : (
+          <GradingMarksDocument task={marksPrint.task} papers={marksPrint.views} mode={marksMode} />
+        )}
       </PrintOverlay>
     ) : null
 
