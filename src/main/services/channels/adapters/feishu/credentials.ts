@@ -3,7 +3,11 @@
 // (M3 从 feishu-bot/credentials.ts 搬入,不变;原文件改为 re-export 壳)
 // =============================================================
 
+<<<<<<< HEAD:src/main/services/channels/adapters/feishu/credentials.ts
 import { errText } from '../../../../utils/err-text'
+=======
+import { errText } from '../../utils/err-text'
+>>>>>>> gitee/main:src/main/services/feishu-bot/credentials.ts
 import { getFeishuBase } from './http-instance'
 
 /**
