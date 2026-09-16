@@ -1,0 +1,24 @@
+name: gitee-force-sync (temporary)
+
+# 一次性运维任务:隐私清理后把重写的全部历史强推覆盖 Gitee 镜像。
+# 执行完成后本文件即被删除,勿手动重跑。
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  force-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mirror rewritten history to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --bare https://github.com/${{ github.repository }}.git repo.git
+          cd repo.git
+          git push --force "https://oauth2:${GITEE_TOKEN}@gitee.com/qdzwwqd/education-advisor.git" \
+            'refs/heads/*:refs/heads/*' 'refs/tags/*:refs/tags/*' 2>&1 | sed "s/${GITEE_TOKEN}/***MASKED***/g"
