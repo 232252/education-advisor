@@ -1,0 +1,3 @@
+#!/bin/sh
+# 隐私门禁:暂存区包含真实个人信息时拒绝提交
+node scripts/privacy-gate.mjs --staged

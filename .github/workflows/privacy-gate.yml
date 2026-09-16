@@ -1,0 +1,23 @@
+name: privacy-gate
+
+# 隐私门禁:每次推送/PR 全量扫描仓库,发现真实个人信息即失败
+# 本仓库面向开源发布,严禁包含任何真实学生/教师隐私数据(见 tests/PRIVACY.md)
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  privacy-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 隐私门禁全量扫描
+        run: node scripts/privacy-gate.mjs --all
