@@ -221,6 +221,44 @@ describe('filterExamsWithGrades', () => {
   it('空考试返回空数组', () => {
     expect(filterExamsWithGrades([], [makeGrade()])).toEqual([])
   })
+
+  it('纯 null 缺考占位的考试不列出(幽灵成绩治理)', () => {
+    const exams = [makeExam({ id: 'e1' }), makeExam({ id: 'e2' })]
+    const grades = [
+      makeGrade({ examId: 'e1', score: 88 }),
+      makeGrade({ examId: 'e2', score: null }),
+      makeGrade({ examId: 'e2', subjectId: 'math', score: null }),
+    ]
+    expect(filterExamsWithGrades(exams, grades).map((e) => e.id)).toEqual(['e1'])
+  })
+
+  it('null 占位 + 至少一门实际分数 → 仍列出', () => {
+    const exams = [makeExam({ id: 'e1' })]
+    const grades = [
+      makeGrade({ examId: 'e1', score: null }),
+      makeGrade({ examId: 'e1', subjectId: 'math', score: 90 }),
+    ]
+    expect(filterExamsWithGrades(exams, grades).map((e) => e.id)).toEqual(['e1'])
+  })
+
+  it('考试带班级且与学生班级不一致时不列出;一致/缺省照常', () => {
+    const exams = [
+      makeExam({ id: 'same-class', classId: 'class-1' }),
+      makeExam({ id: 'other-class', classId: 'class-2' }),
+      makeExam({ id: 'no-class' }),
+    ]
+    const grades = exams.map((e) => makeGrade({ examId: e.id }))
+    expect(filterExamsWithGrades(exams, grades, 'class-1').map((e) => e.id)).toEqual([
+      'same-class',
+      'no-class',
+    ])
+    // 学生班级未知时不按班级隐藏(保守展示)
+    expect(filterExamsWithGrades(exams, grades, null).map((e) => e.id)).toEqual([
+      'same-class',
+      'other-class',
+      'no-class',
+    ])
+  })
 })
 
 // ---------- buildGradeTableData ----------

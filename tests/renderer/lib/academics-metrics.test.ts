@@ -86,13 +86,17 @@ describe('过滤与排序纯函数', () => {
     expect(res.map((s) => s.name)).toEqual(['张三'])
   })
 
-  it('extractSemesters: 去重降序;filterExamsWithGrades 只留有成绩的考试', () => {
+  it('extractSemesters: 去重降序;filterExamsWithGrades 只留实际参加的考试', () => {
     const exams = [exam('a', 'A', '2026-01', '2025-2026-1'), exam('b', 'B', '2026-02', '2024-2025-2')]
     expect(extractSemesters([...exams, exam('c', 'C', '2026-03', '2025-2026-1')])).toEqual([
       '2025-2026-1',
       '2024-2025-2',
     ])
-    const res = filterExamsWithGrades(exams, [grade({ examId: 'b' })])
+    // 有实际分数的考试才列出;纯 null 缺考占位(幽灵成绩)不列
+    const res = filterExamsWithGrades(exams, [
+      grade({ examId: 'b', score: 88 }),
+      grade({ examId: 'a' }),
+    ])
     expect(res.map((e) => e.id)).toEqual(['b'])
   })
 })

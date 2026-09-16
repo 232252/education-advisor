@@ -20,6 +20,7 @@ export interface RubricInput {
   name: string
   semester: string
   examDate?: string
+  classId?: string
   className?: string
   subjectId?: string
   /** 批改口径(给分松紧);缺省 normal */

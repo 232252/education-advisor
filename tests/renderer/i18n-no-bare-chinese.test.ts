@@ -96,6 +96,9 @@ const ALLOWLIST_LINE: Record<string, Record<number, string>> = {
   'pages/Students/tabs/EventsTab.tsx': {
     150: '撤销事件写入 EAA 的审计备注(业务数据非 UI 文案)',
   },
+  'pages/Academics/lib/grade-entry.ts': {
+    94: '成绩录入 AI system prompt 的匹配规则(发给模型的上下文文本,非 UI 文案,同 chat-message.ts 先例)',
+  },
 }
 
 const CJK = /[\u4e00-\u9fff]/

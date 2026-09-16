@@ -10,7 +10,7 @@ import { materializePaperBatches, withTempDir } from './archive-import'
 import { startGrading } from './grading-pipeline'
 import { gradingService } from './grading-service'
 import { identifyUnassignedPapers } from './identify-papers'
-import { extractRubricFromImages } from './rubric-extract'
+import { extractRubricFromSamples } from './rubric-extract'
 
 export interface GradingFromFilesInput {
   name: string
@@ -123,7 +123,7 @@ export async function startGradingFromFiles(
       tmp,
     )
     const sampleImages = batches.flatMap((b) => b.files.map((f) => f.path)).slice(0, 8)
-    return extractRubricFromImages(sampleImages)
+    return extractRubricFromSamples(sampleImages)
   })
   await gradingService.updateTask(task.id, { rubric: toRubric(extracted) })
 

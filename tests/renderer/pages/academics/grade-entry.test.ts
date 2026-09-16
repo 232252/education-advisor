@@ -185,26 +185,31 @@ describe('parseAIGradesText', () => {
     expect(result.scores['李四']).toEqual({ score: '85', rank: '' })
   })
 
-  it('模糊匹配: 名单名包含文本名', () => {
+  it('近似名不再模糊匹配(防张三→张三丰错配),进未匹配清单', () => {
     const result = parseAIGradesText('[{"name":"王小","score":77}]', names)
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.scores['王小明']).toEqual({ score: '77', rank: '' })
+    expect(result.matched).toBe(0)
+    expect(result.scores).toEqual({})
+    expect(result.unmatched).toEqual(['王小'])
   })
 
-  it('模糊匹配: 文本名包含名单名', () => {
+  it('带称谓的名字不模糊匹配,进未匹配清单', () => {
     const result = parseAIGradesText('[{"name":"王小明同学","score":66}]', names)
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.scores['王小明']).toEqual({ score: '66', rank: '' })
+    expect(result.matched).toBe(0)
+    expect(result.scores).toEqual({})
+    expect(result.unmatched).toEqual(['王小明同学'])
   })
 
-  it('不在名单的学生被忽略', () => {
+  it('不在名单的学生被跳过并报告', () => {
     const result = parseAIGradesText('[{"name":"赵九","score":99}]', names)
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.matched).toBe(0)
     expect(result.scores).toEqual({})
+    expect(result.unmatched).toEqual(['赵九'])
   })
 
   it('缺少 name 或 score 的条目被跳过', () => {

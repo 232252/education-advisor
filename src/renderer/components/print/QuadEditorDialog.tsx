@@ -141,7 +141,7 @@ export function QuadEditorDialog({
       quads[page] = quad
       const res = await getAPI().grading.saveQuads(taskId, paperId, quads)
       if (!res.success) throw new Error(res.error || t('common.saveFailed', '保存失败'))
-      toast.success(t('page.grading.overlay.manualSaved', '四点已保存'))
+      toast.success(t('page.grading.overlay.manualSaved', '四角已保存'))
       await onSaved()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))
@@ -160,9 +160,9 @@ export function QuadEditorDialog({
       <div className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-900">
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-white/10">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            {t('page.grading.overlay.quadEditor', '手动四点校正')}
+            {t('page.grading.overlay.quadEditor', '手动对齐四角')}
             <span className="ml-2 font-normal text-gray-500">
-              {t('page.grading.overlay.quadEditorHint', '把四个角拖到卷子四角(以卷面文字方向为准)')}
+              {t('page.grading.overlay.quadEditorHint', '把四个角拖到卷子四角(文字正向朝上)')}
             </span>
           </h3>
           <button

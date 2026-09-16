@@ -314,6 +314,14 @@ export function useGradeEntry({
               `${t('page.academics.ai.parseDonePrefix', '解析完成: 匹配')} ${result.matched} ${t('page.academics.ai.studentsUnit', '名学生')}`,
             )
             toast.success(tr('page.academics.toast.aiFilled', { count: String(result.matched) }))
+            // 名单外的行明确报告而不是静默丢弃(更不会模糊错配到别人头上)
+            if (result.unmatched.length > 0) {
+              toast.warning(
+                tr('page.academics.toast.aiUnmatched', { n: String(result.unmatched.length) }) +
+                  `: ${result.unmatched.join('、')}`,
+                8000,
+              )
+            }
           } else if (result.reason === 'format') {
             setAiProgress(t('page.academics.ai.parseFormatError', '解析失败: AI 返回格式异常'))
             toast.error(t('page.academics.toast.aiFormatError'))

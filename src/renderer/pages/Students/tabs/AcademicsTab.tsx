@@ -31,9 +31,12 @@ import { TrendChart } from '../components/academics/TrendChart'
 export function AcademicsTab({
   studentName,
   entityId,
+  studentClassId,
 }: {
   studentName: string
   entityId?: string
+  /** 学生所属班级 id(考试带班级且不一致时不列为该生考试) */
+  studentClassId?: string | null
   // isDark 保留为可选 prop 以维持调用方契约；主题色现由 useChartTheme 内部从 useTheme() 派生
   isDark?: boolean
 }) {
@@ -80,8 +83,11 @@ export function AcademicsTab({
     }
   }, [errors])
 
-  // 按日期升序排列的考试 (有成绩的)
-  const sortedExams = useMemo(() => filterExamsWithGrades(exams, grades), [exams, grades])
+  // 按日期升序排列的考试 (该生实际参加的:纯缺考占位/非本班考试不列)
+  const sortedExams = useMemo(
+    () => filterExamsWithGrades(exams, grades, studentClassId),
+    [exams, grades, studentClassId],
+  )
 
   // 成绩按考试分组: examId → GradeRecord[]
   const gradesByExam = useMemo(() => groupGradesByExam(grades), [grades])

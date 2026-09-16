@@ -26,6 +26,10 @@ export interface ExamDef {
   date: string
   semester: string
   scope?: string
+  /** 关联班级(可选;批改发布/EAA 按班导入时写入,用于按生过滤"非本班考试") */
+  classId?: string
+  /** 班级名(展示用,与 classId 冗余存储) */
+  className?: string
   /** 包含的科目ID列表 */
   subjects: string[]
   createdAt: string

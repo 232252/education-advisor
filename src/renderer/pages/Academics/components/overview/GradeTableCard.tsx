@@ -1,9 +1,11 @@
 // =============================================================
 // 成绩明细表卡 — 按考试日期降序展示各科分数与班级排名
 // (行数据由 lib/academics-metrics.ts 的 buildGradeTableData 构造)
+// 每行可删除该生该场考试的全部记录(清幽灵成绩,两段式确认)。
 // =============================================================
 
 import type { SubjectDef } from '@shared/types'
+import { useState } from 'react'
 import { Badge } from '../../../../components/Badge'
 import { Card } from '../../../../components/Card'
 import { useT } from '../../../../i18n'
@@ -14,10 +16,25 @@ interface GradeTableCardProps {
   /** 表格行数据 (按考试日期降序) */
   tableData: GradeTableRow[]
   subjects: SubjectDef[]
+  /** 删除该生某场考试的全部记录;组件内两段式确认后调用 */
+  onRemoveExamGrades?: (examId: string) => Promise<boolean> | boolean
 }
 
-export function GradeTableCard({ tableData, subjects }: GradeTableCardProps) {
+export function GradeTableCard({ tableData, subjects, onRemoveExamGrades }: GradeTableCardProps) {
   const { t } = useT()
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+
+  const handleRemove = async (examId: string) => {
+    if (!onRemoveExamGrades) return
+    setRemovingId(examId)
+    try {
+      await onRemoveExamGrades(examId)
+    } finally {
+      setRemovingId(null)
+      setConfirmRemoveId(null)
+    }
+  }
 
   return (
     <Card padding="md">
@@ -43,6 +60,7 @@ export function GradeTableCard({ tableData, subjects }: GradeTableCardProps) {
               <th className="py-2 px-3 font-medium text-center">
                 {t('print.studentReport.classRank', '班级排名')}
               </th>
+              {onRemoveExamGrades && <th className="py-2 px-3 font-medium" />}
             </tr>
           </thead>
           <tbody>
@@ -92,6 +110,43 @@ export function GradeTableCard({ tableData, subjects }: GradeTableCardProps) {
                     <span className="text-gray-300 dark:text-gray-600">-</span>
                   )}
                 </td>
+                {onRemoveExamGrades && (
+                  <td className="py-2 px-3 text-right whitespace-nowrap">
+                    {confirmRemoveId === exam.id ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="text-xs text-amber-600 dark:text-amber-400">
+                          {t('page.academics.overview.removeExamConfirm')}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void handleRemove(exam.id)}
+                          disabled={removingId === exam.id}
+                          className="text-xs font-medium text-red-500 hover:underline disabled:opacity-50"
+                        >
+                          {removingId === exam.id
+                            ? t('page.academics.overview.removing')
+                            : t('common.confirm')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRemoveId(null)}
+                          className="text-xs text-gray-400 hover:underline"
+                        >
+                          {t('common.cancel')}
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRemoveId(exam.id)}
+                        title={t('page.academics.overview.removeExamTitle')}
+                        className="text-xs text-gray-400 hover:text-red-500 hover:underline"
+                      >
+                        {t('page.academics.overview.removeExam')}
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

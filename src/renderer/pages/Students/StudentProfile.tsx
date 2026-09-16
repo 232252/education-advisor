@@ -269,7 +269,12 @@ export function StudentProfile({ student, onClose, onRefresh, initialTab }: Stud
             />
           )}
           {activeTab === 'academics' && (
-            <AcademicsTab studentName={student.name} entityId={student.entity_id} isDark={isDark} />
+            <AcademicsTab
+              studentName={student.name}
+              entityId={student.entity_id}
+              studentClassId={student.class_id}
+              isDark={isDark}
+            />
           )}
           {activeTab === 'ai' && (
             <AIAnalysisTab

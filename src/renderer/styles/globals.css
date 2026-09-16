@@ -473,6 +473,10 @@ body {
   }
 
   /* 套打回写: 每页一张纸,页间强制分页;垫底预览与控制面板不进打印 */
+  .print-root:has(.overlay-page) {
+    padding: 0 !important;
+    background: white !important;
+  }
   .print-root .overlay-page {
     page-break-inside: avoid;
     break-inside: avoid;
@@ -485,7 +489,51 @@ body {
     break-after: auto;
   }
   .print-root .overlay-underlay,
-  .print-root .overlay-screen-only {
+  .print-root .overlay-screen-only,
+  .print-root .overlay-print-skip {
     display: none !important;
+  }
+  .print-root .overlay-ink {
+    text-shadow: none !important;
+    background: transparent !important;
+  }
+}
+
+/* 套打原卷工作台(仅屏幕): 课桌底 + 红痕叠扫描图可读 */
+@media screen {
+  .overlay-workspace {
+    min-height: calc(100vh - 3rem);
+    padding-bottom: 2.5rem;
+  }
+  .overlay-workbench {
+    position: sticky;
+    top: 3rem;
+    z-index: 5;
+    margin: 0 0 1.25rem;
+    padding: 1rem 1.25rem 0.85rem;
+    background: rgba(255, 252, 248, 0.94);
+    border-bottom: 1px solid rgba(40, 30, 20, 0.08);
+    box-shadow: 0 8px 24px rgba(40, 30, 20, 0.08);
+    backdrop-filter: blur(10px);
+  }
+  .overlay-page {
+    box-shadow:
+      0 18px 40px rgba(40, 30, 20, 0.16),
+      0 0 0 1px rgba(40, 30, 20, 0.06);
+  }
+  .overlay-underlay {
+    opacity: 0.46;
+  }
+  .overlay-ink {
+    text-shadow:
+      0 0 3px #fff,
+      0 0 8px #fff,
+      0 0 12px #fff;
+    z-index: 2;
+  }
+  .overlay-note {
+    background: rgba(255, 248, 245, 0.78);
+    border-radius: 2px;
+    padding: 0 1px;
   }
 }

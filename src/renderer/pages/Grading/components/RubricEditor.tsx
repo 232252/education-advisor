@@ -2,8 +2,8 @@
 // RubricEditor — 量规(题目/满分/参考答案)编辑器
 // 草稿/就绪态可编辑;批改开始后由父组件切换只读展示。
 // 受控组件: 值为 RubricQuestion[],onChange 上抛完整数组。
-// 「从样卷识别」: 选样卷照片→视觉模型抽题目草稿(主进程无状态调用,
-// 不落盘);已有题目时两段式内联确认(同 TaskDetail.confirmDelete),
+// 「从样卷识别」: 选样卷文件(图片/PDF/Word/Markdown)→模型抽题目草稿
+// (主进程无状态调用,不落盘);已有题目时两段式内联确认(同 TaskDetail.confirmDelete),
 // 错误内联展示——弹窗 overlay 会盖住页面顶部反馈条。
 // =============================================================
 
@@ -21,8 +21,10 @@ interface RubricEditorProps {
   onChange: (next: RubricQuestion[]) => void
 }
 
-// 与 PapersTable.IMAGE_FILTERS 同值(域内惯例:本地复制,不跨组件导出)
-const IMAGE_FILTERS = [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp'] }]
+// 「从样卷识别」接受的文件类型(图片/PDF/Word/Markdown;主进程 sample-ingest 深校验)
+const SAMPLE_FILTERS = [
+  { name: 'Sample papers', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'pdf', 'docx', 'md', 'txt'] },
+]
 
 function nextQuestionId(value: RubricQuestion[]): string {
   let max = 0
@@ -106,7 +108,7 @@ export function RubricEditor({ value, onChange }: RubricEditorProps) {
   const runExtract = async () => {
     setConfirmOverwrite(false)
     setExtractError(null)
-    const paths = await pickFiles({ filters: IMAGE_FILTERS, properties: ['openFile'] })
+    const paths = await pickFiles({ filters: SAMPLE_FILTERS, properties: ['openFile'] })
     if (paths.length === 0) return
     setExtracting(true)
     try {

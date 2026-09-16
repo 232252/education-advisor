@@ -15,6 +15,7 @@ import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import { resolveModel } from '../pi-ai/model-utils'
 import { settingsService } from '../settings-service'
+import { pdfToPageJpegs } from './archive-import'
 import { apiKeyFor, isVisionModel, resolveGradingModelIds } from './grading-pipeline'
 import { gradingService } from './grading-service'
 import { detectQuadForBuffer } from './page-quad-detect'
@@ -75,37 +76,56 @@ export async function calibrateOverlayTemplate(
   const apiKey = apiKeyFor(ids.providerId)
   if (!apiKey) throw new Error(`Provider ${ids.providerId} 未配置 API Key`)
 
-  // 1) 留档: 校验 + 拷贝进 files/<taskId>/template/
+  // 1) 留档: 图片直读;PDF 栅格化为一页一图(展开后页数并入上限),拷贝进 files/<taskId>/template/
   const destDir = gradingService.templateDirPath(taskId)
   await fsp.rm(destDir, { recursive: true, force: true })
   await fsp.mkdir(destDir, { recursive: true })
   const files: PaperFile[] = []
   const buffers: Buffer[] = []
-  for (const [i, p] of imagePaths.entries()) {
+  let seq = 0
+  for (const p of imagePaths) {
     const ext = path.extname(p).toLowerCase()
-    if (!ALLOWED_EXTS.has(ext)) throw new Error(`不支持的样卷类型 ${ext}(支持 jpg/png/webp/bmp)`)
+    if (ext !== '.pdf' && !ALLOWED_EXTS.has(ext)) {
+      throw new Error(`不支持的样卷类型 ${ext}(支持 jpg/png/webp/bmp/pdf)`)
+    }
     const stat = await fsp.stat(p)
     if (!stat.isFile()) throw new Error(`不是文件: ${p}`)
     const buf = await fsp.readFile(p)
-    // 存档名 = 序号 + basename 白名单净化;目标路径必须落在 template/ 内(防穿越)
-    const safeName = path
-      .basename(p)
-      .replace(/[^-\w.\u4e00-\u9fff]+/g, '_')
-      .slice(-100)
-    const storedName = `tpl-${i + 1}-${safeName}`
-    const target = path.resolve(destDir, storedName)
-    if (!target.startsWith(destDir + path.sep)) throw new Error('非法样卷文件名')
-    await fsp.writeFile(target, buf)
-    const mime =
-      ext === '.png'
-        ? 'image/png'
-        : ext === '.webp'
-          ? 'image/webp'
-          : ext === '.bmp'
-            ? 'image/bmp'
-            : 'image/jpeg'
-    files.push({ name: path.basename(p), storedName, mime, bytes: stat.size })
-    buffers.push(buf)
+    const pages: Array<{ buf: Buffer; mime: string; name: string }> =
+      ext === '.pdf'
+        ? (await pdfToPageJpegs(buf, path.basename(p), MAX_TEMPLATE_PAGES)).map((jpeg, i) => ({
+            buf: jpeg,
+            mime: 'image/jpeg',
+            name: `${path.basename(p).replace(/\.[a-z0-9]+$/i, '')}-p${i + 1}.jpg`,
+          }))
+        : [
+            {
+              buf,
+              mime:
+                ext === '.png'
+                  ? 'image/png'
+                  : ext === '.webp'
+                    ? 'image/webp'
+                    : ext === '.bmp'
+                      ? 'image/bmp'
+                      : 'image/jpeg',
+              name: path.basename(p),
+            },
+          ]
+    for (const pg of pages) {
+      seq++
+      if (seq > MAX_TEMPLATE_PAGES) {
+        throw new Error(`样卷最多 ${MAX_TEMPLATE_PAGES} 页(PDF 按展开后页数计)`)
+      }
+      // 存档名 = 序号 + basename 白名单净化;目标路径必须落在 template/ 内(防穿越)
+      const safeName = pg.name.replace(/[^-\w.\u4e00-\u9fff]+/g, '_').slice(-100)
+      const storedName = `tpl-${seq}-${safeName}`
+      const target = path.resolve(destDir, storedName)
+      if (!target.startsWith(destDir + path.sep)) throw new Error('非法样卷文件名')
+      await fsp.writeFile(target, pg.buf)
+      files.push({ name: pg.name, storedName, mime: pg.mime, bytes: pg.buf.length })
+      buffers.push(pg.buf)
+    }
   }
 
   // 2) 每页四点(CV→AI 自动链;失败页存 null 不阻断)

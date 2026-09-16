@@ -1,19 +1,19 @@
 // =============================================================
-// OverlayPrintDocument — 套打回写版式(批阅痕迹第三模式)
-// 无底图红痕层: 每题短痕/页边批注按毫米坐标落在空白页上,
-// 打印时与系统对话框一起以 100% 实际大小输出,套回学生原卷。
-// 屏幕预览: 扫描件半透明垫底(所见即所得) + 校准/纸张规格/定位检测
-// 控制面板(均不进打印)。
-// 版式规范: docs/research/2026-09-15-overlay-print-annotation-research.md
+// OverlayPrintDocument — 套打原卷工作台
+// 屏幕: 教师按「对齐 → 对照预览 → 试打 / 全班套打」操作;
+// 打印: 无底图红痕层按毫米坐标落在空白页上,套回学生原卷。
+// 垫底预览把扫描图按四角拉正,与红痕同坐标系(所见即所得)。
 // =============================================================
 
 import type { PrinterInfo } from '@shared/api/sys'
 import type { PageQuad, PaperSpec } from '@shared/grading-geometry'
 import {
   anchorSquarePositionsMm,
+  homographyToCssMatrix3d,
   matchPaperSpec,
   PAPER_SPECS,
   paperSpecById,
+  quadToPageCssHomography,
   rescaleQuad,
 } from '@shared/grading-geometry'
 import {
@@ -23,11 +23,22 @@ import {
   type OverlayPaperLayout,
 } from '@shared/overlay-layout'
 import type { GradingPaper, GradingTask } from '@shared/types'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  Printer,
+  Ruler,
+  ScanLine,
+} from 'lucide-react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { tr, useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { cn } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
+import { Button } from '../Button'
 import { QuadEditorDialog } from './QuadEditorDialog'
 import { TemplateCalibrateDialog } from './TemplateCalibrateDialog'
 
@@ -40,23 +51,19 @@ interface OverlayPrintDocumentProps {
   task: GradingTask
   views: OverlayPrintView[]
   onRefresh: () => Promise<void>
-  /** 未定位而排不出的痕迹数变化时上报(父层拦系统打印用);不传则只影响本组件拦截 */
-  onUnplacedChange?: (count: number) => void
 }
 
 /** 量出来的扫描图尺寸(页下标对齐;测量完成前 undefined) */
 type SizeMap = Record<string, Array<{ width: number; height: number } | undefined>>
 
+type OverlayViewMode = 'papers' | 'calibration' | 'master'
+type AlignStatus = 'aligned' | 'approx' | 'manual'
+
 function ptToMm(pt: number): number {
   return pt * 0.3528
 }
 
-export function OverlayPrintDocument({
-  task,
-  views,
-  onRefresh,
-  onUnplacedChange,
-}: OverlayPrintDocumentProps) {
+export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDocumentProps) {
   const { t } = useT()
   const [sizes, setSizes] = useState<SizeMap>({})
   const [specId, setSpecId] = useState<string>(() => task.overlayPrint?.paperSpecId ?? '')
@@ -64,7 +71,7 @@ export function OverlayPrintDocument({
     () => task.overlayPrint?.calibration ?? DEFAULT_OVERLAY_CALIBRATION,
   )
   const [showUnderlay, setShowUnderlay] = useState(true)
-  const [showCalibrationPage, setShowCalibrationPage] = useState(false)
+  const [viewMode, setViewMode] = useState<OverlayViewMode>('papers')
   const [detecting, setDetecting] = useState(false)
   const [quadEditor, setQuadEditor] = useState<{ paperId: string; page: number } | null>(null)
   const [printers, setPrinters] = useState<PrinterInfo[]>([])
@@ -72,8 +79,13 @@ export function OverlayPrintDocument({
   const [silentPrinting, setSilentPrinting] = useState(false)
   const [tplDialog, setTplDialog] = useState(false)
   const [masterUrls, setMasterUrls] = useState<string[] | null>(null)
+  const [activePaperId, setActivePaperId] = useState<string | null>(null)
+  const [printOnlyId, setPrintOnlyId] = useState<string | null>(null)
+  const [printArmed, setPrintArmed] = useState(false)
+  const [nudgeOpen, setNudgeOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const paperAnchorRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
-  // 打印机清单(静默连打选设备;取不到就留空走系统默认)
   useEffect(() => {
     let alive = true
     getAPI()
@@ -87,7 +99,6 @@ export function OverlayPrintDocument({
     }
   }, [])
 
-  // 印制版: 读母版样卷图(留档在 files/<taskId>/template/)
   const loadMaster = async () => {
     if (masterUrls) return
     const tpl = task.overlayTemplate
@@ -106,22 +117,12 @@ export function OverlayPrintDocument({
     setMasterUrls(urls)
   }
 
-  // 静默连打: 参数写死 实际尺寸+无边距,按顺序出全部套打页
   const silentPrint = async () => {
-    if (unplacedTotal > 0) {
-      toast.error(
-        t(
-          'page.grading.overlay.silentBlocked',
-          '有卷未定位: 只能回写总分,每题痕迹/大题批注不会打印 — 请先「自动定位四点」或手动四点',
-        ),
-      )
+    if (viewMode === 'calibration') {
+      toast.warning(t('page.grading.overlay.silentCalib', '请先返回套打预览,再按顺序套打'))
       return
     }
-    if (showCalibrationPage) {
-      toast.warning(t('page.grading.overlay.silentCalib', '请先取消勾选校准页,再静默连打'))
-      return
-    }
-    if (masterUrls) {
+    if (viewMode === 'master') {
       toast.warning(t('page.grading.overlay.silentMaster', '当前是印制版母版,请先返回套打预览'))
       return
     }
@@ -148,7 +149,6 @@ export function OverlayPrintDocument({
     }
   }
 
-  // 纸张规格: 未保存过时按首页图片宽高比给建议
   const suggestedSpecId = useMemo(() => {
     const first = Object.values(sizes)
       .flat()
@@ -158,7 +158,6 @@ export function OverlayPrintDocument({
   const effectiveSpecId = specId || suggestedSpecId
   const spec: PaperSpec = paperSpecById(effectiveSpecId)
 
-  // 量扫描图自然尺寸(缓存按 url)
   useEffect(() => {
     let alive = true
     for (const view of views) {
@@ -181,7 +180,6 @@ export function OverlayPrintDocument({
     }
   }, [views])
 
-  // 版式: 每份卷一套(四点从最新 task 取,与 views 内旧对象解耦)
   const layouts = useMemo<OverlayPaperLayout[]>(() => {
     const paperById = new Map(task.papers.map((p) => [p.id, p]))
     return views.map((view) => {
@@ -198,23 +196,13 @@ export function OverlayPrintDocument({
     })
   }, [views, task, sizes, spec, calibration])
 
-  // 未定位而排不出的痕迹数: 红色横幅 + 静默连打/系统打印拦截 共用
-  const unplacedTotal = useMemo(
-    () => layouts.reduce((s, l) => s + l.pages.reduce((x, p) => x + p.unplacedMarks, 0), 0),
-    [layouts],
-  )
-  useEffect(() => {
-    onUnplacedChange?.(unplacedTotal)
-  }, [unplacedTotal, onUnplacedChange])
-
-  // 纸张规格/校准/打印机持久化(跳过首帧)
   const savedRef = useRef({
     spec: task.overlayPrint?.paperSpecId,
     calib: task.overlayPrint?.calibration,
     device: task.overlayPrint?.deviceName,
   })
   useEffect(() => {
-    if (showCalibrationPage) return
+    if (viewMode === 'calibration') return
     const timer = window.setTimeout(() => {
       const wantSaveSpec = specId !== '' && specId !== savedRef.current.spec
       const c = calibration
@@ -239,9 +227,8 @@ export function OverlayPrintDocument({
         .catch(() => undefined)
     }, 500)
     return () => window.clearTimeout(timer)
-  }, [specId, calibration, task.id, showCalibrationPage, deviceName])
+  }, [specId, calibration, task.id, viewMode, deviceName])
 
-  // 自动定位四点(CV→AI 自动链)
   const detect = async () => {
     setDetecting(true)
     try {
@@ -250,15 +237,15 @@ export function OverlayPrintDocument({
       const ok = pages.filter((p) => p.ok).length
       const fail = pages.length - ok
       if (pages.length === 0) {
-        toast.warning(t('page.grading.overlay.detectPartial', '未找到可定位的试卷'))
+        toast.warning(t('page.grading.overlay.detectEmpty', '未找到可对齐的试卷'))
       } else if (fail === 0) {
-        toast.success(tr('page.grading.overlay.detectOk', { n: ok }, `定位完成: ${ok} 页全部成功`))
+        toast.success(tr('page.grading.overlay.detectOk', { n: ok }, `对齐完成: ${ok} 页全部成功`))
       } else {
         toast.warning(
           tr(
             'page.grading.overlay.detectPartial',
             { ok, fail },
-            `定位完成: ${ok} 页成功,${fail} 页需手动四点`,
+            `对齐完成: ${ok} 页成功,${fail} 页需手动对齐四角`,
           ),
         )
       }
@@ -270,15 +257,12 @@ export function OverlayPrintDocument({
     }
   }
 
-  // 需要人工兜底的卷: 有扫描件但存在未定位页
-  // 母版标定生效: 模板有逐题 boxes 且至少一页有四点 → 学生卷免定位
   const templateActive = useMemo(() => {
     const tpl = task.overlayTemplate
     return !!tpl?.boxes && Object.keys(tpl.boxes).length > 0 && !!tpl.quads?.some((q) => q != null)
   }, [task])
   const tplLocated = Object.keys(task.overlayTemplate?.boxes ?? {}).length
 
-  // 需要人工兜底的卷: 有扫描件但存在未定位页(母版生效时不逐卷定位)
   const needManual = useMemo(() => {
     if (templateActive) return []
     const byId = new Map(task.papers.map((p) => [p.id, p]))
@@ -289,8 +273,34 @@ export function OverlayPrintDocument({
       )
   }, [views, task, templateActive])
 
-  // 进套打页自动定位一次: 本任务从未定位过(所有卷 quads 为空)且当前有未定位卷才触发;
-  // 已尝试过(含失败存 [null])不打扰,剩余交给手动四点逃生门
+  const paperStatuses = useMemo(() => {
+    const byId = new Map(task.papers.map((p) => [p.id, p]))
+    return views.map((v, i) => {
+      const paper = byId.get(v.paper.id) ?? v.paper
+      const name = paper.studentName ?? t('print.gradingMarks.unassigned', '未归组')
+      let status: AlignStatus = 'aligned'
+      if (!templateActive) {
+        const quads = paper.overlayQuads
+        const missing = !quads || quads.some((q) => q == null)
+        if (missing) status = 'manual'
+        else if ((layouts[i]?.approxPages ?? 0) > 0) status = 'approx'
+      }
+      return { id: paper.id, name, status }
+    })
+  }, [views, task, templateActive, layouts, t])
+
+  const statusCounts = useMemo(() => {
+    let aligned = 0
+    let approx = 0
+    let manual = 0
+    for (const p of paperStatuses) {
+      if (p.status === 'aligned') aligned += 1
+      else if (p.status === 'approx') approx += 1
+      else manual += 1
+    }
+    return { aligned, approx, manual }
+  }, [paperStatuses])
+
   const detectRef = useRef(detect)
   detectRef.current = detect
   const autoDetectRef = useRef(false)
@@ -312,6 +322,47 @@ export function OverlayPrintDocument({
     })
   }
 
+  const currentPaperId = activePaperId ?? views[0]?.paper.id ?? null
+
+  const jumpToPaper = (id: string) => {
+    setActivePaperId(id)
+    setViewMode('papers')
+    paperAnchorRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const openManualAlign = (paperId: string) => {
+    const byId = new Map(task.papers.map((p) => [p.id, p]))
+    const paper = byId.get(paperId)
+    if (!paper) return
+    const missingPages = (paper.overlayQuads ?? paper.files.map(() => null))
+      .map((q, i) => (q == null ? i : -1))
+      .filter((i) => i >= 0)
+    setQuadEditor({ paperId, page: missingPages[0] ?? 0 })
+  }
+
+  useEffect(() => {
+    if (!printArmed) return
+    const timer = window.setTimeout(() => {
+      window.print()
+      setPrintArmed(false)
+      setPrintOnlyId(null)
+    }, 80)
+    return () => window.clearTimeout(timer)
+  }, [printArmed])
+
+  const testPrintCurrent = () => {
+    if (viewMode !== 'papers') {
+      window.print()
+      return
+    }
+    if (!currentPaperId) {
+      window.print()
+      return
+    }
+    setPrintOnlyId(currentPaperId)
+    setPrintArmed(true)
+  }
+
   const editorPaper = quadEditor
     ? (views.find((v) => v.paper.id === quadEditor.paperId) ?? null)
     : null
@@ -325,30 +376,180 @@ export function OverlayPrintDocument({
     return null
   }, [quadEditor, editorPaper, task, sizes])
 
+  const openMaster = async () => {
+    setViewMode('master')
+    await loadMaster()
+  }
+
   return (
-    <div className="text-gray-900">
+    <div className="overlay-workspace text-gray-900">
       <style>{`@media print { @page { size: ${spec.widthMm}mm ${spec.heightMm}mm; margin: 0; } }`}</style>
 
-      {/* ===== 控制面板(仅屏幕) ===== */}
-      <div className="overlay-screen-only mx-auto mb-4 w-[210mm] max-w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs dark:border-white/10 dark:bg-white/5 dark:text-gray-200">
-        {unplacedTotal > 0 && !masterUrls && !showCalibrationPage && (
-          <div className="mb-2 rounded bg-red-50 px-2 py-1.5 text-[12px] font-medium text-red-700 dark:bg-red-500/15 dark:text-red-300">
-            {tr(
-              'page.grading.overlay.unplacedBanner',
-              { n: unplacedTotal },
-              `⚠ ${unplacedTotal} 处痕迹未定位排不出: 这些卷只会回写总分,每题痕迹/大题批注不会打印 — 请先「自动定位四点」或手动四点`,
+      <div className="overlay-screen-only overlay-workbench">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium tracking-wide text-red-700/80">
+              {t('page.grading.overlay.kicker', '红笔套回原卷')}
+            </p>
+            <h2 className="text-base font-semibold text-gray-900">
+              {t('page.grading.overlay.heroTitle', '套打原卷')}
+            </h2>
+            <p className="mt-0.5 max-w-xl text-xs leading-relaxed text-gray-600">
+              {t(
+                'page.grading.overlay.heroBody',
+                '只打印分数、对错和批注。把学生写过的原卷放进打印机,红笔会落在对应题目旁边。',
+              )}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+            <StatusPill tone="ok">
+              {tr(
+                'page.grading.overlay.alignedCount',
+                { n: statusCounts.aligned },
+                `${statusCounts.aligned} 份已对齐`,
+              )}
+            </StatusPill>
+            {statusCounts.approx > 0 && (
+              <StatusPill tone="warn">
+                {tr(
+                  'page.grading.overlay.approxCount',
+                  { n: statusCounts.approx },
+                  `${statusCounts.approx} 份大致对齐`,
+                )}
+              </StatusPill>
+            )}
+            {statusCounts.manual > 0 && (
+              <StatusPill tone="bad">
+                {tr(
+                  'page.grading.overlay.needCount',
+                  { n: statusCounts.manual },
+                  `${statusCounts.manual} 份需手动对齐`,
+                )}
+              </StatusPill>
+            )}
+            {templateActive && (
+              <StatusPill tone="ok">
+                {tr(
+                  'page.grading.overlay.tplActive',
+                  { n: tplLocated },
+                  `样卷已统一 ${tplLocated} 题落点`,
+                )}
+              </StatusPill>
             )}
           </div>
+        </div>
+
+        {viewMode === 'papers' && statusCounts.manual > 0 && (
+          <p className="mt-2 rounded-md bg-red-50 px-2.5 py-1.5 text-xs text-red-800">
+            {t(
+              'page.grading.overlay.manualBanner',
+              '红字已按整页大致排好,但对位不准。点学生名手动对齐四角,或先「自动对齐」。',
+            )}
+          </p>
         )}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {viewMode === 'papers' && statusCounts.manual === 0 && statusCounts.approx > 0 && (
+          <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
+            {t(
+              'page.grading.overlay.approxBanner',
+              '部分卷是估算位置,可以先试打一张看准不准。要更准请自动对齐,或用空白样卷统一落点。',
+            )}
+          </p>
+        )}
+        {viewMode === 'calibration' && (
+          <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
+            {t(
+              'page.grading.overlay.calibrationHint',
+              '把这一页打到套打用的同款纸上。量 100mm 标尺得缩放,量左上十字线距纸边得左右/上下偏移,填进「微调对位」后再试打。',
+            )}
+          </p>
+        )}
+        {viewMode === 'master' && (
+          <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
+            {t(
+              'page.grading.overlay.masterNote',
+              '按 100% 实际大小打印后,就是下次考试带四角定位点的原卷。复印请保持 1:1。',
+            )}
+          </p>
+        )}
+
+        {paperStatuses.length > 0 && viewMode === 'papers' && (
+          <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
+            {paperStatuses.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => jumpToPaper(p.id)}
+                className={cn(
+                  'shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors',
+                  currentPaperId === p.id
+                    ? 'border-gray-900 bg-gray-900 text-white'
+                    : p.status === 'manual'
+                      ? 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100'
+                      : p.status === 'approx'
+                        ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
+                )}
+              >
+                {p.status === 'aligned' ? '✓ ' : p.status === 'approx' ? '~ ' : '! '}
+                {p.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            icon={<ScanLine size={13} />}
+            loading={detecting}
+            onClick={() => void detect()}
+          >
+            {detecting
+              ? t('page.grading.overlay.detecting', '对齐中…')
+              : t('page.grading.overlay.detect', '自动对齐')}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={templateActive ? 'secondary' : 'outline'}
+            onClick={() => setTplDialog(true)}
+          >
+            {templateActive
+              ? t('page.grading.overlay.tplRecalibrate', '重新用样卷统一落点')
+              : t('page.grading.overlay.tplCalibrate', '用空白样卷统一落点')}
+          </Button>
+          <span className="mx-1 hidden h-4 w-px bg-gray-200 sm:inline-block" />
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            icon={<Printer size={13} />}
+            onClick={testPrintCurrent}
+          >
+            {t('page.grading.overlay.testPrint', '试打这一份')}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="success"
+            loading={silentPrinting}
+            onClick={() => void silentPrint()}
+          >
+            {silentPrinting
+              ? t('page.grading.overlay.silentDoing', '打印中…')
+              : t('page.grading.overlay.batchPrint', '按顺序套打全班')}
+          </Button>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-700">
           <label className="flex items-center gap-1.5">
             {t('page.grading.overlay.paperSpec', '纸张')}
             <select
               value={effectiveSpecId}
-              onChange={(e) => {
-                setSpecId(e.target.value)
-              }}
-              className="rounded border border-gray-300 bg-white px-1.5 py-0.5 dark:border-white/20 dark:bg-white/10"
+              onChange={(e) => setSpecId(e.target.value)}
+              className="rounded-md border border-gray-300 bg-white px-1.5 py-0.5"
             >
               {PAPER_SPECS.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -357,200 +558,138 @@ export function OverlayPrintDocument({
               ))}
             </select>
           </label>
-          <button
-            type="button"
-            onClick={() => setTplDialog(true)}
-            className="rounded border border-blue-500 px-2.5 py-1 font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-500/10"
-          >
-            {templateActive
-              ? t('page.grading.overlay.tplRecalibrate', '重新标定母版')
-              : t('page.grading.overlay.tplCalibrate', '母版标定')}
-          </button>
-          {templateActive && (
-            <>
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-                {t(
-                  'page.grading.overlay.tplActive',
-                  `母版生效: ${tplLocated} 题统一痕迹位,学生卷免定位`,
-                )}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCalibrationPage(false)
-                  if (masterUrls) setMasterUrls(null)
-                  else void loadMaster()
-                }}
-                className={cn(
-                  'rounded px-2.5 py-1 font-medium',
-                  masterUrls
-                    ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-500/15 dark:text-amber-200'
-                    : 'border border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-300',
-                )}
-                title={t(
-                  'page.grading.overlay.masterHint',
-                  '把样卷带四角定位点重新打印,作下次考试的印制母版',
-                )}
-              >
-                {masterUrls
-                  ? t('page.grading.overlay.masterBack', '返回套打预览')
-                  : t('page.grading.overlay.masterPrint', '印制版(带定位点)')}
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            onClick={() => void detect()}
-            disabled={detecting}
-            className={cn(
-              'rounded px-2.5 py-1 font-medium text-white',
-              detecting ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700',
-            )}
-          >
-            {detecting
-              ? t('page.grading.overlay.detecting', '定位中…')
-              : t('page.grading.overlay.detect', '自动定位四点')}
-          </button>
-          <label className="flex cursor-pointer items-center gap-1">
-            <input
-              type="checkbox"
-              checked={showUnderlay}
-              onChange={(e) => setShowUnderlay(e.target.checked)}
-            />
-            {t('page.grading.overlay.underlay', '垫底预览')}
-          </label>
-          <label className="flex cursor-pointer items-center gap-1">
-            <input
-              type="checkbox"
-              checked={showCalibrationPage}
-              onChange={(e) => setShowCalibrationPage(e.target.checked)}
-            />
-            {t('page.grading.overlay.calibrationPage', '校准页')}
-          </label>
-          {printers.length > 0 && (
-            <label className="flex items-center gap-1.5">
-              {t('page.grading.overlay.printer', '打印机')}
-              <select
-                value={deviceName}
-                onChange={(e) => setDeviceName(e.target.value)}
-                className="max-w-44 rounded border border-gray-300 bg-white px-1.5 py-0.5 dark:border-white/20 dark:bg-white/10"
-              >
-                <option value="">{t('page.grading.overlay.systemDefault', '系统默认')}</option>
-                {printers.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.displayName || p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <button
-            type="button"
-            onClick={() => void silentPrint()}
-            disabled={silentPrinting}
-            className={cn(
-              'rounded px-2.5 py-1 font-medium text-white',
-              silentPrinting ? 'bg-gray-400' : 'bg-emerald-600 hover:bg-emerald-700',
-            )}
-          >
-            {silentPrinting
-              ? t('page.grading.overlay.silentDoing', '打印中…')
-              : t('page.grading.overlay.silentPrint', '静默连打')}
-          </button>
-          <div className="ml-auto flex items-center gap-1 font-mono">
-            <span className="text-gray-500">dx</span>
+          <div className="flex items-center rounded-md border border-gray-200 bg-gray-50 p-0.5">
             <button
               type="button"
-              onClick={() => stepCalibration('dxMm', -1)}
-              className="rounded border border-gray-300 px-1 dark:border-white/20"
+              onClick={() => setShowUnderlay(true)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-2 py-0.5',
+                showUnderlay ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500',
+              )}
             >
-              −
+              <Eye size={12} />
+              {t('page.grading.overlay.previewCompare', '对照原卷')}
             </button>
-            <span className="w-12 text-center">{calibration.dxMm.toFixed(1)}</span>
             <button
               type="button"
-              onClick={() => stepCalibration('dxMm', 1)}
-              className="rounded border border-gray-300 px-1 dark:border-white/20"
+              onClick={() => setShowUnderlay(false)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-2 py-0.5',
+                !showUnderlay ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500',
+              )}
             >
-              +
-            </button>
-            <span className="ml-2 text-gray-500">dy</span>
-            <button
-              type="button"
-              onClick={() => stepCalibration('dyMm', -1)}
-              className="rounded border border-gray-300 px-1 dark:border-white/20"
-            >
-              −
-            </button>
-            <span className="w-12 text-center">{calibration.dyMm.toFixed(1)}</span>
-            <button
-              type="button"
-              onClick={() => stepCalibration('dyMm', 1)}
-              className="rounded border border-gray-300 px-1 dark:border-white/20"
-            >
-              +
-            </button>
-            <span className="ml-2 text-gray-500">mm</span>
-            <span className="ml-2 text-gray-500">{t('page.grading.overlay.scale', '缩放')}</span>
-            <button
-              type="button"
-              onClick={() => stepCalibration('scalePct', -1)}
-              className="rounded border border-gray-300 px-1 dark:border-white/20"
-            >
-              −
-            </button>
-            <span className="w-14 text-center">{calibration.scalePct.toFixed(2)}%</span>
-            <button
-              type="button"
-              onClick={() => stepCalibration('scalePct', 1)}
-              className="rounded border border-gray-300 px-1 dark:border-white/20"
-            >
-              +
+              <EyeOff size={12} />
+              {t('page.grading.overlay.previewInk', '只看红字')}
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => setNudgeOpen((v) => !v)}
+            className="inline-flex items-center gap-1 text-gray-600 hover:text-gray-900"
+          >
+            {t('page.grading.overlay.nudge', '微调对位')}
+            <ChevronDown
+              size={12}
+              className={cn('transition-transform', nudgeOpen && 'rotate-180')}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMoreOpen((v) => !v)}
+            className="inline-flex items-center gap-1 text-gray-600 hover:text-gray-900"
+          >
+            {t('page.grading.overlay.more', '更多')}
+            <ChevronDown
+              size={12}
+              className={cn('transition-transform', moreOpen && 'rotate-180')}
+            />
+          </button>
         </div>
-        <p className="mt-2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
-          {t(
-            'page.grading.overlay.printHint',
-            '套打要点: 打印对话框选「实际大小/100%」,纸张规格与上方一致,关闭「适应页面/无边距」;原卷压平,按屏幕顺序逐张进纸,每 5 份抽查一次对位。',
-          )}
-        </p>
-        {needManual.length > 0 && (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <span className="text-gray-500">
-              {t('page.grading.overlay.needManual', '未定位(可手动四点):')}
+
+        {nudgeOpen && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-2 font-mono text-xs">
+            <span className="font-sans text-gray-500">
+              {t('page.grading.overlay.shiftX', '左右')}
             </span>
-            {needManual.map((p) => {
-              const missingPages = (p.overlayQuads ?? p.files.map(() => null))
-                .map((q, i) => (q == null ? i : -1))
-                .filter((i) => i >= 0)
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setQuadEditor({ paperId: p.id, page: missingPages[0] ?? 0 })}
-                  className="rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] text-red-700 hover:bg-red-100 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
-                >
-                  {p.studentName ?? t('print.gradingMarks.unassigned', '未归组')}
-                  {missingPages.length > 0 ? ` ·P${missingPages.map((i) => i + 1).join('/')}` : ''}
-                </button>
-              )
-            })}
+            <NudgeBtn onClick={() => stepCalibration('dxMm', -1)}>−</NudgeBtn>
+            <span className="w-12 text-center">{calibration.dxMm.toFixed(1)}</span>
+            <NudgeBtn onClick={() => stepCalibration('dxMm', 1)}>+</NudgeBtn>
+            <span className="ml-2 font-sans text-gray-500">
+              {t('page.grading.overlay.shiftY', '上下')}
+            </span>
+            <NudgeBtn onClick={() => stepCalibration('dyMm', -1)}>−</NudgeBtn>
+            <span className="w-12 text-center">{calibration.dyMm.toFixed(1)}</span>
+            <NudgeBtn onClick={() => stepCalibration('dyMm', 1)}>+</NudgeBtn>
+            <span className="font-sans text-gray-500">mm</span>
+            <span className="ml-2 font-sans text-gray-500">
+              {t('page.grading.overlay.scale', '缩放')}
+            </span>
+            <NudgeBtn onClick={() => stepCalibration('scalePct', -1)}>−</NudgeBtn>
+            <span className="w-14 text-center">{calibration.scalePct.toFixed(2)}%</span>
+            <NudgeBtn onClick={() => stepCalibration('scalePct', 1)}>+</NudgeBtn>
+            <Button
+              type="button"
+              size="xs"
+              variant={viewMode === 'calibration' ? 'warning' : 'outline'}
+              icon={<Ruler size={12} />}
+              onClick={() => setViewMode((m) => (m === 'calibration' ? 'papers' : 'calibration'))}
+            >
+              {viewMode === 'calibration'
+                ? t('page.grading.overlay.calibBack', '返回预览')
+                : t('page.grading.overlay.calibOpen', '打印校准页')}
+            </Button>
           </div>
         )}
+
+        {moreOpen && (
+          <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-2 py-2 text-xs">
+            {printers.length > 0 && (
+              <label className="flex items-center gap-1.5">
+                {t('page.grading.overlay.printer', '打印机')}
+                <select
+                  value={deviceName}
+                  onChange={(e) => setDeviceName(e.target.value)}
+                  className="max-w-44 rounded border border-gray-300 bg-white px-1.5 py-0.5"
+                >
+                  <option value="">{t('page.grading.overlay.systemDefault', '系统默认')}</option>
+                  {printers.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.displayName || p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {templateActive && (
+              <Button
+                type="button"
+                size="xs"
+                variant={viewMode === 'master' ? 'warning' : 'outline'}
+                onClick={() => {
+                  if (viewMode === 'master') setViewMode('papers')
+                  else void openMaster()
+                }}
+              >
+                {viewMode === 'master'
+                  ? t('page.grading.overlay.masterBack', '返回套打预览')
+                  : t('page.grading.overlay.masterPrint', '打印带定位点的样卷')}
+              </Button>
+            )}
+          </div>
+        )}
+
+        <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+          {t(
+            'page.grading.overlay.printHint',
+            '打印对话框选「实际大小 / 100%」,关掉「适应页面」。原卷压平、单张进纸,按上面学生顺序放,每 5 份抽查一次对位。',
+          )}
+        </p>
       </div>
 
-      {/* ===== 页面 ===== */}
-      {showCalibrationPage ? (
+      {viewMode === 'calibration' ? (
         <CalibrationPrintPage spec={spec} />
-      ) : masterUrls && masterUrls.length > 0 ? (
+      ) : viewMode === 'master' && masterUrls && masterUrls.length > 0 ? (
         <div className="overlay-paper mb-6">
-          <p className="overlay-screen-only mb-1 text-xs text-amber-700 dark:text-amber-300">
-            {t(
-              'page.grading.overlay.masterNote',
-              '印制版母版: 按 100% 实际大小打印后即为下次考试的原卷(四角带■定位点,天生可精准套打);复印/胶印请保持 1:1。',
-            )}
-          </p>
           {masterUrls.map((url, i) => (
             <div
               key={`master-${url.slice(-16)}`}
@@ -580,31 +719,63 @@ export function OverlayPrintDocument({
       ) : (
         views.map((view, vi) => {
           const layout = layouts[vi]
-          const student = view.paper.studentName ?? t('print.gradingMarks.unassigned', '未归组')
+          const status = paperStatuses[vi]
+          const student = status?.name ?? t('print.gradingMarks.unassigned', '未归组')
           const pageCount = Math.max(view.imageUrls.length, layout?.pages.length ?? 0)
+          const paper = task.papers.find((p) => p.id === view.paper.id) ?? view.paper
+          const skip = printOnlyId != null && printOnlyId !== view.paper.id
           return (
-            <div key={view.paper.id} className="overlay-paper mb-6">
-              <p className="overlay-screen-only mb-1 text-xs text-gray-500">
-                {student}
-                {layout && layout.warnings.length > 0 ? ` · ${layout.warnings.join(' · ')}` : ''}
-              </p>
-              {Array.from({ length: pageCount }, (_, page) => (
-                <OverlayPage
-                  // biome-ignore lint/suspicious/noArrayIndexKey: 静态页列表,页序即稳定键
-                  key={`page-${page}`}
-                  spec={spec}
-                  underlayUrl={showUnderlay ? view.imageUrls[page] : undefined}
-                  marks={layout?.pages[page]?.marks ?? []}
-                  notes={layout?.pages[page]?.notes ?? []}
-                  total={layout?.total && page === 0 ? layout.total : null}
-                />
-              ))}
+            <div
+              key={view.paper.id}
+              ref={(el) => {
+                paperAnchorRefs.current[view.paper.id] = el
+              }}
+              className={cn('overlay-paper mb-8', skip && 'overlay-print-skip')}
+            >
+              <div className="overlay-screen-only mx-auto mb-2 flex w-full max-w-[210mm] items-center justify-between gap-2 px-1 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-800">{student}</span>
+                  <AlignBadge status={status?.status ?? 'aligned'} />
+                </div>
+                {status?.status === 'manual' && (
+                  <button
+                    type="button"
+                    onClick={() => openManualAlign(view.paper.id)}
+                    className="rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] text-red-700 hover:bg-red-100"
+                  >
+                    {t('page.grading.overlay.fixAlign', '手动对齐四角')}
+                  </button>
+                )}
+              </div>
+              {layout && layout.warnings.length > 0 && (
+                <p className="overlay-screen-only mx-auto mb-2 max-w-[210mm] px-1 text-[11px] text-amber-800">
+                  {layout.warnings.join(' · ')}
+                </p>
+              )}
+              {Array.from({ length: pageCount }, (_, page) => {
+                const stored = paper.overlayQuads?.[page]
+                const size = sizes[view.paper.id]?.[page]
+                const quad =
+                  stored && size ? rescaleQuad(stored, size.width, size.height) : (stored ?? null)
+                return (
+                  <OverlayPage
+                    // biome-ignore lint/suspicious/noArrayIndexKey: 静态页列表,页序即稳定键
+                    key={`page-${page}`}
+                    spec={spec}
+                    underlayUrl={showUnderlay ? view.imageUrls[page] : undefined}
+                    underlayQuad={quad}
+                    underlaySize={size}
+                    marks={layout?.pages[page]?.marks ?? []}
+                    notes={layout?.pages[page]?.notes ?? []}
+                    total={layout?.total && page === 0 ? layout.total : null}
+                  />
+                )
+              })}
             </div>
           )
         })
       )}
 
-      {/* ===== 母版标定 ===== */}
       {tplDialog && (
         <TemplateCalibrateDialog
           taskId={task.id}
@@ -613,7 +784,6 @@ export function OverlayPrintDocument({
         />
       )}
 
-      {/* ===== 手动四点逃生门 ===== */}
       {quadEditor && editorPaper && (
         <QuadEditorDialog
           taskId={task.id}
@@ -633,32 +803,128 @@ export function OverlayPrintDocument({
   )
 }
 
-// ===== 单页(毫米坐标系) =====
+function StatusPill({ tone, children }: { tone: 'ok' | 'warn' | 'bad'; children: ReactNode }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium',
+        tone === 'ok' && 'bg-emerald-50 text-emerald-800',
+        tone === 'warn' && 'bg-amber-50 text-amber-900',
+        tone === 'bad' && 'bg-red-50 text-red-800',
+      )}
+    >
+      {tone === 'ok' ? <Check size={11} /> : <AlertTriangle size={11} />}
+      {children}
+    </span>
+  )
+}
+
+function AlignBadge({ status }: { status: AlignStatus }) {
+  const { t } = useT()
+  if (status === 'aligned') {
+    return (
+      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800">
+        {t('page.grading.overlay.statusAligned', '已对齐')}
+      </span>
+    )
+  }
+  if (status === 'approx') {
+    return (
+      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-900">
+        {t('page.grading.overlay.statusApprox', '大致对齐')}
+      </span>
+    )
+  }
+  return (
+    <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] text-red-800">
+      {t('page.grading.overlay.statusManual', '需对齐')}
+    </span>
+  )
+}
+
+function NudgeBtn({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded border border-gray-300 bg-white px-1.5 py-0.5 hover:bg-gray-50"
+    >
+      {children}
+    </button>
+  )
+}
 
 interface OverlayPageProps {
   spec: PaperSpec
   underlayUrl?: string
+  underlayQuad?: PageQuad | null
+  underlaySize?: { width: number; height: number }
   marks: OverlayPaperLayout['pages'][number]['marks']
   notes: OverlayPaperLayout['pages'][number]['notes']
   total: OverlayPaperLayout['total']
 }
 
-function OverlayPage({ spec, underlayUrl, marks, notes, total }: OverlayPageProps) {
+function OverlayPage({
+  spec,
+  underlayUrl,
+  underlayQuad,
+  underlaySize,
+  marks,
+  notes,
+  total,
+}: OverlayPageProps) {
+  const pageRef = useRef<HTMLDivElement | null>(null)
+  const [pagePx, setPagePx] = useState<{ width: number; height: number } | null>(null)
+
+  useEffect(() => {
+    const el = pageRef.current
+    if (!el) return
+    const update = () => {
+      const width = el.clientWidth
+      const height = el.clientHeight
+      if (width > 0 && height > 0) setPagePx({ width, height })
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const warp = useMemo(() => {
+    if (!underlayQuad || !pagePx || !underlaySize) return null
+    const h = quadToPageCssHomography(underlayQuad, pagePx.width, pagePx.height)
+    if (!h) return null
+    return homographyToCssMatrix3d(h)
+  }, [underlayQuad, pagePx, underlaySize])
+
   return (
     <div
-      className="overlay-page relative mx-auto overflow-hidden bg-white shadow-sm"
+      ref={pageRef}
+      className="overlay-page relative mx-auto overflow-hidden bg-white"
       style={{ width: `${spec.widthMm}mm`, height: `${spec.heightMm}mm` }}
     >
-      {underlayUrl && (
+      {underlayUrl && warp && underlaySize ? (
         <img
           src={underlayUrl}
-          alt="overlay-underlay"
-          className="overlay-underlay pointer-events-none absolute inset-0 h-full w-full object-fill opacity-15"
+          alt=""
+          className="overlay-underlay pointer-events-none absolute left-0 top-0 max-w-none"
+          style={{
+            width: `${underlaySize.width}px`,
+            height: `${underlaySize.height}px`,
+            transformOrigin: '0 0',
+            transform: warp,
+          }}
         />
-      )}
+      ) : underlayUrl && !underlayQuad ? (
+        <img
+          src={underlayUrl}
+          alt=""
+          className="overlay-underlay pointer-events-none absolute inset-0 h-full w-full object-fill"
+        />
+      ) : null}
       {total && (
         <div
-          className="handwriting-mark absolute whitespace-nowrap text-red-700"
+          className="overlay-ink handwriting-mark absolute whitespace-nowrap text-red-700"
           style={{ left: `${total.xMm}mm`, top: `${total.yMm}mm` }}
         >
           <span style={{ fontSize: `${total.mainPt}pt`, lineHeight: 1 }}>{total.mainText}</span>
@@ -668,7 +934,7 @@ function OverlayPage({ spec, underlayUrl, marks, notes, total }: OverlayPageProp
       {marks.map((m) => (
         <div
           key={m.questionId}
-          className="handwriting-mark absolute whitespace-nowrap leading-none text-red-700"
+          className="overlay-ink handwriting-mark absolute whitespace-nowrap leading-none text-red-700"
           style={{ left: `${m.xMm}mm`, top: `${m.yMm}mm`, fontSize: `${m.pt}pt` }}
         >
           {m.text}
@@ -677,7 +943,7 @@ function OverlayPage({ spec, underlayUrl, marks, notes, total }: OverlayPageProp
       {notes.map((n) => (
         <div
           key={n.questionId}
-          className="handwriting-mark absolute whitespace-pre-wrap break-all text-red-800"
+          className="overlay-ink overlay-note handwriting-mark absolute text-red-800"
           style={{
             left: `${n.xMm}mm`,
             top: `${n.yMm}mm`,
@@ -686,20 +952,18 @@ function OverlayPage({ spec, underlayUrl, marks, notes, total }: OverlayPageProp
             lineHeight: `${n.lineHeightMm / ptToMm(n.pt)}`,
           }}
         >
-          <span className="font-semibold">{n.header}</span>
+          <div className="font-semibold whitespace-nowrap">{n.header}</div>
           {n.lines.map((line, i) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: 批注行序即稳定键
-            <span key={`${n.questionId}-line-${i}`} className="block pl-[2mm]">
+            <div key={`${n.questionId}-line-${i}`} className="whitespace-nowrap">
               {line}
-            </span>
+            </div>
           ))}
         </div>
       ))}
     </div>
   )
 }
-
-// ===== 校准页(100mm 标尺 + 四角十字线) =====
 
 function CalibrationPrintPage({ spec }: { spec: PaperSpec }) {
   const { t } = useT()
@@ -712,17 +976,10 @@ function CalibrationPrintPage({ spec }: { spec: PaperSpec }) {
   ]
   return (
     <div className="overlay-paper">
-      <p className="overlay-screen-only mb-1 text-xs text-gray-500">
-        {t(
-          'page.grading.overlay.calibrationHint',
-          '校准页: 打印一张到套打用的同款纸上,量横/竖 100mm 标尺的实际长度(缩放=实测/100×100%),量左上十字线中心距纸边的 x/y(即 dx/dy 的修正值),录入上方微调后重新试打。',
-        )}
-      </p>
       <div
         className="overlay-page relative mx-auto bg-white"
         style={{ width: `${spec.widthMm}mm`, height: `${spec.heightMm}mm` }}
       >
-        {/* 硬件死区可视化(6mm 虚线框) */}
         <div
           className="absolute border border-dashed border-gray-300"
           style={{
@@ -732,7 +989,6 @@ function CalibrationPrintPage({ spec }: { spec: PaperSpec }) {
             height: `${spec.heightMm - 12}mm`,
           }}
         />
-        {/* 横向标尺: x 30–130mm,基线 y=60 */}
         <div
           className="absolute bg-gray-800"
           style={{ left: '30mm', top: '60mm', width: '100mm', height: '0.3mm' }}
@@ -764,7 +1020,6 @@ function CalibrationPrintPage({ spec }: { spec: PaperSpec }) {
         >
           100mm
         </span>
-        {/* 纵向标尺: y 30–130mm,基线 x=60 */}
         <div
           className="absolute bg-gray-800"
           style={{ left: '60mm', top: '30mm', width: '0.3mm', height: '100mm' }}
@@ -790,7 +1045,6 @@ function CalibrationPrintPage({ spec }: { spec: PaperSpec }) {
             {mm}
           </span>
         ))}
-        {/* 四角十字线 */}
         {crossAt.map((c) => (
           <div key={`cross-${c.x}-${c.y}`}>
             <div
@@ -803,7 +1057,6 @@ function CalibrationPrintPage({ spec }: { spec: PaperSpec }) {
             />
           </div>
         ))}
-        {/* 红字样例(检查红色墨与字号层级) */}
         <div
           className="handwriting-mark absolute text-red-700"
           style={{ left: '80mm', top: '80mm' }}

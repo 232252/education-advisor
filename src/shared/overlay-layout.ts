@@ -8,12 +8,17 @@
 //     > 题分(11.5pt) > 页边批注小字(8pt, 六号字级别, 中文注释字号惯例);
 //   - 自适应只压内容不缩字号: 先压行距空间 → 丢评语 → 截扣分 → 只留序号+分数,
 //     装不下转批阅报告(现有 report 模式兜底);
-//   - 页边批注栏宽按「该页内容右缘 → 纸右安全线」实际计算,CJK 逐字断行;
+//   - 页边批注栏固定预留在纸右(不跟作答区右缘抢位),CJK 逐字断行;
 //   - 落点边界: 硬件不可打印区外(≥6mm)、安全线内、防重叠整行步进。
 // 出处: docs/research/2026-09-15-overlay-print-annotation-research.md §4.2
 // =============================================================
 
-import { type PageQuad, type PaperSpec, quadToPaperMapper } from './grading-geometry'
+import {
+  type PageQuad,
+  type PaperSpec,
+  quadToPaperMapper,
+  rescaleQuad,
+} from './grading-geometry'
 import {
   aiResultByQuestion,
   effectiveTotalScore,
@@ -67,6 +72,13 @@ export const OVERLAY_SAFE = {
   topMm: 10,
   /** 页底留白 */
   bottomMm: 12,
+  /**
+   * 页边批注栏固定宽度。定位 prompt 默认 w≈0.9(宁可偏大),
+   * 若按作答区右缘推栏位会被挤成 8mm → 批注逐字竖排。
+   */
+  noteColMm: 32,
+  /** 每题短痕与批注栏之间的空隙 */
+  scoreGutterMm: 2,
 } as const
 
 /** 每题短痕(✓/✗/分数),贴作答区角外 */
@@ -118,6 +130,8 @@ export interface OverlayPaperLayout {
   pages: OverlayPageLayout[]
   total: OverlayTotalElement | null
   warnings: string[]
+  /** 因无四点/退化而按整页 0-1→纸面估算的页数(可打,套准偏差更大) */
+  approxPages: number
 }
 
 export interface OverlayLayoutInput {
@@ -143,6 +157,7 @@ export interface OverlayLayoutInput {
 export function charEmWidth(ch: string): number {
   const code = ch.codePointAt(0) ?? 0
   if (code > 0x2e7f) return 1 // CJK 及全角
+  if (code >= 0x2460 && code <= 0x24ff) return 1 // ①②… 圈号按全宽
   if (ch >= '0' && ch <= '9') return 0.55
   if (ch === '/' || ch === ' ') return 0.4
   return 0.55
@@ -241,38 +256,39 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
     q ? quadToPaperMapper(q, spec) : null,
   )
 
-  /** 该页有作答区(模板优先)+生效分、但因缺映射排不出去的题数 */
-  const countUnplaced = (page: number): number =>
-    rows.filter((r) => {
-      const box = templateBoxes?.[r.questionId] ?? aiById.get(r.questionId)?.box
-      return box !== undefined && (box.page ?? 0) === page && r.score !== null
-    }).length
+  let approxPages = 0
 
   for (let page = 0; page < pageCount; page++) {
-    const quad = input.quads[page]
+    const rawQuad = input.quads[page]
     const size = input.imageSizes[page]
+    const quad =
+      rawQuad && size ? rescaleQuad(rawQuad, size.width, size.height) : rawQuad
     const templateMapper = templateMappers[page] ?? null
     const marks: OverlayMarkElement[] = []
     const notes: OverlayNoteElement[] = []
-    if ((!quad || !size) && !templateMapper) {
-      const unplaced = countUnplaced(page)
-      if (unplaced > 0) {
-        warnings.push(`第 ${page + 1} 页没有定位四点,${unplaced} 处痕迹未排(请重检或手动四点)`)
-      }
-      pages.push({ page, marks, notes, unplacedMarks: unplaced })
-      continue
+    const preciseMapper = templateMapper ?? (quad ? quadToPaperMapper(quad, spec) : null)
+    const mapper = preciseMapper ?? identityPaperMapper(spec)
+    const pageHasMarks = rows.some((r) => {
+      const box = templateBoxes?.[r.questionId] ?? aiById.get(r.questionId)?.box
+      return box !== undefined && (box.page ?? 0) === page && r.score !== null
+    })
+    if (!preciseMapper && pageHasMarks) {
+      approxPages += 1
+      warnings.push(
+        quad
+          ? `第 ${page + 1} 页四点退化,痕迹按整页估算(可手动四点或标定母版提高套准)`
+          : `第 ${page + 1} 页未定位四点,痕迹按整页估算(可自动定位或手动四点提高套准)`,
+      )
     }
 
-    const mapper = templateMapper ?? (quad ? quadToPaperMapper(quad, spec) : null)
-    if (!mapper) {
-      warnings.push(`第 ${page + 1} 页四点退化,无法换算(请手动四点或标定母版)`)
-      pages.push({ page, marks, notes, unplacedMarks: countUnplaced(page) })
-      continue
-    }
+    // 批注栏预留在纸右,不跟作答区右缘抢位(AI box 常 w≈0.9)
+    const colRight = spec.widthMm - OVERLAY_SAFE.edgeMm
+    const colWidth = Math.min(OVERLAY_SAFE.noteColMm, Math.max(0, colRight - spec.widthMm * 0.5))
+    const colLeft = colRight - colWidth
+    const scoreMaxRight = colLeft - OVERLAY_SAFE.scoreGutterMm
 
     // --- 每题短痕 + 批注草稿 ---
     const drafts: NoteDraft[] = []
-    let contentRightMm = 0
     for (const row of rows) {
       const ai = aiById.get(row.questionId)
       const box: GradeAnnotationBox | undefined = templateBoxes?.[row.questionId] ?? ai?.box
@@ -295,32 +311,24 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
       const pt = markKind === 'symbol' ? typo.symbolPt : typo.scorePt
       const widthMm = estimateTextWidthMm(text, pt)
 
-      // 贴作答区右上角外;太靠右纸边则换到左上角外
+      // 贴作答区右上角外;太靠右则收到批注栏左侧的分数槽,不翻到纸左边
       const rightTop = mapper(Math.min(box.x + box.w, 1), Math.max(box.y, 0))
+      const y = rightTop.y - pt * 0.3528 * 0.9
       let x = rightTop.x + 2
-      let y = rightTop.y - pt * 0.3528 * 0.9
-      if (x + widthMm > spec.widthMm - OVERLAY_SAFE.hardEdgeMm) {
-        const leftTop = mapper(Math.max(box.x, 0), Math.max(box.y, 0))
-        x = leftTop.x - 2 - widthMm
-        y = leftTop.y - pt * 0.3528 * 0.9
-      }
+      if (x + widthMm > scoreMaxRight) x = scoreMaxRight - widthMm
       marks.push({
         questionId: row.questionId,
         page,
         xMm: clamp(
           x,
           OVERLAY_SAFE.hardEdgeMm,
-          Math.max(OVERLAY_SAFE.hardEdgeMm, spec.widthMm - OVERLAY_SAFE.hardEdgeMm - widthMm),
+          Math.max(OVERLAY_SAFE.hardEdgeMm, scoreMaxRight - widthMm),
         ),
         yMm: clamp(y, OVERLAY_SAFE.hardEdgeMm, spec.heightMm - OVERLAY_SAFE.hardEdgeMm),
         pt,
         text,
         kind: markKind,
       })
-
-      // 内容右缘(批注栏起点依据)
-      const br = mapper(Math.min(box.x + box.w, 1), Math.min(box.y + box.h, 1))
-      contentRightMm = Math.max(contentRightMm, br.x)
 
       // 页边批注: 仅主观题且非全对(与 paperMarkOverlays 口径一致)
       if (kind === 'subjective' && row.score < row.fullMark) {
@@ -336,12 +344,6 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
       }
     }
 
-    // --- 批注栏: [内容右缘+3, 纸右-8],宽不足 8mm 整体放弃 ---
-    const colRight = spec.widthMm - OVERLAY_SAFE.edgeMm
-    const colLeftRaw = contentRightMm > 0 ? contentRightMm + 3 : spec.widthMm * 0.84
-    let colLeft = Math.min(Math.max(colLeftRaw, colRight - 30), colRight - 8)
-    if (colLeft < spec.widthMm * 0.5) colLeft = spec.widthMm * 0.5
-    const colWidth = colRight - colLeft
     if (drafts.length > 0 && colWidth < 8) {
       warnings.push(`第 ${page + 1} 页页边不足 8mm,批注转批阅报告`)
       drafts.length = 0
@@ -365,7 +367,6 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
         maxEm,
         linesAvail,
       )
-      const headerWidth = estimateTextWidthMm(headerText, typo.notePt)
       const blockHeight = noteLineMm * (1 + lines.length)
       const bottom = desired + blockHeight
       if (desired + noteLineMm > bottomLimit) {
@@ -385,7 +386,7 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
         yMm: desired,
         pt: typo.notePt,
         lineHeightMm: noteLineMm,
-        widthMm: Math.min(colWidth, Math.max(headerWidth, maxLineWidthMm(lines, typo.notePt))),
+        widthMm: colWidth,
       })
       prevBottom = bottom
     })
@@ -433,11 +434,14 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
     }
   }
 
-  return { paperId: paper.id, pages, total, warnings }
+  return { paperId: paper.id, pages, total, warnings, approxPages }
 }
 
-function maxLineWidthMm(lines: string[], pt: number): number {
-  return lines.reduce((m, l) => Math.max(m, estimateTextWidthMm(l, pt)), 0)
+/** 无四点时按「照片铺满纸面」把 0-1 映射到毫米(套准粗,但每题痕迹仍能落纸) */
+function identityPaperMapper(
+  spec: PaperSpec,
+): (x01: number, y01: number) => { x: number; y: number } {
+  return (x01, y01) => ({ x: x01 * spec.widthMm, y: y01 * spec.heightMm })
 }
 
 function clamp(v: number, min: number, max: number): number {

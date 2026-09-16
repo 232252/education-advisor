@@ -17,7 +17,7 @@ export interface ScoreEntry {
 
 /** AI 解析结果: format = 未找到 JSON 数组;json = JSON 解析报错 */
 export type AIParseResult =
-  | { ok: true; scores: Record<string, ScoreEntry>; matched: number }
+  | { ok: true; scores: Record<string, ScoreEntry>; matched: number; unmatched: string[] }
   | { ok: false; reason: 'format' | 'json' }
 
 /** GradeRecord → 录入单元格 (score/classRank 缺失时回退空串) */
@@ -91,17 +91,19 @@ export function buildAIGradeSystemPrompt(studentNames: string[]): string {
 格式要求: [{"name":"学生姓名","score":分数,"rank":排名可选}]
 学生名单(只解析这些学生): ${studentNames.join('、')}
 规则:
-1. 尝试模糊匹配文本中的姓名到学生名单
+1. name 必须与学生名单中的姓名完全一致(逐字相同);名单外的姓名原样返回,不要猜测近似匹配
 2. score 必须是数字
 3. rank 如果文本中有则填数字,没有则不填
 4. 只返回JSON数组,不要任何其他文字、不要markdown代码块标记`
 }
 
 /**
- * 从 AI 流式全量文本中提取 JSON 数组并模糊匹配学生姓名。
+ * 从 AI 流式全量文本中提取 JSON 数组并匹配学生姓名。
  * - 未匹配到 JSON 数组 → { ok: false, reason: 'format' }
  * - JSON.parse 抛错 → { ok: false, reason: 'json' }
- * - 成功 → 匹配到的 学生名 → 单元格 映射 + 匹配数
+ * - 成功 → 匹配到的 学生名 → 单元格 映射 + 匹配数 + 未匹配姓名清单
+ *   (精确匹配:双向子串模糊匹配会把「张三」错配到「张三丰」,整表粘贴时
+ *    把别人的分写到错的学生头上 — 幽灵成绩的主要来源之一,已禁用)
  */
 export function parseAIGradesText(fullText: string, studentNames: string[]): AIParseResult {
   const jsonMatch = fullText.match(/\[[\s\S]*\]/)
@@ -116,21 +118,21 @@ export function parseAIGradesText(fullText: string, studentNames: string[]): AIP
     }>
     const scores: Record<string, ScoreEntry> = {}
     let matched = 0
+    const unmatched: string[] = []
+    const roster = new Set(studentNames)
     for (const item of parsed) {
       if (!item.name || item.score == null) continue
-      // 模糊匹配学生姓名
-      const matchedName = studentNames.find(
-        (n) => n === item.name || n.includes(item.name) || item.name.includes(n),
-      )
-      if (matchedName) {
-        scores[matchedName] = {
-          score: String(item.score),
-          rank: item.rank != null ? String(item.rank) : '',
-        }
-        matched++
+      if (!roster.has(item.name)) {
+        unmatched.push(item.name)
+        continue
       }
+      scores[item.name] = {
+        score: String(item.score),
+        rank: item.rank != null ? String(item.rank) : '',
+      }
+      matched++
     }
-    return { ok: true, scores, matched }
+    return { ok: true, scores, matched, unmatched }
   } catch {
     return { ok: false, reason: 'json' }
   }

@@ -16,15 +16,21 @@ interface SubjectOption {
   name: string
 }
 
+interface ClassOption {
+  classId: string
+  name: string
+}
+
 interface TaskCreateDialogProps {
   subjectOptions: SubjectOption[]
-  classOptions: string[]
+  classOptions: ClassOption[]
   saving: boolean
   onClose: () => void
   onCreate: (input: {
     name: string
     semester: string
     examDate?: string
+    classId?: string
     className?: string
     subjectId?: string
     gradingMode?: GradingStrictness
@@ -44,7 +50,7 @@ export function TaskCreateDialog({
   const [name, setName] = useState('')
   const [semester, setSemester] = useState(getCurrentSemester())
   const [examDate, setExamDate] = useState('')
-  const [className, setClassName] = useState('')
+  const [classId, setClassId] = useState('')
   const [subjectId, setSubjectId] = useState('')
   const [gradingMode, setGradingMode] = useState<GradingStrictness>('normal')
   const [gradingStrategy, setGradingStrategy] = useState<GradingStrategy>('standard')
@@ -54,11 +60,13 @@ export function TaskCreateDialog({
 
   const handleSave = async () => {
     if (!canSave) return
+    const cls = classOptions.find((c) => c.classId === classId)
     const ok = await onCreate({
       name: name.trim(),
       semester: semester.trim(),
       examDate: examDate || undefined,
-      className: className.trim() || undefined,
+      classId: cls?.classId,
+      className: cls?.name,
       subjectId: subjectId || undefined,
       gradingMode,
       gradingStrategy,
@@ -123,19 +131,20 @@ export function TaskCreateDialog({
               <label className={labelCls} htmlFor="grading-task-class">
                 {t('page.grading.task.class')}
               </label>
-              <input
+              <select
                 id="grading-task-class"
-                type="text"
-                value={className}
-                onChange={(e) => setClassName(e.target.value)}
-                list="grading-class-options"
+                value={classId}
+                onChange={(e) => setClassId(e.target.value)}
+                title={t('page.grading.task.classScopeTitle', '试卷归属与姓名识别默认只用该班级在读学生；不选则用全校名单')}
                 className={`${INPUT_BASE} mt-1 w-full`}
-              />
-              <datalist id="grading-class-options">
+              >
+                <option value="">{t('page.grading.task.classAll', '不选（全校名单）')}</option>
                 {classOptions.map((c) => (
-                  <option key={c} value={c} />
+                  <option key={c.classId} value={c.classId}>
+                    {c.name}
+                  </option>
                 ))}
-              </datalist>
+              </select>
             </div>
             <div>
               <label className={labelCls} htmlFor="grading-task-subject">

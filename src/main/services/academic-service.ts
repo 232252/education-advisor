@@ -101,6 +101,8 @@ class AcademicService {
       date: exam.date,
       semester: exam.semester,
       scope: exam.scope,
+      classId: exam.classId,
+      className: exam.className,
       subjects: Array.isArray(exam.subjects) ? exam.subjects : [],
       createdAt,
     }
@@ -262,6 +264,33 @@ class AcademicService {
     count = counts.reduce((a, b) => a + b, 0)
     log('info', 'academic', `batch set grades: ${count} records across ${byStudent.size} students`)
     return count
+  }
+
+  /**
+   * 删除一个学生在某场考试的全部成绩记录(清"幽灵成绩"用):
+   * 幂等 — 无匹配记录返回 0 不报错;走与 batchSetGrades 相同的按生串行锁。
+   * 记录清空后文件删除,与 deleteExam 级联口径一致。
+   */
+  async removeGrades(studentName: string, examId: string): Promise<number> {
+    if (!studentName || typeof studentName !== 'string') {
+      throw new Error('removeGrades: studentName 必须是非空字符串')
+    }
+    if (!examId || typeof examId !== 'string') {
+      throw new Error('removeGrades: examId 必须是非空字符串')
+    }
+    return this.withGradeLock(studentName, async () => {
+      const existing = await this.getGrades(studentName)
+      const filtered = existing.filter((g) => g.examId !== examId)
+      if (filtered.length === existing.length) return 0
+      if (filtered.length === 0) {
+        await fsp.rm(this.gradePath(studentName), { force: true })
+      } else {
+        await this.writeGrades(studentName, filtered)
+      }
+      const removed = existing.length - filtered.length
+      log('info', 'academic', `grades removed: ${studentName} × ${examId} (${removed} records)`)
+      return removed
+    })
   }
 
   /**

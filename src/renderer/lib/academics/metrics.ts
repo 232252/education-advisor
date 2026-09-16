@@ -54,10 +54,23 @@ export function extractSemesters(exams: ExamDef[]): string[] {
   return Array.from(set).sort().reverse()
 }
 
-/** 与成绩记录关联的有效考试 (按日期升序) — OverviewTab / Students AcademicsTab 共用 */
-export function filterExamsWithGrades(exams: ExamDef[], grades: GradeRecord[]): ExamDef[] {
-  const examIds = new Set(grades.map((g) => g.examId))
-  const matched = exams.filter((e) => examIds.has(e.id))
+/**
+ * 该生"实际参加"的考试 (按日期升序) — OverviewTab / Students AcademicsTab 共用。
+ * 判定口径(幽灵成绩治理):
+ * - 至少一条 score !== null 的记录才算参加 —— 纯 null 缺考占位/AI 误写残留不再撑起考试行;
+ * - 考试带 classId 且学生班级已知且不一致时不显示(历史考试无 classId 照常显示)。
+ */
+export function filterExamsWithGrades(
+  exams: ExamDef[],
+  grades: GradeRecord[],
+  studentClassId?: string | null,
+): ExamDef[] {
+  const examIds = new Set(grades.filter((g) => g.score != null).map((g) => g.examId))
+  const matched = exams.filter(
+    (e) =>
+      examIds.has(e.id) &&
+      (!e.classId || !studentClassId || e.classId === studentClassId),
+  )
   return sortByDateAsc(matched)
 }
 

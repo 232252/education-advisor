@@ -363,8 +363,9 @@ class GradingService {
     }
     return this.withTaskLock(taskId, async () => {
       const task = await this.getTask(taskId)
-      if (task.status !== 'draft' && task.status !== 'ready') {
-        throw new Error(`当前状态(${task.status})不可导入试卷`)
+      // review 态允许补录:批改管线重跑时只批 pending/failed,已批结果不受影响
+      if (task.status !== 'draft' && task.status !== 'ready' && task.status !== 'review') {
+        throw new Error(`当前状态(${task.status})不可导入试卷(草稿/就绪/待复核可补录)`)
       }
       return withTempDir(async (tmpDir) => {
         const expanded = await expandImportBatches(batches, tmpDir)

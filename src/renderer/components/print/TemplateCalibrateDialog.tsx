@@ -30,7 +30,9 @@ export function TemplateCalibrateDialog({ taskId, onClose, onDone }: TemplateCal
   const pick = async () => {
     const picked = await pickFiles({
       title: t('page.grading.overlay.tplPickTitle', '选择样卷图片(1-8 页)'),
-      filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp'] }],
+      filters: [
+        { name: 'Images & PDF', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'pdf'] },
+      ],
     })
     if (picked.length > 0) setPaths(picked.slice(0, 8))
   }
@@ -63,7 +65,7 @@ export function TemplateCalibrateDialog({ taskId, onClose, onDone }: TemplateCal
       <div className="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-900">
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-white/10">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            {t('page.grading.overlay.tplTitle', '母版标定(全班痕迹位统一)')}
+            {t('page.grading.overlay.tplTitle', '用空白样卷统一落点')}
           </h3>
           <button
             type="button"
@@ -77,7 +79,7 @@ export function TemplateCalibrateDialog({ taskId, onClose, onDone }: TemplateCal
           <p className="rounded bg-blue-50 px-2 py-1.5 text-blue-800 dark:bg-blue-500/10 dark:text-blue-200">
             {t(
               'page.grading.overlay.tplHint',
-              '用一份空白/干净的样卷(每页一张图)。标定后 AI 在样卷上一次性标出每题作答区,全班套打共用这套位置 —— 学生卷不再需要逐份定位,痕迹位一致且更准(模板缺的题自动回落该卷 AI 定位)。',
+              '用一份空白或干净的样卷(每页一张图)。系统会在样卷上标出每题作答位置,全班套打共用这套落点 — 比对着每张学生照片对齐更稳。没标到的题会自动回落到该卷自己的位置。',
             )}
           </p>
           <div className="flex items-center gap-2">

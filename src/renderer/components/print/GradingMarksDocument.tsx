@@ -23,7 +23,7 @@ export interface GradingMarksPaperView {
 }
 
 /**
- * 打印模式: 痕迹卷(原卷落痕) / 批阅报告(得分表+卷面) / 回写原件(套打,
+ * 打印模式: 痕迹卷(重印批过的照片) / 批阅报告(得分表+卷面) / 套打原卷(无底图红痕,
  * 由 OverlayPrintDocument 渲染,本组件不处理该模式)。
  */
 export type GradingMarksMode = 'paper' | 'report' | 'overlay'
