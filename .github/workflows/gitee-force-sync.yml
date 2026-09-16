@@ -1,6 +1,7 @@
 name: gitee-force-sync (temporary)
 
 # 一次性运维任务:隐私清理后把重写的全部历史强推覆盖 Gitee 镜像。
+# 逐分支分批推送:每条独立连接,低速熔断防挂死,失败不阻塞其余分支。
 # 执行完成后本文件即被删除,勿手动重跑。
 
 on:
@@ -12,13 +13,61 @@ permissions:
 jobs:
   force-sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
-      - name: Mirror rewritten history to Gitee
+      - name: Clone rewritten history
+        run: |
+          set -euo pipefail
+          git clone --bare https://github.com/${{ github.repository }}.git repo.git
+
+      - name: Push main first
+        working-directory: repo.git
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
           set -euo pipefail
-          git clone --bare https://github.com/${{ github.repository }}.git repo.git
-          cd repo.git
-          git push --force "https://oauth2:${GITEE_TOKEN}@gitee.com/qdzwwqd/education-advisor.git" \
-            'refs/heads/*:refs/heads/*' 'refs/tags/*:refs/tags/*' 2>&1 | sed "s/${GITEE_TOKEN}/***MASKED***/g"
+          git -c http.lowSpeedLimit=2000 -c http.lowSpeedTime=90 push --force --no-thin \
+            "https://oauth2:${GITEE_TOKEN}@gitee.com/qdzwwqd/education-advisor.git" \
+            refs/heads/main:refs/heads/main 2>&1 | sed "s/${GITEE_TOKEN}/***MASKED***/g"
+
+      - name: Push remaining branches (each independent)
+        working-directory: repo.git
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          set -uo pipefail
+          FAILED=""
+          for ref in $(git for-each-ref --format='%(refname)' refs/heads | grep -v refs/heads/main); do
+            echo "=== pushing $ref ==="
+            if ! git -c http.lowSpeedLimit=2000 -c http.lowSpeedTime=90 push --force --no-thin \
+                 "https://oauth2:${GITEE_TOKEN}@gitee.com/qdzwwqd/education-advisor.git" \
+                 "$ref:$ref" 2>&1 | sed "s/${GITEE_TOKEN}/***MASKED***/g"; then
+              echo "::warning::$ref 推送失败"
+              FAILED="$FAILED $ref"
+            fi
+          done
+          echo "FAILED_BRANCHES=$FAILED" >> "$GITHUB_ENV"
+
+      - name: Push tags (each independent)
+        working-directory: repo.git
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          set -uo pipefail
+          FAILED=""
+          for ref in $(git for-each-ref --format='%(refname)' refs/tags); do
+            echo "=== pushing $ref ==="
+            if ! git -c http.lowSpeedLimit=2000 -c http.lowSpeedTime=90 push --force --no-thin \
+                 "https://oauth2:${GITEE_TOKEN}@gitee.com/qdzwwqd/education-advisor.git" \
+                 "$ref:$ref" 2>&1 | sed "s/${GITEE_TOKEN}/***MASKED***/g"; then
+              echo "::warning::$ref 推送失败"
+              FAILED="$FAILED $ref"
+            fi
+          done
+          echo "FAILED_TAGS=$FAILED" >> "$GITHUB_ENV"
+
+      - name: Summary
+        run: |
+          echo "失败分支: ${FAILED_BRANCHES:-无}"
+          echo "失败标签: ${FAILED_TAGS:-无}"
+          if [ -n "${FAILED_BRANCHES}${FAILED_TAGS}" ]; then exit 1; fi
