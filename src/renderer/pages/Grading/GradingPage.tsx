@@ -69,10 +69,7 @@ export function GradingPage() {
     [subjectOptions],
   )
   const classOptions = useMemo(
-    () =>
-      classList
-        .filter((c) => !c.archived)
-        .map((c) => ({ classId: c.class_id, name: c.name })),
+    () => classList.filter((c) => !c.archived).map((c) => ({ classId: c.class_id, name: c.name })),
     [classList],
   )
 

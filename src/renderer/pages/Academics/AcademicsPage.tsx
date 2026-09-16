@@ -94,9 +94,7 @@ export function AcademicsPage() {
         toast.error(r.error ?? t('page.academics.overview.removeExamFailed', '删除失败'))
         return false
       }
-      toast.success(
-        t('page.academics.overview.removeExamDone', '已删除该场考试的成绩记录'),
-      )
+      toast.success(t('page.academics.overview.removeExamDone', '已删除该场考试的成绩记录'))
       await reloadGrades()
       return true
     },

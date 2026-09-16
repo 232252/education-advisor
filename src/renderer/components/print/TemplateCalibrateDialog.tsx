@@ -30,9 +30,7 @@ export function TemplateCalibrateDialog({ taskId, onClose, onDone }: TemplateCal
   const pick = async () => {
     const picked = await pickFiles({
       title: t('page.grading.overlay.tplPickTitle', '选择样卷图片(1-8 页)'),
-      filters: [
-        { name: 'Images & PDF', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'pdf'] },
-      ],
+      filters: [{ name: 'Images & PDF', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'pdf'] }],
     })
     if (picked.length > 0) setPaths(picked.slice(0, 8))
   }

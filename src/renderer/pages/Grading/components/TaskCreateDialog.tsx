@@ -135,7 +135,10 @@ export function TaskCreateDialog({
                 id="grading-task-class"
                 value={classId}
                 onChange={(e) => setClassId(e.target.value)}
-                title={t('page.grading.task.classScopeTitle', '试卷归属与姓名识别默认只用该班级在读学生；不选则用全校名单')}
+                title={t(
+                  'page.grading.task.classScopeTitle',
+                  '试卷归属与姓名识别默认只用该班级在读学生；不选则用全校名单',
+                )}
                 className={`${INPUT_BASE} mt-1 w-full`}
               >
                 <option value="">{t('page.grading.task.classAll', '不选（全校名单）')}</option>

@@ -67,9 +67,7 @@ export function filterExamsWithGrades(
 ): ExamDef[] {
   const examIds = new Set(grades.filter((g) => g.score != null).map((g) => g.examId))
   const matched = exams.filter(
-    (e) =>
-      examIds.has(e.id) &&
-      (!e.classId || !studentClassId || e.classId === studentClassId),
+    (e) => examIds.has(e.id) && (!e.classId || !studentClassId || e.classId === studentClassId),
   )
   return sortByDateAsc(matched)
 }
