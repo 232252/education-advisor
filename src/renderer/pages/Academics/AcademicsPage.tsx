@@ -28,7 +28,9 @@ import { useT } from '../../i18n'
 import { extractSemesters, filterStudents } from '../../lib/academics'
 import { CLASS_FILTER_ALL } from '../../lib/class-filter'
 import { buildClassIdToNameMap } from '../../lib/class-utils'
+import { getAPI } from '../../lib/ipc-client'
 import { INPUT_BASE } from '../../lib/ui-utils'
+import { toast } from '../../stores/toastStore'
 import { type AcademicsTab, parseAcademicsTab } from './academics-tabs'
 import { StudentSidebar } from './components/StudentSidebar'
 import { useAcademicsData } from './hooks/useAcademicsData'
@@ -82,6 +84,24 @@ export function AcademicsPage() {
 
   // ===== 学生成绩 (依赖 selectedStudent, 按需加载) =====
   const { grades, gradesLoading, gradesError, reloadGrades } = useStudentGrades(selectedStudent)
+
+  /** 删除该生某场考试的全部成绩记录(清幽灵成绩;确认由 GradeTableCard 两段式完成) */
+  const handleRemoveExamGrades = useCallback(
+    async (examId: string) => {
+      if (!selectedStudent) return false
+      const r = await getAPI().academic.removeGrades(selectedStudent, examId)
+      if (!r.success) {
+        toast.error(r.error ?? t('page.academics.overview.removeExamFailed', '删除失败'))
+        return false
+      }
+      toast.success(
+        t('page.academics.overview.removeExamDone', '已删除该场考试的成绩记录'),
+      )
+      await reloadGrades()
+      return true
+    },
+    [selectedStudent, reloadGrades, t],
+  )
 
   // ===== 派生数据 =====
 
@@ -273,6 +293,7 @@ export function AcademicsPage() {
             ) : activeTab === 'overview' ? (
               <OverviewTab
                 studentName={selectedStudent ?? ''}
+                studentClassId={selectedStudentObj?.class_id ?? null}
                 entityId={selectedStudentObj?.entity_id}
                 subjects={subjects}
                 exams={filteredExams}
@@ -280,6 +301,7 @@ export function AcademicsPage() {
                 gradesLoading={gradesLoading}
                 gradesError={gradesError}
                 onRetry={reloadGrades}
+                onRemoveExamGrades={handleRemoveExamGrades}
               />
             ) : activeTab === 'exams' ? (
               <ExamManagementTab

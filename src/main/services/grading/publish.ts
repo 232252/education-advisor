@@ -51,6 +51,9 @@ export function buildPublishPayload(task: GradingTask): PublishPayload {
     date,
     semester: task.semester,
     scope: 'ai-grading',
+    // 带上任务班级:学业页按生过滤"非本班考试"(任务未选班则留空=全员可见)
+    classId: task.classId,
+    className: task.className,
     subjects: [...subjectIds, TOTAL_SUBJECT_ID],
   }
 

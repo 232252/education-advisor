@@ -98,6 +98,36 @@ export function mapPoint(h: Homography, p: QuadPoint): QuadPoint {
   return { x: (h[0] * p.x + h[1] * p.y + h[2]) / d, y: (h[3] * p.x + h[4] * p.y + h[5]) / d }
 }
 
+/**
+ * 3×3 单应 → CSS matrix3d(列主序)。
+ * 把源平面 (x,y,1) 映到目标平面;用于屏幕预览把扫描图四角拉正到纸面。
+ */
+export function homographyToCssMatrix3d(h: Homography): string {
+  const [h0, h1, h2, h3, h4, h5, h6, h7, h8] = h
+  return `matrix3d(${h0},${h3},0,${h6},${h1},${h4},0,${h7},0,0,1,0,${h2},${h5},0,${h8})`
+}
+
+/**
+ * 扫描图四点(像素) → 预览页 CSS 像素四角的单应。
+ * 垫底图按此矩阵变换后,毫米红痕与卷面文字才会叠在一起。
+ */
+export function quadToPageCssHomography(
+  quad: Pick<PageQuad, 'tl' | 'tr' | 'br' | 'bl'>,
+  pageWidthPx: number,
+  pageHeightPx: number,
+): Homography | null {
+  if (!(pageWidthPx > 0) || !(pageHeightPx > 0)) return null
+  return solveHomography(
+    [quad.tl, quad.tr, quad.br, quad.bl],
+    [
+      { x: 0, y: 0 },
+      { x: pageWidthPx, y: 0 },
+      { x: pageWidthPx, y: pageHeightPx },
+      { x: 0, y: pageHeightPx },
+    ],
+  )
+}
+
 // ===== 纸张规格档案 =====
 
 export interface PaperSpec {

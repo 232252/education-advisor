@@ -145,13 +145,16 @@ describe('layoutOverlayPaper: 短痕', () => {
     expect(m2?.xMm).toBeGreaterThanOrEqual(115.5 + 2 - 0.5)
   })
 
-  it('靠右纸边的 box 翻转到左上角外', () => {
+  it('靠右纸边的 box 收到批注栏左侧分数槽,不翻到纸左边', () => {
     const ai = aiOf({})
     ai.questions[1]!.box = { page: 0, x: 0.72, y: 0.25, w: 0.25, h: 0.2 }
     const out = layoutOf(ai)
     const m2 = out.pages[0]?.marks.find((m) => m.questionId === 'q-2')
-    // box 左缘 = 0.72×210 = 151.2mm,左放痕迹右端 ≤ 149
-    expect(m2 ? m2.xMm + estimateTextWidthMm('9/12', m2.pt) : 1e9).toBeLessThanOrEqual(151.2 - 1)
+    const noteLeft = A4.widthMm - 8 - 32
+    expect(m2?.xMm).toBeGreaterThan(100)
+    expect((m2?.xMm ?? 0) + estimateTextWidthMm('9/12', m2?.pt ?? 11.5)).toBeLessThanOrEqual(
+      noteLeft - 2 + 0.05,
+    )
   })
 })
 
@@ -300,28 +303,32 @@ describe('layoutOverlayPaper: 母版标定(Tier B)', () => {
 })
 
 describe('layoutOverlayPaper: 缺页/校准', () => {
-  it('无四点的页给警告', () => {
+  it('无四点的页给估算警告但仍排出痕迹', () => {
     const layout = layoutOf(aiOf({ page4: 1 }), { quads: [FULL_QUAD, null] })
-    expect(layout.warnings.some((w) => w.includes('第 2 页'))).toBe(true)
+    expect(layout.warnings.some((w) => w.includes('第 2 页') && w.includes('整页估算'))).toBe(true)
+    expect(layout.pages[1]?.marks.some((m) => m.questionId === 'q-4')).toBe(true)
+    expect(layout.pages[1]?.unplacedMarks).toBe(0)
+    expect(layout.approxPages).toBe(1)
   })
 
-  it('未排痕迹计数: 无任何定位时逐页 unplacedMarks=可排题数,总分仍必排', () => {
+  it('无任何定位时按整页估算排出痕迹+总分,不再只打总分', () => {
     const layout = layoutOf(aiOf({}), { quads: [], imageSizes: [] })
-    expect(layout.pages[0]?.unplacedMarks).toBe(4)
-    expect(layout.pages[0]?.marks).toHaveLength(0)
-    expect(layout.pages[0]?.notes).toHaveLength(0)
-    expect(layout.warnings.some((w) => w.includes('没有定位四点'))).toBe(true)
-    // 总分不需要定位,照排(这正是「只有总分」的机制)
+    expect(layout.pages[0]?.unplacedMarks).toBe(0)
+    expect(layout.pages[0]?.marks).toHaveLength(4)
+    expect(layout.pages[0]?.notes.length).toBeGreaterThan(0)
+    expect(layout.warnings.some((w) => w.includes('整页估算'))).toBe(true)
+    expect(layout.approxPages).toBe(1)
     expect(layout.total?.mainText).toBe('23')
   })
 
-  it('正常定位页 unplacedMarks=0', () => {
+  it('正常定位页 unplacedMarks=0 且非估算', () => {
     const layout = layoutOf(aiOf({}))
     expect(layout.pages[0]?.unplacedMarks).toBe(0)
     expect(layout.pages[0]?.marks).toHaveLength(4)
+    expect(layout.approxPages).toBe(0)
   })
 
-  it('四点退化(共线)也算未排', () => {
+  it('四点退化回落整页估算,痕迹仍排出', () => {
     const degenerate: PageQuad = {
       tl: { x: 0, y: 0 },
       tr: { x: 500, y: 0 },
@@ -333,11 +340,13 @@ describe('layoutOverlayPaper: 缺页/校准', () => {
       imageHeight: 1414,
     }
     const layout = layoutOf(aiOf({}), { quads: [degenerate] })
-    expect(layout.pages[0]?.unplacedMarks).toBe(4)
+    expect(layout.pages[0]?.unplacedMarks).toBe(0)
+    expect(layout.pages[0]?.marks).toHaveLength(4)
     expect(layout.warnings.some((w) => w.includes('四点退化'))).toBe(true)
+    expect(layout.approxPages).toBe(1)
   })
 
-  it('模板 box 有作答区也可计入未排(模板页无四点时)', () => {
+  it('模板 box 在模板页无四点时回落整页估算', () => {
     const layout = layoutOf(aiOf({}), {
       quads: [],
       imageSizes: [],
@@ -346,7 +355,9 @@ describe('layoutOverlayPaper: 缺页/校准', () => {
         quads: [null],
       },
     })
-    expect(layout.pages[0]?.unplacedMarks).toBe(4)
+    expect(layout.pages[0]?.unplacedMarks).toBe(0)
+    expect(layout.pages[0]?.marks.length).toBeGreaterThan(0)
+    expect(layout.approxPages).toBe(1)
   })
 
   it('校准 dx/dy/scale 全元素生效', () => {
@@ -361,5 +372,30 @@ describe('layoutOverlayPaper: 缺页/校准', () => {
     const scaled = layoutOf(aiOf({}), { calibration: { dxMm: 0, dyMm: 0, scalePct: 101 } })
     const tm = scaled.pages[0]?.marks[0]
     expect(tm?.xMm).toBeCloseTo((bm?.xMm ?? 0) * 1.01, 3)
+  })
+})
+
+describe('layoutOverlayPaper: 宽作答框(定位 prompt 默认 w≈0.9)', () => {
+  it('分数不堆纸左边,批注栏保持可读宽度且不断成单字', () => {
+    const ai = aiOf({})
+    for (const q of ai.questions) {
+      if (q.box) q.box = { ...q.box, x: 0.04, w: 0.9 }
+    }
+    const layout = layoutOf(ai)
+    const marks = layout.pages[0]?.marks ?? []
+    expect(marks).toHaveLength(4)
+    for (const m of marks) {
+      expect(m.xMm).toBeGreaterThan(100)
+    }
+    const notes = layout.pages[0]?.notes ?? []
+    expect(notes.length).toBeGreaterThan(0)
+    for (const n of notes) {
+      expect(n.widthMm).toBeGreaterThanOrEqual(30)
+      expect(n.header.includes('\n')).toBe(false)
+    }
+    const body = notes.map((n) => n.lines.join('')).join('')
+    expect(body).toContain('单位未换算')
+    const longLines = notes.flatMap((n) => n.lines).filter((l) => l.length >= 4)
+    expect(longLines.length).toBeGreaterThan(0)
   })
 })

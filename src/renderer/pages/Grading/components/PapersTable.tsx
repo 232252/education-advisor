@@ -79,7 +79,10 @@ export function PapersTable({
   }, [task.papers, activeStudents])
 
   const suggestionCount = suggestions.size
-  const importable = task.status === 'draft' || task.status === 'ready'
+  // review 态可补录试卷:重跑批改只批新卷(pending/failed),已批结果不动
+  const importable = task.status === 'draft' || task.status === 'ready' || task.status === 'review'
+  // 移除仍限草稿/就绪:待复核态试卷可能已有批改结果,误删后学业记录不会联动清除
+  const removable = task.status === 'draft' || task.status === 'ready'
   const fullMark = rubricFullMark(task.rubric)
 
   const handleImport = async () => {
@@ -114,6 +117,11 @@ export function PapersTable({
           onClick={() => void handleImport()}
           disabled={!importable || busy || importing}
           className={btnStyle('primary')}
+          title={
+            task.status === 'review'
+              ? t('page.grading.papers.importReviewTitle')
+              : undefined
+          }
         >
           {importing ? t('page.grading.papers.importing') : t('page.grading.papers.import')}
         </button>
@@ -197,6 +205,11 @@ export function PapersTable({
                       aria-label={t('page.grading.papers.assignTo')}
                     >
                       <option value="">{t('page.grading.papers.unassigned')}</option>
+                      {/* 已归属学生不在当前名单(如换了班级/全校开关)时保留其选项,避免下拉显示空白 */}
+                      {paper.studentName !== null &&
+                        !activeStudents.some((s) => s.name === paper.studentName) && (
+                          <option value={paper.studentName}>{paper.studentName}</option>
+                        )}
                       {activeStudents.map((s) => (
                         <option key={s.entity_id} value={s.name}>
                           {s.name}
@@ -353,7 +366,7 @@ export function PapersTable({
                         )}
                       </span>
                     )}
-                    {importable && (
+                    {removable && (
                       <button
                         type="button"
                         onClick={() => void onRemove(task.id, paper.id)}

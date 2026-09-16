@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { TableSkeleton } from '../../components/Skeleton'
+import { SplitPane } from '../../components/SplitPane'
 import { tr, useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { btnStyle } from '../../lib/ui-utils'
@@ -68,11 +69,72 @@ export function GradingPage() {
     [subjectOptions],
   )
   const classOptions = useMemo(
-    () => classList.filter((c) => !c.archived).map((c) => c.name),
+    () =>
+      classList
+        .filter((c) => !c.archived)
+        .map((c) => ({ classId: c.class_id, name: c.name })),
     [classList],
   )
 
   const selectedId = grading.detail?.id ?? null
+
+  // 任务列表节点: 选中详情时作为 SplitPane 左栏,否则独占整行
+  const taskList = (
+    <>
+      {grading.loading ? (
+        <TableSkeleton rows={5} cols={3} />
+      ) : grading.tasks.length === 0 ? (
+        <EmptyState
+          icon={<ClipboardCheck className="h-6 w-6" />}
+          title={t('page.grading.empty')}
+          description={t('page.grading.emptyDesc')}
+        />
+      ) : (
+        <ul className="space-y-2">
+          {grading.tasks.map((task) => (
+            <li key={task.id}>
+              <button
+                type="button"
+                onClick={() => grading.selectTask(task.id)}
+                className={`w-full rounded-xl border p-3 text-left transition-colors ${
+                  task.id === selectedId
+                    ? 'border-blue-300 bg-blue-50/50 dark:border-blue-500/40 dark:bg-blue-500/10'
+                    : 'border-gray-200 hover:bg-gray-50 dark:border-white/10 dark:hover:bg-white/[0.04]'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 truncate text-sm font-medium">{task.name}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLS[task.status]}`}
+                  >
+                    {t(STATUS_KEYS[task.status])}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{task.semester}</span>
+                  {task.className && <span>· {task.className}</span>}
+                  <span>
+                    ·{' '}
+                    {tr('page.grading.count.papers', {
+                      n: task.papers.length,
+                    })}
+                  </span>
+                  {task.rubric.length > 0 && (
+                    <span>
+                      ·{' '}
+                      {tr('page.grading.count.questions', {
+                        n: task.rubric.length,
+                      })}
+                    </span>
+                  )}
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -121,91 +183,38 @@ export function GradingPage() {
       )}
 
       <div className="flex flex-1 overflow-hidden">
-        {/* 左: 任务列表 */}
-        <div
-          className={`overflow-y-auto px-6 py-4 transition-all duration-300 ${
-            selectedId ? 'w-[38%] border-r border-gray-200 dark:border-white/[0.06]' : 'w-full'
-          }`}
-        >
-          {grading.loading ? (
-            <TableSkeleton rows={5} cols={3} />
-          ) : grading.tasks.length === 0 ? (
-            <EmptyState
-              icon={<ClipboardCheck className="h-6 w-6" />}
-              title={t('page.grading.empty')}
-              description={t('page.grading.emptyDesc')}
-            />
-          ) : (
-            <ul className="space-y-2">
-              {grading.tasks.map((task) => (
-                <li key={task.id}>
-                  <button
-                    type="button"
-                    onClick={() => grading.selectTask(task.id)}
-                    className={`w-full rounded-xl border p-3 text-left transition-colors ${
-                      task.id === selectedId
-                        ? 'border-blue-300 bg-blue-50/50 dark:border-blue-500/40 dark:bg-blue-500/10'
-                        : 'border-gray-200 hover:bg-gray-50 dark:border-white/10 dark:hover:bg-white/[0.04]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="flex-1 truncate text-sm font-medium">{task.name}</span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLS[task.status]}`}
-                      >
-                        {t(STATUS_KEYS[task.status])}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                      <span>{task.semester}</span>
-                      {task.className && <span>· {task.className}</span>}
-                      <span>
-                        ·{' '}
-                        {tr('page.grading.count.papers', {
-                          n: task.papers.length,
-                        })}
-                      </span>
-                      {task.rubric.length > 0 && (
-                        <span>
-                          ·{' '}
-                          {tr('page.grading.count.questions', {
-                            n: task.rubric.length,
-                          })}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* 右: 任务详情 */}
-        {grading.detail && (
-          <div className="flex w-[62%] flex-col overflow-hidden">
-            <TaskDetail
-              key={grading.detail.id}
-              task={grading.detail}
-              students={students}
-              subjectNameById={subjectNameById}
-              busy={grading.busy}
-              onClose={() => grading.selectTask(null)}
-              onUpdateTask={grading.updateTask}
-              onDeleteTask={grading.deleteTask}
-              onSetStatus={grading.setStatus}
-              onImportPapers={grading.importPapers}
-              onAssignPaper={grading.assignPaper}
-              onRemovePaper={grading.removePaper}
-              onRunGrading={grading.runGrading}
-              onRegradePapers={grading.regradePapers}
-              onIdentifyPapers={grading.identifyPapers}
-              onAbortGrading={grading.abortGrading}
-              onRefresh={grading.refresh}
-              onPublish={grading.publish}
-              onSaveReview={grading.saveReview}
-            />
-          </div>
+        {grading.detail ? (
+          // 任务列表 | 详情 可拖动分栏(占比记忆,双击复位)
+          <SplitPane storageKey="grading.pageSplit" defaultRatio={0.38} className="h-full w-full">
+            <div className="h-full overflow-y-auto border-r border-gray-200 px-6 py-4 dark:border-white/[0.06]">
+              {taskList}
+            </div>
+            <div className="flex h-full flex-col overflow-hidden">
+              <TaskDetail
+                key={grading.detail.id}
+                task={grading.detail}
+                students={students}
+                subjectNameById={subjectNameById}
+                busy={grading.busy}
+                onClose={() => grading.selectTask(null)}
+                onUpdateTask={grading.updateTask}
+                onDeleteTask={grading.deleteTask}
+                onSetStatus={grading.setStatus}
+                onImportPapers={grading.importPapers}
+                onAssignPaper={grading.assignPaper}
+                onRemovePaper={grading.removePaper}
+                onRunGrading={grading.runGrading}
+                onRegradePapers={grading.regradePapers}
+                onIdentifyPapers={grading.identifyPapers}
+                onAbortGrading={grading.abortGrading}
+                onRefresh={grading.refresh}
+                onPublish={grading.publish}
+                onSaveReview={grading.saveReview}
+              />
+            </div>
+          </SplitPane>
+        ) : (
+          <div className="w-full overflow-y-auto px-6 py-4">{taskList}</div>
         )}
       </div>
 

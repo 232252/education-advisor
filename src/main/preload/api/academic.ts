@@ -17,6 +17,9 @@ export const academicApi: AcademicAPI = {
   deleteExam: (examId: string) => ipcInvoke(IPC.IPC_ACADEMIC_DELETE_EXAM, examId),
   // [r] 读取学生全部成绩
   getGrades: (studentName: string) => ipcInvoke(IPC.IPC_ACADEMIC_GET_GRADES, studentName),
+  // [c] 删除学生在某场考试的全部记录 — UI 层应二次确认
+  removeGrades: (studentName: string, examId: string) =>
+    ipcInvoke(IPC.IPC_ACADEMIC_REMOVE_GRADES, studentName, examId),
   // [w] 批量设置成绩
   batchSetGrades: (records: unknown) => ipcInvoke(IPC.IPC_ACADEMIC_BATCH_SET_GRADES, records),
   // [r] 读取班级成绩(参数: studentNames[], examId, subjectId?)

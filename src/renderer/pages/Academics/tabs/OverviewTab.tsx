@@ -21,6 +21,8 @@ import { StudentJumpBar } from '../components/StudentJumpBar'
 
 interface OverviewTabProps {
   studentName: string
+  /** 学生所属班级 id(考试带班级且不一致时不列为该生考试) */
+  studentClassId?: string | null
   /** 用于跳转学生档案 / AI 分析 */
   entityId?: string
   subjects: SubjectDef[]
@@ -31,10 +33,13 @@ interface OverviewTabProps {
   gradesError?: string | null
   /** 错误态下的重试回调 */
   onRetry?: () => void
+  /** 删除该生某场考试的全部成绩(清幽灵成绩;组件内已两段式确认) */
+  onRemoveExamGrades?: (examId: string) => Promise<boolean>
 }
 
 export function OverviewTab({
   studentName,
+  studentClassId,
   entityId,
   subjects,
   exams,
@@ -42,11 +47,15 @@ export function OverviewTab({
   gradesLoading,
   gradesError,
   onRetry,
+  onRemoveExamGrades,
 }: OverviewTabProps) {
   const { t } = useT()
 
-  /** 与成绩记录关联的有效考试 (按日期升序) */
-  const sortedExamsWithGrades = useMemo(() => filterExamsWithGrades(exams, grades), [exams, grades])
+  /** 该生实际参加的考试 (按日期升序;纯缺考占位与非本班考试不列) */
+  const sortedExamsWithGrades = useMemo(
+    () => filterExamsWithGrades(exams, grades, studentClassId),
+    [exams, grades, studentClassId],
+  )
 
   /** 成绩表数据 — 按考试日期降序 */
   const gradeTableData = useMemo(
@@ -69,7 +78,8 @@ export function OverviewTab({
         skeletonCount={3}
         skeletonClassName="grid grid-cols-1 lg:grid-cols-3 gap-4"
       >
-        {grades.length === 0 ? (
+        {/* 无"实际参加"的考试(含只剩缺考占位/非本班考试的情况)按空态展示 */}
+        {sortedExamsWithGrades.length === 0 ? (
           <EmptyState
             icon={<BookOpen size={28} />}
             title={t('page.academics.overview.noGrades', '暂无成绩数据')}
@@ -99,7 +109,13 @@ export function OverviewTab({
             </div>
 
             {/* 成绩表 */}
-            <GradeTableCard tableData={gradeTableData} subjects={subjects} />
+            <GradeTableCard
+              tableData={gradeTableData}
+              subjects={subjects}
+              onRemoveExamGrades={
+                onRemoveExamGrades ? (examId) => onRemoveExamGrades(examId) : undefined
+              }
+            />
           </div>
         )}
       </TabStateBoundary>

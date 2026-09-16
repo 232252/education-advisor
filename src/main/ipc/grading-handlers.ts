@@ -18,7 +18,7 @@ import { abortGrading, regradePapers, startGrading } from '../services/grading/g
 import { gradingService } from '../services/grading/grading-service'
 import { identifyUnassignedPapers } from '../services/grading/identify-papers'
 import { detectQuadsForTask } from '../services/grading/page-quad-detect'
-import { extractRubricFromImages } from '../services/grading/rubric-extract'
+import { extractRubricFromSamples } from '../services/grading/rubric-extract'
 import { refineRubricStandards } from '../services/grading/rubric-refine'
 import { calibrateOverlayTemplate } from '../services/grading/template-calibrate'
 import { invalidateOnExamsWrite, invalidateOnGradesWrite } from './academic/cache'
@@ -185,7 +185,7 @@ export function registerGradingHandlers(win: BrowserWindow): void {
     ) {
       throw new Error('paths 必须是 1~8 个非空字符串路径')
     }
-    return { success: true, data: await extractRubricFromImages(paths as string[]) }
+    return { success: true, data: await extractRubricFromSamples(paths as string[]) }
   })
 
   // 评分标准自动细化: 量规草稿→逐题扣分点(轻校验;结构清洗在 rubric-refine)

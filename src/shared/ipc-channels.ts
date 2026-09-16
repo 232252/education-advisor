@@ -150,6 +150,7 @@ export const IPC_ACADEMIC_LIST_EXAMS = 'academic:list-exams'
 export const IPC_ACADEMIC_CREATE_EXAM = 'academic:create-exam'
 export const IPC_ACADEMIC_DELETE_EXAM = 'academic:delete-exam'
 export const IPC_ACADEMIC_GET_GRADES = 'academic:get-grades'
+export const IPC_ACADEMIC_REMOVE_GRADES = 'academic:remove-grades'
 export const IPC_ACADEMIC_BATCH_SET_GRADES = 'academic:batch-set-grades'
 export const IPC_ACADEMIC_GET_CLASS_GRADES = 'academic:get-class-grades'
 

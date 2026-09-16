@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import type { PageQuad, QuadPoint } from '../../src/shared/grading-geometry'
 import {
   anchorSquarePositionsMm,
+  homographyToCssMatrix3d,
   matchPaperSpec,
   mapPoint,
   orientQuadForSpec,
@@ -14,6 +15,7 @@ import {
   paperSpecToPrintPageSize,
   quadAreaPx,
   quadIsUsable,
+  quadToPageCssHomography,
   quadToPaperMapper,
   rescaleQuad,
   solveHomography,
@@ -263,5 +265,55 @@ describe('orientQuadForSpec', () => {
     const w = Math.abs(out.tr.x - out.tl.x)
     const h = Math.abs(out.bl.y - out.tl.y)
     expect(w / h).toBeLessThan(1) // 转成了竖向口径
+  })
+})
+
+describe('quadToPageCssHomography', () => {
+  it('铺满整图的四点 → 预览页近似恒等', () => {
+    const h = quadToPageCssHomography(
+      {
+        tl: { x: 0, y: 0 },
+        tr: { x: 100, y: 0 },
+        br: { x: 100, y: 200 },
+        bl: { x: 0, y: 200 },
+      },
+      100,
+      200,
+    )
+    expect(h).not.toBeNull()
+    const p = mapPoint(h!, { x: 50, y: 100 })
+    expect(p.x).toBeCloseTo(50, 5)
+    expect(p.y).toBeCloseTo(100, 5)
+    expect(homographyToCssMatrix3d(h!)).toMatch(/^matrix3d\(/)
+  })
+
+  it('照片四周留白时把纸角拉到页角', () => {
+    const h = quadToPageCssHomography(
+      {
+        tl: { x: 10, y: 10 },
+        tr: { x: 90, y: 10 },
+        br: { x: 90, y: 190 },
+        bl: { x: 10, y: 190 },
+      },
+      100,
+      200,
+    )
+    expect(h).not.toBeNull()
+    const tl = mapPoint(h!, { x: 10, y: 10 })
+    const br = mapPoint(h!, { x: 90, y: 190 })
+    expect(tl.x).toBeCloseTo(0, 5)
+    expect(tl.y).toBeCloseTo(0, 5)
+    expect(br.x).toBeCloseTo(100, 5)
+    expect(br.y).toBeCloseTo(200, 5)
+  })
+
+  it('页尺寸为 0 时不解', () => {
+    expect(
+      quadToPageCssHomography(
+        { tl: { x: 0, y: 0 }, tr: { x: 1, y: 0 }, br: { x: 1, y: 1 }, bl: { x: 0, y: 1 } },
+        0,
+        100,
+      ),
+    ).toBeNull()
   })
 })

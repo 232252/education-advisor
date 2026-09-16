@@ -59,6 +59,23 @@ export function registerAcademicGradeHandlers(): void {
     },
   )
 
+  // 删除一个学生在某场考试的全部记录(清幽灵成绩) — UI 层应二次确认
+  handleIpc(
+    IPC.IPC_ACADEMIC_REMOVE_GRADES,
+    async (_e: IpcMainInvokeEvent, studentName: string, examId: string) => {
+      if (typeof studentName !== 'string' || !studentName) {
+        throw new Error('studentName must be a non-empty string')
+      }
+      if (typeof examId !== 'string' || !examId) {
+        throw new Error('examId must be a non-empty string')
+      }
+      const safeName = sanitizeName(studentName, 'name')
+      const removed = await academicService.removeGrades(safeName, examId)
+      invalidateOnGradesWrite([safeName])
+      return { success: true, data: removed }
+    },
+  )
+
   // 读取班级成绩(参数: studentNames[], examId, subjectId?)
   handleIpc(
     IPC.IPC_ACADEMIC_GET_CLASS_GRADES,

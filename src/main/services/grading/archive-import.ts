@@ -108,25 +108,33 @@ function coversPage(jpeg: Buffer, page: { width: number; height: number } | unde
  * 任意 PDF → 每页一张 JPEG。判定顺序:
  * 内嵌 JPEG 数 == 页数且每张铺满对应页 → 扫描件直通(保留原始扫描字节);
  * 否则 pdfjs 栅格化全部页;pdfjs 打不开时裸抽内嵌 JPEG 兜底。
+ * maxPages 可压低渲染页上限(样卷场景远小于整卷导入)。
  */
-export async function pdfToPageJpegs(buf: Buffer, label: string): Promise<Buffer[]> {
+export async function pdfToPageJpegs(
+  buf: Buffer,
+  label: string,
+  maxPages: number = MAX_PDF_PAGES,
+): Promise<Buffer[]> {
   let handle: Awaited<ReturnType<typeof openPdf>>
   try {
     handle = await openPdf(buf)
   } catch (err) {
     const salvaged = extractJpegsFromPdf(buf)
-    if (salvaged.length > 0) return salvaged
+    if (salvaged.length > 0) return salvaged.slice(0, maxPages)
     throw new Error(`PDF「${label}」${err instanceof Error ? err.message : '无法解析'}`)
   }
   try {
     const embedded = extractJpegsFromPdf(buf)
     if (embedded.length === handle.numPages) {
+      if (handle.numPages > maxPages) {
+        throw new Error(`共 ${handle.numPages} 页,超过 ${maxPages} 页上限,请拆分后再导入`)
+      }
       const sizes = await handle.getPageSizes()
       if (embedded.every((jpeg, i) => coversPage(jpeg, sizes[i]))) {
         return embedded
       }
     }
-    const rendered = await handle.renderAllPages(MAX_PDF_PAGES)
+    const rendered = await handle.renderAllPages(maxPages)
     return rendered.map((p) => p.jpeg)
   } finally {
     await handle.destroy()

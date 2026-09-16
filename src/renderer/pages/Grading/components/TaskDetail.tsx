@@ -25,6 +25,7 @@ import { useIpcSubscription } from '../../../hooks/useIpcSubscription'
 import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { btnStyle, cn } from '../../../lib/ui-utils'
+import { useClassStore } from '../../../stores/class/store'
 import { useGradingMarksPrint } from '../hooks/useGradingMarksPrint'
 import { PapersTable } from './PapersTable'
 import { ReviewWorkbench } from './ReviewWorkbench'
@@ -110,11 +111,16 @@ export function TaskDetail({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [progress, setProgress] = useState<GradingProgressEvent | null>(null)
   const [reviewingPaperId, setReviewingPaperId] = useState<string | null>(null)
+  // 本班名单为空时教师显式选择「显示全校」;默认严格限定本班,不再静默回退全校
+  const [showAllStudents, setShowAllStudents] = useState(false)
   const marksPrint = useGradingMarksPrint()
-  // 打印版式: 痕迹卷(原卷落痕,默认) / 批阅报告(得分表+卷面)
+  // 打印版式: 痕迹卷(重印照片) / 批阅报告 / 套打原卷(红笔回写)
   const [marksMode, setMarksMode] = useState<GradingMarksMode>('paper')
-  // 套打版式下因未定位排不出的痕迹数(由 OverlayPrintDocument 上报,拦系统打印按钮)
-  const [overlayUnplaced, setOverlayUnplaced] = useState(0)
+  const classList = useClassStore((s) => s.items)
+  const classOptions = useMemo(
+    () => classList.filter((c) => !c.archived),
+    [classList],
+  )
 
   // 批改进度订阅: 只关心当前任务;done 后刷新任务列表与详情
   useIpcSubscription<GradingProgressEvent>(
@@ -139,15 +145,25 @@ export function TaskDetail({
     (p) => p.studentName !== null && p.status === 'pending',
   ).length
   const unassignedCount = task.papers.filter((p) => p.studentName === null).length
-  const roster = useMemo<GradingRosterEntry[]>(() => {
+  // 历史任务只存过班级名:按名称反查班级库兜底解析出 classId
+  const resolvedClassId =
+    task.classId ?? classOptions.find((c) => c.name === task.className)?.class_id ?? null
+  const rosterStudents = useMemo<EAAStudent[]>(() => {
     const active = students.filter((s) => s.status === 'Active')
-    const scoped = task.classId ? active.filter((s) => s.class_id === task.classId) : active
-    const pool = scoped.length > 0 ? scoped : active
+    const scoped = resolvedClassId ? active.filter((s) => s.class_id === resolvedClassId) : active
+    // 本班在读名单为空时不再静默回退全校:留给教师显式决定(见 classRosterEmpty 警告条)
+    if (scoped.length > 0) return scoped
+    if (resolvedClassId) return showAllStudents ? active : []
+    return active
+  }, [students, resolvedClassId, showAllStudents])
+  const classRosterEmpty = resolvedClassId !== null && rosterStudents.length === 0
+  const roster = useMemo<GradingRosterEntry[]>(
     // 只送姓名:卷面上只会出现姓名/学号/考号,entity_id 等非数字别名
     // 对身份匹配没有意义,反而会把「考号 01」误配到 ent_xxx01(09-13 实测)。
     // 学号/考号别名由主进程 enrichRosterWithProfiles 从档案补齐。
-    return pool.map((s) => ({ name: s.name }))
-  }, [students, task.classId])
+    () => rosterStudents.map((s) => ({ name: s.name })),
+    [rosterStudents],
+  )
   const canRun =
     (task.status === 'ready' || task.status === 'review') &&
     pendingCount + failedCount + unassignedCount > 0
@@ -167,6 +183,19 @@ export function TaskDetail({
         return { ...q, order: i + 1, presetMarks: marks }
       })
     await onUpdateTask(task.id, { rubric: cleaned })
+  }
+
+  /** 导入成功后自动跑一轮卷面识别(读姓名/编号→留痕+唯一命中自动归组),教师只需纠正例外 */
+  const handleImportPapers: TaskDetailProps['onImportPapers'] = async (taskId, batches) => {
+    const ok = await onImportPapers(taskId, batches)
+    if (
+      ok &&
+      roster.length > 0 &&
+      (task.status === 'draft' || task.status === 'ready' || task.status === 'review')
+    ) {
+      await onIdentifyPapers(taskId, roster)
+    }
+    return ok
   }
 
   const metaChip = (label: string, value?: string) =>
@@ -194,32 +223,47 @@ export function TaskDetail({
             : `${t('print.gradingMarks.title', '批阅痕迹')} — ${marksPrint.task.name} (${tr('page.grading.count.papers', { n: marksPrint.views.length })})`
         }
         onClose={marksPrint.close}
-        printBlockReason={
-          marksMode === 'overlay' && overlayUnplaced > 0
-            ? () =>
-                t(
-                  'page.grading.overlay.blockPrint',
-                  '有卷未定位: 只能回写总分,每题痕迹/大题批注不会打印 — 请先「自动定位四点」或手动四点',
-                )
+        printLabel={
+          marksMode === 'overlay' ? t('page.grading.overlay.printPreview', '打印预览') : undefined
+        }
+        toolbarHint={
+          marksMode === 'overlay'
+            ? t('page.grading.overlay.toolbarHint', '红笔套回原卷 · 不重印卷面')
             : undefined
         }
         toolbarExtra={
           <span className="flex items-center gap-1 rounded-md bg-white/10 p-0.5">
-            {(['paper', 'report', 'overlay'] as const).map((m) => (
+            {(
+              [
+                {
+                  id: 'paper' as const,
+                  hint: t('page.grading.printMode.paperHint', '重印批过的照片'),
+                },
+                {
+                  id: 'report' as const,
+                  hint: t('page.grading.printMode.reportHint', '得分表与评语'),
+                },
+                {
+                  id: 'overlay' as const,
+                  hint: t('page.grading.printMode.overlayHint', '红笔套回手里的原卷'),
+                },
+              ] as const
+            ).map((m) => (
               <button
-                key={m}
+                key={m.id}
                 type="button"
-                onClick={() => setMarksMode(m)}
+                title={m.hint}
+                onClick={() => setMarksMode(m.id)}
                 className={
-                  marksMode === m
+                  marksMode === m.id
                     ? 'rounded bg-white px-2 py-0.5 text-xs font-medium text-gray-900'
                     : 'rounded px-2 py-0.5 text-xs text-gray-300 hover:text-white'
                 }
               >
                 {t(
-                  m === 'paper'
+                  m.id === 'paper'
                     ? 'page.grading.printMode.paper'
-                    : m === 'report'
+                    : m.id === 'report'
                       ? 'page.grading.printMode.report'
                       : 'page.grading.printMode.overlay',
                 )}
@@ -231,7 +275,7 @@ export function TaskDetail({
           marksMode === 'paper'
             ? '!px-2 !py-2'
             : marksMode === 'overlay'
-              ? '!w-auto !max-w-none !min-h-0 !px-2 !py-2'
+              ? '!w-auto !max-w-none !min-h-0 !px-0 !py-0 !my-0 !rounded-none !shadow-none !bg-[#e4dfd4]'
               : undefined
         }
       >
@@ -240,7 +284,6 @@ export function TaskDetail({
             task={marksPrint.task}
             views={marksPrint.views}
             onRefresh={onRefresh}
-            onUnplacedChange={setOverlayUnplaced}
           />
         ) : (
           <GradingMarksDocument task={marksPrint.task} papers={marksPrint.views} mode={marksMode} />
@@ -366,6 +409,17 @@ export function TaskDetail({
                 : t('page.grading.publish')}
             </button>
           )}
+        {task.status === 'published' && (
+          <button
+            type="button"
+            onClick={() => void onSetStatus(task.id, 'review')}
+            disabled={busy}
+            className={btnStyle('secondary')}
+            title={t('page.grading.unpublishTitle')}
+          >
+            {t('page.grading.unpublish')}
+          </button>
+        )}
         {confirmDelete ? (
           <span className="flex items-center gap-1">
             <button
@@ -403,7 +457,46 @@ export function TaskDetail({
         <div className="flex flex-wrap items-center gap-1.5">
           {metaChip(t('page.grading.task.semester'), task.semester)}
           {metaChip(t('page.grading.task.date'), task.examDate)}
-          {metaChip(t('page.grading.task.class'), task.className)}
+          {task.status === 'grading' ? (
+            metaChip(t('page.grading.task.class'), task.className)
+          ) : (
+            <label
+              className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300"
+              title={t(
+                'page.grading.task.classScopeTitle',
+                '试卷归属与姓名识别默认只用该班级在读学生；不选则用全校名单',
+              )}
+            >
+              {t('page.grading.task.class')}
+              <select
+                value={resolvedClassId ?? ''}
+                onChange={(e) => {
+                  const cls = classOptions.find((c) => c.class_id === e.target.value)
+                  void onUpdateTask(task.id, {
+                    classId: cls?.class_id,
+                    className: cls?.name,
+                  })
+                }}
+                disabled={busy}
+                className="cursor-pointer bg-transparent font-medium outline-none"
+              >
+                <option value="">{t('page.grading.task.classAll', '全校名单')}</option>
+                {classOptions.map((c) => (
+                  <option key={c.class_id} value={c.class_id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              {!resolvedClassId && task.className && (
+                <span
+                  className="text-amber-600 dark:text-amber-400"
+                  title={t('page.grading.detail.classUnmatchedTitle', '原班级名在班级库中不存在，请重新选择班级')}
+                >
+                  ({task.className})
+                </span>
+              )}
+            </label>
+          )}
           {metaChip(
             t('page.grading.task.subject'),
             task.subjectId ? subjectNameById.get(task.subjectId) : undefined,
@@ -461,6 +554,38 @@ export function TaskDetail({
             </label>
           )}
         </div>
+
+        {/* 本班在读名单为空:显式警告,不再静默回退全校 */}
+        {classRosterEmpty && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+            <span className="flex-1">
+              {tr('page.grading.detail.classRosterEmpty', {
+                className: task.className ?? resolvedClassId ?? '',
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowAllStudents(true)}
+              disabled={busy}
+              className="shrink-0 rounded border border-amber-300 px-2 py-0.5 hover:bg-amber-100 dark:border-amber-500/40 dark:hover:bg-amber-500/20"
+            >
+              {t('page.grading.detail.showAllStudents', '显示全校学生')}
+            </button>
+          </div>
+        )}
+        {resolvedClassId !== null && showAllStudents && (
+          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-300">
+            <span className="flex-1">{t('page.grading.detail.showingAllStudents')}</span>
+            <button
+              type="button"
+              onClick={() => setShowAllStudents(false)}
+              disabled={busy}
+              className="shrink-0 rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-100 dark:border-white/20 dark:hover:bg-white/10"
+            >
+              {t('page.grading.detail.backToClassStudents', '恢复只看本班')}
+            </button>
+          </div>
+        )}
 
         {/* 批改进度(running 时实时;done 后保留汇总直到刷新) */}
         {progress && progress.taskId === task.id && (
@@ -590,9 +715,9 @@ export function TaskDetail({
           </h3>
           <PapersTable
             task={task}
-            students={students}
+            students={rosterStudents}
             busy={busy}
-            onImport={onImportPapers}
+            onImport={handleImportPapers}
             onAssign={onAssignPaper}
             onRemove={onRemovePaper}
             onReview={reviewable ? setReviewingPaperId : undefined}

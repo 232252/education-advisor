@@ -13,6 +13,7 @@ import {
 } from '@shared/grading-helpers'
 import type { GradingPaper, GradingTask, TeacherReview } from '@shared/types'
 import { useEffect, useMemo, useState } from 'react'
+import { SplitPane } from '../../../components/SplitPane'
 import { PaperScanPages } from '../../../components/print/PaperScanPages'
 import { tr, useT } from '../../../i18n'
 import { btnStyle, cn, INPUT_BASE } from '../../../lib/ui-utils'
@@ -213,10 +214,10 @@ export function ReviewWorkbench({
         )}
       </div>
 
-      {/* 双栏主体 */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* 双栏主体(可拖动分栏,双击分隔条复位) */}
+      <SplitPane storageKey="grading.reviewSplit" defaultRatio={0.5} className="flex-1">
         {/* 左: 扫描件 */}
-        <div className="w-1/2 overflow-y-auto bg-gray-100 p-3 dark:bg-black/20">
+        <div className="h-full overflow-y-auto bg-gray-100 p-3 dark:bg-black/20">
           {imageUrls.length === 0 ? (
             <p className="pt-8 text-center text-xs text-gray-400">
               {t('page.grading.review.loadingImage')}
@@ -230,7 +231,7 @@ export function ReviewWorkbench({
         </div>
 
         {/* 右: 逐题给分 */}
-        <div className="flex w-1/2 flex-col overflow-hidden">
+        <div className="flex h-full flex-col overflow-hidden">
           <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
             {task.rubric.map((q, i) => {
               const ai = paper.ai?.questions.find((a) => a.questionId === q.id)
@@ -387,7 +388,7 @@ export function ReviewWorkbench({
             </button>
           </div>
         </div>
-      </div>
+      </SplitPane>
     </div>
   )
 }

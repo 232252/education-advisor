@@ -27,6 +27,10 @@ interface PrintOverlayProps {
   contentClassName?: string
   /** 打印拦截: 返回阻断原因(toast 提示并放弃本次打印);null/undefined 放行 */
   printBlockReason?: () => string | null
+  /** 覆盖默认「打印 / 导出 PDF」按钮文案 */
+  printLabel?: string
+  /** 覆盖工具栏提示;传 null 隐藏默认「另存为 PDF」提示 */
+  toolbarHint?: string | null
 }
 
 export function PrintOverlay({
@@ -36,8 +40,14 @@ export function PrintOverlay({
   toolbarExtra,
   contentClassName,
   printBlockReason,
+  printLabel,
+  toolbarHint,
 }: PrintOverlayProps) {
   const { t } = useT()
+  const hint =
+    toolbarHint === undefined
+      ? t('print.hint.pdf', '打印对话框中选择「另存为 PDF」可导出 PDF 文件')
+      : toolbarHint
 
   // Esc 关闭 + 打开期间锁定背景滚动
   useEffect(() => {
@@ -57,9 +67,9 @@ export function PrintOverlay({
       <div className="print-toolbar sticky top-0 z-10 flex items-center gap-3 px-4 h-12 bg-gray-800 text-white">
         <FileText size={15} className="opacity-80" />
         <span className="text-sm font-medium truncate">{title}</span>
-        <span className="hidden sm:inline text-xs text-gray-400 truncate">
-          {t('print.hint.pdf', '打印对话框中选择「另存为 PDF」可导出 PDF 文件')}
-        </span>
+        {hint ? (
+          <span className="hidden sm:inline text-xs text-gray-400 truncate">{hint}</span>
+        ) : null}
         {toolbarExtra}
         <div className="ml-auto flex items-center gap-2 flex-shrink-0">
           <Button
@@ -76,7 +86,7 @@ export function PrintOverlay({
             size="sm"
           >
             <Printer size={13} />
-            {t('print.action', '打印 / 导出 PDF')}
+            {printLabel ?? t('print.action', '打印 / 导出 PDF')}
           </Button>
           <button
             type="button"

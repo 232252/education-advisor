@@ -196,6 +196,8 @@ export const importGradesTool: AgentTool<typeof importGradesParams> = {
       date: params.exam_date?.trim() || todayIsoDate(),
       semester: params.semester?.trim() || currentSemester(),
       scope: classId,
+      // 班级落库:学业页按生过滤"非本班考试"
+      classId,
       subjects: subjectIds,
     })
 

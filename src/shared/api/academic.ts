@@ -22,6 +22,8 @@ export interface AcademicAPI {
   deleteExam: (examId: string) => Promise<AcademicResult<void>>
   // [r] 学生全部成绩
   getGrades: (studentName: string) => Promise<AcademicResult<GradeRecord[]>>
+  // [c] 删除学生在某场考试的全部记录(返回删除条数) — UI 层应二次确认
+  removeGrades: (studentName: string, examId: string) => Promise<AcademicResult<number>>
   // [w] 批量设置成绩
   batchSetGrades: (records: unknown) => Promise<AcademicResult<void>>
   // [r] 班级成绩(学生名 → 成绩记录)
