@@ -117,11 +117,7 @@ export function PapersTable({
           onClick={() => void handleImport()}
           disabled={!importable || busy || importing}
           className={btnStyle('primary')}
-          title={
-            task.status === 'review'
-              ? t('page.grading.papers.importReviewTitle')
-              : undefined
-          }
+          title={task.status === 'review' ? t('page.grading.papers.importReviewTitle') : undefined}
         >
           {importing ? t('page.grading.papers.importing') : t('page.grading.papers.import')}
         </button>

@@ -516,14 +516,17 @@ body {
     box-shadow: 0 8px 24px rgba(40, 30, 20, 0.08);
     backdrop-filter: blur(10px);
   }
+  /* biome-ignore lint/style/noDescendingSpecificity: 套打叠加层需覆盖基础样式 */
   .overlay-page {
     box-shadow:
       0 18px 40px rgba(40, 30, 20, 0.16),
       0 0 0 1px rgba(40, 30, 20, 0.06);
   }
+  /* biome-ignore lint/style/noDescendingSpecificity: 套打叠加层需覆盖基础样式 */
   .overlay-underlay {
     opacity: 0.46;
   }
+  /* biome-ignore lint/style/noDescendingSpecificity: 套打叠加层需覆盖基础样式 */
   .overlay-ink {
     text-shadow:
       0 0 3px #fff,

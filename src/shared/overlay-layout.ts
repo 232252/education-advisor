@@ -13,12 +13,7 @@
 // 出处: docs/research/2026-09-15-overlay-print-annotation-research.md §4.2
 // =============================================================
 
-import {
-  type PageQuad,
-  type PaperSpec,
-  quadToPaperMapper,
-  rescaleQuad,
-} from './grading-geometry'
+import { type PageQuad, type PaperSpec, quadToPaperMapper, rescaleQuad } from './grading-geometry'
 import {
   aiResultByQuestion,
   effectiveTotalScore,
@@ -261,8 +256,7 @@ export function layoutOverlayPaper(input: OverlayLayoutInput): OverlayPaperLayou
   for (let page = 0; page < pageCount; page++) {
     const rawQuad = input.quads[page]
     const size = input.imageSizes[page]
-    const quad =
-      rawQuad && size ? rescaleQuad(rawQuad, size.width, size.height) : rawQuad
+    const quad = rawQuad && size ? rescaleQuad(rawQuad, size.width, size.height) : rawQuad
     const templateMapper = templateMappers[page] ?? null
     const marks: OverlayMarkElement[] = []
     const notes: OverlayNoteElement[] = []

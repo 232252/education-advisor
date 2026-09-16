@@ -117,10 +117,7 @@ export function TaskDetail({
   // 打印版式: 痕迹卷(重印照片) / 批阅报告 / 套打原卷(红笔回写)
   const [marksMode, setMarksMode] = useState<GradingMarksMode>('paper')
   const classList = useClassStore((s) => s.items)
-  const classOptions = useMemo(
-    () => classList.filter((c) => !c.archived),
-    [classList],
-  )
+  const classOptions = useMemo(() => classList.filter((c) => !c.archived), [classList])
 
   // 批改进度订阅: 只关心当前任务;done 后刷新任务列表与详情
   useIpcSubscription<GradingProgressEvent>(
@@ -490,7 +487,10 @@ export function TaskDetail({
               {!resolvedClassId && task.className && (
                 <span
                   className="text-amber-600 dark:text-amber-400"
-                  title={t('page.grading.detail.classUnmatchedTitle', '原班级名在班级库中不存在，请重新选择班级')}
+                  title={t(
+                    'page.grading.detail.classUnmatchedTitle',
+                    '原班级名在班级库中不存在，请重新选择班级',
+                  )}
                 >
                   ({task.className})
                 </span>

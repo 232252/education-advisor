@@ -56,7 +56,9 @@ async function docxText(buf: Buffer, label: string): Promise<string> {
     const { value } = await mammoth.extractRawText({ buffer: buf })
     return value
   } catch (err) {
-    throw new Error(`Word 文档解析失败(${label}): ${err instanceof Error ? err.message : '无法读取'}`)
+    throw new Error(
+      `Word 文档解析失败(${label}): ${err instanceof Error ? err.message : '无法读取'}`,
+    )
   }
 }
 
@@ -88,7 +90,9 @@ export async function ingestSampleFiles(
   for (const p of paths) {
     const ext = path.extname(p).toLowerCase()
     if (!isSampleExt(ext)) {
-      throw new Error(`不支持的样卷格式: ${path.basename(p)}(支持 jpg/png/webp/bmp/pdf/docx/md/txt)`)
+      throw new Error(
+        `不支持的样卷格式: ${path.basename(p)}(支持 jpg/png/webp/bmp/pdf/docx/md/txt)`,
+      )
     }
     const label = path.basename(p)
     let stat: Awaited<ReturnType<typeof fsp.stat>>

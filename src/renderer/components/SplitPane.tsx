@@ -99,6 +99,10 @@ export function SplitPane({
       <div
         role="separator"
         aria-orientation="vertical"
+        aria-valuenow={Math.round(ratio * 100)}
+        aria-valuemin={Math.round(minRatio * 100)}
+        aria-valuemax={Math.round(maxRatio * 100)}
+        tabIndex={0}
         onMouseDown={(e) => {
           // 左键起拖;双击复位由 onDoubleClick 处理
           if (e.button === 0) setDragging(true)

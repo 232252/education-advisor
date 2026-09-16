@@ -122,7 +122,7 @@ export class DingtalkAdapter implements ChannelAdapter {
   }
 
   async fetchAttachment(
-    msg: InboundMessage,
+    _msg: InboundMessage,
     att: InboundAttachment,
   ): Promise<ChannelFetchedAttachment> {
     const api = dingtalkBotService.getApi()

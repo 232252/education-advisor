@@ -23,7 +23,10 @@ interface RubricEditorProps {
 
 // 「从样卷识别」接受的文件类型(图片/PDF/Word/Markdown;主进程 sample-ingest 深校验)
 const SAMPLE_FILTERS = [
-  { name: 'Sample papers', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'pdf', 'docx', 'md', 'txt'] },
+  {
+    name: 'Sample papers',
+    extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'pdf', 'docx', 'md', 'txt'],
+  },
 ]
 
 function nextQuestionId(value: RubricQuestion[]): string {
