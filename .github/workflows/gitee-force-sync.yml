@@ -1,7 +1,9 @@
 name: gitee-force-sync (temporary)
 
 # 一次性运维任务:隐私清理后把重写的全部历史强推覆盖 Gitee 镜像。
-# 逐分支分批推送:每条独立连接,低速熔断防挂死,失败不阻塞其余分支。
+# 关键:先把 Gitee 已有的旧历史对象 fetch 进来(中国→美国下行快),
+# 重写历史与旧历史 95% 文件内容相同(blob 同 SHA),推送时协议按
+# server-have 排除这些对象,实际差量包只有 几MB(新提交+变更树/文件)。
 # 执行完成后本文件即被删除,勿手动重跑。
 
 on:
@@ -13,14 +15,29 @@ permissions:
 jobs:
   force-sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 150
+    env:
+      GITEE_URL: https://oauth2_gitee_placeholder
     steps:
       - name: Clone rewritten history
         run: |
           set -euo pipefail
           git clone --bare https://github.com/${{ github.repository }}.git repo.git
 
-      - name: Push main first
+      - name: Fetch Gitee's old objects (for delta negotiation)
+        working-directory: repo.git
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        timeout-minutes: 60
+        run: |
+          set -uo pipefail
+          git -c http.lowSpeedLimit=2000 -c http.lowSpeedTime=120 \
+            fetch --no-tags --force \
+            "https://oauth2:${GITEE_TOKEN}@gitee.com/qdzwwqd/education-advisor.git" \
+            '+refs/heads/*:refs/gitee-old/*' 2>&1 | sed "s/${GITEE_TOKEN}/***MASKED***/g" \
+            || echo "::warning::拉取 Gitee 旧对象失败,推送将退化为全量"
+
+      - name: Push main
         working-directory: repo.git
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
@@ -30,14 +47,14 @@ jobs:
             "https://oauth2:${GITEE_TOKEN}@gitee.com/qdzwwqd/education-advisor.git" \
             refs/heads/main:refs/heads/main 2>&1 | sed "s/${GITEE_TOKEN}/***MASKED***/g"
 
-      - name: Push remaining branches (each independent)
+      - name: Push remaining branches and tags (each independent)
         working-directory: repo.git
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
           set -uo pipefail
           FAILED=""
-          for ref in $(git for-each-ref --format='%(refname)' refs/heads | grep -v refs/heads/main); do
+          for ref in $(git for-each-ref --format='%(refname)' refs/heads refs/tags | grep -v refs/heads/main); do
             echo "=== pushing $ref ==="
             if ! git -c http.lowSpeedLimit=2000 -c http.lowSpeedTime=90 push --force --no-thin \
                  "https://oauth2:${GITEE_TOKEN}@gitee.com/qdzwwqd/education-advisor.git" \
@@ -46,28 +63,5 @@ jobs:
               FAILED="$FAILED $ref"
             fi
           done
-          echo "FAILED_BRANCHES=$FAILED" >> "$GITHUB_ENV"
-
-      - name: Push tags (each independent)
-        working-directory: repo.git
-        env:
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-        run: |
-          set -uo pipefail
-          FAILED=""
-          for ref in $(git for-each-ref --format='%(refname)' refs/tags); do
-            echo "=== pushing $ref ==="
-            if ! git -c http.lowSpeedLimit=2000 -c http.lowSpeedTime=90 push --force --no-thin \
-                 "https://oauth2:${GITEE_TOKEN}@gitee.com/qdzwwqd/education-advisor.git" \
-                 "$ref:$ref" 2>&1 | sed "s/${GITEE_TOKEN}/***MASKED***/g"; then
-              echo "::warning::$ref 推送失败"
-              FAILED="$FAILED $ref"
-            fi
-          done
-          echo "FAILED_TAGS=$FAILED" >> "$GITHUB_ENV"
-
-      - name: Summary
-        run: |
-          echo "失败分支: ${FAILED_BRANCHES:-无}"
-          echo "失败标签: ${FAILED_TAGS:-无}"
-          if [ -n "${FAILED_BRANCHES}${FAILED_TAGS}" ]; then exit 1; fi
+          if [ -n "$FAILED" ]; then echo "::error::失败清单:$FAILED"; exit 1; fi
+          echo "全部分支与标签推送完成"
