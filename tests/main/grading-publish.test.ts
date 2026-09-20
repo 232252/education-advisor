@@ -162,4 +162,54 @@ describe('buildPublishPayload', () => {
       },
     ])
   })
+
+  it('AI 缺题(q-2 缺)且无教师覆盖 → 按量规口径整卷 skipped,不发该生任何记录', () => {
+    const task = makeTask({
+      papers: [
+        {
+          id: 'paper-partial',
+          studentName: '王五',
+          files: [],
+          uploadedAt: '',
+          status: 'graded',
+          ai: {
+            questions: [{ questionId: 'q-1', score: 30 }],
+            totalScore: 30,
+            model: { provider: 'p', model: 'm' },
+            finishedAt: '2026-09-08T10:05:00.000Z',
+          },
+        },
+      ],
+    })
+    const payload = buildPublishPayload(task)
+    expect(payload.records.filter((r) => r.studentName === '王五')).toEqual([])
+    expect(payload.skipped).toEqual([
+      { paperId: 'paper-partial', studentName: '王五', reason: '分数不完整' },
+    ])
+  })
+
+  it('AI 缺题但教师 review 覆盖补齐 → 按量规口径可发布,总分=逐题之和', () => {
+    const task = makeTask({
+      papers: [
+        {
+          id: 'paper-rescued',
+          studentName: '赵六',
+          files: [],
+          uploadedAt: '',
+          status: 'graded',
+          ai: {
+            questions: [{ questionId: 'q-1', score: 28 }],
+            totalScore: 28,
+            model: { provider: 'p', model: 'm' },
+            finishedAt: '2026-09-08T10:05:00.000Z',
+          },
+          review: { questions: { 'q-2': { score: 15 } }, reviewedAt: '2026-09-08T11:00:00.000Z' },
+        },
+      ],
+    })
+    const payload = buildPublishPayload(task)
+    expect(payload.skipped).toEqual([])
+    expect(payload.records).toHaveLength(3)
+    expect(payload.records[2]).toMatchObject({ subjectId: TOTAL_SUBJECT_ID, score: 43, fullMark: 50 })
+  })
 })

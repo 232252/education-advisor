@@ -4,8 +4,14 @@
 // grading:run 为异步作业: 启动即返回,进度经 IPC_GRADING_PROGRESS 推送。
 // =============================================================
 
-import { type PageQuad, paperSpecById, paperSpecToPrintPageSize } from '@shared/grading-geometry'
-import type { StudentCandidate } from '@shared/grading-helpers'
+import fsp from 'node:fs/promises'
+import {
+  type PageQuad,
+  paperSpecById,
+  paperSpecToPdfPageSize,
+  paperSpecToPrintPageSize,
+} from '@shared/grading-geometry'
+import { isPrintDuplexMode, isPrintOrder, type StudentCandidate } from '@shared/grading-helpers'
 import * as IPC from '@shared/ipc-channels'
 import type {
   GradingTaskStatus,
@@ -20,6 +26,7 @@ import { identifyUnassignedPapers } from '../services/grading/identify-papers'
 import { detectQuadsForTask } from '../services/grading/page-quad-detect'
 import { extractRubricFromSamples } from '../services/grading/rubric-extract'
 import { refineRubricStandards } from '../services/grading/rubric-refine'
+import { buildSummaryCsv } from '../services/grading/summary-export'
 import { calibrateOverlayTemplate } from '../services/grading/template-calibrate'
 import { invalidateOnExamsWrite, invalidateOnGradesWrite } from './academic/cache'
 import { handleIpc } from './handle'
@@ -101,6 +108,24 @@ export function registerGradingHandlers(win: BrowserWindow): void {
     }
     return { success: true, data: await gradingService.removePaper(taskId, paperId) }
   })
+
+  // 多页归组人工合并: source 卷页面并入 anchor 卷(appendPaperPages 拒绝已批改卷)
+  handleIpc(
+    IPC.IPC_GRADING_MERGE_PAPERS,
+    async (_e, taskId: string, anchorId: string, sourceId: string) => {
+      if (
+        typeof taskId !== 'string' ||
+        typeof anchorId !== 'string' ||
+        typeof sourceId !== 'string'
+      ) {
+        throw new Error('taskId/anchorId/sourceId 必须是字符串')
+      }
+      return {
+        success: true,
+        data: await gradingService.appendPaperPages(taskId, anchorId, sourceId),
+      }
+    },
+  )
 
   handleIpc(
     IPC.IPC_GRADING_SAVE_REVIEW,
@@ -284,7 +309,10 @@ export function registerGradingHandlers(win: BrowserWindow): void {
   })
 
   // 静默连打: 打印当前窗口(套打模式 DOM 已由打印 CSS 滤成纯红痕层);
-  // 参数写死 实际尺寸+无边距,根除驱动「适合页面」缩放风险
+  // 参数写死 实际尺寸+无边距,根除驱动「适合页面」缩放风险;
+  // duplexMode 透传 electron print 同名字段(字段名是 duplexMode 非 duplex),
+  // order 为连打排序留档(渲染层已按该序渲染)——两者都做值域校验,
+  // 传了非法值直接抛错,防 UI 契约漂移
   handleIpc(IPC.IPC_GRADING_OVERLAY_SILENT_PRINT, async (_e, taskId: string, opts: unknown) => {
     if (typeof taskId !== 'string' || taskId.length === 0) {
       throw new Error('taskId 必须是非空字符串')
@@ -293,6 +321,14 @@ export function registerGradingHandlers(win: BrowserWindow): void {
     const specId = typeof o.paperSpecId === 'string' ? o.paperSpecId : undefined
     const deviceName =
       typeof o.deviceName === 'string' && o.deviceName.length > 0 ? o.deviceName : undefined
+    if (o.order !== undefined && !isPrintOrder(o.order)) {
+      throw new Error('非法 order(合法值 name-asc|name-desc|upload-asc)')
+    }
+    if (o.duplexMode !== undefined && !isPrintDuplexMode(o.duplexMode)) {
+      throw new Error('非法 duplexMode(合法值 simplex|shortEdge|longEdge)')
+    }
+    const duplexMode = isPrintDuplexMode(o.duplexMode) ? o.duplexMode : undefined
+    // pageSize 维持微米口径(paperSpecToPrintPageSize 服务 webContents.print)
     const pageSize = paperSpecToPrintPageSize(paperSpecById(specId))
     return await new Promise<{ success: boolean; data?: { ok: boolean; reason?: string } }>(
       (resolve) => {
@@ -303,10 +339,53 @@ export function registerGradingHandlers(win: BrowserWindow): void {
             pageSize,
             margins: { marginType: 'none' },
             printBackground: true,
+            ...(duplexMode ? { duplexMode } : {}),
           },
           (ok, reason) => resolve({ success: true, data: { ok, reason } }),
         )
       },
     )
+  })
+
+  // 成绩汇总 CSV: 路径来自渲染层保存对话框;纯函数 builder + 主进程写盘
+  // (内容自带 \uFEFF,utf-8 写出即 utf-8-sig,Excel 双击直开)
+  handleIpc(IPC.IPC_GRADING_EXPORT_SUMMARY_CSV, async (_e, taskId: string, filePath: unknown) => {
+    if (typeof taskId !== 'string' || taskId.length === 0) {
+      throw new Error('taskId 必须是非空字符串')
+    }
+    if (typeof filePath !== 'string' || filePath.length === 0) {
+      throw new Error('filePath 必须是非空字符串')
+    }
+    const task = await gradingService.getTask(taskId)
+    const csv = buildSummaryCsv(task)
+    await fsp.writeFile(filePath, csv, 'utf-8')
+    return { success: true, data: { bytes: Buffer.byteLength(csv, 'utf-8') } }
+  })
+
+  // 逐页批注 PDF 直出: 把当前窗口(打印 CSS 下的批注文档)打成 PDF 落盘。
+  // pageSize 走 paperSpecToPdfPageSize——printToPDF 的数字对象单位是英寸,
+  // 与 print 的微米口径(paperSpecToPrintPageSize)互斥,禁止跨 API 复用。
+  handleIpc(IPC.IPC_GRADING_EXPORT_ANNOTATED_PDF, async (_e, taskId: string, opts: unknown) => {
+    if (typeof taskId !== 'string' || taskId.length === 0) {
+      throw new Error('taskId 必须是非空字符串')
+    }
+    const o = isRecord(opts) ? opts : {}
+    if (typeof o.filePath !== 'string' || o.filePath.length === 0) {
+      throw new Error('filePath 必须是非空字符串')
+    }
+    if (o.duplexMode !== undefined && !isPrintDuplexMode(o.duplexMode)) {
+      throw new Error('非法 duplexMode(合法值 simplex|shortEdge|longEdge)')
+    }
+    await gradingService.getTask(taskId)
+    const specId = typeof o.paperSpecId === 'string' ? o.paperSpecId : undefined
+    const duplexMode = isPrintDuplexMode(o.duplexMode) ? o.duplexMode : undefined
+    const pdf = await win.webContents.printToPDF({
+      printBackground: true,
+      margins: { marginType: 'none' },
+      pageSize: paperSpecToPdfPageSize(paperSpecById(specId)),
+      ...(duplexMode ? { duplexMode } : {}),
+    })
+    await fsp.writeFile(o.filePath, pdf)
+    return { success: true, data: { bytes: pdf.length } }
   })
 }

@@ -10,6 +10,8 @@ import type {
   GradingPaper,
   GradingStrategy,
   PresetMark,
+  PrintDuplexMode,
+  PrintOrder,
   RubricQuestion,
 } from './types'
 
@@ -54,6 +56,26 @@ export function effectiveTotalScore(paper: Pick<GradingPaper, 'ai' | 'review'>):
   let total = 0
   for (const q of paper.ai.questions) {
     const score = effectiveQuestionScore(paper, q.questionId)
+    if (score === null) return null
+    total += score
+  }
+  return total
+}
+
+/**
+ * 按量规口径的整卷生效分: 对量规逐题取生效分求和,量规里任一题无生效分
+ * (AI 结果缺该题且无教师覆盖)→ null。发布用它做门槛,消除「总分=AI 部分
+ * 和、逐题缺一科」的自相矛盾记录;effectiveTotalScore(按 AI 结果自身
+ * 逐题求和,缺题不感知)保留给渲染层旧口径。
+ */
+export function effectiveTotalScoreForRubric(
+  paper: Pick<GradingPaper, 'ai' | 'review'>,
+  rubric: RubricQuestion[],
+): number | null {
+  if (!paper.ai) return null
+  let total = 0
+  for (const q of rubric) {
+    const score = effectiveQuestionScore(paper, q.id)
     if (score === null) return null
     total += score
   }
@@ -301,6 +323,79 @@ export function paperMarkOverlays(
     })
   }
   return out
+}
+
+// ===== 打印排序 / 复核优先级 =====
+
+/** 连打排序合法值(渲染层下拉与 handler 校验共用) */
+export const PRINT_ORDERS: PrintOrder[] = ['name-asc', 'name-desc', 'upload-asc']
+
+export function isPrintOrder(v: unknown): v is PrintOrder {
+  return typeof v === 'string' && (PRINT_ORDERS as string[]).includes(v)
+}
+
+/** 双面打印合法值(electron print/printToPDF 的 duplexMode 字段——字段名是 duplexMode,不是 duplex) */
+export const PRINT_DUPLEX_MODES: PrintDuplexMode[] = ['simplex', 'shortEdge', 'longEdge']
+
+export function isPrintDuplexMode(v: unknown): v is PrintDuplexMode {
+  return typeof v === 'string' && (PRINT_DUPLEX_MODES as string[]).includes(v)
+}
+
+// ===== 样卷文件选择 =====
+
+/**
+ * 「从样卷识别」文件选择器放行的扩展名(渲染层对话框 filter 用)。
+ * 与主进程 sample-ingest 的 isSampleExt 白名单保持同步——
+ * tests/main/sample-ingest.test.ts 有两者一致性的契约断言,改任何一边先跑该测试。
+ */
+export const SAMPLE_PICK_EXTENSIONS: string[] = [
+  'jpg',
+  'jpeg',
+  'png',
+  'webp',
+  'bmp',
+  'pdf',
+  'docx',
+  'md',
+  'txt',
+  'xlsx',
+  'xls',
+  'csv',
+  'yaml',
+  'yml',
+  'zip',
+]
+
+/**
+ * 连打前的试卷排序(从 useGradingMarksPrint 迁来共享——hook 文件含 i18n/toast
+ * 渲染层依赖,主进程/共享测试不可直 import):
+ * - name-asc(默认)/name-desc: 姓名 localeCompare(中文拼音序),未归组的排最后;
+ * - upload-asc: 上传原序(按上传时间即 task.papers 顺序)。
+ */
+export function sortPapersForPrint<T extends GradingPaper>(
+  papers: T[],
+  order: PrintOrder = 'name-asc',
+): T[] {
+  if (order === 'upload-asc') return [...papers]
+  const dir = order === 'name-asc' ? 1 : -1
+  return [...papers].sort((a, b) => {
+    const an = a.studentName ?? ''
+    const bn = b.studentName ?? ''
+    if (!an && bn) return 1
+    if (an && !bn) return -1
+    return an.localeCompare(bn, 'zh') * dir
+  })
+}
+
+/**
+ * 复核优先级(数字越小越先复核): 双评分歧(disputedQuestions>0)最优,
+ * 其次含中置信题(confidence='medium',转写复验仍读不准/边界复验取中位),
+ * 普通卷最后。纯排序权重,不改任何判分。
+ */
+export function reviewPriority(paper: Pick<GradingPaper, 'disputedQuestions' | 'ai'>): number {
+  if ((paper.disputedQuestions?.length ?? 0) > 0) return 0
+  const medium = (paper.ai?.questions ?? []).filter((q) => q.confidence === 'medium').length
+  return medium > 0 ? 1 : 2
 }
 
 // ===== 文件名 → 学生匹配 =====

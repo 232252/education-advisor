@@ -160,9 +160,10 @@ describe('resolveHeaderIndexes — 表头识别', () => {
 })
 
 describe('validateExcelFilePath — 路径防护', () => {
-  it('xlsx/xls 通过', () => {
+  it('xlsx/xls/csv 通过', () => {
     expect(validateExcelFilePath('C:/data/students.xlsx').ok).toBe(true)
     expect(validateExcelFilePath('C:/data/students.xls').ok).toBe(true)
+    expect(validateExcelFilePath('C:/data/students.csv').ok).toBe(true)
   })
 
   it('空路径 / NUL 字节 / 路径遍历 / 非法扩展名拒绝', () => {
@@ -556,6 +557,68 @@ describe('students:import-template handler', () => {
     }
     expect(result.success).toBe(false)
     expect(result.error).toContain('extension')
+  })
+})
+
+// =============================================================
+// csv 双路打通: 主进程白名单+真实 csv 解析 / 渲染层选择器 filters
+// (置于 M30 验证场景之前;双路任一缺 csv,UI 都选不到/收不了 csv)
+// =============================================================
+
+describe('csv 双路打通 — 主进程路 + 渲染层选择器路', () => {
+  it('主进程路: parse-excel 收 .csv(utf8) → 解析返回预览', async () => {
+    const file = path.join(tmpRoot, 'students.csv')
+    await fsp.writeFile(file, 'name,student_id,class_name\n张三,S-101,七年级1班\n李四,S-102,G7-2\n', 'utf8')
+    const parse = handlers.get(IPC.IPC_STUDENTS_PARSE_EXCEL) as (
+      e: unknown,
+      p: string,
+    ) => Promise<unknown>
+    const preview = (await parse(makeEvent().event, file)) as {
+      success: boolean
+      rows: Array<{ name: string; studentId: string; classId: string | null }>
+      errors: unknown[]
+      totalRows: number
+    }
+    expect(preview.success).toBe(true)
+    expect(preview.totalRows).toBe(2)
+    expect(preview.errors).toEqual([])
+    expect(preview.rows[0]).toMatchObject({ name: '张三', studentId: 'S-101', classId: 'G7-1' })
+    expect(preview.rows[1]).toMatchObject({ name: '李四', studentId: 'S-102', classId: 'G7-2' })
+  })
+
+  it('主进程路: 中文表头 csv 同样可解析', async () => {
+    const file = path.join(tmpRoot, 'students-zh.csv')
+    await fsp.writeFile(file, '姓名,学号,班级\n王五,S-103,七年级1班\n', 'utf8')
+    const parse = handlers.get(IPC.IPC_STUDENTS_PARSE_EXCEL) as (
+      e: unknown,
+      p: string,
+    ) => Promise<unknown>
+    const preview = (await parse(makeEvent().event, file)) as {
+      success: boolean
+      rows: Array<{ name: string; studentId: string }>
+    }
+    expect(preview.success).toBe(true)
+    expect(preview.rows[0]).toMatchObject({ name: '王五', studentId: 'S-103' })
+  })
+
+  it('主进程路: 模板白名单仍限 .xlsx(不受 csv 放开影响)', async () => {
+    expect(validateExcelFilePath('C:/t.csv', ['.xlsx']).ok).toBe(false)
+  })
+
+  it('渲染层路: handleImportExcel 的文件选择器 filters 含 csv(否则 UI 选不到)', async () => {
+    // 从 hook 模块导入选择器扩展名常量(handleImportExcel 的 pickFile filters 直接引用它);
+    // 该常量与主进程 ALLOWED_EXCEL_EXTS 同口径 — 双路必须同时含 csv。
+    const { EXCEL_IMPORT_FILE_EXTENSIONS } = await import(
+      '../../src/renderer/pages/Students/hooks/useStudentActions'
+    )
+    expect(EXCEL_IMPORT_FILE_EXTENSIONS).toContain('csv')
+    expect(EXCEL_IMPORT_FILE_EXTENSIONS).toContain('xlsx')
+    expect(EXCEL_IMPORT_FILE_EXTENSIONS).toContain('xls')
+    // 与主进程白名单一致性: 两边扩展名集合相等(主进程带点前缀,渲染层不带)
+    const { ALLOWED_EXCEL_EXTS } = await import('../../src/main/ipc/students/excel-import')
+    expect([...ALLOWED_EXCEL_EXTS].map((e) => e.replace(/^\./, '')).sort()).toEqual(
+      [...EXCEL_IMPORT_FILE_EXTENSIONS].sort(),
+    )
   })
 })
 

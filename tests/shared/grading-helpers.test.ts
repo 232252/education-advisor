@@ -3,15 +3,18 @@
 // =============================================================
 
 import { describe, expect, it } from 'vitest'
-import type { AiGradeResult } from '../../src/shared/types'
+import type { AiGradeResult, GradingPaper } from '../../src/shared/types'
 import {
   aiResultByQuestion,
   cleanPresetMarks,
   dualTolerance,
+  effectiveTotalScore,
+  effectiveTotalScoreForRubric,
+  isPrintDuplexMode,
+  isPrintOrder,
   mergeDualResults,
   normalizeGradingStrategy,
   effectiveQuestionScore,
-  effectiveTotalScore,
   groupPaperImportPaths,
   markScoreFromSelection,
   matchPaperFilesToStudents,
@@ -20,7 +23,9 @@ import {
   paperMarkOverlays,
   paperMarkScoreRows,
   questionKind,
+  reviewPriority,
   rubricFullMark,
+  sortPapersForPrint,
 } from '../../src/shared/grading-helpers'
 
 describe('questionKind 题类推导', () => {
@@ -85,6 +90,32 @@ describe('effectiveQuestionScore / effectiveTotalScore', () => {
     expect(map.get('q-1')?.score).toBe(28)
     expect(map.size).toBe(2)
     expect(aiResultByQuestion(undefined).size).toBe(0)
+  })
+})
+
+describe('effectiveTotalScoreForRubric — 按量规口径的整卷生效分', () => {
+  const rubric = [
+    { id: 'q-1', title: '选择题', fullMark: 10, order: 1 },
+    { id: 'q-10', title: '解答题', fullMark: 12, order: 2 },
+  ]
+  const partialPaper = {
+    ai: {
+      questions: [{ questionId: 'q-1', score: 9 }],
+      totalScore: 9,
+      model: { provider: 'p', model: 'm' },
+      finishedAt: '2026-01-01T00:00:00Z',
+    },
+  }
+
+  it('AI 缺 q-10 但 review 覆盖 q-10=12 → 按量规逐题合成 21(旧口径 effectiveTotalScore 仍返回 9)', () => {
+    const paper = { ...partialPaper, review: { questions: { 'q-10': { score: 12 } } } }
+    expect(effectiveTotalScoreForRubric(paper, rubric)).toBe(21)
+    expect(effectiveTotalScore(paper)).toBe(9) // 旧口径: 按 AI 结果自身的题目求和,缺题不感知
+  })
+
+  it('量规任一题无生效分(AI 缺题且无教师覆盖) → null;无 AI 结果 → null', () => {
+    expect(effectiveTotalScoreForRubric(partialPaper, rubric)).toBeNull()
+    expect(effectiveTotalScoreForRubric({ ai: undefined }, rubric)).toBeNull()
   })
 })
 
@@ -399,6 +430,72 @@ describe('paperMarkScoreRows / paperMarkOverlays', () => {
   })
 })
 
+describe('sortPapersForPrint — 连打三序 + 打印参数值域', () => {
+  const mk = (id: string, studentName: string | null): GradingPaper =>
+    ({ id, studentName, files: [], uploadedAt: `2026-01-0${id}`, status: 'graded' }) as GradingPaper
+  const papers = [mk('3', null), mk('1', '陈五'), mk('2', '张三'), mk('4', '李四')]
+
+  it('name-asc(默认): 姓名拼音升序(陈五<李四<张三),未归组排最后', () => {
+    expect(sortPapersForPrint(papers).map((p) => p.id)).toEqual(['1', '4', '2', '3'])
+    expect(sortPapersForPrint(papers, 'name-asc').map((p) => p.id)).toEqual(['1', '4', '2', '3'])
+  })
+
+  it('name-desc: 姓名倒序,未归组仍排最后;upload-asc: 上传原序', () => {
+    expect(sortPapersForPrint(papers, 'name-desc').map((p) => p.id)).toEqual(['2', '4', '1', '3'])
+    expect(sortPapersForPrint(papers, 'upload-asc').map((p) => p.id)).toEqual(['3', '1', '2', '4'])
+  })
+
+  it('不改变入参数组(拷贝排序);空数组安全', () => {
+    const before = papers.map((p) => p.id)
+    sortPapersForPrint(papers, 'name-desc')
+    expect(papers.map((p) => p.id)).toEqual(before)
+    expect(sortPapersForPrint([])).toEqual([])
+  })
+
+  it('isPrintOrder / isPrintDuplexMode 值域(handler 参数校验共用;duplexMode 非 duplex)', () => {
+    for (const v of ['name-asc', 'name-desc', 'upload-asc']) expect(isPrintOrder(v)).toBe(true)
+    expect(isPrintOrder('name')).toBe(false)
+    expect(isPrintOrder(undefined)).toBe(false)
+    for (const v of ['simplex', 'shortEdge', 'longEdge']) expect(isPrintDuplexMode(v)).toBe(true)
+    expect(isPrintDuplexMode('duplex')).toBe(false) // 字段名/值混用要拒
+    expect(isPrintDuplexMode(undefined)).toBe(false)
+  })
+})
+
+describe('reviewPriority — 复核优先级(disputed > 中置信 > 普通)', () => {
+  const aiOf = (confidences: Array<'medium' | undefined>) =>
+    ({
+      questions: confidences.map((c, i) => ({
+        questionId: `q-${i + 1}`,
+        score: 1,
+        ...(c ? { confidence: c } : {}),
+      })),
+      totalScore: confidences.length,
+      model: { provider: 'p', model: 'm' },
+      finishedAt: '2026-01-01T00:00:00Z',
+    }) as GradingPaper['ai']
+
+  it('双评分歧最优先;中置信题次之;普通卷最后;中置信题数只影响档内识别', () => {
+    const disputed = { disputedQuestions: ['q-1'], ai: aiOf([undefined, undefined]) }
+    const medium = { ai: aiOf(['medium', undefined]) }
+    const plain = { ai: aiOf([undefined, undefined]) }
+    expect(reviewPriority(disputed)).toBe(0)
+    expect(reviewPriority(medium)).toBe(1)
+    expect(reviewPriority(plain)).toBe(2)
+    // 排序组合: disputed 排最前,中置信次之
+    const sorted = [plain, medium, disputed].sort((a, b) => reviewPriority(a) - reviewPriority(b))
+    expect(sorted[0]).toBe(disputed)
+    expect(sorted[1]).toBe(medium)
+    expect(sorted[2]).toBe(plain)
+  })
+
+  it('无 AI 结果/空分歧按普通卷;有分歧时即使也有中置信题仍最优', () => {
+    expect(reviewPriority({ ai: undefined })).toBe(2)
+    expect(reviewPriority({ disputedQuestions: [], ai: aiOf(['medium']) })).toBe(1)
+    expect(reviewPriority({ disputedQuestions: ['q-1'], ai: aiOf(['medium']) })).toBe(0)
+  })
+})
+
 describe('批改模式归一 + 双评合并', () => {
   it('normalizeGradingStrategy: 合法透传,非法/缺省回落 standard', () => {
     expect(normalizeGradingStrategy('fast')).toBe('fast')
@@ -469,5 +566,30 @@ describe('批改模式归一 + 双评合并', () => {
     const { merged, disputes } = mergeDualResults(primary, partial, rubric)
     expect(merged.questions[1]?.score).toBe(18)
     expect(disputes).toEqual(['q-1']) // 24 vs 30 分差 6 > 5
+  })
+})
+
+describe('SAMPLE_PICK_EXTENSIONS — 样卷选择器清单', () => {
+  it('覆盖全部主进程支持的输入格式', async () => {
+    const { SAMPLE_PICK_EXTENSIONS } = await import('../../src/shared/grading-helpers')
+    for (const ext of [
+      'jpg',
+      'jpeg',
+      'png',
+      'webp',
+      'bmp',
+      'pdf',
+      'docx',
+      'md',
+      'txt',
+      'xlsx',
+      'xls',
+      'csv',
+      'yaml',
+      'yml',
+      'zip',
+    ]) {
+      expect(SAMPLE_PICK_EXTENSIONS).toContain(ext)
+    }
   })
 })

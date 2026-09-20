@@ -254,6 +254,18 @@ export function ReviewWorkbench({
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">
                       {i + 1}. {q.title}
+                      {/* 中/低置信题(涂色淡、字迹糊等): 逐题可见,不只影响排序 */}
+                      {(ai?.confidence === 'medium' || ai?.confidence === 'low') && (
+                        <span
+                          className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-px align-middle text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                          title={t(
+                            'page.grading.review.confidenceTitle',
+                            'AI 对该题判定把握不高（涂色偏淡/字迹模糊/两评居中），请重点复核',
+                          )}
+                        >
+                          {t('page.grading.review.confidenceBadge', '待斟酌')}
+                        </span>
+                      )}
                     </span>
                     <span className="font-mono text-sm">
                       <span className="text-gray-400">{effective ?? '—'}</span>

@@ -6,7 +6,7 @@
 // 打印对话框中选择"另存为 PDF"即可导出 PDF 文件。
 // =============================================================
 
-import { FileText, Printer, X } from 'lucide-react'
+import { FileDown, FileText, Printer, X } from 'lucide-react'
 import { type ReactNode, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '../../components/Button'
@@ -31,6 +31,10 @@ interface PrintOverlayProps {
   printLabel?: string
   /** 覆盖工具栏提示;传 null 隐藏默认「另存为 PDF」提示 */
   toolbarHint?: string | null
+  /** 直出 PDF 文件(绕过系统打印对话框,主进程 printToPDF 落盘);提供时显示按钮 */
+  onExportPdf?: () => void
+  /** onExportPdf 进行中(按钮 loading) */
+  exportPdfLoading?: boolean
 }
 
 export function PrintOverlay({
@@ -42,6 +46,8 @@ export function PrintOverlay({
   printBlockReason,
   printLabel,
   toolbarHint,
+  onExportPdf,
+  exportPdfLoading,
 }: PrintOverlayProps) {
   const { t } = useT()
   const hint =
@@ -72,6 +78,19 @@ export function PrintOverlay({
         ) : null}
         {toolbarExtra}
         <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+          {onExportPdf && (
+            <Button
+              type="button"
+              onClick={() => void onExportPdf()}
+              variant="outline"
+              size="sm"
+              loading={exportPdfLoading === true}
+              className="!border-white/30 !text-white hover:!bg-white/10"
+            >
+              <FileDown size={13} />
+              {t('print.exportPdfFile', '导出 PDF 文件')}
+            </Button>
+          )}
           <Button
             type="button"
             onClick={() => {

@@ -24,8 +24,8 @@ import { ingestSampleFiles } from './sample-ingest'
 
 /** 题目+参考答案草稿的输出比单份批改长,上限放大一倍;实际按模型上限钳制 */
 const EXTRACT_MAX_TOKENS = 8192
-/** 单次识别最多样卷文件数(防 token 爆炸;样卷通常 1~4 页) */
-const MAX_EXTRACT_IMAGES = 8
+/** 单次识别最多样卷文件数/图片数(防 token 爆炸;表格/zip 成员产出也计入) */
+const MAX_EXTRACT_IMAGES = 12
 /** 与 grading-service.MAX_FILE_BYTES 同值(其为私有,不跨文件导出) */
 const MAX_EXTRACT_FILE_BYTES = 25 * 1024 * 1024
 

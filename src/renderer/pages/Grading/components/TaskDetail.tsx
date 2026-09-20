@@ -6,11 +6,12 @@
 // =============================================================
 
 import type { GradingRosterEntry } from '@shared/api/grading'
-import { cleanPresetMarks } from '@shared/grading-helpers'
+import { cleanPresetMarks, reviewPriority } from '@shared/grading-helpers'
 import type {
   EAAStudent,
   GradingProgressEvent,
   GradingTask,
+  PrintOrder,
   RubricQuestion,
   TeacherReview,
 } from '@shared/types'
@@ -23,9 +24,11 @@ import { OverlayPrintDocument } from '../../../components/print/OverlayPrintDocu
 import { PrintOverlay } from '../../../components/print/PrintOverlay'
 import { useIpcSubscription } from '../../../hooks/useIpcSubscription'
 import { tr, useT } from '../../../i18n'
+import { saveAs } from '../../../lib/dialog'
 import { getAPI } from '../../../lib/ipc-client'
 import { btnStyle, cn } from '../../../lib/ui-utils'
 import { useClassStore } from '../../../stores/class/store'
+import { toast } from '../../../stores/toastStore'
 import { useGradingMarksPrint } from '../hooks/useGradingMarksPrint'
 import { PapersTable } from './PapersTable'
 import { ReviewWorkbench } from './ReviewWorkbench'
@@ -77,6 +80,8 @@ interface TaskDetailProps {
   ) => Promise<boolean>
   onAssignPaper: (taskId: string, paperId: string, studentName: string | null) => Promise<boolean>
   onRemovePaper: (taskId: string, paperId: string) => Promise<boolean>
+  /** 多页归组人工合并(把 source 卷页面并入 anchor 卷) */
+  onMergePapers: (taskId: string, anchorId: string, sourceId: string) => Promise<boolean>
   onRunGrading: (taskId: string, roster?: GradingRosterEntry[]) => Promise<boolean>
   onRegradePapers: (taskId: string, paperIds: string[]) => Promise<boolean>
   onIdentifyPapers: (taskId: string, roster: GradingRosterEntry[]) => Promise<boolean>
@@ -98,6 +103,7 @@ export function TaskDetail({
   onImportPapers,
   onAssignPaper,
   onRemovePaper,
+  onMergePapers,
   onRunGrading,
   onRegradePapers,
   onIdentifyPapers,
@@ -116,6 +122,9 @@ export function TaskDetail({
   const marksPrint = useGradingMarksPrint()
   // 打印版式: 痕迹卷(重印照片) / 批阅报告 / 套打原卷(红笔回写)
   const [marksMode, setMarksMode] = useState<GradingMarksMode>('paper')
+  // 连打/导出排序(与 @shared sortPapersForPrint 同值域;name-asc 默认)
+  const [printOrder, setPrintOrder] = useState<PrintOrder>('name-asc')
+  const [exportingCsv, setExportingCsv] = useState(false)
   const classList = useClassStore((s) => s.items)
   const classOptions = useMemo(() => classList.filter((c) => !c.archived), [classList])
 
@@ -165,10 +174,11 @@ export function TaskDetail({
     (task.status === 'ready' || task.status === 'review') &&
     pendingCount + failedCount + unassignedCount > 0
   const running = task.status === 'grading'
-  // 可复核 = 有 AI 结果的试卷(复核/已发布态);双评分歧卷置顶(教师优先仲裁)
+  // 可复核 = 有 AI 结果的试卷(复核/已发布态);排序用 reviewPriority:
+  // 双评分歧最优先,其次含中置信题(confidence=medium),普通卷最后
   const reviewablePapers = task.papers
     .filter((p) => p.ai)
-    .sort((a, b) => (b.disputedQuestions?.length ?? 0) - (a.disputedQuestions?.length ?? 0))
+    .sort((a, b) => reviewPriority(a) - reviewPriority(b))
   const reviewable =
     (task.status === 'review' || task.status === 'published') && reviewablePapers.length > 0
 
@@ -193,6 +203,33 @@ export function TaskDetail({
       await onIdentifyPapers(taskId, roster)
     }
     return ok
+  }
+
+  /** 成绩汇总 CSV 导出: 渲染层拿保存路径,主进程纯函数 builder 写盘 */
+  const exportSummaryCsv = async () => {
+    const filePath = await saveAs({
+      title: t('page.grading.exportCsv.title', '导出成绩汇总 CSV'),
+      defaultPath: tr(
+        'page.grading.exportCsv.defaultName',
+        { name: task.name },
+        '{name}-成绩汇总.csv',
+      ),
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+    })
+    if (!filePath) return
+    setExportingCsv(true)
+    try {
+      const r = await getAPI().grading.exportSummaryCsv(task.id, filePath)
+      if (r.success) {
+        toast.success(t('page.grading.exportCsv.done', '成绩汇总已导出'))
+      } else {
+        toast.error(r.error ?? t('page.grading.exportCsv.fail', '导出失败'))
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setExportingCsv(false)
+    }
   }
 
   const metaChip = (label: string, value?: string) =>
@@ -228,6 +265,8 @@ export function TaskDetail({
             ? t('page.grading.overlay.toolbarHint', '红笔套回原卷 · 不重印卷面')
             : undefined
         }
+        onExportPdf={marksMode === 'overlay' ? undefined : marksPrint.exportPdf}
+        exportPdfLoading={marksPrint.exporting}
         toolbarExtra={
           <span className="flex items-center gap-1 rounded-md bg-white/10 p-0.5">
             {(
@@ -281,6 +320,7 @@ export function TaskDetail({
             task={marksPrint.task}
             views={marksPrint.views}
             onRefresh={onRefresh}
+            printOrder={printOrder}
           />
         ) : (
           <GradingMarksDocument task={marksPrint.task} papers={marksPrint.views} mode={marksMode} />
@@ -381,17 +421,56 @@ export function TaskDetail({
           </button>
         )}
         {reviewablePapers.length > 0 && (
-          <button
-            type="button"
-            onClick={() => void marksPrint.printPapers(task, reviewablePapers)}
-            disabled={busy || marksPrint.loading}
-            className={btnStyle('secondary')}
-            title={t('page.grading.exportMarksTitle', '把卷面批注与得分导出为可打印 PDF')}
-          >
-            {marksPrint.loading
-              ? t('page.grading.exportMarksLoading', '正在准备打印…')
-              : t('page.grading.exportMarks', '导出批阅痕迹')}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => void marksPrint.printPapers(task, reviewablePapers, printOrder)}
+              disabled={busy || marksPrint.loading}
+              className={btnStyle('secondary')}
+              title={t('page.grading.exportMarksTitle', '把卷面批注与得分导出为可打印 PDF')}
+            >
+              {marksPrint.loading
+                ? t('page.grading.exportMarksLoading', '正在准备打印…')
+                : t('page.grading.exportMarks', '导出批阅痕迹')}
+            </button>
+            <label
+              className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300"
+              title={t(
+                'page.grading.printOrder.title',
+                '导出/连打时的试卷顺序(按姓名发卷或按上传顺序)',
+              )}
+            >
+              {t('page.grading.printOrder.label', '打印顺序')}
+              <select
+                value={printOrder}
+                onChange={(e) => setPrintOrder(e.target.value as PrintOrder)}
+                disabled={busy || marksPrint.loading}
+                className="cursor-pointer bg-transparent font-medium outline-none"
+              >
+                <option value="name-asc">{t('page.grading.printOrder.nameAsc', '姓名升序')}</option>
+                <option value="name-desc">
+                  {t('page.grading.printOrder.nameDesc', '姓名降序')}
+                </option>
+                <option value="upload-asc">
+                  {t('page.grading.printOrder.uploadAsc', '上传顺序')}
+                </option>
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => void exportSummaryCsv()}
+              disabled={busy || exportingCsv}
+              className={btnStyle('secondary')}
+              title={t(
+                'page.grading.exportCsv.title',
+                '逐题得分/总分/批语与班级统计导出为 CSV(Excel 直开)',
+              )}
+            >
+              {exportingCsv
+                ? t('page.grading.exportCsv.doing', '导出中…')
+                : t('page.grading.exportCsv.label', '导出成绩汇总')}
+            </button>
+          </>
         )}
         {(task.status === 'review' || task.status === 'published') &&
           reviewablePapers.length > 0 && (
@@ -720,6 +799,7 @@ export function TaskDetail({
             onImport={handleImportPapers}
             onAssign={onAssignPaper}
             onRemove={onRemovePaper}
+            onMerge={onMergePapers}
             onReview={reviewable ? setReviewingPaperId : undefined}
             onExportMarks={
               reviewablePapers.length > 0

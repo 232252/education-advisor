@@ -9,7 +9,8 @@ import fsp from 'node:fs/promises'
 import type { IncomingMessage } from 'node:http'
 import path from 'node:path'
 
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+/** 上传体量上限: 对齐 zip 导入 200MB 总量口径(50 页扫描 PDF 不在入口就被 413) */
+export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024
 const MAX_NAME_CHARS = 120
 
 export type UploadOk = { ok: true; path: string; name: string; size: number }

@@ -9,6 +9,8 @@ import type {
   GradingTaskStatus,
   OverlayPrintSettings,
   PresetMark,
+  PrintDuplexMode,
+  PrintOrder,
   RubricQuestion,
   TeacherReview,
 } from '@shared/types'
@@ -34,6 +36,12 @@ export interface GradingRosterEntry {
 export interface IdentifyPapersResult {
   assigned: number
   unresolved: number
+  /** 卷面身份识别后并入已有试卷的份数(同名多页) */
+  merged: number
+  /** 续页兜底并入的份数(姓名只写在首页,空身份续页按连续页号链式并入) */
+  continuationMerged: number
+  /** 重复提交的学生名清单(同学生多份,需人工取舍;缺失按 [] 兜底) */
+  duplicates: string[]
 }
 
 /** 样卷识别抽出的量规题草稿(IPC 契约层类型,非持久化任务模型,不进 types/grading.ts) */
@@ -89,6 +97,12 @@ export interface GradingAPI {
   ) => Promise<GradingResult<GradingTask>>
   // [w] 移除一份试卷(连带其文件)
   removePaper: (taskId: string, paperId: string) => Promise<GradingResult<GradingTask>>
+  // [w] 多页归组人工合并: source 卷页面并入 anchor 卷(已批改卷拒绝)
+  mergePapers: (
+    taskId: string,
+    anchorId: string,
+    sourceId: string,
+  ) => Promise<GradingResult<GradingTask>>
   // [w] 保存教师复核(改分/评语/总评)
   saveReview: (
     taskId: string,
@@ -142,10 +156,16 @@ export interface GradingAPI {
     taskId: string,
     patch: OverlayPrintSettings,
   ) => Promise<GradingResult<GradingTask>>
-  // [w] 套打回写: 静默连打(打印当前窗口;参数写死 100% 无边距)
+  // [w] 套打回写: 静默连打(打印当前窗口;参数写死 100% 无边距;order 为
+  // 渲染层连打排序的留档,duplexMode 透传 electron print 同名字段)
   overlaySilentPrint: (
     taskId: string,
-    opts: { deviceName?: string; paperSpecId?: string },
+    opts: {
+      deviceName?: string
+      paperSpecId?: string
+      order?: PrintOrder
+      duplexMode?: PrintDuplexMode
+    },
   ) => Promise<GradingResult<{ ok: boolean; reason?: string }>>
   // [w] 套打回写: 母版标定(样卷留档+AI 模板逐题定位)
   calibrateOverlayTemplate: (
@@ -157,4 +177,13 @@ export interface GradingAPI {
       result: { located: number; missing: string[]; pages: number; quadsOk: number }
     }>
   >
+  // [w] 成绩汇总 CSV 导出(路径来自渲染层 sys:save-dialog;主进程纯函数
+  // builder 生成 utf-8-sig 内容写盘,返回字节数)
+  exportSummaryCsv: (taskId: string, filePath: string) => Promise<GradingResult<{ bytes: number }>>
+  // [w] 逐页批注 PDF 直出(当前窗口 webContents.printToPDF;pageSize 走
+  // paperSpecToPdfPageSize 英寸口径,B5/8K/16K 自定义纸)
+  exportAnnotatedPdf: (
+    taskId: string,
+    opts: { filePath: string; paperSpecId?: string; duplexMode?: PrintDuplexMode },
+  ) => Promise<GradingResult<{ bytes: number }>>
 }

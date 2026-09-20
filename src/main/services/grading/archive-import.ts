@@ -5,6 +5,7 @@
 //   1. 扫描件(每页一张内嵌 JPEG): 原字节直通,零再压缩;
 //   2. 电子排版/Flate 图/图文混排: pdfjs 逐页栅格化为 JPEG(pdf-rasterize);
 //   3. pdfjs 都打不开的损坏件: 裸抽内嵌 JPEG 兜底,抽不到才报错。
+// 批次口径: PDF 每页一批(多学生合并 PDF 拆份);zip 散图按文件名归组保留。
 // 纯函数 + 落临时文件,供 grading-service.importPapers 与对话批改工具复用。
 // =============================================================
 
@@ -20,8 +21,11 @@ const MAX_ZIP_FILES = 500
 const MAX_ENTRY_BYTES = 25 * 1024 * 1024
 const MAX_TOTAL_BYTES = 200 * 1024 * 1024
 const MIN_JPEG_BYTES = 8 * 1024
-/** 单个 PDF 渲染页数上限(zip 内每个 PDF 独立计数) */
-const MAX_PDF_PAGES = 100
+/**
+ * 单个 PDF 渲染页数上限(zip 内每个 PDF 独立计数)。
+ * 200 页渲染耗时约 1s/页,超限报错文案引导拆分后再导入。
+ */
+const MAX_PDF_PAGES = 200
 
 export function isZipPath(p: string): boolean {
   return path.extname(p).toLowerCase() === '.zip'
@@ -257,7 +261,9 @@ export interface MaterializedBatch {
 }
 
 /**
- * 把教师丢进来的路径(图片 / PDF / zip)展开成「一份试卷一批图片」。
+ * 把教师丢进来的路径(图片 / PDF / zip)展开成「一批图片」。
+ * PDF(顶层与 zip 内)每页一批 —— 多学生合并 PDF 拆成 N 份单页卷;
+ * zip 散图沿用文件名归组(同名多页一份);顶层散图保持一批。
  * 写出的临时文件由调用方在 import 拷贝完成后删除 tmpDir。
  */
 export async function materializePaperBatches(
@@ -288,28 +294,27 @@ export async function materializePaperBatches(
           const dest = await writeBuf(m.data, mExt || '.jpg', zipDisplayName(m.name))
           zipImages.push(dest)
         } else if (mExt === '.pdf') {
+          // 每页一批: 多学生合并 PDF 拆成 N 份单页卷,归组交给 identify 管线
           const pages = await pdfToPageJpegs(m.data, m.name)
-          const pageFiles: Array<{ path: string; name?: string }> = []
           for (const [i, jpeg] of pages.entries()) {
             const dest = await writeBuf(jpeg, '.jpg', `${zipDisplayName(m.name)}-p${i + 1}`)
-            pageFiles.push({ path: dest, name: path.basename(dest) })
+            batches.push({ files: [{ path: dest, name: path.basename(dest) }] })
           }
-          batches.push({ files: pageFiles })
         }
       }
       if (zipImages.length > 0) {
         batches.push(...groupPaperImportPaths(zipImages))
       }
     } else if (ext === '.pdf') {
+      // 每页一批: 多学生合并 PDF(整班扫描成一个文件)拆成 N 份单页卷,
+      // 同一学生的续页由 identify 管线按卷面身份归组合并(appendPaperPages)。
       const pdfBuf = await fsp.readFile(src.path)
       const pages = await pdfToPageJpegs(pdfBuf, path.basename(src.path))
       const base = src.name?.trim() || path.basename(src.path)
-      const pageFiles: Array<{ path: string; name?: string }> = []
       for (const [i, jpeg] of pages.entries()) {
         const dest = await writeBuf(jpeg, '.jpg', `${stripExt(base)}-p${i + 1}`)
-        pageFiles.push({ path: dest, name: `${stripExt(base)}-p${i + 1}.jpg` })
+        batches.push({ files: [{ path: dest, name: `${stripExt(base)}-p${i + 1}.jpg` }] })
       }
-      batches.push({ files: pageFiles })
     } else if (IMAGE_EXTS.has(ext)) {
       looseImages.push(src)
     } else {

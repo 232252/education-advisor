@@ -349,8 +349,10 @@ class GradingService {
   // ===== 试卷 =====
 
   /**
-   * 导入试卷扫描件: 拷贝进 files/<taskId>/,每批文件合并为一份试卷
-   * (一次上传通常是一个学生的全部页)。归组建议由渲染层用
+   * 导入试卷扫描件: 拷贝进 files/<taskId>/,每批文件合并为一份试卷。
+   * PDF(含 zip 内)经 archive-import 每页一批 —— 多学生合并 PDF 拆成
+   * N 份单页卷,同一学生的续页由 identify 管线按卷面身份归组
+   * (assignPaper / appendPaperPages)。归组建议由渲染层用
    * matchPaperFilesToStudents 生成,人工确认后经 assignPaper 落库。
    */
   async importPapers(
@@ -463,6 +465,43 @@ class GradingService {
     })
   }
 
+  /**
+   * 多页归组合并: 把 source 卷的全部文件按导入顺序追加到 anchor 卷,
+   * source 记录从任务中移除。纯记录转移 —— 物理文件不删不移(仍按
+   * storedName 留在 files/<taskId>/,paperFilePath 照常可读),绝不走
+   * removePaper 的删文件路径。anchor 已有 AI 结果(补录场景)拒绝合并;
+   * source 已批改的结果也拒绝(合并会静默丢掉已批分数)。
+   */
+  async appendPaperPages(taskId: string, anchorId: string, sourceId: string): Promise<GradingTask> {
+    assertTaskId(taskId)
+    assertPaperId(anchorId)
+    assertPaperId(sourceId)
+    if (anchorId === sourceId) throw new Error('anchor 与 source 不能是同一份试卷')
+    return this.withTaskLock(taskId, async () => {
+      const task = await this.getTask(taskId)
+      const anchor = this.findPaper(task, anchorId)
+      const source = this.findPaper(task, sourceId)
+      if (anchor.ai) {
+        throw new Error(`试卷 ${anchorId} 已有批改结果,不能自动合并续页(请人工处理补录)`)
+      }
+      if (source.ai) {
+        throw new Error(`试卷 ${sourceId} 已有批改结果,不能作为续页并入(请人工处理)`)
+      }
+      if (source.files.length === 0) throw new Error('来源试卷没有扫描件,无页可合并')
+      anchor.files.push(...source.files)
+      const idx = task.papers.findIndex((p) => p.id === sourceId)
+      task.papers.splice(idx, 1)
+      task.updatedAt = new Date().toISOString()
+      await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
+      log(
+        'info',
+        'grading',
+        `paper pages merged: ${sourceId} → ${anchorId} (${source.files.length} files, ${task.id})`,
+      )
+      return task
+    })
+  }
+
   // ===== 批改结果 =====
 
   /** AI 结果落库(P3 管线逐份调用);分数越界在入口即拒;双评附第二模型结果与分歧清单 */
@@ -500,6 +539,15 @@ class GradingService {
             throw new Error(`双评第二模型分数越界 [0, ${full}]: ${q.questionId} = ${q.score}`)
           }
         }
+      }
+      // 主结果必须覆盖量规全部题目(兜住 fast 档输出截断等路径): 缺题的结果
+      // 落库后会以"部分和当总分"发布,显式拒绝 → 该卷标 failed 可重试。
+      // 位置须在 aiSecondary 校验之后(双评用例靠第二模型的未知/越界报错),
+      // 且 aiSecondary 本身不做覆盖校验(mergeDualResults 容忍第二模型缺题)。
+      const coveredIds = new Set(result.questions.map((q) => q.questionId))
+      const missingIds = task.rubric.filter((q) => !coveredIds.has(q.id)).map((q) => q.id)
+      if (missingIds.length > 0) {
+        throw new Error(`AI 结果缺少量规题目: ${missingIds.join('、')}`)
       }
       paper.ai = result
       paper.aiSecondary = extras?.aiSecondary
@@ -912,6 +960,13 @@ class GradingService {
       if (!examId) {
         const exam = await academicService.createExam(payload.examInput)
         examId = exam.id
+        // 立即落盘回填的考试 id: 后续写成绩/终态写盘失败时,教师重试发布走
+        // examId 复用分支,成绩按 (examId, subjectId) 幂等 upsert 覆盖残分,
+        // 不再 createExam 生成同名新考试。中间态为「status 仍 review 但
+        // publishedExamId 已有值」——复用分支只判 !examId,无冲突。
+        task.publishedExamId = examId
+        task.updatedAt = new Date().toISOString()
+        await atomicWrite(this.taskPath(taskId), JSON.stringify(task, null, 2))
       }
       await academicService.batchSetGrades(payload.records.map((r) => ({ ...r, examId })))
       task.status = 'published'

@@ -24,6 +24,9 @@ import { toast } from '../../../stores/toastStore'
 /** runFileAction 的调用结果形态(兼容 getErrorMessage 的 data/stderr 输入) */
 type FileActionResult = { success: boolean; error?: string; data?: unknown; stderr?: string }
 
+/** Excel 导入文件选择器扩展名(与主进程 excel-import.ALLOWED_EXCEL_EXTS 同口径,含 csv) */
+export const EXCEL_IMPORT_FILE_EXTENSIONS: string[] = ['xlsx', 'xls', 'csv']
+
 /** Excel 导入对话框状态（M30：解析预览 → 确认导入 → 结果/失败清单） */
 interface ExcelImportState {
   open: boolean
@@ -299,11 +302,13 @@ export function useStudentActions({
     })
 
   // Excel 批量导入（M30）：选文件 → 主进程 parse-excel → 预览对话框确认
+  // csv 与 Excel 同路: 主进程白名单(excel-import.ALLOWED_EXCEL_EXTS)同步收 csv,
+  // 渲染层选择器 filters 不含 csv 的话 UI 选不到文件(双路必须一起开)。
   const handleImportExcel = async () => {
     try {
       const filePath = await pickFile({
         title: t('page.students.import.excel.dialogTitle', '选择 Excel 文件'),
-        filters: [{ name: 'Excel', extensions: ['xlsx', 'xls'] }],
+        filters: [{ name: 'Excel', extensions: EXCEL_IMPORT_FILE_EXTENSIONS }],
         properties: ['openFile'],
       })
       if (filePath === null) return

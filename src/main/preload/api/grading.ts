@@ -5,7 +5,7 @@
 import type { GradingAPI, GradingRosterEntry } from '@shared/api/grading'
 import * as IPC from '@shared/ipc-channels'
 import { ipcInvoke } from '@shared/ipc-runtime'
-import type { GradingTaskStatus, TeacherReview } from '@shared/types'
+import type { GradingTaskStatus, PrintDuplexMode, TeacherReview } from '@shared/types'
 import { subscribe } from './subscribe'
 
 export const gradingApi: GradingAPI = {
@@ -28,6 +28,9 @@ export const gradingApi: GradingAPI = {
   // [w] 移除试卷
   removePaper: (taskId: string, paperId: string) =>
     ipcInvoke(IPC.IPC_GRADING_REMOVE_PAPER, taskId, paperId),
+  // [w] 多页归组人工合并(source 页面并入 anchor)
+  mergePapers: (taskId: string, anchorId: string, sourceId: string) =>
+    ipcInvoke(IPC.IPC_GRADING_MERGE_PAPERS, taskId, anchorId, sourceId),
   // [w] 保存复核
   saveReview: (taskId: string, paperId: string, review: TeacherReview) =>
     ipcInvoke(IPC.IPC_GRADING_SAVE_REVIEW, taskId, paperId, review),
@@ -69,4 +72,12 @@ export const gradingApi: GradingAPI = {
   // [w] 套打回写: 母版标定
   calibrateOverlayTemplate: (taskId, paths) =>
     ipcInvoke(IPC.IPC_GRADING_CALIBRATE_TEMPLATE, taskId, paths),
+  // [w] 成绩汇总 CSV 导出(渲染层保存对话框拿路径,主进程写盘)
+  exportSummaryCsv: (taskId: string, filePath: string) =>
+    ipcInvoke(IPC.IPC_GRADING_EXPORT_SUMMARY_CSV, taskId, filePath),
+  // [w] 逐页批注 PDF 直出(当前窗口 printToPDF;英寸口径自定义纸)
+  exportAnnotatedPdf: (
+    taskId: string,
+    opts: { filePath: string; paperSpecId?: string; duplexMode?: PrintDuplexMode },
+  ) => ipcInvoke(IPC.IPC_GRADING_EXPORT_ANNOTATED_PDF, taskId, opts),
 }

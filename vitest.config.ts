@@ -119,8 +119,16 @@ export default defineConfig({
     // (独立端口/目录)或将该文件标记 test.sequential,不要整体回退串行。
     // 注: vitest 4 中 project 级 fileParallelism 不覆盖顶层值,统一在此声明。
     fileParallelism: true,
-    // 报告:verbose 让通过/失败一目了然
-    reporters: process.env.CI ? ['default'] : ['verbose'],
+    // 报告: 默认 default(每文件一行,全量 ~300 行);verbose 每测试一行,
+    // 全量 4200+ 测试 ≈ 1MB 输出,会超自动化跑批的输出上限 — 想看逐测试
+    // 明细用 VITEST_VERBOSE=1 npm test 显式开启。
+    reporters: process.env.VITEST_VERBOSE === '1' ? ['verbose'] : ['default'],
+    // 'passed-only': 通过测试的 console 输出一律静默(全量 490+ 块 stdout
+    // 噪音 ≈ 200KB,把 default reporter 的输出顶到 256KB 跑批上限边缘);
+    // 失败测试的日志保留,排查失败不缺现场。类型缺口: vitest 4 运行时
+    // 支持 'passed-only'(见 dist/chunks/index.*.js silent 处理),d.ts 仍
+    // 标 boolean,此处断言 bridging。
+    silent: 'passed-only' as boolean,
     // coverage 配置（按需启用,不在 vitest run 默认跑）
     coverage: {
       provider: 'v8',

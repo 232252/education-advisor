@@ -12,6 +12,32 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- 成绩汇总 CSV 导出（任务详情「导出成绩汇总」）：纯函数 `buildSummaryCsv` 生成 utf-8-sig（`\uFEFF`，Excel 直开）CSV，列=序号｜姓名｜逐题生效分｜总分｜缺题数｜批语，末尾统计块含平均/最高/最低/中位数与分数段人数；逐题/总分与发布同口径（教师覆盖优先），未归组/未批改/分数不完整卷不进学生行；路径来自渲染层保存对话框，主进程写盘（新 IPC `grading:export-summary-csv`）。
+- 逐页批注 PDF 直出（批阅痕迹预览工具栏「导出 PDF 文件」）：主进程 `webContents.printToPDF({printBackground:true})` 落盘（新 IPC `grading:export-annotated-pdf`）。pageSize 走新增 `paperSpecToPdfPageSize`（mm/25.4 英寸、round 0.001in；A4/A3 仍原生枚举）——printToPDF 的数字 pageSize 单位是英寸，与 `webContents.print` 的微米口径 `paperSpecToPrintPageSize` 并列互斥，禁止跨 API 复用。**pageSize 单位实测（人工/集成验收 demo，`tmp/pdf-pagesize-demo.mjs`）**：对隐藏 BrowserWindow 以 B5(176×250mm)→{width:6.929, height:9.843}in 调 printToPDF，pdfjs-dist 读回第 1 页 MediaBox=498.96×708.96pt（6.9300×9.8467in，合 176.02×250.11mm），与传入英寸值误差 0.0010/0.0037in（<0.02in 判据），证实英寸口径接线正确。真实打印机双面属人工验收，UI 保留「驱动不支持时手动双面」提示。
+- 打印排序与双面：`sortPapersForPrint` 迁至 `@shared/grading-helpers`（hook 文件含渲染层依赖，共享测试不可直 import），支持 name-asc（默认）/name-desc/upload-asc 三序（任务详情「打印顺序」下拉）；静默连打透传 `duplexMode`（simplex/shortEdge/longEdge，electron 字段名为 duplexMode 非 duplex）并在套打工作台提供双面选择，非法值由 handler 值域校验拒绝。
+- AI 批改置信分级：`AiQuestionResult` 新增可选 `confidence`——客观题转写复验后仍读不准、主观题贴边界复验分歧取中位的题标 `medium`（判分照旧，参考包 M 级「采信但登记待复核」口径）；`reviewPriority(paper)` 纯函数（双评分歧 > 中置信题 > 普通卷）驱动复核列表排序。
+- 无姓名续页兜底归组：卷面识别主循环后新增续页链式并入——同源文件名（PDF 拆页 `原名-pN.jpg`）+ 连续页号的前一页已归属、且该生卷尚无 AI 结果时，空身份续页自动并入该生（`shouldMergeContinuation` 保守口径：读出过姓名/编号的页绝不自动并——可能是名册外学生；识别失败未留痕的页不并——读失败≠卷面没写；页链断档不跨并）；`IdentifyPapersResult` 新增 `continuationMerged`，识别完成提示带「续页自动并入 N 页」。
+- 人工合并入口：试卷列表指派到「名下已有卷」的学生时内联三选（并入续页/另立一份/取消），经新 IPC `grading:merge-papers` 走 `appendPaperPages`（已批改卷拒绝并入），自动识别兜不住的多页卷由教师一键指路。
+- 复核工作台逐题置信徽标：中/低置信题（涂色偏淡/字迹模糊/两评居中）在题名旁显示「待斟酌」标记（悬停说明原因），不再只影响列表排序。
+- 样卷文件选择器补齐主进程已支持的全部格式（xlsx/xls/csv/yaml/yml/zip），清单收敛到 `@shared SAMPLE_PICK_EXTENSIONS` 单一来源，与 `isSampleExt` 的双向契约由测试锁定（tests/main/sample-ingest.test.ts）。
+
+### Changed
+
+- 词耗节省（不降质量）：① locate 复用母版——`overlayTemplate.boxes` 覆盖全部量规题且卷页数与标定页数一致时直接用模板坐标跳过逐卷 locate（每卷省一次全页图输入），不一致回落；② 双评共享——dual 档两模型共享一次 locate 与页图缓存（几何定位/读盘非评分判断），各自批改调用独立计数不减；③ 重试收敛双路——staged `withRetry` 与 `regradePapers` 外层重试共用 `isGradingParseError` 分类器，解析类错误（坏 JSON/缺题/越界）不再重试直接上抛（坏 JSON 从整卷 2 次调用收敛为 1 次），传输/中止类照旧；④ fast 档输出预算自适应——量规超 8 题每题 +512（`fastGradeMaxTokens`，8192 基数），仍被 `model.maxTokens` 钳制，防截断→缺题→failed→整卷重跑。
+- AI 批改发布与逐题成绩统一按量规口径：AI 主结果缺题（如模型输出截断）不再落库，该卷标 failed 可重试；存量缺题任务重新发布时整卷跳过（教师需重改或补复核该卷）——把「总分=部分和、逐题缺一科」的错分显性化。
+- 单选/判断题参考答案解析支持区段与逐题对混排合并；题名可推导出期望小题数（「共 N 小题」/「每小题 X 分」）时按期望校验，部分解析回落模型批改，不再静默按「缺省=对」计分。
+- 卷面识别结果通知补齐合并/重复/续页计数（`IdentifyPapersResult` 契约含 `merged`/`continuationMerged`/`duplicates` 字段，由识别链路透传）。
+
+### Fixed
+
+- 卷面识别页眉裁剪只认 jpeg/png：webp/bmp 试卷首页此前无图调模型必然读空身份归 unresolved，现在同样走页眉放大裁剪（`HEADER_CROP_MIMES` 路由，loadImage 按内容解码）。
+- 发布写成绩失败后重试不再生成同名新考试：考试 id 创建后立即回填落盘，重试按 (examId, subjectId) 幂等覆盖残分。
+- 主观题贴边界复验取中位落在第二/三采样时，批注 box 统一映射为整页坐标（此前会保留裁剪图口径）。
+- 规则判分每小题分值取消前置舍入：整除性差的除法分支（如 10 分 3 小题全错）不再出现 0.01 残差。
+- 清扫套打迭代遗留的 5 个零引用 i18n 键（underlay/calibrationPage/needManual/silentPrint/masterHint），i18n 死键守卫恢复通过（该失败先于本次改动存在）。
+
 ### Planned
 - Multi-class support (one teacher, N parallel classes)
 - Voice channel (push-to-talk during class) with on-device transcription

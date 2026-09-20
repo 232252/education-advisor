@@ -27,6 +27,12 @@ const _binName = process.platform === 'win32' ? 'eaa.exe' : 'eaa'
 const EAA_BIN = join(__dirname, '..', '..', 'resources', 'eaa-binaries', _dirName, _binName)
 // 平台二进制缺失(如 macOS 无 darwin 构建)时整组跳过,避免 CI 误报 ENOENT
 const describeE2E = existsSync(EAA_BIN) ? describe : describe.skip
+// 「长时间持续运行」(场景 14)是 3 分钟固定时长压力场景,与 stress-long
+// 同性质 — 默认 `npm test` 跳过(单测试即 180s,拖垮全量),EA_STRESS=1
+// 时纳入(先例: vitest.config.ts 对 tests/e2e/stress-long.test.tsx 的排除)。
+// 跑法: EA_STRESS=1 npx vitest run tests/e2e/user-flow-simulation.test.tsx
+const describeLongRun =
+  process.env.EA_STRESS === '1' && existsSync(EAA_BIN) ? describe : describe.skip
 const TEST_ROOT = mkdtempSync(join(tmpdir(), 'eaa-userflow-'))
 const TEST_DATA = join(TEST_ROOT, 'data')
 const SCHEMA_SRC = join(
@@ -925,7 +931,7 @@ describeE2E('用户报告 Bug 验证（数据流层）', () => {
   })
 })
 
-describeE2E('长时间持续运行（无时间限制，按用户要求）', () => {
+describeLongRun('长时间持续运行（无时间限制，按用户要求）', () => {
   it('场景 14: 3 分钟持续随机操作，验证稳定性', async () => {
     // 创建 3 班
     const classes = randomClasses(3)

@@ -76,6 +76,10 @@ describe('saveUploadedBuffer / receiveUpload', () => {
     await fsp.rm(dir, { recursive: true, force: true })
   })
 
+  it('上传上限为 200MB(对齐 zip 导入总量口径)', () => {
+    expect(MAX_UPLOAD_BYTES).toBe(200 * 1024 * 1024)
+  })
+
   it('Content-Length 超过上限 → 413', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'ea-up-'))
     const result = await receiveUpload(
@@ -86,6 +90,24 @@ describe('saveUploadedBuffer / receiveUpload', () => {
       dir,
     )
     expect(result).toMatchObject({ ok: false, status: 413 })
+    await fsp.rm(dir, { recursive: true, force: true })
+  })
+
+  it('正向边界: content-length=MAX_UPLOAD_BYTES-1 + 小正文放行,走 saveUploadedBuffer 落盘', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'ea-up-'))
+    const result = await receiveUpload(
+      reqWith(Buffer.from('small-body'), {
+        'content-length': String(MAX_UPLOAD_BYTES - 1),
+        'x-filename': 'scan-bundle.pdf',
+      }),
+      dir,
+    )
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.name).toBe('scan-bundle.pdf')
+      expect(result.size).toBe(10)
+      expect(await fsp.readFile(result.path, 'utf8')).toBe('small-body')
+    }
     await fsp.rm(dir, { recursive: true, force: true })
   })
 

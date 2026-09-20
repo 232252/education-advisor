@@ -1,15 +1,16 @@
 // =============================================================
 // Grading from files — 对话一条龙: 原卷 + 作业包 → 任务/量规/导入/识别/开批
 // 供 eaa_grading_from_files 工具调用;不走渲染层。
+// 多页归组: PDF 每页一批拆份后,identify 管线按卷面身份合并续页。
 // =============================================================
 
 import type { StudentCandidate } from '@shared/grading-helpers'
 import type { GradingStrictness, RubricQuestion } from '@shared/types'
 import { eaaBridge } from '../eaa-bridge'
-import { materializePaperBatches, withTempDir } from './archive-import'
 import { startGrading } from './grading-pipeline'
 import { gradingService } from './grading-service'
 import { identifyUnassignedPapers } from './identify-papers'
+import { parseRosterFile } from './roster-file'
 import { extractRubricFromSamples } from './rubric-extract'
 
 export interface GradingFromFilesInput {
@@ -23,6 +24,8 @@ export interface GradingFromFilesInput {
   samplePaths: string[]
   /** 学生作业(图片 / PDF / zip) */
   homeworkPaths: string[]
+  /** 花名册文件(xlsx/xls/csv/md/txt/yaml;缺省只用 eaa 学生名单,两者合并去重) */
+  rosterPaths?: string[]
   autoPublish?: boolean
 }
 
@@ -34,6 +37,10 @@ export interface GradingFromFilesResult {
   papers: number
   assigned: number
   unresolved: number
+  /** 单学生多页: 续页并入该生名下卷的份数 */
+  merged: number
+  /** 唯一命中但该生名下卷已批改(补录)的学生名 */
+  duplicates: string[]
   gradingStarted: boolean
   autoPublish: boolean
   hint: string
@@ -48,6 +55,48 @@ function currentSemester(): string {
   return `${startYear}-${startYear + 1}-${semester}`
 }
 
+// ===== 花名册 =====
+
+/** 文件花名册 + eaa 学生名单合并去重(姓名为准,别名并集,文件在前保持顺序) */
+function mergeRosters(
+  fromFiles: StudentCandidate[],
+  fromBridge: StudentCandidate[],
+): StudentCandidate[] {
+  const byName = new Map<string, StudentCandidate>()
+  for (const s of [...fromFiles, ...fromBridge]) {
+    const existing = byName.get(s.name)
+    if (!existing) {
+      byName.set(s.name, {
+        name: s.name,
+        aliases: s.aliases && s.aliases.length > 0 ? [...s.aliases] : undefined,
+      })
+      continue
+    }
+    const aliases = [...new Set([...(existing.aliases ?? []), ...(s.aliases ?? [])])]
+    existing.aliases = aliases.length > 0 ? aliases : undefined
+  }
+  return [...byName.values()]
+}
+
+/**
+ * 花名册来源合并: 本地名册文件(roster_paths,compat 面 parseRosterFile:
+ * xlsx/xls/csv/md/txt/yaml,含 GBK 兜底)优先,eaa 学生名单兜底,
+ * 同名学生并别名去重(文件在前保持顺序)。
+ */
+async function loadRosterWithFiles(
+  className?: string,
+  rosterPaths?: string[],
+): Promise<StudentCandidate[]> {
+  const fromFiles: StudentCandidate[] = []
+  for (const p of rosterPaths ?? []) {
+    if (typeof p !== 'string' || p.trim().length === 0) continue
+    fromFiles.push(...(await parseRosterFile(p)))
+  }
+  const fromBridge = await loadRoster(className)
+  return mergeRosters(fromFiles, fromBridge)
+}
+
+/** eaa 学生名单(可按班级名过滤) */
 async function loadRoster(className?: string): Promise<StudentCandidate[]> {
   const result = await eaaBridge.execute<{
     students?: Array<{
@@ -117,14 +166,8 @@ export async function startGradingFromFiles(
     gradingMode: input.gradingMode,
   })
 
-  const extracted = await withTempDir(async (tmp) => {
-    const batches = await materializePaperBatches(
-      input.samplePaths.map((p) => ({ path: p })),
-      tmp,
-    )
-    const sampleImages = batches.flatMap((b) => b.files.map((f) => f.path)).slice(0, 8)
-    return extractRubricFromSamples(sampleImages)
-  })
+  // 样卷直接走 sample-ingest 摄取(图片/PDF/docx/md/txt;zip 由 isSampleExt 兜住)
+  const extracted = await extractRubricFromSamples(input.samplePaths)
   await gradingService.updateTask(task.id, { rubric: toRubric(extracted) })
 
   await gradingService.importPapers(
@@ -132,13 +175,17 @@ export async function startGradingFromFiles(
     input.homeworkPaths.map((p) => ({ files: [{ path: p }] })),
   )
 
-  const roster = await loadRoster(input.className)
+  const roster = await loadRosterWithFiles(input.className, input.rosterPaths)
   let assigned = 0
   let unresolved = 0
+  let merged = 0
+  let duplicates: string[] = []
   if (roster.length > 0) {
     const idn = await identifyUnassignedPapers(task.id, roster)
     assigned = idn.assigned
     unresolved = idn.unresolved
+    merged = idn.merged
+    duplicates = idn.duplicates
   }
 
   const latest = await gradingService.getTask(task.id)
@@ -153,11 +200,28 @@ export async function startGradingFromFiles(
     gradingStarted = true
   }
 
-  const hint = gradingStarted
-    ? '已开始 AI 批改(异步)。用 eaa_grading_overview 看进度;完成后成绩会写入学业(考试列表/学生学业页)。请到「批改作业」复核卷面批注。'
-    : unresolved > 0 || pending === 0
-      ? '试卷已导入但未能全部对上学生姓名。请到「批改作业」页人工归组后再开始批改。'
-      : '任务已创建。'
+  const warnings: string[] = []
+  if (merged > 0) warnings.push(`已按卷面姓名自动合并 ${merged} 页续页到同名卷`)
+  if (duplicates.length > 0) {
+    warnings.push(
+      `检测到 ${duplicates.length} 份疑似补录/重复卷(${[...new Set(duplicates)].join('、')})未并入,请到「批改作业」页人工处理`,
+    )
+  }
+  const warningText = warnings.length > 0 ? `${warnings.join(';')}。` : ''
+  let hint: string
+  if (gradingStarted) {
+    hint =
+      '已开始 AI 批改(异步)。用 eaa_grading_overview 看进度;完成后成绩会写入学业(考试列表/学生学业页)。请到「批改作业」复核卷面批注。' +
+      warningText
+  } else if (roster.length === 0) {
+    hint =
+      '花名册为空(eaa 学生名单为空且未提供可解析的 roster_paths):全部试卷未归组。' +
+      '请先在「学生」页导入名册或提供花名册文件,再到「批改作业」页人工归组后再开始批改。'
+  } else if (unresolved > 0 || pending === 0) {
+    hint = `试卷已导入但未能全部对上学生姓名。请到「批改作业」页人工归组后再开始批改。${warningText}`
+  } else {
+    hint = `任务已创建。${warningText}`
+  }
 
   return {
     taskId: task.id,
@@ -167,6 +231,8 @@ export async function startGradingFromFiles(
     papers: latest.papers.length,
     assigned,
     unresolved,
+    merged,
+    duplicates,
     gradingStarted,
     autoPublish: input.autoPublish !== false,
     hint,

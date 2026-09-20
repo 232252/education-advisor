@@ -310,6 +310,9 @@ export function anchorSquarePositionsMm(spec: PaperSpec): Array<{
 /**
  * 纸张规格 → webContents.print 的 pageSize 参数:
  * A4/A3 用原生枚举,其余(B5/8K/16K)按微米自定义(1mm = 1000μm)。
+ * 【单位口径】print 的数字 pageSize 单位是微米(electron.d.ts print 一侧
+ * width_microns/height_microns 校验说明);printToPDF 一侧是英寸——
+ * 禁止把本函数复用给 printToPDF,那边用 paperSpecToPdfPageSize。
  */
 export function paperSpecToPrintPageSize(
   spec: PaperSpec,
@@ -317,4 +320,22 @@ export function paperSpecToPrintPageSize(
   const native = ELECTRON_PAGE_SIZES[spec.id]
   if (native) return native
   return { width: Math.round(spec.widthMm * 1000), height: Math.round(spec.heightMm * 1000) }
+}
+
+/**
+ * 纸张规格 → webContents.printToPDF 的 pageSize 参数:
+ * A4/A3 用原生枚举(两个打印 API 都接受枚举字符串,不受单位口径影响),
+ * 其余(B5/8K/16K)按英寸自定义——printToPDF 的数字 pageSize 单位是英寸
+ * (electron.d.ts:23106-23110 明文 "an Object containing height and width
+ * in inches"),1in = 25.4mm,round 到 0.001in(×25.4 回毫米误差 ≤0.013mm)。
+ * 【单位口径】与 paperSpecToPrintPageSize(微米,服务 webContents.print)
+ * 并列共存;两者对 B5/8K/16K 的数值不同(英寸 vs 微米),禁止跨 API 复用。
+ */
+export function paperSpecToPdfPageSize(
+  spec: PaperSpec,
+): 'A4' | 'A3' | { width: number; height: number } {
+  const native = ELECTRON_PAGE_SIZES[spec.id]
+  if (native) return native
+  const mmToIn = (mm: number) => Math.round((mm / 25.4) * 1000) / 1000
+  return { width: mmToIn(spec.widthMm), height: mmToIn(spec.heightMm) }
 }

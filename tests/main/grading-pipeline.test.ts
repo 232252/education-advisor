@@ -7,7 +7,7 @@
 //           纯函数不触达,仅保模块可加载)。
 // =============================================================
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 // pipeline → logger → utils/log/state 在模块加载期读 app.getPath('userData')
 const mocks = vi.hoisted(() => {
@@ -17,25 +17,49 @@ const mocks = vi.hoisted(() => {
       if (name === 'userData') return `${tmpBase}/grading-pipeline-test-${Date.now()}`
       throw new Error(`Unexpected path: ${name}`)
     }),
+    completeSimple: vi.fn(),
+    getSettings: vi.fn(() => ({})),
+    resolveModel: vi.fn(),
+    gs: {
+      getTask: vi.fn(),
+      resetPaperForRegrade: vi.fn(),
+      setStatus: vi.fn(),
+      saveAiResult: vi.fn(),
+      applyPaperSnapshot: vi.fn(),
+      paperFilePath: vi.fn(),
+    },
   }
 })
 vi.mock('electron', () => ({ app: { getPath: mocks.getPath } }))
+vi.mock('@earendil-works/pi-ai/compat', () => ({
+  completeSimple: mocks.completeSimple,
+  getEnvApiKey: () => undefined,
+}))
+vi.mock('@earendil-works/pi-ai', () => ({
+  parseJsonWithRepair: (s: string) => JSON.parse(s),
+}))
+vi.mock('../../src/main/services/pi-ai/model-utils', () => ({
+  resolveModel: mocks.resolveModel,
+}))
 
 vi.mock('../../src/main/services/settings-service', () => ({
-  settingsService: { getSettings: () => ({}) },
+  settingsService: { getSettings: mocks.getSettings },
 }))
 vi.mock('../../src/main/services/keystore-service', () => ({
-  keystoreService: { getApiKey: () => undefined },
+  keystoreService: { getApiKey: () => 'test-key' },
 }))
 vi.mock('../../src/main/services/grading/grading-service', () => ({
-  gradingService: {},
+  gradingService: mocks.gs,
 }))
 
 import {
   buildGradingPrompt,
+  fastGradeMaxTokens,
+  isGradingParseError,
   isVisionModel,
   parseAnnotationBox,
   parseGradeResponse,
+  regradePapers,
   resolveGradingModelIds,
 } from '../../src/main/services/grading/grading-pipeline'
 
@@ -279,5 +303,133 @@ describe('parseGradeResponse', () => {
     expect(r.questions[0]?.deductions).toBeUndefined()
     expect(r.questions[1]?.deductions).toBeUndefined()
     expect(r.totalScore).toBe(13)
+  })
+})
+
+describe('fastGradeMaxTokens — fast 档输出预算自适应', () => {
+  it('≤8 题维持 8192;超过 8 题每题 +512', () => {
+    expect(fastGradeMaxTokens(8)).toBe(8192)
+    expect(fastGradeMaxTokens(9)).toBe(8192 + 512)
+    expect(fastGradeMaxTokens(17)).toBe(8192 + 512 * 9) // 12800
+  })
+
+  it('>16 题量规预算提升后仍被 model.maxTokens 钳制;未配置上限不钳', () => {
+    expect(fastGradeMaxTokens(17, 10000)).toBe(10000)
+    expect(fastGradeMaxTokens(17, 20000)).toBe(12800)
+    expect(fastGradeMaxTokens(17, undefined)).toBe(12800)
+    expect(fastGradeMaxTokens(0)).toBe(8192) // 异常题数按 0 兜底
+  })
+})
+
+describe('isGradingParseError — 解析类错误分类器(双路重试共用)', () => {
+  it('批改/转写/落库校验的解析类消息命中', () => {
+    for (const msg of [
+      '批改输出不是有效 JSON',
+      '批改输出缺少 questions 数组',
+      '批改输出没有可识别的题目得分',
+      '输出不是 JSON 对象',
+      '转写输出没有可用的小题作答',
+      '单题批改输出缺少有效 score',
+      '分阶段批改没有产出任何题目结果',
+      'AI 结果缺少量规题目: q-1、q-2',
+      'AI 分数越界 [0, 30]: q-1 = 99',
+    ]) {
+      expect(isGradingParseError(new Error(msg))).toBe(true)
+    }
+  })
+
+  it('传输/中止/参数类错误不命中(照常走重试)', () => {
+    for (const msg of ['socket hang up', '已中止', '该试卷没有扫描件', 'ETIMEDOUT']) {
+      expect(isGradingParseError(new Error(msg))).toBe(false)
+    }
+    expect(isGradingParseError(undefined)).toBe(false)
+    expect(isGradingParseError('裸字符串: 批改输出不是有效 JSON')).toBe(true) // 字符串错误也认
+  })
+})
+
+describe('regradePapers — 外层重试收敛(解析类不整体重试)', () => {
+  const tmpDir = `${process.env.TEMP || process.env.TMP || '/tmp'}/regrade-it-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const fakeModel = {
+    provider: 'prov-a',
+    id: 'model-a',
+    input: ['image'],
+    maxTokens: 8192,
+  } as never
+
+  const okJson =
+    '{"questions":[{"questionId":"q-1","score":5,"box":{"page":0,"x":0.1,"y":0.1,"w":0.5,"h":0.2}},{"questionId":"q-2","score":7}]}'
+  const textResult = (text: string) => ({
+    stopReason: 'stop',
+    content: [{ type: 'text', text }],
+    usage: { input: 10, output: 10 },
+  })
+
+  beforeAll(async () => {
+    const fsp = await import('node:fs/promises')
+    const { join } = await import('node:path')
+    await fsp.mkdir(tmpDir, { recursive: true })
+    await fsp.writeFile(join(tmpDir, 'p1.jpg'), Buffer.from('fake-jpeg'))
+    mocks.gs.paperFilePath.mockImplementation((_t: string, stored: string) => join(tmpDir, stored))
+    mocks.getSettings.mockImplementation(() => ({
+      grading: { provider: 'prov-a', model: 'model-a' },
+    }))
+    mocks.resolveModel.mockImplementation(() => fakeModel)
+  })
+
+  const mkTask = () => ({
+    id: 't-1',
+    name: '重改测试',
+    semester: '2026 上',
+    status: 'review' as const,
+    gradingStrategy: 'fast' as const,
+    rubric: RUBRIC,
+    papers: [
+      {
+        id: 'p-1',
+        studentName: '张三',
+        files: [{ name: 'p1.jpg', storedName: 'p1.jpg', mime: 'image/jpeg', bytes: 12 }],
+        uploadedAt: '2026-01-01T00:00:00Z',
+        status: 'graded' as const,
+        ai: {
+          questions: [
+            { questionId: 'q-1', score: 1 },
+            { questionId: 'q-2', score: 1 },
+          ],
+          totalScore: 2,
+          model: { provider: 'prov-a', model: 'model-a' },
+          finishedAt: '2026-01-01T00:00:00Z',
+        },
+      },
+    ],
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  })
+
+  beforeEach(() => {
+    mocks.completeSimple.mockReset()
+    mocks.gs.getTask.mockReset().mockImplementation(async () => mkTask())
+    mocks.gs.resetPaperForRegrade.mockReset().mockResolvedValue(undefined)
+    mocks.gs.setStatus.mockReset().mockResolvedValue(undefined)
+    mocks.gs.saveAiResult.mockReset().mockResolvedValue(undefined)
+    mocks.gs.applyPaperSnapshot.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('坏 JSON 输入: 外层总调用 1 次非 2 次,标 failed 并回滚', async () => {
+    mocks.completeSimple.mockResolvedValue(textResult('根本不是 JSON 的散文'))
+    await regradePapers('t-1', ['p-1'], null)
+    await vi.waitFor(() => expect(mocks.gs.setStatus).toHaveBeenCalledWith('t-1', 'review'))
+    expect(mocks.completeSimple).toHaveBeenCalledTimes(1) // 解析类不再消耗外层第二次
+    expect(mocks.gs.saveAiResult).not.toHaveBeenCalled()
+    expect(mocks.gs.applyPaperSnapshot).toHaveBeenCalledWith('t-1', 'p-1', expect.anything())
+  })
+
+  it('传输类瞬时错误: 外层仍重试,第二次成功落库', async () => {
+    mocks.completeSimple
+      .mockRejectedValueOnce(new Error('socket hang up'))
+      .mockResolvedValue(textResult(okJson))
+    await regradePapers('t-1', ['p-1'], null)
+    await vi.waitFor(() => expect(mocks.gs.setStatus).toHaveBeenCalledWith('t-1', 'review'))
+    expect(mocks.completeSimple).toHaveBeenCalledTimes(2)
+    expect(mocks.gs.saveAiResult).toHaveBeenCalledTimes(1)
   })
 })

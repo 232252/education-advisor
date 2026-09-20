@@ -22,7 +22,7 @@ import {
   type OverlayCalibration,
   type OverlayPaperLayout,
 } from '@shared/overlay-layout'
-import type { GradingPaper, GradingTask } from '@shared/types'
+import type { GradingPaper, GradingTask, PrintDuplexMode, PrintOrder } from '@shared/types'
 import {
   AlertTriangle,
   Check,
@@ -51,6 +51,8 @@ interface OverlayPrintDocumentProps {
   task: GradingTask
   views: OverlayPrintView[]
   onRefresh: () => Promise<void>
+  /** 连打排序留档(views 已按该序渲染;透传给 overlaySilentPrint 做值域校验) */
+  printOrder?: PrintOrder
 }
 
 /** 量出来的扫描图尺寸(页下标对齐;测量完成前 undefined) */
@@ -63,7 +65,12 @@ function ptToMm(pt: number): number {
   return pt * 0.3528
 }
 
-export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDocumentProps) {
+export function OverlayPrintDocument({
+  task,
+  views,
+  onRefresh,
+  printOrder,
+}: OverlayPrintDocumentProps) {
   const { t } = useT()
   const [sizes, setSizes] = useState<SizeMap>({})
   const [specId, setSpecId] = useState<string>(() => task.overlayPrint?.paperSpecId ?? '')
@@ -77,6 +84,8 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
   const [printers, setPrinters] = useState<PrinterInfo[]>([])
   const [deviceName, setDeviceName] = useState<string>(() => task.overlayPrint?.deviceName ?? '')
   const [silentPrinting, setSilentPrinting] = useState(false)
+  // 双面打印(electron print 的 duplexMode 字段;simplex 默认=单面)
+  const [duplexMode, setDuplexMode] = useState<PrintDuplexMode>('simplex')
   const [tplDialog, setTplDialog] = useState(false)
   const [masterUrls, setMasterUrls] = useState<string[] | null>(null)
   const [activePaperId, setActivePaperId] = useState<string | null>(null)
@@ -134,9 +143,20 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
       const res = await getAPI().grading.overlaySilentPrint(task.id, {
         deviceName: deviceName || undefined,
         paperSpecId: effectiveSpecId,
+        order: printOrder,
+        duplexMode,
       })
       if (res.data?.ok) {
-        toast.success(t('page.grading.overlay.silentOk', '已发送到打印机,请按屏幕顺序放卷'))
+        toast.success(
+          t('page.grading.overlay.silentOk', '已发送到打印机,请按屏幕顺序放卷') +
+            // 驱动不支持自动双面时的兜底提示(单测不覆盖真实驱动,人工验收项)
+            (duplexMode !== 'simplex'
+              ? t(
+                  'page.grading.overlay.duplexManualHint',
+                  '；若打印机不支持自动双面，请打印后手动双面',
+                )
+              : ''),
+        )
       } else {
         toast.error(
           res.data?.reason || res.error || t('page.grading.overlay.silentFail', '打印失败'),
@@ -556,6 +576,28 @@ export function OverlayPrintDocument({ task, views, onRefresh }: OverlayPrintDoc
                   {s.label} ({s.widthMm}×{s.heightMm}mm)
                 </option>
               ))}
+            </select>
+          </label>
+          <label
+            className="flex items-center gap-1.5"
+            title={t(
+              'page.grading.overlay.duplexTitle',
+              '双面打印由打印机驱动支持决定；不支持时请打印后手动双面',
+            )}
+          >
+            {t('page.grading.overlay.duplex', '双面')}
+            <select
+              value={duplexMode}
+              onChange={(e) => setDuplexMode(e.target.value as PrintDuplexMode)}
+              className="rounded-md border border-gray-300 bg-white px-1.5 py-0.5"
+            >
+              <option value="simplex">{t('page.grading.overlay.duplexSimplex', '单面')}</option>
+              <option value="longEdge">
+                {t('page.grading.overlay.duplexLongEdge', '双面·长边翻')}
+              </option>
+              <option value="shortEdge">
+                {t('page.grading.overlay.duplexShortEdge', '双面·短边翻')}
+              </option>
             </select>
           </label>
           <div className="flex items-center rounded-md border border-gray-200 bg-gray-50 p-0.5">

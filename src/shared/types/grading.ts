@@ -29,6 +29,12 @@ export type GradingStrictness = 'strict' | 'normal' | 'lenient'
  */
 export type GradingStrategy = 'fast' | 'standard' | 'dual'
 
+/** 批阅痕迹/套打连打的试卷排序: 姓名升序(默认)/姓名倒序/上传原序 */
+export type PrintOrder = 'name-asc' | 'name-desc' | 'upload-asc'
+
+/** 双面打印(electron print/printToPDF 的 duplexMode 字段值域;字段名是 duplexMode 非 duplex) */
+export type PrintDuplexMode = 'simplex' | 'shortEdge' | 'longEdge'
+
 /** 预设评分点(≈ gradeable_component_mark) */
 export interface PresetMark {
   points: number
@@ -125,6 +131,13 @@ export interface AiQuestionResult {
    * reason 为面向学生的扣分原因。满分题不应有扣分项。
    */
   deductions?: Array<{ points: number; reason: string }>
+  /**
+   * 判分置信度(不改分数,只影响复核排序): 客观题转写复验后仍读不准、
+   * 主观题贴边界复验分歧取中位的题标 'medium'——参考包 M 级口径
+   * 「采信但登记待复核」;缺省视为高置信。经 grading-service
+   * paper.ai=result 原样透传落库。
+   */
+  confidence?: 'high' | 'medium' | 'low'
 }
 
 /** AI 批改结果(整份试卷) */

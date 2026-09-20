@@ -121,16 +121,27 @@ function streamObj(dict: string, content: Buffer): Buffer {
 
 /** 电子排版 PDF: 单页 A4 纯文字(Helvetica,未内嵌字体) */
 function buildTextPdf(): Buffer {
-  const content = Buffer.from('BT /F1 24 Tf 72 720 Td (Grading fixture) Tj ET', 'latin1')
-  return assemblePdf([
-    Buffer.from('<< /Type /Catalog /Pages 2 0 R >>'),
-    Buffer.from('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'),
-    Buffer.from(
-      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
-    ),
-    streamObj('', content),
-    Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'),
-  ])
+  return buildTextPdfPages(1)
+}
+
+/** n 页电子排版 PDF(每页独立 Page/Contents 对象,共享一个 Font) */
+function buildTextPdfPages(n: number): Buffer {
+  const objects: Buffer[] = []
+  // 对象编号: 1=Catalog 2=Pages;第 i 页 Page=(3+2i)、Contents=(4+2i);末尾 Font=(3+2n)
+  const kids = Array.from({ length: n }, (_, i) => `${3 + 2 * i} 0 R`).join(' ')
+  objects.push(Buffer.from('<< /Type /Catalog /Pages 2 0 R >>'))
+  objects.push(Buffer.from(`<< /Type /Pages /Kids [${kids}] /Count ${n} >>`))
+  for (let i = 0; i < n; i++) {
+    const content = Buffer.from(`BT /F1 24 Tf 72 720 Td (Page ${i + 1} fixture) Tj ET`, 'latin1')
+    objects.push(
+      Buffer.from(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${3 + 2 * n} 0 R >> >> /Contents ${4 + 2 * i} 0 R >>`,
+      ),
+    )
+    objects.push(streamObj('', content))
+  }
+  objects.push(Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'))
+  return assemblePdf(objects)
 }
 
 /** 内嵌图片 PDF;cm 控制绘制区域(默认整页),filter 控制编码(DCTDecode/FlateDecode) */
@@ -285,18 +296,39 @@ describe('pdfToPageJpegs', () => {
   })
 })
 
-describe('materializePaperBatches — PDF 路径', () => {
-  it('散装文字版 PDF 落成一批整页 JPEG', async () => {
+describe('materializePaperBatches — PDF 路径(每页一批)', () => {
+  it('多学生合并 PDF(3 页)拆成 3 批,每批 1 页', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'ea-pdf-fixture-'))
     const src = path.join(dir, 'fixture.pdf')
-    await fsp.writeFile(src, buildTextPdf())
+    await fsp.writeFile(src, buildTextPdfPages(3))
     await withTempDir(async (tmp) => {
       const batches = await materializePaperBatches([{ path: src }], tmp)
-      expect(batches).toHaveLength(1)
+      expect(batches).toHaveLength(3)
+      for (const [i, batch] of batches.entries()) {
+        expect(batch.files).toHaveLength(1)
+        expect(batch.files[0].name).toBe(`fixture-p${i + 1}.jpg`)
+        const buf = await fsp.readFile(batch.files[0].path)
+        expect(isJpeg(buf)).toBe(true)
+      }
+      // 页序 = 批次序(导入顺序即 PDF 页序,identify 归组依赖此约定)
+      const names = batches.map((b) => b.files[0].name)
+      expect(names).toEqual(['fixture-p1.jpg', 'fixture-p2.jpg', 'fixture-p3.jpg'])
+    })
+  })
+
+  it('zip 内多页 PDF 同样每页一批', async () => {
+    const zip = buildZip('张四/paper.pdf', buildTextPdfPages(2))
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'ea-zip-fixture-'))
+    const src = path.join(dir, 'fixture.zip')
+    await fsp.writeFile(src, zip)
+    await withTempDir(async (tmp) => {
+      const batches = await materializePaperBatches([{ path: src }], tmp)
+      expect(batches).toHaveLength(2)
       expect(batches[0].files).toHaveLength(1)
-      expect(batches[0].files[0].name).toBe('fixture-p1.jpg')
-      const buf = await fsp.readFile(batches[0].files[0].path)
-      expect(isJpeg(buf)).toBe(true)
+      expect(batches[1].files).toHaveLength(1)
+      // zip 分支命名: 临时序号前缀 + 条目路径扁平化 + 页号
+      expect(batches[0].files[0].name).toBe('p1-张四-paper.pdf-p1.jpg')
+      expect(batches[1].files[0].name).toBe('p2-张四-paper.pdf-p2.jpg')
     })
   })
 
@@ -315,5 +347,10 @@ describe('materializePaperBatches — PDF 路径', () => {
       const buf = await fsp.readFile(batches[0].files[0].path)
       expect(buf.equals(jpeg)).toBe(true)
     })
+  })
+
+  it('PDF 页数上限 200: 201 页拒绝且文案带 200', async () => {
+    // 201 页文字 PDF 构造便宜;renderAllPages 在渲染循环前即校验页数上限
+    await expect(pdfToPageJpegs(buildTextPdfPages(201), 'big.pdf')).rejects.toThrow('200')
   })
 })

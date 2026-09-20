@@ -174,6 +174,8 @@ export const IPC_GRADING_DELETE = 'grading:delete'
 export const IPC_GRADING_IMPORT_PAPERS = 'grading:import-papers'
 export const IPC_GRADING_ASSIGN_PAPER = 'grading:assign-paper'
 export const IPC_GRADING_REMOVE_PAPER = 'grading:remove-paper'
+// 多页归组人工合并(把 source 卷页面并入 anchor 卷;自动识别兜不住时教师指路)
+export const IPC_GRADING_MERGE_PAPERS = 'grading:merge-papers'
 // 教师复核结果落库
 export const IPC_GRADING_SAVE_REVIEW = 'grading:save-review'
 export const IPC_GRADING_SET_STATUS = 'grading:set-status'
@@ -205,6 +207,10 @@ export const IPC_GRADING_SAVE_OVERLAY_PRINT = 'grading:save-overlay-print'
 export const IPC_GRADING_OVERLAY_SILENT_PRINT = 'grading:overlay-silent-print'
 // 套打回写: 母版标定(样卷留档+模板逐题定位,Tier B)
 export const IPC_GRADING_CALIBRATE_TEMPLATE = 'grading:calibrate-overlay-template'
+// 成绩汇总 CSV 导出(渲染层保存对话框拿路径,主进程 builder+写盘)
+export const IPC_GRADING_EXPORT_SUMMARY_CSV = 'grading:export-summary-csv'
+// 逐页批注 PDF 直出(当前窗口 printToPDF;B5/8K/16K 走英寸自定义纸)
+export const IPC_GRADING_EXPORT_ANNOTATED_PDF = 'grading:export-annotated-pdf'
 
 // ===== 班级管理（本地：存档/删除） =====
 export const IPC_CLASS_LIST = 'class:list'

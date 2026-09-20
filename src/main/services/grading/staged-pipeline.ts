@@ -28,6 +28,7 @@ import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
 import {
   gradingModeLabel,
+  isGradingParseError,
   MODE_RULES,
   parseAnnotationBox,
   parseDeductions,
@@ -56,13 +57,14 @@ function batchRank(q: RubricQuestion): number {
 
 /**
  * 该题能否走"转写+规则判分": 客观题 + 题名是单选/判断(多选的少选给分
- * 政策因考试而异,交模型按评分标准裁量) + 参考答案能解析出逐小题答案。
+ * 政策因考试而异,交模型按评分标准裁量) + 参考答案能解析出逐小题答案
+ * (带题名推导的期望小题数收紧: 部分解析不再静默按缺省对错判分)。
  */
 export function isRuleScoreable(q: RubricQuestion): boolean {
   if (questionKind(q) !== 'objective') return false
   if (/多选/.test(q.title)) return false
   if (!/单选|判断|选择/.test(q.title)) return false
-  return parseReferenceAnswers(q.referenceAnswer) !== null
+  return parseReferenceAnswers(q.referenceAnswer, expectedSubCountOf(q)) !== null
 }
 
 /** 量规 → 批次序列(按题型排序;转写批需参考答案可解析) */
@@ -94,14 +96,55 @@ const TRUE_FALSE_SEQ_RE = /^[√×对错TFtf]+$/
 const LETTER_SEQ_RE = /^[A-Ha-h]+$/
 
 /**
- * 解析参考答案为「小题号 → 标准作答」:
- * 支持 "BACDA" / "1-5 BACDA 6-10 CCDAB" / "1.B 2.A" / "1:B,2:A" /
- * 判断题 "√×√" "对错对" "TTFF"。解析不出或题号冲突 → null(该题回落模型批改)。
+ * 从题名推导期望小题数: 「共 N 小题」直接取 N;否则「每小题 X 分」按
+ * round(满分/X) 推导。推导不出返回 undefined(调用方按单参口径放行兜底,
+ * 不因正则误读把可判分的题回落模型)。
  */
-export function parseReferenceAnswers(ref: string | undefined): Map<number, string> | null {
+export function expectedSubCountOf(
+  q: Pick<RubricQuestion, 'title' | 'fullMark'>,
+): number | undefined {
+  const countMatch = q.title.match(/共\s*(\d{1,3})\s*小题/)
+  if (countMatch?.[1]) {
+    const n = Number(countMatch[1])
+    if (Number.isInteger(n) && n > 0 && n <= 200) return n
+  }
+  const perMatch = q.title.match(/每小题\s*([\d.]+)\s*分/)
+  if (perMatch?.[1]) {
+    const per = Number(perMatch[1])
+    if (Number.isFinite(per) && per > 0 && Number.isFinite(q.fullMark) && q.fullMark > 0) {
+      const n = Math.round(q.fullMark / per)
+      if (Number.isInteger(n) && n > 0 && n <= 200) return n
+    }
+  }
+  return undefined
+}
+
+/**
+ * 解析参考答案为「小题号 → 标准作答」:
+ * 支持 "BACDA" / "1-5 BACDA 6-10 CCDAB" / "1.B" / "1:B,2:A" / 判断题
+ * "√×√" "对错对" "TTFF"。区段与逐题对两轮都跑、合并进同一 Map(混排形态
+ * 如 "1.B 2.A 3.C 4.D 5.B 6-10 CCDAB" / "1-5 BACDA 6.B 7.C";长度对不上
+ * 的半坏区段跳过不计命中)。裸序列维持兜底地位: 仅当前两形态零命中才尝试。
+ * 解析不出或题号冲突 → null(该题回落模型批改)。
+ *
+ * expectedSubCount(可选,题名可推导时传入): 裸序列仅接受判断符号序列或
+ * 长度恰等于期望的字母序列;最终条目数 ≠ 期望 → null——部分解析直接
+ * 回落模型批改,不再静默按"缺省=对"改错分。不传时与单参调用完全一致。
+ */
+export function parseReferenceAnswers(
+  ref: string | undefined,
+  expectedSubCount?: number,
+): Map<number, string> | null {
   if (typeof ref !== 'string') return null
   const text = ref.replace(/\s+/g, ' ').trim()
   if (text.length === 0 || text.length > 2000) return null
+  const expect =
+    expectedSubCount !== undefined &&
+    Number.isInteger(expectedSubCount) &&
+    expectedSubCount > 0 &&
+    expectedSubCount <= 200
+      ? expectedSubCount
+      : undefined
   const out = new Map<number, string>()
   const put = (no: number, value: string): boolean => {
     const v = normalizeObjectiveValue(value)
@@ -114,38 +157,42 @@ export function parseReferenceAnswers(ref: string | undefined): Map<number, stri
 
   // 形态一: 区段 "1-5 BACDA"(每字符一题)
   const segmentRe = /(\d{1,3})\s*[-–—~至]\s*(\d{1,3})\s*[.、:：)）]?\s*([A-Ha-h√×对错TFtf]{2,})/g
-  let segmentHits = 0
+  let structuredHits = 0
   for (const m of text.matchAll(segmentRe)) {
     const start = Number(m[1])
     const end = Number(m[2])
     const seq = m[3] ?? ''
     if (!Number.isInteger(start) || !Number.isInteger(end) || end < start) continue
     if (end - start + 1 !== seq.length) continue // 长度对不上 → 形态误匹配
-    segmentHits++
+    structuredHits++
     for (let i = 0; i < seq.length; i++) {
       if (!put(start + i, seq[i])) return null
     }
   }
-  if (segmentHits > 0) return out.size > 0 ? out : null
 
   // 形态二: 逐题对 "1.B" / "2、A" / "3:√"(值限单字符: 选项/判断符)
   const pairRe = /(\d{1,3})\s*[.、:：)）]?\s*([A-Ha-h√×对错TF])(?![A-Ha-h√×对错TF])/g
-  let pairHits = 0
   for (const m of text.matchAll(pairRe)) {
-    pairHits++
+    structuredHits++
     if (!put(Number(m[1]), m[2])) return null
   }
-  if (pairHits > 0) return out.size > 0 ? out : null
 
-  // 形态三: 裸序列 "BACDA" / "√×√×" / "TTFF"(从第 1 题顺排)
-  const bare = text.replace(/[\s,，、;；/|.]+/g, '')
-  if (LETTER_SEQ_RE.test(bare) || TRUE_FALSE_SEQ_RE.test(bare)) {
-    for (let i = 0; i < bare.length && i < 200; i++) {
-      if (!put(i + 1, bare[i])) return null
+  // 形态三: 裸序列 "BACDA" / "√×√×" / "TTFF"(前两形态零命中才尝试)
+  if (structuredHits === 0) {
+    const bare = text.replace(/[\s,，、;；/|.]+/g, '')
+    const acceptable =
+      expect !== undefined
+        ? TRUE_FALSE_SEQ_RE.test(bare) || bare.length === expect
+        : LETTER_SEQ_RE.test(bare) || TRUE_FALSE_SEQ_RE.test(bare)
+    if (acceptable) {
+      for (let i = 0; i < bare.length && i < 200; i++) {
+        if (!put(i + 1, bare[i])) return null
+      }
     }
-    return out.size > 0 ? out : null
   }
-  return null
+  if (out.size === 0) return null
+  if (expect !== undefined && out.size !== expect) return null
+  return out
 }
 
 // ===== 纯函数: 转写批(客观题只读不判) =====
@@ -202,7 +249,10 @@ export function parseTranscribeResponse(text: string): TranscribedItem[] {
 
 // ===== 纯函数: 规则判分 =====
 
-/** 每小题分值: 优先取评分点里「第N小题」条目的绝对值,否则 满分/小题数 */
+/** 每小题分值: 优先取评分点里「第N小题」条目的绝对值,否则 满分/小题数。
+ *  除法分支返回精确值(前置舍入会让"错 N 题后的总分"在第 2 位小数漂移,
+ *  如 10 分 3 小题全错得 0.01);残差由得分处统一 round+clamp 消化,
+ *  扣分项展示时才 round 到 2 位。 */
 export function perSubQuestionMark(q: RubricQuestion, subCount: number): number {
   for (const m of q.presetMarks ?? []) {
     if (typeof m?.note === 'string' && /第\s*\d+\s*(小题|题|空)/.test(m.note)) {
@@ -211,7 +261,7 @@ export function perSubQuestionMark(q: RubricQuestion, subCount: number): number 
     }
   }
   if (!Number.isInteger(subCount) || subCount <= 0) return q.fullMark
-  return Math.round((q.fullMark / subCount) * 100) / 100
+  return q.fullMark / subCount
 }
 
 export interface RuleScoreOutcome {
@@ -240,7 +290,7 @@ export function ruleScoreQuestion(
     errors++
     if (item?.uncertain) uncertainNos.push(no)
     deductions.push({
-      points: per,
+      points: Math.round(per * 100) / 100, // 展示文本舍入到 2 位;score 才是权威值
       reason: got.length > 0 ? `第${no}小题选${got},应为${expect}` : `第${no}小题未作答`,
     })
   }
@@ -417,6 +467,29 @@ export function mapCropBoxToPage(
   }
 }
 
+/**
+ * 多采样取中位挑选(主观题贴边界复验口径): 样本间最大分差 ≤ tolerance
+ * 视为一致,返回首采;否则返回分数居中的样本(并列时取采样原序首个命中者;
+ * 调用方固定三采样)。返回的是被选中的原样本,box 仍是裁剪图口径,
+ * 由调用方在选定后统一 mapCropBoxToPage 一次。
+ */
+export function pickMedianSample<T extends { score: number }>(
+  samples: T[],
+  tolerance = 0,
+): T | null {
+  if (samples.length === 0) return null
+  const first = samples[0]
+  if (!first) return null
+  if (samples.length === 1) return first
+  const scores = samples.map((s) => s.score)
+  const spread = Math.max(...scores) - Math.min(...scores)
+  if (spread <= tolerance) return first
+  const sorted = [...scores].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]
+  if (median === undefined) return first
+  return samples.find((s) => s.score === median) ?? first
+}
+
 // ===== 共用: 松散 JSON 解析(剥围栏→截取大括号→修复) =====
 
 function parseLooseJson(text: string): Record<string, unknown> {
@@ -438,7 +511,15 @@ function parseLooseJson(text: string): Record<string, unknown> {
       // 下一个候选
     }
   }
-  if (!ok) parsed = parseJsonWithRepair(candidates[candidates.length - 1] ?? stripped)
+  if (!ok) {
+    // 修复解析也失败: 归一为解析类错误消息(isGradingParseError 分类闭环,
+    // 不让 pi-ai 的内部错误消息逃逸成不可分类的传输类)
+    try {
+      parsed = parseJsonWithRepair(candidates[candidates.length - 1] ?? stripped)
+    } catch {
+      throw new Error('输出不是 JSON 对象')
+    }
+  }
   if (typeof parsed !== 'object' || parsed === null) throw new Error('输出不是 JSON 对象')
   return parsed as Record<string, unknown>
 }
@@ -461,6 +542,20 @@ export interface GradePaperStagedOptions {
   /** 同模型条件复验(标准档 true;双评档 false,由跨模型比对替代) */
   selfVerify?: boolean
   onStage?: (info: StagedStageInfo) => void
+  /**
+   * 双评共享上下文(同卷两模型复用页缓存与一次 locate): 几何定位与读盘
+   * 不是评分判断,共享不损双评独立性;两个模型各自的 grade/transcribe
+   * 调用照常独立计数。由调用方(dual 分支)创建并先后传入两次调用。
+   */
+  shared?: StagedSharedContext
+}
+
+/** 双评共享上下文: 首个模型读盘/定位后填充,第二模型直接复用 */
+export interface StagedSharedContext {
+  /** 页图缓存(与 paper.files 同序;首模型读盘填充) */
+  pages?: Buffer[]
+  /** locate 结果(questionId → box;母版模板复用或首模型定位成功后填充) */
+  boxes?: Map<string, GradeAnnotationBox>
 }
 
 /** 用 @napi-rs/canvas 按整页相对 box 裁剪(只缩不放,长边≤2200px);失败返回 null 回落整页 */
@@ -506,9 +601,13 @@ export async function gradePaperStaged(opts: GradePaperStagedOptions): Promise<A
   if (!paper) throw new Error(`试卷不存在: ${paperId}`)
   if (paper.files.length === 0) throw new Error('该试卷没有扫描件')
 
-  const pages = await Promise.all(
-    paper.files.map((f) => fsp.readFile(gradingService.paperFilePath(task.id, f.storedName))),
-  )
+  // 页图: 双评共享缓存优先(第二模型免读盘),否则读盘并写回共享上下文
+  const pages =
+    opts.shared?.pages ??
+    (await Promise.all(
+      paper.files.map((f) => fsp.readFile(gradingService.paperFilePath(task.id, f.storedName))),
+    ))
+  if (opts.shared) opts.shared.pages = pages
   const fullParts = pages.map((buf, i) => ({
     type: 'image' as const,
     data: buf.toString('base64'),
@@ -558,33 +657,62 @@ export async function gradePaperStaged(opts: GradePaperStagedOptions): Promise<A
       .join('\n')
   }
 
-  /** 调用+解析重试一次(瞬时失败兜底);中止不重试 */
+  /** 调用+解析重试一次(仅传输类瞬时失败);中止与解析类错误直接上抛——
+   * 解析类错误(isGradingParseError,与 regrade 外层同一分类器)重试大概率
+   * 原样复现,徒增一次全量输入词耗 */
   async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn()
     } catch (err) {
       if (signal.aborted || errText(err).includes('已中止')) throw err
+      if (isGradingParseError(err)) throw err
       return await fn()
     }
   }
 
-  // 1) 版面定位(失败回落整页,不阻断)
+  // 1) 版面定位(失败回落整页,不阻断):
+  //    优先级 双评共享缓存 → 母版模板复用 → 逐卷 locate。
+  //    模板复用条件: overlayTemplate.boxes 覆盖全部量规题且该卷页数与
+  //    标定页数一致——同版式全班卷的作答区坐标可复用(省每卷一次全页
+  //    图输入);任一条件不满足回落逐卷 locate。
   onStage?.({ label: '定位每题作答区域', index: 1, total: stageTotal })
   let boxes = new Map<string, GradeAnnotationBox>()
-  try {
-    const text = await withRetry(() =>
-      call(
-        buildLocatePrompt(task.rubric),
-        fullParts,
-        '请定位每道大题的作答区域，只输出 JSON。',
-        2048,
-      ),
-    )
-    boxes = parseLocateResponse(text, task.rubric)
-  } catch (err) {
-    if (signal.aborted || errText(err).includes('已中止')) throw err
-    log('warn', 'grading', `locate failed (fallback to full pages): ${paperId}: ${errText(err)}`)
+  const templateBoxes = task.overlayTemplate?.boxes
+  const templatePages = task.overlayTemplate?.files.length ?? 0
+  const templateUsable =
+    templateBoxes !== undefined &&
+    templatePages > 0 &&
+    paper.files.length === templatePages &&
+    task.rubric.every((q) => {
+      const b = templateBoxes[q.id]
+      return b !== undefined && Number.isFinite(b.x) && Number.isFinite(b.w) && b.w > 0
+    })
+  if (opts.shared?.boxes && opts.shared.boxes.size > 0) {
+    boxes = opts.shared.boxes
+  } else if (templateUsable && templateBoxes) {
+    for (const q of task.rubric) {
+      const b = templateBoxes[q.id]
+      if (b) boxes.set(q.id, b)
+    }
+    log('info', 'grading', `locate reused overlay template: ${task.id}/${paperId}`)
+  } else {
+    try {
+      const text = await withRetry(() =>
+        call(
+          buildLocatePrompt(task.rubric),
+          fullParts,
+          '请定位每道大题的作答区域，只输出 JSON。',
+          2048,
+        ),
+      )
+      boxes = parseLocateResponse(text, task.rubric)
+    } catch (err) {
+      if (signal.aborted || errText(err).includes('已中止')) throw err
+      log('warn', 'grading', `locate failed (fallback to full pages): ${paperId}: ${errText(err)}`)
+    }
   }
+  // 定位成功(含模板复用)写回共享上下文,双评第二模型免再定位
+  if (opts.shared && !opts.shared.boxes && boxes.size > 0) opts.shared.boxes = boxes
 
   // 2) 逐题裁剪(本地,零调用)
   const cropByQuestion = new Map<string, { buf: Buffer; box: GradeAnnotationBox }>()
@@ -610,7 +738,7 @@ export async function gradePaperStaged(opts: GradePaperStagedOptions): Promise<A
     onStage?.({ label: `批改 ${q.title}`, index: bi + 2, total: stageTotal })
 
     if (batch.kind === 'transcribe') {
-      const ref = parseReferenceAnswers(q.referenceAnswer)
+      const ref = parseReferenceAnswers(q.referenceAnswer, expectedSubCountOf(q))
       if (!ref) continue // 规划后仍解析不出(理论不可达):跳过,末尾校验兜底
       const readOnce = (): Promise<TranscribedItem[]> =>
         withRetry(async () =>
@@ -654,7 +782,13 @@ export async function gradePaperStaged(opts: GradePaperStagedOptions): Promise<A
           log('warn', 'grading', `transcribe re-read failed: ${q.id}: ${errText(err)}`)
         }
       }
-      results.push({ ...outcome.result, box: boxes.get(q.id) })
+      // 复验后仍读不准(selfVerify 复读覆盖后重判仍 uncertain,或复验失败
+      // 保留首轮): 判分照常采信,标 medium 登记待复核(参考包 M 级口径)
+      results.push({
+        ...outcome.result,
+        box: boxes.get(q.id),
+        ...(outcome.uncertainNos.length > 0 ? { confidence: 'medium' as const } : {}),
+      })
       continue
     }
 
@@ -672,14 +806,9 @@ export async function gradePaperStaged(opts: GradePaperStagedOptions): Promise<A
         ),
       )
     let result = await gradeOnce()
-    // box 坐标换算: 裁剪图内的相对 box → 整页;无裁剪时模型 box 已是整页口径
-    if (crop) {
-      result = {
-        ...result,
-        box: mapCropBoxToPage(crop.box, result.box ?? { page: 0, x: 0, y: 0, w: 1, h: 1 }),
-      }
-    }
-    // 条件复验: 主观题 0/满分边界(高风险给分)二次采样,分歧大取三采中位
+    // 条件复验: 主观题 0/满分边界(高风险给分)二次采样,分歧大取三采中位。
+    // 触发只看 score;box 映射统一后置,复验选中二/三采时以其原始裁剪图
+    // 坐标为基准,不再出现"中位落在非首采时 box 未映射"的口径漂移。
     if (
       selfVerify &&
       questionKind(q) === 'subjective' &&
@@ -689,12 +818,26 @@ export async function gradePaperStaged(opts: GradePaperStagedOptions): Promise<A
         const second = await gradeOnce()
         if (Math.abs(second.score - result.score) > dualTolerance(q.fullMark)) {
           const third = await gradeOnce()
-          const median = [result.score, second.score, third.score].sort((a, b) => a - b)[1]
-          const picked = result.score === median ? result : second.score === median ? second : third
-          result = { ...picked, evidence: `${(picked.evidence ?? '').slice(0, 160)}(复验取中位)` }
+          const picked = pickMedianSample([result, second, third])
+          if (picked) {
+            result = {
+              ...picked,
+              evidence: `${(picked.evidence ?? '').slice(0, 160)}(复验取中位)`,
+              // 分歧大到要三采取中位: 采信中位分但登记待复核
+              confidence: 'medium' as const,
+            }
+          }
         }
       } catch (err) {
         log('warn', 'grading', `boundary verify failed: ${q.id}: ${errText(err)}`)
+      }
+    }
+    // box 坐标换算(选定后统一一次): 裁剪图内的相对 box → 整页;
+    // 无裁剪时模型 box 已是整页口径
+    if (crop) {
+      result = {
+        ...result,
+        box: mapCropBoxToPage(crop.box, result.box ?? { page: 0, x: 0, y: 0, w: 1, h: 1 }),
       }
     }
     results.push(result)

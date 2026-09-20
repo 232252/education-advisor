@@ -29,6 +29,7 @@ vi.mock('electron', () => ({
 }))
 
 import { gradingService } from '../../src/main/services/grading/grading-service'
+import { academicService } from '../../src/main/services/academic-service'
 
 const baseDir = path.join(mocks.userDataDir, 'grading')
 
@@ -495,6 +496,242 @@ describe('gradingService — 批改模式与双评附加字段', () => {
     const rolled = afterRoll.papers.find((p) => p.id === paperId)
     expect(rolled?.aiSecondary?.totalScore).toBe(30)
     expect(rolled?.disputedQuestions).toEqual(['q-1'])
+    await gradingService.deleteTask(task.id)
+  })
+})
+
+describe('gradingService — 多页 PDF 拆份导入与 appendPaperPages 合并', () => {
+  beforeAll(async () => {
+    await fsp.mkdir(mocks.userDataDir, { recursive: true })
+  })
+  afterAll(async () => {
+    try {
+      await fsp.rm(mocks.userDataDir, { recursive: true, force: true })
+    } catch {
+      /* ignore */
+    }
+  })
+
+  // ---- n 页文字 PDF 夹具(xref 偏移精确计算) ----
+
+  function assemblePdf(objects: Buffer[]): Buffer {
+    const parts: Buffer[] = [Buffer.from('%PDF-1.4\n')]
+    const offsets: number[] = []
+    let pos = parts[0].length
+    for (const [idx, body] of objects.entries()) {
+      offsets.push(pos)
+      const head = Buffer.from(`${idx + 1} 0 obj\n`)
+      const tail = Buffer.from('\nendobj\n')
+      parts.push(head, body, tail)
+      pos += head.length + body.length + tail.length
+    }
+    const xrefPos = pos
+    const size = objects.length + 1
+    const lines = [`xref\n0 ${size}\n0000000000 65535 f \n`]
+    for (const off of offsets) lines.push(`${String(off).padStart(10, '0')} 00000 n \n`)
+    lines.push(`trailer\n<< /Size ${size} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`)
+    parts.push(Buffer.from(lines.join('')))
+    return Buffer.concat(parts)
+  }
+
+  function streamObj(dict: string, content: Buffer): Buffer {
+    const head = Buffer.from(`<< ${dict} /Length ${content.length} >>\nstream\n`)
+    return Buffer.concat([head, content, Buffer.from('\nendstream')])
+  }
+
+  /** n 页电子排版 PDF: 1=Catalog 2=Pages,第 i 页 Page=(3+2i)/Contents=(4+2i),末尾 Font */
+  function buildTextPdfPages(n: number): Buffer {
+    const objects: Buffer[] = []
+    const kids = Array.from({ length: n }, (_, i) => `${3 + 2 * i} 0 R`).join(' ')
+    objects.push(Buffer.from('<< /Type /Catalog /Pages 2 0 R >>'))
+    objects.push(Buffer.from(`<< /Type /Pages /Kids [${kids}] /Count ${n} >>`))
+    for (let i = 0; i < n; i++) {
+      const content = Buffer.from(`BT /F1 24 Tf 72 720 Td (Page ${i + 1}) Tj ET`, 'latin1')
+      objects.push(
+        Buffer.from(
+          `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${3 + 2 * n} 0 R >> >> /Contents ${4 + 2 * i} 0 R >>`,
+        ),
+      )
+      objects.push(streamObj('', content))
+    }
+    objects.push(Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'))
+    return assemblePdf(objects)
+  }
+
+  it('importPapers: 3 页多学生 PDF → 3 份试卷各 1 页(每页一批)', async () => {
+    const task = await gradingService.createTask({ name: '多学生PDF', semester: 's' })
+    const pdfPath = path.join(mocks.userDataDir, 'bundle.pdf')
+    await fsp.writeFile(pdfPath, buildTextPdfPages(3))
+    const imported = await gradingService.importPapers(task.id, [{ files: [{ path: pdfPath }] }])
+    expect(imported.papers).toHaveLength(3)
+    expect(imported.papers.every((p) => p.files.length === 1)).toBe(true)
+    expect(imported.papers.every((p) => p.studentName === null && p.status === 'unassigned')).toBe(
+      true,
+    )
+    // 每份文件名带页号且按 PDF 页序(identify 归组依赖导入顺序 = 页序)
+    expect(imported.papers.map((p) => p.files[0]?.name)).toEqual([
+      'bundle-p1.jpg',
+      'bundle-p2.jpg',
+      'bundle-p3.jpg',
+    ])
+    await gradingService.deleteTask(task.id)
+  })
+
+  it('appendPaperPages: files 按导入顺序并入 anchor,source 移除,物理文件保留可读', async () => {
+    const task = await gradingService.createTask({ name: '续页合并', semester: 's' })
+    const a1 = await makeImage('merge-a1.jpg')
+    const a2 = await makeImage('merge-a2.jpg')
+    const b1 = await makeImage('merge-b1.jpg')
+    const imported = await gradingService.importPapers(task.id, [
+      { files: [{ path: a1, name: 'a1.jpg' }, { path: a2, name: 'a2.jpg' }] },
+      { files: [{ path: b1, name: 'b1.jpg' }] },
+    ])
+    const anchor = imported.papers[0]
+    const source = imported.papers[1]
+    const merged = await gradingService.appendPaperPages(task.id, anchor.id, source.id)
+    // source 记录消失,只剩 anchor 一份
+    expect(merged.papers).toHaveLength(1)
+    expect(merged.papers[0]?.id).toBe(anchor.id)
+    // files 按导入顺序追加
+    expect(merged.papers[0]?.files.map((f) => f.name)).toEqual(['a1.jpg', 'a2.jpg', 'b1.jpg'])
+    // 物理文件不删不移: 全部(含 source 的)仍可按 storedName 读到
+    for (const f of merged.papers[0]?.files ?? []) {
+      const buf = await fsp.readFile(gradingService.paperFilePath(task.id, f.storedName))
+      expect(buf.length).toBe(1024)
+    }
+    const stored = await fsp.readdir(path.join(baseDir, 'files', task.id))
+    expect(stored).toHaveLength(3)
+    await gradingService.deleteTask(task.id)
+  })
+
+  it('appendPaperPages: anchor/source 已批改拒绝;同 id 与未知 id 拒绝', async () => {
+    const task = await gradingService.createTask({
+      name: '合并拒绝',
+      semester: 's',
+      rubric: [{ id: 'q-1', title: '一', fullMark: 10, order: 1 }],
+    })
+    const imported = await gradingService.importPapers(task.id, [
+      { files: [{ path: await makeImage('c1.jpg') }] },
+      { files: [{ path: await makeImage('c2.jpg') }] },
+      { files: [{ path: await makeImage('c3.jpg') }] },
+    ])
+    const p1 = imported.papers[0]
+    const p2 = imported.papers[1]
+    const p3 = imported.papers[2]
+    await expect(gradingService.appendPaperPages(task.id, p1.id, p1.id)).rejects.toThrow('同一份')
+    await expect(
+      gradingService.appendPaperPages(task.id, p1.id, 'paper-nope'),
+    ).rejects.toThrow('试卷不存在')
+    // anchor 已批改(补录场景)→ 拒绝
+    await gradingService.assignPaper(task.id, p1.id, '张三')
+    await gradingService.saveAiResult(task.id, p1.id, {
+      questions: [{ questionId: 'q-1', score: 5 }],
+      totalScore: 5,
+      model: { provider: 'p', model: 'm' },
+      finishedAt: new Date().toISOString(),
+    })
+    await expect(gradingService.appendPaperPages(task.id, p1.id, p2.id)).rejects.toThrow(
+      '不能自动合并续页',
+    )
+    // source 已批改 → 拒绝(干净的 p3 作 anchor、已批改的 p1 作 source)
+    await expect(gradingService.appendPaperPages(task.id, p3.id, p1.id)).rejects.toThrow(
+      '不能作为续页并入',
+    )
+    await gradingService.deleteTask(task.id)
+  })
+})
+
+describe('gradingService — 主结果量规覆盖与发布重试', () => {
+  beforeAll(async () => {
+    await fsp.mkdir(mocks.userDataDir, { recursive: true })
+  })
+  afterAll(async () => {
+    try {
+      await fsp.rm(mocks.userDataDir, { recursive: true, force: true })
+    } catch {
+      /* ignore */
+    }
+  })
+
+  it('saveAiResult: 主结果缺量规题目 → 拒绝并列出缺失题号', async () => {
+    const task = await gradingService.createTask({
+      name: '缺题拒绝',
+      semester: 's',
+      rubric: [
+        { id: 'q-1', title: '选择题', fullMark: 30, order: 1 },
+        { id: 'q-2', title: '解答题', fullMark: 20, order: 2 },
+      ],
+    })
+    const imported = await gradingService.importPapers(task.id, [
+      { files: [{ path: await makeImage('partial.jpg') }] },
+    ])
+    const paperId = imported.papers[0]?.id as string
+    await gradingService.assignPaper(task.id, paperId, '赵六')
+    await expect(
+      gradingService.saveAiResult(task.id, paperId, {
+        questions: [{ questionId: 'q-1', score: 5 }],
+        totalScore: 5,
+        model: { provider: 'p', model: 'm' },
+        finishedAt: new Date().toISOString(),
+      }),
+    ).rejects.toThrow(/q-2/)
+    await gradingService.deleteTask(task.id)
+  })
+
+  it('publishTask: batchSetGrades 失败后重试发布复用已回填 examId,不重复建考试', async () => {
+    const task = await gradingService.createTask({
+      name: '发布失败重试',
+      semester: 's',
+      rubric: [
+        { id: 'q-1', title: '选择题', fullMark: 30, order: 1 },
+        { id: 'q-2', title: '解答题', fullMark: 20, order: 2 },
+      ],
+    })
+    const imported = await gradingService.importPapers(task.id, [
+      { files: [{ path: await makeImage('pub-retry.jpg') }] },
+    ])
+    const paperId = imported.papers[0]?.id as string
+    await gradingService.assignPaper(task.id, paperId, '钱七')
+    await gradingService.saveAiResult(task.id, paperId, {
+      questions: [
+        { questionId: 'q-1', score: 28 },
+        { questionId: 'q-2', score: 15 },
+      ],
+      totalScore: 43,
+      model: { provider: 'p', model: 'm' },
+      finishedAt: new Date().toISOString(),
+    })
+    await gradingService.setStatus(task.id, 'ready')
+    await gradingService.setStatus(task.id, 'grading')
+    await gradingService.setStatus(task.id, 'review')
+
+    const createExamSpy = vi
+      .spyOn(academicService, 'createExam')
+      .mockImplementation(async (input) => ({
+        ...input,
+        id: 'exam-retry-1',
+        createdAt: '2026-09-20T00:00:00.000Z',
+      }))
+    const batchSpy = vi
+      .spyOn(academicService, 'batchSetGrades')
+      .mockRejectedValueOnce(new Error('成绩写盘失败'))
+      .mockResolvedValue(3)
+
+    // 第一次发布: 写成绩失败 → 抛错,但 examId 已先行落盘
+    await expect(gradingService.publishTask(task.id)).rejects.toThrow('成绩写盘失败')
+    const persisted = await gradingService.getTask(task.id)
+    expect(persisted.publishedExamId).toBe('exam-retry-1')
+    expect(persisted.status).toBe('review') // 终态未写
+
+    // 恢复后重试: 走 examId 复用分支,createExam 只调用过一次
+    const published = await gradingService.publishTask(task.id)
+    expect(published.task.status).toBe('published')
+    expect(published.published).toBe(3) // 两题 + 总分
+    expect(createExamSpy).toHaveBeenCalledTimes(1)
+    expect(batchSpy).toHaveBeenCalledTimes(2)
+
+    createExamSpy.mockRestore()
+    batchSpy.mockRestore()
     await gradingService.deleteTask(task.id)
   })
 })

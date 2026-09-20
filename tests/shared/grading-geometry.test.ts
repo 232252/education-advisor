@@ -12,6 +12,7 @@ import {
   orientQuadForSpec,
   PAPER_SPECS,
   paperSpecById,
+  paperSpecToPdfPageSize,
   paperSpecToPrintPageSize,
   quadAreaPx,
   quadIsUsable,
@@ -241,6 +242,39 @@ describe('paperSpecToPrintPageSize', () => {
 
   it('未知 id 回落 A4', () => {
     expect(paperSpecToPrintPageSize(paperSpecById('nope'))).toBe('A4')
+  })
+})
+
+describe('paperSpecToPdfPageSize — printToPDF 英寸口径(与 print 微米互斥)', () => {
+  it('A4/A3 同样走原生枚举(两个打印 API 都接受枚举字符串)', () => {
+    expect(paperSpecToPdfPageSize(paperSpecById('a4'))).toBe('A4')
+    expect(paperSpecToPdfPageSize(paperSpecById('a3'))).toBe('A3')
+    expect(paperSpecToPdfPageSize(paperSpecById('nope'))).toBe('A4')
+  })
+
+  it('B5/8K/16K 输出英寸对象,×25.4 与 spec 毫米一致(容差 0.05mm)', () => {
+    for (const id of ['b5', '8k', '16k']) {
+      const spec = paperSpecById(id)
+      const pdf = paperSpecToPdfPageSize(spec)
+      expect(typeof pdf).toBe('object')
+      const size = pdf as { width: number; height: number }
+      expect(size.width * 25.4).toBeCloseTo(spec.widthMm, 1) // 0.05mm 容差内
+      expect(size.height * 25.4).toBeCloseTo(spec.heightMm, 1)
+    }
+    // 具体换算值锁定: B5 = 176×250mm → 6.929×9.843in
+    expect(paperSpecToPdfPageSize(paperSpecById('b5'))).toEqual({ width: 6.929, height: 9.843 })
+  })
+
+  it('与 paperSpecToPrintPageSize(微米)数值不同 — 防跨 API 复用换算', () => {
+    const pdf = paperSpecToPdfPageSize(paperSpecById('b5')) as { width: number; height: number }
+    const print = paperSpecToPrintPageSize(paperSpecById('b5')) as {
+      width: number
+      height: number
+    }
+    expect(pdf.width).toBeLessThan(10) // 英寸量级
+    expect(print.width).toBe(176000) // 微米量级
+    expect(pdf.width).not.toBe(print.width)
+    expect(pdf.height).not.toBe(print.height)
   })
 })
 

@@ -23,6 +23,12 @@ const fromFilesParams = Type.Object({
   homework_paths: Type.Array(Type.String(), {
     description: '学生作业本地绝对路径:照片 / PDF(电子版或扫描件) / 照片 zip(可按姓名分文件夹)',
   }),
+  roster_paths: Type.Optional(
+    Type.Array(Type.String(), {
+      description:
+        '花名册文件本地绝对路径(xlsx/xls/csv/md/txt/yaml,可选):卷面姓名归组优先用它,与 eaa 学生名单合并去重;不提供则只用 eaa 学生名单',
+    }),
+  ),
   auto_publish: Type.Optional(
     Type.Boolean({
       description: '批改完成后是否写入学业成绩(学生学业页/档案可查)。默认 true',
@@ -47,7 +53,7 @@ export const gradingFromFilesTool: AgentTool<typeof fromFilesParams> = {
   name: 'eaa_grading_from_files',
   label: '从附件创建批改任务',
   description:
-    '教师在对话里发了原卷+学生作业(PDF/照片/zip)后调用:自动建任务、从原卷抽量规、导入作业、按花名册认人、启动视觉模型逐份批改。批改走 pi-ai,量规进 system prompt 并开短缓存(整班 50–60 人时后续份应命中 cacheRead)。默认批完写入学业。必须 confirm:true',
+    '教师在对话里发了原卷+学生作业(PDF/照片/zip)后调用:自动建任务、从原卷抽量规、导入作业、按花名册认人(多学生 PDF 自动拆份、同一学生多页自动合并)、启动视觉模型逐份批改。批改走 pi-ai,量规进 system prompt 并开短缓存(整班 50–60 人时后续份应命中 cacheRead)。默认批完写入学业。必须 confirm:true',
   parameters: fromFilesParams,
   execute: async (_toolCallId, params) => {
     if (!params.confirm) {
@@ -63,6 +69,7 @@ export const gradingFromFilesTool: AgentTool<typeof fromFilesParams> = {
       gradingMode: params.grading_mode,
       samplePaths: params.sample_paths,
       homeworkPaths: params.homework_paths,
+      rosterPaths: params.roster_paths,
       autoPublish: params.auto_publish,
     })
     return jsonResult(result, result.hint)

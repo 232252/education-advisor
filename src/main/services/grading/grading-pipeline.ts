@@ -45,10 +45,50 @@ import { KEYLESS_PROVIDERS } from '../ollama/constants'
 import { resolveModel } from '../pi-ai/model-utils'
 import { settingsService } from '../settings-service'
 import { gradingService } from './grading-service'
-import { gradePaperStaged, type StagedStageInfo } from './staged-pipeline'
+import { gradePaperStaged, type StagedSharedContext, type StagedStageInfo } from './staged-pipeline'
 
 /** 单份试卷批改的输出 token 上限(逐题 JSON+box+批注;每题都出 box 后上调) */
 const GRADING_MAX_TOKENS = 8192
+
+/**
+ * fast 档输出预算自适应: 量规超过 8 题的部分每题 +512(逐题 JSON+box+批注
+ * 的实际体积),仍被 model.maxTokens 钳制——防输出截断→缺题→saveAiResult
+ * 拒绝→整卷 failed→重跑的真浪费。测试见 grading-pipeline.test.ts。
+ */
+export function fastGradeMaxTokens(rubricCount: number, modelMaxTokens?: number): number {
+  const n = Number.isFinite(rubricCount) && rubricCount > 0 ? Math.floor(rubricCount) : 0
+  const budget = GRADING_MAX_TOKENS + 512 * Math.max(0, n - 8)
+  return modelMaxTokens && modelMaxTokens > 0 ? Math.min(budget, modelMaxTokens) : budget
+}
+
+// ===== 重试口径: 错误分类(staged withRetry 与 regrade 外层共用) =====
+
+/**
+ * 解析类错误消息(批改/转写/定位输出无法解析成有效结果,含落库校验拒绝)。
+ * 这类错误重试大概率原样复现(同一模型对同一输入),徒增一次全量输入
+ * 词耗——staged-pipeline 的 withRetry 与 regradePapers 外层 for attempt<2
+ * 共用 isGradingParseError: 命中即直接上抛,不再消耗重试次数。
+ */
+const PARSE_ERROR_MESSAGES = [
+  '批改输出不是有效 JSON',
+  '批改输出缺少 questions 数组',
+  '批改输出没有可识别的题目得分',
+  '输出不是 JSON 对象',
+  '转写输出没有可用的小题作答',
+  '单题批改输出缺少有效 score',
+  '分阶段批改没有产出任何题目结果',
+  'AI 结果缺少量规题目',
+  'AI 结果含未知题目',
+  'AI 分数越界',
+  '双评第二模型结果含未知题目',
+  '双评第二模型分数越界',
+] as const
+
+/** 是否解析类错误(传输/中止类返回 false,照常走重试) */
+export function isGradingParseError(err: unknown): boolean {
+  const msg = errText(err)
+  return PARSE_ERROR_MESSAGES.some((m) => msg.includes(m))
+}
 
 /** 批改进度事件负载(主→渲染) */
 export interface GradingProgressPayload {
@@ -403,7 +443,7 @@ async function gradePaperOnce(
     },
     {
       apiKey,
-      maxTokens: GRADING_MAX_TOKENS,
+      maxTokens: fastGradeMaxTokens(task.rubric.length, model.maxTokens),
       signal,
       // 同一任务量规不变: 打开短缓存,整班 50–60 份时后续请求应大量 cacheRead
       cacheRetention: 'short',
@@ -433,8 +473,9 @@ export interface PaperGradeOutcome {
  * 三档批改策略路由(任务 gradingStrategy 字段):
  * fast=整卷一次调用(快改,不复验); standard=分阶段管线+同模型条件复验;
  * dual=两个视觉模型各跑分阶段管线,阈值内取均值/超阈值记分歧(教师仲裁)。
+ * 导出供集成测试(dual 共享 locate/页缓存的调用计数断言)。
  */
-async function gradePaperByStrategy(
+export async function gradePaperByStrategy(
   task: GradingTask,
   paperId: string,
   model: Model<Api>,
@@ -449,6 +490,9 @@ async function gradePaperByStrategy(
     return { result: await gradePaperOnce(task, paperId, model, apiKey, signal) }
   }
   if (strategy === 'dual' && model2 && apiKey2) {
+    // 双评共享一次 locate 与页缓存: 几何定位/读盘不是评分判断,共享不损
+    // 双评独立性;两个模型各自的 grade/transcribe 调用照常独立计数。
+    const shared: StagedSharedContext = {}
     const primary = await gradePaperStaged({
       task,
       paperId,
@@ -457,6 +501,7 @@ async function gradePaperByStrategy(
       signal,
       selfVerify: false,
       onStage,
+      shared,
     })
     const secondary = await gradePaperStaged({
       task,
@@ -466,6 +511,7 @@ async function gradePaperByStrategy(
       signal,
       selfVerify: false,
       onStage,
+      shared,
     })
     const { merged, disputes } = mergeDualResults(primary, secondary, task.rubric)
     // 用量合并双模型(诚实计量)
@@ -871,7 +917,8 @@ export async function regradePapers(
           total: ids.length,
         })
         try {
-          // 重试一次: 小模型偶发空输出/非 JSON(实测 0.5s 瞬时失败),重试通常即过
+          // 重试一次: 小模型偶发空输出/瞬时传输失败(实测 0.5s 级),重试通常即过;
+          // 解析类错误(isGradingParseError)不再整体重试,直接上抛标 failed
           const onStage = (info: StagedStageInfo) =>
             pushProgress(win, {
               taskId,
@@ -902,6 +949,9 @@ export async function regradePapers(
             } catch (err) {
               lastErr = err
               if (controller.signal.aborted) throw err
+              // 解析类错误重试大概率原样复现,不消耗第二次整卷调用
+              // (与 staged-pipeline withRetry 同一分类器双路收敛)
+              if (isGradingParseError(err)) throw err
             }
           }
           if (!outcome) throw lastErr ?? new Error('批改未产出结果')

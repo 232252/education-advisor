@@ -9,7 +9,7 @@
 // (examId, subjectId) upsert,重复发布=覆盖。
 // =============================================================
 
-import { effectiveQuestionScore, effectiveTotalScore } from '@shared/grading-helpers'
+import { effectiveQuestionScore, effectiveTotalScoreForRubric } from '@shared/grading-helpers'
 import type { ExamDef, GradeRecord, GradingTask } from '@shared/types'
 
 /** 总分科目 id(展示层直接回退显示该字符串) */
@@ -36,7 +36,8 @@ export function questionSubjectIds(rubric: GradingTask['rubric']): string[] {
 
 /**
  * 构造发布载荷(纯函数):
- * - 只发布"有归属学生且整卷生效分完整"的试卷
+ * - 只发布"有归属学生且整卷生效分完整(按量规口径,AI 缺题须教师覆盖补齐)"的
+ *   试卷 — 缺题卷整卷进 skipped,不发"总分=部分和、逐题缺一科"的记录
  * - 总分记录与逐题记录同批写入;note 标注 AI 批改溯源
  */
 export function buildPublishPayload(task: GradingTask): PublishPayload {
@@ -77,7 +78,7 @@ export function buildPublishPayload(task: GradingTask): PublishPayload {
       })
       continue
     }
-    const total = effectiveTotalScore(paper)
+    const total = effectiveTotalScoreForRubric(paper, task.rubric)
     if (total === null) {
       skipped.push({ paperId: paper.id, studentName: paper.studentName, reason: '分数不完整' })
       continue
@@ -85,7 +86,7 @@ export function buildPublishPayload(task: GradingTask): PublishPayload {
     for (const [i, q] of task.rubric.entries()) {
       const score = effectiveQuestionScore(paper, q.id)
       if (score === null) {
-        // 理论不可达(effectiveTotalScore 非 null 已保证逐题有分),防御性跳过
+        // 理论不可达(量规口径总分非 null 已保证逐题有分),防御性跳过
         skipped.push({ paperId: paper.id, studentName: paper.studentName, reason: '分数不完整' })
         continue
       }

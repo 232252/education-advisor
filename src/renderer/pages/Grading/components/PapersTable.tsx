@@ -23,6 +23,8 @@ interface PapersTableProps {
   onImport: (taskId: string, batches: Array<{ files: Array<{ path: string }> }>) => Promise<boolean>
   onAssign: (taskId: string, paperId: string, studentName: string | null) => Promise<boolean>
   onRemove: (taskId: string, paperId: string) => Promise<boolean>
+  /** 多页归组人工合并: 把这份的页面并入该生已有卷(自动识别兜不住时教师指路) */
+  onMerge?: (taskId: string, anchorId: string, sourceId: string) => Promise<boolean>
   onReview?: (paperId: string) => void
   /** 导出单份批阅痕迹(打印/PDF) */
   onExportMarks?: (paperId: string) => void
@@ -52,6 +54,7 @@ export function PapersTable({
   onImport,
   onAssign,
   onRemove,
+  onMerge,
   onReview,
   onExportMarks,
   exportMarksLoading = false,
@@ -62,6 +65,12 @@ export function PapersTable({
   const [importing, setImporting] = useState(false)
   // 重改两段式确认(覆盖上次 AI 结果与复核,需显式确认;同 TaskDetail.confirmDelete 惯例)
   const [confirmRegradeId, setConfirmRegradeId] = useState<string | null>(null)
+  // 指派到「已有试卷的学生」时的三选(并入续页/另立一份/取消)
+  const [mergeChoice, setMergeChoice] = useState<{
+    paperId: string
+    student: string
+    anchorId: string
+  } | null>(null)
 
   const activeStudents = useMemo(() => students.filter((s) => s.status === 'Active'), [students])
 
@@ -107,6 +116,39 @@ export function PapersTable({
       const ok = await onAssign(task.id, paperId, name)
       if (!ok) break
     }
+  }
+
+  /** 指派入口: 目标学生名下已有可并卷(无 AI 结果)时,先问并入还是另立 */
+  const handleSelectStudent = async (paperId: string, studentName: string | null) => {
+    if (studentName === null || studentName === '') {
+      await onAssign(task.id, paperId, null)
+      return
+    }
+    if (onMerge) {
+      const owner = task.papers.find(
+        (p) => p.studentName === studentName && p.id !== paperId && !p.ai,
+      )
+      if (owner) {
+        // 只置确认态不改归属: select 受控于 paper.studentName,自动弹回未选
+        setMergeChoice({ paperId, student: studentName, anchorId: owner.id })
+        return
+      }
+    }
+    await onAssign(task.id, paperId, studentName)
+  }
+
+  const confirmMerge = async () => {
+    if (!mergeChoice || !onMerge) return
+    const { paperId, anchorId } = mergeChoice
+    setMergeChoice(null)
+    await onMerge(task.id, anchorId, paperId)
+  }
+
+  const mergeAsSeparate = async () => {
+    if (!mergeChoice) return
+    const { paperId, student } = mergeChoice
+    setMergeChoice(null)
+    await onAssign(task.id, paperId, student)
   }
 
   return (
@@ -196,7 +238,7 @@ export function PapersTable({
                     <select
                       value={paper.studentName ?? ''}
                       disabled={busy}
-                      onChange={(e) => void onAssign(task.id, paper.id, e.target.value || null)}
+                      onChange={(e) => void handleSelectStudent(paper.id, e.target.value || null)}
                       className={INPUT_BASE}
                       aria-label={t('page.grading.papers.assignTo')}
                     >
@@ -236,7 +278,7 @@ export function PapersTable({
                               <button
                                 key={c}
                                 type="button"
-                                onClick={() => void onAssign(task.id, paper.id, c)}
+                                onClick={() => void handleSelectStudent(paper.id, c)}
                                 disabled={busy}
                                 className="rounded bg-blue-50 px-1.5 py-px text-blue-600 hover:bg-blue-100 disabled:opacity-50 dark:bg-blue-500/15 dark:text-blue-300"
                               >
@@ -249,6 +291,43 @@ export function PapersTable({
                             {t('page.grading.papers.identityNoMatch')}
                           </span>
                         )}
+                      </div>
+                    )}
+                    {/* 该生名下已有卷: 并入续页 / 另立一份 / 取消(同 regrade 内联确认惯例) */}
+                    {mergeChoice?.paperId === paper.id && (
+                      <div className="mt-1 inline-flex flex-wrap items-center gap-1 text-[11px]">
+                        <span className="text-amber-600 dark:text-amber-300">
+                          {tr('page.grading.papers.mergeOffer', { name: mergeChoice.student })}
+                        </span>
+                        {onMerge && (
+                          <button
+                            type="button"
+                            onClick={() => void confirmMerge()}
+                            disabled={busy}
+                            title={t(
+                              'page.grading.papers.mergeTitle',
+                              '把这份的页面按导入顺序追加到该生已有试卷末尾',
+                            )}
+                            className="rounded bg-amber-50 px-1.5 py-px font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50 dark:bg-amber-500/20 dark:text-amber-300"
+                          >
+                            {t('page.grading.papers.mergeConfirm', '并入续页')}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void mergeAsSeparate()}
+                          disabled={busy}
+                          className="rounded bg-gray-100 px-1.5 py-px text-gray-600 hover:bg-gray-200 disabled:opacity-50 dark:bg-white/10 dark:text-gray-300"
+                        >
+                          {t('page.grading.papers.mergeSeparate', '另立一份')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMergeChoice(null)}
+                          className="text-gray-400 hover:underline"
+                        >
+                          {t('common.cancel')}
+                        </button>
                       </div>
                     )}
                   </td>

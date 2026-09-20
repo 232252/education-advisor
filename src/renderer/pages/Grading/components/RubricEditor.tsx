@@ -8,7 +8,7 @@
 // =============================================================
 
 import type { ExtractedRubricQuestion } from '@shared/api/grading'
-import { questionKind } from '@shared/grading-helpers'
+import { questionKind, SAMPLE_PICK_EXTENSIONS } from '@shared/grading-helpers'
 import type { PresetMark, RubricQuestion } from '@shared/types'
 import { useState } from 'react'
 import { tr, useT } from '../../../i18n'
@@ -21,13 +21,9 @@ interface RubricEditorProps {
   onChange: (next: RubricQuestion[]) => void
 }
 
-// 「从样卷识别」接受的文件类型(图片/PDF/Word/Markdown;主进程 sample-ingest 深校验)
-const SAMPLE_FILTERS = [
-  {
-    name: 'Sample papers',
-    extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'pdf', 'docx', 'md', 'txt'],
-  },
-]
+// 「从样卷识别」接受的文件类型与主进程 sample-ingest 同源(@shared 单一来源;
+// 表格/压缩包也能当答案参考——主进程做魔数嗅探与深度解析)
+const SAMPLE_FILTERS = [{ name: 'Sample papers', extensions: [...SAMPLE_PICK_EXTENSIONS] }]
 
 function nextQuestionId(value: RubricQuestion[]): string {
   let max = 0

@@ -135,6 +135,15 @@ export function useGradingData() {
     [runMutation],
   )
 
+  const mergePapers = useCallback(
+    async (taskId: string, anchorId: string, sourceId: string) =>
+      runMutation(
+        () => getAPI().grading.mergePapers(taskId, anchorId, sourceId),
+        t('page.grading.papers.mergedNotice', '续页已并入该生试卷'),
+      ),
+    [runMutation, t],
+  )
+
   const setStatus = useCallback(
     async (taskId: string, status: GradingTaskStatus) =>
       runMutation(() => getAPI().grading.setStatus(taskId, status)),
@@ -193,7 +202,19 @@ export function useGradingData() {
       }
       const assigned = r.data?.assigned ?? 0
       const unresolved = r.data?.unresolved ?? 0
-      setNotice(tr('page.grading.identify.done', { assigned, unresolved }))
+      const merged = r.data?.merged ?? 0
+      const continuationMerged = r.data?.continuationMerged ?? 0
+      const duplicates = r.data?.duplicates ?? []
+      setNotice(
+        tr('page.grading.identify.done', { assigned, unresolved }) +
+          (merged > 0 ? tr('page.grading.identify.mergedSuffix', { merged }) : '') +
+          (continuationMerged > 0
+            ? tr('page.grading.identify.continuationSuffix', { merged: continuationMerged })
+            : '') +
+          (duplicates.length > 0
+            ? tr('page.grading.identify.duplicatesSuffix', { names: duplicates.join('、') })
+            : ''),
+      )
       await refresh()
       return true
     },
@@ -268,6 +289,7 @@ export function useGradingData() {
     importPapers,
     assignPaper,
     removePaper,
+    mergePapers,
     setStatus,
     refresh,
     runGrading,

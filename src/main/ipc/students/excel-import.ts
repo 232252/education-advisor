@@ -5,6 +5,8 @@
 // 已存在学生仍可导入——用于补写档案（身份证/电话等）
 // =============================================================
 
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import type { RosterHeaderIndexes, RosterProfilePatch } from '@shared/roster-profile'
 import {
   findRosterHeaderRow,
@@ -21,6 +23,7 @@ import type {
   StudentImportRowError,
 } from '@shared/types'
 import * as XLSX from 'xlsx'
+import { decodeTextBuffer } from '../../services/grading/sample-ingest'
 import { sanitizeName, validatePathSafety } from '../../utils/sanitize'
 
 /** 模板表头（中文列名；解析端同时接受 name/student_id 等英文别名） */
@@ -39,12 +42,15 @@ export function resolveHeaderIndexes(headerRow: unknown[]): HeaderIndexes | null
   return resolveRosterHeaders(headerRow)
 }
 
+/** 主进程路白名单: 收 .csv(SheetJS readFile 对 csv 透明解析,GBK 中文 csv 见 roster-file) */
+export const ALLOWED_EXCEL_EXTS = ['.xlsx', '.xls', '.csv']
+
 /**
- * 校验 Excel 文件路径(防护与 eaa 域同款:NUL/遍历/扩展名白名单,统一走 sanitize)
+ * 校验 Excel/CSV 文件路径(防护与 eaa 域同款:NUL/遍历/扩展名白名单,统一走 sanitize)
  */
 export function validateExcelFilePath(
   filePath: string,
-  allowedExts: string[] = ['.xlsx', '.xls'],
+  allowedExts: string[] = ALLOWED_EXCEL_EXTS,
 ): { ok: true } | { ok: false; error: string } {
   if (typeof filePath !== 'string' || filePath.length === 0) {
     return { ok: false, error: 'filePath must be a non-empty string' }
@@ -222,9 +228,16 @@ export interface ExcelSheetMatrix {
   matrix: unknown[][]
 }
 
-/** 读取全部工作表为矩阵（空表也返回，供导入端决定跳过） */
+/**
+ * 读取全部工作表为矩阵（空表也返回，供导入端决定跳过）。
+ * csv 是文本: 先按 GBK 兜底解码再按字符串读 — SheetJS 对字节输入默认
+ * 按 cp1252 读 csv,中文(utf8 或 ANSI)会乱码成非法姓名。
+ */
 export function readExcelSheets(filePath: string): ExcelSheetMatrix[] {
-  const workbook = XLSX.readFile(filePath)
+  const isCsv = path.extname(filePath).toLowerCase() === '.csv'
+  const workbook = isCsv
+    ? XLSX.read(decodeTextBuffer(readFileSync(filePath)), { type: 'string' })
+    : XLSX.readFile(filePath)
   if (workbook.SheetNames.length === 0) {
     throw new Error('Excel 文件中没有工作表')
   }

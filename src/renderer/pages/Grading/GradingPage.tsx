@@ -200,6 +200,7 @@ export function GradingPage() {
                 onImportPapers={grading.importPapers}
                 onAssignPaper={grading.assignPaper}
                 onRemovePaper={grading.removePaper}
+                onMergePapers={grading.mergePapers}
                 onRunGrading={grading.runGrading}
                 onRegradePapers={grading.regradePapers}
                 onIdentifyPapers={grading.identifyPapers}
