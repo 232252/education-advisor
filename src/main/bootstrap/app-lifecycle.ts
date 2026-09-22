@@ -15,6 +15,7 @@ import { configureDshRuntime, resolveDshEntryPath } from '../services/dsh/runtim
 import { ensureActiveEaaToolBridge, stopActiveEaaToolBridge } from '../services/dsh/tool-bridge'
 import { keystoreService } from '../services/keystore-service'
 import { resolveAppDataDir, resolveEaaDataDir } from '../services/paths'
+import { resolveModel } from '../services/pi-ai/model-utils'
 import { settingsService } from '../services/settings-service'
 import { syncNativeTheme } from '../services/theme-service'
 import { initTray, refreshTrayMenu } from '../services/tray-service'
@@ -58,7 +59,12 @@ export async function startApp(): Promise<void> {
   // dshBin 同样必须在这里注入：打包态主进程在 app.asar 内,而 SDK 起的纯 node
   // 子进程读不到归档,只能给它归档外(app.asar.unpacked)的真实路径。
   const dshBin = resolveDshEntryPath(app.getAppPath())
-  configureDshRuntime({ cwd: app.getPath('userData'), dshBin })
+  configureDshRuntime({
+    cwd: app.getPath('userData'),
+    dshBin,
+    // patch 里钉住的那条路由要带 models 条目，模型字段以 app 的 pi 目录为准
+    routeModel: (route, modelId) => resolveModel(route, modelId),
+  })
   if (!dshBin) {
     log(
       'warn',
@@ -73,6 +79,9 @@ export async function startApp(): Promise<void> {
     listProviders: () => keystoreService.listProviders(),
     getApiKey: (providerId) => keystoreService.getApiKey(providerId),
     dshRoutes: () => settingsService.getSettings().models?.dshRoutes,
+    // 路由级覆盖的来源：自定义 Base URL、retry.*、cacheRetention、自定义模型列表。
+    // 不注入的话 dsh 子进程只带 apiKeyEnv，用户配的网关会被静默忽略。
+    modelsSettings: () => settingsService.getSettings().models,
   })
   // 只有 dsh 后端需要工具桥：把 app 的 eaa 工具经 MCP streamable-http 暴露给
   // dsh 子进程（SDK 本身没有注册工具的入口）。缺省 pi 后端时完全不起服务。

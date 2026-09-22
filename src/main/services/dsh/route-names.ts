@@ -27,13 +27,21 @@ export const DSH_BUILTIN_ROUTE_ALIASES: Readonly<Record<string, string>> = {
 /**
  * routes 是 settings.models.dshRoutes 的内容（pi provider id → dsh 路由 key）。
  * 用户显式改名优先，其次内建别名，最后同名直通 —— 不猜可用性。
+ *
+ * opts.customEndpoint = 该 provider 在 app 里声明了自建 Base URL。此时跳过内建别名：
+ * 内建那一行的 baseURL 是 dsh 自己写死的，app 的 patch 只能覆盖 llm-pi-ai 声明的
+ * 路由。用户在模型页填了网关/镜像还继续走别名，就是「界面显示网关、请求打到官方
+ * 端点」的静默错行为。
  */
 export function applyDshRoute(
   provider: string,
   modelId: string,
   routes?: Record<string, string>,
+  opts?: { customEndpoint?: boolean },
 ): DshRoute {
-  const mapped = routes?.[provider]?.trim() || DSH_BUILTIN_ROUTE_ALIASES[provider]
+  const aliased = DSH_BUILTIN_ROUTE_ALIASES[provider] && !opts?.customEndpoint
+  const mapped =
+    routes?.[provider]?.trim() || (aliased ? DSH_BUILTIN_ROUTE_ALIASES[provider] : undefined)
   return { providerId: mapped ? mapped : provider, modelId }
 }
 

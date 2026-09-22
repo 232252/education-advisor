@@ -399,6 +399,29 @@ describe('createDshRuntime（生产唯一构造入口）', () => {
     expect(opts.env.EAA_DSH_KIMI_API_KEY).toBe('sk-test')
     configureDshCredentials(null)
   })
+
+  it('钉住的那条路由在 patch 里自带 models 条目（dsh 不沿用 pi 目录，实测缺它就报 has no configured model）', () => {
+    configureDshCredentials({
+      listProviders: () => ['kimi'],
+      getApiKey: () => 'sk-test',
+    })
+    configureDshRuntime({
+      cwd: dir,
+      routeModel: (route, id) =>
+        route === 'kimi'
+          ? { id, contextWindow: 200000, maxTokens: 8192, input: ['text', 'image'] }
+          : undefined,
+    })
+    const rt = createDshRuntime({ cwd: dir, provider: 'kimi', model: 'k2-turbo' })
+    const patches = (rt as unknown as { opts: { patches: string[] } }).opts.patches
+    const text = readFileSync(patches[1] as string, 'utf8')
+    expect(text).toContain('id: k2-turbo')
+    expect(text).toContain('contextWindow: 200000')
+    expect(text).toContain('image')
+    // routeModel 是模块级注入，不复位会漏给后面的用例
+    configureDshRuntime({ cwd: dir })
+    configureDshCredentials(null)
+  })
 })
 
 describe('dshLaunchOptions', () => {

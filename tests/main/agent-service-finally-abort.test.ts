@@ -36,6 +36,13 @@ const mocks = vi.hoisted(() => {
     lastMount: null as unknown,
     dshRuntimeOpts: null as unknown,
     dshRuntimeBuilt: 0,
+    thinkingLevel: 'medium' as
+      | 'off'
+      | 'minimal'
+      | 'low'
+      | 'medium'
+      | 'high'
+      | 'xhigh',
   }
 })
 
@@ -199,7 +206,7 @@ vi.mock('../../src/main/services/settings-service', () => ({
         agentTimeoutMins: mocks.agentTimeoutMins,
       },
       chat: {
-        thinkingLevel: 'medium',
+        thinkingLevel: mocks.thinkingLevel,
         steeringMode: 'all',
         followUpMode: 'all',
         showImages: true,
@@ -421,12 +428,31 @@ describe('M15: Agent 超时错标修复 + 可配置', () => {
     expect(mocks.facadeAbortCount).toBe(1)
     // 挂的是这个角色的工具集，patch 只有它自己那一份
     expect((mocks.lastMount as { label: string }).label).toBe('test-backend-dsh')
-    expect(mocks.dshRuntimeOpts).toMatchObject({ patches: [expect.stringContaining('eaa-mcp-')] })
+    expect(mocks.dshRuntimeOpts).toMatchObject({
+      patches: [expect.stringContaining('eaa-mcp-')],
+      // 界面选的推理档位必须随 initialize 定死进子进程；凭据/端点指纹带着，
+      // 改了 key 或 Base URL 的下一轮才会换新进程
+      reasoningEffort: 'medium',
+      configFingerprint: '',
+    })
     // 提示词改写用的映射与端点同名，否则模型会按裸名调用不存在的工具
     const init = mocks.facadeInit as { toolNameMap: Record<string, string> }
     expect(Object.keys(init.toolNameMap)).toEqual(
       (mocks.lastMount as { tools: unknown[] }).tools.map((t) => (t as { name: string }).name),
     )
+    mocks.agentRuntime = 'pi'
+    cleanup()
+  })
+
+  it("thinkingLevel='off' 时不给子进程传 reasoningEffort（dsh 会把 off 当成不支持的值）", async () => {
+    mocks.agentRuntime = 'dsh'
+    mocks.thinkingLevel = 'off'
+    const cleanup = injectTestAgent('test-backend-dsh-off')
+    await agentService.runAgent('test-backend-dsh-off', 'test', makeFakeWindow() as never)
+    expect(
+      (mocks.dshRuntimeOpts as { reasoningEffort?: string }).reasoningEffort,
+    ).toBeUndefined()
+    mocks.thinkingLevel = 'medium'
     mocks.agentRuntime = 'pi'
     cleanup()
   })

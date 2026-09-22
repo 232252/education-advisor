@@ -88,6 +88,13 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
 
+# 不从源码重编原生模块：better-sqlite3 / node-pty / koffi 随包都带 N-API prebuilds，
+# 实测在 Electron 43 的 ABI(148) 与本机 node 的 ABI(147) 下都能 require 并跑通真实
+# SQL；而源码重编在本机会卡在 node-pty 的 MSB8040(要 VS 的 Spectre 库组件)，即使
+# 成功也会把 Electron ABI 的 build/Release/*.node 写进 node_modules，反过来让
+# vitest(纯 node)加载失败。关掉它等于把"上次产物里其实只有 prebuilds"这件事写明。
+npmRebuild: false
+
 asar: true
 asarUnpack:
   - "**/*.exe"

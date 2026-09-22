@@ -13,6 +13,7 @@
 // =============================================================
 
 import { settingsService } from '../settings-service'
+import { dshRouteBaseURL } from './profile-overrides'
 import { applyDshRoute, type DshRoute } from './route-names'
 
 export type { DshRoute } from './route-names'
@@ -20,11 +21,15 @@ export { DSH_BUILTIN_ROUTE_ALIASES } from './route-names'
 
 export function dshRouteFor(provider: string, modelId: string): DshRoute {
   let routes: Record<string, string> | undefined
+  let customEndpoint = false
   try {
-    routes = settingsService.getSettings().models?.dshRoutes
+    const models = settingsService.getSettings().models
+    routes = models?.dshRoutes
+    // 填了自建 Base URL 的 provider 不能被内建别名拐走（见 applyDshRoute）
+    customEndpoint = dshRouteBaseURL(models, provider) !== undefined
   } catch (err) {
     // 读不到设置时按同名直通，不能因一次读失败打断这次调用
     console.warn('[dsh] settings unreadable, using pi provider id as route:', err)
   }
-  return applyDshRoute(provider, modelId, routes)
+  return applyDshRoute(provider, modelId, routes, { customEndpoint })
 }

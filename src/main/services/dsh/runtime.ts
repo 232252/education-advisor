@@ -14,11 +14,12 @@ import { createRequire } from 'node:module'
 import { dirname, join, sep } from 'node:path'
 import type { StreamEvent, TokenUsage } from '@shared/types/ai'
 import { ensureEaaHardeningPatch } from './hardening'
+import { type DshRouteModelSource, dshRouteModelEntry } from './profile-overrides'
 import {
   dshProviderRouting,
   dshSubprocessEnv,
   ensureEaaProviderPatch,
-  providersWithKeys,
+  providersToDeclare,
 } from './provider-patch'
 import { mapDshSessionEvent } from './stream-mapper'
 import type { DshSessionEvent, DshSessionEventNotification } from './wire-types'
@@ -131,10 +132,23 @@ let runtimeCwd = process.cwd()
  */
 let runtimeDshBin: string | undefined
 
-export function configureDshRuntime(opts: { cwd: string; dshBin?: string }): void {
+/**
+ * 「路由名 + 模型 id → app 目录里的那个模型」，由 bootstrap 注入（pi-ai 的
+ * resolveModel）。patch 需要它来给钉住的那条路由补 models 条目：实测 dsh 的
+ * llm-pi-ai 路由不沿用 pi 现成目录，缺条目就是 has no configured model。
+ */
+type DshRouteModelLookup = (route: string, modelId: string) => DshRouteModelSource | undefined
+let runtimeRouteModel: DshRouteModelLookup | undefined
+
+export function configureDshRuntime(opts: {
+  cwd: string
+  dshBin?: string
+  routeModel?: DshRouteModelLookup
+}): void {
   runtimeCwd = opts.cwd
   // 无条件覆盖：整次装配只有一个调用方，缺省即「没有可用入口」，不能沿用上一次的值
   runtimeDshBin = opts.dshBin
+  runtimeRouteModel = opts.routeModel
 }
 export function getDshRuntimeCwd(): string {
   return runtimeCwd
@@ -187,10 +201,15 @@ export function dshPinnedKey(opts: {
   model: string
   maxTokens?: number
   reasoningEffort?: string
+  configFingerprint?: string
 }): string {
-  return [opts.provider, opts.model, opts.maxTokens ?? '', opts.reasoningEffort ?? ''].join(
-    '\u0000',
-  )
+  return [
+    opts.provider,
+    opts.model,
+    opts.maxTokens ?? '',
+    opts.reasoningEffort ?? '',
+    opts.configFingerprint ?? '',
+  ].join('\u0000')
 }
 
 function sessionIdOf(n: DshNotification): string | undefined {
@@ -251,7 +270,13 @@ export function createDshRuntime(
 ): DshRuntime {
   const cwd = opts.cwd ?? runtimeCwd
   const hardening = ensureEaaHardeningPatch(cwd)
-  const routing = dshProviderRouting(providersWithKeys())
+  // 钉住的那条路由要带 models 条目，否则子进程握手成功但一发请求就报
+  // has no configured model（dsh 的 llm-pi-ai 路由不沿用 pi 目录，实测 2026-09-22）
+  const pinnedEntry = dshRouteModelEntry(runtimeRouteModel?.(opts.provider ?? '', opts.model ?? ''))
+  const routing = dshProviderRouting(
+    providersToDeclare(),
+    pinnedEntry && opts.provider ? { route: opts.provider, entry: pinnedEntry } : undefined,
+  )
   const providerPatch = ensureEaaProviderPatch(cwd, routing.profiles)
   return new DshRuntime({
     ...opts,
@@ -292,6 +317,12 @@ export class DshRuntime {
        */
       maxTokens?: number
       reasoningEffort?: string
+      /**
+       * 该 provider 的「凭据 + 路由配置」指纹（dshRouteFingerprint 算）。
+       * key 与 baseURL/retry 都是 spawn 时经 env 与 patch 定死的，SDK 没有按请求
+       * 换的入口 —— 不带进 pinned key，用户改了 key 或 Base URL 会继续用旧进程旧配置。
+       */
+      configFingerprint?: string
       /** 注入点：测试用假客户端；默认装载真实 SDK */
       createClient?: () => Promise<DshClientLike>
       /** 有序 cordis profile patch 文件（如 tool-bridge 生成的 eaa MCP 挂载） */
@@ -318,6 +349,7 @@ export class DshRuntime {
       model: this.opts.model ?? '',
       maxTokens: this.opts.maxTokens,
       reasoningEffort: this.opts.reasoningEffort,
+      configFingerprint: this.opts.configFingerprint,
     })
   }
 

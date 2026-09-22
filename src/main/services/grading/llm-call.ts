@@ -18,6 +18,7 @@ import type {
   TextContent,
 } from '@main/services/llm-contracts'
 import { completeSimpleViaDsh, isDshSupportedImage } from '../dsh/one-shot'
+import { dshRouteFingerprint } from '../dsh/provider-patch'
 import { dshRouteFor } from '../dsh/route'
 import { createDshRuntime, type DshRuntime, dshPinnedKey } from '../dsh/runtime'
 import { settingsService } from '../settings-service'
@@ -42,10 +43,13 @@ const runtimes = new Map<string, DshRuntime>()
 
 function getDshRuntime(model: Model<Api>, maxTokens?: number): DshRuntime {
   const route = dshRouteFor(String(model.provider), model.id)
+  // 凭据与 Base URL 都是 spawn 时定死的，指纹不进键就会在改配置后继续用旧进程
+  const configFingerprint = dshRouteFingerprint(String(model.provider))
   const key = dshPinnedKey({
     provider: route.providerId,
     model: route.modelId,
     maxTokens,
+    configFingerprint,
   })
   const cached = runtimes.get(key)
   if (cached) {
@@ -58,6 +62,7 @@ function getDshRuntime(model: Model<Api>, maxTokens?: number): DshRuntime {
     provider: route.providerId,
     model: route.modelId,
     maxTokens,
+    configFingerprint,
   })
   runtimes.set(key, created)
   while (runtimes.size > MAX_PINNED_RUNTIMES) {

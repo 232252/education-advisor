@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   routes: undefined as Record<string, string> | undefined,
+  customModels: undefined as Record<string, { baseUrl?: string }[]> | undefined,
   throwOnRead: false,
 }))
 
@@ -18,7 +19,9 @@ vi.mock('../../settings-service', () => ({
   settingsService: {
     getSettings: () => {
       if (state.throwOnRead) throw new Error('settings not ready')
-      return { models: { agentRuntime: 'dsh', dshRoutes: state.routes } }
+      return {
+        models: { agentRuntime: 'dsh', dshRoutes: state.routes, customModels: state.customModels },
+      }
     },
   },
 }))
@@ -47,6 +50,7 @@ describe('dshReasoningEffort（app 档位 → dsh initialize 值）', () => {
 describe('dshRouteFor', () => {
   beforeEach(() => {
     state.routes = undefined
+    state.customModels = undefined
     state.throwOnRead = false
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
@@ -63,6 +67,25 @@ describe('dshRouteFor', () => {
       providerId: 'deepseek-official',
       modelId: 'deepseek-v4-flash',
     })
+  })
+
+  it('填了自建 Base URL 的 provider 不被内建别名拐走（内建行的 baseURL patch 覆盖不到）', () => {
+    state.customModels = { deepseek: [{ baseUrl: 'https://mirror.school.internal/v1' }] }
+    expect(dshRouteFor('deepseek', 'deepseek-v4-flash')).toEqual({
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+    })
+    // 用户显式改名仍然优先
+    state.routes = { deepseek: 'official-direct' }
+    expect(dshRouteFor('deepseek', 'm').providerId).toBe('official-direct')
+    // 多个互不相同的 Base URL ⇒ 一条路由表达不了 ⇒ 不转发，也别假装走网关
+    state.routes = undefined
+    state.customModels = {
+      deepseek: [{ baseUrl: 'https://a/v1' }, { baseUrl: 'https://b/v1' }],
+    }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(dshRouteFor('deepseek', 'm').providerId).toBe('deepseek-official')
+    expect(warn).toHaveBeenCalled()
   })
 
   it('映射只换 provider，model id 原样带过去', () => {

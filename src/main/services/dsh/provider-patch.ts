@@ -14,15 +14,26 @@
 // buildProvider 只用 source.api/baseURL/models，models 省略即 installed catalog）。
 // 于是 app 可以替用户把「它有 key 的那些 provider」声明成同名路由，key 本身
 // 不进 patch 文件 —— patch 只写变量名，值由 HarnessClientOptions.env 注入子进程。
+// 除凭据外还要把 app 侧的路由级配置一起写进去（Base URL / retry / cacheRetention，
+// 见 profile-overrides.ts）：那些设置在 pi 后端是主进程内存里生效的，换成子进程后
+// 不写就等于静默丢掉。
 //
 // env 的坑：SDK 的 env 是**整体替换**父进程环境（不是合并），所以要么不传，
 // 要么传完整的 {...process.env, ...}；这里只在确实有 key 要带时才传。
 // =============================================================
 
+import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { stringify } from 'yaml'
 import type { EaaCordisPatchRow } from './hardening'
+import {
+  type DshModelsSettingsSlice,
+  type DshRouteModelEntry,
+  type DshRouteProfileOverrides,
+  dshRouteProfileOverrides,
+  providersWithCustomModels,
+} from './profile-overrides'
 import { applyDshRoute } from './route-names'
 
 export const EAA_PROVIDER_PATCH_FILE = 'eaa-llm-providers.cordis.patch.yml'
@@ -37,6 +48,11 @@ export interface DshCredentialSource {
   getApiKey(provider: string): string | undefined
   /** settings.models.dshRoutes 的内容；省略即没有用户改名 */
   dshRoutes?(): Record<string, string> | undefined
+  /**
+   * settings.models 的可切片读取（Base URL / retry / cacheRetention / customModels）。
+   * 省略即「没有路由级覆盖」，patch 回到只带 apiKeyEnv 的旧形态。
+   */
+  modelsSettings?(): DshModelsSettingsSlice | undefined
 }
 
 let credentialSource: DshCredentialSource | null = null
@@ -64,26 +80,56 @@ export function dshCredentialEnvName(routeId: string): string {
 }
 
 export interface DshProviderRouting {
-  /** 交给 llm-pi-ai 行的 providers dict：路由名 → { apiKeyEnv }（不含任何密钥值） */
-  profiles: Record<string, { apiKeyEnv: string }>
+  /**
+   * 交给 llm-pi-ai 行的 providers dict：路由名 → 该路由的配置。
+   * apiKeyEnv 只在 app 存有 key 时出现；baseURL/retryPolicy/timeoutMs/
+   * cacheRetention 来自 settings（见 profile-overrides.ts）。任何密钥值都不进这里。
+   */
+  profiles: Record<string, DshRouteProfile>
   /** 注入子进程的环境变量名 → 该变量要放的 keystore provider id */
   envNames: Record<string, string>
 }
+
+/** 一条路由在 patch 里的形态 */
+export type DshRouteProfile = {
+  apiKeyEnv?: string
+  models?: DshRouteModelEntry[]
+} & DshRouteProfileOverrides
 
 /**
  * 为一批 pi provider id 算出 dsh 侧的路由声明与凭据变量。
  * 路由名走 dshRouteFor（settings.models.dshRoutes 可以改名），因此用户把
  * provider 映射到自己声明过的 key 时，这里声明的是那个名字，不会撞车。
+ *
+ * pinned 是给「本次子进程 initialize 要钉住的那条路由」补模型条目用的：
+ * dsh 的 llm-pi-ai 路由不会沿用 pi 的现成目录（实测：不写 models 就是
+ * `has no configured model`）。一个子进程只钉一个模型，所以只需这一条。
  */
-export function dshProviderRouting(providerIds: readonly string[]): DshProviderRouting {
-  const profiles: Record<string, { apiKeyEnv: string }> = {}
+export function dshProviderRouting(
+  providerIds: readonly string[],
+  pinned?: { route: string; entry: DshRouteModelEntry },
+): DshProviderRouting {
+  const profiles: Record<string, DshRouteProfile> = {}
   const envNames: Record<string, string> = {}
+  const models = modelsSlice()
+  // 一次读取集合，别按 provider 逐个去解密密钥
+  const keyed = new Set(providersWithKeys())
   for (const providerId of providerIds) {
     if (!providerId) continue
-    const { providerId: route } = applyDshRoute(providerId, '', routeOverrides())
+    const overrides = dshRouteProfileOverrides(models, providerId)
+    const { providerId: route } = applyDshRoute(providerId, '', routeOverrides(), {
+      customEndpoint: overrides.baseURL !== undefined,
+    })
     const nativeEnv = DSH_NATIVE_ROUTES[route]
     const envName = nativeEnv ?? dshCredentialEnvName(route)
-    if (!nativeEnv) profiles[route] = { apiKeyEnv: envName }
+    if (!nativeEnv) {
+      const profile: DshRouteProfile = { ...overrides }
+      // 没存 key 的 provider（自建网关常无鉴权）照样声明路由，只是不带 credentialRef；
+      // 否则 initialize 报的是 no adapter registered，用户看不出差在哪。
+      if (keyed.has(providerId)) profile.apiKeyEnv = envName
+      if (pinned && pinned.route === route) profile.models = [pinned.entry]
+      profiles[route] = profile
+    }
     envNames[envName] = providerId
   }
   return { profiles, envNames }
@@ -99,6 +145,16 @@ function routeOverrides(): Record<string, string> | undefined {
   }
 }
 
+/** settings.models 切片；读不到按「没有路由级覆盖」处理 */
+function modelsSlice(): DshModelsSettingsSlice | undefined {
+  try {
+    return credentialSource?.modelsSettings?.()
+  } catch (err) {
+    console.warn('[dsh] settings unreadable, declaring routes with apiKeyEnv only:', err)
+    return undefined
+  }
+}
+
 /** 当前存过 key 的 provider（未注入凭据来源或读取失败按空处理，不能因此打断子进程启动） */
 export function providersWithKeys(): string[] {
   try {
@@ -107,6 +163,46 @@ export function providersWithKeys(): string[] {
     console.warn('[dsh] keystore unreadable, launching without credential injection:', err)
     return []
   }
+}
+
+/**
+ * 要写进 patch 的 provider 全集：存过 key 的 ∪ 用户在模型页自定义过模型的。
+ * 后者即使没 key 也要声明 —— 它的 Base URL 只有写进路由才生效。
+ */
+export function providersToDeclare(): string[] {
+  const keys = providersWithKeys()
+  let custom: string[] = []
+  try {
+    custom = providersWithCustomModels(modelsSlice())
+  } catch (err) {
+    console.warn('[dsh] customModels unreadable, declaring keyed providers only:', err)
+  }
+  return [...new Set([...keys, ...custom])]
+}
+
+/**
+ * 该 provider 当前「凭据 + 路由配置」的指纹（不含密钥本身，不可逆）。
+ * dsh 的凭据与路由都是在子进程 spawn 时经 env/patch 定死的，SDK 没有按请求换
+ * key 或换 baseURL 的入口；换了之后若沿用旧进程，用户会以为新配置生效了。
+ * 把它并进 dshPinnedKey，改 key / 改 Base URL / 改 retry 都会「旧进程退役、
+ * 新进程带新配置」。
+ */
+export function dshRouteFingerprint(providerId: string): string {
+  let key: string | undefined
+  let profile: DshRouteProfileOverrides
+  try {
+    key = credentialSource?.getApiKey(providerId)
+    profile = dshRouteProfileOverrides(modelsSlice(), providerId)
+  } catch (err) {
+    console.warn(`[dsh] route fingerprint failed for "${providerId}":`, err)
+    return ''
+  }
+  // 既没 key 也没任何路由级覆盖 → 空指纹：没有会因为配置变化而失效的东西
+  if (!key && Object.keys(profile).length === 0) return ''
+  return createHash('sha256')
+    .update(`${key ?? ''}\u0000${JSON.stringify(profile)}`)
+    .digest('hex')
+    .slice(0, 12)
 }
 
 export function buildEaaProviderPatchRows(

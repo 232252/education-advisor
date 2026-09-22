@@ -16,6 +16,7 @@ import type { ModelThinkingLevel } from '@main/services/llm-contracts'
 
 import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import type { ModelInfo, ProviderInfo, StreamEvent, TestConnectionResult } from '@shared/types'
+import { dshRouteFingerprint } from './dsh/provider-patch'
 import { dshRouteFor } from './dsh/route'
 import { dshReasoningEffort } from './dsh/route-names'
 import { createDshRuntime, type DshRuntime, dshPinnedKey } from './dsh/runtime'
@@ -182,31 +183,32 @@ class PiAIService {
         resolveModel(params.providerId, params.modelId)?.thinkingLevelMap,
         params.thinking,
       )
+      const configFingerprint = dshRouteFingerprint(params.providerId)
       const key = dshPinnedKey({
         provider: route.providerId,
         model: route.modelId,
         maxTokens: params.maxTokens,
         reasoningEffort,
+        configFingerprint,
       })
+      const spawn = () =>
+        createDshRuntime({
+          provider: route.providerId,
+          model: route.modelId,
+          maxTokens: params.maxTokens,
+          reasoningEffort,
+          configFingerprint,
+        })
       if (!this.dshRunner) {
         // 对话链路在 pi 路径上不传 tools，所以这里不挂 MCP 端点；但 createDshRuntime
         // 会带上关掉 harness 自带工具 + 声明凭据路由的 patch。
-        this.dshRunner = createDshRuntime({
-          provider: route.providerId,
-          model: route.modelId,
-          maxTokens: params.maxTokens,
-          reasoningEffort,
-        })
+        this.dshRunner = spawn()
       } else if (this.dshRunner.routeKey !== key) {
         // initialize 把 provider/model 定死在子进程级，SDK 没有按请求覆盖的入口；
         // 复用旧进程等于用户在界面上换了模型却仍在打旧模型 —— 只能换子进程。
+        // configFingerprint 也在键里，所以换 key / 换 Base URL 同样会换新进程。
         const retiring = this.dshRunner
-        this.dshRunner = createDshRuntime({
-          provider: route.providerId,
-          model: route.modelId,
-          maxTokens: params.maxTokens,
-          reasoningEffort,
-        })
+        this.dshRunner = spawn()
         void retiring.disposeWhenIdle().catch((err: unknown) => {
           console.warn('[PiAI] dsh runtime retire failed:', err)
         })

@@ -27,7 +27,9 @@ import {
 } from '../compaction-helper'
 import { dbService } from '../db-service'
 import { createDshAgent } from '../dsh/agent-facade'
+import { dshRouteFingerprint } from '../dsh/provider-patch'
 import { dshRouteFor } from '../dsh/route'
+import { dshReasoningEffort } from '../dsh/route-names'
 import { createDshRuntime, type DshRuntime, getDshRuntimeCwd } from '../dsh/runtime'
 import {
   type EaaToolMount,
@@ -35,6 +37,7 @@ import {
   mountEaaAgentTools,
 } from '../dsh/tool-bridge'
 import { ollamaService } from '../ollama-service'
+import { resolveModel } from '../pi-ai/model-utils'
 import { createAssistantPlaceholder } from '../pi-ai-helpers'
 import { settingsService } from '../settings-service'
 import { getClassContextSection } from './class-context'
@@ -367,9 +370,18 @@ async function executeAgentRunInner(
     // 路由名按 settings.models.dshRoutes 映射（dsh 的 provider 路由是用户在自己
     // dsh 配置里声明的 key，不等于 pi 的 provider id）
     const route = dshRouteFor(String(model.provider), model.id)
+    // 推理档位在 pi 路径走 initialState.thinkingLevel，dsh 路径只能进 initialize：
+    // 不带过去就等于用户在界面选的思考档位对 16 个 agent 全部失效。与聊天链路同口径，
+    // 只有该模型目录真支持的档位才发出去（发错值 dsh 会让整轮失败，不是降级）。
+    const reasoningEffort = dshReasoningEffort(
+      resolveModel(String(model.provider), model.id)?.thinkingLevelMap,
+      settingsService.getSettings().chat?.thinkingLevel ?? 'medium',
+    )
     dshRuntime = createDshRuntime({
       provider: route.providerId,
       model: route.modelId,
+      reasoningEffort,
+      configFingerprint: dshRouteFingerprint(String(model.provider)),
       patches: [toolMount.patchPath],
     })
     log(
