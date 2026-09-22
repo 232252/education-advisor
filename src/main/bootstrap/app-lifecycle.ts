@@ -3,6 +3,7 @@
 // (协议处理/日志/主题/db/窗口/IPC 注册/cron/飞书自启/托盘/更新检查)
 // =============================================================
 
+import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import { debug } from '@shared/debug'
 import { app, BrowserWindow } from 'electron'
 import { registerAllHandlers } from '../ipc/index'
@@ -16,6 +17,7 @@ import { ensureActiveEaaToolBridge, stopActiveEaaToolBridge } from '../services/
 import { keystoreService } from '../services/keystore-service'
 import { resolveAppDataDir, resolveEaaDataDir } from '../services/paths'
 import { resolveModel } from '../services/pi-ai/model-utils'
+import { listProviders as listPiProviders } from '../services/pi-ai/providers'
 import { settingsService } from '../services/settings-service'
 import { syncNativeTheme } from '../services/theme-service'
 import { initTray, refreshTrayMenu } from '../services/tray-service'
@@ -75,6 +77,20 @@ export async function startApp(): Promise<void> {
   // dsh 子进程的凭据来源：app 存的 provider key 经 subprocess 环境注入，
   // 这样切到 dsh 后端不必让用户再去 dsh 自己的配置里填一遍 key。
   // key 与改名表都以函数注入：dsh/* 模块图不能静态依赖 electron（单测跑在 node 里）。
+  // 只在环境变量里存 key 的 provider 名单：pi 的目录读取是异步的，而 patch 生成是同步
+  // 的 ⇒ 启动时算一次。进程环境变量此后不会再变，所以这份缓存不会滞后。
+  const envKeyedProviderIds: string[] = []
+  listPiProviders()
+    .then((providers) => {
+      for (const p of providers) if (getEnvApiKey(p.id)) envKeyedProviderIds.push(p.id)
+    })
+    .catch((err: unknown) => {
+      log(
+        'warn',
+        'main',
+        `[Startup] 环境变量密钥探测失败(忽略,仅影响 env-only 用法): ${errText(err)}`,
+      )
+    })
   configureDshCredentials({
     listProviders: () => keystoreService.listProviders(),
     getApiKey: (providerId) => keystoreService.getApiKey(providerId),
@@ -82,6 +98,12 @@ export async function startApp(): Promise<void> {
     // 路由级覆盖的来源：自定义 Base URL、retry.*、cacheRetention、自定义模型列表。
     // 不注入的话 dsh 子进程只带 apiKeyEnv，用户配的网关会被静默忽略。
     modelsSettings: () => settingsService.getSettings().models,
+    // 只在环境变量里存 key 的用户：pi 后端本来就能跑，dsh 后端不声明路由就会
+    // no adapter registered —— 同一个 getEnvApiKey 口径喂给子进程才算等价替换。
+    envApiKey: (providerId) => getEnvApiKey(providerId),
+    // provider 清单要 await（pi 的 listProviders 是异步的），patch 是同步读的
+    // ⇒ 启动时算一次缓存。环境变量本身也是进程启动时就固定的，不会有滞后。
+    envKeyedProviders: () => envKeyedProviderIds,
   })
   // 只有 dsh 后端需要工具桥：把 app 的 eaa 工具经 MCP streamable-http 暴露给
   // dsh 子进程（SDK 本身没有注册工具的入口）。缺省 pi 后端时完全不起服务。

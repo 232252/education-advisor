@@ -409,7 +409,13 @@ describe('createDshRuntime（生产唯一构造入口）', () => {
       cwd: dir,
       routeModel: (route, id) =>
         route === 'kimi'
-          ? { id, contextWindow: 200000, maxTokens: 8192, input: ['text', 'image'] }
+          ? {
+              id,
+              contextWindow: 200000,
+              maxTokens: 8192,
+              input: ['text', 'image'],
+              api: 'openai-completions',
+            }
           : undefined,
     })
     const rt = createDshRuntime({ cwd: dir, provider: 'kimi', model: 'k2-turbo' })
@@ -418,6 +424,8 @@ describe('createDshRuntime（生产唯一构造入口）', () => {
     expect(text).toContain('id: k2-turbo')
     expect(text).toContain('contextWindow: 200000')
     expect(text).toContain('image')
+    // 目录不认这条路由时 api 必须在，否则整条路由被 dsh 拒
+    expect(text).toContain('api: openai-completions')
     // routeModel 是模块级注入，不复位会漏给后面的用例
     configureDshRuntime({ cwd: dir })
     configureDshCredentials(null)

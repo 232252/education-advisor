@@ -53,6 +53,13 @@ export interface DshCredentialSource {
    * 省略即「没有路由级覆盖」，patch 回到只带 apiKeyEnv 的旧形态。
    */
   modelsSettings?(): DshModelsSettingsSlice | undefined
+  /**
+   * 只存在于进程环境变量里的 key（pi 的 getEnvApiKey）：pi 后端直接用它，
+   * 子进程后端不声明路由就是 no adapter registered —— 这类用户也必须照样能跑。
+   */
+  envApiKey?(providerId: string): string | undefined
+  /** 哪些 provider 只有环境变量 key（keystore 里没存） */
+  envKeyedProviders?(): string[]
 }
 
 let credentialSource: DshCredentialSource | null = null
@@ -93,8 +100,16 @@ export interface DshProviderRouting {
 /** 一条路由在 patch 里的形态 */
 export type DshRouteProfile = {
   apiKeyEnv?: string
+  api?: string
   models?: DshRouteModelEntry[]
 } & DshRouteProfileOverrides
+
+/** 本次子进程钉住的那条路由要带的模型信息（模型条目 + 线协议） */
+export interface DshPinnedRouteModel {
+  route: string
+  entry: DshRouteModelEntry
+  api?: string
+}
 
 /**
  * 为一批 pi provider id 算出 dsh 侧的路由声明与凭据变量。
@@ -107,13 +122,13 @@ export type DshRouteProfile = {
  */
 export function dshProviderRouting(
   providerIds: readonly string[],
-  pinned?: { route: string; entry: DshRouteModelEntry },
+  pinned?: DshPinnedRouteModel,
 ): DshProviderRouting {
   const profiles: Record<string, DshRouteProfile> = {}
   const envNames: Record<string, string> = {}
   const models = modelsSlice()
   // 一次读取集合，别按 provider 逐个去解密密钥
-  const keyed = new Set(providersWithKeys())
+  const keyed = new Set([...providersWithKeys(), ...envKeyedProviders()])
   for (const providerId of providerIds) {
     if (!providerId) continue
     const overrides = dshRouteProfileOverrides(models, providerId)
@@ -127,7 +142,11 @@ export function dshProviderRouting(
       // 没存 key 的 provider（自建网关常无鉴权）照样声明路由，只是不带 credentialRef；
       // 否则 initialize 报的是 no adapter registered，用户看不出差在哪。
       if (keyed.has(providerId)) profile.apiKeyEnv = envName
-      if (pinned && pinned.route === route) profile.models = [pinned.entry]
+      if (pinned && pinned.route === route) {
+        profile.models = [pinned.entry]
+        // 目录不认这条路由时（自建/本地端点）api 必须给，否则 dsh 直接拒
+        if (pinned.api) profile.api = pinned.api
+      }
       profiles[route] = profile
     }
     envNames[envName] = providerId
@@ -165,12 +184,23 @@ export function providersWithKeys(): string[] {
   }
 }
 
+/** 只在环境变量里存 key 的 provider（读失败按没有处理，不能打断子进程启动） */
+export function envKeyedProviders(): string[] {
+  try {
+    return credentialSource?.envKeyedProviders?.() ?? []
+  } catch (err) {
+    console.warn('[dsh] env-keyed provider list unreadable:', err)
+    return []
+  }
+}
+
 /**
- * 要写进 patch 的 provider 全集：存过 key 的 ∪ 用户在模型页自定义过模型的。
- * 后者即使没 key 也要声明 —— 它的 Base URL 只有写进路由才生效。
+ * 要写进 patch 的 provider 全集：存过 key 的 ∪ 只有环境变量 key 的 ∪ 用户在模型页
+ * 自定义过模型的。后两类即使 keystore 里没有也要声明 —— 前者不声明就是
+ * no adapter registered，后者的 Base URL 只有写进路由才生效。
  */
 export function providersToDeclare(): string[] {
-  const keys = providersWithKeys()
+  const keys = [...providersWithKeys(), ...envKeyedProviders()]
   let custom: string[] = []
   try {
     custom = providersWithCustomModels(modelsSlice())
@@ -191,7 +221,7 @@ export function dshRouteFingerprint(providerId: string): string {
   let key: string | undefined
   let profile: DshRouteProfileOverrides
   try {
-    key = credentialSource?.getApiKey(providerId)
+    key = credentialSource?.getApiKey(providerId) ?? credentialSource?.envApiKey?.(providerId)
     profile = dshRouteProfileOverrides(modelsSlice(), providerId)
   } catch (err) {
     console.warn(`[dsh] route fingerprint failed for "${providerId}":`, err)
@@ -244,7 +274,8 @@ export function ensureEaaProviderPatch(
  */
 export function dshSubprocessEnv(
   envNames: Record<string, string>,
-  readKey: (providerId: string) => string | undefined = (p) => credentialSource?.getApiKey(p),
+  readKey: (providerId: string) => string | undefined = (p) =>
+    credentialSource?.getApiKey(p) ?? credentialSource?.envApiKey?.(p),
 ): Record<string, string> | undefined {
   const extra: Record<string, string> = {}
   for (const [envName, providerId] of Object.entries(envNames)) {

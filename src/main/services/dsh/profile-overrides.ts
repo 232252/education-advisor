@@ -135,6 +135,12 @@ export interface DshRouteModelSource {
   maxTokens?: number
   input?: readonly string[]
   thinkingLevelMap?: Record<string, string | null | undefined>
+  /**
+   * 该模型走的线协议（pi 的 api，如 openai-completions）。dsh 侧它是**路由级**字段
+   * 而不是模型级：installed catalog 不认这条路由时（自建/本地端点）不给 api 就会被拒
+   * —— 实测 `needs an api; the installed catalog does not describe it`。
+   */
+  api?: string
 }
 
 /** dsh 的 THINKING_LEVELS 认的档位名；目录里出现别的键就不发（发错值是整轮失败） */

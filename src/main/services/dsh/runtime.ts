@@ -272,10 +272,13 @@ export function createDshRuntime(
   const hardening = ensureEaaHardeningPatch(cwd)
   // 钉住的那条路由要带 models 条目，否则子进程握手成功但一发请求就报
   // has no configured model（dsh 的 llm-pi-ai 路由不沿用 pi 目录，实测 2026-09-22）
-  const pinnedEntry = dshRouteModelEntry(runtimeRouteModel?.(opts.provider ?? '', opts.model ?? ''))
+  const pinnedSource = runtimeRouteModel?.(opts.provider ?? '', opts.model ?? '')
+  const pinnedEntry = dshRouteModelEntry(pinnedSource)
   const routing = dshProviderRouting(
     providersToDeclare(),
-    pinnedEntry && opts.provider ? { route: opts.provider, entry: pinnedEntry } : undefined,
+    pinnedEntry && opts.provider
+      ? { route: opts.provider, entry: pinnedEntry, api: pinnedSource?.api }
+      : undefined,
   )
   const providerPatch = ensureEaaProviderPatch(cwd, routing.profiles)
   return new DshRuntime({

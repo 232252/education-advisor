@@ -313,6 +313,24 @@ describe('路由级覆盖（Base URL / retry / cacheRetention）随 patch 下发
     configureDshCredentials(null)
   })
 
+  it('只在环境变量里存 key 的 provider 也声明路由并把值注进子进程', () => {
+    configureDshCredentials({
+      listProviders: () => [],
+      getApiKey: () => undefined,
+      envApiKey: (p) => (p === 'moonshot' ? 'sk-env-only' : undefined),
+      envKeyedProviders: () => ['moonshot'],
+    })
+    const declared = providersToDeclare()
+    expect(declared).toContain('moonshot')
+    const { profiles, envNames } = dshProviderRouting(declared)
+    expect(profiles.moonshot.apiKeyEnv).toBe('EAA_DSH_MOONSHOT_API_KEY')
+    const env = dshSubprocessEnv(envNames) as Record<string, string>
+    expect(env.EAA_DSH_MOONSHOT_API_KEY).toBe('sk-env-only')
+    // 指纹要认这把 env key：换了它同样得换子进程
+    expect(dshRouteFingerprint('moonshot')).toMatch(/^[0-9a-f]{12}$/)
+    configureDshCredentials(null)
+  })
+
   it('没有 modelsSettings 时 patch 只带凭据变量名（旧形态，不拿默认值盖掉 dsh 的默认）', () => {
     configureDshCredentials({
       listProviders: () => ['kimi'],
@@ -331,11 +349,15 @@ describe('路由级覆盖（Base URL / retry / cacheRetention）随 patch 下发
     const { profiles } = dshProviderRouting(['kimi', 'moonshot'], {
       route: 'kimi',
       entry: { id: 'kimi-k2', contextWindow: 200000, maxTokens: 8192 },
+      api: 'openai-completions',
     })
     expect(profiles.kimi.models).toEqual([
       { id: 'kimi-k2', contextWindow: 200000, maxTokens: 8192 },
     ])
+    // 目录不认这条路由时（自建/本地端点）必须给线协议，否则 dsh 直接拒这条路由
+    expect(profiles.kimi.api).toBe('openai-completions')
     expect(profiles.moonshot).not.toHaveProperty('models')
+    expect(profiles.moonshot).not.toHaveProperty('api')
     configureDshCredentials(null)
   })
 
