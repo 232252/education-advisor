@@ -17,6 +17,7 @@ import { EmptyState } from '../../../components/EmptyState'
 import { ClassGradeSheetDocument } from '../../../components/print/ClassGradeSheetDocument'
 import { PrintOverlay } from '../../../components/print/PrintOverlay'
 import { useT } from '../../../i18n'
+import { mergeExamSubjects } from '../../../lib/academics'
 import {
   cn,
   INPUT_SM,
@@ -42,20 +43,24 @@ import {
 } from '../../Dashboard/dashboard-academic-stats'
 import { SUBJECT_FILTER_ALL } from '../../Dashboard/dashboard-lens'
 import { useClassGradesAnalytics } from '../hooks/useClassGradesAnalytics'
+import { EXAM_FILTER_ALL, isForeignClassExam } from '../lib/exam-scope'
 import { ClassAvgTrendCard } from './ClassAvgTrendCard'
 import { ClassGradesAiPanel } from './ClassGradesAiPanel'
 
 export function ClassGradesTab({
   students,
   classLabel,
+  classId,
 }: {
   students: EAAStudent[]
   /** Class display name for print sheet header */
   classLabel?: string
+  /** 当前班级编号(自动选本班考试 + 标记他班考试) */
+  classId?: string | null
 }) {
   const { t } = useT()
   const navigate = useNavigate()
-  const analytics = useClassGradesAnalytics({ students })
+  const analytics = useClassGradesAnalytics({ students, classId })
   const {
     exams,
     subjects,
@@ -80,7 +85,20 @@ export function ClassGradesTab({
     reload,
   } = analytics
 
-  const gradeSheet = useExamGradeSheet(students)
+  /**
+   * 科目筛选/图表用的科目 = 目录 ∪ 当前口径实际出现的科目:
+   * AI 导入的「通用技术」等目录外科目不补齐时,下拉选不到、
+   * 科目均分图也不画,看起来像"整科成绩不存在"。
+   * 「全部考试」无单场考试可参照,按成绩记录里的科目补齐。
+   */
+  const filterSubjects = useMemo(() => {
+    const flat = Object.values(classGrades).flat()
+    return selectedExam
+      ? mergeExamSubjects(subjects, [selectedExam], flat)
+      : mergeExamSubjects(subjects, [], flat, [...new Set(flat.map((g) => g.subjectId))])
+  }, [subjects, selectedExam, classGrades])
+
+  const gradeSheet = useExamGradeSheet(students, filterSubjects)
 
   const entityByName = useMemo(() => {
     const m = new Map<string, string>()
@@ -115,8 +133,8 @@ export function ClassGradesTab({
 
   const subjectLabel = useMemo(() => {
     if (subjectId === SUBJECT_FILTER_ALL) return t('page.dashboard.academic.filter.allSubjects')
-    return subjects.find((s) => s.id === subjectId)?.name ?? subjectId
-  }, [subjectId, subjects, t])
+    return filterSubjects.find((s) => s.id === subjectId)?.name ?? subjectId
+  }, [subjectId, filterSubjects, t])
 
   const examAName = useMemo(() => exams.find((e) => e.id === examAId)?.name, [exams, examAId])
   const examBName = useMemo(() => exams.find((e) => e.id === examBId)?.name, [exams, examBId])
@@ -169,10 +187,14 @@ export function ClassGradesTab({
           title={t('page.dashboard.academic.filter.exam')}
           aria-label={t('page.dashboard.academic.filter.exam')}
         >
+          <option value={EXAM_FILTER_ALL}>{t('page.classes.grades.allExams', '全部考试')}</option>
           {exams.map((exam) => (
             <option key={exam.id} value={exam.id}>
               {exam.name}
               {exam.date ? ` · ${exam.date}` : ''}
+              {isForeignClassExam(exam, classId)
+                ? ` · ${t('page.classes.grades.foreignExam', '他班')}`
+                : ''}
             </option>
           ))}
         </select>
@@ -186,7 +208,7 @@ export function ClassGradesTab({
           <option value={SUBJECT_FILTER_ALL}>
             {t('page.dashboard.academic.filter.allSubjects')}
           </option>
-          {subjects.map((sub) => (
+          {filterSubjects.map((sub) => (
             <option key={sub.id} value={sub.id}>
               {sub.name}
             </option>
@@ -214,11 +236,11 @@ export function ClassGradesTab({
         </Button>
       </div>
 
-      {gradesReady && selectedExam && (
+      {gradesReady && (
         <ClassGradesAiPanel
           classLabel={classLabel}
-          examName={selectedExam.name}
-          examDate={selectedExam.date}
+          examName={selectedExam?.name ?? t('page.classes.grades.allExams', '全部考试')}
+          examDate={selectedExam?.date}
           subjectLabel={subjectLabel}
           stats={stats}
           avgLabel={avgLabel}
@@ -247,7 +269,7 @@ export function ClassGradesTab({
           <ClassAvgTrendCard points={trendPoints} subjectId={subjectId} ready={trendReady} />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <GradeBandChartCard bands={bands} />
-            <SubjectAvgChartCard subjects={subjects} grades={flatGrades} />
+            <SubjectAvgChartCard subjects={filterSubjects} grades={flatGrades} />
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <GradeRankingCard items={ranked} onSelectStudent={openStudent} />
@@ -440,7 +462,7 @@ export function ClassGradesTab({
         >
           <ClassGradeSheetDocument
             exam={gradeSheet.sheet.exam}
-            subjects={subjects}
+            subjects={gradeSheet.sheet.subjects}
             rows={gradeSheet.sheet.rows}
             subjectStats={gradeSheet.sheet.subjectStats}
             classLabel={classLabel}

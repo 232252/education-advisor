@@ -320,7 +320,7 @@ describe('academicService — 成绩读写与级联删除', () => {
     expect(ab[0].examId).toBe(examB.id)
   })
 
-  it('getClassGrades: 按 examId/subjectId 过滤', async () => {
+  it('getClassGrades: 按 examId/subjectId 过滤;空 examId 返回全部考试', async () => {
     const exam = await academicService.createExam({
       name: '班级成绩考试',
       type: 'other',
@@ -328,10 +328,18 @@ describe('academicService — 成绩读写与级联删除', () => {
       semester: '2025-2026-2',
       subjects: [],
     })
+    const exam2 = await academicService.createExam({
+      name: '班级成绩考试2',
+      type: 'other',
+      date: '2026-05-08',
+      semester: '2025-2026-2',
+      subjects: [],
+    })
     await academicService.batchSetGrades([
       { examId: exam.id, studentName: '班学生1', subjectId: 'math', score: 70 },
       { examId: exam.id, studentName: '班学生1', subjectId: 'chinese', score: 71 },
       { examId: exam.id, studentName: '班学生2', subjectId: 'math', score: 72 },
+      { examId: exam2.id, studentName: '班学生1', subjectId: 'math', score: 73 },
     ])
     const byExam = await academicService.getClassGrades(['班学生1', '班学生2'], exam.id)
     expect(Object.keys(byExam).sort()).toEqual(['班学生1', '班学生2'])
@@ -341,6 +349,17 @@ describe('academicService — 成绩读写与级联删除', () => {
     expect(bySubject['班学生1'].length).toBe(1)
     expect(bySubject['班学生1'][0].subjectId).toBe('math')
     expect(bySubject['班学生2'].length).toBe(1)
+
+    // 空 examId = 不过滤考试(仪表盘「全部考试」)
+    const allExams = await academicService.getClassGrades(['班学生1', '班学生2'], '')
+    expect(allExams['班学生1'].length).toBe(3)
+    expect(allExams['班学生2'].length).toBe(1)
+    const allExamsBySubject = await academicService.getClassGrades(
+      ['班学生1', '班学生2'],
+      '',
+      'math',
+    )
+    expect(allExamsBySubject['班学生1'].length).toBe(2)
   })
 })
 describe('academicService — getExamGrades(扫描 grades 目录,eaa_exam_grades 全班查询用)', () => {

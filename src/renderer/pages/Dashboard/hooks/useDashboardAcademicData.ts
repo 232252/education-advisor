@@ -12,7 +12,7 @@ import { useMultiLoader } from '../../../hooks/useMultiLoader'
 import { sortByDateDesc } from '../../../lib/academics'
 import { getAPI } from '../../../lib/ipc-client'
 import { pickLatestExamId } from '../dashboard-academic-stats'
-import { DASHBOARD_SUBJECT_KEY, SUBJECT_FILTER_ALL } from '../dashboard-lens'
+import { DASHBOARD_SUBJECT_KEY, EXAM_FILTER_ALL, SUBJECT_FILTER_ALL } from '../dashboard-lens'
 
 const CATALOG_FALLBACKS = {
   exams: [] as ExamDef[],
@@ -72,7 +72,8 @@ export function useDashboardAcademicData({
       if (examId) setExamId('')
       return
     }
-    if (!examId || !sortedExams.some((e) => e.id === examId)) {
+    // 「全部考试」哨兵值有效;其余非法 id(含空串)回退到最近一场
+    if (examId !== EXAM_FILTER_ALL && (!examId || !sortedExams.some((e) => e.id === examId))) {
       setExamId(pickLatestExamId(sortedExams))
     }
   }, [enabled, sortedExams, examId])
@@ -82,7 +83,11 @@ export function useDashboardAcademicData({
   const gradesLoader = useMultiLoader(
     {
       classGrades: async (): Promise<Record<string, GradeRecord[]>> => {
-        const res = await getAPI().academic.getClassGrades(studentNames, examId)
+        // 全部考试 → 空 examId(后端不过滤考试)
+        const res = await getAPI().academic.getClassGrades(
+          studentNames,
+          examId === EXAM_FILTER_ALL ? '' : examId,
+        )
         return res.success && res.data ? res.data : {}
       },
     },

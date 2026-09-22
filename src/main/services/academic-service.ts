@@ -296,6 +296,7 @@ class AcademicService {
   /**
    * 读取一个班级(学生列表)在某场考试的成绩。
    * studentNames 由调用方(EAA CLI)解析 classId → 学生列表后传入。
+   * examId 传空串表示不过滤考试(全部考试),供仪表盘「全部考试」口径使用。
    * 返回 Record<studentName, GradeRecord[]>。
    */
   async getClassGrades(
@@ -306,7 +307,9 @@ class AcademicService {
     const result: Record<string, GradeRecord[]> = {}
     for (const name of studentNames) {
       let grades = await this.getGrades(name)
-      grades = grades.filter((g) => g.examId === examId)
+      if (examId) {
+        grades = grades.filter((g) => g.examId === examId)
+      }
       if (subjectId) {
         grades = grades.filter((g) => g.subjectId === subjectId)
       }

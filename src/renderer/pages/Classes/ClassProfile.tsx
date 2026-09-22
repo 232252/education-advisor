@@ -109,7 +109,11 @@ export function ClassProfile({
           <StudentsTab students={classStudents} otherClasses={allClasses} onRefresh={onRefresh} />
         )}
         {tab === 'grades' && (
-          <ClassGradesTab students={classStudents} classLabel={classEntity.name} />
+          <ClassGradesTab
+            students={classStudents}
+            classLabel={classEntity.name}
+            classId={classEntity.class_id}
+          />
         )}
         {tab === 'assign' && (
           <AssignTab

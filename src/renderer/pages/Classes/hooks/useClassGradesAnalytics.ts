@@ -12,9 +12,9 @@ import { useExamPairSelection } from '../../../hooks/useExamPair'
 import { useMultiLoader } from '../../../hooks/useMultiLoader'
 import { computeStudentComparisons, sortByDateAsc, sortByDateDesc } from '../../../lib/academics'
 import { getAPI } from '../../../lib/ipc-client'
-import { pickLatestExamId } from '../../Dashboard/dashboard-academic-stats'
 import { SUBJECT_FILTER_ALL } from '../../Dashboard/dashboard-lens'
 import { buildClassAvgTrend, pickTrendExams } from '../lib/class-avg-trend'
+import { EXAM_FILTER_ALL, mergeClassGrades, pickClassExamId } from '../lib/exam-scope'
 import { summarizeScoreMovement } from '../lib/grade-movement'
 
 const CATALOG_FALLBACKS = {
@@ -48,9 +48,12 @@ async function unwrapConfig(): Promise<AcademicConfig | null> {
 export function useClassGradesAnalytics({
   enabled = true,
   students,
+  classId,
 }: {
   enabled?: boolean
   students: EAAStudent[]
+  /** 当前班级编号;自动选考试时优先本班考试,避免落在别班同名考试上 */
+  classId?: string | null
 }) {
   const [examId, setExamId] = useState('')
   const [subjectId, setSubjectId] = useState(SUBJECT_FILTER_ALL)
@@ -86,20 +89,35 @@ export function useClassGradesAnalytics({
       if (examId) setExamId('')
       return
     }
-    if (!examId || !sortedExams.some((e) => e.id === examId)) {
-      setExamId(pickLatestExamId(sortedExams))
+    // 「全部考试」是合法选中值,不能被自动选考试重置掉
+    const examIdValid = examId === EXAM_FILTER_ALL || sortedExams.some((e) => e.id === examId)
+    if (!examId || !examIdValid) {
+      // 班内优先:先挑本班最近一场,没有再回落全局最近(否则打开 A 班
+      // 会自动选中 B 班的同名考试,整页"无成绩"像数据丢了)
+      setExamId(pickClassExamId(sortedExams, classId))
     }
-  }, [enabled, sortedExams, examId])
+  }, [enabled, sortedExams, examId, classId])
 
   const gradesEnabled = enabled && examId.length > 0 && studentNames.length > 0
+  const examsKey = exams.map((e) => e.id).join(',')
   const gradesLoader = useMultiLoader(
     {
       classGrades: async (): Promise<Record<string, GradeRecord[]>> => {
+        // 「全部考试」:逐场拉取后按学生合并,统计/排行按跨考试聚合口径
+        if (examId === EXAM_FILTER_ALL) {
+          const parts = await Promise.all(
+            exams.map(async (exam) => {
+              const res = await getAPI().academic.getClassGrades(studentNames, exam.id)
+              return res.success && res.data ? res.data : {}
+            }),
+          )
+          return mergeClassGrades(parts)
+        }
         const res = await getAPI().academic.getClassGrades(studentNames, examId)
         return res.success && res.data ? res.data : {}
       },
     },
-    { enabled: gradesEnabled, deps: [examId, namesKey], fallbacks: GRADES_FALLBACKS },
+    { enabled: gradesEnabled, deps: [examId, namesKey, examsKey], fallbacks: GRADES_FALLBACKS },
   )
 
   const { examAId, setExamAId, examBId, setExamBId } = useExamPairSelection(sortedExamsAsc)

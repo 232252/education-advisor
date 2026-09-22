@@ -76,15 +76,15 @@ export function registerAcademicGradeHandlers(): void {
     },
   )
 
-  // 读取班级成绩(参数: studentNames[], examId, subjectId?)
+  // 读取班级成绩(参数: studentNames[], examId, subjectId?; examId 为空串表示全部考试)
   handleIpc(
     IPC.IPC_ACADEMIC_GET_CLASS_GRADES,
     async (_e: IpcMainInvokeEvent, studentNames: string[], examId: string, subjectId?: string) => {
       if (!Array.isArray(studentNames)) {
         throw new Error('studentNames must be an array')
       }
-      if (typeof examId !== 'string' || !examId) {
-        throw new Error('examId must be a non-empty string')
+      if (typeof examId !== 'string') {
+        throw new Error('examId must be a string')
       }
       const safeNames = studentNames.map((n) => sanitizeName(n, 'name'))
       // R136 优化: TTL 缓存 key = sortedNames|examId|subjectId

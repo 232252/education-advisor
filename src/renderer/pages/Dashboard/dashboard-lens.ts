@@ -10,6 +10,8 @@ export const DASHBOARD_SUBJECT_KEY = 'ea-dashboard-subject'
 export type DashboardLens = 'conduct' | 'grades'
 
 export const SUBJECT_FILTER_ALL = '__ALL__'
+/** 考试筛选的「全部考试」哨兵值（后端用空 examId 表示不过滤考试） */
+export const EXAM_FILTER_ALL = '__ALL_EXAMS__'
 
 export function isDashboardLens(value: unknown): value is DashboardLens {
   return value === 'conduct' || value === 'grades'

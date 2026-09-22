@@ -26,7 +26,7 @@ export interface AcademicAPI {
   removeGrades: (studentName: string, examId: string) => Promise<AcademicResult<number>>
   // [w] 批量设置成绩
   batchSetGrades: (records: unknown) => Promise<AcademicResult<void>>
-  // [r] 班级成绩(学生名 → 成绩记录)
+  // [r] 班级成绩(学生名 → 成绩记录; examId 为空串表示全部考试)
   getClassGrades: (
     studentNames: string[],
     examId: string,

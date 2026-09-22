@@ -55,6 +55,42 @@ export function extractSemesters(exams: ExamDef[]): string[] {
 }
 
 /**
+ * 科目目录补齐 — 目录科目 ∪ 指定考试实际用到的科目。
+ * AI 导入/批改发布的考试常带目录外科目(如「通用技术」),若不补齐,
+ * 成绩明细表、成绩单预览、科目筛选都按目录建列 → 有成绩却整列消失。
+ * 只合并传入范围的科目(考试 subjects + extraSubjectIds),避免批改题段等
+ * 噪声污染全局目录;fullMark 优先取成绩记录里的值(缺省 100)。
+ * extraSubjectIds 供「全部考试」聚合口径:无单场考试可参照时按成绩记录补科目。
+ */
+export function mergeExamSubjects(
+  catalog: SubjectDef[],
+  exams: Array<Pick<ExamDef, 'subjects'>>,
+  grades: GradeRecord[] = [],
+  extraSubjectIds: string[] = [],
+): SubjectDef[] {
+  const known = new Set(catalog.map((s) => s.id))
+  const fullMarkById = new Map<string, number>()
+  for (const g of grades) {
+    if (g.fullMark > 0) fullMarkById.set(g.subjectId, g.fullMark)
+  }
+  const extra: SubjectDef[] = []
+  const addSubject = (sid: string) => {
+    if (!sid || known.has(sid) || extra.some((s) => s.id === sid)) return
+    extra.push({
+      id: sid,
+      name: sid,
+      category: 'other',
+      fullMark: fullMarkById.get(sid) ?? 100,
+    })
+  }
+  for (const exam of exams) {
+    for (const sid of exam.subjects ?? []) addSubject(sid)
+  }
+  for (const sid of extraSubjectIds) addSubject(sid)
+  return extra.length > 0 ? [...catalog, ...extra] : catalog
+}
+
+/**
  * 该生"实际参加"的考试 (按日期升序) — OverviewTab / Students AcademicsTab 共用。
  * 判定口径(幽灵成绩治理):
  * - 至少一条 score !== null 的记录才算参加 —— 纯 null 缺考占位/AI 误写残留不再撑起考试行;

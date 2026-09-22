@@ -17,6 +17,7 @@ import {
   extractSemesters,
   filterExamsWithGrades,
   filterStudents,
+  mergeExamSubjects,
   sortByDateAsc,
 } from '../../../src/renderer/lib/academics/metrics'
 
@@ -140,5 +141,56 @@ describe('趋势与对比构建', () => {
       const cur = (comps[i].totalScoreDelta ?? -Infinity) as number
       expect(prev).toBeGreaterThanOrEqual(cur)
     }
+  })
+})
+
+describe('mergeExamSubjects — 目录外科目补齐', () => {
+  const catalog = [
+    { id: 'chinese', name: '语文', category: 'core', fullMark: 150 },
+    { id: 'math', name: '数学', category: 'science', fullMark: 150 },
+  ]
+
+  it('考试科目全在目录 → 原样返回(不追加)', () => {
+    const merged = mergeExamSubjects(catalog, [{ subjects: ['chinese'] }])
+    expect(merged).toBe(catalog)
+  })
+
+  it('目录外科目(如 AI 导入的「通用技术」)追加为临时科目,fullMark 取成绩记录', () => {
+    const merged = mergeExamSubjects(
+      catalog,
+      [{ subjects: ['chinese', '通用技术'] }],
+      [grade({ subjectId: '通用技术', score: 96, fullMark: 100 })],
+    )
+    expect(merged).toHaveLength(3)
+    expect(merged[2]).toMatchObject({ id: '通用技术', name: '通用技术', fullMark: 100 })
+  })
+
+  it('成绩无 fullMark → 缺省 100;同科目跨考试去重', () => {
+    const merged = mergeExamSubjects(catalog, [
+      { subjects: ['通用技术'] },
+      { subjects: ['通用技术'] },
+    ])
+    expect(merged).toHaveLength(3)
+    expect(merged[2]?.fullMark).toBe(100)
+  })
+
+  it('只合并传入考试范围的科目 — 不相关考试的题段科目不进目录', () => {
+    const merged = mergeExamSubjects(catalog, [{ subjects: ['chinese'] }], [
+      grade({ subjectId: '1.一、单项选择题', score: 20, fullMark: 28 }),
+    ])
+    expect(merged).toBe(catalog)
+  })
+})
+
+describe('mergeExamSubjects — extraSubjectIds(全部考试口径)', () => {
+  it('无单场考试参照时,按成绩记录里的科目 id 补齐目录', () => {
+    const merged = mergeExamSubjects(
+      [{ id: 'chinese', name: '语文', category: 'core', fullMark: 150 }],
+      [],
+      [grade({ subjectId: '通用技术', score: 96, fullMark: 100 })],
+      ['通用技术'],
+    )
+    expect(merged.map((s) => s.id)).toEqual(['chinese', '通用技术'])
+    expect(merged[1]?.fullMark).toBe(100)
   })
 })

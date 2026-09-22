@@ -10,7 +10,11 @@ import { useMemo } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
 import { TabStateBoundary } from '../../../components/TabStateBoundary'
 import { useT } from '../../../i18n'
-import { buildGradeTableData, filterExamsWithGrades } from '../../../lib/academics'
+import {
+  buildGradeTableData,
+  filterExamsWithGrades,
+  mergeExamSubjects,
+} from '../../../lib/academics'
 import {
   GradeTableCard,
   LatestRadarChartCard,
@@ -57,10 +61,19 @@ export function OverviewTab({
     [exams, grades, studentClassId],
   )
 
+  /**
+   * 目录科目补齐: 该生考试里的目录外科目(如 AI 导入的「通用技术」)
+   * 追加为临时科目,否则明细表/图表按目录建列,有成绩也显示不出来。
+   */
+  const effectiveSubjects = useMemo(
+    () => mergeExamSubjects(subjects, sortedExamsWithGrades, grades),
+    [subjects, sortedExamsWithGrades, grades],
+  )
+
   /** 成绩表数据 — 按考试日期降序 */
   const gradeTableData = useMemo(
-    () => buildGradeTableData(sortedExamsWithGrades, grades, subjects),
-    [sortedExamsWithGrades, grades, subjects],
+    () => buildGradeTableData(sortedExamsWithGrades, grades, effectiveSubjects),
+    [sortedExamsWithGrades, grades, effectiveSubjects],
   )
 
   return (
@@ -95,15 +108,15 @@ export function OverviewTab({
               {/* 趋势线图 (占两列) */}
               <TrendChartCard
                 examsWithGrades={sortedExamsWithGrades}
-                subjects={subjects}
+                subjects={effectiveSubjects}
                 grades={grades}
               />
               {/* 科目柱状图 */}
-              <SubjectAvgChartCard subjects={subjects} grades={grades} />
+              <SubjectAvgChartCard subjects={effectiveSubjects} grades={grades} />
               {/* 雷达图 */}
               <LatestRadarChartCard
                 examsWithGrades={sortedExamsWithGrades}
-                subjects={subjects}
+                subjects={effectiveSubjects}
                 grades={grades}
               />
             </div>
@@ -111,7 +124,7 @@ export function OverviewTab({
             {/* 成绩表 */}
             <GradeTableCard
               tableData={gradeTableData}
-              subjects={subjects}
+              subjects={effectiveSubjects}
               onRemoveExamGrades={
                 onRemoveExamGrades ? (examId) => onRemoveExamGrades(examId) : undefined
               }

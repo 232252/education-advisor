@@ -7,7 +7,7 @@ import type { ClassEntity, ExamDef, SubjectDef } from '@shared/types'
 import { ClassFilterSelect } from '../../../components/ClassFilterSelect'
 import { useT } from '../../../i18n'
 import { btnStyle, cn, INPUT_SM } from '../../../lib/ui-utils'
-import { type DashboardLens, SUBJECT_FILTER_ALL } from '../dashboard-lens'
+import { type DashboardLens, EXAM_FILTER_ALL, SUBJECT_FILTER_ALL } from '../dashboard-lens'
 
 export function DashboardToolbar({
   classFilter,
@@ -95,12 +95,17 @@ export function DashboardToolbar({
             {exams.length === 0 ? (
               <option value="">{t('page.dashboard.academic.summary.empty')}</option>
             ) : (
-              exams.map((exam) => (
-                <option key={exam.id} value={exam.id}>
-                  {exam.name}
-                  {exam.date ? ` · ${exam.date}` : ''}
+              <>
+                <option value={EXAM_FILTER_ALL}>
+                  {t('page.dashboard.academic.filter.allExams')}
                 </option>
-              ))
+                {exams.map((exam) => (
+                  <option key={exam.id} value={exam.id}>
+                    {exam.name}
+                    {exam.date ? ` · ${exam.date}` : ''}
+                  </option>
+                ))}
+              </>
             )}
           </select>
           <select

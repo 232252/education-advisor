@@ -8,7 +8,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { toastMocks } from '../../helpers/mock-toast'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { EAAStudent, ExamDef, GradeRecord } from '@shared/types'
+import type { EAAStudent, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
 
 const mocks = vi.hoisted(() => ({
   getClassGrades: vi.fn(),
@@ -121,6 +121,25 @@ describe('异常与边界', () => {
     expect(result.current.sheet).not.toBeNull()
     act(() => result.current.closeSheet())
     expect(result.current.sheet).toBeNull()
+  })
+
+  it('目录外科目(如 AI 导入的「通用技术」)补齐进成绩单科目,预览不再丢列', async () => {
+    mocks.getClassGrades.mockResolvedValue({
+      success: true,
+      data: { 张三: [{ ...grade('张三', '通用技术', 96), fullMark: 100 }] },
+    })
+    const customExam = { ...exam, subjects: ['通用技术'] } as unknown as ExamDef
+    const catalog = [{ id: 'chinese', name: '语文', category: 'core', fullMark: 150 }]
+    const { result } = renderHook(() =>
+      useExamGradeSheet([student('张三')], catalog as SubjectDef[]),
+    )
+    await act(async () => {
+      await result.current.printSheet(customExam)
+    })
+    const ids = result.current.sheet!.subjects.map((s) => s.id)
+    expect(ids).toContain('chinese')
+    expect(ids).toContain('通用技术')
+    expect(result.current.sheet!.subjects.find((s) => s.id === '通用技术')?.fullMark).toBe(100)
   })
 
   it('loading 态在拉取期间为 true', async () => {

@@ -37,7 +37,7 @@ export function ExamManagementTab({
   const { t } = useT()
 
   const sortedExams = useMemo(() => sortByDateDesc(exams), [exams])
-  const gradeSheet = useExamGradeSheet(students)
+  const gradeSheet = useExamGradeSheet(students, subjects)
 
   const {
     showCreateForm,
@@ -132,7 +132,7 @@ export function ExamManagementTab({
         >
           <ClassGradeSheetDocument
             exam={gradeSheet.sheet.exam}
-            subjects={subjects}
+            subjects={gradeSheet.sheet.subjects}
             rows={gradeSheet.sheet.rows}
             subjectStats={gradeSheet.sheet.subjectStats}
             classLabel={sheetClassLabel(gradeSheet.sheet.rows, classIdToName)}

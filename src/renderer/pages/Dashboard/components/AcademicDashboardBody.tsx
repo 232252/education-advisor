@@ -20,7 +20,7 @@ import {
   rankStudentGrades,
   watchlistStudents,
 } from '../dashboard-academic-stats'
-import { SUBJECT_FILTER_ALL } from '../dashboard-lens'
+import { EXAM_FILTER_ALL, SUBJECT_FILTER_ALL } from '../dashboard-lens'
 import { AcademicShortcutsCard } from './AcademicShortcutsCard'
 import { AcademicStatsRow } from './AcademicStatsRow'
 import { DashboardCardSkeleton } from './DashboardCardSkeleton'
@@ -51,6 +51,7 @@ export function AcademicDashboardBody({
   const { t } = useT()
   const navigate = useNavigate()
   const currentExam = useMemo(() => exams.find((e) => e.id === examId) ?? null, [exams, examId])
+  const allExamsSelected = examId === EXAM_FILTER_ALL
 
   const rows = useMemo(
     () => computeStudentGradeRows(students, classGrades, subjectId),
@@ -120,7 +121,12 @@ export function AcademicDashboardBody({
           <DashboardCardSkeleton />
         )}
         {gradesReady ? (
-          <LatestExamSummaryCard exam={currentExam} stats={stats} subjectAvgs={subjectAvgs} />
+          <LatestExamSummaryCard
+            exam={currentExam}
+            allExamsSelected={allExamsSelected}
+            stats={stats}
+            subjectAvgs={subjectAvgs}
+          />
         ) : (
           <DashboardCardSkeleton />
         )}

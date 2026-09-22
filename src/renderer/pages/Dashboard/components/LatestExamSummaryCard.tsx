@@ -12,10 +12,13 @@ import type { AcademicStatsSummary, SubjectAvgItem } from '../dashboard-academic
 
 export function LatestExamSummaryCard({
   exam,
+  allExamsSelected = false,
   stats,
   subjectAvgs,
 }: {
   exam: ExamDef | null
+  /** 考试筛选为「全部考试」: 无单场考试可指向,但仍展示汇总数据 */
+  allExamsSelected?: boolean
   stats: AcademicStatsSummary
   subjectAvgs: SubjectAvgItem[]
 }) {
@@ -28,14 +31,15 @@ export function LatestExamSummaryCard({
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-pink-500"></span>
         {t('page.dashboard.academic.summary')}
-        {exam && (
+        {(exam || allExamsSelected) && (
           <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal ml-1 truncate">
-            {exam.name}
-            {exam.date ? ` · ${exam.date}` : ''}
+            {exam
+              ? `${exam.name}${exam.date ? ` · ${exam.date}` : ''}`
+              : t('page.dashboard.academic.filter.allExams')}
           </span>
         )}
       </h3>
-      {!exam ? (
+      {!exam && !allExamsSelected ? (
         <EmptyState
           icon={<BookOpen size={28} />}
           title={t('page.dashboard.academic.summary.empty')}
