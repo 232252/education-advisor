@@ -17,6 +17,7 @@ import type { ModelThinkingLevel } from '@main/services/llm-contracts'
 import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import type { ModelInfo, ProviderInfo, StreamEvent, TestConnectionResult } from '@shared/types'
 import { dshRouteFor } from './dsh/route'
+import { dshReasoningEffort } from './dsh/route-names'
 import { createDshRuntime, type DshRuntime, dshPinnedKey } from './dsh/runtime'
 import { TtlLruCache } from './eaa-cache'
 import { keystoreService } from './keystore-service'
@@ -29,6 +30,7 @@ import {
   updateCustomModelEntry,
 } from './pi-ai/custom-models'
 import { OnlineModelsFetcher } from './pi-ai/model-fetch'
+import { resolveModel } from './pi-ai/model-utils'
 import { fetchProviderModels } from './pi-ai/provider-models'
 import { listProviders, oauthLogin } from './pi-ai/providers'
 import { ChatStreamRunner } from './pi-ai/streaming'
@@ -160,6 +162,7 @@ class PiAIService {
     providerId: string
     modelId: string
     maxTokens?: number
+    thinking?: ModelThinkingLevel
   }): ChatStreamRunner | DshRuntime {
     let backend: 'pi' | 'dsh' = 'pi'
     try {
@@ -172,10 +175,18 @@ class PiAIService {
       // 路由名按 settings.models.dshRoutes 映射；渲染端看到的 start 事件仍是
       // 请求里那对 pi id（映射只作用于 dsh 子进程）
       const route = dshRouteFor(params.providerId, params.modelId)
+      // 推理档位只能给该模型真支持的值：dsh 会按模型的 pi-ai 目录校验它，传错值不是
+      // 降级而是整轮失败（实测 deepseek-flash 只认 low/high，medium/minimal/none 与
+      // 乱码都让 turn 以 does not support reasoning effort 抛错）。
+      const reasoningEffort = dshReasoningEffort(
+        resolveModel(params.providerId, params.modelId)?.thinkingLevelMap,
+        params.thinking,
+      )
       const key = dshPinnedKey({
         provider: route.providerId,
         model: route.modelId,
         maxTokens: params.maxTokens,
+        reasoningEffort,
       })
       if (!this.dshRunner) {
         // 对话链路在 pi 路径上不传 tools，所以这里不挂 MCP 端点；但 createDshRuntime
@@ -184,6 +195,7 @@ class PiAIService {
           provider: route.providerId,
           model: route.modelId,
           maxTokens: params.maxTokens,
+          reasoningEffort,
         })
       } else if (this.dshRunner.routeKey !== key) {
         // initialize 把 provider/model 定死在子进程级，SDK 没有按请求覆盖的入口；
@@ -193,6 +205,7 @@ class PiAIService {
           provider: route.providerId,
           model: route.modelId,
           maxTokens: params.maxTokens,
+          reasoningEffort,
         })
         void retiring.disposeWhenIdle().catch((err: unknown) => {
           console.warn('[PiAI] dsh runtime retire failed:', err)

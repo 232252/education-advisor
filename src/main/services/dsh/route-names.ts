@@ -36,3 +36,28 @@ export function applyDshRoute(
   const mapped = routes?.[provider]?.trim() || DSH_BUILTIN_ROUTE_ALIASES[provider]
   return { providerId: mapped ? mapped : provider, modelId }
 }
+
+/**
+ * app 的推理档位 → dsh `initialize` 认的 reasoningEffort。
+ *
+ * dsh 会拿**该模型在 pi-ai 目录里的档位表**校验它（实测：deepseek-flash 只接受
+ * low/high，传 medium/minimal/none/乱码都让整轮以
+ * `does not support reasoning effort "x"` 失败；high/low 则确实落到 provider 请求的
+ * reasoning_effort 字段上）。宿主看不到 dsh 的档位枚举，但目录就在 app 里 ——
+ * 模型自带的 thinkingLevelMap 即权威来源。
+ *
+ * 所以：档位缺失、'off'、或该模型不给这一档 ⇒ 返回 undefined（省略该字段，退回
+ * 模型默认档）。少一档比整轮打挂好；模型目录整个缺失（自定义模型）时按名字透传，
+ * 因为没有任何依据可以否定它。
+ */
+export function dshReasoningEffort(
+  thinkingLevelMap: Partial<Record<string, string | null>> | undefined,
+  thinking: string | undefined,
+): string | undefined {
+  if (!thinking || thinking === 'off') return undefined
+  if (thinkingLevelMap === undefined) return thinking
+  const mapped = thinkingLevelMap[thinking]
+  // 目录里显式给 null = 这一档该模型不走
+  if (mapped === null) return undefined
+  return mapped ?? undefined
+}

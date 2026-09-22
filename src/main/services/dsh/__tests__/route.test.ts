@@ -24,7 +24,26 @@ vi.mock('../../settings-service', () => ({
 }))
 
 import { dshRouteFor } from '../route'
+import { dshReasoningEffort } from '../route-names'
 
+describe('dshReasoningEffort（app 档位 → dsh initialize 值）', () => {
+  const MAP = { high: 'high', low: 'low', medium: null } as const
+  it('模型支持的档位取其目录里的映射值', () => {
+    expect(dshReasoningEffort(MAP, 'high')).toBe('high')
+    expect(dshReasoningEffort({ high: 'xhigh' }, 'high')).toBe('xhigh')
+  })
+  it('off / 未给档位 / 目录显式 null ⇒ 省略字段而不是整轮打挂', () => {
+    expect(dshReasoningEffort(MAP, 'off')).toBeUndefined()
+    expect(dshReasoningEffort(MAP, undefined)).toBeUndefined()
+    expect(dshReasoningEffort(MAP, 'medium')).toBeUndefined()
+  })
+  it('目录里查不到这一档同样省略（宁缺勿炸）', () => {
+    expect(dshReasoningEffort(MAP, 'minimal')).toBeUndefined()
+  })
+  it('无目录信息（自定义模型）时按名字透传，没有依据否定它', () => {
+    expect(dshReasoningEffort(undefined, 'high')).toBe('high')
+  })
+})
 describe('dshRouteFor', () => {
   beforeEach(() => {
     state.routes = undefined
