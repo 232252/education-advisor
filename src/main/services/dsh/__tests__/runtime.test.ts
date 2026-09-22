@@ -202,7 +202,7 @@ describe('DshRuntime.chatStream', () => {
     expect(state.sub?.closeCount).toBeGreaterThanOrEqual(1)
   })
 
-  it('只把最后一条 user 消息作为 prompt 文本', async () => {
+  it('多轮对话把整段历史按顺序带上（只发最后一句＝没有上下文）', async () => {
     const { client, state } = makeFake(({ sessionId, emit }) => emit(turnEnd(sessionId)))
     await collect(
       runtime(client).chatStream({
@@ -215,7 +215,21 @@ describe('DshRuntime.chatStream', () => {
         ],
       }),
     )
-    expect(state.promptBlocks).toEqual([{ type: 'text', text: '新问题' }])
+    expect(state.promptBlocks).toEqual([
+      { type: 'text', text: 'user: 旧问题\nassistant: 旧回答\nuser: 新问题' },
+    ])
+  })
+
+  it('只有一条消息时原样发送，不 prepend 角色前缀', async () => {
+    const { client, state } = makeFake(({ sessionId, emit }) => emit(turnEnd(sessionId)))
+    await collect(
+      runtime(client).chatStream({
+        providerId: 'p',
+        modelId: 'm',
+        messages: [{ role: 'user', content: '就一句' }],
+      }),
+    )
+    expect(state.promptBlocks).toEqual([{ type: 'text', text: '就一句' }])
   })
 
   it('systemPrompt 前置在 content blocks 之前', async () => {

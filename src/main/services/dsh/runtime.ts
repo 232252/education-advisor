@@ -332,15 +332,30 @@ export class DshRuntime {
     return `eaa-${Date.now()}-${this.sessionSeq}`
   }
 
-  private static lastUserText(params: DshChatStreamParams): string {
-    return [...params.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+  /**
+   * 对话历史 → 一段文本。
+   *
+   * SDK 的 session/prompt 没有「多条消息 + 角色」的入口，每个 turn 又是新 session
+   * （dsh 对未知 id 惰性建 session），所以历史不会由 dsh 侧持有 —— 只发最后一条
+   * user 文本等于「多轮对话没有上下文」。这里按出现顺序渲染整段对话。
+   *
+   * 只有一条消息时原样发送，不加角色前缀：绝大多数单轮调用（含首条提问）的 prompt
+   * 内容因此逐字不变。
+   */
+  private static renderTranscript(messages: ReadonlyArray<{ role: string; content: string }>) {
+    if (messages.length === 0) return ''
+    if (messages.length === 1) return messages[0].content
+    return messages
+      .filter((m) => m.content.length > 0)
+      .map((m) => `${m.role}: ${m.content}`)
+      .join('\n')
   }
 
   private static buildBlocks(params: DshChatStreamParams): DshPromptBlock[] {
     const blocks: DshPromptBlock[] = []
     if (params.systemPrompt) blocks.push({ type: 'text', text: params.systemPrompt })
     if (params.blocks?.length) blocks.push(...params.blocks)
-    else blocks.push({ type: 'text', text: DshRuntime.lastUserText(params) })
+    else blocks.push({ type: 'text', text: DshRuntime.renderTranscript(params.messages) })
     return blocks
   }
 
