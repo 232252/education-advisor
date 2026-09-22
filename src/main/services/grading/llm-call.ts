@@ -17,7 +17,7 @@ import type {
   Model,
   TextContent,
 } from '@main/services/llm-contracts'
-import { completeSimpleViaDsh } from '../dsh/one-shot'
+import { completeSimpleViaDsh, isDshSupportedImage } from '../dsh/one-shot'
 import { dshRouteFor } from '../dsh/route'
 import { createDshRuntime, type DshRuntime } from '../dsh/runtime'
 import { settingsService } from '../settings-service'
@@ -72,6 +72,62 @@ function emptyCost() {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
 }
 
+/** pi 的 content → dsh 的 content blocks（只取文本与图片，其余不参与批改） */
+function blocksOf(message: Message): Array<TextContent | ImageContent> {
+  if (typeof message.content === 'string') return [{ type: 'text', text: message.content }]
+  return message.content.filter(
+    (part): part is TextContent | ImageContent => part.type === 'text' || part.type === 'image',
+  )
+}
+
+/**
+ * dsh 的 session/prompt 没有角色概念（系统提示按「首个 text block」的约定前置），
+ * 所以多条消息只能按原顺序拼成带角色标记的一段内容，图片块留在原位。
+ *
+ * 单条 user 消息是批改管线的全部现状，那条路径逐字不变 —— 不插角色标记，
+ * 免得改动已经调校过的 prompt 内容。
+ */
+export function toDshGradingContent(
+  messages: readonly Message[],
+): Array<TextContent | ImageContent> {
+  const [only] = messages
+  if (messages.length === 1 && only?.role === 'user') return blocksOf(only)
+  const out: Array<TextContent | ImageContent> = []
+  for (const message of messages) {
+    const parts = blocksOf(message)
+    if (!parts.length) continue
+    out.push({ type: 'text', text: `${message.role}:\n` })
+    out.push(...parts)
+    out.push({ type: 'text', text: '\n' })
+  }
+  return out
+}
+
+/**
+ * dsh 只认 png/jpeg/webp/gif（子进程受理时校验），而批改摄取允许 bmp 等格式：
+ * pi 是原样转给 provider 的，所以这里必须自己重编码，否则同一张图 pi 能批、
+ * dsh 直接失败。重编码失败时保留原 mime，交给 toDshPromptBlocks 如实抛错。
+ */
+async function toDshSupportedContent(
+  content: Array<TextContent | ImageContent>,
+): Promise<Array<TextContent | ImageContent>> {
+  const unsupported = content.filter(
+    (part) => part.type === 'image' && !isDshSupportedImage(part.mimeType),
+  ).length
+  if (!unsupported) return content
+  const { downscaleToAiJpeg } = await import('./media-prep')
+  const out: Array<TextContent | ImageContent> = []
+  for (const part of content) {
+    if (part.type !== 'image' || isDshSupportedImage(part.mimeType)) {
+      out.push(part)
+      continue
+    }
+    const prepared = await downscaleToAiJpeg(Buffer.from(part.data, 'base64'), part.mimeType)
+    out.push({ type: 'image', data: prepared.data, mimeType: prepared.mimeType })
+  }
+  return out
+}
+
 /**
  * 单次批改调用。
  *
@@ -86,16 +142,6 @@ export async function completeGradingCall(
 ): Promise<AssistantMessage> {
   if (readBackend() === 'pi') return completeSimple(model, context, options)
 
-  if (context.messages.length !== 1) {
-    throw new Error(`dsh 后端仅支持单条 user 消息的批改调用，收到 ${context.messages.length} 条`)
-  }
-  const [only] = context.messages
-  if (only.role !== 'user') {
-    throw new Error(`dsh 后端要求 user 消息，收到 ${only.role}`)
-  }
-  const content: Array<TextContent | ImageContent> =
-    typeof only.content === 'string' ? [{ type: 'text', text: only.content }] : only.content
-
   const route = dshRouteFor(String(model.provider), model.id)
   const runtime = getDshRuntime(model)
   const result = await completeSimpleViaDsh({
@@ -103,7 +149,7 @@ export async function completeGradingCall(
     providerId: route.providerId,
     modelId: route.modelId,
     systemPrompt: context.systemPrompt,
-    content,
+    content: await toDshSupportedContent(toDshGradingContent(context.messages)),
     maxTokens: options.maxTokens,
     signal: options.signal,
     // 子进程已经没了，缓存必须一起丢：下次调用要重新握手

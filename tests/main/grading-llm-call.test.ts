@@ -2,7 +2,7 @@
 // 批改调用双后端出口 llm-call 测试
 // 覆盖: (a) pi 路径逐字透传 completeSimple 的入参与返回
 //       (b) dsh 路径合成 AssistantMessage（usage/cost/stopReason 口径）
-//       (c) signal / 多消息 在 dsh 下明确抛错（不静默丢功能）
+//       (c) signal 透传 / 多条消息与 dsh 不支持的图片格式都能落到 dsh 形状
 //       (d) 换模型即重建 dsh 运行时；reset 可丢弃
 //       (e) 设置读取抛错时回落 pi
 // =============================================================
@@ -62,6 +62,16 @@ vi.mock('../../src/main/services/dsh/one-shot', () => ({
     state.oneShotCalls.push(params)
     return Promise.resolve(state.oneShotResult)
   },
+  // 与实现同口径的谓词：dsh 子进程只受理这四种栅格 mime
+  isDshSupportedImage: (mime: string) =>
+    ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mime),
+}))
+
+vi.mock('../../src/main/services/grading/media-prep', () => ({
+  downscaleToAiJpeg: async (buf: Buffer, mime: string) => ({
+    data: buf.toString('base64').toUpperCase(),
+    mimeType: mime === 'image/bmp' ? 'image/jpeg' : mime,
+  }),
 }))
 
 const MODEL = {
@@ -203,15 +213,68 @@ describe('completeGradingCall — dsh 路径', () => {
     expect(state.dshBuilt).toBe(2)
   })
 
-  it('dsh 下多条消息明确抛错', async () => {
+  it('dsh 下多条消息按顺序拼成带角色标记的一段内容（图片块留在原位）', async () => {
     const mod = await load()
-    await expect(
-      mod.completeGradingCall(
-        MODEL,
-        { systemPrompt: 's', messages: [userMessage('一'), userMessage('二')] },
-        { apiKey: 'k', maxTokens: 8 },
-      ),
-    ).rejects.toThrow(/单条 user 消息/)
+    await mod.completeGradingCall(
+      MODEL,
+      {
+        systemPrompt: 's',
+        messages: [
+          userMessage('一'),
+          { role: 'assistant', content: '答', timestamp: 2 },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: '二' },
+              { type: 'image', data: 'QUJD', mimeType: 'image/jpeg' },
+            ],
+            timestamp: 3,
+          },
+        ],
+      },
+      { apiKey: 'k', maxTokens: 8 },
+    )
+    expect((state.oneShotCalls[0] as { content: unknown[] }).content).toEqual([
+      { type: 'text', text: 'user:\n' },
+      { type: 'text', text: '一' },
+      { type: 'text', text: '\n' },
+      { type: 'text', text: 'assistant:\n' },
+      { type: 'text', text: '答' },
+      { type: 'text', text: '\n' },
+      { type: 'text', text: 'user:\n' },
+      { type: 'text', text: '二' },
+      { type: 'image', data: 'QUJD', mimeType: 'image/jpeg' },
+      { type: 'text', text: '\n' },
+    ])
+  })
+
+  it('单条 user 消息不插角色标记（批改 prompt 内容逐字不变）', async () => {
+    const mod = await load()
+    await call(mod)
+    expect((state.oneShotCalls[0] as { content: unknown[] }).content).toEqual([
+      { type: 'text', text: '这张卷子' },
+    ])
+  })
+
+  it('dsh 不认的图片格式（bmp）先重编码成 JPEG 再送', async () => {
+    const mod = await load()
+    await mod.completeGradingCall(
+      MODEL,
+      {
+        systemPrompt: 's',
+        messages: [
+          {
+            role: 'user',
+            content: [{ type: 'image', data: 'ab', mimeType: 'image/bmp' }],
+            timestamp: 1,
+          },
+        ],
+      },
+      { apiKey: 'k', maxTokens: 8 },
+    )
+    expect((state.oneShotCalls[0] as { content: unknown[] }).content).toEqual([
+      { type: 'image', data: 'AQ==', mimeType: 'image/jpeg' },
+    ])
   })
 
   it('同一模型复用运行时，换模型即重建', async () => {
