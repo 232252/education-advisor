@@ -151,6 +151,8 @@ vi.mock('../../src/main/services/settings-service', () => ({
         defaultProvider: 'test-provider',
         defaultModel: 'test-model',
         customModels: {},
+        // 本文件断言的是 pi 运行时的 Agent 行为（agentRuntime 缺省现已是 dsh）；dsh 见 src/main/services/dsh/__tests__
+        agentRuntime: 'pi',
       },
       general: { agentTimeoutMins: 5 },
       chat: {

@@ -3,7 +3,7 @@
 // 时间、计算、编码等基础能力
 // =============================================================
 
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 import { Type } from 'typebox'
 import { errText } from '../utils/err-text'
 import { textResult } from './eaa/tools/shared'

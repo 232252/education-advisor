@@ -1,3 +1,4 @@
+import type { Api, AssistantMessage, Message, Model } from '@main/services/llm-contracts'
 // =============================================================
 // Rubric Refine — 评分标准「自动细化」: 参考答案 → 逐题扣分点
 // 从量规的参考答案/评分标准出发,让模型为每题生成一组扣分点
@@ -8,18 +9,12 @@
 // =============================================================
 
 import { parseJsonWithRepair } from '@earendil-works/pi-ai'
-import {
-  type Api,
-  type AssistantMessage,
-  completeSimple,
-  type Message,
-  type Model,
-} from '@earendil-works/pi-ai/compat'
 import type { PresetMark, RubricQuestion } from '@shared/types'
 import { log } from '../../utils/logger'
 import { resolveModel } from '../pi-ai/model-utils'
 import { settingsService } from '../settings-service'
 import { apiKeyFor, resolveGradingModelIds } from './grading-pipeline'
+import { completeGradingCall } from './llm-call'
 
 /** 细化输出上限: 逐题扣分点 JSON,与样卷识别同档;实际按模型上限钳制 */
 const REFINE_MAX_TOKENS = 8192
@@ -187,7 +182,7 @@ export async function refineRubricStandards(
       timestamp: Date.now(),
     },
   ]
-  const assistant = await completeSimple(
+  const assistant = await completeGradingCall(
     model,
     { systemPrompt: buildRefinePrompt(targets), messages },
     {

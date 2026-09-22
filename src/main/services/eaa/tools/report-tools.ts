@@ -3,7 +3,7 @@
 // 从 eaa-tools.ts 拆分(纯重构,逻辑逐字搬移)
 // =============================================================
 
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 import { Type } from 'typebox'
 import { profileService } from '../../profile-service'
 import { executeWithSignal, safeExecute } from './sanitize'

@@ -93,3 +93,9 @@ asarUnpack:
   - "**/*.exe"
   - "**/*.node"
   - "**/*.dll"
+  # dsh 后端要另起一个**纯 node**子进程跑 @deepseek-ai/dsh（SDK 用 process.execPath
+  # + ELECTRON_RUN_AS_NODE 启动它）。归档只对主进程透明，node 子进程看不见 app.asar，
+  # 所以整棵依赖树必须以真实文件形式落在 app.asar.unpacked 下 —— 只挑 @deepseek-ai/*
+  # 不够，cosmokit / schemastery / node-addon-system 这些非 scoped 传递依赖也得在。
+  # 安装体积不变（解出的文件不再进归档），只是文件数变多。
+  - "**/node_modules/**"

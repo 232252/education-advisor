@@ -4,7 +4,7 @@
 // 补上此前 Agent 只能加学生、不能建班的缺口。
 // =============================================================
 
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 import { computeAutoClassId, inferClassFromLabel } from '@shared/class-id'
 import type { RosterProfilePatch } from '@shared/roster-profile'
 import { fieldsToProfilePatch } from '@shared/roster-profile'

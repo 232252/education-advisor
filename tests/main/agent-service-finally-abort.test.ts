@@ -24,11 +24,76 @@ const mocks = vi.hoisted(() => {
     unsubscribeFn: vi.fn(),
     // M15: 可注入的 agent 超时(分钟),execution.ts 每次运行时读取
     agentTimeoutMins: 5,
+    // 后端切换断言用：记录两条构造路径各被走了几次
+    // 默认显式钉 pi：本文件的 finally/超时用例覆盖 pi 运行时内核（dsh 见 src/main/services/dsh/__tests__）
+    agentRuntime: 'pi' as 'pi' | 'dsh' | undefined,
+    piAgentCtorCount: 0,
+    facadeCtorCount: 0,
+    facadeAbortCount: 0,
+    facadeInit: null as unknown,
+    mountCount: 0,
+    releaseCount: 0,
+    lastMount: null as unknown,
+    dshRuntimeOpts: null as unknown,
+    dshRuntimeBuilt: 0,
   }
 })
 
 vi.mock('electron', () => ({ app: { getPath: mocks.getPath, isPackaged: false } }))
 
+
+// dsh 替身：记录构造入参与 abort，行为沿用 agentMockState，便于断言走了哪条后端
+vi.mock('../../src/main/services/dsh/agent-facade', () => ({
+  createDshAgent: (init: unknown) => {
+    mocks.facadeCtorCount++
+    mocks.facadeInit = init
+    return {
+      state: { tools: [], messages: [] },
+      subscribe: () => mocks.unsubscribeFn,
+      async prompt() {
+        return agentMockState.promptImpl()
+      },
+      waitForIdle: () => agentMockState.waitForIdleImpl(),
+      async abort() {
+        mocks.facadeAbortCount++
+      },
+    }
+  },
+}))
+
+// 工具桥与子进程入口：不 mock 会牵进真实 http 服务端，并往 cwd 写 patch 文件
+vi.mock('../../src/main/services/dsh/tool-bridge', () => ({
+  ensureActiveEaaToolBridge: async () => ({ port: 1, patchDir: '', close: async () => {} }),
+  mountEaaAgentTools: async (opts: { label: string; tools: { name: string }[] }) => {
+    mocks.mountCount++
+    mocks.lastMount = opts
+    return {
+      serverName: `eaa-${opts.label}-${mocks.mountCount}`,
+      patchPath: `/tmp/eaa-mcp-eaa-${opts.label}-${mocks.mountCount}.cordis.patch.yml`,
+      toolNameMap: Object.fromEntries(
+        opts.tools.map((t) => [t.name, `mcp__eaa-${opts.label}-${mocks.mountCount}__${t.name}`]),
+      ),
+      endpoint: { url: 'http://127.0.0.1:1/mcp/x', token: 't', toolCount: opts.tools.length },
+      release: async () => {
+        mocks.releaseCount++
+      },
+    }
+  },
+}))
+
+vi.mock('../../src/main/services/dsh/runtime', () => ({
+  getDshRuntimeCwd: () => mocks.userDataDir,
+  createDshRuntime: (opts: unknown) => {
+    mocks.dshRuntimeBuilt++
+    mocks.dshRuntimeOpts = opts
+    return {
+      turnEvents: async function* () {
+        yield { type: 'turn/end' }
+      },
+      dispose: async () => {},
+    }
+  },
+}))
 // Agent mock: waitForIdle/prompt 可动态修改
 const agentMockState = {
   waitForIdleImpl: (): Promise<void> => Promise.resolve(),
@@ -37,6 +102,9 @@ const agentMockState = {
 
 vi.mock('@earendil-works/pi-agent-core', () => ({
   Agent: class {
+    constructor() {
+      mocks.piAgentCtorCount++
+    }
     state = {
       messages: [],
       tools: [],
@@ -124,6 +192,7 @@ vi.mock('../../src/main/services/settings-service', () => ({
         defaultProvider: 'test-provider',
         defaultModel: 'test-model',
         customModels: {},
+        agentRuntime: mocks.agentRuntime,
       },
       // M15: execution.ts 读取 general.agentTimeoutMins 作为 waitForIdle 超时
       general: {
@@ -314,4 +383,52 @@ describe('M15: Agent 超时错标修复 + 可配置', () => {
     agentMockState.promptImpl = () => Promise.resolve()
     cleanup()
   })
+
+  it('显式 agentRuntime=pi 时走 pi Agent，不挂 dsh 工具端点', async () => {
+    mocks.agentRuntime = 'pi'
+    agentMockState.promptImpl = () => Promise.resolve()
+    agentMockState.waitForIdleImpl = () => Promise.resolve()
+    const cleanup = injectTestAgent('test-backend-pi')
+    const fakeWin = makeFakeWindow()
+    const beforePi = mocks.piAgentCtorCount
+    const beforeMount = mocks.mountCount
+
+    await agentService.runAgent('test-backend-pi', 'test', fakeWin as never)
+
+    expect(mocks.piAgentCtorCount).toBe(beforePi + 1)
+    expect(mocks.facadeCtorCount).toBe(0)
+    expect(mocks.mountCount).toBe(beforeMount)
+    expect(mocks.dshRuntimeBuilt).toBe(0)
+    cleanup()
+  })
+
+  it('agentRuntime=dsh 时按本次运行的工具集挂载，并在 finally 撤回', async () => {
+    mocks.agentRuntime = 'dsh'
+    agentMockState.promptImpl = () => Promise.resolve()
+    agentMockState.waitForIdleImpl = () => Promise.resolve()
+    const cleanup = injectTestAgent('test-backend-dsh')
+    const fakeWin = makeFakeWindow()
+    const beforePi = mocks.piAgentCtorCount
+    const beforeMount = mocks.mountCount
+
+    await agentService.runAgent('test-backend-dsh', 'test', fakeWin as never)
+
+    // 没有偷偷回落到 pi
+    expect(mocks.piAgentCtorCount).toBe(beforePi)
+    expect(mocks.facadeCtorCount).toBe(1)
+    expect(mocks.mountCount).toBe(beforeMount + 1)
+    expect(mocks.releaseCount).toBe(mocks.mountCount)
+    expect(mocks.facadeAbortCount).toBe(1)
+    // 挂的是这个角色的工具集，patch 只有它自己那一份
+    expect((mocks.lastMount as { label: string }).label).toBe('test-backend-dsh')
+    expect(mocks.dshRuntimeOpts).toMatchObject({ patches: [expect.stringContaining('eaa-mcp-')] })
+    // 提示词改写用的映射与端点同名，否则模型会按裸名调用不存在的工具
+    const init = mocks.facadeInit as { toolNameMap: Record<string, string> }
+    expect(Object.keys(init.toolNameMap)).toEqual(
+      (mocks.lastMount as { tools: unknown[] }).tools.map((t) => (t as { name: string }).name),
+    )
+    mocks.agentRuntime = 'pi'
+    cleanup()
+  })
 })
+

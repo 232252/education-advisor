@@ -28,8 +28,8 @@
 // AssistantMessageEventStream 类名被包根的 type-only 再导出遮蔽(TS1362),无法直接 new;
 // 同模块的工厂函数无此冲突,作为值导入(根 index 为纯 re-export,无副作用)
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
-import type { Api, AssistantMessageEvent, Model } from '@earendil-works/pi-ai/compat'
 import { streamSimple } from '@earendil-works/pi-ai/compat'
+import type { Api, AssistantMessageEvent, Model } from '@main/services/llm-contracts'
 import { errText } from '../../utils/err-text'
 import { readRetrySettings } from '../pi-ai/retry-settings'
 import { backoffDelayMs, isRetryableError, zeroedUsage } from '../pi-ai-helpers'

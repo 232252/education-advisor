@@ -3,7 +3,7 @@
 // 从 eaa-tools.ts 拆分(纯重构,逻辑逐字搬移)
 // =============================================================
 
-import type { AgentToolResult } from '@earendil-works/pi-agent-core'
+import type { AgentToolResult } from '@main/services/llm-contracts'
 import { Type } from 'typebox'
 // 注意: getErrorMessage 从 eaa/types(纯函数)导入而非 eaa-bridge —
 // shared.ts 被 utility-tools 等纯逻辑单测引用,不得把 electron 依赖链拉进来

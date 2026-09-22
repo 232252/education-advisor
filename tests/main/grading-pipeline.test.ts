@@ -18,7 +18,8 @@ const mocks = vi.hoisted(() => {
       throw new Error(`Unexpected path: ${name}`)
     }),
     completeSimple: vi.fn(),
-    getSettings: vi.fn(() => ({})),
+    // 本文件断言的是 pi 运行时的模型调用（agentRuntime 缺省现已是 dsh）；dsh 见 src/main/services/dsh/__tests__
+    getSettings: vi.fn(() => ({ models: { agentRuntime: 'pi' } })),
     resolveModel: vi.fn(),
     gs: {
       getTask: vi.fn(),
@@ -372,6 +373,8 @@ describe('regradePapers — 外层重试收敛(解析类不整体重试)', () =>
     mocks.gs.paperFilePath.mockImplementation((_t: string, stored: string) => join(tmpDir, stored))
     mocks.getSettings.mockImplementation(() => ({
       grading: { provider: 'prov-a', model: 'model-a' },
+      // 覆盖 mock 也要带上后端：本组用例断言 pi 的 completeSimple 调用次数
+      models: { agentRuntime: 'pi' },
     }))
     mocks.resolveModel.mockImplementation(() => fakeModel)
   })

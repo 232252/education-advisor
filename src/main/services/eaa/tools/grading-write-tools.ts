@@ -3,7 +3,7 @@
 // 读工具见 grading-tools.ts。写入须 confirm:true(教师在对话里先复述再调)。
 // =============================================================
 
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 import { Type } from 'typebox'
 import { startGradingFromFiles } from '../../grading/batch-from-files'
 import { gradingService } from '../../grading/grading-service'

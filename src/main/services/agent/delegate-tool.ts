@@ -22,7 +22,7 @@
 // (pi-agent-core 把 agent 内部 run 的 AbortSignal 作为第 3 参传给 execute)。
 // =============================================================
 
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 import type { AgentExecution } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { Type } from 'typebox'

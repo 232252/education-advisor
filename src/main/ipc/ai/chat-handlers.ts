@@ -6,7 +6,7 @@
 // 从此不再出域;隐私引擎未解锁时直接报错(fail-closed,与 Agent 链路一致)。
 // =============================================================
 
-import type { ModelThinkingLevel } from '@earendil-works/pi-ai'
+import type { ModelThinkingLevel } from '@main/services/llm-contracts'
 import * as IPC from '@shared/ipc-channels'
 import type { StreamEvent } from '@shared/types'
 import type { BrowserWindow } from 'electron'

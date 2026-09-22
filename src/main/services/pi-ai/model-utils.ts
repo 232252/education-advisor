@@ -1,9 +1,10 @@
+import type { Api, Model } from '@main/services/llm-contracts'
 // =============================================================
 // Pi AI — 模型工具: 安全获取/解析模型 + ModelInfo 映射
 // 从 pi-ai-service.ts 拆出。逻辑零修改(逐行对照搬迁)。
 // =============================================================
 
-import { type Api, getModel, getModels, type Model } from '@earendil-works/pi-ai/compat'
+import { getModel, getModels } from '@earendil-works/pi-ai/compat'
 import type { ModelInfo } from '@shared/types'
 import { errText } from '../../utils/err-text'
 // OLLAMA_OPENAI_BASE_URL 从 ollama/constants 导入(而非 ollama-service 单例入口):

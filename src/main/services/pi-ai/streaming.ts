@@ -8,16 +8,15 @@
 //   (F4 清理后仅用于并发隔离与信号检查,无公共中止入口),并发行为不变。
 // =============================================================
 
-import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import {
-  type AssistantMessage,
-  type Context,
-  getEnvApiKey,
-  type Message,
-  type ModelThinkingLevel,
-  streamSimple,
-  type ThinkingLevel,
-} from '@earendil-works/pi-ai/compat'
+import { getEnvApiKey, streamSimple } from '@earendil-works/pi-ai/compat'
+import type {
+  AgentMessage,
+  AssistantMessage,
+  Context,
+  Message,
+  ModelThinkingLevel,
+  ThinkingLevel,
+} from '@main/services/llm-contracts'
 import type { StreamEvent } from '@shared/types'
 import { errText } from '../../utils/err-text'
 import {

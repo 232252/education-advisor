@@ -1,3 +1,4 @@
+import type { Api, Message, Model } from '@main/services/llm-contracts'
 // =============================================================
 // Staged Pipeline — 分阶段批改(标准档/双评档的执行引擎)
 // 流程: 版面定位(一次) → 按题裁剪(外扩防截断) → 分题型分批批改
@@ -12,7 +13,6 @@
 
 import fsp from 'node:fs/promises'
 import { parseJsonWithRepair } from '@earendil-works/pi-ai'
-import { type Api, completeSimple, type Message, type Model } from '@earendil-works/pi-ai/compat'
 import { dualTolerance, markScoreFromSelection, questionKind } from '@shared/grading-helpers'
 import type {
   AiGradeResult,
@@ -34,6 +34,7 @@ import {
   parseDeductions,
 } from './grading-pipeline'
 import { gradingService } from './grading-service'
+import { completeGradingCall } from './llm-call'
 
 // ===== 纯函数: 批次规划 =====
 
@@ -632,7 +633,7 @@ export async function gradePaperStaged(opts: GradePaperStagedOptions): Promise<A
         timestamp: Date.now(),
       },
     ]
-    const assistant = await completeSimple(
+    const assistant = await completeGradingCall(
       model,
       { systemPrompt, messages },
       {

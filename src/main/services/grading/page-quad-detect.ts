@@ -1,3 +1,4 @@
+import type { Message } from '@main/services/llm-contracts'
 // =============================================================
 // Page Quad Detect — 套打定位四点检测编排(主进程)
 // 自动链: ①定位点■/纸角 CV(本地毫秒级) → ②AI 视觉四点(CV 失手/低置信
@@ -6,7 +7,6 @@
 // =============================================================
 
 import fsp from 'node:fs/promises'
-import { completeSimple, type Message } from '@earendil-works/pi-ai/compat'
 import { type PageQuad, rescaleQuad } from '@shared/grading-geometry'
 import { errText } from '../../utils/err-text'
 import { log } from '../../utils/logger'
@@ -14,6 +14,7 @@ import { resolveModel } from '../pi-ai/model-utils'
 import { settingsService } from '../settings-service'
 import { apiKeyFor, isVisionModel, resolveGradingModelIds } from './grading-pipeline'
 import { gradingService } from './grading-service'
+import { completeGradingCall } from './llm-call'
 import { buildQuadPrompt, detectQuadInGray, parseQuadResponse, rgbaToGray } from './quad-cv'
 
 /** 分析分辨率上限(长边),CV 在此尺度跑,结果换算回原图 */
@@ -125,7 +126,7 @@ async function aiDetectQuad(
       { type: 'text', text: '找出试卷纸张的四个角,只输出 JSON。' },
     ]
     const messages: Message[] = [{ role: 'user', content, timestamp: Date.now() }]
-    const assistant = await completeSimple(
+    const assistant = await completeGradingCall(
       model,
       { systemPrompt: buildQuadPrompt(), messages },
       {

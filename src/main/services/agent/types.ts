@@ -2,7 +2,7 @@
 // Agent 运行时共享类型（从 agent-service.ts 抽出，纯重构零行为变化）
 // =============================================================
 
-import type { Agent, AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentEvent, AgentMessage, AgentTool } from '@main/services/llm-contracts'
 
 import type { AgentConfig, AgentExecution, AgentRunSource, AgentStatus } from '@shared/types'
 import type { BrowserWindow } from 'electron'
@@ -12,8 +12,22 @@ import type { PrivacyGuard } from './privacy-guard'
 // Agent 运行时实例（每次执行创建一个）
 // ===========================================================
 
+/**
+ * execution 链路真正用到的最小面（六个成员）。
+ * pi 的 Agent 与 dsh 替身 DshAgentFacade 都结构上满足它，
+ * 于是后端切换只需要换一个构造结果。
+ */
+export interface AgentRuntimeLike {
+  state: { tools: readonly unknown[]; messages: AgentMessage[] }
+  subscribe(handler: (event: AgentEvent) => void): () => void
+  /** 返回类型取 unknown：pi 的 abort 返回 void、dsh 替身返回 Promise，两者都可 await */
+  prompt(text: string): unknown
+  waitForIdle(): Promise<void>
+  abort(): unknown
+}
+
 interface RunningAgent {
-  agent: InstanceType<typeof Agent>
+  agent: AgentRuntimeLike
   abortController: AbortController
   agentId: string
   startedAt: number

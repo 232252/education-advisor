@@ -13,7 +13,7 @@
 //     psychology / risk-alert / safety)
 // =============================================================
 
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 import { Type } from 'typebox'
 import { errText } from '../../utils/err-text'
 import { textResult } from '../eaa/tools/shared'

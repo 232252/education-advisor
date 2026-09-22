@@ -1,3 +1,4 @@
+import type { Api, AssistantMessage, Message, Model } from '@main/services/llm-contracts'
 // =============================================================
 // Rubric Extract — 量规「从样卷识别」: 视觉模型抽取题目结构
 // 批改管线(grading-pipeline)的旁路: 复用同一套批改模型配置与鉴权,
@@ -8,18 +9,12 @@
 // =============================================================
 
 import { parseJsonWithRepair } from '@earendil-works/pi-ai'
-import {
-  type Api,
-  type AssistantMessage,
-  completeSimple,
-  type Message,
-  type Model,
-} from '@earendil-works/pi-ai/compat'
 import type { ExtractedRubricQuestion } from '@shared/api/grading'
 import { log } from '../../utils/logger'
 import { resolveModel } from '../pi-ai/model-utils'
 import { settingsService } from '../settings-service'
 import { apiKeyFor, isVisionModel, resolveGradingModelIds } from './grading-pipeline'
+import { completeGradingCall } from './llm-call'
 import { ingestSampleFiles } from './sample-ingest'
 
 /** 题目+参考答案草稿的输出比单份批改长,上限放大一倍;实际按模型上限钳制 */
@@ -179,7 +174,7 @@ export async function extractRubricFromSamples(
     { type: 'text' as const, text: '请从这些样卷提取题目结构，只输出 JSON。' },
   ]
   const messages: Message[] = [{ role: 'user', content, timestamp: Date.now() }]
-  const assistant = await completeSimple(
+  const assistant = await completeGradingCall(
     model,
     { systemPrompt: buildRubricExtractPrompt(), messages },
     { apiKey, maxTokens: Math.min(EXTRACT_MAX_TOKENS, model.maxTokens || EXTRACT_MAX_TOKENS) },

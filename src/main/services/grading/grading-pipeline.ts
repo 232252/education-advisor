@@ -1,3 +1,4 @@
+import type { Api, AssistantMessage, Message, Model } from '@main/services/llm-contracts'
 // =============================================================
 // Grading Pipeline — AI 批改执行管线
 // 每份试卷一次视觉模型调用: 量规(题目/满分/评分标准)进 system prompt,
@@ -9,14 +10,7 @@
 
 import fsp from 'node:fs/promises'
 import { parseJsonWithRepair } from '@earendil-works/pi-ai'
-import {
-  type Api,
-  type AssistantMessage,
-  completeSimple,
-  getEnvApiKey,
-  type Message,
-  type Model,
-} from '@earendil-works/pi-ai/compat'
+import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import {
   markScoreFromSelection,
   mergeDualResults,
@@ -45,6 +39,7 @@ import { KEYLESS_PROVIDERS } from '../ollama/constants'
 import { resolveModel } from '../pi-ai/model-utils'
 import { settingsService } from '../settings-service'
 import { gradingService } from './grading-service'
+import { completeGradingCall } from './llm-call'
 import { gradePaperStaged, type StagedSharedContext, type StagedStageInfo } from './staged-pipeline'
 
 /** 单份试卷批改的输出 token 上限(逐题 JSON+box+批注;每题都出 box 后上调) */
@@ -435,7 +430,7 @@ async function gradePaperOnce(
       timestamp: Date.now(),
     },
   ]
-  const assistant = await completeSimple(
+  const assistant = await completeGradingCall(
     model,
     {
       systemPrompt: buildGradingPrompt(task.rubric, task.gradingMode ?? 'normal'),

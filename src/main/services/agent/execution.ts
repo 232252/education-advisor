@@ -8,13 +8,13 @@
 // 日志前缀与事件负载逐字保留,行为零变化)
 // =============================================================
 
+import { Agent } from '@earendil-works/pi-agent-core'
 import type {
   AgentMessage,
   AgentTool,
   CompactionSettings,
   ThinkingLevel,
-} from '@earendil-works/pi-agent-core'
-import { Agent } from '@earendil-works/pi-agent-core'
+} from '@main/services/llm-contracts'
 import type { AgentConfig, AgentExecution, AgentRunSource, AgentStatus } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { errText } from '../../utils/err-text'
@@ -26,6 +26,14 @@ import {
   estimateMessageTokens,
 } from '../compaction-helper'
 import { dbService } from '../db-service'
+import { createDshAgent } from '../dsh/agent-facade'
+import { dshRouteFor } from '../dsh/route'
+import { createDshRuntime, type DshRuntime, getDshRuntimeCwd } from '../dsh/runtime'
+import {
+  type EaaToolMount,
+  ensureActiveEaaToolBridge,
+  mountEaaAgentTools,
+} from '../dsh/tool-bridge'
 import { ollamaService } from '../ollama-service'
 import { createAssistantPlaceholder } from '../pi-ai-helpers'
 import { settingsService } from '../settings-service'
@@ -38,7 +46,7 @@ import { createRetryingStreamFn } from './retrying-stream'
 import { clearActiveRunSource, sendAgentStatus, setActiveRunSource } from './status-tracking'
 import { buildSystemPrompt } from './system-prompt'
 import { withTimeout } from './timeout'
-import type { AgentExecutionDeps } from './types'
+import type { AgentExecutionDeps, AgentRuntimeLike } from './types'
 
 /** 成功/失败两条路径共用的执行记录头部(公共字段单一来源) */
 function buildExecutionBase(
@@ -338,37 +346,81 @@ async function executeAgentRunInner(
     }
   }
 
-  const agent = new Agent({
-    // pi-agent-core 0.85: streamFn 必填,显式传入 pi-ai 的流式实现
-    // R2+: 经 createRetryingStreamFn 包装 — 建流阶段(429/超时/网络)按
-    // models.retry.* 指数退避重试,与直连聊天路径同策略(此前 agent 链路零重试)
-    streamFn: createRetryingStreamFn(),
-    initialState: {
-      systemPrompt,
+  // 后端切换：dsh 走子进程替身，缺省 pi。每个执行独占一个 DshRuntime —
+  // SDK 无按轮取消，abort 只能整体关停子进程，共用会误杀其它并发会话。
+  let useDsh = false
+  try {
+    useDsh = settingsService.getSettings().models?.agentRuntime !== 'pi'
+  } catch (err) {
+    // 设置读不到时按现网后端跑，不能让一次读失败打断智能体执行
+    console.warn(`[Agent] settings unreadable, using pi runtime for ${id}: ${errText(err)}`)
+  }
+  // 工具面按本次运行挂载：dsh 子进程只看得见这一个端点，也就是这个角色的工具集
+  // （capability 裁剪、delegate_to 只给 main、脱敏包装都已在 tools 里定型）。
+  // harness 自带工具由 createDshRuntime 附的那份 patch 关掉。
+  // release 在 finally：端点和含 token 的 patch 文件都不跨运行残留。
+  let toolMount: EaaToolMount | null = null
+  let dshRuntime: DshRuntime | null = null
+  if (useDsh) {
+    await ensureActiveEaaToolBridge({ patchDir: getDshRuntimeCwd() })
+    toolMount = await mountEaaAgentTools({ label: id, tools })
+    // 路由名按 settings.models.dshRoutes 映射（dsh 的 provider 路由是用户在自己
+    // dsh 配置里声明的 key，不等于 pi 的 provider id）
+    const route = dshRouteFor(String(model.provider), model.id)
+    dshRuntime = createDshRuntime({
+      provider: route.providerId,
+      model: route.modelId,
+      patches: [toolMount.patchPath],
+    })
+    log(
+      'info',
+      'agent',
+      `runAgent(${id}) dsh 工具挂载 serverName=${toolMount.serverName} tools=${tools.length}`,
+    )
+  }
+
+  let agent: AgentRuntimeLike
+  if (dshRuntime && toolMount) {
+    agent = createDshAgent({
+      runtime: dshRuntime,
       model,
-      // C-2 修复: 从 settings.chat.thinkingLevel 读取用户选择的思考级别,
-      // 而非硬编码 'medium'。fallback 到 'medium' 保证向后兼容。
-      thinkingLevel: (settingsService.getSettings().chat?.thinkingLevel ??
-        'medium') as ThinkingLevel,
-      // ✅ 从模型定义中读取 maxTokens 作为单次输出上限
-      // (pi-agent-core 会根据 model.maxTokens 向 LLM 请求对应数量的 token)
-    },
-    getApiKey: (provider: string) => resolveApiKey(provider),
-    transformContext,
-    // 诊断: 捕获 LLM HTTP 响应状态码和 headers,用于定位 stopReason=error 的根因
-    // 走正式 logger(debug 级别),仅当 logLevel=debug 时落盘,避免在普通用户机器上 ENOENT 噪音
-    onResponse: (response, modelUsed) => {
-      try {
-        log(
-          'debug',
-          'agent',
-          `HTTP_RESPONSE: model=${modelUsed.provider}/${modelUsed.id} status=${response.status} headers=${JSON.stringify(response.headers)}`,
-        )
-      } catch {
-        // ignore
-      }
-    },
-  })
+      systemPrompt,
+      // dsh 侧工具被强制改写成 mcp__<serverName>__<name>，提示词里的裸名必须同步
+      toolNameMap: toolMount.toolNameMap,
+    })
+  } else {
+    agent = new Agent({
+      // pi-agent-core 0.85: streamFn 必填,显式传入 pi-ai 的流式实现
+      // R2+: 经 createRetryingStreamFn 包装 — 建流阶段(429/超时/网络)按
+      // models.retry.* 指数退避重试,与直连聊天路径同策略(此前 agent 链路零重试)
+      streamFn: createRetryingStreamFn(),
+      initialState: {
+        systemPrompt,
+        model,
+        // C-2 修复: 从 settings.chat.thinkingLevel 读取用户选择的思考级别,
+        // 而非硬编码 'medium'。fallback 到 'medium' 保证向后兼容。
+        thinkingLevel: (settingsService.getSettings().chat?.thinkingLevel ??
+          'medium') as ThinkingLevel,
+        // ✅ 从模型定义中读取 maxTokens 作为单次输出上限
+        // (pi-agent-core 会根据 model.maxTokens 向 LLM 请求对应数量的 token)
+      },
+      getApiKey: (provider: string) => resolveApiKey(provider),
+      transformContext,
+      // 诊断: 捕获 LLM HTTP 响应状态码和 headers,用于定位 stopReason=error 的根因
+      // 走正式 logger(debug 级别),仅当 logLevel=debug 时落盘,避免在普通用户机器上 ENOENT 噪音
+      onResponse: (response, modelUsed) => {
+        try {
+          log(
+            'debug',
+            'agent',
+            `HTTP_RESPONSE: model=${modelUsed.provider}/${modelUsed.id} status=${response.status} headers=${JSON.stringify(response.headers)}`,
+          )
+        } catch {
+          // ignore
+        }
+      },
+    })
+  }
 
   // 设置工具
   agent.state.tools = tools
@@ -497,7 +549,11 @@ async function executeAgentRunInner(
     // (M16: 循环实现拆到 agent/continuation.ts)
     const continuationCount = await runContinuationLoop({
       id,
-      prompt: (text) => agent.prompt(text),
+      // AgentRuntimeLike.prompt 返回 unknown（pi 返回 Promise、替身返回 void），
+      // 续跑循环的契约要 Promise；await 对两者语义一致（入队即 resolve）
+      prompt: async (text) => {
+        await agent.prompt(text)
+      },
       waitIdle,
       getOutputLength: () => stats.outputText.length,
       getTurnCount: () => stats.turnCount,
@@ -624,6 +680,8 @@ async function executeAgentRunInner(
     }
     unsubscribe()
     deps.deleteRunning(id)
+    // dsh 路径: 撤掉本次运行的 MCP 端点与 patch 文件(子进程已在上面 abort 时关掉)
+    if (toolMount) await toolMount.release()
     // M0: 清除来源登记(放在 deleteRunning 旁,与 setRunning 对称)
     clearActiveRunSource(id)
   }

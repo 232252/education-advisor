@@ -9,14 +9,13 @@
 //   - 摘要文本作为一条 user 消息插入,保留最近 keepRecentTokens 部分原样
 // =============================================================
 
-import type { AgentMessage, CompactionSettings } from '@earendil-works/pi-agent-core'
 import {
   convertToLlm,
   estimateContextTokens,
   serializeConversation,
 } from '@earendil-works/pi-agent-core'
-import type { Api, Model } from '@earendil-works/pi-ai/compat'
 import { completeSimple } from '@earendil-works/pi-ai/compat'
+import type { AgentMessage, Api, CompactionSettings, Model } from '@main/services/llm-contracts'
 import { errText } from '../utils/err-text'
 
 /**

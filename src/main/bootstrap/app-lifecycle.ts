@@ -10,6 +10,10 @@ import { initAutoBackup } from '../services/backup-service'
 import { channelManager } from '../services/channels/manager'
 import { cronService } from '../services/cron-service'
 import { dbService } from '../services/db-service'
+import { configureDshCredentials } from '../services/dsh/provider-patch'
+import { configureDshRuntime, resolveDshEntryPath } from '../services/dsh/runtime'
+import { ensureActiveEaaToolBridge, stopActiveEaaToolBridge } from '../services/dsh/tool-bridge'
+import { keystoreService } from '../services/keystore-service'
 import { resolveAppDataDir, resolveEaaDataDir } from '../services/paths'
 import { settingsService } from '../services/settings-service'
 import { syncNativeTheme } from '../services/theme-service'
@@ -48,6 +52,43 @@ export async function startApp(): Promise<void> {
     resolveEaaDataDir(),
   ]).then((n) => {
     if (n > 0) log('info', 'main', `[Startup] swept ${n} atomic-write tmp residue files`)
+  })
+  // dsh 子进程的工作目录(session log 落点)。services 层不 import electron,
+  // 因此在这里注入 userData,而不是让 dsh/runtime 去依赖 electron。
+  // dshBin 同样必须在这里注入：打包态主进程在 app.asar 内,而 SDK 起的纯 node
+  // 子进程读不到归档,只能给它归档外(app.asar.unpacked)的真实路径。
+  const dshBin = resolveDshEntryPath(app.getAppPath())
+  configureDshRuntime({ cwd: app.getPath('userData'), dshBin })
+  if (!dshBin) {
+    log(
+      'warn',
+      'main',
+      '[Startup] 未能定位 dsh 子进程入口(@deepseek-ai/dsh 未随包解出?)——dsh 后端的 AI 调用会失败',
+    )
+  }
+  // dsh 子进程的凭据来源：app 存的 provider key 经 subprocess 环境注入，
+  // 这样切到 dsh 后端不必让用户再去 dsh 自己的配置里填一遍 key。
+  // key 与改名表都以函数注入：dsh/* 模块图不能静态依赖 electron（单测跑在 node 里）。
+  configureDshCredentials({
+    listProviders: () => keystoreService.listProviders(),
+    getApiKey: (providerId) => keystoreService.getApiKey(providerId),
+    dshRoutes: () => settingsService.getSettings().models?.dshRoutes,
+  })
+  // 只有 dsh 后端需要工具桥：把 app 的 eaa 工具经 MCP streamable-http 暴露给
+  // dsh 子进程（SDK 本身没有注册工具的入口）。缺省 pi 后端时完全不起服务。
+  // 这里只起监听、不挂任何端点 —— 每次 agent 运行按该角色工具集挂一个端点。
+  if (settingsService.getSettings().models?.agentRuntime !== 'pi') {
+    try {
+      const bridge = await ensureActiveEaaToolBridge({ patchDir: app.getPath('userData') })
+      // 只记端口：token 在 patch 文件里，不进日志
+      log('info', 'main', `[Startup] eaa 工具桥已就绪 :${bridge.port}（端点按 agent 运行挂载）`)
+    } catch (err) {
+      log('error', 'main', `[Startup] eaa 工具桥启动失败: ${errText(err)}`)
+    }
+  }
+  // 运行中把后端从 pi 切到 dsh 时，桥由 execution 按需起；这里统一负责收尾
+  app.once('before-quit', () => {
+    void stopActiveEaaToolBridge()
   })
   log(
     'info',

@@ -3,7 +3,7 @@
 // 从 file-tools.ts 拆分(纯重构,逻辑逐字搬移)
 // =============================================================
 
-import type { AgentToolResult } from '@earendil-works/pi-agent-core'
+import type { AgentToolResult } from '@main/services/llm-contracts'
 
 // 辅助函数
 export function textResult(text: string): AgentToolResult<unknown> {

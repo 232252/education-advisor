@@ -11,7 +11,7 @@
 // 调用结果大小限制由 mcp-service.ts 的 callTool 保证(5MB)。
 // =============================================================
 
-import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
+import type { AgentTool, AgentToolResult } from '@main/services/llm-contracts'
 import type { McpTool } from '@shared/types'
 import type { McpCallResult } from '../../mcp/types'
 import { mcpService } from '../../mcp-service'

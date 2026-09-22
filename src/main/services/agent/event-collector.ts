@@ -4,7 +4,7 @@
 //   计数从散落的 let 变量收敛为 stats 对象,可用 fake 事件流直接测聚合)
 // =============================================================
 
-import type { AgentEvent } from '@earendil-works/pi-agent-core'
+import type { AgentEvent } from '@main/services/llm-contracts'
 import type { BrowserWindow } from 'electron'
 import { log } from '../../utils/logger'
 import { createDeltaBatcher } from '../stream-batcher'

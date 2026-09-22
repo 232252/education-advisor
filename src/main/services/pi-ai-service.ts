@@ -1,3 +1,4 @@
+import type { ModelThinkingLevel } from '@main/services/llm-contracts'
 // =============================================================
 // Pi AI Service - 统一 LLM 接口（编排层）
 // 已接入 @earendil-works/pi-ai，零改动复用 30+ Provider
@@ -13,8 +14,10 @@
 // 本文件保留 PiAIService 类骨架: 公共方法签名不变,委托子模块组合。
 // =============================================================
 
-import { getEnvApiKey, type ModelThinkingLevel } from '@earendil-works/pi-ai/compat'
+import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import type { ModelInfo, ProviderInfo, StreamEvent, TestConnectionResult } from '@shared/types'
+import { dshRouteFor } from './dsh/route'
+import { createDshRuntime, type DshRuntime, dshRouteKey } from './dsh/runtime'
 import { TtlLruCache } from './eaa-cache'
 import { keystoreService } from './keystore-service'
 import { testProviderConnection } from './pi-ai/connection-test'
@@ -29,6 +32,7 @@ import { OnlineModelsFetcher } from './pi-ai/model-fetch'
 import { fetchProviderModels } from './pi-ai/provider-models'
 import { listProviders, oauthLogin } from './pi-ai/providers'
 import { ChatStreamRunner } from './pi-ai/streaming'
+import { settingsService } from './settings-service'
 
 // re-export 子模块公共 API(原定义于本文件,便于外部/测试直接导入)
 export { OAUTH_KEY_URLS, OAUTH_PROVIDERS, PROVIDER_NAMES } from './pi-ai/providers'
@@ -43,8 +47,13 @@ class PiAIService {
   private modelsCache = new TtlLruCache<ModelInfo[]>({ ttlMs: 30_000, maxEntries: 32 })
   /** 在线模型获取器(失败 TTL 缓存 + in-flight 去重状态见 pi-ai/model-fetch.ts) */
   private onlineFetcher = new OnlineModelsFetcher()
-  /** 流式对话执行器(abortController 并发管理见 pi-ai/streaming.ts) */
-  private streamRunner = new ChatStreamRunner()
+  /** 流式对话执行器(pi 后端;abortController 并发管理见 pi-ai/streaming.ts) */
+  private piRunner: ChatStreamRunner | null = null
+  /**
+   * dsh 后端。SDK 的路由(provider/model)在 initialize 时进程级定死，
+   * 因此按首个请求的 provider/model 懒建；换路由需重启或等 dsh 提供切换方法。
+   */
+  private dshRunner: DshRuntime | null = null
 
   // ===========================================================
   // Provider 管理
@@ -140,7 +149,46 @@ class PiAIService {
     thinking?: ModelThinkingLevel
     maxTokens?: number
   }): AsyncGenerator<StreamEvent> {
-    yield* this.streamRunner.chatStream(params)
+    yield* this.resolveStreamRunner(params).chatStream(params)
+  }
+
+  /**
+   * 按 settings.models.agentRuntime 选择流式后端，缺省 'dsh'（pi 保留为回退项）。
+   * 两个后端的 chatStream 参数与 AsyncGenerator<StreamEvent> 返回一致，可互换。
+   */
+  private resolveStreamRunner(params: {
+    providerId: string
+    modelId: string
+  }): ChatStreamRunner | DshRuntime {
+    let backend: 'pi' | 'dsh' = 'pi'
+    try {
+      backend = settingsService.getSettings().models?.agentRuntime ?? 'dsh'
+    } catch (err) {
+      // 启动早期/单测环境设置未就绪时回落 pi，读配置失败不该打断对话
+      console.warn('[PiAI] settings unreadable, falling back to pi runtime:', err)
+    }
+    if (backend === 'dsh') {
+      // 路由名按 settings.models.dshRoutes 映射；渲染端看到的 start 事件仍是
+      // 请求里那对 pi id（映射只作用于 dsh 子进程）
+      const route = dshRouteFor(params.providerId, params.modelId)
+      const key = dshRouteKey(route.providerId, route.modelId)
+      if (!this.dshRunner) {
+        // 对话链路在 pi 路径上不传 tools，所以这里不挂 MCP 端点；但 createDshRuntime
+        // 会带上关掉 harness 自带工具 + 声明凭据路由的 patch。
+        this.dshRunner = createDshRuntime({ provider: route.providerId, model: route.modelId })
+      } else if (this.dshRunner.routeKey !== key) {
+        // initialize 把 provider/model 定死在子进程级，SDK 没有按请求覆盖的入口；
+        // 复用旧进程等于用户在界面上换了模型却仍在打旧模型 —— 只能换子进程。
+        const retiring = this.dshRunner
+        this.dshRunner = createDshRuntime({ provider: route.providerId, model: route.modelId })
+        void retiring.disposeWhenIdle().catch((err: unknown) => {
+          console.warn('[PiAI] dsh runtime retire failed:', err)
+        })
+      }
+      return this.dshRunner
+    }
+    if (!this.piRunner) this.piRunner = new ChatStreamRunner()
+    return this.piRunner
   }
 
   // ===========================================================

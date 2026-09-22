@@ -13,8 +13,8 @@
 //     selectModel 支持从 ollama 已安装模型列表中按 tier 自动选择
 // =============================================================
 
-import type { Api, Model } from '@earendil-works/pi-ai/compat'
 import { getModel, getModels, getProviders } from '@earendil-works/pi-ai/compat'
+import type { Api, Model } from '@main/services/llm-contracts'
 import { errText } from '../utils/err-text'
 // KEYLESS_PROVIDERS 从 ollama/constants 导入(定义单一来源;ollama-service 入口会拉入 electron)
 import { KEYLESS_PROVIDERS } from './ollama/constants'

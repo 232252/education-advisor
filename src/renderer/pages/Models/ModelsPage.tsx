@@ -11,6 +11,7 @@ import { PageHeader } from '../../components/PageHeader'
 import { CardSkeleton } from '../../components/Skeleton'
 import { tr, useT } from '../../i18n'
 import { btnStyle, cn, INPUT_BASE } from '../../lib/ui-utils'
+import { AgentRuntimeConfig } from './components/AgentRuntimeConfig'
 import { DefaultModelConfig } from './components/DefaultModelConfig'
 import { GradingModelConfig } from './components/GradingModelConfig'
 import { HiddenProviderList } from './components/HiddenProviderList'
@@ -117,6 +118,9 @@ export function ModelsPage() {
               modelsLoading={modelsLoading}
               onRefreshModels={refreshModels}
             />
+
+            {/* Agent 运行时后端(pi / dsh)+ dsh 路由映射 */}
+            <AgentRuntimeConfig />
 
             {/* AI 批改作业的模型(视觉过滤) */}
             <GradingModelConfig

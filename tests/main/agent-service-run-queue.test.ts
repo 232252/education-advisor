@@ -114,13 +114,16 @@ vi.mock('./keystore-service', () => ({
     getSecret: vi.fn(() => ''),
   },
 }))
-vi.mock('./settings-service', () => ({
+// 路径必须是测试文件到真实模块的相对路径，否则 vitest 静默不拦截（同 agent-service-finally-abort）
+vi.mock('../../src/main/services/settings-service', () => ({
   settingsService: {
     getSettings: vi.fn(() => ({
       models: {
         defaultProvider: 'test-provider',
         defaultModel: 'test-model',
         customModels: {},
+        // 本文件断言的是 pi 运行时的队列/abort 行为（agentRuntime 缺省现已是 dsh）；dsh 见 src/main/services/dsh/__tests__
+        agentRuntime: 'pi',
       },
       // M15: execution.ts 读取 general.agentTimeoutMins 作为 waitForIdle 超时
       general: {

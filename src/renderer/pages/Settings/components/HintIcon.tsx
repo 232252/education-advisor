@@ -51,6 +51,10 @@ export function HintIcon({ path }: { path: string }) {
     'eaa.doctor': t('page.settings.hint.doctor', 'EAA 引擎环境健康检查'),
     'eaa.validate': t('page.settings.hint.validate', 'EAA 事件数据完整性验证'),
     'mcp.enabled': t('page.settings.hint.mcpEnabled', '启用后 Agent 可通过 MCP 协议接入外部工具'),
+    'models.agentRuntime': t(
+      'page.settings.hint.agentRuntimeBackend',
+      'pi = 内置 pi-ai 运行时; dsh = DeepSeek Harness 子进程。选 dsh 需该 Provider 的 API Key 已存在本应用里 (启动子进程时注入), 切换在下一次请求生效',
+    ),
   }
   const hint = FIELD_HINT[path]
   if (!hint) return null

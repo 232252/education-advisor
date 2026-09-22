@@ -6,7 +6,7 @@
 import type fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 import { Type } from 'typebox'
 import { validateFilePath } from './security'
 import { textResult } from './shared'

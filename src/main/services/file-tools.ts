@@ -5,7 +5,7 @@
 // 实现已拆分至 ./files/(纯重构,逻辑逐字搬移,契约不变)
 // =============================================================
 
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 import { writeCsvTool } from './files/csv-tools'
 import { readExcelTool, writeExcelTool } from './files/excel-tools'
 import { readImageTool } from './files/image-tools'

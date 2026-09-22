@@ -56,6 +56,21 @@ export interface UnifiedSettings {
     enabledModels: string[]
     transport: 'sse' | 'websocket' | 'auto'
     cacheRetention: 'none' | 'short' | 'long'
+    /**
+     * 流式对话的运行时后端；缺省 'dsh'（DeepSeek Harness 子进程），'pi' 为回退项。
+     * 'dsh' 走 DeepSeek Harness 子进程，见 src/main/services/dsh/runtime.ts。
+     * 可选字段：旧 settings.json 无此键时按 'pi' 处理。
+     */
+    agentRuntime?: 'pi' | 'dsh'
+    /**
+     * dsh 后端的模型路由名映射：pi 的 provider id → dsh 侧配置的路由 key。
+     * dsh 的 provider 路由不是内置枚举，而是用户在 dsh 自己的 settings 里声明的
+     * providers 字典的键（dsh-llm-pi-ai config.ts:90「the providers dict key IS the route」；
+     * 未声明任何 profile 时该适配器不注册任何路由）。因此这里只做改名，不做可用性猜测；
+     * 缺省按同名直通。未配置的路由由 dsh 报 no adapter registered。
+     * 可选字段：旧 settings.json 无此键时按空映射处理。
+     */
+    dshRoutes?: Record<string, string>
     retry: {
       enabled: boolean
       maxRetries: number

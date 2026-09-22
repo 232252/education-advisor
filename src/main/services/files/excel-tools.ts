@@ -6,7 +6,7 @@
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 import { findGradeSheetHeaderRow } from '@shared/grade-sheet'
 import { findRosterHeaderRow, isPiiRosterHeader } from '@shared/roster-profile'
 import { Type } from 'typebox'

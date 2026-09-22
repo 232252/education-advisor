@@ -1,15 +1,10 @@
+import type { Api, Context, Model } from '@main/services/llm-contracts'
 // =============================================================
 // Pi AI — Provider 连接测试(最小请求验证 API Key)
 // 从 pi-ai-service.ts testConnection 下沉
 // =============================================================
 
-import {
-  type Api,
-  type Context,
-  completeSimple,
-  getEnvApiKey,
-  type Model,
-} from '@earendil-works/pi-ai/compat'
+import { completeSimple, getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import type { TestConnectionResult } from '@shared/types'
 import { errText } from '../../utils/err-text'
 import { keystoreService } from '../keystore-service'

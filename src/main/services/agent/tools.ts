@@ -10,7 +10,7 @@
 //   - privacyGuard: 开启自动脱敏时包装 EAA 工具(入参化名→真名,结果真名→化名)
 // =============================================================
 
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 import type { AgentConfig } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { getToolsByCapability } from '../eaa-tools'

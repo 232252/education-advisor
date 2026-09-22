@@ -8,7 +8,7 @@
 //   PiAIService 通过唯一实例委托,行为不变。
 // =============================================================
 
-import type { Api, Model } from '@earendil-works/pi-ai/compat'
+import type { Api, Model } from '@main/services/llm-contracts'
 import type { ModelInfo } from '@shared/types'
 import { errText } from '../../utils/err-text'
 

@@ -3,7 +3,7 @@
 // 考号≠学号时按姓名匹配；对不上的行进 unmatched，禁止编学生。
 // =============================================================
 
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 import { DEFAULT_EXAM_TYPES } from '@shared/academic-defaults'
 import {
   type GradeRosterStudent,

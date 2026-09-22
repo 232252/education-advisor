@@ -1,3 +1,4 @@
+import type { Message } from '@main/services/llm-contracts'
 // =============================================================
 // Identify Papers — 从卷面手写姓名/编号识别归属
 // 看每份试卷首页页眉(仅顶部放大小图,一次调用),对班级名单做唯一匹配后:
@@ -10,7 +11,6 @@
 
 import fsp from 'node:fs/promises'
 import { parseJsonWithRepair } from '@earendil-works/pi-ai'
-import { completeSimple, type Message } from '@earendil-works/pi-ai/compat'
 import {
   matchIdentityToStudents,
   type PaperIdentity,
@@ -24,6 +24,7 @@ import { profileService } from '../profile-service'
 import { settingsService } from '../settings-service'
 import { apiKeyFor, isVisionModel, resolveGradingModelIds } from './grading-pipeline'
 import { gradingService } from './grading-service'
+import { completeGradingCall } from './llm-call'
 
 const IDENTIFY_MAX_TOKENS = 256
 
@@ -186,7 +187,7 @@ export async function readIdentity(
       : '首页顶部截图不可用。只输出 JSON。',
   })
   const messages: Message[] = [{ role: 'user', content, timestamp: Date.now() }]
-  const assistant = await completeSimple(
+  const assistant = await completeGradingCall(
     model,
     { systemPrompt: prompt, messages },
     {

@@ -8,7 +8,7 @@
 // 结果真名→化名,本文件无需自行处理化名。
 // =============================================================
 
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 import type { ExamDef, GradeRecord } from '@shared/types'
 import { Type } from 'typebox'
 import { academicService } from '../../academic-service'

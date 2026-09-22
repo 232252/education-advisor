@@ -12,7 +12,7 @@ import type {
   AssistantMessage,
   AssistantMessageEvent,
   Model,
-} from '@earendil-works/pi-ai/compat'
+} from '@main/services/llm-contracts'
 import type { ModelInfo, StreamEvent } from '@shared/types'
 
 /**

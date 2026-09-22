@@ -40,8 +40,9 @@ vi.mock('@napi-rs/canvas', () => ({
   },
 }))
 
+// 本文件断言的是 pi 运行时的模型调用计数（agentRuntime 缺省现已是 dsh）；dsh 见 src/main/services/dsh/__tests__
 vi.mock('../../src/main/services/settings-service', () => ({
-  settingsService: { getSettings: () => ({}) },
+  settingsService: { getSettings: () => ({ models: { agentRuntime: 'pi' } }) },
 }))
 vi.mock('../../src/main/services/keystore-service', () => ({
   keystoreService: { getApiKey: () => undefined },

@@ -1,3 +1,4 @@
+import type { Message } from '@main/services/llm-contracts'
 // =============================================================
 // Template Calibrate — 套打母版标定(Tier B)
 // 样卷留档(files/<taskId>/template/) → 每页四点(CV→AI) →
@@ -8,7 +9,6 @@
 
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { completeSimple, type Message } from '@earendil-works/pi-ai/compat'
 import type { PageQuad } from '@shared/grading-geometry'
 import type { GradeAnnotationBox, PaperFile } from '@shared/types'
 import { errText } from '../../utils/err-text'
@@ -18,6 +18,7 @@ import { settingsService } from '../settings-service'
 import { pdfToPageJpegs } from './archive-import'
 import { apiKeyFor, isVisionModel, resolveGradingModelIds } from './grading-pipeline'
 import { gradingService } from './grading-service'
+import { completeGradingCall } from './llm-call'
 import { detectQuadForBuffer } from './page-quad-detect'
 import { buildLocatePrompt, parseLocateResponse } from './staged-pipeline'
 
@@ -149,7 +150,7 @@ export async function calibrateOverlayTemplate(
       { type: 'text' as const, text: '请定位每道大题的作答区域,只输出 JSON。' },
     ]
     const messages: Message[] = [{ role: 'user', content, timestamp: Date.now() }]
-    const assistant = await completeSimple(
+    const assistant = await completeGradingCall(
       model,
       { systemPrompt: buildLocatePrompt(task.rubric), messages },
       {
