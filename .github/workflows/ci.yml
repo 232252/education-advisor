@@ -109,6 +109,12 @@ jobs:
         shell: bash
         run: npm run verify:dsh
 
+      # Rust 数据引擎 + 隐私脱敏引擎走的是独立子进程链路，TS 单测一行盖不到；
+      # 这条 gate 用随包真二进制跑事件溯源与脱敏往返（darwin 无随包构建，显式 SKIP）
+      - name: eaa engine functional check (Rust 数据/脱敏引擎)
+        shell: bash
+        run: npm run verify:eaa
+
       - name: Upload build artifacts
         if: matrix.os == 'ubuntu-latest' && github.event_name == 'push'
         uses: actions/upload-artifact@v7
