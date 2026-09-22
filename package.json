@@ -50,6 +50,7 @@
     "rebuild:native": "electron-rebuild -f",
     "rollback:vendor": "node scripts/rollback-vendor.mjs",
     "verify:vendor": "node scripts/verify-vendor.mjs",
+    "verify:dsh": "node scripts/verify-dsh-package.mjs",
     "update:vendor:submitty": "node scripts/update-vendor-submitty.mjs",
     "start": "npm run build && electron .",
     "postinstall": "node scripts/patch-electron-icon.mjs && node scripts/setup-hooks.mjs",

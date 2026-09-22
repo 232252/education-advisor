@@ -104,6 +104,11 @@ jobs:
         shell: bash
         run: npm run check:bundle
 
+      # dsh 是缺省后端而测试全打桩，SDK 装错位置/没随包解出这类问题只有这道门禁能抓
+      - name: dsh assembly check (子进程可启动性守卫)
+        shell: bash
+        run: npm run verify:dsh
+
       - name: Upload build artifacts
         if: matrix.os == 'ubuntu-latest' && github.event_name == 'push'
         uses: actions/upload-artifact@v7
