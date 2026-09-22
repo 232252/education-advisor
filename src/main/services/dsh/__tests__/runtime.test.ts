@@ -12,6 +12,7 @@ import {
   createDshRuntime,
   DshRuntime,
   dshLaunchOptions,
+  dshPinnedKey,
   resolveDshEntryPath,
   toUnpackedAsarPath,
 } from '../runtime'
@@ -53,6 +54,7 @@ interface FakeState {
   initialized: number
   closed: number
   promptBlocks: unknown
+  initParams: unknown
   sessionIds: string[]
   sub: FakeSubscription | null
 }
@@ -65,12 +67,14 @@ function makeFake(
     initialized: 0,
     closed: 0,
     promptBlocks: null,
+    initParams: null,
     sessionIds: [],
     sub: null,
   }
   const client: DshClientLike = {
-    async initialize() {
+    async initialize(params: unknown) {
       state.initialized++
+      state.initParams = params
       return { serverInfo: { name: 'fake', version: '0' } }
     },
     prompt(sessionId, blocks) {
@@ -498,5 +502,40 @@ describe('子进程可启动性（Electron 宿主专属项）', () => {
 
   it('anchor 无依赖时返回 undefined，而不是把不存在的路径塞给 SDK', () => {
     expect(resolveDshEntryPath(join(tmpdir(), 'eaa-no-such-app-root'))).toBeUndefined()
+  })
+})
+
+describe('initialize 定死的路由值', () => {
+  it('maxTokens 与推理档要真的交给子进程握手，否则调用方的控费参数是空话', async () => {
+    const { client, state } = makeFake(({ sessionId, emit }) => emit(turnEnd(sessionId)))
+    const rt = new DshRuntime({
+      provider: 'p',
+      model: 'm',
+      maxTokens: 2048,
+      reasoningEffort: 'high',
+      createClient: async () => client,
+    })
+    await collect(rt.chatStream({ providerId: 'p', modelId: 'm', messages: [] }))
+    expect(state.initParams).toEqual({
+      cwd: expect.any(String),
+      provider: 'p',
+      model: 'm',
+      maxTokens: 2048,
+      reasoningEffort: 'high',
+    })
+  })
+
+  it('未给 maxTokens/推理档时不塞 undefined 键（沿用 dsh 自己的默认）', async () => {
+    const { client, state } = makeFake(({ sessionId, emit }) => emit(turnEnd(sessionId)))
+    const rt = new DshRuntime({ provider: 'p', model: 'm', createClient: async () => client })
+    await collect(rt.chatStream({ providerId: 'p', modelId: 'm', messages: [] }))
+    expect(Object.keys(state.initParams as object).sort()).toEqual(['cwd', 'model', 'provider'])
+  })
+
+  it('换 maxTokens 即换 routeKey（上层据此换子进程）', () => {
+    const a = dshPinnedKey({ provider: 'p', model: 'm', maxTokens: 512 })
+    const b = dshPinnedKey({ provider: 'p', model: 'm', maxTokens: 1024 })
+    const c = dshPinnedKey({ provider: 'p', model: 'm', reasoningEffort: 'high' })
+    expect(new Set([a, b, c]).size).toBe(3)
   })
 })

@@ -52,13 +52,16 @@ vi.mock('../../src/main/services/pi-ai/streaming', () => ({
 }))
 
 vi.mock('../../src/main/services/dsh/runtime', () => ({
-  dshRouteKey: (provider: string, model: string) => `${provider}\u0000${model}`,
+  // 与 dsh/runtime 的 dshPinnedKey 同规则（mock 必须一起提供，否则上层 import 不到）
+  dshPinnedKey: (o: { provider?: string; model?: string; maxTokens?: number; reasoningEffort?: string }) =>
+    [o.provider ?? '', o.model ?? '', o.maxTokens ?? '', o.reasoningEffort ?? ''].join('\u0000'),
   // 生产入口是 createDshRuntime（它负责附上关掉 harness 自带工具 + 声明凭据路由的 patch）
-  createDshRuntime: (opts: { provider?: string; model?: string }) => {
+  createDshRuntime: (opts: { provider?: string; model?: string; maxTokens?: number }) => {
     state.dshBuilt++
     state.dshOpts = opts
     return {
-      routeKey: `${opts.provider ?? ''}\u0000${opts.model ?? ''}`,
+      // 与 dshPinnedKey 同规则：定死的四个值任一变化即换子进程
+      routeKey: [opts.provider ?? '', opts.model ?? '', opts.maxTokens ?? '', ''].join('\u0000'),
       async *chatStream() {
         yield DONE
       },

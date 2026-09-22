@@ -65,6 +65,7 @@ export interface DshClientLike {
     provider: string
     model: string
     maxTokens?: number
+    reasoningEffort?: string
   }): Promise<unknown>
   prompt(sessionId: string, blocks: readonly DshPromptBlock[]): Promise<unknown>
   /** filter 是纯谓词，不是数据回调；事件只从 subscription 取 */
@@ -90,8 +91,9 @@ export interface DshChatStreamParams {
   systemPrompt?: string
   maxTokens?: number
   /**
-   * SDK 无按请求覆盖推理档位的入口（reasoningEffort 只在 initialize 生效），
-   * 保留该字段仅为与 ChatStreamRunner.chatStream 的参数签名兼容。
+   * 本轮不生效：SDK 无按请求覆盖推理档位的入口，reasoningEffort 只在 initialize
+   * 定死。上层（pi-ai-service）把它带进子进程构造，换档位即换子进程；
+   * 保留该字段同时为了与 ChatStreamRunner.chatStream 的参数签名兼容。
    */
   thinking?: string
 }
@@ -176,9 +178,19 @@ export function isElectronMainProcess(): boolean {
   return Boolean(process.versions.electron)
 }
 
-/** 子进程 initialize 定死的那对路由值的标识；换其中之一就得换子进程 */
-export function dshRouteKey(provider: string, model: string): string {
-  return `${provider}\u0000${model}`
+/**
+ * 子进程 initialize 定死的那组路由值 → 唯一标识。换其中任何一个都得换子进程。
+ * 上层缓存 dsh 运行时时必须用同一个函数算键，否则缓存与 routeKey 会各说各话。
+ */
+export function dshPinnedKey(opts: {
+  provider: string
+  model: string
+  maxTokens?: number
+  reasoningEffort?: string
+}): string {
+  return [opts.provider, opts.model, opts.maxTokens ?? '', opts.reasoningEffort ?? ''].join(
+    '\u0000',
+  )
 }
 
 function sessionIdOf(n: DshNotification): string | undefined {
@@ -273,6 +285,13 @@ export class DshRuntime {
        */
       provider?: string
       model?: string
+      /**
+       * 输出上限与推理档位同样在 initialize 定死（SDK 的 session/prompt 只有
+       * content blocks，没有按请求覆盖的入口）。不在这里带上，调用方传的
+       * maxTokens / thinking 就会被静默丢弃 —— 批改的控费与界面的推理档都会失效。
+       */
+      maxTokens?: number
+      reasoningEffort?: string
       /** 注入点：测试用假客户端；默认装载真实 SDK */
       createClient?: () => Promise<DshClientLike>
       /** 有序 cordis profile patch 文件（如 tool-bridge 生成的 eaa MCP 挂载） */
@@ -290,11 +309,16 @@ export class DshRuntime {
   }
 
   /**
-   * initialize 定死的路由。SDK 没有按请求换 provider/model 的入口，所以调用方
-   * 要换模型只能换子进程 —— 暴露这个键就是为了让上层判「需不需要重建」。
+   * initialize 定死的路由。SDK 没有按请求换 provider/model/maxTokens/推理档的入口，
+   * 所以调用方要换其中任何一个只能换子进程 —— 暴露这个键就是为了让上层据此重建。
    */
   get routeKey(): string {
-    return dshRouteKey(this.opts.provider ?? '', this.opts.model ?? '')
+    return dshPinnedKey({
+      provider: this.opts.provider ?? '',
+      model: this.opts.model ?? '',
+      maxTokens: this.opts.maxTokens,
+      reasoningEffort: this.opts.reasoningEffort,
+    })
   }
 
   /** 同一运行时只握手一次，多个 turn 复用同一子进程 */
@@ -315,6 +339,10 @@ export class DshRuntime {
           cwd: this.cwd,
           provider: this.opts.provider ?? '',
           model: this.opts.model ?? '',
+          ...(this.opts.maxTokens === undefined ? {} : { maxTokens: this.opts.maxTokens }),
+          ...(this.opts.reasoningEffort === undefined
+            ? {}
+            : { reasoningEffort: this.opts.reasoningEffort }),
         })
         this.client = client
         return client

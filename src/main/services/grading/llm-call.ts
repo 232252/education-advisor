@@ -19,7 +19,7 @@ import type {
 } from '@main/services/llm-contracts'
 import { completeSimpleViaDsh, isDshSupportedImage } from '../dsh/one-shot'
 import { dshRouteFor } from '../dsh/route'
-import { createDshRuntime, type DshRuntime } from '../dsh/runtime'
+import { createDshRuntime, type DshRuntime, dshPinnedKey } from '../dsh/runtime'
 import { settingsService } from '../settings-service'
 
 export interface GradingCallOptions {
@@ -31,30 +31,58 @@ export interface GradingCallOptions {
 }
 
 /**
- * dsh 的 provider/model 在 initialize 时进程级定死，故按其缓存一个运行时；
- * 换模型即重建（旧子进程随之关闭）。
+ * 按「子进程被 initialize 定死的那组值」缓存运行时。
+ *
+ * 批改的 7 个调用点 maxTokens 各不相同，而 SDK 只能在 initialize 里定死它（没有
+ * 按请求覆盖的入口）—— 共用一个进程就等于除第一次之外每个阶段的输出上限都被静默
+ * 忽略，而批改正是词耗大头。上限 2 个进程，超出的按最久未用退场。
  */
-let dshRuntime: DshRuntime | null = null
-let dshRoute = ''
+const MAX_PINNED_RUNTIMES = 2
+const runtimes = new Map<string, DshRuntime>()
 
-function getDshRuntime(model: Model<Api>): DshRuntime {
+function getDshRuntime(model: Model<Api>, maxTokens?: number): DshRuntime {
   const route = dshRouteFor(String(model.provider), model.id)
-  const key = `${route.providerId}/${route.modelId}`
-  if (!dshRuntime || dshRoute !== key) {
-    const previous = dshRuntime
-    dshRuntime = createDshRuntime({ provider: route.providerId, model: route.modelId })
-    dshRoute = key
-    if (previous) void previous.dispose().catch(() => {})
+  const key = dshPinnedKey({
+    provider: route.providerId,
+    model: route.modelId,
+    maxTokens,
+  })
+  const cached = runtimes.get(key)
+  if (cached) {
+    // 命中即最近使用：挪到 Map 尾部，退场时从头开始
+    runtimes.delete(key)
+    runtimes.set(key, cached)
+    return cached
   }
-  return dshRuntime
+  const created = createDshRuntime({
+    provider: route.providerId,
+    model: route.modelId,
+    maxTokens,
+  })
+  runtimes.set(key, created)
+  while (runtimes.size > MAX_PINNED_RUNTIMES) {
+    const oldest = runtimes.entries().next()
+    if (oldest.done) break
+    runtimes.delete(oldest.value[0])
+    // 正在跑的一轮不能被这里杀掉，所以等它空闲再关
+    void oldest.value[1].disposeWhenIdle().catch(() => {})
+  }
+  return created
 }
 
-/** 测试/设置变更用：丢弃已建立的 dsh 子进程 */
+/** 丢掉某个定死路由对应的子进程缓存（取消会关掉进程，缓存不丢就会握手到死进程） */
+function dropDshRuntime(key: string): void {
+  const runtime = runtimes.get(key)
+  if (!runtime) return
+  runtimes.delete(key)
+  void runtime.dispose().catch(() => {})
+}
+
+/** 测试/设置变更用：丢弃全部已建立的 dsh 子进程 */
 export function resetGradingDshRuntime(): void {
-  const previous = dshRuntime
-  dshRuntime = null
-  dshRoute = ''
-  if (previous) void previous.dispose().catch(() => {})
+  const all = [...runtimes.values()]
+  runtimes.clear()
+  for (const runtime of all) void runtime.dispose().catch(() => {})
 }
 
 function readBackend(): 'pi' | 'dsh' {
@@ -143,7 +171,8 @@ export async function completeGradingCall(
   if (readBackend() === 'pi') return completeSimple(model, context, options)
 
   const route = dshRouteFor(String(model.provider), model.id)
-  const runtime = getDshRuntime(model)
+  const runtime = getDshRuntime(model, options.maxTokens)
+  const pinnedKey = runtime.routeKey
   const result = await completeSimpleViaDsh({
     stream: runtime,
     providerId: route.providerId,
@@ -152,8 +181,8 @@ export async function completeGradingCall(
     content: await toDshSupportedContent(toDshGradingContent(context.messages)),
     maxTokens: options.maxTokens,
     signal: options.signal,
-    // 子进程已经没了，缓存必须一起丢：下次调用要重新握手
-    cancel: () => resetGradingDshRuntime(),
+    // 子进程已经没了，这一路的缓存条目必须一起丢：下次调用要重新握手
+    cancel: () => dropDshRuntime(pinnedKey),
   })
 
   const inputTokens = result.usage.inputTokens

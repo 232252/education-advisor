@@ -17,7 +17,7 @@ import type { ModelThinkingLevel } from '@main/services/llm-contracts'
 import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import type { ModelInfo, ProviderInfo, StreamEvent, TestConnectionResult } from '@shared/types'
 import { dshRouteFor } from './dsh/route'
-import { createDshRuntime, type DshRuntime, dshRouteKey } from './dsh/runtime'
+import { createDshRuntime, type DshRuntime, dshPinnedKey } from './dsh/runtime'
 import { TtlLruCache } from './eaa-cache'
 import { keystoreService } from './keystore-service'
 import { testProviderConnection } from './pi-ai/connection-test'
@@ -159,6 +159,7 @@ class PiAIService {
   private resolveStreamRunner(params: {
     providerId: string
     modelId: string
+    maxTokens?: number
   }): ChatStreamRunner | DshRuntime {
     let backend: 'pi' | 'dsh' = 'pi'
     try {
@@ -171,16 +172,28 @@ class PiAIService {
       // 路由名按 settings.models.dshRoutes 映射；渲染端看到的 start 事件仍是
       // 请求里那对 pi id（映射只作用于 dsh 子进程）
       const route = dshRouteFor(params.providerId, params.modelId)
-      const key = dshRouteKey(route.providerId, route.modelId)
+      const key = dshPinnedKey({
+        provider: route.providerId,
+        model: route.modelId,
+        maxTokens: params.maxTokens,
+      })
       if (!this.dshRunner) {
         // 对话链路在 pi 路径上不传 tools，所以这里不挂 MCP 端点；但 createDshRuntime
         // 会带上关掉 harness 自带工具 + 声明凭据路由的 patch。
-        this.dshRunner = createDshRuntime({ provider: route.providerId, model: route.modelId })
+        this.dshRunner = createDshRuntime({
+          provider: route.providerId,
+          model: route.modelId,
+          maxTokens: params.maxTokens,
+        })
       } else if (this.dshRunner.routeKey !== key) {
         // initialize 把 provider/model 定死在子进程级，SDK 没有按请求覆盖的入口；
         // 复用旧进程等于用户在界面上换了模型却仍在打旧模型 —— 只能换子进程。
         const retiring = this.dshRunner
-        this.dshRunner = createDshRuntime({ provider: route.providerId, model: route.modelId })
+        this.dshRunner = createDshRuntime({
+          provider: route.providerId,
+          model: route.modelId,
+          maxTokens: params.maxTokens,
+        })
         void retiring.disposeWhenIdle().catch((err: unknown) => {
           console.warn('[PiAI] dsh runtime retire failed:', err)
         })
