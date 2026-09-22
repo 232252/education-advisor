@@ -18,6 +18,7 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import type { AgentTool } from '@main/services/llm-contracts'
 import { Type } from 'typebox'
+import { downscaleToAiJpeg } from '../grading/media-prep'
 import { validateFilePath } from './security'
 import { textResult } from './shared'
 
@@ -89,16 +90,22 @@ export const readImageTool: AgentTool<typeof readImageParams> = {
       )
     }
     const data = await fsp.readFile(imagePath)
+    // BMP 是未压缩格式：既最费 token，又是 dsh 后端唯一不受理的受支持扩展名
+    // （dsh 只认 png/jpeg/webp/gif）。统一重编码成 JPEG 后两条后端形状一致。
+    const prepared =
+      mimeType === 'image/bmp'
+        ? await downscaleToAiJpeg(data, mimeType)
+        : { data: data.toString('base64'), mimeType }
     return {
       content: [
         {
           type: 'text' as const,
-          text: `已加载图片: ${path.basename(imagePath)} (${(stat.size / 1024).toFixed(1)}KB, ${mimeType})`,
+          text: `已加载图片: ${path.basename(imagePath)} (${(stat.size / 1024).toFixed(1)}KB, ${prepared.mimeType})`,
         },
         {
           type: 'image' as const,
-          data: data.toString('base64'),
-          mimeType,
+          data: prepared.data,
+          mimeType: prepared.mimeType,
         },
       ],
       details: { path: imagePath, size: stat.size, mimeType },

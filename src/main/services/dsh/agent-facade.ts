@@ -16,7 +16,8 @@
 
 import type { AgentEvent, AgentMessage, Api, Model } from '@main/services/llm-contracts'
 import { DshAgentEventProjector } from './agent-events'
-import type { DshChatStreamParams, DshPromptBlock } from './runtime'
+import { isDshSupportedImage } from './one-shot'
+import type { DshChatStreamParams, DshPromptBlock, DshPromptImageBlock } from './runtime'
 import { rewriteToolNames } from './tool-names'
 import type { DshSessionEvent } from './wire-types'
 
@@ -123,6 +124,26 @@ export class DshAgentFacade {
       .join('\n')
   }
 
+  /**
+   * 历史里的图片按出现顺序取出来。pi 是把图片块随消息一起发给 provider 的，
+   * 之前这里只留 `[image mime]` 文本标记 ⇒ 同一份图文上下文，pi 路径看得见图、
+   * dsh 路径看不见（agent 用 read_image 查看试卷就等于没看）。
+   * dsh 不受理的 mime 仍然只有标记：把不支持的格式静默丢掉比报错更难查。
+   */
+  private historyImages(): DshPromptImageBlock[] {
+    const images: DshPromptImageBlock[] = []
+    for (const message of this.state.messages) {
+      if (!('content' in message) || typeof message.content === 'string') continue
+      for (const part of message.content) {
+        if (part.type !== 'image') continue
+        if (isDshSupportedImage(part.mimeType)) {
+          images.push({ type: 'image', data: part.data, mimeType: part.mimeType })
+        }
+      }
+    }
+    return images
+  }
+
   /** 启动一轮。上一轮未结束就再次调用属于用法错误（续跑循环总会先 await idle） */
   async prompt(text: string): Promise<void> {
     if (this.disposed) throw new Error('dsh agent 运行时已关闭')
@@ -139,6 +160,14 @@ export class DshAgentFacade {
     const blocks: DshPromptBlock[] = [
       { type: 'text', text: history ? `${history}\n${text}` : text },
     ]
+    const images = this.historyImages()
+    if (images.length) {
+      blocks.push({
+        type: 'text',
+        text: `\n上述标记的图片按出现顺序随附于此，共 ${images.length} 张：\n`,
+      })
+      blocks.push(...images)
+    }
 
     void this.pump(blocks)
   }

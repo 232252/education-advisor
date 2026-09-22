@@ -256,3 +256,44 @@ describe('DshAgentFacade', () => {
     expect(events.map((e) => e.type)).toContain('agent_end')
   })
 })
+
+describe('图文历史（agent 链路的视觉通道）', () => {
+  it('历史里的图片块随本轮一起发出，不再只剩文本标记', async () => {
+    const { source, seen } = sourceFactory(() => of(turnEnd()))
+    const f = facade(source)
+    f.state.messages = [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '看这张卷子' },
+          { type: 'image', data: 'PNG1', mimeType: 'image/png' },
+        ],
+      },
+      { role: 'toolResult', content: [{ type: 'image', data: 'JPG2', mimeType: 'image/jpeg' }] },
+    ] as never
+    await f.prompt('第二张的第三题呢')
+    await f.waitForIdle()
+    expect(seen[0].blocks).toEqual([
+      {
+        type: 'text',
+        text: expect.stringContaining('[image image/png]'),
+      },
+      { type: 'text', text: expect.stringContaining('共 2 张') },
+      { type: 'image', data: 'PNG1', mimeType: 'image/png' },
+      { type: 'image', data: 'JPG2', mimeType: 'image/jpeg' },
+    ])
+  })
+
+  it('dsh 不受理的 mime 只留文字标记，不塞进图片块', async () => {
+    const { source, seen } = sourceFactory(() => of(turnEnd()))
+    const f = facade(source)
+    f.state.messages = [
+      { role: 'user', content: [{ type: 'image', data: 'BMP', mimeType: 'image/bmp' }] },
+    ] as never
+    await f.prompt('这张bmp写的啥')
+    await f.waitForIdle()
+    expect(seen[0].blocks).toEqual([
+      { type: 'text', text: expect.stringContaining('[image image/bmp]') },
+    ])
+  })
+})
