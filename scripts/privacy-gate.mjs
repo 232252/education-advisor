@@ -15,6 +15,10 @@
 //   3. 身份证: 15/18 位(区号 99/00 开头的虚构号除外,见 tests/PRIVACY.md)
 //   4. 邮箱: 非占位域名(example.com / noreply.github.com 等除外)
 //   5. 数据文件: 禁止提交 .xlsx/.csv/.db/.env/.pem 等真实数据文件
+//   6. 本地花名册交叉比对: 若本机存在真实 EAA 数据库(.eaa-data/ 等,已被
+//      gitignore),把库里的真实学生姓名逐个拿来比对。这条规则不依赖黑名单,
+//      能抓住"从没进过黑名单"的新泄漏 —— 2026-09 的 benchmark/ 泄漏正是
+//      因为只有黑名单才漏掉的。库不存在时(CI/全新 clone)自动跳过。
 // =============================================================
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -60,6 +64,47 @@ const DIGIT_RUN_RE = /\d{6,}/g
 const sha256 = (s) => createHash('sha256').update(s, 'utf8').digest('hex')
 const isSyntheticId = (id) => id.startsWith('99') || id.startsWith('00')
 
+/**
+ * 加载本机真实花名册(仅本地存在,不入库)。
+ * 返回 2 字以上的真实姓名集合;任何读不到的情况都返回空集(不阻塞 CI)。
+ */
+function loadLocalRoster() {
+  const names = new Set()
+  const candidates = [
+    '.eaa-data/entities/name_index.json', // EAA 引擎的姓名索引(键即姓名)
+    '.app-data/workstation.db', // SQLite 里的学生表(见下,需额外解析)
+  ]
+  // 1. name_index.json: {"姓名": ...}
+  const idxPath = path.join(ROOT, candidates[0])
+  if (existsSync(idxPath)) {
+    try {
+      const idx = JSON.parse(readFileSync(idxPath, 'utf8'))
+      for (const name of Object.keys(idx)) {
+        if (typeof name === 'string' && name.length >= 2) names.add(name)
+      }
+    } catch {
+      /* 解析失败则忽略这一来源 */
+    }
+  }
+  // 2. entities.json: 姓名可能出现在实体字段里 → 宽松收集看起来像姓名的串
+  const entPath = path.join(ROOT, '.eaa-data/entities/entities.json')
+  if (existsSync(entPath)) {
+    try {
+      const raw = readFileSync(entPath, 'utf8')
+      for (const m of raw.matchAll(/"(?:name|studentName|student_name)"\s*:\s*"([^"]{2,20})"/g)) {
+        const n = m[1].trim()
+        if (n && !/[\s{}[\]<>/\\]/.test(n)) names.add(n)
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return names
+}
+
+const LOCAL_ROSTER = loadLocalRoster()
+const ROSTER_MIN = 2
+
 function* lineHits(line) {
   for (const m of line.matchAll(PHONE_RE))
     if (!ALLOW.has(m[0])) yield ['手机号', m[0]]
@@ -81,6 +126,16 @@ function* lineHits(line) {
     for (const run of line.matchAll(DIGIT_RUN_RE)) {
       if (ALLOW.has(run[0])) continue
       if (DENY_HASHES.has(sha256(run[0]))) yield ['黑名单(真实编号)', run[0]]
+    }
+  }
+  // 本地花名册交叉比对(不依赖黑名单): 直接查这一行里有没有本机真实学生姓名
+  if (LOCAL_ROSTER.size > 0) {
+    for (const run of line.matchAll(HAN_RUN_RE)) {
+      const s = run[0]
+      for (const name of LOCAL_ROSTER) {
+        if (name.length < ROSTER_MIN) continue
+        if (s.includes(name)) yield ['真实学生姓名(本地花名册命中)', name]
+      }
     }
   }
 }
@@ -153,7 +208,12 @@ function run() {
     console.error('  3. 误报 → 在 scripts/privacy-gate.mjs 提 issue 修正规则\n')
     process.exit(1)
   }
-  console.log(`✅ privacy-gate 通过:已扫描 ${scanned} 个文件,未发现真实隐私信息`)
+  console.log(
+    `✅ privacy-gate 通过:已扫描 ${scanned} 个文件,未发现真实隐私信息` +
+      (LOCAL_ROSTER.size > 0
+        ? `(含本地花名册交叉比对:${LOCAL_ROSTER.size} 个真实姓名)`
+        : '(本机无真实花名册,仅用黑名单/格式规则)'),
+  )
 }
 
 run()
