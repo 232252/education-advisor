@@ -1,7 +1,9 @@
 # ===== Build artifacts =====
 node_modules/
 dist/
-release-v*/
+# release-v*/ 只覆盖 release-v11 这类名字;打包验证目录(release-dshcheck/
+# release-dshverify/ 等)曾漏网,1.6GB 构建产物会被 git add -A 一次吞进来
+release-*/
 _apply_edits.cjs
 perf-report.json
 release/
@@ -206,5 +208,13 @@ src-tauri/
 # ===== 机器本地状态与调试草稿(勿入库) =====
 # agents.user.yaml: UI 自动生成的用户 Agent 覆盖配置(每台机器不同)
 agents.user.yaml
+# 同上的原子写崩溃残留(曾堆了 348 个在仓库根);模式放宽到不限根目录
+*.tmp.[0-9]*.[0-9]*.*
 # tmp/: 一次性验证脚本与产物
 tmp/
+# 本地宣传/教学视频素材(38MB+,与产品无关)
+videos/
+# 运行时用户档案目录
+profiles/
+# vitest 审计产物(测试跑一次就生成,勿入库)
+.vitest-audit.json

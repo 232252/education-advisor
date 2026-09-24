@@ -21,3 +21,9 @@ S_018@school.cn
 
 # 新京报文章 URL 中的文章 ID(新闻链接,非个人信息)
 155143991414237
+
+# 项目对外联系邮箱(CODE_OF_CONDUCT.md / SECURITY.md)
+# 理由: 这是项目角色邮箱而非任何自然人邮箱,开源项目必须公开行为准则与
+# 漏洞上报渠道;域名 education-advisor.dev 由项目持有,不含个人信息。
+conduct@education-advisor.dev
+security@education-advisor.dev

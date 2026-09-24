@@ -365,7 +365,6 @@ export class WecomWsClient extends EventEmitter {
 
   private createSocket(url: string): WsLike {
     if (this.opts.wsFactory) return this.opts.wsFactory(url)
-    // biome-ignore lint/correctness/noNodejsModules: 主进程服务按需加载原生 ws
     const WS = require('ws') as unknown as new (url: string) => WsLike
     return new WS(url)
   }

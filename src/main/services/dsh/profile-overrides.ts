@@ -159,7 +159,7 @@ export interface DshRouteModelEntry {
 export function dshRouteModelEntry(
   src: DshRouteModelSource | undefined,
 ): DshRouteModelEntry | undefined {
-  if (!src || !src.id) return undefined
+  if (!src?.id) return undefined
   const entry: DshRouteModelEntry = { id: src.id }
   if (src.name) entry.name = src.name
   const contextWindow = positiveNumber(src.contextWindow)

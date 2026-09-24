@@ -1,6 +1,12 @@
 *.md text eol=lf
 *.ts text eol=lf
 *.tsx text eol=lf
+# Vendored license / provenance files: keep LF so the shipped text matches
+# upstream byte-for-byte (UPSTREAM.json carries per-file sha256 hashes).
+LICENSE text eol=lf
+LICENSE.md text eol=lf
+LICENSE.txt text eol=lf
+UPSTREAM.json text eol=lf
 *.js text eol=lf
 *.mjs text eol=lf
 *.cjs text eol=lf

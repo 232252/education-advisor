@@ -26,6 +26,7 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
@@ -134,14 +135,75 @@ function isUpToDate() {
 function build() {
   info(`从源码编译 EAA：${EAA_SRC}`)
   info(`目标平台：${PLATFORM} → ${TARGET_PATH}`)
+
+  // 隐私/可复现性：Rust 会把源码绝对路径写进 panic 位置与 debug 信息。
+  // 不重映射时，Windows 产物会带 141 处 `C:\Users\<用户名>\...`（含 .cargo /
+  // .rustup 路径），开源发布即等于泄露构建机用户名；同时也让不同机器的产物
+  // 无法复现比对。--remap-path-prefix 把构建机前缀换成稳定的占位路径。
+  //
+  // 用 RUSTFLAGS 环境变量而不是 cargo --config：Windows 路径含反斜杠，塞进
+  // TOML 字符串会被当作转义序列而解析失败（实测 "\U" → unicode 转义报错）。
+  const home = process.env.USERPROFILE || process.env.HOME || ''
+  const remaps = []
+  for (const [from, to] of [
+    [home, '/build/home'],
+    [join(home, '.cargo'), '/build/cargo'],
+    [join(home, '.rustup'), '/build/rustup'],
+    [EAA_SRC, '/build/eaa-src'],
+    [ROOT, '/build/repo'],
+  ]) {
+    if (from) remaps.push(`--remap-path-prefix=${from}=${to}`)
+  }
+  if (home) info(`路径重映射：${home} → /build/home（产物不含构建机路径）`)
+
   const res = spawnSync('cargo', ['build', '--release'], {
     cwd: EAA_SRC,
     stdio: 'inherit',
+    env: {
+      ...process.env,
+      // 保留调用方已设的 RUSTFLAGS，追加而非覆盖
+      RUSTFLAGS: [process.env.RUSTFLAGS, ...remaps].filter(Boolean).join(' '),
+    },
   })
   if (res.status !== 0) {
     error(`cargo build 失败（exit ${res.status}）`)
     process.exit(1)
   }
+}
+
+// ---- 隐私守卫：产物里不能出现构建机绝对路径 ----
+function assertNoBuildPathLeak(binPath) {
+  const home = process.env.USERPROFILE || process.env.HOME || ''
+  let buf
+  try {
+    buf = readFileSync(binPath)
+  } catch (err) {
+    warn(`无法读取产物做路径检查：${errText(err)}`)
+    return
+  }
+  const text = buf.toString('latin1')
+  const leaks = []
+  if (home) {
+    // 正反斜杠两种写法都要查
+    for (const p of [home, home.replace(/\\/g, '/')]) {
+      const n = text.split(p).length - 1
+      if (n > 0) leaks.push(`${p} ×${n}`)
+    }
+  }
+  for (const m of text.matchAll(/[A-Za-z]:\\Users\\[^\\\0-\x1f"']+/g)) {
+    leaks.push(m[0])
+  }
+  if (leaks.length > 0) {
+    error('产物包含构建机绝对路径，开源发布前必须消除：')
+    for (const l of [...new Set(leaks)].slice(0, 5)) error(`  ${l}`)
+    error('已启用 --remap-path-prefix，若仍出现请检查是否有预编译依赖（build script / proc-macro）')
+    process.exit(1)
+  }
+  info('路径检查通过：产物不含构建机绝对路径')
+}
+
+function errText(err) {
+  return err instanceof Error ? err.message : String(err)
 }
 
 // ---- 放置产物 ----
@@ -166,6 +228,9 @@ function placeBinary() {
     process.exit(1)
   }
   info(`产物已放置：${TARGET_PATH} (${(size / 1024).toFixed(1)} KB)`)
+
+  // 隐私守卫：产物不得含构建机绝对路径(开源发布前最容易漏的一项)
+  assertNoBuildPathLeak(TARGET_PATH)
 
   // 写 manifest（记录编译信息，便于排查版本不匹配）
   const cargoVerRes = spawnSync('cargo', ['--version'], { stdio: 'pipe' })
