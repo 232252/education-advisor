@@ -38,28 +38,35 @@ const agentMockState = {
   promptImpl: (): Promise<void> => Promise.resolve(),
 }
 
-vi.mock('@earendil-works/pi-agent-core', () => ({
-  Agent: class {
-    state = {
-      messages: [],
-      tools: [],
-      systemPrompt: '',
-      model: {},
-      thinkingLevel: 'medium',
-    }
-    async prompt() {
-      return agentMockState.promptImpl()
-    }
-    waitForIdle() {
-      return agentMockState.waitForIdleImpl()
-    }
-    async abort() {
-      mocks.abortCallCount++
-    }
-    subscribe() {
-      return mocks.unsubscribeFn
-    }
-  },
+// DSH 替身 mock（替代已移除的 pi-agent-core）
+vi.mock('../../src/main/services/dsh/agent-facade', () => ({
+  createDshAgent: () => ({
+    state: { tools: [], messages: [] },
+    subscribe: () => mocks.unsubscribeFn,
+    prompt: () => agentMockState.promptImpl(),
+    waitForIdle: () => agentMockState.waitForIdleImpl(),
+    abort: async () => { mocks.abortCallCount++ },
+  }),
+}))
+vi.mock('../../src/main/services/dsh/tool-bridge', () => ({
+  ensureActiveEaaToolBridge: async () => ({ port: 1, patchDir: '', close: async () => {} }),
+  mountEaaAgentTools: async (opts) => ({
+    serverName: 'eaa-test',
+    patchPath: '/tmp/test.patch.yml',
+    toolNameMap: {},
+    endpoint: { url: 'http://127.0.0.1:1/mcp/x', token: 't', toolCount: 0 },
+    release: async () => {},
+  }),
+}))
+vi.mock('../../src/main/services/dsh/runtime', () => ({
+  getDshRuntimeCwd: () => mocks.userDataDir,
+  createDshRuntime: () => ({
+    turnEvents: async function* () {
+      yield { type: 'assistant/message', data: { turn: 1, step: 1, stream: [{ type: 'text-chunks', texts: ['ok'] }], usage: { inputTokens: 3, outputTokens: 1 } } }
+      yield { type: 'turn/end', data: { turn: 1, reason: 'completed' } }
+    },
+    dispose: async () => {},
+  }),
 }))
 
 vi.mock('@earendil-works/pi-ai/compat', () => ({
@@ -102,7 +109,7 @@ vi.mock('../../src/main/services/settings-service', () => ({
         defaultModel: 'test-model',
         customModels: {},
         // 本文件断言的是 pi 运行时的 Agent/abort 行为（agentRuntime 缺省现已是 dsh）；dsh 见 src/main/services/dsh/__tests__
-        agentRuntime: 'pi',
+        agentRuntime: 'dsh',
       },
       general: { agentTimeoutMins: mocks.agentTimeoutMins },
       chat: {

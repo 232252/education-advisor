@@ -35,28 +35,42 @@ const agentMockState = {
   implFor: (_text: unknown): Promise<void> => Promise.resolve(),
 }
 
-vi.mock('@earendil-works/pi-agent-core', () => ({
-  Agent: class {
-    state = {
-      messages: [],
-      tools: [],
-      systemPrompt: '',
-      model: {},
-      thinkingLevel: 'medium',
+
+// DSH runtime mocks（替代已移除的 pi-agent-core）
+vi.mock('../../src/main/services/dsh/runtime', () => ({
+  getDshRuntimeCwd: () => mocks.userDataDir,
+  createDshRuntime: () => ({
+    turnEvents: async function* () {
+      yield { type: 'assistant/message', data: { turn: 1, step: 1, stream: [{ type: 'text-chunks', texts: ['ok'] }], usage: { inputTokens: 3, outputTokens: 1 } } }
+      yield { type: 'turn/end', data: { turn: 1, reason: 'completed' } }
+    },
+    dispose: async () => {},
+  }),
+}))
+vi.mock('../../src/main/services/dsh/tool-bridge', () => ({
+  ensureActiveEaaToolBridge: async () => ({ port: 1, patchDir: '', close: async () => {} }),
+  mountEaaAgentTools: async (opts) => ({
+    serverName: 'eaa-test',
+    patchPath: '/tmp/test.patch.yml',
+    toolNameMap: {},
+    endpoint: { url: 'http://127.0.0.1:1/mcp/x', token: 't', toolCount: 0 },
+    release: async () => {},
+  }),
+}))
+
+vi.mock('../../src/main/services/dsh/agent-facade', () => ({
+  createDshAgent: () => {
+    const inst = {
+      state: { tools: [], messages: [] },
+      subscribe: () => mocks.unsubscribeFn,
+      prompt: async (text: unknown) => {
+        agentMockState.calls.push(text)
+        return agentMockState.implFor(text)
+      },
+      waitForIdle: () => Promise.resolve(),
+      abort: async () => {},
     }
-    async prompt(text?: unknown) {
-      agentMockState.calls.push(text)
-      return agentMockState.implFor(text)
-    }
-    waitForIdle() {
-      return Promise.resolve()
-    }
-    async abort() {
-      /* no-op */
-    }
-    subscribe() {
-      return mocks.unsubscribeFn
-    }
+    return inst
   },
 }))
 
@@ -123,7 +137,7 @@ vi.mock('../../src/main/services/settings-service', () => ({
         defaultModel: 'test-model',
         customModels: {},
         // 本文件断言的是 pi 运行时的队列/abort 行为（agentRuntime 缺省现已是 dsh）；dsh 见 src/main/services/dsh/__tests__
-        agentRuntime: 'pi',
+        agentRuntime: 'dsh',
       },
       // M15: execution.ts 读取 general.agentTimeoutMins 作为 waitForIdle 超时
       general: {

@@ -4,7 +4,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { evaluateCompaction, compactChatMessagesSimple } from '../../src/main/services/compaction-helper'
-import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import type { AgentMessage } from '@main/services/llm-contracts'
 
 function mkMsg(content: unknown): AgentMessage {
   return { role: 'user', content, timestamp: Date.now() } as AgentMessage

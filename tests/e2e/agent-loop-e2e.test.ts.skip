@@ -11,17 +11,18 @@
 // =============================================================
 
 import { describe, expect, it, vi } from 'vitest'
-import type {
-  AgentEvent,
-  AgentMessage,
-  AgentTool,
-  AssistantMessage,
-  AssistantMessageEvent,
-} from '@earendil-works/pi-agent-core'
-import { Agent } from '@earendil-works/pi-agent-core'
-import { EventStream } from '@earendil-works/pi-ai/compat'
-import type { Api, Model } from '@earendil-works/pi-ai/compat'
-import { getModel } from '@earendil-works/pi-ai/compat'
+// @earendil-works/pi-agent-core removed — E2E test needs rewrite for DSH
+// import type {
+//   AgentEvent,
+//   AgentMessage,
+//   AgentTool,
+//   AssistantMessage,
+//   AssistantMessageEvent,
+// } from '@earendil-works/pi-agent-core'
+// import { Agent } from '@earendil-works/pi-agent-core'
+// import { EventStream } from '@earendil-works/pi-ai/compat'
+// import type { Api, Model } from '@earendil-works/pi-ai/compat'
+// import { getModel } from '@earendil-works/pi-ai/compat'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'

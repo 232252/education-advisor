@@ -9,14 +9,64 @@
 //   - 摘要文本作为一条 user 消息插入,保留最近 keepRecentTokens 部分原样
 // =============================================================
 
-import {
-  convertToLlm,
-  estimateContextTokens,
-  serializeConversation,
-} from '@earendil-works/pi-agent-core'
 import { completeSimple } from '@earendil-works/pi-ai/compat'
 import type { AgentMessage, Api, CompactionSettings, Model } from '@main/services/llm-contracts'
 import { errText } from '../utils/err-text'
+
+// =============================================================
+// 本地实现（原 @earendil-works/pi-agent-core 的压缩工具函数）
+// =============================================================
+
+/**
+ * 将 AgentMessage[] 转换为 LLM 兼容的 Message[]（本项目 AgentMessage = Message，直接返回）。
+ * 原 pi-agent-core 的 convertToLlm 会过滤掉非标准消息类型。
+ */
+function convertToLlm(messages: AgentMessage[]): AgentMessage[] {
+  return messages
+}
+
+/**
+ * 估算消息列表的 token 数。
+ * 原 pi-agent-core 的 estimateContextTokens 基于 provider usage 数据。
+ * 本项目已有 CJK 感知的 estimateMessageTokens，这里复用。
+ */
+function estimateContextTokens(messages: AgentMessage[]): { tokens: number } {
+  let tokens = 0
+  for (const m of messages) {
+    tokens += estimateMessageTokens(m)
+  }
+  return { tokens }
+}
+
+/**
+ * 将 LLM 消息列表序列化为文本，供摘要 prompt 使用。
+ * 原 pi-agent-core 的 serializeConversation 格式为 "role: content" 逐条排列。
+ */
+function serializeConversation(messages: AgentMessage[]): string {
+  return messages
+    .map((m) => {
+      const role = (m as { role?: string }).role ?? 'unknown'
+      const content = (m as { content?: unknown }).content
+      let text = ''
+      if (typeof content === 'string') {
+        text = content
+      } else if (Array.isArray(content)) {
+        text = content
+          .map((b: { type?: string; text?: string }) =>
+            b.type === 'text' ? (b.text ?? '') : `[${b.type ?? 'unknown'}]`,
+          )
+          .join('')
+      } else if (content && typeof content === 'object') {
+        try {
+          text = JSON.stringify(content)
+        } catch {
+          text = ''
+        }
+      }
+      return `${role}: ${text}`
+    })
+    .join('\n')
+}
 
 /**
  * 压缩阈值结果

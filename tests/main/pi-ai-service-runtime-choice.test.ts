@@ -41,16 +41,7 @@ const DONE = {
   usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
 } as const
 
-vi.mock('../../src/main/services/pi-ai/streaming', () => ({
-  ChatStreamRunner: class {
-    constructor() {
-      state.piBuilt++
-    }
-    async *chatStream() {
-      yield DONE
-    }
-  },
-}))
+// pi chat streaming removed — always dsh now
 
 // resolveModel 只提供档位表这一个事实来源：让「档位有没有落到 initialize」可判定
 vi.mock('../../src/main/services/pi-ai/model-utils', async (importOriginal) => {
@@ -131,11 +122,10 @@ describe('piAIService 流式后端选择', () => {
     expect(state.piBuilt).toBe(0)
   })
 
-  it("显式 'pi' 才走内置运行时，不构造 dsh 子进程", async () => {
+  it("显式 'pi' 也会走 dsh 后端（Pi 运行时已移除）", async () => {
     const { piAIService } = await import('../../src/main/services/pi-ai-service')
     expect(await drain(piAIService.chatStream(request()))).toEqual([DONE])
-    expect(state.piBuilt).toBe(1)
-    expect(state.dshBuilt).toBe(0)
+    expect(state.dshBuilt).toBe(1)
   })
 
   it("agentRuntime='dsh' 时用首个请求的 provider/model 建 DshRuntime", async () => {
@@ -202,12 +192,11 @@ describe('piAIService 流式后端选择', () => {
     })
   })
 
-  it('设置读取抛错时回落 pi 并告警', async () => {
+  it('设置读取抛错时仍走 dsh 并告警', async () => {
     state.throwOnRead = true
     const { piAIService } = await import('../../src/main/services/pi-ai-service')
     expect(await drain(piAIService.chatStream(request()))).toEqual([DONE])
-    expect(state.piBuilt).toBe(1)
-    expect(state.dshBuilt).toBe(0)
+    expect(state.dshBuilt).toBe(1)
     expect(console.warn).toHaveBeenCalled()
   })
 

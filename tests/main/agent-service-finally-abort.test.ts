@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => {
     agentTimeoutMins: 5,
     // 后端切换断言用：记录两条构造路径各被走了几次
     // 默认显式钉 pi：本文件的 finally/超时用例覆盖 pi 运行时内核（dsh 见 src/main/services/dsh/__tests__）
-    agentRuntime: 'pi' as 'pi' | 'dsh' | undefined,
+    agentRuntime: 'dsh' as 'pi' | 'dsh' | undefined,
     piAgentCtorCount: 0,
     facadeCtorCount: 0,
     facadeAbortCount: 0,
@@ -95,7 +95,8 @@ vi.mock('../../src/main/services/dsh/runtime', () => ({
     mocks.dshRuntimeOpts = opts
     return {
       turnEvents: async function* () {
-        yield { type: 'turn/end' }
+        yield { type: 'assistant/message', data: { turn: 1, step: 1, stream: [{ type: 'text-chunks', texts: ['ok'] }], usage: { inputTokens: 3, outputTokens: 1 } } }
+        yield { type: 'turn/end', data: { turn: 1, reason: 'completed' } }
       },
       dispose: async () => {},
     }
@@ -107,32 +108,7 @@ const agentMockState = {
   promptImpl: (): Promise<void> => Promise.resolve(),
 }
 
-vi.mock('@earendil-works/pi-agent-core', () => ({
-  Agent: class {
-    constructor() {
-      mocks.piAgentCtorCount++
-    }
-    state = {
-      messages: [],
-      tools: [],
-      systemPrompt: '',
-      model: {},
-      thinkingLevel: 'medium',
-    }
-    async prompt() {
-      return agentMockState.promptImpl()
-    }
-    waitForIdle() {
-      return agentMockState.waitForIdleImpl()
-    }
-    async abort() {
-      mocks.abortCallCount++
-    }
-    subscribe() {
-      return mocks.unsubscribeFn
-    }
-  },
-}))
+// @earendil-works/pi-agent-core removed — always dsh now
 
 vi.mock('@earendil-works/pi-ai/compat', () => ({
   getEnvApiKey: vi.fn(() => 'test-key'),
@@ -286,8 +262,8 @@ describe('AgentService finally 块 abort', () => {
     // runAgent 不 rethrow(catch 块吞掉错误),所以应正常 resolve
     await agentService.runAgent('test-prompt-error', 'test', fakeWin as never)
 
-    // finally 块应调用了 abort
-    expect(mocks.abortCallCount).toBeGreaterThanOrEqual(1)
+    // finally 块应调用了 abort (dsh facade)
+    expect(mocks.facadeAbortCount).toBeGreaterThanOrEqual(1)
 
     // 恢复
     agentMockState.promptImpl = () => Promise.resolve()
@@ -304,8 +280,8 @@ describe('AgentService finally 块 abort', () => {
 
     await agentService.runAgent('test-normal-complete', 'test', fakeWin as never)
 
-    // 正常完成后 finally 也应调用 abort(idempotent)
-    expect(mocks.abortCallCount).toBeGreaterThanOrEqual(1)
+    // 正常完成后 finally 也应调用 abort
+    expect(mocks.facadeAbortCount).toBeGreaterThanOrEqual(1)
 
     cleanup()
   })
@@ -320,12 +296,12 @@ describe('AgentService finally 块 abort', () => {
 
     // 第一次运行
     await agentService.runAgent('test-double-run', 'first', fakeWin as never)
-    expect(mocks.abortCallCount).toBeGreaterThanOrEqual(1)
+    expect(mocks.facadeAbortCount).toBeGreaterThanOrEqual(1)
 
     // 第二次运行应正常(finally 已清理 runningAgents)
-    mocks.abortCallCount = 0
+    mocks.facadeAbortCount = 0
     await agentService.runAgent('test-double-run', 'second', fakeWin as never)
-    expect(mocks.abortCallCount).toBeGreaterThanOrEqual(1)
+    expect(mocks.facadeAbortCount).toBeGreaterThanOrEqual(1)
 
     cleanup()
   })
@@ -360,7 +336,7 @@ describe('M15: Agent 超时错标修复 + 可配置', () => {
     expect(dbCall?.status).toBe('aborted')
 
     // finally 块仍应 abort(超时后不再消耗 API token)
-    expect(mocks.abortCallCount).toBeGreaterThanOrEqual(1)
+    expect(mocks.facadeAbortCount).toBeGreaterThanOrEqual(1)
 
     // 恢复
     mocks.agentTimeoutMins = 5
@@ -391,21 +367,22 @@ describe('M15: Agent 超时错标修复 + 可配置', () => {
     cleanup()
   })
 
-  it('显式 agentRuntime=pi 时走 pi Agent，不挂 dsh 工具端点', async () => {
+  it('显式 agentRuntime=pi 也会走 dsh 后端（Pi Agent 已移除）', async () => {
     mocks.agentRuntime = 'pi'
     agentMockState.promptImpl = () => Promise.resolve()
     agentMockState.waitForIdleImpl = () => Promise.resolve()
     const cleanup = injectTestAgent('test-backend-pi')
     const fakeWin = makeFakeWindow()
-    const beforePi = mocks.piAgentCtorCount
     const beforeMount = mocks.mountCount
+    const beforeRuntime = mocks.dshRuntimeBuilt
+    const beforeFacade = mocks.facadeCtorCount
 
     await agentService.runAgent('test-backend-pi', 'test', fakeWin as never)
 
-    expect(mocks.piAgentCtorCount).toBe(beforePi + 1)
-    expect(mocks.facadeCtorCount).toBe(0)
-    expect(mocks.mountCount).toBe(beforeMount)
-    expect(mocks.dshRuntimeBuilt).toBe(0)
+    // DSH is always the backend now
+    expect(mocks.facadeCtorCount).toBe(beforeFacade + 1)
+    expect(mocks.dshRuntimeBuilt).toBe(beforeRuntime + 1)
+    expect(mocks.mountCount).toBe(beforeMount + 1)
     cleanup()
   })
 
@@ -417,15 +394,17 @@ describe('M15: Agent 超时错标修复 + 可配置', () => {
     const fakeWin = makeFakeWindow()
     const beforePi = mocks.piAgentCtorCount
     const beforeMount = mocks.mountCount
+    const beforeFacade = mocks.facadeCtorCount
+    const beforeFacadeAbort = mocks.facadeAbortCount
 
     await agentService.runAgent('test-backend-dsh', 'test', fakeWin as never)
 
     // 没有偷偷回落到 pi
     expect(mocks.piAgentCtorCount).toBe(beforePi)
-    expect(mocks.facadeCtorCount).toBe(1)
+    expect(mocks.facadeCtorCount).toBe(beforeFacade + 1)
     expect(mocks.mountCount).toBe(beforeMount + 1)
     expect(mocks.releaseCount).toBe(mocks.mountCount)
-    expect(mocks.facadeAbortCount).toBe(1)
+    expect(mocks.facadeAbortCount).toBe(beforeFacadeAbort + 1)
     // 挂的是这个角色的工具集，patch 只有它自己那一份
     expect((mocks.lastMount as { label: string }).label).toBe('test-backend-dsh')
     expect(mocks.dshRuntimeOpts).toMatchObject({
@@ -440,7 +419,7 @@ describe('M15: Agent 超时错标修复 + 可配置', () => {
     expect(Object.keys(init.toolNameMap)).toEqual(
       (mocks.lastMount as { tools: unknown[] }).tools.map((t) => (t as { name: string }).name),
     )
-    mocks.agentRuntime = 'pi'
+    mocks.agentRuntime = 'dsh'
     cleanup()
   })
 
@@ -453,7 +432,7 @@ describe('M15: Agent 超时错标修复 + 可配置', () => {
       (mocks.dshRuntimeOpts as { reasoningEffort?: string }).reasoningEffort,
     ).toBeUndefined()
     mocks.thinkingLevel = 'medium'
-    mocks.agentRuntime = 'pi'
+    mocks.agentRuntime = 'dsh'
     cleanup()
   })
 })

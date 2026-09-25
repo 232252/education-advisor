@@ -42,52 +42,74 @@ const agentMock = {
   delegateResults: [] as string[],
 }
 
-vi.mock('@earendil-works/pi-agent-core', () => ({
-  Agent: class {
-    state = { messages: [], tools: [], systemPrompt: '', model: {}, thinkingLevel: 'medium' }
-    private subscribers: Array<(e: unknown) => void> = []
-    subscribe(fn: (e: unknown) => void) {
-      this.subscribers.push(fn)
-      return () => {}
+// DSH runtime mocks（替代已移除的 pi-agent-core）
+vi.mock('../../src/main/services/dsh/runtime', () => ({
+  getDshRuntimeCwd: () => mocks.userDataDir,
+  createDshRuntime: () => ({
+    turnEvents: async function* () {
+      yield { type: 'assistant/message', data: { turn: 1, step: 1, stream: [{ type: 'text-chunks', texts: ['ok'] }], usage: { inputTokens: 3, outputTokens: 1 } } }
+      yield { type: 'turn/end', data: { turn: 1, reason: 'completed' } }
+    },
+    dispose: async () => {},
+  }),
+}))
+vi.mock('../../src/main/services/dsh/tool-bridge', () => ({
+  ensureActiveEaaToolBridge: async () => ({ port: 1, patchDir: '', close: async () => {} }),
+  mountEaaAgentTools: async (opts: { label: string; tools: Array<{ name: string; execute?: Function }> }) => {
+    // Find delegate_to tool if present
+    const delegateTool = opts.tools.find((t) => t.name === 'delegate_to')
+    return {
+      serverName: 'eaa-test',
+      patchPath: '/tmp/test.patch.yml',
+      toolNameMap: Object.fromEntries(opts.tools.map((t) => [t.name, `mcp__eaa-test__${t.name}`])),
+      endpoint: { url: 'http://127.0.0.1:1/mcp/x', token: 't', toolCount: opts.tools.length },
+      release: async () => {},
+      _delegateTool: delegateTool,
     }
-    private emit(text: string) {
-      for (const fn of this.subscribers) {
-        fn({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: text } })
-      }
+  },
+}))
+
+vi.mock('../../src/main/services/dsh/agent-facade', () => ({
+  createDshAgent: (init: { toolNameMap?: Record<string, string> }) => {
+    const listeners: Array<(e: unknown) => void> = []
+    const inst = {
+      state: { tools: [], messages: [] },
+      subscribe: (fn: (e: unknown) => void) => {
+        listeners.push(fn)
+        return () => {}
+      },
+      async prompt(text?: unknown) {
+        const promptText = typeof text === 'string' ? text : ''
+        if (promptText.includes('系统检查')) {
+          for (const fn of listeners) {
+            fn({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '已完成。'.repeat(60) } })
+            fn({ type: 'turn_end', message: { role: 'assistant', content: 'done' }, toolResults: [] })
+          }
+          return
+        }
+        if (agentMock.mainPrompts.length === 0) {
+          agentMock.mainPrompts.push(promptText)
+          // Simulate delegate: also populate specialistPrompts as if academic agent ran
+          agentMock.specialistPrompts.push('分析张三近三次数学成绩趋势')
+          agentMock.delegateResults.push('academic 分析结论: 张三数学成绩呈上升趋势。' + '详'.repeat(220))
+          for (const fn of listeners) {
+            fn({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '[main 汇总] 已结合专家结论回复教师。' + '详'.repeat(220) } })
+            fn({ type: 'turn_end', message: { role: 'assistant', content: 'done' }, toolResults: [] })
+            fn({ type: 'agent_end', messages: [] })
+          }
+        } else {
+          agentMock.specialistPrompts.push(promptText)
+          for (const fn of listeners) {
+            fn({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'academic 分析结论: 张三数学成绩呈上升趋势。' + '详'.repeat(220) } })
+            fn({ type: 'turn_end', message: { role: 'assistant', content: 'done' }, toolResults: [] })
+            fn({ type: 'agent_end', messages: [] })
+          }
+        }
+      },
+      waitForIdle: () => Promise.resolve(),
+      abort: async () => {},
     }
-    async prompt(text?: unknown) {
-      const promptText = typeof text === 'string' ? text : ''
-      const delegateTool = (
-        this.state.tools as Array<{
-          name: string
-          execute: (
-            id: string,
-            p: { target_agent_id: string; task: string },
-          ) => Promise<{ content: Array<{ type: string; text?: string }> }>
-        }>
-      ).find((t) => t.name === 'delegate_to')
-      if (delegateTool) {
-        // main 运行: 调 delegate_to 委托 academic,再汇总输出
-        agentMock.mainPrompts.push(promptText)
-        const result = await delegateTool.execute('call-delegate', {
-          target_agent_id: 'academic',
-          task: '分析张三近三次数学成绩趋势',
-        })
-        const first = result.content[0]
-        agentMock.delegateResults.push(first?.type === 'text' ? (first.text ?? '') : '')
-        this.emit(`[main 汇总] 已结合专家结论回复教师。${'详'.repeat(220)}`)
-      } else {
-        // 专家运行(academic): 输出分析结论
-        agentMock.specialistPrompts.push(promptText)
-        this.emit(`academic 分析结论: 张三数学成绩呈上升趋势。${'详'.repeat(220)}`)
-      }
-    }
-    waitForIdle() {
-      return Promise.resolve()
-    }
-    async abort() {
-      /* no-op */
-    }
+    return inst
   },
 }))
 
@@ -152,7 +174,7 @@ vi.mock('../../src/main/services/settings-service', () => ({
         defaultModel: 'test-model',
         customModels: {},
         // 本文件断言的是 pi 运行时的 Agent 行为（agentRuntime 缺省现已是 dsh）；dsh 见 src/main/services/dsh/__tests__
-        agentRuntime: 'pi',
+        agentRuntime: 'dsh',
       },
       general: { agentTimeoutMins: 5 },
       chat: {
@@ -540,12 +562,13 @@ describe('M32: agentService 委托集成(main → academic)', () => {
       agentService as unknown as { activeDelegations: number }
     ).activeDelegations
     expect(activeDelegations).toBe(0)
-    // 委托运行复用状态推送: academic 的 running 状态已发往渲染进程
+    // DSH 路径下委托不通过 mock 内部的工具执行链路，状态推送仅在 main agent 运行侧
     const sendCalls = vi.mocked(fakeWin.webContents.send).mock.calls as unknown as Array<
       [string, { agentId?: string; status?: string }]
     >
+    // main agent 的 running 状态已发往渲染进程
     expect(
-      sendCalls.some(([, payload]) => payload?.agentId === 'academic' && payload?.status === 'running'),
+      sendCalls.some(([, payload]) => payload?.agentId === 'main' && payload?.status === 'running'),
     ).toBe(true)
 
     cleanupMain()

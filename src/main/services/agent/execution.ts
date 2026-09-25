@@ -8,13 +8,7 @@
 // 日志前缀与事件负载逐字保留,行为零变化)
 // =============================================================
 
-import { Agent } from '@earendil-works/pi-agent-core'
-import type {
-  AgentMessage,
-  AgentTool,
-  CompactionSettings,
-  ThinkingLevel,
-} from '@main/services/llm-contracts'
+import type { AgentMessage, AgentTool } from '@main/services/llm-contracts'
 import type { AgentConfig, AgentExecution, AgentRunSource, AgentStatus } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { errText } from '../../utils/err-text'
@@ -45,7 +39,6 @@ import { runContinuationLoop } from './continuation'
 import { createEventCollector } from './event-collector'
 import { memoryService } from './memory-service'
 import { assertPrivacyReadyForRun, isAutoAnonymizeEnabled, PrivacyGuard } from './privacy-guard'
-import { createRetryingStreamFn } from './retrying-stream'
 import { clearActiveRunSource, sendAgentStatus, setActiveRunSource } from './status-tracking'
 import { buildSystemPrompt } from './system-prompt'
 import { withTimeout } from './timeout'
@@ -236,7 +229,6 @@ async function executeAgentRunInner(
 
   // ✅ [Settings wiring] 读取 chat.* 设置
   // steeringMode/followUpMode/showImages 没有运行时 API 等价物,注入到 system prompt 顶部
-  // compaction 有运行时钩子(transformContext),走真正的 LLM 摘要压缩
   const chatSettings = settingsService.getSettings().chat
 
   // M15: waitForIdle 超时从 settings.general.agentTimeoutMins 读取(分钟,-1 不限)。
@@ -282,157 +274,49 @@ async function executeAgentRunInner(
     showImages,
   })
 
-  // 压缩设置(供 transformContext 使用)
-  // 修复 Bug-2: reserveTokens 上限按 model.contextWindow 自适应(默认 10% 上下文,至少 4096)
-  // 实现提取到 compaction-helper.computeAdaptiveReserve(与 Chat 链路共用)
-  const adaptiveReserve = computeAdaptiveReserve(compactionReserve, model.contextWindow)
-  const compactionSettings: CompactionSettings = {
-    enabled: compactionEnabled,
-    reserveTokens: adaptiveReserve,
-    keepRecentTokens: compactionKeep,
-  }
-  console.log(
-    `[AgentService] runAgent(${id}) compaction settings: reserve=${adaptiveReserve} (model.contextWindow=${model.contextWindow})`,
-  )
-
-  // 创建 Agent 实例 - transformContext 钩子在每次循环前触发压缩
-  // 触发条件: messages 总 token > contextWindow - reserveTokens (即 contextWindow 的 90%)
-  // 行为: 调 LLM 对旧消息生成结构化摘要,替换为单条 summary 消息,保留近期消息原样
   const abortController = new AbortController()
-  const transformContext = async (messages: AgentMessage[]): Promise<AgentMessage[]> => {
-    // 防御:这些已经在 helper 内部检查过,这里只保证 settings 合法
-    if (!compactionSettings.enabled) {
-      return messages
-    }
-    if (messages.length <= 2) {
-      return messages
-    }
-    // R136 优化: 廉价预检查 — 估算 token < 阈值 * 0.8 时跳过完整扫描
-    // 避免每轮都对全部消息做 O(N) token 估算(常见于会话初期)
-    // (M16: 统计规则收敛到 compaction-helper.estimateMessageTokens,此处是第三个消费方;
-    //   2026-08-28 智能轮: /4 字符估算改为 CJK 感知,与完整评估同口径,
-    //   否则中文会话预检查放行、完整评估又触发,预检查失效)
-    const threshold = model.contextWindow - compactionSettings.reserveTokens
-    let quickTokens = 0
-    for (let i = 0; i < messages.length; i++) {
-      quickTokens += estimateMessageTokens(messages[i])
-      // 提前退出: 已超阈值 * 0.8 就停止统计, 进入完整评估
-      if (quickTokens > threshold * 0.8) break
-    }
-    if (quickTokens < threshold * 0.8) {
-      return messages
-    }
-    const key = resolveApiKey(model.provider)
-    if (!key) {
-      console.warn('[AgentService] compaction skipped: no API key for', model.provider)
-      return messages
-    }
-    try {
-      const result = await compactAgentMessages(
-        messages,
-        model,
-        compactionSettings,
-        key,
-        abortController.signal,
-      )
-      if (result.length < messages.length) {
-        console.log(
-          `[AgentService] compaction applied: ${messages.length} → ${result.length} messages`,
-        )
-        // R2+: 压缩对用户可见(此前只有 console.log,表现为 AI 突然失忆)
-        sendAgentStatus(win, id, 'running', { compacted: true })
-      }
-      return result
-    } catch (err) {
-      console.warn('[AgentService] compaction failed (non-fatal):', err)
-      return messages
-    }
-  }
 
-  // 后端切换：dsh 走子进程替身，缺省 pi。每个执行独占一个 DshRuntime —
+  // 后端：dsh 子进程。每个执行独占一个 DshRuntime —
   // SDK 无按轮取消，abort 只能整体关停子进程，共用会误杀其它并发会话。
-  let useDsh = false
-  try {
-    useDsh = settingsService.getSettings().models?.agentRuntime !== 'pi'
-  } catch (err) {
-    // 设置读不到时按现网后端跑，不能让一次读失败打断智能体执行
-    console.warn(`[Agent] settings unreadable, using pi runtime for ${id}: ${errText(err)}`)
-  }
   // 工具面按本次运行挂载：dsh 子进程只看得见这一个端点，也就是这个角色的工具集
   // （capability 裁剪、delegate_to 只给 main、脱敏包装都已在 tools 里定型）。
   // harness 自带工具由 createDshRuntime 附的那份 patch 关掉。
   // release 在 finally：端点和含 token 的 patch 文件都不跨运行残留。
   let toolMount: EaaToolMount | null = null
   let dshRuntime: DshRuntime | null = null
-  if (useDsh) {
-    await ensureActiveEaaToolBridge({ patchDir: getDshRuntimeCwd() })
-    toolMount = await mountEaaAgentTools({ label: id, tools })
-    // 路由名按 settings.models.dshRoutes 映射（dsh 的 provider 路由是用户在自己
-    // dsh 配置里声明的 key，不等于 pi 的 provider id）
-    const route = dshRouteFor(String(model.provider), model.id)
-    // 推理档位在 pi 路径走 initialState.thinkingLevel，dsh 路径只能进 initialize：
-    // 不带过去就等于用户在界面选的思考档位对 16 个 agent 全部失效。与聊天链路同口径，
-    // 只有该模型目录真支持的档位才发出去（发错值 dsh 会让整轮失败，不是降级）。
-    const reasoningEffort = dshReasoningEffort(
-      resolveModel(String(model.provider), model.id)?.thinkingLevelMap,
-      settingsService.getSettings().chat?.thinkingLevel ?? 'medium',
-    )
-    dshRuntime = createDshRuntime({
-      provider: route.providerId,
-      model: route.modelId,
-      reasoningEffort,
-      configFingerprint: dshRouteFingerprint(String(model.provider)),
-      patches: [toolMount.patchPath],
-    })
-    log(
-      'info',
-      'agent',
-      `runAgent(${id}) dsh 工具挂载 serverName=${toolMount.serverName} tools=${tools.length}`,
-    )
-  }
+  await ensureActiveEaaToolBridge({ patchDir: getDshRuntimeCwd() })
+  toolMount = await mountEaaAgentTools({ label: id, tools })
+  // 路由名按 settings.models.dshRoutes 映射（dsh 的 provider 路由是用户在自己
+  // dsh 配置里声明的 key，不等于 pi 的 provider id）
+  const route = dshRouteFor(String(model.provider), model.id)
+  // 推理档位在 dsh 路径走 initialize：
+  // 不带过去就等于用户在界面选的思考档位对 16 个 agent 全部失效。
+  // 只有该模型目录真支持的档位才发出去（发错值 dsh 会让整轮失败，不是降级）。
+  const reasoningEffort = dshReasoningEffort(
+    resolveModel(String(model.provider), model.id)?.thinkingLevelMap,
+    settingsService.getSettings().chat?.thinkingLevel ?? 'medium',
+  )
+  dshRuntime = createDshRuntime({
+    provider: route.providerId,
+    model: route.modelId,
+    reasoningEffort,
+    configFingerprint: dshRouteFingerprint(String(model.provider)),
+    patches: [toolMount.patchPath],
+  })
+  log(
+    'info',
+    'agent',
+    `runAgent(${id}) dsh 工具挂载 serverName=${toolMount.serverName} tools=${tools.length}`,
+  )
 
-  let agent: AgentRuntimeLike
-  if (dshRuntime && toolMount) {
-    agent = createDshAgent({
-      runtime: dshRuntime,
-      model,
-      systemPrompt,
-      // dsh 侧工具被强制改写成 mcp__<serverName>__<name>，提示词里的裸名必须同步
-      toolNameMap: toolMount.toolNameMap,
-    })
-  } else {
-    agent = new Agent({
-      // pi-agent-core 0.85: streamFn 必填,显式传入 pi-ai 的流式实现
-      // R2+: 经 createRetryingStreamFn 包装 — 建流阶段(429/超时/网络)按
-      // models.retry.* 指数退避重试,与直连聊天路径同策略(此前 agent 链路零重试)
-      streamFn: createRetryingStreamFn(),
-      initialState: {
-        systemPrompt,
-        model,
-        // C-2 修复: 从 settings.chat.thinkingLevel 读取用户选择的思考级别,
-        // 而非硬编码 'medium'。fallback 到 'medium' 保证向后兼容。
-        thinkingLevel: (settingsService.getSettings().chat?.thinkingLevel ??
-          'medium') as ThinkingLevel,
-        // ✅ 从模型定义中读取 maxTokens 作为单次输出上限
-        // (pi-agent-core 会根据 model.maxTokens 向 LLM 请求对应数量的 token)
-      },
-      getApiKey: (provider: string) => resolveApiKey(provider),
-      transformContext,
-      // 诊断: 捕获 LLM HTTP 响应状态码和 headers,用于定位 stopReason=error 的根因
-      // 走正式 logger(debug 级别),仅当 logLevel=debug 时落盘,避免在普通用户机器上 ENOENT 噪音
-      onResponse: (response, modelUsed) => {
-        try {
-          log(
-            'debug',
-            'agent',
-            `HTTP_RESPONSE: model=${modelUsed.provider}/${modelUsed.id} status=${response.status} headers=${JSON.stringify(response.headers)}`,
-          )
-        } catch {
-          // ignore
-        }
-      },
-    })
-  }
+  // 创建 dsh agent 替身（满足 AgentRuntimeLike 契约）
+  const agent: AgentRuntimeLike = createDshAgent({
+    runtime: dshRuntime,
+    model,
+    systemPrompt,
+    // dsh 侧工具被强制改写成 mcp__<serverName>__<name>，提示词里的裸名必须同步
+    toolNameMap: toolMount.toolNameMap,
+  })
 
   // 设置工具
   agent.state.tools = tools

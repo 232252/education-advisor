@@ -7,7 +7,7 @@
 // =============================================================
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentEvent } from '@earendil-works/pi-agent-core'
+import type { AgentEvent } from '@main/services/llm-contracts'
 import { createEventCollector } from '../../src/main/services/agent/event-collector'
 
 const mocks = vi.hoisted(() => ({

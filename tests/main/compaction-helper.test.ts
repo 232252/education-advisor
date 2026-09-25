@@ -5,7 +5,7 @@
 //       compactChatMessagesSimple 字符串截断式压缩
 // =============================================================
 
-import type { AgentMessage, CompactionSettings } from '@earendil-works/pi-agent-core'
+import type { AgentMessage, CompactionSettings } from '@main/services/llm-contracts'
 import type { Api, Model } from '@earendil-works/pi-ai/compat'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

@@ -22,7 +22,7 @@ vi.mock('electron', () => ({
 
 import yaml from 'yaml'
 import { getToolsByCapability } from '../../src/main/services/eaa/tools/registry'
-import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@main/services/llm-contracts'
 
 const ROOT = path.resolve(__dirname, '../..')
 const AGENTS_YAML = path.join(ROOT, 'config', 'agents.yaml')
