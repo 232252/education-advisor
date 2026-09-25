@@ -12,6 +12,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [3.3.4] — 2026-09-25
+
 ### Added
 
 - 成绩汇总 CSV 导出（任务详情「导出成绩汇总」）：纯函数 `buildSummaryCsv` 生成 utf-8-sig（`\uFEFF`，Excel 直开）CSV，列=序号｜姓名｜逐题生效分｜总分｜缺题数｜批语，末尾统计块含平均/最高/最低/中位数与分数段人数；逐题/总分与发布同口径（教师覆盖优先），未归组/未批改/分数不完整卷不进学生行；路径来自渲染层保存对话框，主进程写盘（新 IPC `grading:export-summary-csv`）。
@@ -29,6 +31,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - AI 批改发布与逐题成绩统一按量规口径：AI 主结果缺题（如模型输出截断）不再落库，该卷标 failed 可重试；存量缺题任务重新发布时整卷跳过（教师需重改或补复核该卷）——把「总分=部分和、逐题缺一科」的错分显性化。
 - 单选/判断题参考答案解析支持区段与逐题对混排合并；题名可推导出期望小题数（「共 N 小题」/「每小题 X 分」）时按期望校验，部分解析回落模型批改，不再静默按「缺省=对」计分。
 - 卷面识别结果通知补齐合并/重复/续页计数（`IdentifyPapersResult` 契约含 `merged`/`continuationMerged`/`duplicates` 字段，由识别链路透传）。
+
+### Removed
+
+- pi-agent-core 依赖与 `vendor/pi-agent-core/` 源码树彻底移除（底层运行时已由 DeepSeek Harness(dsh) 接管并设为默认）：package.json/tsconfig/lockfile 同步收口，相关测试适配，agent-loop e2e 暂缓为 `.skip`（待 dsh 侧等价用例），安装包不再携带死代码。
 
 ### Fixed
 
