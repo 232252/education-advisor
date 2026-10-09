@@ -14,7 +14,8 @@
 - [Coding standards](#coding-standards)
 - [TypeScript aliases](#typescript-aliases)
 - [The EAA data engine (Rust)](#the-eaa-data-engine-rust)
-- [The in-tree vendored pi packages](#the-in-tree-vendored-pi-packages)
+- [The vendored pi-ai package](#the-vendored-pi-ai-package)
+- [The dsh agent runtime](#the-dsh-agent-runtime)
 - [The vendored Submitty schema reference](#the-vendored-submitty-schema-reference)
 - [Running tests](#running-tests)
 - [Linting and formatting](#linting-and-formatting)
@@ -56,7 +57,10 @@ to build and run the project end-to-end:
 | --- | --- |
 | `src/main/`, `src/renderer/`, `src/shared/` | Electron + React + TypeScript desktop client |
 | `core/eaa-cli/` | Rust data engine — the EAA CLI (4 sub-crates: `eaa`, `eaa-core`, `eaa-crypto`, `eaa-sqlite`) |
-| `vendor/pi-agent-core/`, `vendor/pi-ai/` | The LLM SDK + agent core, vendored in-tree (no sibling monorepo required) |
+| `vendor/pi-ai/` | Vendored `@earendil-works/pi-ai` 0.87.1 — the provider/model catalog and LLM API surface, from the published npm tarball plus one local patch (see below) |
+| `vendor/dsh-im/` | Official DeepSeek connection-center plugin (`@xmanrui/dsh-im` 4.37.0) — linked into the `dsh web` profile |
+| `vendor/dsh-node/` | Gitignored; a stock Node binary staged at package time by `scripts/stage-dsh-node.mjs` — the dsh subprocess cannot run under Electron's own exe |
+| `vendor/eaa-tools/`, `vendor/eaa-roster/`, `vendor/eaa-grades/`, `vendor/eaa-grading/` | The education cordis plugins (conduct events / roster / grades / AI grading) mounted into the dsh profiles |
 | `vendor/submitty/` | Pinned Submitty PostgreSQL schema dumps — the blueprint + drift guard for the built-in AI grading subsystem (see below) |
 | `resources/` | Bundled assets (icon, eaa binary, locale data) |
 | `docs/` | All documentation (architecture, agent authoring, EAA bridge, etc.) |
@@ -120,7 +124,15 @@ npm run test
 npm run build
 ```
 
-If all four pass, you're good to go.
+If all four pass, you're good to go. Four more gates cover the
+vendored / subprocess layers — run them when you touch those areas:
+
+```bash
+npm run verify:vendor   # vendored package pins (pi-ai, submitty)
+npm run verify:dsh      # dsh backend assembly (SDK in dependencies, runtime deps present)
+npm run verify:eaa      # EAA engine functional check (real binary round-trip)
+npm run ipc:contract    # IPC contract, static mode (also runs in CI)
+```
 
 ---
 
@@ -137,7 +149,7 @@ npm run dev:electron
 The dev servers watch the source and rebuild on change. The
 Electron shell loads the renderer from `http://localhost:5173`
 (with HMR) and the main process from the freshly-built
-`dist/main/index.js`.
+`dist/main/index.cjs`.
 
 ### What to expect
 
@@ -169,23 +181,27 @@ Electron shell loads the renderer from `http://localhost:5173`
 ```
 src/
 ├── main/                # Electron main process (Node 22)
-│   ├── ipc/             # IPC handler modules — 20 domains, handleIpc skeleton by default
-│   ├── services/        # Service modules — 13 files
-│   ├── preload/         # contextBridge bridge — 1 file
+│   ├── ipc/             # IPC handler modules — one entry file per domain, handleIpc skeleton by default
+│   ├── services/        # Service modules — incl. dsh/ (agent runtime), pi-ai/ (provider catalog), channels/
+│   ├── preload/         # contextBridge bridge
 │   ├── utils/           # logger etc.
 │   └── index.ts         # main entry
 ├── renderer/            # React 19 renderer
-│   ├── pages/           # 13 page modules
+│   ├── pages/           # page modules
 │   ├── components/      # shared UI
-│   ├── hooks/           # 15 shared hooks (loading / confirm / mount-guard, ...)
-│   ├── stores/          # 7 Zustand stores
+│   ├── hooks/           # shared hooks (loading / confirm / mount-guard, ...)
+│   ├── stores/          # Zustand stores
 │   ├── i18n/            # zh-CN + en-US
 │   ├── lib/             # typed IPC client
 │   └── main.tsx         # renderer entry
 └── shared/              # code shared by main + renderer
-    ├── ipc-channels.ts  # 144 channel constants
-    └── types/           # 17 shared type modules
+    ├── ipc-channels.ts  # IPC channel constants
+    └── types/           # shared type modules
 ```
+
+Exact counts (pages, routes, IPC channels, service files, stores, …)
+are auto-generated — see the repository-scale table at the top of
+[`ARCHITECTURE.md`](./ARCHITECTURE.md) (`npm run doc:stats`).
 
 See [`ARCHITECTURE.md`](./ARCHITECTURE.md#where-to-read-the-code)
 for a 30-minute reading order.
@@ -303,36 +319,99 @@ the relevant Vite config.
 
 ---
 
-## The in-tree vendored pi packages
+## The vendored pi-ai package
 
-The two `@earendil-works/*` packages (the LLM SDK and the agent
-core) are referenced via `file:` paths in `package.json`:
+One `@earendil-works/*` package is still referenced as a local `file:`
+dependency:
 
 ```json
 "dependencies": {
-  "@earendil-works/pi-agent-core": "file:./vendor/pi-agent-core",
+  "@earendil-works/pi-ai": "file:./vendor/pi-ai"
+},
+"overrides": {
   "@earendil-works/pi-ai": "file:./vendor/pi-ai"
 }
 ```
 
-Both are **vendored in-tree** under `vendor/`. They were copied
-from the upstream monorepo and stripped of `.map` source-map
-files (to keep the repo small and pass electron-builder asar
-integrity checks). The package metadata (`package.json`,
-`dist/`, `README.md`, `LICENSE`) is intact.
+`pi-agent-core` is gone — the agent loop runs in a dsh subprocess (see
+[The dsh agent runtime](#the-dsh-agent-runtime)). `pi-ai` stays because
+the app reuses its provider/model catalog and LLM API surface, and
+because dsh's own LLM adapter (`dsh-llm-pi-ai`) is built against it.
 
-This means:
+Provenance model:
 
-- `git clone && npm ci` works without any sibling checkouts.
-- Patches you make to `vendor/pi-agent-core/` or `vendor/pi-ai/`
-  are committed to this repo (no separate PR dance).
-- To update the vendored copy, copy the new `dist/` manually,
-  re-commit, then run `npm run verify:vendor`
-  (`scripts/verify-vendor.mjs`) to validate the result.
+- `vendor/pi-ai/dist/` and `package.json` come from the **published npm
+  tarball** of `@earendil-works/pi-ai` 0.87.1. The vendored copy has no
+  `src/` — you cannot edit provider sources in place.
+- The one local modification ships as
+  `scripts/patches/earendil-works__pi-ai@0.87.1.dsh-toolcall.patch`
+  (DeepSeek Harness: removes per-delta re-parsing of streamed tool-call
+  arguments).
+- After touching anything in `vendor/pi-ai/`, run
+  `node scripts/update-vendor-pi-provenance.mjs` to refresh
+  `vendor/pi-ai/UPSTREAM.json` — the per-file sha256 manifest that lets
+  `verify:vendor` and the drift tests do tamper detection
+  (`--check` is the CI mode; it fails when the manifest no longer
+  matches the tree).
+- `npm run verify:vendor` (`scripts/verify-vendor.mjs`) validates the
+  pin itself: version, `dist/` entry points, and that the key exports
+  still import.
 
-> **Why not published npm versions?** The pi packages are not yet
-> published to the public registry. Vendoring them is the only
-> way to ship a self-contained build.
+This means `git clone && npm ci` still works without any sibling
+checkouts, and every deviation from upstream is either the recorded
+patch or a `UPSTREAM.json` sha256 mismatch away from being caught.
+
+---
+
+## The dsh agent runtime
+
+Model calls no longer run inside the Electron main process. The agent
+loop talks to a **dsh subprocess** (`@deepseek-ai/dsh` 0.2.1-alpha.1)
+through `@deepseek-ai/dsh-sdk-client`, and the code owning that
+conversation lives in `src/main/services/dsh/`:
+
+| File | Responsibility |
+| --- | --- |
+| `runtime.ts` | Subprocess lifecycle: loads the ESM-only SDK client at runtime (hidden dynamic import), spawns `dsh --profile sdk`, JSONRPC `initialize` / `prompt` / `subscribe`, retires and respawns the subprocess when the provider/model route changes |
+| `agent-facade.ts` | The Agent-shaped facade `agent/execution.ts` consumes: projects dsh turn events into `AgentEvent` and releases idle at turn end |
+| `stream-mapper.ts` | dsh `SessionEvent` → renderer `StreamEvent` (the same event contract IPC pushes and the renderer already speak) |
+| `tool-bridge.ts` | Per-run tool mounting: dsh has no tool-registration API, so each run gets its own MCP endpoint (served in-process by `eaa-mcp-server.ts` on `127.0.0.1`, Bearer-token protected) plus a one-endpoint cordis patch — that is what makes per-role least privilege possible |
+| `im-host.ts` | The connection center: runs `dsh web` in its own `DSH_HOME` with `vendor/dsh-im` and the education plugins linked into the web profile (see [`ARCHITECTURE.md`](./ARCHITECTURE.md#the-connection-center-dsh-im)) |
+| `skill-mount.ts` | Copies only the current role's skills into a dsh-discoverable directory and pins it with a `skill-filesystem` patch |
+
+Two more files you will meet along the way: `hardening.ts` (the cordis
+patch that turns off dsh's bundled harness tools — bash, file, web,
+subagents, … — so a role only ever sees its own tool set) and
+`dsh-node.ts` (the spawn hook that launches dsh with a stock Node
+binary instead of Electron's own exe — dsh 0.2.1 rejects Electron
+43.2.0's runtime fingerprint, and the packaged app ships that Node
+binary in `vendor/dsh-node/`).
+
+When you change anything under `src/main/services/dsh/`, run its test
+suite:
+
+```bash
+npx vitest --run src/main/services/dsh
+```
+
+### Prepackage staging
+
+`npm run package` auto-runs the `prepackage` hook first, which is three
+scripts in a row:
+
+1. `scripts/prebuild-check.mjs` — resource readiness gate (same as the
+   `prebuild` hook).
+2. `scripts/stage-dsh-node.mjs` — copies a stock `node.exe` from your
+   machine into the gitignored `vendor/dsh-node/`; skipped when a copy
+   is already staged.
+3. `scripts/stage-dsh-im-deps.mjs` — installs `vendor/dsh-im/`
+   production dependencies with the repo's own pnpm (they are not part
+   of the plugin zip); skipped when already installed.
+
+Both staging scripts are no-ops once their output exists. Re-run
+triggers: a fresh clone (`vendor/dsh-node/` is gitignored), or deleting
+`vendor/dsh-node/` / `vendor/dsh-im/node_modules/` — e.g. after
+upgrading dsh or dsh-im.
 
 ---
 
@@ -526,18 +605,36 @@ See [`AGENT_AUTHORING.md`](./AGENT_AUTHORING.md) — it's a
 
 ### Add a new LLM provider
 
-The provider list lives in the **vendored** `@earendil-works/pi-ai`
-package, under `vendor/pi-ai/src/providers/`. To add a provider:
+There is no provider list in this repo to edit: `vendor/pi-ai` contains
+only the built `dist/` of the published npm package — there is no
+`src/` to drop a new provider file into. The chain today:
 
-1. Add a new file under `vendor/pi-ai/src/providers/`.
-2. Register it in the provider index in the same directory.
-3. Re-run `npm run build` to pick it up.
-4. Commit the change to `vendor/pi-ai/` and to the desktop code
-   that uses the new provider.
+1. **Catalog data** — `builtinProviders()` from
+   `@earendil-works/pi-ai/providers/all` (the vendored package) is the
+   single source of provider + model metadata.
+2. **Main-process consumers** —
+   `src/main/services/pi-ai/providers.ts` (provider list, OAuth flags,
+   display names) and `pi-ai/model-utils.ts` / `pi-ai/provider-models.ts`
+   (model lists: static catalog + online fetch + user custom models).
+3. **dsh subprocess routing** —
+   `src/main/services/dsh/provider-patch.ts` declares a dsh route for
+   every provider the app holds a key for (route names resolved by
+   `route-names.ts`, including the built-in
+   `deepseek → deepseek-official` alias and user renames under
+   `settings.models.dshRoutes`). The API key itself never enters the
+   patch file — only an env-var name; the value is injected into the
+   subprocess environment at launch.
 
-If the upstream monorepo has your provider in a later release,
-just re-vendor: copy `vendor/pi-ai/` from the latest source and
-re-commit.
+So adding a provider means:
+
+1. Contribute the provider upstream in
+   [`earendil-works/pi`](https://github.com/earendil-works/pi).
+2. Once it ships in a published `pi-ai` release, upgrade the vendored
+   copy (new tarball `dist/` + provenance refresh — see
+   [The vendored pi-ai package](#the-vendored-pi-ai-package)).
+3. If the provider needs custom endpoint or credential handling on the
+   dsh side, extend `profile-overrides.ts` / `provider-patch.ts`
+   accordingly.
 
 ---
 
@@ -590,6 +687,12 @@ EA_CDP_PORT=9444 npm run ipc:runtime
 The runtime mode catches gaps static parsing cannot see (e.g. a
 preload method removed while its channel constant survives, or a
 handler returning an unexpected envelope).
+
+A machine-readable snapshot of the preload surface also lives in
+[`docs/ipc-api-dump.json`](./ipc-api-dump.json) — captured from a live
+app over CDP (`capturedAt` 2026-09-06). After adding or changing a
+preload API, regenerate it: launch the app with `ENABLE_CDP=1`, then
+run `EA_CDP_PORT=9444 node scripts/devtools-cdp/cdp-api-dump.mjs`.
 
 ---
 

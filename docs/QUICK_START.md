@@ -51,8 +51,9 @@ This will:
 - Download ~700 MB of npm packages into `node_modules/`
 - Compile the `better-sqlite3` native binding (this is the longest step
   on a slow machine — about 1–5 minutes)
-- Resolve the in-tree vendored packages under `vendor/`
-  (`@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`)
+- Link the one in-tree vendored package under `vendor/`
+  (`@earendil-works/pi-ai`); everything else, including
+  `@deepseek-ai/dsh-sdk-client`, comes from the npm registry
 
 If you see `better-sqlite3` errors, see
 [`TROUBLESHOOTING.md#better-sqlite3-fails-to-build`](./TROUBLESHOOTING.md#better-sqlite3-fails-to-build).
@@ -100,16 +101,24 @@ reload in 1–3 seconds.
 ## 6. Build a release
 
 ```bash
-npm run build           # vite build × 2 configs → dist/
-npm run package         # electron-builder → release/*.exe
+npm run verify:dsh      # dsh assembly gate (SDK in dependencies, runtime deps present)
+npm run build           # vite build × 3 configs → dist/
+npm run package         # electron-builder → release-v11/*.exe
 ```
+
+`npm run package` auto-runs the `prepackage` hook first
+(`prebuild-check` → `stage-dsh-node` → `stage-dsh-im-deps`): it stages a
+stock `node.exe` into `vendor/dsh-node/` (requires a Node on PATH) and
+installs `vendor/dsh-im/` production dependencies with the repo's own
+pnpm (requires a completed `npm install`).
 
 The output:
 
-- `dist/main/index.cjs` + `dist/main/preload.cjs` — the main process bundle
+- `dist/main/index.cjs` + `dist/main/preload.cjs` — the main + preload bundles
 - `dist/renderer/index.html` + assets — the renderer bundle
-- `release/Education-Advisor-Setup.exe` — the NSIS installer (~85 MB)
-- `release/Education Advisor-0.1.0-Portable.exe` — the portable .exe (~75 MB)
+- `release-v11/Education-Advisor-Setup.exe` — the NSIS installer
+  (version-free artifact name; the current version is 3.3.4, from `package.json`)
+- `release-v11/Education-Advisor-Portable.exe` — the portable .exe (~75 MB)
 
 ## 7. Configure the app
 

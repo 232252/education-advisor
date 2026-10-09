@@ -92,8 +92,10 @@ the long-term plan.
 
 **Q: Why React and not Vue / Svelte?**
 
-A: The team had React muscle memory, and the Pi Agent core is
-published as a React-friendly library. We're not opposed to other
+A: The team had React muscle memory, and the app's shape favors it:
+the dsh runtime runs as a subprocess that streams agent events, which
+project naturally into React state, while the Electron host stays thin
+(window, API keys, plugin assembly). We're not opposed to other
 frameworks in principle; the renderer is isolated enough that a
 svelte port is feasible if the maintainer team gets the
 bandwidth.

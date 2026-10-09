@@ -19,11 +19,11 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 | --- | --- |
 | 页面数 | 14 |
 | 路由数 | 16 |
-| IPC 通道数 | 177 |
-| Service 文件数 | 249 |
-| IPC handler 文件数 | 50 |
+| IPC 通道数 | 184 |
+| Service 文件数 | 277 |
+| IPC handler 文件数 | 51 |
 | Zustand store 模块数 | 7 |
-| Preload API 文件数 | 24 |
+| Preload API 文件数 | 25 |
 | Shared 类型文件数 | 19 |
 | Agent 数 | 18 |
 <!-- doc-stats:end -->
@@ -34,6 +34,8 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 - [The three processes](#the-three-processes)
 - [The IPC contract](#the-ipc-contract)
 - [The channel layer (connection hub)](#the-channel-layer-connection-hub)
+- [The agent runtime (dsh subprocess)](#the-agent-runtime-dsh-subprocess)
+- [The connection center (dsh-im)](#the-connection-center-dsh-im)
 - [The data flow](#the-data-flow)
 - [The state model](#the-state-model)
 - [The build pipeline](#the-build-pipeline)
@@ -67,8 +69,8 @@ Education Advisor is a **three-process** desktop application:
    │   ┌────────────────────────▼────────────────────────────┐    │
    │   │              Main process (Node 22)                 │    │
    │   │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐  │    │
-   │   │  │ 41 IPC   │→│ 116      │→│ SQLite   │ │ Tray / │  │    │
-   │   │  │ handlers │  │ services │  │ db       │ │ Update │  │    │
+   │   │  │ IPC      │→│ service  │→│ SQLite   │ │ Tray / │  │    │
+   │   │  │ handlers │  │ modules  │  │ db       │ │ Update │  │    │
    │   │  └──────────┘ └──────────┘ └──────────┘ └────────┘  │    │
    │   │       ▲             ▲                                │    │
    │   │       │  cron       │  tool calls                    │    │
@@ -162,8 +164,9 @@ The main process owns:
 - The window lifecycle (create / show / hide / close)
 - The system tray
 - The auto-update flow
-- The IPC handlers (46 files across 20 domains, 144 channels)
-- The 13 service modules (agent loop, EAA bridge, cron, …)
+- The IPC handlers (one entry module per domain — the doc-stats table
+  at the top of this file counts the files and channels)
+- The service modules (agent loop, dsh runtime, EAA bridge, cron, …)
 - The SQLite database
 - The EAA child process
 - The privacy keystore
@@ -199,9 +202,11 @@ the central design decision of the project.
 
 ## The IPC contract
 
-There are **143 IPC channels** in `src/shared/ipc-channels.ts`,
-grouped by namespace (counts calibrated 2026-09-07 against the
-source; the doc-stats gate guards the total):
+The IPC channel count is tracked by the auto-generated
+repository-scale table at the top of this file (`npm run doc:stats`
+guards it in CI). The channels in `src/shared/ipc-channels.ts` are
+grouped by namespace (per-namespace counts calibrated 2026-10 against
+the source):
 
 | Namespace | Count | Purpose |
 | --- | --- | --- |
@@ -214,17 +219,20 @@ source; the doc-stats gate guards the total):
 | `skill:*` | 4 | User-injected skills (list / get / save / delete) |
 | `mcp:*` | 8 | MCP (list / connect / disconnect / list-tools / test / add / update / remove) |
 | `settings:*` | 3 | App settings (get / set / reset) |
-| `sys:*` | 9 | System (open/save-dialog / get-version / check-download-install-update / update-progress / read-file / restart-app) |
+| `sys:*` | 16 | System (open/save-dialog / get-path / get-version / update flow / printers / WebUI / factory reset / read-file / restart-app) |
 | `backup:*` | 4 | Backup / restore (create-dialog / restore-dialog / list-auto / delete-auto) |
 | `profile:*` | 2 | Student profile (get / set) |
-| `academic:*` | 7 | Academics (get-config / list-exams / create-exam / delete-exam / get-grades / batch-set-grades / get-class-grades) |
+| `academic:*` | 8 | Academics (get-config / list-exams / create-exam / delete-exam / get-grades / batch-set-grades / remove-grades / get-class-grades) |
 | `class:*` | 8 | Classes (list / create / update / archive / restore / delete / assign / assign-progress) |
 | `chat:*` | 5 | Conversation persistence (save / load / delete-session / list-sessions / rename) |
-| `feishu:*` | 8 | Feishu (test / status / bitable / bot-start / bot-stop / bot-status / bot-status-update / diagnose) |
+| `feishu:*` | 4 | Feishu open platform (test / status / bitable / diagnose — bot transport moved to dsh-im) |
 | `log:*` | 7 | Logs (list / read / clear / filter / search / export-dialog / write-renderer) |
 | `memory:*` | 3 | Agent memory (list / delete-entry / clear) |
 | `reports:*` | 2 | Markdown reports (list / read) |
 | `students:*` | 4 | Student Excel import (parse-excel / import-excel / import-progress / import-template) |
+| `grading:*` | 27 | AI paper grading (import / detect / rubric / run / review / publish / export / print overlay) |
+| `channels:*` | 8 | Connection hub adapters (list / start / stop / test / QR login / status push) |
+| `dsh-im:*` | 4 | dsh-im connection center (show / hide / closed / plugin-install) |
 
 Every channel is a string constant exported from a single file. Every
 channel has a corresponding handler in `src/main/ipc/`. The handler
@@ -363,6 +371,99 @@ stage 2.
 
 ---
 
+## The agent runtime (dsh subprocess)
+
+The agent loop no longer runs inside the Electron main process. Model
+calls execute in a separate **dsh subprocess** (`@deepseek-ai/dsh`
+0.2.1-alpha.1); the Electron host stays thin — it owns the window, the
+API keys, and the plugin assembly. Everything that owns the
+conversation lives in `src/main/services/dsh/`:
+
+- **Subprocess lifecycle** (`runtime.ts`). The host talks to dsh over
+  JSONRPC through `@deepseek-ai/dsh-sdk-client` (`initialize` /
+  `prompt` / `subscribe`). The SDK is ESM-only and pre-stable, so it is
+  loaded at runtime via a hidden dynamic import instead of being
+  imported at compile time or bundled. One subprocess is pinned to one
+  provider/model route (routing is fixed at `initialize`); changing the
+  route retires and respawns it.
+- **Why the app ships its own `node.exe`.** dsh 0.2.1's native module
+  rejects Electron 43.2.0's runtime fingerprint — launching dsh with
+  Electron's own exe yields a subprocess that exits immediately. So
+  `dsh-node.ts` hooks `child_process.spawn` to run dsh with a stock
+  Node binary: on dev machines whatever `node` is on PATH, in the
+  packaged app the copy staged into `vendor/dsh-node/` by
+  `scripts/stage-dsh-node.mjs`.
+- **SDK profile vs web profile.** Teacher chat uses the `sdk` profile
+  (`dsh --profile sdk`); the connection center uses the `web` profile
+  (see the next section). Both get the same hardening patch and the
+  same model credentials.
+- **Credentials without a dsh setup wizard** (`provider-patch.ts`).
+  dsh's model routing is not a built-in enum, so the app declares a
+  route for every provider it holds a key for (a cordis patch against
+  dsh's `llm-pi-ai` line). Route names reuse the pi provider ids
+  (built-in alias: `deepseek → deepseek-official`; user renames live in
+  `settings.models.dshRoutes`). Keys never enter the patch file — only
+  env-var names; the values are injected into the subprocess
+  environment at launch.
+- **Host hardening** (`hardening.ts`). The `sdk` profile bundles a
+  full harness tool roster (bash, file read/write, web, subagents, …)
+  and `initialize` has no tool filter. The hardening patch disables
+  those rows, so a role only ever sees the tools mounted for it.
+- **Tool bridge and the EAA MCP** (`tool-bridge.ts` +
+  `eaa-mcp-server.ts`). dsh has no tool-registration API, so the main
+  process serves the education tools as an MCP "Streamable HTTP"
+  endpoint bound to `127.0.0.1` with a per-run Bearer token — tools
+  still hit the app's own service singletons. Because the mcp-client
+  has no whitelist and patches are read once at subprocess start, each
+  agent run mounts a one-endpoint patch containing only that role's
+  tools and unmounts it afterwards: per-role least privilege.
+- **Skill mounting** (`skill-mount.ts`). The current role's skills are
+  copied into a dsh-discoverable directory (names rewritten to dsh's
+  lowercase-dashed rules, tool names rewritten to their MCP-visible
+  forms) and pinned via a `skill-filesystem` patch.
+- **Event mapping** (`stream-mapper.ts` / `agent-facade.ts`). dsh
+  `SessionEvent`s are mapped onto the same `StreamEvent` contract the
+  renderer and IPC pushes already speak, and the facade projects turn
+  events into the `AgentEvent` shape the existing agent loop
+  (`agent/execution.ts`) consumes — the loop did not change shape with
+  the runtime swap.
+
+---
+
+## The connection center (dsh-im)
+
+The chat-channel management panel is not a home-grown settings page —
+it is the official **dsh-im plugin** (`vendor/dsh-im`, package
+`@xmanrui/dsh-im` 4.37.0), and the channels it owns (Feishu, DingTalk,
+WeCom, QQ, WeChat, Slack, Telegram, Discord, Matrix, Email —
+`src/shared/dsh-im-channels.ts`) are answered by dsh-im itself, not by
+the app's adapters.
+
+How it is hosted (`src/main/services/dsh/im-host.ts`):
+
+1. The host runs `dsh web --no-open` in a **dedicated `DSH_HOME`** —
+   never the teacher's `~/.dsh` — and links `vendor/dsh-im` plus the
+   education plugins (`vendor/eaa-*`) into the web profile with pnpm
+   `link:` specifiers.
+2. The web host starts with the same hardening patch and the same
+   model credentials as teacher chat, plus the education tool endpoint
+   and the education skill directory.
+3. The panel is embedded as a **top-level `WebContentsView`**, not an
+   iframe: the login cookies are `SameSite=Strict`, which a cross-origin
+   iframe would drop.
+4. Four IPC channels wire the embed: `dsh-im:show` / `dsh-im:hide` /
+   `dsh-im:closed` / `dsh-im:plugin-install`
+   (`src/shared/ipc-channels.ts`, handlers in
+   `src/main/ipc/dsh-im-handlers.ts`). The plugin center in Settings
+   reports install stamps for the roster / grades / grading plugins on
+   both the sdk and web profiles.
+
+The native Feishu open-platform integration (`feishu:*`) survives for
+Bitable sync and teacher pushes — that uses its own App ID/Secret, not
+the IM plugin's QR login.
+
+---
+
 ## The data flow
 
 The end-to-end flow when a user clicks "Run now" on `class-monitor`
@@ -386,7 +487,10 @@ with the prompt "Alice just handed in her homework 10 minutes late, +2":
     - skills/STUDENT_MANAGEMENT.md (active skill, if any)
     - list of available tools (sanitized, capability-checked)
     ↓
-[7] pi-ai sends the prompt to the LLM
+[7] The host sends the prompt to the dsh subprocess over JSONRPC
+    (@deepseek-ai/dsh-sdk-client: initialize / prompt / subscribe);
+    inside the subprocess, dsh's LLM adapter
+    (dsh-llm-pi-ai → vendored @earendil-works/pi-ai) calls the LLM
     ↓
 [8] LLM responds with a tool call:
     { name: 'eaa.addEvent', args: { student: 'Alice', code: 'BONUS_VARIABLE', delta: 2, reason: 'homework on time' } }
@@ -491,24 +595,31 @@ is the simplest possible model and the easiest to reason about.
 
 | Stage | Tool | Output | Run by |
 | --- | --- | --- | --- |
+| Prebuild resource check | `scripts/prebuild-check.mjs` | exit code（EAA 二进制 / agents/ / config/ 就绪） | npm `prebuild` hook（`npm run build` 前自动跑）、`prepackage` |
 | TypeScript compile (main) | Vite, `vite.config.main.ts` | `dist/main/index.cjs` | `npm run dev:main`, `npm run build` |
 | TypeScript compile (preload) | Vite, `vite.config.preload.ts` | `dist/main/preload.cjs`（单文件内联，唯一 external = electron — sandboxed preload 的硬前提） | `npm run dev:preload`, `npm run build` |
 | TypeScript compile (renderer) | Vite, `vite.config.renderer.ts` | `dist/renderer/index.html` + assets | `npm run dev:renderer`, `npm run build` |
 | Bundle shape check | `scripts/bundle-shape-check.mjs` | exit code（懒加载分割守卫，见下节） | `npm run check:bundle`, CI |
+| Prepackage staging | `scripts/stage-dsh-node.mjs` + `scripts/stage-dsh-im-deps.mjs` | `vendor/dsh-node/`（随包 node.exe）、`vendor/dsh-im/node_modules/` | npm `prepackage` hook（`npm run package` 前自动跑） |
+| dsh / vendor / EAA assembly checks | `verify-dsh-package.mjs` / `verify-vendor.mjs` / `verify-eaa-engine.mjs` | exit code | `npm run verify:dsh` / `verify:vendor` / `verify:eaa`，其中 verify:dsh 是 CI 门禁 |
 | Lint | Biome 2.3 | exit code | `npm run lint` |
 | Type check | TypeScript 7 | exit code | `npm run typecheck` |
 | Test | Vitest 3.2 | test report | `npm run test` |
-| Package | electron-builder 25 | `release/*.exe` | `npm run package` |
+| Package | electron-builder 26 | `release-v11/*.exe` | `npm run package` |
 
-The two Vite configs produce CommonJS for the main process (because
-Electron's main is a Node.js process) and ES modules for the renderer
-(because Chromium).
+The three Vite configs produce CommonJS for the main and preload
+bundles (because they load into Node.js processes) and ES modules for
+the renderer (because Chromium).
 
 The dependency footprint is intentionally small:
 
-- `better-sqlite3` is the only native dependency.
+- `better-sqlite3` (SQLite) and `@napi-rs/canvas` (PDF rasterization
+  for the grading pipeline) are the only native dependencies.
 - The Rust EAA binary is bundled as an `extraResource`, unpacked from
   the asar archive at startup.
+- The dsh subprocess tree (`@deepseek-ai/dsh*`) ships as real files
+  under `app.asar.unpacked/` (`asarUnpack: **/node_modules/**`) — a
+  pure-Node subprocess cannot read inside the asar.
 - Everything else is pure JS / TS.
 
 ---
@@ -584,8 +695,10 @@ Tauri parity project for v2.0 of the desktop client.
 ### Why React and not Vue / Svelte?
 
 - The team already had React muscle memory.
-- The Pi Agent core is published as a React-friendly library.
-- The agent loop, the prompt editor, and the log viewer all benefit
+- The agent runtime is a dsh subprocess that streams events, and
+  projecting a live event stream (streaming text, thinking, tool
+  calls) into React state is a natural fit.
+- The agent loop UI, the prompt editor, and the log viewer all benefit
   from React's ecosystem (TipTap, react-markdown, shiki, react-table).
 
 ### Why Vite and not Webpack / Rollup directly?
@@ -653,11 +766,18 @@ If you are new to the codebase, here is a 30-minute reading order:
    the Rust bridge.
 6. **[`src/main/services/eaa-tools.ts`](../src/main/services/eaa-tools.ts)** —
    the tool layer the agents use.
-7. **[`config/agents.yaml`](../config/agents.yaml)** — the agent registry.
-8. **[`agents/main/SOUL.md`](../agents/main/SOUL.md)** — the most-used agent.
-9. **[`agents/_shared/rules.md`](../agents/_shared/rules.md)** —
-   the shared rulebook (M10: injected into every agent's system
-   prompt; role `AGENTS.md` files keep only role-specific rules).
+7. **[`src/main/services/dsh/`](../src/main/services/dsh/)** — the dsh
+   agent runtime: `runtime.ts` (subprocess lifecycle over JSONRPC),
+   `agent-facade.ts` (the Agent-shaped facade the loop consumes),
+   `stream-mapper.ts` (SessionEvent → StreamEvent), `tool-bridge.ts` +
+   `eaa-mcp-server.ts` (per-run MCP tool mounting), `hardening.ts`
+   (harness-tool kill patch), `provider-patch.ts` (route + credential
+   declaration), `im-host.ts` (connection-center web host).
+8. **[`config/agents.yaml`](../config/agents.yaml)** — the agent registry.
+9. **[`agents/main/SOUL.md`](../agents/main/SOUL.md)** — the most-used agent.
+10. **[`agents/_shared/rules.md`](../agents/_shared/rules.md)** —
+    the shared rulebook (M10: injected into every agent's system
+    prompt; role `AGENTS.md` files keep only role-specific rules).
 
 After that, the rest of the codebase is filling in the details.
 Welcome.

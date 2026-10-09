@@ -236,9 +236,9 @@ in detached mode.
   switching Node versions.
 - **`EAA binary not found` on startup?** Run `npm run build:eaa` again, or
   place the binary manually in `resources/eaa-binaries/<platform>/`.
-- **`preload not found` at startup?** The vite main config produces
-  `dist/main/preload.js`; check that the file actually exists after
-  `npm run build`.
+- **`preload not found` at startup?** The preload has its own vite config
+  (`vite.config.preload.ts`), producing `dist/main/preload.cjs`; check
+  that the file actually exists after `npm run build`.
 - **Renderer can't reach the main process?** Check that
   `process.env.VITE_DEV_SERVER_URL` is set, or that you're loading the
   `dist/renderer/index.html` file directly.
@@ -253,23 +253,27 @@ This section covers the parts you'll touch as a contributor.
 ```
 src/
 ├── main/                # Electron main process (Node 22)
-│   ├── ipc/             # IPC handler modules — 11 files
-│   ├── services/        # Service modules — 13 files
-│   ├── preload/         # contextBridge bridge — 1 file
+│   ├── ipc/             # IPC handler modules — one entry file per domain
+│   ├── services/        # Service modules — incl. dsh/ (agent runtime), pi-ai/, channels/
+│   ├── preload/         # contextBridge bridge
 │   ├── utils/           # logger etc.
 │   └── index.ts         # main entry — read this first
-├── renderer/            # React 18 renderer
-│   ├── pages/           # 9 page modules — read these to learn the app
+├── renderer/            # React 19 renderer
+│   ├── pages/           # page modules — read these to learn the app
 │   ├── components/      # shared UI — keep small
-│   ├── hooks/           # 12 custom hooks
-│   ├── stores/          # 4 Zustand stores
+│   ├── hooks/           # shared hooks (loading / confirm / mount-guard, ...)
+│   ├── stores/          # Zustand stores
 │   ├── i18n/            # zh-CN + en-US
 │   ├── lib/             # typed IPC client
 │   └── main.tsx         # renderer entry
 └── shared/              # code shared by main + renderer
-    ├── ipc-channels.ts  # 90+ channel constants
-    └── types/           # 539 lines of shared types
+    ├── ipc-channels.ts  # IPC channel constants
+    └── types/           # shared type modules
 ```
+
+Counts (pages, channels, service files, …) are auto-generated — see the
+repository-scale table at the top of
+[`ARCHITECTURE.md`](./docs/ARCHITECTURE.md) (`npm run doc:stats`).
 
 The two most important files for a new contributor are:
 
@@ -454,14 +458,18 @@ EOF
 
 ## Adding a new LLM provider
 
-The provider list is Pi’s catalog (vendored as `@earendil-works/pi-ai`).
+The provider list is Pi’s catalog (vendored as `@earendil-works/pi-ai`,
+built `dist/` only — there is no provider source in this repo to edit).
 This app does **not** keep a parallel hardcoded roster. To add a provider:
 
 1. Open an issue here describing the use case.
 2. Contribute the provider upstream in
    [`earendil-works/pi`](https://github.com/earendil-works/pi).
-3. Once it lands, open a PR here to bump the vendored `pi-ai` /
-   `pi-agent-core` version.
+3. Once it lands in a published `pi-ai` release, open a PR here to
+   upgrade the vendored copy — see
+   [`DEVELOPMENT.md`](./docs/DEVELOPMENT.md#add-a-new-llm-provider)
+   for the current vendor/provenance workflow and how the dsh
+   subprocess picks the provider up.
 
 ---
 

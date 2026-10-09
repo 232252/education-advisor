@@ -7,7 +7,7 @@
 
 ## Table of contents
 
-- [The two Vite configs](#the-two-vite-configs)
+- [The three Vite configs](#the-three-vite-configs)
 - [Local dev build](#local-dev-build)
 - [Production build](#production-build)
 - [Windows packaging (NSIS + portable)](#windows-packaging-nsis--portable)
@@ -20,24 +20,40 @@
 
 ---
 
-## The two Vite configs
+## The three Vite configs
 
-The project has two Vite configs because Electron runs two
-distinct processes:
+The project has three Vite configs because Electron runs distinct
+processes with different output requirements (`npm run dev` starts all
+three):
 
 | Config | Purpose | Output |
 | --- | --- | --- |
-| `vite.config.main.ts` | The main process (Node 22) | `dist/main/index.cjs` + `dist/main/preload.cjs` |
+| `vite.config.main.ts` | The main process | `dist/main/index.cjs` |
+| `vite.config.preload.ts` | The preload bridge (single-file inline) | `dist/main/preload.cjs` |
 | `vite.config.renderer.ts` | The renderer (Chromium) | `dist/renderer/index.html` + assets |
 
 The main-process config:
 
 - Uses `ssr: true` and `lib.entry` to produce a CommonJS library.
 - Has `format: 'cjs'` because the main process is a Node process.
-- Externalizes native deps (electron, better-sqlite3, node-cron,
-  cross-spawn).
-- Aliases `@earendil-works/pi-ai` and `@earendil-works/pi-agent-core`
-  to the local monorepo paths (see [DEVELOPMENT.md](./DEVELOPMENT.md)).
+- Externalizes native / runtime deps (electron, better-sqlite3,
+  node-cron, cross-spawn, ws, selfsigned, pdfjs-dist,
+  `@napi-rs/canvas`).
+- Inlines `@earendil-works/*` (the vendored pi-ai) into the bundle via
+  the `ssr.noExternal` regex `/^@earendil-works\//` in
+  `vite.config.main.ts` — their exports are ESM-only, so leaving them
+  external would break `require()` at runtime. (There is no
+  pi-agent-core alias anymore; that package no longer exists.)
+- Does **not** bundle `@deepseek-ai/dsh-sdk-client`: that package is
+  ESM-only and pre-stable, so `runtime.ts` loads it at runtime through
+  a hidden dynamic import. It stays in `node_modules` — which is why
+  `electron-builder.yml` unpacks `**/node_modules/**` from the asar.
+
+The preload config:
+
+- Builds a **single-file inline** CJS bundle whose only external is
+  `electron` — a sandboxed preload is only allowed to `require`
+  `electron`, so it cannot have shared chunks.
 
 The renderer config:
 
@@ -82,15 +98,19 @@ launching.
 ## Production build
 
 ```bash
-# Build the main + renderer bundles
+# Build the main + preload + renderer bundles
 npm run build
 
 # Output:
 #   dist/main/index.cjs      (CommonJS)
-#   dist/main/preload.js     (CommonJS)
+#   dist/main/preload.cjs    (CommonJS, single-file inline)
 #   dist/renderer/index.html
 #   dist/renderer/assets/    (hashed JS / CSS / image filenames)
 ```
+
+`npm run build` auto-runs the npm `prebuild` hook first
+(`scripts/prebuild-check.mjs`), which aborts the build when core
+resources (the EAA binary, `agents/`, `config/`) are missing.
 
 The build is minified for the renderer (saves ~30% on the
 initial bundle) but **not** minified for the main process (to
@@ -99,6 +119,25 @@ preserve stack traces).
 Source maps are produced for both. They are **not** included in
 the packaged installer (saves ~5 MB) but are uploaded to Sentry
 or your error tracker of choice.
+
+### The dsh assembly gate (`npm run verify:dsh`)
+
+`scripts/verify-dsh-package.mjs` guards the assembly of the dsh
+backend, because the regular tests stub the SDK client and would never
+catch it: `@deepseek-ai/dsh-sdk-client` must be in `dependencies`
+(not `devDependencies`), the installed SDK must bring the
+`@deepseek-ai/dsh` runtime, the dsh executable must exist on real
+disk, and electron-builder's `asarUnpack` must cover `node_modules`
+(a pure-Node subprocess cannot read inside `app.asar`).
+
+It is a CI gate (`.github/workflows/ci.yml`, the
+"dsh assembly check" step) and it runs locally too:
+
+```bash
+npm run verify:dsh
+# after packaging, also check the unpacked output:
+npm run verify:dsh -- --dist release-v11/win-unpacked
+```
 
 ---
 
@@ -119,20 +158,50 @@ npm run package:portable
 npm run package:installer
 ```
 
-The `electron-builder.yml` config defines both targets. The
-artifact filename is templated as
-`${productName}-${version}-Setup.${ext}` for the NSIS installer.
+The `electron-builder.yml` config defines both targets. The artifact
+name is fixed per target (`Education-Advisor-Setup.${ext}` /
+`Education-Advisor-Portable.${ext}`) so the download-page URLs stay
+stable across versions.
+
+### What `prepackage` stages (auto-runs before `npm run package`)
+
+npm runs the `prepackage` hook automatically before `package`. It runs
+three scripts in order:
+
+1. `scripts/prebuild-check.mjs` — resource readiness gate (same as the
+   `prebuild` hook).
+2. `scripts/stage-dsh-node.mjs` — copies a stock `node.exe` from your
+   machine into the gitignored `vendor/dsh-node/`. dsh 0.2.1 rejects
+   Electron's runtime fingerprint (this app is Electron 43.2.0), so the
+   packaged app launches the dsh subprocess with a real Node binary
+   instead of Electron's own exe. Skipped when a copy is already
+   staged.
+3. `scripts/stage-dsh-im-deps.mjs` — installs `vendor/dsh-im/`
+   production dependencies with the repo's own pnpm (`qrcode` and the
+   channel SDKs are not in the plugin zip), keeping first launch
+   offline and out of a read-only resources directory. Skipped when
+   already installed.
+
+Staging requires a completed `npm install` (for `node_modules/pnpm`)
+and a Node on PATH. Both scripts are no-ops once their output exists;
+delete `vendor/dsh-node/` or `vendor/dsh-im/node_modules/` to force a
+re-run (e.g. after upgrading dsh or dsh-im).
 
 ### What the NSIS installer does
 
 1. **Installs per-user** (`%LOCALAPPDATA%\Programs`; `nsis.perMachine: false` in `electron-builder.yml`).
 2. **Creates a desktop shortcut** and a start menu shortcut.
 3. **Copies the app.asar** (containing `dist/main/` and
-   `dist/renderer/`) to the install location.
+   `dist/renderer/`) to the install location, with `**/node_modules/**`
+   unpacked to `app.asar.unpacked/` (`asarUnpack` — the dsh subprocess
+   is a pure-Node process and cannot read inside the asar).
 4. **Copies `resources/eaa-binaries/`** to the install location
    (as `extraResources`).
-5. **Copies `config/` and `agents/`** to the install location
-   (as `extraResources`).
+5. **Copies `config/`, `agents/`, `skills/`, `vendor/dsh-im/` (the
+   official connection-center plugin), the education plugins
+   `vendor/eaa-tools|eaa-roster|eaa-grades|eaa-grading/`, and
+   `vendor/dsh-node/` (the staged `node.exe`)** to the install
+   location (all as `extraResources`).
 6. **Registers the app in the Add/Remove Programs** list.
 7. **Optional**: launches the app on completion (configurable).
 
@@ -360,10 +429,12 @@ cd education-advisor
 git checkout v0.1.0
 npm ci
 npm run build:eaa    # compiles core/eaa-cli from source — requires Rust (https://rustup.rs)
-npm run build
-npm run package
+npm run verify:dsh   # dsh assembly gate (also a CI step)
+npm run build        # auto-runs the prebuild resource check
+npm run package      # auto-runs prepackage: stages vendor/dsh-node + vendor/dsh-im deps
+                     # (needs a Node on PATH and a completed npm install)
 
-# Compare the SHA-256 of release/*.exe
+# Compare the SHA-256 of the installers
 sha256sum release-v11/*.exe
 ```
 
@@ -396,10 +467,11 @@ workload (see [QUICK_START.md](./QUICK_START.md#1-prerequisites)).
 ### `preload not found` on launch
 
 **Error**: in the main process log, "preload not found at
-dist/main/preload.js".
+dist/main/preload.cjs".
 
-**Fix**: run `npm run build` first. The preload script is built
-by the main-process Vite config, not the renderer config.
+**Fix**: run `npm run build` first. The preload script is built by its
+own Vite config (`vite.config.preload.ts`, output `preload.cjs`), not
+the renderer config.
 
 ### Windows SmartScreen blocks the installer
 

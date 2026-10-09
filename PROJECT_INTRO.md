@@ -589,7 +589,10 @@ for v2.0 of the desktop client.
 ### Why React and not Vue / Svelte?
 
 - The team already had React muscle memory.
-- The Pi Agent core is published as a React-friendly library.
+- The agent runtime is a dsh subprocess that streams events, and
+  projecting that live event stream (streaming text, thinking, tool
+  calls) into React state is a natural fit — the Electron host stays a
+  thin shell owning only the window, the API keys, and plugin assembly.
 - The agent loop, the prompt editor, and the log viewer all benefit from
   React's ecosystem (TipTap, react-markdown, shiki, react-table).
 
@@ -612,12 +615,14 @@ which is a thin proxy over `ipcRenderer.invoke`.
 
 ### The IPC contract
 
-There are **90+ IPC channels** in `src/shared/ipc-channels.ts`, grouped by
-namespace:
+The IPC channels in `src/shared/ipc-channels.ts` (180+ today — the
+auto-generated table in [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+tracks the exact total) are grouped by namespace; the main ones:
 
 - `ai:*` — LLM provider / model / chat
 - `agent:*` — agent lifecycle
 - `eaa:*` — EAA data engine
+- `grading:*` — AI paper grading
 - `privacy:*` — privacy engine
 - `cron:*` — scheduler
 - `skill:*` — user-defined skills
@@ -626,7 +631,9 @@ namespace:
 - `profile:*` — student profile expansion
 - `chat:*` — conversation persistence
 - `log:*` — log viewer
-- `feishu:*` — Feishu integration
+- `channels:*` — chat-channel adapters
+- `dsh-im:*` — dsh-im connection center
+- `feishu:*` — Feishu open-platform (Bitable sync / teacher push)
 
 Every channel is a string constant exported from a single file, so renaming
 a channel is a one-line change. Every channel has a corresponding handler in
@@ -651,21 +658,25 @@ over IPC events (`agent:status-update`, `cron:status-update`,
 
 | Stage | Tool | Output |
 | --- | --- | --- |
-| TypeScript compile (main) | Vite 6, `vite.config.main.ts` | `dist/main/index.js` + `dist/main/preload.js` |
-| TypeScript compile (renderer) | Vite 6, `vite.config.renderer.ts` | `dist/renderer/index.html` + assets |
+| TypeScript compile (main) | Vite, `vite.config.main.ts` | `dist/main/index.cjs` |
+| TypeScript compile (preload) | Vite, `vite.config.preload.ts` | `dist/main/preload.cjs` (single-file inline) |
+| TypeScript compile (renderer) | Vite, `vite.config.renderer.ts` | `dist/renderer/index.html` + assets |
 | Lint | Biome 2.3 | exit code |
 | Type check | TypeScript 7 | exit code |
 | Test | Vitest 3.2 | test report |
-| Package | electron-builder 25 | `release/*.exe` |
+| Package | electron-builder 26 | `release-v11/*.exe` |
 
-The two Vite configs produce CommonJS for the main process (because Electron's
-main is a Node.js process) and ES modules for the renderer (because Chromium).
+The three Vite configs produce CommonJS for the main and preload bundles
+(because they load into Node.js processes) and ES modules for the renderer
+(because Chromium).
 
 ### The dependency footprint
 
-`better-sqlite3` is the only native dependency. It is well-maintained,
-pre-built for Windows / macOS / Linux on common Node versions, and synchronous
-(which is what we want for a desktop app with a single main process).
+`better-sqlite3` (SQLite) and `@napi-rs/canvas` (PDF rasterization for the
+grading pipeline) are the only native dependencies. `better-sqlite3` is
+well-maintained, pre-built for Windows / macOS / Linux on common Node
+versions, and synchronous (which is what we want for a desktop app with a
+single main process).
 
 The Rust EAA binary is bundled as an `extraResource`, unpacked from the
 asar archive at startup. This is necessary because spawning a child process
@@ -828,8 +839,9 @@ edit the reason codes and the i18n strings. The agent loop doesn't care.
 **Q: Why not just use LangChain / LlamaIndex / AutoGen?**
 A: We evaluated all three in 2024. They are great **frameworks** for building
 agentic systems in a notebook or a research paper. They are not great for
-**shipping** a desktop product to a non-technical user. The `pi-agent-core`
-package we use is a 600-line library that does exactly what we need and
+**shipping** a desktop product to a non-technical user. Our runtime ships as
+a dsh subprocess behind a thin Electron host — the host only owns the window,
+the API keys, and plugin assembly, which is exactly what we need and
 nothing more.
 
 **Q: Can the LLM see the raw student data?**

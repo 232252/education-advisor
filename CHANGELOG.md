@@ -12,6 +12,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- 模型目录随包的 `@earendil-works/pi-ai` 从 0.85.1 升到 0.87.1，与 DeepSeek Harness `dsh-llm-pi-ai@0.2.1-alpha.1` 声明的版本一致，并带上 Harness 的工具参数流式补丁。教师对话和智能体循环仍由 DeepSeek Harness 执行。
+
 ## [3.3.4] — 2026-09-25
 
 ### Added
