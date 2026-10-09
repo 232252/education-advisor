@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>产品介绍视频 — Education Advisor 教育参谋</title>
+  <meta name="description" content="20 分钟完整讲解教育参谋（Education Advisor）的每一个功能：仪表盘、学生、班级、学业、AI 批改作业、Agent 控制台、模型、技能、定时任务、报告中心、隐私脱敏、对话与设置。含完整中文字幕。">
+  <meta name="theme-color" content="#fffbf7">
+  <link rel="canonical" href="https://eea.qdzwwqd.top/product-video.html">
+  <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="assets/css/style.css?v=20260826a">
+  <style>
+    .video-hero { padding-top: calc(var(--nav-height) + 64px); padding-bottom: 32px; }
+    .video-hero .section-header { margin-bottom: 32px; }
+    .player-wrap {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: var(--radius-xl); padding: 16px; margin-bottom: 32px;
+      box-shadow: var(--shadow-lg);
+    }
+    .player-wrap video { width: 100%; height: auto; display: block; border-radius: var(--radius-lg); background: #0b1220; }
+    .video-meta {
+      display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: center;
+      margin-top: 18px; padding: 0 6px; color: var(--text-secondary); font-size: 0.9rem;
+    }
+    .video-meta strong { color: var(--text-primary); font-weight: 600; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+    .chapters { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 640px) { .chapters { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 1024px) { .chapters { grid-template-columns: repeat(3, 1fr); } }
+    .chapter {
+      display: flex; gap: 14px; align-items: flex-start; text-align: left;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 16px 18px; cursor: pointer;
+      font: inherit; color: inherit; width: 100%;
+      transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+    }
+    .chapter:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--primary); }
+    .chapter:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .chapter-num {
+      flex: 0 0 auto; width: 30px; height: 30px; border-radius: 999px;
+      background: color-mix(in srgb, var(--primary) 12%, transparent);
+      color: var(--primary); font-weight: 700; font-size: 0.82rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .chapter-body h3 { font-size: 0.98rem; margin: 0 0 4px; font-weight: 650; }
+    .chapter-body p { font-size: 0.84rem; color: var(--text-secondary); margin: 0; line-height: 1.55; }
+    .note {
+      background: color-mix(in srgb, var(--primary) 6%, transparent);
+      border-left: 3px solid var(--primary); border-radius: var(--radius);
+      padding: 16px 20px; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.7;
+    }
+    .note strong { color: var(--text-primary); }
+  </style>
+</head>
+<body>
+  <header class="nav" id="nav">
+    <div class="container nav-inner">
+      <a href="index.html" class="nav-brand">
+        <img src="assets/img/favicon.svg" alt="" width="32" height="32">
+        <span>Education Advisor</span>
+      </a>
+      <nav class="nav-links">
+        <a href="index.html">首页</a>
+        <a href="docs.html">文档</a>
+        <a href="product-video.html" class="active">产品视频</a>
+        <a href="download.html">下载</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section video-hero">
+      <div class="container">
+        <div class="section-header">
+          <h1>产品介绍视频</h1>
+          <p class="section-sub">
+            二十分钟，把教育参谋的每一个功能讲一遍。画面是真实运行的应用，讲解用的是一套完整
+            的演示数据：104 名学生、987 条操行事件、两场考试、1240 条成绩、一个五份卷子的 AI 批改任务。
+          </p>
+        </div>
+
+        <div class="player-wrap">
+          <video id="pv" controls preload="metadata" playsinline
+                 poster="assets/media/eea-product-intro-poster.jpg">
+            <source src="assets/media/eea-product-intro.mp4" type="video/mp4">
+            你的浏览器不支持 HTML5 视频，请直接下载
+            <a href="assets/media/eea-product-intro.mp4">MP4 文件</a> 观看。
+          </video>
+          <div class="video-meta">
+            <span><strong id="dur">19:42</strong> 时长</span>
+            <span><strong>1920×1080</strong> 分辨率</span>
+            <span><strong>30 fps</strong> 帧率</span>
+            <span><strong>H.264 + AAC</strong> 编码</span>
+            <span><strong>中文字幕</strong> 已烧录</span>
+          </div>
+          <div class="btn-row">
+            <a class="btn btn-primary" href="assets/media/eea-product-intro.mp4" download>
+              下载 MP4
+            </a>
+            <a class="btn" href="index.html#demo">看 3 分钟实战演示</a>
+          </div>
+        </div>
+
+        <p class="note">
+          <strong>关于画面里的数据：</strong>视频里出现的学生姓名、成绩、班级、职务和事件都是为演示
+          编造的，但每一条都通过应用自身的 IPC 接口写入并通过了内置的数据校验（<code>eaa doctor</code>
+          11 项全部通过、0 个问题）。操行事件的分数变动遵循真实的班规口径，迟到的发生频率按
+          「近两周七起」这一结论反推，所以报表里每条建议都能回溯到具体的数据依据。
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="chapters">
+      <div class="container">
+        <div class="section-header">
+          <h2>章节</h2>
+          <p class="section-sub">点任意一章直接跳过去。</p>
+        </div>
+        <div class="chapters" id="chapter-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>Education Advisor · MIT 开源 · <a href="https://github.com/232252/education-advisor" target="_blank" rel="noopener noreferrer">源码仓库</a></p>
+    </div>
+  </footer>
+
+  <script>
+    // 章节表：起止时间由 v4/timeline.json 里各章首句的成片绝对时间戳换算而来
+    var CHAPTERS = [
+      [0,    '开场',            '一个班主任的真实一天，和那 8–12 小时的文书工作'],
+      [59,   '一、仪表盘',      '五个关键数字、三张分布图、排行榜与周期摘要'],
+      [136,  '二、学生',        '花名册、Excel 导入预览、六标签页完整档案'],
+      [255,  '三、班级',        '建班、存档、删除拦截、调班与成绩分析'],
+      [322,  '四、学业',        '考试管理、单科/全科录入、AI 智能录入、成绩对比'],
+      [431,  '五、AI 批改作业', '量规、卷面识别、双栏复核台、套打原卷与打印校准'],
+      [858,  '六、Agent 控制台','十八个角色、模型档位、工具权限与执行历史'],
+      [885,  '七、模型与技能',  '云端 API 与本地 ollama、高质量/低成本双档位'],
+      [917,  '八、定时任务',    '十九个内置任务，覆盖一天里的早中晚与周末'],
+      [991,  '九、报告中心',    'Agent 产出的周报全文，每条建议都有数据依据'],
+      [1011, '十、隐私',        'AES-256-GCM、七类实体脱敏与脱敏预览'],
+      [1059, '十一、对话',      '选模型、调思考级别、看工具调用与上下文用量'],
+      [1099, '十二、设置与收尾','风险分档、AI 边界与教师复核三点强调']
+    ];
+
+    var list = document.getElementById('chapter-list');
+    CHAPTERS.forEach(function (c, i) {
+      var btn = document.createElement('button');
+      btn.className = 'chapter';
+      btn.type = 'button';
+      btn.innerHTML =
+        '<span class="chapter-num">' + (i + 1) + '</span>' +
+        '<span class="chapter-body"><h3>' + c[1] + '</h3><p>' + c[2] + '</p></span>';
+      btn.addEventListener('click', function () {
+        var v = document.getElementById('pv');
+        v.currentTime = c[0];
+        v.play();
+      });
+      list.appendChild(btn);
+    });
+
+    var meta = document.querySelector('video');
+    meta.addEventListener('loadedmetadata', function () {
+      // 用 floor，和浏览器自带的播放条保持一致（1182.84s 显示 19:42）
+      var s = Math.floor(meta.duration);
+      document.getElementById('dur').textContent =
+        Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    });
+  </script>
+</body>
+</html>
