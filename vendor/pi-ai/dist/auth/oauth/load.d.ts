@@ -5,6 +5,7 @@ type OAuthFlowLoaders = {
     githubCopilot: () => OAuthAuth | Promise<OAuthAuth>;
     openrouter: () => OAuthAuth | Promise<OAuthAuth>;
     kimiCoding: () => OAuthAuth | Promise<OAuthAuth>;
+    meta: () => OAuthAuth | Promise<OAuthAuth>;
     xai: () => OAuthAuth | Promise<OAuthAuth>;
     radius: (options: {
         name: string;
@@ -18,6 +19,7 @@ export declare const loadOpenAICodexOAuth: () => Promise<OAuthAuth>;
 export declare const loadGitHubCopilotOAuth: () => Promise<OAuthAuth>;
 export declare const loadOpenRouterOAuth: () => Promise<OAuthAuth>;
 export declare const loadKimiCodingOAuth: () => Promise<OAuthAuth>;
+export declare const loadMetaOAuth: () => Promise<OAuthAuth>;
 export declare const loadXaiOAuth: () => Promise<OAuthAuth>;
 export declare const loadRadiusOAuth: (options: {
     name: string;

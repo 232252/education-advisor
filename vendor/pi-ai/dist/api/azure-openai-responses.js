@@ -6,6 +6,7 @@ import { headersToRecord } from "../utils/headers.js";
 import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { retryProviderRequest } from "../utils/provider-retry.js";
+import { getDeclaredTools, resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
 import { convertResponsesMessages, convertResponsesTools, processResponsesStream } from "./openai-responses-shared.js";
@@ -44,6 +45,7 @@ function formatAzureOpenAIError(error) {
  */
 export const stream = (model, context, options) => {
     const stream = new AssistantMessageEventStream();
+    const normalizedContext = resolveTranscript(context, model.compat?.supportsMidConvoSystemMessages);
     // Start async processing
     (async () => {
         const deploymentName = resolveDeploymentName(model, options);
@@ -71,8 +73,8 @@ export const stream = (model, context, options) => {
                 throw new Error(`No API key for provider: ${model.provider}`);
             }
             const client = createClient(model, apiKey, options);
-            const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, model.compat?.supportsOpenAIGrammarTools ?? false);
-            let params = buildParams(model, context, options, deploymentName, grammarToolInputProperties);
+            const grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(normalizedContext.messages), model.compat?.supportsOpenAIGrammarTools ?? false);
+            let params = buildParams(model, normalizedContext, options, deploymentName, grammarToolInputProperties);
             const nextParams = await options?.onPayload?.(params, model);
             if (nextParams !== undefined) {
                 params = nextParams;
@@ -197,9 +199,19 @@ function createClient(model, apiKey, options) {
         baseURL: baseUrl,
     });
 }
-function buildParams(model, context, options, deploymentName, grammarToolInputProperties = createGrammarToolInputProperties(context.tools, model.compat?.supportsOpenAIGrammarTools ?? false)) {
+function buildParams(model, context, options, deploymentName, grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(context.messages), model.compat?.supportsOpenAIGrammarTools ?? false)) {
+    const supportsAdditionalTools = model.compat?.supportsAdditionalTools ?? false;
+    const supportsToolSearch = model.compat?.supportsToolSearch ?? false;
+    const transcriptTools = resolveTranscriptTools(context.messages, supportsAdditionalTools || supportsToolSearch);
     const messages = convertResponsesMessages(model, context, AZURE_TOOL_CALL_PROVIDERS, {
         grammarToolInputProperties,
+        supportsMidConvoSystemMessages: model.compat?.supportsMidConvoSystemMessages ?? false,
+        supportsAdditionalTools,
+        supportsToolSearch,
+        toolOptions: {
+            supportsStrictMode: model.compat?.supportsStrictMode ?? true,
+            supportsOpenAIGrammarTools: model.compat?.supportsOpenAIGrammarTools ?? false,
+        },
     });
     const params = {
         model: deploymentName,
@@ -214,8 +226,8 @@ function buildParams(model, context, options, deploymentName, grammarToolInputPr
     if (options?.temperature !== undefined) {
         params.temperature = options?.temperature;
     }
-    if (context.tools && context.tools.length > 0) {
-        params.tools = convertResponsesTools(context.tools, {
+    if (transcriptTools.requestTools.length > 0) {
+        params.tools = convertResponsesTools(transcriptTools.requestTools, {
             supportsStrictMode: model.compat?.supportsStrictMode ?? true,
             supportsOpenAIGrammarTools: model.compat?.supportsOpenAIGrammarTools ?? false,
         });

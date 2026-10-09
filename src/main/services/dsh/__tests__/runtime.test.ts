@@ -124,7 +124,7 @@ const toolCall = (sessionId: string) =>
   })
 
 const turnEnd = (sessionId: string) =>
-  notif(sessionId, { type: 'turn/end', data: { turn: 1, reason: 'completed' } })
+  notif(sessionId, { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
 
 const params = (content = '问题') => ({
   providerId: 'deepseek-official',
@@ -313,7 +313,7 @@ describe('DshRuntime.chatStream', () => {
 
   it("turn/end reason='error' 以 error 事件结束，不伪装成「空成功」", async () => {
     const { client } = makeFake(({ sessionId, emit }) => {
-      emit(notif(sessionId, { type: 'turn/end', data: { turn: 1, reason: 'error' } }))
+      emit(notif(sessionId, { type: 'turn/end', data: { turn: 1, reason: { kind: 'error' } } }))
     })
     const out = await collect(runtime(client).chatStream(params()))
     expect(out.map((e) => e.type)).toEqual(['start', 'error'])
@@ -323,7 +323,7 @@ describe('DshRuntime.chatStream', () => {
   it("turn/end reason='aborted' 保留已交付文本后以可重试 error 结束", async () => {
     const { client } = makeFake(({ sessionId, emit }) => {
       emit(textMsg(sessionId, ['半句'], 1, 1))
-      emit(notif(sessionId, { type: 'turn/end', data: { turn: 1, reason: 'aborted' } }))
+      emit(notif(sessionId, { type: 'turn/end', data: { turn: 1, reason: { kind: 'aborted' } } }))
     })
     const out = await collect(runtime(client).chatStream(params()))
     expect(out.map((e) => e.type)).toEqual([
@@ -368,6 +368,36 @@ describe('createDshRuntime（生产唯一构造入口）', () => {
     expect(existsSync(patches[0])).toBe(true)
   })
 
+  it('教育工具端点放进环境变量，不另写一份 mcp patch', () => {
+    const rt = createDshRuntime({
+      cwd: dir,
+      provider: 'p',
+      model: 'm',
+      mcp: { url: 'http://127.0.0.1:9/mcp/im-1', token: 'sekret' },
+    })
+    const opts = (rt as unknown as { opts: { patches: string[]; env: Record<string, string> } })
+      .opts
+    expect(opts.env.EAA_MCP_URL).toBe('http://127.0.0.1:9/mcp/im-1')
+    expect(opts.env.EAA_MCP_TOKEN).toBe('sekret')
+    expect(opts.env.PATH).toBe(process.env.PATH)
+    expect(opts.patches.some((p) => p.includes('eaa-mcp-'))).toBe(false)
+  })
+
+  it('按插件注入地址时，没给的组不会连上操行端点', () => {
+    const rt = createDshRuntime({
+      cwd: dir,
+      provider: 'p',
+      model: 'm',
+      mcp: {
+        env: { EAA_ROSTER_MCP_URL: 'http://127.0.0.1:9/mcp/roster', EAA_ROSTER_MCP_TOKEN: 'r' },
+      },
+    })
+    const opts = (rt as unknown as { opts: { env: Record<string, string> } }).opts
+    expect(opts.env.EAA_ROSTER_MCP_URL).toBe('http://127.0.0.1:9/mcp/roster')
+    expect(opts.env.EAA_ROSTER_MCP_TOKEN).toBe('r')
+    expect(opts.env.EAA_MCP_URL).toBeUndefined()
+  })
+
   it('调用方不给 patch 时也只带关闭层', () => {
     const rt = createDshRuntime({ cwd: dir, provider: 'p', model: 'm' })
     expect((rt as unknown as { opts: { patches: string[] } }).opts.patches).toEqual([
@@ -397,6 +427,47 @@ describe('createDshRuntime（生产唯一构造入口）', () => {
     // env 是整体替换语义，必须带上父环境
     expect(opts.env.PATH).toBe(process.env.PATH)
     expect(opts.env.EAA_DSH_KIMI_API_KEY).toBe('sk-test')
+    configureDshCredentials(null)
+  })
+
+  it('未保存的密钥只注入这一次，不写进共享 providers 文件', async () => {
+    configureDshCredentials({
+      listProviders: () => [],
+      getApiKey: () => undefined,
+    })
+    const rt = createDshRuntime({
+      cwd: dir,
+      provider: 'kimi',
+      model: 'k2',
+      probeCredential: { providerId: 'kimi', apiKey: 'sk-unsaved' },
+    })
+    const opts = (rt as unknown as { opts: { patches: string[]; env: Record<string, string> } })
+      .opts
+    expect(existsSync(join(dir, EAA_PROVIDER_PATCH_FILE))).toBe(false)
+    const probe = opts.patches.find((p) => p.includes('eaa-llm-probe-'))
+    expect(probe).toBeTruthy()
+    expect(readFileSync(probe as string, 'utf8')).toContain('apiKeyEnv: EAA_DSH_KIMI_API_KEY')
+    expect(opts.env.EAA_DSH_KIMI_API_KEY).toBe('sk-unsaved')
+    await rt.dispose()
+    expect(existsSync(probe as string)).toBe(false)
+    configureDshCredentials(null)
+  })
+
+  it('已保存过密钥时，探测用的新 key 盖过密钥库里的那把', () => {
+    configureDshCredentials({
+      listProviders: () => ['kimi'],
+      getApiKey: () => 'sk-stored',
+    })
+    const rt = createDshRuntime({
+      cwd: dir,
+      provider: 'kimi',
+      model: 'k2',
+      probeCredential: { providerId: 'kimi', apiKey: 'sk-unsaved' },
+    })
+    const opts = (rt as unknown as { opts: { patches: string[]; env: Record<string, string> } })
+      .opts
+    expect(opts.env.EAA_DSH_KIMI_API_KEY).toBe('sk-unsaved')
+    expect(opts.patches.some((p) => p.includes('eaa-llm-probe-'))).toBe(false)
     configureDshCredentials(null)
   })
 

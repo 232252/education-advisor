@@ -20,6 +20,7 @@ const { chatState, setStateMock } = vi.hoisted(() => {
     currentModel: 'm',
     currentModelContext: 8000,
     currentModelMaxOutput: 1000,
+    currentModelReasoningLevels: null,
     lastUsage: null,
     lastCost: null,
     thinkingLevel: 'medium',

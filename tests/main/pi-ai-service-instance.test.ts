@@ -9,6 +9,7 @@ import type { ModelInfo } from '@shared/types'
 
 const piMocks = vi.hoisted(() => ({
   completeSimple: vi.fn(),
+  completeDshText: vi.fn(),
   getEnvApiKey: vi.fn(),
   getProviders: vi.fn(),
   keystoreGetApiKey: vi.fn(),
@@ -60,6 +61,10 @@ vi.mock('../../src/main/services/settings-service', () => ({
     getSettings: piMocks.settingsGet,
     setCustomModels: piMocks.setCustomModels,
   },
+}))
+
+vi.mock('../../src/main/services/dsh/text-call', () => ({
+  completeDshText: piMocks.completeDshText,
 }))
 
 vi.mock('../../src/main/services/ollama-service', () => ({
@@ -233,86 +238,83 @@ describe('piAIService', () => {
       const result = await piAIService.testConnection('totally-unknown-provider', 'sk-x')
       expect(result.success).toBe(false)
       expect(result.error).toMatch(/No models available for provider: totally-unknown-provider/)
-      expect(piMocks.completeSimple).not.toHaveBeenCalled()
+      expect(piMocks.completeDshText).not.toHaveBeenCalled()
     })
 
     it('有模型但无任何 API Key: 返回 No API key', async () => {
       const result = await piAIService.testConnection('openai', '')
       expect(result.success).toBe(false)
       expect(result.error).toMatch(/No API key for provider: openai/)
-      expect(piMocks.completeSimple).not.toHaveBeenCalled()
+      expect(piMocks.completeDshText).not.toHaveBeenCalled()
     })
 
-    it('completeSimple 返回 stopReason=error: 透传 errorMessage', async () => {
-      piMocks.completeSimple.mockResolvedValue({
-        stopReason: 'error',
-        errorMessage: 'invalid api key',
-      })
+    it('dsh 文本调用失败: 透传错误信息', async () => {
+      piMocks.completeDshText.mockRejectedValue(new Error('invalid api key'))
       const result = await piAIService.testConnection('openai', 'sk-bad')
       expect(result.success).toBe(false)
       expect(result.error).toBe('invalid api key')
       expect(result.model).toBeTruthy()
     })
 
-    it('completeSimple 抛异常: 转为失败结果而非 reject', async () => {
-      piMocks.completeSimple.mockRejectedValue(new Error('socket hang up'))
+    it('dsh 文本调用抛异常: 转为失败结果而非 reject', async () => {
+      piMocks.completeDshText.mockRejectedValue(new Error('socket hang up'))
       const result = await piAIService.testConnection('openai', 'sk-flaky')
       expect(result.success).toBe(false)
       expect(result.error).toBe('socket hang up')
     })
 
     it('成功: 选用成本最低模型并返回延迟与模型 id', async () => {
-      piMocks.completeSimple.mockResolvedValue({ stopReason: 'stop' })
+      piMocks.completeDshText.mockResolvedValue({ text: 'pong' })
       const result = await piAIService.testConnection('openai', 'sk-good')
 
       expect(result.success).toBe(true)
       expect(typeof result.latencyMs).toBe('number')
-      // completeSimple 收到的模型与结果中报告的模型一致
-      const calledModel = piMocks.completeSimple.mock.calls[0][0] as { id: string }
-      expect(result.model).toBe(calledModel.id)
-      // completeSimple(model, context, options)
-      const context = piMocks.completeSimple.mock.calls[0][1] as {
-        messages: Array<{ role: string; content: string }>
+      const called = piMocks.completeDshText.mock.calls[0][0] as {
+        provider: string
+        model: string
+        text: string
+        apiKey: string
+        maxTokens: number
       }
-      const options = piMocks.completeSimple.mock.calls[0][2] as Record<string, unknown>
-      expect(context.messages[0]).toMatchObject({ role: 'user', content: 'ping' })
-      expect(options).toMatchObject({ apiKey: 'sk-good', maxTokens: 5 })
+      expect(result.model).toBe(called.model)
+      expect(called).toMatchObject({
+        provider: 'openai',
+        text: 'ping',
+        apiKey: 'sk-good',
+        maxTokens: 5,
+      })
     })
 
     it('智谱连接测试跳过 Highspeed 套餐模型', async () => {
-      piMocks.completeSimple.mockResolvedValue({ stopReason: 'stop' })
+      piMocks.completeDshText.mockResolvedValue({ text: 'pong' })
       const result = await piAIService.testConnection('zai-coding-cn', 'sk-good')
       expect(result.success).toBe(true)
-      const calledModel = piMocks.completeSimple.mock.calls[0][0] as { id: string }
-      expect(calledModel.id).not.toMatch(/highspeed/i)
-      expect(result.model).toBe(calledModel.id)
+      const called = piMocks.completeDshText.mock.calls[0][0] as { model: string }
+      expect(called.model).not.toMatch(/highspeed/i)
+      expect(result.model).toBe(called.model)
     })
 
     it('探测模型套餐无权限时换下一个便宜模型', async () => {
-      piMocks.completeSimple
-        .mockResolvedValueOnce({
-          stopReason: 'error',
-          errorMessage: '429: {"code":"1311","message":"当前订阅套餐暂未开放GLM-5.3-Flash权限"}',
-        })
-        .mockResolvedValueOnce({ stopReason: 'stop' })
+      piMocks.completeDshText
+        .mockRejectedValueOnce(
+          new Error('429: {"code":"1311","message":"当前订阅套餐暂未开放GLM-5.3-Flash权限"}'),
+        )
+        .mockResolvedValueOnce({ text: 'pong' })
       const result = await piAIService.testConnection('zai-coding-cn', 'sk-good')
       expect(result.success).toBe(true)
-      expect(piMocks.completeSimple).toHaveBeenCalledTimes(2)
-      const first = piMocks.completeSimple.mock.calls[0][0] as { id: string }
-      const second = piMocks.completeSimple.mock.calls[1][0] as { id: string }
-      expect(first.id).not.toBe(second.id)
-      expect(result.model).toBe(second.id)
+      expect(piMocks.completeDshText).toHaveBeenCalledTimes(2)
+      const first = piMocks.completeDshText.mock.calls[0][0] as { model: string }
+      const second = piMocks.completeDshText.mock.calls[1][0] as { model: string }
+      expect(first.model).not.toBe(second.model)
+      expect(result.model).toBe(second.model)
     })
 
     it('401 密钥无效时不换模型重试', async () => {
-      piMocks.completeSimple.mockResolvedValue({
-        stopReason: 'error',
-        errorMessage: '401 Unauthorized',
-      })
+      piMocks.completeDshText.mockRejectedValue(new Error('401 Unauthorized'))
       const result = await piAIService.testConnection('openai', 'sk-bad')
       expect(result.success).toBe(false)
       expect(result.error).toBe('401 Unauthorized')
-      expect(piMocks.completeSimple).toHaveBeenCalledTimes(1)
+      expect(piMocks.completeDshText).toHaveBeenCalledTimes(1)
     })
   })
   describe('listModels 缓存与自定义模型合并', () => {
@@ -426,7 +428,7 @@ describe('piAIService', () => {
     })
 
     it('免费模型 provider 标记 hasFreeModels 且排序靠前', async () => {
-      piMocks.getProviders.mockReturnValue(['openai', 'zai'])
+      piMocks.getProviders.mockReturnValue(['openai', 'zai', 'opencode'])
       piMocks.keystoreListProviders.mockReturnValue([])
 
       const providers = await piAIService.listProviders()
@@ -435,11 +437,15 @@ describe('piAIService', () => {
       expect(ids).toContain('zai')
 
       const zai = providers.find((p) => p.id === 'zai')
-      expect(zai?.hasFreeModels).toBe(true)
-      // 免费模型 provider 排在不免费之前
+      const opencode = providers.find((p) => p.id === 'opencode')
+      expect(zai?.hasFreeModels).toBe(false)
+      expect(providers.find((p) => p.id === 'qwen-token-plan-cn')?.hasFreeModels).toBe(false)
+      expect(providers.find((p) => p.id === 'xiaomi-token-plan-cn')?.hasFreeModels).toBe(false)
+      expect(opencode?.hasFreeModels).toBe(true)
+      // 真正 0 价的厂商排在没有免费模型的前面
       const openai = providers.find((p) => p.id === 'openai')
-      if (openai?.hasFreeModels === false) {
-        expect(ids.indexOf('zai')).toBeLessThan(ids.indexOf('openai'))
+      if (openai?.hasFreeModels === false && opencode) {
+        expect(ids.indexOf('opencode')).toBeLessThan(ids.indexOf('openai'))
       }
     })
   })

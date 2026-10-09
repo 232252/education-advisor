@@ -13,6 +13,7 @@ import type {
   AssistantMessageEvent,
   Model,
 } from '@main/services/llm-contracts'
+import { isSubscriptionSku } from '@shared/subscription-sku'
 import type { ModelInfo, StreamEvent } from '@shared/types'
 
 /**
@@ -55,7 +56,7 @@ export function selectCheapestModel(models: Model<Api>[]): Model<Api> {
  * 智谱 Highspeed 即此类——连接测试若选它,普通套餐会 429/1311。
  */
 export function isQuotaGatedProbeModel(model: { id: string; name?: string }): boolean {
-  return /high[\s_-]*speed/i.test(`${model.id} ${model.name ?? ''}`)
+  return isSubscriptionSku(model)
 }
 
 /**
@@ -159,9 +160,8 @@ export function mapEvent(event: AssistantMessageEvent): StreamEvent | null {
 
     case 'error': {
       const msg = event.error
-      // P2-9 口径统一: 可重试 = 网络类错误(isRetryableError) 或流被 abort
-      // (与 agent 链路 retrying-stream 的重试判定同源;此前仅看 reason==='aborted',
-      // 流内 429/超时/网络错误在直连路径不带重试提示,两链路行为分裂)
+      // 可重试 = 网络类错误(isRetryableError) 或流被 abort。
+      // 教师对话的自动重试由 dsh 路由上的 retryPolicy 执行。
       return {
         type: 'error',
         message: msg.errorMessage ?? 'Unknown error',
@@ -246,8 +246,7 @@ export function backoffDelayMs(baseDelayMs: number, attempt: number): number {
  * P0-2(2026-09-13 深查)扩口径,两条新匹配刻意跨大小写:
  *   - 'Request was aborted': 首字节超时 abort 的 reason 在部分 SDK 路径下
  *     会被替换为该文案(09-13 22:05 挂死 180s 一次重试都没发生的原因)。
- *     用户主动停止不会误重试 — 调用方(retrying-stream/streaming)均以
- *     signal.aborted 门先行拦截。
+ *     用户主动停止不会误重试 — 调用方以 signal.aborted 先行拦截。
  *   - /timed?\s*out/i: openai SDK 超时文案为 "Request timed out."(含空格),
  *     历史的 includes('timeout') 匹配不到。
  */

@@ -1,7 +1,25 @@
+class FifoQueue {
+    incoming = [];
+    outgoing = [];
+    get length() {
+        return this.incoming.length + this.outgoing.length;
+    }
+    enqueue(value) {
+        this.incoming.push(value);
+    }
+    dequeue() {
+        if (this.outgoing.length === 0) {
+            while (this.incoming.length > 0) {
+                this.outgoing.push(this.incoming.pop());
+            }
+        }
+        return this.outgoing.pop();
+    }
+}
 // Generic event stream class for async iteration
 export class EventStream {
-    queue = [];
-    waiting = [];
+    queue = new FifoQueue();
+    waiting = new FifoQueue();
     done = false;
     finalResultPromise;
     resolveFinalResult;
@@ -22,12 +40,12 @@ export class EventStream {
             this.resolveFinalResult(this.extractResult(event));
         }
         // Deliver to waiting consumer or queue it
-        const waiter = this.waiting.shift();
+        const waiter = this.waiting.dequeue();
         if (waiter) {
             waiter({ value: event, done: false });
         }
         else {
-            this.queue.push(event);
+            this.queue.enqueue(event);
         }
     }
     end(result) {
@@ -37,20 +55,20 @@ export class EventStream {
         }
         // Notify all waiting consumers that we're done
         while (this.waiting.length > 0) {
-            const waiter = this.waiting.shift();
+            const waiter = this.waiting.dequeue();
             waiter({ value: undefined, done: true });
         }
     }
     async *[Symbol.asyncIterator]() {
         while (true) {
             if (this.queue.length > 0) {
-                yield this.queue.shift();
+                yield this.queue.dequeue();
             }
             else if (this.done) {
                 return;
             }
             else {
-                const result = await new Promise((resolve) => this.waiting.push(resolve));
+                const result = await new Promise((resolve) => this.waiting.enqueue(resolve));
                 if (result.done)
                     return;
                 yield result.value;

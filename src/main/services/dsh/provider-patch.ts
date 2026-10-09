@@ -22,7 +22,7 @@
 // 要么传完整的 {...process.env, ...}；这里只在确实有 key 要带时才传。
 // =============================================================
 
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { stringify } from 'yaml'
@@ -154,6 +154,14 @@ export function dshProviderRouting(
   return { profiles, envNames }
 }
 
+/** 该 provider 在 dsh 侧的路由名（含内建别名和用户改名）。 */
+export function dshRouteKey(providerId: string): string {
+  const overrides = dshRouteProfileOverrides(modelsSlice(), providerId)
+  return applyDshRoute(providerId, '', routeOverrides(), {
+    customEndpoint: overrides.baseURL !== undefined,
+  }).providerId
+}
+
 /** 用户改名表；读不到就按「没有改名」处理 */
 function routeOverrides(): Record<string, string> | undefined {
   try {
@@ -247,6 +255,46 @@ export function buildEaaProviderPatchRows(
  * 用户自己在 dsh 侧声明过的路由抹掉。
  * 与 hardening 同样的同步写法 + 内容一致不重写；patch 里只有变量名，没有密钥。
  */
+/**
+ * 连接测试要拿「还没写入密钥库」的那把 key 试一次。
+ * 路由已经声明了 apiKeyEnv 时，只往子进程环境里盖这一把，不必再写 patch。
+ * 还没声明凭据变量时，返回一份带上 apiKeyEnv 的 providers，由调用方写成单独的 patch，
+ * 不能改共享的 eaa-llm-providers 文件，否则旁边正在跑的对话会读到这次探测的声明。
+ */
+export function probeCredentialPlan(
+  routing: DshProviderRouting,
+  probe: { providerId: string; apiKey: string },
+): { envName: string; forcedProfiles: DshProviderRouting['profiles'] | null } {
+  const route = dshRouteKey(probe.providerId)
+  const profile = routing.profiles[route]
+  const declared = Object.entries(routing.envNames).find(([, id]) => id === probe.providerId)?.[0]
+  const envName = profile?.apiKeyEnv ?? declared
+  if (!envName) {
+    throw new Error(`no dsh credential env for provider: ${probe.providerId}`)
+  }
+  if (!profile || profile.apiKeyEnv === envName) return { envName, forcedProfiles: null }
+  return {
+    envName,
+    forcedProfiles: { ...routing.profiles, [route]: { ...profile, apiKeyEnv: envName } },
+  }
+}
+
+/** 把 providers 写成一份独立 patch。文件名自带随机后缀，避免两次探测互相覆盖。 */
+export function writeProviderPatchFile(
+  patchDir: string,
+  profiles: DshProviderRouting['profiles'],
+): string {
+  const ids = Object.keys(profiles).sort()
+  const picked: DshProviderRouting['profiles'] = {}
+  for (const id of ids) picked[id] = profiles[id]
+  const patchPath = join(
+    patchDir,
+    `eaa-llm-probe-${randomBytes(4).toString('hex')}.cordis.patch.yml`,
+  )
+  writeFileSync(patchPath, stringify(buildEaaProviderPatchRows(picked), { lineWidth: 0 }), 'utf8')
+  return patchPath
+}
+
 export function ensureEaaProviderPatch(
   patchDir: string,
   profiles: DshProviderRouting['profiles'],

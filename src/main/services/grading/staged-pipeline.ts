@@ -12,7 +12,6 @@ import type { Api, Message, Model } from '@main/services/llm-contracts'
 // =============================================================
 
 import fsp from 'node:fs/promises'
-import { parseJsonWithRepair } from '@earendil-works/pi-ai'
 import { dualTolerance, markScoreFromSelection, questionKind } from '@shared/grading-helpers'
 import type {
   AiGradeResult,
@@ -25,6 +24,7 @@ import type {
   RubricQuestion,
 } from '@shared/types'
 import { errText } from '../../utils/err-text'
+import { parseJsonWithRepair } from '../../utils/json-repair'
 import { log } from '../../utils/logger'
 import {
   gradingModeLabel,

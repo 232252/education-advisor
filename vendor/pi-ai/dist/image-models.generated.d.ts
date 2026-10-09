@@ -195,6 +195,21 @@ export declare const IMAGE_MODELS: {
                 cacheWrite: number;
             };
         };
+        readonly "inclusionai/ming-image-0.1-design": {
+            id: string;
+            name: string;
+            api: "openrouter-images";
+            provider: string;
+            baseUrl: string;
+            input: "text"[];
+            output: "image"[];
+            cost: {
+                input: number;
+                output: number;
+                cacheRead: number;
+                cacheWrite: number;
+            };
+        };
         readonly "krea/krea-2-large": {
             id: string;
             name: string;
@@ -391,6 +406,36 @@ export declare const IMAGE_MODELS: {
             };
         };
         readonly "openai/gpt-image-2": {
+            id: string;
+            name: string;
+            api: "openrouter-images";
+            provider: string;
+            baseUrl: string;
+            input: ("image" | "text")[];
+            output: "image"[];
+            cost: {
+                input: number;
+                output: number;
+                cacheRead: number;
+                cacheWrite: number;
+            };
+        };
+        readonly "openai/gpt-image-2.5-flare": {
+            id: string;
+            name: string;
+            api: "openrouter-images";
+            provider: string;
+            baseUrl: string;
+            input: ("image" | "text")[];
+            output: "image"[];
+            cost: {
+                input: number;
+                output: number;
+                cacheRead: number;
+                cacheWrite: number;
+            };
+        };
+        readonly "openai/gpt-image-2.5-sunburst": {
             id: string;
             name: string;
             api: "openrouter-images";

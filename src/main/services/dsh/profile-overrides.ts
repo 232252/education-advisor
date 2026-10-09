@@ -17,6 +17,8 @@
 // 本模块纯函数、不依赖 electron：dsh/* 的单测跑在无 electron 的 node 项目里。
 // =============================================================
 
+import { THINKING_LEVELS as DSH_THINKING_LEVELS } from '@shared/thinking-levels'
+
 /** settings.models 里本模块实际读的那几项（结构类型，避免把 settings 类型拖进 dsh 模块图） */
 export interface DshModelsSettingsSlice {
   retry?: {
@@ -142,9 +144,6 @@ export interface DshRouteModelSource {
    */
   api?: string
 }
-
-/** dsh 的 THINKING_LEVELS 认的档位名；目录里出现别的键就不发（发错值是整轮失败） */
-const DSH_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
 
 export interface DshRouteModelEntry {
   id: string

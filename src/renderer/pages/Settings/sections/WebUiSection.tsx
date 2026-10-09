@@ -5,6 +5,7 @@
 import type { UnifiedSettings, WebUiStatus } from '@shared/types'
 import { QrCode as QrCodeIcon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { QrCode } from '../../../components/connection-center/QrCode'
 import { useT } from '../../../i18n'
 import { pickFile } from '../../../lib/dialog'
 import { getAPI } from '../../../lib/ipc-client'
@@ -17,6 +18,7 @@ import {
   SettingRow,
   ToggleSettingRow,
 } from '../components'
+import { webUiPhoneUrl } from './webui-phone-url'
 
 interface WebUiSectionProps {
   settings: UnifiedSettings
@@ -96,6 +98,8 @@ export function WebUiSection({ settings, onSave }: WebUiSectionProps) {
   const protocol = settings.general.webUiProtocol ?? 'https'
   const bind = settings.general.webUiBind ?? 'lan'
   const scheme = (status?.protocol || protocol).toUpperCase()
+
+  const phoneUrl = webUiPhoneUrl(status)
 
   const copyUrl = (url: string) => {
     void navigator.clipboard.writeText(url)
@@ -229,9 +233,23 @@ export function WebUiSection({ settings, onSave }: WebUiSectionProps) {
                   {t('page.settings.webui.open', '在浏览器打开')}
                 </button>
               </div>
-              <span className="flex items-center justify-end gap-1 text-[10px] text-gray-400">
-                <QrCodeIcon size={12} className="flex-shrink-0" />
-                {t('page.settings.webui.qrHint', '手机扫码接入可按 Alt+C 打开连接中心')}
+              <span className="flex items-start justify-end gap-3 text-[10px] text-gray-400 max-w-sm">
+                {phoneUrl ? (
+                  <QrCode value={phoneUrl} size={112} />
+                ) : (
+                  <QrCodeIcon size={12} className="flex-shrink-0 mt-0.5" />
+                )}
+                <span className="text-right leading-relaxed">
+                  {phoneUrl
+                    ? t(
+                        'page.settings.webui.qrHint',
+                        '用手机相机扫这个二维码。地址里有访问令牌，不要发给别人。',
+                      )
+                    : t(
+                        'page.settings.webui.qrHintLoopback',
+                        '当前只在这台电脑上监听。手机要扫码，请把访问范围改成局域网。',
+                      )}
+                </span>
               </span>
             </>
           )}

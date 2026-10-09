@@ -91,13 +91,19 @@ describe('DshAgentEventProjector', () => {
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
     })
+    const archived = p.result.messages as AssistantMessage[]
+    expect(archived[0].usage.input).toBe(10)
+    expect(archived[0].usage.output).toBe(2)
+    expect(archived[1].usage.input).toBe(7)
+    expect(archived[1].usage.output).toBe(4)
+    expect(archived[0].usage.cost.total).toBe(0)
   })
 
   it('每个 step 归档一条 assistant 消息，agent_end 汇总全部', () => {
     const p = projector()
     p.project(assistantMessage(['第一段']))
     p.project(assistantMessage(['第二段']))
-    const end = p.project({ type: 'turn/end', data: { turn: 1, reason: 'completed' } })
+    const end = p.project({ type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
 
     expect(end.map((e) => e.type)).toEqual(['turn_end', 'agent_end'])
     const agentEnd = end[1] as Extract<AgentEvent, { type: 'agent_end' }>
@@ -132,6 +138,27 @@ describe('DshAgentEventProjector', () => {
     expect(event.args).toBe('{oops')
   })
 
+  it('tool/result 没有 toolName 时，用同一次 tool/call 记下的名字', () => {
+    const p = projector()
+    p.project({
+      type: 'tool/call',
+      data: { callId: 'c1', name: 'mcp__eaa__eaa_ranking', arguments: '{}' },
+    })
+    const out = p.project({
+      type: 'tool/result',
+      data: {
+        message: {
+          toolCallId: 'c1',
+          content: [{ type: 'text', text: '[]' }],
+        },
+      },
+    })
+    const event = out[0] as Extract<AgentEvent, { type: 'tool_execution_end' }>
+    expect(event.toolName).toBe('mcp__eaa__eaa_ranking')
+    expect(event.toolCallId).toBe('c1')
+    expect(event.isError).toBe(false)
+  })
+
   it('tool/result → tool_execution_end，isError 取 data.error', () => {
     const out = projector().project({
       type: 'tool/result',
@@ -163,18 +190,30 @@ describe('DshAgentEventProjector', () => {
   it('turn/end 的 aborted/error 记在 result 上，仍然发 agent_end 收尾', () => {
     const aborted = projector()
     aborted.project(assistantMessage(['半句']))
-    const a = aborted.project({ type: 'turn/end', data: { turn: 1, reason: 'aborted' } })
+    const a = aborted.project({ type: 'turn/end', data: { turn: 1, reason: { kind: 'aborted' } } })
     expect(a.map((e) => e.type)).toEqual(['turn_end', 'agent_end'])
     expect(aborted.result.aborted).toBe(true)
     expect(aborted.result.failed).toBe(false)
 
     const failed = projector()
-    failed.project({ type: 'turn/end', data: { turn: 1, reason: 'error' } })
+    const failedEvents = failed.project({
+      type: 'turn/end',
+      data: {
+        turn: 1,
+        reason: { kind: 'error', error: { message: '401 Unauthorized', status: 401 } },
+      },
+    })
     expect(failed.result.failed).toBe(true)
     expect(failed.result.aborted).toBe(false)
+    const turnEnd = failedEvents[0] as Extract<AgentEvent, { type: 'turn_end' }>
+    expect(turnEnd.message).toMatchObject({
+      role: 'assistant',
+      stopReason: 'error',
+      errorMessage: 'dsh turn error: 401 Unauthorized',
+    })
 
     const blocked = projector()
-    blocked.project({ type: 'turn/end', data: { turn: 1, reason: 'blocked' } })
+    blocked.project({ type: 'turn/end', data: { turn: 1, reason: { kind: 'blocked' } } })
     expect(blocked.result.aborted).toBe(false)
     expect(blocked.result.failed).toBe(false)
   })

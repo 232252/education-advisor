@@ -3,6 +3,7 @@
 // =============================================================
 
 import { debugLog } from '@shared/debug'
+import { isSubscriptionSku } from '@shared/subscription-sku'
 import type { ModelInfo, ProviderInfo } from '@shared/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '../i18n'
@@ -274,7 +275,11 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
                         {m.api}
                       </span>
                       <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                        ${((m.costPerInputToken + m.costPerOutputToken) * 1_000_000).toFixed(2)}/M
+                        {isSubscriptionSku(m) &&
+                        m.costPerInputToken === 0 &&
+                        m.costPerOutputToken === 0
+                          ? t('models.cost.subscription', '按套餐')
+                          : `$${((m.costPerInputToken + m.costPerOutputToken) * 1_000_000).toFixed(2)}/M`}
                       </span>
                     </div>
                   </button>

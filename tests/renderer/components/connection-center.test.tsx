@@ -10,28 +10,33 @@ vi.mock('../../../src/renderer/stores/toastStore', async () =>
   (await import('../helpers/mock-toast')).mockToastStore,
 )
 
-const channelsList = vi.fn()
-const channelsStart = vi.fn()
-const settingsSet = vi.fn()
-const getWebUiStatus = vi.fn()
+const dshImShow = vi.fn()
+const dshImHide = vi.fn()
 
 vi.mock('../../../src/renderer/lib/ipc-client', () => ({
   getAPI: () => ({
+    dshIm: {
+      show: (bounds: unknown) => dshImShow(bounds),
+      hide: () => dshImHide(),
+      onClosed: () => () => {},
+    },
     channels: {
-      list: (...a: unknown[]) => channelsList(...a),
-      start: (...a: unknown[]) => channelsStart(...a),
+      list: async () => [],
       onStatusUpdate: () => () => {},
     },
-    settings: { set: (...a: unknown[]) => settingsSet(...a) },
-    sys: { getWebUiStatus: () => getWebUiStatus() },
   }),
 }))
 
-import { ConnectionCenterPanel } from '../../../src/renderer/components/connection-center/ConnectionCenterPanel'
+import { ConnectionCenter } from '../../../src/renderer/components/connection-center/ConnectionCenter'
+import {
+  computePanelBox,
+  ConnectionCenterPanel,
+} from '../../../src/renderer/components/connection-center/ConnectionCenterPanel'
+import { requestOpenConnectionCenter } from '../../../src/renderer/components/connection-center/open-connection-center'
 import { QrCode } from '../../../src/renderer/components/connection-center/QrCode'
 import { ChannelCard } from '../../../src/renderer/pages/Settings/channels/ChannelCard'
 import { Section } from '../../../src/renderer/pages/Settings/components/Section'
-import type { ChannelInstanceInfo, WebUiStatus } from '@shared/types'
+import type { ChannelInstanceInfo } from '@shared/types'
 
 function mkInstance(
   id: string,
@@ -60,37 +65,9 @@ function mkInstance(
   } as unknown as ChannelInstanceInfo
 }
 
-// 测试夹具:URL 中的 k= 为占位串,非真实令牌
-const LISTENING_STATUS: WebUiStatus = {
-  mode: 'always',
-  listening: true,
-  protocol: 'https',
-  bind: 'lan',
-  listenHost: '0.0.0.0',
-  ipv6: false,
-  port: 18765,
-  urls: ['https://192.168.1.5:18765/?k=fixture-value'],
-  lanIpv4: ['192.168.1.5'],
-  lanIpv6: [],
-  inSchedule: true,
-  fingerprintSha256: null,
-  usingCustomCert: false,
-  tokenBits: 256,
-  accessToken: '',
-  error: null,
-}
-
-function renderPanel({
-  instances = [],
-  webUi,
-}: {
-  instances?: ChannelInstanceInfo[]
-  webUi?: WebUiStatus | null
-} = {}) {
-  channelsList.mockResolvedValue(instances)
-  getWebUiStatus.mockResolvedValue(webUi ?? null)
+function renderPanel() {
   const anchor = document.createElement('div')
-  const utils = render(
+  return render(
     <MemoryRouter initialEntries={['/']}>
       <ConnectionCenterPanel
         onClose={vi.fn()}
@@ -99,7 +76,6 @@ function renderPanel({
       />
     </MemoryRouter>,
   )
-  return utils
 }
 
 describe('QrCode(uqr 封装)', () => {
@@ -113,96 +89,137 @@ describe('QrCode(uqr 封装)', () => {
   })
 })
 
+describe('computePanelBox', () => {
+  function anchorBesideSidebar(sidebarRight: number): HTMLButtonElement {
+    const aside = document.createElement('aside')
+    const button = document.createElement('button')
+    aside.appendChild(button)
+    const box = (right: number) => ({
+      x: 0,
+      y: 0,
+      width: right,
+      height: 40,
+      top: 0,
+      left: 0,
+      bottom: 40,
+      right,
+      toJSON() {
+        return {}
+      },
+    })
+    aside.getBoundingClientRect = () => box(sidebarRight)
+    button.getBoundingClientRect = () => box(sidebarRight)
+    return button
+  }
+
+  it('侧栏旁边不够官方左右栏时铺满窗口', () => {
+    const anchor = anchorBesideSidebar(240)
+    const narrow = computePanelBox(anchor, { width: 1024, height: 640 })
+    expect(narrow.left).toBe(8)
+    expect(narrow.width).toBeGreaterThanOrEqual(860)
+
+    const wide = computePanelBox(anchor, { width: 1400, height: 900 })
+    expect(wide.left).toBe(248)
+    expect(wide.width).toBe(1144)
+    expect(wide.top + wide.height).toBe(892)
+  })
+
+  it('窗口比最小尺寸更小时贴住窗口，关闭按钮留在屏幕里', () => {
+    const anchor = anchorBesideSidebar(240)
+    const box = computePanelBox(anchor, { width: 400, height: 320 })
+    expect(box.left).toBe(8)
+    expect(box.top).toBe(8)
+    expect(box.left + box.width).toBe(392)
+    expect(box.top + box.height).toBe(312)
+    expect(box.width).toBeLessThan(480)
+    expect(box.height).toBeLessThan(420)
+  })
+})
+
 describe('ConnectionCenterPanel', () => {
   beforeEach(() => {
-    settingsSet.mockReset().mockResolvedValue({ success: true })
-    channelsStart.mockReset().mockResolvedValue({ success: true })
+    dshImShow.mockReset().mockResolvedValue({ ok: true })
+    dshImHide.mockReset().mockResolvedValue(undefined)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 40,
+      y: 80,
+      width: 900,
+      height: 640,
+      top: 80,
+      left: 40,
+      bottom: 720,
+      right: 940,
+      toJSON() {
+        return {}
+      },
+    })
+  })
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
+
+  it('按面板区域让主进程贴上 IM 视图，不把登录地址放进页面', async () => {
+    renderPanel()
+    expect(await screen.findByText('连接中心')).not.toBeNull()
+    expect(screen.getByRole('button', { name: '数据同步' })).not.toBeNull()
+    expect(screen.queryByText('左侧选择平台完成登录')).toBeNull()
+    await waitFor(() => expect(dshImShow).toHaveBeenCalled())
+    expect(dshImShow.mock.calls[0][0]).toMatchObject({ x: 40, y: 80, width: 900, height: 640 })
+    expect(screen.queryByTitle('dsh-im')).toBeNull()
+  })
+
+  it('打开后不再每帧重复贴视图', async () => {
+    let rafCalls = 0
+    const real = window.requestAnimationFrame.bind(window)
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafCalls += 1
+      return real(cb as FrameRequestCallback)
+    })
+    renderPanel()
+    await waitFor(() => expect(dshImShow).toHaveBeenCalled())
+    const afterOpen = rafCalls
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    expect(rafCalls).toBe(afterOpen)
+  })
+
+  it('宿主没起来时显示错误，并可重试', async () => {
+    dshImShow.mockResolvedValueOnce({ ok: false, error: 'dsh 还没装好' })
+    renderPanel()
+    expect(await screen.findByText('dsh 还没装好')).not.toBeNull()
+    dshImShow.mockResolvedValueOnce({ ok: true })
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    await waitFor(() => expect(dshImShow).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('dsh 还没装好')).toBeNull()
+  })
+})
+
+describe('ConnectionCenter', () => {
+  beforeEach(() => {
+    dshImShow.mockReset().mockResolvedValue({ ok: true })
+    dshImHide.mockReset().mockResolvedValue(undefined)
   })
   afterEach(cleanup)
 
-  it('渲染标题/分区/汇总 pill 与频道行', async () => {
-    renderPanel({
-      instances: [
-        mkInstance('feishu', '飞书机器人', 'connected'),
-        mkInstance('wecom', '企微机器人', 'disabled'),
-      ],
-    })
-    expect(await screen.findByText('连接中心')).not.toBeNull()
-    expect(screen.getByText('消息频道')).not.toBeNull()
-    expect(screen.getByText('手机 / 浏览器接入')).not.toBeNull()
-    expect(screen.getByText('飞书机器人')).not.toBeNull()
-    // 1/2 已连接(部分连接 → 汇总 pill)
-    expect(screen.getByText('1/2 已连接')).not.toBeNull()
+  it('设置页可以唤起同一块 IM 面板', async () => {
+    render(
+      <MemoryRouter>
+        <ConnectionCenter />
+      </MemoryRouter>,
+    )
+    expect(screen.queryByTestId('connection-center-panel')).toBeNull()
+    requestOpenConnectionCenter()
+    expect(await screen.findByTestId('connection-center-panel')).not.toBeNull()
   })
 
-  it('动作矩阵: connected→断开走 enabled=false(保存即停)', async () => {
-    renderPanel({ instances: [mkInstance('feishu', '飞书机器人', 'connected')] })
-    const btn = await screen.findByRole('button', { name: '断开' })
-    fireEvent.click(btn)
-    await waitFor(() => expect(settingsSet).toHaveBeenCalledWith('channels.feishu.enabled', false))
-  })
-
-  it('动作矩阵: disabled→连接走 enabled=true(保存即重连)', async () => {
-    renderPanel({ instances: [mkInstance('wecom', '企微机器人', 'disabled')] })
-    const btn = await screen.findByRole('button', { name: '连接' })
-    fireEvent.click(btn)
-    await waitFor(() => expect(settingsSet).toHaveBeenCalledWith('channels.wecom.enabled', true))
-  })
-
-  it('动作矩阵: error→重试直调 channels.start', async () => {
-    renderPanel({
-      instances: [
-        mkInstance('dingtalk', '钉钉机器人', 'error', {
-          status: { channel: 'dingtalk', status: 'error', processingCount: 0, pendingCount: 0, detail: 'boom' },
-        }),
-      ],
-    })
-    const btn = await screen.findByRole('button', { name: '重试' })
-    fireEvent.click(btn)
-    await waitFor(() => expect(channelsStart).toHaveBeenCalledWith('dingtalk'))
-  })
-
-  it('动作矩阵: not-configured→去配置入口存在(面板不代填表单)', async () => {
-    renderPanel({
-      instances: [
-        mkInstance('wecom', '企微机器人', 'not-configured', { configured: false, enabled: false }),
-      ],
-    })
-    expect(await screen.findByRole('button', { name: '去配置' })).not.toBeNull()
-  })
-
-  it('WebUI off 态: 虚线 QR 占位框(§10.3) + 安全提示 + 开启写 webUiMode=always', async () => {
-    renderPanel({ webUi: { ...LISTENING_STATUS, mode: 'off', listening: false, urls: [] } })
-    expect(await screen.findByText('未开启')).not.toBeNull()
-    // 与 listening 同构的取景框占位(开启后原位替换为真 QR,无布局跳变)
-    expect(document.querySelector('[data-testid="qr-placeholder"]')).not.toBeNull()
-    expect(document.querySelector('[data-testid="qr-frame"]')).toBeNull()
-    expect(
-      screen.getByText('开启后，局域网内持有链接的人可访问本应用'),
-    ).not.toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '开启并生成二维码' }))
-    await waitFor(() => expect(settingsSet).toHaveBeenCalledWith('general.webUiMode', 'always'))
-  })
-
-  it('WebUI listening 态: 取景框真 QR(§10.2) + 地址 + 关闭入口', async () => {
-    renderPanel({ webUi: LISTENING_STATUS })
-    expect(await screen.findByText('监听中')).not.toBeNull()
-    expect(document.querySelector('[data-testid="qr-frame"]')).not.toBeNull()
-    await waitFor(() => {
-      expect(
-        document.querySelector('[data-testid="connection-center-panel"] svg'),
-      ).not.toBeNull()
-    })
-    expect(screen.getByText(/192\.168\.1\.5:18765/)).not.toBeNull()
-    expect(screen.getByRole('button', { name: '关闭 WebUI' })).not.toBeNull()
-  })
-
-  it('WebUI scheduled 且不在时段: 只读提示,无快捷开启', async () => {
-    renderPanel({
-      webUi: { ...LISTENING_STATUS, mode: 'scheduled', inSchedule: false, listening: false, urls: [] },
-    })
-    expect(await screen.findByText('当前不在定时开启时段')).not.toBeNull()
-    expect(screen.queryByRole('button', { name: '开启并生成二维码' })).toBeNull()
+  it('旧频道报错不会在入口上亮红点', async () => {
+    render(
+      <MemoryRouter>
+        <ConnectionCenter />
+      </MemoryRouter>,
+    )
+    expect(screen.queryByRole('status', { name: '错误' })).toBeNull()
+    expect(screen.getByRole('button', { name: '连接中心' })).not.toBeNull()
   })
 })
 

@@ -19,6 +19,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { useConfirmDialog } from '../../hooks/useConfirmDialog'
 import { useT } from '../../i18n'
+import { setShowChatImages } from '../../lib/chat-image-pref'
 import { errText, getAPI } from '../../lib/ipc-client'
 import { btnStyle, cn, INPUT_BASE } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
@@ -73,6 +74,7 @@ export function SettingsPage() {
       // 等嵌套访问触发 "Cannot read properties of undefined" 而白屏崩溃。
       const merged = mergeSettings(DEFAULT_SETTINGS, s as Partial<UnifiedSettings>)
       setSettings(merged)
+      setShowChatImages(merged.chat?.showImages !== false)
       // M4 修复: 成功后清除错误态
       setLoadError(null)
     } catch (err) {
@@ -99,6 +101,7 @@ export function SettingsPage() {
           return
         }
         setSettings((prev) => (prev ? deepSet(prev, path, value) : prev))
+        if (path === 'chat.showImages') setShowChatImages(value !== false)
       } catch (err) {
         console.error('[Settings] Failed to save:', err)
         toast.error(`${t('settings.save.failed')}: ${path}`)

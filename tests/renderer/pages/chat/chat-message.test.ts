@@ -4,7 +4,13 @@
 // =============================================================
 
 import { describe, expect, it } from 'vitest'
-import { buildFinalText, toAgentHistory } from '../../../../src/renderer/pages/Chat/lib/chat-message'
+import {
+  buildFinalText,
+  queueActionAfterTurn,
+  restoreQueuedIfUnsent,
+  takeQueuedForSteering,
+  toAgentHistory,
+} from '../../../../src/renderer/pages/Chat/lib/chat-message'
 import type { ChatMessage } from '../../../../src/shared/types'
 
 function msg(partial: Partial<ChatMessage> & { role: ChatMessage['role'] }): ChatMessage {
@@ -163,5 +169,44 @@ describe('buildFinalText', () => {
     ])
     expect(out).toContain('<untrusted_file_content>')
     expect(out).toContain('hello')
+  })
+})
+
+describe('takeQueuedForSteering', () => {
+  const queued = [
+    { text: '先改名单', finalText: '先改名单' },
+    { text: '再查分', finalText: '再查分附件' },
+  ]
+
+  it('全部：排着的消息合成一条，队列清空', () => {
+    expect(takeQueuedForSteering(queued, 'all')).toEqual({
+      send: { text: '先改名单\n\n再查分', finalText: '先改名单\n\n再查分附件' },
+      rest: [],
+    })
+  })
+
+  it('一次一个：只取出第一条', () => {
+    expect(takeQueuedForSteering(queued, 'one-at-a-time')).toEqual({
+      send: { text: '先改名单', finalText: '先改名单' },
+      rest: [queued[1]],
+    })
+  })
+
+  it('空队列不发送', () => {
+    expect(takeQueuedForSteering([], 'all')).toEqual({ send: null, rest: [] })
+  })
+
+  it('点停止时留下排队，正常结束才发出', () => {
+    expect(queueActionAfterTurn(true, 2)).toBe('hold')
+    expect(queueActionAfterTurn(false, 2)).toBe('send')
+    expect(queueActionAfterTurn(true, 0)).toBe('idle')
+  })
+
+  it('还没发出去的排队消息被打断时放回队首', () => {
+    const pending = { text: '先问的', finalText: '先问的' }
+    const later = { text: '后问的', finalText: '后问的' }
+    expect(restoreQueuedIfUnsent([later], pending, false)).toEqual([pending, later])
+    expect(restoreQueuedIfUnsent([later], pending, true)).toEqual([later])
+    expect(restoreQueuedIfUnsent([later], null, false)).toEqual([later])
   })
 })

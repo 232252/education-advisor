@@ -58,7 +58,6 @@ describe('dsh harness 自带工具的关闭清单', () => {
       'tool-workflow',
       'tool-goal',
       'tool-todo',
-      'tool-skill',
       'plan-mode',
       'mcp-resources',
     ]) {
@@ -68,6 +67,11 @@ describe('dsh harness 自带工具的关闭清单', () => {
 
   it("不禁 'tools' 行：那是工具注册表本身，MCP 工具也要往里注册", () => {
     expect(EAA_DISABLED_DSH_ROWS).not.toContain('tools')
+  })
+
+  it('skill 工具保留：它只读技能正文，目录另由补丁钉死', () => {
+    expect(EAA_DISABLED_DSH_ROWS).not.toContain('tool-skill')
+    expect(EAA_DISABLED_DSH_ROWS).toContain('tool-bash')
   })
 
   it('去掉 harness 自己的身份与人格段，app 的 system prompt 才是唯一人格', () => {

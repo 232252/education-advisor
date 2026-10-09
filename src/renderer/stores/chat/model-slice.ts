@@ -16,7 +16,11 @@ export function createModelSlice(
 > {
   return {
     setModel: (provider, model) => {
-      set({ currentProvider: provider, currentModel: model })
+      set({
+        currentProvider: provider,
+        currentModel: model,
+        currentModelReasoningLevels: null,
+      })
       // 异步拉模型的 contextWindow
       void get().fetchModelInfo(provider, model)
     },
@@ -65,6 +69,7 @@ export function createModelSlice(
           models.map((m) => `${m.id}@${m.contextWindow}`),
         )
         const found = models.find((m) => m.id === model)
+        if (get().currentProvider !== provider || get().currentModel !== model) return
         if (found) {
           debugLog(
             'chat',
@@ -73,6 +78,7 @@ export function createModelSlice(
           set({
             currentModelContext: found.contextWindow || 0,
             currentModelMaxOutput: found.maxOutputTokens || 0,
+            currentModelReasoningLevels: found.reasoningLevels ?? null,
           })
         } else {
           console.warn(

@@ -8,6 +8,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Markdown } from '../../../components/Markdown'
 import { useT } from '../../../i18n'
+import { useShowChatImages } from '../../../lib/chat-image-pref'
+import { displayToolName } from '../../../lib/tool-display'
 import { btnStyle } from '../../../lib/ui-utils'
 import { useAgentStore } from '../../../stores/agent/store'
 
@@ -23,6 +25,7 @@ const STREAM_TAIL_WINDOW = 4096
 
 export function RunTab({ agentId, enabled, onRun, onAbort }: RunTabProps) {
   const { t } = useT()
+  const showImages = useShowChatImages()
   // 细粒度 selector: 只订阅本 Tab 需要的流式状态
   const liveOutput = useAgentStore((s) => s.liveOutput)
   const liveToolCalls = useAgentStore((s) => s.liveToolCalls)
@@ -105,7 +108,9 @@ export function RunTab({ agentId, enabled, onRun, onAbort }: RunTabProps) {
                   key={`${tc.name}-${tc.time}-${argsStr.slice(0, 32)}`}
                   className="text-xs bg-gray-50 border border-gray-200 dark:bg-surface-elevated dark:border-white/[0.06] rounded px-3 py-1.5 font-mono"
                 >
-                  <span className="text-blue-500 dark:text-blue-400">{tc.name}</span>
+                  <span className="text-blue-500 dark:text-blue-400" title={tc.name}>
+                    {displayToolName(tc.name)}
+                  </span>
                   <span className="text-gray-400 dark:text-gray-500 ml-2">{argsStr}</span>
                 </div>
               )
@@ -124,10 +129,10 @@ export function RunTab({ agentId, enabled, onRun, onAbort }: RunTabProps) {
                 <pre className="whitespace-pre-wrap break-words font-sans text-gray-500 dark:text-gray-400">
                   {liveOutput.slice(0, liveOutput.length - STREAM_TAIL_WINDOW)}
                 </pre>
-                <Markdown content={liveOutput.slice(-STREAM_TAIL_WINDOW)} />
+                <Markdown images={showImages} content={liveOutput.slice(-STREAM_TAIL_WINDOW)} />
               </>
             ) : (
-              <Markdown content={liveOutput} />
+              <Markdown images={showImages} content={liveOutput} />
             )}
           </div>
         ) : (

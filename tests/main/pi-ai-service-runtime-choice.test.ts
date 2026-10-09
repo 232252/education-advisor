@@ -15,6 +15,8 @@ const state = vi.hoisted(() => ({
   dshBuilt: 0,
   retired: 0,
   fingerprint: 'fp-a',
+  chatMaxTokens: undefined as number | undefined,
+  modelMaxTokens: undefined as number | undefined,
   dshOpts: null as unknown,
 }))
 
@@ -22,7 +24,11 @@ vi.mock('../../src/main/services/settings-service', () => ({
   settingsService: {
     getSettings: () => {
       if (state.throwOnRead) throw new Error('settings not ready')
-      return { models: { agentRuntime: state.backend } }
+      return {
+        models: { agentRuntime: state.backend },
+        chat:
+          typeof state.chatMaxTokens === 'number' ? { maxTokens: state.chatMaxTokens } : undefined,
+      }
     },
   },
 }))
@@ -48,7 +54,10 @@ vi.mock('../../src/main/services/pi-ai/model-utils', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
-    resolveModel: () => ({ thinkingLevelMap: { high: 'high', low: 'low', medium: null } }),
+    resolveModel: () => ({
+      thinkingLevelMap: { high: 'high', low: 'low', medium: null },
+      maxTokens: state.modelMaxTokens,
+    }),
   }
 })
 
@@ -110,6 +119,8 @@ describe('piAIService 流式后端选择', () => {
     state.dshBuilt = 0
     state.retired = 0
     state.fingerprint = 'fp-a'
+    state.chatMaxTokens = undefined
+    state.modelMaxTokens = undefined
     state.dshOpts = null
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
@@ -221,4 +232,30 @@ describe('piAIService 流式后端选择', () => {
     expect((state.dshOpts as { reasoningEffort?: string }).reasoningEffort).toBeUndefined()
   })
 
+  it('没传 maxTokens 时用设置和模型目录里较大的那个', async () => {
+    state.backend = 'dsh'
+    state.chatMaxTokens = 8192
+    state.modelMaxTokens = 4096
+    const { piAIService } = await import('../../src/main/services/pi-ai-service')
+    await drain(piAIService.chatStream(request('kimi', 'kimi-k2')))
+    expect((state.dshOpts as { maxTokens?: number }).maxTokens).toBe(8192)
+  })
+
+  it('设置低于模型目录时不把输出上限压下去', async () => {
+    state.backend = 'dsh'
+    state.chatMaxTokens = 1024
+    state.modelMaxTokens = 8192
+    const { piAIService } = await import('../../src/main/services/pi-ai-service')
+    await drain(piAIService.chatStream(request('kimi', 'kimi-k2')))
+    expect((state.dshOpts as { maxTokens?: number }).maxTokens).toBe(8192)
+  })
+
+  it('调用方传入的 maxTokens 原样交给 dsh', async () => {
+    state.backend = 'dsh'
+    state.chatMaxTokens = 8192
+    state.modelMaxTokens = 16000
+    const { piAIService } = await import('../../src/main/services/pi-ai-service')
+    await drain(piAIService.chatStream({ ...request('kimi', 'kimi-k2'), maxTokens: 2000 }))
+    expect((state.dshOpts as { maxTokens?: number }).maxTokens).toBe(2000)
+  })
 })

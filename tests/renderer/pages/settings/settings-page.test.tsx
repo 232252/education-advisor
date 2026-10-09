@@ -2,7 +2,7 @@
 // SettingsPage — 页面级冒烟与关键契约测试
 // 覆盖: 加载态→渲染各 Section、settings.get 失败的错误态+重试、
 //       语言切换写入 general.language、重置确认弹窗流、
-//       channels.onStatusUpdate 订阅退订(连接中心)
+//       连接中心展开后是 IM 插件入口和数据同步
 // getAPI 用深度自动 mock(任意属性链返回可调用节点,默认
 // resolve {success:true,data:[]}),仅对少数方法给精确 override。
 // =============================================================
@@ -150,8 +150,22 @@ describe('SettingsPage', () => {
     // 阶段 2: 数据源集成并入连接中心(展开后可见,替代原「飞书集成」区)
     fireEvent.click(screen.getByText('连接中心'))
     await waitFor(() => expect(screen.getByText('数据源集成')).toBeTruthy())
+    expect(screen.getByRole('button', { name: '打开 IM 插件' })).toBeTruthy()
     expect(screen.getByText('飞书多维表格同步')).toBeTruthy()
+    expect(screen.getByText('App ID')).toBeTruthy()
+    expect(screen.getByText('教师 open_id')).toBeTruthy()
     expect(screen.getByText('教师推送')).toBeTruthy()
+  })
+
+  it('出站 App ID 失焦后写入飞书凭证，不经过聊天插件', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByText('连接中心'))
+    const input = await screen.findByPlaceholderText('cli_')
+    fireEvent.change(input, { target: { value: 'cli_a0b1c2d3e4f56789' } })
+    fireEvent.blur(input)
+    await waitFor(() =>
+      expect(api.settings.set).toHaveBeenCalledWith('feishu.appId', 'cli_a0b1c2d3e4f56789'),
+    )
   })
 
   it('加载中显示 loading 态(挂起期间)', async () => {
@@ -193,12 +207,4 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(api.settings.reset).toHaveBeenCalled())
   })
 
-  it('channels 状态订阅在卸载时退订(连接中心接管 bot 状态)', async () => {
-    const unsub = vi.fn()
-    api.channels.onStatusUpdate = vi.fn(() => unsub)
-    const { unmount } = renderPage()
-    await waitFor(() => expect(api.channels.onStatusUpdate).toHaveBeenCalled())
-    unmount()
-    expect(unsub).toHaveBeenCalled()
-  })
 })

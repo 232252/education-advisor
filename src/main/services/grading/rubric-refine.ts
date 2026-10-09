@@ -1,4 +1,5 @@
 import type { Api, AssistantMessage, Message, Model } from '@main/services/llm-contracts'
+
 // =============================================================
 // Rubric Refine — 评分标准「自动细化」: 参考答案 → 逐题扣分点
 // 从量规的参考答案/评分标准出发,让模型为每题生成一组扣分点
@@ -8,8 +9,8 @@ import type { Api, AssistantMessage, Message, Model } from '@main/services/llm-c
 // 纯函数(prompt 构造/解析)单独导出以便测试。
 // =============================================================
 
-import { parseJsonWithRepair } from '@earendil-works/pi-ai'
 import type { PresetMark, RubricQuestion } from '@shared/types'
+import { parseJsonWithRepair } from '../../utils/json-repair'
 import { log } from '../../utils/logger'
 import { resolveModel } from '../pi-ai/model-utils'
 import { settingsService } from '../settings-service'

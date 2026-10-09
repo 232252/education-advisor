@@ -1,12 +1,12 @@
 import OpenAI from "openai";
 import { clampThinkingLevel } from "../models.js";
-import { splitDeferredTools } from "../utils/deferred-tools.js";
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { headersToRecord } from "../utils/headers.js";
 import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { retryProviderRequest } from "../utils/provider-retry.js";
+import { getDeclaredTools, resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.js";
 import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
@@ -51,6 +51,7 @@ function resolveCacheRetention(cacheRetention, env) {
 function getCompat(model) {
     return {
         supportsDeveloperRole: model.compat?.supportsDeveloperRole ?? true,
+        supportsMidConvoSystemMessages: model.compat?.supportsMidConvoSystemMessages ?? false,
         sessionAffinityFormat: model.compat?.sessionAffinityFormat ?? detectSessionAffinityFormat(model),
         supportsLongCacheRetention: model.compat?.supportsLongCacheRetention ?? true,
         supportsStrictMode: model.compat?.supportsStrictMode ?? false,
@@ -75,14 +76,12 @@ function getPromptCacheOptions(compat, cacheRetention) {
         return { ttl: "30m" };
     return undefined;
 }
-function formatOpenAIResponsesError(error) {
-    return formatProviderError(normalizeProviderError(error), "OpenAI API error");
-}
 /**
  * Generate function for OpenAI Responses API
  */
 export const stream = (model, context, options) => {
     const stream = new AssistantMessageEventStream();
+    const normalizedContext = resolveTranscript(context, getCompat(model).supportsMidConvoSystemMessages);
     // Start async processing
     (async () => {
         const output = {
@@ -108,9 +107,9 @@ export const stream = (model, context, options) => {
             const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
             const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
             const compat = getCompat(model);
-            const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, compat.supportsOpenAIGrammarTools);
-            const client = createClient(model, context, apiKey, options?.headers, options?.fetch, cacheSessionId);
-            let params = buildParams(model, context, options, compat, grammarToolInputProperties);
+            const grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(normalizedContext.messages), compat.supportsOpenAIGrammarTools);
+            const client = createClient(model, normalizedContext, apiKey, options?.headers, options?.fetch, cacheSessionId);
+            let params = buildParams(model, normalizedContext, options, compat, grammarToolInputProperties);
             const nextParams = await options?.onPayload?.(params, model);
             if (nextParams !== undefined) {
                 params = nextParams;
@@ -152,7 +151,7 @@ export const stream = (model, context, options) => {
                 delete block.customInput;
             }
             output.stopReason = options?.signal?.aborted ? "aborted" : "error";
-            output.errorMessage = formatOpenAIResponsesError(error);
+            output.errorMessage = formatProviderError(normalizeProviderError(error), `${model.provider === "openai" ? "OpenAI" : model.provider} API error`);
             stream.push({ type: "error", reason: output.stopReason, error: output });
             stream.end();
         }
@@ -206,17 +205,13 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId) 
         defaultHeaders: headers,
     });
 }
-function buildParams(model, context, options, compat = getCompat(model), grammarToolInputProperties = createGrammarToolInputProperties(context.tools, compat.supportsOpenAIGrammarTools)) {
-    const deferredToolsMode = compat.supportsAdditionalTools
-        ? "additional-tools"
-        : compat.supportsToolSearch
-            ? "tool-search"
-            : undefined;
-    const toolPlacement = splitDeferredTools(context, deferredToolsMode !== undefined);
+function buildParams(model, context, options, compat = getCompat(model), grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(context.messages), compat.supportsOpenAIGrammarTools)) {
+    const transcriptTools = resolveTranscriptTools(context.messages, compat.supportsAdditionalTools || compat.supportsToolSearch);
     const messages = convertResponsesMessages(model, context, OPENAI_TOOL_CALL_PROVIDERS, {
         grammarToolInputProperties,
-        deferredTools: toolPlacement.deferred,
-        deferredToolsMode,
+        supportsMidConvoSystemMessages: compat.supportsMidConvoSystemMessages,
+        supportsAdditionalTools: compat.supportsAdditionalTools,
+        supportsToolSearch: compat.supportsToolSearch,
         toolOptions: {
             supportsStrictMode: compat.supportsStrictMode,
             supportsOpenAIGrammarTools: compat.supportsOpenAIGrammarTools,
@@ -241,8 +236,8 @@ function buildParams(model, context, options, compat = getCompat(model), grammar
     if (options?.serviceTier !== undefined) {
         params.service_tier = options.serviceTier;
     }
-    if (toolPlacement.immediate.length > 0) {
-        params.tools = convertResponsesTools(toolPlacement.immediate, {
+    if (transcriptTools.requestTools.length > 0) {
+        params.tools = convertResponsesTools(transcriptTools.requestTools, {
             supportsStrictMode: compat.supportsStrictMode,
             supportsOpenAIGrammarTools: compat.supportsOpenAIGrammarTools,
         });

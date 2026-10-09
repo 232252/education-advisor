@@ -1,7 +1,7 @@
 import { type AuthResolutionOverrides } from "./auth/resolve.ts";
 import type { AuthCheck, AuthContext, AuthInteraction, AuthOperationOptions, AuthResult, AuthType, Credential, CredentialStore, ProviderAuth } from "./auth/types.ts";
 import { type ModelsStore, type ModelsStoreEntry } from "./models-store.ts";
-import type { Api, ApiStreamOptions, AssistantMessage, AssistantMessageEventStream, Context, DeferredCancelOptions, DeferredFetchOptions, DeferredHandle, Model, ModelThinkingLevel, ProviderHeaders, ProviderStreams, SimpleStreamOptions, Usage } from "./types.ts";
+import type { Api, ApiStreamOptions, AssistantMessage, AssistantMessageEventStream, Context, DeferredCancelOptions, DeferredFetchOptions, DeferredHandle, Model, ModelThinkingLevel, ProviderHeaders, ProviderStreams, SimpleStreamOptions, TranscriptContext, Usage } from "./types.ts";
 export { ModelsError, type ModelsErrorCode } from "./auth/resolve.ts";
 export interface ModelsPublication {
     /** Provider-selected persisted catalog. Omit to leave storage unchanged; null deletes it. */
@@ -88,8 +88,9 @@ export interface Provider<TApi extends Api = Api> {
      * applies this filter after confirming that provider auth is configured.
      */
     filterModels?(models: readonly Model<TApi>[], credential: Credential | undefined): readonly Model<TApi>[];
-    stream<T extends TApi>(model: Model<T>, context: Context, options?: ApiStreamOptions<T>): AssistantMessageEventStream;
-    streamSimple(model: Model<TApi>, context: Context, options?: SimpleStreamOptions): AssistantMessageEventStream;
+    /** Stream a normalized transcript. `Models` normalizes the caller's `Context` before dispatching here. */
+    stream<T extends TApi>(model: Model<T>, context: TranscriptContext, options?: ApiStreamOptions<T>): AssistantMessageEventStream;
+    streamSimple(model: Model<TApi>, context: TranscriptContext, options?: SimpleStreamOptions): AssistantMessageEventStream;
     fetchDeferred?(model: Model<TApi>, handle: DeferredHandle, options?: DeferredFetchOptions): AssistantMessageEventStream;
     cancelDeferred?(model: Model<TApi>, handle: DeferredHandle, options?: DeferredCancelOptions): Promise<void>;
 }

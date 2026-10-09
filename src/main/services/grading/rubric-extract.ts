@@ -1,4 +1,5 @@
 import type { Api, AssistantMessage, Message, Model } from '@main/services/llm-contracts'
+
 // =============================================================
 // Rubric Extract — 量规「从样卷识别」: 视觉模型抽取题目结构
 // 批改管线(grading-pipeline)的旁路: 复用同一套批改模型配置与鉴权,
@@ -8,8 +9,8 @@ import type { Api, AssistantMessage, Message, Model } from '@main/services/llm-c
 // 纯函数(prompt 构造/解析)单独导出以便测试。
 // =============================================================
 
-import { parseJsonWithRepair } from '@earendil-works/pi-ai'
 import type { ExtractedRubricQuestion } from '@shared/api/grading'
+import { parseJsonWithRepair } from '../../utils/json-repair'
 import { log } from '../../utils/logger'
 import { resolveModel } from '../pi-ai/model-utils'
 import { settingsService } from '../settings-service'

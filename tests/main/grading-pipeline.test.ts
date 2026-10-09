@@ -43,6 +43,10 @@ vi.mock('../../src/main/services/pi-ai/model-utils', () => ({
   resolveModel: mocks.resolveModel,
 }))
 
+vi.mock('../../src/main/services/grading/llm-call', () => ({
+  completeGradingCall: (...args: unknown[]) => mocks.completeSimple(...args),
+  resetGradingDshRuntime: () => {},
+}))
 vi.mock('../../src/main/services/settings-service', () => ({
   settingsService: { getSettings: mocks.getSettings },
 }))

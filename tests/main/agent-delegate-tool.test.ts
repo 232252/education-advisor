@@ -48,13 +48,14 @@ vi.mock('../../src/main/services/dsh/runtime', () => ({
   createDshRuntime: () => ({
     turnEvents: async function* () {
       yield { type: 'assistant/message', data: { turn: 1, step: 1, stream: [{ type: 'text-chunks', texts: ['ok'] }], usage: { inputTokens: 3, outputTokens: 1 } } }
-      yield { type: 'turn/end', data: { turn: 1, reason: 'completed' } }
+      yield { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } }
     },
     dispose: async () => {},
   }),
 }))
 vi.mock('../../src/main/services/dsh/tool-bridge', () => ({
   ensureActiveEaaToolBridge: async () => ({ port: 1, patchDir: '', close: async () => {} }),
+  pluginProcessEnv: () => ({}),
   mountEaaAgentTools: async (opts: { label: string; tools: Array<{ name: string; execute?: Function }> }) => {
     // Find delegate_to tool if present
     const delegateTool = opts.tools.find((t) => t.name === 'delegate_to')
@@ -62,6 +63,7 @@ vi.mock('../../src/main/services/dsh/tool-bridge', () => ({
       serverName: 'eaa-test',
       patchPath: '/tmp/test.patch.yml',
       toolNameMap: Object.fromEntries(opts.tools.map((t) => [t.name, `mcp__eaa-test__${t.name}`])),
+      pluginEndpoints: [],
       endpoint: { url: 'http://127.0.0.1:1/mcp/x', token: 't', toolCount: opts.tools.length },
       release: async () => {},
       _delegateTool: delegateTool,

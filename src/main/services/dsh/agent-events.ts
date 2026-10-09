@@ -24,7 +24,13 @@ import type {
 } from '@main/services/llm-contracts'
 import type { TokenUsage } from '@shared/types/ai'
 import { DSH_TURN_ABORTED, DSH_TURN_ERROR } from './stream-mapper'
-import type { DshAssistantMessage, DshSessionEvent, DshTokenUsage } from './wire-types'
+import {
+  type DshAssistantMessage,
+  type DshSessionEvent,
+  type DshTokenUsage,
+  dshTurnEndKind,
+  dshTurnFailureText,
+} from './wire-types'
 
 export interface DshAgentTurnInit {
   model: Model<Api>
@@ -66,6 +72,8 @@ function parseArgs(raw: string): unknown {
 export class DshAgentEventProjector {
   private contentIndex = 0
   private text = ''
+  /** callId → 工具名。tool/result 的官方消息没有 toolName。 */
+  private readonly toolNames = new Map<string, string>()
   private readonly init: DshAgentTurnInit
   private readonly turn: ProjectedTurn = {
     messages: [],
@@ -121,6 +129,7 @@ export class DshAgentEventProjector {
 
       case 'tool/call': {
         const { callId, name, arguments: args } = event.data
+        this.toolNames.set(callId, name)
         return [
           {
             type: 'tool_execution_start',
@@ -134,11 +143,12 @@ export class DshAgentEventProjector {
       case 'tool/result': {
         const message = event.data.message
         if (!message) return []
+        const toolName = message.toolName || this.toolNames.get(message.toolCallId) || ''
         return [
           {
             type: 'tool_execution_end',
             toolCallId: message.toolCallId,
-            toolName: message.toolName,
+            toolName,
             result: { content: message.content, details: message.details },
             isError: !!(event.data.error ?? message.isError),
           },
@@ -146,12 +156,24 @@ export class DshAgentEventProjector {
       }
 
       case 'turn/end': {
-        const reason = event.data.reason
-        if (reason === 'aborted') this.turn.aborted = true
-        if (reason === 'error') this.turn.failed = true
+        const kind = dshTurnEndKind(event.data.reason)
         // turn_end 必须发：collector 的 stats.turnCount 由它累加，而
         // runContinuationLoop 用 turnCount 判断「模型是否过早收工」。
         // 漏掉它会让 dsh 路径每轮都被判为过早结束而反复续跑。
+        // stopReason 必须写进这条消息：execution 只看 turn_end.message，
+        // 不看 projector.result。不写的话，供应商失败会被记成 success。
+        if (kind === 'aborted') {
+          this.turn.aborted = true
+          return this.closingEvents({ stopReason: 'aborted' })
+        }
+        if (kind === 'error') {
+          this.turn.failed = true
+          const detail = dshTurnFailureText(event.data.reason)
+          return this.closingEvents({
+            stopReason: 'error',
+            errorMessage: detail ? `${DSH_TURN_ERROR}: ${detail}` : DSH_TURN_ERROR,
+          })
+        }
         return this.closingEvents()
       }
 
@@ -177,11 +199,13 @@ export class DshAgentEventProjector {
       cacheReadTokens: this.turn.usage.cacheReadTokens + usage.cacheReadTokens,
       cacheWriteTokens: this.turn.usage.cacheWriteTokens + usage.cacheWriteTokens,
     }
-    // 归档本轮 assistant 消息（agent_end 与落库都取它）
+    // 归档消息带这一步自己的用量。agent_end 会把每条消息的 input/output 相加，
+    // 写累计值会把同一步算两次，上下文条就一直是 0 或翻倍。
     this.turn.messages.push(
       this.partial({
         content: this.text ? [{ type: 'text', text: this.text }] : [],
         stopReason: data.interrupted ? 'aborted' : 'stop',
+        usage: piUsage(usage),
       }),
     )
     return out
@@ -191,9 +215,12 @@ export class DshAgentEventProjector {
    * 供调用方在流被外部错误打断时标记（此时不会再有 turn/end 可依）。
    * 与 markAbort 一样要回传收尾事件：pi 路径的每一轮都以 agent_end 结束。
    */
-  markFailure(): AgentEvent[] {
+  markFailure(message?: string): AgentEvent[] {
     this.turn.failed = true
-    return this.closingEvents()
+    return this.closingEvents({
+      stopReason: 'error',
+      errorMessage: message?.trim() ? message : DSH_TURN_ERROR,
+    })
   }
 
   /**
@@ -204,13 +231,22 @@ export class DshAgentEventProjector {
    */
   markAbort(): AgentEvent[] {
     this.turn.aborted = true
-    return this.closingEvents()
+    return this.closingEvents({ stopReason: 'aborted' })
   }
 
-  private closingEvents(): AgentEvent[] {
+  private closingEvents(stamp?: {
+    stopReason: 'error' | 'aborted'
+    errorMessage?: string
+  }): AgentEvent[] {
     const last = this.turn.messages[this.turn.messages.length - 1]
+    const message = last ?? this.partial()
+    if (stamp) {
+      message.stopReason = stamp.stopReason
+      if (stamp.errorMessage) message.errorMessage = stamp.errorMessage
+      if (!last) this.turn.messages.push(message)
+    }
     return [
-      { type: 'turn_end', message: last ?? this.partial(), toolResults: [] },
+      { type: 'turn_end', message, toolResults: [] },
       // agent_end 是 collector 的收尾信号；aborted/error 也照常发出，
       // 由调用方读 result.aborted/failed 决定落库状态（与 pi 路径同结构）
       { type: 'agent_end', messages: this.turn.messages },
@@ -236,12 +272,17 @@ function zeroUsage(): TokenUsage {
 
 /** AssistantMessage.usage 是 pi 的 Usage 形状（input/output/...），非 TokenUsage */
 function emptyPiUsage(): AssistantMessage['usage'] {
+  return piUsage(zeroUsage())
+}
+
+function piUsage(usage: TokenUsage): AssistantMessage['usage'] {
   return {
-    input: 0,
-    output: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    totalTokens: 0,
+    input: usage.inputTokens,
+    output: usage.outputTokens,
+    cacheRead: usage.cacheReadTokens,
+    cacheWrite: usage.cacheWriteTokens,
+    totalTokens:
+      usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheWriteTokens,
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
   }
 }

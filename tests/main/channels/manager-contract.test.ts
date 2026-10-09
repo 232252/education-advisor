@@ -126,6 +126,40 @@ describe('ChannelManager 契约', () => {
     expect(demo?.enabled).toBe(true)
   })
 
+  it('dsh-im 已接管的频道不再由本进程连接', async () => {
+    class FeishuFake extends FakeAdapter {
+      override readonly id = 'feishu'
+      override readonly manifest = { ...DEMO_MANIFEST, id: 'feishu', label: '飞书' }
+    }
+    const adapter = new FeishuFake()
+    channelManager.register(() => adapter)
+    mocks.settings.channels.feishu = { enabled: true, mode: 'ws' }
+    mocks.secrets['feishu-token'] = 'placeholder-not-real'
+    const demo = mocks.settings.channels.demo
+    mocks.settings.channels.demo = { enabled: false, mode: 'ws' }
+    await channelManager.start('feishu')
+    await channelManager.autoStart()
+    mocks.settings.channels.demo = demo
+    expect(adapter.connectCalls).toBe(0)
+  })
+
+  it('邮件也由 dsh-im 接管，本进程不再连接', async () => {
+    class EmailFake extends FakeAdapter {
+      override readonly id = 'email'
+      override readonly manifest = { ...DEMO_MANIFEST, id: 'email', label: '邮件' }
+    }
+    const adapter = new EmailFake()
+    channelManager.register(() => adapter)
+    mocks.settings.channels.email = { enabled: true, mode: 'imap' }
+    mocks.secrets['email-token'] = 'placeholder-not-real'
+    const demo = mocks.settings.channels.demo
+    mocks.settings.channels.demo = { enabled: false, mode: 'ws' }
+    await channelManager.start('email')
+    await channelManager.autoStart()
+    mocks.settings.channels.demo = demo
+    expect(adapter.connectCalls).toBe(0)
+  })
+
   it('未配置时 start() 抛错;配置后 start() 注入 ctx(config + getSecret)', async () => {
     mocks.settings.channels.demo = { enabled: true, mode: '' }
     await expect(channelManager.start('demo')).rejects.toThrow(/未配置/)
@@ -168,6 +202,27 @@ describe('ChannelManager 契约', () => {
     const result = await channelManager.test('demo')
     expect(result.ok).toBe(true)
     expect(adapter.validateConfig).toHaveBeenCalled()
+  })
+
+  it('必填端口是数字时算已配置', () => {
+    class PortFake extends FakeAdapter {
+      override readonly id = 'meter'
+      override readonly manifest = {
+        ...DEMO_MANIFEST,
+        id: 'meter',
+        label: '计量',
+        configSchema: [
+          { name: 'host', label: '主机', type: 'string' as const, required: true },
+          { name: 'port', label: '端口', type: 'number' as const, required: true },
+        ],
+      }
+    }
+    channelManager.register(() => new PortFake())
+    const channels = mocks.settings.channels as Record<string, Record<string, unknown>>
+    channels.meter = { enabled: true, host: '', port: 1883 }
+    expect(channelManager.list().find((c) => c.manifest.id === 'meter')?.configured).toBe(false)
+    channels.meter = { enabled: true, host: '127.0.0.1', port: 1883 }
+    expect(channelManager.list().find((c) => c.manifest.id === 'meter')?.configured).toBe(true)
   })
 
   it('未知渠道 start/test 报错', async () => {

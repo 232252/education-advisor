@@ -29,6 +29,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     currentProvider: '',
     currentModelContext: 0,
     currentModelMaxOutput: 0,
+    currentModelReasoningLevels: null,
     thinkingLevel: 'off',
     lastUsage: null,
     lastCost: 0,

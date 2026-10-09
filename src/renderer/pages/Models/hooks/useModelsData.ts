@@ -60,6 +60,8 @@ export function useModelsData() {
   // Ref mirror of apiKeyInputs so handleTestConnection can stay stable (deps: [])
   const apiKeyInputsRef = useRef(apiKeyInputs)
   apiKeyInputsRef.current = apiKeyInputs
+  const providersRef = useRef(providers)
+  providersRef.current = providers
 
   // 展开 Provider 时加载模型列表（跳过已在加载中的 provider）
   // ensureLoaded 内部做缓存 + inflight 双重守卫
@@ -78,8 +80,10 @@ export function useModelsData() {
   // 测试连接
   const handleTestConnection = useCallback(
     async (providerId: string) => {
-      const apiKey = apiKeyInputsRef.current[providerId]
-      if (!apiKey) {
+      const typed = (apiKeyInputsRef.current[providerId] ?? '').trim()
+      const saved = providersRef.current.some((p) => p.id === providerId && p.hasApiKey)
+      // 输入框为空时，已保存的密钥留在本机保险库。主进程会用那把密钥探测。
+      if (!typed && !saved) {
         setTestResults((p) => ({ ...p, [providerId]: testState('info', 'page.models.test.noKey') }))
         return
       }
@@ -88,9 +92,9 @@ export function useModelsData() {
         [providerId]: testState('testing', 'page.models.test.testing'),
       }))
       try {
-        const result = await getAPI().ai.testConnection(providerId, apiKey)
+        const result = await getAPI().ai.testConnection(providerId, typed)
         if (result.success) {
-          await getAPI().ai.setApiKey(providerId, apiKey)
+          if (typed) await getAPI().ai.setApiKey(providerId, typed)
           setTestResults((p) => ({
             ...p,
             [providerId]: testState('ok', 'page.models.test.ok', {

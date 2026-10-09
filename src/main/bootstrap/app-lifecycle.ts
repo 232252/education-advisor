@@ -3,6 +3,8 @@
 // (协议处理/日志/主题/db/窗口/IPC 注册/cron/飞书自启/托盘/更新检查)
 // =============================================================
 
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import { debug } from '@shared/debug'
 import { app, BrowserWindow } from 'electron'
@@ -11,6 +13,7 @@ import { initAutoBackup } from '../services/backup-service'
 import { channelManager } from '../services/channels/manager'
 import { cronService } from '../services/cron-service'
 import { dbService } from '../services/db-service'
+import { configureDshNode } from '../services/dsh/dsh-node'
 import { configureDshCredentials } from '../services/dsh/provider-patch'
 import { configureDshRuntime, resolveDshEntryPath } from '../services/dsh/runtime'
 import { ensureActiveEaaToolBridge, stopActiveEaaToolBridge } from '../services/dsh/tool-bridge'
@@ -61,11 +64,21 @@ export async function startApp(): Promise<void> {
   // dshBin 同样必须在这里注入：打包态主进程在 app.asar 内,而 SDK 起的纯 node
   // 子进程读不到归档,只能给它归档外(app.asar.unpacked)的真实路径。
   const dshBin = resolveDshEntryPath(app.getAppPath())
+  const nodeFile = process.platform === 'win32' ? 'node.exe' : 'node'
+  const packagedNode = join(process.resourcesPath, 'dsh-node', nodeFile)
+  const devNode = join(app.getAppPath(), 'vendor', 'dsh-node', nodeFile)
+  configureDshNode(
+    existsSync(packagedNode) ? packagedNode : existsSync(devNode) ? devNode : undefined,
+  )
   configureDshRuntime({
     cwd: app.getPath('userData'),
     dshBin,
     // patch 里钉住的那条路由要带 models 条目，模型字段以 app 的 pi 目录为准
     routeModel: (route, modelId) => resolveModel(route, modelId),
+    sdkHome: join(app.getPath('userData'), 'dsh-sdk-home'),
+    toolsDir: app.isPackaged
+      ? join(process.resourcesPath, 'eaa-tools')
+      : join(app.getAppPath(), 'vendor', 'eaa-tools'),
   })
   if (!dshBin) {
     log(
@@ -105,19 +118,14 @@ export async function startApp(): Promise<void> {
     // ⇒ 启动时算一次缓存。环境变量本身也是进程启动时就固定的，不会有滞后。
     envKeyedProviders: () => envKeyedProviderIds,
   })
-  // 只有 dsh 后端需要工具桥：把 app 的 eaa 工具经 MCP streamable-http 暴露给
-  // dsh 子进程（SDK 本身没有注册工具的入口）。缺省 pi 后端时完全不起服务。
-  // 这里只起监听、不挂任何端点 —— 每次 agent 运行按该角色工具集挂一个端点。
-  if (settingsService.getSettings().models?.agentRuntime !== 'pi') {
-    try {
-      const bridge = await ensureActiveEaaToolBridge({ patchDir: app.getPath('userData') })
-      // 只记端口：token 在 patch 文件里，不进日志
-      log('info', 'main', `[Startup] eaa 工具桥已就绪 :${bridge.port}（端点按 agent 运行挂载）`)
-    } catch (err) {
-      log('error', 'main', `[Startup] eaa 工具桥启动失败: ${errText(err)}`)
-    }
+  // 教师对话固定走 dsh。旧设置里的 agentRuntime=pi 不再跳过工具桥。
+  try {
+    const bridge = await ensureActiveEaaToolBridge({ patchDir: app.getPath('userData') })
+    // 只记端口：token 在 patch 文件里，不进日志
+    log('info', 'main', `[Startup] eaa 工具桥已就绪 :${bridge.port}（端点按 agent 运行挂载）`)
+  } catch (err) {
+    log('error', 'main', `[Startup] eaa 工具桥启动失败: ${errText(err)}`)
   }
-  // 运行中把后端从 pi 切到 dsh 时，桥由 execution 按需起；这里统一负责收尾
   app.once('before-quit', () => {
     void stopActiveEaaToolBridge()
   })
@@ -269,8 +277,8 @@ export async function startApp(): Promise<void> {
   // 启动自动备份调度(每小时检查一次设置,到期则备份并清理旧备份)
   initAutoBackup()
 
-  // M4: 已配置且开关打开的消息频道自动启动(飞书长连接,无需公网地址)
-  // 经 ChannelManager 统一链路(注册表/状态聚合/五态派生)
+  // 飞书、企微、钉钉、QQ、微信等由 dsh-im 接入，这里不再拉起那批旧适配器。
+  // 插件没覆盖的本机频道仍按原逻辑自启。
   try {
     channelManager.setWindow(win)
     await channelManager.autoStart()

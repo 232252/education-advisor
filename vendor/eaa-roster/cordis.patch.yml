@@ -1,0 +1,13 @@
+# 没有地址时整段关掉。有地址时必须连上，连不上就不要假装能办花名册的事。
+- insert:
+    - id: eaa-roster
+      name: '@deepseek-ai/dsh-mcp-client'
+      disabled: !!js "!process.env.EAA_ROSTER_MCP_URL"
+      config:
+        transport: streamable-http
+        serverName: roster
+        url: !!js "process.env.EAA_ROSTER_MCP_URL || 'http://127.0.0.1:9/mcp/unused'"
+        headers:
+          authorization: !!js "process.env.EAA_ROSTER_MCP_TOKEN ? 'Bearer ' + process.env.EAA_ROSTER_MCP_TOKEN : 'Bearer unused'"
+        toolCallTimeoutMs: 120000
+        failOnStartupError: true

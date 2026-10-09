@@ -11,6 +11,7 @@ import type { ChannelsAPI } from '@shared/api/channels'
 import type { ChatAPI } from '@shared/api/chat'
 import type { ClassAPI } from '@shared/api/class'
 import type { CronAPI } from '@shared/api/cron'
+import type { DshImAPI } from '@shared/api/dsh-im'
 import type { EaaAPI } from '@shared/api/eaa'
 import type { FeishuAPI } from '@shared/api/feishu'
 import type { GradingAPI } from '@shared/api/grading'
@@ -50,6 +51,7 @@ export interface WindowAPI {
   feishu: FeishuAPI
   // 阶段 1 频道化: 消息频道/连接中心 API
   channels: ChannelsAPI
+  dshIm: DshImAPI
   // 全量数据备份/恢复
   backup: BackupAPI
   sys: SysAPI

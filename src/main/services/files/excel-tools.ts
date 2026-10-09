@@ -176,7 +176,7 @@ export const writeExcelTool: AgentTool<typeof writeExcelParams> = {
   name: 'write_excel',
   label: '写入 Excel',
   description:
-    '创建或覆盖一个 Excel 文件（.xlsx），写入指定的工作表、表头和数据行。你运行在用户本地桌面，拥有完整文件系统权限，不是沙箱环境。',
+    '创建或覆盖一个 Excel 文件（.xlsx），写入指定的工作表、表头和数据行。用本工具写教师给出的路径。',
   parameters: writeExcelParams,
   execute: async (_toolCallId, params, signal) => {
     // F1 修复: 入口协作式中止(见 readExcelTool 注释)

@@ -1,7 +1,7 @@
 // =============================================================
 // usePluginsOverview — 插件中心概览数据加载
-// 复用各能力的现有 API 拉取概览计数,不发明新 IPC 通道
-// 逻辑自 tabs/PluginsTab.tsx 逐字搬移,行为不变
+// 复用各能力的现有 API 拉取概览计数,不发明新 IPC 通道。
+// 聊天登录在 dsh-im，这里不再查询旧频道适配器。
 // =============================================================
 
 import { useEffect } from 'react'
@@ -10,7 +10,6 @@ import { tr } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import {
   type CronOverview,
-  type FeishuOverview,
   isPluginsAllEmpty,
   type McpOverview,
   type OllamaOverview,
@@ -20,7 +19,6 @@ const FALLBACKS = {
   mcp: null as McpOverview | null,
   skillsCount: 0,
   cron: null as CronOverview | null,
-  feishu: null as FeishuOverview | null,
   ollama: null as OllamaOverview | null,
 }
 
@@ -64,15 +62,6 @@ export function usePluginsOverview() {
           }).length,
         }
       },
-      // 飞书频道状态(channels:list 派生;阶段 2 起 bot 状态统一走连接中心)
-      feishu: async (): Promise<FeishuOverview> => {
-        const list = await api.channels.list()
-        const info = (Array.isArray(list) ? list : []).find(
-          (i) => (i as { manifest?: { id?: string } })?.manifest?.id === 'feishu',
-        ) as { status?: { status?: string } } | undefined
-        const status = info?.status?.status ?? null
-        return { status }
-      },
       // Ollama 本地模型
       ollama: async (): Promise<OllamaOverview> => {
         const info = await api.ollama.detect()
@@ -95,7 +84,7 @@ export function usePluginsOverview() {
     { fallbacks: FALLBACKS },
   )
 
-  const { mcp, skillsCount, cron, feishu, ollama } = data
+  const { mcp, skillsCount, cron, ollama } = data
   // 收集错误(文案保持原样;日志仅在错误集合变化时打一次)
   const failedReasons = Object.values(errors)
   const errorMsg =
@@ -109,15 +98,14 @@ export function usePluginsOverview() {
     }
   }, [errors])
 
-  // 判定是否"全部空"——MCP 禁用 + 技能 0 + cron 0 + 飞书未连 + ollama 未跑
-  const allEmpty = isPluginsAllEmpty(mcp, skillsCount, cron, feishu, ollama)
+  // 聊天登录在 dsh-im，不再把旧频道适配器的飞书状态算进「是不是空的」
+  const allEmpty = isPluginsAllEmpty(mcp, skillsCount, cron, null, ollama)
 
   return {
     loading,
     mcp,
     skillsCount,
     cron,
-    feishu,
     ollama,
     errorMsg,
     loadAll,

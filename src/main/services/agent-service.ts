@@ -1,5 +1,5 @@
 // =============================================================
-// Agent Service — pi-agent-core 驱动的 Agent 运行时（编排层）
+// Agent Service — dsh 驱动的 Agent 运行时（编排层）
 // 每个 Agent 执行时创建 Agent 实例，连接 EAA 工具集
 //
 // 结构说明(纯重构拆分,行为零变化):
@@ -40,6 +40,7 @@ import { buildAgentConfig, type RawAgentEntry } from './agent/config'
 import type { DelegateToolDeps } from './agent/delegate-tool'
 import type { EscalationToolDeps } from './agent/escalation-tool'
 import { executeAgentRun } from './agent/execution'
+import type { PrivacyGuard } from './agent/privacy-guard'
 import {
   loadProjectContext,
   loadRules,
@@ -368,6 +369,29 @@ class AgentService {
     return loadSharedRules(this.agentsDir)
   }
 
+  /** 项目背景，和教师对话注入的是同一份。 */
+  getProjectContext(): string {
+    return loadProjectContext(this.agentsDir)
+  }
+
+  /**
+   * 连接中心的即时消息和教师对话共用主协调的工具集（含 delegate_to）。
+   * 窗口用来把委托任务的状态送回界面；没有窗口时委托仍然会跑。
+   */
+  buildMainSurfaceTools(win: BrowserWindow | undefined, privacyGuard?: PrivacyGuard) {
+    const config = this.agents.get('main')
+    if (!config) return null
+    return buildAgentTools(
+      config,
+      'main',
+      win,
+      this.delegateBridge,
+      this.escalationBridge,
+      privacyGuard,
+      false,
+    )
+  }
+
   /** 同 setSoul: validateAgentId 防御路径遍历,合法 id 即可写入 */
   setRules(id: string, content: string) {
     return saveRules(this.agentsDir, id, content)
@@ -389,7 +413,7 @@ class AgentService {
   // ===========================================================
 
   // ===========================================================
-  // Agent 执行 — 接入 pi-agent-core
+  // Agent 执行 — DeepSeek Harness（createDshAgent）
   // ===========================================================
 
   /**
@@ -398,7 +422,7 @@ class AgentService {
    */
 
   /**
-   * 手动运行 Agent（通过 pi-agent-core Agent 类）。
+   * 手动运行 Agent（通过 DeepSeek Harness）。
    *
    * 串行队列语义: 同一 agent 已有运行在途时,本次调用排队等待而非抛错。
    * 调用方(chat / cron / feishu / StudentProfile)无需各自实现互斥。
@@ -535,7 +559,7 @@ class AgentService {
 
   /**
    * 应用退出时的优雅关闭:
-   *   1. abort 所有正在运行的 agent(停止 LLM 调用 + 释放 pi-agent-core 资源)
+   *   1. abort 所有正在运行的 agent(停止 LLM 调用并关掉 dsh 子进程)
    *   2. 清空排队队列(避免退出后排队任务出队执行,引用已销毁的 BrowserWindow)
    *   3. 销毁 MCP service(断开所有 MCP server 连接 + 杀掉 stdio 子进程)
    *

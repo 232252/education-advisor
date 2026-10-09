@@ -12,6 +12,7 @@ import { registerBackupHandlers } from './backup-handlers'
 import { registerChannelHandlers } from './channel-handlers'
 import { registerClassHandlers } from './class-handlers'
 import { registerCronHandlers } from './cron-handlers'
+import { registerDshImHandlers } from './dsh-im-handlers'
 import { registerEAAHandlers } from './eaa-handlers'
 import { registerFeishuHandlers } from './feishu-handlers'
 import { registerGradingHandlers } from './grading-handlers'
@@ -37,6 +38,7 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerSettingsHandlers(win)
   registerSysHandlers(win)
   registerChannelHandlers(win)
+  registerDshImHandlers(win)
   registerReportsHandlers()
   registerProfileHandlers()
   registerLogHandlers()

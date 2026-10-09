@@ -13,7 +13,13 @@
 // =============================================================
 
 import type { StreamEvent, TokenUsage } from '@shared/types/ai'
-import type { DshAssistantStreamRecord, DshSessionEvent, DshTokenUsage } from './wire-types'
+import {
+  type DshAssistantStreamRecord,
+  type DshSessionEvent,
+  type DshTokenUsage,
+  dshTurnEndKind,
+  dshTurnFailureText,
+} from './wire-types'
 
 /**
  * turn/end 失败原因的机器可读标识：StreamEvent.error 只有 message 字段，
@@ -94,13 +100,16 @@ export function mapDshSessionEvent(event: DshSessionEvent): StreamEvent[] {
     }
 
     case 'turn/end': {
-      const reason = event.data.reason
-      // 与 pi 链路同源：aborted 可重试；error 交给上层重试策略
-      if (reason === 'aborted' || reason === 'error') {
+      const kind = dshTurnEndKind(event.data.reason)
+      // aborted 必须保持字面量：批改用它还原 stopReason。error 附上供应商原文，
+      // 否则连接测试分不清 401 和套餐未开放，对话里也只剩一句「dsh turn error」。
+      if (kind === 'aborted' || kind === 'error') {
+        const base = kind === 'aborted' ? DSH_TURN_ABORTED : DSH_TURN_ERROR
+        const detail = kind === 'error' ? dshTurnFailureText(event.data.reason) : ''
         return [
           {
             type: 'error',
-            message: reason === 'aborted' ? DSH_TURN_ABORTED : DSH_TURN_ERROR,
+            message: detail ? `${base}: ${detail}` : base,
             retryable: true,
           },
         ]

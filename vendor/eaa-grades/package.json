@@ -1,0 +1,13 @@
+{
+  "name": "@education-advisor/eaa-grades",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "成绩导入与学业查询。地址和令牌由宿主经环境变量给入，成绩不在这个包里。",
+  "main": "./host.js",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "eaa-dsh-im-panel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Puts the dsh-im management panel in the web sidebar so Education Advisor can iframe it.",
+  "main": "./host.js",
+  "exports": {
+    ".": "./host.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@xmanrui/dsh-im",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    }
+  }
+}

@@ -72,6 +72,9 @@ describe('buildSystemPrompt 新段落注入', () => {
     expect(prompt).toContain('--- 公共规则 ---')
     expect(prompt).toContain('--- 角色规则 ---')
     expect(prompt).toContain('--- 运行环境 ---')
+    expect(prompt).toContain('这个进程没有命令行')
+    expect(prompt).toContain('read_file')
+    expect(prompt).not.toContain('完整的本地文件系统')
   })
 
   it('formatRiskThresholds 输出完整四段标准', () => {

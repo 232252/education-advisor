@@ -284,8 +284,8 @@ function ModelSlotField({
               {tr(
                 'page.models.default.costInOut',
                 {
-                  in: formatCost(modelInfo.costPerInputToken),
-                  out: formatCost(modelInfo.costPerOutputToken),
+                  in: formatCost(modelInfo.costPerInputToken, modelInfo),
+                  out: formatCost(modelInfo.costPerOutputToken, modelInfo),
                 },
                 '输入 {in} / 输出 {out}',
               )}
@@ -306,8 +306,8 @@ function ModelSlotField({
                 'page.models.default.optionCost',
                 {
                   name: m.name,
-                  in: formatCost(m.costPerInputToken),
-                  out: formatCost(m.costPerOutputToken),
+                  in: formatCost(m.costPerInputToken, m),
+                  out: formatCost(m.costPerOutputToken, m),
                 },
                 '{name} (输入 {in} / 输出 {out})',
               )}

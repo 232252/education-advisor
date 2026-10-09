@@ -8,7 +8,7 @@
  * Radius gateway, but any backend implementing it can be used, e.g. via a
  * models.json custom provider with `"api": "pi-messages"`.
  */
-import type { AssistantMessage, SimpleStreamOptions, StreamFunction, StreamOptions, ThinkingLevel, ToolCall } from "../types.ts";
+import type { AssistantMessage, JsonObject, SimpleStreamOptions, StreamFunction, StreamOptions, ThinkingLevel, ToolCall } from "../types.ts";
 export interface PiMessagesOptions extends StreamOptions {
     reasoning?: ThinkingLevel;
     toolChoice?: "auto" | "none" | "required" | {
@@ -90,8 +90,8 @@ export type PiMessagesEvent = {
 };
 export declare class PiMessagesResponseError extends Error {
     code?: string;
-    readonly diagnosticDetails: Record<string, unknown>;
-    constructor(message: string, code: string | undefined, diagnosticDetails: Record<string, unknown>);
+    readonly diagnosticDetails: JsonObject;
+    constructor(message: string, code: string | undefined, diagnosticDetails: JsonObject);
 }
 export declare const stream: StreamFunction<"pi-messages", PiMessagesOptions>;
 export declare const streamSimple: StreamFunction<"pi-messages", SimpleStreamOptions>;

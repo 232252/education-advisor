@@ -1,13 +1,14 @@
 import { clampThinkingLevel } from "../models.js";
 import { registerSessionResourceCleanup } from "../session-resources.js";
 import { combineAbortSignals } from "../utils/abort-signals.js";
-import { splitDeferredTools } from "../utils/deferred-tools.js";
 import { appendAssistantMessageDiagnostic, createAssistantMessageDiagnostic, formatThrownValue, } from "../utils/diagnostics.js";
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { headersToRecord } from "../utils/headers.js";
 import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
 import { getPiUserAgent } from "../utils/pi-user-agent.js";
+import { getSystemMessageText } from "../utils/text.js";
+import { getDeclaredTools, getInitialSystemMessage, normalizeContext, resolveTranscript, resolveTranscriptTools, } from "../utils/transcript.js";
 import { uuidv7 } from "../utils/uuid.js";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
@@ -141,6 +142,7 @@ function compressRequestBodyZstd(bodyJson) {
 // ============================================================================
 export const stream = (model, context, options) => {
     const stream = new AssistantMessageEventStream();
+    const normalizedContext = resolveTranscript(context, model.compat?.supportsMidConvoSystemMessages);
     (async () => {
         const output = {
             role: "assistant",
@@ -165,10 +167,10 @@ export const stream = (model, context, options) => {
                 throw new Error(`No API key for provider: ${model.provider}`);
             }
             const accountId = extractAccountId(apiKey);
-            const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, model.compat?.supportsOpenAIGrammarTools ?? false);
+            const grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(normalizedContext.messages), model.compat?.supportsOpenAIGrammarTools ?? false);
             const cacheSessionId = options?.cacheRetention === "none" ? undefined : options?.sessionId;
             const codexSessionId = clampOpenAIPromptCacheKey(cacheSessionId);
-            let body = buildRequestBody(model, context, options, codexSessionId, grammarToolInputProperties);
+            let body = buildRequestBody(model, normalizedContext, options, codexSessionId, grammarToolInputProperties);
             const nextBody = await options?.onPayload?.(body, model);
             if (nextBody !== undefined) {
                 body = nextBody;
@@ -228,7 +230,7 @@ export const stream = (model, context, options) => {
                         }
                         appendAssistantMessageDiagnostic(output, createAssistantMessageDiagnostic("provider_transport_failure", error, {
                             configuredTransport: transport,
-                            fallbackTransport: websocketStarted ? undefined : "sse",
+                            ...(websocketStarted ? {} : { fallbackTransport: "sse" }),
                             eventsEmitted: websocketStarted,
                             phase: websocketStarted ? "after_message_stream_start" : "before_message_stream_start",
                             requestBytes: new TextEncoder().encode(bodyJson).byteLength,
@@ -368,31 +370,27 @@ export const streamSimple = (model, context, options) => {
 // ============================================================================
 // Request Building
 // ============================================================================
-function buildRequestBody(model, context, options, cacheSessionId, grammarToolInputProperties = createGrammarToolInputProperties(context.tools, model.compat?.supportsOpenAIGrammarTools ?? false)) {
+function buildRequestBody(model, context, options, cacheSessionId, grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(context.messages), model.compat?.supportsOpenAIGrammarTools ?? false)) {
     const supportsStrictMode = model.compat?.supportsStrictMode ?? true;
     const supportsOpenAIGrammarTools = model.compat?.supportsOpenAIGrammarTools ?? false;
-    const deferredToolsMode = model.compat?.supportsAdditionalTools
-        ? "additional-tools"
-        : model.compat?.supportsToolSearch
-            ? "tool-search"
-            : undefined;
-    const toolPlacement = splitDeferredTools(context, deferredToolsMode !== undefined);
+    const supportsAdditionalTools = model.compat?.supportsAdditionalTools ?? false;
+    const supportsToolSearch = model.compat?.supportsToolSearch ?? false;
+    const transcriptTools = resolveTranscriptTools(context.messages, supportsAdditionalTools || supportsToolSearch);
     const messages = convertResponsesMessages(model, context, CODEX_TOOL_CALL_PROVIDERS, {
         includeSystemPrompt: false,
         grammarToolInputProperties,
-        deferredTools: toolPlacement.deferred,
-        deferredToolsMode,
-        toolOptions: {
-            strict: null,
-            supportsStrictMode,
-            supportsOpenAIGrammarTools,
-        },
+        supportsMidConvoSystemMessages: model.compat?.supportsMidConvoSystemMessages ?? false,
+        supportsAdditionalTools,
+        supportsToolSearch,
+        toolOptions: { strict: null, supportsStrictMode, supportsOpenAIGrammarTools },
     });
+    const initialSystemMessage = getInitialSystemMessage(context.messages);
+    const instructions = initialSystemMessage ? getSystemMessageText(initialSystemMessage) : "";
     const body = {
         model: model.id,
         store: false,
         stream: true,
-        instructions: context.systemPrompt || "You are a helpful assistant.",
+        instructions: instructions || "You are a helpful assistant.",
         input: messages,
         text: { verbosity: options?.textVerbosity || "low" },
         include: ["reasoning.encrypted_content"],
@@ -406,8 +404,8 @@ function buildRequestBody(model, context, options, cacheSessionId, grammarToolIn
     if (options?.serviceTier !== undefined) {
         body.service_tier = options.serviceTier;
     }
-    if (toolPlacement.immediate.length > 0) {
-        body.tools = convertResponsesTools(toolPlacement.immediate, {
+    if (transcriptTools.requestTools.length > 0) {
+        body.tools = convertResponsesTools(transcriptTools.requestTools, {
             strict: null,
             supportsStrictMode,
             supportsOpenAIGrammarTools,
@@ -415,7 +413,9 @@ function buildRequestBody(model, context, options, cacheSessionId, grammarToolIn
     }
     if (options?.reasoningEffort !== undefined) {
         const effort = options.reasoningEffort === "none"
-            ? (model.thinkingLevelMap?.off ?? "none")
+            ? model.thinkingLevelMap?.off === undefined
+                ? "none"
+                : model.thinkingLevelMap.off
             : (model.thinkingLevelMap?.[options.reasoningEffort] ?? options.reasoningEffort);
         if (effort !== null) {
             body.reasoning = {
@@ -423,6 +423,9 @@ function buildRequestBody(model, context, options, cacheSessionId, grammarToolIn
                 summary: options.reasoningSummary ?? "auto",
             };
         }
+    }
+    else if (model.reasoning && model.thinkingLevelMap?.off !== null) {
+        body.reasoning = { effort: model.thinkingLevelMap?.off ?? "none" };
     }
     return body;
 }
@@ -1193,7 +1196,7 @@ async function processWebSocketStream(url, body, headers, output, stream, model,
             keepConnection = false;
         }
         else if (useCachedContext && entry && output.responseId) {
-            const responseItems = convertResponsesMessages(model, { messages: [output] }, CODEX_TOOL_CALL_PROVIDERS, {
+            const responseItems = convertResponsesMessages(model, normalizeContext({ messages: [output] }), CODEX_TOOL_CALL_PROVIDERS, {
                 includeSystemPrompt: false,
                 grammarToolInputProperties,
             }).filter((item) => item.type !== "function_call_output" && item.type !== "custom_tool_call_output");

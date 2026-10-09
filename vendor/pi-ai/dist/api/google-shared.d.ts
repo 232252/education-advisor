@@ -1,8 +1,8 @@
 /**
  * Shared utilities for Google Generative AI and Google Vertex providers.
  */
-import { type Content, FinishReason, FunctionCallingConfigMode, type Part } from "@google/genai";
-import type { Context, Model, ModelThinkingLevel, StopReason, StreamOptions, ThinkingLevel, Tool } from "../types.ts";
+import { type Content, FinishReason, FunctionCallingConfigMode, ThinkingLevel as GoogleSdkThinkingLevel, type Part, type ThinkingConfig } from "@google/genai";
+import type { Model, StopReason, StreamOptions, ThinkingLevel, Tool, TranscriptContext } from "../types.ts";
 type GoogleApiType = "google-generative-ai" | "google-vertex";
 /**
  * Thinking level for Gemini 3 models.
@@ -11,7 +11,16 @@ type GoogleApiType = "google-generative-ai" | "google-vertex";
 export type GoogleApiThinkingLevel = "THINKING_LEVEL_UNSPECIFIED" | "MINIMAL" | "LOW" | "MEDIUM" | "HIGH";
 export type ResolvedGoogleThinkingLevel = Exclude<ThinkingLevel, "xhigh" | "max">;
 /** Resolve a supported pi level or model-specific Google mapping to a standard Google level. */
-export declare function resolveGoogleThinkingLevel<T extends GoogleApiType>(model: Model<T>, level: ModelThinkingLevel): ResolvedGoogleThinkingLevel;
+export declare function resolveGoogleThinkingLevel<T extends GoogleApiType>(model: Model<T>, level: ThinkingLevel): ResolvedGoogleThinkingLevel;
+/**
+ * Whether this model uses Gemini's discrete `thinkingLevel` control instead of
+ * the token-based `thinkingBudget` control. Supported levels come from the
+ * model's `thinkingLevelMap`; this only selects the Google wire format.
+ */
+export declare function usesGoogleThinkingLevel<T extends GoogleApiType>(model: Model<T>): boolean;
+export declare function toGoogleThinkingLevel(level: ResolvedGoogleThinkingLevel): GoogleApiThinkingLevel;
+export declare function toGoogleSdkThinkingLevel(level: GoogleApiThinkingLevel): GoogleSdkThinkingLevel;
+export declare function getDisabledGoogleThinkingConfig<T extends GoogleApiType>(model: Model<T>): ThinkingConfig;
 /**
  * Determines whether a streamed Gemini `Part` should be treated as "thinking".
  *
@@ -45,7 +54,7 @@ export declare function requiresToolCallId(modelId: string): boolean;
 /**
  * Convert internal messages to Gemini Content[] format.
  */
-export declare function convertMessages<T extends GoogleApiType>(model: Model<T>, context: Context): Content[];
+export declare function convertMessages<T extends GoogleApiType>(model: Model<T>, context: TranscriptContext): Content[];
 /**
  * Convert tools to Gemini function declarations format.
  *

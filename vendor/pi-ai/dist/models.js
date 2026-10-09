@@ -4,6 +4,7 @@ import { InMemoryCredentialStore } from "./auth/credential-store.js";
 import { ModelsError, resolveProviderAuth } from "./auth/resolve.js";
 import { InMemoryModelsStore } from "./models-store.js";
 import { operationSignal, raceWithAbortSignal } from "./utils/abort.js";
+import { normalizeContext } from "./utils/transcript.js";
 export { ModelsError } from "./auth/resolve.js";
 function mergeHeaders(base, override) {
     if (!base && !override)
@@ -378,20 +379,22 @@ class ModelsImpl {
         return { requestModel, requestOptions };
     }
     stream(model, context, options) {
+        const transcript = normalizeContext(context);
         return lazyStream(model, async () => {
             const provider = this.requireProvider(model);
             const { requestModel, requestOptions } = await this.applyAuth(model, options);
-            return provider.stream(requestModel, context, requestOptions);
+            return provider.stream(requestModel, transcript, requestOptions);
         });
     }
     async complete(model, context, options) {
         return this.stream(model, context, options).result();
     }
     streamSimple(model, context, options) {
+        const transcript = normalizeContext(context);
         return lazyStream(model, async () => {
             const provider = this.requireProvider(model);
             const { requestModel, requestOptions } = await this.applyAuth(model, options);
-            return provider.streamSimple(requestModel, context, requestOptions);
+            return provider.streamSimple(requestModel, transcript, requestOptions);
         });
     }
     async completeSimple(model, context, options) {

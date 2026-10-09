@@ -29,15 +29,15 @@ export * from "./providers/images/register-builtins.ts";
 import { getBuiltinModel, getBuiltinModels, getBuiltinProviders } from "./providers/all.ts";
 export type { BuiltinProvider } from "./providers/all.ts";
 import { type FauxProviderRegistration, type RegisterFauxProviderOptions } from "./providers/faux.ts";
-import type { Api, AssistantMessage, AssistantMessageEventStream, Context, Model, ProviderStreamOptions, SimpleStreamOptions, StreamFunction, StreamOptions } from "./types.ts";
+import type { Api, AssistantMessage, AssistantMessageEventStream, Context, Model, ProviderStreamOptions, SimpleStreamOptions, StreamFunction, StreamOptions, TranscriptContext } from "./types.ts";
 /** @deprecated Static catalog read. Use `getBuiltinModel` from "@earendil-works/pi-ai/providers/all" or `Models.getModel()`. */
 export declare const getModel: typeof getBuiltinModel;
 /** @deprecated Static catalog read. Use `getBuiltinModels` from "@earendil-works/pi-ai/providers/all" or `Models.getModels()`. */
 export declare const getModels: typeof getBuiltinModels;
 /** @deprecated Static catalog read. Use `getBuiltinProviders` from "@earendil-works/pi-ai/providers/all" or `Models.getProviders()`. */
 export declare const getProviders: typeof getBuiltinProviders;
-export type ApiStreamFunction = (model: Model<Api>, context: Context, options?: StreamOptions) => AssistantMessageEventStream;
-export type ApiStreamSimpleFunction = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AssistantMessageEventStream;
+export type ApiStreamFunction = (model: Model<Api>, context: TranscriptContext, options?: StreamOptions) => AssistantMessageEventStream;
+export type ApiStreamSimpleFunction = (model: Model<Api>, context: TranscriptContext, options?: SimpleStreamOptions) => AssistantMessageEventStream;
 export interface ApiProvider<TApi extends Api = Api, TOptions extends StreamOptions = StreamOptions> {
     api: TApi;
     stream: StreamFunction<TApi, TOptions>;

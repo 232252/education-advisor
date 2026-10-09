@@ -1,26 +1,22 @@
 // =============================================================
-// ChannelsSection — 连接中心(阶段 2 收口: 消息频道 + 数据源集成)
-// 信息架构(实施文档 §4.1 + 阶段 2 迁入):
-//   「消息频道」= 渠道卡片墙(manifest 驱动,飞书/钉钉/…)
-//   「数据源集成」= 出站集成(bitable 同步/教师推送,原 FeishuSection 迁入)
-// 数据: channels:list(挂载拉取) + IPC_CHANNELS_STATUS_UPDATE 订阅实时态;
-// 配置保存走 settings:set(dotPath) — 保存即重连在主进程联动。
+// ChannelsSection — 设置里的连接中心
+// 聊天软件登录走侧栏那块 dsh-im。
+// 多维表格和教师推送仍用这里的开放平台 App ID / Secret。
 // =============================================================
 
-import { resolveCatalogStatus } from '@shared/channel-catalog'
-import type { ChannelInstanceInfo, ChannelStatusInfo, UnifiedSettings } from '@shared/types'
-import { LayoutGrid, Smartphone } from 'lucide-react'
-import { useEffect, useMemo, useReducer, useState } from 'react'
-import { MoreChannelsDrawer } from '../../../components/connection-center/MoreChannelsDrawer'
+import type { UnifiedSettings } from '@shared/types'
+import { Smartphone } from 'lucide-react'
+import { useEffect, useReducer, useState } from 'react'
+import { requestOpenConnectionCenter } from '../../../components/connection-center/open-connection-center'
 import { useT } from '../../../i18n'
-import { getAPI } from '../../../lib/ipc-client'
+import { INPUT_SM } from '../../../lib/ui-utils'
 import { Section } from '../components'
 import { BitableAdvancedSection } from '../components/BitableAdvancedSection'
-import { FeishuNetworkDiagnostics } from '../components/FeishuNetworkDiagnostics'
+import { SecretInput } from '../components/SecretInput'
+import { SettingRow } from '../components/SettingRow'
 import { ToggleSettingRow } from '../components/ToggleSettingRow'
 import type { BitListAction, BitListStatus } from '../hooks/useBitableList'
-import { ChannelCard } from './ChannelCard'
-import { ChannelConfigPanel } from './ChannelConfigPanel'
+import { LocalChannelCards } from './LocalChannelCards'
 
 interface ChannelsSectionProps {
   settings: UnifiedSettings
@@ -38,10 +34,6 @@ function bitListReducer(state: BitListStatus, action: BitListAction): BitListSta
 
 export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
   const { t } = useT()
-  const [instances, setInstances] = useState<ChannelInstanceInfo[]>([])
-  const [liveStatus, setLiveStatus] = useState<Record<string, ChannelStatusInfo>>({})
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [moreOpen, setMoreOpen] = useState(false)
 
   // 数据源集成(bitable)本地编辑态(原 FeishuSection 迁入)
   const [bitableAppToken, setBitableAppToken] = useState<string>(
@@ -52,39 +44,14 @@ export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
   }, [settings.feishu?.bitableAppToken])
   const [bitableListStatus, dispatchBitList] = useReducer(bitListReducer, 'idle')
   const [bitableListInfo, setBitableListInfo] = useState<string>('')
-
-  // 挂载拉取渠道目录 + 订阅状态变化(卸载时取消订阅防泄漏)
+  const [appId, setAppId] = useState(settings.feishu?.appId ?? '')
+  const [appSecret, setAppSecret] = useState(settings.feishu?.appSecret ?? '')
+  const [userOpenId, setUserOpenId] = useState(settings.feishu?.userOpenId ?? '')
   useEffect(() => {
-    let disposed = false
-    getAPI()
-      .channels.list()
-      .then((list) => {
-        if (!disposed) setInstances(list)
-      })
-      .catch((err) => console.warn('[ChannelsSection] list failed:', err))
-    const unsub = getAPI().channels.onStatusUpdate((info) => {
-      setLiveStatus((prev) => ({ ...prev, [info.channel]: info }))
-    })
-    return () => {
-      disposed = true
-      unsub()
-    }
-  }, [])
-
-  // 设置保存后刷新派生态(configured/enabled 会变化;轻量重新拉取)
-  useEffect(() => {
-    getAPI()
-      .channels.list()
-      .then((list) => setInstances(list))
-      .catch(() => {})
-  }, [])
-
-  // 主墙:仅已启用可配置渠道(国内优先排序);全量走「更多」Drawer
-  const wallInstances = useMemo(() => {
-    return instances
-      .filter((i) => resolveCatalogStatus(i.manifest) === 'enabled')
-      .sort((a, b) => (a.manifest.priority ?? 999) - (b.manifest.priority ?? 999))
-  }, [instances])
+    setAppId(settings.feishu?.appId ?? '')
+    setAppSecret(settings.feishu?.appSecret ?? '')
+    setUserOpenId(settings.feishu?.userOpenId ?? '')
+  }, [settings.feishu?.appId, settings.feishu?.appSecret, settings.feishu?.userOpenId])
 
   return (
     <Section id="connection" title={t('settings.section.channels', '连接中心')}>
@@ -92,63 +59,19 @@ export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
         <p className="flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3">
           <Smartphone size={13} className="flex-shrink-0 mt-0.5 text-gray-400 dark:text-gray-500" />
           <span>
-            {t(
-              'settings.channels.intro',
-              '让手机/平板上的聊天软件直接指挥这台电脑上的 AI 助教。长连接模式,无需公网 IP。',
-            )}
+            {t('settings.channels.intro', '微信、飞书、企微、钉钉和 QQ 的登录都在 IM 插件里完成。')}
           </span>
         </p>
-        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
-          {wallInstances.map((info) => (
-            <div key={info.manifest.id} id={`channel-${info.manifest.id}`}>
-              <ChannelCard
-                info={info}
-                liveStatus={liveStatus[info.manifest.id]}
-                expanded={expandedId === info.manifest.id}
-                onToggleExpand={() =>
-                  setExpandedId((cur) => (cur === info.manifest.id ? null : info.manifest.id))
-                }
-                onSave={onSave}
-              >
-                <ChannelConfigPanel
-                  info={info}
-                  settings={settings}
-                  onSave={onSave}
-                  extra={info.manifest.id === 'feishu' ? <FeishuNetworkDiagnostics /> : null}
-                />
-              </ChannelCard>
-            </div>
-          ))}
-          {wallInstances.length === 0 && (
-            <p className="text-xs text-gray-400 dark:text-gray-500">
-              {t('settings.channels.empty', '没有可用渠道')}
-            </p>
-          )}
-        </div>
+        <button
+          type="button"
+          data-testid="settings-open-im-plugin"
+          onClick={() => requestOpenConnectionCenter()}
+          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+        >
+          {t('settings.channels.openPlugin', '打开 IM 插件')}
+        </button>
 
-        <div className="mt-3">
-          <button
-            type="button"
-            data-testid="settings-browse-more-channels"
-            onClick={() => setMoreOpen(true)}
-            className="inline-flex items-center gap-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            <LayoutGrid size={14} />
-            {t('connectionCenter.more.browseSettings', '浏览更多频道')}
-          </button>
-        </div>
-        <MoreChannelsDrawer
-          open={moreOpen}
-          onClose={() => setMoreOpen(false)}
-          instances={instances}
-          liveStatus={liveStatus}
-          onConfigure={(id) => {
-            setMoreOpen(false)
-            setExpandedId(id)
-            const el = document.getElementById(`channel-${id}`)
-            el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-          }}
-        />
+        <LocalChannelCards settings={settings} onSave={onSave} />
 
         {/* ===== 数据源集成(出站;原「飞书集成」区迁入,阶段 2 收口) ===== */}
         <div className="mt-5">
@@ -158,9 +81,74 @@ export function ChannelsSection({ settings, onSave }: ChannelsSectionProps) {
           <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-2 leading-relaxed">
             {t(
               'settings.channels.datasource.intro',
-              'AI 结果的出站去向(与消息频道共用飞书凭证):定时同步报告到多维表格、把定时任务结果推送给教师。',
+              '聊天登录在上面的 IM 插件里。这里的 App ID 只给出站：把报告写入多维表格，或把定时结果推给教师。',
             )}
           </p>
+          <div className="rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary shadow-sm mb-3 divide-y divide-gray-200 dark:divide-gray-700/60">
+            <SettingRow
+              label={t('settings.channels.datasource.appId', 'App ID')}
+              path="feishu.appId"
+              description={t(
+                'settings.channels.datasource.appId.desc',
+                '飞书开放平台应用 ID，以 cli_ 开头',
+              )}
+            >
+              <input
+                type="text"
+                value={appId}
+                placeholder="cli_"
+                spellCheck={false}
+                autoComplete="off"
+                onChange={(e) => setAppId(e.target.value)}
+                onBlur={() => {
+                  const next = appId.trim()
+                  if (next !== (settings.feishu?.appId ?? '')) onSave('feishu.appId', next)
+                }}
+                className={`${INPUT_SM} w-48`}
+              />
+            </SettingRow>
+            <SettingRow
+              label={t('settings.channels.datasource.appSecret', 'App Secret')}
+              path="feishu.appSecret"
+              description={t(
+                'settings.channels.datasource.appSecret.desc',
+                '加密存在本机，不会写进设置文件',
+              )}
+            >
+              <SecretInput
+                value={appSecret}
+                onChange={setAppSecret}
+                onBlur={() => {
+                  if (appSecret !== (settings.feishu?.appSecret ?? '')) {
+                    onSave('feishu.appSecret', appSecret.trim())
+                  }
+                }}
+              />
+            </SettingRow>
+            <SettingRow
+              label={t('settings.channels.datasource.openId', '教师 open_id')}
+              path="feishu.userOpenId"
+              description={t(
+                'settings.channels.datasource.openId.desc',
+                '教师推送的接收人。多维表格同步不需要这一项',
+              )}
+            >
+              <input
+                type="text"
+                value={userOpenId}
+                placeholder="ou_"
+                spellCheck={false}
+                autoComplete="off"
+                onChange={(e) => setUserOpenId(e.target.value)}
+                onBlur={() => {
+                  const next = userOpenId.trim()
+                  if (next !== (settings.feishu?.userOpenId ?? ''))
+                    onSave('feishu.userOpenId', next)
+                }}
+                className={`${INPUT_SM} w-48`}
+              />
+            </SettingRow>
+          </div>
           <div className="rounded-xl border border-gray-200/70 dark:border-white/[0.06] bg-white dark:bg-surface-tertiary shadow-sm">
             <div className="px-4 py-3 border-b border-gray-100 dark:border-white/[0.04] flex items-center gap-2">
               <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">

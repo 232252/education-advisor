@@ -119,7 +119,7 @@ export function ModelsPage() {
               onRefreshModels={refreshModels}
             />
 
-            {/* Agent 运行时后端(pi / dsh)+ dsh 路由映射 */}
+            {/* DeepSeek Harness 说明 + dsh 路由映射 */}
             <AgentRuntimeConfig />
 
             {/* AI 批改作业的模型(视觉过滤) */}

@@ -1,4 +1,4 @@
-import { GoogleGenAI, ResourceScope, ThinkingLevel, } from "@google/genai";
+import { GoogleGenAI, ResourceScope, } from "@google/genai";
 import { calculateCost, clampThinkingLevel } from "../models.js";
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
@@ -6,21 +6,17 @@ import { providerHeadersToRecord } from "../utils/headers.js";
 import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
-import { convertMessages, convertTools, isThinkingPart, mapStopReason, resolveGoogleFunctionCallingMode, resolveGoogleThinkingLevel, retainThoughtSignature, retryGoogleRequest, supportsGoogleStrictToolSampling, } from "./google-shared.js";
+import { getSystemMessageText } from "../utils/text.js";
+import { collapseSystemMessages, getCurrentTools, getInitialSystemMessage } from "../utils/transcript.js";
+import { convertMessages, convertTools, getDisabledGoogleThinkingConfig, isThinkingPart, mapStopReason, resolveGoogleFunctionCallingMode, resolveGoogleThinkingLevel, retainThoughtSignature, retryGoogleRequest, supportsGoogleStrictToolSampling, toGoogleSdkThinkingLevel, toGoogleThinkingLevel, usesGoogleThinkingLevel, } from "./google-shared.js";
 import { buildBaseOptions } from "./simple-options.js";
 const API_VERSION = "v1";
 const GCP_VERTEX_CREDENTIALS_MARKER = "gcp-vertex-credentials";
-const THINKING_LEVEL_MAP = {
-    THINKING_LEVEL_UNSPECIFIED: ThinkingLevel.THINKING_LEVEL_UNSPECIFIED,
-    MINIMAL: ThinkingLevel.MINIMAL,
-    LOW: ThinkingLevel.LOW,
-    MEDIUM: ThinkingLevel.MEDIUM,
-    HIGH: ThinkingLevel.HIGH,
-};
 // Counter for generating unique tool call IDs
 let toolCallCounter = 0;
 export const stream = (model, context, options) => {
     const stream = new AssistantMessageEventStream();
+    const normalizedContext = collapseSystemMessages(context);
     (async () => {
         const output = {
             role: "assistant",
@@ -48,7 +44,7 @@ export const stream = (model, context, options) => {
             const client = apiKey
                 ? createClientWithApiKey(model, apiKey, options?.headers)
                 : createClient(model, resolveProject(options), resolveLocation(options), options?.headers, options?.env);
-            let params = buildParams(model, context, options);
+            let params = buildParams(model, normalizedContext, options);
             const nextParams = await options?.onPayload?.(params, model);
             if (nextParams !== undefined) {
                 params = nextParams;
@@ -250,14 +246,19 @@ export const streamSimple = (model, context, options) => {
         });
     }
     const clampedReasoning = clampThinkingLevel(model, options.reasoning);
+    if (clampedReasoning === "off") {
+        return stream(model, context, {
+            ...base,
+            thinking: { enabled: false },
+        });
+    }
     const resolvedLevel = resolveGoogleThinkingLevel(model, clampedReasoning);
-    const geminiModel = model;
-    if (isGemini3ProModel(geminiModel) || isGemini3FlashModel(geminiModel)) {
+    if (usesGoogleThinkingLevel(model)) {
         return stream(model, context, {
             ...base,
             thinking: {
                 enabled: true,
-                level: getGemini3ThinkingLevel(resolvedLevel, geminiModel),
+                level: toGoogleThinkingLevel(resolvedLevel),
             },
         });
     }
@@ -265,7 +266,7 @@ export const streamSimple = (model, context, options) => {
         ...base,
         thinking: {
             enabled: true,
-            budgetTokens: getGoogleBudget(geminiModel, resolvedLevel, options.thinkingBudgets),
+            budgetTokens: getGoogleBudget(model, resolvedLevel, options.thinkingBudgets),
         },
     });
 };
@@ -352,6 +353,8 @@ function resolveLocation(options) {
 }
 function buildParams(model, context, options = {}) {
     const contents = convertMessages(model, context);
+    const initialSystemMessage = getInitialSystemMessage(context.messages);
+    const currentTools = getCurrentTools(context.messages);
     const generationConfig = {};
     if (options.temperature !== undefined) {
         generationConfig.temperature = options.temperature;
@@ -360,15 +363,15 @@ function buildParams(model, context, options = {}) {
         generationConfig.maxOutputTokens = options.maxTokens;
     }
     const supportsStrictMode = supportsGoogleStrictToolSampling(model.id);
-    const functionCallingMode = context.tools?.length
-        ? resolveGoogleFunctionCallingMode(context.tools, options.toolChoice, supportsStrictMode)
+    const functionCallingMode = currentTools.length > 0
+        ? resolveGoogleFunctionCallingMode(currentTools, options.toolChoice, supportsStrictMode)
         : undefined;
+    const systemInstruction = initialSystemMessage ? getSystemMessageText(initialSystemMessage) : "";
     const config = {
         ...(Object.keys(generationConfig).length > 0 && generationConfig),
-        ...(context.systemPrompt && { systemInstruction: sanitizeSurrogates(context.systemPrompt) }),
-        ...(context.tools &&
-            context.tools.length > 0 && {
-            tools: convertTools(context.tools, false, supportsStrictMode),
+        ...(systemInstruction && { systemInstruction: sanitizeSurrogates(systemInstruction) }),
+        ...(currentTools.length > 0 && {
+            tools: convertTools(currentTools, false, supportsStrictMode),
         }),
         ...(functionCallingMode !== undefined && {
             toolConfig: { functionCallingConfig: { mode: functionCallingMode } },
@@ -377,7 +380,7 @@ function buildParams(model, context, options = {}) {
     if (options.thinking?.enabled && model.reasoning) {
         const thinkingConfig = { includeThoughts: true };
         if (options.thinking.level !== undefined) {
-            thinkingConfig.thinkingLevel = THINKING_LEVEL_MAP[options.thinking.level];
+            thinkingConfig.thinkingLevel = toGoogleSdkThinkingLevel(options.thinking.level);
         }
         else if (options.thinking.budgetTokens !== undefined) {
             thinkingConfig.thinkingBudget = options.thinking.budgetTokens;
@@ -385,7 +388,7 @@ function buildParams(model, context, options = {}) {
         config.thinkingConfig = thinkingConfig;
     }
     else if (model.reasoning && options.thinking && !options.thinking.enabled) {
-        config.thinkingConfig = getDisabledThinkingConfig(model);
+        config.thinkingConfig = getDisabledGoogleThinkingConfig(model);
     }
     if (options.signal) {
         if (options.signal.aborted) {
@@ -399,49 +402,6 @@ function buildParams(model, context, options = {}) {
         config,
     };
     return params;
-}
-function isGemini3ProModel(model) {
-    return /gemini-3(?:\.\d+)?-pro/.test(model.id.toLowerCase());
-}
-function isGemini3FlashModel(model) {
-    const id = model.id.toLowerCase();
-    return /gemini-3(?:\.\d+)?-flash/.test(id) || id === "gemini-flash-latest" || id === "gemini-flash-lite-latest";
-}
-function getDisabledThinkingConfig(model) {
-    // Google docs: Gemini 3.1 Pro cannot disable thinking, and Gemini 3 Flash / Flash-Lite
-    // do not support full thinking-off either. For Gemini 3 models, use the lowest supported
-    // thinkingLevel without includeThoughts so hidden thinking remains invisible to pi.
-    const geminiModel = model;
-    if (isGemini3ProModel(geminiModel)) {
-        return { thinkingLevel: ThinkingLevel.LOW };
-    }
-    if (isGemini3FlashModel(geminiModel)) {
-        return { thinkingLevel: ThinkingLevel.MINIMAL };
-    }
-    // Gemini 2.x supports disabling via thinkingBudget = 0.
-    return { thinkingBudget: 0 };
-}
-function getGemini3ThinkingLevel(effort, model) {
-    if (isGemini3ProModel(model)) {
-        switch (effort) {
-            case "minimal":
-            case "low":
-                return "LOW";
-            case "medium":
-            case "high":
-                return "HIGH";
-        }
-    }
-    switch (effort) {
-        case "minimal":
-            return "MINIMAL";
-        case "low":
-            return "LOW";
-        case "medium":
-            return "MEDIUM";
-        case "high":
-            return "HIGH";
-    }
 }
 function getGoogleBudget(model, level, customBudgets) {
     if (customBudgets?.[level] !== undefined) {

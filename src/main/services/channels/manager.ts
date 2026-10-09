@@ -11,6 +11,7 @@
 
 import { EventEmitter } from 'node:events'
 import path from 'node:path'
+import { isDshImChannel } from '@shared/dsh-im-channels'
 import type {
   ChannelInstanceInfo,
   ChannelManifest,
@@ -33,7 +34,8 @@ const SECRET_KEY_OVERRIDES: Record<string, Record<string, string>> = {
   feishu: { appSecret: 'feishu-app-secret' },
 }
 
-function keystoreKeyFor(channelId: string, fieldName: string): string {
+/** 渠道 secret 字段对应的 keystore 键。设置页和连接校验共用这一份。 */
+export function channelKeystoreKey(channelId: string, fieldName: string): string {
   const override = SECRET_KEY_OVERRIDES[channelId]?.[fieldName]
   if (override) return override
   const kebab = fieldName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
@@ -106,7 +108,12 @@ class ChannelManager extends EventEmitter {
     for (const field of adapter.manifest.configSchema) {
       if (!field.required) continue
       if (field.type === 'secret') {
-        if (!keystoreService.getSecret(keystoreKeyFor(id, field.name))) return false
+        if (!keystoreService.getSecret(channelKeystoreKey(id, field.name))) return false
+      } else if (field.type === 'number') {
+        const v = channelSettings[field.name]
+        if (typeof v !== 'number' || !Number.isFinite(v)) return false
+      } else if (field.type === 'boolean') {
+        if (typeof channelSettings[field.name] !== 'boolean') return false
       } else {
         const v = channelSettings[field.name]
         if (typeof v !== 'string' || !v.trim()) return false
@@ -154,7 +161,7 @@ class ChannelManager extends EventEmitter {
   buildContext(id: string): ChannelRuntimeContext {
     return {
       config: { ...(this.readChannelSettings(id) ?? {}) },
-      getSecret: async (name) => keystoreService.getSecret(keystoreKeyFor(id, name)) || null,
+      getSecret: async (name) => keystoreService.getSecret(channelKeystoreKey(id, name)) || null,
       bridge: {
         onMessage: (msg) => {
           // v1: 飞书引擎(自含 pipeline)不经此入口;外部归一化型适配器(钉钉 v2)使用
@@ -173,6 +180,10 @@ class ChannelManager extends EventEmitter {
 
   /** 启动渠道(app-lifecycle 自启 / UI 手动连接) */
   async start(id: string): Promise<void> {
+    if (isDshImChannel(id)) {
+      log('info', 'channels', `skip '${id}': 聊天接入由 dsh-im 插件负责`)
+      return
+    }
     const adapter = this.adapters.get(id)
     if (!adapter) throw new Error(`未知渠道: ${id}`)
     if (!this.isConfigured(id)) {
@@ -205,6 +216,7 @@ class ChannelManager extends EventEmitter {
   /** 开机自启:已配置且开关打开的渠道逐个启动(失败不阻断其他) */
   async autoStart(): Promise<void> {
     for (const id of this.factories.keys()) {
+      if (isDshImChannel(id)) continue
       if (!this.isConfigured(id) || !this.isEnabled(id)) continue
       try {
         await this.start(id)

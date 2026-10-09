@@ -3,12 +3,16 @@
 // =============================================================
 
 import type { ToolCall } from '@shared/types'
+import { displayToolName } from '../../../lib/tool-display'
 
 /** 单条工具调用行：工具名 + 参数 JSON + 成功/失败标记 */
 export function ToolCallRow({ tc }: { tc: ToolCall }) {
+  const label = displayToolName(tc.name)
   return (
     <div className="text-xs bg-blue-100/50 dark:bg-blue-900/30 rounded px-2 py-1 font-mono min-w-0 overflow-hidden">
-      <span className="text-blue-600 dark:text-blue-400 font-medium">{tc.name}</span>
+      <span className="text-blue-600 dark:text-blue-400 font-medium" title={tc.name}>
+        {label}
+      </span>
       {tc.args && Object.keys(tc.args).length > 0 && (
         <span className="text-gray-500 dark:text-gray-400 ml-1 break-all">
           {JSON.stringify(tc.args)}

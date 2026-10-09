@@ -6,7 +6,7 @@
 
 import type { AgentEvent } from '@main/services/llm-contracts'
 import type { BrowserWindow } from 'electron'
-import { log } from '../../utils/logger'
+import { log, logChat } from '../../utils/logger'
 import { createDeltaBatcher } from '../stream-batcher'
 import { sendAgentStatus } from './status-tracking'
 
@@ -73,6 +73,8 @@ interface AgentRunStats {
   toolCallCount: number
   /** LLM 返回的最后一个错误(续跑判断 + 最终状态/用户提示;非 error turn 清除) */
   lastErrorMessage: string
+  /** 最近一轮的结束原因。正常 stop 的短回答不是截断，不能拿去续跑。 */
+  lastStopReason: string
 }
 
 /**
@@ -83,6 +85,7 @@ interface AgentRunStats {
 export function createEventCollector(
   win: BrowserWindow | undefined,
   id: string,
+  conversationLogging = false,
 ): {
   stats: AgentRunStats
   handler: (event: AgentEvent) => void
@@ -96,12 +99,14 @@ export function createEventCollector(
     turnCount: 0,
     toolCallCount: 0,
     lastErrorMessage: '',
+    lastStopReason: '',
   }
 
   // delta 攒批: text_delta 入缓冲按 33ms 窗口合并发送(逐条 send 的成本见 stream-batcher 注释);
   // 工具事件/turn 边界/最终状态前 flush,保证渲染端事件顺序不变
   const outputBatcher = createDeltaBatcher((merged) => {
     sendAgentStatus(win, id, 'running', { output: merged })
+    if (conversationLogging) logChat('out', { source: 'agent', agentId: id, text: merged })
   })
   const flushPendingOutput = outputBatcher.flush
 
@@ -133,6 +138,14 @@ export function createEventCollector(
         console.log(
           `[AgentService] agent(${id}) turn=${stats.turnCount} tool_start: ${event.toolName}`,
         )
+        if (conversationLogging) {
+          logChat('event', {
+            source: 'agent',
+            agentId: id,
+            type: 'tool_start',
+            name: event.toolName,
+          })
+        }
         sendAgentStatus(win, id, 'running', {
           toolCall: { name: event.toolName, args: argsPreview(event.args) },
         })
@@ -142,6 +155,15 @@ export function createEventCollector(
         console.log(
           `[AgentService] agent(${id}) turn=${stats.turnCount} tool_end: ${event.toolName} error=${event.isError}`,
         )
+        if (conversationLogging) {
+          logChat('event', {
+            source: 'agent',
+            agentId: id,
+            type: 'tool_end',
+            name: event.toolName,
+            isError: event.isError,
+          })
+        }
         sendAgentStatus(win, id, 'running', {
           toolResult: {
             name: event.toolName,
@@ -168,6 +190,7 @@ export function createEventCollector(
         )
         // 捕获/清除 LLM 错误信息(用于续跑判断 + 最终状态/用户提示)
         // 修复: 非 error 的 turn 要清除旧错误,避免 stale error 导致 false-positive hasError
+        if (msg?.stopReason) stats.lastStopReason = msg.stopReason
         if (msg?.stopReason === 'error' && msg.errorMessage) {
           stats.lastErrorMessage = msg.errorMessage
         } else if (msg?.stopReason && msg.stopReason !== 'error') {

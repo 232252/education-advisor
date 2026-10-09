@@ -6,11 +6,13 @@
 //   - telemetry/autoUpdate 等"待实现"字段不报错(让 UI 安静保存)
 // =============================================================
 
+import { isDshImChannel } from '@shared/dsh-im-channels'
 import * as IPC from '@shared/ipc-channels'
+import { THINKING_LEVELS } from '@shared/thinking-levels'
 import type { UnifiedSettings } from '@shared/types'
 import { app, type BrowserWindow } from 'electron'
 import { feishuBotService } from '../services/channels/adapters/feishu/connection'
-import { channelManager } from '../services/channels/manager'
+import { channelKeystoreKey, channelManager } from '../services/channels/manager'
 import { cronService } from '../services/cron-service'
 import { TtlLruCache } from '../services/eaa-cache'
 import { keystoreService } from '../services/keystore-service'
@@ -54,7 +56,7 @@ const ENUM_VALIDATORS: Record<string, readonly string[]> = {
   'general.webUiBind': ['loopback', 'lan', 'all'],
   'chat.steeringMode': ['all', 'one-at-a-time'],
   'chat.followUpMode': ['all', 'one-at-a-time'],
-  'chat.thinkingLevel': ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'],
+  'chat.thinkingLevel': THINKING_LEVELS,
   'channels.feishu.domain': ['feishu', 'lark'],
 }
 
@@ -160,6 +162,7 @@ export function registerSettingsHandlers(_win: BrowserWindow) {
     if (keystoreService.getSecret('qq-client-secret') && settings.channels.qq) {
       settings.channels.qq.clientSecret = SECRET_PLACEHOLDER
     }
+    applyLocalChannelSecretPlaceholders(settings)
     settingsGetCache.set('response', settings)
     return settings
   })
@@ -315,9 +318,25 @@ export function registerSettingsHandlers(_win: BrowserWindow) {
         return { success: false, error: 'webUiIpv6 must be boolean' }
       }
 
+      const localSecret = localChannelSecretPath(path)
+      if (localSecret && typeof value === 'string') {
+        if (value === SECRET_PLACEHOLDER) return { success: true }
+        const key = channelKeystoreKey(localSecret.id, localSecret.field)
+        if (value.length === 0) keystoreService.deleteSecret(key)
+        else keystoreService.setSecret(key, value)
+        settingsService.update(path, '')
+        settingsGetCache.clear()
+        await applyLocalChannel(localSecret.id)
+        return { success: true }
+      }
+
       settingsService.update(path, value)
       // PERF: set 后让 get 缓存失效,下次 get 重新读取最新值
       settingsGetCache.clear()
+      const localChannel = /^channels\.([a-z0-9-]+)\./.exec(path)
+      if (localChannel && !isDshImChannel(localChannel[1])) {
+        await applyLocalChannel(localChannel[1])
+      }
 
       // 开机启动：同步到系统登录项
       if (path === 'general.autoStart' && typeof value === 'boolean') {
@@ -464,6 +483,14 @@ export function registerSettingsHandlers(_win: BrowserWindow) {
     keystoreService.deleteSecret('feishu-app-secret')
     keystoreService.deleteSecret('dingtalk-client-secret')
     keystoreService.deleteSecret('wecom-secret')
+    for (const info of channelManager.list()) {
+      if (isDshImChannel(info.manifest.id) || info.manifest.comingSoon) continue
+      for (const field of info.manifest.configSchema) {
+        if (field.type !== 'secret') continue
+        keystoreService.deleteSecret(channelKeystoreKey(info.manifest.id, field.name))
+      }
+      await channelManager.stop(info.manifest.id, { userInitiated: true }).catch(() => {})
+    }
     keystoreService.deleteSecret(WEBUI_ACCESS_TOKEN_KEY)
     keystoreService.deleteSecret(LEGACY_CF_TUNNEL_SECRET_KEY)
     // 重置后停止飞书/钉钉/企微长连接
@@ -489,4 +516,43 @@ export function registerSettingsHandlers(_win: BrowserWindow) {
   })
 
   console.log('[IPC] Settings handlers registered')
+}
+
+/** 插件没接管的渠道，secret 进 keystore，设置文件里只留空串。 */
+function localChannelSecretPath(path: string): { id: string; field: string } | null {
+  const match = /^channels\.([a-z0-9-]+)\.([A-Za-z0-9]+)$/.exec(path)
+  if (!match) return null
+  const id = match[1] ?? ''
+  const field = match[2] ?? ''
+  if (!id || !field || isDshImChannel(id)) return null
+  const adapter = channelManager.getAdapter(id)
+  const spec = adapter?.manifest.configSchema.find((item) => item.name === field)
+  if (spec?.type !== 'secret') return null
+  return { id, field }
+}
+
+function applyLocalChannelSecretPlaceholders(settings: UnifiedSettings): void {
+  const channels = settings.channels as unknown as Record<string, Record<string, string>>
+  for (const info of channelManager.list()) {
+    if (isDshImChannel(info.manifest.id) || info.manifest.comingSoon) continue
+    const block = channels[info.manifest.id]
+    if (!block) continue
+    for (const field of info.manifest.configSchema) {
+      if (field.type !== 'secret') continue
+      if (keystoreService.getSecret(channelKeystoreKey(info.manifest.id, field.name))) {
+        block[field.name] = SECRET_PLACEHOLDER
+      }
+    }
+  }
+}
+
+/** 配置写完后按开关连接。还没填齐时 start 会拒绝，这里只记一笔。 */
+async function applyLocalChannel(id: string): Promise<void> {
+  if (isDshImChannel(id) || !channelManager.getAdapter(id)) return
+  try {
+    if (channelManager.isEnabled(id)) await channelManager.start(id)
+    else await channelManager.stop(id, { userInitiated: true })
+  } catch (err) {
+    log('info', 'settings', `local channel '${id}' left disconnected: ${err}`)
+  }
 }

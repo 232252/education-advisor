@@ -201,8 +201,8 @@ export const GradingModelConfig = memo(function GradingModelConfig({
                   <option key={m.id} value={m.id}>
                     {tr('page.models.default.optionCost', {
                       name: m.name,
-                      in: formatCost(m.costPerInputToken),
-                      out: formatCost(m.costPerOutputToken),
+                      in: formatCost(m.costPerInputToken, m),
+                      out: formatCost(m.costPerOutputToken, m),
                     })}
                   </option>
                 ))}
@@ -284,8 +284,8 @@ export const GradingModelConfig = memo(function GradingModelConfig({
                       <option key={m.id} value={m.id}>
                         {tr('page.models.default.optionCost', {
                           name: m.name,
-                          in: formatCost(m.costPerInputToken),
-                          out: formatCost(m.costPerOutputToken),
+                          in: formatCost(m.costPerInputToken, m),
+                          out: formatCost(m.costPerOutputToken, m),
                         })}
                       </option>
                     ))}

@@ -109,6 +109,8 @@ describe('settings/validation — validateUpdate', () => {
     expect(() => validateUpdate('general.autoStart', true)).not.toThrow()
     expect(() => validateUpdate('models.retry.maxRetries', 5)).not.toThrow()
     expect(() => validateUpdate('models.enabledModels', ['a', 'b'])).not.toThrow()
+    expect(() => validateUpdate('channels.mqtt.host', '127.0.0.1')).not.toThrow()
+    expect(() => validateUpdate('channels.mqtt.port', 1883)).not.toThrow()
   })
 
   it('拒绝空/含空段的 dotPath', () => {

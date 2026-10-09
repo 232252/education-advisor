@@ -16,6 +16,7 @@ import { GOOGLE_VERTEX_MODELS } from "./providers/google-vertex.models.js";
 import { GROQ_MODELS } from "./providers/groq.models.js";
 import { HUGGINGFACE_MODELS } from "./providers/huggingface.models.js";
 import { KIMI_CODING_MODELS } from "./providers/kimi-coding.models.js";
+import { META_MODELS } from "./providers/meta.models.js";
 import { MINIMAX_MODELS } from "./providers/minimax.models.js";
 import { MINIMAX_CN_MODELS } from "./providers/minimax-cn.models.js";
 import { MISTRAL_MODELS } from "./providers/mistral.models.js";
@@ -30,6 +31,7 @@ import { OPENROUTER_MODELS } from "./providers/openrouter.models.js";
 import { QWEN_TOKEN_PLAN_MODELS } from "./providers/qwen-token-plan.models.js";
 import { QWEN_TOKEN_PLAN_CN_MODELS } from "./providers/qwen-token-plan-cn.models.js";
 import { QWEN_TOKEN_PLAN_INDIVIDUAL_MODELS } from "./providers/qwen-token-plan-individual.models.js";
+import { RADIUS_MODELS } from "./providers/radius.models.js";
 import { TOGETHER_MODELS } from "./providers/together.models.js";
 import { VERCEL_AI_GATEWAY_MODELS } from "./providers/vercel-ai-gateway.models.js";
 import { XAI_MODELS } from "./providers/xai.models.js";
@@ -56,6 +58,7 @@ export const MODELS = {
     "groq": GROQ_MODELS,
     "huggingface": HUGGINGFACE_MODELS,
     "kimi-coding": KIMI_CODING_MODELS,
+    "meta": META_MODELS,
     "minimax": MINIMAX_MODELS,
     "minimax-cn": MINIMAX_CN_MODELS,
     "mistral": MISTRAL_MODELS,
@@ -70,6 +73,7 @@ export const MODELS = {
     "qwen-token-plan": QWEN_TOKEN_PLAN_MODELS,
     "qwen-token-plan-cn": QWEN_TOKEN_PLAN_CN_MODELS,
     "qwen-token-plan-individual": QWEN_TOKEN_PLAN_INDIVIDUAL_MODELS,
+    "radius": RADIUS_MODELS,
     "together": TOGETHER_MODELS,
     "vercel-ai-gateway": VERCEL_AI_GATEWAY_MODELS,
     "xai": XAI_MODELS,

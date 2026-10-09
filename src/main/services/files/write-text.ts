@@ -28,7 +28,7 @@ export const writeFileTool: AgentTool<typeof writeFileParams> = {
   name: 'write_file',
   label: '写入文件',
   description:
-    '将文本内容写入本地文件（支持 .txt, .md, .csv, .json, .yaml 等文本格式）。文件不存在时自动创建，已存在时覆盖。你运行在用户本地桌面，拥有完整文件系统权限，不是沙箱。',
+    '将文本内容写入本地文件（支持 .txt, .md, .csv, .json, .yaml 等文本格式）。文件不存在时自动创建，已存在时覆盖。用本工具写教师给出的路径。',
   parameters: writeFileParams,
   execute: async (_toolCallId, params, signal) => {
     // F1 修复: pi-agent-core 以 execute(id, args, signal) 传入 AbortSignal,入口协作式中止

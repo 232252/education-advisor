@@ -138,7 +138,10 @@ export const Composer = memo(function Composer({
               className="px-6 py-3"
               disabled={!canSend}
               aria-label={t('page.chat.composer.queueSend', '排队发送')}
-              title={t('page.chat.composer.queueSendTitle', '当前回复完成后自动发送')}
+              title={t(
+                'page.chat.composer.queueSendTitle',
+                '这轮正常结束后按引导模式发送。点停止会先留着',
+              )}
             >
               {t('page.chat.composer.queueSend', '排队发送')}
             </Button>
@@ -157,10 +160,16 @@ export const Composer = memo(function Composer({
               variant="primary"
               onClick={onSend}
               className="px-6 py-3"
-              disabled={!input.trim() || !canSend}
-              aria-label={t('page.chat.send', '发送')}
+              disabled={(!input.trim() && queuedCount === 0) || !canSend}
+              aria-label={
+                !input.trim() && queuedCount > 0
+                  ? t('page.chat.composer.sendQueued', '发送排队')
+                  : t('page.chat.send', '发送')
+              }
             >
-              {t('page.chat.send', '发送')}
+              {!input.trim() && queuedCount > 0
+                ? t('page.chat.composer.sendQueued', '发送排队')
+                : t('page.chat.send', '发送')}
             </Button>
           )}
         </div>

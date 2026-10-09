@@ -2,6 +2,7 @@
 // 对话持久化 handler — SQLite 消息/会话读写
 // =============================================================
 
+import type { ChatMessageInput } from '@shared/api/chat'
 import * as IPC from '@shared/ipc-channels'
 import { dbService } from '../../services/db-service'
 import { handleIpc } from '../handle'
@@ -12,22 +13,7 @@ export function registerAIChatPersistenceHandlers(): void {
   // M-1 修复: 加 try-catch,db 未就绪或 schema 错误时返回结构化错误而非抛异常
   handleIpc(
     IPC.IPC_CHAT_SAVE_MESSAGE,
-    async (
-      _e,
-      msg: {
-        sessionId?: string
-        role: string
-        content: string
-        thinking?: string
-        toolCalls?: string
-        timestamp?: number
-        provider?: string
-        model?: string
-        tokenInput?: number
-        tokenOutput?: number
-        cost?: number
-      },
-    ) => {
+    async (_e, msg: Omit<ChatMessageInput, 'timestamp'> & { timestamp?: number }) => {
       // 健壮性: 若调用方未传 timestamp,自动填充当前时间
       const enrichedMsg = { ...msg, timestamp: msg.timestamp ?? Date.now() }
       const id = dbService.saveChatMessage(enrichedMsg)

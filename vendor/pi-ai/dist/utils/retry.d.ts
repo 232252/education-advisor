@@ -1,7 +1,8 @@
 import type { AssistantMessage } from "../types.ts";
 /**
  * Retry policy: bounded attempts with exponential backoff (`baseDelayMs * 2^(attempt-1)`).
- * Matches `settings.retry` (`enabled`, `maxRetries`, `baseDelayMs`) in coding-agent; kept
+ * `maxAgentDelayMs` caps each computed delay and defaults to 60 seconds.
+ * Matches `settings.retry` (`enabled`, `maxRetries`, `baseDelayMs`, `maxAgentDelayMs`) in coding-agent; kept
  * here so the classifier and the policy-driven retry loop live together and stay reusable
  * by the SDK and other callers.
  */
@@ -11,7 +12,11 @@ export interface RetryPolicy {
     maxRetries: number;
     /** Base delay in ms. Per-attempt delay is `baseDelayMs * 2^(attempt-1)` before jitter. */
     baseDelayMs: number;
+    /** Optional cap for agent-level retry delays in ms. Defaults to 60 seconds. */
+    maxAgentDelayMs?: number;
 }
+export declare const DEFAULT_MAX_AGENT_RETRY_DELAY_MS = 60000;
+export declare function retryDelayMs(policy: Pick<RetryPolicy, "baseDelayMs" | "maxAgentDelayMs">, attempt: number): number;
 /** Optional callbacks emitted by {@link retryAssistantCall} around each retry. */
 export interface RetryCallbacks {
     /** Emitted before the backoff sleep of each retry attempt (1-indexed). */

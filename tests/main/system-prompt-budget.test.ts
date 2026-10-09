@@ -120,3 +120,34 @@ describe('System Prompt 体积预算', () => {
     expect(project).not.toMatch(/<\s*85|85[–-]93|93[–-]100/)
   })
 })
+
+describe('对话配置与排队一致', () => {
+  const base = {
+    config: { name: 'main', role: '主协调', description: '教育参谋' },
+    soulContent: '',
+    sharedRulesContent: '',
+    rulesContent: '',
+    skillsSection: '',
+    followUpMode: 'one-at-a-time',
+    showImages: true,
+  }
+
+  it('全部：这轮结束后合成一条，本轮不会中途插入', () => {
+    const prompt = buildSystemPrompt({ ...base, steeringMode: 'all' })
+    expect(prompt).toContain('这轮结束后合成一条交给你')
+    expect(prompt).not.toContain('随时插入新指令')
+  })
+
+  it('一次一个：这轮结束后只交下一条', () => {
+    const prompt = buildSystemPrompt({ ...base, steeringMode: 'one-at-a-time' })
+    expect(prompt).toContain('这轮结束后只把下一条交给你')
+  })
+
+  it('显示图片关着时，要求把关键内容写成文字', () => {
+    const hidden = buildSystemPrompt({ ...base, steeringMode: 'all', showImages: false })
+    expect(hidden).toContain('改成文字占位')
+    expect(hidden).not.toContain('显示图片: 否')
+    const shown = buildSystemPrompt({ ...base, steeringMode: 'all', showImages: true })
+    expect(shown).toContain('Markdown 图片会显示出来')
+  })
+})

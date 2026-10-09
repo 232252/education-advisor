@@ -1,12 +1,12 @@
-import type { Api, Context, Model } from '@main/services/llm-contracts'
+import type { Api, Model } from '@main/services/llm-contracts'
 // =============================================================
-// Pi AI — Provider 连接测试(最小请求验证 API Key)
-// 从 pi-ai-service.ts testConnection 下沉
+// Provider 连接测试：发一个最小 dsh 请求，确认密钥能用。
 // =============================================================
 
-import { completeSimple, getEnvApiKey } from '@earendil-works/pi-ai/compat'
+import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import type { TestConnectionResult } from '@shared/types'
 import { errText } from '../../utils/err-text'
+import { completeDshText } from '../dsh/text-call'
 import { keystoreService } from '../keystore-service'
 import {
   isAuthRejectedError,
@@ -86,17 +86,15 @@ async function probeOnce(
   testModel: Model<Api>,
   apiKey: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const context: Context = {
-    messages: [{ role: 'user', content: 'ping', timestamp: Date.now() }],
-  }
   try {
-    const result = await completeSimple(testModel, context, {
-      apiKey,
+    const result = await completeDshText({
+      provider: String(testModel.provider),
+      model: testModel.id,
+      text: 'ping',
       maxTokens: 5,
+      apiKey,
     })
-    if (result.stopReason === 'error') {
-      return { ok: false, error: result.errorMessage ?? 'Unknown error' }
-    }
+    if (result.stopReason === 'aborted') return { ok: false, error: 'aborted' }
     return { ok: true }
   } catch (err: unknown) {
     return { ok: false, error: errText(err) }

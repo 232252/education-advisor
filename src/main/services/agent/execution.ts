@@ -8,27 +8,28 @@
 // 日志前缀与事件负载逐字保留,行为零变化)
 // =============================================================
 
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { AgentMessage, AgentTool } from '@main/services/llm-contracts'
 import type { AgentConfig, AgentExecution, AgentRunSource, AgentStatus } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { errText } from '../../utils/err-text'
-import { log } from '../../utils/logger'
+import { log, logChat } from '../../utils/logger'
 import { resolveApiKey, selectModel } from '../agent-model-selector'
-import {
-  compactAgentMessages,
-  computeAdaptiveReserve,
-  estimateMessageTokens,
-} from '../compaction-helper'
+import { compactPlainChat } from '../compaction-helper'
 import { dbService } from '../db-service'
 import { createDshAgent } from '../dsh/agent-facade'
+import { ensureEaaToolsOnSdkProfile } from '../dsh/plugin-install'
 import { dshRouteFingerprint } from '../dsh/provider-patch'
 import { dshRouteFor } from '../dsh/route'
 import { dshReasoningEffort } from '../dsh/route-names'
 import { createDshRuntime, type DshRuntime, getDshRuntimeCwd } from '../dsh/runtime'
+import { ensureEaaSkillPatch, materializeDshSkills, removeDshSkillDir } from '../dsh/skill-mount'
 import {
   type EaaToolMount,
   ensureActiveEaaToolBridge,
   mountEaaAgentTools,
+  pluginProcessEnv,
 } from '../dsh/tool-bridge'
 import { ollamaService } from '../ollama-service'
 import { resolveModel } from '../pi-ai/model-utils'
@@ -42,6 +43,7 @@ import { assertPrivacyReadyForRun, isAutoAnonymizeEnabled, PrivacyGuard } from '
 import { clearActiveRunSource, sendAgentStatus, setActiveRunSource } from './status-tracking'
 import { buildSystemPrompt } from './system-prompt'
 import { withTimeout } from './timeout'
+import { selectSkillsForRun } from './tools'
 import type { AgentExecutionDeps, AgentRuntimeLike } from './types'
 
 /** 成功/失败两条路径共用的执行记录头部(公共字段单一来源) */
@@ -228,7 +230,7 @@ async function executeAgentRunInner(
   }
 
   // ✅ [Settings wiring] 读取 chat.* 设置
-  // steeringMode/followUpMode/showImages 没有运行时 API 等价物,注入到 system prompt 顶部
+  // followUpMode / showImages 写入系统提示。引导模式也写进去，说明本轮不会中途插入新指令；排队本身在对话页。
   const chatSettings = settingsService.getSettings().chat
 
   // M15: waitForIdle 超时从 settings.general.agentTimeoutMins 读取(分钟,-1 不限)。
@@ -241,6 +243,7 @@ async function executeAgentRunInner(
   const steeringMode = chatSettings?.steeringMode ?? 'all'
   const followUpMode = chatSettings?.followUpMode ?? 'one-at-a-time'
   const showImages = chatSettings?.showImages ?? true
+  const conversationLogging = chatSettings?.conversationLogging !== false
   const compactionEnabled = chatSettings?.compaction?.enabled ?? true
   const compactionReserve = chatSettings?.compaction?.reserveTokens ?? 8000
   const compactionKeep = chatSettings?.compaction?.keepRecentTokens ?? 16000
@@ -262,7 +265,8 @@ async function executeAgentRunInner(
     classContextSection,
     sharedRulesContent: deps.getSharedRulesContent(),
     rulesContent: deps.getRulesContent(id),
-    skillsSection: deps.buildSkillsSection(config.capabilities),
+    // 技能目录由 dsh 的 skill 工具在会话里发布，这里不再塞一份 read_file 清单。
+    skillsSection: '',
     // R2-08: 记忆注入过脱敏管线 — 记忆落盘为真名(见 memory-tool),
     // 当次运行开启自动脱敏时,出域前把真名转回化名(与 chat 历史同待遇)
     memorySection: privacyGuard
@@ -281,11 +285,25 @@ async function executeAgentRunInner(
   // 工具面按本次运行挂载：dsh 子进程只看得见这一个端点，也就是这个角色的工具集
   // （capability 裁剪、delegate_to 只给 main、脱敏包装都已在 tools 里定型）。
   // harness 自带工具由 createDshRuntime 附的那份 patch 关掉。
-  // release 在 finally：端点和含 token 的 patch 文件都不跨运行残留。
+  // release 在 finally：端点不跨运行残留。eaa-tools 插件从环境变量读地址，
+  // 令牌不落盘。
   let toolMount: EaaToolMount | null = null
+  let skillDir: string | null = null
   let dshRuntime: DshRuntime | null = null
+  await ensureEaaToolsOnSdkProfile()
   await ensureActiveEaaToolBridge({ patchDir: getDshRuntimeCwd() })
-  toolMount = await mountEaaAgentTools({ label: id, tools })
+  toolMount = await mountEaaAgentTools({ label: id, tools, via: 'plugin' })
+  skillDir = join(
+    tmpdir(),
+    'eaa-dsh-skills',
+    `${id.replace(/[^A-Za-z0-9_-]/g, '_')}-${Date.now().toString(36)}`,
+  )
+  materializeDshSkills({
+    destDir: skillDir,
+    skills: selectSkillsForRun(config.capabilities),
+    toolNameMap: toolMount.toolNameMap,
+  })
+  const skillPatch = ensureEaaSkillPatch(skillDir, skillDir)
   // 路由名按 settings.models.dshRoutes 映射（dsh 的 provider 路由是用户在自己
   // dsh 配置里声明的 key，不等于 pi 的 provider id）
   const route = dshRouteFor(String(model.provider), model.id)
@@ -301,12 +319,13 @@ async function executeAgentRunInner(
     model: route.modelId,
     reasoningEffort,
     configFingerprint: dshRouteFingerprint(String(model.provider)),
-    patches: [toolMount.patchPath],
+    mcp: { env: pluginProcessEnv(toolMount.pluginEndpoints) },
+    patches: [skillPatch],
   })
   log(
     'info',
     'agent',
-    `runAgent(${id}) dsh 工具挂载 serverName=${toolMount.serverName} tools=${tools.length}`,
+    `runAgent(${id}) dsh 工具挂载 plugins=${toolMount.pluginEndpoints.map((ep) => ep.serverName).join(',')} tools=${tools.length}`,
   )
 
   // 创建 dsh agent 替身（满足 AgentRuntimeLike 契约）
@@ -332,7 +351,7 @@ async function executeAgentRunInner(
   deps.setRunning(id, { agent, abortController, agentId: id, startedAt, source })
 
   // M16: 事件收集器(输出/token/turn 聚合 + 渲染进程状态转发,实现拆到 event-collector.ts)
-  const collector = createEventCollector(win, id)
+  const collector = createEventCollector(win, id, conversationLogging)
   const { stats } = collector
 
   // 同步写入 DB(成功/失败两路径共用;dbExecId<0 = recordExecutionStart 未执行/失败)
@@ -380,15 +399,32 @@ async function executeAgentRunInner(
 
   const unsubscribe = agent.subscribe(collectorHandler)
 
-  // ── 注入对话历史（让 Agent 拥有完整上下文）──
-  // pi-agent-core 的 runAgentLoop 会将 state.messages + 新 prompt 合并后发给 LLM
-  // 因此这里把前端传来的聊天历史转为 AgentMessage[] 并注入 state.messages
-  // 脱敏开启时历史内容先真名→化名(历史含真实姓名,不能原样发给模型)
-  if (history && history.length > 0) {
+  // 脱敏先于压缩：摘要也是一次出域调用，不能带着真名去写。
+  let historyForRun = history
+  const guard = privacyGuard
+  if (historyForRun && guard) {
+    historyForRun = historyForRun.map((msg) => ({
+      ...msg,
+      content: msg.content ? guard.anonymize(msg.content) : msg.content,
+    }))
+  }
+  if (historyForRun && historyForRun.length > 2) {
+    try {
+      historyForRun = await compactPlainChat(historyForRun, model, {
+        enabled: compactionEnabled,
+        reserveTokens: compactionReserve,
+        keepRecentTokens: compactionKeep,
+      })
+    } catch (err) {
+      console.warn(`[AgentService] runAgent(${id}) compaction skipped:`, errText(err))
+    }
+  }
+  // DSH agent facade 将 state.messages + 新 prompt 合并后发给 DSH 子进程
+  if (historyForRun && historyForRun.length > 0) {
     const historyMessages: AgentMessage[] = []
-    for (const msg of history) {
+    for (const msg of historyForRun) {
       if (!msg.content) continue
-      const content = privacyGuard ? privacyGuard.anonymize(msg.content) : msg.content
+      const content = msg.content
       // 时间戳透传: 全部重置为 now 会让模型无法区分"上周说的"和"刚才说的"
       // (渲染端旧历史无时间戳时回退 now,保持兼容)
       const timestamp = typeof msg.timestamp === 'number' ? msg.timestamp : Date.now()
@@ -407,7 +443,7 @@ async function executeAgentRunInner(
     if (historyMessages.length > 0) {
       agent.state.messages = historyMessages
       console.log(
-        `[AgentService] runAgent(${id}) injected ${historyMessages.length} history messages (${history.length} raw)`,
+        `[AgentService] runAgent(${id}) injected ${historyMessages.length} history messages (${historyForRun.length} raw)`,
       )
     }
   }
@@ -425,6 +461,7 @@ async function executeAgentRunInner(
       'agent',
       `runAgent(${id}) calling agent.prompt(), model=${model.provider}/${model.id}, apiKey=${apiKeyResolved ? 'present' : 'MISSING'}, tools=${tools.length}`,
     )
+    if (conversationLogging) logChat('in', { source: 'agent', agentId: id, prompt })
     await agent.prompt(privacyGuard ? privacyGuard.anonymize(prompt) : prompt)
     console.log(`[AgentService] runAgent(${id}) prompt() resolved, waiting for idle...`)
     log('debug', 'agent', `runAgent(${id}) prompt() resolved, waiting for idle...`)
@@ -448,12 +485,16 @@ async function executeAgentRunInner(
       // AgentRuntimeLike.prompt 返回 unknown（pi 返回 Promise、替身返回 void），
       // 续跑循环的契约要 Promise；await 对两者语义一致（入队即 resolve）
       prompt: async (text) => {
+        if (conversationLogging) {
+          logChat('in', { source: 'agent', agentId: id, continuation: true, prompt: text })
+        }
         await agent.prompt(text)
       },
       waitIdle,
       getOutputLength: () => stats.outputText.length,
       getTurnCount: () => stats.turnCount,
       getLastErrorMessage: () => stats.lastErrorMessage,
+      getStopReason: () => stats.lastStopReason,
       isAborted: () => abortController.signal.aborted,
     })
     if (continuationCount > 0) {
@@ -482,7 +523,7 @@ async function executeAgentRunInner(
     // 收尾。此前该场景被记 success,截断回复伪装完整、错误信息对用户/DB 双丢。
     // (stale error 已由 event-collector 清除: 后续非 error 轮会清空 lastErrorMessage)
     const hasError = !!stats.lastErrorMessage
-    // M0: 外部 abort 后 pi-agent-core 把 abort 变成正常 turn 结束,prompt() 照常
+    // M0: 外部 abort 后 DSH agent facade 把 abort 变成正常 turn 结束,prompt() 照常
     // resolve 并走到这里 — 半截输出不得伪装 success(飞书会把半截话当完整回复
     // 发出,DB 还记 success)。检测 abortController 并改记 aborted。
     const wasAborted = abortController.signal.aborted
@@ -578,6 +619,7 @@ async function executeAgentRunInner(
     deps.deleteRunning(id)
     // dsh 路径: 撤掉本次运行的 MCP 端点与 patch 文件(子进程已在上面 abort 时关掉)
     if (toolMount) await toolMount.release()
+    removeDshSkillDir(skillDir)
     // M0: 清除来源登记(放在 deleteRunning 旁,与 setRunning 对称)
     clearActiveRunSource(id)
   }

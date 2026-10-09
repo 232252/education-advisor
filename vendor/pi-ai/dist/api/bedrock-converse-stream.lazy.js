@@ -26,5 +26,9 @@ let bedrockModuleOverride;
 export function setBedrockProviderModule(module) {
     bedrockModuleOverride = module;
 }
-export const bedrockConverseStreamApi = () => lazyApi(async () => bedrockModuleOverride ?? (await importNodeOnlyApi("./bedrock-converse-stream.ts")));
+// Education Advisor bundles this package into the Electron main process.
+// The upstream variable specifier hides the module from bundlers, so the
+// packaged app would import a file that was never emitted. A static import
+// lets the desktop build emit the chunk next to the main bundle.
+export const bedrockConverseStreamApi = () => lazyApi(async () => bedrockModuleOverride ?? (await import("./bedrock-converse-stream.js")));
 //# sourceMappingURL=bedrock-converse-stream.lazy.js.map

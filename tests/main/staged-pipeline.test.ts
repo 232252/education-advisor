@@ -40,7 +40,11 @@ vi.mock('@napi-rs/canvas', () => ({
   },
 }))
 
-// 本文件断言的是 pi 运行时的模型调用计数（agentRuntime 缺省现已是 dsh）；dsh 见 src/main/services/dsh/__tests__
+vi.mock('../../src/main/services/grading/llm-call', () => ({
+  completeGradingCall: (...args: unknown[]) => mocks.completeSimple(...args),
+  resetGradingDshRuntime: () => {},
+}))
+// 本文件断言的是模型调用次数，不关心底层是哪一个进程
 vi.mock('../../src/main/services/settings-service', () => ({
   settingsService: { getSettings: () => ({ models: { agentRuntime: 'pi' } }) },
 }))

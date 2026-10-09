@@ -1,5 +1,5 @@
 // =============================================================
-// AgentRuntimeConfig — Agent 运行时后端切换(models.agentRuntime)
+// AgentRuntimeConfig — 运行时固定为 DeepSeek Harness，并编辑 dsh 路由映射
 // + dsh 路由映射(models.dshRoutes)编辑器
 // 覆盖: select 回显持久化值 / 选 dsh 经 settings.set 落盘 /
 //       映射编辑区仅 runtime==='dsh' 时渲染 / 改·删·增以整对象写回
@@ -33,15 +33,12 @@ const DSH_SETTINGS = {
   models: { agentRuntime: 'dsh', dshRoutes: { deepseek: 'ds-chat', openai: 'gpt-route' } },
 }
 
-/** 挂载并等首帧渲染完成;select() 取运行时下拉(组件内唯一 <select>) */
+/** 挂载并等首帧渲染完成 */
 async function mount(settings: unknown) {
   settingsGet.mockResolvedValue(settings)
   const utils = render(<AgentRuntimeConfig />)
-  await screen.findByText('Agent 运行时后端')
-  return {
-    ...utils,
-    select: () => utils.container.querySelector('select') as HTMLSelectElement,
-  }
+  await screen.findByText('DeepSeek Harness')
+  return utils
 }
 
 beforeEach(() => {
@@ -54,38 +51,28 @@ afterEach(() => {
   cleanup()
 })
 
-describe('AgentRuntimeConfig(models.agentRuntime 开关)', () => {
-  it('select 回显持久化的运行时与已存路由映射', async () => {
-    const { select } = await mount(DSH_SETTINGS)
-    await waitFor(() => expect(select().value).toBe('dsh'))
+describe('AgentRuntimeConfig(运行时固定为 dsh)', () => {
+  it('回显已存路由映射，没有切回 pi 的下拉', async () => {
+    await mount(DSH_SETTINGS)
+    expect(screen.queryByRole('combobox')).toBeNull()
     expect(screen.getByDisplayValue('ds-chat')).toBeTruthy()
     expect(screen.getByDisplayValue('gpt-route')).toBeTruthy()
   })
 
-  it('旧 settings.json 无 agentRuntime 键时按缺省 dsh 回显', async () => {
-    const { select } = await mount({ models: {} })
-    await waitFor(() => expect(select().value).toBe('dsh'))
-  })
-
-  it('选 dsh → settings.set(models.agentRuntime, dsh)', async () => {
-    const { select } = await mount({ models: { agentRuntime: 'pi' } })
-    await waitFor(() => expect(select().value).toBe('pi'))
-    expect(settingsSet).not.toHaveBeenCalled()
-    fireEvent.change(select(), { target: { value: 'dsh' } })
-    await waitFor(() => expect(settingsSet).toHaveBeenCalledWith('models.agentRuntime', 'dsh'))
-  })
-
-  it('dshRoutes 编辑区仅在 runtime === dsh 时渲染', async () => {
-    const { select } = await mount({ models: { agentRuntime: 'pi' } })
-    await waitFor(() => expect(select().value).toBe('pi'))
-    expect(screen.queryByPlaceholderText('provider id')).toBeNull()
-    fireEvent.change(select(), { target: { value: 'dsh' } })
+  it('旧 settings.json 无 agentRuntime 键时仍显示路由映射', async () => {
+    await mount({ models: {} })
     expect(await screen.findByPlaceholderText('provider id')).toBeTruthy()
+    expect(settingsSet).not.toHaveBeenCalled()
+  })
+
+  it('存过 pi 时打开本页就改回 dsh，路由映射照常可编辑', async () => {
+    await mount({ models: { agentRuntime: 'pi' } })
+    await waitFor(() => expect(settingsSet).toHaveBeenCalledWith('models.agentRuntime', 'dsh'))
+    expect(screen.getByPlaceholderText('provider id')).toBeTruthy()
   })
 
   it('改 / 删 / 增映射均以整对象写 models.dshRoutes', async () => {
-    const { select } = await mount(DSH_SETTINGS)
-    await waitFor(() => expect(select().value).toBe('dsh'))
+    await mount(DSH_SETTINGS)
 
     // 改: 编辑 deepseek 的路由名(两端空白裁剪), 失焦提交
     const input = screen.getByDisplayValue('ds-chat')

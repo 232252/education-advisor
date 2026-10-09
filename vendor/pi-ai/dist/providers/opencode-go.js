@@ -4,6 +4,7 @@ import { openAIResponsesApi } from "../api/openai-responses.lazy.js";
 import { envApiKeyAuth } from "../auth/helpers.js";
 import { createProvider } from "../models.js";
 import { OPENCODE_GO_MODELS } from "./opencode-go.models.js";
+import { withOpenCodeSessionHeader } from "./opencode-headers.js";
 export function opencodeGoProvider() {
     return createProvider({
         id: "opencode-go",
@@ -11,9 +12,9 @@ export function opencodeGoProvider() {
         auth: { apiKey: envApiKeyAuth("OpenCode API key", ["OPENCODE_API_KEY"]) },
         models: Object.values(OPENCODE_GO_MODELS),
         api: {
-            "anthropic-messages": anthropicMessagesApi(),
-            "openai-completions": openAICompletionsApi(),
-            "openai-responses": openAIResponsesApi(),
+            "anthropic-messages": withOpenCodeSessionHeader(anthropicMessagesApi()),
+            "openai-completions": withOpenCodeSessionHeader(openAICompletionsApi()),
+            "openai-responses": withOpenCodeSessionHeader(openAIResponsesApi()),
         },
     });
 }

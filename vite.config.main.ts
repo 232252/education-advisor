@@ -8,6 +8,8 @@ export default defineConfig({
   build: {
     ssr: true,
     outDir: 'dist/main',
+    // 与 preload 共用 dist/main。清空目录会删掉 preload.cjs，窗口直接起不来。
+    emptyOutDir: false,
     lib: {
       entry: {
         index: resolve(__dirname, 'src/main/index.ts'),
@@ -46,7 +48,15 @@ export default defineConfig({
     // - @earendil-works/* (chord / pi-telemetry / pi-ai …): exports 只有
     //   "import" 没有 "require"/"default"。CJS 主进程 `require("@earendil-works/chord/context")`
     //   会抛 ERR_PACKAGE_PATH_NOT_EXPORTED，安装包启动只剩 Error 对话框。
-    noExternal: ['typebox', /^@earendil-works\//],
+    noExternal: [
+      'typebox',
+      /^@earendil-works\//,
+      // pi-ai 0.87 的代理 Agent 是 ESM 9.x，仓库里其它包仍用能被 require 的 7.x。
+      // 打进主进程包，避免运行时解析到旧版本。
+      'http-proxy-agent',
+      'https-proxy-agent',
+      'agent-base',
+    ],
   },
   resolve: {
     alias: {

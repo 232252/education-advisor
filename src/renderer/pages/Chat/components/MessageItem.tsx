@@ -9,6 +9,8 @@ import { Bot, Check, Copy } from 'lucide-react'
 import { memo, useState } from 'react'
 import { Markdown } from '../../../components/Markdown'
 import { useT } from '../../../i18n'
+import { useShowChatImages } from '../../../lib/chat-image-pref'
+import { displayToolMentions } from '../../../lib/tool-display'
 import { toast } from '../../../stores/toastStore'
 import { ToolCallRow } from './ToolCallRow'
 import { TypingDots } from './TypingDots'
@@ -31,11 +33,14 @@ export const MessageItem = memo(function MessageItem({
   isLast,
 }: MessageItemProps) {
   const { t } = useT()
+  const showImages = useShowChatImages()
   const [copied, setCopied] = useState(false)
+
+  const content = msg.role === 'user' ? msg.content : displayToolMentions(msg.content)
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(msg.content)
+      await navigator.clipboard.writeText(content)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
@@ -85,18 +90,18 @@ export const MessageItem = memo(function MessageItem({
           {/* 消息内容（放底部） — 助手用 Markdown 渲染, 用户保持纯文本 */}
           {msg.role === 'user' ? (
             <div className="whitespace-pre-wrap break-words">
-              {msg.content || (isStreaming && isLast ? <TypingDots /> : '')}
+              {content || (isStreaming && isLast ? <TypingDots /> : '')}
             </div>
-          ) : msg.content ? (
-            isStreaming && isLast && msg.content.length > STREAM_TAIL_WINDOW ? (
+          ) : content ? (
+            isStreaming && isLast && content.length > STREAM_TAIL_WINDOW ? (
               <>
                 <pre className="whitespace-pre-wrap break-words font-sans text-gray-500 dark:text-gray-400">
-                  {msg.content.slice(0, msg.content.length - STREAM_TAIL_WINDOW)}
+                  {content.slice(0, content.length - STREAM_TAIL_WINDOW)}
                 </pre>
-                <Markdown content={msg.content.slice(-STREAM_TAIL_WINDOW)} />
+                <Markdown images={showImages} content={content.slice(-STREAM_TAIL_WINDOW)} />
               </>
             ) : (
-              <Markdown content={msg.content} />
+              <Markdown images={showImages} content={content} />
             )
           ) : isStreaming && isLast ? (
             <TypingDots />
@@ -105,7 +110,7 @@ export const MessageItem = memo(function MessageItem({
           )}
         </div>
         {/* 助手消息 hover 复制按钮（流式中的最后一条不显示） */}
-        {msg.role !== 'user' && msg.content && !(isStreaming && isLast) && (
+        {msg.role !== 'user' && content && !(isStreaming && isLast) && (
           <button
             type="button"
             onClick={handleCopy}

@@ -1,0 +1,13 @@
+{
+  "name": "@education-advisor/eaa-grading",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "作业批改。地址和令牌由宿主经环境变量给入，卷面不在这个包里。",
+  "main": "./host.js",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

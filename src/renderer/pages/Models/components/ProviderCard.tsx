@@ -9,6 +9,7 @@ import { EmptyState } from '../../../components/EmptyState'
 import { tr, useT } from '../../../i18n'
 import { btnStyle, CARD_BASE, cn, formatDateTime, INPUT_BASE } from '../../../lib/ui-utils'
 import type { ProviderTestState } from '../hooks/useModelsData'
+import { modelCostEditFields, modelCostUpdatesFromEdit } from '../lib/format'
 import { ModelRow } from './ModelRow'
 
 // 空表单常量(供 ModelRow 非编辑行传参用,避免每次 render 新建对象导致 memo 失效)
@@ -271,8 +272,7 @@ export const ProviderCard = memo(function ProviderCard({
                             api: m.api,
                             contextWindow: String(m.contextWindow),
                             maxOutputTokens: String(m.maxOutputTokens),
-                            costPerInputToken: String(m.costPerInputToken),
-                            costPerOutputToken: String(m.costPerOutputToken),
+                            ...modelCostEditFields(m),
                             supportsReasoning: m.supportsReasoning ? 'true' : 'false',
                             baseUrl: m.baseUrl || '',
                           })
@@ -287,10 +287,7 @@ export const ProviderCard = memo(function ProviderCard({
                               updates.contextWindow = Number(editForm.contextWindow)
                             if (Number(editForm.maxOutputTokens) !== m.maxOutputTokens)
                               updates.maxOutputTokens = Number(editForm.maxOutputTokens)
-                            if (Number(editForm.costPerInputToken) !== m.costPerInputToken)
-                              updates.costPerInputToken = Number(editForm.costPerInputToken)
-                            if (Number(editForm.costPerOutputToken) !== m.costPerOutputToken)
-                              updates.costPerOutputToken = Number(editForm.costPerOutputToken)
+                            Object.assign(updates, modelCostUpdatesFromEdit(m, editForm))
                             if ((editForm.supportsReasoning === 'true') !== m.supportsReasoning)
                               updates.supportsReasoning = editForm.supportsReasoning === 'true'
                             if (editForm.baseUrl !== (m.baseUrl || ''))

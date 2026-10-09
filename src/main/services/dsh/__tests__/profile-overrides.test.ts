@@ -167,6 +167,15 @@ describe('dshRouteModelEntry（钉住的路由要自带模型条目）', () => {
     ).toEqual({ id: 'm', reasoningEfforts: { off: null, low: 'low' } })
   })
 
+  it('max 是 dsh 0.2.1 的合法档，目录里有就要带上', () => {
+    expect(
+      dshRouteModelEntry({
+        id: 'deepseek-flash',
+        thinkingLevelMap: { low: 'low', high: 'high', max: 'max', medium: null },
+      })?.reasoningEfforts,
+    ).toEqual({ low: 'low', high: 'high', max: 'max' })
+  })
+
   it('只发 dsh 认得的档位名，目录里的其它键不带上（发错值是整轮失败）', () => {
     const entry = dshRouteModelEntry({
       id: 'm',

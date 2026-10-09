@@ -42,7 +42,8 @@ const mocks = vi.hoisted(() => {
       | 'low'
       | 'medium'
       | 'high'
-      | 'xhigh',
+      | 'xhigh'
+      | 'max',
   }
 })
 
@@ -71,6 +72,7 @@ vi.mock('../../src/main/services/dsh/agent-facade', () => ({
 // 工具桥与子进程入口：不 mock 会牵进真实 http 服务端，并往 cwd 写 patch 文件
 vi.mock('../../src/main/services/dsh/tool-bridge', () => ({
   ensureActiveEaaToolBridge: async () => ({ port: 1, patchDir: '', close: async () => {} }),
+  pluginProcessEnv: () => ({}),
   mountEaaAgentTools: async (opts: { label: string; tools: { name: string }[] }) => {
     mocks.mountCount++
     mocks.lastMount = opts
@@ -80,6 +82,7 @@ vi.mock('../../src/main/services/dsh/tool-bridge', () => ({
       toolNameMap: Object.fromEntries(
         opts.tools.map((t) => [t.name, `mcp__eaa-${opts.label}-${mocks.mountCount}__${t.name}`]),
       ),
+      pluginEndpoints: [],
       endpoint: { url: 'http://127.0.0.1:1/mcp/x', token: 't', toolCount: opts.tools.length },
       release: async () => {
         mocks.releaseCount++
@@ -96,7 +99,7 @@ vi.mock('../../src/main/services/dsh/runtime', () => ({
     return {
       turnEvents: async function* () {
         yield { type: 'assistant/message', data: { turn: 1, step: 1, stream: [{ type: 'text-chunks', texts: ['ok'] }], usage: { inputTokens: 3, outputTokens: 1 } } }
-        yield { type: 'turn/end', data: { turn: 1, reason: 'completed' } }
+        yield { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } }
       },
       dispose: async () => {},
     }
@@ -405,10 +408,10 @@ describe('M15: Agent 超时错标修复 + 可配置', () => {
     expect(mocks.mountCount).toBe(beforeMount + 1)
     expect(mocks.releaseCount).toBe(mocks.mountCount)
     expect(mocks.facadeAbortCount).toBe(beforeFacadeAbort + 1)
-    // 挂的是这个角色的工具集，patch 只有它自己那一份
+    // 工具走插件环境变量。这次带上的 patch 是技能目录，不是带令牌的 mcp 文件。
     expect((mocks.lastMount as { label: string }).label).toBe('test-backend-dsh')
     expect(mocks.dshRuntimeOpts).toMatchObject({
-      patches: [expect.stringContaining('eaa-mcp-')],
+      patches: [expect.stringContaining('eaa-skills.cordis.patch.yml')],
       // 界面选的推理档位必须随 initialize 定死进子进程；凭据/端点指纹带着，
       // 改了 key 或 Base URL 的下一轮才会换新进程
       reasoningEffort: 'medium',

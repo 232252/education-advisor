@@ -11,6 +11,7 @@
 import type { Api, Model } from '@main/services/llm-contracts'
 import type { ModelInfo } from '@shared/types'
 import { errText } from '../../utils/err-text'
+import { catalogUsdPerMillionToPerToken } from './model-utils'
 
 export class OnlineModelsFetcher {
   /**
@@ -103,10 +104,10 @@ export class OnlineModelsFetcher {
               api: sampleModel.api as string,
               contextWindow: staticMatch?.contextWindow ?? 32768,
               maxOutputTokens: staticMatch?.maxTokens ?? 4096,
-              costPerInputToken: staticMatch?.cost.input ?? 0,
-              costPerOutputToken: staticMatch?.cost.output ?? 0,
-              costCacheRead: staticMatch?.cost.cacheRead ?? 0,
-              costCacheWrite: staticMatch?.cost.cacheWrite ?? 0,
+              costPerInputToken: catalogUsdPerMillionToPerToken(staticMatch?.cost.input ?? 0),
+              costPerOutputToken: catalogUsdPerMillionToPerToken(staticMatch?.cost.output ?? 0),
+              costCacheRead: catalogUsdPerMillionToPerToken(staticMatch?.cost.cacheRead ?? 0),
+              costCacheWrite: catalogUsdPerMillionToPerToken(staticMatch?.cost.cacheWrite ?? 0),
               supportsReasoning: staticMatch?.reasoning ?? false,
               baseUrl: resolvedBaseUrl,
             }

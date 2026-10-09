@@ -9,6 +9,8 @@ import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { retryProviderRequest } from "../utils/provider-retry.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+import { getSystemMessageText, renderSystemMessageUpdate } from "../utils/text.js";
+import { getDeclaredTools, resolveTranscript, resolveTranscriptTools, } from "../utils/transcript.js";
 import { appendGrammarToolInputJsonDelta, createGrammarToolInputProperties, getGrammarToolInput, getJsonSchemaToolParameters, resolveGrammarConstrainedSampling, resolveJsonSchemaStrictSampling, } from "./constrained-sampling.js";
 import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.js";
 import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
@@ -48,25 +50,6 @@ function hasToolHistory(messages) {
         }
     }
     return false;
-}
-function getDeferredToolNames(messages) {
-    const names = new Set();
-    for (const message of messages) {
-        if (message.role === "toolResult") {
-            for (const name of message.addedToolNames ?? []) {
-                names.add(name);
-            }
-        }
-    }
-    return names;
-}
-function getToolsByName(tools, names) {
-    if (!tools)
-        return [];
-    const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
-    return Array.from(names)
-        .map((name) => toolsByName.get(name))
-        .filter((tool) => tool !== undefined);
 }
 function isTextContentBlock(block) {
     return block.type === "text";
@@ -167,6 +150,7 @@ function resolveCacheRetention(cacheRetention, env) {
 }
 export const stream = (model, context, options) => {
     const stream = new AssistantMessageEventStream();
+    const normalizedContext = resolveTranscript(context, getCompat(model).supportsMidConvoSystemMessages);
     (async () => {
         const output = {
             role: "assistant",
@@ -196,11 +180,11 @@ export const stream = (model, context, options) => {
         try {
             const apiKey = getClientApiKey(model.provider, options?.apiKey, options?.headers);
             const compat = getCompat(model);
-            const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, compat.supportsOpenAIGrammarTools);
+            const grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(normalizedContext.messages), compat.supportsOpenAIGrammarTools);
             const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
             const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
-            const client = createClient(model, context, apiKey, options?.headers, options?.fetch, cacheSessionId, compat);
-            let params = buildParams(model, context, options, compat, cacheRetention, grammarToolInputProperties);
+            const client = createClient(model, normalizedContext, apiKey, options?.headers, options?.fetch, cacheSessionId, compat);
+            let params = buildParams(model, normalizedContext, options, compat, cacheRetention, grammarToolInputProperties);
             const nextParams = await options?.onPayload?.(params, model);
             if (nextParams !== undefined) {
                 params = nextParams;
@@ -453,7 +437,6 @@ export const stream = (model, context, options) => {
                             if (toolCall.function?.arguments) {
                                 delta = toolCall.function.arguments;
                                 block.partialArgs = (block.partialArgs ?? "") + toolCall.function.arguments;
-                                block.arguments = parseStreamingJson(block.partialArgs);
                             }
                             else if (toolCall.custom?.input) {
                                 const nextInput = getCustomToolCallInput(block) + toolCall.custom.input;
@@ -578,8 +561,11 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId, 
         defaultHeaders: headers,
     });
 }
-function buildParams(model, context, options, compat = getCompat(model), cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env), grammarToolInputProperties = createGrammarToolInputProperties(context.tools, compat.supportsOpenAIGrammarTools)) {
-    const messages = convertMessages(model, context, compat, { grammarToolInputProperties });
+function buildParams(model, context, options, compat = getCompat(model), cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env), grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(context.messages), compat.supportsOpenAIGrammarTools)) {
+    const transcriptTools = resolveTranscriptTools(context.messages, compat.supportsMidConvoSystemMessages === true && compat.supportsMidConvoToolAdditions === true);
+    const messages = convertMessages(model, context, compat, {
+        grammarToolInputProperties,
+    });
     const cacheControl = getCompatCacheControl(compat, cacheRetention);
     const params = {
         model: model.id,
@@ -608,10 +594,8 @@ function buildParams(model, context, options, compat = getCompat(model), cacheRe
     if (options?.temperature !== undefined) {
         params.temperature = options.temperature;
     }
-    const deferredToolNames = compat.deferredToolsMode === "kimi" ? getDeferredToolNames(context.messages) : new Set();
-    const activeTools = context.tools?.filter((tool) => !deferredToolNames.has(tool.name));
-    if (activeTools && activeTools.length > 0) {
-        params.tools = convertTools(activeTools, compat);
+    if (transcriptTools.requestTools.length > 0) {
+        params.tools = convertTools(transcriptTools.requestTools, compat);
         if (compat.zaiToolStream) {
             params.tool_stream = true;
         }
@@ -879,6 +863,7 @@ function addCacheControlToTextContent(message, cacheControl) {
     return false;
 }
 export function convertMessages(model, context, compat, options) {
+    const normalizedContext = resolveTranscript(context, compat.supportsMidConvoSystemMessages);
     const params = [];
     const normalizeToolCallId = (id) => {
         // Handle pipe-separated IDs from OpenAI Responses API
@@ -905,12 +890,9 @@ export function convertMessages(model, context, compat, options) {
             return id.length > 40 ? id.slice(0, 40) : id;
         return id;
     };
-    const transformedMessages = transformMessages(context.messages, model, (id) => normalizeToolCallId(id));
-    if (context.systemPrompt) {
-        const useDeveloperRole = model.reasoning && compat.supportsDeveloperRole;
-        const role = useDeveloperRole ? "developer" : "system";
-        params.push({ role: role, content: sanitizeSurrogates(context.systemPrompt) });
-    }
+    const transformedMessages = transformMessages(normalizedContext.messages, model, (id) => normalizeToolCallId(id));
+    const transcriptTools = resolveTranscriptTools(normalizedContext.messages, compat.supportsMidConvoSystemMessages === true && compat.supportsMidConvoToolAdditions === true);
+    const instructionRole = model.reasoning && compat.supportsDeveloperRole ? "developer" : "system";
     let lastRole = null;
     for (let i = 0; i < transformedMessages.length; i++) {
         const msg = transformedMessages[i];
@@ -922,7 +904,21 @@ export function convertMessages(model, context, compat, options) {
                 content: "I have processed the tool results.",
             });
         }
-        if (msg.role === "user") {
+        if (msg.role === "system") {
+            const addedTools = i > 0 && transcriptTools.anchorsAdditions ? (msg.toolsAdded ?? []) : [];
+            if (addedTools.length > 0) {
+                const kimiToolMessage = {
+                    role: "system",
+                    tools: convertTools(addedTools, compat),
+                };
+                params.push(kimiToolMessage);
+            }
+            const text = i === 0 ? getSystemMessageText(msg) : renderSystemMessageUpdate(msg);
+            if (text.length > 0) {
+                params.push({ role: instructionRole, content: sanitizeSurrogates(text) });
+            }
+        }
+        else if (msg.role === "user") {
             if (typeof msg.content === "string") {
                 params.push({
                     role: "user",
@@ -930,7 +926,9 @@ export function convertMessages(model, context, compat, options) {
                 });
             }
             else {
-                const content = msg.content.map((item) => {
+                const content = msg.content
+                    .filter((item) => item.type !== "text" || item.text.length > 0)
+                    .map((item) => {
                     if (item.type === "text") {
                         return {
                             type: "text",
@@ -1062,7 +1060,6 @@ export function convertMessages(model, context, compat, options) {
         }
         else if (msg.role === "toolResult") {
             const imageBlocks = [];
-            const deferredToolNames = new Set();
             let j = i;
             for (; j < transformedMessages.length && transformedMessages[j].role === "toolResult"; j++) {
                 const toolMsg = transformedMessages[j];
@@ -1085,11 +1082,6 @@ export function convertMessages(model, context, compat, options) {
                     toolResultMsg.name = toolMsg.toolName;
                 }
                 params.push(toolResultMsg);
-                if (compat.deferredToolsMode === "kimi") {
-                    for (const name of toolMsg.addedToolNames ?? []) {
-                        deferredToolNames.add(name);
-                    }
-                }
                 if (hasImages && model.input.includes("image")) {
                     for (const block of toolMsg.content) {
                         if (isImageContentBlock(block)) {
@@ -1125,17 +1117,6 @@ export function convertMessages(model, context, compat, options) {
             }
             else {
                 lastRole = "toolResult";
-            }
-            if (deferredToolNames.size > 0) {
-                const deferredTools = getToolsByName(context.tools, deferredToolNames);
-                if (deferredTools.length > 0) {
-                    const kimiToolMessage = {
-                        role: "system",
-                        tools: convertTools(deferredTools, compat),
-                    };
-                    // Kimi accepts a system message with tools but omits the standard content field.
-                    params.push(kimiToolMessage);
-                }
             }
             continue;
         }
@@ -1247,10 +1228,10 @@ function detectCompat(model) {
     const isCloudflareAiGateway = provider === "cloudflare-ai-gateway" || baseUrl.includes("gateway.ai.cloudflare.com");
     const isNvidia = provider === "nvidia" || baseUrl.includes("integrate.api.nvidia.com");
     const isAntLing = provider === "ant-ling" || baseUrl.includes("api.ant-ling.com");
+    const isCerebras = provider === "cerebras" || baseUrl.includes("cerebras.ai");
     const isDeepSeek = provider === "deepseek" || baseUrl.toLowerCase().includes("deepseek.com");
     const isNonStandard = isNvidia ||
-        provider === "cerebras" ||
-        baseUrl.includes("cerebras.ai") ||
+        isCerebras ||
         provider === "xai" ||
         baseUrl.includes("api.x.ai") ||
         isTogether ||
@@ -1303,11 +1284,13 @@ function detectCompat(model) {
         zaiToolStream: false,
         supportsThinkingTokenBudget: false,
         thinkingTokenBudgetField: undefined,
-        supportsStrictMode: !isMoonshot && !isTogether && !isCloudflareAiGateway && !isNvidia,
+        // OpenAI compatibility alone does not imply strict JSON-schema tool support.
+        supportsStrictMode: false,
         supportsOpenAIGrammarTools: false,
+        supportsMidConvoSystemMessages: false,
+        supportsMidConvoToolAdditions: false,
         cacheControlFormat,
-        sendSessionAffinityHeaders: false,
-        deferredToolsMode: undefined,
+        sendSessionAffinityHeaders: isOpenRouter,
         sessionAffinityFormat: isOpenRouter ? "openrouter" : "openai",
         supportsLongCacheRetention: !(isTogether ||
             isCloudflareWorkersAI ||
@@ -1346,9 +1329,10 @@ function getCompat(model) {
         thinkingTokenBudgetField: model.compat.thinkingTokenBudgetField ?? detected.thinkingTokenBudgetField,
         supportsStrictMode: model.compat.supportsStrictMode ?? detected.supportsStrictMode,
         supportsOpenAIGrammarTools: model.compat.supportsOpenAIGrammarTools ?? detected.supportsOpenAIGrammarTools,
+        supportsMidConvoSystemMessages: model.compat.supportsMidConvoSystemMessages ?? detected.supportsMidConvoSystemMessages,
+        supportsMidConvoToolAdditions: model.compat.supportsMidConvoToolAdditions ?? detected.supportsMidConvoToolAdditions,
         cacheControlFormat: model.compat.cacheControlFormat ?? detected.cacheControlFormat,
         sendSessionAffinityHeaders: model.compat.sendSessionAffinityHeaders ?? detected.sendSessionAffinityHeaders,
-        deferredToolsMode: model.compat.deferredToolsMode ?? detected.deferredToolsMode,
         sessionAffinityFormat: model.compat.sessionAffinityFormat ?? detected.sessionAffinityFormat,
         supportsLongCacheRetention: model.compat.supportsLongCacheRetention ?? detected.supportsLongCacheRetention,
         vllmPriority: model.compat.vllmPriority,

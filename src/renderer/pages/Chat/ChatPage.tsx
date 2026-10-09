@@ -16,7 +16,13 @@ import { ContextStatusBar } from './components/ContextStatusBar'
 import { MessageList } from './components/MessageList'
 import { SessionSidebar } from './components/SessionSidebar'
 import { useFileUpload } from './hooks/useFileUpload'
-import { buildFinalText, toAgentHistory } from './lib/chat-message'
+import {
+  buildFinalText,
+  queueActionAfterTurn,
+  restoreQueuedIfUnsent,
+  takeQueuedForSteering,
+  toAgentHistory,
+} from './lib/chat-message'
 
 export function ChatPage() {
   const { t } = useT()
@@ -24,6 +30,11 @@ export function ChatPage() {
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const prevStreamingRef = useRef(false)
+  const steeringModeRef = useRef<'all' | 'one-at-a-time'>('all')
+  const skipQueueFlushRef = useRef(false)
+  /** 已出队、80ms 后才真正发送。被新的发送打断时用它放回队首。 */
+  const pendingReleaseRef = useRef<{ text: string; finalText: string } | null>(null)
   const messages = useChatStore((s) => s.messages)
   const isStreaming = useChatStore((s) => s.isStreaming)
   const queuedCount = useChatStore((s) => s.queuedInputs.length)
@@ -35,6 +46,7 @@ export function ChatPage() {
   const lastModel = useChatStore((s) => s.lastModel)
   const lastCost = useChatStore((s) => s.lastCost)
   const thinkingLevel = useChatStore((s) => s.thinkingLevel)
+  const reasoningLevels = useChatStore((s) => s.currentModelReasoningLevels)
   const sessionId = useChatStore((s) => s.sessionId)
   const sessions = useChatStore((s) => s.sessions)
   const selectedAgentId = useChatStore((s) => s.selectedAgentId)
@@ -207,9 +219,41 @@ export function ChatPage() {
     [selectedAgentId, t, rollbackOptimisticState],
   )
 
+  const scheduleQueuedRelease = useCallback(
+    (send: { text: string; finalText: string }, rest: { text: string; finalText: string }[]) => {
+      pendingReleaseRef.current = send
+      useChatStore.setState({ queuedInputs: rest })
+      window.setTimeout(() => {
+        if (pendingReleaseRef.current !== send) return
+        pendingReleaseRef.current = null
+        void performSend(send.text, send.finalText)
+      }, 80)
+    },
+    [performSend],
+  )
+
+  const restorePendingRelease = useCallback(() => {
+    const pending = pendingReleaseRef.current
+    if (!pending) return
+    pendingReleaseRef.current = null
+    useChatStore.setState((s) => ({
+      queuedInputs: restoreQueuedIfUnsent(s.queuedInputs, pending, false),
+    }))
+  }, [])
+
   const handleSend = useCallback(() => {
     const text = input.trim()
-    if (!text) return
+    if (!text) {
+      if (!isStreaming && useChatStore.getState().queuedInputs.length > 0) {
+        const queued = useChatStore.getState().queuedInputs
+        const taken = takeQueuedForSteering(queued, steeringModeRef.current)
+        const send = taken.send
+        if (!send) return
+        scheduleQueuedRelease(send, taken.rest)
+      }
+      return
+    }
+    restorePendingRelease()
     if (!selectedAgentId) {
       toast.warning(t('toast.chat.selectAgentFirst'))
       return
@@ -224,37 +268,79 @@ export function ChatPage() {
     setInput('')
     setUploadedFiles([])
 
-    // P2-7(09-13 深查 B4): 运行中不再锁死输入 — 消息入队(快照定稿),
-    // 当前回复结束(idle/error)后自动发送。此前 isStreaming 期间只能干等
-    // 或停止重发,4 分钟长任务无法追问。
+    // P2-7: 运行中不再锁死输入。消息先排队，这轮结束再发。
+    // 引导模式「全部」把排着的合成一条；「一次一个」每轮只发下一条。
+    // 不中断正在跑的工具，避免长任务被一句追问打断。
     if (isStreaming) {
       useChatStore.setState((s) => ({
         queuedInputs: [...s.queuedInputs, { text: displayText, finalText }],
       }))
-      toast.info(t('page.chat.queuedNotice', '已排队，当前回复完成后自动发送'))
+      toast.info(
+        steeringModeRef.current === 'one-at-a-time'
+          ? t('page.chat.queuedNotice.one', '已排队，这轮结束后只发送下一条')
+          : t('page.chat.queuedNotice.all', '已排队，这轮结束后一并发送'),
+      )
       return
     }
     void performSend(displayText, finalText)
-  }, [input, isStreaming, selectedAgentId, uploadedFiles, setUploadedFiles, performSend, t])
+  }, [
+    input,
+    isStreaming,
+    selectedAgentId,
+    uploadedFiles,
+    setUploadedFiles,
+    performSend,
+    scheduleQueuedRelease,
+    restorePendingRelease,
+    t,
+  ])
 
-  // P2-7: 排队消息自动发送 — isStreaming 由 true 翻回 false(回复终止)时出队一条。
-  // 渲染层 deferral 保证入队消息发出时携带完整历史(含刚结束的回复),
-  // 语义优于把消息立刻塞进主进程 run-queue(那时终态回复还未落历史)。
-  const prevStreamingRef = useRef(false)
+  // 排队消息在回复结束时发出。默认「全部」合成一条；「一次一个」只出队第一条。
+  useEffect(() => {
+    void getAPI()
+      .settings.get()
+      .then((settings) => {
+        steeringModeRef.current =
+          settings?.chat?.steeringMode === 'one-at-a-time' ? 'one-at-a-time' : 'all'
+      })
+      .catch(() => {
+        /* 读不到时按「全部」 */
+      })
+  }, [])
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current
     prevStreamingRef.current = isStreaming
     if (!wasStreaming || isStreaming) return
-    const q = useChatStore.getState().queuedInputs
-    if (q.length === 0) return
-    const [next, ...rest] = q
-    useChatStore.setState({ queuedInputs: rest })
-    // 短延迟: 让终止态的状态清理批次先完成,再开新一轮乐观态
-    const timer = setTimeout(() => {
-      void performSend(next.text, next.finalText)
-    }, 80)
-    return () => clearTimeout(timer)
-  }, [isStreaming, performSend])
+    const queuedNow = useChatStore.getState().queuedInputs
+    const action = queueActionAfterTurn(skipQueueFlushRef.current, queuedNow.length)
+    skipQueueFlushRef.current = false
+    if (action === 'hold') {
+      toast.info(t('page.chat.queuedHeld', '已停止。排队的消息还在，输入框空着时点「发送排队」'))
+      return
+    }
+    if (action !== 'send') return
+    let cancelled = false
+    void (async () => {
+      let mode: 'all' | 'one-at-a-time' = steeringModeRef.current
+      try {
+        const settings = await getAPI().settings.get()
+        mode = settings?.chat?.steeringMode === 'one-at-a-time' ? 'one-at-a-time' : 'all'
+        steeringModeRef.current = mode
+      } catch {
+        /* 用上次读到的模式 */
+      }
+      if (cancelled) return
+      const queued = useChatStore.getState().queuedInputs
+      const taken = takeQueuedForSteering(queued, mode)
+      const send = taken.send
+      if (!send) return
+      scheduleQueuedRelease(send, taken.rest)
+    })()
+    return () => {
+      cancelled = true
+      restorePendingRelease()
+    }
+  }, [isStreaming, restorePendingRelease, scheduleQueuedRelease, t])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -275,6 +361,7 @@ export function ChatPage() {
   // 停止按钮的处理
   const handleStop = useCallback(() => {
     if (selectedAgentId) {
+      skipQueueFlushRef.current = true
       getAPI().agent.abort(selectedAgentId)
       useChatStore.setState({ isStreaming: false })
     }
@@ -325,6 +412,7 @@ export function ChatPage() {
           selectedAgentId={selectedAgentId}
           onSelectAgent={setSelectedAgent}
           thinkingLevel={thinkingLevel}
+          reasoningLevels={reasoningLevels}
           onThinkingLevelChange={handleThinkingLevelChange}
           selectedProvider={currentProvider}
           selectedModel={currentModel}

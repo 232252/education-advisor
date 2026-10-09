@@ -46,6 +46,11 @@ export const loadKimiCodingOAuth = async () => {
         return bundledLoaders.kimiCoding();
     return (await importOAuthModule("./kimi-coding.ts")).kimiCodingOAuth;
 };
+export const loadMetaOAuth = async () => {
+    if (bundledLoaders)
+        return bundledLoaders.meta();
+    return (await importOAuthModule("./meta.ts")).metaOAuth;
+};
 export const loadXaiOAuth = async () => {
     if (bundledLoaders)
         return bundledLoaders.xai();

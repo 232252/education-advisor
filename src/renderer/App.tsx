@@ -11,6 +11,8 @@ import { useChatAgentBridge } from './hooks/useChatAgentBridge'
 import { useForwardConsole } from './hooks/useForwardConsole'
 import { useTheme } from './hooks/useTheme'
 import { MainLayout } from './layouts/MainLayout'
+import { setShowChatImages } from './lib/chat-image-pref'
+import { getAPI } from './lib/ipc-client'
 import { useAgentStore } from './stores/agent/store'
 
 // 路由级懒加载 — 首屏仅加载 MainLayout + DashboardPage
@@ -92,6 +94,17 @@ export function App() {
     fetchAgents()
     initStatusListener()
   }, [fetchAgents, initStatusListener])
+  useEffect(() => {
+    void (async () => {
+      try {
+        const settings = await getAPI().settings.get()
+        const value = settings?.chat?.showImages
+        if (typeof value === 'boolean') setShowChatImages(value)
+      } catch {
+        // 读不到设置时保持默认：显示图片
+      }
+    })()
+  }, [])
   // 对话流桥必须常驻:离开 /chat 时 ChatPage 会卸载,订阅不能跟页面走
   useChatAgentBridge()
 

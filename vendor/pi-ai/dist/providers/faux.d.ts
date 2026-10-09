@@ -1,10 +1,11 @@
 import { type Provider } from "../models.ts";
-import type { AssistantMessage, AssistantMessageEventStream, Context, DeferredCancelOptions, DeferredFetchOptions, DeferredHandle, Model, SimpleStreamOptions, StreamFunction, TextContent, ThinkingContent, ToolCall } from "../types.ts";
+import type { AssistantMessage, AssistantMessageEventStream, DeferredCancelOptions, DeferredFetchOptions, DeferredHandle, Model, SimpleStreamOptions, StreamFunction, TextContent, ThinkingContent, ToolCall, TranscriptContext } from "../types.ts";
 export interface FauxModelDefinition {
     id: string;
     name?: string;
     reasoning?: boolean;
     input?: ("text" | "image")[];
+    inputLimits?: Model<string>["inputLimits"];
     cost?: {
         input: number;
         output: number;
@@ -32,7 +33,7 @@ export interface FauxProviderState {
     deferredFetchCount: number;
     cancelledDeferred: DeferredHandle[];
 }
-export type FauxResponseFactory = (context: Context, options: SimpleStreamOptions | undefined, state: FauxProviderState, model: Model<string>) => AssistantMessage | Promise<AssistantMessage>;
+export type FauxResponseFactory = (context: TranscriptContext, options: SimpleStreamOptions | undefined, state: FauxProviderState, model: Model<string>) => AssistantMessage | Promise<AssistantMessage>;
 export type FauxResponseStep = AssistantMessage | FauxResponseFactory;
 export interface RegisterFauxProviderOptions {
     api?: string;

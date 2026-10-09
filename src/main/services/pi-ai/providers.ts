@@ -6,6 +6,7 @@
 import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import { builtinProviders } from '@earendil-works/pi-ai/providers/all'
 import { providerDisplayName } from '@shared/provider-labels'
+import { isIncludedPlanProvider, isSubscriptionSku } from '@shared/subscription-sku'
 import type { ProviderInfo } from '@shared/types'
 import { keystoreService } from '../keystore-service'
 import { settingsService } from '../settings-service'
@@ -63,10 +64,12 @@ export async function listProviders(): Promise<ProviderInfo[]> {
     const keystoreKey = keystoreService.getApiKey(id)
     const envKey = getEnvApiKey(id)
     const hasApiKey = !!(keystoreKey || envKey)
-    // 检测免费模型：input + output 均 0 成本（如 zai 全系、opencode 的 *-free、kimi-coding）
-    const hasFreeModels = models.some(
-      (m) => (m.cost?.input ?? 0) === 0 && (m.cost?.output ?? 0) === 0,
-    )
+    // 标价为 0 才算免费。Highspeed 和 Token Plan 里的 0 是套餐内型号，不算免费。
+    const hasFreeModels =
+      !isIncludedPlanProvider(id) &&
+      models.some(
+        (m) => (m.cost?.input ?? 0) === 0 && (m.cost?.output ?? 0) === 0 && !isSubscriptionSku(m),
+      )
 
     return {
       id,
@@ -107,7 +110,7 @@ export async function listProviders(): Promise<ProviderInfo[]> {
     console.log(`[PiAI] Ollama detection skipped: ${err}`)
   }
 
-  // 排序：免费模型 provider 优先（让用户更容易发现 zai/opencode/kimi 等免费选项）
+  // 排序：真正 0 价的厂商靠前。套餐专属型号不算免费。
   results.sort((a, b) => {
     if (a.hasFreeModels !== b.hasFreeModels) return a.hasFreeModels ? -1 : 1
     if (a.hasApiKey !== b.hasApiKey) return a.hasApiKey ? -1 : 1 // 已配置的靠前

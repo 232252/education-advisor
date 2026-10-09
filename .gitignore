@@ -13,6 +13,8 @@ build/
 # Un-ignore vendored package dist directories (they ARE the source
 # of those packages; not Electron build output).
 !vendor/**/dist/
+# dsh 子进程用的 node.exe。scripts/stage-dsh-node.mjs 在打包前复制，不进 git。
+vendor/dsh-node/
 
 # ===== Logs (debug + runtime) =====
 *.log
@@ -225,3 +227,11 @@ profiles/
 # 导致 5 名真实学生姓名进入公开历史。现改为仅本地保留,需要时从
 # 用户目录的备份取回。
 benchmark/
+
+# ===== 视频制作与本地散件(2026/10 增补,勿入库) =====
+# demo-video/: 视频剪辑工程与原始素材(1.3GB+);.video_agent/: video-agent-kit 工具状态
+demo-video/
+.video_agent/
+# 根目录的个人娱乐页与 dsh 预设补丁工作副本
+funnel-endurance.html
+eaa-harness-tools-off.cordis.patch.yml

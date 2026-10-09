@@ -130,6 +130,36 @@
       "clientSecret": "",
       "allowGroups": true,
       "agentId": "main"
+    },
+    "mqtt": {
+      "enabled": false,
+      "host": "",
+      "port": 1883,
+      "username": "",
+      "password": "",
+      "subscribeTopic": "",
+      "publishTopic": "",
+      "tls": false
+    },
+    "yuanbao": {
+      "enabled": false,
+      "appId": "",
+      "appSecret": "",
+      "apiDomain": "https://bot.yuanbao.tencent.com",
+      "routeEnv": ""
+    },
+    "xiaoyi": {
+      "enabled": false,
+      "accessKey": "",
+      "secretKey": "",
+      "agentId": "",
+      "publicEndpoint": ""
+    },
+    "mattermost": {
+      "enabled": false,
+      "baseUrl": "",
+      "botToken": "",
+      "proxyUrl": ""
     }
   },
   "shortcuts": {

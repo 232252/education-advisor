@@ -11,6 +11,7 @@ import { memo, useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Pluggable } from 'unified'
+import { useT } from '../i18n'
 import { cn } from '../lib/ui-utils'
 
 interface MathStack {
@@ -42,9 +43,12 @@ function needsMath(content: string): boolean {
 interface MarkdownProps {
   content: string
   className?: string
+  /** 为 false 时不渲染图片，改成文字占位。缺省仍显示。 */
+  images?: boolean
 }
 
-function MarkdownImpl({ content, className }: MarkdownProps) {
+function MarkdownImpl({ content, className, images = true }: MarkdownProps) {
+  const { t } = useT()
   const wantsMath = needsMath(content)
   const [math, setMath] = useState<MathStack | null>(() => (wantsMath ? mathStack : null))
 
@@ -135,6 +139,19 @@ function MarkdownImpl({ content, className }: MarkdownProps) {
                 {children}
               </pre>
             )
+          },
+          img({ alt, src }) {
+            if (!images) {
+              return (
+                <span
+                  className="text-xs text-gray-400 dark:text-gray-500"
+                  data-testid="chat-image-hidden"
+                >
+                  {alt ? `[${alt}]` : t('page.chat.imageHidden', '[图片]')}
+                </span>
+              )
+            }
+            return <img alt={alt ?? ''} src={src} className="max-w-full rounded" />
           },
         }}
       >

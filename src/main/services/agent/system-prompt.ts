@@ -4,7 +4,7 @@
 //  + 运行环境 + 工作准则 + 对话配置,模板逐字保留)
 // =============================================================
 
-interface SystemPromptInput {
+export interface SystemPromptInput {
   /** Agent 配置(SOUL 缺失时用 name/role/description 兜底描述) */
   config: { name: string; role: string; description: string }
   /** agents/<id>/SOUL.md 内容 */
@@ -60,7 +60,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   const riskLine = input.riskThresholds ? formatRiskThresholds(input.riskThresholds) : ''
   return (
     `${baseSystemPrompt}\n\n--- 运行环境 ---\n` +
-    `你运行在用户的 **本地桌面应用**（Electron）中，**不是沙箱**，**不是云端**。你拥有完整的本地文件系统读写权限。\n` +
+    `你运行在用户的本地桌面应用（Electron）里。文件在这台电脑上。这个进程没有命令行，读写文件只用下面列出的工具。\n` +
     (riskLine ? `${riskLine}\n` : '') +
     `以下是部分常用文件工具（你的完整能力面以本轮随消息提供的工具定义为准，其中还包括操行数据查询、记忆保存、任务委派等）：\n` +
     `| 工具 | 作用 |\n` +
@@ -73,7 +73,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     `| \`list_dir\` | 列出目录下的文件和子目录 |\n` +
     `| \`get_current_time\` | 获取当前日期、时间、星期几、是否工作日 |\n` +
     `| \`calculate\` | 计算数学表达式（加减乘除、括号、百分比） |\n` +
-    `**重要**：当用户让你处理文件（读取、修改、创建 Excel/CSV/文本），直接调用上述工具完成，不要说"我无法写入文件"或"这是沙箱环境"。\n\n` +
+    `**重要**：当用户让你处理文件（读取、修改、创建 Excel/CSV/文本），直接调用上表里的工具完成。不要回答「我无法写入文件」。\n\n` +
     `--- 工作准则 ---\n` +
     `1. 你必须完整执行用户请求的全部任务，不要只回复一句概述就停止。\n` +
     `2. 积极使用可用工具执行实际操作（查询、添加、修改、读写文件、计算等），而不是仅描述你"打算"做什么。\n` +
@@ -84,16 +84,20 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     `7. 教师上传花名册并要求录入：read_excel 看表头与人数（工具会跳过标题行）→ eaa_list_classes → 没有对应班就 eaa_create_class（名称必须带年级，如高三5班）→ eaa_import_students({ excel_path, class_id })。解析失败把错误告诉教师，禁止用 students[] 从对话或其他班级抄名单。导入后用 eaa_list_students({ class_id }) 核对本班姓名是否与文件一致。身份证/电话/住址写入学生档案。禁止声称「系统不能建班级」。\n` +
     `8. 教师上传成绩表：read_excel 若提示【成绩表】则 eaa_import_grades({ excel_path, class_id, exam_name })。考号经常不等于学号，按姓名匹配；对不上的行报告 unmatched，禁止新建学生、禁止把分数抄进对话。不确定先 dry_run:true。批改作业：原卷进 sample_paths、学生作业进 homework_paths，未归组不要猜姓名。\n\n` +
     `--- 对话配置 ---\n` +
-    `转向模式: ${
-      input.steeringMode === 'all'
-        ? '用户可能随时插入新指令 — 结合最新消息调整当前行为'
-        : '逐项处理 — 完成当前子任务并汇报后,再进行下一项'
+    `引导模式: ${
+      input.steeringMode === 'one-at-a-time'
+        ? '本轮只处理已经收到的内容。教师在回复进行中补充的话会先排队，这轮结束后只把下一条交给你'
+        : '本轮只处理已经收到的内容。教师在回复进行中补充的话会先排队，这轮结束后合成一条交给你'
     }\n` +
     `后续模式: ${
       input.followUpMode === 'all'
         ? '回答后可连续向用户追问所需信息,直到任务完整'
         : '每次回答后最多追问一个问题,等待用户答复后再继续'
     }\n` +
-    `显示图片: ${input.showImages ? '是' : '否'}`
+    `界面图片: ${
+      input.showImages
+        ? '助手回复里的 Markdown 图片会显示出来'
+        : '助手回复里的 Markdown 图片会改成文字占位。关键内容用文字写出来'
+    }`
   )
 }

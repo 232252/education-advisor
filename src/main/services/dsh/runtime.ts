@@ -1,25 +1,28 @@
 // =============================================================
 // dsh 运行时生命周期客户端
 //
-// 契约与 ChatStreamRunner.chatStream 对齐（同样 AsyncGenerator<StreamEvent>），
-// 因此 IPC handler 与渲染端不区分后端。
+// chatStream 产出 AsyncGenerator<StreamEvent>，IPC 与渲染端只认这一份事件。
 //
 // 只依赖本仓库自定义的 DshClientLike：@deepseek-ai/dsh-sdk-client 是
 // pre-stable 且 ESM-only，编译期不引用它，由 loadSdkClient() 运行时装载，
 // 测试注入假客户端即可。
 // =============================================================
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, unlinkSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join, sep } from 'node:path'
 import type { StreamEvent, TokenUsage } from '@shared/types/ai'
+import { EAA_MCP_TOKEN_ENV, EAA_MCP_URL_ENV } from './eaa-tools-contract'
 import { ensureEaaHardeningPatch } from './hardening'
+import { setEaaToolsPluginTarget } from './plugin-install'
 import { type DshRouteModelSource, dshRouteModelEntry } from './profile-overrides'
 import {
   dshProviderRouting,
   dshSubprocessEnv,
   ensureEaaProviderPatch,
+  probeCredentialPlan,
   providersToDeclare,
+  writeProviderPatchFile,
 } from './provider-patch'
 import { mapDshSessionEvent } from './stream-mapper'
 import type { DshSessionEvent, DshSessionEventNotification } from './wire-types'
@@ -93,8 +96,7 @@ export interface DshChatStreamParams {
   maxTokens?: number
   /**
    * 本轮不生效：SDK 无按请求覆盖推理档位的入口，reasoningEffort 只在 initialize
-   * 定死。上层（pi-ai-service）把它带进子进程构造，换档位即换子进程；
-   * 保留该字段同时为了与 ChatStreamRunner.chatStream 的参数签名兼容。
+   * 定死。上层（pi-ai-service）把它带进子进程构造，换档位即换子进程。
    */
   thinking?: string
 }
@@ -107,6 +109,8 @@ export interface DshChatStreamParams {
  * 不可见，运行时仍是真正的动态 import；也避免未安装依赖时构建期解析失败。
  */
 export async function loadSdkClient(): Promise<new (options: unknown) => DshClientLike> {
+  const { installDshNodeSpawnHook } = await import('./dsh-node')
+  installDshNodeSpawnHook()
   const dynamicImport = new Function('specifier', 'return import(specifier)') as (
     s: string,
   ) => Promise<{ HarnessClient: new (options: unknown) => DshClientLike }>
@@ -139,16 +143,28 @@ let runtimeDshBin: string | undefined
  */
 type DshRouteModelLookup = (route: string, modelId: string) => DshRouteModelSource | undefined
 let runtimeRouteModel: DshRouteModelLookup | undefined
+/** sdk profile 的 DSH_HOME。空字符串表示沿用 dsh 自己的默认目录。 */
+let runtimeSdkHome = ''
 
 export function configureDshRuntime(opts: {
   cwd: string
   dshBin?: string
   routeModel?: DshRouteModelLookup
+  /** 教师对话的 profile 目录。和连接中心的 web home 分开。 */
+  sdkHome?: string
+  /** vendor/eaa-tools 的绝对路径。和 sdkHome 一起给出才会安装插件。 */
+  toolsDir?: string
 }): void {
   runtimeCwd = opts.cwd
   // 无条件覆盖：整次装配只有一个调用方，缺省即「没有可用入口」，不能沿用上一次的值
   runtimeDshBin = opts.dshBin
   runtimeRouteModel = opts.routeModel
+  runtimeSdkHome = opts.sdkHome ?? ''
+  setEaaToolsPluginTarget(
+    opts.sdkHome && opts.toolsDir && opts.dshBin
+      ? { home: opts.sdkHome, toolsDir: opts.toolsDir, dshBin: opts.dshBin }
+      : null,
+  )
 }
 export function getDshRuntimeCwd(): string {
   return runtimeCwd
@@ -223,11 +239,11 @@ function sessionIdOf(n: DshNotification): string | undefined {
  *
  * patches 为空时整个键省略：dsh 侧按「内部 patch 在下、调用方 patch 在上」的顺序应用。
  *
- * 两个 Electron 专属项（缺一，装了出来的 app 每次 AI 调用都起不来）：
- * - ELECTRON_RUN_AS_NODE：SDK 用 process.execPath 起子进程，在 Electron 主进程里
- *   那是 app 自己的 exe。不带这个变量，起的是「第二个应用实例」而不是 node ——
- *   实测子进程 30s 不退出、零输出，initialize 只能超时。
+ * Electron 专属项：
  * - dshBin：归档内路径对纯 node 子进程不可见，必须换成 app.asar.unpacked 的真实路径。
+ * - ELECTRON_RUN_AS_NODE：SDK 写死用 process.execPath。dsh 0.2.1 拒绝 Electron 43.2.0
+ *   的指纹，所以真正拉起前会改走独立 node，并去掉这个变量。只有找不到 node 时才
+ *   仍用 Electron 自己的 exe，这时必须带上它，否则起的是第二个应用窗口。
  */
 export function dshLaunchOptions(opts: {
   cwd: string
@@ -238,6 +254,7 @@ export function dshLaunchOptions(opts: {
   const base: Record<string, unknown> = patches.length
     ? { processCwd: opts.cwd, patches }
     : { processCwd: opts.cwd }
+  if (runtimeSdkHome) base.dshHome = runtimeSdkHome
   // SDK 的 env 是整体替换语义，所以要么原样省略（沿用继承），要么带全量环境
   if (isElectronMainProcess()) {
     base.env = {
@@ -265,8 +282,29 @@ export function dshLaunchOptions(opts: {
  *
  * 单测直接 new DshRuntime(createClient) 打桩，不必落盘。
  */
+function mcpProcessEnv(
+  mcp: { url: string; token: string } | { env: Record<string, string> } | undefined,
+): Record<string, string> | undefined {
+  if (!mcp) return undefined
+  if ('env' in mcp) return mcp.env
+  return { [EAA_MCP_URL_ENV]: mcp.url, [EAA_MCP_TOKEN_ENV]: mcp.token }
+}
+
 export function createDshRuntime(
-  opts: Omit<ConstructorParameters<typeof DshRuntime>[0], 'patches'> & { patches?: string[] },
+  opts: Omit<ConstructorParameters<typeof DshRuntime>[0], 'patches'> & {
+    patches?: string[]
+    /**
+     * 本轮教育工具端点。
+     * `{ url, token }` 只连操行插件；`{ env }` 按插件约定注入各组地址，
+     * 没出现的组保持关闭。
+     */
+    mcp?: { url: string; token: string } | { env: Record<string, string> }
+    /**
+     * 连接测试用：这把 key 还没进密钥库。只注入这一次子进程，
+     * 不改共享的 providers patch。
+     */
+    probeCredential?: { providerId: string; apiKey: string }
+  },
 ): DshRuntime {
   const cwd = opts.cwd ?? runtimeCwd
   const hardening = ensureEaaHardeningPatch(cwd)
@@ -274,18 +312,63 @@ export function createDshRuntime(
   // has no configured model（dsh 的 llm-pi-ai 路由不沿用 pi 目录，实测 2026-09-22）
   const pinnedSource = runtimeRouteModel?.(opts.provider ?? '', opts.model ?? '')
   const pinnedEntry = dshRouteModelEntry(pinnedSource)
-  const routing = dshProviderRouting(
-    providersToDeclare(),
+  const declared = providersToDeclare()
+  const pinned =
     pinnedEntry && opts.provider
       ? { route: opts.provider, entry: pinnedEntry, api: pinnedSource?.api }
-      : undefined,
-  )
+      : undefined
+  // 共享 patch 只写已经存过 key 的 provider。探测用的那把还没入库，
+  // 单独写一份排在后面的 patch，避免把「未保存的路由」留在共享文件里。
+  const routing = dshProviderRouting(declared, pinned)
   const providerPatch = ensureEaaProviderPatch(cwd, routing.profiles)
-  return new DshRuntime({
-    ...opts,
-    patches: [hardening, ...(providerPatch ? [providerPatch] : []), ...(opts.patches ?? [])],
-    env: dshSubprocessEnv(routing.envNames),
+  const probeId = opts.probeCredential?.providerId
+  const probeRouting =
+    probeId && opts.probeCredential?.apiKey && !declared.includes(probeId)
+      ? dshProviderRouting([...declared, probeId], pinned)
+      : routing
+  let probePatch: string | undefined
+  let probeEnv: Record<string, string> | undefined
+  if (opts.probeCredential?.apiKey) {
+    const plan = probeCredentialPlan(probeRouting, opts.probeCredential)
+    probeEnv = { [plan.envName]: opts.probeCredential.apiKey }
+    if (plan.forcedProfiles) probePatch = writeProviderPatchFile(cwd, plan.forcedProfiles)
+  }
+  const credentialEnv = dshSubprocessEnv(routing.envNames)
+  const mcpEnv = mcpProcessEnv(opts.mcp)
+  const env =
+    mcpEnv || probeEnv
+      ? {
+          ...(credentialEnv ?? (process.env as Record<string, string>)),
+          ...(mcpEnv ?? {}),
+          ...(probeEnv ?? {}),
+        }
+      : credentialEnv
+  const { mcp: _mcp, patches: callerPatches, probeCredential: _probe, ...rest } = opts
+  const runtime = new DshRuntime({
+    ...rest,
+    patches: [
+      hardening,
+      ...(providerPatch ? [providerPatch] : []),
+      ...(probePatch ? [probePatch] : []),
+      ...(callerPatches ?? []),
+    ],
+    env,
   })
+  if (probePatch) {
+    const close = runtime.dispose.bind(runtime)
+    runtime.dispose = async () => {
+      try {
+        await close()
+      } finally {
+        try {
+          unlinkSync(probePatch)
+        } catch {
+          // 探测 patch 只服务这一次子进程，删不掉也不影响下次
+        }
+      }
+    }
+  }
+  return runtime
 }
 
 export class DshRuntime {

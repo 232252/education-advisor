@@ -11,7 +11,7 @@
 // =============================================================
 
 import type { AgentTool } from '@main/services/llm-contracts'
-import type { AgentConfig } from '@shared/types'
+import type { AgentConfig, Skill } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { getToolsByCapability } from '../eaa-tools'
 import { allFileTools } from '../file-tools'
@@ -53,23 +53,19 @@ const UNIVERSAL_TOOL_NAMES = new Set([
  * eaa_add_event)。规则:技能 frontmatter 声明 tools 时,仅当 agent 实际持有
  * 其中至少一个工具(或为全员工具)才注入;未声明 tools 的技能保持全员可见。
  */
-export function buildSkillsSection(capabilities?: string[]): string {
+/** 该角色看得到的技能。未传 capabilities 时不过滤。 */
+export function selectSkillsForRun(capabilities?: string[]): Skill[] {
   const skills = skillService.listSkills()
-  if (skills.length === 0) return ''
+  if (capabilities === undefined) return skills
+  const agentToolNames = new Set(getToolsByCapability(capabilities).map((t) => t.name as string))
+  for (const u of UNIVERSAL_TOOL_NAMES) agentToolNames.add(u)
+  return skills.filter(
+    (s) => !s.tools || s.tools.length === 0 || s.tools.some((t) => agentToolNames.has(t)),
+  )
+}
 
-  // capabilities === undefined → legacy 语义,不过滤(调用链现已全部显式传参)
-  const visible =
-    capabilities === undefined
-      ? skills
-      : (() => {
-          const agentToolNames = new Set(
-            getToolsByCapability(capabilities).map((t) => t.name as string),
-          )
-          for (const u of UNIVERSAL_TOOL_NAMES) agentToolNames.add(u)
-          return skills.filter(
-            (s) => !s.tools || s.tools.length === 0 || s.tools.some((t) => agentToolNames.has(t)),
-          )
-        })()
+export function buildSkillsSection(capabilities?: string[]): string {
+  const visible = selectSkillsForRun(capabilities)
   if (visible.length === 0) return ''
 
   const entries = visible.map((s) => {

@@ -203,9 +203,9 @@ export function selectModel(
 
   // 5. 最终回退：尝试常见模型（仅当有对应 API key 时）
   const fallbacks: Array<[string, string]> = [
-    ['anthropic', 'claude-sonnet-4-20250514'],
+    ['anthropic', 'claude-haiku-4-5'],
     ['openai', 'gpt-4o-mini'],
-    ['deepseek', 'deepseek-chat'],
+    ['deepseek', 'deepseek-flash'],
   ]
   for (const [p, m] of fallbacks) {
     if (!hasApiKey(p)) continue

@@ -15,6 +15,8 @@ import type { ModelThinkingLevel } from '@main/services/llm-contracts'
 
 import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import type { ModelInfo, ProviderInfo, StreamEvent, TestConnectionResult } from '@shared/types'
+import { errText } from '../utils/err-text'
+import { compactPlainChat } from './compaction-helper'
 import { dshRouteFingerprint } from './dsh/provider-patch'
 import { dshRouteFor } from './dsh/route'
 import { dshReasoningEffort } from './dsh/route-names'
@@ -148,7 +150,21 @@ class PiAIService {
     thinking?: ModelThinkingLevel
     maxTokens?: number
   }): AsyncGenerator<StreamEvent> {
-    yield* this.resolveStreamRunner(params).chatStream(params)
+    const model = resolveModel(params.providerId, params.modelId)
+    let messages = params.messages
+    if (model) {
+      try {
+        const compaction = settingsService.getSettings().chat?.compaction
+        messages = await compactPlainChat(params.messages, model, {
+          enabled: compaction?.enabled ?? true,
+          reserveTokens: compaction?.reserveTokens ?? 8000,
+          keepRecentTokens: compaction?.keepRecentTokens ?? 16000,
+        })
+      } catch (err) {
+        console.warn('[PiAI] chat compaction skipped:', errText(err))
+      }
+    }
+    yield* this.resolveStreamRunner(params).chatStream({ ...params, messages })
   }
 
   /**
@@ -162,15 +178,14 @@ class PiAIService {
     thinking?: ModelThinkingLevel
   }): DshRuntime {
     const route = dshRouteFor(params.providerId, params.modelId)
-    const reasoningEffort = dshReasoningEffort(
-      resolveModel(params.providerId, params.modelId)?.thinkingLevelMap,
-      params.thinking,
-    )
+    const model = resolveModel(params.providerId, params.modelId)
+    const reasoningEffort = dshReasoningEffort(model?.thinkingLevelMap, params.thinking)
+    const maxTokens = resolveChatMaxTokens(params.maxTokens, model?.maxTokens)
     const configFingerprint = dshRouteFingerprint(params.providerId)
     const key = dshPinnedKey({
       provider: route.providerId,
       model: route.modelId,
-      maxTokens: params.maxTokens,
+      maxTokens,
       reasoningEffort,
       configFingerprint,
     })
@@ -178,7 +193,7 @@ class PiAIService {
       createDshRuntime({
         provider: route.providerId,
         model: route.modelId,
-        maxTokens: params.maxTokens,
+        ...(maxTokens === undefined ? {} : { maxTokens }),
         reasoningEffort,
         configFingerprint,
       })
@@ -246,11 +261,30 @@ class PiAIService {
   // ===========================================================
 
   // ===========================================================
-  // 对话压缩 (Feature J)
-  // 压缩逻辑已迁移到 ./compaction-helper.ts:
-  //   - compactAgentMessages: LLM 摘要版(Agent + Chat 链路统一使用)
-  //   - compactChatMessagesSimple: 字符串截断版(LLM 失败时的降级方案)
+  // 对话压缩在 chatStream 里调用 compactPlainChat（见文件顶部 import）
   // ===========================================================
 }
 
 export const piAIService = new PiAIService()
+
+/**
+ * 教师对话没单独传上限时，用设置页的 chat.maxTokens。
+ * 不能低于模型目录自己的 maxTokens：默认 4096 曾把长输出模型截断。
+ * 调用方传了数字就照用（例如成绩录入要压短）。
+ */
+function resolveChatMaxTokens(
+  explicit: number | undefined,
+  modelMax: number | undefined,
+): number | undefined {
+  if (typeof explicit === 'number' && explicit > 0) return explicit
+  let fromSettings: number | undefined
+  try {
+    const value = settingsService.getSettings().chat?.maxTokens
+    if (typeof value === 'number' && value > 0) fromSettings = value
+  } catch {
+    // 设置读失败时不另造上限，dsh 用自己的默认
+  }
+  const floors = [modelMax, fromSettings].filter((n): n is number => typeof n === 'number' && n > 0)
+  if (!floors.length) return undefined
+  return Math.max(...floors)
+}

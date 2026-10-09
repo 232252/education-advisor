@@ -55,8 +55,8 @@ const assistant = (texts: string[]): DshSessionEvent =>
     },
   }) as unknown as DshSessionEvent
 
-const turnEnd = (reason: 'completed' | 'aborted' | 'error' = 'completed'): DshSessionEvent =>
-  ({ type: 'turn/end', data: { turn: 1, reason } }) as unknown as DshSessionEvent
+const turnEnd = (kind: 'completed' | 'aborted' | 'error' = 'completed'): DshSessionEvent =>
+  ({ type: 'turn/end', data: { turn: 1, reason: { kind } } }) as unknown as DshSessionEvent
 
 function facade(source: DshTurnSource): DshAgentFacade {
   return new DshAgentFacade({ runtime: source, model, systemPrompt: '你是班主任助手' })
@@ -176,6 +176,10 @@ describe('DshAgentFacade', () => {
     expect(f.outcome).toEqual({ aborted: false, failed: true })
     // pi 路径的每一轮都以这一对结束，collector 的 turnCount 挂在 turn_end 上
     expect(events.map((e) => e.type)).toEqual(['turn_end', 'agent_end'])
+    expect(events[0]).toMatchObject({
+      type: 'turn_end',
+      message: { stopReason: 'error', errorMessage: 'runtime died' },
+    })
     expect(console.warn).toHaveBeenCalledWith(
       expect.stringContaining('turn 中断'),
       expect.stringContaining('runtime died'),

@@ -9,36 +9,19 @@ import type { AgentMessage, CompactionSettings } from '@main/services/llm-contra
 import type { Api, Model } from '@earendil-works/pi-ai/compat'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// 0.80.3 适配：压缩路径改用 completeSimple（替代旧 generateSummary）
-// Mock completeSimple / estimateContextTokens
+// 摘要走 dsh 一次性文本调用。token 估算已在 compaction-helper 里本地实现。
 const mocks = vi.hoisted(() => ({
-  completeSimple: vi.fn(),
-  estimateContextTokens: vi.fn(() => ({ tokens: 0 })),
+  completeDshText: vi.fn(),
 }))
 
-vi.mock('@earendil-works/pi-agent-core', async () => {
-  const actual = await vi.importActual<typeof import('@earendil-works/pi-agent-core')>(
-    '@earendil-works/pi-agent-core',
-  )
-  return {
-    ...actual,
-    estimateContextTokens: mocks.estimateContextTokens,
-  }
-})
-
-vi.mock('@earendil-works/pi-ai/compat', async () => {
-  const actual = await vi.importActual<typeof import('@earendil-works/pi-ai/compat')>(
-    '@earendil-works/pi-ai/compat',
-  )
-  return {
-    ...actual,
-    completeSimple: mocks.completeSimple,
-  }
-})
+vi.mock('../../src/main/services/dsh/text-call', () => ({
+  completeDshText: mocks.completeDshText,
+}))
 
 import {
   compactAgentMessages,
   compactChatMessagesSimple,
+  compactPlainChat,
   evaluateCompaction,
 } from '../../src/main/services/compaction-helper'
 
@@ -234,22 +217,20 @@ describe('compactChatMessagesSimple', () => {
 
 describe('compactAgentMessages', () => {
   beforeEach(() => {
-    mocks.completeSimple.mockReset()
-    mocks.estimateContextTokens.mockReset()
-    mocks.estimateContextTokens.mockImplementation(() => ({ tokens: 0 }))
+    mocks.completeDshText.mockReset()
   })
 
-  it('messages.length <= 2 时应原样返回(不调 completeSimple)', async () => {
+  it('messages.length <= 2 时应原样返回(不调 completeDshText)', async () => {
     const messages: AgentMessage[] = [
       { role: 'user', content: 'hi', timestamp: 1 } as unknown as AgentMessage,
       { role: 'assistant', content: 'hello', timestamp: 2 } as unknown as AgentMessage,
     ]
     const result = await compactAgentMessages(messages, mockModel, defaultSettings, 'fake-key')
     expect(result).toBe(messages)
-    expect(mocks.completeSimple).not.toHaveBeenCalled()
+    expect(mocks.completeDshText).not.toHaveBeenCalled()
   })
 
-  it('shouldCompact=false 时应原样返回(不调 completeSimple)', async () => {
+  it('shouldCompact=false 时应原样返回(不调 completeDshText)', async () => {
     // 短消息,不超阈值
     const messages: AgentMessage[] = [
       { role: 'user', content: 'hi', timestamp: 1 } as unknown as AgentMessage,
@@ -258,7 +239,7 @@ describe('compactAgentMessages', () => {
     ]
     const result = await compactAgentMessages(messages, mockModel, defaultSettings, 'fake-key')
     expect(result).toBe(messages)
-    expect(mocks.completeSimple).not.toHaveBeenCalled()
+    expect(mocks.completeDshText).not.toHaveBeenCalled()
   })
 
   it('enabled=false 时即使超阈值也不压缩', async () => {
@@ -271,10 +252,10 @@ describe('compactAgentMessages', () => {
     const settings: CompactionSettings = { ...defaultSettings, enabled: false }
     const result = await compactAgentMessages(messages, mockModel, settings, 'fake-key')
     expect(result).toBe(messages)
-    expect(mocks.completeSimple).not.toHaveBeenCalled()
+    expect(mocks.completeDshText).not.toHaveBeenCalled()
   })
 
-  it('completeSimple 失败时应原样返回(降级保护)', async () => {
+  it('摘要调用失败时应原样返回(降级保护)', async () => {
     // 超阈值。pi-agent-core 0.84 起 assistant.content 必须是块数组(serializeConversation 契约)
     const longContent = 'a'.repeat(10000)
     const messages: AgentMessage[] = [
@@ -286,14 +267,14 @@ describe('compactAgentMessages', () => {
       } as unknown as AgentMessage,
       { role: 'user', content: longContent, timestamp: 3 } as unknown as AgentMessage,
     ]
-    mocks.completeSimple.mockRejectedValue(new Error('API timeout'))
+    mocks.completeDshText.mockRejectedValue(new Error('API timeout'))
 
     const result = await compactAgentMessages(messages, mockModel, defaultSettings, 'fake-key')
     expect(result).toBe(messages) // 失败时返回原始消息
-    expect(mocks.completeSimple).toHaveBeenCalledTimes(1)
+    expect(mocks.completeDshText).toHaveBeenCalledTimes(1)
   })
 
-  it('completeSimple 成功时应返回 [summary, ...recent]', async () => {
+  it('摘要成功时应返回 [summary, ...recent]', async () => {
     const longContent = 'a'.repeat(10000)
     const recentContent = 'recent short'
     const messages: AgentMessage[] = [
@@ -305,11 +286,7 @@ describe('compactAgentMessages', () => {
       } as unknown as AgentMessage,
       { role: 'user', content: recentContent, timestamp: 3 } as unknown as AgentMessage,
     ]
-    mocks.completeSimple.mockResolvedValue({
-      role: 'assistant',
-      content: [{ type: 'text', text: '这是摘要文本' }],
-      timestamp: 1,
-    })
+    mocks.completeDshText.mockResolvedValue({ text: '这是摘要文本' })
 
     const result = await compactAgentMessages(messages, mockModel, defaultSettings, 'fake-key')
     expect(Array.isArray(result)).toBe(true)
@@ -328,10 +305,10 @@ describe('compactAgentMessages', () => {
     }
     expect(firstText).toContain('对话历史压缩')
     expect(firstText).toContain('这是摘要文本')
-    expect(mocks.completeSimple).toHaveBeenCalledTimes(1)
+    expect(mocks.completeDshText).toHaveBeenCalledTimes(1)
   })
 
-  it('应将 apiKey 传给 completeSimple', async () => {
+  it('摘要请求带上模型路由，密钥由 dsh 子进程自己读取', async () => {
     const longContent = 'a'.repeat(10000)
     const messages: AgentMessage[] = [
       { role: 'user', content: longContent, timestamp: 1 } as unknown as AgentMessage,
@@ -342,17 +319,15 @@ describe('compactAgentMessages', () => {
       } as unknown as AgentMessage,
       { role: 'user', content: 'recent', timestamp: 3 } as unknown as AgentMessage,
     ]
-    mocks.completeSimple.mockResolvedValue({
-      role: 'assistant',
-      content: [{ type: 'text', text: '摘要' }],
-      timestamp: 1,
-    })
+    mocks.completeDshText.mockResolvedValue({ text: '摘要' })
 
     await compactAgentMessages(messages, mockModel, defaultSettings, 'my-api-key-12345')
-    const callArgs = mocks.completeSimple.mock.calls[0]
-    // completeSimple(model, context, options) — options 是第 3 个参数 (index 2)
-    const options = callArgs[2] as { apiKey?: string }
-    expect(options.apiKey).toBe('my-api-key-12345')
+    expect(mocks.completeDshText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'openai',
+        model: 'test-model',
+      }),
+    )
   })
 
   it('oldMessages 为空时应原样返回', async () => {
@@ -372,12 +347,12 @@ describe('compactAgentMessages', () => {
       reserveTokens: 0,
       keepRecentTokens: 100000, // 极大,所有消息都算 recent
     }
-    mocks.completeSimple.mockResolvedValue({ role: 'assistant', content: '摘要', timestamp: 1 })
+    mocks.completeDshText.mockResolvedValue({ text: '摘要' })
 
     const result = await compactAgentMessages(messages, tinyModel, settings, 'fake-key')
     // oldMessages 为空,直接返回 messages
     expect(result).toBe(messages)
-    expect(mocks.completeSimple).not.toHaveBeenCalled()
+    expect(mocks.completeDshText).not.toHaveBeenCalled()
   })
 
   it('应支持 AbortSignal 传递', async () => {
@@ -391,11 +366,7 @@ describe('compactAgentMessages', () => {
       } as unknown as AgentMessage,
       { role: 'user', content: 'recent', timestamp: 3 } as unknown as AgentMessage,
     ]
-    mocks.completeSimple.mockResolvedValue({
-      role: 'assistant',
-      content: [{ type: 'text', text: '摘要' }],
-      timestamp: 1,
-    })
+    mocks.completeDshText.mockResolvedValue({ text: '摘要' })
     const controller = new AbortController()
 
     await compactAgentMessages(
@@ -405,9 +376,55 @@ describe('compactAgentMessages', () => {
       'fake-key',
       controller.signal,
     )
-    const callArgs = mocks.completeSimple.mock.calls[0]
-    // completeSimple(model, context, options) — options.signal 在第 3 个参数 (index 2)
-    const options = callArgs[2] as { signal?: AbortSignal }
-    expect(options.signal).toBe(controller.signal)
+    expect(mocks.completeDshText).toHaveBeenCalledWith(
+      expect.objectContaining({ signal: controller.signal }),
+    )
+  })
+})
+
+describe('compactPlainChat', () => {
+  beforeEach(() => {
+    mocks.completeDshText.mockReset()
+  })
+
+  it('两条以内原样返回', async () => {
+    const messages = [
+      { role: 'user', content: 'hi', timestamp: 1 },
+      { role: 'assistant', content: 'hello', timestamp: 2 },
+    ]
+    const result = await compactPlainChat(messages, mockModel, defaultSettings)
+    expect(result).toBe(messages)
+    expect(mocks.completeDshText).not.toHaveBeenCalled()
+  })
+
+  it('超窗口时用摘要替换旧消息，近期原对象还在', async () => {
+    const recent = { role: 'user', content: 'just now', timestamp: 9 }
+    const messages = [
+      { role: 'user', content: 'a'.repeat(10000), timestamp: 1 },
+      { role: 'assistant', content: 'b'.repeat(10000), timestamp: 2 },
+      recent,
+    ]
+    mocks.completeDshText.mockResolvedValue({ text: '之前在讨论作业' })
+
+    const result = await compactPlainChat(messages, mockModel, defaultSettings)
+
+    expect(result[0]?.role).toBe('user')
+    expect(result[0]?.content).toContain('之前在讨论作业')
+    expect(result[1]).toBe(recent)
+    expect(result).toHaveLength(2)
+  })
+
+  it('摘要失败时改成截断，不再把整段历史原样送出', async () => {
+    const messages = [
+      { role: 'user', content: 'a'.repeat(10000) },
+      { role: 'assistant', content: 'b'.repeat(10000) },
+      { role: 'user', content: 'tail' },
+    ]
+    mocks.completeDshText.mockResolvedValue({ text: '' })
+
+    const result = await compactPlainChat(messages, mockModel, defaultSettings)
+
+    expect(result.some((message) => message.content.includes('已被压缩'))).toBe(true)
+    expect(result.at(-1)?.content).toBe('tail')
   })
 })

@@ -32,7 +32,8 @@ export const EAA_DISABLED_DSH_ROWS: readonly string[] = [
   'tool-jobs',
   'tool-fs',
   'tool-fs-search',
-  'tool-skill',
+  // tool-skill 保留：它只加载技能正文，不执行命令。目录由每次运行的
+  // skill-filesystem 补丁钉死，不扫描用户主目录。
   'tool-todo',
   'tool-goal',
   'tool-web',

@@ -54,8 +54,8 @@ function createPiMessagesResponseError(model, url, response, body) {
         url: url.toString(),
         status: response.status,
         statusText: response.statusText,
-        error: errorBody?.error,
-        body: errorBody ? undefined : truncateDiagnosticString(body),
+        ...(errorBody?.error === undefined ? {} : { error: errorBody.error }),
+        ...(errorBody ? {} : { body: truncateDiagnosticString(body) }),
         timestampMs: Date.now(),
     });
 }
@@ -155,8 +155,6 @@ function createEventConverter(model) {
             case "toolcall_delta": {
                 const json = `${toolJson.get(event.contentIndex) ?? ""}${event.delta}`;
                 toolJson.set(event.contentIndex, json);
-                partial.content[event.contentIndex].arguments =
-                    parseStreamingJson(json);
                 break;
             }
             case "toolcall_end":

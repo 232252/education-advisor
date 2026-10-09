@@ -3,6 +3,11 @@
 // =============================================================
 
 import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('../../src/main/services/dsh/text-call', () => ({
+  completeDshText: vi.fn(),
+}))
+
 import { evaluateCompaction, compactChatMessagesSimple } from '../../src/main/services/compaction-helper'
 import type { AgentMessage } from '@main/services/llm-contracts'
 

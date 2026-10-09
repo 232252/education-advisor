@@ -1,15 +1,22 @@
 /**
  * Shared utilities for Google Generative AI and Google Vertex providers.
  */
-import { FinishReason, FunctionCallingConfigMode } from "@google/genai";
+import { FinishReason, FunctionCallingConfigMode, ThinkingLevel as GoogleSdkThinkingLevel, } from "@google/genai";
+import { clampThinkingLevel } from "../models.js";
 import { retryProviderRequest } from "../utils/provider-retry.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+import { collapseSystemMessages, withoutInitialSystemMessage } from "../utils/transcript.js";
 import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.js";
 import { transformMessages } from "./transform-messages.js";
+const GOOGLE_SDK_THINKING_LEVEL_MAP = {
+    THINKING_LEVEL_UNSPECIFIED: GoogleSdkThinkingLevel.THINKING_LEVEL_UNSPECIFIED,
+    MINIMAL: GoogleSdkThinkingLevel.MINIMAL,
+    LOW: GoogleSdkThinkingLevel.LOW,
+    MEDIUM: GoogleSdkThinkingLevel.MEDIUM,
+    HIGH: GoogleSdkThinkingLevel.HIGH,
+};
 /** Resolve a supported pi level or model-specific Google mapping to a standard Google level. */
 export function resolveGoogleThinkingLevel(model, level) {
-    if (level === "off")
-        return "high";
     const mapped = model.thinkingLevelMap?.[level];
     const resolvedLevel = typeof mapped === "string" ? mapped.toLowerCase() : level;
     switch (resolvedLevel) {
@@ -21,6 +28,47 @@ export function resolveGoogleThinkingLevel(model, level) {
         default:
             throw new Error(`Unsupported Google thinking level mapping for ${model.provider}/${model.id}: ${level} -> ${String(mapped)}`);
     }
+}
+/**
+ * Whether this model uses Gemini's discrete `thinkingLevel` control instead of
+ * the token-based `thinkingBudget` control. Supported levels come from the
+ * model's `thinkingLevelMap`; this only selects the Google wire format.
+ */
+export function usesGoogleThinkingLevel(model) {
+    const id = model.id.toLowerCase();
+    return (
+    // Match Gemini 3 Pro/Flash IDs with or without a minor version, such as
+    // gemini-3-flash-preview, gemini-3.1-pro-preview, and gemini-3.8-flash.
+    /gemini-3(?:\.\d+)?-(?:pro|flash)/.test(id) ||
+        id === "gemini-flash-latest" ||
+        id === "gemini-flash-lite-latest" ||
+        // Match both hosted Gemma 4 naming forms: gemma-4-* and gemma4-*.
+        /gemma-?4/.test(id));
+}
+export function toGoogleThinkingLevel(level) {
+    switch (level) {
+        case "minimal":
+            return "MINIMAL";
+        case "low":
+            return "LOW";
+        case "medium":
+            return "MEDIUM";
+        case "high":
+            return "HIGH";
+    }
+}
+export function toGoogleSdkThinkingLevel(level) {
+    return GOOGLE_SDK_THINKING_LEVEL_MAP[level];
+}
+export function getDisabledGoogleThinkingConfig(model) {
+    if (!usesGoogleThinkingLevel(model))
+        return { thinkingBudget: 0 };
+    const fallback = clampThinkingLevel(model, "off");
+    if (fallback === "off")
+        return { thinkingBudget: 0 };
+    const resolvedLevel = resolveGoogleThinkingLevel(model, fallback);
+    const apiLevel = toGoogleThinkingLevel(resolvedLevel);
+    return { thinkingLevel: toGoogleSdkThinkingLevel(apiLevel) };
 }
 /**
  * Determines whether a streamed Gemini `Part` should be treated as "thinking".
@@ -95,13 +143,15 @@ function supportsMultimodalFunctionResponse(modelId) {
  * Convert internal messages to Gemini Content[] format.
  */
 export function convertMessages(model, context) {
+    // Gemini has no mid-conversation system messages; the leading prompt is sent as systemInstruction.
+    const conversation = withoutInitialSystemMessage(collapseSystemMessages(context).messages);
     const contents = [];
     const normalizeToolCallId = (id) => {
         if (!requiresToolCallId(model.id))
             return id;
         return id.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
     };
-    const transformedMessages = transformMessages(context.messages, model, normalizeToolCallId);
+    const transformedMessages = transformMessages(conversation, model, normalizeToolCallId);
     for (const msg of transformedMessages) {
         if (msg.role === "user") {
             if (typeof msg.content === "string") {
@@ -350,6 +400,7 @@ export function mapStopReason(reason) {
         case FinishReason.LANGUAGE:
         case FinishReason.MALFORMED_FUNCTION_CALL:
         case FinishReason.UNEXPECTED_TOOL_CALL:
+        case FinishReason.TOO_MANY_TOOL_CALLS:
         case FinishReason.NO_IMAGE:
             return "error";
         default: {

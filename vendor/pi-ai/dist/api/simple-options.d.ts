@@ -1,6 +1,6 @@
-import type { Api, Context, Model, SimpleStreamOptions, StreamOptions, ThinkingBudgets, ThinkingLevel } from "../types.ts";
-export declare function clampMaxTokensToContext(model: Model<Api>, context: Context, maxTokens: number): number;
-export declare function buildBaseOptions(model: Model<Api>, context: Context, options?: SimpleStreamOptions, apiKey?: string): StreamOptions;
+import type { Api, Model, SimpleStreamOptions, StreamOptions, ThinkingBudgets, ThinkingLevel, TranscriptContext } from "../types.ts";
+export declare function clampMaxTokensToContext(model: Model<Api>, context: TranscriptContext, maxTokens: number): number;
+export declare function buildBaseOptions(model: Model<Api>, context: TranscriptContext, options?: SimpleStreamOptions, apiKey?: string): StreamOptions;
 /** Tokens always left for the answer when a thinking budget shares the response ceiling. */
 export declare const MIN_ANSWER_TOKENS = 1024;
 export declare const DEFAULT_THINKING_BUDGETS: ThinkingBudgets;

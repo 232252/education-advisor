@@ -1,13 +1,17 @@
 import { piMessagesApi } from "../api/pi-messages.lazy.js";
 import { envApiKeyAuth, lazyOAuth } from "../auth/helpers.js";
 import { loadRadiusOAuth } from "../auth/oauth/load.js";
+import { RADIUS_MODELS } from "./radius.models.js";
 import { DEFAULT_RADIUS_GATEWAY, getRadiusModels, getRadiusModelsFromConfig, loadRadiusGatewayConfig, normalizeRadiusGatewayUrl, } from "./radius-config.js";
 /** Radius gateway provider with a persisted, dynamically refreshed catalog. */
 export function radiusProvider(options = {}) {
     const id = options.id ?? "radius";
     const name = options.name ?? "Radius";
     const gateway = normalizeRadiusGatewayUrl(options.gateway ?? DEFAULT_RADIUS_GATEWAY);
-    let models = getRadiusModels(id, undefined);
+    const baselineModels = gateway === normalizeRadiusGatewayUrl(DEFAULT_RADIUS_GATEWAY)
+        ? Object.values(RADIUS_MODELS).map((model) => ({ ...model, provider: id }))
+        : [];
+    let dynamicModels = getRadiusModels(id, undefined);
     const streams = piMessagesApi();
     return {
         id,
@@ -16,14 +20,24 @@ export function radiusProvider(options = {}) {
             apiKey: envApiKeyAuth("Radius API key", ["RADIUS_API_KEY"]),
             oauth: lazyOAuth({ name, load: () => loadRadiusOAuth({ name, gateway }) }),
         },
-        getModels: () => models,
+        getModels: () => {
+            const merged = [...baselineModels];
+            for (const model of dynamicModels) {
+                const index = merged.findIndex((entry) => entry.id === model.id);
+                if (index >= 0)
+                    merged[index] = model;
+                else
+                    merged.push(model);
+            }
+            return merged;
+        },
         refreshModels: async (context) => {
             const stored = context.stored;
             if (stored) {
                 const restored = stored.models.filter((model) => model.provider === id);
                 if (!(await context.publish({
                     update: () => {
-                        models = restored;
+                        dynamicModels = restored;
                     },
                 }))) {
                     return;
@@ -36,7 +50,7 @@ export function radiusProvider(options = {}) {
                     if (!(await context.publish({
                         persist: { models: legacy, checkedAt: Date.now() },
                         update: () => {
-                            models = legacy;
+                            dynamicModels = legacy;
                         },
                     }))) {
                         return;
@@ -53,7 +67,7 @@ export function radiusProvider(options = {}) {
             await context.publish({
                 persist: { models: refreshed, checkedAt: Date.now() },
                 update: () => {
-                    models = refreshed;
+                    dynamicModels = refreshed;
                 },
             });
         },

@@ -1,5 +1,5 @@
 // =============================================================
-// 关于 Section — 应用版本/底层核心(EAA / Pi Agent / Pi-AI / PII Shield)/ 关键依赖
+// 关于 Section — 应用版本/底层核心(EAA / DeepSeek Harness / 模型目录 / PII Shield)/ 关键依赖
 // 纯展示组件,无 state / callback
 // =============================================================
 
@@ -71,16 +71,16 @@ export function AboutSection() {
               </div>
               <div>
                 <a
-                  href="https://github.com/earendil-works/pi"
+                  href="https://github.com/deepseek-ai/deepseek-harness"
                   target="_blank"
                   rel="noreferrer"
                   className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 font-medium"
                 >
-                  Pi Agent
+                  DeepSeek Harness
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  {t('page.settings.about.core.piAgent', '— Agent 运行时 (vendor/pi-agent-core)')}
+                  {t('page.settings.about.core.piAgent', '— Agent 运行时（dsh 0.2.1）')}
                 </span>
               </div>
               <div>
@@ -94,7 +94,7 @@ export function AboutSection() {
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  {t('page.settings.about.core.piAi', '— LLM 通信层 (vendor/pi-ai)')}
+                  {t('page.settings.about.core.piAi', '— 模型目录（dsh 内置 pi-ai）')}
                 </span>
               </div>
               <div>
@@ -123,7 +123,7 @@ export function AboutSection() {
         <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
           {t(
             'page.settings.about.license',
-            'Education Advisor 内置 EAA Core (Rust) + Pi Agent 运行时 + Pi-AI 通信层 + 18 个教育 AI Agent，遵循 MIT 协议发布。',
+            'Education Advisor 内置 EAA Core (Rust) + DeepSeek Harness（dsh）+ 18 个教育 AI Agent，遵循 MIT 协议发布。',
           )}
         </p>
       </div>

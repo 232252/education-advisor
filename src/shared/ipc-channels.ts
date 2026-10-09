@@ -250,6 +250,12 @@ export const IPC_CHANNELS_STATUS_UPDATE = 'channels:status-update'
 export const IPC_CHANNELS_BEGIN_LOGIN = 'channels:begin-login'
 export const IPC_CHANNELS_POLL_LOGIN = 'channels:poll-login'
 export const IPC_CHANNELS_CANCEL_LOGIN = 'channels:cancel-login'
+// 连接中心嵌入 dsh-im：拉起 web profile 并返回带 token 的根 URL
+export const IPC_DSH_IM_SHOW = 'dsh-im:show'
+export const IPC_DSH_IM_HIDE = 'dsh-im:hide'
+// 主进程里按了 Esc，让渲染层把连接中心面板收起来
+export const IPC_DSH_IM_CLOSED = 'dsh-im:closed'
+export const IPC_DSH_IM_PLUGIN_INSTALL = 'dsh-im:plugin-install'
 
 // ===== 日志 =====
 // arch-P0-1 修复：原硬编码字符串，迁入共享常量

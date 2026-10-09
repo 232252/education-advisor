@@ -36,6 +36,27 @@ extraResources:
   - from: agents/
     to: agents/
     filter: ["**/*"]
+  # dsh-im 4.37.0：连接中心用 link: 装进 web profile，不能打进 asar
+  - from: vendor/dsh-im/
+    to: dsh-im/
+    filter: ["**/*"]
+  # 教育插件：link: 进 profile，学生数据不在包里。同级目录才会被一起装上。
+  - from: vendor/eaa-tools/
+    to: eaa-tools/
+    filter: ["**/*"]
+  - from: vendor/eaa-roster/
+    to: eaa-roster/
+    filter: ["**/*"]
+  - from: vendor/eaa-grades/
+    to: eaa-grades/
+    filter: ["**/*"]
+  - from: vendor/eaa-grading/
+    to: eaa-grading/
+    filter: ["**/*"]
+  # dsh 0.2.1 拒绝 Electron 43.2.0 指纹。打包前由 scripts/stage-dsh-node.mjs 放入。
+  - from: vendor/dsh-node/
+    to: dsh-node/
+    filter: ["node.exe", "node"]
   # 内置技能随包分发 — skill-service 打包态读 process.resourcesPath/skills,
   # 缺此条则安装版系统提示词的技能清单为空
   - from: skills/

@@ -223,6 +223,8 @@ export function createAgentBridgeSlice(
                 role: 'assistant',
                 content: lastMsg.content,
                 thinking: lastMsg.thinking,
+                // 工具调用一并落库，重开会话才看得到调用明细
+                toolCalls: lastMsg.toolCalls,
                 timestamp: lastMsg.timestamp,
                 provider: `agent:${data.agentId}`,
                 model: data.agentId,
@@ -304,6 +306,7 @@ export function createAgentBridgeSlice(
                 role: 'assistant',
                 content: errLast.content,
                 thinking: errLast.thinking,
+                toolCalls: errLast.toolCalls,
                 timestamp: errLast.timestamp,
                 provider: `agent:${data.agentId}`,
                 model: data.agentId,

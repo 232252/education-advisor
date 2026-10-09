@@ -29,8 +29,32 @@ interface ContinuationDeps {
   getTurnCount: () => number
   /** LLM 最后一个错误信息(空 = 无错误) */
   getLastErrorMessage: () => string
+  /** 最近一轮结束原因。stop 且已有正文时视为答完，不再续跑。 */
+  getStopReason?: () => string
   /** 是否已被 abort */
   isAborted: () => boolean
+}
+
+const FINISHED_STOP = new Set(['stop', 'endturn', 'end_turn'])
+const TRUNCATED_STOP = new Set(['length', 'max_tokens', 'max_tokens_reached'])
+
+/**
+ * 正常结束且已经写出正文的短回答是完成，不是截断。
+ * 空回复、触顶截断、以及没有结束原因的过短输出仍要续跑。
+ * 教师点停止（aborted）不再追问。
+ */
+export function answerLooksUnfinished(input: {
+  outputLength: number
+  turnCount: number
+  stopReason: string
+}): boolean {
+  if (input.turnCount >= MIN_TURN_COUNT) return false
+  const reason = input.stopReason.trim().toLowerCase()
+  if (reason === 'aborted') return false
+  if (!input.outputLength) return true
+  if (FINISHED_STOP.has(reason)) return false
+  if (TRUNCATED_STOP.has(reason)) return input.outputLength < MIN_OUTPUT_CHARS
+  return input.outputLength < MIN_OUTPUT_CHARS
 }
 
 /**
@@ -42,8 +66,11 @@ export async function runContinuationLoop(deps: ContinuationDeps): Promise<numbe
   while (
     !isNonRetryableError(deps.getLastErrorMessage()) &&
     continuationCount < MAX_CONTINUATIONS &&
-    deps.getOutputLength() < MIN_OUTPUT_CHARS &&
-    deps.getTurnCount() < MIN_TURN_COUNT &&
+    answerLooksUnfinished({
+      outputLength: deps.getOutputLength(),
+      turnCount: deps.getTurnCount(),
+      stopReason: deps.getStopReason?.() ?? '',
+    }) &&
     !deps.isAborted()
   ) {
     continuationCount++

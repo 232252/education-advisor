@@ -28,6 +28,7 @@ import type { AssistantMessage } from "../types.ts";
  * - Kimi For Coding: "exceeded model token limit: X (requested: Y)"
  * - DS4: "Prompt has X tokens, but the configured context size is Y tokens"
  * - DashScope/Qwen: "Range of input length should be [1, X]"
+ * - z.ai: "Prompt too long"
  *
  * **Unreliable detection:**
  * - z.ai: Sometimes accepts overflow silently (detectable via usage.input > contextWindow),

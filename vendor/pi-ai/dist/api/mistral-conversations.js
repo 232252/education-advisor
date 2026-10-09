@@ -5,6 +5,8 @@ import { headersToRecord } from "../utils/headers.js";
 import { parseStreamingJson } from "../utils/json-parse.js";
 import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+import { getSystemMessageText, renderSystemMessageUpdate } from "../utils/text.js";
+import { getCurrentTools, resolveTranscript } from "../utils/transcript.js";
 import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.js";
 import { buildBaseOptions } from "./simple-options.js";
 import { transformMessages } from "./transform-messages.js";
@@ -15,6 +17,7 @@ const MAX_MISTRAL_ERROR_BODY_CHARS = 4000;
  */
 export const stream = (model, context, options) => {
     const stream = new AssistantMessageEventStream();
+    const normalizedContext = resolveTranscript(context, model.compat?.supportsMidConvoSystemMessages);
     (async () => {
         const output = createOutput(model);
         try {
@@ -23,8 +26,8 @@ export const stream = (model, context, options) => {
                 throw new Error(`No API key for provider: ${model.provider}`);
             }
             const normalizeMistralToolCallId = createMistralToolCallIdNormalizer();
-            const transformedMessages = transformMessages(context.messages, model, (id) => normalizeMistralToolCallId(id));
-            let payload = buildChatPayload(model, context, transformedMessages, options);
+            const transformedMessages = transformMessages(normalizedContext.messages, model, (id) => normalizeMistralToolCallId(id));
+            let payload = buildChatPayload(model, normalizedContext, transformedMessages, options);
             const nextPayload = await options?.onPayload?.(payload, model);
             if (nextPayload !== undefined) {
                 payload = nextPayload;
@@ -356,8 +359,9 @@ function buildChatPayload(model, context, messages, options) {
         stream: true,
         messages: toChatMessages(messages, model.input.includes("image")),
     };
-    if (context.tools?.length)
-        payload.tools = toFunctionTools(context.tools);
+    const currentTools = getCurrentTools(context.messages);
+    if (currentTools.length > 0)
+        payload.tools = toFunctionTools(currentTools);
     if (options?.temperature !== undefined)
         payload.temperature = options.temperature;
     if (options?.maxTokens !== undefined)
@@ -370,12 +374,6 @@ function buildChatPayload(model, context, messages, options) {
         payload.reasoningEffort = options.reasoningEffort;
     if (shouldUsePromptCaching(options))
         payload.promptCacheKey = options.sessionId;
-    if (context.systemPrompt) {
-        payload.messages.unshift({
-            role: "system",
-            content: sanitizeSurrogates(context.systemPrompt),
-        });
-    }
     return payload;
 }
 function shouldUsePromptCaching(options) {
@@ -543,7 +541,6 @@ async function consumeChatStream(model, output, stream, mistralStream) {
                 ? toolCall.function.arguments
                 : JSON.stringify(toolCall.function.arguments || {});
             block.partialArgs = (block.partialArgs || "") + argsDelta;
-            block.arguments = parseStreamingJson(block.partialArgs);
             stream.push({
                 type: "toolcall_delta",
                 contentIndex: toolBlocksByKey.get(key),
@@ -599,7 +596,13 @@ function stripSymbolKeys(value) {
 }
 function toChatMessages(messages, supportsImages) {
     const result = [];
-    for (const msg of messages) {
+    for (const [index, msg] of messages.entries()) {
+        if (msg.role === "system") {
+            const text = index === 0 ? getSystemMessageText(msg) : renderSystemMessageUpdate(msg);
+            if (text.length > 0)
+                result.push({ role: "system", content: sanitizeSurrogates(text) });
+            continue;
+        }
         if (msg.role === "user") {
             if (typeof msg.content === "string") {
                 result.push({ role: "user", content: sanitizeSurrogates(msg.content) });
@@ -702,7 +705,10 @@ function buildToolResultText(text, hasImages, supportsImages, isError) {
     return isError ? "[tool error] (no tool output)" : "(no tool output)";
 }
 function usesReasoningEffort(model) {
-    return model.id === "mistral-small-2603" || model.id === "mistral-small-latest" || model.id === "mistral-medium-3.5";
+    return (model.id === "mistral-small-2603" ||
+        model.id === "mistral-small-latest" ||
+        model.id.startsWith("mistral-medium-") ||
+        model.id === "zai-glm-5-2");
 }
 function usesPromptModeReasoning(model) {
     return model.reasoning && !usesReasoningEffort(model);

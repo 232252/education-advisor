@@ -2,13 +2,16 @@
 // IPC API 类型 — 聊天持久化域 (window.api.chat)
 // =============================================================
 
+import type { ToolCall } from '@shared/types'
+
 /** 聊天消息入参 — preload/db/save 链路的单一类型来源(此前抄了 4 份) */
 export interface ChatMessageInput {
   sessionId?: string
   role: string
   content: string
   thinking?: string
-  toolCalls?: string
+  /** 工具调用明细；主进程落库时序列化进 tool_calls 列 */
+  toolCalls?: ToolCall[]
   timestamp: number
   provider?: string
   model?: string

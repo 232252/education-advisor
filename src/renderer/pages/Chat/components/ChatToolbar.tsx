@@ -3,6 +3,7 @@
 // 纯 Agent 模式: 三者常驻显示
 // =============================================================
 
+import { effectiveThinkingLevel, THINKING_LEVELS } from '@shared/thinking-levels'
 import type { AgentListItem } from '@shared/types'
 import { memo, useState } from 'react'
 import { Button } from '../../../components/Button'
@@ -16,6 +17,8 @@ interface ChatToolbarProps {
   selectedAgentId: string
   onSelectAgent: (id: string) => void
   thinkingLevel: string
+  /** 当前模型接受的档。null 时先列出全部。 */
+  reasoningLevels: readonly string[] | null
   onThinkingLevelChange: (e: React.ChangeEvent<HTMLSelectElement>) => void
   selectedProvider: string
   selectedModel: string
@@ -29,6 +32,7 @@ export const ChatToolbar = memo(function ChatToolbar({
   selectedAgentId,
   onSelectAgent,
   thinkingLevel,
+  reasoningLevels,
   onThinkingLevelChange,
   selectedProvider,
   selectedModel,
@@ -37,6 +41,12 @@ export const ChatToolbar = memo(function ChatToolbar({
 }: ChatToolbarProps) {
   const [confirmClear, setConfirmClear] = useState(false)
   const { t } = useT()
+  const allowed = reasoningLevels ?? THINKING_LEVELS
+  const shownThinking = effectiveThinkingLevel(thinkingLevel, allowed)
+  const thinkingTitle =
+    shownThinking === thinkingLevel
+      ? t('page.chat.toolbar.thinkingLevel', '思考级别')
+      : t('page.chat.toolbar.thinkingUnsupported', '这个模型没有当前档，这一轮按关闭发送')
   return (
     <div className="flex items-center justify-between px-6 py-2 border-b border-gray-200/60 dark:border-white/[0.06] flex-wrap gap-2">
       <div className="flex items-center gap-3 flex-wrap">
@@ -65,32 +75,48 @@ export const ChatToolbar = memo(function ChatToolbar({
           onSelect={onModelSelect}
         />
 
-        {/* 思考级别 — 常驻显示 */}
         <select
-          value={thinkingLevel}
+          value={shownThinking}
           onChange={onThinkingLevelChange}
           className="bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-gray-600 dark:text-gray-300
                          focus:outline-none focus:border-blue-500 transition-colors"
-          title={t('page.chat.toolbar.thinkingLevel', '思考级别')}
+          title={thinkingTitle}
         >
-          <option value="off">
-            {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.off', '关')}
-          </option>
-          <option value="minimal">
-            {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.minimal', '最少')}
-          </option>
-          <option value="low">
-            {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.low', '低')}
-          </option>
-          <option value="medium">
-            {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.medium', '中')}
-          </option>
-          <option value="high">
-            {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.high', '高')}
-          </option>
-          <option value="xhigh">
-            {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.xhigh', '最高')}
-          </option>
+          {allowed.includes('off') && (
+            <option value="off">
+              {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.off', '关')}
+            </option>
+          )}
+          {allowed.includes('minimal') && (
+            <option value="minimal">
+              {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.minimal', '最少')}
+            </option>
+          )}
+          {allowed.includes('low') && (
+            <option value="low">
+              {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.low', '低')}
+            </option>
+          )}
+          {allowed.includes('medium') && (
+            <option value="medium">
+              {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.medium', '中')}
+            </option>
+          )}
+          {allowed.includes('high') && (
+            <option value="high">
+              {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.high', '高')}
+            </option>
+          )}
+          {allowed.includes('xhigh') && (
+            <option value="xhigh">
+              {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.xhigh', '最高')}
+            </option>
+          )}
+          {allowed.includes('max') && (
+            <option value="max">
+              {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.max', '极限')}
+            </option>
+          )}
         </select>
       </div>
       <Button

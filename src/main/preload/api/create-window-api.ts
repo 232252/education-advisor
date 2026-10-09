@@ -10,6 +10,7 @@ import { channelsApi } from './channels'
 import { chatApi } from './chat'
 import { classApi } from './class'
 import { cronApi } from './cron'
+import { dshImApi } from './dsh-im'
 import { eaaApi } from './eaa'
 import { feishuApi } from './feishu'
 import { gradingApi } from './grading'
@@ -45,6 +46,7 @@ export function createWindowApi() {
     log: logApi,
     feishu: feishuApi,
     channels: channelsApi,
+    dshIm: dshImApi,
     backup: backupApi,
     reports: reportsApi,
     grading: gradingApi,

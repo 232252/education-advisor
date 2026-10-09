@@ -57,9 +57,8 @@ export interface UnifiedSettings {
     transport: 'sse' | 'websocket' | 'auto'
     cacheRetention: 'none' | 'short' | 'long'
     /**
-     * 流式对话的运行时后端；缺省 'dsh'（DeepSeek Harness 子进程），'pi' 为回退项。
-     * 'dsh' 走 DeepSeek Harness 子进程，见 src/main/services/dsh/runtime.ts。
-     * 可选字段：旧 settings.json 无此键时按 'pi' 处理。
+     * 旧设置里可能还写着 'pi'。对话、批改和连接中心都走 dsh，不再按这个字段切回去。
+     * 打开模型页时，存成 'pi' 的值会改回 'dsh'。缺这个键时同样走 dsh。
      */
     agentRuntime?: 'pi' | 'dsh'
     /**
@@ -104,7 +103,7 @@ export interface UnifiedSettings {
     showImages: boolean
     maxTokens: number
     conversationLogging: boolean
-    thinkingLevel: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+    thinkingLevel: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   }
   privacy: {
     enabled: boolean
@@ -192,6 +191,37 @@ export interface UnifiedSettings {
       clientSecret: string
       allowGroups: boolean
       agentId: string
+    }
+    /** 插件没有的本机渠道。secret 字段只留空串或 '__keystore__'。 */
+    mqtt: {
+      enabled: boolean
+      host: string
+      port: number
+      username: string
+      password: string
+      subscribeTopic: string
+      publishTopic: string
+      tls: boolean
+    }
+    yuanbao: {
+      enabled: boolean
+      appId: string
+      appSecret: string
+      apiDomain: string
+      routeEnv: string
+    }
+    xiaoyi: {
+      enabled: boolean
+      accessKey: string
+      secretKey: string
+      agentId: string
+      publicEndpoint: string
+    }
+    mattermost: {
+      enabled: boolean
+      baseUrl: string
+      botToken: string
+      proxyUrl: string
     }
   }
   // R2-03 清理:原 advanced.shellPath/sessionDir/httpIdleTimeoutMs 为死配置(全仓无消费方),已删除

@@ -5,15 +5,8 @@
 
 import type { ModelInfo } from '@shared/types'
 import { memo } from 'react'
-import { t as tf, useT } from '../../../i18n'
-
-/** 格式化 token 成本(美元/百万 token) */
-function formatCost(costPerToken: number): string {
-  if (costPerToken === 0) return tf('page.models.freeCost', '免费')
-  const perMillion = costPerToken * 1_000_000
-  if (perMillion < 0.01) return `$${perMillion.toFixed(4)}/M`
-  return `$${perMillion.toFixed(2)}/M`
-}
+import { useT } from '../../../i18n'
+import { formatCost } from '../lib/format'
 
 /** 格式化上下文窗口大小 */
 function formatContextWindow(tokens: number): string {
@@ -94,7 +87,8 @@ export const ModelRow = memo(function ModelRow({
           <td className="px-3 py-2">
             <input
               type="number"
-              step="0.0000001"
+              step="any"
+              title={t('page.models.row.costUnit', '美元/百万 token')}
               value={editForm.costPerInputToken ?? ''}
               onChange={(e) => onEditFormChange({ ...editForm, costPerInputToken: e.target.value })}
               className="bg-white dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] font-mono w-full text-right"
@@ -103,7 +97,8 @@ export const ModelRow = memo(function ModelRow({
           <td className="px-3 py-2">
             <input
               type="number"
-              step="0.0000001"
+              step="any"
+              title={t('page.models.row.costUnit', '美元/百万 token')}
               value={editForm.costPerOutputToken ?? ''}
               onChange={(e) =>
                 onEditFormChange({ ...editForm, costPerOutputToken: e.target.value })
@@ -185,10 +180,10 @@ export const ModelRow = memo(function ModelRow({
         {formatContextWindow(m.maxOutputTokens)}
       </td>
       <td className="px-3 py-2 text-right font-mono text-gray-600 dark:text-gray-300">
-        {formatCost(m.costPerInputToken)}
+        {formatCost(m.costPerInputToken, m)}
       </td>
       <td className="px-3 py-2 text-right font-mono text-gray-600 dark:text-gray-300">
-        {formatCost(m.costPerOutputToken)}
+        {formatCost(m.costPerOutputToken, m)}
       </td>
       <td className="px-3 py-2 text-center">
         {m.supportsReasoning ? (

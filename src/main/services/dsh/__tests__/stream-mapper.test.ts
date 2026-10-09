@@ -82,15 +82,34 @@ describe('mapDshSessionEvent', () => {
   })
 
   it('turn/end 的 aborted/error 视为可重试，completed/interrupted 不发事件', () => {
-    expect(ev({ type: 'turn/end', data: { turn: 1, reason: 'aborted' } })).toEqual([
+    expect(ev({ type: 'turn/end', data: { turn: 1, reason: { kind: 'aborted' } } })).toEqual([
       { type: 'error', message: 'dsh turn aborted', retryable: true },
     ])
-    expect(ev({ type: 'turn/end', data: { turn: 1, reason: 'error' } })[0]).toMatchObject({
+    expect(ev({ type: 'turn/end', data: { turn: 1, reason: { kind: 'error' } } })[0]).toMatchObject(
+      {
+        type: 'error',
+        message: 'dsh turn error',
+        retryable: true,
+      },
+    )
+    expect(
+      ev({
+        type: 'turn/end',
+        data: {
+          turn: 1,
+          reason: {
+            kind: 'error',
+            error: { message: '当前订阅套餐暂未开放', status: 429, code: '1311' },
+          },
+        },
+      })[0],
+    ).toMatchObject({
       type: 'error',
+      message: 'dsh turn error: 429 当前订阅套餐暂未开放',
       retryable: true,
     })
-    expect(ev({ type: 'turn/end', data: { turn: 1, reason: 'completed' } })).toEqual([])
-    expect(ev({ type: 'turn/end', data: { turn: 1, reason: 'interrupted' } })).toEqual([])
+    expect(ev({ type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })).toEqual([])
+    expect(ev({ type: 'turn/end', data: { turn: 1, reason: { kind: 'interrupted' } } })).toEqual([])
   })
 
   it('tool/result 的 error 走不可重试分支，成功结果不产生事件', () => {

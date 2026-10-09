@@ -12,8 +12,10 @@ import type { StreamEvent } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { isAutoAnonymizeEnabled, PrivacyGuard } from '../../services/agent/privacy-guard'
 import { piAIService } from '../../services/pi-ai-service'
+import { settingsService } from '../../services/settings-service'
 import { createDeltaBatcher } from '../../services/stream-batcher'
 import { errText } from '../../utils/err-text'
+import { logChat } from '../../utils/logger'
 import { sendToRenderer } from '../broadcast'
 import { handleIpc } from '../handle'
 import { chatState } from './state'
@@ -38,10 +40,19 @@ export function registerAIChatHandlers(win: BrowserWindow): void {
       // P1-41 修复:跟踪会话状态,主动捕获 IIFE 异常,确保错误始终送到前端
       chatState.activeChatCount++
       const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      let conversationLogging = true
+      try {
+        conversationLogging = settingsService.getSettings().chat?.conversationLogging !== false
+      } catch {
+        /* 读不到设置时按默认开启 */
+      }
       // F1 修复: 每个流事件附加 sessionId,渲染端按 sessionId 过滤本请求的事件,
       // 避免全窗口广播把无关 delta 串扰给其他订阅者(如 Chat 页 Agent 流)
       const sendToChat = (event: StreamEvent) => {
         sendToRenderer(win, IPC.IPC_AI_CHAT_STREAM, { ...event, sessionId })
+        if (!conversationLogging) return
+        if (event.type === 'text_delta') logChat('out', { source: 'chat', delta: event.delta })
+        else logChat('event', { source: 'chat', type: event.type })
       }
 
       // 隐私守卫(可选): 出域 anonymize / 回域流式 deanonymize
@@ -64,8 +75,17 @@ export function registerAIChatHandlers(win: BrowserWindow): void {
       ;(async () => {
         try {
           // P1-42 修复:thinking 通过 ModelThinkingLevel 类型安全转换
-          // 6 个枚举值: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+          // 档位与 dsh THINKING_LEVELS 一致，含 max
           const thinking = params.thinking as ModelThinkingLevel | undefined
+
+          if (conversationLogging) {
+            logChat('in', {
+              source: 'chat',
+              providerId: params.providerId,
+              modelId: params.modelId,
+              messages: params.messages,
+            })
+          }
 
           const stream = piAIService.chatStream({
             providerId: params.providerId,

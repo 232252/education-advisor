@@ -15,7 +15,9 @@ export function saveChatMessage(ctx: DbClient, msg: ChatMessageInput): number {
       role: msg.role,
       content: msg.content,
       thinking: msg.thinking ?? null,
-      tool_calls: msg.toolCalls ?? null,
+      // tool_calls 列存 JSON 文本。渲染层传进来的是 ToolCall[]，
+      // 必须序列化后再绑定(better-sqlite3 不能直接绑数组)。
+      tool_calls: msg.toolCalls?.length ? JSON.stringify(msg.toolCalls) : null,
       timestamp: msg.timestamp,
       provider: msg.provider ?? null,
       model: msg.model ?? null,

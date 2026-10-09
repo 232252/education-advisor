@@ -76,6 +76,15 @@ describe('model-slice', () => {
     })
   })
 
+  it('fetchModelInfo 记下目录里真正有的思考档', async () => {
+    useChatStore.setState({ currentProvider: 'prov1', currentModel: 'm1' })
+    mockListModels.mockResolvedValue([
+      { id: 'm1', contextWindow: 8192, maxOutputTokens: 2048, reasoningLevels: ['off', 'low', 'high'] },
+    ])
+    await store().fetchModelInfo('prov1', 'm1')
+    expect(store().currentModelReasoningLevels).toEqual(['off', 'low', 'high'])
+  })
+
   it('fetchModelInfo 缺 provider/model 时跳过', async () => {
     await store().fetchModelInfo('', 'm1')
     expect(mockListModels).not.toHaveBeenCalled()
@@ -83,6 +92,7 @@ describe('model-slice', () => {
 
   it('fetchModelInfo 未命中模型时仅告警不改状态', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    useChatStore.setState({ currentProvider: 'prov1', currentModel: 'm1' })
     mockListModels.mockResolvedValue([{ id: 'other', contextWindow: 99, maxOutputTokens: 9 }])
     try {
       await store().fetchModelInfo('prov1', 'm1')

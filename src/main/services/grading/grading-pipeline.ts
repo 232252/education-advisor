@@ -9,7 +9,6 @@ import type { Api, AssistantMessage, Message, Model } from '@main/services/llm-c
 // =============================================================
 
 import fsp from 'node:fs/promises'
-import { parseJsonWithRepair } from '@earendil-works/pi-ai'
 import { getEnvApiKey } from '@earendil-works/pi-ai/compat'
 import {
   markScoreFromSelection,
@@ -33,6 +32,7 @@ import type { BrowserWindow } from 'electron'
 import { invalidateOnExamsWrite, invalidateOnGradesWrite } from '../../ipc/academic/cache'
 import { sendToRenderer } from '../../ipc/broadcast'
 import { errText } from '../../utils/err-text'
+import { parseJsonWithRepair } from '../../utils/json-repair'
 import { log } from '../../utils/logger'
 import { keystoreService } from '../keystore-service'
 import { KEYLESS_PROVIDERS } from '../ollama/constants'

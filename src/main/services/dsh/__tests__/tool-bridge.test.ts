@@ -12,6 +12,7 @@ import {
   ensureActiveEaaToolBridge,
   mcpPublicName,
   mountEaaAgentTools,
+  pluginProcessEnv,
   stopActiveEaaToolBridge,
 } from '../tool-bridge'
 
@@ -195,6 +196,63 @@ describe('按运行挂载（一次 agent 运行一个端点）', () => {
     await ensureActiveEaaToolBridge({ patchDir: dir })
     expect(existsSync(join(dir, 'eaa-mcp-main-9.cordis.patch.yml'))).toBe(false)
     expect(existsSync(join(dir, 'sub'))).toBe(true)
+  })
+
+  it('plugin 模式按插件拆端点，没有的组不给地址', async () => {
+    await ensureActiveEaaToolBridge({ patchDir: dir })
+    const mount = await mountEaaAgentTools({
+      label: 'main',
+      via: 'plugin',
+      tools: [
+        tool('eaa_score'),
+        tool('eaa_list_students'),
+        tool('eaa_import_grades'),
+        tool('eaa_grading_publish'),
+      ],
+    })
+    expect(mount.patchPath).toBe('')
+    expect(mount.toolNameMap).toEqual({
+      eaa_score: 'mcp__eaa__eaa_score',
+      eaa_list_students: 'mcp__roster__eaa_list_students',
+      eaa_import_grades: 'mcp__grades__eaa_import_grades',
+      eaa_grading_publish: 'mcp__grading__eaa_grading_publish',
+    })
+    const env = pluginProcessEnv(mount.pluginEndpoints)
+    expect(Object.keys(env).sort()).toEqual([
+      'EAA_GRADES_MCP_TOKEN',
+      'EAA_GRADES_MCP_URL',
+      'EAA_GRADING_MCP_TOKEN',
+      'EAA_GRADING_MCP_URL',
+      'EAA_MCP_TOKEN',
+      'EAA_MCP_URL',
+      'EAA_ROSTER_MCP_TOKEN',
+      'EAA_ROSTER_MCP_URL',
+    ])
+    const byName = Object.fromEntries(mount.pluginEndpoints.map((ep) => [ep.serverName, ep]))
+    expect(await listedTools(byName.roster.url, byName.roster.token)).toEqual(['eaa_list_students'])
+    expect(await listedTools(byName.grades.url, byName.grades.token)).toEqual(['eaa_import_grades'])
+    expect(await listedTools(byName.grading.url, byName.grading.token)).toEqual([
+      'eaa_grading_publish',
+    ])
+    expect(await listedTools(byName.eaa.url, byName.eaa.token)).toEqual(['eaa_score'])
+
+    const rosterOnly = await mountEaaAgentTools({
+      label: 'main',
+      via: 'plugin',
+      tools: [tool('eaa_create_class')],
+    })
+    expect(pluginProcessEnv(rosterOnly.pluginEndpoints)).not.toHaveProperty('EAA_MCP_URL')
+    expect(rosterOnly.toolNameMap.eaa_create_class).toBe('mcp__roster__eaa_create_class')
+    await mount.release()
+    const gone = await fetch(byName.roster.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${byName.roster.token}`,
+      },
+      body: '{}',
+    })
+    expect(gone.status).toBe(404)
   })
 
   it('幂等：重复 ensure 复用同一监听，stop 后端口关闭', async () => {

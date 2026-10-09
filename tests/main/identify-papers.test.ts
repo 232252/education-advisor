@@ -90,7 +90,10 @@ const mocks = vi.hoisted(() => {
 vi.mock('electron', () => ({ app: { getPath: mocks.getPath } }))
 vi.mock('@earendil-works/pi-ai/compat', () => ({ completeSimple: mocks.completeSimple }))
 vi.mock('../../src/main/utils/logger', () => ({ log: mocks.log }))
-// 本文件断言的是 pi 运行时的模型调用行为（agentRuntime 缺省现已是 dsh）；dsh 见 src/main/services/dsh/__tests__
+vi.mock('../../src/main/services/grading/llm-call', () => ({
+  completeGradingCall: (...args: unknown[]) => mocks.completeSimple(...args),
+  resetGradingDshRuntime: () => {},
+}))
 vi.mock('../../src/main/services/settings-service', () => ({
   settingsService: { getSettings: () => ({ models: { agentRuntime: 'pi' } }) },
 }))

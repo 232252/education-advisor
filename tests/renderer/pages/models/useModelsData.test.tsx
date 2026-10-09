@@ -143,15 +143,32 @@ describe('useModelsData', () => {
   })
 
   describe('handleTestConnection', () => {
-    it('未输入 API Key 时提示且不发请求', async () => {
+    it('未保存密钥且输入为空时不发请求', async () => {
+      const { result } = await renderLoaded()
+
+      await act(async () => {
+        await result.current.handleTestConnection('anthropic')
+      })
+
+      expect(result.current.testResults.anthropic).toEqual({ kind: 'info', key: 'page.models.test.noKey' })
+      expect(mocks.testConnection).not.toHaveBeenCalled()
+    })
+
+    it('已保存密钥且输入为空时用本机密钥测试，成功后不覆盖', async () => {
+      mocks.testConnection.mockResolvedValue({ success: true, latencyMs: 8, model: 'glm-test' })
       const { result } = await renderLoaded()
 
       await act(async () => {
         await result.current.handleTestConnection('openai')
       })
 
-      expect(result.current.testResults.openai).toEqual({ kind: 'info', key: 'page.models.test.noKey' })
-      expect(mocks.testConnection).not.toHaveBeenCalled()
+      expect(mocks.testConnection).toHaveBeenCalledWith('openai', '')
+      expect(mocks.setApiKey).not.toHaveBeenCalled()
+      expect(result.current.testResults.openai).toEqual({
+        kind: 'ok',
+        key: 'page.models.test.ok',
+        vars: { ms: 8, model: 'glm-test' },
+      })
     })
 
     it('成功: 保存 Key 并显示延迟与模型,重新加载 providers', async () => {

@@ -28,6 +28,11 @@ export interface ModelInfo {
   supportsReasoning: boolean
   /** 支持图像输入(视觉模型;试卷批改等场景的过滤依据) */
   supportsImage?: boolean
+  /**
+   * 这个模型真正接受的思考档（含 off）。
+   * 缺省表示目录里没有档位表，界面先列出全部档。
+   */
+  reasoningLevels?: string[]
   baseUrl: string
   isCustom?: boolean
 }
@@ -72,4 +77,4 @@ interface RetryPolicyInfo {
   shouldRetry: boolean
 }
 
-export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'

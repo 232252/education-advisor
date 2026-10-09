@@ -12,6 +12,7 @@ import { debug } from '@shared/debug'
 import { app, protocol } from 'electron'
 import { startApp } from './bootstrap/app-lifecycle'
 import { mainState } from './bootstrap/state'
+import { stopDshImHost } from './ipc/dsh-im-handlers'
 import { agentService } from './services/agent-service'
 import { shutdownAutoBackup } from './services/backup-service'
 import { feishuBotService } from './services/channels/adapters/feishu/connection'
@@ -149,6 +150,7 @@ app.on('before-quit', () => {
   // P1-10: 终止 in-flight EAA 子进程 + 清空读缓存 + 清空隐私密码
   // 同步操作, 放在 before-quit 避免阻塞 will-quit 的异步清理链
   eaaBridge.shutdown()
+  stopDshImHost()
   void webUiService.shutdown()
 })
 

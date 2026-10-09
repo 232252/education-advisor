@@ -1,17 +1,17 @@
 // =============================================================
-// Compaction Helper - 桥接 SDK 压缩能力到 Agent/Chat 链路
+// Compaction Helper - 教师对话和智能体历史的压缩
 //
 // 设计要点:
-//   - Agent 链路:通过 Agent 构造时的 transformContext 钩子触发
-//   - Chat 链路:由 pi-ai-service.chatStream 直接调用 compactMessages
-//   - 复用 SDK 三个工具函数: shouldCompact / estimateContextTokens / generateSummary
-//   - 当 messages 总量超过 (contextWindow - reserveTokens) 时触发 LLM 摘要
-//   - 摘要文本作为一条 user 消息插入,保留最近 keepRecentTokens 部分原样
+//   - 教师对话在 pi-ai-service.chatStream 发出前调用 compactPlainChat
+//   - 智能体在注入历史前调用同一函数
+//   - 先用 dsh 写摘要，摘要失败再按字符截断
+//   - 当消息总量超过 (contextWindow - reserveTokens) 时触发
+//   - 摘要作为一条 user 消息插入，近期消息保持原对象
 // =============================================================
 
-import { completeSimple } from '@earendil-works/pi-ai/compat'
 import type { AgentMessage, Api, CompactionSettings, Model } from '@main/services/llm-contracts'
 import { errText } from '../utils/err-text'
+import { completeDshText } from './dsh/text-call'
 
 // =============================================================
 // 本地实现（原 @earendil-works/pi-agent-core 的压缩工具函数）
@@ -206,15 +206,13 @@ export function evaluateCompaction(
 }
 
 /**
- * 0.80.3 适配：用 compat 层 completeSimple 生成对话摘要。
- * 替代 SDK generateSummary（0.80.3 改为需要 Models 注册表）。
- * 行为等价：把 oldMessages 序列化后让模型产出结构化摘要。
- * 失败返回 null，调用方据此跳过压缩（不破坏 Agent 运行）。
+ * 用 dsh 生成对话摘要。失败返回 null，调用方据此跳过压缩。
+ * apiKey 仍由调用方传入，但子进程用的是本应用密钥库里的同一把 key。
  */
 async function generateSummaryInline(
   oldMessages: AgentMessage[],
   model: Model<Api>,
-  apiKey: string,
+  _apiKey: string,
   reserveTokens: number,
   signal?: AbortSignal,
 ): Promise<string | null> {
@@ -228,25 +226,15 @@ async function generateSummaryInline(
     '用简洁的要点列出，便于后续对话继续。只输出摘要本身。'
 
   try {
-    const assistant = await completeSimple(
-      model,
-      { messages: [{ role: 'user', content: promptText, timestamp: Date.now() }] },
-      {
-        apiKey,
-        maxTokens: Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens || 2048),
-        signal,
-      },
-    )
-    // AssistantMessage.content 可能是 string 或内容块数组
-    const c = assistant.content
-    if (typeof c === 'string') return c || null
-    if (Array.isArray(c)) {
-      const text = c
-        .map((b) => (typeof b === 'object' && b !== null && 'text' in b ? String(b.text) : ''))
-        .join('')
-      return text || null
-    }
-    return String(c ?? '') || null
+    const result = await completeDshText({
+      provider: String(model.provider),
+      model: model.id,
+      text: promptText,
+      maxTokens: Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens || 2048),
+      signal,
+    })
+    if (result.stopReason === 'aborted') return null
+    return result.text || null
   } catch (err) {
     console.warn('[Compaction] generateSummaryInline failed:', errText(err))
     return null
@@ -312,9 +300,7 @@ export async function compactAgentMessages(
 
   if (oldMessages.length === 0) return cleanMessages
 
-  // 0.80.3 升级适配：SDK 的 generateSummary 改为需要 Models 注册表（新鉴权架构），
-  // 与本应用基于 apiKey 的旧链路不兼容。这里用 compat 层的 completeSimple
-  // 自行生成摘要，行为等价、鉴权沿用 apiKey 透传。
+  // 摘要走 dsh（completeDshText）。失败时返回原文，由 compactPlainChat 再截断。
   const summaryText = await generateSummaryInline(
     oldMessages,
     model,
@@ -346,6 +332,66 @@ export async function compactAgentMessages(
   } as AgentMessage
 
   return [summaryMessage, ...recentMessages]
+}
+
+function plainContent(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return String(content ?? '')
+  return content
+    .map((part) => {
+      if (typeof part === 'object' && part !== null && 'text' in part) return String(part.text)
+      return ''
+    })
+    .join('')
+}
+
+/**
+ * 教师对话和智能体历史共用。先让 dsh 写摘要；摘要失败就按字符截断，
+ * 避免设置里的「自动压缩」只留在已经不用的旧路径上。
+ * 没被替换掉的近期消息保持原对象，时间戳还在。
+ */
+export async function compactPlainChat<T extends { role: string; content: string }>(
+  messages: T[],
+  model: Model<Api>,
+  settings: CompactionSettings,
+): Promise<T[]> {
+  if (!settings.enabled || messages.length <= 2) return messages
+  const adaptiveReserve = computeAdaptiveReserve(settings.reserveTokens, model.contextWindow)
+  const agentMsgs: AgentMessage[] = messages.map((message, index) => {
+    const timestamp = Date.now() - (messages.length - index) * 1000
+    if (message.role === 'assistant') {
+      return {
+        role: 'assistant',
+        content: [{ type: 'text', text: message.content }],
+        timestamp,
+      } as unknown as AgentMessage
+    }
+    return { role: 'user', content: message.content, timestamp } as AgentMessage
+  })
+  try {
+    const compacted = await compactAgentMessages(
+      agentMsgs,
+      model,
+      { ...settings, enabled: true, reserveTokens: adaptiveReserve },
+      '',
+    )
+    if (compacted.length < messages.length) {
+      const recent = messages.slice(messages.length - (compacted.length - 1))
+      const summary = {
+        role: 'user',
+        content: plainContent((compacted[0] as { content?: unknown }).content),
+      } as T
+      return [summary, ...recent]
+    }
+  } catch (err) {
+    console.warn('[Compaction] plain chat summary failed:', errText(err))
+  }
+  return compactChatMessagesSimple(
+    messages,
+    model.contextWindow,
+    adaptiveReserve,
+    settings.keepRecentTokens,
+  ) as T[]
 }
 
 /**

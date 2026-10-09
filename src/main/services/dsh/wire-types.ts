@@ -17,8 +17,63 @@ export interface DshTokenUsage {
   reasoningTokens?: number
 }
 
-/** 一条 turn 的结束原因；仅 error/aborted 计入可重试链路 */
-export type DshTurnEndReason = 'completed' | 'aborted' | 'blocked' | 'error' | 'interrupted'
+/**
+ * 一条 turn 的结束原因。dsh 0.2.1 起是 `{ kind }` 对象
+ * （packages/core/session/src/types.ts TurnEndReasonMap），不再是字符串。
+ * 仅 kind 为 error/aborted 计入可重试链路。
+ */
+export type DshTurnEndKind =
+  | 'completed'
+  | 'aborted'
+  | 'blocked'
+  | 'error'
+  | 'max-tokens'
+  | 'interrupted'
+  | 'forked'
+
+export interface DshTurnEndReason {
+  readonly kind: DshTurnEndKind | (string & {})
+  readonly reason?: unknown
+  readonly error?: unknown
+}
+
+/** 读 kind；兼容 0.1.x 残留的字符串 reason，避免旧会话日志把整轮打成未知。 */
+export function dshTurnEndKind(reason: DshTurnEndReason | string | undefined): string {
+  if (typeof reason === 'string') return reason
+  return reason?.kind ?? ''
+}
+
+function failureFacts(
+  value: unknown,
+): { message?: string; status?: number; code?: string } | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const rec = value as Record<string, unknown>
+  return {
+    message: typeof rec.message === 'string' ? rec.message : undefined,
+    status: typeof rec.status === 'number' ? rec.status : undefined,
+    code: typeof rec.code === 'string' ? rec.code : undefined,
+  }
+}
+
+/**
+ * turn/end 里供应商真正说了什么。连接测试靠这段区分 401 和套餐未开放；
+ * 只留 kind 时，界面上全是「dsh turn error」，换模型重试也不会发生。
+ */
+export function dshTurnFailureText(reason: DshTurnEndReason | string | undefined): string {
+  if (!reason || typeof reason === 'string') return typeof reason === 'string' ? reason : ''
+  const fromError = failureFacts(reason.error)
+  if (fromError) {
+    const body = fromError.message || fromError.code || ''
+    const status =
+      fromError.status !== undefined && !body.includes(String(fromError.status))
+        ? String(fromError.status)
+        : ''
+    return [status, body].filter(Boolean).join(' ')
+  }
+  if (typeof reason.reason === 'string') return reason.reason
+  const nested = failureFacts(reason.reason)
+  return nested?.message || nested?.code || ''
+}
 
 /** 压缩后的模型流分片（delta 边界不合并，故 texts/args 是数组） */
 export type DshAssistantStreamRecord =
@@ -44,7 +99,8 @@ export type DshAssistantStreamRecord =
 
 export interface DshToolResultMessage {
   toolCallId: string
-  toolName: string
+  /** 官方 ToolResultMessage 不带名字，只有 callId。有则用，没有就靠前面的 tool/call 记。 */
+  toolName?: string
   content: unknown[]
   details?: unknown
   isError?: boolean

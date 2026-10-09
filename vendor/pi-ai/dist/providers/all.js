@@ -18,6 +18,7 @@ import { googleVertexProvider } from "./google-vertex.js";
 import { groqProvider } from "./groq.js";
 import { huggingfaceProvider } from "./huggingface.js";
 import { kimiCodingProvider } from "./kimi-coding.js";
+import { metaProvider } from "./meta.js";
 import { minimaxProvider } from "./minimax.js";
 import { minimaxCnProvider } from "./minimax-cn.js";
 import { mistralProvider } from "./mistral.js";
@@ -82,6 +83,7 @@ export function builtinProviders() {
         groqProvider(),
         huggingfaceProvider(),
         kimiCodingProvider(),
+        metaProvider(),
         minimaxProvider(),
         minimaxCnProvider(),
         mistralProvider(),

@@ -2,6 +2,8 @@ import { calculateCost } from "../models.js";
 import { shortHash } from "../utils/hash.js";
 import { parseStreamingJson } from "../utils/json-parse.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+import { getSystemMessageText, renderSystemMessageUpdate } from "../utils/text.js";
+import { resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
 import { appendGrammarToolInputJsonDelta, getGrammarToolInput, getJsonSchemaToolParameters, resolveGrammarConstrainedSampling, resolveJsonSchemaStrictSampling, } from "./constrained-sampling.js";
 import { transformMessages } from "./transform-messages.js";
 // =============================================================================
@@ -59,8 +61,8 @@ function convertToolResultOutput(model, content) {
 // Message conversion
 // =============================================================================
 export function convertResponsesMessages(model, context, allowedToolCallProviders, options) {
+    const normalizedContext = resolveTranscript(context, options?.supportsMidConvoSystemMessages);
     const messages = [];
-    const loadedToolNames = new Set();
     const normalizeIdPart = (part) => {
         const sanitized = part.replace(/[^a-zA-Z0-9_-]/g, "_");
         const normalized = sanitized.length > 64 ? sanitized.slice(0, 64) : sanitized;
@@ -85,19 +87,57 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
         }
         return `${normalizedCallId}|${normalizedItemId}`;
     };
-    const transformedMessages = transformMessages(context.messages, model, normalizeToolCallId);
-    const includeSystemPrompt = options?.includeSystemPrompt ?? true;
-    if (includeSystemPrompt && context.systemPrompt) {
-        const compat = model.compat;
-        const role = model.reasoning && compat?.supportsDeveloperRole !== false ? "developer" : "system";
+    const transformedMessages = transformMessages(normalizedContext.messages, model, normalizeToolCallId);
+    const transcriptTools = resolveTranscriptTools(normalizedContext.messages, (options?.supportsAdditionalTools ?? false) || (options?.supportsToolSearch ?? false));
+    const appendSystemToolAdditions = (message, seed) => {
+        const tools = transcriptTools.anchorsAdditions ? (message.toolsAdded ?? []) : [];
+        if (tools.length === 0)
+            return;
+        if (options?.supportsAdditionalTools) {
+            messages.push({
+                type: "additional_tools",
+                role: "developer",
+                tools: convertResponsesTools(tools, options.toolOptions),
+            });
+            return;
+        }
+        if (!options?.supportsToolSearch)
+            return;
+        const names = tools.map((tool) => tool.name);
+        const callId = `pi_tool_load_${shortHash(`${seed}:${names.join(",")}`)}`;
         messages.push({
-            role,
-            content: sanitizeSurrogates(context.systemPrompt),
+            type: "tool_search_call",
+            call_id: callId,
+            execution: "client",
+            status: "completed",
+            arguments: { query: names.join(" "), limit: names.length },
         });
-    }
+        messages.push({
+            type: "tool_search_output",
+            call_id: callId,
+            execution: "client",
+            status: "completed",
+            tools: convertResponsesTools(tools, { ...options.toolOptions, toolSearchResult: true }),
+        });
+    };
+    const includeInitialSystemMessage = options?.includeSystemPrompt ?? true;
+    const compat = model.compat;
+    const instructionRole = model.reasoning && compat?.supportsDeveloperRole !== false ? "developer" : "system";
     let msgIndex = 0;
+    let sourceIndex = 0;
     for (const msg of transformedMessages) {
-        if (msg.role === "user") {
+        const isLeadingSystemMessage = sourceIndex++ === 0 && msg.role === "system";
+        if (msg.role === "system") {
+            if (!isLeadingSystemMessage)
+                appendSystemToolAdditions(msg, `system:${msgIndex}`);
+            if (!isLeadingSystemMessage || includeInitialSystemMessage) {
+                const text = isLeadingSystemMessage ? getSystemMessageText(msg) : renderSystemMessageUpdate(msg);
+                if (text.length > 0) {
+                    messages.push({ role: instructionRole, content: sanitizeSurrogates(text) });
+                }
+            }
+        }
+        else if (msg.role === "user") {
             if (typeof msg.content === "string") {
                 messages.push({
                     role: "user",
@@ -176,7 +216,6 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                         (customInputProperty === undefined && !itemId?.startsWith("fc_"))) {
                         itemId = undefined;
                     }
-                    const canReplayNamespace = isSameModel || options?.deferredTools?.has(toolCall.name) === true;
                     if (customInputProperty !== undefined) {
                         output.push({
                             type: "custom_tool_call",
@@ -184,9 +223,7 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                             call_id: callId,
                             name: toolCall.name,
                             input: sanitizeSurrogates(getGrammarToolInput(toolCall.name, toolCall.arguments, customInputProperty)),
-                            ...(canReplayNamespace && toolCall.namespace !== undefined
-                                ? { namespace: toolCall.namespace }
-                                : {}),
+                            ...(isSameModel && toolCall.namespace !== undefined ? { namespace: toolCall.namespace } : {}),
                         });
                     }
                     else {
@@ -196,9 +233,7 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                             call_id: callId,
                             name: toolCall.name,
                             arguments: JSON.stringify(toolCall.arguments),
-                            ...(canReplayNamespace && toolCall.namespace !== undefined
-                                ? { namespace: toolCall.namespace }
-                                : {}),
+                            ...(isSameModel && toolCall.namespace !== undefined ? { namespace: toolCall.namespace } : {}),
                         });
                     }
                 }
@@ -224,44 +259,9 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                     output,
                 });
             }
-            const deferredTools = [];
-            for (const name of msg.addedToolNames ?? []) {
-                const tool = options?.deferredTools?.get(name);
-                if (!tool || loadedToolNames.has(name))
-                    continue;
-                loadedToolNames.add(name);
-                deferredTools.push(tool);
-            }
-            if (deferredTools.length > 0 && options?.deferredToolsMode === "additional-tools") {
-                messages.push({
-                    type: "additional_tools",
-                    role: "developer",
-                    tools: convertResponsesTools(deferredTools, options.toolOptions),
-                });
-            }
-            else if (deferredTools.length > 0 && options?.deferredToolsMode === "tool-search") {
-                const names = deferredTools.map((tool) => tool.name);
-                const searchCallId = `pi_tool_load_${shortHash(`${msg.toolCallId}:${names.join(",")}`)}`;
-                messages.push({
-                    type: "tool_search_call",
-                    call_id: searchCallId,
-                    execution: "client",
-                    status: "completed",
-                    arguments: { query: names.join(" "), limit: names.length },
-                });
-                messages.push({
-                    type: "tool_search_output",
-                    call_id: searchCallId,
-                    execution: "client",
-                    status: "completed",
-                    tools: convertResponsesTools(deferredTools, {
-                        ...options.toolOptions,
-                        deferLoading: true,
-                    }),
-                });
-            }
         }
-        msgIndex++;
+        if (!isLeadingSystemMessage)
+            msgIndex++;
     }
     return messages;
 }
@@ -284,7 +284,7 @@ export function convertResponsesTools(tools, options) {
                     syntax: grammar.format,
                     definition: grammar.definition,
                 },
-                ...(options?.deferLoading ? { defer_loading: true } : {}),
+                ...(options?.toolSearchResult ? { defer_loading: true } : {}),
             };
         }
         const constrainedStrict = resolveJsonSchemaStrictSampling(tool, supportsStrictMode);
@@ -294,7 +294,7 @@ export function convertResponsesTools(tools, options) {
             name: tool.name,
             description: tool.description,
             parameters: getJsonSchemaToolParameters(tool, strict === true),
-            ...(options?.deferLoading ? { defer_loading: true } : {}),
+            ...(options?.toolSearchResult ? { defer_loading: true } : {}),
         };
         if (supportsStrictMode) {
             functionTool.strict = strict;
@@ -546,7 +546,6 @@ export async function processResponsesStream(openaiStream, output, stream, model
             if (!slot || slot.block.partialJson === undefined)
                 continue;
             slot.block.partialJson += event.delta;
-            slot.block.arguments = parseStreamingJson(slot.block.partialJson);
             pushToolCallDelta(slot, event.delta);
         }
         else if (event.type === "response.function_call_arguments.done") {

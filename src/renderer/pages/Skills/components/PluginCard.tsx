@@ -14,10 +14,12 @@ interface PluginCardProps {
   description: string
   /** 主行计数文案，例 "3 个服务器 · 2 已连接" */
   countText: string
-  /** 跳转按钮文案 */
-  manageLabel: string
-  /** 跳转目标 hash 路径，例 "/skills" */
-  to: string
+  /** 跳转按钮文案。没有 to 也没有 onManage 时不显示按钮。 */
+  manageLabel?: string
+  /** 跳转目标路径，例 "/skills" */
+  to?: string
+  /** 自己处理点击，例如打开连接中心。有它就不再 navigate。 */
+  onManage?: () => void
   /** 跳转后是否需要切到特定 Tab，传 tab key 会被 localStorage 写入 */
   tabKey?: string
   tabValue?: string
@@ -34,6 +36,7 @@ export function PluginCard({
   countText,
   manageLabel,
   to,
+  onManage,
   tabKey,
   tabValue,
   disabled,
@@ -44,6 +47,11 @@ export function PluginCard({
 
   const handleGo = () => {
     if (disabled) return
+    if (onManage) {
+      onManage()
+      return
+    }
+    if (!to) return
     // 预设 Tab：写入 localStorage 后导航，目标页 useEffect 会读取
     if (tabKey && tabValue) {
       try {
@@ -80,14 +88,16 @@ export function PluginCard({
           <span>{countText}</span>
         )}
       </div>
-      <button
-        type="button"
-        onClick={handleGo}
-        disabled={disabled}
-        className="self-start mt-1 px-2.5 py-1 text-xs rounded border border-gray-300 dark:border-white/[0.08] hover:bg-gray-100 dark:hover:bg-white/[0.06] disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
-      >
-        {manageLabel}
-      </button>
+      {(to || onManage) && manageLabel ? (
+        <button
+          type="button"
+          onClick={handleGo}
+          disabled={disabled}
+          className="self-start mt-1 px-2.5 py-1 text-xs rounded border border-gray-300 dark:border-white/[0.08] hover:bg-gray-100 dark:hover:bg-white/[0.06] disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
+        >
+          {manageLabel}
+        </button>
+      ) : null}
     </Card>
   )
 }

@@ -73,6 +73,7 @@ export function createSessionsSlice(
               role: 'assistant',
               content: last.content,
               thinking: last.thinking,
+              toolCalls: last.toolCalls,
               timestamp: last.timestamp,
               provider: `agent:${state.selectedAgentId}`,
               model: state.selectedAgentId,

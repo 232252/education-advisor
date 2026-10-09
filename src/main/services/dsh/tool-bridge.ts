@@ -36,6 +36,7 @@ import {
   type ExposedTool,
   startEaaMcpServer,
 } from './eaa-mcp-server'
+import { EAA_PLUGINS, pluginForToolName } from './eaa-tools-contract'
 import { mcpToolNameMap } from './tool-names'
 
 const MCP_CLIENT_PACKAGE = '@deepseek-ai/dsh-mcp-client'
@@ -109,6 +110,24 @@ function agentServerName(label: string, seq: number): string {
   return `${slug.slice(0, SERVER_NAME_MAX - suffix.length)}${suffix}`
 }
 
+/** plugin 模式下一组工具对应一个已安装插件的环境变量。 */
+export interface EaaPluginEndpoint {
+  serverName: string
+  urlEnv: string
+  tokenEnv: string
+  url: string
+  token: string
+}
+
+export function pluginProcessEnv(endpoints: readonly EaaPluginEndpoint[]): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const ep of endpoints) {
+    env[ep.urlEnv] = ep.url
+    env[ep.tokenEnv] = ep.token
+  }
+  return env
+}
+
 export interface EaaToolMount {
   serverName: string
   /** 交给 DshRuntime 的 patches —— 该次运行的 dsh 子进程只看得到这份 */
@@ -116,6 +135,11 @@ export interface EaaToolMount {
   /** 原名 → 模型可见名，用于重写 system prompt */
   toolNameMap: Record<string, string>
   endpoint: EaaMcpEndpoint
+  /**
+   * plugin 模式：每个非空工具组一条。没出现的组不要注入环境变量，
+   * 对应插件保持关闭。patch 模式为空。
+   */
+  pluginEndpoints: EaaPluginEndpoint[]
   /** 撤端点 + 删 patch；运行结束（含异常）必须调用 */
   release: () => Promise<void>
 }
@@ -184,12 +208,21 @@ export async function mountEaaAgentTools(opts: {
   label: string
   tools: readonly ExposedTool[]
   toolCallTimeoutMs?: number
+  /**
+   * plugin：不把令牌写进 patch 文件。工具按名字分到花名册、成绩、批改、操行
+   * 四个已安装插件，公开名分别是 mcp__roster__*、mcp__grades__*、
+   * mcp__grading__*、mcp__eaa__*。某组这次没有工具，就不给它地址。
+   */
+  via?: 'patch' | 'plugin'
 }): Promise<EaaToolMount> {
   const bridge = activeBridge
   if (!bridge) throw new Error('eaa 工具桥未启动，无法挂载 dsh agent 工具')
 
+  if (opts.via === 'plugin') return mountViaPlugins(bridge, opts.label, opts.tools)
+
   const serverName = agentServerName(opts.label, ++bridge.seq)
   const endpoint = bridge.server.register({ name: serverName, tools: opts.tools })
+
   const patchPath = join(bridge.patchDir, eaaMcpPatchFileName(serverName))
   try {
     await writeFile(
@@ -213,9 +246,71 @@ export async function mountEaaAgentTools(opts: {
     patchPath,
     toolNameMap: mcpToolNameMap(opts.tools, serverName),
     endpoint,
+    pluginEndpoints: [],
     release: async () => {
       bridge.server.unregister(serverName)
       await unlink(patchPath).catch(() => {})
+    },
+  }
+}
+
+function mountViaPlugins(
+  bridge: ActiveBridge,
+  label: string,
+  tools: readonly ExposedTool[],
+): EaaToolMount {
+  const grouped = new Map<string, ExposedTool[]>()
+  for (const tool of tools) {
+    const plugin = pluginForToolName(tool.name)
+    const list = grouped.get(plugin.serverName) ?? []
+    list.push(tool)
+    grouped.set(plugin.serverName, list)
+  }
+  const plugins = EAA_PLUGINS.filter((plugin) => grouped.has(plugin.serverName))
+  if (plugins.length === 0) throw new Error('没有可挂载的工具')
+
+  const names: string[] = []
+  const pluginEndpoints: EaaPluginEndpoint[] = []
+  const toolNameMap: Record<string, string> = {}
+  try {
+    for (const plugin of plugins) {
+      const pathName = agentServerName(`${label}-${plugin.serverName}`, ++bridge.seq)
+      const endpoint = bridge.server.register({
+        name: pathName,
+        tools: grouped.get(plugin.serverName) ?? [],
+      })
+      names.push(pathName)
+      pluginEndpoints.push({
+        serverName: plugin.serverName,
+        urlEnv: plugin.urlEnv,
+        tokenEnv: plugin.tokenEnv,
+        url: endpoint.url,
+        token: endpoint.token,
+      })
+      Object.assign(
+        toolNameMap,
+        mcpToolNameMap(grouped.get(plugin.serverName) ?? [], plugin.serverName),
+      )
+    }
+  } catch (err) {
+    for (const name of names) bridge.server.unregister(name)
+    throw err
+  }
+
+  const primary = pluginEndpoints[0]
+  if (!primary) throw new Error('没有可挂载的工具')
+  return {
+    serverName: primary.serverName,
+    patchPath: '',
+    toolNameMap,
+    endpoint: {
+      url: primary.url,
+      token: primary.token,
+      toolCount: tools.length,
+    },
+    pluginEndpoints,
+    release: async () => {
+      for (const name of names) bridge.server.unregister(name)
     },
   }
 }

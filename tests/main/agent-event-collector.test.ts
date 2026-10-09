@@ -13,13 +13,15 @@ import { createEventCollector } from '../../src/main/services/agent/event-collec
 const mocks = vi.hoisted(() => ({
   sendAgentStatus: vi.fn(),
   log: vi.fn(),
+  logChat: vi.fn(),
 }))
 
 vi.mock('../../src/main/services/agent/status-tracking', () => mocks)
-vi.mock('../../src/main/utils/logger', () => ({ log: mocks.log }))
+vi.mock('../../src/main/utils/logger', () => ({ log: mocks.log, logChat: mocks.logChat }))
 
 beforeEach(() => {
   mocks.sendAgentStatus.mockReset()
+  mocks.logChat.mockReset()
 })
 
 /** 取 sendAgentStatus 收到的 payload 列表 */
@@ -138,6 +140,7 @@ describe('turn 聚合与错误生命周期', () => {
     handler(turnEnd('error', 'LLM 超时'))
     expect(stats.turnCount).toBe(1)
     expect(stats.lastErrorMessage).toBe('LLM 超时')
+    expect(stats.lastStopReason).toBe('error')
   })
 
   it('后续非 error turn 清除旧错误(stale error 回归)', () => {
@@ -170,5 +173,40 @@ describe('agent_end usage 聚合', () => {
     expect(stats.inputTokens).toBe(130)
     expect(stats.outputTokens).toBe(70)
     expect(stats.totalCost).toBeCloseTo(0.03, 10)
+  })
+})
+
+describe('对话日志', () => {
+  it('开启时把合并后的回复和工具名写入 chat 日志,关闭时不写', () => {
+    const off = createEventCollector(undefined, 'a1')
+    off.handler(textDelta('你'))
+    off.flushPendingOutput()
+    off.handler({
+      type: 'tool_execution_start',
+      toolName: 'mcp__eaa__eaa_score',
+      args: {},
+    } as unknown as AgentEvent)
+    expect(mocks.logChat).not.toHaveBeenCalled()
+
+    const on = createEventCollector(undefined, 'a1', true)
+    on.handler(textDelta('你'))
+    on.handler(textDelta('好'))
+    on.flushPendingOutput()
+    on.handler({
+      type: 'tool_execution_start',
+      toolName: 'mcp__eaa__eaa_score',
+      args: {},
+    } as unknown as AgentEvent)
+    expect(mocks.logChat).toHaveBeenCalledWith('out', {
+      source: 'agent',
+      agentId: 'a1',
+      text: '你好',
+    })
+    expect(mocks.logChat).toHaveBeenCalledWith('event', {
+      source: 'agent',
+      agentId: 'a1',
+      type: 'tool_start',
+      name: 'mcp__eaa__eaa_score',
+    })
   })
 })

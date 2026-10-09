@@ -3,12 +3,24 @@
 // (消息生命周期与历史加载)
 // =============================================================
 
-import type { ChatMessage } from '@shared/types'
+import type { ChatMessage, ToolCall } from '@shared/types'
 import { getAPI } from '../../lib/ipc-client'
 import { pendingAgentOutputs } from './agent-pending'
 import { flushStreamDeltas } from './delta-batch'
 import { warnSaveFailed } from './persistence'
 import type { ChatGet, ChatSet, ChatState } from './types'
+
+/** 把 tool_calls 列（JSON 文本）还原成 ToolCall[]；脏数据一律当没有 */
+function parseToolCalls(raw: unknown): ToolCall[] | undefined {
+  if (Array.isArray(raw)) return raw as ToolCall[]
+  if (typeof raw !== 'string' || raw.length === 0) return undefined
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as ToolCall[]) : undefined
+  } catch {
+    return undefined
+  }
+}
 
 export function createMessagesSlice(
   set: ChatSet,
@@ -68,6 +80,9 @@ export function createMessagesSlice(
               role: m.role as 'user' | 'assistant' | 'system',
               content: m.content as string,
               thinking: typeof m.thinking === 'string' ? m.thinking : undefined,
+              // tool_calls 是主进程序列化的 JSON 文本。以前这里没映射，
+              // 于是历史会话里的工具调用渲染不出来（落库和读取两头都漏）。
+              toolCalls: parseToolCalls(m.tool_calls),
               timestamp: m.timestamp as number,
             }))
             // H-1 配套: 过滤掉 createSession 写入的空 system 占位消息

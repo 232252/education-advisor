@@ -1,5 +1,6 @@
 import { createProvider } from "../models.js";
 import { createAssistantMessageEventStream } from "../utils/event-stream.js";
+import { getSystemMessageText } from "../utils/text.js";
 const DEFAULT_API = "faux";
 const DEFAULT_PROVIDER = "faux";
 const DEFAULT_MODEL_ID = "faux-1";
@@ -86,6 +87,15 @@ function toolResultToText(message) {
     return [message.toolName, ...message.content.map((block) => contentToText([block]))].join("\n");
 }
 function messageToText(message) {
+    if (message.role === "system") {
+        return [
+            getSystemMessageText(message),
+            ...(message.toolsRemoved?.map((tool) => `tool-:${JSON.stringify(tool)}`) ?? []),
+            ...(message.toolsAdded?.map((tool) => `tool+:${JSON.stringify(tool)}`) ?? []),
+        ]
+            .filter((part) => part.length > 0)
+            .join("\n");
+    }
     if (message.role === "user") {
         return contentToText(message.content);
     }
@@ -95,17 +105,7 @@ function messageToText(message) {
     return toolResultToText(message);
 }
 function serializeContext(context) {
-    const parts = [];
-    if (context.systemPrompt) {
-        parts.push(`system:${context.systemPrompt}`);
-    }
-    for (const message of context.messages) {
-        parts.push(`${message.role}:${messageToText(message)}`);
-    }
-    if (context.tools?.length) {
-        parts.push(`tools:${JSON.stringify(context.tools)}`);
-    }
-    return parts.join("\n\n");
+    return context.messages.map((message) => `${message.role}:${messageToText(message)}`).join("\n\n");
 }
 function commonPrefixLength(a, b) {
     const length = Math.min(a.length, b.length);
@@ -324,6 +324,7 @@ export function createFauxCore(options) {
         baseUrl: DEFAULT_BASE_URL,
         reasoning: definition.reasoning ?? false,
         input: definition.input ?? ["text", "image"],
+        inputLimits: definition.inputLimits,
         cost: definition.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: definition.contextWindow ?? 128000,
         maxTokens: definition.maxTokens ?? 16384,

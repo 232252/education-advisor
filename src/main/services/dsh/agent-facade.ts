@@ -189,7 +189,9 @@ export class DshAgentFacade {
       // （abort 会关掉子进程，所以打断一定以抛错收尾）与真失败，并且两种情况都要
       // 补发 turn_end + agent_end：pi 路径的每一轮都以这一对结束，collector 与
       // execution 的收尾逻辑都挂在上面。
-      const closing = this.disposed ? projector.markAbort() : projector.markFailure()
+      const closing = this.disposed
+        ? projector.markAbort()
+        : projector.markFailure(err instanceof Error ? err.message : String(err))
       for (const mapped of closing) this.emit(mapped)
       console.warn('[DshAgentFacade] turn 中断:', err instanceof Error ? err.message : err)
     } finally {

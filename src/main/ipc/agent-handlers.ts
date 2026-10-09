@@ -152,5 +152,5 @@ export function registerAgentHandlers(win: BrowserWindow) {
     },
   )
 
-  console.log('[IPC] Agent handlers registered (pi-agent-core integrated)')
+  console.log('[IPC] Agent handlers registered (dsh runtime)')
 }

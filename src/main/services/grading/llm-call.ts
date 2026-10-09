@@ -1,14 +1,11 @@
 // =============================================================
-// 批改链路的模型调用出口（pi / dsh 双后端）
+// 批改链路的模型调用出口
 //
-// 与 pi-ai compat 的 completeSimple(model, context, options) 同签名、
-// 同返回类型 AssistantMessage，因此各管线的 extractResult / extractText /
-// stopReason==='aborted' 判定在 pi 路径上逐字不变。
-//
-// 后端选择：settings.models.agentRuntime，缺省 'dsh'（'pi' 为回退项）。
+// 与以前 pi-ai 的 completeSimple(model, context, options) 同签名、
+// 同返回类型 AssistantMessage，因此各管线的解析逻辑不用改。
+// 运行时只有 dsh。settings.models.agentRuntime 里残留的 'pi' 不再切回去。
 // =============================================================
 
-import { completeSimple } from '@earendil-works/pi-ai/compat'
 import type {
   Api,
   AssistantMessage,
@@ -21,7 +18,6 @@ import { completeSimpleViaDsh, isDshSupportedImage } from '../dsh/one-shot'
 import { dshRouteFingerprint } from '../dsh/provider-patch'
 import { dshRouteFor } from '../dsh/route'
 import { createDshRuntime, type DshRuntime, dshPinnedKey } from '../dsh/runtime'
-import { settingsService } from '../settings-service'
 
 export interface GradingCallOptions {
   apiKey: string
@@ -88,16 +84,6 @@ export function resetGradingDshRuntime(): void {
   const all = [...runtimes.values()]
   runtimes.clear()
   for (const runtime of all) void runtime.dispose().catch(() => {})
-}
-
-function readBackend(): 'pi' | 'dsh' {
-  try {
-    return settingsService.getSettings().models?.agentRuntime ?? 'dsh'
-  } catch (err) {
-    // 设置未就绪时按现网后端处理，读配置失败不该打断批改
-    console.warn('[grading] settings unreadable, using pi runtime:', err)
-    return 'pi'
-  }
 }
 
 /** pi 的无成本口径（dsh usage 不带 cost，此处如实记 0） */
@@ -173,8 +159,6 @@ export async function completeGradingCall(
   context: { systemPrompt: string; messages: Message[] },
   options: GradingCallOptions,
 ): Promise<AssistantMessage> {
-  if (readBackend() === 'pi') return completeSimple(model, context, options)
-
   const route = dshRouteFor(String(model.provider), model.id)
   const runtime = getDshRuntime(model, options.maxTokens)
   const pinnedKey = runtime.routeKey

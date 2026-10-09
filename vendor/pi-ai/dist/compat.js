@@ -39,6 +39,7 @@ import { piMessagesApi } from "./api/pi-messages.lazy.js";
 import { getEnvApiKey } from "./env-api-keys.js";
 import { builtinModels, getBuiltinModel, getBuiltinModels, getBuiltinProviders } from "./providers/all.js";
 import { createFauxCore } from "./providers/faux.js";
+import { normalizeContext } from "./utils/transcript.js";
 /** @deprecated Static catalog read. Use `getBuiltinModel` from "@earendil-works/pi-ai/providers/all" or `Models.getModel()`. */
 export const getModel = getBuiltinModel;
 /** @deprecated Static catalog read. Use `getBuiltinModels` from "@earendil-works/pi-ai/providers/all" or `Models.getModels()`. */
@@ -167,30 +168,32 @@ function resolveApiProvider(api) {
     return provider;
 }
 export function stream(model, context, options) {
+    const transcript = normalizeContext(context);
     const builtinProvider = getBuiltinProviderForModel(model);
     if (builtinProvider) {
         if (model.provider.startsWith("cloudflare-") && !hasResolvedCloudflareAuth(options)) {
-            return compatModels.stream(model, context, options);
+            return compatModels.stream(model, transcript, options);
         }
-        return builtinProvider.stream(model, context, withEnvApiKey(model, options));
+        return builtinProvider.stream(model, transcript, withEnvApiKey(model, options));
     }
     const provider = resolveApiProvider(model.api);
-    return provider.stream(model, context, withEnvApiKey(model, options));
+    return provider.stream(model, transcript, withEnvApiKey(model, options));
 }
 export async function complete(model, context, options) {
     const s = stream(model, context, options);
     return s.result();
 }
 export function streamSimple(model, context, options) {
+    const transcript = normalizeContext(context);
     const builtinProvider = getBuiltinProviderForModel(model);
     if (builtinProvider) {
         if (model.provider.startsWith("cloudflare-") && !hasResolvedCloudflareAuth(options)) {
-            return compatModels.streamSimple(model, context, options);
+            return compatModels.streamSimple(model, transcript, options);
         }
-        return builtinProvider.streamSimple(model, context, withEnvApiKey(model, options));
+        return builtinProvider.streamSimple(model, transcript, withEnvApiKey(model, options));
     }
     const provider = resolveApiProvider(model.api);
-    return provider.streamSimple(model, context, withEnvApiKey(model, options));
+    return provider.streamSimple(model, transcript, withEnvApiKey(model, options));
 }
 export async function completeSimple(model, context, options) {
     const s = streamSimple(model, context, options);

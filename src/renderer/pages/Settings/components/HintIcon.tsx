@@ -21,25 +21,34 @@ export function HintIcon({ path }: { path: string }) {
     'general.autoStart': t('page.settings.hint.autoStart', '同步写入系统登录项'),
     'general.minimizeToTray': t('page.settings.hint.minimizeToTray', '托盘将实时创建/销毁'),
     'general.logLevel': t('page.settings.hint.logLevel', '主进程日志级别实现完毕,运行时即时生效'),
-    'chat.compaction.enabled': t('settings.chat.compaction.desc', '上下文超长时自动压缩历史消息'),
+    'chat.compaction.enabled': t(
+      'settings.chat.compaction.desc',
+      '历史超过模型窗口时先写摘要再继续。摘要失败就截断更早的消息，最近的原话保留',
+    ),
     'chat.compaction.reserveTokens': t(
       'page.settings.hint.reserveTokens',
-      '压缩后保留的最小 token 数',
+      '压缩触发余量：上下文还剩这么多 token 空位时开始压缩。实际不会低于 4096，也不会超过该模型窗口的 10%',
     ),
     'chat.compaction.keepRecentTokens': t(
       'settings.chat.compaction.keepRecent.desc',
       '压缩时强制保留的最近消息 token 数',
     ),
     'chat.steeringMode': t(
-      'page.settings.hint.agentRuntime',
-      'Agent 运行时已读取并注入 system prompt',
+      'page.settings.hint.steeringMode',
+      '回复进行中发来的消息先排队。「全部」在这轮结束后合成一条发出；「一次一个」每轮只发下一条',
     ),
     'chat.followUpMode': t(
-      'page.settings.hint.agentRuntime',
-      'Agent 运行时已读取并注入 system prompt',
+      'page.settings.hint.followUpMode',
+      '写进系统提示。「全部」时回答后可以连续追问；「一次一个」时每次最多问一个问题',
     ),
-    'chat.showImages': t('page.settings.hint.showImages', 'ChatPage 已接入，设置后立即生效'),
-    'chat.maxTokens': t('page.settings.hint.maxTokens', 'pi-ai-service 已读取并传入 streamSimple'),
+    'chat.showImages': t(
+      'page.settings.hint.showImages',
+      '关闭后，助手回复里的 Markdown 图片改为文字占位，当前对话立即生效',
+    ),
+    'chat.maxTokens': t(
+      'page.settings.hint.maxTokens',
+      '教师对话没单独指定时，作为 dsh 的输出上限。不会低于该模型目录里的上限',
+    ),
     'feishu.appId': t('page.settings.hint.feishuAppId', '飞书开放平台应用 ID'),
     'feishu.appSecret': t('page.settings.hint.feishuAppSecret', '已加密保存(keystore)'),
     'feishu.userOpenId': t('page.settings.hint.userOpenId', '接收消息的用户 open_id'),
@@ -53,7 +62,7 @@ export function HintIcon({ path }: { path: string }) {
     'mcp.enabled': t('page.settings.hint.mcpEnabled', '启用后 Agent 可通过 MCP 协议接入外部工具'),
     'models.agentRuntime': t(
       'page.settings.hint.agentRuntimeBackend',
-      'pi = 内置 pi-ai 运行时; dsh = DeepSeek Harness 子进程。选 dsh 需该 Provider 的 API Key 已存在本应用里 (启动子进程时注入), 切换在下一次请求生效',
+      '对话和批改都走 DeepSeek Harness。模型密钥在本应用里配置，启动 dsh 时注入。',
     ),
   }
   const hint = FIELD_HINT[path]

@@ -1,0 +1,13 @@
+{
+  "name": "@education-advisor/eaa-roster",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "花名册与班级档案。地址和令牌由宿主经环境变量给入，学生数据不在这个包里。",
+  "main": "./host.js",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

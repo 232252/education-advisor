@@ -45,13 +45,20 @@ interface DebugConfig {
   slowThresholdMs: number
 }
 
+/** 渲染进程没有 Node 的 process。直接读 process.env 会让整页脚本停在 ReferenceError。 */
+function readEnv(key: string): string | undefined {
+  const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+  const value = proc?.env?.[key]
+  return typeof value === 'string' ? value : undefined
+}
+
 function readEnvBool(key: string): boolean {
-  const v = process.env[key]
+  const v = readEnv(key)
   return v === '1' || v === 'true' || v === 'yes'
 }
 
 function readEnvInt(key: string, defaultVal: number): number {
-  const v = process.env[key]
+  const v = readEnv(key)
   if (!v) return defaultVal
   const n = Number.parseInt(v, 10)
   return Number.isFinite(n) ? n : defaultVal
@@ -70,7 +77,7 @@ function buildConfig(): DebugConfig {
 
   const masterOn = enabled || anySubFlag
 
-  const logLevelEnv = process.env.DEBUG_LOG_LEVEL
+  const logLevelEnv = readEnv('DEBUG_LOG_LEVEL')
   const validLevels = ['debug', 'info', 'warn', 'error', 'off']
   const logLevel =
     logLevelEnv && validLevels.includes(logLevelEnv)

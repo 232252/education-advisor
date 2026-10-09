@@ -136,3 +136,44 @@ export function getMessageKey(msg: ChatMessage, index: number): string {
   const id = (msg as { id?: string }).id
   return id ? `${id}` : `${msg.role}-${index}-${msg.content.slice(0, 16)}`
 }
+
+/** 回复进行中排进来的下一条。引导模式决定这轮结束后发一条还是全部。 */
+export function takeQueuedForSteering<T extends { text: string; finalText: string }>(
+  queued: readonly T[],
+  mode: 'all' | 'one-at-a-time',
+): { send: { text: string; finalText: string } | null; rest: T[] } {
+  if (queued.length === 0) return { send: null, rest: [] }
+  if (mode === 'one-at-a-time') {
+    const [next, ...rest] = queued
+    return { send: { text: next.text, finalText: next.finalText }, rest }
+  }
+  return {
+    send: {
+      text: queued.map((item) => item.text).join('\n\n'),
+      finalText: queued.map((item) => item.finalText).join('\n\n'),
+    },
+    rest: [],
+  }
+}
+
+/** 这一轮是教师点停止结束的，排队消息先留着；正常结束才发出。 */
+export function queueActionAfterTurn(
+  userStopped: boolean,
+  queuedCount: number,
+): 'hold' | 'send' | 'idle' {
+  if (queuedCount <= 0) return 'idle'
+  return userStopped ? 'hold' : 'send'
+}
+
+/**
+ * 已经从队列取出、但还没交给本轮发送的消息。
+ * 延迟发出被取消时放回队首；已经发出则保持队列不动。
+ */
+export function restoreQueuedIfUnsent<T>(
+  queue: readonly T[],
+  pending: T | null,
+  sent: boolean,
+): T[] {
+  if (!pending || sent) return [...queue]
+  return [pending, ...queue]
+}

@@ -11,6 +11,8 @@ import { parseStreamingJson } from "../utils/json-parse.js";
 import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+import { getSystemMessageText } from "../utils/text.js";
+import { collapseSystemMessages, getCurrentTools, getInitialSystemMessage, withoutInitialSystemMessage, } from "../utils/transcript.js";
 import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.js";
 import { adjustMaxTokensForThinking, buildBaseOptions, clampMaxTokensToContext, clampReasoning, } from "./simple-options.js";
 import { transformMessages } from "./transform-messages.js";
@@ -19,6 +21,8 @@ const EMPTY_TEXT_PLACEHOLDER = "<empty>";
 const REDACTED_THINKING_PLACEHOLDER = "[Reasoning redacted]";
 export const stream = (model, context, options = {}) => {
     const stream = new AssistantMessageEventStream();
+    // Bedrock has no mid-conversation system messages; fold them into the leading prompt.
+    const normalizedContext = collapseSystemMessages(context);
     (async () => {
         const output = {
             role: "assistant",
@@ -136,15 +140,17 @@ export const stream = (model, context, options = {}) => {
             }
             const cacheRetention = resolveCacheRetention(options.cacheRetention, options.env);
             const inferenceMaxTokens = options.maxTokens ?? (isAnthropicClaudeModel(model) ? model.maxTokens : undefined);
+            const initialSystemMessage = getInitialSystemMessage(normalizedContext.messages);
+            const initialSystemPrompt = initialSystemMessage ? getSystemMessageText(initialSystemMessage) : undefined;
             let commandInput = {
                 modelId: model.id,
-                messages: convertMessages(context, model, cacheRetention, options.env),
-                system: buildSystemPrompt(context.systemPrompt, model, cacheRetention, options.env),
+                messages: convertMessages(normalizedContext, model, cacheRetention, options.env),
+                system: buildSystemPrompt(initialSystemPrompt, model, cacheRetention, options.env),
                 inferenceConfig: {
                     ...(inferenceMaxTokens !== undefined && { maxTokens: inferenceMaxTokens }),
                     ...(options.temperature !== undefined && { temperature: options.temperature }),
                 },
-                toolConfig: convertToolConfig(context.tools, options.toolChoice, supportsStrictMode),
+                toolConfig: convertToolConfig(getCurrentTools(normalizedContext.messages), options.toolChoice, supportsStrictMode),
                 additionalModelRequestFields: buildAdditionalModelRequestFields(model, options),
                 ...(options.requestMetadata !== undefined && { requestMetadata: options.requestMetadata }),
             };
@@ -453,7 +459,6 @@ function handleContentBlockDelta(event, blocks, output, stream) {
     }
     else if (delta?.toolUse && block?.type === "toolCall") {
         block.partialJson = (block.partialJson || "") + (delta.toolUse.input || "");
-        block.arguments = parseStreamingJson(block.partialJson);
         stream.push({ type: "toolcall_delta", contentIndex: index, delta: delta.toolUse.input || "", partial: output });
     }
     else if (delta?.reasoningContent) {
@@ -530,6 +535,7 @@ function handleMetadata(event, model, output) {
         output.usage.output = event.usage.outputTokens || 0;
         output.usage.cacheRead = event.usage.cacheReadInputTokens || 0;
         output.usage.cacheWrite = event.usage.cacheWriteInputTokens || 0;
+        output.usage.cacheWrite1h = event.usage.cacheDetails?.reduce((total, detail) => total + (detail.ttl === CacheTTL.ONE_HOUR ? (detail.inputTokens ?? 0) : 0), 0);
         output.usage.totalTokens = event.usage.totalTokens || output.usage.input + output.usage.output;
         calculateCost(model, output.usage);
     }
@@ -731,7 +737,7 @@ function convertToolResultContent(content) {
 }
 function convertMessages(context, model, cacheRetention, env) {
     const result = [];
-    const transformedMessages = transformMessages(context.messages, model, normalizeToolCallId);
+    const transformedMessages = transformMessages(withoutInitialSystemMessage(context.messages), model, normalizeToolCallId);
     for (let i = 0; i < transformedMessages.length; i++) {
         const m = transformedMessages[i];
         switch (m.role) {
@@ -759,10 +765,7 @@ function convertMessages(context, model, cacheRetention, env) {
                     if (content.length === 0)
                         content.push({ text: EMPTY_TEXT_PLACEHOLDER });
                 }
-                result.push({
-                    role: ConversationRole.USER,
-                    content,
-                });
+                result.push({ role: ConversationRole.USER, content });
                 break;
             }
             case "assistant": {
@@ -872,10 +875,7 @@ function convertMessages(context, model, cacheRetention, env) {
                 }
                 // Skip the messages we've already processed
                 i = j - 1;
-                result.push({
-                    role: ConversationRole.USER,
-                    content: toolResults,
-                });
+                result.push({ role: ConversationRole.USER, content: toolResults });
                 break;
             }
             default:

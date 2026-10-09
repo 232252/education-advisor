@@ -2,7 +2,8 @@
 // =============================================================
 // scripts/verify-vendor.mjs
 //
-// 校验 vendor（pi-agent-core / pi-ai）当前状态，升级前后均可跑。
+// 校验 vendor（pi-ai）当前状态，升级前后均可跑。
+// Agent 循环已改走 DeepSeek Harness，不再校验已删除的 pi-agent-core。
 // 检查项：版本号、dist/index.js 存在性、关键 API 可 import、Node 版本兼容警告。
 //
 // 用法: npm run verify:vendor
@@ -17,15 +18,10 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 
-// 期望的关键导出以 0.80.3 为准：模型工厂/计费在根导出，
-// getProviders/getModels/getModel 已变为 createModels() 实例方法（旧版遗留检查在 0.80.3 升级后失效）
+// 期望的关键导出以 0.87.1 为准：模型工厂/计费在根导出，
+// getProviders/getModels/getModel 已变为 createModels() 实例方法（旧版遗留检查在 0.80.x 升级后失效）
 const VENDORS = [
   { dir: 'vendor/pi-ai', module: '@earendil-works/pi-ai', apis: ['createModels', 'calculateCost'] },
-  {
-    dir: 'vendor/pi-agent-core',
-    module: '@earendil-works/pi-agent-core',
-    apis: ['Agent'],
-  },
 ]
 
 let pass = 0
@@ -57,7 +53,7 @@ for (const v of VENDORS) {
   }
   const reqMajor = requiredNodeMajor(engines)
   const detail = reqMajor
-    ? `要求 Node >=${reqMajor}，当前 ${process.versions.node}（Electron 内置 ~20）`
+    ? `要求 Node >=${reqMajor}，当前 ${process.versions.node}（Electron 43 内置 Node 22）`
     : '无 engines 声明'
   // 这只是警告：engines 多半未严格校验，历史版本在 Node 20 下可跑
   check(`${v.module} Node 兼容`, true, `${detail} [仅参考]`)

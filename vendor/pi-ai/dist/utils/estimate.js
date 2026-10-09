@@ -1,3 +1,4 @@
+import { getSystemMessageText } from "./text.js";
 const CHARS_PER_TOKEN = 4;
 const ESTIMATED_IMAGE_CHARS = 4800;
 export function calculateContextTokens(usage) {
@@ -27,6 +28,11 @@ export function estimateTextAndImageContentTokens(content) {
 }
 export function estimateMessageTokens(message) {
     let chars = 0;
+    if (message.role === "system") {
+        return (estimateTextTokens(getSystemMessageText(message)) +
+            estimateToolsTokens(message.toolsAdded) +
+            estimateToolsTokens(message.toolsRemoved));
+    }
     if (message.role === "user")
         return estimateTextAndImageContentTokens(message.content);
     if (message.role === "toolResult")
@@ -65,7 +71,8 @@ function getLastAssistantUsageInfo(messages) {
     }
     return usageInfo;
 }
-function estimateMessages(messages) {
+export function estimateContextTokens(context) {
+    const messages = "messages" in context ? context.messages : context;
     const usageInfo = getLastAssistantUsageInfo(messages);
     if (usageInfo) {
         const usageTokens = calculateContextTokens(usageInfo.usage);
@@ -84,33 +91,5 @@ function estimateToolsTokens(tools) {
     if (!tools || tools.length === 0)
         return 0;
     return estimateTextTokens(safeJsonStringify(tools));
-}
-function isMessageArray(value) {
-    return Array.isArray(value);
-}
-export function estimateContextTokens(context) {
-    if (isMessageArray(context))
-        return estimateMessages(context);
-    const estimate = estimateMessages(context.messages);
-    if (estimate.lastUsageIndex !== null) {
-        const addedNames = new Set(context.messages
-            .slice(estimate.lastUsageIndex + 1)
-            .filter((message) => message.role === "toolResult")
-            .flatMap((message) => message.addedToolNames ?? []));
-        const addedToolTokens = estimateToolsTokens(context.tools?.filter((tool) => addedNames.has(tool.name)));
-        return {
-            tokens: estimate.tokens + addedToolTokens,
-            usageTokens: estimate.usageTokens,
-            trailingTokens: estimate.trailingTokens + addedToolTokens,
-            lastUsageIndex: estimate.lastUsageIndex,
-        };
-    }
-    const prefixTokens = (context.systemPrompt ? estimateTextTokens(context.systemPrompt) : 0) + estimateToolsTokens(context.tools);
-    return {
-        tokens: estimate.tokens + prefixTokens,
-        usageTokens: estimate.usageTokens,
-        trailingTokens: estimate.trailingTokens + prefixTokens,
-        lastUsageIndex: estimate.lastUsageIndex,
-    };
 }
 //# sourceMappingURL=estimate.js.map

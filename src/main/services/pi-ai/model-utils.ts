@@ -5,6 +5,7 @@ import type { Api, Model } from '@main/services/llm-contracts'
 // =============================================================
 
 import { getModel, getModels } from '@earendil-works/pi-ai/compat'
+import { visibleThinkingLevels } from '@shared/thinking-levels'
 import type { ModelInfo } from '@shared/types'
 import { errText } from '../../utils/err-text'
 // OLLAMA_OPENAI_BASE_URL 从 ollama/constants 导入(而非 ollama-service 单例入口):
@@ -126,6 +127,14 @@ export function resolveModel(providerId: string, modelId: string): Model<Api> | 
   return model
 }
 
+/**
+ * pi-ai 目录的 cost 是美元/百万 token（calculateCost 再除以 1e6）。
+ * ModelInfo 的 costPer* 是每 token，界面会再乘回百万。不除的话 $0.30 会显示成 $300000。
+ */
+export function catalogUsdPerMillionToPerToken(rate: number): number {
+  return Number.isFinite(rate) ? rate / 1_000_000 : 0
+}
+
 /** 静态模型 → ModelInfo 映射(fetchProviderModels 的合并入参之一) */
 export function buildStaticModelInfos(models: Model<Api>[]): ModelInfo[] {
   return models.map((m) => ({
@@ -135,12 +144,13 @@ export function buildStaticModelInfos(models: Model<Api>[]): ModelInfo[] {
     api: m.api,
     contextWindow: m.contextWindow,
     maxOutputTokens: m.maxTokens,
-    costPerInputToken: m.cost.input,
-    costPerOutputToken: m.cost.output,
-    costCacheRead: m.cost.cacheRead,
-    costCacheWrite: m.cost.cacheWrite,
+    costPerInputToken: catalogUsdPerMillionToPerToken(m.cost.input),
+    costPerOutputToken: catalogUsdPerMillionToPerToken(m.cost.output),
+    costCacheRead: catalogUsdPerMillionToPerToken(m.cost.cacheRead),
+    costCacheWrite: catalogUsdPerMillionToPerToken(m.cost.cacheWrite),
     supportsReasoning: m.reasoning,
     supportsImage: m.input.includes('image'),
+    reasoningLevels: m.thinkingLevelMap ? visibleThinkingLevels(m.thinkingLevelMap) : undefined,
     baseUrl: m.baseUrl,
   }))
 }

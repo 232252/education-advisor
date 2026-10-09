@@ -2,7 +2,8 @@
 // =============================================================
 // scripts/update-vendor-pi-provenance.mjs
 //
-// 为 vendored 的 pi-ai / pi-agent-core 生成 UPSTREAM.json 溯源清单:
+// 为 vendored 的 pi-ai 生成 UPSTREAM.json 溯源清单:
+// Agent 循环已改走 DeepSeek Harness，pi-agent-core 不再随包。
 //   repo / package / version / upstreamDir / license / 每文件 sha256
 //
 // 为什么要它:
@@ -12,7 +13,7 @@
 //   tamper 检测(与 vendor/submitty 的做法一致)。
 //
 // 用法:
-//   node scripts/update-vendor-pi-provenance.mjs         生成/刷新两个清单
+//   node scripts/update-vendor-pi-provenance.mjs         生成/刷新清单
 //   node scripts/update-vendor-pi-provenance.mjs --check 只校验,不写盘(CI 用)
 // =============================================================
 
@@ -31,14 +32,7 @@ const TARGETS = [
     packageName: '@earendil-works/pi-ai',
     repo: 'https://github.com/earendil-works/pi.git',
     upstreamDir: 'packages/ai',
-    note: 'Vendored copy. dist/ + package.json are taken verbatim from the published npm tarball; LICENSE is the upstream repository license (MIT, Copyright (c) 2025 Mario Zechner).',
-  },
-  {
-    dir: 'vendor/pi-agent-core',
-    packageName: '@earendil-works/pi-agent-core',
-    repo: 'https://github.com/earendil-works/pi.git',
-    upstreamDir: 'packages/agent',
-    note: 'Vendored copy. dist/ + package.json are taken verbatim from the published npm tarball; LICENSE is the upstream repository license (MIT, Copyright (c) 2025 Mario Zechner).',
+    note: 'Vendored @earendil-works/pi-ai 0.87.1, the version @deepseek-ai/dsh-llm-pi-ai@0.2.1-alpha.1 depends on. dist/ and package.json come from the published npm tarball. scripts/patches/earendil-works__pi-ai@0.87.1.dsh-toolcall.patch (DeepSeek Harness) removes per-delta re-parsing of streamed tool-call arguments. dist/api/bedrock-converse-stream.lazy.js uses a static import so the Electron bundle emits the Bedrock chunk. LICENSE is the upstream MIT license.',
   },
 ]
 

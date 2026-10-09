@@ -10,7 +10,6 @@ import type { Message } from '@main/services/llm-contracts'
 // =============================================================
 
 import fsp from 'node:fs/promises'
-import { parseJsonWithRepair } from '@earendil-works/pi-ai'
 import {
   matchIdentityToStudents,
   type PaperIdentity,
@@ -18,6 +17,7 @@ import {
 } from '@shared/grading-helpers'
 import type { GradingPaper } from '@shared/types'
 import { errText } from '../../utils/err-text'
+import { parseJsonWithRepair } from '../../utils/json-repair'
 import { log } from '../../utils/logger'
 import { resolveModel } from '../pi-ai/model-utils'
 import { profileService } from '../profile-service'

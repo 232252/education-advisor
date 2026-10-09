@@ -20,6 +20,7 @@ const NON_RETRYABLE_PROVIDER_LIMIT_ERROR_PATTERN = buildProviderErrorPattern([
 const RETRYABLE_PROVIDER_ERROR_PATTERN = buildProviderErrorPattern([
     // Generic provider load, HTTP status, and server-side transient failures.
     "overloaded",
+    "currently experiencing high demand",
     "rate.?limit",
     "too many requests",
     "429",
@@ -27,6 +28,7 @@ const RETRYABLE_PROVIDER_ERROR_PATTERN = buildProviderErrorPattern([
     "502",
     "503",
     "504",
+    "520",
     "524",
     "service.?unavailable",
     "server.?error",
@@ -75,6 +77,12 @@ const RETRYABLE_PROVIDER_ERROR_PATTERN = buildProviderErrorPattern([
     // gRPC based providers (e.g. NVIDIA NIM)
     "ResourceExhausted",
 ]);
+export const DEFAULT_MAX_AGENT_RETRY_DELAY_MS = 60_000;
+export function retryDelayMs(policy, attempt) {
+    const delay = policy.baseDelayMs * 2 ** Math.max(0, attempt - 1);
+    const safeDelay = Number.isSafeInteger(delay) ? delay : Number.MAX_SAFE_INTEGER;
+    return Math.min(safeDelay, policy.maxAgentDelayMs ?? DEFAULT_MAX_AGENT_RETRY_DELAY_MS);
+}
 class RetrySleepAbortError extends Error {
     constructor() {
         super("Aborted");
@@ -137,7 +145,7 @@ export async function retryAssistantCall(produce, policy, signal, callbacks) {
         }
         attempt++;
         lastRetry = { attempt, errorMessage: response.errorMessage || "Unknown error" };
-        const delayMs = policy.baseDelayMs * 2 ** (attempt - 1);
+        const delayMs = retryDelayMs(policy, attempt);
         await callbacks?.onRetryScheduled?.(attempt, maxAttempts, delayMs, lastRetry.errorMessage);
         // Normalize aborts during retry backoff to the same AssistantMessage shape as
         // provider stream aborts, so callers do not need to care when cancellation happened.
