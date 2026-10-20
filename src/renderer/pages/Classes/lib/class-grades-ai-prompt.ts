@@ -31,7 +31,7 @@ const WATCH_N = 5
 const MOVER_N = 3
 
 function formatScoreRow(r: StudentGradeRow): string {
-  const score = r.displayScore == null ? '—' : String(r.displayScore)
+  const score = r.displayScore == null ? '—' : r.displayScore.toFixed(1)
   const status = r.status === 'ok' ? '' : ` (${r.status})`
   return `- ${r.name}: ${score}${status}`
 }
@@ -51,7 +51,10 @@ function pickMovers(
   return sorted
     .filter((m) => (direction === 'up' ? m.totalScoreDelta > 0 : m.totalScoreDelta < 0))
     .slice(0, MOVER_N)
-    .map((m) => `- ${m.studentName}: ${m.totalScoreDelta > 0 ? '+' : ''}${m.totalScoreDelta}`)
+    .map((m) => {
+      const d = Math.round(m.totalScoreDelta * 10) / 10
+      return `- ${m.studentName}: ${d > 0 ? '+' : ''}${d}`
+    })
 }
 
 /**

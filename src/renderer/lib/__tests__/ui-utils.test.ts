@@ -2,7 +2,7 @@
 // ui-utils — riskColor/riskBgColor/riskDotColor/agentStatusColor/cn/btnStyle/badgeStyle 测试
 // =============================================================
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   agentStatusColor,
   badgeStyle,
@@ -10,10 +10,12 @@ import {
   CARD_BASE,
   CARD_INTERACTIVE,
   cn,
+  formatDate,
   INPUT_BASE,
   riskBgColor,
   riskColor,
   riskDotColor,
+  todayISO,
 } from '../../lib/ui-utils'
 
 describe('riskColor', () => {
@@ -206,6 +208,19 @@ describe('badgeStyle', () => {
       expect(cls).toContain('rounded-full')
       expect(cls).toContain('text-xs')
     }
+  })
+})
+
+describe('formatDate / todayISO', () => {
+  it('formatDate 按本地时区输出 YYYY-MM-DD', () => {
+    expect(formatDate(new Date(2026, 0, 5, 12, 0, 0))).toBe('2026-01-05')
+  })
+
+  it('todayISO 用本地时区,凌晨不落到前一日', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 0, 1, 0, 30, 0))
+    expect(todayISO()).toBe('2026-01-01')
+    vi.useRealTimers()
   })
 })
 

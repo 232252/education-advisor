@@ -14,9 +14,9 @@ export function formatDate(v: Date | number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-/** 今日日期字符串 YYYY-MM-DD(UTC 口径,与考试/快速录入的默认值一致) */
+/** 今日日期字符串 YYYY-MM-DD(本地时区,与考试/快速录入的默认值一致) */
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10)
+  return formatDate(new Date())
 }
 
 /** YYYY-MM-DD HH:mm:ss(epoch ms) */

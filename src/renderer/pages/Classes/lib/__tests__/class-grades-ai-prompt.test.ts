@@ -73,6 +73,25 @@ describe('buildClassGradesAiPrompt', () => {
     expect(prompt).toContain('期末')
     expect(prompt).not.toContain('两场升降摘要')
   })
+
+  it('分数与升降分保留一位小数,不把浮点尾数写进提示词', () => {
+    const prompt = buildClassGradesAiPrompt({
+      examName: '周测',
+      subjectLabel: '数学',
+      stats,
+      avgLabel: '82.3',
+      ranked: [row('A', 82.33333333333333)],
+      watchlist: [],
+      movement: { improved: 1, declined: 1, flat: 0 },
+      examAName: '周测一',
+      examBName: '周测二',
+      movers: [{ studentName: 'M', totalScoreDelta: 3.33333 }],
+    })
+    expect(prompt).toContain('A: 82.3')
+    expect(prompt).not.toContain('82.3333')
+    expect(prompt).toContain('M: +3.3')
+    expect(prompt).not.toContain('3.33333')
+  })
 })
 
 describe('pickClassGradesAiAgentId', () => {
