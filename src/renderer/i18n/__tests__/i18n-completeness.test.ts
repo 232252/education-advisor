@@ -108,7 +108,7 @@ describe('i18n 字典 — 死键守卫', () => {
   // 2) 键命中 t(`prefix${…}`) 模板动态前缀 — 键字符串不出现但前缀被动态拼接
   // 不覆盖的形态(当前代码库不存在,引入时需同步本测试): 运行时拼接
   // t('a.' + suffix) / 键来自后端下发
-  function collectSourceRefs(): { quoted: Set<string>; dynPrefixes: string[] } {
+  function sourceFiles(): string[] {
     const files: string[] = []
     const walk = (dir: string): void => {
       for (const name of readdirSync(dir)) {
@@ -121,9 +121,13 @@ describe('i18n 字典 — 死键守卫', () => {
     // 键面引用源含 src/shared(如 channel-catalog 的 labelKey 数据面字面量)
     walk(join(process.cwd(), 'src', 'renderer'))
     walk(join(process.cwd(), 'src', 'shared'))
+    return files
+  }
+
+  function collectSourceRefs(): { quoted: Set<string>; dynPrefixes: string[] } {
     const quoted = new Set<string>()
     const dynPrefixes: string[] = []
-    for (const f of files) {
+    for (const f of sourceFiles()) {
       const src = readFileSync(f, 'utf8')
       for (const m of src.matchAll(/['"`]([\w-]+(?:\.[\w-]+)+)['"`]/g)) quoted.add(m[1])
       for (const m of src.matchAll(/\bt(?:r|f)?\(\s*`([\w.-]+)\$\{/g)) dynPrefixes.push(m[1])
@@ -139,5 +143,20 @@ describe('i18n 字典 — 死键守卫', () => {
         !dynPrefixes.some((p) => k === p || k.startsWith(p.endsWith('.') ? p : `${p}.`)),
     )
     expect(dead).toEqual([])
+  })
+
+  it('源码字面量 t()/tr()/tf() 键在 zh/en 都应有翻译', () => {
+    // 死键守卫的反向:调用处写了键但字典漏收,英文界面会静默回退中文
+    const stripComments = (s: string) =>
+      s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+    const used = new Set<string>()
+    for (const f of sourceFiles()) {
+      const src = stripComments(readFileSync(f, 'utf8'))
+      for (const m of src.matchAll(/\bt(?:r|f)?\(\s*['"`]([\w.-]+)['"`]/g)) used.add(m[1])
+    }
+    const missing = [...used]
+      .filter((k) => !(k in zhDict) || !(k in enDict))
+      .sort()
+    expect(missing).toEqual([])
   })
 })
