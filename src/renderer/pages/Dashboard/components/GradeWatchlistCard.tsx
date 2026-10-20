@@ -7,13 +7,11 @@ import { AlertTriangle } from 'lucide-react'
 import { Card } from '../../../components/Card'
 import { EmptyState } from '../../../components/EmptyState'
 import { useT } from '../../../i18n'
-import type { GradeWatchStatus, StudentGradeRow } from '../dashboard-academic-stats'
-
-function formatScore(row: StudentGradeRow): string {
-  if (row.displayScore == null) return '—'
-  const n = row.displayScore.toFixed(1)
-  return row.kind === 'percent' ? `${n}%` : n
-}
+import {
+  formatStudentScore,
+  type GradeWatchStatus,
+  type StudentGradeRow,
+} from '../dashboard-academic-stats'
 
 export function GradeWatchlistCard({
   items,
@@ -62,7 +60,7 @@ export function GradeWatchlistCard({
                   {statusLabel(r.status)}
                 </span>
                 <span className="font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-white/[0.06] px-2 py-0.5 rounded">
-                  {formatScore(r)}
+                  {formatStudentScore(r)}
                 </span>
               </span>
             </button>

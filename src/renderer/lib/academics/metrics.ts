@@ -30,6 +30,21 @@ export function calcSubjectAvg(grades: GradeRecord[], subjectId: string): number
   return scores.reduce((a, b) => a + b, 0) / scores.length
 }
 
+/** 百分制均分: 每条按 score/fullMark 归一后取均值;无有效分数返回 null */
+export function meanPct(records: GradeRecord[]): number | null {
+  const scored = records.filter((g) => g.score != null && g.fullMark > 0)
+  if (scored.length === 0) return null
+  const sum = scored.reduce((acc, g) => acc + ((g.score as number) / g.fullMark) * 100, 0)
+  return sum / scored.length
+}
+
+/** 原始分均分: 仅排除缺考 null;无有效分数返回 null */
+export function meanRaw(records: GradeRecord[]): number | null {
+  const scored = records.filter((g) => g.score != null)
+  if (scored.length === 0) return null
+  return scored.reduce((acc, g) => acc + (g.score as number), 0) / scored.length
+}
+
 /** 过滤学生列表 (剔除已删除 + 班级筛选 + 搜索词, 按姓名排序) — AcademicsPage 侧边栏 */
 export function filterStudents(
   students: EAAStudent[],

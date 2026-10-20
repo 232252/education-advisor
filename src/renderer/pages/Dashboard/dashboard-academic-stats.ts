@@ -5,7 +5,7 @@
 // =============================================================
 
 import type { EAAStudent, ExamDef, GradeRecord, SubjectDef } from '@shared/types'
-import { calcSubjectAvg, sortByDateDesc } from '../../lib/academics'
+import { calcSubjectAvg, meanPct, meanRaw, sortByDateDesc } from '../../lib/academics'
 import { SUBJECT_FILTER_ALL } from './dashboard-lens'
 
 /** 成绩分段标签（数据层 key，渲染层经 GRADE_BAND_I18N 翻译） */
@@ -45,6 +45,13 @@ export interface StudentGradeRow {
   status: GradeWatchStatus
 }
 
+/** 成绩行展示文本: 百分制加 %,缺分用 — */
+export function formatStudentScore(row: StudentGradeRow): string {
+  if (row.displayScore == null) return '—'
+  const n = row.displayScore.toFixed(1)
+  return row.kind === 'percent' ? `${n}%` : n
+}
+
 export interface AcademicStatsSummary {
   examCount: number
   studentCount: number
@@ -62,19 +69,6 @@ export interface AcademicStatsSummary {
 function scopedRecords(grades: GradeRecord[], subjectId: string): GradeRecord[] {
   if (subjectId === SUBJECT_FILTER_ALL) return grades
   return grades.filter((g) => g.subjectId === subjectId)
-}
-
-function meanPct(records: GradeRecord[]): number | null {
-  const scored = records.filter((g) => g.score != null && g.fullMark > 0)
-  if (scored.length === 0) return null
-  const sum = scored.reduce((acc, g) => acc + ((g.score as number) / g.fullMark) * 100, 0)
-  return sum / scored.length
-}
-
-function meanRaw(records: GradeRecord[]): number | null {
-  const scored = records.filter((g) => g.score != null)
-  if (scored.length === 0) return null
-  return scored.reduce((acc, g) => acc + (g.score as number), 0) / scored.length
 }
 
 /** 把班级成绩展开成 GradeRecord[]（科目均分图可直接复用 Academics 图表） */

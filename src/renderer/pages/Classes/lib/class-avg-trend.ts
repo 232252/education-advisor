@@ -4,7 +4,7 @@
 // =============================================================
 
 import type { ExamDef, GradeRecord } from '@shared/types'
-import { sortByDateAsc } from '../../../lib/academics'
+import { meanPct, meanRaw, sortByDateAsc } from '../../../lib/academics'
 import { SUBJECT_FILTER_ALL } from '../../Dashboard/dashboard-lens'
 
 export interface ClassAvgTrendPoint {
@@ -32,19 +32,6 @@ export function pickTrendExams(exams: ExamDef[], anchorExamId: string): ExamDef[
   const asc = sortByDateAsc(pool)
   if (asc.length <= TREND_RECENT_N) return asc
   return asc.slice(asc.length - TREND_RECENT_N)
-}
-
-function meanPct(records: GradeRecord[]): number | null {
-  const scored = records.filter((g) => g.score != null && g.fullMark > 0)
-  if (scored.length === 0) return null
-  const sum = scored.reduce((acc, g) => acc + ((g.score as number) / g.fullMark) * 100, 0)
-  return sum / scored.length
-}
-
-function meanRaw(records: GradeRecord[]): number | null {
-  const scored = records.filter((g) => g.score != null)
-  if (scored.length === 0) return null
-  return scored.reduce((acc, g) => acc + (g.score as number), 0) / scored.length
 }
 
 /**
