@@ -18,6 +18,35 @@ export const MAX_AI_IMAGE_EDGE = 1600
 /** JPEG 重编码质量(与 template-calibrate.toAiJpeg 一致) */
 const JPEG_QUALITY = 0.85
 
+/** 图片字节 → JPEG buffer: 白底重绘 + 等比缩放(长边 ≤ maxEdge);解码/编码失败抛错 */
+export async function toAiJpegBuffer(
+  buf: Buffer,
+  maxEdge: number = MAX_AI_IMAGE_EDGE,
+): Promise<Buffer> {
+  const { loadImage, createCanvas } = await import('@napi-rs/canvas')
+  const img = await loadImage(buf)
+  const scale = Math.min(1, maxEdge / Math.max(img.width, img.height))
+  const w = Math.max(1, Math.round(img.width * scale))
+  const h = Math.max(1, Math.round(img.height * scale))
+  const canvas = createCanvas(w, h)
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, w, h)
+  ctx.drawImage(img, 0, 0, w, h)
+  return canvas.toBuffer('image/jpeg', JPEG_QUALITY)
+}
+
+/** 图片字节 → 送 AI 的 JPEG base64;解码/编码失败抛错 */
+export async function toAiJpeg(
+  buf: Buffer,
+  maxEdge: number = MAX_AI_IMAGE_EDGE,
+): Promise<PreparedImage> {
+  return {
+    data: (await toAiJpegBuffer(buf, maxEdge)).toString('base64'),
+    mimeType: 'image/jpeg',
+  }
+}
+
 /**
  * 图片字节 → 送 AI 的 JPEG: 白底重绘 + 等比缩放(长边 ≤ maxEdge) +
  * JPEG 重编码;已小于 maxEdge 的图也重编码(统一 mime,顺带压掉 PNG 体积)。
@@ -29,20 +58,7 @@ export async function downscaleToAiJpeg(
   maxEdge: number = MAX_AI_IMAGE_EDGE,
 ): Promise<PreparedImage> {
   try {
-    const { loadImage, createCanvas } = await import('@napi-rs/canvas')
-    const img = await loadImage(buf)
-    const scale = Math.min(1, maxEdge / Math.max(img.width, img.height))
-    const w = Math.max(1, Math.round(img.width * scale))
-    const h = Math.max(1, Math.round(img.height * scale))
-    const canvas = createCanvas(w, h)
-    const ctx = canvas.getContext('2d')
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, w, h)
-    ctx.drawImage(img, 0, 0, w, h)
-    return {
-      data: canvas.toBuffer('image/jpeg', JPEG_QUALITY).toString('base64'),
-      mimeType: 'image/jpeg',
-    }
+    return await toAiJpeg(buf, maxEdge)
   } catch {
     // 解码/重编码失败不阻断: 原图直发(调用方的 maxImages/字节上限仍生效)
     return { data: buf.toString('base64'), mimeType }

@@ -15,6 +15,7 @@ import { settingsService } from '../settings-service'
 import { apiKeyFor, isVisionModel, resolveGradingModelIds } from './grading-pipeline'
 import { gradingService } from './grading-service'
 import { completeGradingCall } from './llm-call'
+import { toAiJpegBuffer } from './media-prep'
 import { buildQuadPrompt, detectQuadInGray, parseQuadResponse, rgbaToGray } from './quad-cv'
 
 /** 分析分辨率上限(长边),CV 在此尺度跑,结果换算回原图 */
@@ -91,21 +92,6 @@ export async function detectQuadFromImage(buf: Buffer): Promise<PageQuad | null>
   }
 }
 
-/** 图片 buffer → 送 AI 的 JPEG buffer(降采样控 token) */
-async function toAiJpeg(buf: Buffer): Promise<Buffer> {
-  const { loadImage, createCanvas } = await import('@napi-rs/canvas')
-  const img = await loadImage(buf)
-  const scale = Math.min(1, MAX_AI_IMAGE_PX / Math.max(img.width, img.height))
-  const w = Math.max(1, Math.round(img.width * scale))
-  const h = Math.max(1, Math.round(img.height * scale))
-  const canvas = createCanvas(w, h)
-  const ctx = canvas.getContext('2d')
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, w, h)
-  ctx.drawImage(img, 0, 0, w, h)
-  return canvas.toBuffer('image/jpeg', 0.85)
-}
-
 /** AI 视觉四点(0-1 输出 → 原图像素);未配置视觉模型/调用失败返回 null */
 async function aiDetectQuad(
   buf: Buffer,
@@ -118,7 +104,7 @@ async function aiDetectQuad(
   const apiKey = apiKeyFor(ids.providerId)
   if (!apiKey) return { quad: null, error: '未配置 API Key' }
   try {
-    const jpeg = await toAiJpeg(buf)
+    const jpeg = await toAiJpegBuffer(buf, MAX_AI_IMAGE_PX)
     const content: Array<
       { type: 'image'; data: string; mimeType: string } | { type: 'text'; text: string }
     > = [

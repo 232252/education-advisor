@@ -19,6 +19,7 @@ import { pdfToPageJpegs } from './archive-import'
 import { apiKeyFor, isVisionModel, resolveGradingModelIds } from './grading-pipeline'
 import { gradingService } from './grading-service'
 import { completeGradingCall } from './llm-call'
+import { toAiJpeg } from './media-prep'
 import { detectQuadForBuffer } from './page-quad-detect'
 import { buildLocatePrompt, parseLocateResponse } from './staged-pipeline'
 
@@ -26,8 +27,6 @@ import { buildLocatePrompt, parseLocateResponse } from './staged-pipeline'
 const ALLOWED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp'])
 /** 样卷页数上限 */
 const MAX_TEMPLATE_PAGES = 8
-/** 送 AI 的图长边上限(控 token) */
-const MAX_AI_IMAGE_PX = 1600
 /** 定位输出预算 */
 const LOCATE_MAX_TOKENS = 2048
 
@@ -36,21 +35,6 @@ export interface TemplateCalibrateResult {
   missing: string[]
   pages: number
   quadsOk: number
-}
-
-/** 图片 buffer → 送 AI 的 JPEG(降采样控 token) */
-async function toAiJpeg(buf: Buffer): Promise<{ data: string; mimeType: string }> {
-  const { loadImage, createCanvas } = await import('@napi-rs/canvas')
-  const img = await loadImage(buf)
-  const scale = Math.min(1, MAX_AI_IMAGE_PX / Math.max(img.width, img.height))
-  const w = Math.max(1, Math.round(img.width * scale))
-  const h = Math.max(1, Math.round(img.height * scale))
-  const canvas = createCanvas(w, h)
-  const ctx = canvas.getContext('2d')
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, w, h)
-  ctx.drawImage(img, 0, 0, w, h)
-  return { data: canvas.toBuffer('image/jpeg', 0.85).toString('base64'), mimeType: 'image/jpeg' }
 }
 
 /**
