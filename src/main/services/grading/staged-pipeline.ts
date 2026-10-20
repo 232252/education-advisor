@@ -24,7 +24,7 @@ import type {
   RubricQuestion,
 } from '@shared/types'
 import { errText } from '../../utils/err-text'
-import { parseJsonWithRepair } from '../../utils/json-repair'
+import { parseJsonObject } from '../../utils/json-repair'
 import { log } from '../../utils/logger'
 import {
   gradingModeLabel,
@@ -221,7 +221,7 @@ export function buildTranscribePrompt(q: RubricQuestion, subCount: number): stri
 
 /** 解析转写输出;answers 支持数组或 {小题号:值} 对象;清洗/归一;解析失败抛错 */
 export function parseTranscribeResponse(text: string): TranscribedItem[] {
-  const parsed = parseLooseJson(text)
+  const parsed = parseJsonObject(text)
   const rawAnswers = (parsed as { answers?: unknown })?.answers
   const items: TranscribedItem[] = []
   const push = (no: unknown, value: unknown, uncertain: unknown) => {
@@ -361,7 +361,7 @@ export function buildStagedGradePrompt(q: RubricQuestion, mode: GradingStrictnes
 
 /** 解析单题批改输出(支持裸对象/{"question":{}}/questions 数组取首个);失败抛错 */
 export function parseStagedGradeResponse(text: string, q: RubricQuestion): AiQuestionResult {
-  const parsed = parseLooseJson(text)
+  const parsed = parseJsonObject(text)
   let r = parsed
   const wrapped = (parsed as { questions?: unknown[]; question?: unknown }) ?? {}
   if (Array.isArray(wrapped.questions) && wrapped.questions.length > 0) {
@@ -424,7 +424,7 @@ export function parseLocateResponse(
 ): Map<string, GradeAnnotationBox> {
   const out = new Map<string, GradeAnnotationBox>()
   try {
-    const parsed = parseLooseJson(text)
+    const parsed = parseJsonObject(text)
     const rawBoxes = (parsed as { boxes?: unknown })?.boxes
     if (!Array.isArray(rawBoxes)) return out
     const ids = new Set(rubric.map((q) => q.id))
@@ -489,40 +489,6 @@ export function pickMedianSample<T extends { score: number }>(
   const median = sorted[Math.floor(sorted.length / 2)]
   if (median === undefined) return first
   return samples.find((s) => s.score === median) ?? first
-}
-
-// ===== 共用: 松散 JSON 解析(剥围栏→截取大括号→修复) =====
-
-function parseLooseJson(text: string): Record<string, unknown> {
-  const stripped = text.replace(/```(?:json)?/gi, '').trim()
-  const braceStart = stripped.indexOf('{')
-  const braceEnd = stripped.lastIndexOf('}')
-  const candidates =
-    braceStart >= 0 && braceEnd > braceStart
-      ? [stripped.slice(braceStart, braceEnd + 1), stripped]
-      : [stripped]
-  let parsed: unknown
-  let ok = false
-  for (const candidate of candidates) {
-    try {
-      parsed = JSON.parse(candidate)
-      ok = true
-      break
-    } catch {
-      // 下一个候选
-    }
-  }
-  if (!ok) {
-    // 修复解析也失败: 归一为解析类错误消息(isGradingParseError 分类闭环,
-    // 不让 pi-ai 的内部错误消息逃逸成不可分类的传输类)
-    try {
-      parsed = parseJsonWithRepair(candidates[candidates.length - 1] ?? stripped)
-    } catch {
-      throw new Error('输出不是 JSON 对象')
-    }
-  }
-  if (typeof parsed !== 'object' || parsed === null) throw new Error('输出不是 JSON 对象')
-  return parsed as Record<string, unknown>
 }
 
 // ===== 编排(有状态) =====

@@ -66,3 +66,33 @@ function parseJsonWithRepair<T = unknown>(json: string): T {
 }
 
 export { parseJsonWithRepair }
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v)
+
+/** 模型输出 → JSON 对象: 去围栏,先整体后大括号切片,再走修复 */
+export function parseJsonObject(
+  text: string,
+  errorMessage = '输出不是 JSON 对象',
+): Record<string, unknown> {
+  const stripped = text.replace(/```(?:json)?/gi, '').trim()
+  const start = stripped.indexOf('{')
+  const end = stripped.lastIndexOf('}')
+  const candidates =
+    start >= 0 && end > start ? [stripped, stripped.slice(start, end + 1)] : [stripped]
+  for (const candidate of candidates) {
+    try {
+      const parsed: unknown = JSON.parse(candidate)
+      if (isPlainObject(parsed)) return parsed
+    } catch {
+      // 下一个候选
+    }
+  }
+  try {
+    const parsed: unknown = parseJsonWithRepair(candidates[candidates.length - 1] ?? stripped)
+    if (isPlainObject(parsed)) return parsed
+  } catch {
+    // 归一为可分类的解析错误
+  }
+  throw new Error(errorMessage)
+}

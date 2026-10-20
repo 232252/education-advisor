@@ -17,7 +17,7 @@ import {
 } from '@shared/grading-helpers'
 import type { GradingPaper } from '@shared/types'
 import { errText } from '../../utils/err-text'
-import { parseJsonWithRepair } from '../../utils/json-repair'
+import { parseJsonObject } from '../../utils/json-repair'
 import { log } from '../../utils/logger'
 import { resolveModel } from '../pi-ai/model-utils'
 import { profileService } from '../profile-service'
@@ -62,38 +62,10 @@ export function buildIdentifyPrompt(): string {
   ].join('\n')
 }
 
-function parseJsonObject(text: string): Record<string, unknown> {
-  const stripped = text.replace(/```(?:json)?/gi, '').trim()
-  const braceStart = stripped.indexOf('{')
-  const braceEnd = stripped.lastIndexOf('}')
-  const candidates =
-    braceStart >= 0 && braceEnd > braceStart
-      ? [stripped, stripped.slice(braceStart, braceEnd + 1)]
-      : [stripped]
-  let parsed: unknown
-  let parsedOk = false
-  for (const candidate of candidates) {
-    try {
-      parsed = JSON.parse(candidate)
-      parsedOk = true
-      break
-    } catch {
-      /* 下一个候选 */
-    }
-  }
-  if (!parsedOk) {
-    parsed = parseJsonWithRepair(candidates[candidates.length - 1] ?? stripped)
-  }
-  if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error('身份识别输出不是对象')
-  }
-  return parsed as Record<string, unknown>
-}
-
 /** 解析模型返回的姓名/编号;非法则空串(该份保持未归组) */
 export function parseIdentifyResponse(text: string): PaperIdentity {
   try {
-    const r = parseJsonObject(text)
+    const r = parseJsonObject(text, '身份识别输出不是对象')
     const name = typeof r.name === 'string' ? r.name.trim() : ''
     const number =
       typeof r.number === 'number' && Number.isFinite(r.number)
