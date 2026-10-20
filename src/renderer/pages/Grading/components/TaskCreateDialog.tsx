@@ -3,11 +3,11 @@
 // 创建即落草稿态;量规可留空后补(任务详情里继续编辑)。
 // =============================================================
 
+import { currentSemester } from '@shared/academic-time'
 import { cleanPresetMarks } from '@shared/grading-helpers'
 import type { GradingStrategy, GradingStrictness, RubricQuestion } from '@shared/types'
 import { useState } from 'react'
 import { useT } from '../../../i18n'
-import { getCurrentSemester } from '../../../lib/academics'
 import { btnStyle, CARD_BASE, INPUT_BASE } from '../../../lib/ui-utils'
 import { RubricEditor } from './RubricEditor'
 
@@ -48,7 +48,7 @@ export function TaskCreateDialog({
 }: TaskCreateDialogProps) {
   const { t } = useT()
   const [name, setName] = useState('')
-  const [semester, setSemester] = useState(getCurrentSemester())
+  const [semester, setSemester] = useState(currentSemester())
   const [examDate, setExamDate] = useState('')
   const [classId, setClassId] = useState('')
   const [subjectId, setSubjectId] = useState('')

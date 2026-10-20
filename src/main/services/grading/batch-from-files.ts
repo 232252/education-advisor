@@ -4,6 +4,7 @@
 // 多页归组: PDF 每页一批拆份后,identify 管线按卷面身份合并续页。
 // =============================================================
 
+import { currentSemester } from '@shared/academic-time'
 import type { StudentCandidate } from '@shared/grading-helpers'
 import type { GradingStrictness, RubricQuestion } from '@shared/types'
 import { eaaBridge } from '../eaa-bridge'
@@ -44,15 +45,6 @@ export interface GradingFromFilesResult {
   gradingStarted: boolean
   autoPublish: boolean
   hint: string
-}
-
-function currentSemester(): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
-  const semester = month >= 9 || month <= 2 ? 1 : 2
-  const startYear = month >= 9 ? year : year - 1
-  return `${startYear}-${startYear + 1}-${semester}`
 }
 
 // ===== 花名册 =====

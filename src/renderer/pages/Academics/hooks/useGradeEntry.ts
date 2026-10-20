@@ -9,6 +9,7 @@
 // R112 修复保留:流订阅 unsub 在卸载时立即取消,避免监听器泄漏。
 // =============================================================
 
+import { currentSemester } from '@shared/academic-time'
 import type {
   EAAStudent,
   ExamDef,
@@ -27,7 +28,7 @@ import {
   useState,
 } from 'react'
 import { tr, useT } from '../../../i18n'
-import { getCurrentSemester, sortByDateDesc } from '../../../lib/academics'
+import { sortByDateDesc } from '../../../lib/academics'
 import { errText, getAPI, getErrorMessage } from '../../../lib/ipc-client'
 import { todayISO } from '../../../lib/ui-utils'
 import { useChatStore } from '../../../stores/chat/store'
@@ -192,7 +193,7 @@ export function useGradeEntry({
           name: opts.name,
           type: opts.type,
           date: opts.date,
-          semester: getCurrentSemester(),
+          semester: currentSemester(),
           scope: '',
           subjects: subjects.map((s) => s.id),
         })

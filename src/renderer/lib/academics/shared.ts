@@ -1,5 +1,5 @@
 // =============================================================
-// 学业模块共享常量与纯函数 — 考试类型标签/日期排序/学期计算
+// 学业模块共享常量与纯函数 — 考试类型标签/日期排序
 // (由 pages/Academics/academics-shared.ts 上移至共享层,逻辑零修改)
 // =============================================================
 
@@ -33,16 +33,4 @@ export const EXAM_TYPE_BADGE: Record<
 /** 按考试日期降序排序 (最新在前) */
 export function sortByDateDesc<T extends { date?: string }>(arr: T[]): T[] {
   return [...arr].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
-}
-
-/** 获取当前学期标识 (如 "2025-2026-1") */
-export function getCurrentSemester(): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
-  // 9-2月 → 第一学期; 3-7月 → 第二学期
-  const semester = month >= 9 || month <= 2 ? 1 : 2
-  const startYear = month >= 9 ? year : year - 1
-  const endYear = startYear + 1
-  return `${startYear}-${endYear}-${semester}`
 }

@@ -5,6 +5,7 @@
 
 import type { AgentTool } from '@main/services/llm-contracts'
 import { DEFAULT_EXAM_TYPES } from '@shared/academic-defaults'
+import { currentSemester, todayIsoDate } from '@shared/academic-time'
 import {
   type GradeRosterStudent,
   matchGradeRowsToRoster,
@@ -50,22 +51,6 @@ const importGradesParams = Type.Object({
   ),
   sheet: Type.Optional(Type.String({ description: '工作表名；不填则用第一张有成绩表头的表' })),
 })
-
-function currentSemester(): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
-  const semester = month >= 9 || month <= 2 ? 1 : 2
-  const startYear = month >= 9 ? year : year - 1
-  return `${startYear}-${startYear + 1}-${semester}`
-}
-
-function todayIsoDate(): string {
-  const d = new Date()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
-}
 
 function parseExamType(raw?: string): ExamType {
   const t = (raw ?? '').trim()

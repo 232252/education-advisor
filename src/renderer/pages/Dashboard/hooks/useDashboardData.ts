@@ -17,7 +17,7 @@ import type {
 import { useMultiLoader } from '../../../hooks/useMultiLoader'
 import { t } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
-import { todayISO } from '../../../lib/ui-utils'
+import { formatDate, todayISO } from '../../../lib/ui-utils'
 import { useClassStore } from '../../../stores/class/store'
 import { useStudentStore } from '../../../stores/student/store'
 import { toast } from '../../../stores/toastStore'
@@ -79,7 +79,7 @@ export function useDashboardData() {
       },
       allEvents: async (): Promise<EAAEventRecord[]> => {
         const r = await getAPI().eaa.range(
-          new Date(Date.now() - 180 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+          formatDate(new Date(Date.now() - 180 * 24 * 3600 * 1000)),
           todayISO(),
           5000,
         )

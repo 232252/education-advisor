@@ -6,10 +6,10 @@
 // UI 在 ../components/exam-mgmt/。
 // =============================================================
 
+import { currentSemester } from '@shared/academic-time'
 import type { ExamDef, ExamType, SubjectDef } from '@shared/types'
 import { useCallback, useState } from 'react'
 import { tr, useT } from '../../../i18n'
-import { getCurrentSemester } from '../../../lib/academics'
 import { errText, getAPI, getErrorMessage } from '../../../lib/ipc-client'
 import { runIpcMutation } from '../../../lib/mutation'
 import { todayISO } from '../../../lib/ui-utils'
@@ -33,7 +33,7 @@ export function useExamManagement({ subjects, onRefresh }: UseExamManagementPara
   const [formName, setFormName] = useState('')
   const [formType, setFormType] = useState<ExamType>('monthly')
   const [formDate, setFormDate] = useState(todayISO())
-  const [formSemester, setFormSemester] = useState(getCurrentSemester())
+  const [formSemester, setFormSemester] = useState(currentSemester())
   const [formScope, setFormScope] = useState('')
   const [formSubjects, setFormSubjects] = useState<Set<string>>(new Set())
 
@@ -58,7 +58,7 @@ export function useExamManagement({ subjects, onRefresh }: UseExamManagementPara
     setFormName('')
     setFormType('monthly')
     setFormDate(todayISO())
-    setFormSemester(getCurrentSemester())
+    setFormSemester(currentSemester())
     setFormScope('')
     setFormSubjects(new Set())
   }, [])
@@ -79,7 +79,7 @@ export function useExamManagement({ subjects, onRefresh }: UseExamManagementPara
           name: formName.trim(),
           type: formType,
           date: formDate,
-          semester: formSemester.trim() || getCurrentSemester(),
+          semester: formSemester.trim() || currentSemester(),
           scope: formScope.trim() || undefined,
           subjects: Array.from(formSubjects),
         }),

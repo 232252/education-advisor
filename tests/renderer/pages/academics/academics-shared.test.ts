@@ -1,15 +1,15 @@
 // =============================================================
 // academics-shared + shared/academic-defaults 单元测试
 // 覆盖: EXAM_TYPE_LABEL / EXAM_TYPE_BADGE / sortByDateDesc /
-//       getCurrentSemester / DEFAULT_SUBJECTS / DEFAULT_EXAM_TYPES
+//       DEFAULT_SUBJECTS / DEFAULT_EXAM_TYPES
+// 学期计算已移至 shared/academic-time,测试见 tests/shared/academic-time.test.ts
 // =============================================================
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { ExamType } from '@shared/types'
 import {
   EXAM_TYPE_BADGE,
   EXAM_TYPE_LABEL,
-  getCurrentSemester,
   sortByDateDesc,
 } from '../../../../src/renderer/lib/academics'
 import {
@@ -66,45 +66,6 @@ describe('sortByDateDesc', () => {
     const input = [{ date: '2025-01-01' }, { date: '2025-12-01' }]
     sortByDateDesc(input)
     expect(input.map((x) => x.date)).toEqual(['2025-01-01', '2025-12-01'])
-  })
-})
-
-// ---------- getCurrentSemester ----------
-
-describe('getCurrentSemester', () => {
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  function at(date: string): string {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(date))
-    return getCurrentSemester()
-  }
-
-  it('9 月开学 → 当学年第一学期', () => {
-    expect(at('2025-09-01T08:00:00')).toBe('2025-2026-1')
-  })
-
-  it('12 月 → 当学年第一学期', () => {
-    expect(at('2025-12-15T08:00:00')).toBe('2025-2026-1')
-  })
-
-  it('次年 1-2 月 → 仍属上一学年的第一学期', () => {
-    expect(at('2026-01-10T08:00:00')).toBe('2025-2026-1')
-    expect(at('2026-02-28T08:00:00')).toBe('2025-2026-1')
-  })
-
-  it('3 月 → 第二学期', () => {
-    expect(at('2026-03-01T08:00:00')).toBe('2025-2026-2')
-  })
-
-  it('8 月(暑期) → 第二学期', () => {
-    expect(at('2026-08-15T08:00:00')).toBe('2025-2026-2')
-  })
-
-  it('输出形如 YYYY-YYYY-N', () => {
-    expect(at('2026-05-20T08:00:00')).toMatch(/^\d{4}-\d{4}-[12]$/)
   })
 })
 
