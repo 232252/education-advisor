@@ -4,30 +4,12 @@
 // =============================================================
 
 import { DEFAULT_SUBJECTS } from './academic-defaults'
-import { ROSTER_HEADER_SCAN_ROWS } from './roster-profile'
+import { ROSTER_HEADER_SCAN_ROWS, ROSTER_IDENTITY_ALIASES } from './roster-profile'
+import { cellText, normalizeHeader } from './sheet-utils'
 
-function normalizeHeader(raw: unknown): string {
-  return String(raw ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_-]/g, '')
-}
-
-const NAME_ALIASES = new Set(
-  ['name', '姓名', '学生姓名', '学生', '名字', '学员姓名', '考生姓名', '姓名（必填）'].map(
-    normalizeHeader,
-  ),
-)
-const STUDENT_ID_ALIASES = new Set(
-  ['student_id', 'studentid', '学号', '学籍号', '学籍编号', '学生学号', '学籍'].map(
-    normalizeHeader,
-  ),
-)
-const EXAM_NO_ALIASES = new Set(
-  ['exam_number', 'examnumber', 'exam_no', '考号', '考生号', '准考证号', '考试号'].map(
-    normalizeHeader,
-  ),
-)
+const NAME_ALIASES = new Set(ROSTER_IDENTITY_ALIASES.name.map(normalizeHeader))
+const STUDENT_ID_ALIASES = new Set(ROSTER_IDENTITY_ALIASES.studentId.map(normalizeHeader))
+const EXAM_NO_ALIASES = new Set(ROSTER_IDENTITY_ALIASES.examNumber.map(normalizeHeader))
 
 const SKIP_SCORE_HEADERS =
   /^(总分|合计|总分成绩|总成绩|排名|班级排名|年级排名|名次|备注|说明|序号|编号|缺考)$/
@@ -81,13 +63,6 @@ export interface GradeMatchResult {
   scores: Record<string, number | null>
   warnings: string[]
   unmatchedReason?: string
-}
-
-function cellText(cells: unknown[], col: number): string {
-  if (col < 0) return ''
-  const v = cells[col]
-  if (v === null || v === undefined) return ''
-  return String(v).trim()
 }
 
 function isNameHeader(n: string): boolean {

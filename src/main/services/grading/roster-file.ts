@@ -12,6 +12,7 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import type { StudentCandidate } from '@shared/grading-helpers'
 import { findRosterHeaderRow } from '@shared/roster-profile'
+import { cellText } from '@shared/sheet-utils'
 import { decodeTextBuffer } from './sample-ingest'
 
 /** 名册文件大小上限(与 sample-ingest 的 MAX_EXTRACT_FILE_BYTES 同口径) */
@@ -23,13 +24,6 @@ const ROSTER_YAML_EXTS = new Set(['.yaml', '.yml'])
 
 export function isRosterExt(ext: string): boolean {
   return ROSTER_SHEET_EXTS.has(ext) || ROSTER_TEXT_EXTS.has(ext) || ROSTER_YAML_EXTS.has(ext)
-}
-
-function cellText(cells: unknown[], col: number): string {
-  if (col < 0) return ''
-  const v = cells[col]
-  if (v === null || v === undefined) return ''
-  return String(v).trim()
 }
 
 /** 姓名+学号+考号 → StudentCandidate(学号/考号进 aliases);姓名空返回 null */

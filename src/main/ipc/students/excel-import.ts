@@ -16,6 +16,7 @@ import {
   resolveRosterHeaders,
   rowToProfilePatch,
 } from '@shared/roster-profile'
+import { cellText } from '@shared/sheet-utils'
 import type {
   ClassEntity,
   StudentImportPreview,
@@ -68,13 +69,6 @@ export function buildClassIndex(classes: ClassEntity[]): Map<string, string> {
     if (c.class_id) index.set(c.class_id, c.class_id)
   }
   return index
-}
-
-function cellText(cells: unknown[], col: number): string {
-  if (col < 0) return ''
-  const v = cells[col]
-  if (v === null || v === undefined) return ''
-  return String(v).trim()
 }
 
 export interface ParseStudentImportOptions {

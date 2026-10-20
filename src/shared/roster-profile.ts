@@ -4,6 +4,7 @@
 // =============================================================
 
 import { isCorruptedIdCardCell, parseChineseIdCard } from './id-card'
+import { cellText, normalizeHeader } from './sheet-utils'
 import type { StudentProfileData } from './types/academics'
 
 /** 模板表头（中文，教师下载模板即用） */
@@ -17,10 +18,15 @@ export const ROSTER_TEMPLATE_HEADERS = [
   '家庭住址',
 ] as const
 
-const HEADER_ALIASES: Record<string, string[]> = {
+/** 身份三列(姓名/学号/考号)别名 — 花名册导入与成绩表解析共用 */
+export const ROSTER_IDENTITY_ALIASES = {
   name: ['name', '姓名', '学生姓名', '学生', '名字', '学员姓名', '姓名（必填）'],
   studentId: ['student_id', 'studentid', '学号', '学籍号', '学籍编号', '学生学号', '学籍'],
   examNumber: ['exam_number', 'examnumber', 'exam_no', '考号', '考生号', '准考证号', '考试号'],
+}
+
+const HEADER_ALIASES: Record<string, string[]> = {
+  ...ROSTER_IDENTITY_ALIASES,
   className: [
     'class_name',
     'class',
@@ -73,13 +79,6 @@ export type RosterHeaderKey = keyof typeof HEADER_ALIASES
 export type RosterHeaderIndexes = Record<RosterHeaderKey, number>
 
 const HEADER_KEYS = Object.keys(HEADER_ALIASES) as RosterHeaderKey[]
-
-function normalizeHeader(raw: unknown): string {
-  return String(raw ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_-]/g, '')
-}
 
 const ALIAS_INDEX = new Map<string, RosterHeaderKey>()
 for (const key of HEADER_KEYS) {
@@ -210,13 +209,6 @@ export interface RosterProfilePatch {
   motherPhone?: string
   enrollmentDate?: string
   dormNumber?: string
-}
-
-function cellText(cells: unknown[], col: number): string {
-  if (col < 0) return ''
-  const v = cells[col]
-  if (v === null || v === undefined) return ''
-  return String(v).trim()
 }
 
 function genderFromCell(raw: string): '男' | '女' | undefined {
