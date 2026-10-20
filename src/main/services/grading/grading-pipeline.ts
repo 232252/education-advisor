@@ -534,6 +534,43 @@ export async function gradePaperByStrategy(
 }
 
 /**
+ * 批改前同步校验: 模型/视觉能力/API Key + 双评第二模型。
+ * startGrading 与 regradePapers 共用,避免两处校验漂移;失败直接抛,不改任务状态。
+ */
+function resolveGradingExecution(task: GradingTask) {
+  const settings = settingsService.getSettings()
+  const ids = resolveGradingModelIds(settings)
+  const model = resolveModel(ids.providerId, ids.modelId)
+  if (!model) {
+    throw new Error(`批改模型不存在: ${ids.providerId}/${ids.modelId}(请在设置→模型中配置)`)
+  }
+  if (!isVisionModel(model)) {
+    throw new Error(`模型 ${model.id} 不支持图像输入,请在设置→模型中选择视觉模型批改`)
+  }
+  const apiKey = apiKeyFor(ids.providerId)
+  if (!apiKey) {
+    throw new Error(`Provider ${ids.providerId} 未配置 API Key`)
+  }
+  const strategy = normalizeGradingStrategy(task.gradingStrategy)
+  const secondIds = strategy === 'dual' ? resolveSecondaryGradingModelIds(settings) : null
+  if (strategy === 'dual' && !secondIds) {
+    throw new Error('双评模式未配置第二模型(设置→模型→批改模型)')
+  }
+  const model2 = secondIds ? resolveModel(secondIds.providerId, secondIds.modelId) : undefined
+  if (secondIds && !model2) {
+    throw new Error(`双评第二模型不存在: ${secondIds.providerId}/${secondIds.modelId}`)
+  }
+  if (model2 && !isVisionModel(model2)) {
+    throw new Error(`双评第二模型 ${model2.id} 不支持图像输入,请更换视觉模型`)
+  }
+  const apiKey2 = secondIds ? apiKeyFor(secondIds.providerId) : undefined
+  if (secondIds && !apiKey2) {
+    throw new Error(`双评第二模型 Provider ${secondIds.providerId} 未配置 API Key`)
+  }
+  return { model, apiKey, strategy, secondIds, model2, apiKey2 }
+}
+
+/**
  * 启动整批 AI 批改(异步作业,立即返回):
  * ready|review → grading → (可选)卷面归组 → 逐份 pending/failed 试卷 → review。
  * 失败试卷记录 error,可再次 run(仅重试 failed/pending)。
@@ -565,36 +602,7 @@ export async function startGrading(
   }
 
   // 模型与鉴权(同步失败直接抛给调用方,任务不进入 grading 态)
-  const ids = resolveGradingModelIds(settingsService.getSettings())
-  const model = resolveModel(ids.providerId, ids.modelId)
-  if (!model) {
-    throw new Error(`批改模型不存在: ${ids.providerId}/${ids.modelId}(请在设置→模型中配置)`)
-  }
-  if (!isVisionModel(model)) {
-    throw new Error(`模型 ${model.id} 不支持图像输入,请在设置→模型中选择视觉模型批改`)
-  }
-  const apiKey = apiKeyFor(ids.providerId)
-  if (!apiKey) {
-    throw new Error(`Provider ${ids.providerId} 未配置 API Key`)
-  }
-  // 批改策略与双评第二模型(双评未配置第二模型在启动前同步报错,不进作业)
-  const settings = settingsService.getSettings()
-  const strategy = normalizeGradingStrategy(task.gradingStrategy)
-  const secondIds = strategy === 'dual' ? resolveSecondaryGradingModelIds(settings) : null
-  if (strategy === 'dual' && !secondIds) {
-    throw new Error('双评模式未配置第二模型(设置→模型→批改模型)')
-  }
-  const model2 = secondIds ? resolveModel(secondIds.providerId, secondIds.modelId) : undefined
-  if (secondIds && !model2) {
-    throw new Error(`双评第二模型不存在: ${secondIds.providerId}/${secondIds.modelId}`)
-  }
-  if (model2 && !isVisionModel(model2)) {
-    throw new Error(`双评第二模型 ${model2.id} 不支持图像输入,请更换视觉模型`)
-  }
-  const apiKey2 = secondIds ? apiKeyFor(secondIds.providerId) : undefined
-  if (secondIds && !apiKey2) {
-    throw new Error(`双评第二模型 Provider ${secondIds.providerId} 未配置 API Key`)
-  }
+  const { model, apiKey, strategy, secondIds, model2, apiKey2 } = resolveGradingExecution(task)
 
   await gradingService.setStatus(taskId, 'grading')
   const controller = new AbortController()
@@ -811,34 +819,7 @@ export async function regradePapers(
   if (task.rubric.length === 0) throw new Error('量规为空,无法重改')
 
   // 模型与鉴权(同步失败直接抛,不改任务状态)
-  const config = resolveGradingModelIds(settingsService.getSettings())
-  const model = resolveModel(config.providerId, config.modelId)
-  if (!model) {
-    throw new Error(`批改模型不存在: ${config.providerId}/${config.modelId}(请在设置→模型中配置)`)
-  }
-  if (!isVisionModel(model)) {
-    throw new Error(`模型 ${model.id} 不支持图像输入,请在设置→模型中选择视觉模型批改`)
-  }
-  const apiKey = apiKeyFor(config.providerId)
-  if (!apiKey) throw new Error(`Provider ${config.providerId} 未配置 API Key`)
-  // 批改策略与双评第二模型(沿用任务批改时的策略;双评缺第二模型同步报错)
-  const settings = settingsService.getSettings()
-  const strategy = normalizeGradingStrategy(task.gradingStrategy)
-  const secondIds = strategy === 'dual' ? resolveSecondaryGradingModelIds(settings) : null
-  if (strategy === 'dual' && !secondIds) {
-    throw new Error('双评模式未配置第二模型(设置→模型→批改模型)')
-  }
-  const model2 = secondIds ? resolveModel(secondIds.providerId, secondIds.modelId) : undefined
-  if (secondIds && !model2) {
-    throw new Error(`双评第二模型不存在: ${secondIds.providerId}/${secondIds.modelId}`)
-  }
-  if (model2 && !isVisionModel(model2)) {
-    throw new Error(`双评第二模型 ${model2.id} 不支持图像输入,请更换视觉模型`)
-  }
-  const apiKey2 = secondIds ? apiKeyFor(secondIds.providerId) : undefined
-  if (secondIds && !apiKey2) {
-    throw new Error(`双评第二模型 Provider ${secondIds.providerId} 未配置 API Key`)
-  }
+  const { model, apiKey, model2, apiKey2 } = resolveGradingExecution(task)
 
   // 重置前快照旧结果: 重改失败/中止时回滚,不因一次模型抽风丢掉旧分数与复核
   const snapshots = new Map<
