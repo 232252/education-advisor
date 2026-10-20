@@ -2,7 +2,6 @@
 // 统一参数 sanitize 纯函数（唯一权威实现）
 // 以 ipc/eaa-sanitize.ts 为基准合并,消除 4 份漂移副本:
 //   - ipc/eaa-sanitize.ts        → re-export 本模块
-//   - ipc/academic/params.ts     → 薄适配委托本模块
 //   - ipc/class/params.ts        → re-export 本模块
 //   - services/eaa/tools/sanitize.ts 的 tokenizeQuery → re-export 本模块
 // 这些是安全关键代码:防止命令注入 / 路径遍历 / 控制字符注入

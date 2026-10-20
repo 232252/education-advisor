@@ -3,7 +3,7 @@
 // 上面是已经装进 dsh 的插件：聊天、花名册、成绩、批改、操行。
 // 下面是仍由本机页面管理的技能、定时任务和本地模型。
 // 数据: hooks/usePluginsOverview.ts
-// UI 块: components/PluginCard / FutureCard
+// UI 块: components/PluginCard
 // =============================================================
 
 import type { EducationPluginInstall } from '@shared/api/dsh-im'
