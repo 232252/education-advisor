@@ -7,6 +7,8 @@
 // resolve {success:true,data:[]}),仅对少数方法给精确 override。
 // =============================================================
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -142,6 +144,12 @@ describe('SettingsPage', () => {
     expect(screen.getByText('数据与备份')).toBeTruthy()
     expect(screen.getByText('日志查看')).toBeTruthy()
     expect(screen.getByText('关于')).toBeTruthy()
+    fireEvent.click(screen.getByText('关于'))
+    expect(screen.getByText(/dsh 0\.2\.1-alpha\.1/)).toBeTruthy()
+    expect(screen.getByText(/dsh-im 4\.37\.0/)).toBeTruthy()
+    expect(screen.getByText(/pi-ai 0\.87\.1/)).toBeTruthy()
+    expect(screen.getByText(/Vite 8\.2/)).toBeTruthy()
+    expect(screen.queryByText(/dsh 内置/)).toBeNull()
     expect(api.settings.get).toHaveBeenCalled()
     expect(screen.queryByText('Cloudflare 隧道')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /本机 WebUI/ }))
@@ -205,6 +213,25 @@ describe('SettingsPage', () => {
     const confirmBtn = await screen.findByRole('button', { name: '确认' })
     fireEvent.click(confirmBtn)
     await waitFor(() => expect(api.settings.reset).toHaveBeenCalled())
+  })
+
+  it('关于文案与 lock 里的运行时、目录、Vite 一致', () => {
+    const zh = JSON.parse(readFileSync(resolve('src/renderer/i18n/zh.json'), 'utf8')) as Record<
+      string,
+      string
+    >
+    const en = JSON.parse(readFileSync(resolve('src/renderer/i18n/en.json'), 'utf8')) as Record<
+      string,
+      string
+    >
+    expect(zh['page.settings.about.core.dsh']).toContain('0.2.1-alpha.1')
+    expect(zh['page.settings.about.core.dshIm']).toBe('— 连接中心插件（dsh-im 4.37.0）')
+    expect(en['page.settings.about.core.dshIm']).toBe('— Connection center plugin (dsh-im 4.37.0)')
+    expect(zh['page.settings.about.core.piAi']).toBe('— 模型目录（pi-ai 0.87.1）')
+    expect(en['page.settings.about.core.dsh']).toContain('0.2.1-alpha.1')
+    expect(en['page.settings.about.core.piAi']).toBe('— Model catalog (pi-ai 0.87.1)')
+    expect(zh['page.settings.about.core.piAgent']).toBeUndefined()
+    expect(en['page.settings.about.core.piAgent']).toBeUndefined()
   })
 
 })

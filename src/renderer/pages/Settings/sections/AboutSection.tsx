@@ -1,5 +1,5 @@
 // =============================================================
-// 关于 Section — 应用版本/底层核心(EAA / DeepSeek Harness / 模型目录 / PII Shield)/ 关键依赖
+// 关于 Section — 应用版本/底层核心(EAA / DeepSeek Harness / dsh-im / 模型目录 / PII Shield)/ 关键依赖
 // 纯展示组件,无 state / callback
 // =============================================================
 
@@ -80,7 +80,21 @@ export function AboutSection() {
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  {t('page.settings.about.core.piAgent', '— Agent 运行时（dsh 0.2.1）')}
+                  {t('page.settings.about.core.dsh', '— Agent 运行时（dsh 0.2.1-alpha.1）')}
+                </span>
+              </div>
+              <div>
+                <a
+                  href="https://github.com/xmanrui/dsh-im"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 font-medium"
+                >
+                  dsh-im
+                </a>
+                <span className="text-gray-500 dark:text-gray-400 text-[11px]">
+                  {' '}
+                  {t('page.settings.about.core.dshIm', '— 连接中心插件（dsh-im 4.37.0）')}
                 </span>
               </div>
               <div>
@@ -94,7 +108,7 @@ export function AboutSection() {
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  {t('page.settings.about.core.piAi', '— 模型目录（dsh 内置 pi-ai）')}
+                  {t('page.settings.about.core.piAi', '— 模型目录（pi-ai 0.87.1）')}
                 </span>
               </div>
               <div>
@@ -113,7 +127,7 @@ export function AboutSection() {
             </div>
             <div className="grid grid-cols-1 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
               <span>Electron 43.2 + React 19.2</span>
-              <span>TypeScript 7.0 + Vite 8.1</span>
+              <span>TypeScript 7.0 + Vite 8.2</span>
               <span>Tailwind 4 + Zustand 5</span>
               <span>better-sqlite3 + TypeBox</span>
             </div>

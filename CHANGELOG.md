@@ -42,6 +42,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- 设置「关于」与仓库对齐：Vite 写成 8.2；模型目录写成随包的 pi-ai 0.87.1；Agent 运行时写明 dsh 0.2.1-alpha.1；补上连接中心插件 dsh-im 4.37.0。
 - 卷面识别页眉裁剪只认 jpeg/png：webp/bmp 试卷首页此前无图调模型必然读空身份归 unresolved，现在同样走页眉放大裁剪（`HEADER_CROP_MIMES` 路由，loadImage 按内容解码）。
 - 发布写成绩失败后重试不再生成同名新考试：考试 id 创建后立即回填落盘，重试按 (examId, subjectId) 幂等覆盖残分。
 - 主观题贴边界复验取中位落在第二/三采样时，批注 box 统一映射为整页坐标（此前会保留裁剪图口径）。
