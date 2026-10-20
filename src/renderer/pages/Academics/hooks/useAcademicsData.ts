@@ -15,6 +15,7 @@
 import type { AcademicConfig, ClassEntity, EAAStudent, ExamDef } from '@shared/types'
 import { useMemo } from 'react'
 import { useMultiLoader } from '../../../hooks/useMultiLoader'
+import { unwrapApiData } from '../../../lib/academics'
 import { getAPI } from '../../../lib/ipc-client'
 import { useClassStore } from '../../../stores/class/store'
 import { useStudentStore } from '../../../stores/student/store'
@@ -45,15 +46,11 @@ async function unwrapClassList(): Promise<ClassEntity[]> {
 }
 
 async function unwrapConfig(): Promise<AcademicConfig | null> {
-  const res = await getAPI().academic.getConfig()
-  if (res.success && res.data) return res.data
-  return null
+  return unwrapApiData(await getAPI().academic.getConfig(), null)
 }
 
 async function unwrapExams(): Promise<ExamDef[]> {
-  const res = await getAPI().academic.listExams()
-  if (res.success && res.data) return res.data
-  return []
+  return unwrapApiData(await getAPI().academic.listExams(), [])
 }
 
 const FALLBACKS = {

@@ -11,6 +11,7 @@ import {
   EXAM_TYPE_BADGE,
   EXAM_TYPE_LABEL,
   sortByDateDesc,
+  unwrapApiData,
 } from '../../../../src/renderer/lib/academics'
 import {
   DEFAULT_EXAM_TYPES,
@@ -66,6 +67,23 @@ describe('sortByDateDesc', () => {
     const input = [{ date: '2025-01-01' }, { date: '2025-12-01' }]
     sortByDateDesc(input)
     expect(input.map((x) => x.date)).toEqual(['2025-01-01', '2025-12-01'])
+  })
+})
+
+// ---------- unwrapApiData ----------
+
+describe('unwrapApiData', () => {
+  it('成功且有数据 → 返回 data', () => {
+    expect(unwrapApiData({ success: true, data: ['x'] }, [])).toEqual(['x'])
+  })
+
+  it('失败 → 返回 fallback', () => {
+    expect(unwrapApiData({ success: false, data: ['x'] }, [])).toEqual([])
+  })
+
+  it('成功但无 data → 返回 fallback', () => {
+    expect(unwrapApiData<string[]>({ success: true }, [])).toEqual([])
+    expect(unwrapApiData<null>({ success: true }, null)).toBeNull()
   })
 })
 

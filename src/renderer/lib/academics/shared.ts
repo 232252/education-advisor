@@ -34,3 +34,8 @@ export const EXAM_TYPE_BADGE: Record<
 export function sortByDateDesc<T extends { date?: string }>(arr: T[]): T[] {
   return [...arr].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
 }
+
+/** IPC 结果解包: 成功且有 data 用 data,否则用 fallback */
+export function unwrapApiData<T>(res: { success: boolean; data?: T }, fallback: T): T {
+  return res.success && res.data ? res.data : fallback
+}

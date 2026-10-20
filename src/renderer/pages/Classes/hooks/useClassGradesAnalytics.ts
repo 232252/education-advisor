@@ -10,7 +10,12 @@ import type { AcademicConfig, EAAStudent, ExamDef, GradeRecord, SubjectDef } fro
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useExamPairSelection } from '../../../hooks/useExamPair'
 import { useMultiLoader } from '../../../hooks/useMultiLoader'
-import { computeStudentComparisons, sortByDateAsc, sortByDateDesc } from '../../../lib/academics'
+import {
+  computeStudentComparisons,
+  sortByDateAsc,
+  sortByDateDesc,
+  unwrapApiData,
+} from '../../../lib/academics'
 import { getAPI } from '../../../lib/ipc-client'
 import { SUBJECT_FILTER_ALL } from '../../Dashboard/dashboard-lens'
 import { buildClassAvgTrend, pickTrendExams } from '../lib/class-avg-trend'
@@ -36,13 +41,11 @@ const TREND_FALLBACKS = {
 }
 
 async function unwrapExams(): Promise<ExamDef[]> {
-  const res = await getAPI().academic.listExams()
-  return res.success && res.data ? res.data : []
+  return unwrapApiData(await getAPI().academic.listExams(), [])
 }
 
 async function unwrapConfig(): Promise<AcademicConfig | null> {
-  const res = await getAPI().academic.getConfig()
-  return res.success && res.data ? res.data : null
+  return unwrapApiData(await getAPI().academic.getConfig(), null)
 }
 
 export function useClassGradesAnalytics({

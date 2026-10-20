@@ -9,7 +9,7 @@ import type { AcademicConfig, ExamDef, GradeRecord, SubjectDef } from '@shared/t
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocalStorage } from '../../../hooks/useLocalStorage'
 import { useMultiLoader } from '../../../hooks/useMultiLoader'
-import { sortByDateDesc } from '../../../lib/academics'
+import { sortByDateDesc, unwrapApiData } from '../../../lib/academics'
 import { getAPI } from '../../../lib/ipc-client'
 import { pickLatestExamId } from '../dashboard-academic-stats'
 import { DASHBOARD_SUBJECT_KEY, EXAM_FILTER_ALL, SUBJECT_FILTER_ALL } from '../dashboard-lens'
@@ -24,13 +24,11 @@ const GRADES_FALLBACKS = {
 }
 
 async function unwrapExams(): Promise<ExamDef[]> {
-  const res = await getAPI().academic.listExams()
-  return res.success && res.data ? res.data : []
+  return unwrapApiData(await getAPI().academic.listExams(), [])
 }
 
 async function unwrapConfig(): Promise<AcademicConfig | null> {
-  const res = await getAPI().academic.getConfig()
-  return res.success && res.data ? res.data : null
+  return unwrapApiData(await getAPI().academic.getConfig(), null)
 }
 
 export function useDashboardAcademicData({
