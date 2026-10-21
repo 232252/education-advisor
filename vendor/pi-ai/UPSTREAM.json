@@ -5,10 +5,10 @@
   "upstreamDir": "packages/ai",
   "license": "MIT",
   "licenseFile": "LICENSE",
-  "note": "Vendored @earendil-works/pi-ai 0.87.1, the version @deepseek-ai/dsh-llm-pi-ai@0.2.1-alpha.1 depends on. dist/ and package.json come from the published npm tarball. scripts/patches/earendil-works__pi-ai@0.87.1.dsh-toolcall.patch (DeepSeek Harness) removes per-delta re-parsing of streamed tool-call arguments. dist/api/bedrock-converse-stream.lazy.js uses a static import so the Electron bundle emits the Bedrock chunk. LICENSE is the upstream MIT license.",
+  "note": "Vendored @earendil-works/pi-ai 0.87.1. dist/ comes from the published npm tarball; package.json is the published manifest with dependency pins raised to current SDKs (anthropic 1.0.0, bedrock 3.1155.0, genai 2.30.0, openai 7.41.0, typebox 1.4.2, pi-telemetry ^1.3.0) so the vendored dist shares the app tree instead of carrying stale copies. scripts/patches/earendil-works__pi-ai@0.87.1.dsh-toolcall.patch (DeepSeek Harness) removes per-delta re-parsing of streamed tool-call arguments. dist/api/bedrock-converse-stream.lazy.js uses a static import so the Electron bundle emits the Bedrock chunk. LICENSE is the upstream MIT license.",
   "fileCount": 773,
-  "totalBytes": 4672533,
-  "manifestSha256": "1fe9f4a887c1c4a9c17a73bc234b569be46f8ac7d3dee64c1c29b010631021b2",
+  "totalBytes": 4672529,
+  "manifestSha256": "d1ec4deb047c5b442c0499c2d92af66ccdca4c026bc935db3de7f598ae07cb36",
   "files": [
     {
       "path": "LICENSE",
@@ -3872,8 +3872,8 @@
     },
     {
       "path": "package.json",
-      "sha256": "0422fc7227a158c3c843c1540edfff017d2103be33ee48b882e2ff9032a5f7d2",
-      "bytes": 2713
+      "sha256": "2739fc9f0352d0382214b966d78f4448fc5bd4e2f082d67095ab31f7f55e69e0",
+      "bytes": 2709
     }
   ]
 }

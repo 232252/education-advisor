@@ -32,7 +32,7 @@ const TARGETS = [
     packageName: '@earendil-works/pi-ai',
     repo: 'https://github.com/earendil-works/pi.git',
     upstreamDir: 'packages/ai',
-    note: 'Vendored @earendil-works/pi-ai 0.87.1, the version @deepseek-ai/dsh-llm-pi-ai@0.2.1-alpha.1 depends on. dist/ and package.json come from the published npm tarball. scripts/patches/earendil-works__pi-ai@0.87.1.dsh-toolcall.patch (DeepSeek Harness) removes per-delta re-parsing of streamed tool-call arguments. dist/api/bedrock-converse-stream.lazy.js uses a static import so the Electron bundle emits the Bedrock chunk. LICENSE is the upstream MIT license.',
+    note: 'Vendored @earendil-works/pi-ai 0.87.1. dist/ comes from the published npm tarball; package.json is the published manifest with dependency pins raised to current SDKs (anthropic 1.0.0, bedrock 3.1155.0, genai 2.30.0, openai 7.41.0, typebox 1.4.2, pi-telemetry ^1.3.0) so the vendored dist shares the app tree instead of carrying stale copies. scripts/patches/earendil-works__pi-ai@0.87.1.dsh-toolcall.patch (DeepSeek Harness) removes per-delta re-parsing of streamed tool-call arguments. dist/api/bedrock-converse-stream.lazy.js uses a static import so the Electron bundle emits the Bedrock chunk. LICENSE is the upstream MIT license.',
   },
 ]
 
