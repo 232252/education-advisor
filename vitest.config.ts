@@ -14,8 +14,8 @@ const EXCLUDE_STRESS = process.env.EA_STRESS !== '1'
 const STRESS_FILE = 'tests/e2e/stress-long.test.tsx'
 
 export default defineConfig({
-  // 注意: Vitest 4 的 projects 模式不会继承顶层 resolve.alias,
-  // 别名必须在每个 project 内重复声明(否则 @shared/* 等值导入在测试中解析失败)。
+  // Vitest 5 的 inline project 会继承顶层 resolve；这里仍显式重复声明别名，
+  // 避免调整继承开关时 @shared/* 等值导入解析失败。
   resolve: {
     alias: {
       '@main': path.resolve(__dirname, 'src/main'),
@@ -25,19 +25,10 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    include: [
-      'src/**/*.{test,spec}.{ts,tsx}',
-      'tests/**/*.{test,spec}.{ts,tsx}',
-    ],
-    exclude: [
-      'node_modules',
-      'dist',
-      'release',
-      '**/*.d.ts',
-      // 10 分钟持续压力测试，仅按需单独运行（npm run test:stress），
-      // 不进入默认 `npm test`，避免拖慢日常回归。
-      ...(EXCLUDE_STRESS ? [STRESS_FILE] : []),
-    ],
+    // Vitest 5 起 inline project 默认继承根配置，且数组字段（include/exclude/
+    // setupFiles）是拼接而非覆盖：顶层写 include 会让每个 project 把全仓测试
+    // 再跑一遍（同一文件在 jsdom/node 各跑一次）。文件匹配只写在 project 内，
+    // 顶层保留跨 project 共享的标量与报告配置。
     // 用 projects 区分 renderer (jsdom) 和 main (node)
     projects: [
       {
@@ -56,6 +47,7 @@ export default defineConfig({
             'src/renderer/**/*.{test,spec}.{ts,tsx}',
             'tests/renderer/**/*.{test,spec}.{ts,tsx}',
           ],
+          exclude: ['node_modules', 'dist', 'release', '**/*.d.ts'],
           environment: 'jsdom',
           setupFiles: ['./tests/setup.ts'],
           testTimeout: 30_000,

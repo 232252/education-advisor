@@ -36,6 +36,18 @@ import { exportLog, getSystemBlockedPrefixes } from '../../src/main/utils/log/ex
 
 const logsDir = path.join(mocks.userDataDir, 'logs')
 
+/** writeLine 是 fire-and-forget：轮询等待内容落盘（慢盘 fsync 可达数百毫秒） */
+async function waitForLog(p: string, needle: string, timeoutMs = 5_000): Promise<string> {
+  const deadline = Date.now() + timeoutMs
+  let text = ''
+  while (Date.now() < deadline) {
+    text = await fsp.readFile(p, 'utf-8').catch(() => '')
+    if (text.includes(needle)) return text
+    await new Promise((r) => setTimeout(r, 20))
+  }
+  return text
+}
+
 beforeAll(async () => {
   await fsp.mkdir(logsDir, { recursive: true })
 })
@@ -290,9 +302,7 @@ describe('log/api — 公开写入 API', () => {
     const name = `main-${todayStr()}.log`
     await clearAllLogs()
     log('error', 'scope-x', '错误消息')
-    // writeLine 是 fire-and-forget,等待落盘
-    await new Promise((r) => setTimeout(r, 50))
-    const content = await fsp.readFile(path.join(logsDir, name), 'utf-8')
+    const content = await waitForLog(path.join(logsDir, name), '[ERROR] [scope-x] 错误消息')
     expect(content).toContain('[ERROR] [scope-x] 错误消息')
 
     // 级别被过滤时不写入(文件不产生)
@@ -306,8 +316,10 @@ describe('log/api — 公开写入 API', () => {
   it('logChat(): 写入 chat 流,payload 序列化', async () => {
     await clearAllLogs()
     logChat('in', { text: '你好' })
-    await new Promise((r) => setTimeout(r, 50))
-    const content = await fsp.readFile(path.join(logsDir, `chat-${todayStr()}.log`), 'utf-8')
+    const content = await waitForLog(
+      path.join(logsDir, `chat-${todayStr()}.log`),
+      '[INFO] [chat-in] {"text":"你好"}',
+    )
     expect(content).toContain('[INFO] [chat-in] {"text":"你好"}')
 
     // off 级别不写入(文件不产生)
@@ -321,8 +333,10 @@ describe('log/api — 公开写入 API', () => {
   it('logRenderer(): 写入 renderer 流', async () => {
     await clearAllLogs()
     logRenderer('warn', '渲染告警')
-    await new Promise((r) => setTimeout(r, 50))
-    const content = await fsp.readFile(path.join(logsDir, `renderer-${todayStr()}.log`), 'utf-8')
+    const content = await waitForLog(
+      path.join(logsDir, `renderer-${todayStr()}.log`),
+      '[WARN] [renderer] 渲染告警',
+    )
     expect(content).toContain('[WARN] [renderer] 渲染告警')
   })
 })

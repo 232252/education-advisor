@@ -24,6 +24,16 @@ const tmpDir = `${tmpBase}${sep}settings-mods-test-${Date.now()}-${Math.random()
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/** 轮询等待文件落盘（Windows fsync 偶尔 >400ms，固定 sleep 会假失败） */
+async function waitForFile(p: string, timeoutMs = 5_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (fs.existsSync(p)) return true
+    await sleep(20)
+  }
+  return false
+}
+
 beforeAll(async () => {
   await fsp.mkdir(tmpDir, { recursive: true })
 })
@@ -249,9 +259,8 @@ describe('settings/persistence — scheduleSave/saveNow/flush', () => {
     expect(state.saveTimer).not.toBeNull()
     // 节流期内文件尚未写入
     expect(fs.existsSync(state.settingsPath)).toBe(false)
-    await sleep(450)
+    expect(await waitForFile(state.settingsPath)).toBe(true)
     expect(state.saveTimer).toBeNull()
-    expect(fs.existsSync(state.settingsPath)).toBe(true)
   })
 
   it('scheduleSave: 重复调用重置定时器(合并为一次写入)', async () => {
@@ -262,8 +271,7 @@ describe('settings/persistence — scheduleSave/saveNow/flush', () => {
     scheduleSave(state, getSettings) // 重置 300ms 窗口
     await sleep(200)
     expect(fs.existsSync(state.settingsPath)).toBe(false)
-    await sleep(250)
-    expect(fs.existsSync(state.settingsPath)).toBe(true)
+    expect(await waitForFile(state.settingsPath)).toBe(true)
   })
 
   it('flush: 清空待写定时器并立即落盘', async () => {

@@ -60,10 +60,13 @@ describe('H-3: exportLog targetPath 安全校验', () => {
   })
 
   it('合法绝对路径应成功导出', async () => {
-    // 先写一条日志
+    // 先写一条日志（fire-and-forget，轮询等待落盘：慢盘 fsync 可达数百毫秒）
     logger.log('info', 'test', 'hello for export')
-    // 等待异步写入完成
-    await new Promise((r) => setTimeout(r, 50))
+    const logFile = path.join(tmp.dir, `main-${todayStr()}.log`)
+    const deadline = Date.now() + 5_000
+    while (Date.now() < deadline && !(await fsp.readFile(logFile, 'utf-8').catch(() => '')).includes('hello for export')) {
+      await new Promise((r) => setTimeout(r, 20))
+    }
     // 导出到合法路径
     const targetPath = path.join(tmp.dir, 'exported.log')
     const bytes = await logger.exportLog(`main-${todayStr()}.log`, targetPath)
