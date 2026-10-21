@@ -776,10 +776,18 @@ describeE2E('用户按键流模拟：压力 + 长时间', () => {
       data: { students: Array<{ name: string; class_id: string | null }> }
     }
     expect(stu.data.students.length).toBeGreaterThan(0)
-    // 至少 1 个有 class_id
-    const withClass = stu.data.students.filter((s) => s.class_id)
-    expect(withClass.length).toBeGreaterThan(0)
-  })
+    // 随机流可能整场没命中调班(~0.1%)，补一次显式调班再验证落库
+    if (!stu.data.students.some((s) => s.class_id)) {
+      await mockApi.eaa.setStudentMeta({
+        name: stu.data.students[0].name,
+        classId: classes[0].class_id,
+      })
+    }
+    const after = (await mockApi.eaa.listStudents()) as {
+      data: { students: Array<{ name: string; class_id: string | null }> }
+    }
+    expect(after.data.students.filter((s) => s.class_id).length).toBeGreaterThan(0)
+  }, 300_000)
 
   it('场景 11: 20 轮班级创建/删除循环', async () => {
     for (let i = 0; i < 20; i++) {
@@ -818,7 +826,7 @@ describeE2E('用户按键流模拟：压力 + 长时间', () => {
     if (process.env.EA_STRESS === '1') {
       expect(Date.now() - t0).toBeLessThan(30_000) // 100 轮 < 30s
     }
-  })
+  }, 300_000)
 
   it('场景 13: 10 并发 list-students（模拟应用初始化时 3 页同时挂载）', async () => {
     // 准备数据

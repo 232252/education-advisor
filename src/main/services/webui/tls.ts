@@ -16,7 +16,7 @@ const selfsigned = requireSelfsigned('selfsigned') as {
   generate: (
     attrs: Array<{ name: string; value: string }>,
     opts: Record<string, unknown>,
-  ) => { private: string; cert: string }
+  ) => Promise<{ private: string; cert: string }>
 }
 
 /** @deprecated 绑定地址改由 webUiBind + webUiIpv6 决定 */
@@ -144,26 +144,29 @@ function materialFromBuffers(keyBuf: Buffer, certBuf: Buffer): TlsMaterial | nul
   return { key: keyPem, cert: certPem, fingerprintSha256: fingerprintOf(certPem) }
 }
 
-function generatePems(): { private: string; cert: string } {
+async function generatePems(): Promise<{ private: string; cert: string }> {
   const { dns, ips } = collectHostnames()
   const altNames = [
     ...dns.map((value) => ({ type: 2 as const, value })),
     ...ips.map((ip) => ({ type: 7 as const, ip })),
   ]
-  const pems = selfsigned.generate([{ name: 'commonName', value: 'Education Advisor WebUI' }], {
-    days: 365,
-    keySize: 2048,
-    algorithm: 'sha256',
-    extensions: [
-      { name: 'basicConstraints', cA: false },
-      {
-        name: 'keyUsage',
-        digitalSignature: true,
-        keyEncipherment: true,
-      },
-      { name: 'subjectAltName', altNames },
-    ],
-  })
+  // selfsigned v5 异步生成（native webcrypto），有效期默认 365 天
+  const pems = await selfsigned.generate(
+    [{ name: 'commonName', value: 'Education Advisor WebUI' }],
+    {
+      keySize: 2048,
+      algorithm: 'sha256',
+      extensions: [
+        { name: 'basicConstraints', cA: false },
+        {
+          name: 'keyUsage',
+          digitalSignature: true,
+          keyEncipherment: true,
+        },
+        { name: 'subjectAltName', altNames },
+      ],
+    },
+  )
   if (!isUsablePair(pems.private, pems.cert)) {
     throw new Error('generated WebUI TLS material is not a valid PEM pair')
   }
@@ -184,10 +187,10 @@ export function loadTlsFromFiles(keyPath: string, certPath: string): TlsMaterial
   }
 }
 
-export function ensureWebUiTls(
+export async function ensureWebUiTls(
   dir: string,
   custom?: { keyPath?: string; certPath?: string },
-): TlsMaterial {
+): Promise<TlsMaterial> {
   const customTls = loadTlsFromFiles(custom?.keyPath || '', custom?.certPath || '')
   if (customTls) return customTls
   fs.mkdirSync(dir, { recursive: true })
@@ -200,7 +203,7 @@ export function ensureWebUiTls(
       return { key, cert, fingerprintSha256: fingerprintOf(cert) }
     }
   }
-  const pems = generatePems()
+  const pems = await generatePems()
   fs.writeFileSync(keyPath, pems.private, { mode: 0o600 })
   fs.writeFileSync(certPath, pems.cert, { mode: 0o644 })
   return { key: pems.private, cert: pems.cert, fingerprintSha256: fingerprintOf(pems.cert) }

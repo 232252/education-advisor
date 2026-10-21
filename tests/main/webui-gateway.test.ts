@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
 import { addWebUiFanoutListener, fanoutWebUi, sendToRenderer } from '../../src/main/ipc/broadcast'
 import { handleIpc, invokeRegisteredHandler, createWebInvokeEvent } from '../../src/main/ipc/handle'
 import { originAllowed, startWebUiGateway } from '../../src/main/services/webui/gateway'
-import { ensureWebUiTls, loadTlsFromFiles } from '../../src/main/services/webui/tls'
+import { ensureWebUiTls, loadTlsFromFiles, type TlsMaterial } from '../../src/main/services/webui/tls'
 import type { GatewayOptions } from '../../src/main/services/webui/gateway'
 
 const tmpDir = path.join(os.tmpdir(), `webui-tls-${Date.now()}`)
@@ -30,7 +30,7 @@ afterAll(async () => {
   await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
 })
 
-function startGw(tls: ReturnType<typeof ensureWebUiTls>, extra: Partial<GatewayOptions> = {}) {
+function startGw(tls: TlsMaterial, extra: Partial<GatewayOptions> = {}) {
   return startWebUiGateway({
     port: 0,
     token: 'secret-token',
@@ -45,21 +45,25 @@ function startGw(tls: ReturnType<typeof ensureWebUiTls>, extra: Partial<GatewayO
 }
 
 describe('webui tls / gateway', () => {
-  it('ensureWebUiTls 写出可解析的自签证书', () => {
-    const tls = ensureWebUiTls(tmpDir)
+  it('ensureWebUiTls 写出可解析的自签证书', async () => {
+    const tls = await ensureWebUiTls(tmpDir)
     expect(tls.cert).toContain('BEGIN CERTIFICATE')
     expect(tls.key).toContain('BEGIN')
     expect(tls.fingerprintSha256).toMatch(/^[a-f0-9]{64}$/)
     expect(new X509Certificate(tls.cert).fingerprint256.replace(/:/g, '').toLowerCase()).toBe(
       tls.fingerprintSha256,
     )
+    const x509 = new X509Certificate(tls.cert)
+    expect(x509.checkHost('localhost')).toBe('localhost')
+    expect(x509.checkIP('127.0.0.1')).toBeTruthy()
+    expect(x509.checkIP('::1')).toBeTruthy()
     const loaded = loadTlsFromFiles(`${tmpDir}/key.pem`, `${tmpDir}/cert.pem`)
     expect(loaded?.fingerprintSha256).toBe(tls.fingerprintSha256)
     expect(loadTlsFromFiles('', '')).toBeNull()
   })
 
   it('loadTlsFromFiles 接受 PKCS#1 PEM 与 DER 证书/私钥', async () => {
-    const tls = ensureWebUiTls(tmpDir)
+    const tls = await ensureWebUiTls(tmpDir)
     const pkcs1 = path.join(tmpDir, 'key.pkcs1.pem')
     const derKey = path.join(tmpDir, 'key.der')
     const derCert = path.join(tmpDir, 'cert.der')
@@ -90,7 +94,7 @@ describe('webui tls / gateway', () => {
   })
 
   it('HTTPS 网关：无令牌 GET 401，有令牌 WSS 可调用', async () => {
-    const tls = ensureWebUiTls(tmpDir)
+    const tls = await ensureWebUiTls(tmpDir)
     handleIpc('webui:ping', async () => ({ pong: true }))
     const gw = await startGw(tls)
     expect(gw.port).toBeGreaterThan(0)
@@ -162,7 +166,7 @@ describe('webui tls / gateway', () => {
   })
 
   it('明文 HTTP 不能连上 HTTPS 网关；带令牌的 HTTPS GET 可以', async () => {
-    const tls = ensureWebUiTls(tmpDir)
+    const tls = await ensureWebUiTls(tmpDir)
     const gw = await startGw(tls, { token: 't' })
     await new Promise<void>((resolve, reject) => {
       const req = http.request(
@@ -236,7 +240,7 @@ describe('webui tls / gateway', () => {
   })
 
   it('HTTP 协议网关可用令牌访问', async () => {
-    const tls = ensureWebUiTls(tmpDir)
+    const tls = await ensureWebUiTls(tmpDir)
     handleIpc('webui:http-ping', async () => ({ pong: true }))
     const gw = await startGw(tls, { protocol: 'http', token: 'http-token', ipv6: false, bind: 'loopback' })
     await new Promise<void>((resolve, reject) => {
@@ -279,7 +283,7 @@ describe('webui tls / gateway', () => {
   })
 
   it('POST /upload 把浏览器文件落到主机目录；无令牌 401；GET 405', async () => {
-    const tls = ensureWebUiTls(tmpDir)
+    const tls = await ensureWebUiTls(tmpDir)
     const gw = await startGw(tls, {
       protocol: 'http',
       token: 'up-token',

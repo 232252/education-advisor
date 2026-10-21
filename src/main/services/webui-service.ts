@@ -23,7 +23,13 @@ import {
   tokenBits,
   WEBUI_ACCESS_TOKEN_KEY,
 } from './webui/security'
-import { ensureWebUiTls, listDirectAccess, listListenUrls, loadTlsFromFiles } from './webui/tls'
+import {
+  ensureWebUiTls,
+  listDirectAccess,
+  listListenUrls,
+  loadTlsFromFiles,
+  type TlsMaterial,
+} from './webui/tls'
 
 const DEFAULT_PORT = 18765
 const TICK_MS = 15_000
@@ -211,7 +217,7 @@ class WebUiService {
       const bind = asBind(s.general.webUiBind)
       const ipv6 = s.general.webUiIpv6 !== false
       const token = this.ensureToken()
-      let tls = undefined as ReturnType<typeof ensureWebUiTls> | undefined
+      let tls: TlsMaterial | undefined
       this.usingCustomCert = false
       this.fingerprint = null
       if (protocol === 'https') {
@@ -226,7 +232,7 @@ class WebUiService {
           this.lastError = '高级证书无法读取，已回退为自签证书'
           log('warn', 'webui', this.lastError)
         }
-        tls = ensureWebUiTls(tlsDir, customPaths)
+        tls = await ensureWebUiTls(tlsDir, customPaths)
         this.fingerprint = tls.fingerprintSha256
       }
       const preferred = clampPort(s.general.webUiPort)
