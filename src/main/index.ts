@@ -1,6 +1,6 @@
 // =============================================================
 // Electron 主进程入口
-// 技术方向：Electron 43 + Node.js 24.18 (Chromium 150)
+// 技术方向：Electron 45 + Node.js 24.22 (Chromium 156)
 // 启动接线拆分到 ./bootstrap/:
 //   - state.ts         共享状态(窗口引用/退出标记/更新 timer)
 //   - window.ts        应用图标解析 + 主窗口创建

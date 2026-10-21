@@ -53,7 +53,7 @@ extraResources:
   - from: vendor/eaa-grading/
     to: eaa-grading/
     filter: ["**/*"]
-  # dsh 0.2.1 拒绝 Electron 43.2.0 指纹。打包前由 scripts/stage-dsh-node.mjs 放入。
+  # dsh 0.2.1 拒绝 Electron 内置运行时指纹。打包前由 scripts/stage-dsh-node.mjs 放入。
   - from: vendor/dsh-node/
     to: dsh-node/
     filter: ["node.exe", "node"]

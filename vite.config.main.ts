@@ -3,7 +3,7 @@ import { resolve } from 'path'
 
 // 主进程 Vite 配置
 // 将 TypeScript 编译为 Node.js 可执行的 JS
-// 适配 Electron 43 (Node.js 24.18 / Chromium 150)
+// 适配 Electron 45 (Node.js 24.22 / Chromium 156)
 export default defineConfig({
   build: {
     ssr: true,

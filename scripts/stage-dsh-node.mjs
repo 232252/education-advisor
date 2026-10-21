@@ -1,5 +1,5 @@
 // Copy the Node binary that successfully boots dsh into vendor/dsh-node.
-// dsh 0.2.1 rejects Electron 43.2.0's runtime fingerprint, so the packaged
+// dsh 0.2.1 rejects Electron's runtime fingerprint, so the packaged
 // app ships this executable and the main process launches dsh with it.
 import { execFileSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs'
@@ -29,6 +29,6 @@ function resolveNodeBinary() {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .find((line) => line && existsSync(line) && !line.toLowerCase().includes('electron'))
-  if (!hit) throw new Error('找不到可随包分发的 node，dsh 无法在 Electron 43.2.0 里启动')
+  if (!hit) throw new Error('找不到可随包分发的 node，dsh 无法在 Electron 内置运行时里启动')
   return hit
 }

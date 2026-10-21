@@ -53,7 +53,7 @@ for (const v of VENDORS) {
   }
   const reqMajor = requiredNodeMajor(engines)
   const detail = reqMajor
-    ? `要求 Node >=${reqMajor}，当前 ${process.versions.node}（Electron 43 内置 Node 22）`
+    ? `要求 Node >=${reqMajor}，当前 ${process.versions.node}（Electron 45 内置 Node 24）`
     : '无 engines 声明'
   // 这只是警告：engines 多半未严格校验，历史版本在 Node 20 下可跑
   check(`${v.module} Node 兼容`, true, `${detail} [仅参考]`)

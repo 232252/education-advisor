@@ -381,7 +381,7 @@ export function registerGradingHandlers(win: BrowserWindow): void {
     const duplexMode = isPrintDuplexMode(o.duplexMode) ? o.duplexMode : undefined
     const pdf = await win.webContents.printToPDF({
       printBackground: true,
-      margins: { marginType: 'none' },
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
       pageSize: paperSpecToPdfPageSize(paperSpecById(specId)),
       ...(duplexMode ? { duplexMode } : {}),
     })

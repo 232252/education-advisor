@@ -59,7 +59,7 @@ The renderer config:
 
 - Uses the standard `react()` plugin.
 - Has `base: './'` because Electron loads from `file://`.
-- Targets `chrome150` (Electron 43's Chromium version).
+- Targets `chrome150` (conservative baseline; Electron 45 ships Chromium 156).
 - Has HMR enabled by default.
 
 ---
@@ -172,7 +172,7 @@ three scripts in order:
    `prebuild` hook).
 2. `scripts/stage-dsh-node.mjs` — copies a stock `node.exe` from your
    machine into the gitignored `vendor/dsh-node/`. dsh 0.2.1 rejects
-   Electron's runtime fingerprint (this app is Electron 43.2.0), so the
+   Electron's runtime fingerprint (this app is Electron 45.0.0), so the
    packaged app launches the dsh subprocess with a real Node binary
    instead of Electron's own exe. Skipped when a copy is already
    staged.
