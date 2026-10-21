@@ -72,9 +72,10 @@ const JS_TAG: ScalarTag = {
     const value = item.value
     if (value && typeof value === 'object' && '__js' in value) {
       const js = (value as { __js?: unknown }).__js
-      return typeof js === 'string' ? js : String(js ?? '')
+      // rc.2 的表达式以 ! 开头（如 !ctx.get(...)），不引号会被当成第二个标签
+      return JSON.stringify(typeof js === 'string' ? js : String(js ?? ''))
     }
-    return ''
+    return '""'
   },
 }
 
