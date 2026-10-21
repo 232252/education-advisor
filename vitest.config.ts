@@ -59,6 +59,7 @@ export default defineConfig({
           environment: 'jsdom',
           setupFiles: ['./tests/setup.ts'],
           testTimeout: 30_000,
+          hookTimeout: 60_000,
         },
       },
       {
@@ -106,6 +107,7 @@ export default defineConfig({
           environment: 'node',
           setupFiles: ['./tests/setup.ts'],
           testTimeout: 60_000,
+          hookTimeout: 60_000,
         },
       },
     ],

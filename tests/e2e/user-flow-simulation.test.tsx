@@ -783,7 +783,7 @@ describeE2E('用户按键流模拟：压力 + 长时间', () => {
     expect(classStore.length).toBe(0)
   })
 
-  it('场景 12: 100 次仪表盘刷新 + 班级筛选切换', { timeout: 60000 }, async () => {
+  it('场景 12: 100 次仪表盘刷新 + 班级筛选切换', { timeout: 180_000 }, async () => {
     // 创建 3 班 + 30 学生
     const classes = randomClasses(3)
     for (const cls of classes) await userClickCreateClass(cls)

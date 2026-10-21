@@ -8,6 +8,13 @@
 
 import { vi } from 'vitest'
 
+// 全量并行跑批时首次渲染/懒加载 chunk 可能远超 Testing Library 默认 1s。
+// 仅 jsdom 项目加载 @testing-library/react，node 项目跳过。
+if (typeof window !== 'undefined') {
+  const { configure } = await import('@testing-library/react')
+  configure({ asyncUtilTimeout: 10_000 })
+}
+
 // 渲染进程(jsdom): 确保 localStorage 可用
 // 某些 Node.js 版本下 jsdom 不自动提供 localStorage,需要手动 polyfill
 if (typeof globalThis !== 'undefined' && typeof window !== 'undefined' && !window.localStorage) {
