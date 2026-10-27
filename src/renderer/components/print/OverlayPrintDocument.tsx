@@ -38,6 +38,7 @@ import { getAPI } from '../../lib/ipc-client'
 import { cn } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
 import { Button } from '../Button'
+import { stepOverlayCalibration } from './overlay-calibration'
 import { decideOverlaySave } from './overlay-save-decision'
 import { suggestPaperSpecId } from './overlay-spec-suggestion'
 import { QuadEditorDialog } from './QuadEditorDialog'
@@ -328,14 +329,7 @@ export function OverlayPrintDocument({
   }, [anyQuadAttempted, needManual])
 
   const stepCalibration = (key: keyof OverlayCalibration, delta: number) => {
-    setCalibration((c) => {
-      const step = key === 'scalePct' ? 0.1 : 0.5
-      const round = key === 'scalePct' ? 2 : 1
-      const v = Number((c[key] + delta * step).toFixed(round))
-      const clamped =
-        key === 'scalePct' ? Math.min(Math.max(v, 90), 110) : Math.min(Math.max(v, -30), 30)
-      return { ...c, [key]: clamped }
-    })
+    setCalibration((c) => stepOverlayCalibration(c, key, delta))
   }
 
   const currentPaperId = activePaperId ?? views[0]?.paper.id ?? null
