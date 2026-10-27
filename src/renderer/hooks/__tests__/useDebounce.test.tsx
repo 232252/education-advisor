@@ -15,26 +15,37 @@ interface HookHandle<T> {
   unmount: () => void
 }
 
+/** 模块级 Probe:组件身份跨 rerender 稳定(inline 定义会触发
+ *  noComponentHookFactories,且每次调用都重建组件树丢状态) */
+function HookProbe<T>({
+  hookRef,
+  result,
+}: {
+  hookRef: { current: (() => T) | null }
+  result: { current: T | undefined }
+}) {
+  const fn = hookRef.current
+  if (fn) result.current = fn()
+  return null
+}
+
 function renderHook<T>(hook: () => T): HookHandle<T> {
   const ref: { current: T | undefined } = { current: undefined }
+  const hookRef: { current: (() => T) | null } = { current: hook }
   const container = document.createElement('div')
   document.body.appendChild(container)
   let root: Root | null = null
-  let currentHook = hook
-  function Probe() {
-    ref.current = currentHook()
-    return null
-  }
+  const render = () => createElement(HookProbe<T>, { hookRef, result: ref })
   act(() => {
     root = createRoot(container)
-    root.render(createElement(Probe))
+    root.render(render())
   })
   return {
     result: ref,
     rerender: (next: () => T) => {
-      currentHook = next
+      hookRef.current = next
       act(() => {
-        root?.render(createElement(Probe))
+        root?.render(render())
       })
     },
     unmount: () => {
