@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 
-// 期望的关键导出以 0.87.1 为准：模型工厂/计费在根导出，
+// 期望的关键导出以 1.3.0 为准：模型工厂/计费在根导出，
 // getProviders/getModels/getModel 已变为 createModels() 实例方法（旧版遗留检查在 0.80.x 升级后失效）
 const VENDORS = [
   { dir: 'vendor/pi-ai', module: '@earendil-works/pi-ai', apis: ['createModels', 'calculateCost'] },

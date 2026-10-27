@@ -1,13 +1,10 @@
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
-import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
-export interface AzureOpenAIResponsesOptions extends StreamOptions {
+import type { SimpleStreamOptions, StreamFunction } from "../types.ts";
+import { type AzureEndpointOptions } from "./azure-openai-config.ts";
+export interface AzureOpenAIResponsesOptions extends AzureEndpointOptions {
     reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
     toolChoice?: ResponseCreateParamsStreaming["tool_choice"];
     reasoningSummary?: "auto" | "detailed" | "concise" | null;
-    azureApiVersion?: string;
-    azureResourceName?: string;
-    azureBaseUrl?: string;
-    azureDeploymentName?: string;
 }
 /**
  * Generate function for Azure OpenAI Responses API

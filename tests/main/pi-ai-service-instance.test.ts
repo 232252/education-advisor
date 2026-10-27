@@ -106,9 +106,11 @@ describe('piAIService', () => {
     it('OAUTH_PROVIDERS/PROVIDER_NAMES/OAUTH_KEY_URLS 从子模块透传', () => {
       expect(OAUTH_PROVIDERS.has('anthropic')).toBe(true)
       expect(OAUTH_PROVIDERS.has('github-copilot')).toBe(true)
-      expect(OAUTH_PROVIDERS.has('openai')).toBe(false)
+      // pi-ai 1.3.0 起 openai 声明了 auth.oauth,集合跟随 vendor
+      expect(OAUTH_PROVIDERS.has('openai')).toBe(true)
       expect(PROVIDER_NAMES.openai).toBe('OpenAI')
       expect(OAUTH_KEY_URLS['github-copilot']).toBe('https://github.com/settings/tokens')
+      expect(OAUTH_KEY_URLS.openai).toBe('https://platform.openai.com/api-keys')
     })
 
     it('PROVIDER_NAMES 覆盖 pi 内置厂商,名称来自 pi 目录', async () => {
@@ -365,9 +367,17 @@ describe('piAIService', () => {
 
   describe('oauthLogin', () => {
     it('不支持的 provider: 返回失败与提示', async () => {
-      const result = await piAIService.oauthLogin('openai')
+      // deepseek 未声明 auth.oauth(pi-ai 1.3.0 中 openai 已支持 OAuth,不能再当反例)
+      const result = await piAIService.oauthLogin('deepseek')
       expect(result.success).toBe(false)
       expect(result.error).toMatch(/does not support OAuth/)
+    })
+
+    it('oauth 但无引导 URL 的 provider: 返回失败与提示', async () => {
+      // meta 在 pi-ai 1.3.0 声明了 oauth,但 OAUTH_KEY_URLS 未配置引导页
+      const result = await piAIService.oauthLogin('meta')
+      expect(result.success).toBe(false)
+      expect(result.error).toMatch(/No key URL configured/)
     })
 
     it('支持的 provider: 返回 authUrl 并打开浏览器', async () => {
@@ -402,7 +412,7 @@ describe('piAIService', () => {
         id: 'openai',
         name: 'OpenAI',
         hasApiKey: true,
-        supportsOAuth: false,
+        supportsOAuth: true, // pi-ai 1.3.0 起 openai 声明 oauth
       })
       expect(openai?.modelCount).toBeGreaterThanOrEqual(1)
     })

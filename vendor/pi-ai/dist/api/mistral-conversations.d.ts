@@ -2,7 +2,7 @@ import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../type
 /**
  * Provider-specific options for the Mistral API.
  */
-type MistralReasoningEffort = "none" | "high";
+type MistralReasoningEffort = "none" | "low" | "medium" | "high" | "max";
 export interface MistralOptions extends StreamOptions {
     toolChoice?: "auto" | "none" | "any" | "required" | {
         type: "function";

@@ -97,5 +97,5 @@ function ensureFrontmatter(content: string, dshName: string, description: string
   else fm = `name: ${dshName}\n${fm}`
   if (!/^description:\s*\S+/m.test(fm)) fm = `${fm}\ndescription: ${JSON.stringify(fallback)}`
   const start = match.index ?? 0
-  return content.slice(0, start) + `---\n${fm}\n---` + content.slice(start + match[0].length)
+  return `${content.slice(0, start)}---\n${fm}\n---${content.slice(start + match[0].length)}`
 }

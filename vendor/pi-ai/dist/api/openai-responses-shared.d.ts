@@ -1,7 +1,8 @@
 import type { Tool as OpenAITool, ResponseCreateParamsStreaming, ResponseInput, ResponseStreamEvent } from "openai/resources/responses/responses.js";
-import type { Api, AssistantMessage, Model, Tool, TranscriptContext, Usage } from "../types.ts";
+import type { Api, AssistantMessage, Model, StreamOptions, Tool, TranscriptContext, Usage } from "../types.ts";
 import type { AssistantMessageEventStream } from "../utils/event-stream.ts";
 export interface OpenAIResponsesStreamOptions {
+    onProviderStreamEvent?: StreamOptions["onProviderStreamEvent"];
     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
     grammarToolInputProperties?: ReadonlyMap<string, string>;
     resolveServiceTier?: (responseServiceTier: ResponseCreateParamsStreaming["service_tier"] | undefined, requestServiceTier: ResponseCreateParamsStreaming["service_tier"] | undefined) => ResponseCreateParamsStreaming["service_tier"] | undefined;
@@ -15,6 +16,16 @@ export interface ConvertResponsesMessagesOptions {
     supportsAdditionalTools?: boolean;
     supportsToolSearch?: boolean;
     toolOptions?: ConvertResponsesToolsOptions;
+    /**
+     * Effort for the reply being generated. When set, the thinking level is sent as
+     * configuration_update items instead of a changing reasoning.effort, which would invalidate the
+     * prompt cache. Each item sets the effort from that point on: one goes before every earlier
+     * reply with the level recorded on it (`providerThinkingLevel`), and one with this effort goes
+     * at the end. Earlier input therefore never changes. OpenAI documents the item before user
+     * messages only. After tool results it was verified on gpt-6-luna (October 2026) to be accepted
+     * and to apply to the next reply.
+     */
+    configurationUpdateEffort?: string;
 }
 export interface ConvertResponsesToolsOptions {
     strict?: boolean | null;

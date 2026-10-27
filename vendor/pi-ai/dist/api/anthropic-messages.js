@@ -1,19 +1,20 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, {} from "@anthropic-ai/sdk";
+import { ANTHROPIC_FEDERATION_RULE_ID_ENV, ANTHROPIC_IDENTITY_TOKEN_FILE_ENV, ANTHROPIC_ORGANIZATION_ID_ENV, ANTHROPIC_SERVICE_ACCOUNT_ID_ENV, ANTHROPIC_WORKSPACE_ID_ENV, } from "../env-api-keys.js";
 import { calculateCost } from "../models.js";
 import { appendAssistantMessageDiagnostic } from "../utils/diagnostics.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { headersToRecord } from "../utils/headers.js";
-import { parseJsonWithRepair, parseStreamingJson } from "../utils/json-parse.js";
+import { parseJsonWithRepair, parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
 import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { retryProviderRequest } from "../utils/provider-retry.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
 import { getSystemMessageText, renderSystemMessageUpdate } from "../utils/text.js";
-import { getCurrentTools, getDeclaredTools, getInitialSystemMessage, hasToolRedefinitions, resolveTranscript, } from "../utils/transcript.js";
-import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.js";
+import { getCurrentTools, getInitialSystemMessage, resolveTranscript, } from "../utils/transcript.js";
+import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling, } from "./constrained-sampling.js";
 import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.js";
 import { adjustMaxTokensForThinking, buildBaseOptions, clampMaxTokensToContext } from "./simple-options.js";
-import { transformMessages } from "./transform-messages.js";
+import { splitErrorToolResultImages, transformMessages } from "./transform-messages.js";
 /**
  * Resolve cache retention preference.
  * Defaults to "short" and uses PI_CACHE_RETENTION for backward compatibility.
@@ -74,6 +75,16 @@ const fromClaudeCodeName = (name, tools) => {
     }
     return name;
 };
+function convertImageBlock(image) {
+    return {
+        type: "image",
+        source: {
+            type: "base64",
+            media_type: image.mimeType,
+            data: image.data,
+        },
+    };
+}
 /**
  * Convert content blocks to Anthropic API format
  */
@@ -91,14 +102,7 @@ function convertContentBlocks(content) {
                 text: sanitizeSurrogates(block.text),
             };
         }
-        return {
-            type: "image",
-            source: {
-                type: "base64",
-                media_type: block.mimeType,
-                data: block.data,
-            },
-        };
+        return convertImageBlock(block);
     });
     // If only images (no text), add placeholder text block
     const hasText = blocks.some((b) => b.type === "text");
@@ -115,13 +119,13 @@ const INTERLEAVED_THINKING_BETA = "interleaved-thinking-2025-05-14";
 const SERVER_SIDE_FALLBACK_BETA = "server-side-fallback-2026-07-01";
 const MID_CONVERSATION_OUTPUT_CONFIG_BETA = "mid-conversation-output-config-2026-07-01";
 const THINKING_BINDING_CONTROLS_BETA = "thinking-binding-controls-2026-08-01";
-const MID_CONVERSATION_TOOL_CHANGES_BETA = "mid-conversation-tool-changes-2026-07-01";
+const INLINE_TOOLS_BETA = "inline-tools-2026-09-15";
 /**
  * Stable deferred tool declared whenever native tool changes are in use. Anthropic adds
- * hidden prompt scaffolding as soon as any tool has `defer_loading`; declaring this
- * placeholder from the first request keeps that scaffolding in the cached prefix, so the
- * first real late tool does not invalidate the cache (measured: full miss without it).
- * It is never activated and the model cannot see it.
+ * hidden prompt scaffolding for mid-conversation tool changes; declaring this placeholder
+ * from the first request keeps that scaffolding in the cached prefix, so the first tool
+ * change does not invalidate the cache (measured: full miss without it). It is never
+ * activated and the model cannot see it.
  */
 const DEFERRED_TOOL_PLACEHOLDER = {
     name: "__pi_deferred_placeholder__",
@@ -169,16 +173,58 @@ function hasHeader(headers, name) {
     }
     return false;
 }
-function assertRequestAuth(provider, apiKey, headers) {
-    if (apiKey)
-        return;
-    if (hasHeader(headers, "authorization") ||
+function hasRequestAuth(apiKey, headers) {
+    return (!!apiKey ||
+        hasHeader(headers, "authorization") ||
         hasHeader(headers, "x-api-key") ||
-        hasHeader(headers, "cf-aig-authorization")) {
-        return;
-    }
-    throw new Error(`No API key for provider: ${provider}`);
+        hasHeader(headers, "cf-aig-authorization"));
 }
+function assertRequestAuth(provider, apiKey, headers) {
+    if (!hasRequestAuth(apiKey, headers))
+        throw new Error(`No API key for provider: ${provider}`);
+}
+/**
+ * Anthropic SDK client that never runs the SDK's own credential chain
+ * (ANTHROPIC_PROFILE config files, federation env vars). Without this, every
+ * client built with `apiKey: null, authToken: null` for header-owned auth would
+ * also resolve and exchange SDK credentials behind pi's auth resolver.
+ */
+class PiAnthropic extends Anthropic {
+    _shouldResolveDefaultCredentials() {
+        return false;
+    }
+}
+/**
+ * Workload identity federation config from the ANTHROPIC_* variables the
+ * Anthropic SDK documents; the SDK performs the token exchange and refresh.
+ * Only for the anthropic provider, since the exchange is an Anthropic API
+ * endpoint, and only when no key or auth header was resolved.
+ */
+function getAnthropicFederation(model, apiKey, headers, env) {
+    if (model.provider !== "anthropic" || hasRequestAuth(apiKey, headers))
+        return undefined;
+    const federationRuleId = getProviderEnvValue(ANTHROPIC_FEDERATION_RULE_ID_ENV, env);
+    const organizationId = getProviderEnvValue(ANTHROPIC_ORGANIZATION_ID_ENV, env);
+    const identityTokenFile = getProviderEnvValue(ANTHROPIC_IDENTITY_TOKEN_FILE_ENV, env);
+    if (!federationRuleId || !organizationId || !identityTokenFile)
+        return undefined;
+    return {
+        organization_id: organizationId,
+        workspace_id: getProviderEnvValue(ANTHROPIC_WORKSPACE_ID_ENV, env),
+        authentication: {
+            type: "oidc_federation",
+            federation_rule_id: federationRuleId,
+            service_account_id: getProviderEnvValue(ANTHROPIC_SERVICE_ACCOUNT_ID_ENV, env),
+            identity_token: { source: "file", path: identityTokenFile },
+        },
+    };
+}
+/**
+ * The SDK caches the federated access token per client, but pi creates a client
+ * per request. Keep one client for the current federation config and fetch, and
+ * clone it per request with `withOptions()`, which shares the token cache.
+ */
+let federationClient;
 const ANTHROPIC_MESSAGE_EVENTS = new Set([
     "message_start",
     "message_delta",
@@ -335,14 +381,12 @@ export const stream = (model, context, options) => {
     const normalizedContext = resolveTranscript(context, getAnthropicCompat(model).supportsMidConvoSystemMessages);
     const currentTools = getCurrentTools(normalizedContext.messages);
     (async () => {
-        const providerThinkingLevel = model.compat?.supportsMidConvoEffort ? (options?.effort ?? "high") : undefined;
         const output = {
             role: "assistant",
             content: [],
             api: model.api,
             provider: model.provider,
             model: model.id,
-            ...(providerThinkingLevel === undefined ? {} : { providerThinkingLevel }),
             usage: {
                 input: 0,
                 output: 0,
@@ -365,7 +409,9 @@ export const stream = (model, context, options) => {
             }
             else {
                 const apiKey = options?.apiKey;
-                assertRequestAuth(model.provider, apiKey, options?.headers);
+                const federation = getAnthropicFederation(model, apiKey, options?.headers, options?.env);
+                if (!federation)
+                    assertRequestAuth(model.provider, apiKey, options?.headers);
                 let copilotDynamicHeaders;
                 if (model.provider === "github-copilot") {
                     const hasImages = hasCopilotVisionInput(normalizedContext.messages);
@@ -376,29 +422,64 @@ export const stream = (model, context, options) => {
                 }
                 const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
                 const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
-                const created = createClient(model, apiKey, options?.headers, options?.fetch, copilotDynamicHeaders, cacheSessionId);
+                const created = createClient(model, apiKey, options?.headers, options?.fetch, copilotDynamicHeaders, cacheSessionId, federation);
                 client = created.client;
                 isOAuth = created.isOAuthToken;
-            }
-            let params = buildParams(model, normalizedContext, isOAuth, options);
-            const nextParams = await options?.onPayload?.(params, model);
-            if (nextParams !== undefined) {
-                params = { ...nextParams, stream: true };
             }
             const requestOptions = {
                 ...(options?.signal ? { signal: options.signal } : {}),
                 ...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
                 maxRetries: 0,
             };
-            const response = await retryProviderRequest(() => client.beta.messages.create(params, requestOptions).asResponse(), {
-                maxRetries: options?.maxRetries,
-                maxRetryDelayMs: options?.maxRetryDelayMs,
-                signal: options?.signal,
-            });
+            let disablePreferredStrictTools = false;
+            let response;
+            for (;;) {
+                options?.signal?.throwIfAborted();
+                const built = buildParams(model, normalizedContext, isOAuth, options, disablePreferredStrictTools);
+                if (built.providerThinkingLevel)
+                    output.providerThinkingLevel = built.providerThinkingLevel;
+                let params = built.params;
+                const nextParams = await options?.onPayload?.(params, model);
+                if (nextParams !== undefined) {
+                    params = { ...nextParams, stream: true };
+                }
+                try {
+                    response = await retryProviderRequest(() => client.beta.messages.create(params, requestOptions).asResponse(), {
+                        maxRetries: options?.maxRetries,
+                        maxRetryDelayMs: options?.maxRetryDelayMs,
+                        signal: options?.signal,
+                    });
+                    break;
+                }
+                catch (error) {
+                    // Only downgrade a rejected request, never an already-started stream.
+                    if (options?.signal?.aborted ||
+                        disablePreferredStrictTools ||
+                        !built.hasPreferredStrictTools ||
+                        !(error instanceof Anthropic.APIError) ||
+                        error.status !== 400 ||
+                        error.type !== "invalid_request_error" ||
+                        ![
+                            "The compiled grammar is too large",
+                            "Too many strict tools (",
+                            "Schemas contains too many parameters with union types (",
+                        ].some((message) => error.message.includes(message))) {
+                        throw error;
+                    }
+                    disablePreferredStrictTools = true;
+                    appendAssistantMessageDiagnostic(output, {
+                        type: "anthropic_strict_tools_fallback",
+                        timestamp: Date.now(),
+                        error: { message: error.message },
+                        details: { reason: "strict_tool_limits_exceeded" },
+                    });
+                }
+            }
             await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
             stream.push({ type: "start", partial: output });
             const blocks = output.content;
             for await (const event of iterateAnthropicEvents(response, options?.signal)) {
+                await options?.onProviderStreamEvent?.(event, model);
                 if (event.type === "message_start") {
                     output.responseId = event.message.id;
                     const transformations = event.message.input_transformations;
@@ -546,7 +627,7 @@ export const stream = (model, context, options) => {
                             });
                         }
                         else if (block.type === "toolCall") {
-                            block.arguments = parseStreamingJson(block.partialJson);
+                            Object.assign(block, parseToolCallArguments(block.partialJson));
                             // Finalize in-place and strip the scratch buffer so replay only
                             // carries parsed arguments.
                             delete block.partialJson;
@@ -585,6 +666,11 @@ export const stream = (model, context, options) => {
                         }
                         if (event.usage.cache_creation_input_tokens != null) {
                             output.usage.cacheWrite = event.usage.cache_creation_input_tokens;
+                        }
+                        // Vercel AI Gateway includes the TTL breakdown in deltas, though the SDK only types it on message_start.
+                        const cacheCreation = event.usage.cache_creation;
+                        if (cacheCreation?.ephemeral_1h_input_tokens != null) {
+                            output.usage.cacheWrite1h = cacheCreation.ephemeral_1h_input_tokens;
                         }
                         // Anthropic reports reasoning tokens as a subset of output tokens.
                         const thinkingTokens = event.usage.output_tokens_details?.thinking_tokens;
@@ -659,7 +745,9 @@ function mapThinkingLevelToEffort(model, level) {
     }
 }
 export const streamSimple = (model, context, options) => {
-    assertRequestAuth(model.provider, options?.apiKey, options?.headers);
+    if (!getAnthropicFederation(model, options?.apiKey, options?.headers, options?.env)) {
+        assertRequestAuth(model.provider, options?.apiKey, options?.headers);
+    }
     const base = {
         ...buildBaseOptions(model, context, options, options?.apiKey),
         toolChoice: options?.toolChoice,
@@ -694,10 +782,10 @@ export const streamSimple = (model, context, options) => {
 function isOAuthToken(apiKey) {
     return apiKey.includes("sk-ant-oat");
 }
-function createClient(model, apiKey, optionsHeaders, fetch, dynamicHeaders, sessionId) {
+function createClient(model, apiKey, optionsHeaders, fetch, dynamicHeaders, sessionId, federation) {
     // Copilot: Bearer auth.
     if (model.provider === "github-copilot") {
-        const client = new Anthropic({
+        const client = new PiAnthropic({
             apiKey: null,
             authToken: apiKey ?? null,
             baseURL: model.baseUrl,
@@ -712,7 +800,7 @@ function createClient(model, apiKey, optionsHeaders, fetch, dynamicHeaders, sess
     }
     // OAuth: Bearer auth, Claude Code identity headers
     if (apiKey && isOAuthToken(apiKey)) {
-        const client = new Anthropic({
+        const client = new PiAnthropic({
             apiKey: null,
             authToken: apiKey,
             baseURL: model.baseUrl,
@@ -727,7 +815,7 @@ function createClient(model, apiKey, optionsHeaders, fetch, dynamicHeaders, sess
         });
         return { client, isOAuthToken: true };
     }
-    // API key or header-owned auth.
+    // API key, header-owned auth, or workload identity federation.
     const compat = getAnthropicCompat(model);
     const sessionAffinityHeaders = {};
     if (sessionId && compat.sendSessionAffinityHeaders) {
@@ -738,7 +826,22 @@ function createClient(model, apiKey, optionsHeaders, fetch, dynamicHeaders, sess
         accept: "application/json",
         "anthropic-dangerous-direct-browser-access": "true",
     }, sessionAffinityHeaders, model.headers, optionsHeaders);
-    const client = new Anthropic({
+    if (federation) {
+        const key = JSON.stringify([model.baseUrl, federation]);
+        if (federationClient?.key !== key || federationClient.fetch !== fetch) {
+            const client = new PiAnthropic({
+                apiKey: null,
+                authToken: null,
+                config: federation,
+                baseURL: model.baseUrl,
+                dangerouslyAllowBrowser: true,
+                fetch,
+            });
+            federationClient = { key, fetch, client };
+        }
+        return { client: federationClient.client.withOptions({ defaultHeaders }), isOAuthToken: false };
+    }
+    const client = new PiAnthropic({
         apiKey: apiKey ?? null,
         authToken: null,
         baseURL: model.baseUrl,
@@ -783,32 +886,42 @@ function getBetaFeatures(model, context, isOAuthToken, nativeToolChanges, option
         features.push(MID_CONVERSATION_OUTPUT_CONFIG_BETA, THINKING_BINDING_CONTROLS_BETA);
     }
     if (nativeToolChanges)
-        features.push(MID_CONVERSATION_TOOL_CHANGES_BETA);
+        features.push(INLINE_TOOLS_BETA);
     return [...new Set(features)];
 }
-function buildParams(model, context, isOAuthToken, options) {
+function buildParams(model, context, isOAuthToken, options, disablePreferredStrictTools = false) {
     const { cacheControl } = getCacheControl(model, options?.cacheRetention, options?.env);
     const compat = getAnthropicCompat(model);
     const initialSystemMessage = getInitialSystemMessage(context.messages);
     const initialSystemText = initialSystemMessage ? getSystemMessageText(initialSystemMessage) : "";
     const transformedMessages = transformMessages(context.messages, model, normalizeToolCallId);
     const conversationMessages = initialSystemMessage ? transformedMessages.slice(1) : transformedMessages;
-    // Native tool changes reference tools by name, so a redefined name cannot be expressed,
-    // and Anthropic rejects a tool list where every tool is deferred, so there must be an
-    // initial active tool to anchor the deferred ones. Otherwise the current tool list is sent.
+    // Native tool changes keep the request-level tool list fixed and define every later tool
+    // by value in a `tool_addition` block, which also expresses same-name redefinitions.
+    // Anthropic rejects a tool list where every tool is deferred, so there must be an initial
+    // active tool to anchor the placeholder. Otherwise the current tool list is sent.
+    let hasPreferredStrictTools = false;
+    const convertToolDefinitions = (tools, toolCacheControl) => {
+        const definitions = convertTools(tools, isOAuthToken, compat.supportsEagerToolInputStreaming, compat.supportsStrictTools, toolCacheControl, disablePreferredStrictTools);
+        if (definitions.some((definition, index) => {
+            const config = tools[index].constrainedSampling;
+            return definition.strict === true && config && config.type === "json_schema" && config.strict === "prefer";
+        })) {
+            hasPreferredStrictTools = true;
+        }
+        return definitions;
+    };
     const initialTools = initialSystemMessage?.toolsAdded ?? [];
-    const nativeToolChanges = compat.supportsMidConvoSystemMessages &&
-        compat.supportsMidConvoToolChanges &&
-        initialTools.length > 0 &&
-        !hasToolRedefinitions(context.messages);
-    const converted = convertMessages(conversationMessages, isOAuthToken, cacheControl, compat.allowEmptySignature, model.compat?.supportsMidConvoEffort === true ? model.provider : undefined, nativeToolChanges);
+    const nativeToolChanges = compat.supportsMidConvoSystemMessages && compat.supportsMidConvoToolChanges && initialTools.length > 0;
+    const thinkingDisabled = model.reasoning && options?.thinkingEnabled === false && model.thinkingLevelMap?.off !== null;
+    // Effort cannot change between messages while thinking is disabled, so "off" sends no effort markers.
+    const effortMessages = model.compat?.supportsMidConvoEffort === true && !thinkingDisabled;
+    const converted = convertMessages(conversationMessages, isOAuthToken, cacheControl, compat.allowEmptySignature, effortMessages ? model.provider : undefined, nativeToolChanges ? convertToolDefinitions : undefined);
     const activeEffort = options?.effort ?? "high";
     const betaFeatures = getBetaFeatures(model, context, isOAuthToken, nativeToolChanges, options);
     const params = {
         model: model.id,
-        messages: model.compat?.supportsMidConvoEffort === true
-            ? insertThinkingLevelMessages(converted, activeEffort)
-            : converted.messages,
+        messages: effortMessages ? insertThinkingLevelMessages(converted, activeEffort) : converted.messages,
         max_tokens: options?.maxTokens ?? model.maxTokens,
         stream: true,
         ...(betaFeatures.length > 0 ? { betas: betaFeatures } : {}),
@@ -849,27 +962,26 @@ function buildParams(model, context, isOAuthToken, options) {
     }
     const toolCacheControl = compat.supportsCacheControlOnTools ? cacheControl : undefined;
     if (nativeToolChanges) {
-        // Initial tools stay active with the cache breakpoint on the last one. Every later
-        // declaration is deferred and only surfaced by its `tool_addition` block; removed
-        // tools stay declared and are withdrawn by `tool_removal`. The request-level list
-        // therefore only grows, keeping the cached prefix intact across tool changes.
-        const initialNames = new Set(initialTools.map((tool) => tool.name));
-        const laterTools = getDeclaredTools(context.messages).filter((tool) => !initialNames.has(tool.name));
-        params.tools = [
-            ...convertTools(initialTools, isOAuthToken, compat.supportsEagerToolInputStreaming, compat.supportsStrictTools, toolCacheControl),
-            DEFERRED_TOOL_PLACEHOLDER,
-            ...convertTools(laterTools, isOAuthToken, compat.supportsEagerToolInputStreaming, compat.supportsStrictTools).map((tool) => ({ ...tool, defer_loading: true })),
-        ];
+        // Initial tools stay active with the cache breakpoint on the last one, followed by the
+        // placeholder. The list never changes afterwards: later tools are defined by value in
+        // `tool_addition` blocks and withdrawn by `tool_removal`, so the cached prefix survives
+        // every tool change.
+        params.tools = [...convertToolDefinitions(initialTools, toolCacheControl), DEFERRED_TOOL_PLACEHOLDER];
     }
     else {
         const tools = getCurrentTools(context.messages);
         if (tools.length > 0) {
-            params.tools = convertTools(tools, isOAuthToken, compat.supportsEagerToolInputStreaming, compat.supportsStrictTools, toolCacheControl);
+            params.tools = convertToolDefinitions(tools, toolCacheControl);
         }
     }
-    // Managed effort models always use adaptive thinking so prefix mismatches can
-    // be dropped instead of surfacing as persistent 400 responses.
-    if (model.compat?.supportsMidConvoEffort === true) {
+    if (thinkingDisabled) {
+        // No effort is sent, so the model default applies. Anthropic rejects `block_binding`
+        // with disabled thinking.
+        params.thinking = { type: "disabled" };
+    }
+    else if (effortMessages) {
+        // Managed effort models use adaptive thinking so prefix mismatches can
+        // be dropped instead of surfacing as persistent 400 responses.
         params.thinking = {
             type: "adaptive",
             display: options?.thinkingDisplay ?? "summarized",
@@ -877,29 +989,24 @@ function buildParams(model, context, isOAuthToken, options) {
         };
         params.output_config = { effort: "high" };
     }
-    else if (model.reasoning) {
-        if (options?.thinkingEnabled) {
-            // Default to "summarized" so Opus 4.7 and Mythos Preview behave like
-            // older Claude 4 models (whose API default is also "summarized").
-            const display = options.thinkingDisplay ?? "summarized";
-            if (model.compat?.forceAdaptiveThinking === true) {
-                // Adaptive thinking: Claude decides when and how much to think.
-                params.thinking = { type: "adaptive", display };
-                if (options.effort) {
-                    params.output_config = { effort: options.effort };
-                }
-            }
-            else {
-                // Budget-based thinking for older models
-                params.thinking = {
-                    type: "enabled",
-                    budget_tokens: options.thinkingBudgetTokens || 1024,
-                    display,
-                };
+    else if (model.reasoning && options?.thinkingEnabled) {
+        // Default to "summarized" so Opus 4.7 and Mythos Preview behave like
+        // older Claude 4 models (whose API default is also "summarized").
+        const display = options.thinkingDisplay ?? "summarized";
+        if (model.compat?.forceAdaptiveThinking === true) {
+            // Adaptive thinking: Claude decides when and how much to think.
+            params.thinking = { type: "adaptive", display };
+            if (options.effort) {
+                params.output_config = { effort: options.effort };
             }
         }
-        else if (options?.thinkingEnabled === false && model.thinkingLevelMap?.off !== null) {
-            params.thinking = { type: "disabled" };
+        else {
+            // Budget-based thinking for older models
+            params.thinking = {
+                type: "enabled",
+                budget_tokens: options.thinkingBudgetTokens || 1024,
+                display,
+            };
         }
     }
     if (options?.metadata) {
@@ -920,21 +1027,23 @@ function buildParams(model, context, isOAuthToken, options) {
     if (allowedFallbackModels && allowedFallbackModels.length > 0) {
         params.fallbacks = allowedFallbackModels.map((fallback) => ({ model: fallback.model }));
     }
-    return params;
+    return { params, hasPreferredStrictTools, providerThinkingLevel: effortMessages ? activeEffort : undefined };
 }
 // Normalize tool call IDs to match Anthropic's required pattern and length
 function normalizeToolCallId(id) {
     return id.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
 }
-function convertToolResult(msg) {
+function convertToolResult(msg, content = msg.content) {
     return {
         type: "tool_result",
         tool_use_id: msg.toolCallId,
-        content: convertContentBlocks(msg.content),
+        content: convertContentBlocks(content),
         is_error: msg.isError,
     };
 }
-function convertMessages(transformedMessages, isOAuthToken, cacheControl, allowEmptySignature = false, managedProvider, nativeToolChanges = false) {
+function convertMessages(transformedMessages, isOAuthToken, cacheControl, allowEmptySignature = false, managedProvider, 
+/** Converts tool definitions for native `tool_addition` blocks; undefined when tool changes are not native. */
+convertToolDefinitions) {
     const params = [];
     const assistantLevels = new Map();
     // Later system messages are held back and emitted directly before the next assistant
@@ -956,18 +1065,20 @@ function convertMessages(transformedMessages, isOAuthToken, cacheControl, allowE
             const blocks = [];
             if (text.length > 0)
                 blocks.push({ type: "text", text: sanitizeSurrogates(text) });
-            if (nativeToolChanges) {
+            if (convertToolDefinitions) {
+                const added = msg.toolsAdded ?? [];
+                const redefined = new Set(added.map((tool) => tool.name));
                 for (const tool of msg.toolsRemoved ?? []) {
+                    // A new definition under the same name replaces the old one, so no removal is needed.
+                    if (redefined.has(tool.name))
+                        continue;
                     blocks.push({
                         type: "tool_removal",
                         tool: { type: "tool_reference", name: isOAuthToken ? toClaudeCodeName(tool.name) : tool.name },
                     });
                 }
-                for (const tool of msg.toolsAdded ?? []) {
-                    blocks.push({
-                        type: "tool_addition",
-                        tool: { type: "tool_reference", name: isOAuthToken ? toClaudeCodeName(tool.name) : tool.name },
-                    });
+                for (const definition of convertToolDefinitions(added)) {
+                    blocks.push({ type: "tool_addition", tool: { type: "tool_definition", definition } });
                 }
             }
             if (blocks.length > 0)
@@ -991,14 +1102,7 @@ function convertMessages(transformedMessages, isOAuthToken, cacheControl, allowE
                         };
                     }
                     else {
-                        return {
-                            type: "image",
-                            source: {
-                                type: "base64",
-                                media_type: item.mimeType,
-                                data: item.data,
-                            },
-                        };
+                        return convertImageBlock(item);
                     }
                 });
                 const filteredBlocks = blocks.filter((b) => {
@@ -1089,16 +1193,24 @@ function convertMessages(transformedMessages, isOAuthToken, cacheControl, allowE
         else if (msg.role === "toolResult") {
             // Collect all consecutive toolResult messages, needed for z.ai Anthropic endpoint.
             const toolResults = [];
+            // Anthropic rejects error tool results that contain anything but text, so their images follow
+            // all tool results of the turn, which must come first in the user message (#10794).
+            const errorImages = [];
             let j = i;
             while (j < transformedMessages.length && transformedMessages[j].role === "toolResult") {
-                toolResults.push(convertToolResult(transformedMessages[j]));
+                const toolMsg = transformedMessages[j];
+                const split = splitErrorToolResultImages(toolMsg);
+                toolResults.push(convertToolResult(toolMsg, split?.content));
+                if (split) {
+                    errorImages.push({ type: "text", text: split.caption }, ...split.images.map(convertImageBlock));
+                }
                 j++;
             }
             // Skip the messages we've already processed.
             i = j - 1;
             params.push({
                 role: "user",
-                content: toolResults,
+                content: [...toolResults, ...errorImages],
             });
         }
     }
@@ -1149,11 +1261,50 @@ function insertThinkingLevelMessages(converted, activeEffort) {
 function shouldUseFineGrainedToolStreamingBeta(model, context) {
     return getCurrentTools(context.messages).length > 0 && !getAnthropicCompat(model).supportsEagerToolInputStreaming;
 }
-function convertTools(tools, isOAuthToken, supportsEagerToolInputStreaming, supportsStrictTools, cacheControl) {
+// Keywords Anthropic strict tool use rejects with a 400 for the whole request.
+// https://platform.claude.com/docs/en/build-with-claude/structured-outputs#json-schema-limitations
+const ANTHROPIC_STRICT_UNSUPPORTED_KEYWORDS = new Set([
+    "minimum",
+    "maximum",
+    "exclusiveMinimum",
+    "exclusiveMaximum",
+    "multipleOf",
+    "maxItems",
+    "uniqueItems",
+    "minContains",
+    "maxContains",
+    "minProperties",
+    "maxProperties",
+]);
+const ANTHROPIC_STRICT_STRING_FORMATS = new Set([
+    "date-time",
+    "time",
+    "date",
+    "duration",
+    "email",
+    "hostname",
+    "uri",
+    "ipv4",
+    "ipv6",
+    "uuid",
+]);
+const isAnthropicStrictUnsupportedKeyword = (key, value) => {
+    if (ANTHROPIC_STRICT_UNSUPPORTED_KEYWORDS.has(key))
+        return true;
+    if (key === "minItems")
+        return value !== 0 && value !== 1;
+    if (key === "format")
+        return typeof value !== "string" || !ANTHROPIC_STRICT_STRING_FORMATS.has(value);
+    return false;
+};
+function convertTools(tools, isOAuthToken, supportsEagerToolInputStreaming, supportsStrictTools, cacheControl, disablePreferredStrictTools = false) {
     if (!tools)
         return [];
     return tools.map((tool, index) => {
-        const strict = resolveJsonSchemaStrictSampling(tool, supportsStrictTools);
+        const config = tool.constrainedSampling;
+        const strict = disablePreferredStrictTools && config && config.type === "json_schema" && config.strict === "prefer"
+            ? undefined
+            : resolveJsonSchemaStrictSampling(tool, supportsStrictTools, isAnthropicStrictUnsupportedKeyword);
         const parameters = getJsonSchemaToolParameters(tool, strict);
         const schema = parameters;
         const legacyInputSchema = {

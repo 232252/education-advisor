@@ -7,7 +7,7 @@ import { appendAssistantMessageDiagnostic } from "../utils/diagnostics.js";
 import { normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { providerHeadersToRecord } from "../utils/headers.js";
-import { parseStreamingJson } from "../utils/json-parse.js";
+import { parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
 import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
@@ -15,8 +15,9 @@ import { getSystemMessageText } from "../utils/text.js";
 import { collapseSystemMessages, getCurrentTools, getInitialSystemMessage, withoutInitialSystemMessage, } from "../utils/transcript.js";
 import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.js";
 import { adjustMaxTokensForThinking, buildBaseOptions, clampMaxTokensToContext, clampReasoning, } from "./simple-options.js";
-import { transformMessages } from "./transform-messages.js";
+import { splitErrorToolResultImages, transformMessages } from "./transform-messages.js";
 const EMPTY_TEXT_PLACEHOLDER = "<empty>";
+const THINKING_BINDING_CONTROLS_BETA = "thinking-binding-controls-2026-08-01";
 /** Matches the placeholder the Anthropic API path uses for redacted thinking. */
 const REDACTED_THINKING_PLACEHOLDER = "[Reasoning redacted]";
 export const stream = (model, context, options = {}) => {
@@ -169,6 +170,7 @@ export const stream = (model, context, options = {}) => {
                 await options?.onResponse?.({ status: response.$metadata.httpStatusCode, headers: responseHeaders }, model);
             }
             for await (const item of response.stream) {
+                await options.onProviderStreamEvent?.(item, model);
                 if (item.messageStart) {
                     if (item.messageStart.role !== ConversationRole.ASSISTANT) {
                         throw new Error("Unexpected assistant message start but got user message start instead");
@@ -555,7 +557,7 @@ function handleContentBlockStop(event, blocks, output, stream) {
             stream.push({ type: "thinking_end", contentIndex: index, content: block.thinking, partial: output });
             break;
         case "toolCall":
-            block.arguments = parseStreamingJson(block.partialJson);
+            Object.assign(block, parseToolCallArguments(block.partialJson));
             // Finalize in-place and strip the scratch buffer so replay only
             // carries parsed arguments.
             delete block.partialJson;
@@ -583,6 +585,7 @@ function supportsAdaptiveThinking(modelId, modelName) {
         s.includes("opus-5") ||
         s.includes("sonnet-4-6") ||
         s.includes("sonnet-5") ||
+        s.includes("haiku-5") ||
         s.includes("fable-5"));
 }
 function supportsNativeXhighEffort(model) {
@@ -591,6 +594,20 @@ function supportsNativeXhighEffort(model) {
         s.includes("opus-4-8") ||
         s.includes("opus-5") ||
         s.includes("sonnet-5") ||
+        s.includes("haiku-5") ||
+        s.includes("fable-5"));
+}
+/**
+ * Check if the model accepts `thinking.block_binding`. Opus 4.6 and Sonnet 4.6 reject it with
+ * "thinking.adaptive.block_binding: Extra inputs are not permitted".
+ */
+function supportsThinkingBlockBinding(model) {
+    const candidates = getModelMatchCandidates(model.id, model.name);
+    return candidates.some((s) => s.includes("opus-4-7") ||
+        s.includes("opus-4-8") ||
+        s.includes("opus-5") ||
+        s.includes("sonnet-5") ||
+        s.includes("haiku-5") ||
         s.includes("fable-5"));
 }
 function mapThinkingLevelToEffort(model, level) {
@@ -660,8 +677,8 @@ function supportsPromptCaching(model, env) {
             return true;
         return false;
     }
-    // Claude 5 models (fable-5, opus-5, sonnet-5)
-    if (candidates.some((s) => s.includes("fable-5") || s.includes("opus-5") || s.includes("sonnet-5")))
+    // Claude 5 models (fable-5, opus-5, sonnet-5, haiku-5)
+    if (candidates.some((s) => s.includes("fable-5") || s.includes("opus-5") || s.includes("sonnet-5") || s.includes("haiku-5")))
         return true;
     // Claude 4.x models (opus-4, sonnet-4, haiku-4)
     if (candidates.some((s) => s.includes("-4-")))
@@ -852,30 +869,28 @@ function convertMessages(context, model, cacheRetention, env) {
                 // Collect all consecutive toolResult messages into a single user message
                 // Bedrock requires all tool results to be in one message
                 const toolResults = [];
-                // Add current tool result with all content blocks combined
-                toolResults.push({
-                    toolResult: {
-                        toolUseId: m.toolCallId,
-                        content: convertToolResultContent(m.content),
-                        status: m.isError ? ToolResultStatus.ERROR : ToolResultStatus.SUCCESS,
-                    },
-                });
-                // Look ahead for consecutive toolResult messages
-                let j = i + 1;
+                // Claude rejects error tool results that contain anything but text, so for Claude their
+                // images follow all tool results of the turn (#10794). Other models keep them in place.
+                const errorImages = [];
+                let j = i;
                 while (j < transformedMessages.length && transformedMessages[j].role === "toolResult") {
-                    const nextMsg = transformedMessages[j];
+                    const toolMsg = transformedMessages[j];
+                    const split = isAnthropicClaudeModel(model) ? splitErrorToolResultImages(toolMsg) : undefined;
                     toolResults.push({
                         toolResult: {
-                            toolUseId: nextMsg.toolCallId,
-                            content: convertToolResultContent(nextMsg.content),
-                            status: nextMsg.isError ? ToolResultStatus.ERROR : ToolResultStatus.SUCCESS,
+                            toolUseId: toolMsg.toolCallId,
+                            content: convertToolResultContent(split?.content ?? toolMsg.content),
+                            status: toolMsg.isError ? ToolResultStatus.ERROR : ToolResultStatus.SUCCESS,
                         },
                     });
+                    if (split) {
+                        errorImages.push({ text: split.caption }, ...split.images.map((image) => ({ image: createImageBlock(image.mimeType, image.data) })));
+                    }
                     j++;
                 }
                 // Skip the messages we've already processed
                 i = j - 1;
-                result.push({ role: ConversationRole.USER, content: toolResults });
+                result.push({ role: ConversationRole.USER, content: [...toolResults, ...errorImages] });
                 break;
             }
             default:
@@ -997,11 +1012,21 @@ function buildAdditionalModelRequestFields(model, options) {
     if (isAnthropicClaudeModel(model)) {
         // GovCloud Bedrock currently rejects the Claude thinking.display field.
         // Omit it there until the GovCloud Converse schema catches up.
-        const display = isGovCloudBedrockTarget(model, options) ? undefined : (options.thinkingDisplay ?? "summarized");
+        const isGovCloud = isGovCloudBedrockTarget(model, options);
+        const display = isGovCloud ? undefined : (options.thinkingDisplay ?? "summarized");
+        // Replayed signed thinking blocks are bound to the system prompt and tools they were
+        // created with. Bedrock 400s on replay after either changes unless stale blocks are
+        // dropped, matching the Anthropic provider. Skipped on GovCloud like display.
+        const useBlockBinding = !isGovCloud && supportsThinkingBlockBinding(model);
         const result = supportsAdaptiveThinking(model.id, model.name)
             ? {
-                thinking: { type: "adaptive", ...(display !== undefined ? { display } : {}) },
+                thinking: {
+                    type: "adaptive",
+                    ...(display !== undefined ? { display } : {}),
+                    ...(useBlockBinding ? { block_binding: { prefix_mismatch_behavior: "drop_block" } } : {}),
+                },
                 output_config: { effort: mapThinkingLevelToEffort(model, options.reasoning) },
+                ...(useBlockBinding ? { anthropic_beta: [THINKING_BINDING_CONTROLS_BETA] } : {}),
             }
             : (() => {
                 const defaultBudgets = {
@@ -1028,8 +1053,36 @@ function buildAdditionalModelRequestFields(model, options) {
         }
         return result;
     }
+    const candidates = getModelMatchCandidates(model.id, model.name);
+    if (candidates.some((s) => s.includes("gpt-oss"))) {
+        return { reasoning_effort: OPENAI_GPT_OSS_EFFORT[options.reasoning] };
+    }
+    if (candidates.some((s) => s.includes("gpt-"))) {
+        const mapped = model.thinkingLevelMap?.[options.reasoning];
+        return {
+            reasoning: { effort: typeof mapped === "string" ? mapped : OPENAI_GPT_EFFORT[options.reasoning] },
+        };
+    }
     return undefined;
 }
+/** OpenAI GPT models (GPT-5.x, GPT-6) take a nested `reasoning.effort` and reject `minimal`. */
+const OPENAI_GPT_EFFORT = {
+    minimal: "low",
+    low: "low",
+    medium: "medium",
+    high: "high",
+    xhigh: "xhigh",
+    max: "max",
+};
+/** gpt-oss takes a flat `reasoning_effort` and only accepts low, medium and high. */
+const OPENAI_GPT_OSS_EFFORT = {
+    minimal: "low",
+    low: "low",
+    medium: "medium",
+    high: "high",
+    xhigh: "high",
+    max: "high",
+};
 function createImageBlock(mimeType, data) {
     let format;
     switch (mimeType) {

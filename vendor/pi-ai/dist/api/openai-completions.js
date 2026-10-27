@@ -4,7 +4,7 @@ import { formatProviderError, normalizeProviderError } from "../utils/error-body
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { shortHash } from "../utils/hash.js";
 import { headersToRecord } from "../utils/headers.js";
-import { parseStreamingJson } from "../utils/json-parse.js";
+import { parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
 import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { retryProviderRequest } from "../utils/provider-retry.js";
@@ -14,7 +14,7 @@ import { getDeclaredTools, resolveTranscript, resolveTranscriptTools, } from "..
 import { appendGrammarToolInputJsonDelta, createGrammarToolInputProperties, getGrammarToolInput, getJsonSchemaToolParameters, resolveGrammarConstrainedSampling, resolveJsonSchemaStrictSampling, } from "./constrained-sampling.js";
 import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.js";
 import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
-import { buildBaseOptions, clampThinkingBudgetToAnswerRoom, thinkingBudgetForLevel } from "./simple-options.js";
+import { buildBaseOptions, clampThinkingBudgetToAnswerRoom, resolveSamplingParams, thinkingBudgetForLevel, } from "./simple-options.js";
 import { transformMessages } from "./transform-messages.js";
 /**
  * Check if conversation messages contain tool calls or tool results.
@@ -258,7 +258,7 @@ export const stream = (model, context, options) => {
                         }
                     }
                     else {
-                        block.arguments = parseStreamingJson(block.partialArgs);
+                        Object.assign(block, parseToolCallArguments(block.partialArgs));
                     }
                     // Finalize in-place and strip the scratch buffers so replay only
                     // carries parsed arguments.
@@ -351,6 +351,7 @@ export const stream = (model, context, options) => {
                 return block;
             };
             for await (const chunk of openaiStream) {
+                await options?.onProviderStreamEvent?.(chunk, model);
                 if (!chunk || typeof chunk !== "object")
                     continue;
                 // OpenAI documents ChatCompletionChunk.id as the unique chat completion identifier,
@@ -380,18 +381,8 @@ export const stream = (model, context, options) => {
                     hasFinishReason = true;
                 }
                 if (choice.delta) {
-                    if (choice.delta.content !== null &&
-                        choice.delta.content !== undefined &&
-                        choice.delta.content.length > 0) {
-                        const block = ensureTextBlock();
-                        block.text += choice.delta.content;
-                        stream.push({
-                            type: "text_delta",
-                            contentIndex: getContentIndex(block),
-                            delta: choice.delta.content,
-                            partial: output,
-                        });
-                    }
+                    // Handle reasoning before content: some proxies (e.g. LiteLLM) aggregate reasoning and
+                    // answer into one delta, and the thinking block must precede the text block.
                     // Some endpoints return reasoning in reasoning_content (llama.cpp),
                     // or reasoning (other openai compatible endpoints)
                     // Use the first non-empty reasoning field to avoid duplication
@@ -422,6 +413,31 @@ export const stream = (model, context, options) => {
                             });
                         }
                     }
+                    const reasoningDetails = choice.delta.reasoning_details;
+                    if (Array.isArray(reasoningDetails)) {
+                        for (const detail of reasoningDetails) {
+                            if (!isOpenAIReasoningDetail(detail))
+                                continue;
+                            ensureThinkingBlock("");
+                            streamedReasoningDetails ??= [];
+                            // Keep provider replay data in the existing signature slot. OpenRouter streams
+                            // reasoning_details as deltas: consecutive text/summary deltas are merged into
+                            // logical entries, while encrypted entries remain opaque and discrete.
+                            appendOpenAIReasoningDetail(streamedReasoningDetails, detail);
+                        }
+                    }
+                    if (choice.delta.content !== null &&
+                        choice.delta.content !== undefined &&
+                        choice.delta.content.length > 0) {
+                        const block = ensureTextBlock();
+                        block.text += choice.delta.content;
+                        stream.push({
+                            type: "text_delta",
+                            contentIndex: getContentIndex(block),
+                            delta: choice.delta.content,
+                            partial: output,
+                        });
+                    }
                     if (choice?.delta?.tool_calls) {
                         for (const toolCall of choice.delta.tool_calls) {
                             const block = ensureToolCallBlock(toolCall);
@@ -448,19 +464,6 @@ export const stream = (model, context, options) => {
                                 delta,
                                 partial: output,
                             });
-                        }
-                    }
-                    const reasoningDetails = choice.delta.reasoning_details;
-                    if (Array.isArray(reasoningDetails)) {
-                        for (const detail of reasoningDetails) {
-                            if (!isOpenAIReasoningDetail(detail))
-                                continue;
-                            ensureThinkingBlock("");
-                            streamedReasoningDetails ??= [];
-                            // Keep provider replay data in the existing signature slot. OpenRouter streams
-                            // reasoning_details as deltas: consecutive text/summary deltas are merged into
-                            // logical entries, while encrypted entries remain opaque and discrete.
-                            appendOpenAIReasoningDetail(streamedReasoningDetails, detail);
                         }
                     }
                 }
@@ -585,6 +588,7 @@ function buildParams(model, context, options, compat = getCompat(model), cacheRe
     }
     if (options?.maxTokens) {
         if (compat.maxTokensField === "max_tokens") {
+            // Deprecated by OpenAI, but some OpenAI-compatible providers only accept max_tokens.
             params.max_tokens = options.maxTokens;
         }
         else {
@@ -741,9 +745,10 @@ function buildParams(model, context, options, compat = getCompat(model), cacheRe
             params.providerOptions = { gateway: gatewayOptions };
         }
     }
-    // Last so custom keys override the named request fields.
-    if (options?.samplingParams) {
-        Object.assign(params, options.samplingParams);
+    // Last so model and request sampling parameters override named request fields.
+    const samplingParams = resolveSamplingParams(model, options?.reasoningEffort ?? "off", options?.samplingParams);
+    if (samplingParams) {
+        Object.assign(params, samplingParams);
     }
     return params;
 }

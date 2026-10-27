@@ -80,7 +80,7 @@ export function AboutSection() {
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  {t('page.settings.about.core.dsh', '— Agent 运行时（dsh 0.2.1-alpha.1）')}
+                  {t('page.settings.about.core.dsh', '— Agent 运行时（dsh 0.2.1-rc.2）')}
                 </span>
               </div>
               <div>
@@ -108,7 +108,7 @@ export function AboutSection() {
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  {t('page.settings.about.core.piAi', '— 模型目录（pi-ai 0.87.1）')}
+                  {t('page.settings.about.core.piAi', '— 模型目录（pi-ai 1.3.0）')}
                 </span>
               </div>
               <div>
@@ -127,7 +127,7 @@ export function AboutSection() {
             </div>
             <div className="grid grid-cols-1 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
               <span>Electron 43.2 + React 19.2</span>
-              <span>TypeScript 7.0 + Vite 8.2</span>
+              <span>TypeScript 7.0 + Vite 8.3</span>
               <span>Tailwind 4 + Zustand 5</span>
               <span>better-sqlite3 + TypeBox</span>
             </div>

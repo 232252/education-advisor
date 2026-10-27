@@ -2,6 +2,8 @@ interface ProviderRetryOptions {
     maxRetries?: number;
     maxRetryDelayMs?: number;
     signal?: AbortSignal;
+    /** HTTP statuses that fail at once although the default policy would retry them. */
+    noRetryStatuses?: readonly number[];
 }
 /**
  * Reproduce the retry behavior used by the OpenAI and Anthropic SDKs while making

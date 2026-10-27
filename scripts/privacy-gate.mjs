@@ -57,7 +57,7 @@ const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g
 const EMAIL_OK =
   /@(?:[a-z0-9-]+\.)*(?:example|example\.(?:com|org|net|cn)|localhost|invalid|test\.local|noreply\.github\.com)$/i
 // "包名@版本号"(如 electron@43.2.0)不是邮箱:末段以数字开头视为版本;
-// 补丁文件名(如 pi-ai@0.87.1.dsh-toolcall.patch)@ 后紧跟 semver,同样视为版本
+// 补丁文件名(如 pi-ai@1.3.0.dsh-toolcall.patch)@ 后紧跟 semver,同样视为版本
 const isVersionSpec = (email) => {
   const afterAt = email.slice(email.indexOf('@') + 1)
   return /^\d+\.\d+/.test(afterAt) || /\d[\w.-]*$/.test(email.split('.').pop())

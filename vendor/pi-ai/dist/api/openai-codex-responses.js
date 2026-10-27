@@ -131,7 +131,8 @@ function compressRequestBodyZstd(bodyJson) {
         const compressed = zlib.zstdCompressSync(bodyJson, {
             params: { [zlib.constants.ZSTD_c_compressionLevel]: REQUEST_COMPRESSION_ZSTD_LEVEL },
         });
-        return new Uint8Array(compressed.buffer, compressed.byteOffset, compressed.byteLength);
+        // A copy owns a plain ArrayBuffer, which fetch accepts as a body under every lib.
+        return new Uint8Array(compressed);
     }
     catch {
         return null;
@@ -476,7 +477,7 @@ function resolveCodexWebSocketUrl(baseUrl) {
 // Response Processing
 // ============================================================================
 async function processStream(response, output, stream, model, grammarToolInputProperties, options) {
-    await processResponsesStream(mapCodexEvents(parseSSE(response, options?.signal), output), output, stream, model, {
+    await processResponsesStream(mapCodexEvents(parseSSE(response, options?.signal), output, model, options?.onProviderStreamEvent), output, stream, model, {
         serviceTier: options?.serviceTier,
         grammarToolInputProperties,
         resolveServiceTier: resolveCodexServiceTier,
@@ -503,8 +504,17 @@ class CodexProtocolError extends Error {
         this.cause = options?.cause;
     }
 }
+class ProviderStreamEventCallbackError extends Error {
+    constructor(cause) {
+        super(formatThrownValue(cause));
+        this.name = "ProviderStreamEventCallbackError";
+        this.cause = cause;
+    }
+}
 function isCodexNonTransportError(error) {
-    return error instanceof CodexApiError || error instanceof CodexProtocolError;
+    return (error instanceof CodexApiError ||
+        error instanceof CodexProtocolError ||
+        error instanceof ProviderStreamEventCallbackError);
 }
 function isWebSocketConnectionLimitReachedError(error) {
     return error instanceof CodexApiError && error.code === WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE;
@@ -523,8 +533,15 @@ function extractCodexEventError(event) {
                 : undefined,
     };
 }
-async function* mapCodexEvents(events, output) {
+async function* mapCodexEvents(events, output, model, onProviderStreamEvent) {
     for await (const event of events) {
+        try {
+            await onProviderStreamEvent?.(event, model);
+        }
+        catch (error) {
+            // Keep callback failures out of Codex's WebSocket retry and SSE fallback path.
+            throw new ProviderStreamEventCallbackError(error);
+        }
         const type = typeof event.type === "string" ? event.type : undefined;
         if (!type)
             continue;
@@ -1186,7 +1203,7 @@ async function processWebSocketStream(url, body, headers, output, stream, model,
     }
     try {
         socket.send(JSON.stringify({ type: "response.create", ...requestBody }));
-        await processResponsesStream(startWebSocketOutputOnFirstEvent(mapCodexEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs), output), onStart), output, stream, model, {
+        await processResponsesStream(startWebSocketOutputOnFirstEvent(mapCodexEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs), output, model, options?.onProviderStreamEvent), onStart), output, stream, model, {
             serviceTier: options?.serviceTier,
             grammarToolInputProperties,
             resolveServiceTier: resolveCodexServiceTier,
@@ -1263,7 +1280,11 @@ function extractAccountId(token) {
     }
 }
 function buildBaseCodexHeaders(initHeaders, additionalHeaders, accountId, token) {
-    const headers = new Headers(initHeaders);
+    // Defaults first so model and caller headers can override them, matching the other providers.
+    const headers = new Headers({ originator: "pi", "User-Agent": getPiUserAgent() });
+    for (const [key, value] of Object.entries(initHeaders || {})) {
+        headers.set(key, value);
+    }
     for (const [key, value] of Object.entries(additionalHeaders || {})) {
         if (value === null) {
             headers.delete(key);
@@ -1274,8 +1295,6 @@ function buildBaseCodexHeaders(initHeaders, additionalHeaders, accountId, token)
     }
     headers.set("Authorization", `Bearer ${token}`);
     headers.set("chatgpt-account-id", accountId);
-    headers.set("originator", "pi");
-    headers.set("User-Agent", getPiUserAgent());
     return headers;
 }
 function buildSSEHeaders(initHeaders, additionalHeaders, accountId, token, sessionId) {

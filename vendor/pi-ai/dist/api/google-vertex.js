@@ -55,6 +55,7 @@ export const stream = (model, context, options) => {
             const blocks = output.content;
             const blockIndex = () => blocks.length - 1;
             for await (const chunk of googleStream) {
+                await options?.onProviderStreamEvent?.(chunk, model);
                 // Vertex uses the same @google/genai GenerateContentResponse type as Gemini.
                 // responseId is documented there as an output-only identifier for each response.
                 output.responseId ||= chunk.responseId;

@@ -8,11 +8,13 @@ import { describe, expect, it, vi } from 'vitest'
 // Module-level constants — inline replicas for testing
 // ===========================================================
 
-const OAUTH_PROVIDERS = new Set(['anthropic', 'github-copilot', 'openai-codex'])
+// 与 pi-ai 1.3.0 的 auth.oauth 声明保持同步(openai 已支持)
+const OAUTH_PROVIDERS = new Set(['anthropic', 'github-copilot', 'openai', 'openai-codex'])
 
 const OAUTH_KEY_URLS: Record<string, string> = {
   anthropic: 'https://console.anthropic.com/settings/keys',
   'github-copilot': 'https://github.com/settings/tokens',
+  openai: 'https://platform.openai.com/api-keys',
   'openai-codex': 'https://platform.openai.com/api-keys',
 }
 
@@ -70,8 +72,8 @@ describe('OAUTH_PROVIDERS (引导式 key URL 集合的集合语义)', () => {
   it('包含 openai-codex', () => {
     expect(OAUTH_PROVIDERS.has('openai-codex')).toBe(true)
   })
-  it('不包含 openai', () => {
-    expect(OAUTH_PROVIDERS.has('openai')).toBe(false)
+  it('包含 openai', () => {
+    expect(OAUTH_PROVIDERS.has('openai')).toBe(true)
   })
   it('不包含 google', () => {
     expect(OAUTH_PROVIDERS.has('google')).toBe(false)
@@ -101,8 +103,8 @@ describe('OAUTH_KEY_URLS', () => {
     }
   })
   it('非 OAuth provider 没有 key URL', () => {
-    expect(OAUTH_KEY_URLS.openai).toBeUndefined()
     expect(OAUTH_KEY_URLS.google).toBeUndefined()
+    expect(OAUTH_KEY_URLS.deepseek).toBeUndefined()
   })
 })
 

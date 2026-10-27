@@ -6,7 +6,7 @@ This project bundles or links the third-party components listed below. Each entr
 records the version, license, and where the full license text lives. Vendored
 code keeps its license and copyright notice, and those notices must ship with
 every copy of this software (including packaged builds). `vendor/pi-ai` is the
-published 0.87.1 tarball plus one documented patch; other vendored trees are
+published 1.3.0 tarball plus one documented patch; other vendored trees are
 unmodified upstream files.
 
 If you believe a component is listed incorrectly or is missing, please open an
@@ -23,12 +23,12 @@ file) so drift can be detected.
 
 ### `@earendil-works/pi-ai` — MIT
 
-- **Version**: 0.87.1
+- **Version**: 1.3.0
 - **License file**: [`vendor/pi-ai/LICENSE`](./vendor/pi-ai/LICENSE)
 - **Provenance**: [`vendor/pi-ai/UPSTREAM.json`](./vendor/pi-ai/UPSTREAM.json)
 - **Upstream**: <https://github.com/earendil-works/pi> (`packages/ai`)
 - **Copyright**: Copyright (c) 2025 Mario Zechner
-- **Modification**: `scripts/patches/earendil-works__pi-ai@0.87.1.dsh-toolcall.patch` (from DeepSeek Harness) stops re-parsing streamed tool-call arguments on every delta. The final parse at the end of the call is unchanged. `dist/api/bedrock-converse-stream.lazy.js` uses a static import so the desktop bundle actually emits the Bedrock module.
+- **Modification**: `scripts/patches/earendil-works__pi-ai@1.3.0.dsh-toolcall.patch` (from DeepSeek Harness) stops re-parsing streamed tool-call arguments on every delta. The final parse at the end of the call is unchanged. `dist/api/bedrock-converse-stream.lazy.js` uses a static import so the desktop bundle actually emits the Bedrock module.
 - **Used by**: the model catalog consumed by DeepSeek Harness (`@deepseek-ai/dsh-llm-pi-ai`) and by connection tests, grading, and model selection.
 
 ### Submitty SQL schema — BSD-3-Clause

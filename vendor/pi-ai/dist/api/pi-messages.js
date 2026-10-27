@@ -285,6 +285,7 @@ export const stream = (model, context, options) => {
                 throw new Error(`${model.provider} response has no body`);
             }
             for await (const piEvent of readPiMessagesEvents(response.body)) {
+                await options?.onProviderStreamEvent?.(piEvent, model);
                 const event = convertEvent(piEvent);
                 eventStream.push(event);
                 if (event.type === "done" || event.type === "error") {

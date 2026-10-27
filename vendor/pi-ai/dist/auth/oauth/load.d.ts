@@ -2,6 +2,7 @@ import type { OAuthAuth } from "../types.ts";
 type OAuthFlowLoaders = {
     anthropic: () => OAuthAuth | Promise<OAuthAuth>;
     openaiCodex: () => OAuthAuth | Promise<OAuthAuth>;
+    openaiChatGPT: () => OAuthAuth | Promise<OAuthAuth>;
     githubCopilot: () => OAuthAuth | Promise<OAuthAuth>;
     openrouter: () => OAuthAuth | Promise<OAuthAuth>;
     kimiCoding: () => OAuthAuth | Promise<OAuthAuth>;
@@ -16,6 +17,7 @@ type OAuthFlowLoaders = {
 export declare function registerBundledOAuthFlowLoaders(loaders: OAuthFlowLoaders): void;
 export declare const loadAnthropicOAuth: () => Promise<OAuthAuth>;
 export declare const loadOpenAICodexOAuth: () => Promise<OAuthAuth>;
+export declare const loadOpenAIChatGPTOAuth: () => Promise<OAuthAuth>;
 export declare const loadGitHubCopilotOAuth: () => Promise<OAuthAuth>;
 export declare const loadOpenRouterOAuth: () => Promise<OAuthAuth>;
 export declare const loadKimiCodingOAuth: () => Promise<OAuthAuth>;

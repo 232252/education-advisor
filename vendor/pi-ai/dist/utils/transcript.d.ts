@@ -59,8 +59,11 @@ export declare function getToolStateChanges(previous: readonly Tool[], current: 
 /** Every definition referenced by transcript tool state, in first-declaration order. */
 export declare function getDeclaredTools(messages: TranscriptMessages): Tool[];
 /**
- * Whether a tool name was declared twice with different definitions. Transports that
- * reference tools by name (Anthropic `tool_addition`/`tool_removal`) cannot express that.
+ * Whether a tool name was declared twice with different definitions. A transport that can
+ * only reference previously declared tools by name cannot replay such a history.
+ *
+ * @deprecated No built-in transport needs this anymore: Anthropic expresses redefinitions with
+ * inline `tool_definition` blocks. Kept for API compatibility and will be removed in a future release.
  */
 export declare function hasToolRedefinitions(messages: TranscriptMessages): boolean;
 /** Whether tool history contains a removal or same-name redeclaration that an addition-only transport cannot replay. */

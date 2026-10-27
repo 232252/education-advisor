@@ -28,6 +28,7 @@ export const OAUTH_PROVIDERS = new Set(
 export const OAUTH_KEY_URLS: Record<string, string> = {
   anthropic: 'https://console.anthropic.com/settings/keys',
   'github-copilot': 'https://github.com/settings/tokens',
+  openai: 'https://platform.openai.com/api-keys',
   'openai-codex': 'https://platform.openai.com/api-keys',
   xai: 'https://console.x.ai',
   'kimi-coding': 'https://platform.kimi.com',

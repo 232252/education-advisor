@@ -154,9 +154,7 @@ describe('i18n 字典 — 死键守卫', () => {
       const src = stripComments(readFileSync(f, 'utf8'))
       for (const m of src.matchAll(/\bt(?:r|f)?\(\s*['"`]([\w.-]+)['"`]/g)) used.add(m[1])
     }
-    const missing = [...used]
-      .filter((k) => !(k in zhDict) || !(k in enDict))
-      .sort()
+    const missing = [...used].filter((k) => !(k in zhDict) || !(k in enDict)).sort()
     expect(missing).toEqual([])
   })
 })

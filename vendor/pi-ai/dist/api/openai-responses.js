@@ -11,10 +11,23 @@ import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.js";
 import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
 import { convertResponsesMessages, convertResponsesTools, processResponsesStream } from "./openai-responses-shared.js";
-import { buildBaseOptions } from "./simple-options.js";
+import { buildBaseOptions, resolveSamplingParams } from "./simple-options.js";
 const OPENAI_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
 // OpenAI Responses rejects max_output_tokens below 16: https://github.com/earendil-works/pi/issues/6265
 const OPENAI_RESPONSES_MIN_OUTPUT_TOKENS = 16;
+const CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage";
+// Fixed reasoning.effort while configuration_update items carry the thinking level.
+const CONFIGURATION_UPDATE_REQUEST_EFFORT = "medium";
+/**
+ * OpenAI API keys start with `sk-`; a different credential sent directly to OpenAI
+ * is a Sign in with ChatGPT access token.
+ */
+function isChatGPTSignIn(model, apiKey) {
+    return (model.provider === "openai" &&
+        model.baseUrl === "https://api.openai.com/v1" &&
+        apiKey !== undefined &&
+        !apiKey.startsWith("sk-"));
+}
 function hasHeader(headers, name) {
     if (!headers)
         return false;
@@ -60,7 +73,18 @@ function getCompat(model) {
         supportsToolSearch: model.compat?.supportsToolSearch ?? false,
         supportsExplicitPromptCacheMode: model.compat?.supportsExplicitPromptCacheMode ?? false,
         supportsMaxOutputTokens: model.compat?.supportsMaxOutputTokens ?? true,
+        supportsMidConvoEffort: model.compat?.supportsMidConvoEffort ?? false,
     };
+}
+/** Effort to send in configuration_update items, or undefined to send it as reasoning.effort. */
+function getConfigurationUpdateEffort(model, options, compat) {
+    if (!compat.supportsMidConvoEffort ||
+        !options?.reasoningEffort ||
+        // Sign in with ChatGPT rejects configuration_update items.
+        isChatGPTSignIn(model, options.apiKey)) {
+        return undefined;
+    }
+    return model.thinkingLevelMap?.[options.reasoningEffort] ?? options.reasoningEffort;
 }
 function getPromptCacheRetention(compat, cacheRetention) {
     return cacheRetention === "long" && compat.supportsLongCacheRetention && !compat.supportsExplicitPromptCacheMode
@@ -84,12 +108,15 @@ export const stream = (model, context, options) => {
     const normalizedContext = resolveTranscript(context, getCompat(model).supportsMidConvoSystemMessages);
     // Start async processing
     (async () => {
+        const compat = getCompat(model);
+        const configurationUpdateEffort = getConfigurationUpdateEffort(model, options, compat);
         const output = {
             role: "assistant",
             content: [],
             api: model.api,
             provider: model.provider,
             model: model.id,
+            ...(configurationUpdateEffort === undefined ? {} : { providerThinkingLevel: configurationUpdateEffort }),
             usage: {
                 input: 0,
                 output: 0,
@@ -106,10 +133,9 @@ export const stream = (model, context, options) => {
             const apiKey = getClientApiKey(model.provider, options?.apiKey, options?.headers);
             const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
             const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
-            const compat = getCompat(model);
             const grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(normalizedContext.messages), compat.supportsOpenAIGrammarTools);
             const client = createClient(model, normalizedContext, apiKey, options?.headers, options?.fetch, cacheSessionId);
-            let params = buildParams(model, normalizedContext, options, compat, grammarToolInputProperties);
+            let params = buildParams(model, normalizedContext, options, compat, grammarToolInputProperties, configurationUpdateEffort);
             const nextParams = await options?.onPayload?.(params, model);
             if (nextParams !== undefined) {
                 params = nextParams;
@@ -127,6 +153,7 @@ export const stream = (model, context, options) => {
             await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
             stream.push({ type: "start", partial: output });
             await processResponsesStream(openaiStream, output, stream, model, {
+                onProviderStreamEvent: options?.onProviderStreamEvent,
                 serviceTier: options?.serviceTier,
                 grammarToolInputProperties,
                 applyServiceTierPricing: (usage, serviceTier) => applyServiceTierPricing(usage, serviceTier, model),
@@ -151,7 +178,11 @@ export const stream = (model, context, options) => {
                 delete block.customInput;
             }
             output.stopReason = options?.signal?.aborted ? "aborted" : "error";
-            output.errorMessage = formatProviderError(normalizeProviderError(error), `${model.provider === "openai" ? "OpenAI" : model.provider} API error`);
+            const errorMessage = formatProviderError(normalizeProviderError(error), `${model.provider === "openai" ? "OpenAI" : model.provider} API error`);
+            // Sign in with ChatGPT shares the subscription's usage limit with other apps.
+            output.errorMessage = errorMessage.includes("subscription_sharing_usage_limit_exceeded")
+                ? `${errorMessage}\nCheck your ChatGPT usage: ${CHATGPT_USAGE_URL}`
+                : errorMessage;
             stream.push({ type: "error", reason: output.stopReason, error: output });
             stream.end();
         }
@@ -205,7 +236,7 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId) 
         defaultHeaders: headers,
     });
 }
-function buildParams(model, context, options, compat = getCompat(model), grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(context.messages), compat.supportsOpenAIGrammarTools)) {
+function buildParams(model, context, options, compat, grammarToolInputProperties, configurationUpdateEffort) {
     const transcriptTools = resolveTranscriptTools(context.messages, compat.supportsAdditionalTools || compat.supportsToolSearch);
     const messages = convertResponsesMessages(model, context, OPENAI_TOOL_CALL_PROVIDERS, {
         grammarToolInputProperties,
@@ -216,21 +247,24 @@ function buildParams(model, context, options, compat = getCompat(model), grammar
             supportsStrictMode: compat.supportsStrictMode,
             supportsOpenAIGrammarTools: compat.supportsOpenAIGrammarTools,
         },
+        configurationUpdateEffort,
     });
     const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
+    // Sign in with ChatGPT rejects these request fields.
+    const omitUnsupportedFields = isChatGPTSignIn(model, options?.apiKey);
     const params = {
         model: model.id,
         input: messages,
         stream: true,
         prompt_cache_key: cacheRetention === "none" ? undefined : clampOpenAIPromptCacheKey(options?.sessionId),
-        prompt_cache_retention: getPromptCacheRetention(compat, cacheRetention),
-        prompt_cache_options: getPromptCacheOptions(compat, cacheRetention),
+        prompt_cache_retention: omitUnsupportedFields ? undefined : getPromptCacheRetention(compat, cacheRetention),
+        prompt_cache_options: omitUnsupportedFields ? undefined : getPromptCacheOptions(compat, cacheRetention),
         store: false,
     };
-    if (options?.maxTokens && compat.supportsMaxOutputTokens) {
+    if (options?.maxTokens && compat.supportsMaxOutputTokens && !omitUnsupportedFields) {
         params.max_output_tokens = Math.max(options.maxTokens, OPENAI_RESPONSES_MIN_OUTPUT_TOKENS);
     }
-    if (options?.temperature !== undefined) {
+    if (options?.temperature !== undefined && !omitUnsupportedFields) {
         params.temperature = options?.temperature;
     }
     if (options?.serviceTier !== undefined) {
@@ -245,11 +279,13 @@ function buildParams(model, context, options, compat = getCompat(model), grammar
     if (options?.toolChoice !== undefined) {
         params.tool_choice = options.toolChoice;
     }
+    const reasoningEffort = options?.reasoningEffort ?? (options?.reasoningSummary ? "medium" : undefined);
     if (model.reasoning) {
-        if (options?.reasoningEffort || options?.reasoningSummary) {
-            const effort = options?.reasoningEffort
+        if (reasoningEffort) {
+            const requestedEffort = options?.reasoningEffort
                 ? (model.thinkingLevelMap?.[options.reasoningEffort] ?? options.reasoningEffort)
-                : "medium";
+                : reasoningEffort;
+            const effort = configurationUpdateEffort === undefined ? requestedEffort : CONFIGURATION_UPDATE_REQUEST_EFFORT;
             params.reasoning = {
                 effort: effort,
                 summary: options?.reasoningSummary || "auto",
@@ -264,9 +300,10 @@ function buildParams(model, context, options, compat = getCompat(model), grammar
         if (model.provider === "xai")
             params.include = ["reasoning.encrypted_content"];
     }
-    // Last so custom keys override the named request fields.
-    if (options?.samplingParams) {
-        Object.assign(params, options.samplingParams);
+    // Last so model and request sampling parameters override named request fields.
+    const samplingParams = resolveSamplingParams(model, reasoningEffort ?? "off", options?.samplingParams);
+    if (samplingParams) {
+        Object.assign(params, samplingParams);
     }
     return params;
 }
@@ -275,6 +312,7 @@ function getServiceTierCostMultiplier(model, serviceTier) {
         case "flex":
             return 0.5;
         case "priority":
+        case "fast":
             return model.id === "gpt-5.5" ? 2.5 : 2;
         default:
             return 1;

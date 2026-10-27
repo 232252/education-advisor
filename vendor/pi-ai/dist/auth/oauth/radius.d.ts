@@ -5,7 +5,7 @@
  * gateway; only the interactive browser authorization endpoint is discovered.
  * Model catalog loading is owned by the Radius provider.
  *
- * NOTE: This module uses node:http for the OAuth callback server.
+ * NOTE: This module uses node:http (via callback-server.ts) for the OAuth callback server.
  * It is only intended for CLI use, not browser environments.
  */
 import type { OAuthAuth } from "../types.ts";

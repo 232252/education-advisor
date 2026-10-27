@@ -78,8 +78,8 @@ export declare function createFauxCore(options: RegisterFauxProviderOptions): {
     models: [Model<string>, ...Model<string>[]];
     stream: StreamFunction<string, SimpleStreamOptions>;
     streamSimple: StreamFunction<string, SimpleStreamOptions>;
-    fetchDeferred: (requestModel: Model<string>, handle: DeferredHandle, fetchOptions?: DeferredFetchOptions | undefined) => AssistantMessageEventStream;
-    cancelDeferred: (requestModel: Model<string>, handle: DeferredHandle, cancelOptions?: DeferredCancelOptions | undefined) => Promise<void>;
+    fetchDeferred: (requestModel: Model<string>, handle: DeferredHandle, fetchOptions?: DeferredFetchOptions) => AssistantMessageEventStream;
+    cancelDeferred: (requestModel: Model<string>, handle: DeferredHandle, cancelOptions?: DeferredCancelOptions) => Promise<void>;
     getModel: {
         (): Model<string>;
         (requestedModelId: string): Model<string> | undefined;

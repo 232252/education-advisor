@@ -3,6 +3,7 @@ import { formatProviderError, normalizeProviderError } from "../utils/error-body
 import { headersToRecord, providerHeadersToRecord } from "../utils/headers.js";
 import { retryProviderRequest } from "../utils/provider-retry.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+/** Image generation over OpenRouter's chat completions endpoint. */
 export const generateImages = async (model, context, options) => {
     const output = {
         api: model.api,
