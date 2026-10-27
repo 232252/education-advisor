@@ -7,6 +7,10 @@
 // 降采样: ≥3000px 长边 → loadImage 断言 ≤1600px + image/jpeg
 //   (直读 / PDF 栅格化页 / zip 抽出图同口径)。
 // 夹具全部手工构造(zip/PDF/docx 与 grading-archive-import.test.ts 同法)。
+
+// 整文件做重活(多 MB 缓冲 zlib deflate / napi 画布解码 / PDF 栅格化),
+// 全量并行负载下单测默认 5s 偶发越线(见 5ae84c6f 提交备注),提升到 20s。
+vi.setConfig({ testTimeout: 20_000 })
 // =============================================================
 
 import fsp from 'node:fs/promises'
@@ -14,7 +18,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { deflateRawSync } from 'node:zlib'
 import { createCanvas, loadImage } from '@napi-rs/canvas'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   csvToMarkdownTable,
   decodeTextBuffer,
