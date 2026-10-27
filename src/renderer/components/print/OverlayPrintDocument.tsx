@@ -38,6 +38,12 @@ import { getAPI } from '../../lib/ipc-client'
 import { cn } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
 import { Button } from '../Button'
+import {
+  type AlignStatus,
+  deriveAlignStatus,
+  isTemplateActive,
+  needsManualQuadAlign,
+} from './overlay-align-status'
 import { stepOverlayCalibration } from './overlay-calibration'
 import { decideOverlaySave } from './overlay-save-decision'
 import { suggestPaperSpecId } from './overlay-spec-suggestion'
@@ -61,7 +67,6 @@ interface OverlayPrintDocumentProps {
 type SizeMap = Record<string, Array<{ width: number; height: number } | undefined>>
 
 type OverlayViewMode = 'papers' | 'calibration' | 'master'
-type AlignStatus = 'aligned' | 'approx' | 'manual'
 
 function ptToMm(pt: number): number {
   return pt * 0.3528
@@ -274,20 +279,13 @@ export function OverlayPrintDocument({
     }
   }
 
-  const templateActive = useMemo(() => {
-    const tpl = task.overlayTemplate
-    return !!tpl?.boxes && Object.keys(tpl.boxes).length > 0 && !!tpl.quads?.some((q) => q != null)
-  }, [task])
+  const templateActive = useMemo(() => isTemplateActive(task.overlayTemplate), [task])
   const tplLocated = Object.keys(task.overlayTemplate?.boxes ?? {}).length
 
   const needManual = useMemo(() => {
     if (templateActive) return []
     const byId = new Map(task.papers.map((p) => [p.id, p]))
-    return views
-      .map((v) => byId.get(v.paper.id) ?? v.paper)
-      .filter(
-        (p) => p.files.length > 0 && (!p.overlayQuads || p.overlayQuads.some((q) => q == null)),
-      )
+    return views.map((v) => byId.get(v.paper.id) ?? v.paper).filter(needsManualQuadAlign)
   }, [views, task, templateActive])
 
   const paperStatuses = useMemo(() => {
@@ -295,13 +293,11 @@ export function OverlayPrintDocument({
     return views.map((v, i) => {
       const paper = byId.get(v.paper.id) ?? v.paper
       const name = paper.studentName ?? t('print.gradingMarks.unassigned', '未归组')
-      let status: AlignStatus = 'aligned'
-      if (!templateActive) {
-        const quads = paper.overlayQuads
-        const missing = !quads || quads.some((q) => q == null)
-        if (missing) status = 'manual'
-        else if ((layouts[i]?.approxPages ?? 0) > 0) status = 'approx'
-      }
+      const status = deriveAlignStatus({
+        templateActive,
+        paper,
+        approxPages: layouts[i]?.approxPages ?? 0,
+      })
       return { id: paper.id, name, status }
     })
   }, [views, task, templateActive, layouts, t])
