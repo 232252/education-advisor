@@ -29,8 +29,17 @@
 
 - **Node.js 22.x or later** (we use the latest LTS). Check with
   `node -v`.
-- **npm 10.x or later** (bundled with Node 22). Check with
-  `npm -v`.
+- **npm 11.x** (`npm -v`). The vendored `file:./vendor/pi-ai`
+  dependency tree (its devDeps carry a `canvas` optional peer)
+  crashes npm 10.9.x Arborist with `Cannot read properties of null
+  (reading 'edgesOut')` during `install`/`update`. If your bundled
+  npm is 10.x, run installs through `npx -y npm@latest install`.
+  npm 11 also gates dependency lifecycle scripts: approved
+  first-party/native packages are pinned in `package.json`
+  (`npm.allowScripts`); after approving a new one, run
+  `npx -y npm@latest rebuild <pkg>` so already-extracted packages
+  run their install scripts (pnpm 12.15 without this leaves broken
+  Windows `.bin` shims).
 - **Git 2.30+**.
 - **A working C++ toolchain** (for `better-sqlite3`):
   - **Windows**: Visual Studio 2019/2022 Build Tools with the
