@@ -259,7 +259,9 @@ export function useGradingData() {
         setErrorMsg(r.error ?? t('page.grading.error.mutationFailed', '操作失败'))
         return false
       }
-      const skipped = r.data?.skipped.length ?? 0
+      // 防呆: IPC 响应跨进程边界,类型不保证运行时形状;skipped 缺失时
+      // ?.length 链不得抛 TypeError(对照本文件 identifyPapers 的安全写法)
+      const skipped = r.data?.skipped?.length ?? 0
       setNotice(
         tr('page.grading.publishDone', { n: r.data?.published ?? 0 }) +
           (skipped > 0 ? tr('page.grading.publishSkipSuffix', { n: skipped }) : ''),
