@@ -18,9 +18,9 @@ export default defineConfig({
   // 避免调整继承开关时 @shared/* 等值导入解析失败。
   resolve: {
     alias: {
-      '@main': path.resolve(__dirname, 'src/main'),
-      '@renderer': path.resolve(__dirname, 'src/renderer'),
-      '@shared': path.resolve(__dirname, 'src/shared'),
+      '@main': path.resolve(import.meta.dirname, 'src/main'),
+      '@renderer': path.resolve(import.meta.dirname, 'src/renderer'),
+      '@shared': path.resolve(import.meta.dirname, 'src/shared'),
     },
   },
   test: {
@@ -38,9 +38,9 @@ export default defineConfig({
         // 渲染进程 hook 测试
         resolve: {
           alias: {
-            '@main': path.resolve(__dirname, 'src/main'),
-            '@renderer': path.resolve(__dirname, 'src/renderer'),
-            '@shared': path.resolve(__dirname, 'src/shared'),
+            '@main': path.resolve(import.meta.dirname, 'src/main'),
+            '@renderer': path.resolve(import.meta.dirname, 'src/renderer'),
+            '@shared': path.resolve(import.meta.dirname, 'src/shared'),
           },
         },
         test: {
@@ -67,9 +67,9 @@ export default defineConfig({
         // 主进程 service + shared 测试
         resolve: {
           alias: {
-            '@main': path.resolve(__dirname, 'src/main'),
-            '@renderer': path.resolve(__dirname, 'src/renderer'),
-            '@shared': path.resolve(__dirname, 'src/shared'),
+            '@main': path.resolve(import.meta.dirname, 'src/main'),
+            '@renderer': path.resolve(import.meta.dirname, 'src/renderer'),
+            '@shared': path.resolve(import.meta.dirname, 'src/shared'),
           },
         },
         ssr: {
