@@ -39,6 +39,7 @@ import { getAPI } from '../../lib/ipc-client'
 import { cn } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
 import { Button } from '../Button'
+import { decideOverlaySave } from './overlay-save-decision'
 import { QuadEditorDialog } from './QuadEditorDialog'
 import { TemplateCalibrateDialog } from './TemplateCalibrateDialog'
 
@@ -224,12 +225,12 @@ export function OverlayPrintDocument({
   useEffect(() => {
     if (viewMode === 'calibration') return
     const timer = window.setTimeout(() => {
-      const wantSaveSpec = specId !== '' && specId !== savedRef.current.spec
+      const {
+        spec: wantSaveSpec,
+        calib: wantSaveCalib,
+        device: wantSaveDevice,
+      } = decideOverlaySave({ specId, calibration, deviceName, saved: savedRef.current })
       const c = calibration
-      const prev = savedRef.current.calib
-      const wantSaveCalib =
-        !prev || prev.dxMm !== c.dxMm || prev.dyMm !== c.dyMm || prev.scalePct !== c.scalePct
-      const wantSaveDevice = deviceName !== savedRef.current.device
       if (!wantSaveSpec && !wantSaveCalib && !wantSaveDevice) return
       getAPI()
         .grading.saveOverlayPrint(task.id, {
