@@ -1,3 +1,4 @@
+import { ok } from 'node:assert'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -59,12 +60,12 @@ describe('连接中心教育预设', () => {
 
   it('官方预设里的命令行关掉，技能表达式还在', () => {
     const bin = resolveDshEntryPath(process.cwd())
-    expect(bin).toBeTruthy()
-    const presetDir = resolveWebPresetDir(bin!)
-    expect(presetDir).toBeTruthy()
-    const text = buildOfficialPresetLock(presetDir!)
-    expect(text).toBeTruthy()
-    const rows = parse(text!, { customTags: [JS_TAG], version: '1.1' }) as Array<{
+    ok(bin, 'dsh entry path should resolve')
+    const presetDir = resolveWebPresetDir(bin)
+    ok(presetDir, 'web preset dir should resolve')
+    const text = buildOfficialPresetLock(presetDir)
+    ok(text, 'preset lock yaml should be non-empty')
+    const rows = parse(text, { customTags: [JS_TAG], version: '1.1' }) as Array<{
       id: string
       config: { id: string; name?: string; description?: string; plugins: unknown[] }
     }>
@@ -132,9 +133,12 @@ describe('连接中心教育预设', () => {
 
   it('给出技能目录时，官方预设的 skill-filesystem 只扫描这一份', () => {
     const bin = resolveDshEntryPath(process.cwd())
-    const presetDir = resolveWebPresetDir(bin!)
-    const text = buildOfficialPresetLock(presetDir!, 'C:\\skills\\im')
-    const rows = parse(text!, { customTags: [JS_TAG], version: '1.1' }) as Array<{
+    ok(bin, 'dsh entry path should resolve')
+    const presetDir = resolveWebPresetDir(bin)
+    ok(presetDir, 'web preset dir should resolve')
+    const text = buildOfficialPresetLock(presetDir, 'C:\\skills\\im')
+    ok(text, 'preset lock yaml should be non-empty')
+    const rows = parse(text, { customTags: [JS_TAG], version: '1.1' }) as Array<{
       config: { id?: string; plugins: Array<{ name?: string }> }
     }>
     const dirs = new Set<string>()
@@ -174,17 +178,17 @@ describe('连接中心教育预设', () => {
 
   it('dsh 拼出来的 web 配置里，教育预设是默认，预设内的命令行是关的', () => {
     const bin = resolveDshEntryPath(process.cwd())
-    expect(bin).toBeTruthy()
+    ok(bin, 'dsh entry path should resolve')
     const home = mkdtempSync(join(tmpdir(), 'eaa-preset-dump-'))
     try {
       const patchDir = join(home, 'patches')
       mkdirSync(patchDir)
       const preset = ensureEaaImPresetPatch(patchDir, 'C:/skills/im')
-      const lock = ensureOfficialPresetLock(patchDir, bin!, 'C:/skills/im')
-      expect(lock).toBeTruthy()
+      const lock = ensureOfficialPresetLock(patchDir, bin, 'C:/skills/im')
+      ok(lock, 'preset lock should be written')
       const result = spawnSync(
         process.execPath,
-        [bin!, 'web', '--patch', preset, '--patch', lock!, '--dump-config'],
+        [bin, 'web', '--patch', preset, '--patch', lock, '--dump-config'],
         { cwd: process.cwd(), env: { ...process.env, DSH_HOME: home }, encoding: 'utf8' },
       )
       expect(result.status).toBe(0)

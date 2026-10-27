@@ -1,3 +1,4 @@
+import { ok } from 'node:assert'
 import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -88,8 +89,8 @@ describe('eaa-tools 插件', () => {
     mkdirSync(skillDir, { recursive: true })
     const preset = ensureEaaImPresetPatch(patchDir, skillDir)
     const lock = ensureOfficialPresetLock(patchDir, DSH_BIN, skillDir)
-    expect(lock).toBeTruthy()
-    const patches = [hardening, preset, lock!]
+    ok(lock, 'preset lock should be written')
+    const patches = [hardening, preset, lock]
     await ensureProfileHasEaaTools({
       home,
       profile: 'web',
