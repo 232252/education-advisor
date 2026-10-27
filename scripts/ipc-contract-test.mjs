@@ -54,6 +54,20 @@ function parsePreloadInvokes() {
   return set
 }
 
+/** 目录树内被 IPC.X 形式提及的通道常量集合(不限调用形态,布线存在性用) */
+function parseMentionedChannels(dirs) {
+  const set = new Set()
+  const re = /IPC\.(IPC_[A-Z0-9_]+)/g
+  for (const dir of dirs) {
+    for (const file of walkTsFiles(path.join(ROOT, dir))) {
+      const src = stripComments(fs.readFileSync(file, 'utf8'))
+      let m
+      while ((m = re.exec(src)) !== null) set.add(m[1])
+    }
+  }
+  return set
+}
+
 function runStatic() {
   const C = parseChannelConstants()
   const H = parseHandledChannels()
@@ -92,6 +106,24 @@ function runStatic() {
   const handledNotInvoked = [...H].filter((x) => !P.has(x)).sort()
   if (handledNotInvoked.length > 0) {
     console.log(`ℹ 已注册但 preload 未 invoke (${handledNotInvoked.length}): ${handledNotInvoked.join(', ')}`)
+  }
+
+  // 防呆: C−H 的事件推送类通道必须有真实布线 —— main 侧发送/注册 + preload 侧订阅
+  // 都要出现该常量,防止死常量悄然堆积(agent:getHistory 死常量先例,R17 清除)。
+  // 布线形态多样(service 广播助手、ipcRenderer.on 包装等),故用存在性提及而非调用正则。
+  const eventChannels = [...C].filter((x) => !H.has(x)).sort()
+  const mainMentions = parseMentionedChannels(['src/main/ipc', 'src/main/services'])
+  const preloadMentions = parseMentionedChannels(['src/main/preload'])
+  const unwired = eventChannels.filter((x) => !mainMentions.has(x) || !preloadMentions.has(x))
+  if (unwired.length > 0) {
+    failed = true
+    console.log(`✗ 事件通道缺布线 (${unwired.length}): main/preload 侧都未出现该常量:`)
+    for (const x of unwired) {
+      const where = !mainMentions.has(x) ? '无 main 侧发送' : '无 preload 侧订阅'
+      console.log(`  - ${x} (${where})`)
+    }
+  } else if (eventChannels.length > 0) {
+    console.log(`✓ ${eventChannels.length} 个事件通道布线完整(main 发送 + preload 订阅)`)
   }
 
   if (failed) {
