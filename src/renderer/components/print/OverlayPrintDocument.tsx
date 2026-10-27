@@ -10,7 +10,6 @@ import type { PageQuad, PaperSpec } from '@shared/grading-geometry'
 import {
   anchorSquarePositionsMm,
   homographyToCssMatrix3d,
-  matchPaperSpec,
   PAPER_SPECS,
   paperSpecById,
   quadToPageCssHomography,
@@ -40,6 +39,7 @@ import { cn } from '../../lib/ui-utils'
 import { toast } from '../../stores/toastStore'
 import { Button } from '../Button'
 import { decideOverlaySave } from './overlay-save-decision'
+import { suggestPaperSpecId } from './overlay-spec-suggestion'
 import { QuadEditorDialog } from './QuadEditorDialog'
 import { TemplateCalibrateDialog } from './TemplateCalibrateDialog'
 
@@ -170,12 +170,7 @@ export function OverlayPrintDocument({
     }
   }
 
-  const suggestedSpecId = useMemo(() => {
-    const first = Object.values(sizes)
-      .flat()
-      .find((s): s is { width: number; height: number } => !!s)
-    return first ? (matchPaperSpec(first.width, first.height)?.spec.id ?? 'a4') : 'a4'
-  }, [sizes])
+  const suggestedSpecId = useMemo(() => suggestPaperSpecId(sizes), [sizes])
   const effectiveSpecId = specId || suggestedSpecId
   const spec: PaperSpec = paperSpecById(effectiveSpecId)
 
