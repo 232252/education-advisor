@@ -25,6 +25,9 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    // 全量跑批 teardown 清扫仓库根的原子写残留(2026-10-27 根因兜底,
+    // 见 tests/global-setup.ts 头注);App 真实启动另有 app-lifecycle 清扫。
+    globalSetup: ['./tests/global-setup.ts'],
     // Vitest 5 起 inline project 默认继承根配置，且数组字段（include/exclude/
     // setupFiles）是拼接而非覆盖：顶层写 include 会让每个 project 把全仓测试
     // 再跑一遍（同一文件在 jsdom/node 各跑一次）。文件匹配只写在 project 内，
