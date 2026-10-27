@@ -7,10 +7,17 @@
 
 import type { PageQuad } from '@shared/grading-geometry'
 import type { CSSProperties } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useT } from '../../i18n'
 import { getAPI } from '../../lib/ipc-client'
 import { toast } from '../../stores/toastStore'
+import {
+  clientToNormalized,
+  initialQuadPoints,
+  normalizedQuadToPixels,
+  type QuadPts,
+  quadPolygonPercent,
+} from './quad-editor-math'
 
 interface QuadEditorDialogProps {
   taskId: string
@@ -47,27 +54,7 @@ export function QuadEditorDialog({
   const [dragging, setDragging] = useState<CornerKey | null>(null)
   const [saving, setSaving] = useState(false)
   // 归一化 0-1 坐标(相对图片),显示时按容器百分比
-  const [pts, setPts] = useState<Record<CornerKey, { x: number; y: number }>>(() => {
-    const inset = 0.03
-    if (initialQuad && naturalSize) {
-      const n = (p: { x: number; y: number }) => ({
-        x: p.x / naturalSize.width,
-        y: p.y / naturalSize.height,
-      })
-      return {
-        tl: n(initialQuad.tl),
-        tr: n(initialQuad.tr),
-        br: n(initialQuad.br),
-        bl: n(initialQuad.bl),
-      }
-    }
-    return {
-      tl: { x: inset, y: inset },
-      tr: { x: 1 - inset, y: inset },
-      br: { x: 1 - inset, y: 1 - inset },
-      bl: { x: inset, y: 1 - inset },
-    }
-  })
+  const [pts, setPts] = useState<QuadPts>(() => initialQuadPoints(initialQuad, naturalSize))
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -83,10 +70,7 @@ export function QuadEditorDialog({
   const toLocal = (e: PointerEvent | React.PointerEvent): { x: number; y: number } => {
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return { x: 0, y: 0 }
-    return {
-      x: Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1),
-      y: Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1),
-    }
+    return clientToNormalized(e.clientX, e.clientY, rect)
   }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: toLocal 仅读容器 ref,依赖不变
@@ -105,12 +89,7 @@ export function QuadEditorDialog({
     }
   }, [dragging])
 
-  const quadPolygon = useMemo(
-    () =>
-      `${pts.tl.x * 100},${pts.tl.y * 100} ${pts.tr.x * 100},${pts.tr.y * 100} ` +
-      `${pts.br.x * 100},${pts.br.y * 100} ${pts.bl.x * 100},${pts.bl.y * 100}`,
-    [pts],
-  )
+  const quadPolygon = quadPolygonPercent(pts)
 
   const save = async () => {
     if (!size) {
@@ -119,17 +98,7 @@ export function QuadEditorDialog({
     }
     setSaving(true)
     try {
-      const quad: PageQuad = {
-        tl: { x: pts.tl.x * size.width, y: pts.tl.y * size.height },
-        tr: { x: pts.tr.x * size.width, y: pts.tr.y * size.height },
-        br: { x: pts.br.x * size.width, y: pts.br.y * size.height },
-        bl: { x: pts.bl.x * size.width, y: pts.bl.y * size.height },
-        source: 'manual',
-        confidence: 1,
-        imageWidth: size.width,
-        imageHeight: size.height,
-        detectedAt: new Date().toISOString(),
-      }
+      const quad: PageQuad = normalizedQuadToPixels(pts, size, new Date().toISOString())
       // 读取现有四点数组,只替换当前页
       const taskRes = await getAPI().grading.getTask(taskId)
       const paper = taskRes.data?.papers.find((p) => p.id === paperId)
