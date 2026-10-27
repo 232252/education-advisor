@@ -45,8 +45,11 @@ describe('agentStore status listener (fix double-subscription invariant)', () =>
 
   beforeEach(() => {
     ipc = makeIpcStub()
-    // 注入最小 window.api（agentStore 只在调用时才取 getAPI()）
-    ;(globalThis as { window?: unknown }).window = {
+    // 注入最小 window.api(agentStore 只在调用时才取 getAPI())。
+    // 合并到真实 window 而非整体替换:vmThreads 沙箱里 window 是
+    // 不可重写的 jsdom 全局,整体替换会静默失效;
+    // delete window 也会毒化同 worker 的后续文件。
+    Object.assign(globalThis.window, {
       api: {
         agent: {
           onStatusUpdate: ipc.mockOnStatusUpdate,
@@ -76,7 +79,7 @@ describe('agentStore status listener (fix double-subscription invariant)', () =>
           openDialog: vi.fn().mockResolvedValue({ canceled: true }),
         },
       },
-    }
+    })
 
     // 重置 store 状态,避免上一次测试残留
     useAgentStore.setState({
@@ -97,7 +100,8 @@ describe('agentStore status listener (fix double-subscription invariant)', () =>
   })
 
   afterEach(() => {
-    delete (globalThis as { window?: unknown }).window
+    // 只清注入的 api,不动 jsdom 的 window 本体(vmThreads 下环境按 worker 复用)
+    delete (globalThis.window as { api?: unknown }).api
     vi.restoreAllMocks()
   })
 

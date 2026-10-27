@@ -52,6 +52,12 @@ export default defineConfig({
           ],
           exclude: ['node_modules', 'dist', 'release', '**/*.d.ts'],
           environment: 'jsdom',
+          // jsdom 实例化占 renderer 项目 ~75% 耗时(119 文件各建一次)。
+          // vmThreads: 每 worker 一个复用的 VM 沙箱,仍保持文件级隔离
+          // (vitest 官方建议的提速路径,见 improving-performance 文档)。
+          // 若个别文件依赖跨文件共享真实全局态(不应有),局部标
+          // isolate 恢复而非整体回退。
+          pool: 'vmThreads',
           setupFiles: ['./tests/setup.ts'],
           testTimeout: 30_000,
           hookTimeout: 60_000,
