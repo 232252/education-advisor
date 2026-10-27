@@ -7,9 +7,11 @@
 import { describe, expect, it } from 'vitest'
 import type { PageQuad } from '@shared/grading-geometry'
 import {
+  anyQuadAttempted,
   deriveAlignStatus,
   isTemplateActive,
   needsManualQuadAlign,
+  shouldAutoDetect,
 } from '../../../../src/renderer/components/print/overlay-align-status'
 
 const Q: PageQuad = {
@@ -57,6 +59,23 @@ describe('deriveAlignStatus 优先级', () => {
     expect(
       deriveAlignStatus({ templateActive: false, paper: paper(2, [Q, null]), approxPages: 2 }),
     ).toBe('manual')
+  })
+
+  it('自动检测触发判定: 三条件与门,任一不满足即不跑', () => {
+    const base = { alreadyAutoDetected: false, anyQuadAttempted: false, needManualCount: 2 }
+    expect(shouldAutoDetect(base)).toBe(true)
+    // 本会话已自动跑过 → 不再跑
+    expect(shouldAutoDetect({ ...base, alreadyAutoDetected: true })).toBe(false)
+    // 全任务已有四角记录(用户动过) → 让位
+    expect(shouldAutoDetect({ ...base, anyQuadAttempted: true })).toBe(false)
+    // 没有待对齐试卷 → 无事可做
+    expect(shouldAutoDetect({ ...base, needManualCount: 0 })).toBe(false)
+  })
+
+  it('anyQuadAttempted: 任一试卷有四角记录即为 true(空数组/全无记录为 false)', () => {
+    expect(anyQuadAttempted([])).toBe(false)
+    expect(anyQuadAttempted([paper(2, undefined)])).toBe(false)
+    expect(anyQuadAttempted([paper(2, undefined), paper(1, [Q])])).toBe(true)
   })
 
   it('四角齐全: 有近似页 approx,无近似页 aligned;0 页试卷也 aligned', () => {

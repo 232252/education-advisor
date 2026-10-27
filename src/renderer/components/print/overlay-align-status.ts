@@ -46,3 +46,22 @@ export function deriveAlignStatus(input: {
   if (input.approxPages > 0) return 'approx'
   return 'aligned'
 }
+
+/** 任一试卷已有四角记录(说明对齐流程已被触发过,自动检测不应再抢跑) */
+export function anyQuadAttempted(papers: Array<PaperAlignLike>): boolean {
+  return papers.some((p) => (p.overlayQuads?.length ?? 0) > 0)
+}
+
+/**
+ * 首次自动四角检测的触发判定(防呆):
+ *   本次会话未自动跑过 && 全任务从未有过四角记录 && 当前确有待对齐试卷。
+ * 已有四角记录说明用户(或此前会话)已经动过对齐流程,自动检测
+ * 再抢跑会覆盖已有工作,必须让位。
+ */
+export function shouldAutoDetect(input: {
+  alreadyAutoDetected: boolean
+  anyQuadAttempted: boolean
+  needManualCount: number
+}): boolean {
+  return !input.alreadyAutoDetected && !input.anyQuadAttempted && input.needManualCount > 0
+}

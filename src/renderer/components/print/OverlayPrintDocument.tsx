@@ -40,9 +40,11 @@ import { toast } from '../../stores/toastStore'
 import { Button } from '../Button'
 import {
   type AlignStatus,
+  anyQuadAttempted as anyQuadAttemptedFn,
   deriveAlignStatus,
   isTemplateActive,
   needsManualQuadAlign,
+  shouldAutoDetect,
 } from './overlay-align-status'
 import { stepOverlayCalibration } from './overlay-calibration'
 import { decideOverlaySave } from './overlay-save-decision'
@@ -317,12 +319,19 @@ export function OverlayPrintDocument({
   const detectRef = useRef(detect)
   detectRef.current = detect
   const autoDetectRef = useRef(false)
-  const anyQuadAttempted = task.papers.some((p) => (p.overlayQuads?.length ?? 0) > 0)
+  const quadAttempted = useMemo(() => anyQuadAttemptedFn(task.papers), [task])
   useEffect(() => {
-    if (autoDetectRef.current || anyQuadAttempted || needManual.length === 0) return
+    if (
+      !shouldAutoDetect({
+        alreadyAutoDetected: autoDetectRef.current,
+        anyQuadAttempted: quadAttempted,
+        needManualCount: needManual.length,
+      })
+    )
+      return
     autoDetectRef.current = true
     void detectRef.current()
-  }, [anyQuadAttempted, needManual])
+  }, [quadAttempted, needManual])
 
   const stepCalibration = (key: keyof OverlayCalibration, delta: number) => {
     setCalibration((c) => stepOverlayCalibration(c, key, delta))
