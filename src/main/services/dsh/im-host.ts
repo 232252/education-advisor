@@ -1,7 +1,7 @@
 // =============================================================
 // 连接中心的 dsh-im 宿主
 //
-// dsh-im 4.37.0 的管理面板是 DSH 客户端插件（dshImClient.render），
+// dsh-im 的管理面板是 DSH 客户端插件（dshImClient.render），
 // 不能拆进教育参谋自己的 React 树。这里按官方接入方式做：
 //   1. 把 vendor/dsh-im 和 integrations/eaa-panel 用 link: 装进 web profile
 //   2. 起 `dsh web --no-open`，带上加固补丁，以及调用方准备的模型密钥和教育工具
@@ -89,7 +89,7 @@ export class DshImWebHost {
 
   private async boot(): Promise<DshImOpenResult> {
     if (!this.opts.dshBin || !existsSync(this.opts.dshBin)) {
-      return { ok: false, error: '还没有可用的 dsh 可执行文件（0.2.1-alpha.1 依赖尚未装完）' }
+      return { ok: false, error: '还没有可用的 dsh 可执行文件（0.2.2-rc.1 依赖尚未装完）' }
     }
     if (!existsSync(join(this.opts.imDir, 'package.json'))) {
       return { ok: false, error: `找不到 dsh-im 插件目录：${this.opts.imDir}` }

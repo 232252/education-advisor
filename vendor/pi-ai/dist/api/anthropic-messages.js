@@ -4,8 +4,8 @@ import { calculateCost } from "../models.js";
 import { appendAssistantMessageDiagnostic } from "../utils/diagnostics.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { headersToRecord } from "../utils/headers.js";
+import { getIdentityHeaders } from "../utils/identity.js";
 import { parseJsonWithRepair, parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
-import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { retryProviderRequest } from "../utils/provider-retry.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
@@ -159,9 +159,6 @@ function mergeHeaders(...headerSources) {
         }
     }
     return merged;
-}
-function mergeClientHeaders(...headerSources) {
-    return mergeHeaders({ "User-Agent": getPiUserAgent() }, ...headerSources);
 }
 function hasHeader(headers, name) {
     if (!headers)
@@ -422,7 +419,7 @@ export const stream = (model, context, options) => {
                 }
                 const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
                 const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
-                const created = createClient(model, apiKey, options?.headers, options?.fetch, copilotDynamicHeaders, cacheSessionId, federation);
+                const created = createClient(model, apiKey, options?.headers, options?.fetch, copilotDynamicHeaders, cacheSessionId, federation, options?.identity);
                 client = created.client;
                 isOAuth = created.isOAuthToken;
             }
@@ -782,7 +779,7 @@ export const streamSimple = (model, context, options) => {
 function isOAuthToken(apiKey) {
     return apiKey.includes("sk-ant-oat");
 }
-function createClient(model, apiKey, optionsHeaders, fetch, dynamicHeaders, sessionId, federation) {
+function createClient(model, apiKey, optionsHeaders, fetch, dynamicHeaders, sessionId, federation, identity) {
     // Copilot: Bearer auth.
     if (model.provider === "github-copilot") {
         const client = new PiAnthropic({
@@ -791,14 +788,14 @@ function createClient(model, apiKey, optionsHeaders, fetch, dynamicHeaders, sess
             baseURL: model.baseUrl,
             dangerouslyAllowBrowser: true,
             fetch,
-            defaultHeaders: mergeClientHeaders({
+            defaultHeaders: mergeHeaders(getIdentityHeaders(model, identity), {
                 accept: "application/json",
                 "anthropic-dangerous-direct-browser-access": "true",
             }, model.headers, dynamicHeaders, optionsHeaders),
         });
         return { client, isOAuthToken: false };
     }
-    // OAuth: Bearer auth, Claude Code identity headers
+    // OAuth: Bearer auth, Claude Code identity headers instead of the client identity.
     if (apiKey && isOAuthToken(apiKey)) {
         const client = new PiAnthropic({
             apiKey: null,
@@ -806,7 +803,7 @@ function createClient(model, apiKey, optionsHeaders, fetch, dynamicHeaders, sess
             baseURL: model.baseUrl,
             dangerouslyAllowBrowser: true,
             fetch,
-            defaultHeaders: mergeClientHeaders({
+            defaultHeaders: mergeHeaders({
                 accept: "application/json",
                 "anthropic-dangerous-direct-browser-access": "true",
                 "user-agent": `claude-cli/${claudeCodeVersion}`,
@@ -822,7 +819,7 @@ function createClient(model, apiKey, optionsHeaders, fetch, dynamicHeaders, sess
         const header = compat.sessionAffinityFormat === "openrouter" ? "x-session-id" : "x-session-affinity";
         sessionAffinityHeaders[header] = sessionId;
     }
-    const defaultHeaders = mergeClientHeaders({
+    const defaultHeaders = mergeHeaders(getIdentityHeaders(model, identity), {
         accept: "application/json",
         "anthropic-dangerous-direct-browser-access": "true",
     }, sessionAffinityHeaders, model.headers, optionsHeaders);

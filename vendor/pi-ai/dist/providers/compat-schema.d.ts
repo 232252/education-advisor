@@ -181,8 +181,170 @@ export declare const BedrockCompatSchema: Type.TObject<{
 export declare const MistralConversationsCompatSchema: Type.TObject<{
     supportsMidConvoSystemMessages: Type.TOptional<Type.TBoolean>;
 }>;
+export declare const SystemOneCompatSchema: Type.TObject<{
+    imageInput: Type.TOptional<Type.TUnion<[Type.TLiteral<"assets">, Type.TLiteral<"images">, Type.TLiteral<"state-image-urls">]>>;
+    sendImageOptInHeader: Type.TOptional<Type.TBoolean>;
+}>;
 type UnionToIntersection<Union> = (Union extends unknown ? (value: Union) => void : never) extends (value: infer Intersection) => void ? Intersection : never;
 type MergedCompatProperties<PropertyGroups extends readonly TProperties[], Overrides extends TProperties> = Omit<UnionToIntersection<PropertyGroups[number]>, keyof Overrides> & Overrides;
+/** Compatibility schema for each API whose models accept compat. Mirrors the compat type of Model. */
+export declare const CompatSchemasByApi: {
+    readonly "openai-completions": Type.TObject<{
+        supportsStore: Type.TOptional<Type.TBoolean>;
+        supportsDeveloperRole: Type.TOptional<Type.TBoolean>;
+        supportsReasoningEffort: Type.TOptional<Type.TBoolean>;
+        supportsUsageInStreaming: Type.TOptional<Type.TBoolean>;
+        supportsFinishReason: Type.TOptional<Type.TBoolean>;
+        maxTokensField: Type.TOptional<Type.TUnion<[Type.TLiteral<"max_completion_tokens">, Type.TLiteral<"max_tokens">]>>;
+        requiresToolResultName: Type.TOptional<Type.TBoolean>;
+        requiresAssistantAfterToolResult: Type.TOptional<Type.TBoolean>;
+        requiresThinkingAsText: Type.TOptional<Type.TBoolean>;
+        requiresReasoningContentOnAssistantMessages: Type.TOptional<Type.TBoolean>;
+        thinkingFormat: Type.TOptional<Type.TUnion<[Type.TLiteral<"openai">, Type.TLiteral<"openrouter">, Type.TLiteral<"deepseek">, Type.TLiteral<"together">, Type.TLiteral<"baseten">, Type.TLiteral<"zai">, Type.TLiteral<"qwen">, Type.TLiteral<"chat-template">, Type.TLiteral<"qwen-chat-template">, Type.TLiteral<"string-thinking">, Type.TLiteral<"ant-ling">]>>;
+        chatTemplateKwargs: Type.TOptional<Type.TRecord<"^.*$", Type.TUnion<[Type.TString, Type.TNumber, Type.TBoolean, Type.TNull, Type.TObject<{
+            $var: Type.TUnion<[Type.TLiteral<"thinking.enabled">, Type.TLiteral<"thinking.effort">, Type.TLiteral<"thinking.budget">]>;
+            omitWhenOff: Type.TOptional<Type.TBoolean>;
+        }>]>>>;
+        chatTemplateArgs: Type.TOptional<Type.TRecord<"^.*$", Type.TUnion<[Type.TString, Type.TNumber, Type.TBoolean, Type.TNull, Type.TObject<{
+            $var: Type.TUnion<[Type.TLiteral<"thinking.enabled">, Type.TLiteral<"thinking.effort">, Type.TLiteral<"thinking.budget">]>;
+            omitWhenOff: Type.TOptional<Type.TBoolean>;
+        }>]>>>;
+        openRouterRouting: Type.TOptional<Type.TObject<{
+            allow_fallbacks: Type.TOptional<Type.TBoolean>;
+            require_parameters: Type.TOptional<Type.TBoolean>;
+            data_collection: Type.TOptional<Type.TUnion<[Type.TLiteral<"deny">, Type.TLiteral<"allow">]>>;
+            zdr: Type.TOptional<Type.TBoolean>;
+            enforce_distillable_text: Type.TOptional<Type.TBoolean>;
+            order: Type.TOptional<Type.TArray<Type.TString>>;
+            only: Type.TOptional<Type.TArray<Type.TString>>;
+            ignore: Type.TOptional<Type.TArray<Type.TString>>;
+            quantizations: Type.TOptional<Type.TArray<Type.TString>>;
+            sort: Type.TOptional<Type.TUnion<[Type.TString, Type.TObject<{
+                by: Type.TOptional<Type.TString>;
+                partition: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+            }>]>>;
+            max_price: Type.TOptional<Type.TObject<{
+                prompt: Type.TOptional<Type.TUnion<[Type.TNumber, Type.TString]>>;
+                completion: Type.TOptional<Type.TUnion<[Type.TNumber, Type.TString]>>;
+                image: Type.TOptional<Type.TUnion<[Type.TNumber, Type.TString]>>;
+                audio: Type.TOptional<Type.TUnion<[Type.TNumber, Type.TString]>>;
+                request: Type.TOptional<Type.TUnion<[Type.TNumber, Type.TString]>>;
+            }>>;
+            preferred_min_throughput: Type.TOptional<Type.TUnion<[Type.TNumber, Type.TObject<{
+                p50: Type.TOptional<Type.TNumber>;
+                p75: Type.TOptional<Type.TNumber>;
+                p90: Type.TOptional<Type.TNumber>;
+                p99: Type.TOptional<Type.TNumber>;
+            }>]>>;
+            preferred_max_latency: Type.TOptional<Type.TUnion<[Type.TNumber, Type.TObject<{
+                p50: Type.TOptional<Type.TNumber>;
+                p75: Type.TOptional<Type.TNumber>;
+                p90: Type.TOptional<Type.TNumber>;
+                p99: Type.TOptional<Type.TNumber>;
+            }>]>>;
+        }>>;
+        vercelGatewayRouting: Type.TOptional<Type.TObject<{
+            only: Type.TOptional<Type.TArray<Type.TString>>;
+            order: Type.TOptional<Type.TArray<Type.TString>>;
+        }>>;
+        zaiToolStream: Type.TOptional<Type.TBoolean>;
+        thinkingTokenBudgetField: Type.TOptional<Type.TUnion<[Type.TLiteral<"thinking_token_budget">, Type.TLiteral<"thinking_budget">, Type.TLiteral<"thinking_budget_tokens">]>>;
+        supportsThinkingTokenBudget: Type.TOptional<Type.TBoolean>;
+        supportsOpenAIGrammarTools: Type.TOptional<Type.TBoolean>;
+        supportsMidConvoSystemMessages: Type.TOptional<Type.TBoolean>;
+        supportsMidConvoToolAdditions: Type.TOptional<Type.TBoolean>;
+        supportsStrictMode: Type.TOptional<Type.TBoolean>;
+        cacheControlFormat: Type.TOptional<Type.TLiteral<"anthropic">>;
+        sendSessionAffinityHeaders: Type.TOptional<Type.TBoolean>;
+        sessionAffinityFormat: Type.TOptional<Type.TUnion<[Type.TLiteral<"openai">, Type.TLiteral<"openai-nosession">, Type.TLiteral<"openrouter">]>>;
+        supportsLongCacheRetention: Type.TOptional<Type.TBoolean>;
+        vllmPriority: Type.TOptional<Type.TNumber>;
+    }>;
+    readonly "openai-responses": Type.TObject<{
+        supportsDeveloperRole: Type.TOptional<Type.TBoolean>;
+        supportsMidConvoSystemMessages: Type.TOptional<Type.TBoolean>;
+        sessionAffinityFormat: Type.TOptional<Type.TUnion<[Type.TLiteral<"openai">, Type.TLiteral<"openai-nosession">, Type.TLiteral<"openrouter">]>>;
+        supportsLongCacheRetention: Type.TOptional<Type.TBoolean>;
+        supportsStrictMode: Type.TOptional<Type.TBoolean>;
+        supportsOpenAIGrammarTools: Type.TOptional<Type.TBoolean>;
+        supportsAdditionalTools: Type.TOptional<Type.TBoolean>;
+        supportsToolSearch: Type.TOptional<Type.TBoolean>;
+        supportsExplicitPromptCacheMode: Type.TOptional<Type.TBoolean>;
+        supportsMidConvoEffort: Type.TOptional<Type.TBoolean>;
+        supportsMaxOutputTokens: Type.TOptional<Type.TBoolean>;
+    }>;
+    readonly "azure-openai-responses": Type.TObject<{
+        supportsDeveloperRole: Type.TOptional<Type.TBoolean>;
+        supportsMidConvoSystemMessages: Type.TOptional<Type.TBoolean>;
+        sessionAffinityFormat: Type.TOptional<Type.TUnion<[Type.TLiteral<"openai">, Type.TLiteral<"openai-nosession">, Type.TLiteral<"openrouter">]>>;
+        supportsLongCacheRetention: Type.TOptional<Type.TBoolean>;
+        supportsStrictMode: Type.TOptional<Type.TBoolean>;
+        supportsOpenAIGrammarTools: Type.TOptional<Type.TBoolean>;
+        supportsAdditionalTools: Type.TOptional<Type.TBoolean>;
+        supportsToolSearch: Type.TOptional<Type.TBoolean>;
+        supportsExplicitPromptCacheMode: Type.TOptional<Type.TBoolean>;
+        supportsMidConvoEffort: Type.TOptional<Type.TBoolean>;
+        supportsMaxOutputTokens: Type.TOptional<Type.TBoolean>;
+    }>;
+    readonly "openai-codex-responses": Type.TObject<{
+        supportsDeveloperRole: Type.TOptional<Type.TBoolean>;
+        supportsMidConvoSystemMessages: Type.TOptional<Type.TBoolean>;
+        sessionAffinityFormat: Type.TOptional<Type.TUnion<[Type.TLiteral<"openai">, Type.TLiteral<"openai-nosession">, Type.TLiteral<"openrouter">]>>;
+        supportsLongCacheRetention: Type.TOptional<Type.TBoolean>;
+        supportsStrictMode: Type.TOptional<Type.TBoolean>;
+        supportsOpenAIGrammarTools: Type.TOptional<Type.TBoolean>;
+        supportsAdditionalTools: Type.TOptional<Type.TBoolean>;
+        supportsToolSearch: Type.TOptional<Type.TBoolean>;
+        supportsExplicitPromptCacheMode: Type.TOptional<Type.TBoolean>;
+        supportsMidConvoEffort: Type.TOptional<Type.TBoolean>;
+        supportsMaxOutputTokens: Type.TOptional<Type.TBoolean>;
+    }>;
+    readonly "anthropic-messages": Type.TObject<{
+        supportsEagerToolInputStreaming: Type.TOptional<Type.TBoolean>;
+        supportsLongCacheRetention: Type.TOptional<Type.TBoolean>;
+        sendSessionAffinityHeaders: Type.TOptional<Type.TBoolean>;
+        sessionAffinityFormat: Type.TOptional<Type.TLiteral<"openrouter">>;
+        supportsCacheControlOnTools: Type.TOptional<Type.TBoolean>;
+        supportsTemperature: Type.TOptional<Type.TBoolean>;
+        forceAdaptiveThinking: Type.TOptional<Type.TBoolean>;
+        allowEmptySignature: Type.TOptional<Type.TBoolean>;
+        supportsStrictTools: Type.TOptional<Type.TBoolean>;
+        supportsMidConvoEffort: Type.TOptional<Type.TBoolean>;
+        supportsMidConvoSystemMessages: Type.TOptional<Type.TBoolean>;
+        supportsMidConvoToolChanges: Type.TOptional<Type.TBoolean>;
+        allowedFallbackModels: Type.TOptional<Type.TArray<Type.TObject<{
+            provider: Type.TString;
+            model: Type.TString;
+            cost: Type.TObject<{
+                input: Type.TNumber;
+                output: Type.TNumber;
+                cacheRead: Type.TNumber;
+                cacheWrite: Type.TNumber;
+                tiers: Type.TOptional<Type.TArray<Type.TObject<{
+                    input: Type.TNumber;
+                    output: Type.TNumber;
+                    cacheRead: Type.TNumber;
+                    cacheWrite: Type.TNumber;
+                    inputTokensAbove: Type.TNumber;
+                }>>>;
+            }>;
+        }>>>;
+    }>;
+    readonly "bedrock-converse-stream": Type.TObject<{
+        supportsStrictMode: Type.TOptional<Type.TBoolean>;
+    }>;
+    readonly "mistral-conversations": Type.TObject<{
+        supportsMidConvoSystemMessages: Type.TOptional<Type.TBoolean>;
+    }>;
+    readonly "typesafe-system-one": Type.TObject<{
+        imageInput: Type.TOptional<Type.TUnion<[Type.TLiteral<"assets">, Type.TLiteral<"images">, Type.TLiteral<"state-image-urls">]>>;
+        sendImageOptInHeader: Type.TOptional<Type.TBoolean>;
+    }>;
+    readonly "cloudflare-workers-ai-system-one": Type.TObject<{
+        imageInput: Type.TOptional<Type.TUnion<[Type.TLiteral<"assets">, Type.TLiteral<"images">, Type.TLiteral<"state-image-urls">]>>;
+        sendImageOptInHeader: Type.TOptional<Type.TBoolean>;
+    }>;
+};
 export declare const ProviderCompatSchema: Type.TObject<MergedCompatProperties<({
     supportsStore: Type.TOptional<Type.TBoolean>;
     supportsDeveloperRole: Type.TOptional<Type.TBoolean>;
@@ -299,6 +461,9 @@ export declare const ProviderCompatSchema: Type.TObject<MergedCompatProperties<(
     supportsStrictMode: Type.TOptional<Type.TBoolean>;
 } | {
     supportsMidConvoSystemMessages: Type.TOptional<Type.TBoolean>;
+} | {
+    imageInput: Type.TOptional<Type.TUnion<[Type.TLiteral<"assets">, Type.TLiteral<"images">, Type.TLiteral<"state-image-urls">]>>;
+    sendImageOptInHeader: Type.TOptional<Type.TBoolean>;
 })[], {
     supportsDeveloperRole: Type.TOptional<Type.TBoolean>;
     supportsMidConvoSystemMessages: Type.TOptional<Type.TBoolean>;
@@ -336,6 +501,9 @@ export interface BedrockCompat extends Static<typeof BedrockCompatSchema> {
 }
 /** Compatibility settings for the Mistral chat API. */
 export interface MistralConversationsCompat extends Static<typeof MistralConversationsCompatSchema> {
+}
+/** Compatibility settings for System One classifier APIs. */
+export interface SystemOneCompat extends Static<typeof SystemOneCompatSchema> {
 }
 export {};
 //# sourceMappingURL=compat-schema.d.ts.map

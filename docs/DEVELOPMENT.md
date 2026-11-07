@@ -67,7 +67,7 @@ to build and run the project end-to-end:
 | `src/main/`, `src/renderer/`, `src/shared/` | Electron + React + TypeScript desktop client |
 | `core/eaa-cli/` | Rust data engine — the EAA CLI (4 sub-crates: `eaa`, `eaa-core`, `eaa-crypto`, `eaa-sqlite`) |
 | `vendor/pi-ai/` | Vendored `@earendil-works/pi-ai` 1.3.0 — the provider/model catalog and LLM API surface, from the published npm tarball plus one local patch (see below) |
-| `vendor/dsh-im/` | Official DeepSeek connection-center plugin (`@xmanrui/dsh-im` 4.37.0) — linked into the `dsh web` profile |
+| `vendor/dsh-im/` | Official DeepSeek connection-center plugin (`@xmanrui/dsh-im` 5.9.1) — linked into the `dsh web` profile |
 | `vendor/dsh-node/` | Gitignored; a stock Node binary staged at package time by `scripts/stage-dsh-node.mjs` — the dsh subprocess cannot run under Electron's own exe |
 | `vendor/eaa-tools/`, `vendor/eaa-roster/`, `vendor/eaa-grades/`, `vendor/eaa-grading/` | The education cordis plugins (conduct events / roster / grades / AI grading) mounted into the dsh profiles |
 | `vendor/submitty/` | Pinned Submitty PostgreSQL schema dumps — the blueprint + drift guard for the built-in AI grading subsystem (see below) |
@@ -353,7 +353,7 @@ Provenance model:
   tarball** of `@earendil-works/pi-ai` 1.3.0. The vendored copy has no
   `src/` — you cannot edit provider sources in place.
 - The one local modification ships as
-  `scripts/patches/earendil-works__pi-ai@1.3.0.dsh-toolcall.patch`
+  `scripts/patches/earendil-works__pi-ai@1.4.0.dsh-toolcall.patch`
   (DeepSeek Harness: removes per-delta re-parsing of streamed tool-call
   arguments).
 - After touching anything in `vendor/pi-ai/`, run
@@ -375,7 +375,7 @@ patch or a `UPSTREAM.json` sha256 mismatch away from being caught.
 ## The dsh agent runtime
 
 Model calls no longer run inside the Electron main process. The agent
-loop talks to a **dsh subprocess** (`@deepseek-ai/dsh` 0.2.1-alpha.1)
+loop talks to a **dsh subprocess** (`@deepseek-ai/dsh` 0.2.2-rc.1)
 through `@deepseek-ai/dsh-sdk-client`, and the code owning that
 conversation lives in `src/main/services/dsh/`:
 

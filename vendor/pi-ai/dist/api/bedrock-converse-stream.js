@@ -7,6 +7,7 @@ import { appendAssistantMessageDiagnostic } from "../utils/diagnostics.js";
 import { normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { providerHeadersToRecord } from "../utils/headers.js";
+import { getClientVersion } from "../utils/identity.js";
 import { parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
 import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
@@ -51,6 +52,7 @@ export const stream = (model, context, options = {}) => {
         const optionsProfile = options.profile || options.env?.AWS_PROFILE;
         const config = {
             profile: optionsProfile || getProviderEnvValue("AWS_PROFILE", options.env),
+            customUserAgent: bedrockUserAgent(options.identity),
         };
         const configuredRegion = getConfiguredBedrockRegion(options);
         const hasAmbientConfiguredProfile = Boolean(getProviderEnvValue("AWS_PROFILE"));
@@ -336,6 +338,16 @@ const RESERVED_HEADER_EXACT = new Set(["authorization", "host"]);
 function isReservedHeader(key) {
     const lower = key.toLowerCase();
     return lower.startsWith("x-amz-") || RESERVED_HEADER_EXACT.has(lower);
+}
+/**
+ * The client identity as AWS SDK user agent pairs. The SDK appends them to its own `User-Agent` and escapes characters
+ * that are not valid in a user agent token, so the detailed form is reduced to name and version.
+ */
+function bedrockUserAgent(identity) {
+    const mode = identity?.userAgent ?? "detailed";
+    if (typeof mode === "object")
+        return mode.custom;
+    return mode === "short" ? [["pi"]] : [["pi", getClientVersion(identity)]];
 }
 /**
  * Attach caller-supplied headers to the outgoing Bedrock request via a Smithy

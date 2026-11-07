@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
 import { headersToRecord, providerHeadersToRecord } from "../utils/headers.js";
+import { getIdentityHeaders } from "../utils/identity.js";
 import { retryProviderRequest } from "../utils/provider-retry.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
 /** Image generation over OpenRouter's chat completions endpoint. */
@@ -18,7 +19,7 @@ export const generateImages = async (model, context, options) => {
         if (!apiKey) {
             throw new Error(`No API key for provider: ${model.provider}`);
         }
-        const client = createClient(model, apiKey, options?.headers, options?.fetch);
+        const client = createClient(model, apiKey, options?.headers, options?.fetch, options?.identity);
         let params = buildParams(model, context);
         const nextParams = await options?.onPayload?.(params, model);
         if (nextParams !== undefined) {
@@ -70,13 +71,13 @@ export const generateImages = async (model, context, options) => {
         return output;
     }
 };
-function createClient(model, apiKey, optionsHeaders, fetch) {
+function createClient(model, apiKey, optionsHeaders, fetch, identity) {
     return new OpenAI({
         apiKey,
         baseURL: model.baseUrl,
         dangerouslyAllowBrowser: true,
         fetch,
-        defaultHeaders: providerHeadersToRecord({ ...model.headers, ...optionsHeaders }),
+        defaultHeaders: providerHeadersToRecord(getIdentityHeaders(model, identity), model.headers, optionsHeaders),
     });
 }
 function buildParams(model, context) {

@@ -1,6 +1,6 @@
 # 教育参谋 × DeepSeek Harness：现状与插件化计划
 
-桌面端的 Agent 循环已经走 DeepSeek Harness **0.2.1-alpha.1**（`createDshAgent`），不再创建 Pi Agent。连接中心的页面是官方 **dsh-im 4.37.0**（`vendor/dsh-im`，与 `dsh-im-4.37.0.zip` 的程序文件一致）。宿主只负责窗口、密钥、dsh 进程和插件目录。
+桌面端的 Agent 循环已经走 DeepSeek Harness **0.2.2-rc.1**（`createDshAgent`），不再创建 Pi Agent。连接中心的页面是官方 **dsh-im 5.10.0**（`vendor/dsh-im`，与 npm 发布产物一致）。宿主只负责窗口、密钥、dsh 进程和插件目录。
 
 官方 `integrations/desktop-panel` 只在桌面 iframe 里启用（`window.parent !== window`）。教育参谋用的是顶层 `WebContentsView`（登录 cookie 是 SameSite=Strict，跨源 iframe 会丢），所以侧栏入口放在 `vendor/dsh-im/integrations/eaa-panel`，槽位和 `dshImClient` v1 与官方接入说明一致。
 

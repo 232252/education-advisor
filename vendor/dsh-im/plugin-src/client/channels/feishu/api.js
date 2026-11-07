@@ -14,9 +14,10 @@ import { normalizeModelCatalog, normalizeModelSelection, SET_MODEL_ENDPOINT } fr
 import { normalizeLastMessageError } from "../../last-message-error.js";
 import { normalizeAccessPolicy } from "../../../../src/channels/shared/access-policy.mjs";
 import { normalizeContextEnhancementConfig } from "../../../../src/channels/shared/context-enhancement.mjs";
-import { normalizeFeishuStepPushMode } from "../../../../src/channels/feishu/step-push-mode.mjs";
+import { normalizeFeishuStepPushMode, normalizeFeishuStepCardPanels } from "../../../../src/channels/feishu/step-push-mode.mjs";
 import { normalizeFeishuVoiceConfig } from "../../../../src/channels/feishu/voice-config.mjs";
 import { normalizeSlashPanelConfig } from "../../../../src/channels/feishu/slash-command-panel.mjs";
+import { normalizeConversationDirectory } from "../../../../src/channels/shared/conversation-directory.mjs";
 
 export const FEISHU_RPC_CHANNEL = "/feishu";
 
@@ -32,6 +33,8 @@ export const FEISHU_ENDPOINTS = Object.freeze({
   disconnectBot: "bot.disconnect",
   deleteBot: "bot.delete",
   setWorkspace: "bot.workspace.set",
+  setConversationDirectory: "bot.conversation-directory.set",
+  setConversationDirectoryDefault: "bot.conversation-directory.default.set",
   setModel: SET_MODEL_ENDPOINT,
   setAgentPreset: "bot.preset.set",
   setContextEnhancement: "bot.context-enhancement.set",
@@ -42,6 +45,7 @@ export const FEISHU_ENDPOINTS = Object.freeze({
   setMentionTopicReply: "bot.mention-topic-reply.set",
   setStepPush: "bot.step-push.set",
   setStepPushMode: "bot.step-push-mode.set",
+  setStepCardPanels: "bot.step-card-panels.set",
   setVoice: "bot.voice.set",
   setSlashPanel: "bot.slash-panel.set",
   // Kept for rolling upgrades. The multi-bot UI never calls these endpoints.
@@ -223,6 +227,8 @@ export function normalizeBotConnection(value, fallbackBotId) {
     connected,
     configured: value.configured !== false,
     workspace: optionalString(value.workspace)?.slice(0, 4_096) ?? "",
+    conversationDirectory: normalizeConversationDirectory(value.conversationDirectory),
+    conversationDirectoryOverride: normalizeConversationDirectory(value.conversationDirectoryOverride),
     model: normalizeModelSelection(value.model),
     agentPreset: normalizeAgentPresetId(value.agentPreset),
     busyMessageMode: normalizeBusyMessageMode(value.busyMessageMode),    contextEnhancement: normalizeContextEnhancementConfig(value.contextEnhancement),
@@ -233,6 +239,7 @@ export function normalizeBotConnection(value, fallbackBotId) {
     mentionTopicReply: value.mentionTopicReply !== false,
     stepPush: value.stepPush === true,
     stepPushMode: normalizeFeishuStepPushMode(value.stepPushMode),
+    stepCardPanels: normalizeFeishuStepCardPanels(value.stepCardPanels),
     voice: normalizeFeishuVoiceConfig(value.voice),
     slashPanel: normalizeSlashPanelConfig(value.slashPanel),
     groupMessagePermissionGranted: value.groupMessagePermissionGranted === true,

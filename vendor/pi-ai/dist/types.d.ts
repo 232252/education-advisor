@@ -1,4 +1,4 @@
-import type { TelemetryContext } from "@earendil-works/pi-telemetry";
+import type { TelemetrySpan } from "@earendil-works/pi-telemetry";
 import type { AnthropicOptions } from "./api/anthropic-messages.ts";
 import type { AzureOpenAIResponsesOptions } from "./api/azure-openai-responses.ts";
 import type { BedrockOptions } from "./api/bedrock-converse-stream.ts";
@@ -9,11 +9,12 @@ import type { OpenAICodexResponsesOptions } from "./api/openai-codex-responses.t
 import type { OpenAICompletionsOptions } from "./api/openai-completions.ts";
 import type { OpenAIResponsesOptions } from "./api/openai-responses.ts";
 import type { PiMessagesOptions } from "./api/pi-messages.ts";
-import type { AnthropicMessagesCompat, BedrockCompat, MistralConversationsCompat, OpenAICompletionsCompat, OpenAIResponsesCompat } from "./providers/compat-schema.ts";
+import type { AnthropicMessagesCompat, BedrockCompat, MistralConversationsCompat, OpenAICompletionsCompat, OpenAIResponsesCompat, SystemOneCompat } from "./providers/compat-schema.ts";
 import type { CacheRetention, ModelCost, ModelInputLimits, ModelInputModality, ModelPromptCache, ModelThinkingLevel, ThinkingLevel, ThinkingLevelMap } from "./providers/model-schema.ts";
 import type { AssistantMessageDiagnostic } from "./utils/diagnostics.ts";
 import type { AssistantMessageEventStream } from "./utils/event-stream.ts";
-export type { AnthropicAllowedFallbackModel, AnthropicMessagesCompat, BedrockCompat, ChatTemplateKwargValue, MistralConversationsCompat, OpenAICompletionsCompat, OpenAIResponsesCompat, OpenRouterRouting, SessionAffinityFormat, ThinkingTokenBudgetField, VercelGatewayRouting, } from "./providers/compat-schema.ts";
+import type { ClientIdentity } from "./utils/identity.ts";
+export type { AnthropicAllowedFallbackModel, AnthropicMessagesCompat, BedrockCompat, ChatTemplateKwargValue, MistralConversationsCompat, OpenAICompletionsCompat, OpenAIResponsesCompat, OpenRouterRouting, SessionAffinityFormat, SystemOneCompat, ThinkingTokenBudgetField, VercelGatewayRouting, } from "./providers/compat-schema.ts";
 export type { CacheRetention, ModelCost, ModelCostRates, ModelCostTier, ModelImageInputLimits, ModelImageResizeOptions, ModelInputLimits, ModelInputModality, ModelPromptCache, ModelThinkingLevel, ThinkingLevel, ThinkingLevelMap, } from "./providers/model-schema.ts";
 export type { AssistantMessageEventStream } from "./utils/event-stream.ts";
 export type KnownApi = "openai-completions" | "mistral-conversations" | "openai-responses" | "azure-openai-responses" | "openai-codex-responses" | "anthropic-messages" | "bedrock-converse-stream" | "google-generative-ai" | "google-vertex" | "pi-messages";
@@ -46,8 +47,8 @@ export interface ProviderResponse {
 /** Authentication, HTTP transport, and lifecycle callbacks shared by provider requests. */
 export interface ProviderRequestOptions<TModel = Model<Api>> {
     signal?: AbortSignal;
-    /** Explicit parent context for telemetry produced by this logical request. */
-    telemetryContext?: TelemetryContext;
+    /** Explicit parent span for telemetry produced by this logical request. */
+    telemetry?: TelemetrySpan;
     apiKey?: string;
     /**
      * Optional fetch implementation for provider HTTP requests.
@@ -79,6 +80,11 @@ export interface ProviderRequestOptions<TModel = Model<Api>> {
      * A null value suppresses a provider/API default header with the same name.
      */
     headers?: ProviderHeaders;
+    /**
+     * How the request identifies the calling app: `User-Agent` and provider attribution headers.
+     * Absent fields use pi-ai's defaults: a detailed `User-Agent` and no attribution.
+     */
+    identity?: ClientIdentity;
     /**
      * HTTP request timeout in milliseconds for providers/SDKs that support it.
      * For example, OpenAI and Anthropic SDK clients default to 10 minutes.
@@ -668,6 +674,8 @@ export interface ImageModel<TApi extends ImageApi> extends BaseModel<TApi> {
 export interface ClassifierModel<TApi extends ClassifierApi> extends BaseModel<TApi> {
     type: "classifier";
     contextWindow: number;
+    /** Compatibility overrides for System One APIs. If not set, auto-detected from provider, baseUrl, and id. */
+    compat?: TApi extends "typesafe-system-one" | "cloudflare-workers-ai-system-one" ? SystemOneCompat : never;
 }
 /** Model shape for each model type. */
 export interface ModelTypeMap {

@@ -14,6 +14,9 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- DeepSeek 底座升级到 `0.2.2-rc.1`：`@deepseek-ai/dsh`（由 `dsh-sdk-client` 传递 pin）及全部 325 个 `dsh-*` 包同版；`dsh-llm` / `dsh-sdk-client` / `dsh-sdk-protocol` / `dsh-session` 保持精确 pin，配套 `cordis` 4.0.5→4.1.0、`cordis-plugin-group` 1.0.5→1.1.0。rc.5→0.2.2 的 dsh-base 差异：`tool-subagent-list-agents` 行移除、新增 `tool-executor-native/ptc` 执行器行、sdk-app 新增 `tool-schedule`/`tool-ask-user`/`present` 三个模型工具——禁用补丁按 id 逐个点名补齐为 21 行，工具执行器（MCP 桥依赖的 native）不动。
+- 连接中心插件 `@xmanrui/dsh-im` 从 4.37.0 升到 5.10.0：5.9.1 新增企业微信自建应用、WhatsApp、iMessage，5.10.0 再加 office 文档处理渠道与投递同步；`dshImClient` 仍为 v1（`render`/`setSettingsVisible` 面板接口逐个核对未变），`integrations/eaa-panel` 嵌入无需改壳。`DSH_IM_CHANNEL_IDS` 同步四个新渠道，避免设置页重复出卡。
+- 模型目录 `@earendil-works/pi-ai` 从 1.3.0 升到 1.4.0，重放两处定制：流式 tool-call 参数不在每个 delta 重解析（仅保留完成事件的解析），`bedrock-converse-stream.lazy.js` 改静态 import 以便 Electron 打包产出 chunk；共享 SDK 的依赖 pin 保持不变。
 - 模型目录随包的 `@earendil-works/pi-ai` 从 0.85.1 升到 0.87.1，与 DeepSeek Harness `dsh-llm-pi-ai@0.2.1-alpha.1` 声明的版本一致，并带上 Harness 的工具参数流式补丁。教师对话和智能体循环仍由 DeepSeek Harness 执行。
 
 ## [3.3.4] — 2026-09-25

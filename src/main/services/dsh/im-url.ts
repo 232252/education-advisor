@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path'
 // =============================================================
 
 /** 随仓库带上的 @xmanrui/dsh-im 版本。升级插件时改这里，宿主会重装。 */
-export const DSH_IM_VERSION = '4.37.0'
+export const DSH_IM_VERSION = '5.10.0'
 
 const ANNOUNCEMENT = /dsh web: (https?:\/\/\S+)/
 

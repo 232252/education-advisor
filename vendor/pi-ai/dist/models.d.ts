@@ -2,7 +2,9 @@ import { type AuthResolutionOverrides } from "./auth/resolve.ts";
 import type { AuthCheck, AuthContext, AuthInteraction, AuthOperationOptions, AuthResult, AuthType, Credential, CredentialStore, LoginOptions, ProviderAuth } from "./auth/types.ts";
 import { type ModelsStore, type ModelsStoreEntry } from "./models-store.ts";
 import type { AnyModel, Api, ApiStreamOptions, AssistantImages, AssistantMessage, AssistantMessageEventStream, ClassifierApi, ClassifierContext, ClassifierModel, ClassifierOptions, ClassifierResult, Context, DeferredCancelOptions, DeferredFetchOptions, DeferredHandle, ImageApi, ImageModel, ImagesContext, ImagesOptions, Model, ModelThinkingLevel, ModelType, ModelTypeMap, ProviderClassifier, ProviderHeaders, ProviderImages, ProviderStreams, SimpleStreamOptions, TranscriptContext, Usage } from "./types.ts";
+import { type ClientIdentity } from "./utils/identity.ts";
 export { ModelsError, type ModelsErrorCode } from "./auth/resolve.ts";
+export { AI_TELEMETRY_SCHEMA } from "./telemetry.ts";
 export { getModelType, isModelType } from "./utils/model-operations.ts";
 export interface ModelsPublication {
     /** Provider-selected persisted catalog. Omit to leave storage unchanged; null deletes it. */
@@ -206,6 +208,8 @@ export interface CreateModelsOptions {
     credentials?: CredentialStore;
     modelsStore?: ModelsStore;
     authContext?: AuthContext;
+    /** Default identity of every request; a request's `identity` overrides it field by field. */
+    identity?: ClientIdentity;
 }
 export declare function createModels(options?: CreateModelsOptions): MutableModels;
 export interface CreateProviderOptions<TApi extends Api = Api> {

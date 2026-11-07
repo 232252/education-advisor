@@ -2,6 +2,10 @@
 // Connection center links this plugin; qrcode and the channel SDKs are not
 // in the plugin zip. Installing here keeps the first launch off the network
 // and out of a read-only resources directory.
+//
+// dsh-im 5.9.1 起官方包改用 npm 管理依赖（暂存安装后 package-lock.json
+// 留在 vendor/dsh-im，scripts/verify-package.mjs 直接读它），不再有
+// pnpm-lock.yaml。这里跟着用 npm，避免打包机为了一个 link: 插件再装一套 pnpm。
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -16,15 +20,13 @@ if (existsSync(marker)) {
   process.exit(0)
 }
 
-const pnpm = join(root, 'node_modules', 'pnpm', 'bin', 'pnpm.mjs')
-if (!existsSync(pnpm)) {
-  console.error('找不到 node_modules/pnpm，先在仓库根目录 npm install')
-  process.exit(1)
-}
+const npmCli = join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js')
+const command = existsSync(npmCli) ? process.execPath : 'npm'
+const prefix = existsSync(npmCli) ? [npmCli] : []
 
 const result = spawnSync(
-  process.execPath,
-  [pnpm, 'install', '--prod', '--ignore-scripts', '--ignore-workspace'],
-  { cwd: imDir, stdio: 'inherit' },
+  command,
+  [...prefix, 'install', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'],
+  { cwd: imDir, stdio: 'inherit', shell: command === 'npm' && process.platform === 'win32' },
 )
 process.exit(result.status ?? 1)

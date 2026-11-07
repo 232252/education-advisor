@@ -1,3 +1,4 @@
+import { getGroupHistoryStore } from '../../group-history-runtime.mjs';
 import { getImageInputSettingsStore } from '../../../../src/channels/shared/image-input-settings-store.mjs';
 import { unlink } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -49,7 +50,7 @@ export async function createProductionController(ctx, config = {}, internals = {
   const { defaultWorkspace, ungroupedWorkspace } = await prepareBotWorkspace(config);
   const WorkspaceStore = internals.WorkspaceStore ?? BotWorkspaceStore;
   const workspaces = internals.workspaces
-    ?? await new WorkspaceStore(paths.workspaces, { defaultWorkspace, ungroupedWorkspace }).load();
+    ?? await new WorkspaceStore(paths.workspaces, { defaultWorkspace, ungroupedWorkspace, groupByAgentPreset: config.groupByAgentPreset }).load();
   const configuredBots = configStore.list();
   await workspaces.reconcile(configuredBots.map((bot) => bot.botId));
   await Promise.all(configuredBots.map((bot) => workspaces.ensure(bot.botId, {
@@ -95,7 +96,7 @@ export async function createProductionController(ctx, config = {}, internals = {
     ...(fileIngressExecutor ? { fileIngressExecutor } : {}),
     imageInputPolicy: () => getImageInputSettingsStore(config).get(),
   });
-  const modelCatalog = () => listModelCatalog(harness);
+  const modelCatalog = (options) => listModelCatalog(harness, options);
   const coreController = new ResolvedController({
     credentials: ctx.credentials,
     configStore: observedConfigStore,
@@ -108,6 +109,7 @@ export async function createProductionController(ctx, config = {}, internals = {
         initialAccessPolicy: initialAccessPolicyFor('slack', botConfig),
       });
       const workspaceScope = createBotWorkspaceScope(harness, {
+        dsBot: config.deliveryService?.dsBot,
         botId, workspaces, state, agentPresetCatalog,
       });
       return new ResolvedRuntime({
@@ -116,6 +118,7 @@ export async function createProductionController(ctx, config = {}, internals = {
         appToken,
         harness: workspaceScope.harness,
         state: workspaceScope.state,
+        groupHistory: internals.groupHistory ?? getGroupHistoryStore(ctx, config),
         contextEnhancement: { botId, getSettings: () => workspaces.contextEnhancementFor(botId) },
         accessPolicy: accessPolicyProvider(workspaces, botId, {
           channel: 'slack', config: botConfig,
@@ -145,6 +148,7 @@ export async function createProductionController(ctx, config = {}, internals = {
     },
   });
   const controller = createWorkspaceAwareController(coreController, {
+    harness,
     workspaces,
     stateFor,
     agentPresetCatalog,
@@ -160,7 +164,7 @@ export async function createProductionController(ctx, config = {}, internals = {
   }).start();
   return {
     controller,
-    deliveryAdapter: createDeliveryAdapter({
+    deliveryAdapter: createDeliveryAdapter({ dsBot: config.deliveryService?.dsBot,
       channel: 'slack', workspaces, coreController, stateFor,
     }),
     ready: supervisor.ready,

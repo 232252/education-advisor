@@ -253,7 +253,7 @@ export function convertMessages(model, context) {
             const imageContent = model.input.includes("image")
                 ? msg.content.filter((c) => c.type === "image")
                 : [];
-            const hasText = textResult.length > 0;
+            const hasText = textResult.trim().length > 0;
             const hasImages = imageContent.length > 0;
             // Gemini 3+ models support multimodal function responses with images nested inside
             // functionResponse.parts. Claude and other non-Gemini models behind Cloud Code Assist /

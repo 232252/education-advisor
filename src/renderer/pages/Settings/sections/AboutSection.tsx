@@ -80,7 +80,7 @@ export function AboutSection() {
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  {t('page.settings.about.core.dsh', '— Agent 运行时（dsh 0.2.1-rc.2）')}
+                  {t('page.settings.about.core.dsh', '— Agent 运行时（dsh 0.2.2-rc.1）')}
                 </span>
               </div>
               <div>
@@ -94,7 +94,7 @@ export function AboutSection() {
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  {t('page.settings.about.core.dshIm', '— 连接中心插件（dsh-im 4.37.0）')}
+                  {t('page.settings.about.core.dshIm', '— 连接中心插件（dsh-im 5.10.0）')}
                 </span>
               </div>
               <div>
@@ -108,7 +108,7 @@ export function AboutSection() {
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  {t('page.settings.about.core.piAi', '— 模型目录（pi-ai 1.3.0）')}
+                  {t('page.settings.about.core.piAi', '— 模型目录（pi-ai 1.4.0）')}
                 </span>
               </div>
               <div>

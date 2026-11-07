@@ -51,7 +51,7 @@ export async function createProductionController(ctx, config = {}, internals = {
   const defaultWorkspace = resolve(config.workspace ?? process.cwd());
   const WorkspaceStore = internals.WorkspaceStore ?? BotWorkspaceStore;
   const workspaces = internals.workspaces
-    ?? await new WorkspaceStore(paths.workspaces, { defaultWorkspace }).load();
+    ?? await new WorkspaceStore(paths.workspaces, { defaultWorkspace, groupByAgentPreset: config.groupByAgentPreset }).load();
   const configuredBots = configStore.list();
   await workspaces.reconcile(configuredBots.map((bot) => bot.botId));
   await Promise.all(configuredBots.map((bot) => workspaces.ensure(bot.botId, {
@@ -127,7 +127,7 @@ export async function createProductionController(ctx, config = {}, internals = {
     ...(sessionMaintenanceExecutor ? { sessionMaintenanceExecutor } : {}),
     ...(fileIngressExecutor ? { fileIngressExecutor } : {}),
   });
-  const modelCatalog = () => listModelCatalog(harness);
+  const modelCatalog = (options) => listModelCatalog(harness, options);
   const knownCommandNames = new Set(
     commandsForChannel('matrix').flatMap((entry) => [entry.name, ...entry.aliases.map((alias) => alias.name)]),
   );
@@ -213,6 +213,7 @@ export async function createProductionController(ctx, config = {}, internals = {
     },
   });
   const controller = createWorkspaceAwareController(coreController, {
+    harness,
     workspaces,
     stateFor,
     agentPresetCatalog,

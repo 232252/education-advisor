@@ -1,6 +1,7 @@
 import type { Tool as OpenAITool, ResponseCreateParamsStreaming, ResponseInput, ResponseStreamEvent } from "openai/resources/responses/responses.js";
 import type { Api, AssistantMessage, Model, StreamOptions, Tool, TranscriptContext, Usage } from "../types.ts";
 import type { AssistantMessageEventStream } from "../utils/event-stream.ts";
+import { type TranscriptToolSupport } from "../utils/transcript.ts";
 export interface OpenAIResponsesStreamOptions {
     onProviderStreamEvent?: StreamOptions["onProviderStreamEvent"];
     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
@@ -33,6 +34,21 @@ export interface ConvertResponsesToolsOptions {
     supportsOpenAIGrammarTools?: boolean;
     toolSearchResult?: boolean;
 }
+/**
+ * How a Responses transport expresses tool changes.
+ *
+ * `additional_tools` items accumulate: a later item adds tools and replaces same-name
+ * definitions from earlier items, but it cannot replace a top-level tool and cannot remove any
+ * tool (verified with strict schemas on the OpenAI, Codex, and Copilot backends, October 2026).
+ * Like Codex, every tool is therefore declared in `additional_tools` items, starting with one
+ * at the head of the input, and removals are announced as text. Synthetic tool search can
+ * only add tools. Without mid-conversation system messages there is nothing to anchor.
+ */
+export declare function getResponsesToolSupport(options: {
+    supportsMidConvoSystemMessages?: boolean;
+    supportsAdditionalTools?: boolean;
+    supportsToolSearch?: boolean;
+}): TranscriptToolSupport;
 export declare function convertResponsesMessages<TApi extends Api>(model: Model<TApi>, context: TranscriptContext, allowedToolCallProviders: ReadonlySet<string>, options?: ConvertResponsesMessagesOptions): ResponseInput;
 export declare function convertResponsesTools(tools: readonly Tool[], options?: ConvertResponsesToolsOptions): OpenAITool[];
 export declare function processResponsesStream<TApi extends Api>(openaiStream: AsyncIterable<ResponseStreamEvent>, output: AssistantMessage, stream: AssistantMessageEventStream, model: Model<TApi>, options?: OpenAIResponsesStreamOptions): Promise<void>;

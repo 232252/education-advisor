@@ -1,3 +1,6 @@
+import { DeliverySyncSettings } from './delivery-sync-settings.js';
+import { GroupHistorySettings } from './group-history-settings.js';
+import { SidebarSettings } from './sidebar-settings.js';
 import * as React from 'react';
 
 import {
@@ -5,7 +8,7 @@ import {
   INBOUND_TTL_MAX_HOURS,
   normalizeInboundTtlHours,
 } from '../../src/channels/shared/inbound-ttl.mjs';
-import { h } from './i18n.js';
+import { h, localizeTemplate } from './i18n.js';
 import { DEFAULT_IMAGE_INPUT_SETTINGS, normalizeImageInputSettings } from '../../src/channels/shared/image-input-policy.mjs';
 
 export const GLOBAL_SETTINGS_RPC_CHANNEL = '/dsh-im-settings';
@@ -14,6 +17,14 @@ export const GLOBAL_SETTINGS_TAB_ID = 'global-settings';
 
 const ATTACHMENTS_TAB_ID = 'dim-general-settings-tab-attachments';
 const ATTACHMENTS_PANEL_ID = 'dim-general-settings-panel-attachments';
+const DELIVERY_PANEL_ID = 'dim-general-settings-panel-delivery';
+
+/** Tabs of the global settings page, in reading order. */
+export const GLOBAL_SETTINGS_TABS = Object.freeze([
+  { key: 'general', label: '通用' },
+  { key: 'attachments', label: '附件' },
+  { key: 'delivery', label: '投递' },
+]);
 
 export const GLOBAL_SETTINGS_ENDPOINTS = Object.freeze({
   getTtl: 'settings.inbound-ttl.get',
@@ -147,7 +158,7 @@ export function ImageInputSettings({ rpcCall }) {
     phase === 'loading' ? h('p', { className: 'dim-globalInline dim-imageSettingsFeedback', role: 'status' }, '正在读取图片设置…') : null);
 }
 
-export function GlobalSettingsPanel({ rpcCall }) {
+function AttachmentSettingsPanel({ rpcCall }) {
   const [phase, setPhase] = React.useState('loading');
   const [loadError, setLoadError] = React.useState(null);
   const [ttlInput, setTtlInput] = React.useState('');
@@ -275,7 +286,10 @@ export function GlobalSettingsPanel({ rpcCall }) {
   const inlineStatus = phase === 'loading'
     ? { role: 'status', message: '正在读取通用设置…' }
     : ttlError
-      ? { role: 'alert', message: `请输入 -1、0 或 1~${INBOUND_TTL_MAX_HOURS} 之间的整数。` }
+      ? {
+        role: 'alert',
+        message: localizeTemplate('请输入 -1、0 或 1~{max} 之间的整数。', { max: INBOUND_TTL_MAX_HOURS }),
+      }
       : saveError
         ? { role: 'alert', message: saveError }
         : phase === 'error' && loadError
@@ -290,28 +304,9 @@ export function GlobalSettingsPanel({ rpcCall }) {
     && proposedTtl !== null
     && proposedTtl !== savedTtl;
 
-  return h('section', { className: 'dim-generalSettingsPage', 'aria-label': '通用设置' },
-    h('header', { className: 'dim-generalSettingsHeader' },
-      h('h2', null, '通用设置')),
-    h('div', { className: 'dim-generalSettingsTabsBar' },
-      h('div', {
-        className: 'dim-generalSettingsTabs',
-        role: 'tablist',
-        'aria-label': '通用设置分类',
-      },
-      h('button', {
-        type: 'button',
-        id: ATTACHMENTS_TAB_ID,
-        className: 'dim-generalSettingsTab',
-        role: 'tab',
-        'aria-selected': true,
-        'aria-controls': ATTACHMENTS_PANEL_ID,
-      }, '附件'))),
-    h('div', {
-      id: ATTACHMENTS_PANEL_ID,
-      className: 'dim-generalSettingsTabPanel',
-      role: 'tabpanel',
-      'aria-labelledby': ATTACHMENTS_TAB_ID,
+  return h('div', {
+      id: ATTACHMENTS_PANEL_ID, className: 'dim-generalSettingsTabPanel',
+      role: 'tabpanel', 'aria-labelledby': ATTACHMENTS_TAB_ID,
     },
     h('section', {
       className: 'dim-globalSection',
@@ -429,5 +424,57 @@ export function GlobalSettingsPanel({ rpcCall }) {
           'aria-live': inlineStatus.role === 'status' ? 'polite' : undefined,
         }, inlineStatus.message)
         : null)),
-    h(ImageInputSettings, { rpcCall })));
+    h(ImageInputSettings, { rpcCall }));
+}
+
+export function GlobalSettingsPanel({ rpcCall, deliverySyncRpcCall = null, languageRpcCall = null }) {
+  const [tab, setTab] = React.useState('general');
+  const tabs = GLOBAL_SETTINGS_TABS;
+  const selectTab = (next) => {
+    setTab(next);
+    globalThis.document?.getElementById(`dim-general-settings-tab-${next}`)?.focus();
+  };
+  const step = (key) => {
+    const at = tabs.findIndex((item) => item.key === tab);
+    if (key === 'Home') return tabs[0].key;
+    if (key === 'End') return tabs[tabs.length - 1].key;
+    const delta = key === 'ArrowLeft' ? -1 : 1;
+    return tabs[(at + delta + tabs.length) % tabs.length].key;
+  };
+  const panel = tab === 'attachments'
+    ? h(AttachmentSettingsPanel, { rpcCall })
+    : tab === 'delivery'
+      ? h('div', {
+        id: DELIVERY_PANEL_ID,
+        className: 'dim-generalSettingsTabPanel',
+        role: 'tabpanel',
+        'aria-labelledby': `dim-general-settings-tab-delivery`,
+      }, h(DeliverySyncSettings, {
+        // This page has its own management channel: falling back to the
+        // loopback-only settings call would hide a missing channel behind a
+        // request the panel cannot actually use.
+        rpcCall: deliverySyncRpcCall,
+        languageRpcCall,
+      }))
+      : h('div', {
+        id: 'dim-general-settings-panel-general',
+        className: 'dim-generalSettingsTabPanel',
+        role: 'tabpanel',
+        'aria-labelledby': 'dim-general-settings-tab-general',
+      }, h(SidebarSettings, { rpcCall }), h(GroupHistorySettings, { rpcCall }));
+  return h('section', { className: 'dim-generalSettingsPage', 'aria-label': '通用设置' },
+    h('header', { className: 'dim-generalSettingsHeader' }, h('h2', null, '通用设置')),
+    h('div', { className: 'dim-generalSettingsTabsBar' },
+      h('div', { className: 'dim-generalSettingsTabs', role: 'tablist', 'aria-label': '通用设置分类' },
+        ...tabs.map((item) => h('button', {
+          key: item.key, type: 'button', id: `dim-general-settings-tab-${item.key}`,
+          className: 'dim-generalSettingsTab', role: 'tab', 'aria-selected': tab === item.key,
+          'aria-controls': `dim-general-settings-panel-${item.key}`, tabIndex: tab === item.key ? 0 : -1,
+          onClick: () => setTab(item.key), onKeyDown: (event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            selectTab(step(event.key));
+          },
+        }, item.label)))),
+    panel);
 }

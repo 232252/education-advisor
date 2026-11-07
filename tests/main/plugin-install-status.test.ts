@@ -41,7 +41,7 @@ describe('readEducationPluginInstall', () => {
       writeStamp(sdk, `eaa-plugin.sdk.${name}.stamp`, stamp)
       writeStamp(web, `eaa-plugin.web.${name}.stamp`, stamp)
     }
-    writeStamp(web, 'eaa-dsh-im.stamp', '4.37.0+panel1')
+    writeStamp(web, 'eaa-dsh-im.stamp', '5.10.0+panel1')
 
     expect(
       readEducationPluginInstall({
@@ -49,7 +49,7 @@ describe('readEducationPluginInstall', () => {
         sdkHome: sdk,
         webHome: web,
         imStampName: 'eaa-dsh-im.stamp',
-        imStampValue: '4.37.0+panel1',
+        imStampValue: '5.10.0+panel1',
       }),
     ).toEqual({
       im: true,
@@ -79,7 +79,7 @@ describe('readEducationPluginInstall', () => {
       sdkHome: sdk,
       webHome: web,
       imStampName: 'eaa-dsh-im.stamp',
-      imStampValue: '4.37.0+panel1',
+      imStampValue: '5.10.0+panel1',
     })
     expect(row.im).toBe(false)
     expect(row.roster).toBe(false)

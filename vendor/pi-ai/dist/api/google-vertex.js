@@ -3,7 +3,7 @@ import { calculateCost, clampThinkingLevel } from "../models.js";
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { providerHeadersToRecord } from "../utils/headers.js";
-import { getPiUserAgent } from "../utils/pi-user-agent.js";
+import { getIdentityHeaders } from "../utils/identity.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
 import { getSystemMessageText } from "../utils/text.js";
@@ -42,8 +42,8 @@ export const stream = (model, context, options) => {
             const apiKey = resolveApiKey(options);
             // Create the client using either a Vertex API key, if provided, or ADC with project and location
             const client = apiKey
-                ? createClientWithApiKey(model, apiKey, options?.headers)
-                : createClient(model, resolveProject(options), resolveLocation(options), options?.headers, options?.env);
+                ? createClientWithApiKey(model, apiKey, options?.headers, options?.identity)
+                : createClient(model, resolveProject(options), resolveLocation(options), options?.headers, options?.env, options?.identity);
             let params = buildParams(model, normalizedContext, options);
             const nextParams = await options?.onPayload?.(params, model);
             if (nextParams !== undefined) {
@@ -271,7 +271,7 @@ export const streamSimple = (model, context, options) => {
         },
     });
 };
-function createClient(model, project, location, optionsHeaders, env) {
+function createClient(model, project, location, optionsHeaders, env, identity) {
     const googleAuthOptions = buildGoogleAuthOptions(env);
     return new GoogleGenAI({
         vertexai: true,
@@ -279,18 +279,18 @@ function createClient(model, project, location, optionsHeaders, env) {
         location,
         apiVersion: API_VERSION,
         ...(googleAuthOptions ? { googleAuthOptions } : {}),
-        httpOptions: buildHttpOptions(model, optionsHeaders),
+        httpOptions: buildHttpOptions(model, optionsHeaders, identity),
     });
 }
-function createClientWithApiKey(model, apiKey, optionsHeaders) {
+function createClientWithApiKey(model, apiKey, optionsHeaders, identity) {
     return new GoogleGenAI({
         vertexai: true,
         apiKey,
         apiVersion: API_VERSION,
-        httpOptions: buildHttpOptions(model, optionsHeaders),
+        httpOptions: buildHttpOptions(model, optionsHeaders, identity),
     });
 }
-function buildHttpOptions(model, optionsHeaders) {
+function buildHttpOptions(model, optionsHeaders, identity) {
     const httpOptions = {};
     const baseUrl = resolveCustomBaseUrl(model.baseUrl);
     if (baseUrl) {
@@ -300,7 +300,7 @@ function buildHttpOptions(model, optionsHeaders) {
             httpOptions.apiVersion = "";
         }
     }
-    const headers = providerHeadersToRecord({ "User-Agent": getPiUserAgent(), ...model.headers, ...optionsHeaders });
+    const headers = providerHeadersToRecord(getIdentityHeaders(model, identity), model.headers, optionsHeaders);
     if (headers) {
         httpOptions.headers = headers;
     }

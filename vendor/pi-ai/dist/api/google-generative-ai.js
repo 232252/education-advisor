@@ -3,7 +3,7 @@ import { calculateCost, clampThinkingLevel } from "../models.js";
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { providerHeadersToRecord } from "../utils/headers.js";
-import { getPiUserAgent } from "../utils/pi-user-agent.js";
+import { getIdentityHeaders } from "../utils/identity.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
 import { getSystemMessageText } from "../utils/text.js";
 import { collapseSystemMessages, getCurrentTools, getInitialSystemMessage } from "../utils/transcript.js";
@@ -40,7 +40,7 @@ export const stream = (model, context, options) => {
             if (!apiKey) {
                 throw new Error(`No API key for provider: ${model.provider}`);
             }
-            const client = createClient(model, apiKey, options?.headers);
+            const client = createClient(model, apiKey, options?.headers, options?.identity);
             let params = buildParams(model, normalizedContext, options);
             const nextParams = await options?.onPayload?.(params, model);
             if (nextParams !== undefined) {
@@ -267,13 +267,13 @@ export const streamSimple = (model, context, options) => {
         },
     });
 };
-function createClient(model, apiKey, optionsHeaders) {
+function createClient(model, apiKey, optionsHeaders, identity) {
     const httpOptions = {};
     if (model.baseUrl) {
         httpOptions.baseUrl = model.baseUrl;
         httpOptions.apiVersion = ""; // baseUrl already includes version path, don't append
     }
-    const headers = providerHeadersToRecord({ "User-Agent": getPiUserAgent(), ...model.headers, ...optionsHeaders });
+    const headers = providerHeadersToRecord(getIdentityHeaders(model, identity), model.headers, optionsHeaders);
     if (headers) {
         httpOptions.headers = headers;
     }

@@ -111,7 +111,7 @@ export function PluginsTab() {
               )}
               countText={
                 install !== null && install !== 'error' && install.im
-                  ? t('page.skills.plugins.card.im.count', 'dsh-im 4.37.0')
+                  ? t('page.skills.plugins.card.im.count', 'dsh-im 5.10.0')
                   : linkText(false)
               }
               manageLabel={t('page.skills.plugins.card.im.manage', '打开')}

@@ -51,7 +51,7 @@ describe('插件中心', () => {
     expect(screen.queryByText('已安装')).toBeNull()
     expect(screen.getAllByText('已接入')).toHaveLength(2)
     expect(screen.getByText('未接入')).toBeTruthy()
-    expect(screen.getByText('dsh-im 4.37.0')).toBeTruthy()
+    expect(screen.getByText('dsh-im 5.10.0')).toBeTruthy()
     installState.grades = true
     fireEvent.click(screen.getByRole('button', { name: /刷新/ }))
     await waitFor(() => expect(screen.queryByText('未接入')).toBeNull())

@@ -32,7 +32,7 @@ const TARGETS = [
     packageName: '@earendil-works/pi-ai',
     repo: 'https://github.com/earendil-works/pi.git',
     upstreamDir: 'packages/ai',
-    note: 'Vendored @earendil-works/pi-ai 1.3.0, satisfying the ^1.1.0 range declared by @deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.2. dist/ comes from the published npm tarball; package.json is the published manifest with dependency pins raised to current SDKs (anthropic 1.3.0, bedrock 3.1157.0, genai 2.31.0, smithy 4.13.0, openai 7.41.0, typebox 1.4.3, pi-telemetry ^1.3.0) so the vendored dist shares the app tree instead of carrying stale copies. scripts/patches/earendil-works__pi-ai@1.3.0.dsh-toolcall.patch (DeepSeek Harness) removes per-delta re-parsing of streamed tool-call arguments. dist/api/bedrock-converse-stream.lazy.js uses a static import so the Electron bundle emits the Bedrock chunk. LICENSE is the upstream MIT license.',
+    note: 'Vendored @earendil-works/pi-ai 1.4.0, satisfying the ^1.1.0 range declared by @deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.5. dist/ comes from the published npm tarball; package.json is the published manifest with dependency pins raised to current SDKs (anthropic 1.3.0, bedrock 3.1157.0, genai 2.31.0, smithy 4.13.0, openai 7.41.0, typebox 1.4.3, pi-telemetry ^1.3.0) so the vendored dist shares the app tree instead of carrying stale copies. scripts/patches/earendil-works__pi-ai@1.4.0.dsh-toolcall.patch (DeepSeek Harness) removes per-delta re-parsing of streamed tool-call arguments. dist/api/bedrock-converse-stream.lazy.js uses a static import so the Electron bundle emits the Bedrock chunk. LICENSE is the upstream MIT license.',
   },
 ]
 

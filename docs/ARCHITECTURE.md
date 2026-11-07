@@ -375,7 +375,7 @@ stage 2.
 
 The agent loop no longer runs inside the Electron main process. Model
 calls execute in a separate **dsh subprocess** (`@deepseek-ai/dsh`
-0.2.1-alpha.1); the Electron host stays thin — it owns the window, the
+0.2.2-rc.1); the Electron host stays thin — it owns the window, the
 API keys, and the plugin assembly. Everything that owns the
 conversation lives in `src/main/services/dsh/`:
 
@@ -434,10 +434,10 @@ conversation lives in `src/main/services/dsh/`:
 
 The chat-channel management panel is not a home-grown settings page —
 it is the official **dsh-im plugin** (`vendor/dsh-im`, package
-`@xmanrui/dsh-im` 4.37.0), and the channels it owns (Feishu, DingTalk,
-WeCom, QQ, WeChat, Slack, Telegram, Discord, Matrix, Email —
-`src/shared/dsh-im-channels.ts`) are answered by dsh-im itself, not by
-the app's adapters.
+`@xmanrui/dsh-im` 5.9.1), and the channels it owns (Feishu, DingTalk,
+WeCom, WeCom App, QQ, WeChat, Slack, Telegram, Discord, WhatsApp,
+iMessage, Matrix, Email — `src/shared/dsh-im-channels.ts`) are answered
+by dsh-im itself, not by the app's adapters.
 
 How it is hosted (`src/main/services/dsh/im-host.ts`):
 

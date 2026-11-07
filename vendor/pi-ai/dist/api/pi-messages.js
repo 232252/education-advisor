@@ -11,6 +11,7 @@
 import { appendAssistantMessageDiagnostic, createAssistantMessageDiagnostic } from "../utils/diagnostics.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { headersToRecord, providerHeadersToRecord } from "../utils/headers.js";
+import { getIdentityHeaders } from "../utils/identity.js";
 import { parseStreamingJson } from "../utils/json-parse.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 export class PiMessagesResponseError extends Error {
@@ -155,6 +156,8 @@ function createEventConverter(model) {
             case "toolcall_delta": {
                 const json = `${toolJson.get(event.contentIndex) ?? ""}${event.delta}`;
                 toolJson.set(event.contentIndex, json);
+                partial.content[event.contentIndex].arguments =
+                    parseStreamingJson(json);
                 break;
             }
             case "toolcall_end":
@@ -267,12 +270,11 @@ export const stream = (model, context, options) => {
             }
             const response = await (options?.fetch ?? globalThis.fetch)(url, {
                 method: "POST",
-                headers: {
+                headers: providerHeadersToRecord(getIdentityHeaders(model, options?.identity), {
                     authorization: `Bearer ${apiKey}`,
                     accept: "text/event-stream",
                     "content-type": "application/json",
-                    ...providerHeadersToRecord(options?.headers),
-                },
+                }, options?.headers),
                 body: JSON.stringify(payload),
                 signal: options?.signal,
             });

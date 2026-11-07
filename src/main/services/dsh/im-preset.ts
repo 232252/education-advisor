@@ -53,6 +53,8 @@ export const EAA_PRESET_SHELL_PACKAGES: readonly string[] = [
   '@deepseek-ai/dsh-command-goal',
   '@deepseek-ai/dsh-tool-workflow',
   '@deepseek-ai/dsh-workflow-ptc',
+  // 0.2.2 起 ptc 预设自带 PTC 执行器；批处理代码路径不留给渠道模型。
+  '@deepseek-ai/dsh-tool-executor-ptc',
   '@deepseek-ai/dsh-tool-ralph',
   '@deepseek-ai/dsh-tool-plugin-manager',
   '@deepseek-ai/dsh-plugin-manager/tools',

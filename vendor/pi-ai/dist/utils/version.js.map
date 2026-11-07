@@ -1,0 +1,1 @@
+{"version":3,"file":"version.js","sourceRoot":"","sources":["../../src/utils/version.ts"],"names":[],"mappings":"AAAA,0GAA0G;AAC1G,MAAM,CAAC,MAAM,aAAa,GAAG,OAAO,CAAC","sourcesContent":["// The @earendil-works/pi-ai package version. scripts/sync-versions.js keeps it in sync with package.json.\nexport const PI_AI_VERSION = \"1.4.0\";\n"]}

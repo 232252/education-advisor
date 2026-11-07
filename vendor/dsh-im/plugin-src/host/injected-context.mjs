@@ -12,6 +12,9 @@ const REPLY_LABELS = Object.freeze({ zh: '\u5f15\u7528', en: 'Quoted' });
 /** Row label for a source block that names no readable field of its own. */
 const SOURCE_LABELS = Object.freeze({ zh: '\u6765\u6e90', en: 'Source' });
 
+/** Row label prefix for one collected conversation-context block. */
+const CONTEXT_LABELS = Object.freeze({ zh: '\u4e0a\u4e0b\u4e0b', en: 'Context' });
+
 /** Read the current reply-row label; an unknown language falls back to English. */
 function replyLabel() {
   try {
@@ -27,6 +30,15 @@ function sourceLabel() {
     return getImHostLanguage() === 'en' ? SOURCE_LABELS.en : SOURCE_LABELS.zh;
   } catch {
     return SOURCE_LABELS.en;
+  }
+}
+
+/** Read the current context-row label; unknown languages fall back. */
+function contextLabel() {
+  try {
+    return getImHostLanguage() === 'en' ? CONTEXT_LABELS.en : CONTEXT_LABELS.zh;
+  } catch {
+    return CONTEXT_LABELS.en;
   }
 }
 
@@ -85,7 +97,7 @@ export function installInjectedContext(ctx, { logger, registry = imSourceGuidanc
     }
     try {
       const rewritten = rewriteInjectedContextMessages(decision.messages, {
-        labels: { reply: replyLabel(), source: sourceLabel() },
+        labels: { reply: replyLabel(), source: sourceLabel(), context: contextLabel() },
         ownedGuidance: registry.get(agent?.session?.id),
       });
       return rewritten === null ? decision : { ...decision, messages: rewritten };

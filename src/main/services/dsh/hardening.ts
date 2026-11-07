@@ -30,6 +30,12 @@ export const EAA_DISABLED_DSH_ROWS: readonly string[] = [
   'tool-bash',
   'tool-pwsh',
   'tool-jobs',
+  // 0.2.2 起 sdk-app 把定时/追问/交付展示插成模型工具；宿主自有
+  // 调度与 UI，不留这些。dsh-schedule 运行时行不关，只关模型侧工具。
+  // web 侧预设树里的同名行不受顶层补丁影响，渠道仍保留追问与交付。
+  'tool-schedule',
+  'tool-ask-user',
+  'present',
   'tool-fs',
   'tool-fs-search',
   // tool-skill 保留：它只加载技能正文，不执行命令。目录由每次运行的

@@ -1,3 +1,5 @@
+import { harnessPeer } from './harness-peer.mjs';
+
 /**
  * Adapt the Host's Typert command gateway to the channel Harness client.
  * Programmatic production fixtures may omit the gateway and exercise other assembly paths.
@@ -12,12 +14,14 @@ export function createHarnessCommandExecutor(ctx, provided) {
   if (typeof gateway.invoke !== 'function') {
     throw new TypeError('dsh-im requires a callable ctx.typertGateway');
   }
+  const peer = harnessPeer(ctx);
   return async (sessionId, line, options = {}) => {
     const request = {
       namespace: 'commands',
       method: 'execute',
       args: { agentId: sessionId, line, images: [] },
       signal: options.signal,
+      ...(peer === undefined ? {} : { peer }),
     };
     try {
       return await gateway.invoke(request);

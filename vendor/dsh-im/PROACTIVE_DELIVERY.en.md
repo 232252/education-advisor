@@ -78,18 +78,42 @@ Assume the Feishu bot has already received a message in the alert group:
 
 If the group Chat ID is edited later, callers can continue using the same `botId + release-alerts` pair.
 
-## Two-way sync for direct-message Sessions
+## Two-way sync for any Session conversation
 
-A saved direct-message target has an opt-in **Two-way Session sync** switch. When enabled:
+Session sync needs no delivery target in advance: the address comes from the Session's current chat binding, that is, the conversation key this Session has in a connected chat (a direct message, a group, a Slack thread, a Telegram forum topic, a Discord channel). **General settings → Delivery** is the only place where the sync is switched on; the delivery-targets page is only for manual delivery and for the candidate range of synced approvals and questions.
 
-1. User text submitted from DSH Web/CLI to the DM's current Session is sent to the DM with a `[来自 DSH]` prefix.
-2. After that turn completes successfully, the final assistant text merged in step order is sent once more with a `[DSH 助手]` prefix.
-3. Ordinary IM prompts and `/steer` continue through the existing reply path. They are neither duplicated nor forwarded to another target.
-4. Scheduled tasks (`schedule`, `deliveryMode: host`) also sync their final assistant text after successful completion in the bound Session. Internal reminder framing is not echoed as a `[来自 DSH]` message.
+1. Ordinary prompts and `/steer` inside that chat keep using the normal reply path. They are neither duplicated nor forwarded to another target.
+2. After a successful turn from another source, only the **final answer** is sent to the chat — the text after the last tool call, not every step joined together and not the talk that precedes the tools: a turn submitted in the DSH Web GUI, a scheduled task (`schedule`, `deliveryMode: host`), an answered-question receipt, or a turn started by an internal notice such as `subagent-settled`.
+3. Whether the Web input itself is mirrored into the chat and whether model answers are delivered is decided by **General settings → Delivery**; the two prefix icons apply to the mirrored input and to the answer respectively.
+4. Only text the reader submitted in the DSH Web GUI is mirrored: the context snapshot the Host injects, schedule reminders, and internal notices are never echoed, and only the model answer is delivered. When the input mirror cannot be sent, that turn's answer is withheld too.
+5. A channel that renders the answer itself — the Feishu process card — owns that delivery: the card carries the final answer, and plain text follows only when the card did not confirm it. One answer therefore reaches the chat once, never as a card and a copy of the same text. With both switches off, the card stops together with the text, because both read the same switches.
+6. The address is read from the current binding before every delivery, so it follows `/session` changes and `/new` automatically; a Session with no binding is not delivered and raises no error, but the miss is logged with the Session, the channel and the conversation key — never the message body — so an empty chat stays diagnosable.
 
-The setting stores the private conversation target, never a `sessionId`, so it follows `/session` changes automatically. After `/new` or a workspace change, its status becomes **Waiting for this DM to establish a new Session** and recovers as soon as that DM creates one; the switch does not need to be toggled again.
+A service injection never decides where the turn came from: the context snapshot the Host prepends, a schedule reminder or an internal notice is only "one message of this turn", never proof that a service started it. The answer is delivered as a service turn only when no message of the turn came from the reader (the Web GUI or this chat); as soon as one message came from this chat, the chat answers for itself and the sync delivers nothing at all.
 
-Enabling requires one uniquely known DM that already has a current Session for this bot. Groups, Slack Threads, Telegram Topics, Discord server channels, and targets that cannot be confirmed as DMs are unavailable. A channel with an explicit remote `harnessBaseUrl` is also unsupported. The first version mirrors current-Host text only—no images, files, cards, tool progress, approvals, or history. Changing the target type or native route disables sync; renaming the target does not.
+The **Two-way Session sync** switch on a delivery target now only affects the candidate range of synced approvals and questions; it is no longer a precondition for Session sync. That candidate range stays private-chat only: mirrored text follows any route the channel persisted (a group, a Slack thread, a Telegram forum topic, a Discord channel), but a question or an approval is offered in a private chat only, because in a group any member could answer it. The first version mirrors current-Host text only—no images, files, cards, tool progress, approvals, or history. A channel with an explicit remote `harnessBaseUrl` is still unsupported.
+
+## Delivery settings
+
+**General settings → Delivery** stores plugin-wide settings rather than per-bot ones, in `<dshHome>/integrations/dsh-im/delivery-sync-settings.json`:
+
+```json
+{
+  "version": 1,
+  "deliverySync": {
+    "mirrorUserInput": false,
+    "deliverModelAnswers": false,
+    "inputIcon": "",
+    "modelIcon": ""
+  }
+}
+```
+
+- `mirrorUserInput`: mirror user text submitted in the Web GUI into the chat the Session is bound to; off by default. While it is off nothing is echoed, but the model answer is still delivered.
+- `deliverModelAnswers`: deliver model answers of turns that did not start in this chat; off by default, like the input mirror. Both switches are off in a fresh install, and an unreadable document is treated as both off: the coordinator logs a warning and delivers nothing rather than starting to mirror on its own.
+- `inputIcon` / `modelIcon`: prefix icons for the mirrored input and for the model answer. Trimmed, at most 32 characters, no line breaks or control characters; an invalid value becomes the empty string, and an empty icon means no prefix. A non-empty icon renders as "icon, blank line, text".
+
+The settings page reads and writes this document through `settings.delivery-sync.get` / `settings.delivery-sync.set` (`set` applies only the fields it carries, and all four are optional). `settings.language.set` switches the message language between "same as the DSH interface" and `zh`/`en`/`ru`: the explicit choice outranks the DSH interface language, and the plugin `language` option still outranks both.
 
 ## Native fields for all nine channels
 
@@ -175,9 +199,24 @@ await ctx.dshIm.send(botId, targetId, '# Daily report\n\n**Checks complete**', {
 });
 ```
 
-`format` accepts only `plain` and `markdown`, defaulting to `plain`. Markdown formatting is currently implemented for Feishu/Lark: both direct and group destinations receive a native Markdown card without starting a Session or a stream. Other channels retain their existing delivery behavior; Markdown rendering is not guaranteed there. HTTP and `message.send` RPC accept the same optional `format` field in their payloads.
+`format` accepts only `plain` and `markdown`, defaulting to `plain`. HTTP and `message.send` RPC accept the same optional field. Markdown uses the existing channel delivery paths, without starting a Session or a new stream:
 
-The original Markdown, including whitespace, is preserved without silent truncation or automatic splitting; platform message-size and Markdown-syntax limits still apply. Rejection, timeout, and cancellation use the existing error handling, with no automatic plain-text resend that could duplicate delivery. Older dsh-im Host APIs may ignore this option; both the consumer and dsh-im must load the updated code.
+| Channel | Markdown presentation |
+| --- | --- |
+| Feishu/Lark | Native Markdown card |
+| Telegram | Rich Markdown, with the existing text fallback |
+| QQ | Markdown message; known format rejection falls back for the current chunk |
+| DingTalk | Proactive Markdown message; definite format rejection falls back to text |
+| Slack | Standard Markdown block with top-level notification text; explicit block rejection falls back to the existing text sender |
+| WeCom bot | Existing Markdown message type |
+| Matrix | Sanitized HTML with a text body |
+| Discord | Native Markdown in message content |
+| WhatsApp | Limited conversion of common formatting; code is protected and complex syntax stays literal |
+| WeCom app / Weixin | Full text, including code and link destinations |
+
+Channels apply their own message limits and splitting. Feishu proactive cards retain their existing unsplit behavior and do not automatically resend as text after rejection or an uncertain result. Other newly added fallback paths only handle local formatting errors or definite format rejection; they do not resend accepted chunks or retry ambiguous network outcomes. Older Hosts may ignore `format`; load the updated plugin on the Host.
+
+Session sync requests Markdown for the final assistant answer and plain text for mirrored Web input. Both follow the Session binding through the ordinary delivery path and no longer use Feishu's dedicated mirror cards, so Feishu receives that same text.
 
 A same-Host plugin may also list the saved targets for one bot:
 
@@ -185,6 +224,21 @@ A same-Host plugin may also list the saved targets for one bot:
 const targets = await ctx.dshIm.listTargets(botId);
 // [{ targetId, name?, kind, route }, ...]
 ```
+
+A same-Host plugin may also register a known conversation route as a delivery target. Once registered, that `targetId` can be used with `send` and appears in the settings target list. This example registers a Feishu direct message, so `botId` must belong to a Feishu bot:
+
+```js
+await ctx.dshIm.createTarget(botId, {
+  targetId: 'release-alerts',
+  kind: 'user',
+  route: { openId: 'ou_xxx' },
+  name: 'Release alerts',       // optional
+});
+```
+
+Both `kind` and `route` must match the bot's channel; see [Native fields for all nine channels](#native-fields-for-all-nine-channels). For example, a Feishu group uses `kind: 'group'` with `route: { chatId: 'oc_xxx' }`. A Telegram direct message or group uses `kind: 'chat'` with `route: { chatId: '123456789' }`, where the Chat ID must be a decimal string.
+
+An existing `targetId` is rejected with `target-conflict`; updating or deleting a saved target still goes through the management RPC's `target.update` / `target.delete`.
 
 Companion plugins can discover configured bots through the same Host service:
 
@@ -308,6 +362,7 @@ The HTTP protocol layer may also return `method-not-allowed` (405), `unsupported
 - Targets remain editable while a bot is offline, but testing and delivery require a connected bot.
 - WeChat proactive sends, connection tests, and deferred task results use the latest `context_token` received from the corresponding user by that bot. Context is stored only in the Host account state and restored after restart; it is never included in delivery targets or returned to callers. Rebinding with a different login credential clears it. After upgrading, an inbound user message is needed to populate the cache.
 - iLink server rules still govern whether WeChat accepts a send. Healthy long polling does not guarantee proactive delivery. If `ret=-2 prepare failed` persists, avoid repeated heartbeat messages as a renewal strategy; ask the recipient to send a message before retrying. This error alone does not establish login expiry, context expiry, or exhausted quota.
+- Long proactive WeChat text uses the existing 1,800-character chunk budget. Synced assistant Markdown keeps complete code fences in each chunk. Each chunk consumes a platform send; splitting does not remove server quotas. A rejection or uncertain result stops delivery and reports failure without resending accepted chunks. Diagnostics identify the failed chunk and total chunk count.
 
 - Failed WeChat proactive sends remain visible in the account’s latest message error, with sanitized diagnostics including the provider code and whether context was included. Healthy polling does not clear this error; a successful outbound send does. HTTP/RPC still return the existing `delivery-failed` error, with no automatic retry or disconnection of healthy long polling.
 

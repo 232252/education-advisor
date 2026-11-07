@@ -103,7 +103,7 @@ export async function createProductionController(ctx, config = {}, internals = {
   const { defaultWorkspace, ungroupedWorkspace } = await prepareBotWorkspace(config);
   const WorkspaceStore = internals.WorkspaceStore ?? BotWorkspaceStore;
   const workspaces = diagnosticWorkspaces(internals.workspaces
-    ?? await new WorkspaceStore(paths.workspaces, { defaultWorkspace, ungroupedWorkspace }).load());
+    ?? await new WorkspaceStore(paths.workspaces, { defaultWorkspace, ungroupedWorkspace, groupByAgentPreset: config.groupByAgentPreset }).load());
   const configuredBots = configStore.list();
   await workspaces.reconcile(configuredBots.map((bot) => bot.botId));
   await Promise.all(configuredBots.map((bot) => workspaces.ensure(bot.botId, {
@@ -150,7 +150,7 @@ export async function createProductionController(ctx, config = {}, internals = {
     ...(fileIngressExecutor ? { fileIngressExecutor } : {}),
     imageInputPolicy: () => getImageInputSettingsStore(config).get(),
   });
-  const modelCatalog = () => listModelCatalog(harness);
+  const modelCatalog = (options) => listModelCatalog(harness, options);
   const coreController = new Controller({
     api,
     credentials: ctx.credentials,
@@ -164,6 +164,7 @@ export async function createProductionController(ctx, config = {}, internals = {
         initialAccessPolicy: initialAccessPolicyFor('weixin', accountConfig),
       });
       const workspaceScope = createBotWorkspaceScope(harness, {
+        dsBot: config.deliveryService?.dsBot,
         botId, workspaces, state, agentPresetCatalog,
       });
       return new Runtime({
@@ -202,6 +203,7 @@ export async function createProductionController(ctx, config = {}, internals = {
     },
   });
   const workspaceController = createWorkspaceAwareController(coreController, {
+    harness,
     workspaces,
     stateFor,
     agentPresetCatalog,
@@ -235,7 +237,7 @@ export async function createProductionController(ctx, config = {}, internals = {
   }).start();
   return {
     controller,
-    deliveryAdapter: createDeliveryAdapter({
+    deliveryAdapter: createDeliveryAdapter({ dsBot: config.deliveryService?.dsBot,
       channel: 'weixin', workspaces, coreController, stateFor,
     }),
     ready: supervisor.ready,

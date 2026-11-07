@@ -18,6 +18,7 @@ import type { AssistantMessage } from "../types.ts";
  * - Google Gemini: "input token count exceeds the maximum"
  * - xAI (Grok): "maximum prompt length is X but request contains Y"
  * - Groq: "reduce the length of the messages"
+ * - GitHub Copilot: HTTP 413 "failed to parse request" (request byte-size overflow)
  * - Cerebras: 400/413 status code (no body)
  * - Mistral: "Prompt contains X tokens ... too large for model with Y maximum context length"
  * - OpenRouter (most backends): "maximum context length is X tokens"

@@ -5,14 +5,14 @@ import { appendAssistantMessageDiagnostic, createAssistantMessageDiagnostic, for
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { headersToRecord } from "../utils/headers.js";
+import { getIdentityHeaders } from "../utils/identity.js";
 import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
-import { getPiUserAgent } from "../utils/pi-user-agent.js";
 import { getSystemMessageText } from "../utils/text.js";
 import { getDeclaredTools, getInitialSystemMessage, normalizeContext, resolveTranscript, resolveTranscriptTools, } from "../utils/transcript.js";
 import { uuidv7 } from "../utils/uuid.js";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
-import { convertResponsesMessages, convertResponsesTools, processResponsesStream } from "./openai-responses-shared.js";
+import { convertResponsesMessages, convertResponsesTools, getResponsesToolSupport, processResponsesStream, } from "./openai-responses-shared.js";
 import { buildBaseOptions } from "./simple-options.js";
 // ============================================================================
 // Configuration
@@ -177,8 +177,10 @@ export const stream = (model, context, options) => {
                 body = nextBody;
             }
             const websocketRequestId = codexSessionId || uuidv7();
-            const sseHeaders = buildSSEHeaders(model.headers, options?.headers, accountId, apiKey, codexSessionId);
-            const websocketHeaders = buildWebSocketHeaders(model.headers, options?.headers, accountId, apiKey, websocketRequestId);
+            // Codex expects an originator on every request; it is not attribution.
+            const identityHeaders = { originator: "pi", ...getIdentityHeaders(model, options?.identity) };
+            const sseHeaders = buildSSEHeaders(identityHeaders, model.headers, options?.headers, accountId, apiKey, codexSessionId);
+            const websocketHeaders = buildWebSocketHeaders(identityHeaders, model.headers, options?.headers, accountId, apiKey, websocketRequestId);
             const bodyJson = JSON.stringify(body);
             const httpTimeoutMs = normalizeTimeoutMs(options?.timeoutMs);
             const websocketConnectTimeoutMs = normalizeTimeoutMs(options?.websocketConnectTimeoutMs);
@@ -376,7 +378,11 @@ function buildRequestBody(model, context, options, cacheSessionId, grammarToolIn
     const supportsOpenAIGrammarTools = model.compat?.supportsOpenAIGrammarTools ?? false;
     const supportsAdditionalTools = model.compat?.supportsAdditionalTools ?? false;
     const supportsToolSearch = model.compat?.supportsToolSearch ?? false;
-    const transcriptTools = resolveTranscriptTools(context.messages, supportsAdditionalTools || supportsToolSearch);
+    const transcriptTools = resolveTranscriptTools(context.messages, getResponsesToolSupport({
+        supportsMidConvoSystemMessages: model.compat?.supportsMidConvoSystemMessages ?? false,
+        supportsAdditionalTools,
+        supportsToolSearch,
+    }));
     const messages = convertResponsesMessages(model, context, CODEX_TOOL_CALL_PROVIDERS, {
         includeSystemPrompt: false,
         grammarToolInputProperties,
@@ -1279,9 +1285,9 @@ function extractAccountId(token) {
         throw new Error("Failed to extract accountId from token");
     }
 }
-function buildBaseCodexHeaders(initHeaders, additionalHeaders, accountId, token) {
+function buildBaseCodexHeaders(defaultHeaders, initHeaders, additionalHeaders, accountId, token) {
     // Defaults first so model and caller headers can override them, matching the other providers.
-    const headers = new Headers({ originator: "pi", "User-Agent": getPiUserAgent() });
+    const headers = new Headers(defaultHeaders);
     for (const [key, value] of Object.entries(initHeaders || {})) {
         headers.set(key, value);
     }
@@ -1297,8 +1303,8 @@ function buildBaseCodexHeaders(initHeaders, additionalHeaders, accountId, token)
     headers.set("chatgpt-account-id", accountId);
     return headers;
 }
-function buildSSEHeaders(initHeaders, additionalHeaders, accountId, token, sessionId) {
-    const headers = buildBaseCodexHeaders(initHeaders, additionalHeaders, accountId, token);
+function buildSSEHeaders(defaultHeaders, initHeaders, additionalHeaders, accountId, token, sessionId) {
+    const headers = buildBaseCodexHeaders(defaultHeaders, initHeaders, additionalHeaders, accountId, token);
     headers.set("OpenAI-Beta", "responses=experimental");
     headers.set("accept", "text/event-stream");
     headers.set("content-type", "application/json");
@@ -1308,8 +1314,8 @@ function buildSSEHeaders(initHeaders, additionalHeaders, accountId, token, sessi
     }
     return headers;
 }
-function buildWebSocketHeaders(initHeaders, additionalHeaders, accountId, token, requestId) {
-    const headers = buildBaseCodexHeaders(initHeaders, additionalHeaders, accountId, token);
+function buildWebSocketHeaders(defaultHeaders, initHeaders, additionalHeaders, accountId, token, requestId) {
+    const headers = buildBaseCodexHeaders(defaultHeaders, initHeaders, additionalHeaders, accountId, token);
     headers.delete("accept");
     headers.delete("content-type");
     headers.delete("OpenAI-Beta");

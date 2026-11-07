@@ -3,19 +3,20 @@ import { clampThinkingLevel } from "../models.js";
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { headersToRecord } from "../utils/headers.js";
-import { getPiUserAgent } from "../utils/pi-user-agent.js";
+import { getIdentityHeaders } from "../utils/identity.js";
 import { getProviderEnvValue } from "../utils/provider-env.js";
 import { retryProviderRequest } from "../utils/provider-retry.js";
 import { getDeclaredTools, resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.js";
 import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
-import { convertResponsesMessages, convertResponsesTools, processResponsesStream } from "./openai-responses-shared.js";
+import { convertResponsesMessages, convertResponsesTools, getResponsesToolSupport, processResponsesStream, } from "./openai-responses-shared.js";
 import { buildBaseOptions, resolveSamplingParams } from "./simple-options.js";
 const OPENAI_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
 // OpenAI Responses rejects max_output_tokens below 16: https://github.com/earendil-works/pi/issues/6265
 const OPENAI_RESPONSES_MIN_OUTPUT_TOKENS = 16;
 const CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage";
+const CHATGPT_WORKSPACE_LIMIT_HINT = "You've reached your ChatGPT workspace's usage limit. Ask your workspace admin to increase it at admin.openai.com → Workspace → Usage limits.";
 // Fixed reasoning.effort while configuration_update items carry the thinking level.
 const CONFIGURATION_UPDATE_REQUEST_EFFORT = "medium";
 /**
@@ -134,7 +135,7 @@ export const stream = (model, context, options) => {
             const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
             const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
             const grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(normalizedContext.messages), compat.supportsOpenAIGrammarTools);
-            const client = createClient(model, normalizedContext, apiKey, options?.headers, options?.fetch, cacheSessionId);
+            const client = createClient(model, normalizedContext, apiKey, options?.headers, options?.identity, options?.fetch, cacheSessionId);
             let params = buildParams(model, normalizedContext, options, compat, grammarToolInputProperties, configurationUpdateEffort);
             const nextParams = await options?.onPayload?.(params, model);
             if (nextParams !== undefined) {
@@ -180,9 +181,16 @@ export const stream = (model, context, options) => {
             output.stopReason = options?.signal?.aborted ? "aborted" : "error";
             const errorMessage = formatProviderError(normalizeProviderError(error), `${model.provider === "openai" ? "OpenAI" : model.provider} API error`);
             // Sign in with ChatGPT shares the subscription's usage limit with other apps.
-            output.errorMessage = errorMessage.includes("subscription_sharing_usage_limit_exceeded")
-                ? `${errorMessage}\nCheck your ChatGPT usage: ${CHATGPT_USAGE_URL}`
-                : errorMessage;
+            // On ChatGPT Business plans, the workspace admin also sets a per-user limit.
+            if (errorMessage.includes("subscription_sharing_usage_limit_exceeded")) {
+                output.errorMessage = `${errorMessage}\nCheck your ChatGPT usage: ${CHATGPT_USAGE_URL}`;
+            }
+            else if (errorMessage.includes("subscription_sharing_workplace_individual_usage_limit_exceeded")) {
+                output.errorMessage = `${errorMessage}\n${CHATGPT_WORKSPACE_LIMIT_HINT}`;
+            }
+            else {
+                output.errorMessage = errorMessage;
+            }
             stream.push({ type: "error", reason: output.stopReason, error: output });
             stream.end();
         }
@@ -202,9 +210,9 @@ export const streamSimple = (model, context, options) => {
         reasoningEffort,
     });
 };
-function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId) {
+function createClient(model, context, apiKey, optionsHeaders, identity, fetch, sessionId) {
     const compat = getCompat(model);
-    const headers = { "User-Agent": getPiUserAgent(), ...model.headers };
+    const headers = { ...getIdentityHeaders(model, identity), ...model.headers };
     if (model.provider === "github-copilot") {
         const hasImages = hasCopilotVisionInput(context.messages);
         const copilotHeaders = buildCopilotDynamicHeaders({
@@ -237,7 +245,7 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId) 
     });
 }
 function buildParams(model, context, options, compat, grammarToolInputProperties, configurationUpdateEffort) {
-    const transcriptTools = resolveTranscriptTools(context.messages, compat.supportsAdditionalTools || compat.supportsToolSearch);
+    const transcriptTools = resolveTranscriptTools(context.messages, getResponsesToolSupport(compat));
     const messages = convertResponsesMessages(model, context, OPENAI_TOOL_CALL_PROVIDERS, {
         grammarToolInputProperties,
         supportsMidConvoSystemMessages: compat.supportsMidConvoSystemMessages,
