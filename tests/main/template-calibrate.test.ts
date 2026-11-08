@@ -5,6 +5,7 @@
 // 阻断、AI 定位命中与回落、结果结构与落库形状。
 // =============================================================
 
+import os from 'node:os'
 import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PageQuad } from '@shared/grading-geometry'
@@ -90,8 +91,9 @@ const RUBRIC = [
   { id: 'q2', title: '二、填空' },
 ]
 
-// 防穿越守卫要求原生分隔符(与生产 templateDirPath 一致)
-const TPL_DIR = path.join('C:', 'store', 'files', 'T1', 'template')
+// 防穿越守卫要求原生分隔符(与生产 templateDirPath 一致):必须是绝对路径,
+// 盘符写法在 Linux 上 resolve 后会脱离 destDir,守卫误报"非法样卷文件名"
+const TPL_DIR = path.join(os.tmpdir(), 'ea-tpl-test', 'T1', 'template')
 
 function readyTask(opts?: { rubric?: typeof RUBRIC }) {
   mocks.getTask.mockResolvedValue({
