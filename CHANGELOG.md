@@ -10,7 +10,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 > [`CHANGELOG.md`](https://github.com/232252/education-advisor/blob/main/CHANGELOG.md)
 > in its own repository. Cross-reference both when troubleshooting.
 
-## [Unreleased]
+## [3.3.5] — 2026-11-08
 
 ### Changed
 

@@ -117,7 +117,7 @@ The output:
 - `dist/main/index.cjs` + `dist/main/preload.cjs` — the main + preload bundles
 - `dist/renderer/index.html` + assets — the renderer bundle
 - `release-v11/Education-Advisor-Setup.exe` — the NSIS installer
-  (version-free artifact name; the current version is 3.3.4, from `package.json`)
+  (version-free artifact name; the current version is 3.3.5, from `package.json`)
 - `release-v11/Education-Advisor-Portable.exe` — the portable .exe (~75 MB)
 
 ## 7. Configure the app
