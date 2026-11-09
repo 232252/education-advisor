@@ -206,6 +206,13 @@ jobs:
         shell: bash
         run: npm run build
 
+      # 本仓库的打包前置（stage-dsh-node 复制本机 node.exe、
+      # build-office-kit-asset 生成按需组件清单与 zip 资产、stage-dsh-im-deps
+      # 装 vendor/dsh-im 依赖）。CI 直接 npx electron-builder，必须显式跑 prepackage。
+      - name: Stage dsh packaging prerequisites
+        shell: bash
+        run: npm run prepackage
+
       - name: Package
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -243,6 +250,17 @@ jobs:
             site-build/assets/media/eea-intro.mp4
           retention-days: 14
           if-no-files-found: warn
+
+      # office 转 PDF 组件资产（win 构建产物，prepackage 生成）：装机后按需
+      # 下载（office-kit-service），必须与 Setup 同一个 Release 发布。
+      - name: Upload office-kit asset
+        if: matrix.target == 'win'
+        uses: actions/upload-artifact@v7
+        with:
+          name: office-kit
+          path: build/office-kit/*.zip
+          retention-days: 14
+          if-no-files-found: error
 
   # ----------------------------------------------------------------
   # 正式发布 GitHub Release（安装包已由 electron-builder 上传）。
@@ -295,5 +313,6 @@ jobs:
             artifacts/SHA256SUMS
             artifacts/SHA256SUMS.sig
             artifacts/SHA256SUMS.pem
+            artifacts/office-kit/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

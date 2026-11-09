@@ -1,5 +1,4 @@
-import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { packagedPnpmExePath, packagedPnpmScript } from './pnpm-env'
 
 // =============================================================
 // 从 `dsh web` 启动日志里取出带进程 token 的根 URL。
@@ -27,18 +26,34 @@ export function dshPluginLinkSpec(dir: string): string {
 
 /**
  * 连接中心装插件依赖时怎么拉起 pnpm。
- * 优先跑 dsh 旁边 `node_modules/pnpm/bin/pnpm.mjs`：Windows 的 `.cmd` 垫片
- * 不能被 `spawn` 直接执行。找不到脚本时再退回 PATH 上的 pnpm。
+ * 优先随包的独立 pnpm.exe（@pnpm/exe，spawn 直接执行）；缺席时退回
+ * `node_modules/pnpm/bin/pnpm.mjs` 配 node 运行 —— Windows 的 `.cmd` 垫片
+ * 不能被 `spawn` 直接执行；最后才退回 PATH 上的 pnpm。
  */
 export function dshPnpmLaunch(
   dshBin: string,
   execPath: string,
 ): { command: string; prefix: string[]; shell: boolean } {
-  const script = join(dirname(dshBin), '..', '..', '..', 'pnpm', 'bin', 'pnpm.mjs')
-  if (dshBin && existsSync(script)) {
+  const exe = packagedPnpmExePath(dshBin)
+  if (exe) return { command: exe, prefix: [], shell: false }
+  const script = packagedPnpmScript(dshBin)
+  if (dshBin && script) {
     return { command: execPath, prefix: [script], shell: false }
   }
   return { command: 'pnpm', prefix: [], shell: process.platform === 'win32' }
+}
+
+/**
+ * dsh-im 依赖在线安装走的 npm registry。默认国内镜像（连接中心首开要装
+ * ~100MB，走 npmjs 在教师机上慢且常超时）；EAA_NPM_REGISTRY 可覆盖，失败
+ * 时调用方应退回默认源重试一次。
+ */
+export const PNPM_MIRROR_REGISTRY = 'https://registry.npmmirror.com'
+
+export function pnpmInstallRegistry(env: NodeJS.ProcessEnv = process.env): string | null {
+  const override = env.EAA_NPM_REGISTRY
+  if (override === 'default') return null
+  return override || PNPM_MIRROR_REGISTRY
 }
 
 /**

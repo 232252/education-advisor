@@ -256,6 +256,12 @@ export const IPC_DSH_IM_HIDE = 'dsh-im:hide'
 // 主进程里按了 Esc，让渲染层把连接中心面板收起来
 export const IPC_DSH_IM_CLOSED = 'dsh-im:closed'
 export const IPC_DSH_IM_PLUGIN_INSTALL = 'dsh-im:plugin-install'
+// 连接中心启动阶段进度（依赖在线下载/插件安装/web 起动），面板显示状态用
+export const IPC_DSH_IM_PROGRESS = 'dsh-im:progress'
+// office 转 PDF 组件（libreoffice-kit 平台二进制 178MB，不随安装包分发）：
+// 状态查询与手动安装（按需从 Release 资产下载补齐）
+export const IPC_OFFICE_KIT_STATUS = 'office-kit:status'
+export const IPC_OFFICE_KIT_INSTALL = 'office-kit:install'
 
 // ===== 日志 =====
 // arch-P0-1 修复：原硬编码字符串，迁入共享常量

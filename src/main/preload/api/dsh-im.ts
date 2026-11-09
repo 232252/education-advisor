@@ -2,6 +2,7 @@
 // Preload API — dsh-im 连接中心
 // =============================================================
 
+import type { DshImBootProgress } from '@shared/api/dsh-im'
 import * as IPC from '@shared/ipc-channels'
 import { ipcInvoke } from '@shared/ipc-runtime'
 import { subscribe } from './subscribe'
@@ -12,4 +13,6 @@ export const dshImApi = {
   hide: () => ipcInvoke(IPC.IPC_DSH_IM_HIDE),
   onClosed: (callback: () => void) => subscribe(IPC.IPC_DSH_IM_CLOSED, callback),
   pluginInstall: () => ipcInvoke(IPC.IPC_DSH_IM_PLUGIN_INSTALL),
+  onProgress: (callback: (progress: DshImBootProgress) => void) =>
+    subscribe(IPC.IPC_DSH_IM_PROGRESS, callback),
 }

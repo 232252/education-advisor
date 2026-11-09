@@ -55,12 +55,32 @@ function getHost(): DshImWebHost {
       toolsDir: toolsRoot(),
       execPath: resolveSystemNode() ?? process.execPath,
       electronAsNode: resolveSystemNode() === undefined && isElectronMainProcess(),
+      extraModulesDir: officeKitDir(),
       prepareLaunch: (patchDir) =>
         prepareDshImEducationLaunch({ patchDir, win: mainWindow ?? undefined }),
       releaseLaunch: releaseDshImEducationLaunch,
+      // 依赖已随包，正常首开不联网；进度事件只在组件损坏走在线修复时上屏
+      onProgress: (progress) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(IPC.IPC_DSH_IM_PROGRESS, progress)
+        }
+      },
     })
   }
   return host
+}
+
+/** 按需组件目录：office-kit-service 解压根，dsh web 子进程经 NODE_PATH 解析。 */
+function officeKitDir(): string {
+  return join(app.getPath('userData'), 'dsh-extra-modules')
+}
+
+/**
+ * 闲时预热连接中心依赖（只装依赖、不起 web）。
+ * 应用启动后由 app-lifecycle 延迟调度一次；失败不提示，点开时会重试。
+ */
+export function prewarmDshImDeps(): void {
+  void getHost().prewarmDeps()
 }
 
 function asBounds(raw: DshImBounds): Rectangle | null {

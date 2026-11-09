@@ -27,6 +27,10 @@ vi.mock('../../../../src/renderer/lib/ipc-client', () => ({
     dshIm: {
       pluginInstall: async () => ({ ...installState }),
     },
+    officeKit: {
+      status: async () => ({ state: 'ready', source: 'bundled' }),
+      install: async () => ({ state: 'ready', source: 'downloaded' }),
+    },
   }),
 }))
 

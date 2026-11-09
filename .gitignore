@@ -15,6 +15,9 @@ build/
 !vendor/**/dist/
 # dsh 子进程用的 node.exe。scripts/stage-dsh-node.mjs 在打包前复制，不进 git。
 vendor/dsh-node/
+# office-kit 按需组件清单（prepackage 由 scripts/build-office-kit-asset.mjs
+# 与 build/office-kit/*.zip 同次生成，sha 必须与 zip 配对，不进 git）
+config/office-kit.json
 
 # ===== Logs (debug + runtime) =====
 *.log

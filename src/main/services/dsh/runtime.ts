@@ -10,7 +10,7 @@
 
 import { existsSync, readFileSync, unlinkSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, join, sep } from 'node:path'
+import { delimiter, dirname, join, sep } from 'node:path'
 import type { StreamEvent, TokenUsage } from '@shared/types/ai'
 import { EAA_MCP_TOKEN_ENV, EAA_MCP_URL_ENV } from './eaa-tools-contract'
 import { ensureEaaHardeningPatch } from './hardening'
@@ -145,6 +145,11 @@ type DshRouteModelLookup = (route: string, modelId: string) => DshRouteModelSour
 let runtimeRouteModel: DshRouteModelLookup | undefined
 /** sdk profile 的 DSH_HOME。空字符串表示沿用 dsh 自己的默认目录。 */
 let runtimeSdkHome = ''
+/**
+ * 按需组件（office 转 PDF 的 libreoffice-kit）解压根，注入成子进程的
+ * NODE_PATH。空字符串表示没有（组件未装/开发态在 bundled 树里）。
+ */
+let runtimeExtraModulesDir = ''
 
 export function configureDshRuntime(opts: {
   cwd: string
@@ -154,12 +159,15 @@ export function configureDshRuntime(opts: {
   sdkHome?: string
   /** vendor/eaa-tools 的绝对路径。和 sdkHome 一起给出才会安装插件。 */
   toolsDir?: string
+  /** 按需组件目录（office-kit-service 的 extraModulesDir），进 NODE_PATH。 */
+  extraModulesDir?: string
 }): void {
   runtimeCwd = opts.cwd
   // 无条件覆盖：整次装配只有一个调用方，缺省即「没有可用入口」，不能沿用上一次的值
   runtimeDshBin = opts.dshBin
   runtimeRouteModel = opts.routeModel
   runtimeSdkHome = opts.sdkHome ?? ''
+  runtimeExtraModulesDir = opts.extraModulesDir ?? ''
   setEaaToolsPluginTarget(
     opts.sdkHome && opts.toolsDir && opts.dshBin
       ? { home: opts.sdkHome, toolsDir: opts.toolsDir, dshBin: opts.dshBin }
@@ -261,12 +269,26 @@ export function dshLaunchOptions(opts: {
       ...(opts.env ?? (process.env as Record<string, string>)),
       ELECTRON_RUN_AS_NODE: '1',
     }
+    applyExtraModulesPath(base.env as Record<string, string>)
   } else if (opts.env) {
     base.env = opts.env
+    applyExtraModulesPath(base.env as Record<string, string>)
   }
   const bin = runtimeDshBin ? toUnpackedAsarPath(runtimeDshBin) : undefined
   if (bin) base.dshBin = bin
   return base
+}
+
+/**
+ * 把按需组件目录追加进 NODE_PATH（已有值时用分隔符续在后面）。
+ * dsh-office-to-pdf 的平台包被移出安装包后靠它从 userData 解析。
+ */
+function applyExtraModulesPath(env: Record<string, string>): void {
+  if (!runtimeExtraModulesDir) return
+  const current = env.NODE_PATH
+  env.NODE_PATH = current
+    ? `${current}${delimiter}${runtimeExtraModulesDir}`
+    : runtimeExtraModulesDir
 }
 
 /**

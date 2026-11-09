@@ -16,6 +16,63 @@ directories:
 files:
   - dist/**/*
   - node_modules/**/*
+  # ---- 瘦身负向过滤：体积大头与散文件数（NSIS 逐文件解压写盘是安装慢的主因）----
+  # pnpm 包根目录 8 份 ~50MB 二进制别名（node_modules 里彼此硬链接，复制进安装
+  # 包后变成实体，共 ~391MB，是旧包最大单项）。运行时用 @pnpm/exe 的独立
+  # pnpm.exe（PATH 前置，见 pnpm-env.ts）—— pnpm 12 的 bin/pnpm.mjs 只是
+  # corepack 引导壳，真 CLI 只有 @pnpm/exe 的原生二进制，替代方案实测死路
+  # （2026-11-09：Rust 启动器转发 pnpm.mjs 的方案已废弃）。
+  # 注意 builder 会把 pnpm/dist/node_modules 嵌套依赖跳过，由 afterPack
+  # （scripts/after-pack-trim.mjs）补回，引导壳兜底链路才完整。
+  - "!node_modules/pnpm/pn"
+  - "!node_modules/pnpm/pn.exe"
+  - "!node_modules/pnpm/pnpm"
+  - "!node_modules/pnpm/pnpm.exe"
+  - "!node_modules/pnpm/pnpx"
+  - "!node_modules/pnpm/pnpx.exe"
+  - "!node_modules/pnpm/pnx"
+  - "!node_modules/pnpm/pnx.exe"
+  # dsh 实验性大包（inspector 调试器 25MB / sensevoice 本地语音转写 + sherpa
+  # 二进制 ~35MB）：不在连接中心 web profile 的 bundles 清单里（profile 只装
+  # dsh-base / dsh-web-app / dsh-im / eaa 四件套），进包纯属占体积。教师要用时
+  # 经插件市场联网安装 —— PATH 修复后（pnpm-env.ts）该链路本身可用。
+  - "!node_modules/@deepseek-ai/dsh-experimental-inspector/**"
+  - "!node_modules/@deepseek-ai/dsh-experimental-speech-to-text-sensevoice/**"
+  - "!node_modules/sherpa-onnx-node/**"
+  - "!node_modules/sherpa-onnx-win-x64/**"
+  # 同理的 OPTIONAL_BUNDLES 负载（dsh-official-bundles：默认关闭、插件市场可
+  # 后装）：liveshare 协作 2MB / forge 的 UI 件 2MB。verify-dsh-package 的闭包
+  # 安全网会断言它们不在 web/sdk profile 的硬依赖闭包里。
+  - "!node_modules/@deepseek-ai/dsh-experimental-liveshare/**"
+  - "!node_modules/@deepseek-ai/dsh-experimental-client-ui-forge/**"
+  # libreoffice-kit 平台二进制（178MB 单文件）随包分发（2026-11-09 教师决策：
+  # 全功能离线直装优先于体积）——AI 文档转 PDF 装完即用，office-kit-service
+  # 的 bundledPkgDir 本就优先随包目录；Release 资产下载仅作损坏修复通道。
+  # source map 是散文件数第一大头（lucide-react/openai/rxjs 等共 ~1.07 万个
+  # / 11MB），运行时无人读取，砍掉直接缩短安装写盘时间。
+  - "!**/*.map"
+  # 依赖包的 README/CHANGELOG 不进安装包（~2000 个散文件）。注意不能用
+  # !**/*.md 一刀切：dsh 体系把 docs/*.md 当 AI 技能说明书在运行时引用。
+  - "!**/README*.md"
+  - "!**/CHANGELOG*.md"
+  - "!**/{test,tests,__tests__}/**"
+  # 只面向 Windows x64 教师机的多平台二进制：node-pty 的 win32-arm64 prebuild
+  # 12MB + third_party 里的 arm64 conpty；sharp 的 wasm 兜底实现（win32-x64
+  # 原生二进制已随包）。
+  - "!node_modules/node-pty/prebuilds/win32-arm64/**"
+  - "!node_modules/node-pty/third_party/**/win10-arm64/**"
+  - "!node_modules/@img/sharp-wasm32/**"
+
+# 只随中文界面与英文兜底（Electron locales 全量 55 个 .pak 共 49MB）。
+# 界面语言不依赖 Chromium locale 包，砍掉的只是死重。
+electronLanguages:
+  - zh-CN
+  - en-US
+
+# 打包后修剪（scripts/after-pack-trim.mjs）：删 WebGPU 用的 dxcompiler.dll
+# （app 不用 WebGPU，25MB）与 win 包里多余的 eaa-binaries 其他平台目录，
+# 并断言 locales/排除项确实生效——配置错了在这里拦，别等装到教师机才发现。
+afterPack: scripts/after-pack-trim.mjs
 
 extraResources:
   - from: resources/icon.ico
@@ -36,10 +93,29 @@ extraResources:
   - from: agents/
     to: agents/
     filter: ["**/*"]
-  # dsh-im 4.37.0：连接中心用 link: 装进 web profile，不能打进 asar
+  # dsh-im 5.10.0：连接中心用 link: 装进 web profile，不能打进 asar。
+  # 负向过滤只砍确认的死重：文档与 README 大图（lib/plugin-src 运行时会引用
+  # src、plugin-src、docs、scripts、bin，这些目录必须保留）、sharp 的 wasm
+  # 兜底二进制（win32-x64 原生版已随包）、依赖包自带的 README 与 source map。
+  # 注意：builder 复制 extraResources 时整目录丢弃 node_modules，离线首开
+  # 依赖由 afterPack（scripts/after-pack-trim.mjs）补回到 resources/dsh-im。
   - from: vendor/dsh-im/
     to: dsh-im/
-    filter: ["**/*"]
+    filter:
+      - "**/*"
+      - "!README*.md"
+      - "!PROACTIVE_DELIVERY*.md"
+      - "!CONTEXT.md"
+      - "!CHANGELOG.md"
+      - "!package-lock.json"
+      - "!assets/sponsors/**"
+      - "!assets/logo_cn.png"
+      - "!assets/logo-dsh-im-*.png"
+      - "!assets/screenshot-menu-card.png"
+      - "!node_modules/@img/sharp-wasm32/**"
+      - "!node_modules/**/*.map"
+      - "!node_modules/**/README*.md"
+      - "!node_modules/**/CHANGELOG*.md"
   # 教育插件：link: 进 profile，学生数据不在包里。同级目录才会被一起装上。
   - from: vendor/eaa-tools/
     to: eaa-tools/
@@ -64,21 +140,15 @@ extraResources:
     filter: ["**/*"]
 
 win:
+  # 只发 NSIS 安装包（2026-11-09 决策停发 Portable）：发布带宽/构建时间减半，
+  # 下载页只维护 Setup 一个入口。
   target:
     - target: nsis
-      arch: [x64]
-    - target: portable
       arch: [x64]
   icon: resources/icon.ico
   # R2 固定命名（去版本号）：官网下载页用 releases/latest/download/<固定名>
   # 做零维护兜底链接，release 资产名跨版本稳定；CI 全部按 glob 收集不受影响。
   artifactName: "Education-Advisor-Setup.${ext}"
-
-# portable 沿用 win.artifactName 会与 NSIS 输出同名互相覆盖，
-# 并导致同一文件被并发重复上传（曾引发 Request timed out），
-# 这里单独命名为 Portable 以区分。
-portable:
-  artifactName: "Education-Advisor-Portable.${ext}"
 
 # macOS 产物显式无空格命名：electron-builder 的 ArchiveTarget（mac zip）
 # 生成 blockmap 时传入的是带空格的原始文件名（上游 bug），GitHub 会把

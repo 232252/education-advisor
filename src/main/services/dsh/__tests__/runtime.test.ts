@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import type { StreamEvent } from '@shared/types/ai'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { EAA_HARDENING_PATCH_FILE } from '../hardening'
@@ -519,6 +519,26 @@ describe('dshLaunchOptions', () => {
       processCwd: '/tmp/app',
       patches: ['/p/eaa-mcp.cordis.patch.yml', '/p/x.yml'],
     })
+  })
+
+  it('extraModulesDir 注入 NODE_PATH（按需组件目录），已有值时续在后面', () => {
+    configureDshRuntime({ cwd: process.cwd(), extraModulesDir: 'C:/data/dsh-extra-modules' })
+    const env = dshLaunchOptions({ cwd: '/tmp/app', env: { FOO: '1' } }).env as Record<
+      string,
+      string
+    >
+    expect(env.NODE_PATH).toBe('C:/data/dsh-extra-modules')
+    const chained = dshLaunchOptions({
+      cwd: '/tmp/app',
+      env: { FOO: '1', NODE_PATH: 'C:/other' },
+    }).env as Record<string, string>
+    expect(chained.NODE_PATH).toBe(`C:/other${delimiter}C:/data/dsh-extra-modules`)
+    configureDshRuntime({ cwd: process.cwd() })
+    const clean = dshLaunchOptions({ cwd: '/tmp/app', env: { FOO: '1' } }).env as Record<
+      string,
+      string
+    >
+    expect(clean.NODE_PATH).toBeUndefined()
   })
 })
 

@@ -84,6 +84,7 @@ vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => 'C:/userData'),
     getAppPath: vi.fn(() => 'C:/app'),
+    getVersion: vi.fn(() => '0.0.0-test'),
     isPackaged: false,
     once: vi.fn(),
     on: vi.fn(),

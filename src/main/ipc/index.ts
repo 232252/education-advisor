@@ -19,6 +19,7 @@ import { registerGradingHandlers } from './grading-handlers'
 import { registerLogHandlers } from './log-handlers'
 import { registerMcpHandlers } from './mcp-handlers'
 import { registerMemoryHandlers } from './memory-handlers'
+import { registerOfficeKitHandlers } from './office-kit-handlers'
 import { registerOllamaHandlers } from './ollama-handlers'
 import { registerPrivacyHandlers } from './privacy-handlers'
 import { registerProfileHandlers } from './profile-handlers'
@@ -39,6 +40,7 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerSysHandlers(win)
   registerChannelHandlers(win)
   registerDshImHandlers(win)
+  registerOfficeKitHandlers()
   registerReportsHandlers()
   registerProfileHandlers()
   registerLogHandlers()

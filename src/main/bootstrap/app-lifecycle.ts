@@ -14,6 +14,7 @@ import { channelManager } from '../services/channels/manager'
 import { cronService } from '../services/cron-service'
 import { dbService } from '../services/db-service'
 import { configureDshNode } from '../services/dsh/dsh-node'
+import { configureOfficeKit, prewarmOfficeKit } from '../services/dsh/office-kit-service'
 import { configureDshCredentials } from '../services/dsh/provider-patch'
 import { configureDshRuntime, resolveDshEntryPath } from '../services/dsh/runtime'
 import { ensureActiveEaaToolBridge, stopActiveEaaToolBridge } from '../services/dsh/tool-bridge'
@@ -70,6 +71,25 @@ export async function startApp(): Promise<void> {
   configureDshNode(
     existsSync(packagedNode) ? packagedNode : existsSync(devNode) ? devNode : undefined,
   )
+  // office 转 PDF 组件（libreoffice-kit 平台二进制 178MB）不随安装包分发，
+  // 装机后按需下载到 userData/dsh-extra-modules，dsh 子进程经 NODE_PATH 解析。
+  const extraModulesDir = join(app.getPath('userData'), 'dsh-extra-modules')
+  configureOfficeKit({
+    extraModulesDir,
+    manifestPath: app.isPackaged
+      ? join(process.resourcesPath, 'config', 'office-kit.json')
+      : join(app.getAppPath(), 'config', 'office-kit.json'),
+    appVersion: app.getVersion(),
+    bundledPkgDir: app.isPackaged
+      ? join(
+          process.resourcesPath,
+          'app.asar.unpacked',
+          'node_modules',
+          '@deepseek-ai',
+          'libreoffice-kit-win32-x64',
+        )
+      : join(app.getAppPath(), 'node_modules', '@deepseek-ai', 'libreoffice-kit-win32-x64'),
+  })
   configureDshRuntime({
     cwd: app.getPath('userData'),
     dshBin,
@@ -79,6 +99,7 @@ export async function startApp(): Promise<void> {
     toolsDir: app.isPackaged
       ? join(process.resourcesPath, 'eaa-tools')
       : join(app.getAppPath(), 'vendor', 'eaa-tools'),
+    extraModulesDir,
   })
   if (!dshBin) {
     log(
@@ -302,6 +323,16 @@ export async function startApp(): Promise<void> {
     }
   })
   void webUiService.init()
+
+  // 闲时预热：连接中心依赖与 office 转 PDF 组件都已随包分发，预热通常直接
+  // 命中标记立即返回（不联网）；只有安装包损坏时才会在这里触发在线修复。
+  // 失败静默，真正使用/点开时会带进度重试。
+  // dsh-im 预热走动态 import：bootstrap 不静态依赖 IPC 注册表（那会把整个
+  // handler 图拉进启动模块，单测的模块 mock 也会被牵连）。
+  setTimeout(() => {
+    void import('../ipc/dsh-im-handlers').then((m) => m.prewarmDshImDeps())
+    prewarmOfficeKit()
+  }, 15_000)
 
   // 启动后延迟检查更新（避免启动卡顿）
   // L-6 修复: 保存 timer 引用,退出时清理

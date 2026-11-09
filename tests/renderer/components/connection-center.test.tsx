@@ -19,6 +19,7 @@ vi.mock('../../../src/renderer/lib/ipc-client', () => ({
       show: (bounds: unknown) => dshImShow(bounds),
       hide: () => dshImHide(),
       onClosed: () => () => {},
+      onProgress: () => () => {},
     },
     channels: {
       list: async () => [],

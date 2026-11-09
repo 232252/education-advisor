@@ -6,7 +6,9 @@ import {
   dshPluginLinkSpec,
   dshPnpmLaunch,
   dshWebLaunchArgs,
+  PNPM_MIRROR_REGISTRY,
   parseDshWebAnnouncement,
+  pnpmInstallRegistry,
 } from '../im-url'
 
 describe('parseDshWebAnnouncement', () => {
@@ -60,7 +62,22 @@ describe('dshPnpmLaunch', () => {
     dirs.length = 0
   })
 
-  it('优先用 dsh 旁边的 pnpm.mjs，避免 Windows 直接执行 .cmd', () => {
+  it('有随包 @pnpm/exe 时优先真二进制，spawn 直接执行', () => {
+    const root = mkdtempSync(join(tmpdir(), 'pnpm-launch-'))
+    dirs.push(root)
+    const bin = join(root, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
+    const exe = join(root, 'node_modules', '@pnpm', 'exe.win32-x64', 'pnpm.exe')
+    const script = join(root, 'node_modules', 'pnpm', 'bin', 'pnpm.mjs')
+    mkdirSync(dirname(bin), { recursive: true })
+    mkdirSync(dirname(exe), { recursive: true })
+    mkdirSync(dirname(script), { recursive: true })
+    writeFileSync(bin, '')
+    writeFileSync(exe, '')
+    writeFileSync(script, '')
+    expect(dshPnpmLaunch(bin, 'C:/node.exe')).toEqual({ command: exe, prefix: [], shell: false })
+  })
+
+  it('没有 @pnpm/exe 时用 dsh 旁边的 pnpm.mjs 配 node，避免 Windows 直接执行 .cmd', () => {
     const root = mkdtempSync(join(tmpdir(), 'pnpm-launch-'))
     dirs.push(root)
     const bin = join(root, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
@@ -81,5 +98,18 @@ describe('dshPnpmLaunch', () => {
       prefix: [],
       shell: process.platform === 'win32',
     })
+  })
+})
+
+describe('pnpmInstallRegistry', () => {
+  it('默认 npmmirror 国内镜像', () => {
+    expect(pnpmInstallRegistry({})).toBe(PNPM_MIRROR_REGISTRY)
+  })
+
+  it('EAA_NPM_REGISTRY 可覆盖；default 表示用默认源', () => {
+    expect(pnpmInstallRegistry({ EAA_NPM_REGISTRY: 'https://r.example.com' })).toBe(
+      'https://r.example.com',
+    )
+    expect(pnpmInstallRegistry({ EAA_NPM_REGISTRY: 'default' })).toBeNull()
   })
 })

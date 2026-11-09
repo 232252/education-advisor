@@ -7,9 +7,9 @@
 // =============================================================
 
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -90,6 +90,13 @@ function makeLayout() {
   const dshBin = join(root, 'dsh.js')
   writeFileSync(dshBin, '#!/usr/bin/env node')
   return { root, home, imDir, dshBin }
+}
+
+/** 没有 node_modules/qrcode 的布局：触发 ensurePluginDeps 在线安装分支。 */
+function makeLayoutWithoutDeps() {
+  const layout = makeLayout()
+  rmSync(join(layout.imDir, 'node_modules', 'qrcode', 'package.json'), { force: true })
+  return layout
 }
 
 function makeHost(layout: ReturnType<typeof makeLayout>, extra: Record<string, unknown> = {}) {
@@ -199,6 +206,93 @@ describe('DshImWebHost', () => {
     const r3 = await host.open()
     expect(r3.url).toBe(r1.url)
     expect(webChildren().length).toBe(1)
+  })
+
+  it('打包态: 子进程 PATH 前置随包 @pnpm/exe，修复 plugin add 找不到 pnpm', async () => {
+    // 复现安装版布局：electron-builder 会剥掉 node_modules/.bin，包里只有
+    // @pnpm/exe.win32-x64 的真二进制 —— dsh 内部 execa("pnpm") 靠这份 PATH 命中。
+    const layout = makeLayout()
+    const nmBin = join(layout.root, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
+    mkdirSync(dirname(nmBin), { recursive: true })
+    writeFileSync(nmBin, '')
+    const exeDir = join(layout.root, 'node_modules', '@pnpm', 'exe.win32-x64')
+    mkdirSync(exeDir, { recursive: true })
+    writeFileSync(join(exeDir, 'pnpm.exe'), '')
+    const host = makeHost({ ...layout, dshBin: nmBin })
+    const p = host.open()
+    await flushHelpers()
+    webChildren()[0].stdout.emit('data', 'dsh web: http://127.0.0.1:9/?t=e')
+    await p
+    const addRec = recs.find((r) => !r.isWeb) as SpawnRec
+    expect(addRec.opts.env?.PATH?.startsWith(exeDir)).toBe(true)
+  })
+
+  it('依赖在线安装: 默认 npmmirror 镜像 + 进度事件上抛', async () => {
+    const layout = makeLayoutWithoutDeps()
+    const progress: Array<{ phase: string; message: string }> = []
+    const host = makeHost(layout, { onProgress: (p: { phase: string; message: string }) => progress.push(p) })
+    const p = host.open()
+    await flushHelpers()
+    // 首个非 web 子进程是 ensurePluginDeps 的 pnpm install
+    const pnpmRec = recs.find((r) => !r.isWeb) as SpawnRec
+    expect(pnpmRec.args).toContain('install')
+    expect(pnpmRec.args).toContain('--registry')
+    expect(pnpmRec.args).toContain('https://registry.npmmirror.com')
+    // pnpm 的 stdout 行转成 deps 阶段进度
+    pnpmRec.child.stdout.emit('data', 'Packages: +qrcode@1.5.4\n')
+    pnpmRec.child.stdout.emit('data', 'Progress: resolved 120, reused 100\n')
+    webChildren()[0].stdout.emit('data', 'dsh web: http://127.0.0.1:7/?t=p')
+    const r = await p
+    expect(r.ok).toBe(true)
+    expect(progress.some((x) => x.phase === 'deps' && x.message.includes('npmmirror'))).toBe(true)
+    expect(progress.some((x) => x.phase === 'deps' && x.message.includes('+qrcode'))).toBe(true)
+  })
+
+  it('镜像源失败退回默认源: 第二次 pnpm install 不带 --registry', async () => {
+    const layout = makeLayoutWithoutDeps()
+    // 第一次 pnpm install 失败（镜像不可达），后续全部成功
+    mocks.spawn.mockImplementationOnce(((command: string, args: string[], opts: unknown) => {
+      const child = makeFakeChild()
+      recs.push({ command, args, opts: opts as SpawnRec['opts'], child, isWeb: false })
+      queueMicrotask(() => {
+        child.stderr.emit('data', 'ERR_PNPM_META_FETCH_FAIL')
+        child.emit('exit', 1)
+      })
+      return child
+    }) as never)
+    const progress: Array<{ phase: string; message: string }> = []
+    const host = makeHost(layout, { onProgress: (p: { phase: string; message: string }) => progress.push(p) })
+    const p = host.open()
+    await flushHelpers()
+    webChildren()[0].stdout.emit('data', 'dsh web: http://127.0.0.1:8/?t=f')
+    const r = await p
+    expect(r.ok).toBe(true)
+    const installs = recs.filter((x) => !x.isWeb && x.args.includes('install'))
+    expect(installs).toHaveLength(2)
+    expect(installs[0].args).toContain('--registry')
+    expect(installs[1].args).not.toContain('--registry')
+    expect(progress.some((x) => x.message.includes('默认源'))).toBe(true)
+  })
+
+  it('prewarmDeps: 只装依赖不启 web', async () => {
+    const layout = makeLayoutWithoutDeps()
+    const host = makeHost(layout)
+    await host.prewarmDeps()
+    await flushHelpers()
+    expect(recs.some((r) => !r.isWeb && r.args.includes('install'))).toBe(true)
+    expect(webChildren()).toHaveLength(0)
+  })
+
+  it('EAA_NPM_REGISTRY=default: 直接用默认源，不做二次重试', async () => {
+    const layout = makeLayoutWithoutDeps()
+    const host = makeHost(layout, { env: { EAA_NPM_REGISTRY: 'default' } })
+    const p = host.open()
+    await flushHelpers()
+    webChildren()[0].stdout.emit('data', 'dsh web: http://127.0.0.1:10/?t=d')
+    await p
+    const installs = recs.filter((x) => !x.isWeb && x.args.includes('install'))
+    expect(installs).toHaveLength(1)
+    expect(installs[0].args).not.toContain('--registry')
   })
 
   it('stamp 免重装: stop 后重开不再跑 plugin add', async () => {

@@ -18,6 +18,7 @@ import type { GradingAPI } from '@shared/api/grading'
 import type { LogAPI } from '@shared/api/log'
 import type { McpAPI } from '@shared/api/mcp'
 import type { MemoryAPI } from '@shared/api/memory'
+import type { OfficeKitAPI } from '@shared/api/office-kit'
 import type { OllamaAPI } from '@shared/api/ollama'
 import type { PrivacyAPI } from '@shared/api/privacy'
 import type { ProfileAPI } from '@shared/api/profile'
@@ -52,6 +53,8 @@ export interface WindowAPI {
   // 阶段 1 频道化: 消息频道/连接中心 API
   channels: ChannelsAPI
   dshIm: DshImAPI
+  // office 转 PDF 组件（libreoffice-kit 按需补装）
+  officeKit: OfficeKitAPI
   // 全量数据备份/恢复
   backup: BackupAPI
   sys: SysAPI

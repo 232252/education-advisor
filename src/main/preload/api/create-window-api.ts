@@ -17,6 +17,7 @@ import { gradingApi } from './grading'
 import { logApi } from './log'
 import { mcpApi } from './mcp'
 import { memoryApi } from './memory'
+import { officeKitApi } from './office-kit'
 import { ollamaApi } from './ollama'
 import { privacyApi } from './privacy'
 import { profileApi } from './profile'
@@ -47,6 +48,7 @@ export function createWindowApi() {
     feishu: feishuApi,
     channels: channelsApi,
     dshIm: dshImApi,
+    officeKit: officeKitApi,
     backup: backupApi,
     reports: reportsApi,
     grading: gradingApi,

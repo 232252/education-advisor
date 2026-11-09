@@ -87,6 +87,7 @@ export default defineConfig({
             'src/main/**/*.{test,spec}.{ts,tsx}',
             'tests/main/**/*.{test,spec}.{ts,tsx}',
             'tests/shared/**/*.{test,spec}.{ts,tsx}',
+            'tests/site/**/*.{test,spec}.{ts,tsx}',
             'tests/e2e/**/*.{test,spec}.{ts,tsx}',
           ],
           exclude: [

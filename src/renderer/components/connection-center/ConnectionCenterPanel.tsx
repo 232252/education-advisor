@@ -87,6 +87,12 @@ export function ConnectionCenterPanel({
     }
   })
   const [error, setError] = useState<string | null>(null)
+  // 首开要在线装 ~100MB 依赖：把主进程的启动阶段进度亮出来，替代静默等待
+  const [progress, setProgress] = useState<string | null>(null)
+
+  useEffect(() => {
+    return getAPI().dshIm.onProgress((p) => setProgress(p.message))
+  }, [])
 
   useEffect(() => {
     if (error) return
@@ -202,8 +208,18 @@ export function ConnectionCenterPanel({
           </div>
         ) : (
           <div ref={viewportRef} data-testid="dsh-im-viewport" className="relative w-full h-full">
-            <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-              {t('connectionCenter.im.loading', '正在打开 IM 插件…')}
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <span className="animate-pulse">
+                {t('connectionCenter.im.loading', '正在打开 IM 插件…')}
+              </span>
+              {progress && (
+                <span
+                  data-testid="dsh-im-progress"
+                  className="text-xs text-gray-400 dark:text-gray-500 max-w-[80%] truncate"
+                >
+                  {progress}
+                </span>
+              )}
             </div>
           </div>
         )}

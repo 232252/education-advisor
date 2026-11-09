@@ -7,17 +7,19 @@
 // =============================================================
 
 import type { EducationPluginInstall } from '@shared/api/dsh-im'
+import type { OfficeKitStatus } from '@shared/api/office-kit'
 import {
   Brain,
   ClipboardCheck,
   Clock,
+  FileText,
   GraduationCap,
   MessageCircle,
   Plug,
   ScrollText,
   Users,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { requestOpenConnectionCenter } from '../../../components/connection-center/open-connection-center'
 import { Skeleton } from '../../../components/Skeleton'
 import { tr, useT } from '../../../i18n'
@@ -41,13 +43,61 @@ export function PluginsTab() {
   // AI 批改任务数:本组件就地拉取(不进 usePluginsOverview,保持该 hook 职责单一;挂载期一次)
   const [gradingCount, setGradingCount] = useState<number | null>(null)
   const [install, setInstall] = useState<EducationPluginInstall | 'error' | null>(null)
+  // office 转 PDF 组件（178MB，已随安装包分发；下载入口仅作损坏修复）
+  const [officeKit, setOfficeKit] = useState<OfficeKitStatus | null>(null)
+  const loadOfficeKit = useCallback(() => {
+    void getAPI()
+      .officeKit.status()
+      .then(setOfficeKit)
+      .catch(() => setOfficeKit(null))
+  }, [])
   useEffect(() => {
     void (async () => {
       const r = await getAPI().grading.listTasks()
       if (r.success && r.data) setGradingCount(r.data.length)
     })()
     loadPluginInstall(setInstall)
-  }, [])
+    loadOfficeKit()
+    // loadOfficeKit 是稳定的 useCallback，这里实际仍是挂载期一次
+  }, [loadOfficeKit])
+  // 下载中轮询进度（后台预热/手动安装共用）
+  useEffect(() => {
+    if (officeKit?.state !== 'installing') return
+    const timer = setInterval(loadOfficeKit, 1500)
+    return () => clearInterval(timer)
+  }, [officeKit?.state, loadOfficeKit])
+
+  const installOfficeKit = () => {
+    setOfficeKit({
+      state: 'installing',
+      message: t('page.skills.plugins.card.officeKit.preparing', '准备下载…'),
+    })
+    void getAPI()
+      .officeKit.install()
+      .then(setOfficeKit)
+      .catch((err: unknown) =>
+        setOfficeKit({
+          state: 'unknown',
+          message: err instanceof Error ? err.message : String(err),
+        }),
+      )
+  }
+
+  const officeKitText = () => {
+    if (officeKit === null) return '—'
+    if (officeKit.state === 'ready') {
+      return officeKit.source === 'bundled'
+        ? t('page.skills.plugins.card.officeKit.bundled', '已就绪（随包）')
+        : t('page.skills.plugins.card.officeKit.ready', '已就绪（已下载 ~180MB）')
+    }
+    if (officeKit.state === 'installing') {
+      return officeKit.message || t('page.skills.plugins.card.officeKit.installing', '下载中…')
+    }
+    if (officeKit.state === 'missing') {
+      return t('page.skills.plugins.card.officeKit.missing', '未安装（用到时自动联网补装）')
+    }
+    return officeKit.message || t('page.skills.plugins.card.officeKit.unknown', '状态未知')
+  }
 
   const linkText = (on: boolean) => {
     if (install === null) return '—'
@@ -165,6 +215,23 @@ export function PluginsTab() {
                 '查分、加减分和排名。这次运行没有这些工具时，这一组不会连上。',
               )}
               countText={linkText(install !== 'error' && install !== null && install.conduct)}
+            />
+            <PluginCard
+              icon={<FileText className="h-5 w-5" />}
+              title={t('page.skills.plugins.card.officeKit', 'Office 转 PDF 组件')}
+              description={t(
+                'page.skills.plugins.card.officeKit.desc',
+                'Word/Excel 等 office 文件转 PDF 的转换引擎（~180MB）。为控制安装包体积不随包分发，首次使用前联网补装一次即可。',
+              )}
+              countText={officeKitText()}
+              manageLabel={
+                officeKit?.state === 'installing'
+                  ? t('page.skills.plugins.card.officeKit.installing', '下载中…')
+                  : officeKit?.state === 'ready'
+                    ? undefined
+                    : t('page.skills.plugins.card.officeKit.install', '下载组件')
+              }
+              onManage={officeKit?.state === 'installing' ? undefined : installOfficeKit}
             />
           </div>
         </div>

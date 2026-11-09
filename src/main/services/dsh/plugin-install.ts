@@ -7,10 +7,11 @@
 
 import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { delimiter, dirname, join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { resolveSystemNode } from './dsh-node'
 import { EAA_PLUGINS } from './eaa-tools-contract'
 import { dshPluginLinkSpec } from './im-url'
+import { dshChildEnv } from './pnpm-env'
 
 interface PluginTarget {
   home: string
@@ -109,7 +110,7 @@ function runDsh(
   return new Promise((resolve, reject) => {
     const child: ChildProcess = spawn(opts.execPath, [opts.dshBin, ...args], {
       cwd: opts.home,
-      env: childEnv(opts),
+      env: dshChildEnv(opts),
       windowsHide: true,
     })
     let stderr = ''
@@ -126,22 +127,4 @@ function runDsh(
         )
     })
   })
-}
-
-function childEnv(opts: {
-  home: string
-  dshBin: string
-  electronAsNode: boolean
-  env?: NodeJS.ProcessEnv
-}): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...(opts.env ?? process.env), DSH_HOME: opts.home }
-  if (opts.electronAsNode) env.ELECTRON_RUN_AS_NODE = '1'
-  const binDir = join(dirname(opts.dshBin), '..', '..', '..', '.bin')
-  if (existsSync(binDir)) {
-    const current = env.PATH ?? env.Path ?? ''
-    const next = current ? `${binDir}${delimiter}${current}` : binDir
-    env.PATH = next
-    env.Path = next
-  }
-  return env
 }
