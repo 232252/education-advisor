@@ -1461,3 +1461,301 @@ button {
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   下载页（download.html）— 通道/系统/架构筛选 + 下载表格
+   沿用既有 token，不引入新色板
+   ============================================================ */
+
+/* .download-controls label / .download-cta 等设了 display:flex，
+   会覆盖 HTML hidden 属性的 UA 样式，必须显式压回 */
+[hidden] {
+  display: none !important;
+}
+
+.version-badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: var(--radius-full);
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 0.85em;
+  vertical-align: 2px;
+}
+
+.download-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 28px 32px;
+  margin-bottom: 32px;
+}
+
+.download-cta .cta-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.download-cta .cta-meta {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
+}
+
+.download-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  margin-bottom: 40px;
+}
+
+.download-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.download-controls select {
+  min-width: 150px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.download-controls select:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.release-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 20px;
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.release-title a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.release-title a:hover {
+  color: var(--primary);
+}
+
+.release-date {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-rose) 12%, transparent);
+  color: var(--accent-rose);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.download-table-wrap {
+  overflow-x: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 48px;
+}
+
+.download-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.download-table th {
+  padding: 14px 18px;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.download-table td {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  color: var(--text);
+}
+
+.download-table tr:last-child td {
+  border-bottom: none;
+}
+
+.download-table .note-cell {
+  font-size: 0.82rem;
+  color: var(--text-tertiary);
+  max-width: 280px;
+}
+
+.download-table .table-empty {
+  text-align: center;
+  color: var(--text-tertiary);
+  padding: 32px;
+}
+
+.asset-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  margin: 0 8px 8px 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.asset-chip:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.asset-chip strong {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.asset-chip small {
+  font-size: 0.76rem;
+  color: var(--text-tertiary);
+}
+
+.asset-chip.mirror-missing {
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+.asset-chip.mirror-missing strong {
+  color: var(--accent-rose);
+}
+
+.mode-banner {
+  padding: 14px 20px;
+  margin-bottom: 24px;
+  border: 1px solid color-mix(in srgb, var(--accent-rose) 20%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent-rose) 8%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.release-notes h2 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin: 0 0 24px;
+}
+
+.loading {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .download-cta {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .download-controls select {
+    min-width: 0;
+    width: 100%;
+  }
+  .download-controls label {
+    flex: 1 1 45%;
+  }
+}
+
+.release-notes {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 40px;
+}
+
+.release-notes-content {
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.release-notes-content h1,
+.release-notes-content h2,
+.release-notes-content h3 {
+  color: var(--text);
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+
+.release-notes-content p {
+  margin: 0 0 12px;
+}
+
+.release-notes-content ul {
+  padding-left: 20px;
+  margin: 0 0 16px;
+}
+
+.release-notes-content li {
+  margin-bottom: 8px;
+}
+
+.release-notes-content code {
+  background: var(--bg-muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.checksum-note {
+  margin-top: 24px;
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
+}
+
+.checksum-note a {
+  color: var(--primary);
+}

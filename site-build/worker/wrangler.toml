@@ -1,0 +1,9 @@
+name = "eea-releases"
+main = "src/index.js"
+compatibility_date = "2026-06-09"
+
+# 独立子域，与现站 rapid-sky-9499（纯静态资源 Worker）零冲突；
+# custom_domain 由 Cloudflare 自动创建 DNS 记录与证书。
+routes = [
+  { pattern = "api.eea.qdzwwqd.top", custom_domain = true }
+]
