@@ -66,7 +66,9 @@ describe('dshPnpmLaunch', () => {
     const root = mkdtempSync(join(tmpdir(), 'pnpm-launch-'))
     dirs.push(root)
     const bin = join(root, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
-    const exe = join(root, 'node_modules', '@pnpm', 'exe.win32-x64', 'pnpm.exe')
+    // dshPnpmLaunch 不带平台参数、按 process.platform 解析，假树必须同平台
+    const exeDir = join(root, 'node_modules', '@pnpm', `exe.${process.platform}-${process.arch}`)
+    const exe = join(exeDir, process.platform === 'win32' ? 'pnpm.exe' : 'pnpm')
     const script = join(root, 'node_modules', 'pnpm', 'bin', 'pnpm.mjs')
     mkdirSync(dirname(bin), { recursive: true })
     mkdirSync(dirname(exe), { recursive: true })

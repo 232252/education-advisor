@@ -210,14 +210,15 @@ describe('DshImWebHost', () => {
 
   it('打包态: 子进程 PATH 前置随包 @pnpm/exe，修复 plugin add 找不到 pnpm', async () => {
     // 复现安装版布局：electron-builder 会剥掉 node_modules/.bin，包里只有
-    // @pnpm/exe.win32-x64 的真二进制 —— dsh 内部 execa("pnpm") 靠这份 PATH 命中。
+    // @pnpm/exe 的平台真二进制 —— dsh 内部 execa("pnpm") 靠这份 PATH 命中。
+    // 假树按当前运行平台构造（dshChildEnv 按 process.platform 解析）。
     const layout = makeLayout()
     const nmBin = join(layout.root, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
     mkdirSync(dirname(nmBin), { recursive: true })
     writeFileSync(nmBin, '')
-    const exeDir = join(layout.root, 'node_modules', '@pnpm', 'exe.win32-x64')
+    const exeDir = join(layout.root, 'node_modules', '@pnpm', `exe.${process.platform}-${process.arch}`)
     mkdirSync(exeDir, { recursive: true })
-    writeFileSync(join(exeDir, 'pnpm.exe'), '')
+    writeFileSync(join(exeDir, process.platform === 'win32' ? 'pnpm.exe' : 'pnpm'), '')
     const host = makeHost({ ...layout, dshBin: nmBin })
     const p = host.open()
     await flushHelpers()
