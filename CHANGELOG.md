@@ -10,6 +10,24 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 > [`CHANGELOG.md`](https://github.com/232252/education-advisor/blob/main/CHANGELOG.md)
 > in its own repository. Cross-reference both when troubleshooting.
 
+## [3.3.6] — 2026-11-09
+
+### Added
+
+- 官网下载页改版：新增 `eea-releases` Cloudflare Worker（`api.eea.qdzwwqd.top`）归一化 GitHub/Gitee Releases 数据，GitHub API 403 时走 ungh.cc 兜底；下载页改数据驱动，支持通道（稳定/预发布/历史）×平台×架构×下载源（GitHub 直连 / ghfast.top / v6 / hk 加速 / Gitee 镜像）组合与三级降级兜底。
+
+### Changed
+
+- 安装包 −35.7%：Setup.exe 453.7MB → 291.7MB（NSIS solid LZMA 实测口径，`verify:dsh --dist` 36/36）。
+- 停发 Portable 便携版：`win.target` 只留 nsis，发布产物 2→1，单版下载量 542MB → 292MB；历史版本的 Portable 仍可从旧 Release 下载，下载页分类器保留。
+- 全离线直装：office 转 PDF 组件 libreoffice-kit（178MB）随包分发，`bundledPkgDir` 优先命中随包目录，Release 下载链路保留为损坏修复通道（sha256 + ghfast 双源）；连接中心依赖修复通道加 `--prefer-offline`、超时 10 分钟→3 分钟快速失败，首启预热命中随包目录即短路——安装与首开全程不联网。
+- CI `release.yml` 显式跑 `prepackage`（此前 CI 从不 stage dsh-node / office-kit 资产 / dsh-im 依赖，一直靠本地出包）。
+
+### Fixed
+
+- 新装机器连接中心必坏的两处打包回归：electron-builder 复制 extraResources 时整目录丢弃 node_modules（`resources/dsh-im/node_modules` 缺失，qrcode 标记落空走在线回退）；复制模块树时无条件跳过嵌套 node_modules（`pnpm/dist/node_modules` 缺失，回退安装的 pnpm 启动链也是死的）。两处均由 afterPack 钩子（NSIS 压缩前）手工补齐并加守卫断言。
+- 顺带清理：dxcompiler.dll、非本平台 eaa-binaries、better-sqlite3 非 win32-x64 prebuilds 与 deps、openai/src（TS 源码）不再进包；`verify:dsh --dist` 新增离线三件套断言（qrcode 标记 / pnpm dist / 随包 kit）。
+
 ## [3.3.5] — 2026-11-08
 
 ### Changed
@@ -207,7 +225,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - The `nul` file in the repository root (a Windows reparse-point residue from
   an earlier redirect) is git-ignored but can be safely removed by hand.
 
-[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.3...HEAD
+[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.6...HEAD
+[3.3.6]: https://github.com/232252/education-advisor/compare/v3.3.5...v3.3.6
+[3.3.5]: https://github.com/232252/education-advisor/releases/tag/v3.3.5
+[3.3.4]: https://github.com/232252/education-advisor/releases/tag/v3.3.4
 [3.3.3]: https://github.com/232252/education-advisor/releases/tag/v3.3.3
 [3.3.2]: https://github.com/232252/education-advisor/releases/tag/v3.3.2
 [3.3.1]: https://github.com/232252/education-advisor/releases/tag/v3.3.1
