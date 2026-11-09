@@ -18,8 +18,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- 安装包 −35.7%：Setup.exe 453.7MB → 291.7MB（NSIS solid LZMA 实测口径，`verify:dsh --dist` 36/36）。
-- 停发 Portable 便携版：`win.target` 只留 nsis，发布产物 2→1，单版下载量 542MB → 292MB；历史版本的 Portable 仍可从旧 Release 下载，下载页分类器保留。
+- 安装包 −28.8%：Setup.exe 453.7MB → 323.0MB（CI 实测发布口径，`verify:dsh --dist` 36/36）。CI 全新安装顺带补全了本地构建树缺损的 500+ 个 lxgw 文楷字体子集文件——323.0MB 才是完整功能面。
+- 停发 Portable 便携版：`win.target` 只留 nsis，发布产物 2→1，单版下载量 542MB → 323MB；历史版本的 Portable 仍可从旧 Release 下载，下载页分类器保留。
 - 全离线直装：office 转 PDF 组件 libreoffice-kit（178MB）随包分发，`bundledPkgDir` 优先命中随包目录，Release 下载链路保留为损坏修复通道（sha256 + ghfast 双源）；连接中心依赖修复通道加 `--prefer-offline`、超时 10 分钟→3 分钟快速失败，首启预热命中随包目录即短路——安装与首开全程不联网。
 - CI `release.yml` 显式跑 `prepackage`（此前 CI 从不 stage dsh-node / office-kit 资产 / dsh-im 依赖，一直靠本地出包）。
 
