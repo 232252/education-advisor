@@ -140,18 +140,25 @@ check(
 )
 
 // ---- office-kit 按需组件清单（win32）----
+// config/office-kit.json 由 prepackage 生成且 gitignore —— 干净检出（CI）没有
+// 它属正常，SKIP；在位但内容坏才是真问题。打包产物内的在位性由 --dist 断言
+// （resources/config/office-kit.json）把关，那里缺失仍会 hard fail。
 if (process.platform === 'win32') {
   const manifestPath = join(ROOT, 'config', 'office-kit.json')
-  let manifestOk = false
-  let manifestDetail = 'prepackage 的 build-office-kit-asset 没跑？'
-  try {
-    const manifest = readJson(manifestPath)
-    manifestOk = Boolean(manifest.asset && manifest.sha256 && manifest.bytes > 0)
-    if (manifestOk) manifestDetail = `${manifest.asset} (${(manifest.bytes / 1024 / 1024).toFixed(0)}MB)`
-  } catch {
-    /* detail 保持默认 */
+  if (!existsSync(manifestPath)) {
+    checks.push('SKIP office-kit 清单在位 (config/office-kit.json) — 未跑 prepackage（干净检出属正常，--dist 断言管打包产物）')
+  } else {
+    let manifestOk = false
+    let manifestDetail = '文件在但内容坏（缺 asset/sha256/bytes 字段）'
+    try {
+      const manifest = readJson(manifestPath)
+      manifestOk = Boolean(manifest.asset && manifest.sha256 && manifest.bytes > 0)
+      if (manifestOk) manifestDetail = `${manifest.asset} (${(manifest.bytes / 1024 / 1024).toFixed(0)}MB)`
+    } catch {
+      /* detail 保持默认 */
+    }
+    check(manifestOk, 'office-kit 清单在位 (config/office-kit.json)', manifestDetail)
   }
-  check(manifestOk, 'office-kit 清单在位 (config/office-kit.json)', manifestDetail)
 }
 
 // ---- 瘦身排除安全网：排除包不得是活跃 profile 的硬依赖 ----
@@ -303,7 +310,7 @@ function verifyDist(entry, binRel) {
 }
 
 console.log(`verify-dsh-package: ${checks.length - failures.length}/${checks.length} 通过`)
-for (const line of checks) if (line.startsWith('FAIL')) console.log('  ' + line)
+for (const line of checks) if (!line.startsWith('PASS')) console.log('  ' + line)
 if (failures.length) {
   console.error(`\ndsh 装配门禁失败 ${failures.length} 项：`)
   for (const f of failures) console.error(`  - ${f}`)
