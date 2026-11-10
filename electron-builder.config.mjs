@@ -13,14 +13,12 @@ const ymlPath = fileURLToPath(new URL('./electron-builder.yml', import.meta.url)
 const config = parse(readFileSync(ymlPath, 'utf8'))
 config.asarUnpack = asarUnpackPatterns()
 
-// Windows NSIS embeds a 7z of the app. electron-builder's default for 7z is
-// -mx=9 (ultra LZMA). That decode, not the download, is what blows past a
-// minute on a modest PC. `store` writes the payload uncompressed so install
-// is a copy. macOS/Linux builds keep the default so their artifacts stay small.
-const argv = process.argv
-const buildingWin = argv.includes('--win') || argv.includes('--windows')
-const buildingOther = argv.includes('--mac') || argv.includes('--linux')
-if (buildingWin && !buildingOther) config.compression = 'store'
+// Do not set compression to "store". electron-builder's 7z default is -mx=9,
+// the same ultra LZMA that produced the ~323 MB v3.3.6 Setup.exe. Store mode
+// (-mx=0) skips that decode but writes the raw tree, so the installer grows
+// to about 0.8–1.1 GB. Install time is dominated by how many files NSIS
+// creates, not by the LZMA decode of a ~300 MB archive (seconds, not a
+// minute). Keep the default compressor and keep the file count low.
 
 const officeDir = fileURLToPath(new URL('./build/office-kit', import.meta.url))
 if (existsSync(officeDir)) {
@@ -28,6 +26,6 @@ if (existsSync(officeDir)) {
 }
 
 console.log(
-  `[electron-builder.config] asarUnpack ${config.asarUnpack.length} native globs; compression ${config.compression ?? 'default'}; JS stays in app.asar`,
+  `[electron-builder.config] asarUnpack ${config.asarUnpack.length} native globs; 7z compression left at electron-builder default (-mx=9); JS stays in app.asar`,
 )
 export default config

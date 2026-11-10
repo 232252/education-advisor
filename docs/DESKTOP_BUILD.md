@@ -158,15 +158,15 @@ npm run package:portable
 npm run package:installer
 ```
 
-`npm run package` passes `--config electron-builder.config.mjs`. On a
-Windows build that file also sets `compression: store`. electron-builder's
-default 7z level for the NSIS payload is `-mx=9` (ultra LZMA); decoding
-that archive is a large part of install time on a modest PC. Store mode
-copies the payload instead. The installer file is larger (about the size
-of the unpacked app, on the order of 1 GB rather than the old ~323 MB
-Setup.exe). Download time is not the install timer.
+`npm run package` passes `--config electron-builder.config.mjs`. That
+config does **not** change the 7z compression level. electron-builder's
+default for the NSIS payload is `-mx=9`, the same ultra LZMA that produced
+the ~323 MB v3.3.6 Setup.exe. Uncompressed (`store` / `-mx=0`) packing was
+tried and rejected: it makes install a raw copy and grows Setup.exe to
+about 0.8–1.1 GB. Decode of a ~300 MB LZMA archive is seconds. The
+multi-minute install was the 27,647 separate files.
 
-The same config unpacks only native binaries (`*.node`, `*.dll`, `*.exe`,
+The config unpacks only native binaries (`*.node`, `*.dll`, `*.exe`,
 `*.dylib`, `*.so`). JavaScript stays in `app.asar`. The connection-center
 plugin is `resources/dsh-im.asar` plus `resources/dsh-im-deps.asar`; the
 first time the connection center opens, the source archive is expanded
@@ -174,7 +174,7 @@ under the user data directory so pnpm can link a real directory. The
 Office kit is `resources/office-kit/*.zip` (one file, 735 entries inside)
 and is extracted locally when the app warms it up, not as hundreds of
 files during setup. A bare `electron-builder` without this config still
-unpacks all of `node_modules` and keeps ultra compression.
+unpacks all of `node_modules`.
 
 The artifact name is fixed (`Education-Advisor-Setup.${ext}`) so the
 download-page URL stays stable across versions.

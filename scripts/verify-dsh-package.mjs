@@ -136,6 +136,12 @@ check(
   readFileSync(join(ROOT, 'electron-builder.config.mjs'), 'utf8').includes('asarUnpackPatterns'),
   'electron-builder.config.mjs 用 asarUnpackPatterns 计算解包清单',
 )
+const builderConfig = readFileSync(join(ROOT, 'electron-builder.config.mjs'), 'utf8')
+check(
+  !/compression\s*=\s*['"]store['"]/.test(builderConfig),
+  'Windows 安装包保持 7z 默认压缩，不用 store',
+  'store (-mx=0) 会把 Setup.exe 从约 323MB 撑到约 1GB',
+)
 
 // ---- 随包 pnpm 工具链（连接中心 plugin add 的物质基础）----
 check(
