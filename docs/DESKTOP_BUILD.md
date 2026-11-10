@@ -127,8 +127,8 @@ backend, because the regular tests stub the SDK client and would never
 catch it: `@deepseek-ai/dsh-sdk-client` must be in `dependencies`
 (not `devDependencies`), the installed SDK must bring the
 `@deepseek-ai/dsh` runtime, the dsh executable must exist on real
-disk, and electron-builder's `asarUnpack` must cover `node_modules`
-(a pure-Node subprocess cannot read inside `app.asar`).
+disk. `asarUnpack` is only native binaries; the pure-Node subprocess
+reads `app.asar` through `resources/asar-preload`.
 
 It is a CI gate (`.github/workflows/ci.yml`, the
 "dsh assembly check" step) and it runs locally too:
@@ -160,13 +160,14 @@ npm run package:installer
 
 `npm run package` passes `--config electron-builder.config.mjs`. That
 file keeps every `electron-builder.yml` setting and replaces `asarUnpack`
-with the dsh/pnpm runtime closure plus native binaries (`*.node`,
-`*.dll`, `*.exe`). Electron-only packages stay inside `app.asar`, so the
-NSIS installer writes fewer files. The feature set is unchanged: the
-main process still reads pdfjs, fonts, and the rest of `node_modules`
-through Electron's asar patch, and the stock `node.exe` that launches
-dsh still sees real files. A bare `electron-builder` without that config
-falls back to unpacking all of `node_modules` (slower install, same app).
+with native binaries only (`*.node`, `*.dll`, `*.exe`, `*.dylib`, `*.so`).
+JavaScript, including the dsh runtime and pnpm's scripts, stays inside
+`app.asar`. The packaged stock `node.exe` is launched with
+`--import resources/asar-preload/asar-node-register.mjs`, so it can read
+that archive. Connection-center dependencies and the pnpm fallback
+`dist/node_modules` tree are each one `node_modules.asar`, not a directory
+of loose files. A bare `electron-builder` without that config still
+unpacks all of `node_modules` (slower install, same app).
 
 The artifact name is fixed (`Education-Advisor-Setup.${ext}`) so the
 download-page URL stays stable across versions.
@@ -199,17 +200,19 @@ re-run (e.g. after upgrading dsh or dsh-im).
 
 1. **Installs per-user** (`%LOCALAPPDATA%\Programs`; `nsis.perMachine: false` in `electron-builder.yml`).
 2. **Creates a desktop shortcut** and a start menu shortcut.
-3. **Copies the app.asar** (containing `dist/main/` and
-   `dist/renderer/`) to the install location, with `**/node_modules/**`
-   unpacked to `app.asar.unpacked/` (`asarUnpack` — the dsh subprocess
-   is a pure-Node process and cannot read inside the asar).
+3. **Copies one `app.asar`** (the app plus its JavaScript dependencies)
+   to the install location. Only native binaries are unpacked beside it.
+   The dsh subprocess is stock Node; it is started with the asar preload
+   so it can read that archive instead of a tree of loose files.
 4. **Copies `resources/eaa-binaries/`** to the install location
    (as `extraResources`).
 5. **Copies `config/`, `agents/`, `skills/`, `vendor/dsh-im/` (the
    official connection-center plugin), the education plugins
-   `vendor/eaa-tools|eaa-roster|eaa-grades|eaa-grading/`, and
-   `vendor/dsh-node/` (the staged `node.exe`)** to the install
-   location (all as `extraResources`).
+   `vendor/eaa-tools|eaa-roster|eaa-grades|eaa-grading/`,
+   `vendor/dsh-node/` (the staged `node.exe`), and `scripts/asar-preload/`**
+   to the install location (all as `extraResources`). The plugin's
+   `node_modules` is one `node_modules.asar` written by `afterPack`, not
+   a second loose tree.
 6. **Registers the app in the Add/Remove Programs** list.
 7. **Optional**: launches the app on completion (configurable).
 

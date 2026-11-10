@@ -16,13 +16,13 @@ describe('Windows install speedups', () => {
     expect(preferMirror(2000, Number.POSITIVE_INFINITY)).toBe(false)
   })
 
-  it('unpacks the dsh runtime and leaves Electron-only packages in the asar', () => {
+  it('unpacks only native binaries', () => {
     expect(assertUnpackContract()).toEqual([])
     const patterns = asarUnpackPatterns()
-    expect(patterns).not.toContain('**/node_modules/**')
-    expect(patternCoversPackage(patterns, '@deepseek-ai/libreoffice-kit-win32-x64')).toBe(true)
+    expect(patterns).toEqual(['**/*.node', '**/*.dll', '**/*.exe', '**/*.dylib', '**/*.so'])
+    expect(patternCoversPackage(patterns, '@deepseek-ai/dsh')).toBe(false)
+    expect(patternCoversPackage(patterns, 'pnpm')).toBe(false)
     expect(patternCoversPackage(patterns, 'pdfjs-dist')).toBe(false)
-    expect(patternCoversPackage(patterns, 'lxgw-wenkai-webfont')).toBe(false)
   })
 
   it('matches the committed EAA binaries to the current Rust sources', () => {

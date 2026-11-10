@@ -143,6 +143,10 @@ extraResources:
   - from: vendor/dsh-node/
     to: dsh-node/
     filter: ["node.exe", "node"]
+  # stock node 读 app.asar / node_modules.asar 的预加载（一个目录，不是依赖树）。
+  - from: scripts/asar-preload/
+    to: asar-preload/
+    filter: ["**/*"]
   # 内置技能随包分发 — skill-service 打包态读 process.resourcesPath/skills,
   # 缺此条则安装版系统提示词的技能清单为空
   - from: skills/
@@ -197,15 +201,12 @@ nsis:
 npmRebuild: false
 
 asar: true
-# 裸跑 `electron-builder`（不带 --config）时的安全回退：整棵 node_modules 都
-# 解出，安装更慢，功能相同。`npm run package` / release.yml 加载
-# electron-builder.config.mjs，只把 dsh/pnpm 闭包和原生二进制解出，其余 JS
-# 留在 app.asar（Electron 主进程读得到，安装少写几千个文件）。
+# 裸跑 `electron-builder`（不带 --config）时的慢速回退：整棵 node_modules 都
+# 解出。`npm run package` / release.yml 加载 electron-builder.config.mjs，
+# 只解出原生二进制（*.node/*.dll/*.exe/*.dylib/*.so）。JS 留在 app.asar，
+# 随包的 stock node 用 resources/asar-preload 读取。
 asarUnpack:
   - "**/*.exe"
   - "**/*.node"
   - "**/*.dll"
-  # 回退：不带 electron-builder.config.mjs 时整棵依赖树都解出。dsh 子进程是纯
-  # node，读不到 app.asar；快路径会按 package-lock 把 dsh/pnpm 闭包（含非
-  # scoped 传递依赖）和上面的原生二进制解出，pdfjs / 字体 / 主进程 JS 留在 asar。
   - "**/node_modules/**"

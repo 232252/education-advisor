@@ -3,12 +3,10 @@
 //
 // 打包后的补齐、修剪与守卫（对应 electron-builder.yml 里的 afterPack 配置）：
 //  1. 补齐 electron-builder 复制不出来的离线件（在 NSIS 打 7z 之前落盘）：
-//     - vendor/dsh-im/node_modules → resources/dsh-im/node_modules。
-//       builder 复制 extraResources 时整目录丢弃 node_modules，而连接中心
-//       首开离线靠它（qrcode 标记检测，im-host.ts ensurePluginDeps）。
-//     - node_modules/pnpm/dist/node_modules → app.asar.unpacked 里 pnpm 的
-//       同名目录。builder 复制模块树时无条件跳过嵌套 node_modules
-//       （NodeModuleCopyHelper），缺了它 pnpm.mjs 引导壳起不来。
+//     - vendor/dsh-im/node_modules → resources/dsh-im/node_modules.asar
+//       （一个归档，不再逐文件写盘）。连接中心用 asar-preload 读取。
+//     - node_modules/pnpm/dist/node_modules → 一个 node_modules.asar。
+//       builder 跳过嵌套 node_modules，pnpm.mjs 兜底仍要读到 get-pnpm。
 //  2. 删 dxcompiler.dll（WebGPU/Dawn 的着色器编译器，~25MB）—— 应用与
 //     连接中心的 WebContentsView 都不用 WebGPU，删掉不影响渲染。
 //     vk_swiftshader.dll 保留：无 GPU / 远程桌面时它还是软件 WebGL 兜底。
@@ -24,7 +22,9 @@
 // electron-builder 也会中止，但手动 exit 的日志更醒目。
 // =============================================================
 
-import { cpSync, existsSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -56,50 +56,44 @@ export default async function afterPack(context) {
     console.log(`[after-pack-trim] -${(size / 1024 / 1024).toFixed(1)}MB ${why}`)
   }
 
-  // ---- 1. 离线直装补齐（builder 丢什么这里补什么，缺源直接失败）----
-  const copyDir = (src, dest, filter, why) => {
-    if (!existsSync(src)) {
-      console.error(`[after-pack-trim] 复制源缺失：${src}（${why}）—— 离线直装会坏，中止打包`)
-      process.exit(1)
-    }
-    // cpSync 的 filter 只接受 function；无过滤时传 undefined（null 会 TypeError）
-    cpSync(src, dest, { recursive: true, filter: filter ?? undefined })
-    console.log(`[after-pack-trim] +${(dirSize(dest) / 1024 / 1024).toFixed(1)}MB ${why}`)
-  }
-
+  // ---- 1. 离线直装补齐：依赖树打成单个 asar，不逐文件进安装包 ----
   // 1a. 连接中心离线依赖（stage-dsh-im-deps 装好的生产树）。
   //     electron-builder 复制 extraResources 时整目录丢 node_modules，只能这里补。
+  const asarPacker = loadAsarPacker()
   const imDepsSrc = join(ROOT, 'vendor', 'dsh-im', 'node_modules')
-  const imDepsDest = join(appOutDir, 'resources', 'dsh-im', 'node_modules')
-  copyDir(
-    imDepsSrc,
-    imDepsDest,
-    (src) => {
-      const rel = relative(imDepsSrc, src)
-      if (!rel) return true
-      const parts = rel.split(sep)
-      if (parts[0] === '@img' && parts[1] === 'sharp-wasm32') return false // wasm 兜底，win32-x64 用不到
-      const base = parts[parts.length - 1]
-      if (base.endsWith('.map')) return false
-      if (base.endsWith('.md') && /^(README|CHANGELOG)/i.test(base)) return false
-      return true
-    },
-    'dsh-im 离线依赖（连接中心首开不再联网装）',
+  const imAsar = join(appOutDir, 'resources', 'dsh-im', 'node_modules.asar')
+  packFiltered(asarPacker, imDepsSrc, imAsar, (src) => {
+    const rel = relative(imDepsSrc, src)
+    if (!rel) return true
+    const parts = rel.split(sep)
+    if (parts[0] === '@img' && parts[1] === 'sharp-wasm32') return false
+    const base = parts[parts.length - 1]
+    if (base.endsWith('.map')) return false
+    if (base.endsWith('.md') && /^(README|CHANGELOG)/i.test(base)) return false
+    return true
+  })
+  if (!asarPacker.listPackage(imAsar).some((name) => name.replaceAll('\\', '/').endsWith('qrcode/package.json'))) {
+    console.error(`[after-pack-trim] dsh-im 依赖归档缺少 qrcode/package.json：${imAsar}`)
+    process.exit(1)
+  }
+  console.log(
+    `[after-pack-trim] +1 dsh-im/node_modules.asar（${(statSync(imAsar).size / 1024 / 1024).toFixed(1)}MB，依赖树不再散写）`,
   )
-  const qrcodeMarker = join(imDepsDest, 'qrcode', 'package.json')
-  if (!existsSync(qrcodeMarker)) {
-    console.error(`[after-pack-trim] dsh-im 依赖落位失败：缺 ${qrcodeMarker}`)
-    process.exit(1)
-  }
 
-  // 1b. pnpm 引导壳的嵌套依赖（builder 的 NodeModuleCopyHelper 会跳过它）。
+  // 1b. pnpm 引导壳的嵌套依赖。主路径是 @pnpm/exe；这份归档只服务 pnpm.mjs 兜底。
   const pnpmDistSrc = join(ROOT, 'node_modules', 'pnpm', 'dist', 'node_modules')
-  const pnpmDistDest = join(appOutDir, 'resources', 'app.asar.unpacked', 'node_modules', 'pnpm', 'dist', 'node_modules')
-  copyDir(pnpmDistSrc, pnpmDistDest, null, 'pnpm dist 嵌套依赖（pnpm.mjs 引导壳需要）')
-  if (!existsSync(join(pnpmDistDest, 'get-pnpm', 'package.json'))) {
-    console.error(`[after-pack-trim] pnpm dist 落位失败：缺 ${join(pnpmDistDest, 'get-pnpm')}`)
+  const pnpmAsar = join(appOutDir, 'resources', 'app.asar.unpacked', 'node_modules', 'pnpm', 'dist', 'node_modules.asar')
+  if (!existsSync(pnpmDistSrc)) {
+    console.error(`[after-pack-trim] 复制源缺失：${pnpmDistSrc}（pnpm 引导壳）—— 离线直装会坏，中止打包`)
     process.exit(1)
   }
+  mkdirSync(dirname(pnpmAsar), { recursive: true })
+  asarPacker.createPackageWithOptions(pnpmDistSrc, pnpmAsar, { unpack: '**/*.{node,dll,exe,dylib,so}' })
+  if (!asarPacker.listPackage(pnpmAsar).some((name) => name.replaceAll('\\', '/').includes('get-pnpm/package.json'))) {
+    console.error(`[after-pack-trim] pnpm dist 归档缺少 get-pnpm：${pnpmAsar}`)
+    process.exit(1)
+  }
+  console.log(`[after-pack-trim] +1 pnpm/dist/node_modules.asar（${(statSync(pnpmAsar).size / 1024 / 1024).toFixed(1)}MB）`)
 
   // ---- 2. WebGPU 着色器编译器（所有平台都不用）----
   remove(join(appOutDir, 'dxcompiler.dll'), 'dxcompiler.dll（WebGPU 未用）')
@@ -159,6 +153,38 @@ export default async function afterPack(context) {
   console.log(
     `[after-pack-trim] ${platform} 修剪完成，共 -${(removedBytes / 1024 / 1024).toFixed(1)}MB（补齐项见上方 + 行）`,
   )
+}
+
+function loadAsarPacker() {
+  const candidates = [
+    join(ROOT, 'node_modules', 'electron-builder', 'package.json'),
+    join(ROOT, 'node_modules', '@electron', 'asar', 'package.json'),
+  ]
+  for (const manifest of candidates) {
+    if (!existsSync(manifest)) continue
+    try {
+      return createRequire(manifest)('@electron/asar')
+    } catch {
+      /* try the next location */
+    }
+  }
+  console.error('[after-pack-trim] 找不到 @electron/asar（electron-builder 的依赖），无法把依赖树打成单个归档')
+  process.exit(1)
+}
+
+function packFiltered(asarPacker, src, dest, filter) {
+  if (!existsSync(src)) {
+    console.error(`[after-pack-trim] 复制源缺失：${src} —— 离线直装会坏，中止打包`)
+    process.exit(1)
+  }
+  const stage = mkdtempSync(join(tmpdir(), 'eaa-asar-'))
+  try {
+    cpSync(src, stage, { recursive: true, filter })
+    mkdirSync(dirname(dest), { recursive: true })
+    asarPacker.createPackageWithOptions(stage, dest, { unpack: '**/*.{node,dll,exe,dylib,so}' })
+  } finally {
+    rmSync(stage, { recursive: true, force: true })
+  }
 }
 
 function dirSize(target) {

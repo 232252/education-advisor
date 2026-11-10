@@ -1,6 +1,9 @@
-import { sep } from 'node:path'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, sep } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { createDshSpawnPatch, rewriteDshCommand } from '../dsh-node'
+import { configureDshAsarRegister, createDshSpawnPatch, rewriteDshCommand } from '../dsh-node'
 
 const electron = `C:${sep}App${sep}electron.exe`
 const node = `C:${sep}node${sep}node.exe`
@@ -47,4 +50,34 @@ describe('createDshSpawnPatch', () => {
     })
     expect(seen).toEqual([{ command: node, env: { PATH: 'x' } }])
   })
+
+  it('打包态给 stock node 加上 asar 预加载，argv 里的 dsh 参数位置不变', () => {
+    const register = joinTmp('asar-node-register.mjs')
+    configureDshAsarRegister(register)
+    const seen: Array<{ command: string; args?: readonly string[]; env?: NodeJS.ProcessEnv }> = []
+    const original = (
+      command: string,
+      args?: readonly string[] | object,
+      options?: { env?: NodeJS.ProcessEnv },
+    ) => {
+      seen.push({ command, args: Array.isArray(args) ? args : undefined, env: options?.env })
+      return { pid: 1 }
+    }
+    const patched = createDshSpawnPatch(original, electron, node)
+    patched(electron, [dshBin, '--profile', 'sdk'], { env: { ELECTRON_RUN_AS_NODE: '1', PATH: 'x' } })
+    const url = pathToFileURL(register).href
+    expect(seen[0]?.command).toBe(node)
+    expect(seen[0]?.args?.slice(0, 3)).toEqual(['--disable-warning=DEP0180', '--import', url])
+    expect(seen[0]?.args?.slice(3)).toEqual([dshBin, '--profile', 'sdk'])
+    expect(seen[0]?.env?.ELECTRON_RUN_AS_NODE).toBeUndefined()
+    expect(seen[0]?.env?.NODE_OPTIONS).toContain(`--import=${url}`)
+    configureDshAsarRegister(undefined)
+  })
 })
+
+function joinTmp(name: string): string {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-asar-'))
+  const file = join(dir, name)
+  writeFileSync(file, '')
+  return file
+}

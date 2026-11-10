@@ -7,10 +7,17 @@
 
 import { execFileSync, type SpawnOptions } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 
 let cachedNode: string | null = null
 let hooked = false
 let configuredNode: string | undefined
+let asarRegister: string | undefined
+
+/** 打包态 resources/asar-preload 的入口。开发态不设置，子进程直接读真实文件。 */
+export function configureDshAsarRegister(registerPath: string | undefined): void {
+  asarRegister = registerPath && existsSync(registerPath) ? registerPath : undefined
+}
 
 type SpawnLike = (
   command: string,
@@ -63,11 +70,17 @@ export function createDshSpawnPatch(
     const argv = isArgList(args) ? args : undefined
     const spawnOptions = isArgList(args) ? options : args
     const rewritten = rewriteDshCommand(command, argv, electronPath, systemNode)
-    const next = rewritten.dropElectronRunAsNode
+    let next = rewritten.dropElectronRunAsNode
       ? stripElectronRunAsNode(spawnOptions)
       : spawnOptions
-    return argv
-      ? originalSpawn(rewritten.command, argv, next)
+    let launchArgs = argv
+    if (rewritten.dropElectronRunAsNode && asarRegister) {
+      const injected = injectAsarHook(launchArgs, next)
+      launchArgs = injected.args
+      next = injected.options
+    }
+    return launchArgs
+      ? originalSpawn(rewritten.command, launchArgs, next)
       : originalSpawn(rewritten.command, next)
   }
 }
@@ -116,6 +129,21 @@ export function installDshNodeSpawnHook(): void {
     electronPath,
     systemNode,
   ) as typeof childProcess.spawn
+}
+
+function injectAsarHook(
+  argv: readonly string[] | undefined,
+  options: SpawnOptions | undefined,
+): { args: readonly string[] | undefined; options: SpawnOptions | undefined } {
+  if (!asarRegister) return { args: argv, options }
+  const url = pathToFileURL(asarRegister).href
+  const args = argv ? ['--disable-warning=DEP0180', '--import', url, ...argv] : argv
+  const env = { ...(options?.env ?? process.env) }
+  const flag = `--import=${url}`
+  if (!env.NODE_OPTIONS?.includes(url)) {
+    env.NODE_OPTIONS = env.NODE_OPTIONS ? `${env.NODE_OPTIONS} ${flag}` : flag
+  }
+  return { args, options: { ...options, env } }
 }
 
 function stripElectronRunAsNode(options: SpawnOptions | undefined): SpawnOptions {

@@ -141,6 +141,16 @@ is redistributed here.
 
 ---
 
+## asar-node preload
+
+The Windows/Linux installer ships a vendored copy of `asar-node` 3.1.1
+(`scripts/asar-preload/asar-node-autorun.cjs`) so the stock Node process that
+runs dsh can read `app.asar`. MIT. License text:
+[`scripts/asar-preload/asar-node.LICENSE.md`](./scripts/asar-preload/asar-node.LICENSE.md).
+Upstream: <https://github.com/toyobayashi/asar-node>.
+
+---
+
 ## Verification
 
 ```bash

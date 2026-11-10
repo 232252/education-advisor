@@ -181,8 +181,8 @@ export function getDshRuntimeCwd(): string {
 /**
  * `app.asar` → `app.asar.unpacked`：electron-builder 的 asarUnpack 把匹配文件解到
  * 归档**外面**的同名目录，而 Electron 的模块解析器仍返回归档内路径。
- * 主进程自己读无所谓（fs 补丁透明），但 SDK 用 process.execPath 另起的是纯 node
- * 子进程，归档对它不可见 —— 交给它的每个路径都得是真实磁盘路径。
+ * 主进程自己读无所谓（fs 补丁透明）。打包态 stock node 由 asar-preload 读
+ * app.asar；原生二进制仍必须在 app.asar.unpacked 的真实路径上。
  */
 export function toUnpackedAsarPath(p: string): string {
   return p.split(`${sep}app.asar${sep}`).join(`${sep}app.asar.unpacked${sep}`)
@@ -204,8 +204,12 @@ export function resolveDshEntryPath(anchorDir: string): string | undefined {
     }
     const bin = typeof manifest.bin === 'object' ? manifest.bin?.dsh : manifest.bin
     if (typeof bin !== 'string' || !bin) return undefined
-    const entry = toUnpackedAsarPath(join(dirname(manifestPath), bin))
-    return existsSync(entry) ? entry : undefined
+    const inside = join(dirname(manifestPath), bin)
+    const unpacked = toUnpackedAsarPath(inside)
+    if (existsSync(unpacked)) return unpacked
+    // JS 留在 app.asar 时，Electron 能读归档内路径；stock node 由 asar-preload 读。
+    if (unpacked !== inside && existsSync(inside)) return inside
+    return undefined
   } catch {
     return undefined
   }

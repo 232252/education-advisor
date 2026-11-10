@@ -1,9 +1,7 @@
-// Packaging config: electron-builder.yml plus a narrower asarUnpack list.
-//
-// The yml keeps `**/node_modules/**` as a safe fallback for a bare
-// `electron-builder` invocation (slower install, same features). `npm run
-// package` and release.yml load this file so the dsh/pnpm closure and native
-// binaries are real files, and Electron-only packages stay inside app.asar.
+// Packaging config: electron-builder.yml, but asarUnpack is only native
+// binaries. JS stays in app.asar. Stock node reads it via scripts/asar-preload.
+// The yml's `**/node_modules/**` remains a slower fallback for a bare
+// `electron-builder` invocation that does not load this file.
 
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -14,6 +12,6 @@ const ymlPath = fileURLToPath(new URL('./electron-builder.yml', import.meta.url)
 const config = parse(readFileSync(ymlPath, 'utf8'))
 config.asarUnpack = asarUnpackPatterns()
 console.log(
-  `[electron-builder.config] asarUnpack ${config.asarUnpack.length} patterns (dsh/pnpm closure + native binaries; other JS stays in app.asar)`,
+  `[electron-builder.config] asarUnpack ${config.asarUnpack.length} native globs; JS stays in app.asar`,
 )
 export default config

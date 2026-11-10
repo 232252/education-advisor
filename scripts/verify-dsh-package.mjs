@@ -12,8 +12,8 @@
 //  1. @deepseek-ai/dsh-sdk-client 在 dependencies（devDependencies 里打包态必死）
 //  2. 已安装的 sdk-client 带运行时依赖 @deepseek-ai/dsh，且版本与已装的一致
 //  3. dsh 的可执行入口在真实磁盘上存在
-//  4. electron-builder.config.mjs 的 asarUnpack 覆盖 dsh/pnpm 闭包与原生二进制
-//     （纯 node 子进程看不见 app.asar；其余 JS 留在归档里，安装少写散文件）
+//  4. electron-builder.config.mjs 的 asarUnpack 只含原生二进制。dsh/pnpm 的 JS
+//     留在 app.asar，stock node 用 resources/asar-preload 读取。
 //  5. 随包 pnpm 工具链在位：@pnpm/exe 的真二进制（dsh plugin add 只认
 //     PATH 上的真 exe；pnpm 12 的 pnpm.mjs 只是 corepack 引导壳，真 CLI
 //     只有 @pnpm/exe 的原生二进制，替代方案实测死路）+ pnpm.mjs 引导壳
@@ -120,7 +120,7 @@ if (sdkManifest) {
 const unpackProblems = assertUnpackContract()
 check(
   unpackProblems.length === 0,
-  'asarUnpack 解开 dsh/pnpm 闭包与原生二进制，其余 JS 留在 app.asar',
+  'asarUnpack 只留下原生二进制，JS 留在 app.asar',
   unpackProblems.join('; ') || `${asarUnpackPatterns().length} patterns`,
 )
 const rootPkg = readJson(join(ROOT, 'package.json'))
@@ -133,7 +133,7 @@ for (const scriptName of ['package', 'package:portable', 'package:installer']) {
 }
 check(
   readFileSync(join(ROOT, 'electron-builder.config.mjs'), 'utf8').includes('asarUnpackPatterns'),
-  'electron-builder.config.mjs 按闭包计算 asarUnpack',
+  'electron-builder.config.mjs 用 asarUnpackPatterns 计算解包清单',
 )
 
 // ---- 随包 pnpm 工具链（连接中心 plugin add 的物质基础）----
@@ -214,7 +214,16 @@ function verifyDist(entry, binRel) {
   const dist = resolve(process.argv[at + 1] || '')
   const unpackedRoot = join(dist, 'resources', 'app.asar.unpacked')
   const unpacked = join(unpackedRoot, 'node_modules', RUNTIME, binRel)
-  check(existsSync(unpacked), '打包产物内 dsh 入口已解出为真实文件', unpacked)
+  check(
+    !existsSync(unpacked),
+    'dsh 的 JS 入口留在 app.asar，不散写成独立文件',
+    unpacked,
+  )
+  check(
+    existsSync(join(dist, 'resources', 'asar-preload', 'asar-node-register.mjs')),
+    'stock node 的 asar 预加载随包',
+    '缺了它纯 node 子进程读不到 app.asar 里的 dsh',
+  )
   check(
     existsSync(join(unpackedRoot, PNM_EXE)),
     '打包产物内随包 pnpm.exe 已解出',
@@ -261,18 +270,22 @@ function verifyDist(entry, binRel) {
   )
   // ---- 离线直装三件套（afterPack 补齐，缺一件新装机器就不是全功能离线）----
   check(
-    existsSync(join(imRoot, 'node_modules', 'qrcode', 'package.json')),
-    'dsh-im 离线依赖在产物内 (qrcode 标记)',
-    '缺失时首开连接中心走在线修复路 —— afterPack 的 dsh-im 依赖复制丢了',
+    existsSync(join(imRoot, 'node_modules.asar')),
+    'dsh-im 离线依赖打成单个 node_modules.asar',
+    '缺失时首开连接中心走在线修复路 —— afterPack 没把依赖归档',
+  )
+  check(
+    !existsSync(join(imRoot, 'node_modules', 'qrcode', 'package.json')),
+    'dsh-im 依赖不再散写成 node_modules 目录',
   )
   check(
     !existsSync(join(imRoot, 'node_modules', '@img', 'sharp-wasm32')),
     'dsh-im 依赖里的 sharp wasm 兜底已剥掉',
   )
   check(
-    existsSync(join(unpackedRoot, 'node_modules', 'pnpm', 'dist', 'node_modules', 'get-pnpm', 'package.json')),
-    '产物内 pnpm/dist/node_modules 已由 afterPack 补回',
-    '缺失时 pnpm.mjs 引导壳起不来，组件修复链路死',
+    existsSync(join(unpackedRoot, 'node_modules', 'pnpm', 'dist', 'node_modules.asar')),
+    '产物内 pnpm/dist/node_modules.asar 已由 afterPack 打好',
+    '缺失时 pnpm.mjs 引导壳读不到 get-pnpm',
   )
   if (process.platform === 'win32') {
     check(
