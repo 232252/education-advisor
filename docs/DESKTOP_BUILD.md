@@ -158,10 +158,18 @@ npm run package:portable
 npm run package:installer
 ```
 
-The `electron-builder.yml` config defines both targets. The artifact
-name is fixed per target (`Education-Advisor-Setup.${ext}` /
-`Education-Advisor-Portable.${ext}`) so the download-page URLs stay
-stable across versions.
+`npm run package` passes `--config electron-builder.config.mjs`. That
+file keeps every `electron-builder.yml` setting and replaces `asarUnpack`
+with the dsh/pnpm runtime closure plus native binaries (`*.node`,
+`*.dll`, `*.exe`). Electron-only packages stay inside `app.asar`, so the
+NSIS installer writes fewer files. The feature set is unchanged: the
+main process still reads pdfjs, fonts, and the rest of `node_modules`
+through Electron's asar patch, and the stock `node.exe` that launches
+dsh still sees real files. A bare `electron-builder` without that config
+falls back to unpacking all of `node_modules` (slower install, same app).
+
+The artifact name is fixed (`Education-Advisor-Setup.${ext}`) so the
+download-page URL stays stable across versions.
 
 ### What `prepackage` stages (auto-runs before `npm run package`)
 

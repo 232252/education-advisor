@@ -7,15 +7,21 @@
 // 打包与 eaa-bridge 运行时使用。
 //
 // 这取代了旧的 download-eaa-binaries.mjs（从 GitHub Releases 下载预编译
-// 二进制）—— EAA 源码就在本仓库内，本地与 CI（release.yml）都应从
-// 源码编译，保持版本一致、可离线、可复现。
+// 二进制）—— EAA 源码就在本仓库内。发布流水线（release.yml）用
+// EAA_FORCE=1 从源码编译；本地安装在指纹一致时直接用随仓库的二进制。
 //
 // 用法:
-//   npm run build:eaa            编译（带缓存判断，已是最新则跳过）
+//   npm run build:eaa              源码指纹与随仓库二进制一致则跳过
 //   EAA_FORCE=1 npm run build:eaa  强制重新编译
+//   EAA_NO_LLD=1                   Windows 上不用 rust-lld（回退 MSVC link.exe）
+//
+// 跳过条件不是文件 mtime。Windows 上 git checkout 按写入顺序盖时间戳，
+// 新鲜克隆几乎总会让 .rs 看起来比 resources/eaa-binaries 里的 eaa.exe 新，
+// 于是每次安装都把已经随仓库提供的引擎又 cargo build --release 一遍。
+// 指纹覆盖全部 .rs / .toml / Cargo.lock（不含 tests/ 与 target/，换行符已规范化）。
 //
 // 退出码:
-//   0  成功（含缓存命中跳过）
+//   0  成功（含指纹命中跳过）
 //   1  cargo 不可用 / 编译失败 / 产物校验失败
 //   2  平台不支持
 // =============================================================
@@ -25,7 +31,6 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
   statSync,
   writeFileSync,
@@ -33,6 +38,7 @@ import {
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { eaaSourceFingerprint } from './lib/eaa-source-fingerprint.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
@@ -84,51 +90,56 @@ function ensureCargo() {
   if (version) info(`cargo: ${version}`)
 }
 
-// ---- 缓存判断：产物已存在且新于源码则跳过 ----
-function newestSourceMtime(dir, maxDepth = 2) {
-  let newest = 0
-  const walk = (d, depth) => {
-    let entries = []
-    try {
-      entries = readdirSync(d, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const e of entries) {
-      // 跳过 target/（编译产物）等无关目录
-      if (e.isDirectory()) {
-        if (e.name === 'target' || e.name === '.git') continue
-        if (depth < maxDepth) walk(join(d, e.name), depth + 1)
-      } else if (e.isFile() && /\.rs$/i.test(e.name)) {
-        try {
-          const m = statSync(join(d, e.name)).mtimeMs
-          if (m > newest) newest = m
-        } catch {
-          /* ignore */
-        }
-      }
-    }
+// ---- 缓存判断：产物已存在且源码指纹与 manifest 一致则跳过 ----
+function readManifest() {
+  try {
+    return JSON.parse(readFileSync(join(TARGET_DIR, 'manifest.json'), 'utf8'))
+  } catch {
+    return null
   }
-  walk(dir, 0)
-  return newest
 }
 
-function isUpToDate() {
+function isUpToDate(fingerprint) {
   if (FORCE) return false
   if (!existsSync(TARGET_PATH)) return false
-  let binMtime = 0
+  let size = 0
   try {
-    binMtime = statSync(TARGET_PATH).mtimeMs
+    size = statSync(TARGET_PATH).size
   } catch {
     return false
   }
-  const srcMtime = newestSourceMtime(EAA_SRC)
-  if (srcMtime > 0 && binMtime >= srcMtime) {
-    info(`已是最新（产物 mtime ${new Date(binMtime).toISOString()} ≥ 源码）。跳过编译。`)
-    info('如需强制重编：EAA_FORCE=1 npm run build:eaa')
+  if (size < 100 * 1024) return false
+  const manifest = readManifest()
+  if (manifest?.source_fingerprint && manifest.source_fingerprint === fingerprint) {
+    info(`源码指纹一致（${fingerprint.slice(0, 12)}…），使用已随仓库提供的二进制。跳过编译。`)
+    info('改了 core/eaa-cli 或需要重编：EAA_FORCE=1 npm run build:eaa')
+    if (!IS_WIN) {
+      try {
+        chmodSync(TARGET_PATH, 0o755)
+      } catch {
+        /* 非关键 */
+      }
+    }
     return true
   }
   return false
+}
+
+// Windows 的 link.exe 是 release 链接阶段的大头。工具链自带 rust-lld 时改用它，
+// 产物功能与 MSVC 链接相同。EAA_NO_LLD=1 可关。
+function windowsLldLinker() {
+  if (!IS_WIN || process.env.EAA_NO_LLD === '1') return undefined
+  const sys = spawnSync('rustc', ['--print', 'sysroot'], { encoding: 'utf8' })
+  const host = spawnSync('rustc', ['-vV'], { encoding: 'utf8' })
+  if (sys.status !== 0 || host.status !== 0) return undefined
+  const sysroot = (sys.stdout || '').trim()
+  const hostTriple = /host:\s*(\S+)/.exec(host.stdout || '')?.[1]
+  if (!sysroot || !hostTriple) return undefined
+  const candidates = [
+    join(sysroot, 'lib', 'rustlib', hostTriple, 'bin', 'rust-lld.exe'),
+    join(sysroot, 'lib', 'rustlib', hostTriple, 'bin', 'gcc-ld', 'rust-lld.exe'),
+  ]
+  return candidates.find((p) => existsSync(p))
 }
 
 // ---- 编译 ----
@@ -156,14 +167,23 @@ function build() {
   }
   if (home) info(`路径重映射：${home} → /build/home（产物不含构建机路径）`)
 
+  const env = {
+    ...process.env,
+    // 保留调用方已设的 RUSTFLAGS，追加而非覆盖
+    RUSTFLAGS: [process.env.RUSTFLAGS, ...remaps].filter(Boolean).join(' '),
+  }
+  const lld = windowsLldLinker()
+  if (lld) {
+    const triple =
+      process.arch === 'arm64' ? 'AARCH64_PC_WINDOWS_MSVC' : 'X86_64_PC_WINDOWS_MSVC'
+    env[`CARGO_TARGET_${triple}_LINKER`] = lld
+    info(`链接器：rust-lld（${lld}）。回退 MSVC：EAA_NO_LLD=1`)
+  }
+
   const res = spawnSync('cargo', ['build', '--release'], {
     cwd: EAA_SRC,
     stdio: 'inherit',
-    env: {
-      ...process.env,
-      // 保留调用方已设的 RUSTFLAGS，追加而非覆盖
-      RUSTFLAGS: [process.env.RUSTFLAGS, ...remaps].filter(Boolean).join(' '),
-    },
+    env,
   })
   if (res.status !== 0) {
     error(`cargo build 失败（exit ${res.status}）`)
@@ -207,7 +227,7 @@ function errText(err) {
 }
 
 // ---- 放置产物 ----
-function placeBinary() {
+function placeBinary(fingerprint) {
   if (!existsSync(SOURCE_BIN)) {
     error(`编译产物不存在：${SOURCE_BIN}`)
     error('请检查 cargo build 输出。')
@@ -240,6 +260,7 @@ function placeBinary() {
     binary: BINARY_NAME,
     cargo_version: (cargoVerRes.stdout?.toString() || '').trim(),
     source: 'core/eaa-cli (本地源码编译)',
+    source_fingerprint: fingerprint,
   }
   try {
     writeFileSync(join(TARGET_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2))
@@ -260,14 +281,17 @@ function main() {
     warn('如需匹配运行时行为，请额外在 x64 环境编译 win32-x64 产物。')
   }
 
-  if (isUpToDate()) {
-    info('✓ 完成（缓存命中）。')
+  const { fingerprint, fileCount } = eaaSourceFingerprint()
+  info(`源码指纹：${fingerprint.slice(0, 12)}…（${fileCount} 个构建输入）`)
+
+  if (isUpToDate(fingerprint)) {
+    info('✓ 完成（指纹命中，未调用 cargo）。')
     return
   }
 
   ensureCargo()
   build()
-  placeBinary()
+  placeBinary(fingerprint)
   info('✓ 完成。')
 }
 

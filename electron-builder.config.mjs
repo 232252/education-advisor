@@ -1,0 +1,19 @@
+// Packaging config: electron-builder.yml plus a narrower asarUnpack list.
+//
+// The yml keeps `**/node_modules/**` as a safe fallback for a bare
+// `electron-builder` invocation (slower install, same features). `npm run
+// package` and release.yml load this file so the dsh/pnpm closure and native
+// binaries are real files, and Electron-only packages stay inside app.asar.
+
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { parse } from 'yaml'
+import { asarUnpackPatterns } from './scripts/lib/asar-unpack-patterns.mjs'
+
+const ymlPath = fileURLToPath(new URL('./electron-builder.yml', import.meta.url))
+const config = parse(readFileSync(ymlPath, 'utf8'))
+config.asarUnpack = asarUnpackPatterns()
+console.log(
+  `[electron-builder.config] asarUnpack ${config.asarUnpack.length} patterns (dsh/pnpm closure + native binaries; other JS stays in app.asar)`,
+)
+export default config

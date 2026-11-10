@@ -17,6 +17,11 @@ UPSTREAM.json text eol=lf
 *.scss text eol=lf
 *.html text eol=lf
 *.sql text eol=lf
+# Rust inputs are hashed by scripts/build-eaa.mjs. Force LF so a Windows
+# checkout cannot disagree with the committed source fingerprint.
+*.rs text eol=lf
+*.toml text eol=lf
+Cargo.lock text eol=lf
 *.svg text eol=lf
 *.ps1 text eol=crlf
 *.bat text eol=crlf

@@ -617,9 +617,14 @@ The dependency footprint is intentionally small:
   for the grading pipeline) are the only native dependencies.
 - The Rust EAA binary is bundled as an `extraResource`, unpacked from
   the asar archive at startup.
-- The dsh subprocess tree (`@deepseek-ai/dsh*`) ships as real files
-  under `app.asar.unpacked/` (`asarUnpack: **/node_modules/**`) — a
-  pure-Node subprocess cannot read inside the asar.
+- The dsh subprocess tree (the `@deepseek-ai/dsh` + `pnpm` runtime closure,
+  including non-scoped transitive dependencies) ships as real files under
+  `app.asar.unpacked/`. A pure-Node subprocess cannot read inside the asar.
+  `npm run package` loads `electron-builder.config.mjs`, which builds that
+  unpack list from `package-lock.json`. Electron-only packages (pdfjs,
+  bundled fonts, the spreadsheet/mail stacks) stay inside `app.asar`, so
+  the Windows installer does not write those files one by one. Native
+  addons (`*.node` / `*.dll` / `*.exe`) are always unpacked.
 - Everything else is pure JS / TS.
 
 ---

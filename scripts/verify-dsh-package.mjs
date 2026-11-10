@@ -12,7 +12,8 @@
 //  1. @deepseek-ai/dsh-sdk-client 在 dependencies（devDependencies 里打包态必死）
 //  2. 已安装的 sdk-client 带运行时依赖 @deepseek-ai/dsh，且版本与已装的一致
 //  3. dsh 的可执行入口在真实磁盘上存在
-//  4. electron-builder 的 asarUnpack 覆盖 node_modules（纯 node 子进程看不见 app.asar）
+//  4. electron-builder.config.mjs 的 asarUnpack 覆盖 dsh/pnpm 闭包与原生二进制
+//     （纯 node 子进程看不见 app.asar；其余 JS 留在归档里，安装少写散文件）
 //  5. 随包 pnpm 工具链在位：@pnpm/exe 的真二进制（dsh plugin add 只认
 //     PATH 上的真 exe；pnpm 12 的 pnpm.mjs 只是 corepack 引导壳，真 CLI
 //     只有 @pnpm/exe 的原生二进制，替代方案实测死路）+ pnpm.mjs 引导壳
@@ -34,6 +35,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { asarUnpackPatterns, assertUnpackContract } from './lib/asar-unpack-patterns.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const SDK = '@deepseek-ai/dsh-sdk-client'
@@ -115,11 +117,23 @@ if (sdkManifest) {
   }
 }
 
-const builderYml = readFileSync(join(ROOT, 'electron-builder.yml'), 'utf8')
+const unpackProblems = assertUnpackContract()
 check(
-  /^\s*-\s*["']?\*\*\/node_modules\/\*\*/m.test(builderYml),
-  'asarUnpack 覆盖整棵 node_modules',
-  '缺少 "**/node_modules/**"：纯 node 子进程读不到 app.asar 内的入口',
+  unpackProblems.length === 0,
+  'asarUnpack 解开 dsh/pnpm 闭包与原生二进制，其余 JS 留在 app.asar',
+  unpackProblems.join('; ') || `${asarUnpackPatterns().length} patterns`,
+)
+const rootPkg = readJson(join(ROOT, 'package.json'))
+for (const scriptName of ['package', 'package:portable', 'package:installer']) {
+  check(
+    (rootPkg.scripts?.[scriptName] ?? '').includes('--config electron-builder.config.mjs'),
+    `${scriptName} 使用收窄后的 asarUnpack`,
+    rootPkg.scripts?.[scriptName] ?? '缺少脚本',
+  )
+}
+check(
+  readFileSync(join(ROOT, 'electron-builder.config.mjs'), 'utf8').includes('asarUnpackPatterns'),
+  'electron-builder.config.mjs 按闭包计算 asarUnpack',
 )
 
 // ---- 随包 pnpm 工具链（连接中心 plugin add 的物质基础）----

@@ -188,19 +188,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd core/eaa-cli
-          cargo build --release
-          cd ../..
-          PLATFORM_DIR="$(node -e 'const o=require("os"); console.log(o.platform()+"-"+o.arch())')"
-          TARGET="resources/eaa-binaries/${PLATFORM_DIR}"
-          mkdir -p "$TARGET"
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            cp "core/eaa-cli/target/release/eaa.exe" "$TARGET/eaa.exe"
-          else
-            cp "core/eaa-cli/target/release/eaa" "$TARGET/eaa"
-            chmod +x "$TARGET/eaa"
-          fi
-          ls -la "$TARGET/"
+          # Same path remap and (on Windows) rust-lld link as a local rebuild.
+          # EAA_FORCE skips the fingerprint cache: a release must compile, not
+          # reuse whatever binary happened to be committed.
+          EAA_FORCE=1 npm run build:eaa
+          find resources/eaa-binaries -maxdepth 2 -type f -exec ls -la {} +
 
       - name: Build
         shell: bash
@@ -228,7 +220,8 @@ jobs:
             if [ -z "${!var}" ]; then unset "$var"; fi
           done
           # 手动触发不在 tag ref 上，必须 --publish always；版本由 prepare 注入。
-          ARGS=(--${{ matrix.target }} --${{ matrix.arch }} --publish always
+          ARGS=(--config electron-builder.config.mjs
+                --${{ matrix.target }} --${{ matrix.arch }} --publish always
                 --config.extraMetadata.version="${RELEASE_VERSION}")
           if ! npx electron-builder "${ARGS[@]}"; then
             echo "::warning::electron-builder 打包/上传失败，60 秒后重试一次"

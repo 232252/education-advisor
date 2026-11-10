@@ -51,6 +51,16 @@ files:
   # source map 是散文件数第一大头（lucide-react/openai/rxjs 等共 ~1.07 万个
   # / 11MB），运行时无人读取，砍掉直接缩短安装写盘时间。
   - "!**/*.map"
+  # 类型声明同样不参与运行（openai 一包就有数百个 .d.ts）。NSIS 逐文件写盘，
+  # 这些散文件只拖慢安装，不提供任何功能。
+  - "!**/*.d.ts"
+  - "!**/*.d.mts"
+  - "!**/*.d.cts"
+  - "!**/LICENSE"
+  - "!**/LICENSE.md"
+  - "!**/LICENSE.txt"
+  - "!**/NOTICE"
+  - "!**/NOTICE.md"
   # 依赖包的 README/CHANGELOG 不进安装包（~2000 个散文件）。注意不能用
   # !**/*.md 一刀切：dsh 体系把 docs/*.md 当 AI 技能说明书在运行时引用。
   - "!**/README*.md"
@@ -187,13 +197,15 @@ nsis:
 npmRebuild: false
 
 asar: true
+# 裸跑 `electron-builder`（不带 --config）时的安全回退：整棵 node_modules 都
+# 解出，安装更慢，功能相同。`npm run package` / release.yml 加载
+# electron-builder.config.mjs，只把 dsh/pnpm 闭包和原生二进制解出，其余 JS
+# 留在 app.asar（Electron 主进程读得到，安装少写几千个文件）。
 asarUnpack:
   - "**/*.exe"
   - "**/*.node"
   - "**/*.dll"
-  # dsh 后端要另起一个**纯 node**子进程跑 @deepseek-ai/dsh（SDK 用 process.execPath
-  # + ELECTRON_RUN_AS_NODE 启动它）。归档只对主进程透明，node 子进程看不见 app.asar，
-  # 所以整棵依赖树必须以真实文件形式落在 app.asar.unpacked 下 —— 只挑 @deepseek-ai/*
-  # 不够，cosmokit / schemastery / node-addon-system 这些非 scoped 传递依赖也得在。
-  # 安装体积不变（解出的文件不再进归档），只是文件数变多。
+  # 回退：不带 electron-builder.config.mjs 时整棵依赖树都解出。dsh 子进程是纯
+  # node，读不到 app.asar；快路径会按 package-lock 把 dsh/pnpm 闭包（含非
+  # scoped 传递依赖）和上面的原生二进制解出，pdfjs / 字体 / 主进程 JS 留在 asar。
   - "**/node_modules/**"

@@ -41,9 +41,12 @@
   run their install scripts (pnpm 12.15 without this leaves broken
   Windows `.bin` shims).
 - **Git 2.30+**.
-- **A working C++ toolchain** (for `better-sqlite3`):
+- **A C++ toolchain only as a fallback.** `better-sqlite3` loads a
+  prebuild shipped in the npm package. `node-pty`, `koffi`, and
+  `canvas` compile only when their prebuild download fails.
   - **Windows**: Visual Studio 2019/2022 Build Tools with the
-    "Desktop development with C++" workload.
+    "Desktop development with C++" workload, after that fallback
+    happens. A normal install does not need it.
   - **macOS**: `xcode-select --install`.
   - **Linux**: `apt install build-essential python3` (Debian /
     Ubuntu) or equivalent.
@@ -94,28 +97,37 @@ git remote add upstream https://github.com/232252/education-advisor.git
 
 ### 2. Install dependencies
 
+Windows (full install, including the EAA binary step below):
+
+```powershell
+node scripts/windows-install.mjs
+```
+
+Any platform:
+
 ```bash
 npm ci
 ```
 
-This is the same as `npm install` but uses the committed
-`package-lock.json` for reproducible installs.
+This uses the committed `package-lock.json`. On Windows, prefer the
+script: it keeps the same package set, downloads in parallel, and uses
+a faster mirror only when npmjs / GitHub are clearly slower.
 
-### 3. Fetch (or build) the EAA binary
+### 3. Match the shipped EAA binary
+
+`resources/eaa-binaries/win32-x64/eaa.exe` and `linux-x64/eaa` are
+already in the repo. `npm run build:eaa` hashes `core/eaa-cli` and
+skips `cargo` when `manifest.json` carries the same fingerprint.
 
 ```bash
-# Option A — download the prebuilt binary for your platform
 npm run build:eaa
 
-# Option B — build it from source (requires Rust 1.78+)
-cd core/eaa-cli
-cargo build --release
-# then copy target/release/eaa(.exe) into resources/eaa-binaries/<platform>/
-cd ../..
+# Rebuild after editing the Rust engine (requires Rust 1.78+)
+EAA_FORCE=1 npm run build:eaa
 ```
 
-See [`EAA_BRIDGE.md`](./EAA_BRIDGE.md#manual-install) for the
-manual install if both of these fail.
+See [`EAA_BRIDGE.md`](./EAA_BRIDGE.md#manual-install) if the shipped
+binary is missing and `cargo` is not available.
 
 ### 4. Verify
 

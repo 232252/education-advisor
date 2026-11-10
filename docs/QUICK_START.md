@@ -11,15 +11,17 @@
 | **Node.js** | 22 LTS or later | `node -v` should print `v22.x.x` |
 | **npm** | 10 or later (bundled with Node 22) | `npm -v` should print `10.x.x` |
 | **Git** | any recent version | `git --version` |
-| **C++ toolchain** | platform-specific | see below |
-| **(Optional) Rust** | 1.78+ with `cargo` | only if you want to build the EAA CLI from source |
+| **(Optional) C++ toolchain** | platform-specific | only if a native prebuild is missing; see below |
+| **(Optional) Rust** | 1.78+ with `cargo` | only if you change `core/eaa-cli` or pass `EAA_FORCE=1` |
 | **Disk space** | ~1.5 GB free | for `node_modules/`, EAA binary, build artifacts |
 
-### C++ toolchain by platform
+### C++ toolchain — fallback only
+
+`better-sqlite3` ships N-API prebuilds inside its npm package (no compile step). `node-pty`, `koffi`, and `canvas` download official prebuilds in their install scripts and compile from source only when that download fails. A full install does not start with Visual Studio.
 
 - **Windows 10/11**: install
   [Visual Studio 2019/2022 Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
-  with the "Desktop development with C++" workload. (~3 GB)
+  with the "Desktop development with C++" workload (~3 GB) only after a prebuild download has already failed.
 - **macOS 12+**: `xcode-select --install` (already installed if you've
   ever compiled a `brew` formula).
 - **Linux (Debian/Ubuntu)**: `sudo apt install build-essential python3`
@@ -42,44 +44,65 @@ and extract it. Skip the `cd` step and use the extracted directory instead.
 
 ## 3. Install dependencies
 
+On Windows, one command does this step and the next. It installs the same
+tree as `npm ci` (every dependency, including office-kit, dsh, and the
+vendored pi-ai package) and then runs `build:eaa`:
+
+```powershell
+node scripts/windows-install.mjs
+```
+
+`--mirror auto` (the default) probes npmjs / GitHub against npmmirror and
+switches only when the mirror is clearly faster. Lockfile integrity checks
+still apply. `--mirror official` never leaves npmjs and GitHub.
+`--mirror cn` always uses npmmirror. An `ELECTRON_MIRROR` or npm registry
+you already set is left alone.
+
+On any platform, the explicit steps are:
+
 ```bash
 npm ci
 ```
 
 This will:
 
-- Download ~700 MB of npm packages into `node_modules/`
-- Compile the `better-sqlite3` native binding (this is the longest step
-  on a slow machine — about 1–5 minutes)
-- Link the one in-tree vendored package under `vendor/`
+- Download npm packages into `node_modules/` (`.npmrc` raises the connection
+  limit and skips audit/fund noise; the lockfile still decides every package)
+- Use published prebuilds for native modules instead of compiling them
+- Link the in-tree vendored package under `vendor/`
   (`@earendil-works/pi-ai`); everything else, including
   `@deepseek-ai/dsh-sdk-client`, comes from the npm registry
 
-If you see `better-sqlite3` errors, see
+npm 10.9 can crash while installing the vendored pi-ai tree. Node 22's
+bundled npm is 10.x; the Windows script switches to `npm@11` for the
+install itself. Elsewhere: `npx --yes npm@11 ci`.
+
+If a native install script falls back to `node-gyp` and fails, see
 [`TROUBLESHOOTING.md#better-sqlite3-fails-to-build`](./TROUBLESHOOTING.md#better-sqlite3-fails-to-build).
 
-## 4. Fetch (or build) the Rust EAA binary
+## 4. Use the shipped Rust EAA binary
 
 The desktop spawns the Rust `eaa-cli` as a child process for all
-student-data operations. The Rust source lives in `core/eaa-cli/` inside
-this repo, so you build it from source — no download required.
+student-data operations. Windows x64 and Linux x64 binaries are already in
+`resources/eaa-binaries/`. You do not need the Rust toolchain for a full
+install.
 
 ```bash
 npm run build:eaa
 ```
 
-The script (`scripts/build-eaa.mjs`) will:
+The script (`scripts/build-eaa.mjs`) hashes every `.rs`, `.toml`, and
+`Cargo.lock` under `core/eaa-cli/` (newlines normalized, so a Windows
+checkout does not look dirty). When that fingerprint matches
+`manifest.json` next to the binary, it exits without calling `cargo`.
+That is the usual case on a fresh clone.
 
-1. Detect your platform and architecture.
-2. Verify the Rust toolchain (`cargo`) is installed — if not, it errors
-   out and points you to <https://rustup.rs>.
-3. Run `cargo build --release` in `core/eaa-cli/`.
-4. Place the built binary at
-   `resources/eaa-binaries/<platform>/eaa(.exe)`.
-
-The build is cached: it skips recompiling when the existing binary is
-newer than the `.rs` sources. Force a rebuild with
-`EAA_FORCE=1 npm run build:eaa`.
+It compiles only when the fingerprint differs or you pass `EAA_FORCE=1`.
+Compiling needs Rust 1.78+ (`cargo` on `PATH`, <https://rustup.rs>). On
+Windows the script uses the toolchain's `rust-lld` linker when it is
+present (`EAA_NO_LLD=1` falls back to MSVC `link.exe`). The resulting
+binary is the same engine; release CI always force-compiles so published
+installers are not copies of the committed file.
 
 ## 5. Run in dev mode
 

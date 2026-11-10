@@ -116,15 +116,23 @@ flowchart LR
 
 ## 快速开始
 
-需要 **Node.js ≥ 22**，以及能编译原生模块的 C++ 工具链。排错见 [快速上手](./docs/QUICK_START.md)。
+需要 **Node.js ≥ 22**。Windows 不必先装 Visual Studio 和 Rust：原生模块用官方预编译包，EAA 引擎用仓库里已经带的 `eaa.exe`。排错见 [快速上手](./docs/QUICK_START.md)。
 
 ```bash
 git clone https://github.com/232252/education-advisor.git
 cd education-advisor
 npm ci
-npm run build:eaa      # 编译本仓库 core/eaa-cli 的 Rust 引擎
+npm run build:eaa      # 源码指纹一致则跳过；改了 core/eaa-cli 才编译
 npm run dev            # 另开终端再跑 npm run dev:electron
 ```
+
+Windows 上用这一条，装出来的东西和上面相同（依赖、原生模块、EAA、批改 / 连接中心 / office 转 PDF 都不缺），但下载并行，并且在 npmjs / GitHub 明显更慢时改走镜像（锁文件校验和不变）：
+
+```powershell
+node scripts/windows-install.mjs
+```
+
+`--mirror official` 始终走 npmjs 与 GitHub，`--mirror cn` 始终走 npmmirror，默认 `--mirror auto`。只有改了 `core/eaa-cli` 或设置 `EAA_FORCE=1` 才需要 Rust。
 
 打开应用后：选语言和主题 → 填 API Key（批改还要选视觉模型）→ 导入花名册。隐私引擎、飞书、本机 WebUI 都是可选；WebUI 默认关，开了也是 HTTPS + 令牌。
 
