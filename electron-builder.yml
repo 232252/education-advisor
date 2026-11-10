@@ -194,6 +194,10 @@ nsis:
   deleteAppDataOnUninstall: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  # resources/installer.nsh (buildResources). On upgrade it keeps $INSTDIR
+  # and copies only files whose size or SHA-256 changed. A first install
+  # still CopyFiles the whole tree. Portable does not load this include.
+  include: installer.nsh
 
 # 不从源码重编原生模块：better-sqlite3 / node-pty / koffi 随包都带 N-API prebuilds，
 # 实测在 Electron 43 的 ABI(148) 与本机 node 的 ABI(147) 下都能 require 并跑通真实

@@ -2,6 +2,8 @@
 // scripts/after-pack-trim.mjs — electron-builder afterPack 钩子
 //
 // 打包后的补齐、修剪与守卫（对应 electron-builder.yml 里的 afterPack 配置）：
+//  0. Windows：给 app-builder-lib 的 extractUsing7za 插上增量复制钩子
+//     （resources/installer.nsh）。便携版不定义该钩子，仍整树复制。
 //  1. 补齐 electron-builder 复制不出来的离线件（在 NSIS 打 7z 之前落盘）：
 //     - vendor/dsh-im/node_modules → resources/dsh-im/node_modules.asar
 //       （一个归档，不再逐文件写盘）。连接中心用 asar-preload 读取。
@@ -27,6 +29,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSy
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { patchNsisIncrementalExtract } from './lib/patch-nsis-incremental.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -46,6 +49,16 @@ const EXCLUDED_IN_UNPACKED = [
 export default async function afterPack(context) {
   const appOutDir = context.appOutDir
   const platform = context.packager.platform.name // 'windows' | 'mac' | 'linux'
+
+  // NSIS compiles its script after afterPack. Patch extractUsing7za first so
+  // an upgrade can skip unchanged files. Portable builds do not define the
+  // hook, so they still copy the whole tree.
+  if (platform === 'windows') {
+    const patched = patchNsisIncrementalExtract(ROOT)
+    console.log(
+      `[after-pack-trim] NSIS incremental extract ${patched.patched ? 'patched' : 'already patched'}`,
+    )
+  }
   let removedBytes = 0
 
   const remove = (target, why) => {

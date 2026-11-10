@@ -142,6 +142,22 @@ check(
   'Windows 安装包保持 7z 默认压缩，不用 store',
   'store (-mx=0) 会把 Setup.exe 从约 323MB 撑到约 1GB',
 )
+const nsisInclude = readFileSync(join(ROOT, 'resources', 'installer.nsh'), 'utf8')
+const nsisYml = readFileSync(join(ROOT, 'electron-builder.yml'), 'utf8')
+check(
+  nsisYml.includes('include: installer.nsh') &&
+    nsisInclude.includes('eaaTryIncrementalCopy') &&
+    nsisInclude.includes('customRemoveFiles') &&
+    nsisInclude.includes('eaa-keep.exe'),
+  '升级安装跳过未变化的已安装文件',
+  'resources/installer.nsh 或 nsis.include 缺失',
+)
+const keepExe = join(ROOT, 'resources', 'eaa-keep.exe')
+check(
+  existsSync(keepExe) && statSync(keepExe).size < 8192 && readFileSync(keepExe).subarray(0, 2).toString() === 'MZ',
+  '升级用的卸载占位程序保持很小',
+  'resources/eaa-keep.exe 应是小于 8KB 的 Windows exe',
+)
 
 // ---- 随包 pnpm 工具链（连接中心 plugin add 的物质基础）----
 check(
