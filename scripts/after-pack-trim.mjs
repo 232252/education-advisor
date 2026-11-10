@@ -60,8 +60,22 @@ export default async function afterPack(context) {
   // 1a. 连接中心离线依赖（stage-dsh-im-deps 装好的生产树）。
   //     electron-builder 复制 extraResources 时整目录丢 node_modules，只能这里补。
   const asarPacker = loadAsarPacker()
+  const imLoose = join(appOutDir, 'resources', 'dsh-im')
+  const imSourceAsar = join(appOutDir, 'resources', 'dsh-im.asar')
+  if (!existsSync(join(imLoose, 'package.json'))) {
+    console.error(`[after-pack-trim] 缺少连接中心插件目录：${imLoose}`)
+    process.exit(1)
+  }
+  asarPacker.createPackageWithOptions(imLoose, imSourceAsar, {
+    unpack: '**/*.{node,dll,exe,dylib,so}',
+  })
+  rmSync(imLoose, { recursive: true, force: true })
+  console.log(
+    `[after-pack-trim] +1 dsh-im.asar（${(statSync(imSourceAsar).size / 1024 / 1024).toFixed(1)}MB，源码不再散写）`,
+  )
+
   const imDepsSrc = join(ROOT, 'vendor', 'dsh-im', 'node_modules')
-  const imAsar = join(appOutDir, 'resources', 'dsh-im', 'node_modules.asar')
+  const imAsar = join(appOutDir, 'resources', 'dsh-im-deps.asar')
   packFiltered(asarPacker, imDepsSrc, imAsar, (src) => {
     const rel = relative(imDepsSrc, src)
     if (!rel) return true
@@ -77,7 +91,7 @@ export default async function afterPack(context) {
     process.exit(1)
   }
   console.log(
-    `[after-pack-trim] +1 dsh-im/node_modules.asar（${(statSync(imAsar).size / 1024 / 1024).toFixed(1)}MB，依赖树不再散写）`,
+    `[after-pack-trim] +1 dsh-im-deps.asar（${(statSync(imAsar).size / 1024 / 1024).toFixed(1)}MB，依赖树不再散写）`,
   )
 
   // 1b. pnpm 引导壳的嵌套依赖。主路径是 @pnpm/exe；这份归档只服务 pnpm.mjs 兜底。

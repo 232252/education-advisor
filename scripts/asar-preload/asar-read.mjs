@@ -2,7 +2,8 @@
 // format @electron/asar and electron-builder write, so the same reader opens
 // app.asar and the single node_modules.asar archives this installer ships.
 
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 const archives = new Map()
 
@@ -113,4 +114,24 @@ export function asarEntry(filePath) {
 export function archiveContains(archivePath, innerPath) {
   const entry = asarEntry(`${archivePath}/${innerPath}`)
   return Boolean(entry)
+}
+
+/** Expand an asar into a real directory. pnpm's native exe can link a directory; it cannot read an asar. */
+export function extractAsar(archivePath, dest) {
+  const split = openArchive(archivePath)
+  const walk = (node, rel) => {
+    if (!node) return
+    if (node.files) {
+      for (const [name, child] of Object.entries(node.files)) {
+        walk(child, rel ? `${rel}/${name}` : name)
+      }
+      return
+    }
+    if (node.unpacked || node.offset == null || node.size == null) return
+    const out = join(dest, rel)
+    mkdirSync(dirname(out), { recursive: true })
+    const start = split.dataOffset + Number(node.offset)
+    writeFileSync(out, split.buf.subarray(start, start + node.size))
+  }
+  walk(split.header, '')
 }

@@ -45,9 +45,11 @@ files:
   # 安全网会断言它们不在 web/sdk profile 的硬依赖闭包里。
   - "!node_modules/@deepseek-ai/dsh-experimental-liveshare/**"
   - "!node_modules/@deepseek-ai/dsh-experimental-client-ui-forge/**"
-  # libreoffice-kit 平台二进制（178MB 单文件）随包分发（2026-11-09 教师决策：
-  # 全功能离线直装优先于体积）——AI 文档转 PDF 装完即用，office-kit-service
-  # 的 bundledPkgDir 本就优先随包目录；Release 资产下载仅作损坏修复通道。
+  # libreoffice-kit 是 1 个 exe + 734 个数据文件。整目录解进安装目录会让
+  # NSIS 多写几百个文件。Windows 包改带 build/office-kit/*.zip（prepackage
+  # 生成，electron-builder.config.mjs 收进 resources/office-kit）。装完后
+  # 本机解压，不联网；功能与随包目录相同。
+  - "!node_modules/@deepseek-ai/libreoffice-kit-win32-x64/**"
   # source map 是散文件数第一大头（lucide-react/openai/rxjs 等共 ~1.07 万个
   # / 11MB），运行时无人读取，砍掉直接缩短安装写盘时间。
   - "!**/*.map"

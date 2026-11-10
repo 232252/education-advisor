@@ -36,6 +36,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { asarUnpackPatterns, assertUnpackContract } from './lib/asar-unpack-patterns.mjs'
+import { archiveContains } from './asar-preload/asar-read.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const SDK = '@deepseek-ai/dsh-sdk-client'
@@ -256,30 +257,39 @@ function verifyDist(entry, binRel) {
   check(!existsSync(join(dist, 'dxcompiler.dll')), 'WebGPU 的 dxcompiler.dll 已修剪')
   // dsh-im 运行时会加载 src/plugin-src/docs（lib 直接引用），瘦身不许砍过头；
   // README 大图则应当被剥掉。
-  const imRoot = join(dist, 'resources', 'dsh-im')
+  const imAsar = join(dist, 'resources', 'dsh-im.asar')
   for (const kept of ['src', 'plugin-src', 'docs', 'bin', 'lib', 'integrations']) {
-    check(existsSync(join(imRoot, kept)), `dsh-im 运行时目录在产物内 (${kept})`)
+    check(
+      existsSync(imAsar) && archiveContains(imAsar, kept),
+      `dsh-im.asar 含运行时目录 (${kept})`,
+    )
   }
   check(
-    existsSync(join(imRoot, 'assets', 'logo-plugin-message-link-gradient.webp')),
-    'dsh-im 的 icon webp 在产物内',
+    existsSync(imAsar) && archiveContains(imAsar, 'assets/logo-plugin-message-link-gradient.webp'),
+    'dsh-im.asar 含 icon webp',
   )
   check(
-    !existsSync(join(imRoot, 'assets', 'sponsors')),
+    !existsSync(imAsar) || !archiveContains(imAsar, 'assets/sponsors'),
     'dsh-im 的 README 赞助商图已被剥掉',
   )
   // ---- 离线直装三件套（afterPack 补齐，缺一件新装机器就不是全功能离线）----
   check(
-    existsSync(join(imRoot, 'node_modules.asar')),
-    'dsh-im 离线依赖打成单个 node_modules.asar',
-    '缺失时首开连接中心走在线修复路 —— afterPack 没把依赖归档',
+    existsSync(join(dist, 'resources', 'dsh-im.asar')),
+    'dsh-im 源码打成单个 dsh-im.asar',
+    '散目录会让 NSIS 多写几百个文件',
   )
   check(
-    !existsSync(join(imRoot, 'node_modules', 'qrcode', 'package.json')),
-    'dsh-im 依赖不再散写成 node_modules 目录',
+    !existsSync(join(dist, 'resources', 'dsh-im', 'package.json')),
+    'dsh-im 源码目录已从安装树删掉',
   )
   check(
-    !existsSync(join(imRoot, 'node_modules', '@img', 'sharp-wasm32')),
+    existsSync(join(dist, 'resources', 'dsh-im-deps.asar')),
+    'dsh-im 离线依赖打成单个 dsh-im-deps.asar',
+    '缺失时首开连接中心走在线修复路',
+  )
+  check(
+    !existsSync(join(dist, 'resources', 'dsh-im-deps.asar')) ||
+      !archiveContains(join(dist, 'resources', 'dsh-im-deps.asar'), '@img/sharp-wasm32'),
     'dsh-im 依赖里的 sharp wasm 兜底已剥掉',
   )
   check(
@@ -288,19 +298,19 @@ function verifyDist(entry, binRel) {
     '缺失时 pnpm.mjs 引导壳读不到 get-pnpm',
   )
   if (process.platform === 'win32') {
+    const kitZip = join(dist, 'resources', 'office-kit')
+    const hasZip =
+      existsSync(kitZip) && readdirSync(kitZip).some((name) => name.endsWith('.zip'))
     check(
-      existsSync(
-        join(
-          unpackedRoot,
-          'node_modules',
-          '@deepseek-ai',
-          'libreoffice-kit-win32-x64',
-          'bin',
-          'libreoffice-kit.exe',
-        ),
+      hasZip,
+      'libreoffice-kit 以单个 zip 随包（resources/office-kit）',
+      '缺失时安装器会改写几百个 kit 文件，或退回联网下载',
+    )
+    check(
+      !existsSync(
+        join(unpackedRoot, 'node_modules', '@deepseek-ai', 'libreoffice-kit-win32-x64'),
       ),
-      'libreoffice-kit 平台包随包在产物内',
-      '缺失时 AI 文档转 PDF 退化为联网按需补装（2026-11-09 决策：随包分发）',
+      'libreoffice-kit 目录不在 app.asar.unpacked',
     )
   }
   // source map 是散文件数第一大头（~1.07 万个），混回来会拖慢安装写盘。

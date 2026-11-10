@@ -6,7 +6,9 @@
 // 所以这块页面作为窗口自己的子视图加载，令牌不进渲染进程。
 // =============================================================
 
+import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { extractAsar } from '../../../scripts/asar-preload/asar-read.mjs'
 import type { DshImBounds, DshImShowResult } from '@shared/api/dsh-im'
 import * as IPC from '@shared/ipc-channels'
 import type { Rectangle } from 'electron'
@@ -16,6 +18,7 @@ import {
   prepareDshImEducationLaunch,
   releaseDshImEducationLaunch,
 } from '../services/dsh/im-education'
+import { materializeDshImTree } from '../services/dsh/dsh-im-materialize'
 import { DSH_IM_INSTALL_STAMP, DSH_IM_STAMP, DshImWebHost } from '../services/dsh/im-host'
 import { readEducationPluginInstall } from '../services/dsh/plugin-status'
 import { isElectronMainProcess, resolveDshEntryPath } from '../services/dsh/runtime'
@@ -35,9 +38,17 @@ function isLoopbackHost(hostname: string): boolean {
 }
 
 function imRoot(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'dsh-im')
-    : join(app.getAppPath(), 'vendor', 'dsh-im')
+  if (!app.isPackaged) return join(app.getAppPath(), 'vendor', 'dsh-im')
+  const sourceAsar = join(process.resourcesPath, 'dsh-im.asar')
+  if (!existsSync(sourceAsar)) return join(process.resourcesPath, 'dsh-im')
+  const dest = join(app.getPath('userData'), 'dsh-im')
+  materializeDshImTree({
+    sourceAsar,
+    depsAsar: join(process.resourcesPath, 'dsh-im-deps.asar'),
+    dest,
+    extract: extractAsar,
+  })
+  return dest
 }
 
 function toolsRoot(): string {

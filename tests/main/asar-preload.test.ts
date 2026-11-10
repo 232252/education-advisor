@@ -1,9 +1,11 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
+import { extractAsar } from '../../scripts/asar-preload/asar-read.mjs'
 import { packAsar } from '../../scripts/lib/pack-asar.mjs'
+import { materializeDshImTree } from '../../src/main/services/dsh/dsh-im-materialize'
 
 const REGISTER = join(import.meta.dirname, '../../scripts/asar-preload/asar-node-register.mjs')
 
@@ -63,5 +65,26 @@ describe('asar preload', () => {
     const packedDeps = run(join(nm, 'main.mjs'))
     expect(packedDeps.status, packedDeps.stderr).toBe(0)
     expect(packedDeps.stdout.trim()).toBe('from-nm-asar')
+  })
+
+  it('expands the connection-center archive into a real directory pnpm can link', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-im-mat-'))
+    const src = join(root, 'src')
+    mkdirSync(join(src, 'lib'), { recursive: true })
+    writeFileSync(join(src, 'package.json'), '{"name":"dsh-im"}\n')
+    writeFileSync(join(src, 'lib', 'index.js'), 'export {}\n')
+    const sourceAsar = join(root, 'dsh-im.asar')
+    packAsar(src, sourceAsar)
+    const deps = join(root, 'deps')
+    mkdirSync(join(deps, 'qrcode'), { recursive: true })
+    writeFileSync(join(deps, 'qrcode', 'package.json'), '{"name":"qrcode"}\n')
+    const depsAsar = join(root, 'dsh-im-deps.asar')
+    packAsar(deps, depsAsar)
+    const dest = join(root, 'out')
+    materializeDshImTree({ sourceAsar, depsAsar, dest, extract: extractAsar })
+    expect(readFileSync(join(dest, 'package.json'), 'utf8')).toContain('dsh-im')
+    expect(existsSync(join(dest, 'node_modules.asar'))).toBe(true)
+    materializeDshImTree({ sourceAsar, depsAsar, dest, extract: extractAsar })
+    expect(readFileSync(join(dest, 'package.json'), 'utf8')).toContain('dsh-im')
   })
 })

@@ -158,16 +158,23 @@ npm run package:portable
 npm run package:installer
 ```
 
-`npm run package` passes `--config electron-builder.config.mjs`. That
-file keeps every `electron-builder.yml` setting and replaces `asarUnpack`
-with native binaries only (`*.node`, `*.dll`, `*.exe`, `*.dylib`, `*.so`).
-JavaScript, including the dsh runtime and pnpm's scripts, stays inside
-`app.asar`. The packaged stock `node.exe` is launched with
-`--import resources/asar-preload/asar-node-register.mjs`, so it can read
-that archive. Connection-center dependencies and the pnpm fallback
-`dist/node_modules` tree are each one `node_modules.asar`, not a directory
-of loose files. A bare `electron-builder` without that config still
-unpacks all of `node_modules` (slower install, same app).
+`npm run package` passes `--config electron-builder.config.mjs`. On a
+Windows build that file also sets `compression: store`. electron-builder's
+default 7z level for the NSIS payload is `-mx=9` (ultra LZMA); decoding
+that archive is a large part of install time on a modest PC. Store mode
+copies the payload instead. The installer file is larger (about the size
+of the unpacked app, on the order of 1 GB rather than the old ~323 MB
+Setup.exe). Download time is not the install timer.
+
+The same config unpacks only native binaries (`*.node`, `*.dll`, `*.exe`,
+`*.dylib`, `*.so`). JavaScript stays in `app.asar`. The connection-center
+plugin is `resources/dsh-im.asar` plus `resources/dsh-im-deps.asar`; the
+first time the connection center opens, the source archive is expanded
+under the user data directory so pnpm can link a real directory. The
+Office kit is `resources/office-kit/*.zip` (one file, 735 entries inside)
+and is extracted locally when the app warms it up, not as hundreds of
+files during setup. A bare `electron-builder` without this config still
+unpacks all of `node_modules` and keeps ultra compression.
 
 The artifact name is fixed (`Education-Advisor-Setup.${ext}`) so the
 download-page URL stays stable across versions.

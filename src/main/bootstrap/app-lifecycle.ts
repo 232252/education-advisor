@@ -94,6 +94,9 @@ export async function startApp(): Promise<void> {
           'libreoffice-kit-win32-x64',
         )
       : join(app.getAppPath(), 'node_modules', '@deepseek-ai', 'libreoffice-kit-win32-x64'),
+    bundledZipDir: app.isPackaged
+      ? join(process.resourcesPath, 'office-kit')
+      : join(app.getAppPath(), 'build', 'office-kit'),
   })
   configureDshRuntime({
     cwd: app.getPath('userData'),
