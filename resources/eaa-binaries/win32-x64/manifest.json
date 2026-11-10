@@ -3,5 +3,6 @@
   "platform": "win32-x64",
   "binary": "eaa.exe",
   "cargo_version": "cargo 1.95.0 (f2d3ce0bd 2026-03-21)",
-  "source": "core/eaa-cli (本地源码编译)"
+  "source": "core/eaa-cli (本地源码编译)",
+  "source_fingerprint": "99fde4db9a31b3f4e062bcea04e886ec0ec644d36670ee9cf58761ca34144ff5"
 }

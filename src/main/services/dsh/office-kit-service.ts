@@ -17,6 +17,7 @@
 
 import { createHash } from 'node:crypto'
 import {
+  copyFileSync,
   createReadStream,
   createWriteStream,
   existsSync,
@@ -58,6 +59,8 @@ export interface OfficeKitConfig {
   appVersion: string
   /** 打包/开发态 bundled 平台包目录（存在则无需下载；开发态就在 node_modules） */
   bundledPkgDir: string
+  /** 安装包内的 zip 目录（resources/office-kit）。有则本机解压，不联网。 */
+  bundledZipDir?: string
 }
 
 export type OfficeKitState =
@@ -95,6 +98,13 @@ function bundledKitBinary(): string | null {
   if (!dir) return null
   const exe = join(dir, KIT_BINARY)
   return existsSync(exe) ? exe : null
+}
+
+function bundledZipFile(manifest: OfficeKitManifest): string | null {
+  const dir = configured?.bundledZipDir
+  if (!dir) return null
+  const zip = join(dir, manifest.asset)
+  return existsSync(zip) ? zip : null
 }
 
 function downloadedKitBinary(): string | null {
@@ -172,7 +182,12 @@ async function downloadAndExtract(
   }
 
   const zipPath = join(cfg.extraModulesDir, manifest.asset)
-  if (!stampMatches() || !existsSync(zipPath)) {
+  const localZip = bundledZipFile(manifest)
+  if (!existsSync(zipPath) || !stampMatches()) {
+    if (localZip) {
+      report('正在从安装包读取 office 组件…')
+      copyFileSync(localZip, zipPath)
+    } else {
     const urls = officeKitDownloadUrls(manifest, cfg.appVersion)
     let lastError = ''
     let downloaded = false
@@ -186,6 +201,7 @@ async function downloadAndExtract(
       }
     }
     if (!downloaded) return { ok: false, error: `office 组件下载失败：${lastError}` }
+    }
   }
 
   report('正在校验组件…')

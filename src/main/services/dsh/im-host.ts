@@ -79,6 +79,14 @@ export interface DshImWebHostOptions {
   onProgress?: (progress: DshImBootProgress) => void
 }
 
+/** 开发态是真实目录；安装包把同一棵依赖打成一个 node_modules.asar。 */
+function pluginDepsPacked(imDir: string): boolean {
+  return (
+    existsSync(join(imDir, 'node_modules', 'qrcode', 'package.json')) ||
+    existsSync(join(imDir, 'node_modules.asar', 'qrcode', 'package.json'))
+  )
+}
+
 export class DshImWebHost {
   private child: ChildProcess | null = null
   private url: string | null = null
@@ -165,7 +173,7 @@ export class DshImWebHost {
    * 两头都失败时指向重装应用 —— 这个分支不该在正常安装里出现。
    */
   private async ensurePluginDeps(): Promise<void> {
-    if (existsSync(join(this.opts.imDir, 'node_modules', 'qrcode', 'package.json'))) return
+    if (pluginDepsPacked(this.opts.imDir)) return
     const base = ['install', '--prod', '--ignore-scripts', '--prefer-offline']
     const registry = pnpmInstallRegistry(this.opts.env ?? process.env)
     try {

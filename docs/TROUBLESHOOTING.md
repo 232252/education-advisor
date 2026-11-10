@@ -96,14 +96,25 @@ npm install  # regenerates the lockfile
 
 ### `npm ci` is very slow
 
-The first install is slow because it compiles `better-sqlite3`
-from source. Subsequent installs are fast. To speed up
-subsequent installs:
+`better-sqlite3` 13 does not compile on install; its prebuilds are inside
+the published package. A slow Windows install is usually one of these:
 
-- Use `npm ci` (not `npm install`) to skip lockfile
-  regeneration.
-- Consider a local npm cache mirror if you're in a corporate
-  environment.
+- **GitHub / npmjs latency.** `node scripts/windows-install.mjs` probes
+  npmmirror and uses it only when it is clearly faster. The lockfile
+  integrity hash does not change. Force a side with `--mirror official`
+  or `--mirror cn`.
+- **A native install script fell back to `node-gyp`** (`node-pty`,
+  `koffi`, `canvas`) because the prebuild download failed. Fix the
+  network or set the official mirror, then reinstall. Visual Studio
+  Build Tools are the fallback, not the default.
+- **`npm run build:eaa` recompiled Rust.** The script used to compare
+  file mtimes, which a fresh Windows checkout almost always loses, so
+  cargo rebuilt `eaa.exe` even though `resources/eaa-binaries/win32-x64/`
+  already matched the source. It now compares a source fingerprint and
+  skips `cargo` when the shipped binary is current.
+
+`npm ci` (not `npm install`) still avoids lockfile regeneration. `.npmrc`
+raises the download parallelism.
 
 ### `npm run build:eaa` fails
 

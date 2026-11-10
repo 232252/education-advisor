@@ -14,6 +14,7 @@
 - [macOS packaging (DMG)](#macos-packaging-dmg)
 - [Linux packaging (deb + AppImage)](#linux-packaging-deb--appimage)
 - [The auto-update flow](#the-auto-update-flow)
+- [Incremental upgrade](#incremental-upgrade)
 - [Code signing](#code-signing)
 - [Reproducible builds](#reproducible-builds)
 - [Troubleshooting](#troubleshooting)
@@ -127,8 +128,8 @@ backend, because the regular tests stub the SDK client and would never
 catch it: `@deepseek-ai/dsh-sdk-client` must be in `dependencies`
 (not `devDependencies`), the installed SDK must bring the
 `@deepseek-ai/dsh` runtime, the dsh executable must exist on real
-disk, and electron-builder's `asarUnpack` must cover `node_modules`
-(a pure-Node subprocess cannot read inside `app.asar`).
+disk. `asarUnpack` is only native binaries; the pure-Node subprocess
+reads `app.asar` through `resources/asar-preload`.
 
 It is a CI gate (`.github/workflows/ci.yml`, the
 "dsh assembly check" step) and it runs locally too:
@@ -158,10 +159,26 @@ npm run package:portable
 npm run package:installer
 ```
 
-The `electron-builder.yml` config defines both targets. The artifact
-name is fixed per target (`Education-Advisor-Setup.${ext}` /
-`Education-Advisor-Portable.${ext}`) so the download-page URLs stay
-stable across versions.
+`npm run package` passes `--config electron-builder.config.mjs`. That
+config does **not** change the 7z compression level. electron-builder's
+default for the NSIS payload is `-mx=9`, the same ultra LZMA that produced
+the ~323 MB v3.3.6 Setup.exe. Uncompressed (`store` / `-mx=0`) packing was
+tried and rejected: it makes install a raw copy and grows Setup.exe to
+about 0.8–1.1 GB. Decode of a ~300 MB LZMA archive is seconds. The
+multi-minute install was the 27,647 separate files.
+
+The config unpacks only native binaries (`*.node`, `*.dll`, `*.exe`,
+`*.dylib`, `*.so`). JavaScript stays in `app.asar`. The connection-center
+plugin is `resources/dsh-im.asar` plus `resources/dsh-im-deps.asar`; the
+first time the connection center opens, the source archive is expanded
+under the user data directory so pnpm can link a real directory. The
+Office kit is `resources/office-kit/*.zip` (one file, 735 entries inside)
+and is extracted locally when the app warms it up, not as hundreds of
+files during setup. A bare `electron-builder` without this config still
+unpacks all of `node_modules`.
+
+The artifact name is fixed (`Education-Advisor-Setup.${ext}`) so the
+download-page URL stays stable across versions.
 
 ### What `prepackage` stages (auto-runs before `npm run package`)
 
@@ -191,19 +208,24 @@ re-run (e.g. after upgrading dsh or dsh-im).
 
 1. **Installs per-user** (`%LOCALAPPDATA%\Programs`; `nsis.perMachine: false` in `electron-builder.yml`).
 2. **Creates a desktop shortcut** and a start menu shortcut.
-3. **Copies the app.asar** (containing `dist/main/` and
-   `dist/renderer/`) to the install location, with `**/node_modules/**`
-   unpacked to `app.asar.unpacked/` (`asarUnpack` — the dsh subprocess
-   is a pure-Node process and cannot read inside the asar).
+3. **Copies one `app.asar`** (the app plus its JavaScript dependencies)
+   to the install location. Only native binaries are unpacked beside it.
+   The dsh subprocess is stock Node; it is started with the asar preload
+   so it can read that archive instead of a tree of loose files.
 4. **Copies `resources/eaa-binaries/`** to the install location
    (as `extraResources`).
 5. **Copies `config/`, `agents/`, `skills/`, `vendor/dsh-im/` (the
    official connection-center plugin), the education plugins
-   `vendor/eaa-tools|eaa-roster|eaa-grades|eaa-grading/`, and
-   `vendor/dsh-node/` (the staged `node.exe`)** to the install
-   location (all as `extraResources`).
+   `vendor/eaa-tools|eaa-roster|eaa-grades|eaa-grading/`,
+   `vendor/dsh-node/` (the staged `node.exe`), and `scripts/asar-preload/`**
+   to the install location (all as `extraResources`). The plugin's
+   `node_modules` is one `node_modules.asar` written by `afterPack`, not
+   a second loose tree.
 6. **Registers the app in the Add/Remove Programs** list.
 7. **Optional**: launches the app on completion (configurable).
+8. **On upgrade, skips files that are already installed and unchanged.**
+   See [Incremental upgrade](#incremental-upgrade). A first install
+   still writes every file.
 
 ### What the portable .exe does
 
@@ -323,10 +345,32 @@ to deliver updates. The flow:
            │ When user quits the app
            ▼
 ┌──────────────────────┐
-│  Runs the installer  │
-│  in update mode      │
+│  Runs Setup.exe      │
+│  /S --updated        │
+│  Writes only files   │
+│  whose bytes changed │
 └──────────────────────┘
 ```
+
+### Incremental upgrade
+
+Official v3.3.6 publishes `latest.yml` and `Education-Advisor-Setup.exe.blockmap`. `electron-updater` uses that blockmap to download only the changed blocks of Setup.exe. That saves bandwidth. It does not save disk writes: the installed uninstaller deletes `%LOCALAPPDATA%\Programs\Education Advisor` and NSIS then `CopyFiles` the whole new tree. v3.3.6's tree is 27,647 files and about 1016 MB, so every upgrade rewrites all of it.
+
+This branch changes the install step, not the download:
+
+1. The user already has the app installed. They either restart from the in-app update (`quitAndInstall`, which launches `Setup.exe /S --updated`) or run the new Setup.exe and choose the existing folder.
+2. After the app has closed, Setup.exe copies the previous uninstaller aside and replaces it with `resources/eaa-keep.exe` (3072 bytes, `ExitProcess(0)`). electron-builder then runs that stub, gets exit code 0, and does not delete the install directory. If the user cancels, the previous uninstaller is copied back. A real uninstall from Add/Remove Programs does not pass `--updated` and still deletes the install directory. `%APPDATA%` is not touched (`deleteAppDataOnUninstall: false`).
+3. The new 7z is still unpacked to the installer temp directory so the new bytes can be compared. That temp tree is not the installed app, and it is removed with the installer temp folder. Skipping that temp unpack would mean extracting individual members from the non-solid 7z. The bundled `Nsis7z` plugin only extracts the whole archive. Shipping a second 7za for selective extract would add about a megabyte to Setup.exe and would not remove the writes of files that actually changed, so it is not done.
+4. `resources/eaa-copy-changed.ps1` walks both trees. A file already on disk is not opened for write when its size and SHA-256 match the new file. Different size or hash is copied. Files the new version removed are deleted, except `uninstallerIcon.ico` and the uninstaller exe, which NSIS itself rewrites. Empty directories left behind are removed. Junctions and symlinks inside the install directory are not followed and not deleted.
+5. Shortcuts and the Add/Remove Programs entry are still rewritten. They are a handful of small files.
+
+What an upgrade rewrites, in practice: `app.asar` whenever the JS bundle changed, plus any native file or archive whose bytes changed. What it skips: Electron's runtime (`Education Advisor.exe`, dlls, locales, pak files), the stock `node.exe`, the Office kit zip, and the dsh/pnpm asars, when those bytes are the same as the installed copies. v3.3.6 rewrote all 27,647 files. This installer rewrites only the ones that differ.
+
+A first install has no `Education Advisor.exe` in the destination, so the script is not used and NSIS copies the whole packed tree, the same path as a fresh install. That tree is the packed layout from this branch (on the order of 150–250 files, not 27,647). Setup.exe stays on electron-builder's default 7z level (`-mx=9`), the same setting that produced the ~323 MB v3.3.6 installer. The added pieces are the 3072-byte helper and the PowerShell script, far under 0.1 MB even before they are compressed. Store compression (`-mx=0`) is not used.
+
+If the previous uninstaller cannot be replaced (the file is locked), that one upgrade falls back to deleting the directory and copying every file. Once this installer is the one on disk, its uninstaller also refuses to delete files when the next Setup.exe passes `--updated`, so the following upgrade still skips unchanged files.
+
+This was not timed on Windows. The fresh-install estimate (under a minute on a normal internal drive, because the file count dropped) is unchanged by the upgrade path. The upgrade itself writes fewer files than a fresh install whenever anything on disk already matches.
 
 ### What you need to set up
 

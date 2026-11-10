@@ -45,12 +45,24 @@ files:
   # 安全网会断言它们不在 web/sdk profile 的硬依赖闭包里。
   - "!node_modules/@deepseek-ai/dsh-experimental-liveshare/**"
   - "!node_modules/@deepseek-ai/dsh-experimental-client-ui-forge/**"
-  # libreoffice-kit 平台二进制（178MB 单文件）随包分发（2026-11-09 教师决策：
-  # 全功能离线直装优先于体积）——AI 文档转 PDF 装完即用，office-kit-service
-  # 的 bundledPkgDir 本就优先随包目录；Release 资产下载仅作损坏修复通道。
+  # libreoffice-kit 是 1 个 exe + 734 个数据文件。整目录解进安装目录会让
+  # NSIS 多写几百个文件。Windows 包改带 build/office-kit/*.zip（prepackage
+  # 生成，electron-builder.config.mjs 收进 resources/office-kit）。装完后
+  # 本机解压，不联网；功能与随包目录相同。
+  - "!node_modules/@deepseek-ai/libreoffice-kit-win32-x64/**"
   # source map 是散文件数第一大头（lucide-react/openai/rxjs 等共 ~1.07 万个
   # / 11MB），运行时无人读取，砍掉直接缩短安装写盘时间。
   - "!**/*.map"
+  # 类型声明同样不参与运行（openai 一包就有数百个 .d.ts）。NSIS 逐文件写盘，
+  # 这些散文件只拖慢安装，不提供任何功能。
+  - "!**/*.d.ts"
+  - "!**/*.d.mts"
+  - "!**/*.d.cts"
+  - "!**/LICENSE"
+  - "!**/LICENSE.md"
+  - "!**/LICENSE.txt"
+  - "!**/NOTICE"
+  - "!**/NOTICE.md"
   # 依赖包的 README/CHANGELOG 不进安装包（~2000 个散文件）。注意不能用
   # !**/*.md 一刀切：dsh 体系把 docs/*.md 当 AI 技能说明书在运行时引用。
   - "!**/README*.md"
@@ -133,6 +145,10 @@ extraResources:
   - from: vendor/dsh-node/
     to: dsh-node/
     filter: ["node.exe", "node"]
+  # stock node 读 app.asar / node_modules.asar 的预加载（一个目录，不是依赖树）。
+  - from: scripts/asar-preload/
+    to: asar-preload/
+    filter: ["**/*"]
   # 内置技能随包分发 — skill-service 打包态读 process.resourcesPath/skills,
   # 缺此条则安装版系统提示词的技能清单为空
   - from: skills/
@@ -178,6 +194,10 @@ nsis:
   deleteAppDataOnUninstall: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  # resources/installer.nsh (buildResources). On upgrade it keeps $INSTDIR
+  # and copies only files whose size or SHA-256 changed. A first install
+  # still CopyFiles the whole tree. Portable does not load this include.
+  include: installer.nsh
 
 # 不从源码重编原生模块：better-sqlite3 / node-pty / koffi 随包都带 N-API prebuilds，
 # 实测在 Electron 43 的 ABI(148) 与本机 node 的 ABI(147) 下都能 require 并跑通真实
@@ -187,13 +207,12 @@ nsis:
 npmRebuild: false
 
 asar: true
+# 裸跑 `electron-builder`（不带 --config）时的慢速回退：整棵 node_modules 都
+# 解出。`npm run package` / release.yml 加载 electron-builder.config.mjs，
+# 只解出原生二进制（*.node/*.dll/*.exe/*.dylib/*.so）。JS 留在 app.asar，
+# 随包的 stock node 用 resources/asar-preload 读取。
 asarUnpack:
   - "**/*.exe"
   - "**/*.node"
   - "**/*.dll"
-  # dsh 后端要另起一个**纯 node**子进程跑 @deepseek-ai/dsh（SDK 用 process.execPath
-  # + ELECTRON_RUN_AS_NODE 启动它）。归档只对主进程透明，node 子进程看不见 app.asar，
-  # 所以整棵依赖树必须以真实文件形式落在 app.asar.unpacked 下 —— 只挑 @deepseek-ai/*
-  # 不够，cosmokit / schemastery / node-addon-system 这些非 scoped 传递依赖也得在。
-  # 安装体积不变（解出的文件不再进归档），只是文件数变多。
   - "**/node_modules/**"

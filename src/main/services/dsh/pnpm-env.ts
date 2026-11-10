@@ -18,6 +18,7 @@
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 /** 随包 @pnpm/exe 的 pnpm 可执行文件；不在时返回 null。 */
 export function packagedPnpmExePath(
@@ -27,8 +28,11 @@ export function packagedPnpmExePath(
 ): string | null {
   if (!dshBin) return null
   const exe = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
-  const path = join(dirname(dshBin), '..', '..', '..', '@pnpm', `exe.${platform}-${arch}`, exe)
-  return existsSync(path) ? path : null
+  const packed = join(dirname(dshBin), '..', '..', '..', '@pnpm', `exe.${platform}-${arch}`, exe)
+  // dsh 入口在 app.asar 里时，算出的路径也在归档内。操作系统只能执行解出来的那份。
+  const unpacked = packed.replace(/\.asar([\\/])/, '.asar.unpacked$1')
+  if (unpacked !== packed && existsSync(unpacked)) return unpacked
+  return existsSync(packed) ? packed : null
 }
 
 /** dsh 旁边 node_modules/pnpm 的 bin/pnpm.mjs（垫片兜底的原料）。 */
@@ -47,16 +51,17 @@ export function ensurePnpmShimDir(home: string, execPath: string, script: string
   const dir = join(home, 'bin')
   try {
     mkdirSync(dir, { recursive: true })
+    const launch = nodeLaunch(execPath, script)
     if (process.platform === 'win32') {
       writeFileSync(
         join(dir, 'pnpm.cmd'),
-        `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${execPath}" "${script}" %*\r\n`,
+        `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n${launch} %*\r\n`,
         'utf8',
       )
     } else {
       writeFileSync(
         join(dir, 'pnpm'),
-        `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec "${execPath}" "${script}" "$@"\n`,
+        `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec ${launch} "$@"\n`,
         { mode: 0o755 },
       )
     }
@@ -64,6 +69,15 @@ export function ensurePnpmShimDir(home: string, execPath: string, script: string
   } catch {
     return null
   }
+}
+
+function nodeLaunch(execPath: string, script: string): string {
+  const register = process.env.EAA_ASAR_REGISTER
+  if (register && script.includes('.asar')) {
+    const url = pathToFileURL(register).href
+    return `"${execPath}" --disable-warning=DEP0180 --import "${url}" "${script}"`
+  }
+  return `"${execPath}" "${script}"`
 }
 
 /** 目录前置进 PATH（Windows 的 env 大小写两种键名都写）。 */

@@ -426,6 +426,10 @@ class UpdateService {
       return { success: false, portable: true, error: '便携版请手动下载替换文件更新' }
     }
     try {
+      // quitAndInstall launches Setup.exe with --updated. resources/installer.nsh
+      // then leaves the existing install directory in place and writes only
+      // files whose size or SHA-256 changed. The .blockmap download is a
+      // separate saving: it shrinks what is downloaded, not what is written.
       autoUpdater.quitAndInstall()
       return { success: true, portable: false }
     } catch (err) {

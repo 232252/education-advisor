@@ -13,7 +13,7 @@ import { initAutoBackup } from '../services/backup-service'
 import { channelManager } from '../services/channels/manager'
 import { cronService } from '../services/cron-service'
 import { dbService } from '../services/db-service'
-import { configureDshNode } from '../services/dsh/dsh-node'
+import { configureDshAsarRegister, configureDshNode } from '../services/dsh/dsh-node'
 import { configureOfficeKit, prewarmOfficeKit } from '../services/dsh/office-kit-service'
 import { configureDshCredentials } from '../services/dsh/provider-patch'
 import { configureDshRuntime, resolveDshEntryPath } from '../services/dsh/runtime'
@@ -71,6 +71,11 @@ export async function startApp(): Promise<void> {
   configureDshNode(
     existsSync(packagedNode) ? packagedNode : existsSync(devNode) ? devNode : undefined,
   )
+  const asarRegister = join(process.resourcesPath, 'asar-preload', 'asar-node-register.mjs')
+  if (app.isPackaged && existsSync(asarRegister)) {
+    configureDshAsarRegister(asarRegister)
+    process.env.EAA_ASAR_REGISTER = asarRegister
+  }
   // office 转 PDF 组件（libreoffice-kit 平台二进制 178MB）不随安装包分发，
   // 装机后按需下载到 userData/dsh-extra-modules，dsh 子进程经 NODE_PATH 解析。
   const extraModulesDir = join(app.getPath('userData'), 'dsh-extra-modules')
@@ -89,6 +94,9 @@ export async function startApp(): Promise<void> {
           'libreoffice-kit-win32-x64',
         )
       : join(app.getAppPath(), 'node_modules', '@deepseek-ai', 'libreoffice-kit-win32-x64'),
+    bundledZipDir: app.isPackaged
+      ? join(process.resourcesPath, 'office-kit')
+      : join(app.getAppPath(), 'build', 'office-kit'),
   })
   configureDshRuntime({
     cwd: app.getPath('userData'),

@@ -617,9 +617,14 @@ The dependency footprint is intentionally small:
   for the grading pipeline) are the only native dependencies.
 - The Rust EAA binary is bundled as an `extraResource`, unpacked from
   the asar archive at startup.
-- The dsh subprocess tree (`@deepseek-ai/dsh*`) ships as real files
-  under `app.asar.unpacked/` (`asarUnpack: **/node_modules/**`) — a
-  pure-Node subprocess cannot read inside the asar.
+- `npm run package` loads `electron-builder.config.mjs`, which unpacks only
+  native binaries (`*.node`, `*.dll`, `*.exe`, `*.dylib`, `*.so`). The dsh
+  and pnpm JavaScript stays inside `app.asar`. The stock `node.exe` that
+  launches dsh is started with `resources/asar-preload`, which teaches that
+  process to read the archive (and `node_modules.asar` for the connection
+  center's dependencies and the pnpm fallback payload). Office-kit's
+  executable is one of the unpacked binaries; the connection center, grading,
+  and pnpm are still installed.
 - Everything else is pure JS / TS.
 
 ---

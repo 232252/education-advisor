@@ -105,18 +105,21 @@ function checkResource(item) {
   return { ok: true, size: stat.size }
 }
 
-async function buildEAA() {
-  info('Attempting to build EAA binary from source via scripts/build-eaa.mjs ...')
+function ensureEaaBinary() {
+  // 二进制已经在仓库里时不要在 prebuild 里调用 cargo。质量门禁的 CI 没有
+  // Rust 工具链；指纹跳过属于 `npm run build:eaa` / Windows 安装脚本。
+  // 这里只补「文件根本不存在」的洞，并且不设 EAA_FORCE。
+  const binary = checks.find((item) => item.autoFix === 'build')
+  if (binary && checkResource(binary).ok) return true
+  info('EAA binary missing; running scripts/build-eaa.mjs ...')
   const result = spawnSync('node', ['scripts/build-eaa.mjs'], {
     cwd: ROOT,
     stdio: 'inherit',
-    env: { ...process.env, EAA_FORCE: '1' },
   })
   if (result.status !== 0) {
     error(`Build script exited with code ${result.status}`)
     return false
   }
-  info('Build completed.')
   return true
 }
 
@@ -126,7 +129,7 @@ async function main() {
   info(`Node: ${process.version}`)
 
   const failures = []
-  let triedAutofix = false
+  const eaaReady = ensureEaaBinary()
 
   for (const item of checks) {
     const result = checkResource(item)
@@ -135,18 +138,11 @@ async function main() {
       info(`✓ ${item.name}: OK${sizeStr}`)
     } else {
       warn(`✗ ${item.name}: ${result.reason}`)
-
-      // 尝试自动修复(EAA 二进制缺失时从源码编译)
-      if (item.autoFix === 'build' && !triedAutofix) {
-        triedAutofix = true
-        info(`Attempting auto-fix: ${item.name}`)
-        const fixed = await buildEAA()
-        if (fixed) {
-          const recheck = checkResource(item)
-          if (recheck.ok) {
-            info(`✓ ${item.name}: OK after auto-fix`)
-            continue
-          }
+      if (item.autoFix === 'build' && eaaReady) {
+        const recheck = checkResource(item)
+        if (recheck.ok) {
+          info(`✓ ${item.name}: OK after build:eaa`)
+          continue
         }
       }
 
@@ -167,7 +163,7 @@ async function main() {
     }
     error('')
     error('To fix:')
-    error('  1. For EAA binary: run `npm run build:eaa` (从源码编译，需本地 Rust 工具链，参见 https://rustup.rs)')
+    error('  1. For EAA binary: `npm run build:eaa`（指纹一致时直接用随仓库的二进制；源码有变才需要 Rust，https://rustup.rs）')
     error('  2. For agents/config: ensure repository is fully checked out')
     error('  3. See docs/DESKTOP_BUILD.md for details')
     process.exit(1)

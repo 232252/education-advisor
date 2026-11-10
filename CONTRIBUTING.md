@@ -201,8 +201,8 @@ days. You can expect:
 
 - Node.js **22** or later (`node -v` should print `v22.x.x`)
 - npm **10** or later (`npm -v` should print `10.x.x`)
-- A working C++ toolchain (so `better-sqlite3` can compile its native binding)
-  - Windows: `npm install --global windows-build-tools` (or use Visual Studio Build Tools)
+- A C++ toolchain only if a native prebuild download fails (not required for a normal install)
+  - Windows: Visual Studio Build Tools, after `node-pty` / `koffi` / `canvas` have already failed to fetch their prebuild
   - macOS: `xcode-select --install`
   - Linux: `apt install build-essential python3`
 - Git
@@ -214,7 +214,13 @@ days. You can expect:
 git clone https://github.com/232252/education-advisor.git
 cd education-advisor
 npm ci
-npm run build:eaa     # downloads the Rust eaa binary
+npm run build:eaa     # uses the shipped binary when the source fingerprint matches
+```
+
+Windows, same result in one step (parallel downloads, optional npm mirror, no Rust compile when `eaa.exe` is current):
+
+```powershell
+node scripts/windows-install.mjs
 ```
 
 ### Daily development
