@@ -25,6 +25,7 @@
 // 退出码: 0 成功, 1 失败
 // =============================================================
 
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { syncInstallLayout } from './lib/install-layout.mjs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
