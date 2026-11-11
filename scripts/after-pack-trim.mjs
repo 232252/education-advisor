@@ -41,7 +41,7 @@
 // electron-builder 也会中止，但手动 exit 的日志更醒目。
 // =============================================================
 
-import { closeSync, cpSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { closeSync, cpSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -337,13 +337,24 @@ export default async function afterPack(context) {
       for (const name of entries) {
         const p = join(dir, name)
         const nextParts = [...parts, name]
+        // 先打开再 fstat。Windows 打不开目录，那种失败才退回 stat，只用来决定要不要往下走。
+        let fd
         let st
         try {
-          st = statSync(p)
+          fd = openSync(p, 'r')
+          st = fstatSync(fd)
         } catch {
-          continue
+          if (fd !== undefined) closeSync(fd)
+          fd = undefined
+          try {
+            st = statSync(p)
+          } catch {
+            continue
+          }
+          if (!st.isDirectory()) continue
         }
         if (st.isDirectory()) {
+          if (fd !== undefined) closeSync(fd)
           if (isProtectedPath(nextParts)) continue
           if (EXAMPLE_DIRS.has(name)) {
             sweptBytes += dirSize(p)
@@ -354,42 +365,53 @@ export default async function afterPack(context) {
           walk(p, nextParts)
           continue
         }
-        if (isProtectedPath(nextParts)) continue
+        const isProtected = isProtectedPath(nextParts)
+        const isDts = DECLARATION_EXTS.some((ext) => name.endsWith(ext))
+        const isMd = name.endsWith('.md') && !/^(readme|changelog)/i.test(name)
+        const isMap = name.endsWith('.map')
+        const isCfg = TSCONFIG_RE.test(name) || LINTCFG_RE.test(name)
+        const isTs = TS_EXTS.some((ext) => name.endsWith(ext))
+        const tsPkgRoot = isTs ? packageRootOf(dir, nmRoot) : null
+        const tsExempt = Boolean(tsPkgRoot && tsWantsCache.get(tsPkgRoot))
+        // 分类顺序与原来的 if/else 一致：.md / .d.ts 先于 LICENSE 文件名。
+        const isLicense =
+          !isDts &&
+          !isMd &&
+          !isMap &&
+          !isCfg &&
+          !isTs &&
+          LICENSE_BASENAME_RE.test(name) &&
+          !LICENSE_EXT_DENY_RE.test(name)
+        let licenseText
+        try {
+          if (!isProtected && isLicense) licenseText = readFileSync(fd, 'utf8')
+        } finally {
+          closeSync(fd)
+        }
+        if (isProtected) continue
         const deleteFile = () => {
           sweptBytes += st.size
           rmSync(p, { force: true })
         }
-        if (DECLARATION_EXTS.some((ext) => name.endsWith(ext))) {
+        if (isDts) {
           deleteFile()
           sweepCounts.dts += 1
-        } else if (name.endsWith('.md') && !/^(readme|changelog)/i.test(name)) {
+        } else if (isMd) {
           // dsh 体系把 docs/*.md 当 AI 技能说明书——保护清单外才删
           deleteFile()
           sweepCounts.md += 1
-        } else if (name.endsWith('.map')) {
+        } else if (isMap) {
           deleteFile() // builder 层应已排除；漏网兜底
           sweepCounts.cfg += 1
-        } else if (TSCONFIG_RE.test(name) || LINTCFG_RE.test(name)) {
+        } else if (isCfg) {
           deleteFile()
           sweepCounts.cfg += 1
-        } else if (TS_EXTS.some((ext) => name.endsWith(ext))) {
-          const pkgRoot = packageRootOf(dir, nmRoot)
-          if (pkgRoot && tsWantsCache.get(pkgRoot)) continue // 运行时入口指向 .ts 的包保守豁免
+        } else if (isTs) {
+          if (tsExempt) continue // 运行时入口指向 .ts 的包保守豁免
           deleteFile()
           sweepCounts.ts += 1
-        } else if (LICENSE_BASENAME_RE.test(name) && !LICENSE_EXT_DENY_RE.test(name)) {
-          // 用同一次打开的句柄读正文，避免 stat 之后再按路径读（文件可能已消失）。
-          let fd
-          let content
-          try {
-            fd = openSync(p, 'r')
-            content = readFileSync(fd, 'utf8')
-          } catch {
-            if (fd !== undefined) closeSync(fd)
-            continue
-          }
-          closeSync(fd)
-          notices.push({ source: `${label}/${relative(nmRoot, p).split(sep).join('/')}`, content })
+        } else if (licenseText !== undefined) {
+          notices.push({ source: `${label}/${relative(nmRoot, p).split(sep).join('/')}`, content: licenseText })
           deleteFile()
           sweepCounts.license += 1
         }
