@@ -71,8 +71,9 @@ export async function startApp(): Promise<void> {
   configureDshNode(
     existsSync(packagedNode) ? packagedNode : existsSync(devNode) ? devNode : undefined,
   )
-  // office 转 PDF 组件（libreoffice-kit 平台二进制 178MB）不随安装包分发，
-  // 装机后按需下载到 userData/dsh-extra-modules，dsh 子进程经 NODE_PATH 解析。
+  // office 转 PDF 组件：安装包只带随包 zip（184MB/735 文件不再预解压，安装
+  // 少写 735 个文件），首次需要时本地解压到 userData/dsh-extra-modules（不
+  // 联网），dsh 子进程经 NODE_PATH 解析；在线下载降级为 zip 损坏修复通道。
   const extraModulesDir = join(app.getPath('userData'), 'dsh-extra-modules')
   configureOfficeKit({
     extraModulesDir,
@@ -89,6 +90,9 @@ export async function startApp(): Promise<void> {
           'libreoffice-kit-win32-x64',
         )
       : join(app.getAppPath(), 'node_modules', '@deepseek-ai', 'libreoffice-kit-win32-x64'),
+    bundledZipDir: app.isPackaged
+      ? join(process.resourcesPath, 'office-kit')
+      : join(app.getAppPath(), 'build', 'office-kit'),
   })
   configureDshRuntime({
     cwd: app.getPath('userData'),
@@ -324,8 +328,9 @@ export async function startApp(): Promise<void> {
   })
   void webUiService.init()
 
-  // 闲时预热：连接中心依赖与 office 转 PDF 组件都已随包分发，预热通常直接
-  // 命中标记立即返回（不联网）；只有安装包损坏时才会在这里触发在线修复。
+  // 闲时预热：连接中心依赖随包直装，预热通常直接命中标记立即返回（不联网）；
+  // office 转 PDF 组件随包是 zip，预热就是这次本地解压（首启 15s 后台完成，
+  // 教师首次 AI 转换不用等）。只有随包 zip 也损坏时才会在这里触发在线修复。
   // 失败静默，真正使用/点开时会带进度重试。
   // dsh-im 预热走动态 import：bootstrap 不静态依赖 IPC 注册表（那会把整个
   // handler 图拉进启动模块，单测的模块 mock 也会被牵连）。

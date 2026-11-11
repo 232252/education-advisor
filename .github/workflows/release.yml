@@ -236,6 +236,13 @@ jobs:
             npx electron-builder "${ARGS[@]}"
           fi
 
+      # 产物级门禁：安装包落盘后核对离线三件套、sweep 边界与字体发射确实
+      # 生效（此前只在 ci.yml 跑且不带 --dist，发布产物本身没有断言）。
+      - name: Verify packaged app (win)
+        if: matrix.target == 'win'
+        shell: bash
+        run: npm run verify:dsh -- --dist release-v11/win-unpacked
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:

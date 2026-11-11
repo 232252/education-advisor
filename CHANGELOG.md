@@ -10,6 +10,22 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 > [`CHANGELOG.md`](https://github.com/232252/education-advisor/blob/main/CHANGELOG.md)
 > in its own repository. Cross-reference both when troubleshooting.
 
+## [3.3.7] — 2026-11-09
+
+### Changed
+
+- **安装提速四轮瘦身（合并口径）**：安装解包文件 22,802 → **15,120**（−33.7%）、解包写盘 969MB → 840MB；安装耗时代理 **36.5s → 26.4s（−27.7%）**（`scripts/bench-install.mjs` 同机口径：解出 NSIS payload + 落盘风暴两段计时）；Setup.exe 323.0MB → 302.0MB（本地构建口径，CI 出包后回填）。
+- **node_modules 整树解包 → 选择性解包**（安装时间由解包文件数主导，逐文件解压 + 杀软逐文件扫描是大头）：prepackage 新增 `scripts/compute-unpack-closure.mjs`，从 `@deepseek-ai/dsh` 依赖闭包 + 固定保留（pnpm 工具链 / pdfjs-dist / better-sqlite3 等原生包）生成落盘清单（559 包），与打包器实际发货集（715 包）求交；其余 147 个只有 Electron 主进程用的纯 JS 包（openai/@aws-sdk/@anthropic-ai 等）收进 app.asar——主进程读归档透明，安装时变成单个大文件顺序写。守卫双向核对：afterPack 对照 `build/unpack-closure.json`（闭包包必须真实落盘、落盘树不许有清单外的包），`verify:dsh --dist` 解析 asar 头确认归档内/外形态，并用随包 node.exe 离线跑 `dsh --version` 作闭包完整性的最终证据。
+- **office 转 PDF 组件（libreoffice-kit，184MB/735 文件）改随包 zip 首用本地解压**：安装包只带 1 个 zip（65.8MB，afterPack 复制进 `resources/office-kit/`），首次需要时 `office-kit-service` 校验 sha256 后解压到 userData（不联网，一次性；闲时预热在首启后台完成，教师无感）；在线下载降级为 zip 损坏修复通道。dsh 子进程经既有 NODE_PATH 机制解析，零改动。安装少写 735 个文件/~110MB。
+- junk 大扫除（afterPack）删掉两棵 node_modules 里的非运行文件共 ~3,500 项（`*.d.ts` 2,211、非声明 `*.ts` 688、构建配置散件 44、examples 目录 25、非 README/CHANGELOG 文档 172）；`@deepseek-ai`、vendored pi-ai、pnpm、pdfjs-dist、typescript 为保护树一刀不碰，运行时入口指向 `.ts` 的包自动豁免。依赖包 LICENSE/COPYING/NOTICE（345 个）与根目录 `LICENSES.chromium.html`（5.4MB，运行时无进程读）一并聚合为 `resources/THIRD-PARTY-NOTICES.txt` 单文件，法律文本保留、散文件清零。
+- 字体三包（lxgw-wenkai-webfont 595 文件、@fontsource/jetbrains-mono 324、@fontsource-variable/inter）移出打包树——它们是纯构建期依赖，vite 发射进 dist 后包体不被任何运行时代码引用。
+- `release.yml` windows 构建新增 `verify:dsh --dist` 产物门禁（此前发布产物本身无断言）；本版该门禁扩到 51 项（新增闭包落盘对照、asar 头断言、离线闭包冒烟、随包 zip 与清单字节一致等）。
+
+### Fixed
+
+- **打包态霞鹜文楷全部 404、批注手写体静默回退楷体**：`fonts.css` 的 `@import` 被 Vite 内联但 url() 不重写，97 个 unicode-range 分片在安装包里整体悬空——v3.3.6 为「补全字体」多花的 31MB 在安装包里实际不可达。改为 `main.tsx` JS import（与 jetbrains-mono 同路径），97 个 light 子集正确哈希发射进 app.asar；`verify:dsh --dist` 新增双向断言（分片发射 ≥90、无悬空 `./files/` 引用）。
+- **office-kit「解压成功却报缺主程序」的存量 bug**：资产主二进制在 `bin/libreoffice-kit.exe`（打资产时打的是整包目录），服务代码一直查包根路径——下载/随包两条安装链路的就绪检测、就绪戳、状态卡与修复通道全部静默失效（组件实际已解压到位，功能碰巧可用）。修正为 `bin/` 布局并让测试夹具对齐真实资产；随包 zip 首用链路（预热 → 校验 → 落位 → 就绪戳）装机实测全通。
+
 ## [3.3.6] — 2026-11-09
 
 ### Added
@@ -225,7 +241,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - The `nul` file in the repository root (a Windows reparse-point residue from
   an earlier redirect) is git-ignored but can be safely removed by hand.
 
-[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.6...HEAD
+[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.7...HEAD
+[3.3.7]: https://github.com/232252/education-advisor/compare/v3.3.6...v3.3.7
 [3.3.6]: https://github.com/232252/education-advisor/compare/v3.3.5...v3.3.6
 [3.3.5]: https://github.com/232252/education-advisor/releases/tag/v3.3.5
 [3.3.4]: https://github.com/232252/education-advisor/releases/tag/v3.3.4

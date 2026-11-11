@@ -1,12 +1,11 @@
 // =============================================================
-// office-kit-service — libreoffice-kit 平台二进制的按需补装
+// office-kit-service — libreoffice-kit 平台二进制的就绪保障
 //
-// @deepseek-ai/libreoffice-kit-win32-x64（内含 178MB 的 libreoffice-kit.exe，
-// 压缩后是安装包最大单项）不随安装包分发：它是 dsh-office-to-pdf /
-// dsh-skill-office 的 optionalDependency，只有真的做 office→PDF 转换时才
-// 需要。装机后由本服务从 GitHub Release 资产下载补齐（构建期
-// scripts/build-office-kit-asset.mjs 打 zip + sha256 清单 config/
-// office-kit.json，随 app 分发）。
+// @deepseek-ai/libreoffice-kit-win32-x64（184MB/735 文件，安装耗时主因之一）
+// 不再预解压进安装目录：随包只带 1 个 zip（构建期 scripts/build-office-kit-asset.mjs
+// 打包 + sha256 清单 config/office-kit.json，afterPack 复制到 resources/
+// office-kit/），首次需要时本地解压（不联网，一次性几秒）——闲时预热通常在
+// 首启后台就完成了，教师无感。zip 损坏时自动落到 GitHub Release 在线修复通道。
 //
 // 落位：userData/dsh-extra-modules/@deepseek-ai/libreoffice-kit-win32-x64/，
 // dsh 子进程（教师对话 sdk 与连接中心 web）经 NODE_PATH 解析到它 —— 不写
@@ -34,11 +33,13 @@ import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web'
 
 export const OFFICE_KIT_PKG = '@deepseek-ai/libreoffice-kit-win32-x64'
-/** Windows 平台包里的主二进制（存在即视为就绪）。 */
-const KIT_BINARY = 'libreoffice-kit.exe'
+/** Windows 平台包里的主二进制（存在即视为就绪）。资产布局是 bin/ 子目录
+ * （build-office-kit-asset.mjs 打的是整包目录）——旧代码查包根，导致"zip
+ * 解压成功却报缺主程序、就绪戳永远写不上"的静默 bug（2026-11-09 冒烟抓到）。 */
+const KIT_BINARY = join('bin', 'libreoffice-kit.exe')
 /** zip 内的顶层目录名（build-office-kit-asset.mjs 固定按此打包）。 */
 const ZIP_ROOT_DIR = 'libreoffice-kit-win32-x64'
-/** 下载校验通过的戳，内容 = 清单 sha256。升级换清单后自动重下。 */
+/** 下载校验通过的戳，两行：sha256 + 来源（bundled-zip | download）。旧版只有一行。 */
 const KIT_STAMP = 'office-kit.stamp'
 
 export interface OfficeKitManifest {
@@ -58,6 +59,8 @@ export interface OfficeKitConfig {
   appVersion: string
   /** 打包/开发态 bundled 平台包目录（存在则无需下载；开发态就在 node_modules） */
   bundledPkgDir: string
+  /** 随包 zip 目录（打包态 resources/office-kit；开发态 build/office-kit）。缺省 = 无随包 zip */
+  bundledZipDir?: string
 }
 
 export type OfficeKitState =
@@ -104,6 +107,28 @@ function downloadedKitBinary(): string | null {
   return existsSync(exe) ? exe : null
 }
 
+/** 随包 zip 的路径（在位才返回）；没有随包 zip 或清单缺失返回 null。 */
+function bundledZipPath(): string | null {
+  const dir = configured?.bundledZipDir
+  if (!dir) return null
+  const manifest = readManifest()
+  if (!manifest) return null
+  const zip = join(dir, manifest.asset)
+  return existsSync(zip) ? zip : null
+}
+
+/** 落位戳里的来源标记（第二行）；旧版单行戳视为 download。 */
+function stampOrigin(): 'bundled-zip' | 'download' {
+  const dir = configured?.extraModulesDir
+  if (!dir) return 'download'
+  try {
+    const lines = readFileSync(join(dir, KIT_STAMP), 'utf8').trim().split('\n')
+    return lines[1] === 'bundled-zip' ? 'bundled-zip' : 'download'
+  } catch {
+    return 'download'
+  }
+}
+
 function readManifest(): OfficeKitManifest | null {
   if (!configured) return null
   try {
@@ -120,7 +145,9 @@ export function officeKitStatus(): OfficeKitState {
   if (bundledKitBinary()) return { state: 'ready', source: 'bundled' }
   if (downloadedKitBinary()) {
     const manifest = readManifest()
-    return { state: 'ready', source: 'downloaded', kitVersion: manifest?.kitVersion }
+    // 从随包 zip 解出来的也算「随包」（教师视角：没联网下载过）
+    const source = stampOrigin() === 'bundled-zip' ? 'bundled' : 'downloaded'
+    return { state: 'ready', source, kitVersion: manifest?.kitVersion }
   }
   if (!configured) return { state: 'unknown', message: '组件服务未配置' }
   if (!readManifest()) return { state: 'unknown', message: '找不到组件清单 config/office-kit.json' }
@@ -139,7 +166,7 @@ export function ensureOfficeKit(
   if (bundledKitBinary() || downloadedKitBinary()) return Promise.resolve({ ok: true })
   const manifest = readManifest()
   if (!configured || !manifest) {
-    return Promise.resolve({ ok: false, error: '缺少组件清单，无法下载 office 转换组件' })
+    return Promise.resolve({ ok: false, error: '缺少组件清单，无法安装 office 转换组件' })
   }
   if (inflight) return inflight.promise
 
@@ -148,11 +175,26 @@ export function ensureOfficeKit(
     if (inflight) inflight.progress = message
     onProgress?.(message)
   }
-  const promise = downloadAndExtract(cfg, manifest, report).finally(() => {
+  const promise = obtainAndExtract(cfg, manifest, report).finally(() => {
     inflight = null
   })
-  inflight = { progress: '准备下载…', promise }
+  inflight = { progress: '准备组件…', promise }
   return promise
+}
+
+/** 随包 zip 优先（离线直装，几秒解压）；缺失/损坏才落在线修复通道。 */
+async function obtainAndExtract(
+  cfg: OfficeKitConfig,
+  manifest: OfficeKitManifest,
+  report: (message: string) => void,
+): Promise<OfficeKitEnsureResult> {
+  const bundled = bundledZipPath()
+  if (bundled) {
+    const result = await verifyAndExtract(cfg, manifest, bundled, 'bundled-zip', report)
+    if (result.ok) return result
+    report('随包组件损坏，尝试在线修复…')
+  }
+  return downloadAndExtract(cfg, manifest, report)
 }
 
 async function downloadAndExtract(
@@ -162,17 +204,17 @@ async function downloadAndExtract(
 ): Promise<OfficeKitEnsureResult> {
   mkdirSync(cfg.extraModulesDir, { recursive: true })
   const stampPath = join(cfg.extraModulesDir, KIT_STAMP)
-  const stampWanted = `${manifest.sha256}\n`
-  const stampMatches = () => {
+  // 戳首行 = sha256（兼容旧版单行戳）；缓存 zip 与戳一致时跳过下载
+  const stampShaMatches = () => {
     try {
-      return readFileSync(stampPath, 'utf8') === stampWanted
+      return readFileSync(stampPath, 'utf8').split('\n')[0] === manifest.sha256
     } catch {
       return false
     }
   }
 
   const zipPath = join(cfg.extraModulesDir, manifest.asset)
-  if (!stampMatches() || !existsSync(zipPath)) {
+  if (!stampShaMatches() || !existsSync(zipPath)) {
     const urls = officeKitDownloadUrls(manifest, cfg.appVersion)
     let lastError = ''
     let downloaded = false
@@ -187,12 +229,27 @@ async function downloadAndExtract(
     }
     if (!downloaded) return { ok: false, error: `office 组件下载失败：${lastError}` }
   }
+  return verifyAndExtract(cfg, manifest, zipPath, 'download', report)
+}
 
+async function verifyAndExtract(
+  cfg: OfficeKitConfig,
+  manifest: OfficeKitManifest,
+  zipPath: string,
+  origin: 'bundled-zip' | 'download',
+  report: (message: string) => void,
+): Promise<OfficeKitEnsureResult> {
   report('正在校验组件…')
   const sha = await sha256Of(zipPath)
   if (sha !== manifest.sha256) {
-    rmSync(zipPath, { force: true })
-    return { ok: false, error: 'office 组件校验失败（sha256 不匹配），已删除损坏文件' }
+    if (origin === 'download') rmSync(zipPath, { force: true })
+    return {
+      ok: false,
+      error:
+        origin === 'bundled-zip'
+          ? 'office 组件校验失败（随包 zip 损坏），已尝试在线修复'
+          : 'office 组件校验失败（sha256 不匹配），已删除损坏文件',
+    }
   }
 
   report('正在解压组件…')
@@ -209,9 +266,9 @@ async function downloadAndExtract(
     rmSync(target, { recursive: true, force: true })
     renameSync(extracted, target)
     if (!existsSync(join(target, KIT_BINARY))) {
-      return { ok: false, error: 'office 组件解压后缺少主程序' }
+      return { ok: false, error: 'office 组件解压后缺少主程序 (bin/libreoffice-kit.exe)' }
     }
-    writeFileSync(stampPath, stampWanted, 'utf8')
+    writeFileSync(join(cfg.extraModulesDir, KIT_STAMP), `${manifest.sha256}\n${origin}\n`, 'utf8')
     report('office 组件就绪')
     return { ok: true }
   } catch (err) {

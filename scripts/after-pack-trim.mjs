@@ -9,22 +9,35 @@
 //     - node_modules/pnpm/dist/node_modules → app.asar.unpacked 里 pnpm 的
 //       同名目录。builder 复制模块树时无条件跳过嵌套 node_modules
 //       （NodeModuleCopyHelper），缺了它 pnpm.mjs 引导壳起不来。
+//     - build/office-kit/*.zip → resources/office-kit/（win）：office 转 PDF
+//       组件随包只带 zip（首用本地解压，office-kit-service.ts），单文件落盘
+//       替代旧预解压的 735 文件/184MB。走钩子不走 extraResources，免得
+//       mac/linux 构建被缺目录卡死。
 //  2. 删 dxcompiler.dll（WebGPU/Dawn 的着色器编译器，~25MB）—— 应用与
 //     连接中心的 WebContentsView 都不用 WebGPU，删掉不影响渲染。
 //     vk_swiftshader.dll 保留：无 GPU / 远程桌面时它还是软件 WebGL 兜底。
 //  3. win 构建删 resources/eaa-binaries/ 里其他平台的目录（extraResources
 //     的 filter 不分平台，win 包只需 win32-x64）；删依赖包里其他平台的
 //     原生 prebuilds 与源码编译原料（npmRebuild:false 下无用）。
+//  3c. node_modules junk 大扫除（第三轮瘦身，文件数优先）：对主树与
+//     dsh-im 树删"非运行文件"——*.d.ts、非 README/CHANGELOG 的 *.md、
+//     构建配置散件、examples/、非声明 *.ts；LICENSE/COPYING/NOTICE 先
+//     聚合进 resources/THIRD-PARTY-NOTICES.txt 再删（法律合规保留文本），
+//     根目录 LICENSES.chromium.html（5.4MB，运行时无进程读）同样并入。
+//     @deepseek-ai（黑盒 SDK 运行时读自己的 yml/md/docs）等保护树一刀不碰。
 //  4. 守卫断言（配置改坏在这里拦，别等装到教师机）：
-//     - 两个离线复制确实落位（qrcode 标记 / pnpm dist）
+//     - 三个离线复制确实落位（qrcode 标记 / pnpm dist / kit zip）
 //     - locales 只剩 electronLanguages 白名单里的 .pak
 //     - files 负向排除的大件确实不在 app.asar.unpacked 里
+//     - 选择性解包红线（第四轮）：对照 build/unpack-closure.json，dsh 闭包
+//       每个包真实落盘、解包树里没有预料外的包（smartUnpack 预料外的整包
+//       解包会悄悄放大安装文件数）；sweep 后保护树外无 *.d.ts 残留
 //
 // 退出方式：守卫失败直接 process.exit(1) 让打包失败 —— afterPack 抛错时
 // electron-builder 也会中止，但手动 exit 的日志更醒目。
 // =============================================================
 
-import { cpSync, existsSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -41,7 +54,67 @@ const EXCLUDED_IN_UNPACKED = [
   '@deepseek-ai/dsh-experimental-liveshare',
   '@deepseek-ai/dsh-experimental-client-ui-forge',
   'sherpa-onnx-win-x64',
+  // libreoffice-kit 改随包 zip（resources/office-kit/），不再预解压进包
+  '@deepseek-ai/libreoffice-kit-win32-x64',
+  // 字体三包（构建期依赖，vite 发射进 dist 后包体不再被引用）
+  'lxgw-wenkai-webfont',
+  '@fontsource/jetbrains-mono',
+  '@fontsource-variable/inter',
 ]
+
+// ---- 3c. junk 大扫除的规则常量 ----
+// 保护清单：整个包一刀不碰。@deepseek-ai 是黑盒 SDK（运行时读自己的
+// yml/md/docs，闭包安全网只核对依赖不核对文件读取）；@earendil-works 是
+// vendored pi-ai（有意保留的 HTTP 层）；pnpm 的引导链自检文件；pdfjs-dist
+// 的 cmaps/standard_fonts 运行时按路径读；typescript 防它进了生产依赖后被删 lib。
+const PROTECTED_SCOPES = new Set(['@deepseek-ai', '@earendil-works'])
+const PROTECTED_PKGS = new Set(['pnpm', 'pdfjs-dist', 'typescript'])
+const EXAMPLE_DIRS = new Set(['examples', 'example', '__mocks__', '.github', '.vscode', '.idea'])
+const LICENSE_BASENAME_RE = /^(licen[cs]e|copying|notice|patents)/i
+// LICENSE 家族里混着 notice.js / LICENSE.json 这类同名代码文件，只收文本形态
+const LICENSE_EXT_DENY_RE = /\.(js|mjs|cjs|ts|mts|cts|tsx|jsx|json|map)$/i
+const TSCONFIG_RE = /^tsconfig(\..+)?\.json$/
+const LINTCFG_RE = /^(\.eslintrc|\.prettierrc|\.babelrc|\.stylelintrc)/
+const DECLARATION_EXTS = ['.d.ts', '.d.mts', '.d.cts']
+const TS_EXTS = ['.ts', '.mts', '.cts', '.tsx']
+
+/** Node 运行时会用的 exports 条件；development/browser/bun 等只在构建期生效。 */
+const RUNTIME_EXPORT_CONDITIONS = new Set(['require', 'import', 'default', 'node', 'node-addons'])
+
+/** 包的运行时入口（main/exports 的运行时条件分支）是否直接指向 .ts 源码。 */
+function packageWantsTs(pkgDir) {
+  let pkg
+  try {
+    pkg = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'))
+  } catch {
+    return false
+  }
+  const hits = []
+  const walkExports = (value) => {
+    if (typeof value === 'string') {
+      hits.push(value)
+      return
+    }
+    if (!value || typeof value !== 'object') return
+    for (const [key, sub] of Object.entries(value)) {
+      if (key === 'types' || key === 'typings') continue
+      // 条件键只放行 Node 运行时认的；子路径键（./xxx）继续下钻
+      if (RUNTIME_EXPORT_CONDITIONS.has(key) || key.startsWith('./') || key.startsWith('#')) walkExports(sub)
+    }
+  }
+  if (typeof pkg.main === 'string') hits.push(pkg.main)
+  walkExports(pkg.exports)
+  return hits.some((s) => TS_EXTS.some((ext) => s.endsWith(ext)))
+}
+
+/** 相对 node_modules 根的路径段是否落在保护包里（顶层 / @scope 两级判定）。 */
+function isProtectedPath(parts) {
+  if (parts.length === 0) return false
+  if (parts[0].startsWith('@')) {
+    return PROTECTED_SCOPES.has(parts[0]) || PROTECTED_PKGS.has(`${parts[0]}/${parts[1] ?? ''}`)
+  }
+  return PROTECTED_PKGS.has(parts[0])
+}
 
 export default async function afterPack(context) {
   const appOutDir = context.appOutDir
@@ -104,6 +177,25 @@ export default async function afterPack(context) {
   // ---- 2. WebGPU 着色器编译器（所有平台都不用）----
   remove(join(appOutDir, 'dxcompiler.dll'), 'dxcompiler.dll（WebGPU 未用）')
 
+  // 1c. office 转 PDF 组件随包 zip（win）：单文件落盘替代旧预解压的
+  //     735 文件/184MB。缺 zip = 没跑 prepackage，直接失败。
+  if (platform === 'windows') {
+    const kitZipDir = join(ROOT, 'build', 'office-kit')
+    const kitZips = existsSync(kitZipDir) ? readdirSync(kitZipDir).filter((n) => n.endsWith('.zip')) : []
+    if (kitZips.length !== 1) {
+      console.error(
+        `[after-pack-trim] build/office-kit/ 应恰有 1 个 zip，实际 ${kitZips.length} —— 先跑 npm run prepackage`,
+      )
+      process.exit(1)
+    }
+    const kitDest = join(appOutDir, 'resources', 'office-kit')
+    mkdirSync(kitDest, { recursive: true })
+    cpSync(join(kitZipDir, kitZips[0]), join(kitDest, kitZips[0]))
+    console.log(
+      `[after-pack-trim] +${(statSync(join(kitDest, kitZips[0])).size / 1024 / 1024).toFixed(1)}MB office-kit 随包 zip（首用本地解压，office-kit-service）`,
+    )
+  }
+
   // ---- 3. 只面向本平台产物的修剪 ----
   // 3a. win 包不带其他平台的 eaa 二进制
   if (platform === 'windows') {
@@ -134,6 +226,129 @@ export default async function afterPack(context) {
   remove(join(unpacked, 'better-sqlite3', 'deps'), 'better-sqlite3/deps（源码编译原料，未用）')
   remove(join(unpacked, 'openai', 'src'), 'openai/src（TS 源码，运行时走包根 JS）')
 
+  // ---- 3c. node_modules junk 大扫除（主树 + dsh-im 树同一套规则）----
+  const sweepCounts = { dts: 0, md: 0, ts: 0, cfg: 0, exampleDirs: 0, license: 0 }
+  let sweptBytes = 0
+  const notices = [] // { source, content } — LICENSE 聚合原料
+  const tsWantsCache = new Map() // 包根目录 -> 运行时入口指向 .ts？
+
+  // 根目录 LICENSES.chromium.html（5.4MB 纯文本，运行时无进程读它）并入
+  // THIRD-PARTY-NOTICES.txt 一起分发：合规文本保留、散文件少一个。
+  const chromiumLicenses = join(appOutDir, 'LICENSES.chromium.html')
+  if (existsSync(chromiumLicenses)) {
+    notices.push({
+      source: 'Electron (Chromium) — LICENSES.chromium.html',
+      content: readFileSync(chromiumLicenses, 'utf8'),
+    })
+    remove(chromiumLicenses, 'LICENSES.chromium.html（并入 THIRD-PARTY-NOTICES.txt）')
+  }
+
+  // 从文件所在目录向上找最近的有 package.json 的目录（即包根），判断该包
+  // 是否要在 .ts 规则上保守豁免。实践中 0 个包命中（2026-11-11 全量核对），
+  // 这是防未来依赖形态变化的保险丝。
+  const packageRootOf = (fileDir, nmRoot) => {
+    let dir = fileDir
+    while (dir.startsWith(nmRoot)) {
+      if (tsWantsCache.has(dir)) return dir
+      if (existsSync(join(dir, 'package.json'))) {
+        tsWantsCache.set(dir, packageWantsTs(dir))
+        return dir
+      }
+      if (dir === nmRoot) break
+      dir = dirname(dir)
+    }
+    return null
+  }
+
+  const sweepTree = (nmRoot, label) => {
+    if (!existsSync(nmRoot)) return
+    const walk = (dir, parts) => {
+      let entries
+      try {
+        entries = readdirSync(dir)
+      } catch {
+        return
+      }
+      for (const name of entries) {
+        const p = join(dir, name)
+        const nextParts = [...parts, name]
+        let st
+        try {
+          st = statSync(p)
+        } catch {
+          continue
+        }
+        if (st.isDirectory()) {
+          if (isProtectedPath(nextParts)) continue
+          if (EXAMPLE_DIRS.has(name)) {
+            sweptBytes += dirSize(p)
+            rmSync(p, { recursive: true, force: true })
+            sweepCounts.exampleDirs += 1
+            continue
+          }
+          walk(p, nextParts)
+          continue
+        }
+        if (isProtectedPath(nextParts)) continue
+        const deleteFile = () => {
+          sweptBytes += st.size
+          rmSync(p, { force: true })
+        }
+        if (DECLARATION_EXTS.some((ext) => name.endsWith(ext))) {
+          deleteFile()
+          sweepCounts.dts += 1
+        } else if (name.endsWith('.md') && !/^(readme|changelog)/i.test(name)) {
+          // dsh 体系把 docs/*.md 当 AI 技能说明书——保护清单外才删
+          deleteFile()
+          sweepCounts.md += 1
+        } else if (name.endsWith('.map')) {
+          deleteFile() // builder 层应已排除；漏网兜底
+          sweepCounts.cfg += 1
+        } else if (TSCONFIG_RE.test(name) || LINTCFG_RE.test(name)) {
+          deleteFile()
+          sweepCounts.cfg += 1
+        } else if (TS_EXTS.some((ext) => name.endsWith(ext))) {
+          const pkgRoot = packageRootOf(dir, nmRoot)
+          if (pkgRoot && tsWantsCache.get(pkgRoot)) continue // 运行时入口指向 .ts 的包保守豁免
+          deleteFile()
+          sweepCounts.ts += 1
+        } else if (LICENSE_BASENAME_RE.test(name) && !LICENSE_EXT_DENY_RE.test(name)) {
+          notices.push({ source: `${label}/${relative(nmRoot, p).split(sep).join('/')}`, content: readFileSync(p, 'utf8') })
+          deleteFile()
+          sweepCounts.license += 1
+        }
+      }
+    }
+    walk(nmRoot, [])
+    // 空目录修剪（package.json 都还在，包根不会是空的；保护树跳过——
+    // 包内可能存在刻意留空的运行时目录）
+    pruneEmptyDirs(nmRoot, [])
+  }
+
+  sweepTree(unpacked, 'node_modules')
+  sweepTree(imDepsDest, 'dsh-im/node_modules')
+
+  if (notices.length > 0) {
+    const target = join(appOutDir, 'resources', 'THIRD-PARTY-NOTICES.txt')
+    const header =
+      '第三方许可汇总（THIRD-PARTY NOTICES）\n\n' +
+      '本文件由 scripts/after-pack-trim.mjs 打包时自动聚合生成：随包依赖的\n' +
+      'LICENSE / COPYING / NOTICE 文本合并于此，替换包内上千个散落的许可文件。\n'
+    writeFileSync(
+      target,
+      header +
+        notices
+          .map((n) => `\n${'='.repeat(72)}\n来源: ${n.source}\n${'='.repeat(72)}\n\n${n.content.trim()}\n`)
+          .join('\n'),
+    )
+    console.log(
+      `[after-pack-trim] LICENSE 聚合：${notices.length} 个许可文件 → resources/THIRD-PARTY-NOTICES.txt`,
+    )
+  }
+  console.log(
+    `[after-pack-trim] junk 大扫除：d.ts ${sweepCounts.dts} / md ${sweepCounts.md} / ts ${sweepCounts.ts} / 配置 ${sweepCounts.cfg} / examples 目录 ${sweepCounts.exampleDirs} / LICENSE→聚合 ${sweepCounts.license}，-${(sweptBytes / 1024 / 1024).toFixed(1)}MB`,
+  )
+
   // ---- 4. 守卫断言 ----
   // 4a. locales 白名单
   const localesDir = join(appOutDir, 'locales')
@@ -156,6 +371,92 @@ export default async function afterPack(context) {
     }
   }
 
+  // 4c. 选择性解包红线核查（第四轮安装提速，读 prepackage 生成的对照清单）：
+  //  - build/unpack-closure.json 必须在（没跑 prepackage 直接失败，别带着空
+  //    asarUnpack 清单出货——那会把 dsh 子进程的依赖全关进 asar）。
+  //  - 期望落盘的每个包（dsh 闭包 + pnpm 工具链 + pdfjs-dist）：包根
+  //    package.json 必须真实存在 —— dsh 子进程看不见 asar，缺一个就断链。
+  //  - 解包树里出现的每个包都必须在期望清单里：smartUnpack 预料外的整包
+  //    解包、或生成器与 files 过滤不同步，都会悄悄放大安装文件数。
+  //  - sweep 后保护树外不得残留 *.d.ts（规则失效检查，保留）。
+  const closureJsonPath = join(ROOT, 'build', 'unpack-closure.json')
+  if (!existsSync(closureJsonPath)) {
+    console.error(
+      '[after-pack-trim] 缺 build/unpack-closure.json —— 先跑 npm run prepackage（生成 asarUnpack 闭包清单）',
+    )
+    process.exit(1)
+  }
+  const expectedUnpacked = new Set(JSON.parse(readFileSync(closureJsonPath, 'utf8')).packages)
+  const missingUnpacked = []
+  for (const name of expectedUnpacked) {
+    if (!existsSync(join(unpacked, ...name.split('/'), 'package.json'))) missingUnpacked.push(name)
+  }
+  if (missingUnpacked.length > 0) {
+    console.error(
+      `[after-pack-trim] dsh 闭包/保留包缺落盘（asarUnpack 或 files 配置坏了？共 ${missingUnpacked.length} 个）：\n  ${missingUnpacked.slice(0, 20).join('\n  ')}`,
+    )
+    process.exit(1)
+  }
+  const unexpectedUnpacked = []
+  for (const top of readdirSync(unpacked)) {
+    if (top.startsWith('.')) continue // .bin 等非包目录
+    const tops = top.startsWith('@') ? readdirSync(join(unpacked, top)).map((d) => `${top}/${d}`) : [top]
+    for (const t of tops) {
+      if (!expectedUnpacked.has(t)) unexpectedUnpacked.push(t)
+    }
+  }
+  if (unexpectedUnpacked.length > 0) {
+    console.error(
+      `[after-pack-trim] 预料外的解包包（smartUnpack 整包解包或清单不同步，会放大安装文件数；在 compute-unpack-closure.mjs 里补账目）：\n  ${unexpectedUnpacked.slice(0, 30).join('\n  ')}`,
+    )
+    process.exit(1)
+  }
+
+  // 4c-bis. dsh-im 树的包根 package.json 全在位（sweep 过删红线，模块解析命脉）。
+  let pkgJsonMissing = []
+  for (const top of readdirSync(imDepsDest)) {
+    if (top.startsWith('.')) continue
+    const tops = top.startsWith('@') ? readdirSync(join(imDepsDest, top)).map((d) => join(top, d)) : [top]
+    for (const t of tops) {
+      if (!existsSync(join(imDepsDest, t, 'package.json'))) pkgJsonMissing.push(`dsh-im/node_modules/${t.split(sep).join('/')}`)
+    }
+  }
+  if (pkgJsonMissing.length > 0) {
+    console.error(`[after-pack-trim] 包根 package.json 缺失（sweep 过删？）：\n  ${pkgJsonMissing.join('\n  ')}`)
+    process.exit(1)
+  }
+  let dtsResidue = 0
+  const countDts = (dir, protectedScope) => {
+    let entries
+    try {
+      entries = readdirSync(dir)
+    } catch {
+      return
+    }
+    for (const name of entries) {
+      const p = join(dir, name)
+      let st
+      try {
+        st = statSync(p)
+      } catch {
+        continue
+      }
+      if (st.isDirectory()) {
+        const next = [...protectedScope, name]
+        if (next.length <= 2 && (name.startsWith('@') ? PROTECTED_SCOPES.has(name) : PROTECTED_PKGS.has(name))) continue
+        countDts(p, next)
+      } else if (DECLARATION_EXTS.some((ext) => name.endsWith(ext))) {
+        dtsResidue += 1
+      }
+    }
+  }
+  countDts(unpacked, [])
+  countDts(imDepsDest, [])
+  if (dtsResidue > 0) {
+    console.error(`[after-pack-trim] 保护树外残留 ${dtsResidue} 个 *.d.ts —— sweep 规则失效，中止打包`)
+    process.exit(1)
+  }
+
   console.log(
     `[after-pack-trim] ${platform} 修剪完成，共 -${(removedBytes / 1024 / 1024).toFixed(1)}MB（补齐项见上方 + 行）`,
   )
@@ -171,4 +472,34 @@ function dirSize(target) {
     total += s.isDirectory() ? dirSize(p) : s.size
   }
   return total
+}
+
+/** 自底向上删除 sweep 留下的空目录（保护树整枝跳过；根不动）。 */
+function pruneEmptyDirs(dir, parts) {
+  let entries
+  try {
+    entries = readdirSync(dir)
+  } catch {
+    return
+  }
+  for (const name of entries) {
+    const p = join(dir, name)
+    const nextParts = [...parts, name]
+    let st
+    try {
+      st = statSync(p)
+    } catch {
+      continue
+    }
+    if (!st.isDirectory()) continue
+    if (isProtectedPath(nextParts)) continue
+    pruneEmptyDirs(p, nextParts)
+    let rest
+    try {
+      rest = readdirSync(p)
+    } catch {
+      continue
+    }
+    if (rest.length === 0) rmSync(p, { recursive: true, force: true })
+  }
 }

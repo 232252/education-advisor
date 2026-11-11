@@ -43,7 +43,7 @@ export function PluginsTab() {
   // AI 批改任务数:本组件就地拉取(不进 usePluginsOverview,保持该 hook 职责单一;挂载期一次)
   const [gradingCount, setGradingCount] = useState<number | null>(null)
   const [install, setInstall] = useState<EducationPluginInstall | 'error' | null>(null)
-  // office 转 PDF 组件（178MB，已随安装包分发；下载入口仅作损坏修复）
+  // office 转 PDF 组件（随包 zip，首用本地解压；下载入口仅作损坏修复）
   const [officeKit, setOfficeKit] = useState<OfficeKitStatus | null>(null)
   const loadOfficeKit = useCallback(() => {
     void getAPI()
@@ -70,7 +70,7 @@ export function PluginsTab() {
   const installOfficeKit = () => {
     setOfficeKit({
       state: 'installing',
-      message: t('page.skills.plugins.card.officeKit.preparing', '准备下载…'),
+      message: t('page.skills.plugins.card.officeKit.preparing', '准备组件…'),
     })
     void getAPI()
       .officeKit.install()
@@ -88,13 +88,16 @@ export function PluginsTab() {
     if (officeKit.state === 'ready') {
       return officeKit.source === 'bundled'
         ? t('page.skills.plugins.card.officeKit.bundled', '已就绪（随包）')
-        : t('page.skills.plugins.card.officeKit.ready', '已就绪（已下载 ~180MB）')
+        : t('page.skills.plugins.card.officeKit.ready', '已就绪（在线补装）')
     }
     if (officeKit.state === 'installing') {
-      return officeKit.message || t('page.skills.plugins.card.officeKit.installing', '下载中…')
+      return officeKit.message || t('page.skills.plugins.card.officeKit.installing', '准备中…')
     }
     if (officeKit.state === 'missing') {
-      return t('page.skills.plugins.card.officeKit.missing', '未安装（用到时自动联网补装）')
+      return t(
+        'page.skills.plugins.card.officeKit.missing',
+        '待解压（用到时自动从随包解压，不联网）',
+      )
     }
     return officeKit.message || t('page.skills.plugins.card.officeKit.unknown', '状态未知')
   }

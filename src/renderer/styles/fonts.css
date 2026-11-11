@@ -3,9 +3,10 @@
    只引 light 单字重(97 个 unicode-range 分片,按需加载):
    观感是细笔楷书,省墨且贴近老师红笔字。回退链见 .handwriting-mark
    (globals.css): KaiTi/楷体/STKaiti。
-   注意: @import 必须位于本文件所有规则之前(CSS 规范),否则被丢弃。
+   注意: 引入点在 renderer/main.tsx(JS import)——不能放回本文件的
+   @import：Vite 对 @import 内联进来的 css 不重写 url()，打包产物曾整体
+   404、静默回退楷体(JS import 路径会正确 rebase 并哈希发射字体资产)。
    ============================================================= */
-@import "lxgw-wenkai-webfont/lxgwwenkai-light.css";
 
 /* =============================================================
    西文字体 latin 子集声明(Inter Variable 主字体)

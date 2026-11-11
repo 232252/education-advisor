@@ -12,7 +12,9 @@
 //  1. @deepseek-ai/dsh-sdk-client 在 dependencies（devDependencies 里打包态必死）
 //  2. 已安装的 sdk-client 带运行时依赖 @deepseek-ai/dsh，且版本与已装的一致
 //  3. dsh 的可执行入口在真实磁盘上存在
-//  4. electron-builder 的 asarUnpack 覆盖 node_modules（纯 node 子进程看不见 app.asar）
+//  4. electron-builder 的 asarUnpack 是 prepackage 生成的闭包清单（第四轮安装
+//     提速：整树解包是反模式，只有 dsh 子进程闭包 + pnpm/pdfjs 保留落盘，
+//     其余纯 JS 依赖收进 app.asar 由主进程读）
 //  5. 随包 pnpm 工具链在位：@pnpm/exe 的真二进制（dsh plugin add 只认
 //     PATH 上的真 exe；pnpm 12 的 pnpm.mjs 只是 corepack 引导壳，真 CLI
 //     只有 @pnpm/exe 的原生二进制，替代方案实测死路）+ pnpm.mjs 引导壳
@@ -23,21 +25,26 @@
 //  7. office-kit 随包组件：config/office-kit.json 清单在位（prepackage 生成，
 //     兼作损坏修复通道的资产定位）
 //  8. 可选 --dist <win-unpacked>：核对打包产物里入口确实落在 app.asar.unpacked 下，
-//     离线直装三件套落位（dsh-im 依赖 / pnpm dist / libreoffice-kit 平台包），
-//     且瘦身负向过滤确实生效（pnpm 二进制别名 / 实验包 / source map / README
-//     图被剥掉；清单/locales 裁剪在位）
+//     离线三件套落位（dsh-im 依赖 / pnpm dist / office-kit 随包 zip），且瘦身
+//     负向过滤确实生效；第三轮内容级核查（sweep 残留/聚合/字体发射）；
+//     第四轮选择性解包核查：对照 build/unpack-closure.json 逐包核对落盘清单、
+//     asar 头解析确认主进程专用包真在归档内、staged node.exe 离线跑通
+//     dsh --version（闭包完整性的最终证据）
 //
 // 用法: npm run verify:dsh [-- --dist release/win-unpacked]
 // 退出码: 0 全部通过 / 1 有失败项
 // =============================================================
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { spawnSync } from 'node:child_process'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const SDK = '@deepseek-ai/dsh-sdk-client'
 const RUNTIME = '@deepseek-ai/dsh'
+// prepackage 生成的 asarUnpack 对照清单（compute-unpack-closure.mjs 落盘）
+const CLOSURE_JSON = join(ROOT, 'build', 'unpack-closure.json')
 // @pnpm/exe 的平台包名按构建机走（optionalDependencies 各平台各装一份）。
 const PNM_EXE_DIR = join('node_modules', '@pnpm', `exe.${process.platform}-${process.arch}`)
 const PNM_EXE = join(PNM_EXE_DIR, process.platform === 'win32' ? 'pnpm.exe' : 'pnpm')
@@ -45,14 +52,22 @@ const PNM_MJS = join('node_modules', 'pnpm', 'bin', 'pnpm.mjs')
 const PNM_DIST = join('node_modules', 'pnpm', 'dist', 'node_modules')
 // electron-builder.yml files 里被负向排除的包（体积/按需化）。
 // 对 web/sdk profile 是硬依赖的包不能进这个清单 —— 见第 6 项安全网。
-// （libreoffice-kit-win32-x64 2026-11-09 起随包分发，已移出本清单。）
+// libreoffice-kit-win32-x64 2026-11-09 起随包（当日决策预解压，第四轮改为
+// 随包 zip 首用本地解压）——包本体进本清单，zip 的在位性由 --dist 单独断言。
+// 字体三包 2026-11-11 起排除：纯构建期依赖，vite 发射进 dist 后包体不被
+// 任何运行时代码引用（lxgw 曾因 @import url 悬空在打包态整体 404，
+// 修法见 src/renderer/main.tsx 注释）。
 const SLIM_EXCLUDED_PACKAGES = [
+  '@deepseek-ai/libreoffice-kit-win32-x64',
   '@deepseek-ai/dsh-experimental-inspector',
   '@deepseek-ai/dsh-experimental-speech-to-text-sensevoice',
   'sherpa-onnx-node',
   'sherpa-onnx-win-x64',
   '@deepseek-ai/dsh-experimental-liveshare',
   '@deepseek-ai/dsh-experimental-client-ui-forge',
+  'lxgw-wenkai-webfont',
+  '@fontsource/jetbrains-mono',
+  '@fontsource-variable/inter',
 ]
 // dsh-official-bundles 的 PROFILE_TEMPLATES：web 与 sdk 是本 app 用到的两个
 // profile（教师对话 sdk、连接中心 web）。
@@ -117,10 +132,23 @@ if (sdkManifest) {
 
 const builderYml = readFileSync(join(ROOT, 'electron-builder.yml'), 'utf8')
 check(
-  /^\s*-\s*["']?\*\*\/node_modules\/\*\*/m.test(builderYml),
-  'asarUnpack 覆盖整棵 node_modules',
-  '缺少 "**/node_modules/**"：纯 node 子进程读不到 app.asar 内的入口',
+  builderYml.includes('# >>> unpack-closure') &&
+    /node_modules\/@deepseek-ai\/\*\*/.test(builderYml) &&
+    !/["']\*\*\/node_modules\/\*\*["']/.test(builderYml),
+  'asarUnpack 为生成闭包清单（整树解包反模式已移除）',
+  '哨兵块 + @deepseek-ai scope 缺失，或整树 "**/node_modules/**" 复活 —— 见 compute-unpack-closure.mjs',
 )
+if (!existsSync(CLOSURE_JSON)) {
+  checks.push('SKIP unpack-closure.json 生成清单 — 未跑 prepackage（干净检出属正常）')
+} else {
+  let closureCount = 0
+  try {
+    closureCount = readJson(CLOSURE_JSON).packages.length
+  } catch {
+    /* 下方 --dist 对照会报 */
+  }
+  check(closureCount >= 400, 'unpack-closure.json 清单规模合理', `${closureCount} 包（dsh 闭包 ~580）`)
+}
 
 // ---- 随包 pnpm 工具链（连接中心 plugin add 的物质基础）----
 check(
@@ -261,20 +289,27 @@ function verifyDist(entry, binRel) {
     '缺失时 pnpm.mjs 引导壳起不来，组件修复链路死',
   )
   if (process.platform === 'win32') {
-    check(
-      existsSync(
-        join(
-          unpackedRoot,
-          'node_modules',
-          '@deepseek-ai',
-          'libreoffice-kit-win32-x64',
-          'bin',
-          'libreoffice-kit.exe',
-        ),
-      ),
-      'libreoffice-kit 平台包随包在产物内',
-      '缺失时 AI 文档转 PDF 退化为联网按需补装（2026-11-09 决策：随包分发）',
-    )
+    // libreoffice-kit 不再预解压随包（SLIM 排除清单已断言包目录缺席）；随包
+    // 只有 1 个 zip，必须与 config 清单同名字节数一致（首用本地解压的物料，
+    // 缺了/坏了都会在首次 AI 转 PDF 时退化到在线下载）。
+    let kitZipOk = false
+    let kitZipDetail = 'resources/office-kit/ 缺 zip'
+    try {
+      const kitZips = readdirSync(join(dist, 'resources', 'office-kit')).filter((n) => n.endsWith('.zip'))
+      const kitManifest = readJson(join(dist, 'resources', 'config', 'office-kit.json'))
+      if (kitZips.length === 1 && kitZips[0] === kitManifest.asset) {
+        const zipBytes = statSync(join(dist, 'resources', 'office-kit', kitZips[0])).size
+        kitZipOk = zipBytes === kitManifest.bytes
+        kitZipDetail = kitZipOk
+          ? `${kitZips[0]}（${(zipBytes / 1024 / 1024).toFixed(1)}MB，与清单一致）`
+          : `字节数不符：zip ${zipBytes} ≠ 清单 ${kitManifest.bytes}`
+      } else {
+        kitZipDetail = `zip ${kitZips.join(', ') || '无'} vs 清单 ${kitManifest.asset}`
+      }
+    } catch (err) {
+      kitZipDetail = `读取失败：${err instanceof Error ? err.message : String(err)}`
+    }
+    check(kitZipOk, 'office-kit 随包 zip 在位且与清单一致（首用本地解压物料）', kitZipDetail)
   }
   // source map 是散文件数第一大头（~1.07 万个），混回来会拖慢安装写盘。
   const maps = []
@@ -304,9 +339,226 @@ function verifyDist(entry, binRel) {
   }
   walk(dist)
   check(maps.length === 0, '产物内无 source map 散文件', maps.join(', '))
+
+  // ---- 第三轮瘦身（junk 大扫除 + 字体出包）内容级核查 ----
+  // 教训（lxgw 字体子集丢失，见 spec 勘误）：只查大件存在性抓不到小文件
+  // 缺失。这里对 sweep 的每条规则做双向核查：删干净了（junk == 0）、
+  // 没删过头（包根 package.json 全在位、字体资产真被发射）。
+  const PROTECTED_SCOPES = new Set(['@deepseek-ai', '@earendil-works'])
+  const PROTECTED_PKGS = new Set(['pnpm', 'pdfjs-dist', 'typescript'])
+  const isProtectedPath = (parts) =>
+    parts[0]?.startsWith('@')
+      ? PROTECTED_SCOPES.has(parts[0]) || PROTECTED_PKGS.has(`${parts[0]}/${parts[1] ?? ''}`)
+      : PROTECTED_PKGS.has(parts[0])
+  const nmTrees = [
+    [join(unpackedRoot, 'node_modules'), 'node_modules'],
+    [join(dist, 'resources', 'dsh-im', 'node_modules'), 'dsh-im/node_modules'],
+  ]
+  let dtsResidue = 0
+  let licenseResidue = 0
+  const pkgJsonMissing = []
+  const auditTree = (nmRoot) => {
+    if (!existsSync(nmRoot)) return
+    // 包根 package.json 在位性（模块解析链命脉，runtime.ts 靠它定位入口）
+    for (const top of readdirSync(nmRoot)) {
+      if (top.startsWith('.')) continue // .bin / .pnpm 等非包目录
+      const topPath = join(nmRoot, top)
+      if (!statSync(topPath).isDirectory()) continue
+      const pkgDirs = top.startsWith('@')
+        ? readdirSync(topPath).map((d) => join(top, d))
+        : [top]
+      for (const pd of pkgDirs) {
+        if (!existsSync(join(nmRoot, pd, 'package.json'))) pkgJsonMissing.push(pd.split('\\').join('/'))
+      }
+    }
+    const walkAudit = (dir, parts) => {
+      let entries
+      try {
+        entries = readdirSync(dir)
+      } catch {
+        return
+      }
+      for (const name of entries) {
+        const p = join(dir, name)
+        let st
+        try {
+          st = statSync(p)
+        } catch {
+          continue
+        }
+        if (st.isDirectory()) {
+          const next = [...parts, name]
+          if (isProtectedPath(next)) continue
+          walkAudit(p, next)
+        } else {
+          if (/\.(d\.ts|d\.mts|d\.cts)$/.test(name)) dtsResidue += 1
+          else if (/^(licen[cs]e|copying|notice|patents)/i.test(name) && !/\.(js|mjs|cjs|ts|mts|cts|tsx|json|map)$/i.test(name))
+            licenseResidue += 1
+        }
+      }
+    }
+    walkAudit(nmRoot, [])
+  }
+  for (const [nmRoot] of nmTrees) auditTree(nmRoot)
+  check(
+    pkgJsonMissing.length === 0,
+    'sweep 后每个包根的 package.json 都在位',
+    pkgJsonMissing.length > 0 ? `缺失：${pkgJsonMissing.slice(0, 5).join(', ')}` : '两棵 node_modules 全量核对',
+  )
+  check(
+    dtsResidue === 0,
+    '保护树（@deepseek-ai 等）外无 *.d.ts 残留',
+    dtsResidue > 0 ? `残留 ${dtsResidue} 个` : '含 dsh-im 树',
+  )
+  const noticesPath = join(dist, 'resources', 'THIRD-PARTY-NOTICES.txt')
+  let noticesBytes = 0
+  try {
+    noticesBytes = statSync(noticesPath).size
+  } catch {
+    /* 缺文件按 0 处理 */
+  }
+  check(
+    licenseResidue === 0 && noticesBytes > 1024 * 1024,
+    'LICENSE 已聚合为 THIRD-PARTY-NOTICES.txt',
+    licenseResidue > 0
+      ? `仍散落 ${licenseResidue} 个许可文件`
+      : noticesBytes <= 1024 * 1024
+        ? '聚合文件缺失或过小（<1MB）'
+        : `${(noticesBytes / 1024 / 1024).toFixed(1)}MB`,
+  )
+  // 字体出包双向断言：app.asar 内 CSS 要么带哈希资产 url（修好），要么连
+  // url 都没有（未引字体）；出现 './files/lxgwwenkai' 即 @import 悬空 404
+  // 的原始签名（批注手写体会静默回退楷体）。
+  const asarPath = join(dist, 'resources', 'app.asar')
+  if (existsSync(asarPath)) {
+    const asarText = readFileSync(asarPath, 'latin1')
+    const emitted = asarText.split('lxgwwenkai-light-subset-').length - 1
+    const dangling = asarText.includes('./files/lxgwwenkai')
+    check(
+      emitted >= 90 && !dangling,
+      '霞鹜文楷 light 子集已发射进渲染产物（批注手写体可用）',
+      dangling
+        ? `CSS 仍有 ${emitted} 处悬空 ./files/ 引用（404 回退楷体）`
+        : `${emitted} 处按需加载分片引用`,
+    )
+  }
+  // ---- 第四轮安装提速（选择性解包）内容级核查 ----
+  // 整树解包 → 闭包落盘后，三条证据链缺一不可：
+  //  a) 生成清单里的每个包都真实落盘 + 落盘树里没有清单外的包（文件数不失控）；
+  //  b) asar 头证明主进程专用包真在归档内（有 offset 无 unpacked 标记）——
+  //     防止"既没进 asar 也没落盘"的静默丢包；
+  //  c) staged node.exe 离线跑通 dsh --version —— 闭包完整性的最终证据。
+  if (!existsSync(CLOSURE_JSON)) {
+    checks.push('SKIP 选择性解包对照 — 未跑 prepackage（build/unpack-closure.json 缺席）')
+  } else {
+    const nmRoot = join(unpackedRoot, 'node_modules')
+    let expected = null
+    try {
+      expected = new Set(readJson(CLOSURE_JSON).packages)
+    } catch {
+      check(false, 'unpack-closure.json 可解析')
+    }
+    if (expected) {
+      const missingUnpacked = []
+      for (const name of expected) {
+        if (!existsSync(join(nmRoot, ...name.split('/'), 'package.json'))) missingUnpacked.push(name)
+      }
+      check(
+        missingUnpacked.length === 0,
+        'dsh 闭包逐包落盘（对照 unpack-closure.json）',
+        missingUnpacked.length > 0
+          ? `缺 ${missingUnpacked.length} 个：${missingUnpacked.slice(0, 8).join(', ')}`
+          : `${expected.size} 包全在位`,
+      )
+      const unexpectedUnpacked = []
+      for (const top of readdirSync(nmRoot)) {
+        if (top.startsWith('.')) continue
+        const tops = top.startsWith('@')
+          ? readdirSync(join(nmRoot, top)).map((d) => `${top}/${d}`)
+          : [top]
+        for (const t of tops) if (!expected.has(t)) unexpectedUnpacked.push(t)
+      }
+      check(
+        unexpectedUnpacked.length === 0,
+        '落盘树与生成清单完全一致（无预料外的解包包）',
+        unexpectedUnpacked.length > 0
+          ? `多 ${unexpectedUnpacked.length} 个：${unexpectedUnpacked.slice(0, 8).join(', ')}`
+          : '文件数口径受控',
+      )
+
+      // b) asar 头解析：主进程专用包在归档内（非 unpacked），pdfjs/dist 在外
+      const asarP = join(dist, 'resources', 'app.asar')
+      if (existsSync(asarP)) {
+        try {
+          const header = readAsarHeader(asarP)
+          const inAsar = (rel) => {
+            let node = { files: header.files }
+            for (const part of rel.split('/')) {
+              node = node?.files?.[part]
+              if (!node) return null
+            }
+            return node
+          }
+          const zipped = inAsar('node_modules/extract-zip/package.json')
+          check(
+            Boolean(zipped && !zipped.unpacked),
+            '主进程专用包已收进 app.asar（extract-zip 带 offset 无 unpacked 标记）',
+            '缺失或仍解包 → 选择性解包没生效，安装文件数回落',
+          )
+          const unpackedPdf = inAsar('node_modules/pdfjs-dist/package.json')
+          check(
+            Boolean(unpackedPdf?.unpacked),
+            'pdfjs-dist 保留真实落盘（运行时按路径读 cmaps/standard_fonts）',
+          )
+          check(
+            Boolean(inAsar('dist/main/index.cjs') && !inAsar('dist/main/index.cjs').unpacked),
+            '主进程产物在 app.asar 归档内',
+          )
+        } catch (err) {
+          check(false, 'app.asar 头可解析', err instanceof Error ? err.message : String(err))
+        }
+      }
+    }
+
+    // c) 离线闭包冒烟：staged node.exe 直接跑 unpacked 里的 dsh 入口。
+    //    闭包缺一个传递依赖，这里立刻非零退出（模块解析失败）。
+    const nodeExe = join(dist, 'resources', 'dsh-node', process.platform === 'win32' ? 'node.exe' : 'node')
+    const dshEntry = join(nmRoot, RUNTIME, binRel)
+    if (existsSync(nodeExe) && existsSync(dshEntry)) {
+      const r = spawnSync(nodeExe, [dshEntry, '--version'], {
+        timeout: 120_000,
+        encoding: 'utf8',
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      })
+      const version = (r.stdout || '').trim().split('\n')[0]
+      check(
+        r.status === 0 && version.length > 0,
+        'dsh 闭包离线冒烟（staged node.exe 跑 dsh --version）',
+        r.error
+          ? `spawn 失败：${r.error}`
+          : `exit ${r.status}，stdout=${version.slice(0, 40) || '(空)'} stderr=${(r.stderr || '').trim().slice(0, 80)}`,
+      )
+    }
+  }
   console.log(
     `产物统计: ${total.files} 个文件, ${(total.bytes / 1024 / 1024).toFixed(0)} MB 解包体积`,
   )
+}
+
+/** 读 app.asar 的 JSON 头（electron/asar 的 pickle 布局：[4B][4B headerSize][4B strLen][json]）。 */
+function readAsarHeader(asarPath) {
+  const fd = openSync(asarPath, 'r')
+  try {
+    const sizeBuf = Buffer.alloc(8)
+    readSync(fd, sizeBuf, 0, 8, 0)
+    const headerSize = sizeBuf.readUInt32LE(4)
+    const headerBuf = Buffer.alloc(headerSize)
+    readSync(fd, headerBuf, 0, headerSize, 8)
+    const strLen = headerBuf.readUInt32LE(4)
+    return JSON.parse(headerBuf.slice(8, 8 + strLen).toString('utf8'))
+  } finally {
+    closeSync(fd)
+  }
 }
 
 console.log(`verify-dsh-package: ${checks.length - failures.length}/${checks.length} 通过`)

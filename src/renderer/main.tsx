@@ -18,6 +18,12 @@ import './styles/fonts.css'
 import '@fontsource/jetbrains-mono/latin-400.css'
 import '@fontsource/jetbrains-mono/latin-500.css'
 import '@fontsource/jetbrains-mono/latin-700.css'
+// 霞鹜文楷 Light(阅卷红笔手写体,批注/✓/✗/得分) — 97 个 unicode-range 分片
+// 按需加载。必须走 JS import 而不是 fonts.css 里的 @import：Vite 对 @import
+// 内联进来的 css 不重写 url()，打包产物曾整体 404、静默回退楷体
+// （JS import 的 css 会被 vite 当独立模块正确 rebase 并哈希发射，与
+// jetbrains-mono 同路径）。子集声明见包内 lxgwwenkai-light.css。
+import 'lxgw-wenkai-webfont/lxgwwenkai-light.css'
 import './styles/globals.css'
 
 initHtmlLang()

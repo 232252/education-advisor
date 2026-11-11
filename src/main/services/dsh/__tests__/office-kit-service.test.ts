@@ -99,21 +99,27 @@ function buildStoredZip(entries: Record<string, string>): Buffer {
 const dirs: string[] = []
 const realFetch = globalThis.fetch
 
-function makeEnv(opts?: { kitInBundle?: boolean }) {
+function makeEnv(opts?: { kitInBundle?: boolean; zipInBundle?: Buffer }) {
   const root = mkdtempSync(join(tmpdir(), 'office-kit-'))
   dirs.push(root)
   const extraModulesDir = join(root, 'dsh-extra-modules')
   const bundledPkgDir = join(root, 'bundled', OFFICE_KIT_PKG)
+  const bundledZipDir = join(root, 'bundle')
   const manifestDir = join(root, 'config')
   mkdirSync(manifestDir, { recursive: true })
   if (opts?.kitInBundle) {
-    mkdirSync(bundledPkgDir, { recursive: true })
-    writeFileSync(join(bundledPkgDir, 'libreoffice-kit.exe'), 'bundled-kit')
+    mkdirSync(join(bundledPkgDir, 'bin'), { recursive: true })
+    writeFileSync(join(bundledPkgDir, 'bin', 'libreoffice-kit.exe'), 'bundled-kit')
+  }
+  if (opts?.zipInBundle) {
+    mkdirSync(bundledZipDir, { recursive: true })
+    writeFileSync(join(bundledZipDir, 'office-kit-win32-x64-0.1.5.zip'), opts.zipInBundle)
   }
   return {
     root,
     extraModulesDir,
     bundledPkgDir,
+    bundledZipDir,
     manifestPath: join(manifestDir, 'office-kit.json'),
   }
 }
@@ -132,7 +138,8 @@ afterEach(() => {
 
 function kitZip(): Buffer {
   return buildStoredZip({
-    'libreoffice-kit-win32-x64/libreoffice-kit.exe': 'fake-kit-binary',
+    // 真实资产布局：主二进制在 bin/ 子目录（build-office-kit-asset.mjs 打整包目录）
+    'libreoffice-kit-win32-x64/bin/libreoffice-kit.exe': 'fake-kit-binary',
     'libreoffice-kit-win32-x64/package.json':
       '{"name":"@deepseek-ai/libreoffice-kit-win32-x64","version":"0.1.5"}',
   })
@@ -222,7 +229,7 @@ describe('ensureOfficeKit 下载→校验→解压', () => {
     const progress: string[] = []
     const result = await ensureOfficeKit((m) => progress.push(m))
     expect(result.ok).toBe(true)
-    const exe = join(env.extraModulesDir, OFFICE_KIT_PKG, 'libreoffice-kit.exe')
+    const exe = join(env.extraModulesDir, OFFICE_KIT_PKG, 'bin', 'libreoffice-kit.exe')
     expect(existsSync(exe)).toBe(true)
     expect(readFileSync(exe, 'utf8')).toBe('fake-kit-binary')
     expect(existsSync(join(env.extraModulesDir, 'office-kit.stamp'))).toBe(true)
@@ -268,6 +275,77 @@ describe('ensureOfficeKit 下载→校验→解压', () => {
     expect(result.ok).toBe(true)
     expect(seen).toHaveLength(2)
     expect(seen[1]).toContain('ghfast.top')
+  }, 30_000)
+
+  it('随包 zip 在位 → 本地解压不联网，戳带 bundled-zip 来源', async () => {
+    const env = makeEnv({ zipInBundle: kitZip() })
+    const zip = kitZip()
+    writeFileSync(
+      env.manifestPath,
+      JSON.stringify({
+        asset: 'office-kit-win32-x64-0.1.5.zip',
+        sha256: shaLike(zip),
+        bytes: zip.length,
+        kitVersion: '0.1.5',
+      }),
+      'utf8',
+    )
+    configureOfficeKit({
+      extraModulesDir: env.extraModulesDir,
+      manifestPath: env.manifestPath,
+      appVersion: '3.3.5',
+      bundledPkgDir: env.bundledPkgDir,
+      bundledZipDir: env.bundledZipDir,
+    })
+    let fetches = 0
+    globalThis.fetch = (async () => {
+      fetches += 1
+      throw new Error('断网也不该走到下载')
+    }) as typeof fetch
+
+    const result = await ensureOfficeKit()
+    expect(result.ok).toBe(true)
+    expect(fetches).toBe(0)
+    const exe = join(env.extraModulesDir, OFFICE_KIT_PKG, 'bin', 'libreoffice-kit.exe')
+    expect(readFileSync(exe, 'utf8')).toBe('fake-kit-binary')
+    expect(readFileSync(join(env.extraModulesDir, 'office-kit.stamp'), 'utf8')).toBe(
+      `${shaLike(zip)}\nbundled-zip\n`,
+    )
+    expect(officeKitStatus()).toMatchObject({ state: 'ready', source: 'bundled' })
+  }, 30_000)
+
+  it('随包 zip 损坏 → 自动落在线修复通道并成功', async () => {
+    const env = makeEnv({ zipInBundle: Buffer.from('corrupted-zip-bytes') })
+    const zip = kitZip()
+    writeFileSync(
+      env.manifestPath,
+      JSON.stringify({
+        asset: 'office-kit-win32-x64-0.1.5.zip',
+        sha256: shaLike(zip),
+        bytes: zip.length,
+        kitVersion: '0.1.5',
+      }),
+      'utf8',
+    )
+    configureOfficeKit({
+      extraModulesDir: env.extraModulesDir,
+      manifestPath: env.manifestPath,
+      appVersion: '3.3.5',
+      bundledPkgDir: env.bundledPkgDir,
+      bundledZipDir: env.bundledZipDir,
+    })
+    globalThis.fetch = (async () =>
+      new Response(new Uint8Array(zip), {
+        status: 200,
+        headers: { 'content-length': String(zip.length) },
+      })) as typeof fetch
+
+    const result = await ensureOfficeKit()
+    expect(result.ok).toBe(true)
+    expect(readFileSync(join(env.extraModulesDir, 'office-kit.stamp'), 'utf8')).toBe(
+      `${shaLike(zip)}\ndownload\n`,
+    )
+    expect(officeKitStatus()).toMatchObject({ state: 'ready', source: 'downloaded' })
   }, 30_000)
 
   it('sha256 不匹配 → 报错并删除损坏 zip', async () => {
