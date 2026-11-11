@@ -41,7 +41,7 @@
 // electron-builder 也会中止，但手动 exit 的日志更醒目。
 // =============================================================
 
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { closeSync, cpSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -378,7 +378,18 @@ export default async function afterPack(context) {
           deleteFile()
           sweepCounts.ts += 1
         } else if (LICENSE_BASENAME_RE.test(name) && !LICENSE_EXT_DENY_RE.test(name)) {
-          notices.push({ source: `${label}/${relative(nmRoot, p).split(sep).join('/')}`, content: readFileSync(p, 'utf8') })
+          // 用同一次打开的句柄读正文，避免 stat 之后再按路径读（文件可能已消失）。
+          let fd
+          let content
+          try {
+            fd = openSync(p, 'r')
+            content = readFileSync(fd, 'utf8')
+          } catch {
+            if (fd !== undefined) closeSync(fd)
+            continue
+          }
+          closeSync(fd)
+          notices.push({ source: `${label}/${relative(nmRoot, p).split(sep).join('/')}`, content })
           deleteFile()
           sweepCounts.license += 1
         }

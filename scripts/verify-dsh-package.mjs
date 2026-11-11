@@ -293,7 +293,7 @@ function verifyDist(entry, binRel) {
     // 只有 1 个 zip，必须与 config 清单同名字节数一致（首用本地解压的物料，
     // 缺了/坏了都会在首次 AI 转 PDF 时退化到在线下载）。
     let kitZipOk = false
-    let kitZipDetail = 'resources/office-kit/ 缺 zip'
+    let kitZipDetail
     try {
       const kitZips = readdirSync(join(dist, 'resources', 'office-kit')).filter((n) => n.endsWith('.zip'))
       const kitManifest = readJson(join(dist, 'resources', 'config', 'office-kit.json'))

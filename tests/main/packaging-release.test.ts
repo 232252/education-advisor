@@ -58,28 +58,28 @@ function macPackager(productFilename = 'Education Advisor') {
 
 describe('packaged resources dir', () => {
   it('mac 落在 .app/Contents/Resources，不用 appOutDir/resources', () => {
-    const appOutDir = '/tmp/dist/mac'
+    const appOutDir = join('/tmp', 'dist', 'mac')
     const resources = packagedResourcesDir(appOutDir, macPackager())
-    expect(resources).toBe('/tmp/dist/mac/Education Advisor.app/Contents/Resources')
+    expect(resources).toBe(join(appOutDir, 'Education Advisor.app', 'Contents', 'Resources'))
     expect(resources).not.toBe(join(appOutDir, 'resources'))
     expect(join(resources, 'app.asar.unpacked', 'node_modules')).toContain(
-      'Education Advisor.app/Contents/Resources/app.asar.unpacked',
+      join('Education Advisor.app', 'Contents', 'Resources', 'app.asar.unpacked'),
     )
   })
 
   it('优先使用 packager.getResourcesDir', () => {
-    const appOutDir = '/tmp/dist/mac-arm64'
+    const appOutDir = join('/tmp', 'dist', 'mac-arm64')
     const resources = packagedResourcesDir(appOutDir, {
       platform: { name: 'mac' },
       appInfo: { productFilename: 'ignored' },
       getResourcesDir: (dir: string) => join(dir, 'Custom.app', 'Contents', 'Resources'),
     })
-    expect(resources).toBe('/tmp/dist/mac-arm64/Custom.app/Contents/Resources')
+    expect(resources).toBe(join(appOutDir, 'Custom.app', 'Contents', 'Resources'))
   })
 
   it('windows 与 linux 仍是 appOutDir/resources', () => {
     for (const name of ['windows', 'linux']) {
-      expect(packagedResourcesDir('/out', { platform: { name } })).toBe('/out/resources')
+      expect(packagedResourcesDir('/out', { platform: { name } })).toBe(join('/out', 'resources'))
     }
   })
 
@@ -88,15 +88,16 @@ describe('packaged resources dir', () => {
   })
 
   it('locale 白名单只查 win/linux 的 appOutDir/locales，mac 不套 *.pak', () => {
-    expect(packagedLocalesDir('/out', 'windows')).toBe('/out/locales')
-    expect(packagedLocalesDir('/out', 'linux')).toBe('/out/locales')
+    expect(packagedLocalesDir('/out', 'windows')).toBe(join('/out', 'locales'))
+    expect(packagedLocalesDir('/out', 'linux')).toBe(join('/out', 'locales'))
     expect(packagedLocalesDir('/out', 'mac')).toBeNull()
   })
 
   it('Chromium 许可先找可执行文件旁边，再找 Resources', () => {
-    expect(chromiumLicenseCandidates('/out', '/out/App.app/Contents/Resources')).toEqual([
-      '/out/LICENSES.chromium.html',
-      '/out/App.app/Contents/Resources/LICENSES.chromium.html',
+    const resourcesDir = join('/out', 'App.app', 'Contents', 'Resources')
+    expect(chromiumLicenseCandidates('/out', resourcesDir)).toEqual([
+      join('/out', 'LICENSES.chromium.html'),
+      join(resourcesDir, 'LICENSES.chromium.html'),
     ])
   })
 
