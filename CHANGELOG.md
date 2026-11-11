@@ -10,6 +10,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 > [`CHANGELOG.md`](https://github.com/232252/education-advisor/blob/main/CHANGELOG.md)
 > in its own repository. Cross-reference both when troubleshooting.
 
+## [3.3.7-beta.1] — 2026-11-11
+
+### Fixed
+
+- Windows 覆盖安装不再执行上一版卸载器的逐文件 `atomicRMDir`。已有安装目录先整目录改名到同盘旁路，新包解进空目录，旧树在安装成功后后台删除。数万文件的旧安装不会在解包前被逐个重命名、复制或删除，残留文件也不会留在新目录里。
+- 只有真正在运行的 `Education Advisor.exe`（任意安装路径，包括开发用的 win-unpacked）才会提示「无法关闭」。安装器与卸载器自身不会被当成应用；没有该进程时自动继续。
+
 ## [3.3.7] — 2026-11-09
 
 ### Changed
@@ -241,7 +248,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - The `nul` file in the repository root (a Windows reparse-point residue from
   an earlier redirect) is git-ignored but can be safely removed by hand.
 
-[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.7...HEAD
+[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.7-beta.1...HEAD
+[3.3.7-beta.1]: https://github.com/232252/education-advisor/compare/v3.3.7...v3.3.7-beta.1
 [3.3.7]: https://github.com/232252/education-advisor/compare/v3.3.6...v3.3.7
 [3.3.6]: https://github.com/232252/education-advisor/compare/v3.3.5...v3.3.6
 [3.3.5]: https://github.com/232252/education-advisor/releases/tag/v3.3.5

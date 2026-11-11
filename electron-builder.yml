@@ -190,6 +190,8 @@ nsis:
   deleteAppDataOnUninstall: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  # 覆盖安装不能走旧卸载器的逐文件 --updated / atomicRMDir（见 scripts/nsis/installer.nsh）。
+  include: scripts/nsis/installer.nsh
 
 # 不从源码重编原生模块：better-sqlite3 / node-pty / koffi 随包都带 N-API prebuilds，
 # 实测在 Electron 的 ABI 与本机 node 的 ABI(147) 下都能 require 并跑通真实
