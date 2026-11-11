@@ -27,7 +27,7 @@
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const NM = join(ROOT, 'node_modules')
@@ -41,20 +41,91 @@ const END = '# <<< unpack-closure <<<'
 const CLOSURE_ROOT = '@deepseek-ai/dsh'
 /** scope 整体落盘：黑盒 SDK + cordis 运行时按名装载，不能只信 package.json 声明。 */
 const UNPACK_SCOPES = ['@deepseek-ai']
-/** 固定保留（非闭包但必须真实落盘）：name + 可选 platform（缺省全平台）。 */
-const KEEPERS = [
+/**
+ * 固定保留（非闭包但必须真实落盘）。
+ *
+ * 无 platform 的条目每个发布机构建都必须在。带 platform 的是 smartUnpack
+ * 会整包解出的原生可选包：npm 对「有 os/cpu、没有 libc 字段」的可选依赖会把
+ * 同一架构的 glibc 与 musl 两份都装上（linux x64 实测四件一起进
+ * app.asar.unpacked），mac 则是磁盘上实际有的那些 darwin 架构（经常只有
+ * 宿主架构，交叉安装时两份都在）。宿主自己的那一份缺失要失败；其余发布
+ * 平台的变体装上了就入账，没装就跳过——不能只记 Windows，否则 linux/mac
+ * 的 afterPack 守卫会把它们当成预料外解包。
+ *
+ * arch 用 Node 的 process.arch（x64 / arm64）。libc 只用来区分「宿主主包」
+ * 和「同架构的另一份 libc」：musl 不是 ubuntu 构建的主包，但装上了必须入账。
+ */
+export const KEEPERS = [
   // 连接中心随包 pnpm 工具链：@pnpm/exe 是 pnpm-env.ts PATH 前置的主力，
   // pnpm 包体是引导壳兜底链路（im-url.ts 退回 pnpm.mjs）
   { name: 'pnpm' },
-  { name: '@pnpm/exe.win32-x64', platform: 'win32' },
+  { name: '@pnpm/exe.win32-x64', platform: 'win32', arch: 'x64' },
+  { name: '@pnpm/exe.darwin-x64', platform: 'darwin', arch: 'x64' },
+  { name: '@pnpm/exe.darwin-arm64', platform: 'darwin', arch: 'arm64' },
+  { name: '@pnpm/exe.linux-x64', platform: 'linux', arch: 'x64' },
+  { name: '@pnpm/exe.linux-x64-musl', platform: 'linux', arch: 'x64', libc: 'musl' },
   // PDF 套打光栅化运行时按路径读 cmaps/standard_fonts（pdf-rasterize.ts）
   { name: 'pdfjs-dist' },
   // 原生主进程包：smartUnpack 见 .node 会整包解出（主进程 dlopen 必须），
-  // 显式写进清单让守卫账目对齐。名单来自守卫实测（2026-11-09），新增原生
-  // 依赖时守卫会再拦一次，照实补录即可。
+  // 显式写进清单让守卫账目对齐。新增原生依赖时守卫会再拦一次，照实补录。
   { name: 'better-sqlite3' },
-  { name: '@napi-rs/canvas-win32-x64-msvc', platform: 'win32' },
+  { name: '@napi-rs/canvas-win32-x64-msvc', platform: 'win32', arch: 'x64' },
+  { name: '@napi-rs/canvas-darwin-x64', platform: 'darwin', arch: 'x64' },
+  { name: '@napi-rs/canvas-darwin-arm64', platform: 'darwin', arch: 'arm64' },
+  { name: '@napi-rs/canvas-linux-x64-gnu', platform: 'linux', arch: 'x64', libc: 'gnu' },
+  { name: '@napi-rs/canvas-linux-x64-musl', platform: 'linux', arch: 'x64', libc: 'musl' },
 ]
+
+/**
+ * 宿主构建必须在位的保留项。另一份 libc、另一套 mac 架构、别的操作系统
+ * 都不是硬性要求——那些只在 node_modules 里真有时才入账。
+ */
+export function isRequiredOnHost(keeper, platform, arch) {
+  if (!keeper.platform) return true
+  if (keeper.platform !== platform) return false
+  if (keeper.arch && keeper.arch !== arch) return false
+  if (keeper.libc === 'musl') return false
+  return true
+}
+
+/**
+ * 选出本次构建要写进 asarUnpack / unpack-closure.json 的保留包。
+ * 装上了且会随包的平台变体一律入选（含 musl、含 mac 的另一架构）；
+ * 宿主主包缺失或不随包则失败，避免带着空的 pnpm/canvas 原生件出货。
+ */
+export function selectKeepers(keepers, { platform, arch, exists, inShipSet }) {
+  const selected = []
+  for (const keeper of keepers) {
+    const onDisk = exists(keeper.name)
+    const shipped = onDisk && inShipSet(keeper.name)
+    if (shipped) {
+      selected.push(keeper.name)
+      continue
+    }
+    if (isRequiredOnHost(keeper, platform, arch)) {
+      return {
+        ok: false,
+        missing: keeper.name,
+        reason: onDisk ? 'not-shipped' : 'missing',
+        selected,
+      }
+    }
+  }
+  return { ok: true, selected }
+}
+
+/** 哨兵块内部的 asarUnpack 条目。逐包枚举，不用整树 node_modules 模式。 */
+export function asarUnpackEntries(expectedUnpacked, unpackScopes = UNPACK_SCOPES) {
+  const lines = ['  # dsh 子进程（staged node.exe）依赖闭包：']
+  for (const scope of unpackScopes) {
+    lines.push(`  - "node_modules/${scope}/**"`)
+  }
+  for (const name of expectedUnpacked) {
+    if (unpackScopes.some((scope) => name.startsWith(`${scope}/`))) continue
+    lines.push(`  - "node_modules/${name}/**"`)
+  }
+  return lines
+}
 /** files 负向过滤不随包的包（asarUnpack 写了也是空匹配，这里显式对齐账目）。 */
 const NOT_SHIPPED = [
   '@deepseek-ai/libreoffice-kit-win32-x64',
@@ -91,6 +162,7 @@ function readPkg(name) {
   }
 }
 
+function main() {
 // ---- 0. shipSet：electron-builder 实际会随包的集合 ----
 // 从根 package.json 的 dependencies 出发，只走 dependencies + optionalDependencies
 // （不含 peerDependencies：npm 7+ 会自动安装 peer，但 builder 的发货树不走 peer，
@@ -148,18 +220,19 @@ for (const scope of UNPACK_SCOPES) {
     if (exists(`${scope}/${name}`)) scopePkgs.push(`${scope}/${name}`)
   }
 }
-const keeperSet = KEEPERS
-  // 平台包（@pnpm/exe.win32-x64 等）只在对应平台上要求
-  .filter((k) => !k.platform || process.platform === k.platform)
-  .map((k) => {
-    if (!exists(k.name)) {
-      fail(`固定保留项不在树里：${k.name}（package.json 依赖变了？同步更新 compute-unpack-closure.mjs）`)
-    }
-    if (!shipSet.has(k.name)) {
-      fail(`固定保留项 ${k.name} 不在随包集合里（不再随包？更新 KEEPERS 或 files 配置）`)
-    }
-    return k.name
-  })
+const keeperResult = selectKeepers(KEEPERS, {
+  platform: process.platform,
+  arch: process.arch,
+  exists,
+  inShipSet: (name) => shipSet.has(name),
+})
+if (!keeperResult.ok) {
+  if (keeperResult.reason === 'not-shipped') {
+    fail(`固定保留项 ${keeperResult.missing} 不在随包集合里（不再随包？更新 KEEPERS 或 files 配置）`)
+  }
+  fail(`固定保留项不在树里：${keeperResult.missing}（package.json 依赖变了？同步更新 compute-unpack-closure.mjs）`)
+}
+const keeperSet = keeperResult.selected
 const notShipped = new Set(NOT_SHIPPED.filter((n) => exists(n)))
 const candidates = [...new Set([...scopePkgs, ...closure, ...keeperSet])]
 const unreachable = candidates.filter(
@@ -209,14 +282,7 @@ for (const name of asarOnly) asarFiles += countFiles(pkgDir(name))
 
 // ---- 4. 重写 electron-builder.yml 哨兵块 ----
 // @deepseek-ai 用一条 scope pattern；其余逐包枚举（可审计、可 diff）。
-const lines = [
-  `  # dsh 子进程（staged node.exe）依赖闭包：`,
-  `  - "node_modules/@deepseek-ai/**"`,
-]
-for (const name of expectedUnpacked) {
-  if (UNPACK_SCOPES.some((s) => name.startsWith(`${s}/`))) continue
-  lines.push(`  - "node_modules/${name}/**"`)
-}
+const lines = asarUnpackEntries(expectedUnpacked)
 
 const yml = readFileSync(YML, 'utf8')
 const beginIdx = yml.indexOf(BEGIN)
@@ -246,6 +312,23 @@ writeFileSync(
   'utf8',
 )
 
+const platformKept = keeperSet.filter((name) => KEEPERS.some((k) => k.name === name && k.platform))
 console.log(
   `[compute-unpack-closure] 随包 ${shipSet.size} 包；落盘 ${expectedUnpacked.length} 包 / ${unpackedFiles.toLocaleString()} 文件，进 asar ${asarOnly.length} 包 / ${asarFiles.toLocaleString()} 文件（node_modules 散文件 −${((asarFiles / (unpackedFiles + asarFiles)) * 100).toFixed(0)}%），清单外 ${unreachable.length} 个（peer/dev 残影或 builder 实测不发货）`,
 )
+console.log(
+  `[compute-unpack-closure] 平台原生保留 ${platformKept.length} 个：${platformKept.join(', ') || '（本机没有额外平台包）'}`,
+)
+}
+
+function isDirectRun() {
+  const entry = process.argv[1]
+  if (!entry) return false
+  try {
+    return import.meta.url === pathToFileURL(entry).href
+  } catch {
+    return false
+  }
+}
+
+if (isDirectRun()) main()

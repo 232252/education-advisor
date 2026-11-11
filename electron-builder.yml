@@ -205,8 +205,11 @@ asar: true
 # 原生件」留在真实磁盘，其余纯 JS 依赖（openai/@aws-sdk/@anthropic-ai 等
 # ~200 包，只有主进程用）收进 app.asar：主进程读 asar 透明，安装时变成
 # 1 个大文件顺序写 + 1 次杀软扫描。闭包清单由 prepackage 链的
-# scripts/compute-unpack-closure.mjs 生成（勿手改哨兵块内内容），守卫在
-# after-pack-trim.mjs 4c 与 verify-dsh-package --dist（dsh 离线闭包冒烟）。
+# scripts/compute-unpack-closure.mjs 按本机 node_modules 生成（勿手改哨兵块
+# 内内容）：dsh 闭包之外，smartUnpack 会整包解出的原生可选包（@pnpm/exe 与
+# @napi-rs/canvas 的 win/mac/linux 变体，含 musl 与 mac 两个架构里实际装上
+# 的那些）也写进清单，否则 linux/mac 的 afterPack 守卫会把它们当成预料外
+# 解包。守卫在 after-pack-trim.mjs 4c 与 verify-dsh-package --dist。
 asarUnpack:
   - "**/*.exe"
   - "**/*.node"

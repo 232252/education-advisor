@@ -1,7 +1,11 @@
 // =============================================================
 // scripts/after-pack-trim.mjs — electron-builder afterPack 钩子
 //
-// 打包后的补齐、修剪与守卫（对应 electron-builder.yml 里的 afterPack 配置）：
+// 打包后的补齐、修剪与守卫（对应 electron-builder.yml 里的 afterPack 配置）。
+// 资源目录走 packager.getResourcesDir：win/linux 是 <appOutDir>/resources，
+// mac 是 <appOutDir>/<Product>.app/Contents/Resources。mac 上再拼 resources
+// 会把离线件写到 .app 外面，守卫也会对着空目录把整份闭包报成缺落盘。
+//
 //  1. 补齐 electron-builder 复制不出来的离线件（在 NSIS 打 7z 之前落盘）：
 //     - vendor/dsh-im/node_modules → resources/dsh-im/node_modules。
 //       builder 复制 extraResources 时整目录丢弃 node_modules，而连接中心
@@ -45,6 +49,66 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** electron-builder.yml electronLanguages 的单一事实来源（改那边同步改这里）。 */
 const KEEP_LANGS = new Set(['zh-CN.pak', 'en-US.pak'])
+
+/**
+ * electron-builder 的资源目录：
+ *   windows / linux: <appOutDir>/resources
+ *   mac: <appOutDir>/<Product>.app/Contents/Resources
+ * mac 的 appOutDir 是 .app 的父目录。再拼一层 resources 会把 dsh-im、pnpm
+ * dist、THIRD-PARTY-NOTICES 写到包外，守卫也对着空目录报「闭包缺落盘」。
+ * 优先 packager.getResourcesDir，和打包器写盘用同一条路径。
+ */
+export function packagedResourcesDir(appOutDir, packager) {
+  if (packager && typeof packager.getResourcesDir === 'function') {
+    return packager.getResourcesDir(appOutDir)
+  }
+  const platform = packager?.platform?.name
+  if (platform === 'mac') {
+    const productFilename = packager?.appInfo?.productFilename
+    if (!productFilename) {
+      throw new Error('[after-pack-trim] mac 打包缺少 productFilename，无法定位 Contents/Resources')
+    }
+    return join(appOutDir, `${productFilename}.app`, 'Contents', 'Resources')
+  }
+  return join(appOutDir, 'resources')
+}
+
+/**
+ * win/linux 的 Electron locale 是 <appOutDir>/locales/*.pak，和 resources 同级，
+ * 不在 resources 里面。mac 用 .lproj（Contents/Resources 与 Electron Framework），
+ * electronLanguages 在 afterPack 之前已经滤过，不能拿 *.pak 白名单去套。
+ */
+export function packagedLocalesDir(appOutDir, platformName) {
+  if (platformName === 'mac') return null
+  return join(appOutDir, 'locales')
+}
+
+/** win/linux 在可执行文件旁边；mac 上 electron-builder 把它移进 Contents/Resources。 */
+export function chromiumLicenseCandidates(appOutDir, resourcesDir) {
+  return [join(appOutDir, 'LICENSES.chromium.html'), join(resourcesDir, 'LICENSES.chromium.html')]
+}
+
+/**
+ * 对照期望清单看 app.asar.unpacked/node_modules：缺 package.json 的是没落盘，
+ * 目录里多出来的是 smartUnpack 整包解出但清单没记账。
+ */
+export function diffUnpackedPackages(unpackedDir, expectedNames) {
+  const expected = expectedNames instanceof Set ? expectedNames : new Set(expectedNames)
+  const missing = []
+  for (const name of expected) {
+    if (!existsSync(join(unpackedDir, ...name.split('/'), 'package.json'))) missing.push(name)
+  }
+  const unexpected = []
+  if (!existsSync(unpackedDir)) return { missing, unexpected }
+  for (const top of readdirSync(unpackedDir)) {
+    if (top.startsWith('.')) continue
+    const tops = top.startsWith('@') ? readdirSync(join(unpackedDir, top)).map((d) => `${top}/${d}`) : [top]
+    for (const t of tops) {
+      if (!expected.has(t)) unexpected.push(t)
+    }
+  }
+  return { missing, unexpected }
+}
 
 /** files 负向过滤的大件：出现在 unpacked 树里即说明排除配置被改坏。 */
 const EXCLUDED_IN_UNPACKED = [
@@ -119,6 +183,7 @@ function isProtectedPath(parts) {
 export default async function afterPack(context) {
   const appOutDir = context.appOutDir
   const platform = context.packager.platform.name // 'windows' | 'mac' | 'linux'
+  const resourcesDir = packagedResourcesDir(appOutDir, context.packager)
   let removedBytes = 0
 
   const remove = (target, why) => {
@@ -143,7 +208,7 @@ export default async function afterPack(context) {
   // 1a. 连接中心离线依赖（stage-dsh-im-deps 装好的生产树）。
   //     electron-builder 复制 extraResources 时整目录丢 node_modules，只能这里补。
   const imDepsSrc = join(ROOT, 'vendor', 'dsh-im', 'node_modules')
-  const imDepsDest = join(appOutDir, 'resources', 'dsh-im', 'node_modules')
+  const imDepsDest = join(resourcesDir, 'dsh-im', 'node_modules')
   copyDir(
     imDepsSrc,
     imDepsDest,
@@ -167,7 +232,7 @@ export default async function afterPack(context) {
 
   // 1b. pnpm 引导壳的嵌套依赖（builder 的 NodeModuleCopyHelper 会跳过它）。
   const pnpmDistSrc = join(ROOT, 'node_modules', 'pnpm', 'dist', 'node_modules')
-  const pnpmDistDest = join(appOutDir, 'resources', 'app.asar.unpacked', 'node_modules', 'pnpm', 'dist', 'node_modules')
+  const pnpmDistDest = join(resourcesDir, 'app.asar.unpacked', 'node_modules', 'pnpm', 'dist', 'node_modules')
   copyDir(pnpmDistSrc, pnpmDistDest, null, 'pnpm dist 嵌套依赖（pnpm.mjs 引导壳需要）')
   if (!existsSync(join(pnpmDistDest, 'get-pnpm', 'package.json'))) {
     console.error(`[after-pack-trim] pnpm dist 落位失败：缺 ${join(pnpmDistDest, 'get-pnpm')}`)
@@ -188,7 +253,7 @@ export default async function afterPack(context) {
       )
       process.exit(1)
     }
-    const kitDest = join(appOutDir, 'resources', 'office-kit')
+    const kitDest = join(resourcesDir, 'office-kit')
     mkdirSync(kitDest, { recursive: true })
     cpSync(join(kitZipDir, kitZips[0]), join(kitDest, kitZips[0]))
     console.log(
@@ -199,7 +264,7 @@ export default async function afterPack(context) {
   // ---- 3. 只面向本平台产物的修剪 ----
   // 3a. win 包不带其他平台的 eaa 二进制
   if (platform === 'windows') {
-    const binRoot = join(appOutDir, 'resources', 'eaa-binaries')
+    const binRoot = join(resourcesDir, 'eaa-binaries')
     if (existsSync(binRoot)) {
       for (const name of readdirSync(binRoot)) {
         if (name !== 'win32-x64') {
@@ -213,7 +278,7 @@ export default async function afterPack(context) {
   //     deps/ 是 sqlite 源码编译原料，任何平台都不进包。
   //     注意 prebuilds 下是 `win32-x64.node` 这类文件名，比较要去掉 .node 后缀
   //     ——否则本平台的也会被误删（实测踩过）。
-  const unpacked = join(appOutDir, 'resources', 'app.asar.unpacked', 'node_modules')
+  const unpacked = join(resourcesDir, 'app.asar.unpacked', 'node_modules')
   const prebuildsDir = join(unpacked, 'better-sqlite3', 'prebuilds')
   if (existsSync(prebuildsDir)) {
     const keepPrefix = { windows: 'win32', darwin: 'darwin', linux: 'linux' }[platform] ?? platform
@@ -234,8 +299,8 @@ export default async function afterPack(context) {
 
   // 根目录 LICENSES.chromium.html（5.4MB 纯文本，运行时无进程读它）并入
   // THIRD-PARTY-NOTICES.txt 一起分发：合规文本保留、散文件少一个。
-  const chromiumLicenses = join(appOutDir, 'LICENSES.chromium.html')
-  if (existsSync(chromiumLicenses)) {
+  const chromiumLicenses = chromiumLicenseCandidates(appOutDir, resourcesDir).find((p) => existsSync(p))
+  if (chromiumLicenses) {
     notices.push({
       source: 'Electron (Chromium) — LICENSES.chromium.html',
       content: readFileSync(chromiumLicenses, 'utf8'),
@@ -329,7 +394,7 @@ export default async function afterPack(context) {
   sweepTree(imDepsDest, 'dsh-im/node_modules')
 
   if (notices.length > 0) {
-    const target = join(appOutDir, 'resources', 'THIRD-PARTY-NOTICES.txt')
+    const target = join(resourcesDir, 'THIRD-PARTY-NOTICES.txt')
     const header =
       '第三方许可汇总（THIRD-PARTY NOTICES）\n\n' +
       '本文件由 scripts/after-pack-trim.mjs 打包时自动聚合生成：随包依赖的\n' +
@@ -351,8 +416,8 @@ export default async function afterPack(context) {
 
   // ---- 4. 守卫断言 ----
   // 4a. locales 白名单
-  const localesDir = join(appOutDir, 'locales')
-  if (existsSync(localesDir)) {
+  const localesDir = packagedLocalesDir(appOutDir, platform)
+  if (localesDir && existsSync(localesDir)) {
     const paks = readdirSync(localesDir).filter((n) => n.endsWith('.pak'))
     const extra = paks.filter((n) => !KEEP_LANGS.has(n))
     if (extra.length > 0) {
@@ -387,23 +452,12 @@ export default async function afterPack(context) {
     process.exit(1)
   }
   const expectedUnpacked = new Set(JSON.parse(readFileSync(closureJsonPath, 'utf8')).packages)
-  const missingUnpacked = []
-  for (const name of expectedUnpacked) {
-    if (!existsSync(join(unpacked, ...name.split('/'), 'package.json'))) missingUnpacked.push(name)
-  }
+  const { missing: missingUnpacked, unexpected: unexpectedUnpacked } = diffUnpackedPackages(unpacked, expectedUnpacked)
   if (missingUnpacked.length > 0) {
     console.error(
       `[after-pack-trim] dsh 闭包/保留包缺落盘（asarUnpack 或 files 配置坏了？共 ${missingUnpacked.length} 个）：\n  ${missingUnpacked.slice(0, 20).join('\n  ')}`,
     )
     process.exit(1)
-  }
-  const unexpectedUnpacked = []
-  for (const top of readdirSync(unpacked)) {
-    if (top.startsWith('.')) continue // .bin 等非包目录
-    const tops = top.startsWith('@') ? readdirSync(join(unpacked, top)).map((d) => `${top}/${d}`) : [top]
-    for (const t of tops) {
-      if (!expectedUnpacked.has(t)) unexpectedUnpacked.push(t)
-    }
   }
   if (unexpectedUnpacked.length > 0) {
     console.error(
