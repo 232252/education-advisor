@@ -115,7 +115,13 @@ vi.mock('../../src/main/services/dsh/dsh-node', () => ({
 }))
 vi.mock('../../src/main/services/dsh/runtime', () => ({
   isElectronMainProcess: vi.fn(() => false),
+  // 开发态还没解压 runtime zip，走 resolveDshEntryPath。
+  getConfiguredDshBin: vi.fn(() => undefined),
   resolveDshEntryPath: vi.fn(() => 'C:/app/dsh.mjs'),
+}))
+vi.mock('../../src/main/services/dsh/bundled-archive', () => ({
+  waitForDshRuntime: vi.fn(() => Promise.resolve()),
+  waitForDshImRoot: vi.fn(() => Promise.resolve(undefined)),
 }))
 
 import {
@@ -217,6 +223,10 @@ describe('dsh-im-handlers', () => {
     )
     const slow = callShow(win, BOUNDS)
     const fast = callShow(win, { ...BOUNDS, x: 99 })
+    // getHost 先等 runtime zip。open 挂上之后再放行，慢请求才进同一个 boot。
+    await vi.waitFor(() => {
+      expect(mocks.open).toHaveBeenCalledTimes(1)
+    })
     resolveBoot({ ok: true, url: 'http://127.0.0.1:4900/im' })
     await slow
     await fast
