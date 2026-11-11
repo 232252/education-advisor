@@ -1,56 +1,78 @@
 # Labels applied automatically by .github/workflows/labeler.yml
-# https://github.com/actions/labeler
+# actions/labeler v6: each label is a list of match objects.
+# https://github.com/actions/labeler/tree/v6.2.0#pull-request-labeler
 
-# ----- Area labels (one or more applied to every PR) -----
+# ----- Area labels (one or more applied based on changed paths) -----
 "area: agents":
-  - agents/**/SOUL.md
-  - agents/**/AGENTS.md
-  - config/agents.yaml
+  - changed-files:
+      - any-glob-to-any-file:
+          - agents/**/SOUL.md
+          - agents/**/AGENTS.md
+          - config/agents.yaml
 "area: renderer":
-  - src/renderer/**/*
+  - changed-files:
+      - any-glob-to-any-file: src/renderer/**/*
 "area: main":
-  - src/main/**/*
+  - changed-files:
+      - any-glob-to-any-file: src/main/**/*
 "area: shared":
-  - src/shared/**/*
+  - changed-files:
+      - any-glob-to-any-file: src/shared/**/*
 "area: docs":
-  - docs/**/*
-  - "*.md"
-  - "!**/CHANGELOG.md"
+  # docs tree, or a root markdown file that is not CHANGELOG.md.
+  # all-globs-to-any-file requires one file to satisfy every glob, so
+  # CHANGELOG.md matches "*.md" but not the negation and does not count.
+  - changed-files:
+      - any-glob-to-any-file: docs/**/*
+      - all-globs-to-any-file:
+          - "*.md"
+          - "!**/CHANGELOG.md"
 "area: build":
-  - package.json
-  - package-lock.json
-  - electron-builder.yml
-  - vite.config.*.ts
-  - tsconfig.json
-  - biome.json
+  - changed-files:
+      - any-glob-to-any-file:
+          - package.json
+          - package-lock.json
+          - electron-builder.yml
+          - vite.config.*.ts
+          - tsconfig.json
+          - biome.json
 "area: ci":
-  - .github/**/*
+  - changed-files:
+      - any-glob-to-any-file: .github/**/*
 "area: i18n":
-  - src/renderer/i18n/**/*
+  - changed-files:
+      - any-glob-to-any-file: src/renderer/i18n/**/*
 "area: eaa":
-  - scripts/build-eaa.mjs
-  - "docs/EAA_BRIDGE.md"
+  - changed-files:
+      - any-glob-to-any-file:
+          - scripts/build-eaa.mjs
+          - docs/EAA_BRIDGE.md
 "area: privacy":
-  - "**/privacy*"
-  - "**/keystore*"
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/privacy*"
+          - "**/keystore*"
 "area: cron":
-  - "**/cron*"
+  - changed-files:
+      - any-glob-to-any-file: "**/cron*"
 "area: feishu":
-  - "**/feishu*"
+  - changed-files:
+      - any-glob-to-any-file: "**/feishu*"
 
 # ----- Type labels -----
+# base-branch is a regexp (v5+). ^main$ is the old baseBranches: [main].
 "type: bug":
-  - baseBranches: [main]
+  - base-branch: "^main$"
 "type: feature":
-  - baseBranches: [main]
+  - base-branch: "^main$"
 "type: refactor":
-  - baseBranches: [main]
+  - base-branch: "^main$"
 "type: docs":
-  - baseBranches: [main]
+  - base-branch: "^main$"
 "type: test":
-  - baseBranches: [main]
+  - base-branch: "^main$"
 "type: agent":
-  - baseBranches: [main]
+  - base-branch: "^main$"
 
 # ----- Size labels (set by the size-bot, not by labeler) -----
 # "size: XS", "size: S", "size: M", "size: L", "size: XL"
