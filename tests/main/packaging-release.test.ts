@@ -219,22 +219,13 @@ describe('cross-platform unpack keepers', () => {
     expect(result.reason).toBe('not-shipped')
   })
 
-  it('入选的平台包逐包写进 asarUnpack，不退回整树解包', () => {
-    const selected = selectKeepers(KEEPERS, {
-      platform: 'linux',
-      arch: 'x64',
-      ...present([...UNIVERSAL, ...LINUX_NATIVES]),
-    })
-    expect(selected.ok).toBe(true)
-    if (!selected.ok) return
-    const expected = ['@deepseek-ai/dsh', ...selected.selected].sort()
-    const lines = asarUnpackEntries(expected)
+  it('asarUnpack 只留原生文件，包树不再逐个解出', () => {
+    const lines = asarUnpackEntries()
     expect(lines.join('\n')).not.toContain('**/node_modules/**')
-    expect(lines).toContain('  - "node_modules/@deepseek-ai/**"')
-    for (const name of [...UNIVERSAL, ...LINUX_NATIVES]) {
-      expect(lines).toContain(`  - "node_modules/${name}/**"`)
-    }
-    expect(lines.filter((line) => line.includes('@deepseek-ai/dsh'))).toEqual([])
+    expect(lines.join('\n')).not.toContain('node_modules/@deepseek-ai/**')
+    expect(lines).toContain('  - "**/*.node"')
+    expect(lines).toContain('  - "**/*.dll"')
+    expect(lines).toContain('  - "**/*.exe"')
   })
 })
 

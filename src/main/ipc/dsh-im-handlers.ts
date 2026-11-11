@@ -11,6 +11,7 @@ import type { DshImBounds, DshImShowResult } from '@shared/api/dsh-im'
 import * as IPC from '@shared/ipc-channels'
 import type { Rectangle } from 'electron'
 import { app, type BrowserWindow, shell, WebContentsView } from 'electron'
+import { waitForDshImRoot, waitForDshRuntime } from '../services/dsh/bundled-archive'
 import { resolveSystemNode } from '../services/dsh/dsh-node'
 import {
   prepareDshImEducationLaunch,
@@ -18,7 +19,11 @@ import {
 } from '../services/dsh/im-education'
 import { DSH_IM_INSTALL_STAMP, DSH_IM_STAMP, DshImWebHost } from '../services/dsh/im-host'
 import { readEducationPluginInstall } from '../services/dsh/plugin-status'
-import { isElectronMainProcess, resolveDshEntryPath } from '../services/dsh/runtime'
+import {
+  getConfiguredDshBin,
+  isElectronMainProcess,
+  resolveDshEntryPath,
+} from '../services/dsh/runtime'
 import { handleIpc } from './handle'
 
 let mainWindow: BrowserWindow | null = null
@@ -34,10 +39,11 @@ function isLoopbackHost(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]'
 }
 
-function imRoot(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'dsh-im')
-    : join(app.getAppPath(), 'vendor', 'dsh-im')
+async function imRoot(): Promise<string> {
+  if (!app.isPackaged) return join(app.getAppPath(), 'vendor', 'dsh-im')
+  const extracted = await waitForDshImRoot()
+  if (!extracted) throw new Error('连接中心组件没有解压出来，请重新安装应用')
+  return extracted
 }
 
 function toolsRoot(): string {
@@ -46,12 +52,13 @@ function toolsRoot(): string {
     : join(app.getAppPath(), 'vendor', 'eaa-tools')
 }
 
-function getHost(): DshImWebHost {
+async function getHost(): Promise<DshImWebHost> {
   if (!host) {
+    await waitForDshRuntime()
     host = new DshImWebHost({
       home: join(app.getPath('userData'), 'dsh-web-home'),
-      dshBin: resolveDshEntryPath(app.getAppPath()) ?? '',
-      imDir: imRoot(),
+      dshBin: getConfiguredDshBin() ?? resolveDshEntryPath(app.getAppPath()) ?? '',
+      imDir: await imRoot(),
       toolsDir: toolsRoot(),
       execPath: resolveSystemNode() ?? process.execPath,
       electronAsNode: resolveSystemNode() === undefined && isElectronMainProcess(),
@@ -80,7 +87,7 @@ function officeKitDir(): string {
  * 应用启动后由 app-lifecycle 延迟调度一次；失败不提示，点开时会重试。
  */
 export function prewarmDshImDeps(): void {
-  void getHost().prewarmDeps()
+  void getHost().then((host) => host.prewarmDeps())
 }
 
 function asBounds(raw: DshImBounds): Rectangle | null {
@@ -181,16 +188,18 @@ function hideView(win: BrowserWindow): void {
 
 async function ensureBoot(): Promise<DshImShowResult & { url?: string }> {
   if (!boot) {
-    boot = getHost()
-      .open()
-      .then((result) => {
-        if (!result.ok) boot = null
-        return result
-      })
-      .catch((err: unknown) => {
-        boot = null
-        return { ok: false, error: err instanceof Error ? err.message : String(err) }
-      })
+    boot = getHost().then((host) =>
+      host
+        .open()
+        .then((result) => {
+          if (!result.ok) boot = null
+          return result
+        })
+        .catch((err: unknown) => {
+          boot = null
+          return { ok: false, error: err instanceof Error ? err.message : String(err) }
+        }),
+    )
   }
   return boot
 }

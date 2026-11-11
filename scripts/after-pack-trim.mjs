@@ -205,38 +205,43 @@ export default async function afterPack(context) {
     console.log(`[after-pack-trim] +${(dirSize(dest) / 1024 / 1024).toFixed(1)}MB ${why}`)
   }
 
-  // 1a. 连接中心离线依赖（stage-dsh-im-deps 装好的生产树）。
-  //     electron-builder 复制 extraResources 时整目录丢 node_modules，只能这里补。
-  const imDepsSrc = join(ROOT, 'vendor', 'dsh-im', 'node_modules')
-  const imDepsDest = join(resourcesDir, 'dsh-im', 'node_modules')
-  copyDir(
-    imDepsSrc,
-    imDepsDest,
-    (src) => {
-      const rel = relative(imDepsSrc, src)
-      if (!rel) return true
-      const parts = rel.split(sep)
-      if (parts[0] === '@img' && parts[1] === 'sharp-wasm32') return false // wasm 兜底，win32-x64 用不到
-      const base = parts[parts.length - 1]
-      if (base.endsWith('.map')) return false
-      if (base.endsWith('.md') && /^(README|CHANGELOG)/i.test(base)) return false
-      return true
-    },
-    'dsh-im 离线依赖（连接中心首开不再联网装）',
-  )
-  const qrcodeMarker = join(imDepsDest, 'qrcode', 'package.json')
-  if (!existsSync(qrcodeMarker)) {
-    console.error(`[after-pack-trim] dsh-im 依赖落位失败：缺 ${qrcodeMarker}`)
+  // 1a. dsh-im 与 dsh runtime 各一个 STORE zip（NSIS 写两个大文件，首启再解到 userData）。
+  //     不要把 vendor/dsh-im/node_modules 抄成散文件。
+  const copyZip = (srcDir, destDir, asset, why) => {
+    const src = join(srcDir, asset)
+    if (!existsSync(src)) {
+      console.error(`[after-pack-trim] 缺少 ${src}（先跑 prepackage 的 build-dsh-archives）`)
+      process.exit(1)
+    }
+    mkdirSync(destDir, { recursive: true })
+    cpSync(src, join(destDir, asset))
+    console.log(`[after-pack-trim] +${(statSync(src).size / 1024 / 1024).toFixed(1)}MB ${why}`)
+  }
+  copyZip(join(ROOT, 'build', 'dsh-runtime'), join(resourcesDir, 'dsh-runtime'), 'dsh-runtime.zip', 'dsh runtime 闭包（含 dsh-scope 等 peer）')
+  copyZip(join(ROOT, 'build', 'dsh-im'), join(resourcesDir, 'dsh-im'), 'dsh-im.zip', '连接中心 dsh-im')
+  const { listZipEntries } = await import('./lib/store-zip.mjs')
+  const runtimeEntries = new Set(listZipEntries(join(resourcesDir, 'dsh-runtime', 'dsh-runtime.zip')))
+  if (!runtimeEntries.has('node_modules/@deepseek-ai/dsh-scope/package.json')) {
+    console.error('[after-pack-trim] runtime zip 缺少 @deepseek-ai/dsh-scope')
+    process.exit(1)
+  }
+  const imEntries = new Set(listZipEntries(join(resourcesDir, 'dsh-im', 'dsh-im.zip')))
+  if (!imEntries.has('node_modules/qrcode/package.json')) {
+    console.error('[after-pack-trim] dsh-im zip 缺少 qrcode')
     process.exit(1)
   }
 
-  // 1b. pnpm 引导壳的嵌套依赖（builder 的 NodeModuleCopyHelper 会跳过它）。
+  // 1b. pnpm 引导壳的嵌套依赖。pnpm 本体进了 runtime zip 时安装目录里没有
+  //     这份目录，不要再抄一份散文件出来。
   const pnpmDistSrc = join(ROOT, 'node_modules', 'pnpm', 'dist', 'node_modules')
-  const pnpmDistDest = join(resourcesDir, 'app.asar.unpacked', 'node_modules', 'pnpm', 'dist', 'node_modules')
-  copyDir(pnpmDistSrc, pnpmDistDest, null, 'pnpm dist 嵌套依赖（pnpm.mjs 引导壳需要）')
-  if (!existsSync(join(pnpmDistDest, 'get-pnpm', 'package.json'))) {
-    console.error(`[after-pack-trim] pnpm dist 落位失败：缺 ${join(pnpmDistDest, 'get-pnpm')}`)
-    process.exit(1)
+  const pnpmUnpacked = join(resourcesDir, 'app.asar.unpacked', 'node_modules', 'pnpm')
+  if (existsSync(pnpmUnpacked)) {
+    const pnpmDistDest = join(pnpmUnpacked, 'dist', 'node_modules')
+    copyDir(pnpmDistSrc, pnpmDistDest, null, 'pnpm dist 嵌套依赖（pnpm.mjs 引导壳需要）')
+    if (!existsSync(join(pnpmDistDest, 'get-pnpm', 'package.json'))) {
+      console.error(`[after-pack-trim] pnpm dist 落位失败：缺 ${join(pnpmDistDest, 'get-pnpm')}`)
+      process.exit(1)
+    }
   }
 
   // ---- 2. WebGPU 着色器编译器（所有平台都不用）----
@@ -424,7 +429,6 @@ export default async function afterPack(context) {
   }
 
   sweepTree(unpacked, 'node_modules')
-  sweepTree(imDepsDest, 'dsh-im/node_modules')
 
   if (notices.length > 0) {
     const target = join(resourcesDir, 'THIRD-PARTY-NOTICES.txt')
@@ -469,43 +473,52 @@ export default async function afterPack(context) {
     }
   }
 
-  // 4c. 选择性解包红线核查（第四轮安装提速，读 prepackage 生成的对照清单）：
-  //  - build/unpack-closure.json 必须在（没跑 prepackage 直接失败，别带着空
-  //    asarUnpack 清单出货——那会把 dsh 子进程的依赖全关进 asar）。
-  //  - 期望落盘的每个包（dsh 闭包 + pnpm 工具链 + pdfjs-dist）：包根
-  //    package.json 必须真实存在 —— dsh 子进程看不见 asar，缺一个就断链。
-  //  - 解包树里出现的每个包都必须在期望清单里：smartUnpack 预料外的整包
-  //    解包、或生成器与 files 过滤不同步，都会悄悄放大安装文件数。
-  //  - sweep 后保护树外不得残留 *.d.ts（规则失效检查，保留）。
-  const closureJsonPath = join(ROOT, 'build', 'unpack-closure.json')
-  if (!existsSync(closureJsonPath)) {
-    console.error(
-      '[after-pack-trim] 缺 build/unpack-closure.json —— 先跑 npm run prepackage（生成 asarUnpack 闭包清单）',
-    )
+  // 4c. 解包树只能是原生文件。dsh 闭包在 runtime zip 里，不在这里。
+  const countFiles = (dir) => {
+    let n = 0
+    const walk = (d) => {
+      let entries
+      try {
+        entries = readdirSync(d)
+      } catch {
+        return
+      }
+      for (const name of entries) {
+        const p = join(d, name)
+        let st
+        try {
+          st = statSync(p)
+        } catch {
+          continue
+        }
+        if (st.isDirectory()) walk(p)
+        else n += 1
+      }
+    }
+    walk(dir)
+    return n
+  }
+  const unpackedFiles = existsSync(unpacked) ? countFiles(unpacked) : 0
+  if (unpackedFiles > 800) {
+    console.error(`[after-pack-trim] app.asar.unpacked 有 ${unpackedFiles} 个文件（上限 800）。闭包又被解成散文件了？`)
     process.exit(1)
   }
-  const expectedUnpacked = new Set(JSON.parse(readFileSync(closureJsonPath, 'utf8')).packages)
-  const { missing: missingUnpacked, unexpected: unexpectedUnpacked } = diffUnpackedPackages(unpacked, expectedUnpacked)
-  if (missingUnpacked.length > 0) {
-    console.error(
-      `[after-pack-trim] dsh 闭包/保留包缺落盘（asarUnpack 或 files 配置坏了？共 ${missingUnpacked.length} 个）：\n  ${missingUnpacked.slice(0, 20).join('\n  ')}`,
-    )
-    process.exit(1)
-  }
-  if (unexpectedUnpacked.length > 0) {
-    console.error(
-      `[after-pack-trim] 预料外的解包包（smartUnpack 整包解包或清单不同步，会放大安装文件数；在 compute-unpack-closure.mjs 里补账目）：\n  ${unexpectedUnpacked.slice(0, 30).join('\n  ')}`,
-    )
+  if (existsSync(join(unpacked, '@deepseek-ai', 'dsh-scope'))) {
+    console.error('[after-pack-trim] dsh-scope 出现在 unpacked。peer 包必须只在 runtime zip 里')
     process.exit(1)
   }
 
-  // 4c-bis. dsh-im 树的包根 package.json 全在位（sweep 过删红线，模块解析命脉）。
+  // 4c-bis. 解包树里的包根 package.json 仍要在（sweep 不许删到包根）。
   let pkgJsonMissing = []
-  for (const top of readdirSync(imDepsDest)) {
-    if (top.startsWith('.')) continue
-    const tops = top.startsWith('@') ? readdirSync(join(imDepsDest, top)).map((d) => join(top, d)) : [top]
-    for (const t of tops) {
-      if (!existsSync(join(imDepsDest, t, 'package.json'))) pkgJsonMissing.push(`dsh-im/node_modules/${t.split(sep).join('/')}`)
+  if (existsSync(unpacked)) {
+    for (const top of readdirSync(unpacked)) {
+      if (top.startsWith('.')) continue
+      const topPath = join(unpacked, top)
+      if (!statSync(topPath).isDirectory()) continue
+      const tops = top.startsWith('@') ? readdirSync(topPath).map((d) => join(top, d)) : [top]
+      for (const t of tops) {
+        if (!existsSync(join(unpacked, t, 'package.json'))) pkgJsonMissing.push(t.split(sep).join('/'))
+      }
     }
   }
   if (pkgJsonMissing.length > 0) {
@@ -538,7 +551,6 @@ export default async function afterPack(context) {
     }
   }
   countDts(unpacked, [])
-  countDts(imDepsDest, [])
   if (dtsResidue > 0) {
     console.error(`[after-pack-trim] 保护树外残留 ${dtsResidue} 个 *.d.ts —— sweep 规则失效，中止打包`)
     process.exit(1)

@@ -11,7 +11,9 @@
 import { existsSync, readFileSync, unlinkSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { delimiter, dirname, join, sep } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { StreamEvent, TokenUsage } from '@shared/types/ai'
+import { dshRuntimeBin, dshSdkEntry, waitForDshRuntime } from './bundled-archive'
 import { EAA_MCP_TOKEN_ENV, EAA_MCP_URL_ENV } from './eaa-tools-contract'
 import { ensureEaaHardeningPatch } from './hardening'
 import { setEaaToolsPluginTarget } from './plugin-install'
@@ -109,12 +111,18 @@ export interface DshChatStreamParams {
  * 不可见，运行时仍是真正的动态 import；也避免未安装依赖时构建期解析失败。
  */
 export async function loadSdkClient(): Promise<new (options: unknown) => DshClientLike> {
+  await waitForDshRuntime()
   const { installDshNodeSpawnHook } = await import('./dsh-node')
   installDshNodeSpawnHook()
   const dynamicImport = new Function('specifier', 'return import(specifier)') as (
     s: string,
   ) => Promise<{ HarnessClient: new (options: unknown) => DshClientLike }>
-  const mod = await dynamicImport('@deepseek-ai/dsh-sdk-client')
+  // Packaged builds import the extracted tree so peer packages (dsh-scope, …)
+  // resolve next to the client. Dev keeps the bare specifier.
+  const specifier = runtimeSdkEntry
+    ? pathToFileURL(runtimeSdkEntry).href
+    : '@deepseek-ai/dsh-sdk-client'
+  const mod = await dynamicImport(specifier)
   return mod.HarnessClient
 }
 
@@ -135,6 +143,9 @@ let runtimeCwd = process.cwd()
  * 纯 node 子进程读不到（见 toUnpackedAsarPath），所以打包态必须注入。
  */
 let runtimeDshBin: string | undefined
+/** Absolute path of the extracted SDK entry. Unset in dev (bare import). */
+let runtimeSdkEntry: string | undefined
+let lastRuntimeOpts: Parameters<typeof configureDshRuntime>[0] | null = null
 
 /**
  * 「路由名 + 模型 id → app 目录里的那个模型」，由 bootstrap 注入（pi-ai 的
@@ -161,10 +172,14 @@ export function configureDshRuntime(opts: {
   toolsDir?: string
   /** 按需组件目录（office-kit-service 的 extraModulesDir），进 NODE_PATH。 */
   extraModulesDir?: string
+  /** 解压后的 dsh-sdk-client 入口。打包态由 runtime zip 提供。 */
+  sdkClientEntry?: string
 }): void {
+  lastRuntimeOpts = opts
   runtimeCwd = opts.cwd
   // 无条件覆盖：整次装配只有一个调用方，缺省即「没有可用入口」，不能沿用上一次的值
   runtimeDshBin = opts.dshBin
+  runtimeSdkEntry = opts.sdkClientEntry
   runtimeRouteModel = opts.routeModel
   runtimeSdkHome = opts.sdkHome ?? ''
   runtimeExtraModulesDir = opts.extraModulesDir ?? ''
@@ -174,8 +189,24 @@ export function configureDshRuntime(opts: {
       : null,
   )
 }
+export function getConfiguredDshBin(): string | undefined {
+  return runtimeDshBin
+}
+
 export function getDshRuntimeCwd(): string {
   return runtimeCwd
+}
+
+/** Point the child and the SDK import at a zip extracted under userData. */
+export function retargetPackagedDsh(root: string): void {
+  if (!lastRuntimeOpts) return
+  const bin = dshRuntimeBin(root)
+  const sdk = dshSdkEntry(root)
+  configureDshRuntime({
+    ...lastRuntimeOpts,
+    dshBin: bin,
+    sdkClientEntry: sdk,
+  })
 }
 
 /**

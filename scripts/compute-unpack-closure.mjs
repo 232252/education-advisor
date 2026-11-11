@@ -25,7 +25,7 @@
 // 退出码: 0 成功, 1 失败
 // =============================================================
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { syncInstallLayout } from './lib/install-layout.mjs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -114,17 +114,11 @@ export function selectKeepers(keepers, { platform, arch, exists, inShipSet }) {
   return { ok: true, selected }
 }
 
-/** 哨兵块内部的 asarUnpack 条目。逐包枚举，不用整树 node_modules 模式。 */
-export function asarUnpackEntries(expectedUnpacked, unpackScopes = UNPACK_SCOPES) {
-  const lines = ['  # dsh 子进程（staged node.exe）依赖闭包：']
-  for (const scope of unpackScopes) {
-    lines.push(`  - "node_modules/${scope}/**"`)
-  }
-  for (const name of expectedUnpacked) {
-    if (unpackScopes.some((scope) => name.startsWith(`${scope}/`))) continue
-    lines.push(`  - "node_modules/${name}/**"`)
-  }
-  return lines
+/** 哨兵块内部的 asarUnpack 条目。只留操作系统必须映射的原生文件。 */
+export function asarUnpackEntries() {
+  return ['**/*.node', '**/*.dll', '**/*.exe', '**/*.dylib', '**/*.so'].map(
+    (glob) => `  - "${glob}"`,
+  )
 }
 /** files 负向过滤不随包的包（asarUnpack 写了也是空匹配，这里显式对齐账目）。 */
 const NOT_SHIPPED = [
@@ -280,41 +274,13 @@ for (const name of expectedUnpacked) unpackedFiles += countFiles(pkgDir(name))
 let asarFiles = 0
 for (const name of asarOnly) asarFiles += countFiles(pkgDir(name))
 
-// ---- 4. 重写 electron-builder.yml 哨兵块 ----
-// @deepseek-ai 用一条 scope pattern；其余逐包枚举（可审计、可 diff）。
-const lines = asarUnpackEntries(expectedUnpacked)
-
-const yml = readFileSync(YML, 'utf8')
-const beginIdx = yml.indexOf(BEGIN)
-const endIdx = yml.indexOf(END)
-if (beginIdx === -1 || endIdx === -1 || endIdx < beginIdx) {
-  fail(`electron-builder.yml 里找不到哨兵块（${BEGIN.slice(0, 40)}…），请保留哨兵注释`)
-}
-const nextYml = yml.slice(0, beginIdx) + BEGIN + '\n' + lines.join('\n') + '\n' + yml.slice(endIdx)
-writeFileSync(YML, nextYml, 'utf8')
-
-// ---- 5. 守卫对照数据 ----
-mkdirSync(dirname(OUT_JSON), { recursive: true })
-writeFileSync(
-  OUT_JSON,
-  `${JSON.stringify(
-    {
-      generatedAt: new Date().toISOString(),
-      closureRoot: CLOSURE_ROOT,
-      unpackScopes: UNPACK_SCOPES,
-      keepers: keeperSet,
-      notShipped: [...notShipped].sort(),
-      packages: expectedUnpacked,
-    },
-    null,
-    2,
-  )}\n`,
-  'utf8',
-)
-
+// ---- 4. 安装布局：asar 只解原生文件，dsh 闭包改走 runtime zip ----
+// 旧的逐包 asarUnpack 会把一万多个 js 写成真实文件。electron-builder 的
+// 依赖遍历又不带 peer，dsh-scope 这类包两边都没有。布局以 install-layout 为准。
+const layout = syncInstallLayout(ROOT)
 const platformKept = keeperSet.filter((name) => KEEPERS.some((k) => k.name === name && k.platform))
 console.log(
-  `[compute-unpack-closure] 随包 ${shipSet.size} 包；落盘 ${expectedUnpacked.length} 包 / ${unpackedFiles.toLocaleString()} 文件，进 asar ${asarOnly.length} 包 / ${asarFiles.toLocaleString()} 文件（node_modules 散文件 −${((asarFiles / (unpackedFiles + asarFiles)) * 100).toFixed(0)}%），清单外 ${unreachable.length} 个（peer/dev 残影或 builder 实测不发货）`,
+  `[compute-unpack-closure] 随包依赖遍历 ${shipSet.size} 包；runtime zip ${layout.archive} 包，从安装目录排除 ${layout.exclude} 包（peer 不在依赖遍历里：${layout.peersOutsideShip.length}）`,
 )
 console.log(
   `[compute-unpack-closure] 平台原生保留 ${platformKept.length} 个：${platformKept.join(', ') || '（本机没有额外平台包）'}`,

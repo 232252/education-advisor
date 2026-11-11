@@ -10,6 +10,18 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 > [`CHANGELOG.md`](https://github.com/232252/education-advisor/blob/main/CHANGELOG.md)
 > in its own repository. Cross-reference both when troubleshooting.
 
+## [3.3.7-beta.2] — 2026-11-11
+
+### Fixed
+
+- Windows 安装不再把 dsh 闭包和连接中心写成上万个散文件。`app.asar.unpacked` 里那约 1.3 万个文件和 `resources/dsh-im` 里约 2 千个文件，改成两个未压缩 zip（`dsh-runtime.zip`、`dsh-im.zip`）。NSIS 只多写两个大文件；应用第一次启动（或启动后的预热）再解到 userData。压缩包 sha256 没变就跳过重解。
+- Electron 45.0.0 仍然不能当 dsh 的 Node：`node-addon-require-builtin` 只认 43.0.0 / 44.0.0 / 44.7.0 / 45.0.0-alpha.6。子进程继续用随包的 `dsh-node`。官方桌面端那种「整棵 dsh 放进 asar、再用 Electron 当 Node」在这版指纹下走不通。
+- `@deepseek-ai/dsh-scope` 等 15 个包只出现在 peerDependencies 里，electron-builder 的 dependencies 遍历不会把它们打进安装包，dsh-web 因此 53 个插件起不来。runtime zip 按 dependencies + peerDependencies 收齐这些包。只写 `files: node_modules/**` 盖不住这个洞。
+
+### Changed
+
+- `asarUnpack` 只保留 `*.node` / `*.dll` / `*.exe` / `*.dylib` / `*.so`。主进程仍要直接读的 `better-sqlite3`、`pdfjs-dist`、`@napi-rs/canvas` 留在 app 里。
+
 ## [3.3.7-beta.1] — 2026-11-11
 
 ### Fixed
@@ -248,7 +260,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - The `nul` file in the repository root (a Windows reparse-point residue from
   an earlier redirect) is git-ignored but can be safely removed by hand.
 
-[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.7-beta.1...HEAD
+[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.7-beta.2...HEAD
+[3.3.7-beta.2]: https://github.com/232252/education-advisor/compare/v3.3.7-beta.1...v3.3.7-beta.2
 [3.3.7-beta.1]: https://github.com/232252/education-advisor/compare/v3.3.7...v3.3.7-beta.1
 [3.3.7]: https://github.com/232252/education-advisor/compare/v3.3.6...v3.3.7
 [3.3.6]: https://github.com/232252/education-advisor/compare/v3.3.5...v3.3.6
