@@ -34,7 +34,7 @@ import { parseJsonWithRepair } from '../../utils/json-repair'
 import { log } from '../../utils/logger'
 import { buildGradingPrompt, fastGradeMaxTokens, parseGradeResponse } from './grading-pipeline'
 import { gradingService } from './grading-service'
-import { completeGradingCall } from './llm-call'
+import { completeGradingCall, type GradingCallOptions } from './llm-call'
 import type { StagedStageInfo } from './staged-pipeline'
 
 /** 极致 AI 模式上下文上限:200K tokens,不使用更大窗口 */
@@ -44,8 +44,7 @@ export const EXTREME_CONTEXT_WINDOW = 200_000
 const EXTREME_RESERVE_TOKENS = Math.max(4096, Math.floor(EXTREME_CONTEXT_WINDOW * 0.1))
 
 function note(level: 'info' | 'warn', msg: string): void {
-  const fn = log[level]
-  if (typeof fn === 'function') fn(msg)
+  log(level, 'grading-extreme', msg)
 }
 
 export interface ExtremeImagePart {
@@ -56,14 +55,8 @@ export interface ExtremeImagePart {
 
 export type ExtremeComplete = (
   model: Model<Api>,
-  context: { systemPrompt?: string; messages: Message[] },
-  options: {
-    apiKey: string
-    maxTokens: number
-    signal?: AbortSignal
-    cacheRetention?: 'none' | 'short' | 'long'
-    sessionId?: string
-  },
+  context: { systemPrompt: string; messages: Message[] },
+  options: GradingCallOptions,
 ) => Promise<AssistantMessage>
 
 export interface ExtremeGradeDeps {
@@ -101,19 +94,33 @@ function imageTokenEstimate(data: string): number {
   return Math.max(800, Math.ceil(data.length / 16))
 }
 
-function contentParts(content: Message['content']): Array<Record<string, unknown>> {
-  if (typeof content === 'string') return [{ type: 'text', text: content }]
-  if (Array.isArray(content)) return content as Array<Record<string, unknown>>
-  return []
+/** 本模式只发 user 视觉+文本,避开 Message 联合类型在展开/回写时的不相交转换 */
+export type ExtremeContentPart = ExtremeImagePart | { type: 'text'; text: string }
+
+export interface ExtremeUserMessage {
+  role: 'user'
+  content: ExtremeContentPart[]
+  timestamp: number
+}
+
+function toGradingMessages(messages: ExtremeUserMessage[]): Message[] {
+  return messages.map((m) => ({
+    role: 'user' as const,
+    content: m.content,
+    timestamp: m.timestamp,
+  }))
 }
 
 /** 估算 system + messages(含图片)的 token,供 200K 预算判断 */
-export function estimateExtremeTokens(systemPrompt: string, messages: Message[]): number {
+export function estimateExtremeTokens(
+  systemPrompt: string,
+  messages: ExtremeUserMessage[],
+): number {
   let n = estimateTextTokens(systemPrompt)
   for (const m of messages) {
-    for (const p of contentParts(m.content)) {
-      if (p.type === 'text' && typeof p.text === 'string') n += estimateTextTokens(p.text)
-      else if (p.type === 'image' && typeof p.data === 'string') n += imageTokenEstimate(p.data)
+    for (const p of m.content) {
+      if (p.type === 'text') n += estimateTextTokens(p.text)
+      else n += imageTokenEstimate(p.data)
     }
   }
   return n
@@ -125,15 +132,19 @@ export function estimateExtremeTokens(systemPrompt: string, messages: Message[])
  */
 export function applyExtremeContextBudget(
   systemPrompt: string,
-  messages: Message[],
-): { systemPrompt: string; messages: Message[] } {
+  messages: ExtremeUserMessage[],
+): { systemPrompt: string; messages: ExtremeUserMessage[] } {
   const threshold = EXTREME_CONTEXT_WINDOW - EXTREME_RESERVE_TOKENS
   if (estimateExtremeTokens(systemPrompt, messages) <= threshold) {
     return { systemPrompt, messages }
   }
 
   let sys = systemPrompt
-  const next: Message[] = messages.map((m) => ({ ...m, content: m.content }))
+  const next: ExtremeUserMessage[] = messages.map((m) => ({
+    role: 'user',
+    content: m.content.map((p) => ({ ...p })),
+    timestamp: m.timestamp,
+  }))
 
   const compactText = (text: string, cap: number): string => {
     if (text.length <= cap) return text
@@ -145,19 +156,11 @@ export function applyExtremeContextBudget(
   // 先压用户文本(核验材料通常最大),再压 system
   for (let i = 0; i < next.length; i++) {
     if (estimateExtremeTokens(sys, next) <= threshold) break
-    const parts = contentParts(next[i].content)
-    const compacted = parts.map((p) => {
-      if (p.type !== 'text' || typeof p.text !== 'string') return p
-      return { ...p, text: compactText(p.text, 12_000) }
+    const compacted: ExtremeContentPart[] = next[i].content.map((p) => {
+      if (p.type !== 'text') return p
+      return { type: 'text', text: compactText(p.text, 12_000) }
     })
-    const hasImage = compacted.some((p) => p.type === 'image')
-    next[i] = {
-      ...next[i],
-      content:
-        hasImage || compacted.length > 1
-          ? (compacted as Message['content'])
-          : String(compacted[0]?.text ?? ''),
-    }
+    next[i] = { role: 'user', content: compacted, timestamp: next[i].timestamp }
   }
   if (estimateExtremeTokens(sys, next) > threshold) {
     sys = compactText(sys, 8_000)
@@ -398,17 +401,17 @@ async function runChildSession(opts: {
   complete: ExtremeComplete
 }): Promise<{ text: string; usage?: AiGradeResult['usage'] }> {
   if (opts.signal.aborted) throw new Error('已中止')
-  const messages: Message[] = [
+  const messages: ExtremeUserMessage[] = [
     {
       role: 'user',
-      content: [...opts.images, { type: 'text', text: opts.userText }] as Message['content'],
+      content: [...opts.images, { type: 'text', text: opts.userText }],
       timestamp: Date.now(),
     },
   ]
   const budgeted = applyExtremeContextBudget(opts.systemPrompt, messages)
   const assistant = await opts.complete(
     opts.model,
-    { systemPrompt: budgeted.systemPrompt, messages: budgeted.messages },
+    { systemPrompt: budgeted.systemPrompt, messages: toGradingMessages(budgeted.messages) },
     {
       apiKey: opts.apiKey,
       maxTokens: opts.maxTokens,

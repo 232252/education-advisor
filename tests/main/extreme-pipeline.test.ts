@@ -35,7 +35,7 @@ vi.mock('../../src/main/services/grading/grading-service', () => ({
   gradingService: mocks.gs,
 }))
 vi.mock('../../src/main/utils/logger', () => ({
-  log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  log: vi.fn(),
 }))
 
 import type { Api, Model } from '../../src/main/services/llm-contracts'
