@@ -39,6 +39,11 @@ export const LIVE_MISSING_PEERS = [
   '@deepseek-ai/dsh-spill',
 ]
 
+/** Must be in the runtime zip. A lockfile link (vendor/pi-ai) can hide these from a naive walk. */
+export const RUNTIME_REQUIRED_PACKAGES = [
+  '@earendil-works/pi-telemetry',
+]
+
 /** Kept in the app image because the Electron main process imports them by name before any extract. */
 export const APP_KEEP_ROOTS = [
   'better-sqlite3',
@@ -47,6 +52,11 @@ export const APP_KEEP_ROOTS = [
   'yaml',
   'ws',
   '@earendil-works/pi-ai',
+  // Vite leaves a runtime require() for these, and they are also in the dsh
+  // archive closure. Excluding them from app.asar made 3.3.7-beta.2 crash on
+  // startup: Cannot find module 'cross-spawn' (and 'debug' is also required).
+  'cross-spawn',
+  'debug',
 ]
 
 /** Present in node_modules for some builds, never shipped (size or on-demand zip). */
@@ -97,6 +107,18 @@ export function indexLock(lock) {
     const name = key.slice('node_modules/'.length)
     if (name.includes('/node_modules/')) continue
     by.set(name, value)
+  }
+  // npm records a `file:` / workspace install as a `link: true` stub under
+  // node_modules/<name> and keeps the real dependency list on the resolved
+  // entry (vendor/pi-ai). Walking only the stub dropped
+  // @earendil-works/pi-telemetry from the runtime zip, so official llm-pi-ai
+  // could not mount (`no adapter registered`).
+  for (const [name, value] of [...by.entries()]) {
+    if (!value?.link) continue
+    const resolved = value.resolved
+    if (typeof resolved !== 'string' || resolved.length === 0) continue
+    const target = lock.packages?.[resolved]
+    if (target !== undefined) by.set(name, target)
   }
   return by
 }
@@ -149,9 +171,13 @@ export function runtimeArchivePackages(lock) {
   const archive = walkPackages(by, ['@deepseek-ai/dsh'], { peers: true })
   for (const name of by.keys()) {
     if (name.startsWith('@deepseek-ai/') && !notShipped.has(name)) archive.add(name)
-    if (name === 'pnpm' || name.startsWith('@pnpm/exe.')) archive.add(name)
   }
   for (const name of notShipped) archive.delete(name)
+  // 教师运行时不带 pnpm / @pnpm/exe。仓库和 CI 打包机仍可用检出里的 pnpm，
+  // 只是不能打进教师 zip 或安装包（连接中心改写 profile 链接，不再 plugin add）。
+  for (const name of [...archive]) {
+    if (name === 'pnpm' || name.startsWith('@pnpm/exe')) archive.delete(name)
+  }
   return archive
 }
 
@@ -164,20 +190,33 @@ export function hostRuntimePackages(lock) {
   return archive
 }
 
+function excludeCandidates(lock) {
+  const names = new Set(runtimeArchivePackages(lock))
+  for (const name of NOT_SHIPPED) names.add(name)
+  for (const name of indexLock(lock).keys()) {
+    if (name === 'pnpm' || name.startsWith('@pnpm/exe.') || name.startsWith('sherpa-onnx')) names.add(name)
+    if (name.startsWith('@deepseek-ai/libreoffice-kit')) names.add(name)
+  }
+  return names
+}
+
 export function appKeepPackages(lock) {
-  return walkPackages(indexLock(lock), APP_KEEP_ROOTS, { peers: false })
+  const by = indexLock(lock)
+  const keep = walkPackages(by, APP_KEEP_ROOTS, { peers: false })
+  // Packages that stay in app.asar still need their own dependency tree,
+  // even when a dep is also in the dsh runtime archive. Stripping those
+  // made 3.3.7-beta.2/beta.3 crash on startup (cross-spawn, then js-yaml).
+  const wouldExclude = excludeCandidates(lock)
+  for (const name of keep) wouldExclude.delete(name)
+  const resident = [...dependencyShipSet(lock)].filter((name) => !wouldExclude.has(name))
+  for (const name of walkPackages(by, resident, { peers: false })) keep.add(name)
+  return keep
 }
 
 /** Archive members that must not also be loose files (or a second copy is only the keep set). */
 export function filesToExclude(lock) {
   const keep = appKeepPackages(lock)
-  const names = new Set(runtimeArchivePackages(lock))
-  for (const name of NOT_SHIPPED) names.add(name)
-  for (const name of indexLock(lock).keys()) {
-    if (name.startsWith('@pnpm/exe.') || name.startsWith('sherpa-onnx')) names.add(name)
-    if (name.startsWith('@deepseek-ai/libreoffice-kit')) names.add(name)
-  }
-  return [...names].filter((name) => !keep.has(name)).sort()
+  return [...excludeCandidates(lock)].filter((name) => !keep.has(name)).sort()
 }
 
 export function asarUnpackEntries() {
@@ -205,6 +244,10 @@ export function syncInstallLayout(root) {
   const missingPeers = LIVE_MISSING_PEERS.filter((name) => !archive.has(name))
   if (missingPeers.length > 0) {
     throw new Error(`runtime archive is missing required peers: ${missingPeers.join(', ')}`)
+  }
+  const missingRequired = RUNTIME_REQUIRED_PACKAGES.filter((name) => !archive.has(name))
+  if (missingRequired.length > 0) {
+    throw new Error(`runtime archive is missing required packages: ${missingRequired.join(', ')}`)
   }
   const stillShipped = LIVE_MISSING_PEERS.filter((name) => ship.has(name))
   // They must stay OUT of the dependency-only ship set. If a future builder

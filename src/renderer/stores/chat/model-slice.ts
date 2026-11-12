@@ -33,10 +33,15 @@ export function createModelSlice(
      */
     initFromSettings: async () => {
       try {
+        const route = await getAPI().ai.getDshRoute()
         const s = await getAPI().settings.get()
-        const provider = s.models?.defaultProvider || ''
+        const provider = route?.provider || s.models?.defaultProvider || ''
         const model =
-          s.models?.defaultModel || s.models?.highQualityModel || s.models?.lowCostModel || ''
+          route?.model ||
+          s.models?.defaultModel ||
+          s.models?.highQualityModel ||
+          s.models?.lowCostModel ||
+          ''
         if (provider || model) {
           set({ currentProvider: provider, currentModel: model })
           if (provider && model) {

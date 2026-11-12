@@ -1,5 +1,7 @@
 # 教育参谋 × DeepSeek Harness：现状与插件化计划
 
+随包范围（要功能、不要官方界面）和小升级走 GitHub CI 的做法，以 [DeepSeek 核心运行时规划](./DSH_CORE_RUNTIME.md) 为准。官方插件写法和各功能是否做成插件，以 [官方插件标准与产品插件化计划](./DSH_PLUGIN_STANDARD.md) 为准。
+
 桌面端的 Agent 循环已经走 DeepSeek Harness **0.2.2-rc.1**（`createDshAgent`），不再创建 Pi Agent。连接中心的页面是官方 **dsh-im 5.10.0**（`vendor/dsh-im`，与 npm 发布产物一致）。宿主只负责窗口、密钥、dsh 进程和插件目录。
 
 官方 `integrations/desktop-panel` 只在桌面 iframe 里启用（`window.parent !== window`）。教育参谋用的是顶层 `WebContentsView`（登录 cookie 是 SameSite=Strict，跨源 iframe 会丢），所以侧栏入口放在 `vendor/dsh-im/integrations/eaa-panel`，槽位和 `dshImClient` v1 与官方接入说明一致。
@@ -28,7 +30,7 @@
 | 安全 / 纪律记录 | safety、discipline-officer | `eaa-discipline`：原因码与确认协议留在插件里 | 中 |
 | 技能 | 正文仍在 `skills/` 和用户技能目录。每次运行复制该角色看得到的那一份，改成 dsh 的短横线名字，由 `tool-skill` 加载。页面 `/skills` 仍是编辑入口 | 中 |
 | 定时任务 | `/scheduler` 仍由宿主叫醒角色 | dsh-schedule 只往已经打开的会话里投提醒，替不了早上没人对话也要跑的日报 | 中 |
-| 模型与密钥 | `/models` | 留在宿主：密钥不进插件仓库 | 低（宿主职责） |
+| 模型与密钥 | `/models` 目前是 pi 目录 + 宿主 `--patch`，对话会报 no adapter。改为官方 bundle 配置 `llm-pi-ai`（见标准文档 2.8）。页面留在宿主，密钥仍只在 keystore | `eaa-llm-providers`（本轮落地） | 高 |
 | 隐私引擎 | `/privacy` | 留在宿主：脱敏发生在工具结果离开本机之前 | 低（宿主职责） |
 | 报告中心 | `/reports` | `eaa-reports`：读已有快照写文件，不自己改操行数据 | 低 |
 | 设置 / 更新 / 托盘 | `/settings`、托盘 | 留在 Electron 宿主 | 不做插件 |
@@ -51,6 +53,6 @@
 2. **插件自己带契约。** 每个插件写明能读什么、能写什么、写之前要不要教师确认。主程序不再认识「迟到扣几分」，那是纪律插件和原因码字典的事。
 3. **坏了就卸。** 批改插件出问题，卸掉它，操行查询和连接中心照常。版本对不上时走 `dsh plugin allow-version`，不在主程序里打补丁。
 4. **数据仍在本机。** 插件通过宿主给的工具读学生数据，不把花名册、身份证、成绩复制进插件包，也不进 git。
-5. **维护方式。** 主仓库只发壳和 profile 模板。功能以独立包迭代，教师端 `dsh plugin add` 升级某一个，不用为改一个页面重打整个安装包。
+5. **维护方式。** 功能以独立插件迭代，开发完成后再打进安装包预装。教师端不现场执行 `dsh plugin add`，安装包也不带 pnpm。升级某一个功能，发新的安装包即可，不必为此改 Electron 主进程。随包政策见 [DeepSeek 核心运行时规划](./DSH_CORE_RUNTIME.md)。
 
 这样做的直接好处：连接中心已经能跟着 dsh-im 的版本走；后面的批改、成绩、周报也可以按同样的节奏单独修，不必每次都改 Electron 主进程。

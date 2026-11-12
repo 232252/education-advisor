@@ -108,6 +108,9 @@ export async function startApp(): Promise<void> {
     dshBin,
     // patch 里钉住的那条路由要带 models 条目，模型字段以 app 的 pi 目录为准
     routeModel: (route, modelId) => resolveModel(route, modelId),
+    // 开发态官方目录在仓库根的 node_modules；打包态等 retargetPackagedDsh
+    // 把 catalogRoot 指到解压后的 dsh-bundles/dsh-runtime。
+    catalogRoot: app.isPackaged ? undefined : app.getAppPath(),
     sdkHome: join(app.getPath('userData'), 'dsh-sdk-home'),
     toolsDir: app.isPackaged
       ? join(process.resourcesPath, 'eaa-tools')

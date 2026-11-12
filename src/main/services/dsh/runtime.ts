@@ -21,11 +21,12 @@ import { type DshRouteModelSource, dshRouteModelEntry } from './profile-override
 import {
   dshProviderRouting,
   dshSubprocessEnv,
-  ensureEaaProviderPatch,
   probeCredentialPlan,
   providersToDeclare,
   writeProviderPatchFile,
 } from './provider-patch'
+import { configureDshCatalogRoot } from './dsh-model-catalog'
+import { configureDshModelSettings, syncDshCredentialRoutes } from './dsh-model-settings'
 import { mapDshSessionEvent } from './stream-mapper'
 import type { DshSessionEvent, DshSessionEventNotification } from './wire-types'
 
@@ -174,6 +175,12 @@ export function configureDshRuntime(opts: {
   extraModulesDir?: string
   /** 解压后的 dsh-sdk-client 入口。打包态由 runtime zip 提供。 */
   sdkClientEntry?: string
+  /**
+   * 官方 pi-ai 目录所在的运行时根（含 node_modules/@earendil-works/pi-ai）。
+   * 打包态是解压后的 dsh-bundles/dsh-runtime，不是 userData 本身。
+   * 省略时退回 cwd，仅给单测/未解压前的早期调用。
+   */
+  catalogRoot?: string
 }): void {
   lastRuntimeOpts = opts
   runtimeCwd = opts.cwd
@@ -183,6 +190,8 @@ export function configureDshRuntime(opts: {
   runtimeRouteModel = opts.routeModel
   runtimeSdkHome = opts.sdkHome ?? ''
   runtimeExtraModulesDir = opts.extraModulesDir ?? ''
+  configureDshCatalogRoot(opts.catalogRoot ?? opts.cwd)
+  configureDshModelSettings(opts.sdkHome ? join(opts.sdkHome, 'profiles', 'sdk') : '')
   setEaaToolsPluginTarget(
     opts.sdkHome && opts.toolsDir && opts.dshBin
       ? { home: opts.sdkHome, toolsDir: opts.toolsDir, dshBin: opts.dshBin }
@@ -206,6 +215,8 @@ export function retargetPackagedDsh(root: string): void {
     ...lastRuntimeOpts,
     dshBin: bin,
     sdkClientEntry: sdk,
+    // Official catalog lives next to the extracted runtime, not under userData.
+    catalogRoot: root,
   })
 }
 
@@ -373,7 +384,14 @@ export function createDshRuntime(
   // 共享 patch 只写已经存过 key 的 provider。探测用的那把还没入库，
   // 单独写一份排在后面的 patch，避免把「未保存的路由」留在共享文件里。
   const routing = dshProviderRouting(declared, pinned)
-  const providerPatch = ensureEaaProviderPatch(cwd, routing.profiles)
+  // 只把 apiKeyEnv 合并进官方 profile，不把 EAA 目录/钉住的 models 整表覆盖进去。
+  if (runtimeSdkHome) {
+    const credentials: Record<string, { apiKeyEnv?: string }> = {}
+    for (const [id, profile] of Object.entries(routing.profiles)) {
+      if (profile.apiKeyEnv) credentials[id] = { apiKeyEnv: profile.apiKeyEnv }
+    }
+    syncDshCredentialRoutes(join(runtimeSdkHome, 'profiles', 'sdk'), credentials)
+  }
   const probeId = opts.probeCredential?.providerId
   const probeRouting =
     probeId && opts.probeCredential?.apiKey && !declared.includes(probeId)
@@ -401,7 +419,6 @@ export function createDshRuntime(
     ...rest,
     patches: [
       hardening,
-      ...(providerPatch ? [providerPatch] : []),
       ...(probePatch ? [probePatch] : []),
       ...(callerPatches ?? []),
     ],

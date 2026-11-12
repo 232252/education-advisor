@@ -3,7 +3,7 @@
 //
 // dsh-im 的管理面板是 DSH 客户端插件（dshImClient.render），
 // 不能拆进教育参谋自己的 React 树。这里按官方接入方式做：
-//   1. 把 vendor/dsh-im 和 integrations/eaa-panel 用 link: 装进 web profile
+//   1. 把 vendor/dsh-im 和 integrations/eaa-panel 的 link: 直接写进 web profile（不跑官方 plugin add）
 //   2. 起 `dsh web --no-open`，带上加固补丁，以及调用方准备的模型密钥和教育工具
 //   3. 主进程把这个地址贴到连接中心的子视图上，侧栏直接停在 IM 面板
 //
@@ -18,13 +18,13 @@ import { ensureEaaHardeningPatch } from './hardening'
 import { ensureOfficialPresetLock } from './im-preset'
 import {
   DSH_IM_VERSION,
-  dshPluginLinkSpec,
   dshPnpmLaunch,
   dshWebLaunchArgs,
   parseDshWebAnnouncement,
   pnpmInstallRegistry,
 } from './im-url'
 import { ensureProfileHasEaaTools } from './plugin-install'
+import { materializeProfileLinks, profileLinksCurrent } from './plugin-links'
 import { dshChildEnv } from './pnpm-env'
 import { ensureEaaWelcomeNoticePatch } from './welcome-notice'
 
@@ -228,11 +228,16 @@ export class DshImWebHost {
 
   private async ensurePlugins(panelDir: string): Promise<void> {
     const stampPath = join(this.opts.home, DSH_IM_STAMP)
-    if (existsSync(stampPath) && readFileSync(stampPath, 'utf8').trim() === DSH_IM_INSTALL_STAMP)
+    const plugins = [{ dir: this.opts.imDir }, { dir: panelDir }]
+    if (
+      existsSync(stampPath) &&
+      readFileSync(stampPath, 'utf8').trim() === DSH_IM_INSTALL_STAMP &&
+      profileLinksCurrent({ home: this.opts.home, profile: 'web', plugins })
+    ) {
       return
+    }
     this.opts.onProgress?.({ phase: 'plugins', message: '正在把连接中心装进 dsh…' })
-    await this.run(['plugin', '--profile', 'web', 'add', dshPluginLinkSpec(this.opts.imDir)])
-    await this.run(['plugin', '--profile', 'web', 'add', dshPluginLinkSpec(panelDir)])
+    materializeProfileLinks({ home: this.opts.home, profile: 'web', plugins })
     writeFileSync(stampPath, `${DSH_IM_INSTALL_STAMP}\n`, 'utf8')
   }
 
@@ -342,30 +347,6 @@ export class DshImWebHost {
           reject(
             new Error(
               `pnpm ${args.join(' ')} 退出码 ${code ?? 'null'}${stderr ? `: ${stderr}` : ''}`,
-            ),
-          )
-      })
-    })
-  }
-
-  private run(args: string[]): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const child = spawn(this.opts.execPath, [this.opts.dshBin, ...args], {
-        env: this.childEnv(),
-        windowsHide: true,
-      })
-      let stderr = ''
-      child.stderr?.setEncoding('utf8')
-      child.stderr?.on('data', (chunk: string) => {
-        stderr = (stderr + chunk).slice(-4000)
-      })
-      child.once('error', reject)
-      child.once('exit', (code) => {
-        if (code === 0) resolve()
-        else
-          reject(
-            new Error(
-              `dsh ${args.join(' ')} 退出码 ${code ?? 'null'}${stderr ? `: ${stderr}` : ''}`,
             ),
           )
       })

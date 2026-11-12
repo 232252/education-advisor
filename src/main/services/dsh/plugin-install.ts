@@ -3,15 +3,19 @@
 //
 // 插件自己不带学生数据。宿主起本机工具端点后，把地址和令牌放进
 // 子进程环境；插件没看到地址就保持关闭。
+//
+// 教师机没有 pnpm，不能走官方 `dsh plugin add`。这里直接改写
+// profile 的 package.json 和 node_modules 链接，目标必须是当前
+// 随包或解压路径（不是开发机上的 vendor/ 仓库路径）。
 // =============================================================
 
-import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { resolveSystemNode } from './dsh-node'
 import { EAA_PLUGINS } from './eaa-tools-contract'
-import { dshPluginLinkSpec } from './im-url'
-import { dshChildEnv } from './pnpm-env'
+import { materializeProfileLinks, profileLinksCurrent } from './plugin-links'
+
+/** 不是 MCP 工具组、但仍按官方 bundle 链进 profile 的包（与 eaa-tools 同级目录）。 */
+export const EAA_LINK_ONLY_BUNDLES = ['eaa-llm-providers'] as const
 
 interface PluginTarget {
   home: string
@@ -26,12 +30,13 @@ export function setEaaToolsPluginTarget(target: PluginTarget | null): void {
   sdkTarget = target
 }
 
-/** toolsDir 指向 eaa-tools 时，同级目录里的花名册、成绩、批改插件一起装。 */
+/** toolsDir 指向 eaa-tools 时，同级目录里的教育 bundle 一起装。 */
 export function resolveEaaPluginDirs(toolsDir: string): string[] {
   const root = dirname(toolsDir)
+  const names = [...EAA_PLUGINS.map((plugin) => plugin.dirName), ...EAA_LINK_ONLY_BUNDLES]
   const found: string[] = []
-  for (const plugin of EAA_PLUGINS) {
-    const dir = join(root, plugin.dirName)
+  for (const dirName of names) {
+    const dir = join(root, dirName)
     if (existsSync(join(dir, 'package.json'))) found.push(dir)
   }
   return found
@@ -49,35 +54,35 @@ export async function ensureProfileHasEaaTools(opts: {
   const dirs = resolveEaaPluginDirs(opts.toolsDir)
   if (dirs.length === 0) throw new Error(`找不到教育工具插件：${opts.toolsDir}`)
   mkdirSync(opts.home, { recursive: true })
-  for (const dir of dirs) await installLinkedPlugin(opts, dir)
+  const plugins = dirs.map((dir) => ({ dir }))
+  const pending = dirs.map((dir) => stampInfo(opts.home, opts.profile, dir))
+  const stampsOk = pending.every(
+    (row) => stampMatches(row.stampPath, row.stamp) || (row.legacyPath && stampMatches(row.legacyPath, row.stamp)),
+  )
+  if (stampsOk && profileLinksCurrent({ home: opts.home, profile: opts.profile, plugins })) {
+    for (const row of pending) {
+      if (!stampMatches(row.stampPath, row.stamp)) writeFileSync(row.stampPath, `${row.stamp}\n`, 'utf8')
+    }
+    return
+  }
+  materializeProfileLinks({ home: opts.home, profile: opts.profile, plugins })
+  for (const row of pending) writeFileSync(row.stampPath, `${row.stamp}\n`, 'utf8')
 }
 
-async function installLinkedPlugin(
-  opts: {
-    home: string
-    profile: string
-    dshBin: string
-    execPath: string
-    electronAsNode: boolean
-    env?: NodeJS.ProcessEnv
-  },
+function stampInfo(
+  home: string,
+  profile: string,
   dir: string,
-): Promise<void> {
+): { stamp: string; stampPath: string; legacyPath: string } {
   const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
     name?: string
     version?: string
   }
   const dirName = dir.split(/[\\/]/).pop() ?? 'plugin'
   const stamp = `${pkg.name ?? dirName}@${pkg.version ?? '0'}`
-  const stampPath = join(opts.home, `eaa-plugin.${opts.profile}.${dirName}.stamp`)
-  const legacyPath =
-    dirName === 'eaa-tools' ? join(opts.home, `eaa-tools.${opts.profile}.stamp`) : ''
-  if (stampMatches(stampPath, stamp) || (legacyPath && stampMatches(legacyPath, stamp))) {
-    if (!stampMatches(stampPath, stamp)) writeFileSync(stampPath, `${stamp}\n`, 'utf8')
-    return
-  }
-  await runDsh(opts, ['plugin', '--profile', opts.profile, 'add', dshPluginLinkSpec(dir)])
-  writeFileSync(stampPath, `${stamp}\n`, 'utf8')
+  const stampPath = join(home, `eaa-plugin.${profile}.${dirName}.stamp`)
+  const legacyPath = dirName === 'eaa-tools' ? join(home, `eaa-tools.${profile}.stamp`) : ''
+  return { stamp, stampPath, legacyPath }
 }
 
 function stampMatches(path: string, stamp: string): boolean {
@@ -88,43 +93,10 @@ function stampMatches(path: string, stamp: string): boolean {
 export async function ensureEaaToolsOnSdkProfile(): Promise<void> {
   const target = sdkTarget
   if (!target) return
-  const node = resolveSystemNode()
   await ensureProfileHasEaaTools({
     ...target,
     profile: 'sdk',
-    execPath: node ?? process.execPath,
-    electronAsNode: node === undefined && Boolean(process.versions.electron),
-  })
-}
-
-function runDsh(
-  opts: {
-    home: string
-    dshBin: string
-    execPath: string
-    electronAsNode: boolean
-    env?: NodeJS.ProcessEnv
-  },
-  args: string[],
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child: ChildProcess = spawn(opts.execPath, [opts.dshBin, ...args], {
-      cwd: opts.home,
-      env: dshChildEnv(opts),
-      windowsHide: true,
-    })
-    let stderr = ''
-    child.stderr?.setEncoding('utf8')
-    child.stderr?.on('data', (chunk: string) => {
-      stderr = (stderr + chunk).slice(-4000)
-    })
-    child.once('error', reject)
-    child.once('exit', (code) => {
-      if (code === 0) resolve()
-      else
-        reject(
-          new Error(`dsh ${args.join(' ')} 退出码 ${code ?? 'null'}${stderr ? `: ${stderr}` : ''}`),
-        )
-    })
+    execPath: process.execPath,
+    electronAsNode: false,
   })
 }

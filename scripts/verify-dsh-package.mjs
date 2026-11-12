@@ -15,11 +15,9 @@
 //  4. electron-builder 的 asarUnpack 是 prepackage 生成的闭包清单（第四轮安装
 //     提速：整树解包是反模式，只有 dsh 子进程闭包 + pnpm/pdfjs 保留落盘，
 //     其余纯 JS 依赖收进 app.asar 由主进程读）
-//  5. 随包 pnpm 工具链在位：@pnpm/exe 的真二进制（dsh plugin add 只认
-//     PATH 上的真 exe；pnpm 12 的 pnpm.mjs 只是 corepack 引导壳，真 CLI
-//     只有 @pnpm/exe 的原生二进制，替代方案实测死路）+ pnpm.mjs 引导壳
-//     + pnpm/dist/node_modules 嵌套依赖（builder 跳过、afterPack 补回，
-//     兜底链路才完整；教师机器没有全局 pnpm —— 见 pnpm-env.ts）
+//  5. 仓库里仍可有 pnpm（开发机 / CI 打包用）。教师运行时闭包和安装包
+//     不得含 pnpm / @pnpm/exe：连接中心直接改写 profile 链接，不再在
+//     教师机上跑官方 dsh plugin add。
 //  6. 瘦身排除安全网：被 files 负向过滤的包不在 web/sdk profile 的硬依赖闭包里
 //     （闭包只走 dependencies；optionalDependencies 是"可缺席"的，正是按需补装的前提）
 //  7. office-kit 随包组件：config/office-kit.json 清单在位（prepackage 生成，
@@ -168,22 +166,18 @@ check(
 )
 check(!builderYml.includes('compression: store') && !builderYml.includes('-mx=0'), '安装包没有改成不压缩')
 
-// ---- 随包 pnpm 工具链（连接中心 plugin add 的物质基础）----
+const toolchainInArchive = [...archive].filter((name) => name === 'pnpm' || name.startsWith('@pnpm/exe'))
 check(
-  existsSync(join(ROOT, PNM_EXE)),
-  `随包 @pnpm/exe 二进制在位 (${PNM_EXE})`,
-  '缺失时安装版 dsh plugin add 会在无全局 pnpm 的教师机上失败（pnpm.mjs 只是引导壳，顶不上）',
+  toolchainInArchive.length === 0,
+  '教师运行时闭包不含 pnpm / @pnpm/exe',
+  toolchainInArchive.join(', '),
 )
-check(
-  existsSync(join(ROOT, PNM_MJS)),
-  'pnpm 包的 pnpm.mjs 引导壳原料在位',
-  '缺失时 exe 不可用平台的兜底链路缺原料',
-)
-check(
-  existsSync(join(ROOT, PNM_DIST)),
-  'pnpm/dist/node_modules 嵌套依赖在位（builder 跳过、afterPack 补回的原料）',
-  '缺失时 pnpm.mjs 引导壳 import get-pnpm 失败，回退安装联网也起不来',
-)
+check(excluded.has('pnpm'), 'electron-builder 排除清单含 pnpm（不进教师安装目录）')
+
+// 仓库 / CI 仍可用检出里的 pnpm，只是不打进教师包。
+if (existsSync(join(ROOT, PNM_EXE)) || existsSync(join(ROOT, PNM_MJS))) {
+  checks.push('SKIP 仓库内 pnpm 仍可用（开发机/CI 打包，不进教师运行时）')
+}
 
 // ---- office-kit 按需组件清单（win32）----
 // config/office-kit.json 由 prepackage 生成且 gitignore —— 干净检出（CI）没有
@@ -274,6 +268,10 @@ function verifyDist(entry, binRel) {
   }
   check(imSet.has('package.json') && imSet.has('node_modules/qrcode/package.json'), 'dsh-im zip 含插件与 qrcode')
   check(imSet.has('integrations/eaa-panel/package.json'), 'dsh-im zip 含侧栏插件')
+  const pnpmZipHits = runtimeNames.filter(
+    (name) => name === 'node_modules/pnpm' || name.startsWith('node_modules/pnpm/') || name.startsWith('node_modules/@pnpm/exe'),
+  )
+  check(pnpmZipHits.length === 0, 'runtime zip 不含 pnpm / @pnpm/exe', pnpmZipHits.slice(0, 5).join(', '))
   check(!existsSync(join(dist, 'resources', 'dsh-im', 'node_modules')), 'dsh-im 依赖没有再散落成目录')
   let unpackedFiles = 0
   const countUnpacked = (dir) => {

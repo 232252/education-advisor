@@ -1,0 +1,13 @@
+{
+  "name": "@education-advisor/eaa-llm-providers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "把教师在本应用配置的模型线路声明给 dsh 的 llm-pi-ai。密钥不进这个包，只通过环境变量名引用。",
+  "main": "./host.js",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

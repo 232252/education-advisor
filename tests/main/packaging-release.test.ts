@@ -1,8 +1,9 @@
 // 发布打包的两条平台分叉：
 // 1. mac 的资源在 .app/Contents/Resources，不在 appOutDir/resources。
-// 2. smartUnpack 会整包解出本机装上的 @pnpm/exe 与 @napi-rs/canvas
+// 2. smartUnpack 会整包解出本机装上的 @napi-rs/canvas
 //    （linux 同时有 glibc 和 musl；mac 两个架构谁在磁盘上谁入账）。
-// 清单只记 Windows 时，linux 的 afterPack 会把那四件报成预料外解包。
+// 教师包不再保留 pnpm / @pnpm/exe。清单只记 Windows 时，linux 的 afterPack
+// 会把本机原生包报成预料外解包。
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -22,18 +23,14 @@ import {
 const LINUX_NATIVES = [
   '@napi-rs/canvas-linux-x64-gnu',
   '@napi-rs/canvas-linux-x64-musl',
-  '@pnpm/exe.linux-x64',
-  '@pnpm/exe.linux-x64-musl',
 ] as const
 
 const MAC_NATIVES = [
   '@napi-rs/canvas-darwin-x64',
   '@napi-rs/canvas-darwin-arm64',
-  '@pnpm/exe.darwin-x64',
-  '@pnpm/exe.darwin-arm64',
 ] as const
 
-const UNIVERSAL = ['pnpm', 'pdfjs-dist', 'better-sqlite3'] as const
+const UNIVERSAL = ['pdfjs-dist', 'better-sqlite3'] as const
 
 const dirs: string[] = []
 afterEach(() => {
@@ -120,7 +117,7 @@ describe('packaged resources dir', () => {
 })
 
 describe('cross-platform unpack keepers', () => {
-  it('清单覆盖本次失败的四件 linux 原生包和 mac 两个架构', () => {
+  it('清单覆盖 linux 原生包和 mac 两个架构', () => {
     const names = KEEPERS.map((k) => k.name)
     for (const name of [...LINUX_NATIVES, ...MAC_NATIVES, ...UNIVERSAL]) {
       expect(names).toContain(name)
@@ -137,24 +134,23 @@ describe('cross-platform unpack keepers', () => {
     if (!result.ok) return
     for (const name of LINUX_NATIVES) expect(result.selected).toContain(name)
     for (const name of MAC_NATIVES) expect(result.selected).not.toContain(name)
-    expect(result.selected).not.toContain('@pnpm/exe.win32-x64')
+    expect(result.selected).not.toContain('@napi-rs/canvas-win32-x64-msvc')
   })
 
   it('musl 没装上时跳过，glibc 主包没装上则失败', () => {
     const withoutMusl = selectKeepers(KEEPERS, {
       platform: 'linux',
       arch: 'x64',
-      ...present([...UNIVERSAL, '@pnpm/exe.linux-x64', '@napi-rs/canvas-linux-x64-gnu']),
+      ...present([...UNIVERSAL, '@napi-rs/canvas-linux-x64-gnu']),
     })
     expect(withoutMusl.ok).toBe(true)
     if (!withoutMusl.ok) return
-    expect(withoutMusl.selected).not.toContain('@pnpm/exe.linux-x64-musl')
     expect(withoutMusl.selected).not.toContain('@napi-rs/canvas-linux-x64-musl')
 
     const withoutGnu = selectKeepers(KEEPERS, {
       platform: 'linux',
       arch: 'x64',
-      ...present([...UNIVERSAL, '@pnpm/exe.linux-x64', '@napi-rs/canvas-linux-x64-musl']),
+      ...present([...UNIVERSAL, '@napi-rs/canvas-linux-x64-musl']),
     })
     expect(withoutGnu.ok).toBe(false)
     if (withoutGnu.ok) return
@@ -166,13 +162,12 @@ describe('cross-platform unpack keepers', () => {
     const onlyArm = selectKeepers(KEEPERS, {
       platform: 'darwin',
       arch: 'arm64',
-      ...present([...UNIVERSAL, '@pnpm/exe.darwin-arm64', '@napi-rs/canvas-darwin-arm64']),
+      ...present([...UNIVERSAL, '@napi-rs/canvas-darwin-arm64']),
     })
     expect(onlyArm.ok).toBe(true)
     if (!onlyArm.ok) return
-    expect(onlyArm.selected).toContain('@pnpm/exe.darwin-arm64')
     expect(onlyArm.selected).toContain('@napi-rs/canvas-darwin-arm64')
-    expect(onlyArm.selected).not.toContain('@pnpm/exe.darwin-x64')
+    expect(onlyArm.selected).not.toContain('@napi-rs/canvas-darwin-x64')
 
     const both = selectKeepers(KEEPERS, {
       platform: 'darwin',
@@ -186,24 +181,25 @@ describe('cross-platform unpack keepers', () => {
     const missingHost = selectKeepers(KEEPERS, {
       platform: 'darwin',
       arch: 'arm64',
-      ...present([...UNIVERSAL, '@napi-rs/canvas-darwin-arm64', '@pnpm/exe.darwin-x64']),
+      ...present([...UNIVERSAL, '@napi-rs/canvas-darwin-x64']),
     })
     expect(missingHost.ok).toBe(false)
     if (missingHost.ok) return
-    expect(missingHost.missing).toBe('@pnpm/exe.darwin-arm64')
+    expect(missingHost.missing).toBe('@napi-rs/canvas-darwin-arm64')
   })
 
-  it('win x64 仍要求自己的两件原生包', () => {
+  it('win x64 仍要求本机 canvas 原生包，不含 pnpm', () => {
     const result = selectKeepers(KEEPERS, {
       platform: 'win32',
       arch: 'x64',
-      ...present([...UNIVERSAL, '@pnpm/exe.win32-x64', '@napi-rs/canvas-win32-x64-msvc']),
+      ...present([...UNIVERSAL, '@napi-rs/canvas-win32-x64-msvc']),
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.selected).toContain('@pnpm/exe.win32-x64')
     expect(result.selected).toContain('@napi-rs/canvas-win32-x64-msvc')
-    expect(result.selected).not.toContain('@pnpm/exe.linux-x64')
+    expect(result.selected).not.toContain('pnpm')
+    expect(result.selected).not.toContain('@pnpm/exe.win32-x64')
+    expect(result.selected).not.toContain('@napi-rs/canvas-linux-x64-gnu')
   })
 
   it('全平台保留项不随包时失败，避免清单写进一个不会落盘的包', () => {

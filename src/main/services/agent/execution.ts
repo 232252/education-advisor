@@ -15,7 +15,7 @@ import type { AgentConfig, AgentExecution, AgentRunSource, AgentStatus } from '@
 import type { BrowserWindow } from 'electron'
 import { errText } from '../../utils/err-text'
 import { log, logChat } from '../../utils/logger'
-import { resolveApiKey, selectModel } from '../agent-model-selector'
+import { resolveApiKey, selectModelForRun } from '../agent-model-selector'
 import { compactPlainChat } from '../compaction-helper'
 import { dbService } from '../db-service'
 import { createDshAgent } from '../dsh/agent-facade'
@@ -203,7 +203,7 @@ async function executeAgentRunInner(
     const installed = await ollamaService.listModels()
     ollamaModelIds = installed.map((m) => m.name)
   }
-  const model = selectModel(config.modelTier, ollamaModelIds)
+  const model = selectModelForRun(config.modelTier, ollamaModelIds)
   const apiKeyResolved = resolveApiKey(model.provider)
   console.log(
     `[AgentService] runAgent(${id}) model selected: ${model.provider}/${model.id} (api: ${model.api}, baseUrl: ${model.baseUrl}, apiKey: ${apiKeyResolved ? '***present***' : 'MISSING'})`,

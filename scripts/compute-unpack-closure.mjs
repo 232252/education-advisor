@@ -57,14 +57,7 @@ const UNPACK_SCOPES = ['@deepseek-ai']
  * 和「同架构的另一份 libc」：musl 不是 ubuntu 构建的主包，但装上了必须入账。
  */
 export const KEEPERS = [
-  // 连接中心随包 pnpm 工具链：@pnpm/exe 是 pnpm-env.ts PATH 前置的主力，
-  // pnpm 包体是引导壳兜底链路（im-url.ts 退回 pnpm.mjs）
-  { name: 'pnpm' },
-  { name: '@pnpm/exe.win32-x64', platform: 'win32', arch: 'x64' },
-  { name: '@pnpm/exe.darwin-x64', platform: 'darwin', arch: 'x64' },
-  { name: '@pnpm/exe.darwin-arm64', platform: 'darwin', arch: 'arm64' },
-  { name: '@pnpm/exe.linux-x64', platform: 'linux', arch: 'x64' },
-  { name: '@pnpm/exe.linux-x64-musl', platform: 'linux', arch: 'x64', libc: 'musl' },
+  // 教师包不再保留 pnpm / @pnpm/exe（连接中心直接改写 profile 链接）。
   // PDF 套打光栅化运行时按路径读 cmaps/standard_fonts（pdf-rasterize.ts）
   { name: 'pdfjs-dist' },
   // 原生主进程包：smartUnpack 见 .node 会整包解出（主进程 dlopen 必须），

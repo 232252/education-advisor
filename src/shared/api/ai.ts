@@ -8,6 +8,8 @@ import type { ModelInfo, ProviderInfo, StreamEvent, TestConnectionResult } from 
 export interface AiAPI {
   listProviders: () => Promise<ProviderInfo[]>
   listModels: (providerId: string) => Promise<ModelInfo[]>
+  getDshRoute: () => Promise<{ provider: string; model: string; reasoningEffort?: string } | null>
+  selectDshRoute: (selection: { provider: string; model: string; reasoningEffort?: string }) => Promise<{ provider: string; model: string; reasoningEffort?: string }>
   testConnection: (
     providerId: string,
     apiKey: string,

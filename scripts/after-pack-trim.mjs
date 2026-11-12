@@ -42,6 +42,7 @@
 // =============================================================
 
 import { closeSync, cpSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { assertMainProcessModulesPresent } from './lib/asar-main-requires.mjs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -223,6 +224,13 @@ export default async function afterPack(context) {
   const runtimeEntries = new Set(listZipEntries(join(resourcesDir, 'dsh-runtime', 'dsh-runtime.zip')))
   if (!runtimeEntries.has('node_modules/@deepseek-ai/dsh-scope/package.json')) {
     console.error('[after-pack-trim] runtime zip 缺少 @deepseek-ai/dsh-scope')
+    process.exit(1)
+  }
+  const pnpmHits = [...runtimeEntries].filter(
+    (name) => name === 'node_modules/pnpm' || name.startsWith('node_modules/pnpm/') || name.startsWith('node_modules/@pnpm/exe'),
+  )
+  if (pnpmHits.length > 0) {
+    console.error(`[after-pack-trim] runtime zip 不应含 pnpm / @pnpm/exe: ${pnpmHits.slice(0, 8).join(', ')}`)
     process.exit(1)
   }
   const imEntries = new Set(listZipEntries(join(resourcesDir, 'dsh-im', 'dsh-im.zip')))
@@ -555,6 +563,8 @@ export default async function afterPack(context) {
     console.error(`[after-pack-trim] 保护树外残留 ${dtsResidue} 个 *.d.ts —— sweep 规则失效，中止打包`)
     process.exit(1)
   }
+
+  assertMainProcessModulesPresent(resourcesDir)
 
   console.log(
     `[after-pack-trim] ${platform} 修剪完成，共 -${(removedBytes / 1024 / 1024).toFixed(1)}MB（补齐项见上方 + 行）`,

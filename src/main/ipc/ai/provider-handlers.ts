@@ -1,27 +1,33 @@
 // =============================================================
 // AI Provider handler — 列表/模型/连接测试/API Key/OAuth
+// 对话选择器与模型页的目录和当前路由以 DSH 为源；密钥仍走 keystore。
 // =============================================================
 
 import * as IPC from '@shared/ipc-channels'
+import {
+  getDshCurrentRoute,
+  listDshModels,
+  listDshProviders,
+  selectDshRoute,
+  syncDshProviderCredential,
+} from '../../services/dsh/dsh-model-settings'
 import { piAIService } from '../../services/pi-ai-service'
 import { handleIpc } from '../handle'
 
 export function registerAIProviderHandlers(): void {
-  // ----- 列出所有 Provider -----
-  // H-10 修复: throw err 改为返回空数组,避免渲染进程收到 raw rejection
+  // ----- 列出 DSH 目录中的 Provider（含 profile 额外路由） -----
   handleIpc(
     IPC.IPC_AI_LIST_PROVIDERS,
     async () => {
-      return await piAIService.listProviders()
+      return await listDshProviders()
     },
     () => [],
   )
 
-  // ----- 列出指定 Provider 的模型 -----
-  // H-10 修复: throw err 改为返回空数组,避免渲染进程收到 raw rejection
+  // ----- 列出指定 Provider 在 DSH 目录 / profile 中的模型 -----
   handleIpc(
     IPC.IPC_AI_LIST_MODELS,
-    (_e, providerId: string) => piAIService.listModels(providerId),
+    (_e, providerId: string) => listDshModels(providerId),
     {
       timer: 'ai:list-models',
       onError: () => [],
@@ -29,12 +35,26 @@ export function registerAIProviderHandlers(): void {
     },
   )
 
+  handleIpc(
+    IPC.IPC_AI_GET_DSH_ROUTE,
+    async () => getDshCurrentRoute(),
+    () => null,
+  )
+
+  handleIpc(
+    IPC.IPC_AI_SELECT_DSH_ROUTE,
+    async (_e, selection: { provider: string; model: string; reasoningEffort?: string }) => {
+      return selectDshRoute(selection)
+    },
+    {
+      label: () => 'ai:select-dsh-route failed',
+    },
+  )
+
   // ----- 测试连接 -----
   handleIpc(
     IPC.IPC_AI_TEST_CONNECTION,
     async (_e, providerId: string, apiKey: string, baseUrl?: string) => {
-      // H-1 修复: testConnection 内部已 try-catch 返回结构化错误,
-      // 但仍要兜底外部异常(如 keystoreService.ready 抛错)
       return await piAIService.testConnection(providerId, apiKey, baseUrl)
     },
     {
@@ -48,8 +68,8 @@ export function registerAIProviderHandlers(): void {
   handleIpc(
     IPC.IPC_AI_SET_API_KEY,
     async (_e, providerId: string, apiKey: string) => {
-      // H-2 修复: keystoreService 可能抛错(如 keychain 不可用),必须 try-catch
       piAIService.setApiKey(providerId, apiKey)
+      syncDshProviderCredential(providerId)
       return { success: true }
     },
     {
@@ -70,7 +90,6 @@ export function registerAIProviderHandlers(): void {
   )
 
   // ----- OAuth 登录(P0 修复)-----
-  // H-10 修复: 加 try-catch,OAuth 流程失败返回结构化错误
   handleIpc(
     IPC.IPC_AI_OAUTH_LOGIN,
     async (_e, providerId: string) => {

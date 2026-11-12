@@ -14,8 +14,10 @@ import {
   dshLaunchOptions,
   dshPinnedKey,
   resolveDshEntryPath,
+  retargetPackagedDsh,
   toUnpackedAsarPath,
 } from '../runtime'
+import { getDshCatalogRoot } from '../dsh-model-catalog'
 import { DSH_TURN_ABORTED, DSH_TURN_ERROR } from '../stream-mapper'
 
 /** 复刻 dsh NotificationSubscription：filter 是纯谓词，close 让挂起的 next 立即 reject */
@@ -405,11 +407,13 @@ describe('createDshRuntime（生产唯一构造入口）', () => {
     ])
   })
 
-  it('有存过的 key 时多带一层凭据路由 patch（排在调用方 patch 之前）', () => {
+  it('有存过的 key 时注入环境变量，路由声明写进 sdk profile 层而不是 spawn --patch', () => {
     configureDshCredentials({
       listProviders: () => ['kimi'],
       getApiKey: () => 'sk-test',
     })
+    const sdkHome = join(dir, 'dsh-sdk-home')
+    configureDshRuntime({ cwd: dir, sdkHome })
     const rt = createDshRuntime({
       cwd: dir,
       provider: 'p',
@@ -420,13 +424,17 @@ describe('createDshRuntime（生产唯一构造入口）', () => {
       .opts
     expect(opts.patches).toEqual([
       join(dir, EAA_HARDENING_PATCH_FILE),
-      join(dir, EAA_PROVIDER_PATCH_FILE),
       '/caller.yml',
     ])
-    expect(readFileSync(opts.patches[1], 'utf8')).toContain('EAA_DSH_KIMI_API_KEY')
+    expect(opts.patches.some((item) => item.includes('eaa-llm-providers'))).toBe(false)
+    const profilePatch = readFileSync(join(sdkHome, 'profiles', 'sdk', 'cordis.patch.yml'), 'utf8')
+    expect(profilePatch).toContain('id: llm-pi-ai')
+    expect(profilePatch).toContain('EAA_DSH_KIMI_API_KEY')
+    expect(profilePatch).not.toContain('sk-test')
     // env 是整体替换语义，必须带上父环境
     expect(opts.env.PATH).toBe(process.env.PATH)
     expect(opts.env.EAA_DSH_KIMI_API_KEY).toBe('sk-test')
+    configureDshRuntime({ cwd: dir })
     configureDshCredentials(null)
   })
 
@@ -471,13 +479,15 @@ describe('createDshRuntime（生产唯一构造入口）', () => {
     configureDshCredentials(null)
   })
 
-  it('钉住的那条路由在 patch 里自带 models 条目（dsh 不沿用 pi 目录，实测缺它就报 has no configured model）', () => {
+  it('启动子进程只把 apiKeyEnv 合并进 profile，不把 EAA 钉住的 models 写进 DSH 目录', () => {
     configureDshCredentials({
       listProviders: () => ['kimi'],
       getApiKey: () => 'sk-test',
     })
+    const sdkHome = join(dir, 'dsh-sdk-home')
     configureDshRuntime({
       cwd: dir,
+      sdkHome,
       routeModel: (route, id) =>
         route === 'kimi'
           ? {
@@ -491,13 +501,12 @@ describe('createDshRuntime（生产唯一构造入口）', () => {
     })
     const rt = createDshRuntime({ cwd: dir, provider: 'kimi', model: 'k2-turbo' })
     const patches = (rt as unknown as { opts: { patches: string[] } }).opts.patches
-    const text = readFileSync(patches[1] as string, 'utf8')
-    expect(text).toContain('id: k2-turbo')
-    expect(text).toContain('contextWindow: 200000')
-    expect(text).toContain('image')
-    // 目录不认这条路由时 api 必须在，否则整条路由被 dsh 拒
-    expect(text).toContain('api: openai-completions')
-    // routeModel 是模块级注入，不复位会漏给后面的用例
+    expect(patches.some((item) => item.includes('eaa-llm-providers.cordis.patch.yml'))).toBe(false)
+    const text = readFileSync(join(sdkHome, 'profiles', 'sdk', 'cordis.patch.yml'), 'utf8')
+    expect(text).toContain('id: llm-pi-ai')
+    expect(text).toContain('EAA_DSH_KIMI_API_KEY')
+    expect(text).not.toContain('k2-turbo')
+    expect(text).not.toContain('contextWindow: 200000')
     configureDshRuntime({ cwd: dir })
     configureDshCredentials(null)
   })
@@ -659,5 +668,23 @@ describe('initialize 定死的路由值', () => {
     const b = dshPinnedKey({ provider: 'p', model: 'm', maxTokens: 1024 })
     const c = dshPinnedKey({ provider: 'p', model: 'm', reasoningEffort: 'high' })
     expect(new Set([a, b, c]).size).toBe(3)
+  })
+})
+
+describe('官方模型目录根', () => {
+  it('catalogRoot 与 session cwd 分开：目录指向运行时而不是 userData', () => {
+    const userData = join('/tmp', 'Education Advisor')
+    const runtimeRoot = join(userData, 'dsh-bundles', 'dsh-runtime')
+    configureDshRuntime({ cwd: userData, catalogRoot: runtimeRoot })
+    expect(getDshCatalogRoot()).toBe(runtimeRoot)
+  })
+
+  it('retargetPackagedDsh 把目录根改到解压后的 dsh-runtime', () => {
+    const userData = join('/tmp', 'Education Advisor')
+    const extracted = join(userData, 'dsh-bundles', 'dsh-runtime')
+    configureDshRuntime({ cwd: userData })
+    expect(getDshCatalogRoot()).toBe(userData)
+    retargetPackagedDsh(extracted)
+    expect(getDshCatalogRoot()).toBe(extracted)
   })
 })

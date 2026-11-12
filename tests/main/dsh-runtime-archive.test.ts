@@ -5,9 +5,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { ensureExtractedArchive } from '../../src/main/services/dsh/bundled-archive'
 import {
   LIVE_MISSING_PEERS,
+  RUNTIME_REQUIRED_PACKAGES,
   dependencyShipSet,
   filesToExclude,
+  indexLock,
   runtimeArchivePackages,
+  walkPackages,
 } from '../../scripts/lib/install-layout.mjs'
 import { listZipEntries, writeStoreZip } from '../../scripts/lib/store-zip.mjs'
 
@@ -34,7 +37,36 @@ describe('dsh runtime closure', () => {
     expect(excluded).not.toContain('better-sqlite3')
     expect(excluded).not.toContain('pdfjs-dist')
     expect(excluded).not.toContain('@napi-rs/canvas')
+    expect(excluded).not.toContain('cross-spawn')
+    expect(excluded).not.toContain('debug')
+    expect(excluded).not.toContain('js-yaml')
+    expect(excluded).not.toContain('semver')
+    expect(archive.has('pnpm')).toBe(false)
+    for (const name of archive) {
+      expect(name.startsWith('@pnpm/exe'), name).toBe(false)
+    }
+    expect(excluded).toContain('pnpm')
+    expect(excluded.some((name) => name.startsWith('@pnpm/exe'))).toBe(true)
     expect(excluded.length).toBeGreaterThan(400)
+  })
+
+  it('vendored pi-ai lock link still pulls pi-telemetry into the runtime closure', () => {
+    const archive = runtimeArchivePackages(lock)
+    const piAi = indexLock(lock).get('@earendil-works/pi-ai') as { dependencies?: Record<string, string> } | undefined
+    expect(piAi?.dependencies?.['@earendil-works/pi-telemetry']).toBeTruthy()
+    for (const name of RUNTIME_REQUIRED_PACKAGES) {
+      expect(archive.has(name), name).toBe(true)
+    }
+    expect(archive.has('@earendil-works/pi-ai')).toBe(true)
+  })
+
+  it('asar 里留下的包，其 dependencies 不能被排除', () => {
+    const excluded = new Set(filesToExclude(lock))
+    const resident = [...dependencyShipSet(lock)].filter((name) => !excluded.has(name))
+    const needed = walkPackages(indexLock(lock), resident, { peers: false })
+    for (const name of needed) {
+      expect(excluded.has(name), name).toBe(false)
+    }
   })
 })
 
