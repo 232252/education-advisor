@@ -31,7 +31,9 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await fsp.rm(mocks.userDataDir, { recursive: true, force: true })
+  await dbService.close()
+  // sqlite may still be releasing the directory while rm walks it.
+  await fsp.rm(mocks.userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
 })
 
 describe('eaa_restore_class', () => {
