@@ -83,9 +83,13 @@ it calls `npm run prepackage` itself. The chain is:
    is not method 0, or contains `node_modules/pnpm/` or
    `node_modules/@pnpm/exe`. The log line
    `[build-dsh-archives] dsh-runtime … MB store` is the zip's own size,
-   not an uncompressed estimate. A clean runtime zip is about **166 MB**,
-   **574 packages**, **15,336 files**. A clean `dsh-im.zip` is about
-   **69.5 MB**, **2,207 files**.
+   not an uncompressed estimate. A clean runtime zip is about **166–178 MB**
+   (CI Windows 3.3.7-beta.6 measured 178,512,965 bytes, 576 packages,
+   15,335 files). A clean `dsh-im.zip` is about **69–73 MB**.
+   `@deepseek-ai/libreoffice-kit-*` is not a member of this zip. The
+   Windows kit is the separate office-kit deflate zip. Leaving the
+   darwin kit in the runtime zip adds about 161 MB and fails the budget
+   on macOS.
 
 `runtimeArchivePackages` deletes `pnpm` and `@pnpm/exe*` from the
 closure before the zip is written. `afterPack` checks the zip again.
