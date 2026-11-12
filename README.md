@@ -155,6 +155,7 @@ npm run package:portable   # 绿色版 exe
 · [快速上手](./docs/QUICK_START.md)
 · [批改作业](./docs/features/GRADING.md)
 · [架构](./docs/ARCHITECTURE.md)
+· [对话工具与技能边界](./docs/CHAT_TOOL_SKILL_BOUNDARIES.md)
 · [配置](./docs/CONFIGURATION.md)
 · [隐私引擎](./docs/PRIVACY_ENGINE.md)
 · [FAQ](./docs/FAQ.md)
