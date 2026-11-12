@@ -20,7 +20,8 @@ import {
 import { selectSkillsForRun } from '../agent/tools'
 import { agentService } from '../agent-service'
 import { settingsService } from '../settings-service'
-import { syncDshCredentialRoutes } from './dsh-model-settings'
+import { getDshCurrentRoute, syncDshCredentialRoutes } from './dsh-model-settings'
+import { credentialedRouteIds, fillUnsetBotModels } from './im-bot-model'
 import { composeImInstructions } from './im-instructions'
 import { ensureEaaImPresetPatch } from './im-preset'
 import { dshProviderRouting, dshSubprocessEnv, providersToDeclare } from './provider-patch'
@@ -77,7 +78,16 @@ export async function prepareDshImEducationLaunch(opts: {
   for (const [id, profile] of Object.entries(routing.profiles)) {
     if (profile.apiKeyEnv) credentials[id] = { apiKeyEnv: profile.apiKeyEnv }
   }
-  syncDshCredentialRoutes(join(dirname(opts.patchDir), 'profiles', 'web'), credentials)
+  const webProfile = join(dirname(opts.patchDir), 'profiles', 'web')
+  syncDshCredentialRoutes(webProfile, credentials)
+  // 出厂默认是 deepseek-official，和网页搜索共用 DEEPSEEK_API_KEY。没这把钥匙时，
+  // 只给还没选模型的机器人补上 dsh-im 自己的 models，不改 agent-default-model。
+  const modelEnv = credentialEnv(routing.envNames)
+  fillUnsetBotModels({
+    home: dirname(opts.patchDir),
+    selection: getDshCurrentRoute(),
+    credentialedRoutes: credentialedRouteIds(routing.envNames, modelEnv),
+  })
 
   let privacyGuard: PrivacyGuard | undefined
   if (isAutoAnonymizeEnabled()) privacyGuard = await PrivacyGuard.create()
@@ -124,7 +134,7 @@ export async function prepareDshImEducationLaunch(opts: {
     return {
       patches: [skillPatch, presetPatch],
       env: {
-        ...credentialEnv(routing.envNames),
+        ...modelEnv,
         ...pluginProcessEnv(mount.pluginEndpoints),
       },
       instructions,
