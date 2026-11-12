@@ -5,17 +5,23 @@
 
 import type { AgentTool } from '@main/services/llm-contracts'
 import { examGradesTool, examsTool, studentGradesTool } from './academic-tools'
+import { deleteExamTool, setGradeTool } from './academic-write-tools'
 import {
   archiveClassTool,
   createClassTool,
   importStudentsTool,
   listClassesTool,
+  restoreClassTool,
   updateClassTool,
 } from './class-tools'
 import { addEventTool, revertEventTool } from './event-tools'
 import { importGradesTool } from './grade-import-tools'
 import { gradingOverviewTool, gradingStudentTool } from './grading-tools'
-import { gradingFromFilesTool, gradingPublishTool } from './grading-write-tools'
+import {
+  gradingFromFilesTool,
+  gradingPublishTool,
+  gradingSetStrategyTool,
+} from './grading-write-tools'
 import { historyTool, queryScoreTool, searchEventsTool, tagTool } from './query-tools'
 import {
   codesTool,
@@ -54,16 +60,20 @@ export const allEAATools: AnyAgentTool[] = [
   createClassTool,
   updateClassTool,
   archiveClassTool,
+  restoreClassTool,
   importStudentsTool,
   // 学业考试数据(academic-service 直读,不走 Rust CLI)
   examsTool,
   examGradesTool,
   studentGradesTool,
   importGradesTool,
+  setGradeTool,
+  deleteExamTool,
   // AI 批改数据(grading-service 直读,只读)
   gradingOverviewTool,
   gradingStudentTool,
   gradingFromFilesTool,
+  gradingSetStrategyTool,
   gradingPublishTool,
 ]
 
@@ -132,14 +142,18 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
       createClassTool,
       updateClassTool,
       archiveClassTool,
+      restoreClassTool,
       importStudentsTool,
       importGradesTool,
+      setGradeTool,
+      deleteExamTool,
       gradingFromFilesTool,
+      gradingSetStrategyTool,
       gradingPublishTool,
     ],
-    class: [listClassesTool, createClassTool, updateClassTool, archiveClassTool],
+    class: [listClassesTool, createClassTool, updateClassTool, archiveClassTool, restoreClassTool],
     import_students: [importStudentsTool],
-    import_grades: [importGradesTool],
+    import_grades: [importGradesTool, setGradeTool, deleteExamTool],
     // 也可单独授予学业成绩(不需要整套 read)
     academics: [
       examsTool,
@@ -148,7 +162,13 @@ export function getToolsByCapability(capabilities: string[]): AnyAgentTool[] {
       gradingOverviewTool,
       gradingStudentTool,
     ],
-    grading: [gradingOverviewTool, gradingStudentTool, gradingFromFilesTool, gradingPublishTool],
+    grading: [
+      gradingOverviewTool,
+      gradingStudentTool,
+      gradingFromFilesTool,
+      gradingSetStrategyTool,
+      gradingPublishTool,
+    ],
   }
 
   for (const cap of capSet) {

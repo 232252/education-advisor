@@ -106,11 +106,11 @@ export const deleteStudentTool: AgentTool<typeof deleteStudentParams> = {
   name: 'eaa_delete_student',
   label: '删除学生',
   description:
-    '从操行系统中永久删除一名学生及其所有事件记录。不可恢复！必须将 confirm 设为 true 才会执行',
+    '从操行系统中永久删除一名学生及其所有事件记录。不可恢复。confirm:true 只是调用参数，不是教师在界面上的点击。默认对话角色没有本工具。',
   parameters: deleteStudentParams,
   execute: async (_toolCallId, params, signal) => {
     if (!params.confirm) {
-      throw new Error('删除学生需要显式确认：请将 confirm 参数设为 true')
+      throw new Error('删除学生需要把 confirm 设为 true。这不是教师点击确认。')
     }
     const result = await safeExecute('delete-student', [params.name], [], signal)
     assertEaaSuccess(result, '删除学生失败')

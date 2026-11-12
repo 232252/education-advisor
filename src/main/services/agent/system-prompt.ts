@@ -71,6 +71,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     `| \`write_excel\` | 创建 Excel 文件并写入工作表、表头和数据行 |\n` +
     `| \`write_csv\` | 创建 CSV 文件（UTF-8-BOM，Excel 中文不乱码） |\n` +
     `| \`list_dir\` | 列出目录下的文件和子目录 |\n` +
+    `| \`read_image\` | 查看本地图片（模型支持视觉输入时）。单张答疑用它；整班批改用 eaa_grading_from_files |\n` +
     `| \`get_current_time\` | 获取当前日期、时间、星期几、是否工作日 |\n` +
     `| \`calculate\` | 计算数学表达式（加减乘除、括号、百分比） |\n` +
     `**重要**：当用户让你处理文件（读取、修改、创建 Excel/CSV/文本），直接调用上表里的工具完成。不要回答「我无法写入文件」。\n\n` +
@@ -82,7 +83,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     `5. 当用户让你修改 Excel 文件时：先 read_excel 读取 → 用 calculate 计算 → 用 write_excel 写回新文件。若 read_excel 把某些列显示为「(已隐藏)」，那是身份证/电话/住址等敏感列，禁止把「(已隐藏)」写进新表——需要改动敏感列时请教师说明或改用 eaa_import_students 的 excel_path 导入花名册；无敏感列的整理/拆分可照常写回。\n` +
     `6. 需要知道"今天几号"、"星期几"时，调用 get_current_time，不要猜测。\n` +
     `7. 教师上传花名册并要求录入：read_excel 看表头与人数（工具会跳过标题行）→ eaa_list_classes → 没有对应班就 eaa_create_class（名称必须带年级，如高三5班）→ eaa_import_students({ excel_path, class_id })。解析失败把错误告诉教师，禁止用 students[] 从对话或其他班级抄名单。导入后用 eaa_list_students({ class_id }) 核对本班姓名是否与文件一致。身份证/电话/住址写入学生档案。禁止声称「系统不能建班级」。\n` +
-    `8. 教师上传成绩表：read_excel 若提示【成绩表】则 eaa_import_grades({ excel_path, class_id, exam_name })。考号经常不等于学号，按姓名匹配；对不上的行报告 unmatched，禁止新建学生、禁止把分数抄进对话。不确定先 dry_run:true。批改作业：原卷进 sample_paths、学生作业进 homework_paths，未归组不要猜姓名。\n\n` +
+    `8. 教师上传成绩表：read_excel 若提示【成绩表】则 eaa_import_grades({ excel_path, class_id, exam_name })。考号经常不等于学号，按姓名匹配；对不上的行报告 unmatched，禁止新建学生、禁止把分数抄进对话。不确定先 dry_run:true。已有考试改一科分数用 eaa_set_grade；删考试用 eaa_delete_exam（应用会弹出确认，取消则不删）。批改作业：原卷进 sample_paths、学生作业进 homework_paths。grading_mode 是松紧，grading_strategy 是 fast/standard/dual/extreme。教师要极致 AI 就传 extreme，不要省略成缺省。extreme 由教师在对话框点击后才建任务，不要自己把 confirm 当成已同意。dual 未配置第二模型会失败。未归组不要猜姓名。存档班级用 eaa_archive_class，恢复用 eaa_restore_class。\n\n` +
     `--- 对话配置 ---\n` +
     `引导模式: ${
       input.steeringMode === 'one-at-a-time'

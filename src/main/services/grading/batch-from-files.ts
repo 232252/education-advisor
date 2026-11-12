@@ -5,9 +5,11 @@
 // =============================================================
 
 import { currentSemester } from '@shared/academic-time'
-import type { StudentCandidate } from '@shared/grading-helpers'
-import type { GradingStrictness, RubricQuestion } from '@shared/types'
+import { GRADING_STRATEGIES, type StudentCandidate } from '@shared/grading-helpers'
+import type { GradingStrategy, GradingStrictness, RubricQuestion } from '@shared/types'
 import { eaaBridge } from '../eaa-bridge'
+import { requireTeacherConfirm } from '../teacher-confirm'
+import { assertDualModelConfigured } from './dual-model-guard'
 import { startGrading } from './grading-pipeline'
 import { gradingService } from './grading-service'
 import { identifyUnassignedPapers } from './identify-papers'
@@ -21,6 +23,11 @@ export interface GradingFromFilesInput {
   examDate?: string
   /** 批改口径(给分松紧);缺省 normal */
   gradingMode?: GradingStrictness
+  /**
+   * 流程策略。缺省不写入任务，开批时按 standard。
+   * extreme 须先经教师点击确认；dual 未配置第二模型时直接失败。
+   */
+  gradingStrategy?: GradingStrategy
   /** 原卷/答案扫描(图片或 PDF) */
   samplePaths: string[]
   /** 学生作业(图片 / PDF / zip) */
@@ -44,6 +51,8 @@ export interface GradingFromFilesResult {
   duplicates: string[]
   gradingStarted: boolean
   autoPublish: boolean
+  /** 本次写入的流程策略；未传则为 standard（开批时的归一结果，任务字段仍可能为空） */
+  gradingStrategy: GradingStrategy
   hint: string
 }
 
@@ -137,8 +146,16 @@ function toRubric(
  * 创建任务 → 从原卷抽量规 → 导入作业包 → 按花名册识别归属 → 标记就绪并开批。
  * 批改是异步作业,本函数在启动后立即返回。
  */
+function assertStrategyParam(strategy: GradingStrategy | undefined): void {
+  if (strategy === undefined) return
+  if (!(GRADING_STRATEGIES as string[]).includes(strategy)) {
+    throw new Error(`非法批改模式: ${String(strategy)}(${GRADING_STRATEGIES.join('/')})`)
+  }
+}
+
 export async function startGradingFromFiles(
   input: GradingFromFilesInput,
+  signal?: AbortSignal,
 ): Promise<GradingFromFilesResult> {
   const name = input.name.trim()
   if (!name) throw new Error('任务名不能为空')
@@ -148,14 +165,23 @@ export async function startGradingFromFiles(
   if (!Array.isArray(input.homeworkPaths) || input.homeworkPaths.length === 0) {
     throw new Error('请提供学生作业路径(homework_paths,支持照片/PDF/zip)')
   }
+  assertStrategyParam(input.gradingStrategy)
+  // 极致模式先等教师点确认，取消则不建任务、不开批。
+  if (input.gradingStrategy === 'extreme') {
+    await requireTeacherConfirm({ kind: 'extreme-grading', detail: name }, signal)
+  }
+  // 双评缺第二模型时在建任务前失败，避免落成 standard 再开批。
+  assertDualModelConfigured(input.gradingStrategy)
 
   const semester = input.semester?.trim() || currentSemester()
+  const effectiveStrategy: GradingStrategy = input.gradingStrategy ?? 'standard'
   const task = await gradingService.createTask({
     name,
     semester,
     className: input.className?.trim() || undefined,
     examDate: input.examDate?.trim() || undefined,
     gradingMode: input.gradingMode,
+    gradingStrategy: input.gradingStrategy,
   })
 
   // 样卷直接走 sample-ingest 摄取(图片/PDF/docx/md/txt;zip 由 isSampleExt 兜住)
@@ -200,10 +226,11 @@ export async function startGradingFromFiles(
     )
   }
   const warningText = warnings.length > 0 ? `${warnings.join(';')}。` : ''
+  const strategyNote = `流程策略 ${effectiveStrategy}。`
   let hint: string
   if (gradingStarted) {
     hint =
-      '已开始 AI 批改(异步)。用 eaa_grading_overview 看进度;完成后成绩会写入学业(考试列表/学生学业页)。请到「批改作业」复核卷面批注。' +
+      `${strategyNote}已开始 AI 批改(异步)。用 eaa_grading_overview 看进度;完成后成绩会写入学业(考试列表/学生学业页)。请到「批改作业」复核卷面批注。` +
       warningText
   } else if (roster.length === 0) {
     hint =
@@ -227,6 +254,7 @@ export async function startGradingFromFiles(
     duplicates,
     gradingStarted,
     autoPublish: input.autoPublish !== false,
+    gradingStrategy: effectiveStrategy,
     hint,
   }
 }

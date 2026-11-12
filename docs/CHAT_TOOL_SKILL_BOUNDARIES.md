@@ -1,8 +1,33 @@
 # 教师对话的工具、技能与产品界面边界
 
-- 状态：调研记录。不实现缺口。
-- 日期：2026-11-12
-- 代码基线：`cursor/module-archives-74e4`（含 DSH 模型路由与极致 AI 批改）
+- 状态：2026-11-12 修订。对话侧缺口已实现（见下一节）。下文若与修订记录冲突，以修订记录为准。
+- 日期：2026-11-12（调研）；修订：2026-11-12
+- 代码基线：实现分支相对于 `cursor/module-archives-74e4`（含 DSH 模型路由与极致 AI 批改）
+
+## 修订（2026-11-12）：对话现在能做、仍然只在页面
+
+默认角色 `main`（教育参谋）在这次修订之后可以：
+
+- 用 `eaa_grading_from_files` 的 `grading_strategy` 指定 `fast` / `standard` / `dual` / `extreme`。`grading_mode` 仍只是 strict / normal / lenient。不传策略时开批仍按 standard；教师说了极致 AI 就必须传 `extreme`，不会再被缺省吃掉。
+- `extreme` 在建任务或把已有任务改成极致（`eaa_grading_set_strategy`）之前，弹出与批改页相同的费用确认框。工具在主进程里等待，教师点确认后才写入；点取消则不建任务、不改策略。模型填写的 `confirm: true` 不是这次点击。
+- `dual` 未配置第二模型时直接失败，错误是「未配置第二模型」，不会降成 standard。
+- `eaa_set_grade` 改一场已有考试里一名学生的一科分数。`eaa_delete_exam` 删除考试并级联成绩，同样等待教师点击；取消则不删。
+- `eaa_restore_class` 把存档班级恢复到日常列表。`eaa_archive_class` 的说明改为指向这个工具。
+- SOUL、AGENTS、公共规则和技能 `AI_GRADING`、`ACADEMIC_ANALYSIS`、`STUDENT_MANAGEMENT` 按上面的真实工具来写。`bug-hunter` 不再要求自己跑测试。`executor` 不再声称能备份或自维护。supervisor / validator 仍是停用角色。
+
+`confirm: true` 还留在存档、非极致建任务、发布成绩、删除学生上，含义是「模型已经复述」，不是教师点击。默认对话仍然没有 `eaa_delete_student`。
+
+仍然只在页面上，对话没有对应工具：
+
+- 批改：改量规、归组、合并多页、教师改分、重批、中止、删任务、套打、批注 PDF、汇总 CSV、打印预览
+- 学业：不带 Excel 手工建考试、删一名学生在某场的全部成绩、科目配置、两场对比视图
+- 班级硬删除；学生删除（学生页有界面确认；`main` 无 `delete`）
+- 仪表盘重放与导出 HTML；报告列表专用查询
+- 定时任务增删改和「现在跑」
+- API Key 与模型目录、出厂重置、隐私库密码、连接中心扫码、插件安装、WebUI 证书、整库备份与恢复
+- 官方 `dsh-tool-subagent` 仍在教师 sdk 关闭名单里。极致批改继续走 `completeGradingCall` → `completeSimpleViaDsh`，不是对话里的子代理工具
+
+下面第 2–9 节是修订前的调研地图。与上一节冲突的句子（例如「没有 gradingStrategy」「没有 eaa_restore_class」「确认只有参数自证」）已过时。
 - 范围：教师在「对话」里能让助手做成的事，对照侧栏各页、技能和系统提示。不限于批改。
 
 证据以当前源码为准。官方说明见 `docs/DSH_PLUGIN_STANDARD.md`、`docs/DSH_CORE_RUNTIME.md`、`docs/DSH_PLUGIN_VISION.md`、`docs/ARCHITECTURE.md`；工具名单、能力裁剪和页面动作以代码为准，不以这些文档的「建议插件」列为已实现能力。
@@ -72,21 +97,25 @@ dsh 的 MCP 客户端会把工具名改成 `mcp__<serverName>__<rawName>`。分�
 | `eaa_list_classes` | 列班级 | 无 | 班级 |
 | `eaa_create_class` | 建班。名称须带年级，可自动编号 | 提示词约定 | 班级 |
 | `eaa_update_class` | 改显示名、年级、班主任、备注 | 无 | 班级 |
-| `eaa_archive_class` | 存档：日常列表隐藏，学生与事件保留 | 参数自证 | 班级 |
+| `eaa_archive_class` | 存档：日常列表隐藏，学生与事件保留。恢复用 `eaa_restore_class` | 参数自证（只表示已复述） | 班级 |
+| `eaa_restore_class` | 取消存档，班级回到日常列表 | 无 | 班级 |
 | `eaa_exams` | 列考试 | 无 | 学业 |
 | `eaa_exam_grades` | 一场考试的成绩 | 无 | 学业 |
 | `eaa_student_grades` | 一名学生的成绩时间线 | 无 | 学业 / 学生 |
 | `eaa_import_grades` | 成绩 Excel → 建考试并按该班花名册对号写入。考号不等于学号时按姓名。对不上的行进 unmatched，不新建学生。支持 `dry_run` | 提示词约定；预演参数 | 学业 |
+| `eaa_set_grade` | 改一名学生在已有考试中的一科分数，或记缺考 | 无（先复述，无 confirm 参数） | 学业 |
+| `eaa_delete_exam` | 删除考试并级联成绩 | 教师点击 | 学业 |
 | `eaa_grading_overview` | 批改任务列表：状态、题数、份数、已批、失败、均分 | 无 | 批改作业 |
 | `eaa_grading_student` | 一名学生的逐题批改分、依据、教师改分 | 无 | 批改作业 |
-| `eaa_grading_from_files` | 原卷 + 作业（图 / PDF / zip）建任务、抽量规、认人、异步开批。默认批完写入学业 | 参数自证 | 批改作业 |
-| `eaa_grading_publish` | 把已有任务的成绩写入学业 | 参数自证 | 批改作业 / 学业 |
+| `eaa_grading_from_files` | 原卷 + 作业建任务并开批。`grading_mode` 为松紧，`grading_strategy` 为 fast/standard/dual/extreme | 非极致为参数自证；extreme 为教师点击 | 批改作业 |
+| `eaa_grading_set_strategy` | 改已有任务的流程策略，不重新开批 | extreme 为教师点击；其余无 | 批改作业 |
+| `eaa_grading_publish` | 把已有任务的成绩写入学业 | 参数自证（只表示已复述） | 批改作业 / 学业 |
 
 `eaa_delete_student` 已实现（永久删除学生和事件，`confirm: true`），但 `main` 未声明 `delete`，默认对话调不到。学生页可以删（`src/main/ipc/eaa/handlers-students.ts` 的 `requiresConfirmation: true`，那是界面确认）。
 
-`eaa_grading_from_files` 的参数（`src/main/services/eaa/tools/grading-write-tools.ts`）有：任务名、学期、班级名、考试日期、原卷路径、作业路径、可选花名册路径、`auto_publish`、`grading_mode`。`grading_mode` 只有 `strict` / `normal` / `lenient`（给分松紧）。没有 `gradingStrategy`（`fast` / `standard` / `dual` / `extreme`）。`startGradingFromFiles`（`src/main/services/grading/batch-from-files.ts`）创建任务时只传入 `gradingMode`。未设置策略时，批改管线把策略归一为 `standard`（`src/shared/grading-helpers.ts` 的 `normalizeGradingStrategy`）。因此从对话建的任务走标准分阶段管线，不会进入快改、双评或极致 AI。
+`eaa_grading_from_files` 的参数（`src/main/services/eaa/tools/grading-write-tools.ts`）有：任务名、学期、班级名、考试日期、原卷路径、作业路径、可选花名册路径、`auto_publish`、`grading_mode`、`grading_strategy`。`grading_mode` 是 `strict` / `normal` / `lenient`（给分松紧）。`grading_strategy` 是 `fast` / `standard` / `dual` / `extreme`。不传策略时任务字段留空，开批仍由 `normalizeGradingStrategy` 归一为 `standard`。传入的策略会写进 `createTask`。`dual` 在建任务前调用 `assertDualModelConfigured`，未配置第二模型抛「未配置第二模型」，不降级。`extreme` 先 `requireTeacherConfirm`，取消则不调用 `createTask`。已有任务用 `eaa_grading_set_strategy`，改成极致时同一条确认。
 
-极致 AI 的代币费用确认在 `src/renderer/pages/Grading/components/ExtremeAiConfirm.tsx`，只挂在创建任务对话框和任务详情的策略下拉上（`TaskCreateDialog.tsx`、`TaskDetail.tsx`）。对话没有对应对话框，也没有能触发它的参数。
+极致 AI 的费用文案仍是 `ExtremeAiConfirm.tsx`。批改页的创建对话框和任务详情继续用它。对话工具通过 `teacher-confirm:request` 把同一对话框挂到 `TeacherConfirmHost`（`App.tsx`），工具调用停住直到教师点击。
 
 ### 2.2 全员工具（每个角色都有，含默认对话）
 
@@ -144,8 +173,8 @@ dsh 的 MCP 客户端会把工具名改成 `mcp__<serverName>__<rawName>`。分�
 三套机制不要混：
 
 1. **提示词约定。** `agents/_shared/rules.md` 要求记事件、加人、导花名册、导成绩、建班、撤销之前先复述。工具不强制。模型可以不复述就调用。
-2. **参数自证。** `eaa_archive_class`、`eaa_grading_from_files`、`eaa_grading_publish`、`eaa_delete_student` 在 `confirm !== true` 时抛错。模型下一轮把 `confirm` 设为 true 就能过，中间没有教师点击。
-3. **界面确认。** 学生删除、对话删除会话、设置重置、批改页把策略改成极致 AI，才有 `ConfirmDialog`。这些对话框不由对话工具触发。
+2. **参数自证。** `eaa_archive_class`、非极致的 `eaa_grading_from_files`、`eaa_grading_publish`、`eaa_delete_student` 在 `confirm !== true` 时抛错。这只表示模型声称已经复述，不是教师点击。工具说明已改成这个口径。
+3. **界面确认。** 学生页删除、对话删除会话、设置重置、批改页把策略改成极致 AI，以及对话里的极致 AI（建任务或改策略）和 `eaa_delete_exam`，使用 `ConfirmDialog`。后两者由 `requestTeacherConfirm` 挡住工具，直到教师点击。`eaa_set_grade` 与 `eaa_restore_class` 没有 confirm 参数。
 
 ---
 
@@ -195,7 +224,7 @@ dsh 的 MCP 客户端会把工具名改成 `mcp__<serverName>__<rawName>`。分�
 
 运行环境段（`system-prompt.ts`）的文件表有读写文本、Excel、CSV、列目录、时间、计算。没有 `read_image`。同段写「完整能力面以本轮工具定义为准」，并给出导花名册、导成绩、批改的步骤。这和 SOUL 的简表不一致，以工具定义为准时，模型仍可能更听 SOUL 的短名单。
 
-`eaa_archive_class` 的描述写「可再恢复」。恢复只存在于 `classService.restore` 和班级页（`src/renderer/pages/Classes/hooks/useClassActions.ts`）。没有 `eaa_restore_class`。
+`eaa_archive_class` 的描述指向 `eaa_restore_class`。恢复走 `classService.restore`，与班级页同一条服务。`main` 的 `class` 能力包含这个工具。没有硬删除班级的对话工具。
 
 ### 4.4 其他角色（对话页选得中，或被 `delegate_to` 叫起）
 
@@ -246,19 +275,19 @@ dsh 的 MCP 客户端会把工具名改成 `mcp__<serverName>__<rawName>`。分�
 
 - 对话能做：列表、创建、改名/班主任/备注、存档、把学生分入班级、导花名册。
 - 只有页面能做：从存档恢复、硬删除班级、班级成绩表上的 AI 分析按钮（`useClassGradesAiAnalysis` 直接 `runManual` 学业角色，提示词在 `class-grades-ai-prompt.ts`）。
-- 缺失：恢复班级。硬删除。存档工具的「可再恢复」在对话里做不到。
+- 修订后：`eaa_restore_class` 可以恢复存档班。硬删除仍然只在班级页。
 
 ### 5.5 学业 `/academics`
 
 - 对话能做：列考试、查一场、查一人、从成绩 Excel 新建考试并写入对得上的行。
 - 只有页面能做：不带 Excel 手工建考试、删考试、单格改分、`batchSetGrades`、删一名学生在某场的成绩、两场对比视图、科目配置（`academic.getConfig` 只在页面）。
-- 缺失：改已有分数、删考试、删一条成绩。对话不能把「把张三数学改成 92」写成一次工具调用。`ACADEMIC_ANALYSIS` 也不教导入。
+- 修订后：`eaa_set_grade` 可以改一科；`eaa_delete_exam` 删整场考试并等教师点击。删一名学生在某场的全部成绩、不带 Excel 手工建考试，仍然只在学业页。`ACADEMIC_ANALYSIS` 教导入、改分和删考试，并写明没有工具的角色不能调用。
 
 ### 5.6 批改作业 `/grading`
 
-- 对话能做：看任务概览、看一名学生的逐题结果、用附件路径创建任务（松紧三档，策略固定落成 standard）、把任务发布到学业。`read_image` 可以看单张卷，不进入量规和台账。
+- 对话能做：看任务概览、看一名学生的逐题结果、用附件路径创建任务（松紧三档 + 流程四档）、改已有任务的流程策略、把任务发布到学业。极致策略等教师点击费用确认。`read_image` 可以看单张卷，不进入量规和台账。
 - 只有页面能做：选流程策略（快改 / 标准 / 双评 / 极致）及极致确认框；改已有任务的松紧和策略；编辑或精修量规；导入后人工归组、合并多页、删卷；开始 / 重批 / 中止；保存教师改分；框选作答区；套打红笔、批阅痕迹、导出带批注 PDF、导出汇总 CSV；删除任务。IPC 见 `src/main/preload/api/grading.ts`。
-- 缺失（若目标是对话里说了就发生）：指定 `fast` / `dual` / `extreme`；改策略；改量规；改分；重批；中止；归组；打印和导出。双评还依赖设置里的第二批改模型，对话不能配置它。极致管线在策略被设成 `extreme` 之后才会走（`grading-pipeline.ts`），对话建任务到不了那里。
+- 修订后：对话可以指定 `fast` / `standard` / `dual` / `extreme`，也可以改已有任务的策略。极致要教师点击费用确认。双评仍依赖设置里的第二模型，对话不能去模型页配置它；没配时建任务或改策略直接失败。改量规、归组、教师改分、重批、中止、删任务、套打和导出仍然只在批改页。
 
 ### 5.7 Agent `/agents`
 

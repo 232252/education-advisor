@@ -26,6 +26,7 @@ export const EAA_ROSTER_TOOLS = [
   'eaa_create_class',
   'eaa_update_class',
   'eaa_archive_class',
+  'eaa_restore_class',
   'eaa_import_students',
   'eaa_list_students',
   'eaa_add_student',
@@ -35,6 +36,8 @@ export const EAA_ROSTER_TOOLS = [
 
 export const EAA_GRADES_TOOLS = [
   'eaa_import_grades',
+  'eaa_set_grade',
+  'eaa_delete_exam',
   'eaa_exams',
   'eaa_exam_grades',
   'eaa_student_grades',
@@ -44,6 +47,7 @@ export const EAA_GRADING_TOOLS = [
   'eaa_grading_overview',
   'eaa_grading_student',
   'eaa_grading_from_files',
+  'eaa_grading_set_strategy',
   'eaa_grading_publish',
 ] as const
 

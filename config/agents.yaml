@@ -46,7 +46,7 @@ agents:
       - set_student_meta # 分班：eaa_add_student 后把学生归入班级
       - import_students # 花名册批量导入（与 add_student 叠加，显式授权）
       - import_grades # 成绩表导入（excel_path；考号≠学号按姓名匹配）
-      - grading # 对话里丢原卷+作业包自动建批改任务并发布成绩
+      - grading # 对话里按流程策略建批改任务、改策略并发布成绩
     schedule:
       cron: []
     risk_thresholds:
@@ -284,8 +284,8 @@ agents:
     name: 系统执行员
     role: system_executor
     description: |
-      负责系统自维护、错误修复、备份管理。
-      日/周/月三级维护策略，确保系统稳定运行。
+      只读巡检操行数据是否异常，并给出建议。
+      没有备份、修复或命令行工具。备份与恢复在设置页。
     enabled: true
     model_tier: low_cost
     capabilities:
@@ -295,7 +295,7 @@ agents:
     schedule:
       cron:
         - cron: "0 1 * * *"
-          prompt: "执行系统自维护: 检查事件数据健康度(eaa_stats),输出维护结论与风险提示。"
+          prompt: "巡检操行数据: 用 eaa_stats 与 eaa_codes 检查事件是否异常,只输出结论与建议。不要备份,不要改数据,不要声称执行了系统维护。"
     risk_thresholds:
       high: 85
       medium: 93
