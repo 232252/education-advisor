@@ -101,24 +101,21 @@ reload in 1–3 seconds.
 ## 6. Build a release
 
 ```bash
-npm run verify:dsh      # dsh assembly gate (SDK in dependencies, runtime deps present)
-npm run build           # vite build × 3 configs → dist/
-npm run package         # electron-builder → release-v11/*.exe
+npm run verify:dsh           # dsh assembly gate, including pack wiring
+npm run package:installer    # prepackage, Vite build, NSIS Setup, size gate
 ```
 
-`npm run package` auto-runs the `prepackage` hook first
-(`prebuild-check` → `stage-dsh-node` → `stage-dsh-im-deps`): it stages a
-stock `node.exe` into `vendor/dsh-node/` (requires a Node on PATH) and
-installs `vendor/dsh-im/` production dependencies with the repo's own
-pnpm (requires a completed `npm install`).
+`package:installer` runs `prepackage` first (stock `node` for dsh, the
+office-kit zip, and the two STORE archives). Official releases are
+still built by GitHub Actions. Packing rules and the size budget are
+in [INSTALLER_PACKING.md](./INSTALLER_PACKING.md).
 
 The output:
 
 - `dist/main/index.cjs` + `dist/main/preload.cjs` — the main + preload bundles
 - `dist/renderer/index.html` + assets — the renderer bundle
 - `release-v11/Education-Advisor-Setup.exe` — the NSIS installer
-  (version-free artifact name; the current version is 3.3.5, from `package.json`)
-- `release-v11/Education-Advisor-Portable.exe` — the portable .exe (~75 MB)
+  (version-free file name; the version is `package.json`)
 
 ## 7. Configure the app
 

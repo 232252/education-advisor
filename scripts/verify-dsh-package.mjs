@@ -12,9 +12,8 @@
 //  1. @deepseek-ai/dsh-sdk-client 在 dependencies（devDependencies 里打包态必死）
 //  2. 已安装的 sdk-client 带运行时依赖 @deepseek-ai/dsh，且版本与已装的一致
 //  3. dsh 的可执行入口在真实磁盘上存在
-//  4. electron-builder 的 asarUnpack 是 prepackage 生成的闭包清单（第四轮安装
-//     提速：整树解包是反模式，只有 dsh 子进程闭包 + pnpm/pdfjs 保留落盘，
-//     其余纯 JS 依赖收进 app.asar 由主进程读）
+//  4. asarUnpack 只有操作系统要映射的原生文件。dsh 闭包在 STORE zip 里，
+//     不在 app.asar.unpacked。整树解包是反模式。
 //  5. 仓库里仍可有 pnpm（开发机 / CI 打包用）。教师运行时闭包和安装包
 //     不得含 pnpm / @pnpm/exe：连接中心直接改写 profile 链接，不再在
 //     教师机上跑官方 dsh plugin add。
@@ -22,12 +21,9 @@
 //     （闭包只走 dependencies；optionalDependencies 是"可缺席"的，正是按需补装的前提）
 //  7. office-kit 随包组件：config/office-kit.json 清单在位（prepackage 生成，
 //     兼作损坏修复通道的资产定位）
-//  8. 可选 --dist <win-unpacked>：核对打包产物里入口确实落在 app.asar.unpacked 下，
-//     离线三件套落位（dsh-im 依赖 / pnpm dist / office-kit 随包 zip），且瘦身
-//     负向过滤确实生效；第三轮内容级核查（sweep 残留/聚合/字体发射）；
-//     第四轮选择性解包核查：对照 build/unpack-closure.json 逐包核对落盘清单、
-//     asar 头解析确认主进程专用包真在归档内、staged node.exe 离线跑通
-//     dsh --version（闭包完整性的最终证据）
+//  8. 可选 --dist <win-unpacked>：核对 runtime zip / dsh-im zip / office-kit
+//     落位，教师包不含 pnpm，瘦身负向过滤生效，app.asar 里有主进程包，
+//     staged node.exe 能离线跑 dsh --version。
 //
 // 用法: npm run verify:dsh [-- --dist release/win-unpacked]
 // 退出码: 0 全部通过 / 1 有失败项
@@ -43,8 +39,6 @@ import { spawnSync } from 'node:child_process'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const SDK = '@deepseek-ai/dsh-sdk-client'
 const RUNTIME = '@deepseek-ai/dsh'
-// prepackage 生成的 asarUnpack 对照清单（compute-unpack-closure.mjs 落盘）
-const CLOSURE_JSON = join(ROOT, 'build', 'unpack-closure.json')
 // @pnpm/exe 的平台包名按构建机走（optionalDependencies 各平台各装一份）。
 const PNM_EXE_DIR = join('node_modules', '@pnpm', `exe.${process.platform}-${process.arch}`)
 const PNM_EXE = join(PNM_EXE_DIR, process.platform === 'win32' ? 'pnpm.exe' : 'pnpm')
@@ -165,6 +159,19 @@ check(
   '主进程仍要的 better-sqlite3 / pdfjs-dist / canvas 没有被排除',
 )
 check(!builderYml.includes('compression: store') && !builderYml.includes('-mx=0'), '安装包没有改成不压缩')
+check(builderYml.includes('after-all-artifact-build.mjs'), 'electron-builder 在 Setup 落盘后跑体积门禁')
+
+const releaseYml = readFileSync(join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8')
+check(!releaseYml.includes('--prepackaged') && !releaseYml.includes(' --pd'), 'release.yml 不把已有目录交给打包器')
+check(releaseYml.includes('check-pack-budget.mjs'), 'release.yml 跑安装包体积门禁')
+check(releaseYml.includes('--publish never'), 'release.yml 在体积门禁通过前不上传安装包')
+check(releaseYml.includes('run-electron-builder.mjs'), 'release.yml 经打包包装器调用 electron-builder')
+const installerScript = pkg.scripts['package:installer'] ?? ''
+check(installerScript.startsWith('npm run prepackage &&'), 'package:installer 先跑 prepackage')
+check(
+  installerScript.includes('run-electron-builder.mjs') && !installerScript.includes('--prepackaged'),
+  'package:installer 走打包包装器',
+)
 
 const toolchainInArchive = [...archive].filter((name) => name === 'pnpm' || name.startsWith('@pnpm/exe'))
 check(

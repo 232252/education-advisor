@@ -6,17 +6,15 @@
 // mac 是 <appOutDir>/<Product>.app/Contents/Resources。mac 上再拼 resources
 // 会把离线件写到 .app 外面，守卫也会对着空目录把整份闭包报成缺落盘。
 //
-//  1. 补齐 electron-builder 复制不出来的离线件（在 NSIS 打 7z 之前落盘）：
-//     - vendor/dsh-im/node_modules → resources/dsh-im/node_modules。
-//       builder 复制 extraResources 时整目录丢弃 node_modules，而连接中心
-//       首开离线靠它（qrcode 标记检测，im-host.ts ensurePluginDeps）。
-//     - node_modules/pnpm/dist/node_modules → app.asar.unpacked 里 pnpm 的
-//       同名目录。builder 复制模块树时无条件跳过嵌套 node_modules
-//       （NodeModuleCopyHelper），缺了它 pnpm.mjs 引导壳起不来。
-//     - build/office-kit/*.zip → resources/office-kit/（win）：office 转 PDF
-//       组件随包只带 zip（首用本地解压，office-kit-service.ts），单文件落盘
-//       替代旧预解压的 735 文件/184MB。走钩子不走 extraResources，免得
-//       mac/linux 构建被缺目录卡死。
+//  1. 在 NSIS 打 7z 之前把 prepackage 的归档复制进 resources（缺了就失败，
+//     不许退回散文件树）：
+//     - build/dsh-runtime/dsh-runtime.zip → resources/dsh-runtime/
+//     - build/dsh-im/dsh-im.zip → resources/dsh-im/
+//     - build/office-kit/*.zip → resources/office-kit/（仅 win，恰有 1 个）。
+//       office 转 PDF 仍是这一个 deflate zip，首用再解到 userData。
+//     教师包不含 pnpm / @pnpm/exe。runtime zip 里出现它们，或体积超过
+//     scripts/lib/pack-budget.mjs 的预算，这里直接失败。unpacked 里若还
+//     有 pnpm 目录，同样失败，不要再把工具链复制进去。
 //  2. 删 dxcompiler.dll（WebGPU/Dawn 的着色器编译器，~25MB）—— 应用与
 //     连接中心的 WebContentsView 都不用 WebGPU，删掉不影响渲染。
 //     vk_swiftshader.dll 保留：无 GPU / 远程桌面时它还是软件 WebGL 兜底。
@@ -30,12 +28,11 @@
 //     根目录 LICENSES.chromium.html（5.4MB，运行时无进程读）同样并入。
 //     @deepseek-ai（黑盒 SDK 运行时读自己的 yml/md/docs）等保护树一刀不碰。
 //  4. 守卫断言（配置改坏在这里拦，别等装到教师机）：
-//     - 三个离线复制确实落位（qrcode 标记 / pnpm dist / kit zip）
+//     - runtime / dsh-im / office-kit 归档落位，且 runtime zip 不含工具链
 //     - locales 只剩 electronLanguages 白名单里的 .pak
 //     - files 负向排除的大件确实不在 app.asar.unpacked 里
-//     - 选择性解包红线（第四轮）：对照 build/unpack-closure.json，dsh 闭包
-//       每个包真实落盘、解包树里没有预料外的包（smartUnpack 预料外的整包
-//       解包会悄悄放大安装文件数）；sweep 后保护树外无 *.d.ts 残留
+//     - app.asar.unpacked 只留原生文件（上限 800）。dsh 闭包在 runtime zip
+//       里，不在这里。sweep 后保护树外无 *.d.ts 残留
 //
 // 退出方式：守卫失败直接 process.exit(1) 让打包失败 —— afterPack 抛错时
 // electron-builder 也会中止，但手动 exit 的日志更醒目。
@@ -43,6 +40,8 @@
 
 import { closeSync, cpSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { assertMainProcessModulesPresent } from './lib/asar-main-requires.mjs'
+import { inspectResources, logInventory, RUNTIME_ZIP_MAX_BYTES, toolchainZipHits } from './lib/pack-budget.mjs'
+import { firstZipMethod } from './lib/store-zip.mjs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -226,11 +225,30 @@ export default async function afterPack(context) {
     console.error('[after-pack-trim] runtime zip 缺少 @deepseek-ai/dsh-scope')
     process.exit(1)
   }
-  const pnpmHits = [...runtimeEntries].filter(
-    (name) => name === 'node_modules/pnpm' || name.startsWith('node_modules/pnpm/') || name.startsWith('node_modules/@pnpm/exe'),
-  )
+  const pnpmHits = toolchainZipHits(runtimeEntries)
   if (pnpmHits.length > 0) {
     console.error(`[after-pack-trim] runtime zip 不应含 pnpm / @pnpm/exe: ${pnpmHits.slice(0, 8).join(', ')}`)
+    process.exit(1)
+  }
+  const runtimeZipPath = join(resourcesDir, 'dsh-runtime', 'dsh-runtime.zip')
+  const runtimeBytes = statSync(runtimeZipPath).size
+  const runtimeMethod = firstZipMethod(runtimeZipPath)
+  if (runtimeMethod !== 0) {
+    console.error(
+      `[after-pack-trim] dsh-runtime.zip method=${runtimeMethod}，必须是 STORE (0)。不要先压缩再交给 NSIS。`,
+    )
+    process.exit(1)
+  }
+  if (runtimeBytes > RUNTIME_ZIP_MAX_BYTES) {
+    console.error(
+      `[after-pack-trim] dsh-runtime.zip ${runtimeBytes} bytes exceeds ${RUNTIME_ZIP_MAX_BYTES}`,
+    )
+    process.exit(1)
+  }
+  const imZipPath = join(resourcesDir, 'dsh-im', 'dsh-im.zip')
+  const imMethod = firstZipMethod(imZipPath)
+  if (imMethod !== 0) {
+    console.error(`[after-pack-trim] dsh-im.zip method=${imMethod}，必须是 STORE (0)。`)
     process.exit(1)
   }
   const imEntries = new Set(listZipEntries(join(resourcesDir, 'dsh-im', 'dsh-im.zip')))
@@ -239,17 +257,13 @@ export default async function afterPack(context) {
     process.exit(1)
   }
 
-  // 1b. pnpm 引导壳的嵌套依赖。pnpm 本体进了 runtime zip 时安装目录里没有
-  //     这份目录，不要再抄一份散文件出来。
-  const pnpmDistSrc = join(ROOT, 'node_modules', 'pnpm', 'dist', 'node_modules')
+  // 1b. 教师安装目录不带 pnpm 工具链。目录还在，说明 files 排除被改掉了。
+  //     不要把 node_modules/pnpm/dist 再复制进来。
   const pnpmUnpacked = join(resourcesDir, 'app.asar.unpacked', 'node_modules', 'pnpm')
-  if (existsSync(pnpmUnpacked)) {
-    const pnpmDistDest = join(pnpmUnpacked, 'dist', 'node_modules')
-    copyDir(pnpmDistSrc, pnpmDistDest, null, 'pnpm dist 嵌套依赖（pnpm.mjs 引导壳需要）')
-    if (!existsSync(join(pnpmDistDest, 'get-pnpm', 'package.json'))) {
-      console.error(`[after-pack-trim] pnpm dist 落位失败：缺 ${join(pnpmDistDest, 'get-pnpm')}`)
-      process.exit(1)
-    }
+  const pnpmExeUnpacked = join(resourcesDir, 'app.asar.unpacked', 'node_modules', '@pnpm')
+  if (existsSync(pnpmUnpacked) || existsSync(pnpmExeUnpacked)) {
+    console.error('[after-pack-trim] 教师包不应含 pnpm / @pnpm（app.asar.unpacked）。不要把工具链复制进安装目录。')
+    process.exit(1)
   }
 
   // ---- 2. WebGPU 着色器编译器（所有平台都不用）----
@@ -565,6 +579,13 @@ export default async function afterPack(context) {
   }
 
   assertMainProcessModulesPresent(resourcesDir)
+
+  const packed = inspectResources(resourcesDir, { requireComplete: platform === 'windows' })
+  logInventory('afterPack', packed.rows)
+  if (packed.failures.length > 0) {
+    for (const failure of packed.failures) console.error(`[pack-budget] FAIL ${failure}`)
+    process.exit(1)
+  }
 
   console.log(
     `[after-pack-trim] ${platform} 修剪完成，共 -${(removedBytes / 1024 / 1024).toFixed(1)}MB（补齐项见上方 + 行）`,

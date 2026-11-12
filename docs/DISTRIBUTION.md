@@ -63,7 +63,7 @@ itself in the background. The flow:
 
 ### For maintainers
 
-安装包在 **GitHub Actions 云端**编译并发布，不要在本机 `npm run package`。
+正式 Release 只在 **GitHub Actions** 上打包并上传。本机可以跑 `npm run package:installer` 核对体积（它会先 `prepackage`，并在 Setup 超过预算时失败），但不要在本机上传，不要打 tag，不要覆盖已经发出的 Release。体积和重试规则见 [INSTALLER_PACKING.md](./INSTALLER_PACKING.md)。
 
 1. 改 `package.json` 的 `version` 和 `CHANGELOG.md`。
 2. `git push origin main`。版本在 GitHub 上还没有 Release 时，Release 工作流会自动打 tag、打包、发布。
@@ -204,12 +204,12 @@ git checkout v0.1.0
 
 npm ci
 npm run build:eaa    # compiles core/eaa-cli from source — requires Rust (https://rustup.rs)
-npm run build
-npm run package
+npm run package:installer
 ```
 
-The resulting `release/Education Advisor-Setup-0.1.0-custom.exe` is
-your custom installer.
+The resulting `release-v11/Education-Advisor-Setup.exe` is the
+installer. The pack fails if it is over the budget in
+[INSTALLER_PACKING.md](./INSTALLER_PACKING.md).
 
 ### Step 3: Distribute
 

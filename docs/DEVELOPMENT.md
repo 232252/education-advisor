@@ -405,22 +405,19 @@ npx vitest --run src/main/services/dsh
 
 ### Prepackage staging
 
-`npm run package` auto-runs the `prepackage` hook first, which is three
-scripts in a row:
+`npm run prepackage` is the pack staging chain. npm runs it
+automatically only before the script named `package`.
+`package:installer` calls it explicitly. The steps are
+`prebuild-check`, `stage-dsh-node`, `build-office-kit-asset`,
+`compute-unpack-closure`, `stage-dsh-im-deps`, and
+`build-dsh-archives` (the two STORE zips). The teacher pack does not
+ship pnpm. Budgets, the retry rule, and the full pipeline are in
+[INSTALLER_PACKING.md](./INSTALLER_PACKING.md).
 
-1. `scripts/prebuild-check.mjs` — resource readiness gate (same as the
-   `prebuild` hook).
-2. `scripts/stage-dsh-node.mjs` — copies a stock `node.exe` from your
-   machine into the gitignored `vendor/dsh-node/`; skipped when a copy
-   is already staged.
-3. `scripts/stage-dsh-im-deps.mjs` — installs `vendor/dsh-im/`
-   production dependencies with the repo's own pnpm (they are not part
-   of the plugin zip); skipped when already installed.
-
-Both staging scripts are no-ops once their output exists. Re-run
-triggers: a fresh clone (`vendor/dsh-node/` is gitignored), or deleting
-`vendor/dsh-node/` / `vendor/dsh-im/node_modules/` — e.g. after
-upgrading dsh or dsh-im.
+`stage-dsh-node` and `stage-dsh-im-deps` skip when their output is
+already present. The runtime zip is rewritten every time. Re-stage
+node or the connection-center dependencies by deleting
+`vendor/dsh-node/` or `vendor/dsh-im/node_modules/`.
 
 ---
 

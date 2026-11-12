@@ -19,11 +19,11 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 | --- | --- |
 | 页面数 | 14 |
 | 路由数 | 16 |
-| IPC 通道数 | 187 |
-| Service 文件数 | 278 |
-| IPC handler 文件数 | 51 |
+| IPC 通道数 | 191 |
+| Service 文件数 | 286 |
+| IPC handler 文件数 | 52 |
 | Zustand store 模块数 | 7 |
-| Preload API 文件数 | 26 |
+| Preload API 文件数 | 27 |
 | Shared 类型文件数 | 19 |
 | Agent 数 | 18 |
 <!-- doc-stats:end -->
@@ -605,7 +605,7 @@ is the simplest possible model and the easiest to reason about.
 | TypeScript compile (preload) | Vite, `vite.config.preload.ts` | `dist/main/preload.cjs`（单文件内联，唯一 external = electron — sandboxed preload 的硬前提） | `npm run dev:preload`, `npm run build` |
 | TypeScript compile (renderer) | Vite, `vite.config.renderer.ts` | `dist/renderer/index.html` + assets | `npm run dev:renderer`, `npm run build` |
 | Bundle shape check | `scripts/bundle-shape-check.mjs` | exit code（懒加载分割守卫，见下节） | `npm run check:bundle`, CI |
-| Prepackage staging | `scripts/stage-dsh-node.mjs` + `scripts/stage-dsh-im-deps.mjs` | `vendor/dsh-node/`（随包 node.exe）、`vendor/dsh-im/node_modules/` | npm `prepackage` hook（`npm run package` 前自动跑） |
+| Prepackage staging | `scripts/prepackage` chain in `package.json` | `vendor/dsh-node/`, office-kit zip, `build/dsh-runtime/dsh-runtime.zip`, `build/dsh-im/dsh-im.zip` | `npm run prepackage`. Automatic only before `npm run package`; `package:installer` calls it explicitly. See [INSTALLER_PACKING.md](./INSTALLER_PACKING.md) |
 | dsh / vendor / EAA assembly checks | `verify-dsh-package.mjs` / `verify-vendor.mjs` / `verify-eaa-engine.mjs` | exit code | `npm run verify:dsh` / `verify:vendor` / `verify:eaa`，其中 verify:dsh 是 CI 门禁 |
 | Lint | Biome 2.3 | exit code | `npm run lint` |
 | Type check | TypeScript 7 | exit code | `npm run typecheck` |
@@ -622,9 +622,10 @@ The dependency footprint is intentionally small:
   for the grading pipeline) are the only native dependencies.
 - The Rust EAA binary is bundled as an `extraResource`, unpacked from
   the asar archive at startup.
-- The dsh subprocess tree (`@deepseek-ai/dsh*`) ships as real files
-  under `app.asar.unpacked/` (`asarUnpack: **/node_modules/**`) — a
-  pure-Node subprocess cannot read inside the asar.
+- The dsh subprocess tree ships as one STORE zip,
+  `resources/dsh-runtime/dsh-runtime.zip`, extracted under userData on
+  first launch. `asarUnpack` is only native binaries. The teacher pack
+  does not include pnpm.
 - Everything else is pure JS / TS.
 
 ---
