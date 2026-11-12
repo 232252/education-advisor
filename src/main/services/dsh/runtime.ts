@@ -14,6 +14,8 @@ import { delimiter, dirname, join, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { StreamEvent, TokenUsage } from '@shared/types/ai'
 import { dshRuntimeBin, dshSdkEntry, waitForDshRuntime } from './bundled-archive'
+import { configureDshCatalogRoot } from './dsh-model-catalog'
+import { configureDshModelSettings, syncDshCredentialRoutes } from './dsh-model-settings'
 import { EAA_MCP_TOKEN_ENV, EAA_MCP_URL_ENV } from './eaa-tools-contract'
 import { ensureEaaHardeningPatch } from './hardening'
 import { setEaaToolsPluginTarget } from './plugin-install'
@@ -25,8 +27,6 @@ import {
   providersToDeclare,
   writeProviderPatchFile,
 } from './provider-patch'
-import { configureDshCatalogRoot } from './dsh-model-catalog'
-import { configureDshModelSettings, syncDshCredentialRoutes } from './dsh-model-settings'
 import { mapDshSessionEvent } from './stream-mapper'
 import type { DshSessionEvent, DshSessionEventNotification } from './wire-types'
 
@@ -417,11 +417,7 @@ export function createDshRuntime(
   const { mcp: _mcp, patches: callerPatches, probeCredential: _probe, ...rest } = opts
   const runtime = new DshRuntime({
     ...rest,
-    patches: [
-      hardening,
-      ...(probePatch ? [probePatch] : []),
-      ...(callerPatches ?? []),
-    ],
+    patches: [hardening, ...(probePatch ? [probePatch] : []), ...(callerPatches ?? [])],
     env,
   })
   if (probePatch) {

@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -37,7 +45,11 @@ describe('plugin-links', () => {
     const root = tempDir('eaa-links-new-')
     const home = join(root, 'home')
     const imDir = writePlugin(root, 'dsh-im', '@xmanrui/dsh-im')
-    const panelDir = writePlugin(join(root, 'dsh-im', 'integrations'), 'eaa-panel', 'eaa-dsh-im-panel')
+    const panelDir = writePlugin(
+      join(root, 'dsh-im', 'integrations'),
+      'eaa-panel',
+      'eaa-dsh-im-panel',
+    )
 
     materializeProfileLinks({
       home,
@@ -62,9 +74,9 @@ describe('plugin-links', () => {
     expect(existsSync(join(profileDir, 'pnpm-workspace.yaml'))).toBe(true)
     expect(sameDir(resolvedModuleDir(profileDir, '@xmanrui/dsh-im') ?? '', imDir)).toBe(true)
     expect(sameDir(resolvedModuleDir(profileDir, 'eaa-dsh-im-panel') ?? '', panelDir)).toBe(true)
-    expect(profileLinksCurrent({ home, profile: 'web', plugins: [{ dir: imDir }, { dir: panelDir }] })).toBe(
-      true,
-    )
+    expect(
+      profileLinksCurrent({ home, profile: 'web', plugins: [{ dir: imDir }, { dir: panelDir }] }),
+    ).toBe(true)
   })
 
   it('stamp 目标缺失或链到旧路径时改写链接，不删官方层', () => {
@@ -81,9 +93,9 @@ describe('plugin-links', () => {
       plugins: [{ dir: oldIm }, { dir: vendorTools }],
     })
     const profileDir = resolveDshProfileDir(home, 'web')
-    expect(profileLinksCurrent({ home, profile: 'web', plugins: [{ dir: newIm }, { dir: tools }] })).toBe(
-      false,
-    )
+    expect(
+      profileLinksCurrent({ home, profile: 'web', plugins: [{ dir: newIm }, { dir: tools }] }),
+    ).toBe(false)
 
     materializeProfileLinks({
       home,
@@ -99,12 +111,12 @@ describe('plugin-links', () => {
     expect(manifest.dependencies['@education-advisor/eaa-tools']).toBe(dshPluginLinkSpec(tools))
     expect(manifest.dsh.profile.bundles[0]).toBe('@deepseek-ai/dsh-base')
     expect(sameDir(realpathSync(packageModuleDir(profileDir, '@xmanrui/dsh-im')), newIm)).toBe(true)
-    expect(sameDir(realpathSync(packageModuleDir(profileDir, '@education-advisor/eaa-tools')), tools)).toBe(
-      true,
-    )
-    expect(profileLinksCurrent({ home, profile: 'web', plugins: [{ dir: newIm }, { dir: tools }] })).toBe(
-      true,
-    )
+    expect(
+      sameDir(realpathSync(packageModuleDir(profileDir, '@education-advisor/eaa-tools')), tools),
+    ).toBe(true)
+    expect(
+      profileLinksCurrent({ home, profile: 'web', plugins: [{ dir: newIm }, { dir: tools }] }),
+    ).toBe(true)
   })
 
   it('只有 stamp、没有 package.json 链接时不算就位', () => {

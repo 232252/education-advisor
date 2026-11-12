@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import type { StreamEvent } from '@shared/types/ai'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { getDshCatalogRoot } from '../dsh-model-catalog'
 import { EAA_HARDENING_PATCH_FILE } from '../hardening'
 import { configureDshCredentials, EAA_PROVIDER_PATCH_FILE } from '../provider-patch'
 import type { DshClientLike, DshNotification, DshSubscriptionLike } from '../runtime'
@@ -17,7 +18,6 @@ import {
   retargetPackagedDsh,
   toUnpackedAsarPath,
 } from '../runtime'
-import { getDshCatalogRoot } from '../dsh-model-catalog'
 import { DSH_TURN_ABORTED, DSH_TURN_ERROR } from '../stream-mapper'
 
 /** 复刻 dsh NotificationSubscription：filter 是纯谓词，close 让挂起的 next 立即 reject */
@@ -422,10 +422,7 @@ describe('createDshRuntime（生产唯一构造入口）', () => {
     })
     const opts = (rt as unknown as { opts: { patches: string[]; env: Record<string, string> } })
       .opts
-    expect(opts.patches).toEqual([
-      join(dir, EAA_HARDENING_PATCH_FILE),
-      '/caller.yml',
-    ])
+    expect(opts.patches).toEqual([join(dir, EAA_HARDENING_PATCH_FILE), '/caller.yml'])
     expect(opts.patches.some((item) => item.includes('eaa-llm-providers'))).toBe(false)
     const profilePatch = readFileSync(join(sdkHome, 'profiles', 'sdk', 'cordis.patch.yml'), 'utf8')
     expect(profilePatch).toContain('id: llm-pi-ai')

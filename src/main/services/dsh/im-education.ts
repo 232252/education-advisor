@@ -20,14 +20,10 @@ import {
 import { selectSkillsForRun } from '../agent/tools'
 import { agentService } from '../agent-service'
 import { settingsService } from '../settings-service'
+import { syncDshCredentialRoutes } from './dsh-model-settings'
 import { composeImInstructions } from './im-instructions'
 import { ensureEaaImPresetPatch } from './im-preset'
-import {
-  dshProviderRouting,
-  dshSubprocessEnv,
-  providersToDeclare,
-} from './provider-patch'
-import { syncDshCredentialRoutes } from './dsh-model-settings'
+import { dshProviderRouting, dshSubprocessEnv, providersToDeclare } from './provider-patch'
 import { getDshRuntimeCwd } from './runtime'
 import { ensureEaaSkillPatch, materializeDshSkills, removeDshSkillDir } from './skill-mount'
 import {

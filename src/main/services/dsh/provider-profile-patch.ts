@@ -23,9 +23,7 @@ const HEADER = `# EAA 会把 llm-pi-ai 的 providers 写进这一层。不要在
 
 type PatchRow = Record<string, unknown>
 
-function sortProfiles(
-  providers: DshProviderRouting['profiles'],
-): DshProviderRouting['profiles'] {
+function sortProfiles(providers: DshProviderRouting['profiles']): DshProviderRouting['profiles'] {
   const ids = Object.keys(providers).sort()
   const picked: DshProviderRouting['profiles'] = {}
   for (const id of ids) picked[id] = providers[id]
@@ -91,7 +89,6 @@ export function ensureEaaProviderProfilePatch(
   return patchPath
 }
 
-
 export const EAA_PROFILE_DEFAULT_MODEL_ROW_ID = 'agent-default-model'
 
 export interface DshDefaultModelSelection {
@@ -130,13 +127,19 @@ function upsertRow(rows: PatchRow[], id: string, config: Record<string, unknown>
 export function readLlmProviders(profileDir: string): Record<string, Record<string, unknown>> {
   const rows = readProfilePatchRows(profileDir)
   const row = rows.find((item) => rowId(item) === EAA_PROFILE_LLM_ROW_ID)
-  const config = row && typeof row.config === 'object' && row.config ? (row.config as Record<string, unknown>) : {}
+  const config =
+    row && typeof row.config === 'object' && row.config
+      ? (row.config as Record<string, unknown>)
+      : {}
   const providers = config.providers
   if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return {}
   const out: Record<string, Record<string, unknown>> = {}
   for (const [id, value] of Object.entries(providers as Record<string, unknown>)) {
     if (!id) continue
-    out[id] = value && typeof value === 'object' && !Array.isArray(value) ? { ...(value as Record<string, unknown>) } : {}
+    out[id] =
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? { ...(value as Record<string, unknown>) }
+        : {}
   }
   return out
 }
@@ -185,12 +188,16 @@ export function mergeLlmProviderCredentials(
 export function readDefaultModelSelection(profileDir: string): DshDefaultModelSelection | null {
   const rows = readProfilePatchRows(profileDir)
   const row = rows.find((item) => rowId(item) === EAA_PROFILE_DEFAULT_MODEL_ROW_ID)
-  const config = row && typeof row.config === 'object' && row.config ? (row.config as Record<string, unknown>) : null
+  const config =
+    row && typeof row.config === 'object' && row.config
+      ? (row.config as Record<string, unknown>)
+      : null
   if (!config) return null
   const provider = typeof config.provider === 'string' ? config.provider : ''
   const model = typeof config.model === 'string' ? config.model : ''
   if (!provider && !model) return null
-  const reasoningEffort = typeof config.reasoningEffort === 'string' ? config.reasoningEffort : undefined
+  const reasoningEffort =
+    typeof config.reasoningEffort === 'string' ? config.reasoningEffort : undefined
   return { provider, model, reasoningEffort }
 }
 

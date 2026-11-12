@@ -16,12 +16,12 @@
 import { getModel, getModels, getProviders } from '@earendil-works/pi-ai/compat'
 import type { Api, Model } from '@main/services/llm-contracts'
 import { errText } from '../utils/err-text'
+import { getDshCurrentRoute } from './dsh/dsh-model-settings'
 // KEYLESS_PROVIDERS 从 ollama/constants 导入(定义单一来源;ollama-service 入口会拉入 electron)
 import { KEYLESS_PROVIDERS } from './ollama/constants'
 import { buildOllamaModel, parseOllamaParamB, resolveModel } from './pi-ai/model-utils'
 import { costScore } from './pi-ai-helpers'
 import { piAIService } from './pi-ai-service'
-import { getDshCurrentRoute } from './dsh/dsh-model-settings'
 import { settingsService } from './settings-service'
 
 /** 模型提前结束时最多续跑次数 */
@@ -81,16 +81,12 @@ export function selectModelForRun(
       modelId as Parameters<typeof getModel>[1],
     )
     if (staticModel) {
-      console.log(
-        `[AgentService] selectModel: using DSH route ${providerId}/${modelId}`,
-      )
+      console.log(`[AgentService] selectModel: using DSH route ${providerId}/${modelId}`)
       return staticModel
     }
     const resolved = resolveModel(providerId, modelId)
     if (resolved) {
-      console.log(
-        `[AgentService] selectModel: using DSH route (resolved) ${providerId}/${modelId}`,
-      )
+      console.log(`[AgentService] selectModel: using DSH route (resolved) ${providerId}/${modelId}`)
       return resolved
     }
     console.warn(

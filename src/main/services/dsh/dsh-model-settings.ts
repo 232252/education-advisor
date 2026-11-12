@@ -7,10 +7,19 @@
 // 当作源再事后打进 DSH。
 // =============================================================
 
-import { join } from 'node:path'
 import { providerDisplayName } from '@shared/provider-labels'
 import type { ModelInfo, ProviderInfo } from '@shared/types'
-import { dshCredentialEnvName, dshRouteKey, providersWithKeys, envKeyedProviders } from './provider-patch'
+import {
+  type DshCatalogModel,
+  ensureDshCatalogReady,
+  getDshCatalogSource,
+} from './dsh-model-catalog'
+import {
+  dshCredentialEnvName,
+  dshRouteKey,
+  envKeyedProviders,
+  providersWithKeys,
+} from './provider-patch'
 import {
   type DshDefaultModelSelection,
   mergeLlmProviderCredentials,
@@ -18,11 +27,6 @@ import {
   readLlmProviders,
   writeDefaultModelSelection,
 } from './provider-profile-patch'
-import {
-  type DshCatalogModel,
-  ensureDshCatalogReady,
-  getDshCatalogSource,
-} from './dsh-model-catalog'
 
 export type { DshDefaultModelSelection }
 
@@ -91,7 +95,9 @@ export async function listDshModels(providerId: string): Promise<ModelInfo[]> {
   const profile = sdkProfileDir ? readLlmProviders(sdkProfileDir) : {}
   const route = profile[providerId] ?? {}
   const overrides =
-    route.modelOverrides && typeof route.modelOverrides === 'object' && !Array.isArray(route.modelOverrides)
+    route.modelOverrides &&
+    typeof route.modelOverrides === 'object' &&
+    !Array.isArray(route.modelOverrides)
       ? (route.modelOverrides as Record<string, Record<string, unknown>>)
       : {}
   const explicit = Array.isArray(route.models) ? (route.models as Record<string, unknown>[]) : null
@@ -101,13 +107,21 @@ export async function listDshModels(providerId: string): Promise<ModelInfo[]> {
       : catalog.listProviders().find((p) => p.id === providerId)?.baseUrl || ''
 
   const byId = new Map<string, ModelInfo>()
-  const source = explicit && explicit.length > 0 ? explicit.map((row) => mergeModelRow(row, catalogModels, routeBase, providerId)) : catalogModels.map((m) => toModelInfo(m, providerId, routeBase))
+  const source =
+    explicit && explicit.length > 0
+      ? explicit.map((row) => mergeModelRow(row, catalogModels, routeBase, providerId))
+      : catalogModels.map((m) => toModelInfo(m, providerId, routeBase))
   for (const model of source) {
     if (model) byId.set(model.id, model)
   }
   for (const [id, over] of Object.entries(overrides)) {
     const base = byId.get(id) ?? catalogModels.find((m) => m.id === id)
-    const merged = mergeModelRow({ id, ...(base ? modelToRow(base) : {}), ...over }, catalogModels, routeBase, providerId)
+    const merged = mergeModelRow(
+      { id, ...(base ? modelToRow(base) : {}), ...over },
+      catalogModels,
+      routeBase,
+      providerId,
+    )
     if (merged) byId.set(id, merged)
   }
   return [...byId.values()]
@@ -222,10 +236,14 @@ function mergeModelRow(
     costPerOutputToken: base?.costPerOutputToken ?? 0,
     costCacheRead: base?.costCacheRead ?? 0,
     costCacheWrite: base?.costCacheWrite ?? 0,
-    supportsReasoning: typeof row.supportsReasoning === 'boolean' ? row.supportsReasoning : (base?.supportsReasoning ?? false),
+    supportsReasoning:
+      typeof row.supportsReasoning === 'boolean'
+        ? row.supportsReasoning
+        : (base?.supportsReasoning ?? false),
     supportsImage: base?.input.includes('image') ?? false,
     reasoningLevels: base?.reasoningLevels,
-    baseUrl: typeof row.baseURL === 'string' && row.baseURL ? row.baseURL : (base?.baseUrl || routeBase),
+    baseUrl:
+      typeof row.baseURL === 'string' && row.baseURL ? row.baseURL : base?.baseUrl || routeBase,
     isCustom: !base,
   }
 }

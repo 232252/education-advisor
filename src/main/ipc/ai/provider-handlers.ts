@@ -25,15 +25,11 @@ export function registerAIProviderHandlers(): void {
   )
 
   // ----- 列出指定 Provider 在 DSH 目录 / profile 中的模型 -----
-  handleIpc(
-    IPC.IPC_AI_LIST_MODELS,
-    (_e, providerId: string) => listDshModels(providerId),
-    {
-      timer: 'ai:list-models',
-      onError: () => [],
-      label: (providerId: string) => `ai:list-models failed for "${providerId}"`,
-    },
-  )
+  handleIpc(IPC.IPC_AI_LIST_MODELS, (_e, providerId: string) => listDshModels(providerId), {
+    timer: 'ai:list-models',
+    onError: () => [],
+    label: (providerId: string) => `ai:list-models failed for "${providerId}"`,
+  })
 
   handleIpc(
     IPC.IPC_AI_GET_DSH_ROUTE,

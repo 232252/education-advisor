@@ -6,8 +6,8 @@
 // =============================================================
 
 import { existsSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 export interface DshCatalogProvider {
   id: string
@@ -85,7 +85,15 @@ function loadRuntimeCatalog(): DshCatalogSource {
     return { listProviders: () => [], listModels: () => [] }
   }
   if (cached && cachedRoot === root) return cached
-  const allJs = join(root, 'node_modules', '@earendil-works', 'pi-ai', 'dist', 'providers', 'all.js')
+  const allJs = join(
+    root,
+    'node_modules',
+    '@earendil-works',
+    'pi-ai',
+    'dist',
+    'providers',
+    'all.js',
+  )
   if (!existsSync(allJs)) {
     console.warn(`[dsh-model-catalog] official pi-ai catalog missing at ${allJs}`)
     const empty: DshCatalogSource = { listProviders: () => [], listModels: () => [] }
@@ -110,7 +118,10 @@ function loadRuntimeCatalog(): DshCatalogSource {
           supportsOAuth: Boolean(p.auth?.oauth),
         })
         const raw = typeof p.getModels === 'function' ? p.getModels() : []
-        nextModels.set(p.id, raw.map(toCatalogModel).filter((m): m is DshCatalogModel => m !== null))
+        nextModels.set(
+          p.id,
+          raw.map(toCatalogModel).filter((m): m is DshCatalogModel => m !== null),
+        )
       }
       providers = nextProviders
       modelsById = nextModels
@@ -144,7 +155,8 @@ function toCatalogModel(raw: Record<string, unknown>): DshCatalogModel | null {
   const cost = (raw.cost && typeof raw.cost === 'object' ? raw.cost : {}) as Record<string, unknown>
   const input = Array.isArray(raw.input) ? raw.input.map((x) => String(x)) : ['text']
   const reasoning = raw.reasoning
-  const supportsReasoning = reasoning === true || (reasoning !== false && reasoning != null && reasoning !== 'off')
+  const supportsReasoning =
+    reasoning === true || (reasoning !== false && reasoning != null && reasoning !== 'off')
   return {
     id: raw.id,
     name: typeof raw.name === 'string' && raw.name ? raw.name : raw.id,
@@ -154,7 +166,7 @@ function toCatalogModel(raw: Record<string, unknown>): DshCatalogModel | null {
     input,
     supportsReasoning,
     reasoningLevels: Array.isArray((raw as { reasoningLevels?: unknown }).reasoningLevels)
-      ? ((raw as { reasoningLevels: unknown[] }).reasoningLevels.map((x) => String(x)))
+      ? (raw as { reasoningLevels: unknown[] }).reasoningLevels.map((x) => String(x))
       : undefined,
     costPerInputToken: num(cost.input, 0),
     costPerOutputToken: num(cost.output, 0),

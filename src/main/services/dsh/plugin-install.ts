@@ -57,11 +57,14 @@ export async function ensureProfileHasEaaTools(opts: {
   const plugins = dirs.map((dir) => ({ dir }))
   const pending = dirs.map((dir) => stampInfo(opts.home, opts.profile, dir))
   const stampsOk = pending.every(
-    (row) => stampMatches(row.stampPath, row.stamp) || (row.legacyPath && stampMatches(row.legacyPath, row.stamp)),
+    (row) =>
+      stampMatches(row.stampPath, row.stamp) ||
+      (row.legacyPath && stampMatches(row.legacyPath, row.stamp)),
   )
   if (stampsOk && profileLinksCurrent({ home: opts.home, profile: opts.profile, plugins })) {
     for (const row of pending) {
-      if (!stampMatches(row.stampPath, row.stamp)) writeFileSync(row.stampPath, `${row.stamp}\n`, 'utf8')
+      if (!stampMatches(row.stampPath, row.stamp))
+        writeFileSync(row.stampPath, `${row.stamp}\n`, 'utf8')
     }
     return
   }

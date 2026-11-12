@@ -81,7 +81,7 @@ export function readPluginPackageName(dir: string): string {
 }
 
 export function parseLinkDir(spec: string | undefined): string | null {
-  if (!spec || !spec.startsWith('link:')) return null
+  if (typeof spec !== 'string' || !spec.startsWith('link:')) return null
   return spec.slice('link:'.length)
 }
 
@@ -92,7 +92,10 @@ export function sameDir(a: string, b: string): boolean {
 }
 
 function normalizeDir(path: string): string {
-  return resolve(path).replace(/[\\/]+$/, '').split(/[\\/]/).join('/')
+  return resolve(path)
+    .replace(/[\\/]+$/, '')
+    .split(/[\\/]/)
+    .join('/')
 }
 
 /** profile 清单里的 link: 与 node_modules 链接都指向当前目录时为 true。 */
@@ -131,9 +134,8 @@ export function materializeProfileLinks(opts: ProfileLinkOptions): void {
   const manifest = readManifest(profileDir)
   const deps = { ...(manifest.dependencies ?? {}) }
   const official = OFFICIAL_PROFILE_BUNDLES[opts.profile] ?? []
-  let bundles = Array.isArray(manifest.dsh?.profile?.bundles)
-    ? [...(manifest.dsh?.profile?.bundles as string[])]
-    : []
+  const rawBundles = manifest.dsh?.profile?.bundles
+  let bundles = Array.isArray(rawBundles) ? [...rawBundles] : []
   if (bundles.length === 0) bundles = [...official]
   else {
     const missing = official.filter((name) => !bundles.includes(name))
@@ -175,7 +177,11 @@ function readManifest(profileDir: string): ProfileManifest {
 }
 
 function writeManifest(profileDir: string, manifest: ProfileManifest): void {
-  writeFileSync(join(profileDir, 'package.json'), `${JSON.stringify(manifest, undefined, 2)}\n`, 'utf8')
+  writeFileSync(
+    join(profileDir, 'package.json'),
+    `${JSON.stringify(manifest, undefined, 2)}\n`,
+    'utf8',
+  )
 }
 
 export function packageModuleDir(profileDir: string, packageName: string): string {
@@ -203,7 +209,7 @@ function ensureModuleLink(profileDir: string, packageName: string, targetDir: st
 
 /** 只拆掉链接或本目录，不跟随 junction 去删插件本体。 */
 function removeLinkOrDir(path: string): void {
-  let st
+  let st: ReturnType<typeof lstatSync>
   try {
     st = lstatSync(path)
   } catch {
@@ -226,4 +232,3 @@ export function resolvedModuleDir(profileDir: string, packageName: string): stri
     return null
   }
 }
-

@@ -56,8 +56,8 @@ import {
   selectModelForRun,
 } from '../agent-model-selector'
 import { getDshCurrentRoute } from '../dsh/dsh-model-settings'
-import { resolveModel } from '../pi-ai/model-utils'
 import { keystoreService } from '../keystore-service'
+import { resolveModel } from '../pi-ai/model-utils'
 
 beforeEach(() => {
   vi.clearAllMocks()

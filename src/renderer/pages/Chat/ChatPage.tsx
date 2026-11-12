@@ -121,7 +121,9 @@ export function ChatPage() {
       try {
         await getAPI().ai.selectDshRoute({ provider, model })
       } catch {
-        toast.warning(t('toast.settings.saveFailed', '写入 DSH 当前模型失败,下次对话可能仍用上一线路'))
+        toast.warning(
+          t('toast.settings.saveFailed', '写入 DSH 当前模型失败,下次对话可能仍用上一线路'),
+        )
       }
     },
     [setModel, t],

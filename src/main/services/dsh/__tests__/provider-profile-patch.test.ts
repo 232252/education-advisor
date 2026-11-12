@@ -32,7 +32,7 @@ describe('ensureEaaProviderProfilePatch', () => {
     expect(text).toContain('zai-coding-cn')
     expect(text).toContain('glm-5.3-flash')
     expect(text).toContain('EAA_DSH_ZAI_CODING_CN_API_KEY')
-    expect(text).not.toMatch(/sk-|apiKey:\s*['\"]?[^E]/)
+    expect(text).not.toMatch(/sk-|apiKey:\s*['"]?[^E]/)
   })
 
   it('保留 profile 里已有的其它行', async () => {
@@ -78,7 +78,6 @@ describe('ensureEaaProviderProfilePatch', () => {
     expect(text).not.toContain('kimi')
   })
 })
-
 
 describe('mergeLlmProviderCredentials and default model', () => {
   let dir: string
