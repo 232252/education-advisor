@@ -61,7 +61,14 @@ const updateClassParams = Type.Object({
 const archiveClassParams = Type.Object({
   class_id: Type.String({ description: '要存档的班级编号' }),
   confirm: Type.Boolean({
-    description: '必须为 true。存档后日常列表隐藏该班，学生数据保留，可再恢复。',
+    description:
+      '必须为 true，表示你已向教师复述将存档的班级。这不是教师点击。恢复请调用 eaa_restore_class。',
+  }),
+})
+
+const restoreClassParams = Type.Object({
+  class_id: Type.String({
+    description: '要恢复的班级编号。先用 eaa_list_classes 找 archived 为 true 的班。',
   }),
 })
 
@@ -245,11 +252,14 @@ export const archiveClassTool: AgentTool<typeof archiveClassParams> = {
   name: 'eaa_archive_class',
   label: '存档班级',
   description:
-    '把班级标记为存档（日常列表隐藏，学生与事件保留）。用于错误班级或已毕业班。必须 confirm:true。',
+    '把班级标记为存档（日常列表隐藏，学生与事件保留）。用于错误班级或已毕业班。' +
+    'confirm 只表示你已向教师复述班级，不是教师点击。恢复用 eaa_restore_class，不要说存档后无法恢复。',
   parameters: archiveClassParams,
   execute: async (_toolCallId, params) => {
     if (!params.confirm) {
-      throw new Error('存档班级需要 confirm: true')
+      throw new Error(
+        '存档班级前请向教师复述班级，再将 confirm 设为 true。这不是教师点击。恢复用 eaa_restore_class。',
+      )
     }
     const classId = sanitizeClassId(params.class_id)
     const cls = requireClass(classId)
@@ -257,6 +267,32 @@ export const archiveClassTool: AgentTool<typeof archiveClassParams> = {
     if (!result.success) throw new Error(result.error || '存档失败')
     invalidateClassContextCache()
     return jsonResult({ class_id: classId, archived: true }, `班级已存档: ${cls.name} (${classId})`)
+  },
+}
+
+export const restoreClassTool: AgentTool<typeof restoreClassParams> = {
+  name: 'eaa_restore_class',
+  label: '恢复班级',
+  description:
+    '取消存档，班级重新出现在日常列表。学生与事件本来就保留，本工具只把 archived 改回 false。' +
+    '没有 confirm 参数。不能硬删除班级，也不能删除学生。',
+  parameters: restoreClassParams,
+  execute: async (_toolCallId, params) => {
+    const classId = sanitizeClassId(params.class_id)
+    const cls = requireClass(classId)
+    if (!cls.archived) {
+      return jsonResult(
+        { class_id: classId, name: cls.name, archived: false, already_active: true },
+        `班级本来就在日常列表中: ${cls.name} (${classId})`,
+      )
+    }
+    const result = classService.restore(cls.id)
+    if (!result.success) throw new Error(result.error || '恢复班级失败')
+    invalidateClassContextCache()
+    return jsonResult(
+      { class_id: classId, name: cls.name, archived: false, restored: true },
+      `班级已恢复: ${cls.name} (${classId})`,
+    )
   },
 }
 

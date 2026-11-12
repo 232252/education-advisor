@@ -37,10 +37,14 @@ import {
   createClassTool,
   updateClassTool,
   archiveClassTool,
+  restoreClassTool,
   importStudentsTool,
   importGradesTool,
+  setGradeTool,
+  deleteExamTool,
   listClassesTool,
   gradingFromFilesTool,
+  gradingSetStrategyTool,
   gradingPublishTool,
 } from '../../src/main/services/eaa-tools'
 
@@ -120,16 +124,21 @@ describe('getToolsByCapability — 单项 capability', () => {
   it('delete → [deleteStudentTool]', () => {
     expect(getToolsByCapability(['delete'])).toEqual([deleteStudentTool])
   })
-  it('class → 列班 + 建班 + 改班 + 存档', () => {
+  it('class → 列班 + 建班 + 改班 + 存档 + 恢复', () => {
     expect(getToolsByCapability(['class'])).toEqual([
       listClassesTool,
       createClassTool,
       updateClassTool,
       archiveClassTool,
+      restoreClassTool,
     ])
   })
-  it('import_grades → [importGradesTool]', () => {
-    expect(getToolsByCapability(['import_grades'])).toEqual([importGradesTool])
+  it('import_grades → 导入 + 改分 + 删考试', () => {
+    expect(getToolsByCapability(['import_grades'])).toEqual([
+      importGradesTool,
+      setGradeTool,
+      deleteExamTool,
+    ])
   })
 })
 
@@ -172,9 +181,13 @@ describe('getToolsByCapability — read / write 分组', () => {
       createClassTool,
       updateClassTool,
       archiveClassTool,
+      restoreClassTool,
       importStudentsTool,
       importGradesTool,
+      setGradeTool,
+      deleteExamTool,
       gradingFromFilesTool,
+      gradingSetStrategyTool,
       gradingPublishTool,
     ])
     expect(tools).not.toContain(deleteStudentTool)
@@ -182,11 +195,8 @@ describe('getToolsByCapability — read / write 分组', () => {
 
   it('read + write 应去重并合并', () => {
     const tools = getToolsByCapability(['read', 'write'])
-    // read(16) + write(8,其中 6 个不在 read 中: add_event 等 4 个已在? wait)
-    // write 8 个: addEvent 不在 read, addStudent 不在, setMeta 不在, revert 不在,
-    // createClass 不在, importStudents 不在, gradingFromFiles 不在, gradingPublish 不在
-    // → 16 + 11 = 27
-    expect(tools.length).toBe(27)
+    // read 16 个与 write 不重叠；write 含恢复班级、改分、删考试、改批改策略
+    expect(tools.length).toBe(31)
     expect(tools).not.toContain(deleteStudentTool)
   })
 })
@@ -222,14 +232,18 @@ describe('getToolsByCapability — 组合 / 边界', () => {
 })
 
 describe('allEAATools — 集合完整性', () => {
-  it('应包含全部 27 个安全工具(操行含建班导入 + 成绩导入 + 考试查询 + 批改读写),且 name 唯一', () => {
-    expect(allEAATools.length).toBe(27)
+  it('应包含全部 31 个安全工具(含恢复班级、改分、删考试、批改策略),且 name 唯一', () => {
+    expect(allEAATools.length).toBe(31)
     const names = allEAATools.map((t) => t.name)
-    expect(new Set(names).size).toBe(27)
+    expect(new Set(names).size).toBe(31)
     expect(names).toContain('eaa_update_class')
     expect(names).toContain('eaa_archive_class')
+    expect(names).toContain('eaa_restore_class')
     expect(names).toContain('eaa_import_grades')
+    expect(names).toContain('eaa_set_grade')
+    expect(names).toContain('eaa_delete_exam')
     expect(names).toContain('eaa_grading_from_files')
+    expect(names).toContain('eaa_grading_set_strategy')
     expect(names).toContain('eaa_grading_publish')
   })
 
@@ -250,7 +264,7 @@ describe('allEAATools — 集合完整性', () => {
     expect(allEAATools).not.toContain(deleteStudentTool)
   })
 
-  it('grading capability → 读写 4 个批改工具', () => {
+  it('grading capability → 读写 5 个批改工具', () => {
     const names = getToolsByCapability(['grading'])
       .map((t) => t.name)
       .sort()
@@ -258,7 +272,36 @@ describe('allEAATools — 集合完整性', () => {
       'eaa_grading_from_files',
       'eaa_grading_overview',
       'eaa_grading_publish',
+      'eaa_grading_set_strategy',
       'eaa_grading_student',
     ])
+  })
+
+  it('main 的能力不含删除学生，但含改分、删考试、恢复班级和批改策略', () => {
+    const names = getToolsByCapability([
+      'read',
+      'summary',
+      'add_event',
+      'add_student',
+      'history',
+      'search',
+      'list',
+      'ranking',
+      'stats',
+      'codes',
+      'range',
+      'revert',
+      'class',
+      'set_student_meta',
+      'import_students',
+      'import_grades',
+      'grading',
+    ]).map((t) => t.name)
+    expect(names).not.toContain('eaa_delete_student')
+    expect(names).toContain('eaa_restore_class')
+    expect(names).toContain('eaa_set_grade')
+    expect(names).toContain('eaa_delete_exam')
+    expect(names).toContain('eaa_grading_set_strategy')
+    expect(names).toContain('eaa_grading_from_files')
   })
 })

@@ -283,3 +283,8 @@ export const IPC_SYS_LIST_PRINTERS = 'sys:list-printers'
 export const IPC_SYS_WEBUI_STATUS = 'sys:webui-status'
 export const IPC_SYS_WEBUI_OPEN = 'sys:webui-open'
 export const IPC_SYS_WEBUI_REGEN_TOKEN = 'sys:webui-regen-token'
+
+/** 对话工具等待教师点击确认（主→渲染） */
+export const IPC_TEACHER_CONFIRM_REQUEST = 'teacher-confirm:request'
+/** 教师点了确认或取消（渲染→主） */
+export const IPC_TEACHER_CONFIRM_RESPOND = 'teacher-confirm:respond'

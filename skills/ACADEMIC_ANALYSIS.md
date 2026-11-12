@@ -1,7 +1,7 @@
 ---
 name: ACADEMIC_ANALYSIS
 description: 考试成绩分析手册 — 查考试/查成绩的标准工作流、六科加权计算、分数段预警口径与常见坑（缺考 vs 未录、跨满分比较）；适合「分析成绩/谁退步了/单科预警/成绩+操行关联」类任务，配合 academic / data-analyst / weekly-reporter 角色使用。
-tools: [eaa_exams, eaa_exam_grades, eaa_student_grades, eaa_stats, eaa_summary, calculate, write_file]
+tools: [eaa_exams, eaa_exam_grades, eaa_student_grades, eaa_import_grades, eaa_set_grade, eaa_delete_exam, eaa_stats, eaa_summary, calculate, write_file]
 ---
 
 # 考试成绩分析手册（技能）
@@ -9,10 +9,17 @@ tools: [eaa_exams, eaa_exam_grades, eaa_student_grades, eaa_stats, eaa_summary, 
 ## 何时用本技能
 
 教师问「这次考试怎么样」「谁退步了」「单科哪些人要补」「把成绩和操行放一起看看」时。
-成绩数据由教师在「学业」页录入，或由主协调从成绩表导入；
-本技能只查询（eaa_exams / eaa_exam_grades / eaa_student_grades 只读），
-**没有录入或修改成绩的工具**——缺数据时引导教师去学业页或让主协调导表，不要自己编。
+成绩来自学业页、成绩表导入，或主协调改分。
+查询三件套是 `eaa_exams` / `eaa_exam_grades` / `eaa_student_grades`。
+写入只在本轮工具列表里有对应工具时才能做；没有就说明本角色不能改，引导教师用主协调或学业页。不要编分数。
 考号与学号经常不是同一个编号，对成绩时以姓名为准。
+
+## 导入、改分、删考试（仅当工具存在）
+
+- **`eaa_import_grades`**：成绩 Excel 的绝对路径传 `excel_path`，加上 `class_id` 和 `exam_name`。不确定先 `dry_run: true`。考号不等于学号时按姓名；对不上的行在 unmatched，禁止新建学生，禁止把分数抄进对话
+- **`eaa_set_grade`**：改一名学生在已有考试里的一科。参数 `exam_id`、`student`、`subject`（id 或名称，如 math / 数学）、`score`（数字，或 null 表示缺考）。先用 `eaa_exams` 拿考试 ID，向教师复述后再调用。没有 confirm 参数
+- **`eaa_delete_exam`**：删除一场考试及其全部成绩。调用后应用弹出确认，教师点击后才删除；取消则不删。不要传 confirm，不要声称教师已经确认
+- 不带 Excel 手工建考试、删一名学生在某场的全部成绩、科目配置，仍在学业页
 
 ## 标准工作流
 

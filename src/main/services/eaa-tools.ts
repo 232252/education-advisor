@@ -6,16 +6,22 @@
 // =============================================================
 
 export { examGradesTool, examsTool, studentGradesTool } from './eaa/tools/academic-tools'
+export { deleteExamTool, setGradeTool } from './eaa/tools/academic-write-tools'
 export {
   archiveClassTool,
   createClassTool,
   importStudentsTool,
   listClassesTool,
+  restoreClassTool,
   updateClassTool,
 } from './eaa/tools/class-tools'
 export { addEventTool, revertEventTool } from './eaa/tools/event-tools'
 export { importGradesTool } from './eaa/tools/grade-import-tools'
-export { gradingFromFilesTool, gradingPublishTool } from './eaa/tools/grading-write-tools'
+export {
+  gradingFromFilesTool,
+  gradingPublishTool,
+  gradingSetStrategyTool,
+} from './eaa/tools/grading-write-tools'
 export { historyTool, queryScoreTool, searchEventsTool, tagTool } from './eaa/tools/query-tools'
 export {
   allEAATools,

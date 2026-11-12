@@ -26,6 +26,7 @@ import { settingsApi } from './settings'
 import { skillApi } from './skill'
 import { studentsApi } from './students'
 import { sysApi } from './sys'
+import { teacherConfirmApi } from './teacher-confirm'
 
 export function createWindowApi() {
   return {
@@ -53,5 +54,6 @@ export function createWindowApi() {
     reports: reportsApi,
     grading: gradingApi,
     memory: memoryApi,
+    teacherConfirm: teacherConfirmApi,
   }
 }

@@ -32,7 +32,11 @@ export interface ExposedTool {
   description: string
   /** typebox TSchema 本身就是 JSON Schema 形状 */
   parameters: unknown
-  execute: (toolCallId: string, params: never) => Promise<{ content: unknown[]; details?: unknown }>
+  execute: (
+    toolCallId: string,
+    params: never,
+    signal?: AbortSignal,
+  ) => Promise<{ content: unknown[]; details?: unknown }>
 }
 
 /** 一组工具 = 一个能力档 = 一个端点；name 需满足 mcp-client 的 serverName 约束 */
@@ -122,13 +126,14 @@ async function callTool(
   tools: readonly ExposedTool[],
   params: Record<string, unknown> | undefined,
   requestId: string | number,
+  signal?: AbortSignal,
 ): Promise<JsonRpcResponse> {
   const name = typeof params?.name === 'string' ? params.name : ''
   const tool = tools.find((t) => t.name === name)
   if (!tool) return rpcError(requestId, -32602, `unknown tool: ${name}`)
 
   try {
-    const result = await tool.execute(String(requestId), (params?.arguments ?? {}) as never)
+    const result = await tool.execute(String(requestId), (params?.arguments ?? {}) as never, signal)
     const payload: Record<string, unknown> = { content: result.content, isError: false }
     // structuredContent 必须 JSON 可序列化；工具私有 details 不一定满足
     if (result.details !== undefined) {
@@ -153,6 +158,7 @@ async function handleRpc(
   tools: readonly ExposedTool[],
   profileName: string,
   message: JsonRpcMessage,
+  signal?: AbortSignal,
 ): Promise<JsonRpcResponse | null> {
   const id = message.id ?? null
   // 通知（无 id）按协议不回响应
@@ -190,7 +196,7 @@ async function handleRpc(
         },
       }
     case 'tools/call':
-      return await callTool(tools, message.params, id)
+      return await callTool(tools, message.params, id, signal)
     default:
       return rpcError(id, -32601, `method not found: ${message.method ?? ''}`)
   }
@@ -273,10 +279,17 @@ export async function startEaaMcpServer(opts: {
         return
       }
 
+      const ac = new AbortController()
+      const onGone = () => {
+        if (!res.writableEnded) ac.abort()
+      }
+      res.on('close', onGone)
+      req.on('aborted', () => ac.abort())
+
       const isBatch = Array.isArray(body)
       const messages = (isBatch ? body : [body]) as JsonRpcMessage[]
       const responses = (
-        await Promise.all(messages.map((m) => handleRpc(profile.tools, profileName, m)))
+        await Promise.all(messages.map((m) => handleRpc(profile.tools, profileName, m, ac.signal)))
       ).filter((r): r is JsonRpcResponse => r !== null)
 
       if (!responses.length) {

@@ -14,6 +14,10 @@ import type { StudentCandidate } from '@shared/grading-helpers'
 import type { GradingTask } from '@shared/types'
 import * as XLSX from 'xlsx'
 
+const settingsState = vi.hoisted(() => ({
+  grading: { provider2: 'p', model2: 'm' } as { provider2?: string; model2?: string },
+}))
+
 const mocks = vi.hoisted(() => {
   const task: GradingTask = {
     id: 'grading-bff-1',
@@ -66,8 +70,20 @@ vi.mock('../../src/main/services/grading/rubric-extract', () => ({
 vi.mock('../../src/main/services/grading/grading-pipeline', () => ({
   startGrading: mocks.startGrading,
 }))
+vi.mock('../../src/main/services/settings-service', () => ({
+  settingsService: {
+    getSettings: () => ({ grading: settingsState.grading }),
+  },
+}))
 
+import { normalizeGradingStrategy } from '@shared/grading-helpers'
 import { startGradingFromFiles } from '../../src/main/services/grading/batch-from-files'
+import {
+  resetTeacherConfirmForTests,
+  resolveTeacherConfirm,
+  setTeacherConfirmSender,
+} from '../../src/main/services/teacher-confirm'
+import { DUAL_MODEL_MISSING } from '../../src/main/services/grading/dual-model-guard'
 
 function bridgeStudents(students: Array<{ name: string; aliases?: string[] }>): void {
   mocks.execute.mockResolvedValue({
@@ -78,7 +94,15 @@ function bridgeStudents(students: Array<{ name: string; aliases?: string[] }>): 
 
 afterEach(() => {
   vi.clearAllMocks()
+  resetTeacherConfirmForTests()
+  settingsState.grading = { provider2: 'p', model2: 'm' }
 })
+
+const baseInput = {
+  name: '数学周测',
+  samplePaths: ['C:/tmp/原卷.pdf'],
+  homeworkPaths: ['C:/tmp/作业.zip'],
+}
 
 describe('startGradingFromFiles — 样卷直走 sample-ingest', () => {
   it('extractRubricFromSamples 收到原始 samplePaths(去掉 materialize+slice 绕行)', async () => {
@@ -199,5 +223,91 @@ describe('startGradingFromFiles — hint 与 merged/duplicates 告警', () => {
     expect(result.hint).toContain('自动合并 2 页续页')
     expect(result.hint).toContain('2 份疑似补录/重复卷(张三)')
     expect(mocks.startGrading).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('startGradingFromFiles — 流程策略', () => {
+  it('未传策略时不写入 gradingStrategy，开批归一为 standard', async () => {
+    bridgeStudents([{ name: '张三' }])
+    const result = await startGradingFromFiles(baseInput)
+    expect(mocks.createTask).toHaveBeenCalledWith(expect.objectContaining({ gradingStrategy: undefined }))
+    expect(result.gradingStrategy).toBe('standard')
+    expect(normalizeGradingStrategy(undefined)).toBe('standard')
+    expect(normalizeGradingStrategy('nope')).toBe('standard')
+    expect(mocks.startGrading).toHaveBeenCalled()
+  })
+
+  it('fast / standard / dual 原样传入，不降级', async () => {
+    bridgeStudents([{ name: '张三' }])
+    for (const gradingStrategy of ['fast', 'standard', 'dual'] as const) {
+      mocks.createTask.mockClear()
+      await startGradingFromFiles({ ...baseInput, gradingStrategy })
+      expect(mocks.createTask).toHaveBeenCalledWith(expect.objectContaining({ gradingStrategy }))
+    }
+  })
+
+  it('非法策略拒绝，不建任务', async () => {
+    bridgeStudents([{ name: '张三' }])
+    await expect(
+      startGradingFromFiles({ ...baseInput, gradingStrategy: 'turbo' as never }),
+    ).rejects.toThrow('非法批改模式')
+    expect(mocks.createTask).not.toHaveBeenCalled()
+    expect(mocks.startGrading).not.toHaveBeenCalled()
+  })
+
+  it('dual 未配置第二模型时失败且不建任务', async () => {
+    bridgeStudents([{ name: '张三' }])
+    settingsState.grading = {}
+    await expect(startGradingFromFiles({ ...baseInput, gradingStrategy: 'dual' })).rejects.toThrow(
+      DUAL_MODEL_MISSING,
+    )
+    expect(mocks.createTask).not.toHaveBeenCalled()
+    expect(mocks.startGrading).not.toHaveBeenCalled()
+  })
+
+  it('extreme 教师取消时不建任务、不开批', async () => {
+    bridgeStudents([{ name: '张三' }])
+    setTeacherConfirmSender((req) => {
+      expect(req.kind).toBe('extreme-grading')
+      resolveTeacherConfirm(req.id, false)
+    })
+    await expect(
+      startGradingFromFiles({ ...baseInput, gradingStrategy: 'extreme' }),
+    ).rejects.toThrow('未创建或更改任务')
+    expect(mocks.createTask).not.toHaveBeenCalled()
+    expect(mocks.startGrading).not.toHaveBeenCalled()
+  })
+
+  it('extreme 教师确认后才建任务并开批', async () => {
+    bridgeStudents([{ name: '张三' }])
+    setTeacherConfirmSender((req) => {
+      resolveTeacherConfirm(req.id, true)
+    })
+    const result = await startGradingFromFiles({ ...baseInput, gradingStrategy: 'extreme' })
+    expect(mocks.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({ gradingStrategy: 'extreme' }),
+    )
+    expect(mocks.startGrading).toHaveBeenCalled()
+    expect(result.gradingStrategy).toBe('extreme')
+  })
+
+  it('extreme 确认窗口不可用时不建任务', async () => {
+    bridgeStudents([{ name: '张三' }])
+    await expect(
+      startGradingFromFiles({ ...baseInput, gradingStrategy: 'extreme' }),
+    ).rejects.toThrow('教师确认窗口不可用')
+    expect(mocks.createTask).not.toHaveBeenCalled()
+  })
+
+  it('确认等待中被中止时不建任务', async () => {
+    bridgeStudents([{ name: '张三' }])
+    const ac = new AbortController()
+    setTeacherConfirmSender(() => {
+      ac.abort()
+    })
+    await expect(
+      startGradingFromFiles({ ...baseInput, gradingStrategy: 'extreme' }, ac.signal),
+    ).rejects.toThrow('教师确认已中断')
+    expect(mocks.createTask).not.toHaveBeenCalled()
   })
 })

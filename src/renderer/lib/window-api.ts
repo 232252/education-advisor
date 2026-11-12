@@ -27,6 +27,7 @@ import type { SettingsAPI } from '@shared/api/settings'
 import type { SkillAPI } from '@shared/api/skill'
 import type { StudentsAPI } from '@shared/api/students'
 import type { SysAPI } from '@shared/api/sys'
+import type { TeacherConfirmAPI } from '@shared/api/teacher-confirm'
 
 // window.api 的类型声明（与 preload 脚本对应）
 export interface WindowAPI {
@@ -64,6 +65,8 @@ export interface WindowAPI {
   grading: GradingAPI
   // R2+ 记忆管理
   memory: MemoryAPI
+  /** 对话工具等待教师点击确认 */
+  teacherConfirm: TeacherConfirmAPI
 }
 
 // 全局类型扩展

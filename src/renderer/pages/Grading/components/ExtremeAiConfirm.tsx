@@ -42,20 +42,24 @@ export function ExtremeAiConfirmDialog({
   open,
   onConfirm,
   onCancel,
+  detail,
 }: {
   open: boolean
   onConfirm: () => void
   onCancel: () => void
+  /** 任务名等数据，接在费用说明后面 */
+  detail?: string
 }) {
   const { t } = useT()
+  const message = t(
+    'page.grading.strategy.extreme.confirmMessage',
+    '极致 AI 模式全程靠视觉自行批改并排版打印 PDF，会派出两个子代理对齐核验，全部通过才给分；不通过则重裁并由一个子代理仲裁。这会消耗大量 token，费用明显高于其他模式。上下文上限 20 万 tokens 并自动压缩。确认后才生效，可随时改回。',
+  )
   return (
     <ConfirmDialog
       open={open}
       title={t('page.grading.strategy.extreme.confirmTitle', '启用极致 AI 模式？')}
-      message={t(
-        'page.grading.strategy.extreme.confirmMessage',
-        '极致 AI 模式全程靠视觉自行批改并排版打印 PDF，会派出两个子代理对齐核验，全部通过才给分；不通过则重裁并由一个子代理仲裁。这会消耗大量 token，费用明显高于其他模式。上下文上限 20 万 tokens 并自动压缩。确认后才生效，可随时改回。',
-      )}
+      message={detail ? `${message}\n${detail}` : message}
       confirmText={t('page.grading.strategy.extreme.confirmAction', '确认启用')}
       cancelText={t('common.cancel', '取消')}
       onConfirm={onConfirm}

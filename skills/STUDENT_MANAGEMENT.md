@@ -1,7 +1,7 @@
 ---
 name: STUDENT_MANAGEMENT
 description: 学生操行数据操作手册 — 何时用哪些 eaa_* 工具、write 类工具的参数与约束（dry_run/force/撤销）；适合「怎么加分扣分/撤销/查名单」类操作问题。通用规则（先确认/数据即工具）不在此重复，见系统自动注入的公共规则。
-tools: [eaa_score, eaa_history, eaa_search, eaa_list_students, eaa_codes, eaa_stats, eaa_summary, eaa_ranking, eaa_range, eaa_tag, eaa_add_event, eaa_revert_event, eaa_add_student, eaa_list_classes, eaa_create_class, eaa_update_class, eaa_archive_class, eaa_import_students, eaa_set_student_meta]
+tools: [eaa_score, eaa_history, eaa_search, eaa_list_students, eaa_codes, eaa_stats, eaa_summary, eaa_ranking, eaa_range, eaa_tag, eaa_add_event, eaa_revert_event, eaa_add_student, eaa_list_classes, eaa_create_class, eaa_update_class, eaa_archive_class, eaa_restore_class, eaa_import_students, eaa_set_student_meta]
 ---
 
 # 学生管理操作手册（技能）
@@ -36,6 +36,9 @@ tools: [eaa_score, eaa_history, eaa_search, eaa_list_students, eaa_codes, eaa_st
 - **`eaa_create_class`**：新建班级。`name` 必填（如 高一4班）；`class_id` 可省，高一4班会自动生成 G10-4
 - **`eaa_import_students`**：批量导入到指定 `class_id`（一次最多 200 人）。有花名册文件时传 `excel_path`（身份证/电话/住址写入学生档案）；不要循环 50 次 `eaa_add_student`
 - **`eaa_set_student_meta`**：二次设置班级/组别/角色（参数 `name` + `classId` / `group` / `role`）
+- **`eaa_update_class`**：改显示名、年级、班主任、备注。不改学生名单
+- **`eaa_archive_class`**：存档。日常列表隐藏，学生与事件保留。`confirm: true` 只表示你已复述班级，不是教师点击
+- **`eaa_restore_class`**：把已存档班级恢复到日常列表。参数 `class_id`。没有 confirm 参数。不能硬删除班级，也不能删除学生
 
 ## 常见操作流程
 
