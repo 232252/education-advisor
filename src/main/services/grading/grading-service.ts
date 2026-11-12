@@ -10,6 +10,7 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { PAPER_SPECS, type PageQuad, quadIsUsable } from '@shared/grading-geometry'
+import { GRADING_STRATEGIES } from '@shared/grading-helpers'
 import type {
   AiGradeResult,
   GradingPaper,
@@ -62,13 +63,8 @@ function assertGradingMode(mode: unknown): void {
 
 /** 校验批改模式;undefined 放行(缺省 standard),非法值抛错 */
 function assertGradingStrategy(strategy: unknown): void {
-  if (
-    strategy !== undefined &&
-    strategy !== 'fast' &&
-    strategy !== 'standard' &&
-    strategy !== 'dual'
-  ) {
-    throw new Error(`非法批改模式: ${String(strategy)}(fast/standard/dual)`)
+  if (strategy !== undefined && !(GRADING_STRATEGIES as string[]).includes(strategy as string)) {
+    throw new Error(`非法批改模式: ${String(strategy)}(${GRADING_STRATEGIES.join('/')})`)
   }
 }
 
