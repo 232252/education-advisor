@@ -11,7 +11,11 @@
 import { existsSync, readFileSync, unlinkSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { delimiter, dirname, join, sep } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { StreamEvent, TokenUsage } from '@shared/types/ai'
+import { dshRuntimeBin, dshSdkEntry, waitForDshRuntime } from './bundled-archive'
+import { configureDshCatalogRoot } from './dsh-model-catalog'
+import { configureDshModelSettings, syncDshCredentialRoutes } from './dsh-model-settings'
 import { EAA_MCP_TOKEN_ENV, EAA_MCP_URL_ENV } from './eaa-tools-contract'
 import { ensureEaaHardeningPatch } from './hardening'
 import { setEaaToolsPluginTarget } from './plugin-install'
@@ -19,7 +23,6 @@ import { type DshRouteModelSource, dshRouteModelEntry } from './profile-override
 import {
   dshProviderRouting,
   dshSubprocessEnv,
-  ensureEaaProviderPatch,
   probeCredentialPlan,
   providersToDeclare,
   writeProviderPatchFile,
@@ -109,12 +112,18 @@ export interface DshChatStreamParams {
  * 不可见，运行时仍是真正的动态 import；也避免未安装依赖时构建期解析失败。
  */
 export async function loadSdkClient(): Promise<new (options: unknown) => DshClientLike> {
+  await waitForDshRuntime()
   const { installDshNodeSpawnHook } = await import('./dsh-node')
   installDshNodeSpawnHook()
   const dynamicImport = new Function('specifier', 'return import(specifier)') as (
     s: string,
   ) => Promise<{ HarnessClient: new (options: unknown) => DshClientLike }>
-  const mod = await dynamicImport('@deepseek-ai/dsh-sdk-client')
+  // Packaged builds import the extracted tree so peer packages (dsh-scope, …)
+  // resolve next to the client. Dev keeps the bare specifier.
+  const specifier = runtimeSdkEntry
+    ? pathToFileURL(runtimeSdkEntry).href
+    : '@deepseek-ai/dsh-sdk-client'
+  const mod = await dynamicImport(specifier)
   return mod.HarnessClient
 }
 
@@ -135,6 +144,9 @@ let runtimeCwd = process.cwd()
  * 纯 node 子进程读不到（见 toUnpackedAsarPath），所以打包态必须注入。
  */
 let runtimeDshBin: string | undefined
+/** Absolute path of the extracted SDK entry. Unset in dev (bare import). */
+let runtimeSdkEntry: string | undefined
+let lastRuntimeOpts: Parameters<typeof configureDshRuntime>[0] | null = null
 
 /**
  * 「路由名 + 模型 id → app 目录里的那个模型」，由 bootstrap 注入（pi-ai 的
@@ -161,21 +173,51 @@ export function configureDshRuntime(opts: {
   toolsDir?: string
   /** 按需组件目录（office-kit-service 的 extraModulesDir），进 NODE_PATH。 */
   extraModulesDir?: string
+  /** 解压后的 dsh-sdk-client 入口。打包态由 runtime zip 提供。 */
+  sdkClientEntry?: string
+  /**
+   * 官方 pi-ai 目录所在的运行时根（含 node_modules/@earendil-works/pi-ai）。
+   * 打包态是解压后的 dsh-bundles/dsh-runtime，不是 userData 本身。
+   * 省略时退回 cwd，仅给单测/未解压前的早期调用。
+   */
+  catalogRoot?: string
 }): void {
+  lastRuntimeOpts = opts
   runtimeCwd = opts.cwd
   // 无条件覆盖：整次装配只有一个调用方，缺省即「没有可用入口」，不能沿用上一次的值
   runtimeDshBin = opts.dshBin
+  runtimeSdkEntry = opts.sdkClientEntry
   runtimeRouteModel = opts.routeModel
   runtimeSdkHome = opts.sdkHome ?? ''
   runtimeExtraModulesDir = opts.extraModulesDir ?? ''
+  configureDshCatalogRoot(opts.catalogRoot ?? opts.cwd)
+  configureDshModelSettings(opts.sdkHome ? join(opts.sdkHome, 'profiles', 'sdk') : '')
   setEaaToolsPluginTarget(
     opts.sdkHome && opts.toolsDir && opts.dshBin
       ? { home: opts.sdkHome, toolsDir: opts.toolsDir, dshBin: opts.dshBin }
       : null,
   )
 }
+export function getConfiguredDshBin(): string | undefined {
+  return runtimeDshBin
+}
+
 export function getDshRuntimeCwd(): string {
   return runtimeCwd
+}
+
+/** Point the child and the SDK import at a zip extracted under userData. */
+export function retargetPackagedDsh(root: string): void {
+  if (!lastRuntimeOpts) return
+  const bin = dshRuntimeBin(root)
+  const sdk = dshSdkEntry(root)
+  configureDshRuntime({
+    ...lastRuntimeOpts,
+    dshBin: bin,
+    sdkClientEntry: sdk,
+    // Official catalog lives next to the extracted runtime, not under userData.
+    catalogRoot: root,
+  })
 }
 
 /**
@@ -342,7 +384,14 @@ export function createDshRuntime(
   // 共享 patch 只写已经存过 key 的 provider。探测用的那把还没入库，
   // 单独写一份排在后面的 patch，避免把「未保存的路由」留在共享文件里。
   const routing = dshProviderRouting(declared, pinned)
-  const providerPatch = ensureEaaProviderPatch(cwd, routing.profiles)
+  // 只把 apiKeyEnv 合并进官方 profile，不把 EAA 目录/钉住的 models 整表覆盖进去。
+  if (runtimeSdkHome) {
+    const credentials: Record<string, { apiKeyEnv?: string }> = {}
+    for (const [id, profile] of Object.entries(routing.profiles)) {
+      if (profile.apiKeyEnv) credentials[id] = { apiKeyEnv: profile.apiKeyEnv }
+    }
+    syncDshCredentialRoutes(join(runtimeSdkHome, 'profiles', 'sdk'), credentials)
+  }
   const probeId = opts.probeCredential?.providerId
   const probeRouting =
     probeId && opts.probeCredential?.apiKey && !declared.includes(probeId)
@@ -368,12 +417,7 @@ export function createDshRuntime(
   const { mcp: _mcp, patches: callerPatches, probeCredential: _probe, ...rest } = opts
   const runtime = new DshRuntime({
     ...rest,
-    patches: [
-      hardening,
-      ...(providerPatch ? [providerPatch] : []),
-      ...(probePatch ? [probePatch] : []),
-      ...(callerPatches ?? []),
-    ],
+    patches: [hardening, ...(probePatch ? [probePatch] : []), ...(callerPatches ?? [])],
     env,
   })
   if (probePatch) {

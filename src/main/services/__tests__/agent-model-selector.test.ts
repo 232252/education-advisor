@@ -34,6 +34,16 @@ vi.mock('@earendil-works/pi-ai/compat', () => ({
   getProviders: vi.fn(() => []),
 }))
 
+vi.mock('../dsh/dsh-model-settings', () => ({
+  getDshCurrentRoute: vi.fn(() => null),
+}))
+
+vi.mock('../pi-ai/model-utils', () => ({
+  resolveModel: vi.fn(() => undefined),
+  buildOllamaModel: vi.fn(),
+  parseOllamaParamB: vi.fn(),
+}))
+
 import { getModel, getModels } from '@earendil-works/pi-ai/compat'
 import {
   hasApiKey,
@@ -43,8 +53,11 @@ import {
   resolveApiKey,
   safeCostScore,
   selectModel,
+  selectModelForRun,
 } from '../agent-model-selector'
+import { getDshCurrentRoute } from '../dsh/dsh-model-settings'
 import { keystoreService } from '../keystore-service'
+import { resolveModel } from '../pi-ai/model-utils'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -120,5 +133,44 @@ describe('selectModel', () => {
     vi.mocked(getModels).mockReturnValue([expensive, cheap] as never)
     const result = selectModel('low_cost')
     expect(result.id).toBe('cheap')
+  })
+})
+
+describe('selectModelForRun', () => {
+  it('教师在选择器写入的 DSH 路由优先于 settings.models', () => {
+    const dshModel = { id: 'MiniMax-M3.1-Flash', api: 'anthropic-messages', provider: 'minimax-cn' }
+    vi.mocked(getDshCurrentRoute).mockReturnValue({
+      provider: 'minimax-cn',
+      model: 'MiniMax-M3.1-Flash',
+    })
+    vi.mocked(getModel).mockReturnValue(dshModel as never)
+    const result = selectModelForRun('high_quality')
+    expect(result).toBe(dshModel)
+    expect(getModel).toHaveBeenCalledWith('minimax-cn', 'MiniMax-M3.1-Flash')
+  })
+
+  it('没有 DSH 路由时退回 selectModel 的 settings 路径', () => {
+    vi.mocked(getDshCurrentRoute).mockReturnValue(null)
+    const settingsModel = { id: 'gpt-4', api: 'openai-completions' }
+    vi.mocked(getModel).mockReturnValue(settingsModel as never)
+    const result = selectModelForRun('high_quality')
+    expect(result).toBe(settingsModel)
+    expect(getModel).toHaveBeenCalledWith('openai', 'gpt-4')
+  })
+
+  it('DSH 路由在目录里解析不到时退回 settings tier', () => {
+    vi.mocked(getDshCurrentRoute).mockReturnValue({
+      provider: 'minimax-cn',
+      model: 'unknown-model',
+    })
+    vi.mocked(getModel).mockImplementation((provider, model) => {
+      if (provider === 'openai' && model === 'gpt-4') {
+        return { id: 'gpt-4', api: 'openai-completions' } as never
+      }
+      return undefined as never
+    })
+    vi.mocked(resolveModel).mockReturnValue(undefined)
+    const result = selectModelForRun('high_quality')
+    expect(result.id).toBe('gpt-4')
   })
 })

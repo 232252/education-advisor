@@ -1,0 +1,4 @@
+# 本 bundle 把「模型设置」登记为官方 profile 能力。
+# 实时 providers 由宿主写入同一 profile 的 cordis.patch.yml，覆盖 id: llm-pi-ai。
+# 只写 apiKeyEnv 变量名，不写密钥。
+[]

@@ -18,6 +18,9 @@ vendor/dsh-node/
 # office-kit 按需组件清单（prepackage 由 scripts/build-office-kit-asset.mjs
 # 与 build/office-kit/*.zip 同次生成，sha 必须与 zip 配对，不进 git）
 config/office-kit.json
+# dsh runtime / dsh-im 压缩包清单（与 build/dsh-*.zip 同一次生成）
+config/dsh-runtime.json
+config/dsh-im.json
 
 # ===== Logs (debug + runtime) =====
 *.log

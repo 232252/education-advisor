@@ -20,7 +20,7 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 | 页面数 | 14 |
 | 路由数 | 16 |
 | IPC 通道数 | 187 |
-| Service 文件数 | 277 |
+| Service 文件数 | 278 |
 | IPC handler 文件数 | 51 |
 | Zustand store 模块数 | 7 |
 | Preload API 文件数 | 26 |
@@ -36,6 +36,7 @@ hand-edit these numbers; run `node scripts/doc-stats.mjs --write`.
 - [The channel layer (connection hub)](#the-channel-layer-connection-hub)
 - [The agent runtime (dsh subprocess)](#the-agent-runtime-dsh-subprocess)
 - [The connection center (dsh-im)](#the-connection-center-dsh-im)
+- [DeepSeek 核心运行时规划](./DSH_CORE_RUNTIME.md)
 - [The data flow](#the-data-flow)
 - [The state model](#the-state-model)
 - [The build pipeline](#the-build-pipeline)
@@ -373,6 +374,8 @@ stage 2.
 
 ## The agent runtime (dsh subprocess)
 
+> 随包范围、显示层排除，以及官方小升级如何做到改版本号后跑 GitHub CI，见 [DeepSeek 核心运行时规划](./DSH_CORE_RUNTIME.md)。插件化方向见 [DSH_PLUGIN_VISION.md](./DSH_PLUGIN_VISION.md)。
+
 The agent loop no longer runs inside the Electron main process. Model
 calls execute in a separate **dsh subprocess** (`@deepseek-ai/dsh`
 0.2.2-rc.1); the Electron host stays thin — it owns the window, the
@@ -431,6 +434,8 @@ conversation lives in `src/main/services/dsh/`:
 ---
 
 ## The connection center (dsh-im)
+
+> 连接中心要留的是 IM 功能，不是官方 Harness 首页。随包与升级政策见 [DeepSeek 核心运行时规划](./DSH_CORE_RUNTIME.md)。
 
 The chat-channel management panel is not a home-grown settings page —
 it is the official **dsh-im plugin** (`vendor/dsh-im`, package

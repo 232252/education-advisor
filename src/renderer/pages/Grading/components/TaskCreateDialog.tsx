@@ -9,6 +9,7 @@ import type { GradingStrategy, GradingStrictness, RubricQuestion } from '@shared
 import { useState } from 'react'
 import { useT } from '../../../i18n'
 import { btnStyle, CARD_BASE, INPUT_BASE } from '../../../lib/ui-utils'
+import { ExtremeAiConfirmDialog, useExtremeStrategyGate } from './ExtremeAiConfirm'
 import { RubricEditor } from './RubricEditor'
 
 interface SubjectOption {
@@ -54,6 +55,7 @@ export function TaskCreateDialog({
   const [subjectId, setSubjectId] = useState('')
   const [gradingMode, setGradingMode] = useState<GradingStrictness>('normal')
   const [gradingStrategy, setGradingStrategy] = useState<GradingStrategy>('standard')
+  const extremeGate = useExtremeStrategyGate(gradingStrategy, setGradingStrategy)
   const [rubric, setRubric] = useState<RubricQuestion[]>([])
 
   const canSave = name.trim().length > 0 && semester.trim().length > 0 && !saving
@@ -196,7 +198,7 @@ export function TaskCreateDialog({
               <select
                 id="grading-task-strategy"
                 value={gradingStrategy}
-                onChange={(e) => setGradingStrategy(e.target.value as GradingStrategy)}
+                onChange={(e) => extremeGate.requestChange(e.target.value as GradingStrategy)}
                 title={t(
                   'page.grading.strategy.title',
                   '批改流程档位：调用次数与准确率的权衡；改动后对之后的批改/重改生效',
@@ -210,11 +212,14 @@ export function TaskCreateDialog({
                 <option value="dual">
                   {t('page.grading.strategy.dual', '双评 · 双AI独立批改')}
                 </option>
+                <option value="extreme">
+                  {t('page.grading.strategy.extreme', '极致 AI 模式 · 纯视觉+双子核验')}
+                </option>
               </select>
               <p className="mt-1 text-[11px] leading-4 text-gray-400">
                 {t(
                   'page.grading.strategy.hint',
-                  '快改=整卷一次调用最快最省；标准=逐题定位裁剪+条件复验，准确率优先；双评=两个视觉模型独立批改，阈值内取均值、分歧题交老师仲裁（需在设置→模型配置第二模型）',
+                  '快改=整卷一次调用最快最省；标准=逐题定位裁剪+条件复验，准确率优先；双评=两个视觉模型独立批改，阈值内取均值、分歧题交老师仲裁（需在设置→模型配置第二模型）；极致 AI=全程靠视觉模型自行批改并排版打印 PDF，派出两个子代理对齐核验，全部通过才给分，不通过则重裁并由一个子代理仲裁。上下文 20 万 tokens 并自动压缩。此模式消耗大量 token、费用明显高于其他模式，选用时需确认。',
                 )}
               </p>
             </div>
@@ -240,6 +245,11 @@ export function TaskCreateDialog({
           </button>
         </div>
       </div>
+      <ExtremeAiConfirmDialog
+        open={extremeGate.confirmOpen}
+        onConfirm={extremeGate.onConfirm}
+        onCancel={extremeGate.onCancel}
+      />
     </div>
   )
 }

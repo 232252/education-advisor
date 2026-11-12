@@ -1,8 +1,9 @@
 // =============================================================
-// dsh 0.2.1 的 node-addon-require-builtin 只认几份精确的 Electron 指纹
-// （43.0.0 / 44.0.0 / 44.7.0）。本应用是 Electron 43.2.0，用它自己的 exe
-// 加 ELECTRON_RUN_AS_NODE 去跑 dsh，子进程会直接退出，对话拿到空回复。
-// 机器上有独立的 node 时改用那一份。
+// dsh 0.2.2-rc.1 的 node-addon-require-builtin 仍只认 43.0.0 / 44.0.0 /
+// 44.7.0 / 45.0.0-alpha.6。本应用是 Electron 45.0.0，用它自己的 exe 加
+// ELECTRON_RUN_AS_NODE 去跑 dsh，requireBuiltin 直接拒绝。机器上的独立
+// node（打包态是 resources/dsh-node）可以。闭包本身放在 runtime zip 里，
+// 首启解到 userData，不进 app.asar。
 // =============================================================
 
 import { execFileSync, type SpawnOptions } from 'node:child_process'

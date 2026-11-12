@@ -38,6 +38,7 @@ import { keystoreService } from '../keystore-service'
 import { KEYLESS_PROVIDERS } from '../ollama/constants'
 import { resolveModel } from '../pi-ai/model-utils'
 import { settingsService } from '../settings-service'
+import { gradePaperExtreme } from './extreme-pipeline'
 import { gradingService } from './grading-service'
 import { completeGradingCall } from './llm-call'
 import { gradePaperStaged, type StagedSharedContext, type StagedStageInfo } from './staged-pipeline'
@@ -465,9 +466,10 @@ export interface PaperGradeOutcome {
 }
 
 /**
- * 三档批改策略路由(任务 gradingStrategy 字段):
+ * 四档批改策略路由(任务 gradingStrategy 字段):
  * fast=整卷一次调用(快改,不复验); standard=分阶段管线+同模型条件复验;
- * dual=两个视觉模型各跑分阶段管线,阈值内取均值/超阈值记分歧(教师仲裁)。
+ * dual=两个视觉模型各跑分阶段管线,阈值内取均值/超阈值记分歧(教师仲裁);
+ * extreme=极致 AI:纯视觉初评,两个子代理核验通过才给分,否则重裁+一个仲裁子代理。
  * 导出供集成测试(dual 共享 locate/页缓存的调用计数断言)。
  */
 export async function gradePaperByStrategy(
@@ -484,7 +486,13 @@ export async function gradePaperByStrategy(
   if (strategy === 'fast') {
     return { result: await gradePaperOnce(task, paperId, model, apiKey, signal) }
   }
-  if (strategy === 'dual' && model2 && apiKey2) {
+  if (strategy === 'extreme') {
+    return { result: await gradePaperExtreme({ task, paperId, model, apiKey, signal, onStage }) }
+  }
+  if (strategy === 'dual') {
+    if (!model2 || !apiKey2) {
+      throw new Error('双评模式未配置第二模型(设置→模型→批改模型)')
+    }
     // 双评共享一次 locate 与页缓存: 几何定位/读盘不是评分判断,共享不损
     // 双评独立性;两个模型各自的 grade/transcribe 调用照常独立计数。
     const shared: StagedSharedContext = {}

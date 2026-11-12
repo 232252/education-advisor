@@ -119,11 +119,11 @@ export function ChatPage() {
     async (provider: string, model: string) => {
       setModel(provider, model)
       try {
-        await getAPI().settings.set('models.defaultProvider', provider)
-        await getAPI().settings.set('models.highQualityModel', model)
+        await getAPI().ai.selectDshRoute({ provider, model })
       } catch {
-        // R2-14: 保存失败必须可见 — 静默回退会让用户以为已配置,重启后悄悄还原
-        toast.warning(t('toast.settings.saveFailed', '设置保存失败,重启后将恢复上次选择'))
+        toast.warning(
+          t('toast.settings.saveFailed', '写入 DSH 当前模型失败,下次对话可能仍用上一线路'),
+        )
       }
     },
     [setModel, t],

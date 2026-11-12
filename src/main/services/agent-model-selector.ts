@@ -16,6 +16,7 @@
 import { getModel, getModels, getProviders } from '@earendil-works/pi-ai/compat'
 import type { Api, Model } from '@main/services/llm-contracts'
 import { errText } from '../utils/err-text'
+import { getDshCurrentRoute } from './dsh/dsh-model-settings'
 // KEYLESS_PROVIDERS 从 ollama/constants 导入(定义单一来源;ollama-service 入口会拉入 electron)
 import { KEYLESS_PROVIDERS } from './ollama/constants'
 import { buildOllamaModel, parseOllamaParamB, resolveModel } from './pi-ai/model-utils'
@@ -61,6 +62,40 @@ export function hasApiKey(provider: string): boolean {
  * @param ollamaInstalledModelIds ollama 等本地 keyless provider 的已安装模型 id 列表
  *   (由调用方异步预取 ollamaService.listModels() 后注入;selectModel 是同步纯函数无法内部 await)
  */
+/**
+ * 对话发送路径：优先用教师在选择器里写入的官方 DSH 当前路由
+ *（agent-default-model / getDshCurrentRoute），与 picker 数据双通。
+ * 没有 DSH 路由、或该路由在目录里解析不到时，再退回 settings 的 tier 选择。
+ * 不另建一份平行目录。
+ */
+export function selectModelForRun(
+  tier: 'high_quality' | 'low_cost',
+  ollamaInstalledModelIds?: string[],
+): Model<Api> {
+  const route = getDshCurrentRoute()
+  if (route?.provider && route?.model) {
+    const providerId = route.provider
+    const modelId = route.model
+    const staticModel = getModel(
+      providerId as Parameters<typeof getModel>[0],
+      modelId as Parameters<typeof getModel>[1],
+    )
+    if (staticModel) {
+      console.log(`[AgentService] selectModel: using DSH route ${providerId}/${modelId}`)
+      return staticModel
+    }
+    const resolved = resolveModel(providerId, modelId)
+    if (resolved) {
+      console.log(`[AgentService] selectModel: using DSH route (resolved) ${providerId}/${modelId}`)
+      return resolved
+    }
+    console.warn(
+      `[AgentService] selectModel: DSH route ${providerId}/${modelId} is not in the official catalog; falling back to settings tier`,
+    )
+  }
+  return selectModel(tier, ollamaInstalledModelIds)
+}
+
 export function selectModel(
   tier: 'high_quality' | 'low_cost',
   ollamaInstalledModelIds?: string[],

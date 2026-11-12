@@ -369,6 +369,8 @@ describe('gradingService — 批改模式与双评附加字段', () => {
     expect(task.gradingStrategy).toBe('dual')
     const updated = await gradingService.updateTask(task.id, { gradingStrategy: 'fast' })
     expect(updated.gradingStrategy).toBe('fast')
+    const extreme = await gradingService.updateTask(task.id, { gradingStrategy: 'extreme' })
+    expect(extreme.gradingStrategy).toBe('extreme')
     await expect(
       gradingService.updateTask(task.id, { gradingStrategy: 'turbo' as never }),
     ).rejects.toThrow('非法批改模式')

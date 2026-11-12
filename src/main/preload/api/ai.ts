@@ -13,6 +13,9 @@ export const aiApi = {
 
   // [r] 列出某 Provider 的可用模型
   listModels: (providerId: string) => ipcInvoke(IPC.IPC_AI_LIST_MODELS, providerId),
+  getDshRoute: () => ipcInvoke(IPC.IPC_AI_GET_DSH_ROUTE),
+  selectDshRoute: (selection: { provider: string; model: string; reasoningEffort?: string }) =>
+    ipcInvoke(IPC.IPC_AI_SELECT_DSH_ROUTE, selection),
 
   // [r] 测试 Provider 连通性(apiKey 不持久化)
   testConnection: (providerId: string, apiKey: string, baseUrl?: string) =>

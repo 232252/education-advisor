@@ -501,6 +501,7 @@ describe('批改模式归一 + 双评合并', () => {
     expect(normalizeGradingStrategy('fast')).toBe('fast')
     expect(normalizeGradingStrategy('dual')).toBe('dual')
     expect(normalizeGradingStrategy('standard')).toBe('standard')
+    expect(normalizeGradingStrategy('extreme')).toBe('extreme')
     expect(normalizeGradingStrategy(undefined)).toBe('standard')
     expect(normalizeGradingStrategy('turbo')).toBe('standard')
   })

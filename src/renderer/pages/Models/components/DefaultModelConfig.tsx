@@ -57,13 +57,15 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
     initialLoadDone.current = true
     const loadSettings = async () => {
       try {
-        const settings = await getAPI().settings.get()
-        // UI-2 修复: 用可选链兜底,防止后端 settings.get() 在迁移/升级后返回
-        // 缺少嵌套子对象(例如 models 整体缺失)导致白屏崩溃。
-        const prov = settings?.models?.defaultProvider || ''
+        const [route, settings] = await Promise.all([
+          getAPI().ai.getDshRoute(),
+          getAPI().settings.get(),
+        ])
+        // DSH agent-default-model 是当前路由的源；settings 只作缺省回退。
+        const prov = route?.provider || settings?.models?.defaultProvider || ''
         setDefaultProvider(prov)
-        setHighQualityModel(settings?.models?.highQualityModel || '')
-        setLowCostModel(settings?.models?.lowCostModel || '')
+        setHighQualityModel(route?.model || settings?.models?.highQualityModel || '')
+        setLowCostModel(settings?.models?.lowCostModel || route?.model || '')
         // loadProviders 已批量加载所有 configured provider 的模型，不再重复请求
       } catch (err) {
         console.error('[DefaultModelConfig] Failed to load settings:', err)
@@ -76,7 +78,22 @@ export const DefaultModelConfig = memo(function DefaultModelConfig({
   // Auto-save with toast notification
   const saveSetting = async (path: string, value: string) => {
     try {
-      await getAPI().settings.set(path, value)
+      if (
+        path === 'models.defaultProvider' ||
+        path === 'models.highQualityModel' ||
+        path === 'models.lowCostModel'
+      ) {
+        const provider = path === 'models.defaultProvider' ? value : defaultProvider
+        const model =
+          path === 'models.defaultProvider'
+            ? highQualityModel
+            : path === 'models.highQualityModel'
+              ? value
+              : highQualityModel || value
+        if (provider && model) await getAPI().ai.selectDshRoute({ provider, model })
+      } else {
+        await getAPI().settings.set(path, value)
+      }
       setSaveToastAuto('ok', 2000)
     } catch (err) {
       console.error(`[DefaultModelConfig] Failed to save ${path}:`, err)

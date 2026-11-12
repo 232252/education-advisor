@@ -21,6 +21,8 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
   const [open, setOpen] = useState(false)
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [models, setModels] = useState<Record<string, ModelInfo[]>>({})
+  // 浏览中的厂商（点击左侧只切换右侧目录，不改已选定的对话路由）
+  const [viewingProvider, setViewingProvider] = useState(selectedProvider)
   const modelsRef = useRef<Record<string, ModelInfo[]>>({})
   const [loading, setLoading] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -32,6 +34,10 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
   selectedProviderRef.current = selectedProvider
   const selectedModelRef = useRef(selectedModel)
   selectedModelRef.current = selectedModel
+
+  useEffect(() => {
+    if (selectedProvider) setViewingProvider(selectedProvider)
+  }, [selectedProvider])
 
   // 加载 providers
   // 点击外部关闭
@@ -136,7 +142,8 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
 
   const handleProviderClick = useCallback(
     (providerId: string) => {
-      loadModelsFor(providerId, true) // 每次点击都重新获取
+      setViewingProvider(providerId)
+      void loadModelsFor(providerId, true)
     },
     [loadModelsFor],
   )
@@ -217,7 +224,7 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
                   key={p.id}
                   onClick={() => handleProviderClick(p.id)}
                   className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                    selectedProvider === p.id
+                    viewingProvider === p.id
                       ? 'bg-blue-600/20 text-blue-600 dark:text-blue-400 border-l-2 border-blue-500'
                       : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.06]'
                   }`}
@@ -245,14 +252,14 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect }: Mod
                 <div className="p-4 text-center text-gray-400 dark:text-gray-500 text-sm">
                   {t('page.chat.modelSelector.loading')}
                 </div>
-              ) : selectedProvider && models[selectedProvider] ? (
-                models[selectedProvider].map((m) => (
+              ) : viewingProvider && models[viewingProvider] ? (
+                models[viewingProvider].map((m) => (
                   <button
                     type="button"
                     key={m.id}
-                    onClick={() => handleModelClick(selectedProvider, m.id)}
+                    onClick={() => handleModelClick(viewingProvider, m.id)}
                     className={`w-full text-left px-3 py-2 transition-colors border-b border-gray-100 dark:border-white/[0.04] ${
-                      selectedModel === m.id
+                      selectedProvider === viewingProvider && selectedModel === m.id
                         ? 'bg-blue-600/20 text-blue-600 dark:text-blue-400'
                         : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.04]'
                     }`}

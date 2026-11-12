@@ -13,10 +13,19 @@ import { initAutoBackup } from '../services/backup-service'
 import { channelManager } from '../services/channels/manager'
 import { cronService } from '../services/cron-service'
 import { dbService } from '../services/db-service'
+import {
+  ensureExtractedArchive,
+  setDshImGate,
+  setDshRuntimeGate,
+} from '../services/dsh/bundled-archive'
 import { configureDshNode } from '../services/dsh/dsh-node'
 import { configureOfficeKit, prewarmOfficeKit } from '../services/dsh/office-kit-service'
 import { configureDshCredentials } from '../services/dsh/provider-patch'
-import { configureDshRuntime, resolveDshEntryPath } from '../services/dsh/runtime'
+import {
+  configureDshRuntime,
+  resolveDshEntryPath,
+  retargetPackagedDsh,
+} from '../services/dsh/runtime'
 import { ensureActiveEaaToolBridge, stopActiveEaaToolBridge } from '../services/dsh/tool-bridge'
 import { keystoreService } from '../services/keystore-service'
 import { resolveAppDataDir, resolveEaaDataDir } from '../services/paths'
@@ -99,13 +108,40 @@ export async function startApp(): Promise<void> {
     dshBin,
     // patch 里钉住的那条路由要带 models 条目，模型字段以 app 的 pi 目录为准
     routeModel: (route, modelId) => resolveModel(route, modelId),
+    // 开发态官方目录在仓库根的 node_modules；打包态等 retargetPackagedDsh
+    // 把 catalogRoot 指到解压后的 dsh-bundles/dsh-runtime。
+    catalogRoot: app.isPackaged ? undefined : app.getAppPath(),
     sdkHome: join(app.getPath('userData'), 'dsh-sdk-home'),
     toolsDir: app.isPackaged
       ? join(process.resourcesPath, 'eaa-tools')
       : join(app.getAppPath(), 'vendor', 'eaa-tools'),
     extraModulesDir,
   })
-  if (!dshBin) {
+  if (app.isPackaged) {
+    const userData = app.getPath('userData')
+    const resources = process.resourcesPath
+    const runtimeTask = ensureExtractedArchive({
+      manifestPath: join(resources, 'config', 'dsh-runtime.json'),
+      zipDir: join(resources, 'dsh-runtime'),
+      destDir: join(userData, 'dsh-bundles', 'dsh-runtime'),
+      marker: join('node_modules', '@deepseek-ai', 'dsh-scope', 'package.json'),
+    }).then((result) => {
+      if (result.ok) retargetPackagedDsh(result.root)
+      else log('warn', 'main', `[Startup] dsh runtime archive: ${result.error}`)
+    })
+    setDshRuntimeGate(runtimeTask)
+    const imTask = ensureExtractedArchive({
+      manifestPath: join(resources, 'config', 'dsh-im.json'),
+      zipDir: join(resources, 'dsh-im'),
+      destDir: join(userData, 'dsh-bundles', 'dsh-im'),
+      marker: join('node_modules', 'qrcode', 'package.json'),
+    }).then((result) => {
+      if (!result.ok) log('warn', 'main', `[Startup] dsh-im archive: ${result.error}`)
+      return result.ok ? result.root : undefined
+    })
+    setDshImGate(imTask)
+  }
+  if (!dshBin && !app.isPackaged) {
     log(
       'warn',
       'main',

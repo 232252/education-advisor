@@ -8,7 +8,7 @@
 // =============================================================
 
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { BrowserWindow } from 'electron'
 import { getClassContextSection } from '../agent/class-context'
 import { memoryService } from '../agent/memory-service'
@@ -19,19 +19,11 @@ import {
 } from '../agent/privacy-guard'
 import { selectSkillsForRun } from '../agent/tools'
 import { agentService } from '../agent-service'
-import { safeGetModels } from '../pi-ai/model-utils'
 import { settingsService } from '../settings-service'
+import { syncDshCredentialRoutes } from './dsh-model-settings'
 import { composeImInstructions } from './im-instructions'
 import { ensureEaaImPresetPatch } from './im-preset'
-import { dshRouteModelEntry } from './profile-overrides'
-import {
-  type DshProviderRouting,
-  dshProviderRouting,
-  dshRouteKey,
-  dshSubprocessEnv,
-  ensureEaaProviderPatch,
-  providersToDeclare,
-} from './provider-patch'
+import { dshProviderRouting, dshSubprocessEnv, providersToDeclare } from './provider-patch'
 import { getDshRuntimeCwd } from './runtime'
 import { ensureEaaSkillPatch, materializeDshSkills, removeDshSkillDir } from './skill-mount'
 import {
@@ -61,41 +53,6 @@ export async function releaseDshImEducationLaunch(): Promise<void> {
   removeDshSkillDir(skillDir)
 }
 
-/**
- * 非官方内建路由补上 pi 目录里的模型。
- * 只写 apiKeyEnv 时，web 里一发请求就是 has no configured model。
- * deepseek 走 dsh 自己的 deepseek-official，不在这份 profiles 里。
- */
-function attachCatalogModels(
-  profiles: DshProviderRouting['profiles'],
-  providerIds: readonly string[],
-): void {
-  for (const providerId of providerIds) {
-    const profile = profiles[dshRouteKey(providerId)]
-    if (!profile || profile.models?.length) continue
-    const models = safeGetModels(providerId)
-    const entries = []
-    let api: string | undefined
-    for (const model of models) {
-      const entry = dshRouteModelEntry({
-        id: model.id,
-        name: model.name,
-        contextWindow: model.contextWindow,
-        maxTokens: model.maxTokens,
-        input: model.input,
-        thinkingLevelMap: model.thinkingLevelMap,
-        api: model.api,
-      })
-      if (!entry) continue
-      entries.push(entry)
-      if (!api && model.api) api = model.api
-    }
-    if (!entries.length) continue
-    profile.models = entries
-    if (api) profile.api = api
-  }
-}
-
 function credentialEnv(envNames: Record<string, string>): Record<string, string> {
   const merged = dshSubprocessEnv(envNames)
   if (!merged) return {}
@@ -116,8 +73,11 @@ export async function prepareDshImEducationLaunch(opts: {
 
   const providerIds = providersToDeclare()
   const routing = dshProviderRouting(providerIds)
-  attachCatalogModels(routing.profiles, providerIds)
-  const providerPatch = ensureEaaProviderPatch(opts.patchDir, routing.profiles)
+  const credentials: Record<string, { apiKeyEnv?: string }> = {}
+  for (const [id, profile] of Object.entries(routing.profiles)) {
+    if (profile.apiKeyEnv) credentials[id] = { apiKeyEnv: profile.apiKeyEnv }
+  }
+  syncDshCredentialRoutes(join(dirname(opts.patchDir), 'profiles', 'web'), credentials)
 
   let privacyGuard: PrivacyGuard | undefined
   if (isAutoAnonymizeEnabled()) privacyGuard = await PrivacyGuard.create()
@@ -162,7 +122,7 @@ export async function prepareDshImEducationLaunch(opts: {
       mount.toolNameMap,
     )
     return {
-      patches: [...(providerPatch ? [providerPatch] : []), skillPatch, presetPatch],
+      patches: [skillPatch, presetPatch],
       env: {
         ...credentialEnv(routing.envNames),
         ...pluginProcessEnv(mount.pluginEndpoints),

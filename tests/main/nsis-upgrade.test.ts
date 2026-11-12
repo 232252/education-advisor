@@ -30,9 +30,8 @@ function macroBody(name: string) {
   return nsh.slice(start, end)
 }
 
-describe('3.3.7-beta.1 packaging', () => {
-  it('版本带 beta 后缀，release.yml 会把它标成 prerelease', () => {
-    expect(pkg.version).toBe('3.3.7-beta.1')
+describe('prerelease packaging', () => {
+  it('版本带 beta/rc/alpha 后缀，release.yml 会把它标成 prerelease', () => {
     expect(lock.version).toBe(pkg.version)
     expect(lock.packages[''].version).toBe(pkg.version)
     expect(/-(?:rc|beta|alpha)/.test(pkg.version)).toBe(true)

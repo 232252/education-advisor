@@ -6,7 +6,7 @@
 // =============================================================
 
 import type { GradingRosterEntry } from '@shared/api/grading'
-import { cleanPresetMarks, reviewPriority } from '@shared/grading-helpers'
+import { cleanPresetMarks, normalizeGradingStrategy, reviewPriority } from '@shared/grading-helpers'
 import type {
   EAAStudent,
   GradingProgressEvent,
@@ -30,6 +30,7 @@ import { btnStyle, cn } from '../../../lib/ui-utils'
 import { useClassStore } from '../../../stores/class/store'
 import { toast } from '../../../stores/toastStore'
 import { useGradingMarksPrint } from '../hooks/useGradingMarksPrint'
+import { ExtremeAiConfirmDialog, useExtremeStrategyGate } from './ExtremeAiConfirm'
 import { PapersTable } from './PapersTable'
 import { ReviewWorkbench } from './ReviewWorkbench'
 import { RubricEditor } from './RubricEditor'
@@ -55,6 +56,7 @@ const TASK_STRATEGY_KEYS = {
   fast: 'page.grading.strategy.fast',
   standard: 'page.grading.strategy.standard',
   dual: 'page.grading.strategy.dual',
+  extreme: 'page.grading.strategy.extreme',
 } as const
 
 const STATUS_BADGE_CLS: Record<GradingTask['status'], string> = {
@@ -242,11 +244,11 @@ export function TaskDetail({
   // 口径归一: 历史/手改任务 JSON 可能缺字段或带非法值,一律按正常展示
   const gradingMode =
     task.gradingMode === 'strict' || task.gradingMode === 'lenient' ? task.gradingMode : 'normal'
-  // 模式归一: 缺省/非法回落 standard
-  const gradingStrategy: 'fast' | 'standard' | 'dual' =
-    task.gradingStrategy === 'fast' || task.gradingStrategy === 'dual'
-      ? task.gradingStrategy
-      : 'standard'
+  // 模式归一: 缺省/非法回落 standard(含极致 AI;此前未知策略会被静默显示成标准)
+  const gradingStrategy = normalizeGradingStrategy(task.gradingStrategy)
+  const extremeGate = useExtremeStrategyGate(gradingStrategy, (next) => {
+    void onUpdateTask(task.id, { gradingStrategy: next })
+  })
 
   const marksOverlay =
     marksPrint.task && marksPrint.views ? (
@@ -617,7 +619,7 @@ export function TaskDetail({
               <select
                 value={gradingStrategy}
                 onChange={(e) =>
-                  void onUpdateTask(task.id, { gradingStrategy: e.target.value as never })
+                  extremeGate.requestChange(e.target.value as typeof gradingStrategy)
                 }
                 disabled={busy}
                 className="cursor-pointer bg-transparent font-medium outline-none"
@@ -628,6 +630,9 @@ export function TaskDetail({
                 </option>
                 <option value="dual">
                   {t('page.grading.strategy.dual', '双评 · 双AI独立批改')}
+                </option>
+                <option value="extreme">
+                  {t('page.grading.strategy.extreme', '极致 AI 模式 · 纯视觉+双子核验')}
                 </option>
               </select>
             </label>
@@ -826,6 +831,11 @@ export function TaskDetail({
         </section>
       </div>
       {marksOverlay}
+      <ExtremeAiConfirmDialog
+        open={extremeGate.confirmOpen}
+        onConfirm={extremeGate.onConfirm}
+        onCancel={extremeGate.onCancel}
+      />
     </div>
   )
 }

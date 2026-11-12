@@ -7,7 +7,7 @@
 // =============================================================
 
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, existsSync, readFileSync, realpathSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,7 +34,9 @@ vi.mock('../../src/main/services/dsh/plugin-install', () => ({
   ensureProfileHasEaaTools: mocks.ensureProfileHasEaaTools,
 }))
 
-import { DSH_IM_STAMP, DshImWebHost } from '../../src/main/services/dsh/im-host'
+import { DSH_IM_INSTALL_STAMP, DSH_IM_STAMP, DshImWebHost } from '../../src/main/services/dsh/im-host'
+import { dshPluginLinkSpec } from '../../src/main/services/dsh/im-url'
+import { packageModuleDir, resolveDshProfileDir } from '../../src/main/services/dsh/plugin-links'
 
 interface FakeChild {
   on: EventEmitter['on']
@@ -208,10 +210,10 @@ describe('DshImWebHost', () => {
     expect(webChildren().length).toBe(1)
   })
 
-  it('打包态: 子进程 PATH 前置随包 @pnpm/exe，修复 plugin add 找不到 pnpm', async () => {
-    // 复现安装版布局：electron-builder 会剥掉 node_modules/.bin，包里只有
-    // @pnpm/exe 的平台真二进制 —— dsh 内部 execa("pnpm") 靠这份 PATH 命中。
-    // 假树按当前运行平台构造（dshChildEnv 按 process.platform 解析）。
+  it('打包态: 子进程 PATH 仍会前置随包 @pnpm/exe（损坏包回退安装用）', async () => {
+    // 教师机正式路径不再调用 plugin add，也不再随包 pnpm。dshChildEnv 在
+    // 运行时还能看见 @pnpm/exe 时仍会前置 PATH，给 ensurePluginDeps 的
+    // 损坏回退用。假树按当前运行平台构造。
     const layout = makeLayout()
     const nmBin = join(layout.root, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
     mkdirSync(dirname(nmBin), { recursive: true })
@@ -224,8 +226,9 @@ describe('DshImWebHost', () => {
     await flushHelpers()
     webChildren()[0].stdout.emit('data', 'dsh web: http://127.0.0.1:9/?t=e')
     await p
-    const addRec = recs.find((r) => !r.isWeb) as SpawnRec
-    expect(addRec.opts.env?.PATH?.startsWith(exeDir)).toBe(true)
+    const webRec = recs.find((r) => r.isWeb) as SpawnRec
+    expect(webRec.opts.env?.PATH?.startsWith(exeDir)).toBe(true)
+    expect(recs.filter((r) => !r.isWeb)).toHaveLength(0)
   })
 
   it('依赖在线安装: 默认 npmmirror 镜像 + 进度事件上抛', async () => {
@@ -296,14 +299,28 @@ describe('DshImWebHost', () => {
     expect(installs[0].args).not.toContain('--registry')
   })
 
-  it('stamp 免重装: stop 后重开不再跑 plugin add', async () => {
+  it('stamp 免重装: 写出 link 后重开不再改 profile，也不跑 plugin add', async () => {
     const layout = makeLayout()
+    writeFileSync(join(layout.imDir, 'package.json'), JSON.stringify({ name: '@xmanrui/dsh-im', version: '5.10.0' }))
+    writeFileSync(
+      join(layout.imDir, 'integrations', 'eaa-panel', 'package.json'),
+      JSON.stringify({ name: 'eaa-dsh-im-panel', version: '0.1.0' }),
+    )
     const host = makeHost(layout)
     let p = host.open()
     await flushHelpers()
     webChildren()[0].stdout.emit('data', 'dsh web: http://127.0.0.1:2/?t=y')
     await p
-    expect(recs.filter((r) => !r.isWeb).length).toBe(2) // 两次 plugin add
+    expect(recs.filter((r) => !r.isWeb).length).toBe(0)
+    expect(readFileSync(join(layout.home, DSH_IM_STAMP), 'utf8').trim()).toBe(DSH_IM_INSTALL_STAMP)
+    const profileDir = resolveDshProfileDir(layout.home, 'web')
+    const manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>
+    }
+    expect(manifest.dependencies['@xmanrui/dsh-im']).toBe(dshPluginLinkSpec(layout.imDir))
+    expect(manifest.dependencies['eaa-dsh-im-panel']).toBe(
+      dshPluginLinkSpec(join(layout.imDir, 'integrations', 'eaa-panel')),
+    )
 
     host.stop()
     recs = []
@@ -311,7 +328,56 @@ describe('DshImWebHost', () => {
     await flushHelpers()
     webChildren()[0].stdout.emit('data', 'dsh web: http://127.0.0.1:3/?t=z')
     await p
-    expect(recs.filter((r) => !r.isWeb).length).toBe(0) // stamp 生效
+    expect(recs.filter((r) => !r.isWeb).length).toBe(0)
+  })
+
+  it('stamp 在但链接目标缺失或过期时，不跑 plugin add，直接改写到当前路径', async () => {
+    const layout = makeLayout()
+    writeFileSync(join(layout.imDir, 'package.json'), JSON.stringify({ name: '@xmanrui/dsh-im', version: '5.10.0' }))
+    const panelDir = join(layout.imDir, 'integrations', 'eaa-panel')
+    writeFileSync(join(panelDir, 'package.json'), JSON.stringify({ name: 'eaa-dsh-im-panel', version: '0.1.0' }))
+    mkdirSync(layout.home, { recursive: true })
+    writeFileSync(join(layout.home, DSH_IM_STAMP), `${DSH_IM_INSTALL_STAMP}\n`)
+    const staleIm = join(layout.root, 'stale-im')
+    mkdirSync(join(staleIm, 'integrations', 'eaa-panel'), { recursive: true })
+    writeFileSync(join(staleIm, 'package.json'), JSON.stringify({ name: '@xmanrui/dsh-im', version: '5.10.0' }))
+    writeFileSync(
+      join(staleIm, 'integrations', 'eaa-panel', 'package.json'),
+      JSON.stringify({ name: 'eaa-dsh-im-panel', version: '0.1.0' }),
+    )
+    const profileDir = resolveDshProfileDir(layout.home, 'web')
+    mkdirSync(profileDir, { recursive: true })
+    writeFileSync(
+      join(profileDir, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'dsh-profile-web',
+          private: true,
+          dependencies: {
+            '@xmanrui/dsh-im': dshPluginLinkSpec(staleIm),
+            'eaa-dsh-im-panel': dshPluginLinkSpec(join(staleIm, 'integrations', 'eaa-panel')),
+          },
+          dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@xmanrui/dsh-im', 'eaa-dsh-im-panel'] } },
+        },
+        null,
+        2,
+      ),
+    )
+
+    const host = makeHost(layout)
+    const p = host.open()
+    await flushHelpers()
+    webChildren()[0].stdout.emit('data', 'dsh web: http://127.0.0.1:11/?t=relink')
+    const r = await p
+    expect(r.ok).toBe(true)
+    expect(recs.filter((x) => !x.isWeb)).toHaveLength(0)
+    const manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>
+    }
+    expect(manifest.dependencies['@xmanrui/dsh-im']).toBe(dshPluginLinkSpec(layout.imDir))
+    expect(manifest.dependencies['eaa-dsh-im-panel']).toBe(dshPluginLinkSpec(panelDir))
+    expect(realpathSync(packageModuleDir(profileDir, '@xmanrui/dsh-im'))).toBe(realpathSync(layout.imDir))
+    expect(realpathSync(packageModuleDir(profileDir, 'eaa-dsh-im-panel'))).toBe(realpathSync(panelDir))
   })
 
   it('120 秒无公告: 超时自愈 kill + releaseLaunch', async () => {

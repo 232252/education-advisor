@@ -5,6 +5,8 @@
 // ===== AI / LLM =====
 export const IPC_AI_LIST_PROVIDERS = 'ai:list-providers'
 export const IPC_AI_LIST_MODELS = 'ai:list-models'
+export const IPC_AI_GET_DSH_ROUTE = 'ai:get-dsh-route'
+export const IPC_AI_SELECT_DSH_ROUTE = 'ai:select-dsh-route'
 export const IPC_AI_TEST_CONNECTION = 'ai:test-connection'
 export const IPC_AI_SET_API_KEY = 'ai:set-api-key'
 export const IPC_AI_DELETE_API_KEY = 'ai:delete-api-key'

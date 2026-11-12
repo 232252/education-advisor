@@ -15,11 +15,9 @@
 //  4. electron-builder 的 asarUnpack 是 prepackage 生成的闭包清单（第四轮安装
 //     提速：整树解包是反模式，只有 dsh 子进程闭包 + pnpm/pdfjs 保留落盘，
 //     其余纯 JS 依赖收进 app.asar 由主进程读）
-//  5. 随包 pnpm 工具链在位：@pnpm/exe 的真二进制（dsh plugin add 只认
-//     PATH 上的真 exe；pnpm 12 的 pnpm.mjs 只是 corepack 引导壳，真 CLI
-//     只有 @pnpm/exe 的原生二进制，替代方案实测死路）+ pnpm.mjs 引导壳
-//     + pnpm/dist/node_modules 嵌套依赖（builder 跳过、afterPack 补回，
-//     兜底链路才完整；教师机器没有全局 pnpm —— 见 pnpm-env.ts）
+//  5. 仓库里仍可有 pnpm（开发机 / CI 打包用）。教师运行时闭包和安装包
+//     不得含 pnpm / @pnpm/exe：连接中心直接改写 profile 链接，不再在
+//     教师机上跑官方 dsh plugin add。
 //  6. 瘦身排除安全网：被 files 负向过滤的包不在 web/sdk profile 的硬依赖闭包里
 //     （闭包只走 dependencies；optionalDependencies 是"可缺席"的，正是按需补装的前提）
 //  7. office-kit 随包组件：config/office-kit.json 清单在位（prepackage 生成，
@@ -35,6 +33,8 @@
 // 退出码: 0 全部通过 / 1 有失败项
 // =============================================================
 
+import { listZipEntries } from './lib/store-zip.mjs'
+import { LIVE_MISSING_PEERS, dependencyShipSet, filesToExclude, runtimeArchivePackages } from './lib/install-layout.mjs'
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -132,40 +132,52 @@ if (sdkManifest) {
 
 const builderYml = readFileSync(join(ROOT, 'electron-builder.yml'), 'utf8')
 check(
-  builderYml.includes('# >>> unpack-closure') &&
-    /node_modules\/@deepseek-ai\/\*\*/.test(builderYml) &&
-    !/["']\*\*\/node_modules\/\*\*["']/.test(builderYml),
-  'asarUnpack 为生成闭包清单（整树解包反模式已移除）',
-  '哨兵块 + @deepseek-ai scope 缺失，或整树 "**/node_modules/**" 复活 —— 见 compute-unpack-closure.mjs',
+  builderYml.includes('# >>> install-layout-unpack') &&
+    builderYml.includes('"**/*.node"') &&
+    !/["']\*\*\/node_modules\/\*\*["']/.test(builderYml) &&
+    !builderYml.includes('node_modules/@deepseek-ai/**'),
+  'asarUnpack 只解原生文件（整树 / @deepseek-ai scope 解包已移除）',
 )
-if (!existsSync(CLOSURE_JSON)) {
-  checks.push('SKIP unpack-closure.json 生成清单 — 未跑 prepackage（干净检出属正常）')
-} else {
-  let closureCount = 0
-  try {
-    closureCount = readJson(CLOSURE_JSON).packages.length
-  } catch {
-    /* 下方 --dist 对照会报 */
-  }
-  check(closureCount >= 400, 'unpack-closure.json 清单规模合理', `${closureCount} 包（dsh 闭包 ~580）`)
-}
+const lock = readJson(join(ROOT, 'package-lock.json'))
+const ship = dependencyShipSet(lock)
+const archive = runtimeArchivePackages(lock)
+const excluded = new Set(filesToExclude(lock))
+const peersMissingFromArchive = LIVE_MISSING_PEERS.filter((name) => !archive.has(name))
+const peersStillInShip = LIVE_MISSING_PEERS.filter((name) => ship.has(name))
+check(
+  peersMissingFromArchive.length === 0,
+  'dsh-scope 等 15 个 peer 包在 runtime 闭包里',
+  peersMissingFromArchive.join(', '),
+)
+check(
+  peersStillInShip.length === 0,
+  '这 15 个 peer 不在 electron-builder 的 dependencies 遍历里（files: node_modules/** 带不上它们）',
+  peersStillInShip.join(', '),
+)
+const peersNotExcluded = LIVE_MISSING_PEERS.filter((name) => !builderYml.includes(`!node_modules/${name}/**`))
+check(
+  peersNotExcluded.length === 0,
+  'electron-builder.yml 把这 15 个 peer 排除出安装目录（它们只在 runtime zip 里）',
+  peersNotExcluded.join(', '),
+)
+check(
+  !excluded.has('better-sqlite3') && !excluded.has('pdfjs-dist') && !excluded.has('@napi-rs/canvas'),
+  '主进程仍要的 better-sqlite3 / pdfjs-dist / canvas 没有被排除',
+)
+check(!builderYml.includes('compression: store') && !builderYml.includes('-mx=0'), '安装包没有改成不压缩')
 
-// ---- 随包 pnpm 工具链（连接中心 plugin add 的物质基础）----
+const toolchainInArchive = [...archive].filter((name) => name === 'pnpm' || name.startsWith('@pnpm/exe'))
 check(
-  existsSync(join(ROOT, PNM_EXE)),
-  `随包 @pnpm/exe 二进制在位 (${PNM_EXE})`,
-  '缺失时安装版 dsh plugin add 会在无全局 pnpm 的教师机上失败（pnpm.mjs 只是引导壳，顶不上）',
+  toolchainInArchive.length === 0,
+  '教师运行时闭包不含 pnpm / @pnpm/exe',
+  toolchainInArchive.join(', '),
 )
-check(
-  existsSync(join(ROOT, PNM_MJS)),
-  'pnpm 包的 pnpm.mjs 引导壳原料在位',
-  '缺失时 exe 不可用平台的兜底链路缺原料',
-)
-check(
-  existsSync(join(ROOT, PNM_DIST)),
-  'pnpm/dist/node_modules 嵌套依赖在位（builder 跳过、afterPack 补回的原料）',
-  '缺失时 pnpm.mjs 引导壳 import get-pnpm 失败，回退安装联网也起不来',
-)
+check(excluded.has('pnpm'), 'electron-builder 排除清单含 pnpm（不进教师安装目录）')
+
+// 仓库 / CI 仍可用检出里的 pnpm，只是不打进教师包。
+if (existsSync(join(ROOT, PNM_EXE)) || existsSync(join(ROOT, PNM_MJS))) {
+  checks.push('SKIP 仓库内 pnpm 仍可用（开发机/CI 打包，不进教师运行时）')
+}
 
 // ---- office-kit 按需组件清单（win32）----
 // config/office-kit.json 由 prepackage 生成且 gitignore —— 干净检出（CI）没有
@@ -227,13 +239,60 @@ function verifyDist(entry, binRel) {
   if (at < 0) return
   const dist = resolve(process.argv[at + 1] || '')
   const unpackedRoot = join(dist, 'resources', 'app.asar.unpacked')
-  const unpacked = join(unpackedRoot, 'node_modules', RUNTIME, binRel)
-  check(existsSync(unpacked), '打包产物内 dsh 入口已解出为真实文件', unpacked)
   check(
-    existsSync(join(unpackedRoot, PNM_EXE)),
-    '打包产物内随包 pnpm.exe 已解出',
-    join(unpackedRoot, PNM_EXE),
+    !existsSync(join(unpackedRoot, 'node_modules', '@deepseek-ai', 'dsh-scope')),
+    'dsh-scope 没有散落在 app.asar.unpacked（peer 包在 runtime zip 里）',
   )
+  const runtimeZip = join(dist, 'resources', 'dsh-runtime', 'dsh-runtime.zip')
+  const imZip = join(dist, 'resources', 'dsh-im', 'dsh-im.zip')
+  let runtimeNames = []
+  let imNames = []
+  try {
+    runtimeNames = listZipEntries(runtimeZip)
+  } catch (err) {
+    check(false, 'dsh-runtime.zip 可列出', err instanceof Error ? err.message : String(err))
+  }
+  try {
+    imNames = listZipEntries(imZip)
+  } catch (err) {
+    check(false, 'dsh-im.zip 可列出', err instanceof Error ? err.message : String(err))
+  }
+  const runtimeSet = new Set(runtimeNames)
+  const imSet = new Set(imNames)
+  check(runtimeSet.has('node_modules/@deepseek-ai/dsh/lib/bin.js'), 'runtime zip 含 dsh 入口')
+  for (const peer of LIVE_MISSING_PEERS) {
+    check(
+      runtimeSet.has(`node_modules/${peer}/package.json`),
+      `runtime zip 含 ${peer}`,
+    )
+  }
+  check(imSet.has('package.json') && imSet.has('node_modules/qrcode/package.json'), 'dsh-im zip 含插件与 qrcode')
+  check(imSet.has('integrations/eaa-panel/package.json'), 'dsh-im zip 含侧栏插件')
+  const pnpmZipHits = runtimeNames.filter(
+    (name) => name === 'node_modules/pnpm' || name.startsWith('node_modules/pnpm/') || name.startsWith('node_modules/@pnpm/exe'),
+  )
+  check(pnpmZipHits.length === 0, 'runtime zip 不含 pnpm / @pnpm/exe', pnpmZipHits.slice(0, 5).join(', '))
+  check(!existsSync(join(dist, 'resources', 'dsh-im', 'node_modules')), 'dsh-im 依赖没有再散落成目录')
+  let unpackedFiles = 0
+  const countUnpacked = (dir) => {
+    let entries
+    try {
+      entries = readdirSync(dir)
+    } catch {
+      return
+    }
+    for (const name of entries) {
+      const p = join(dir, name)
+      try {
+        if (statSync(p).isDirectory()) countUnpacked(p)
+        else unpackedFiles += 1
+      } catch {
+        /* skip */
+      }
+    }
+  }
+  countUnpacked(unpackedRoot)
+  check(unpackedFiles < 800, 'app.asar.unpacked 文件数受控', `${unpackedFiles} 个（上限 800）`)
   check(
     existsSync(join(dist, 'resources', 'config', 'office-kit.json')),
     '打包产物内 office-kit 清单在位 (resources/config/office-kit.json)',
@@ -259,35 +318,6 @@ function verifyDist(entry, binRel) {
     )
   }
   check(!existsSync(join(dist, 'dxcompiler.dll')), 'WebGPU 的 dxcompiler.dll 已修剪')
-  // dsh-im 运行时会加载 src/plugin-src/docs（lib 直接引用），瘦身不许砍过头；
-  // README 大图则应当被剥掉。
-  const imRoot = join(dist, 'resources', 'dsh-im')
-  for (const kept of ['src', 'plugin-src', 'docs', 'bin', 'lib', 'integrations']) {
-    check(existsSync(join(imRoot, kept)), `dsh-im 运行时目录在产物内 (${kept})`)
-  }
-  check(
-    existsSync(join(imRoot, 'assets', 'logo-plugin-message-link-gradient.webp')),
-    'dsh-im 的 icon webp 在产物内',
-  )
-  check(
-    !existsSync(join(imRoot, 'assets', 'sponsors')),
-    'dsh-im 的 README 赞助商图已被剥掉',
-  )
-  // ---- 离线直装三件套（afterPack 补齐，缺一件新装机器就不是全功能离线）----
-  check(
-    existsSync(join(imRoot, 'node_modules', 'qrcode', 'package.json')),
-    'dsh-im 离线依赖在产物内 (qrcode 标记)',
-    '缺失时首开连接中心走在线修复路 —— afterPack 的 dsh-im 依赖复制丢了',
-  )
-  check(
-    !existsSync(join(imRoot, 'node_modules', '@img', 'sharp-wasm32')),
-    'dsh-im 依赖里的 sharp wasm 兜底已剥掉',
-  )
-  check(
-    existsSync(join(unpackedRoot, 'node_modules', 'pnpm', 'dist', 'node_modules', 'get-pnpm', 'package.json')),
-    '产物内 pnpm/dist/node_modules 已由 afterPack 补回',
-    '缺失时 pnpm.mjs 引导壳起不来，组件修复链路死',
-  )
   if (process.platform === 'win32') {
     // libreoffice-kit 不再预解压随包（SLIM 排除清单已断言包目录缺席）；随包
     // 只有 1 个 zip，必须与 config 清单同名字节数一致（首用本地解压的物料，
@@ -442,102 +472,27 @@ function verifyDist(entry, binRel) {
         : `${emitted} 处按需加载分片引用`,
     )
   }
-  // ---- 第四轮安装提速（选择性解包）内容级核查 ----
-  // 整树解包 → 闭包落盘后，三条证据链缺一不可：
-  //  a) 生成清单里的每个包都真实落盘 + 落盘树里没有清单外的包（文件数不失控）；
-  //  b) asar 头证明主进程专用包真在归档内（有 offset 无 unpacked 标记）——
-  //     防止"既没进 asar 也没落盘"的静默丢包；
-  //  c) staged node.exe 离线跑通 dsh --version —— 闭包完整性的最终证据。
-  if (!existsSync(CLOSURE_JSON)) {
-    checks.push('SKIP 选择性解包对照 — 未跑 prepackage（build/unpack-closure.json 缺席）')
-  } else {
-    const nmRoot = join(unpackedRoot, 'node_modules')
-    let expected = null
+  const asarP = join(dist, 'resources', 'app.asar')
+  if (existsSync(asarP)) {
     try {
-      expected = new Set(readJson(CLOSURE_JSON).packages)
-    } catch {
-      check(false, 'unpack-closure.json 可解析')
-    }
-    if (expected) {
-      const missingUnpacked = []
-      for (const name of expected) {
-        if (!existsSync(join(nmRoot, ...name.split('/'), 'package.json'))) missingUnpacked.push(name)
-      }
-      check(
-        missingUnpacked.length === 0,
-        'dsh 闭包逐包落盘（对照 unpack-closure.json）',
-        missingUnpacked.length > 0
-          ? `缺 ${missingUnpacked.length} 个：${missingUnpacked.slice(0, 8).join(', ')}`
-          : `${expected.size} 包全在位`,
-      )
-      const unexpectedUnpacked = []
-      for (const top of readdirSync(nmRoot)) {
-        if (top.startsWith('.')) continue
-        const tops = top.startsWith('@')
-          ? readdirSync(join(nmRoot, top)).map((d) => `${top}/${d}`)
-          : [top]
-        for (const t of tops) if (!expected.has(t)) unexpectedUnpacked.push(t)
-      }
-      check(
-        unexpectedUnpacked.length === 0,
-        '落盘树与生成清单完全一致（无预料外的解包包）',
-        unexpectedUnpacked.length > 0
-          ? `多 ${unexpectedUnpacked.length} 个：${unexpectedUnpacked.slice(0, 8).join(', ')}`
-          : '文件数口径受控',
-      )
-
-      // b) asar 头解析：主进程专用包在归档内（非 unpacked），pdfjs/dist 在外
-      const asarP = join(dist, 'resources', 'app.asar')
-      if (existsSync(asarP)) {
-        try {
-          const header = readAsarHeader(asarP)
-          const inAsar = (rel) => {
-            let node = { files: header.files }
-            for (const part of rel.split('/')) {
-              node = node?.files?.[part]
-              if (!node) return null
-            }
-            return node
-          }
-          const zipped = inAsar('node_modules/extract-zip/package.json')
-          check(
-            Boolean(zipped && !zipped.unpacked),
-            '主进程专用包已收进 app.asar（extract-zip 带 offset 无 unpacked 标记）',
-            '缺失或仍解包 → 选择性解包没生效，安装文件数回落',
-          )
-          const unpackedPdf = inAsar('node_modules/pdfjs-dist/package.json')
-          check(
-            Boolean(unpackedPdf?.unpacked),
-            'pdfjs-dist 保留真实落盘（运行时按路径读 cmaps/standard_fonts）',
-          )
-          check(
-            Boolean(inAsar('dist/main/index.cjs') && !inAsar('dist/main/index.cjs').unpacked),
-            '主进程产物在 app.asar 归档内',
-          )
-        } catch (err) {
-          check(false, 'app.asar 头可解析', err instanceof Error ? err.message : String(err))
+      const header = readAsarHeader(asarP)
+      const inAsar = (rel) => {
+        let node = { files: header.files }
+        for (const part of rel.split('/')) {
+          node = node?.files?.[part]
+          if (!node) return null
         }
+        return node
       }
-    }
-
-    // c) 离线闭包冒烟：staged node.exe 直接跑 unpacked 里的 dsh 入口。
-    //    闭包缺一个传递依赖，这里立刻非零退出（模块解析失败）。
-    const nodeExe = join(dist, 'resources', 'dsh-node', process.platform === 'win32' ? 'node.exe' : 'node')
-    const dshEntry = join(nmRoot, RUNTIME, binRel)
-    if (existsSync(nodeExe) && existsSync(dshEntry)) {
-      const r = spawnSync(nodeExe, [dshEntry, '--version'], {
-        timeout: 120_000,
-        encoding: 'utf8',
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-      })
-      const version = (r.stdout || '').trim().split('\n')[0]
-      check(
-        r.status === 0 && version.length > 0,
-        'dsh 闭包离线冒烟（staged node.exe 跑 dsh --version）',
-        r.error
-          ? `spawn 失败：${r.error}`
-          : `exit ${r.status}，stdout=${version.slice(0, 40) || '(空)'} stderr=${(r.stderr || '').trim().slice(0, 80)}`,
-      )
+      const zipped = inAsar('node_modules/extract-zip/package.json')
+      check(Boolean(zipped && !zipped.unpacked), '主进程专用包已收进 app.asar（extract-zip 无 unpacked 标记）')
+      const pdf = inAsar('node_modules/pdfjs-dist/package.json')
+      check(Boolean(pdf && !pdf.unpacked), 'pdfjs-dist 在 app.asar 内')
+      const mainEntry = inAsar('dist/main/index.cjs')
+      check(Boolean(mainEntry && !mainEntry.unpacked), '主进程产物在 app.asar 归档内')
+      check(!inAsar('node_modules/@deepseek-ai/dsh-scope/package.json'), 'dsh-scope 不在 app.asar')
+    } catch (err) {
+      check(false, 'app.asar 头可解析', err instanceof Error ? err.message : String(err))
     }
   }
   console.log(

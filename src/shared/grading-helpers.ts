@@ -90,7 +90,7 @@ export function rubricFullMark(rubric: RubricQuestion[]): number {
 // ===== 批改模式(流程档位)与双评合并 =====
 
 /** 合法批改模式 */
-export const GRADING_STRATEGIES: GradingStrategy[] = ['fast', 'standard', 'dual']
+export const GRADING_STRATEGIES: GradingStrategy[] = ['fast', 'standard', 'dual', 'extreme']
 
 /** 校验/归一批改模式;非法或缺失一律回落 standard(推荐档) */
 export function normalizeGradingStrategy(v: unknown): GradingStrategy {

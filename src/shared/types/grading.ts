@@ -27,7 +27,7 @@ export type GradingStrictness = 'strict' | 'normal' | 'lenient'
  * (两个视觉模型各自独立批改,阈值内取均值,分歧题交教师仲裁)。
  * 与 gradingMode(给分松紧口径)正交。
  */
-export type GradingStrategy = 'fast' | 'standard' | 'dual'
+export type GradingStrategy = 'fast' | 'standard' | 'dual' | 'extreme'
 
 /** 批阅痕迹/套打连打的试卷排序: 姓名升序(默认)/姓名倒序/上传原序 */
 export type PrintOrder = 'name-asc' | 'name-desc' | 'upload-asc'
@@ -213,7 +213,7 @@ export interface GradingTask {
   status: GradingTaskStatus
   /** 批改口径(缺省 normal);影响批改 prompt 的给分松紧 */
   gradingMode?: GradingStrictness
-  /** 批改模式(缺省 standard);fast/standard/dual 见 GradingStrategy */
+  /** 批改模式(缺省 standard);fast/standard/dual/extreme 见 GradingStrategy */
   gradingStrategy?: GradingStrategy
   rubric: RubricQuestion[]
   papers: GradingPaper[]
