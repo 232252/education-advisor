@@ -16,7 +16,10 @@ import { basename, join, resolve } from 'node:path'
 import { firstZipMethod, listZipEntries } from './store-zip.mjs'
 
 export const SETUP_MAX_BYTES = 310_000_000
-export const RUNTIME_ZIP_MAX_BYTES = 200_000_000
+// Windows CI measured 178,512,965. macOS CI, after the Office kit was
+// kept out of this zip, measured 209,001,585 (larger darwin sherpa and
+// libvips). 230 MB still rejects the 350 MB zip that included the kit.
+export const RUNTIME_ZIP_MAX_BYTES = 230_000_000
 
 const DOWNLOAD_MARKERS = [
   'etimedout',

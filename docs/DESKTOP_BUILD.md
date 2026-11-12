@@ -164,7 +164,7 @@ npm run package:installer
 `electron-builder` directly.
 
 A clean teacher Setup is near 287 MB. The pack fails above 310 MB
-(310,000,000 bytes) or when `dsh-runtime.zip` is above 200 MB or
+(310,000,000 bytes) or when `dsh-runtime.zip` is above 230 MB or
 contains `pnpm` / `@pnpm/exe`.
 
 ### What `prepackage` stages

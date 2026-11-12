@@ -8,7 +8,7 @@ older layouts. Do not follow them when they disagree with this file.
 
 The gates live in `scripts/lib/pack-budget.mjs`. A clean teacher Setup
 is near **287 MB**. The pack fails above **310,000,000 bytes** (~310 MB)
-or when `dsh-runtime.zip` is above **200,000,000 bytes** (~200 MB), is
+or when `dsh-runtime.zip` is above **230,000,000 bytes** (~230 MB), is
 not a STORE zip, or contains `pnpm` / `@pnpm/exe`.
 
 ## Standing approach
@@ -141,7 +141,7 @@ Runs after `win-unpacked` exists and before NSIS builds the 7z.
 - Fails if a zip is missing. A missing zip is not a signal to unpack
   `**/node_modules/**` or to 7z whatever directory is already there.
 - Fails if the runtime zip contains pnpm, is not STORE, or is over
-  200 MB. The pnpm failure text stays
+  230 MB. The pnpm failure text stays
   `runtime zip 不应含 pnpm / @pnpm/exe`.
 - Fails if `app.asar.unpacked` contains `node_modules/pnpm` or
   `node_modules/@pnpm`. It does not copy the pnpm dist tree back in.
@@ -336,7 +336,7 @@ never opens the 7z.
 | Check | Limit | Where it runs |
 | --- | --- | --- |
 | Setup.exe | 310,000,000 bytes | `afterAllArtifactBuild`, the wrapper, `check-pack-budget.mjs --require-setup` |
-| `dsh-runtime.zip` size | 200,000,000 bytes | `build-dsh-archives.mjs`, `afterPack`, the same final check |
+| `dsh-runtime.zip` size | 230,000,000 bytes | `build-dsh-archives.mjs`, `afterPack`, the same final check |
 | `dsh-runtime.zip` method | 0 (STORE) | same |
 | `dsh-im.zip` method | 0 (STORE) | same |
 | pnpm / `@pnpm/exe` in the runtime zip | none | `build-dsh-archives.mjs` and `afterPack` (the `afterPack` message is unchanged) plus the final check |
@@ -347,6 +347,15 @@ never opens the 7z.
 
 Bytes are decimal (287,550,146 bytes is ~287.6 MB). Windows Explorer
 sometimes labels the same file in MiB. Compare the byte count.
+
+The runtime-zip ceiling is 230 MB, not 200 MB, because a clean macOS
+pack is larger than Windows. CI for 3.3.7-beta.6 measured Windows
+`dsh-runtime.zip` at 178,512,965 bytes and Setup.exe at 287,236,873
+bytes. After `@deepseek-ai/libreoffice-kit-*` was kept out of the
+runtime zip, the same commit's macOS zip was 209,001,585 bytes. The
+350,167,753 byte macOS zip that still contained the darwin kit stays
+over the ceiling. A pnpm path fails even when the byte count is under
+the ceiling.
 
 To raise a ceiling because a feature legitimately grew the pack:
 

@@ -36,15 +36,19 @@ function tempDir() {
 describe('installer byte budget', () => {
   it('keeps the slim Setup and rejects the toolchain-sized Setup', () => {
     expect(SETUP_MAX_BYTES).toBe(310_000_000)
-    expect(RUNTIME_ZIP_MAX_BYTES).toBe(200_000_000)
+    expect(RUNTIME_ZIP_MAX_BYTES).toBe(230_000_000)
     expect(evaluateSetupBytes(287_227_957).ok).toBe(true)
+    expect(evaluateSetupBytes(287_236_873).ok).toBe(true)
     expect(evaluateSetupBytes(287_550_146).ok).toBe(true)
     expect(evaluateSetupBytes(369_660_622).ok).toBe(false)
     expect(evaluateSetupBytes(369_388_880).ok).toBe(false)
     expect(SETUP_MAX_BYTES).toBeGreaterThan(287_550_146)
     expect(SETUP_MAX_BYTES).toBeLessThan(369_388_880)
-    expect(evaluateRuntimeArchive({ bytes: 166_000_000, entries: ['node_modules/left-pad/package.json'], method: 0 }).ok).toBe(true)
-    expect(evaluateRuntimeArchive({ bytes: 200_000_001, entries: ['node_modules/left-pad/package.json'], method: 0 }).ok).toBe(false)
+    expect(evaluateRuntimeArchive({ bytes: 178_512_965, entries: ['node_modules/left-pad/package.json'], method: 0 }).ok).toBe(true)
+    expect(evaluateRuntimeArchive({ bytes: 209_001_585, entries: ['node_modules/left-pad/package.json'], method: 0 }).ok).toBe(true)
+    expect(evaluateRuntimeArchive({ bytes: 230_000_001, entries: ['node_modules/left-pad/package.json'], method: 0 }).ok).toBe(false)
+    expect(350_167_753).toBeGreaterThan(RUNTIME_ZIP_MAX_BYTES)
+    expect(209_001_585).toBeLessThan(RUNTIME_ZIP_MAX_BYTES)
   })
 
   it('rejects pnpm inside the runtime zip and a non-STORE method', () => {
