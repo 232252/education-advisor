@@ -33,8 +33,14 @@ export function createModelSlice(
      */
     initFromSettings: async () => {
       try {
-        const route = await getAPI().ai.getDshRoute()
         const s = await getAPI().settings.get()
+        // DSH 当前路由优先；接口缺失或失败时回落到 settings，不能把已选模型丢掉
+        let route: { provider?: string; model?: string } | null | undefined
+        try {
+          route = await getAPI().ai.getDshRoute?.()
+        } catch (err) {
+          console.warn('[chatStore] getDshRoute failed, falling back to settings:', err)
+        }
         const provider = route?.provider || s.models?.defaultProvider || ''
         const model =
           route?.model ||
