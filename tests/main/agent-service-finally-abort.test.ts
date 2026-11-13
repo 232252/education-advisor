@@ -93,6 +93,9 @@ vi.mock('../../src/main/services/dsh/tool-bridge', () => ({
 
 vi.mock('../../src/main/services/dsh/runtime', () => ({
   getDshRuntimeCwd: () => mocks.userDataDir,
+  // 技能目录/角色说明挂载会读 sdk home；空串走兜底分支（与未配置真实环境一致）
+  getDshSdkHome: () => '',
+  getConfiguredDshBin: () => undefined,
   createDshRuntime: (opts: unknown) => {
     mocks.dshRuntimeBuilt++
     mocks.dshRuntimeOpts = opts

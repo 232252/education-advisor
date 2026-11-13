@@ -39,6 +39,9 @@ const agentMockState = {
 // DSH runtime mocks（替代已移除的 pi-agent-core）
 vi.mock('../../src/main/services/dsh/runtime', () => ({
   getDshRuntimeCwd: () => mocks.userDataDir,
+  // 技能目录/角色说明挂载会读 sdk home；空串走兜底分支（与未配置真实环境一致）
+  getDshSdkHome: () => '',
+  getConfiguredDshBin: () => undefined,
   createDshRuntime: () => ({
     turnEvents: async function* () {
       yield { type: 'assistant/message', data: { turn: 1, step: 1, stream: [{ type: 'text-chunks', texts: ['ok'] }], usage: { inputTokens: 3, outputTokens: 1 } } }

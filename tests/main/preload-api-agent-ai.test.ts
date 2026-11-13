@@ -48,12 +48,32 @@ describe('agentApi — invoke 通道与参数', () => {
     expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_AGENT_SET_RULES, 'id-1', '# RULES')
   })
 
-  it('runManual: 透传 id/prompt/history', () => {
+  it('runManual: 透传 id/prompt/history/chatSessionId', () => {
     const history = [{ role: 'user', content: 'hi' }]
     void agentApi.runManual('id-1', '执行任务', history)
-    expect(mocks.invoke).toHaveBeenCalledWith(IPC.IPC_AGENT_RUN_MANUAL, 'id-1', '执行任务', history)
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      IPC.IPC_AGENT_RUN_MANUAL,
+      'id-1',
+      '执行任务',
+      history,
+      undefined,
+    )
     void agentApi.runManual('id-1', '执行任务')
-    expect(mocks.invoke).toHaveBeenLastCalledWith(IPC.IPC_AGENT_RUN_MANUAL, 'id-1', '执行任务', undefined)
+    expect(mocks.invoke).toHaveBeenLastCalledWith(
+      IPC.IPC_AGENT_RUN_MANUAL,
+      'id-1',
+      '执行任务',
+      undefined,
+      undefined,
+    )
+    void agentApi.runManual('id-1', '执行任务', history, 'session-9')
+    expect(mocks.invoke).toHaveBeenLastCalledWith(
+      IPC.IPC_AGENT_RUN_MANUAL,
+      'id-1',
+      '执行任务',
+      history,
+      'session-9',
+    )
   })
 
   it('abort', () => {
