@@ -36,11 +36,23 @@ export interface PrinterInfo {
   displayName: string
 }
 
+/** 底层运行时版本（sys:get-runtime-versions） */
+export interface RuntimeVersions {
+  /** DeepSeek Harness 运行时版本（dsh-version 单一来源） */
+  dsh: string
+  /** 连接中心插件 @xmanrui/dsh-im 的随包 pin */
+  dshIm: string
+  /** 真实 Electron 进程版本；非 Electron 环境为空串 */
+  electron: string
+}
+
 export interface SysAPI {
   openDialog: (options: unknown) => Promise<unknown>
   saveDialog: (options: unknown) => Promise<unknown>
   /** 应用版本号(R2-16: 运行时读取 package.json version) */
   getVersion: () => Promise<string>
+  /** 底层运行时版本(About 页单一来源,防升级漂移) */
+  getRuntimeVersions: () => Promise<RuntimeVersions>
   /** 获取系统路径(入参为 Electron 固定枚举;非法名返回失败信封) */
   getPath: (name: string) => Promise<string | { success: false; error: string }>
   /** 弹出更新对话框 */

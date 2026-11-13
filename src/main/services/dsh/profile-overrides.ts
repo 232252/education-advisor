@@ -124,11 +124,9 @@ export function dshRouteProfileOverrides(
 /**
  * dsh 侧一条路由的模型条目。
  *
- * 必须有它的理由是真子进程测出来的（2026-09-22）：llm-pi-ai 的路由**不会**沿用
- * pi 现成目录 —— 只写 { apiKeyEnv } 或再加 { baseURL } 的路由，initialize 握手
- * 成功，但一发请求就是 `pi-ai provider "x" has no configured model "y"`；
- * 补上 models: [{ id }] 之后同一发请求就打通了（打到声明的 baseURL 上）。
- * 老注释里「只带 apiKeyEnv 的路由沿用 installed catalog」在这个版本不成立。
+ * 当前 dsh 的规则是：路由没写 models 时沿用已安装目录。目录里有的模型不要
+ * 再写进 profile，否则 models 会换成一份冻结目录。目录不描述这条路由时，
+ * 仍然必须列出模型，否则请求是 `has no configured model`。
  */
 export interface DshRouteModelSource {
   id: string

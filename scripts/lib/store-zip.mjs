@@ -94,6 +94,19 @@ export function writeStoreZip(outPath, entries) {
   }
 }
 
+/** Method of the first local file header. STORE is 0. Does not inflate. */
+export function firstZipMethod(zipPath) {
+  const fd = openSync(zipPath, 'r')
+  try {
+    const head = Buffer.alloc(30)
+    const n = readSync(fd, head, 0, 30, 0)
+    if (n < 30 || head.readUInt32LE(0) !== LOCAL) return null
+    return head.readUInt16LE(8)
+  } finally {
+    closeSync(fd)
+  }
+}
+
 /** Central-directory names. Enough for the packaging check; does not inflate. */
 export function listZipEntries(zipPath) {
   const fd = openSync(zipPath, 'r')

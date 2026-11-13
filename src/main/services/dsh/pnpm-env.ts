@@ -1,70 +1,13 @@
 // =============================================================
-// dsh 子进程的环境与随包 pnpm 工具链
+// dsh 子进程的公共环境
 //
-// `dsh plugin --profile ... add` 在 dsh 内部用 execa("pnpm") 装插件，只认
-// PATH。开发态仓库 node_modules/.bin 里有 pnpm.cmd；打包态 electron-builder
-// 会剥掉 .bin（app-builder-lib 的 NodeModuleCopyHelper 把它列进排除表），
-// 教师机器上又没有全局 pnpm —— 安装版连接中心首装因此必败：
-//   'pnpm' 不是内部或外部命令 … 退出码 1
-//
-// Windows 上 execa("pnpm") 走 CreateProcess，libuv 只按 PATH 解析真 exe，
-// .cmd 垫片对它不可见（Node 18.20+ 还会直接 EINVAL）；pnpm 12 的
-// bin/pnpm.mjs 又只是引导壳（真 CLI 只有 @pnpm/exe 的原生二进制，引导壳
-// 缺它就转联网自下载）—— 所以 @pnpm/exe.<platform>-<arch> 必须随包，把
-// 它的目录前置进 PATH。垫片只在 exe 缺席（optional 依赖没装上）时兜底：
-// posix 上 execve 认 shebang，.sh 可用；Windows 的 .cmd 只服务我们自己
-// spawn 的场景。
+// 教师机不带 pnpm、不现场执行 dsh plugin add（DSH_CORE_RUNTIME.md §3.4）：
+// 连接中心依赖随包分发，缺失即要求重装。历史上为「首开在线装依赖」准备的
+// @pnpm/exe 解析与垫片生成已删除，这里只保留子进程环境组装。
 // =============================================================
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
-
-/** 随包 @pnpm/exe 的 pnpm 可执行文件；不在时返回 null。 */
-export function packagedPnpmExePath(
-  dshBin: string,
-  platform: NodeJS.Platform = process.platform,
-  arch: string = process.arch,
-): string | null {
-  if (!dshBin) return null
-  const exe = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
-  const path = join(dirname(dshBin), '..', '..', '..', '@pnpm', `exe.${platform}-${arch}`, exe)
-  return existsSync(path) ? path : null
-}
-
-/** dsh 旁边 node_modules/pnpm 的 bin/pnpm.mjs（垫片兜底的原料）。 */
-export function packagedPnpmScript(dshBin: string): string | null {
-  if (!dshBin) return null
-  const script = join(dirname(dshBin), '..', '..', '..', 'pnpm', 'bin', 'pnpm.mjs')
-  return existsSync(script) ? script : null
-}
-
-/**
- * 在 <home>/bin 生成 pnpm 垫片，返回目录；写不进去就返回 null。
- * execPath 可能是 Electron 可执行文件（找不到独立 node 时的兜底），
- * 垫片里带上 ELECTRON_RUN_AS_NODE=1 —— 对纯 node 无影响。
- */
-export function ensurePnpmShimDir(home: string, execPath: string, script: string): string | null {
-  const dir = join(home, 'bin')
-  try {
-    mkdirSync(dir, { recursive: true })
-    if (process.platform === 'win32') {
-      writeFileSync(
-        join(dir, 'pnpm.cmd'),
-        `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${execPath}" "${script}" %*\r\n`,
-        'utf8',
-      )
-    } else {
-      writeFileSync(
-        join(dir, 'pnpm'),
-        `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec "${execPath}" "${script}" "$@"\n`,
-        { mode: 0o755 },
-      )
-    }
-    return dir
-  } catch {
-    return null
-  }
-}
 
 /** 目录前置进 PATH（Windows 的 env 大小写两种键名都写）。 */
 export function prependPath(env: NodeJS.ProcessEnv, dir: string): void {
@@ -88,11 +31,9 @@ export interface DshChildEnvOptions {
 }
 
 /**
- * dsh 子进程（plugin add / web）的公共环境：DSH_HOME、ELECTRON_RUN_AS_NODE、
- * 把随包 pnpm 前置进 PATH。前置顺序从左到右是 @pnpm/exe → 仓库 .bin →
- * 垫片目录 → 原 PATH：打包态只有 @pnpm/exe 的真二进制能被 dsh 内部的
- * execa("pnpm") 命中；开发态 .bin 与 exe 同版本，先后无妨。垫片只在
- * exe 缺席时生成（posix 可用，Windows 上只服务我们自己的 spawn）。
+ * dsh web 子进程的公共环境：DSH_HOME、ELECTRON_RUN_AS_NODE、可选 NODE_PATH。
+ * 教师包不含 pnpm，连接中心也不再调用它，所以不把 @pnpm/exe 或垫片放进 PATH。
+ * 开发态仓库的 node_modules/.bin 仍前置，方便 dsh 找到同仓库里的其它命令。
  */
 export function dshChildEnv(opts: DshChildEnvOptions): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...(opts.env ?? process.env), DSH_HOME: opts.home }
@@ -104,15 +45,5 @@ export function dshChildEnv(opts: DshChildEnvOptions): NodeJS.ProcessEnv {
   }
   const binDir = join(dirname(opts.dshBin || ''), '..', '..', '..', '.bin')
   if (opts.dshBin && existsSync(binDir)) prependPath(env, binDir)
-  const exePath = packagedPnpmExePath(opts.dshBin)
-  if (exePath) {
-    prependPath(env, dirname(exePath))
-  } else {
-    const script = packagedPnpmScript(opts.dshBin)
-    if (script) {
-      const shimDir = ensurePnpmShimDir(opts.home, opts.execPath, script)
-      if (shimDir) prependPath(env, shimDir)
-    }
-  }
   return env
 }

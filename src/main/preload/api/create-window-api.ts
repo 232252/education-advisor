@@ -4,6 +4,7 @@
 
 import { academicApi } from './academic'
 import { agentApi } from './agent'
+import { agentQuestionApi } from './agent-question'
 import { aiApi } from './ai'
 import { backupApi } from './backup'
 import { channelsApi } from './channels'
@@ -27,6 +28,7 @@ import { skillApi } from './skill'
 import { studentsApi } from './students'
 import { sysApi } from './sys'
 import { teacherConfirmApi } from './teacher-confirm'
+import { workspaceApi } from './workspace'
 
 export function createWindowApi() {
   return {
@@ -55,5 +57,7 @@ export function createWindowApi() {
     grading: gradingApi,
     memory: memoryApi,
     teacherConfirm: teacherConfirmApi,
+    agentQuestion: agentQuestionApi,
+    workspace: workspaceApi,
   }
 }

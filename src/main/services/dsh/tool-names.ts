@@ -9,7 +9,28 @@
 // 只改写 system prompt：用户消息里可能含学生姓名/作业正文，替换它会破坏内容。
 // =============================================================
 
+import { createHash } from 'node:crypto'
+
 const WORD_CHAR = /[A-Za-z0-9_]/
+/** 与 @deepseek-ai/dsh-mcp-client 的 publicToolName 一致。 */
+const MAX_PUBLIC_NAME_LENGTH = 64
+const HASH_LENGTH = 12
+const INVALID_NAME_CHARS = /[^A-Za-z0-9_-]/g
+
+/**
+ * dsh 注册给模型的工具名。短且字符合法时是 `mcp__<server>__<raw>`。
+ * 超长或含非法字符时，截断并附上和 dsh 相同的哈希，避免提示词里的名字对不上。
+ */
+export function mcpPublicName(rawName: string, serverName: string): string {
+  const joined = `mcp__${serverName}__${rawName}`
+  const normalized = joined.replace(INVALID_NAME_CHARS, '_')
+  if (normalized === joined && normalized.length <= MAX_PUBLIC_NAME_LENGTH) return normalized
+  const hash = createHash('sha256')
+    .update(`${serverName}\0${rawName}`)
+    .digest('hex')
+    .slice(0, HASH_LENGTH)
+  return `${normalized.slice(0, MAX_PUBLIC_NAME_LENGTH - HASH_LENGTH - 1)}_${hash}`
+}
 
 /**
  * 按 map 的键替换文本中独立出现的工具名。
@@ -48,6 +69,6 @@ export function mcpToolNameMap(
   serverName: string,
 ): Record<string, string> {
   const out: Record<string, string> = {}
-  for (const t of tools) out[t.name] = `mcp__${serverName}__${t.name}`
+  for (const t of tools) out[t.name] = mcpPublicName(t.name, serverName)
   return out
 }

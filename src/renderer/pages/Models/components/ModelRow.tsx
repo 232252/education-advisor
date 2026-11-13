@@ -107,14 +107,32 @@ export const ModelRow = memo(function ModelRow({
             />
           </td>
           <td className="px-3 py-2 text-center">
-            <select
-              value={editForm.supportsReasoning ?? 'false'}
-              onChange={(e) => onEditFormChange({ ...editForm, supportsReasoning: e.target.value })}
-              className="bg-white dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px] w-full"
-            >
-              <option value="true">R</option>
-              <option value="false">-</option>
-            </select>
+            <div className="flex items-center justify-center gap-2">
+              <select
+                value={editForm.supportsReasoning ?? 'false'}
+                onChange={(e) =>
+                  onEditFormChange({ ...editForm, supportsReasoning: e.target.value })
+                }
+                className="bg-white dark:bg-surface-elevated border border-gray-300 dark:border-white/[0.08] rounded px-1 py-0.5 text-[10px]"
+              >
+                <option value="true">R</option>
+                <option value="false">-</option>
+              </select>
+              <label className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer">
+                <input
+                  type="checkbox"
+                  aria-label={t('page.models.row.visionToggle', '接受图片输入')}
+                  checked={editForm.supportsImage === 'true'}
+                  onChange={(e) =>
+                    onEditFormChange({
+                      ...editForm,
+                      supportsImage: e.target.checked ? 'true' : 'false',
+                    })
+                  }
+                />
+                V
+              </label>
+            </div>
           </td>
           <td className="px-3 py-2 text-center">
             <div className="flex items-center gap-1 justify-center">
@@ -186,16 +204,26 @@ export const ModelRow = memo(function ModelRow({
         {formatCost(m.costPerOutputToken, m)}
       </td>
       <td className="px-3 py-2 text-center">
-        {m.supportsReasoning ? (
-          <span
-            className="text-blue-500 dark:text-blue-400"
-            title={t('page.models.row.reasoningTitle', '支持推理')}
-          >
-            R
-          </span>
-        ) : (
-          <span className="text-gray-400 dark:text-gray-600">-</span>
-        )}
+        <span className="inline-flex items-center gap-1">
+          {m.supportsReasoning ? (
+            <span
+              className="text-blue-500 dark:text-blue-400"
+              title={t('page.models.row.reasoningTitle', '支持推理')}
+            >
+              R
+            </span>
+          ) : (
+            <span className="text-gray-400 dark:text-gray-600">-</span>
+          )}
+          {m.supportsImage && (
+            <span
+              className="text-purple-500 dark:text-purple-400"
+              title={t('page.models.row.visionTitle', '接受图片输入')}
+            >
+              V
+            </span>
+          )}
+        </span>
       </td>
       {(onUpdateAvailable || onDeleteAvailable) && (
         <td className="px-3 py-2 text-center">

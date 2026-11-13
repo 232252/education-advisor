@@ -22,8 +22,16 @@
 // =============================================================
 
 import { readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { stringify } from 'yaml'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
+import { parse, type ScalarTag, stringify } from 'yaml'
+
+const JS_TAG: ScalarTag = {
+  identify: (value: unknown) =>
+    Boolean(value && typeof value === 'object' && value !== null && Object.hasOwn(value, '__js')),
+  tag: 'tag:yaml.org,2002:js',
+  resolve: (value: string) => ({ __js: String(value) }),
+}
 
 /** harness 自带、不允许出现在模型可见工具集里的 cordis 行 id */
 export const EAA_DISABLED_DSH_ROWS: readonly string[] = [
@@ -38,6 +46,8 @@ export const EAA_DISABLED_DSH_ROWS: readonly string[] = [
   'present',
   'tool-fs',
   'tool-fs-search',
+  // 模型可见的 cd。id 为 working-directory 的运行时服务保留。
+  'tool-working-directory',
   // tool-skill 保留：它只加载技能正文，不执行命令。目录由每次运行的
   // skill-filesystem 补丁钉死，不扫描用户主目录。
   'tool-todo',
@@ -54,19 +64,84 @@ export const EAA_DISABLED_DSH_ROWS: readonly string[] = [
   'mcp-resources',
 ]
 
+/**
+ * 模型可见、但经审视后**保留**的官方工具行（不关闭）。
+ * 与 EAA_DISABLED_DSH_ROWS 一起构成「官方工具行」的完整登记：
+ * 守卫测试（dsh-tool-row-audit）对照真实安装包，任何未登记的新行都会变红，
+ * 迫使升级时显式决定关或留，而不是静默放行（DSH_CORE_RUNTIME.md §4.3）。
+ *
+ * - tool-skill：只加载技能正文，不执行命令；目录由每次运行的
+ *   skill-filesystem 补丁钉死，不扫描用户主目录。
+ */
+export const EAA_REVIEWED_TOOL_ROWS: readonly string[] = ['tool-skill']
+
+/**
+ * 名字带 dsh-tool- 前缀、但属于**工具基础设施**而非模型可见工具的行。
+ * 它们不直接给模型能力，守卫测试单独登记、不与模型工具混为一谈：
+ * - tool-executor-native：工具执行器，MCP 桥的硬依赖，关了教育工具也调不起来。
+ * - tool-executor-ptc：PTC 执行器，官方默认 disabled（run_code 仅 ptc/both 模式）。
+ * - timeout-policy：工具调用超时策略。
+ * - workspace-dependencies：工作区依赖解析（非 primary runtime 时官方自行 disabled）。
+ */
+export const EAA_TOOL_INFRA_ROWS: readonly string[] = [
+  'tool-executor-native',
+  'tool-executor-ptc',
+  'timeout-policy',
+  'workspace-dependencies',
+]
+
 export const EAA_HARDENING_PATCH_FILE = 'eaa-harness-tools-off.cordis.patch.yml'
 
 /** patch 顶层数组的行（PatchOptions：id / config / disabled / insert） */
 export type EaaCordisPatchRow = Record<string, unknown>
 
-export function eaaHardeningPatchRows(): EaaCordisPatchRow[] {
+function configOf(node: unknown, id: string): Record<string, unknown> | undefined {
+  if (!node || typeof node !== 'object') return undefined
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const found = configOf(item, id)
+      if (found) return found
+    }
+    return undefined
+  }
+  const rec = node as { id?: unknown; config?: unknown; insert?: unknown }
+  if (rec.id === id && rec.config && typeof rec.config === 'object' && !Array.isArray(rec.config)) {
+    return { ...(rec.config as Record<string, unknown>) }
+  }
+  if (rec.insert) return configOf(rec.insert, id)
+  if (rec.config && typeof rec.config === 'object') {
+    const nested = (rec.config as { plugins?: unknown }).plugins
+    if (nested) return configOf(nested, id)
+  }
+  return undefined
+}
+
+/** 从已安装包的 cordis.patch.yml 取出某一行的 config。读不到就当没有。 */
+export function readInstalledRowConfig(
+  dshBin: string | undefined,
+  packageName: string,
+  rowId: string,
+): Record<string, unknown> | undefined {
+  if (!dshBin) return undefined
+  try {
+    const req = createRequire(dshBin)
+    const manifest = req.resolve(`${packageName}/package.json`)
+    const text = readFileSync(join(dirname(manifest), 'cordis.patch.yml'), 'utf8')
+    return configOf(parse(text, { customTags: [JS_TAG], version: '1.1' }), rowId)
+  } catch {
+    return undefined
+  }
+}
+
+export function eaaHardeningPatchRows(installed?: Record<string, unknown>): EaaCordisPatchRow[] {
   return [
     ...EAA_DISABLED_DSH_ROWS.map((id): EaaCordisPatchRow => ({ id, disabled: true })),
     {
-      // patch 覆盖整行 config（不是合并），所以这里给出完整的三项；
-      // includeRuntimeContext 省略即取默认 true（cwd/平台等运行环境快照保留）。
+      // 后写的 config 会换掉整行。先留下已安装的字段，再关掉 harness 自己的身份。
+      // includeRuntimeContext 省略即取默认 true。
       id: 'system-prompt',
       config: {
+        ...(installed ?? {}),
         includeHarnessIdentity: false,
         personaPrefix: '',
         personaSuffix: '',
@@ -75,8 +150,8 @@ export function eaaHardeningPatchRows(): EaaCordisPatchRow[] {
   ]
 }
 
-export function buildEaaHardeningPatch(): string {
-  return stringify(eaaHardeningPatchRows(), { lineWidth: 0 })
+export function buildEaaHardeningPatch(installed?: Record<string, unknown>): string {
+  return stringify(eaaHardeningPatchRows(installed), { lineWidth: 0 })
 }
 
 /**
@@ -84,9 +159,10 @@ export function buildEaaHardeningPatch(): string {
  * 是同步入口（三处调用点都在异步流程里，但为了少一层 await 保持同步）。
  * 内容一致时不重写，避免每次起子进程都碰盘。
  */
-export function ensureEaaHardeningPatch(patchDir: string): string {
+export function ensureEaaHardeningPatch(patchDir: string, dshBin?: string): string {
   const patchPath = join(patchDir, EAA_HARDENING_PATCH_FILE)
-  const text = buildEaaHardeningPatch()
+  const installed = readInstalledRowConfig(dshBin, '@deepseek-ai/dsh-base', 'system-prompt')
+  const text = buildEaaHardeningPatch(installed)
   let current: string | null = null
   try {
     current = readFileSync(patchPath, 'utf8')

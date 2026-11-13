@@ -159,6 +159,7 @@ npm run package:portable   # 绿色版 exe
 · [配置](./docs/CONFIGURATION.md)
 · [隐私引擎](./docs/PRIVACY_ENGINE.md)
 · [FAQ](./docs/FAQ.md)
+· [安装包打包](./docs/INSTALLER_PACKING.md)
 · [路线图](./ROADMAP.md)
 
 ---

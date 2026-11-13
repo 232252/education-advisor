@@ -22,7 +22,13 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { LIVE_MISSING_PEERS, hostRuntimePackages } from './lib/install-layout.mjs'
-import { listZipEntries, writeStoreZip } from './lib/store-zip.mjs'
+import {
+  RUNTIME_ZIP_MAX_BYTES,
+  evaluateRuntimeArchive,
+  evaluateStoreMethod,
+  logInventory,
+} from './lib/pack-budget.mjs'
+import { firstZipMethod, listZipEntries, writeStoreZip } from './lib/store-zip.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const DEEPSEEK_TOP = new Set([
@@ -191,6 +197,17 @@ function buildRuntimeZip() {
     packages: packed,
   }
   writeFileSync(join(ROOT, 'config', 'dsh-runtime.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+  const method = firstZipMethod(outPath)
+  logInventory('prepackage', [
+    {
+      label: 'dsh-runtime.zip',
+      bytes: manifest.bytes,
+      limit: RUNTIME_ZIP_MAX_BYTES,
+      extra: `method=${method} packages=${packed.length} files=${entries.length}`,
+    },
+  ])
+  const verdict = evaluateRuntimeArchive({ bytes: manifest.bytes, entries: namesInZip, method })
+  if (!verdict.ok) fail(verdict.failures.join('; '))
   console.log(
     `[build-dsh-archives] dsh-runtime ${packed.length} packages / ${entries.length} files / ${(manifest.bytes / 1024 / 1024).toFixed(1)}MB store`,
   )
@@ -222,6 +239,16 @@ function buildImZip() {
     files: entries.length,
   }
   writeFileSync(join(ROOT, 'config', 'dsh-im.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+  const method = firstZipMethod(outPath)
+  logInventory('prepackage', [
+    {
+      label: 'dsh-im.zip',
+      bytes: manifest.bytes,
+      extra: `method=${method} files=${entries.length}`,
+    },
+  ])
+  const verdict = evaluateStoreMethod('dsh-im.zip', method)
+  if (!verdict.ok) fail(verdict.failures.join('; '))
   console.log(
     `[build-dsh-archives] dsh-im ${entries.length} files / ${(manifest.bytes / 1024 / 1024).toFixed(1)}MB store`,
   )

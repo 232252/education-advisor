@@ -133,6 +133,23 @@ export function getDshCurrentRoute(): DshDefaultModelSelection | null {
 }
 
 /**
+ * 这个模型是否接受图片：先看官方目录，目录没有时看 profile 模型行的
+ * input 声明（自建网关的视觉模型由教师/同步写入）。两处都没有就不猜。
+ */
+export function dshModelAcceptsImages(providerId: string, modelId: string): boolean {
+  if (!providerId || !modelId) return false
+  const model = getDshCatalogSource()
+    .listModels(providerId)
+    .find((item) => item.id === modelId)
+  if (model) return model.input.includes('image')
+  if (!sdkProfileDir) return false
+  const route = readLlmProviders(sdkProfileDir)[providerId]
+  const rows = Array.isArray(route?.models) ? (route.models as Record<string, unknown>[]) : []
+  const row = rows.find((item) => item && item.id === modelId)
+  return Array.isArray(row?.input) && row.input.includes('image')
+}
+
+/**
  * 对话选择器 / 模型页写入当前路由：官方 agent-default-model + 如有密钥则声明 llm-pi-ai 路由。
  */
 export function selectDshRoute(selection: DshDefaultModelSelection): DshDefaultModelSelection {
@@ -143,9 +160,12 @@ export function selectDshRoute(selection: DshDefaultModelSelection): DshDefaultM
     throw new Error('选择模型需要 provider 与 model')
   }
   const keyed = keyedProviderIds()
-  if (keyed.has(selection.provider) || keyed.has(dshRouteKey(selection.provider))) {
+  const route = dshRouteKey(selection.provider)
+  if (keyed.has(selection.provider) || keyed.has(route)) {
+    // 行键必须与运行时声明的路由一致（含用户改名与 deepseek-official 别名），
+    // 否则 apiKeyEnv 落在旧名字的行上，initialize 仍报缺凭据。
     mergeLlmProviderCredentials(sdkProfileDir, {
-      [selection.provider]: { apiKeyEnv: dshCredentialEnvName(dshRouteKey(selection.provider)) },
+      [route]: { apiKeyEnv: dshCredentialEnvName(route) },
     })
   }
   writeDefaultModelSelection(sdkProfileDir, selection)
@@ -155,8 +175,9 @@ export function selectDshRoute(selection: DshDefaultModelSelection): DshDefaultM
 /** 密钥写入 keystore 后，把对应 apiKeyEnv 同步进 profile（不覆盖其它字段）。 */
 export function syncDshProviderCredential(providerId: string): void {
   if (!sdkProfileDir || !providerId) return
+  const route = dshRouteKey(providerId)
   mergeLlmProviderCredentials(sdkProfileDir, {
-    [providerId]: { apiKeyEnv: dshCredentialEnvName(dshRouteKey(providerId)) },
+    [route]: { apiKeyEnv: dshCredentialEnvName(route) },
   })
 }
 
@@ -217,14 +238,18 @@ function mergeModelRow(
   const base = catalog.find((m) => m.id === id)
   const name = typeof row.name === 'string' && row.name ? row.name : base?.name || id
   const api = typeof row.api === 'string' && row.api ? row.api : base?.api || 'openai-completions'
+  // 目录没有这个模型时用保守默认，与 pi-ai/model-utils.resolveModel、
+  // buildCustomModelInfos 的自定义模型口径一致（32768/4096）。此前猜 1M/128K
+  // 会让压缩阈值虚高（≈896K），真实窗口先在 API 侧 400 超限 —— 保守小值只是
+  // 「压缩提前」（安全），保守大值是「上下文超限」（致命）。
   const contextWindow =
-    typeof row.contextWindow === 'number' ? row.contextWindow : (base?.contextWindow ?? 1000000)
+    typeof row.contextWindow === 'number' ? row.contextWindow : (base?.contextWindow ?? 32768)
   const maxTokens =
     typeof row.maxTokens === 'number'
       ? row.maxTokens
       : typeof row.maxOutputTokens === 'number'
         ? row.maxOutputTokens
-        : (base?.maxTokens ?? 128000)
+        : (base?.maxTokens ?? 4096)
   return {
     id,
     name,
@@ -240,7 +265,9 @@ function mergeModelRow(
       typeof row.supportsReasoning === 'boolean'
         ? row.supportsReasoning
         : (base?.supportsReasoning ?? false),
-    supportsImage: base?.input.includes('image') ?? false,
+    supportsImage: Array.isArray(row.input)
+      ? row.input.includes('image')
+      : (base?.input.includes('image') ?? false),
     reasoningLevels: base?.reasoningLevels,
     baseUrl:
       typeof row.baseURL === 'string' && row.baseURL ? row.baseURL : base?.baseUrl || routeBase,

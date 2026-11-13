@@ -1,18 +1,46 @@
 // =============================================================
 // 把本次运行看得到的技能交给 dsh 的 skill 插件
 //
-// dsh 只接受小写短横线技能名，并且会扫描项目目录和用户主目录。
-// 这里复制一份只含该角色技能的目录，改好名字和工具名，再用补丁
-// 把 skill-filesystem 钉在这个目录上。技能原文仍留在 skills/。
+// dsh 只接受小写短横线技能名。默认还会扫项目目录。
+// 这里把角色技能写进 $DSH_HOME/skills/<角色>，补丁只扫这个目录和
+// $DSH_HOME/skills 本身，这样 DSH 自己放在 skills 根上的技能还在，
+// 项目目录和用户主目录不扫。
 // =============================================================
 
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+import { pinyin } from 'pinyin-pro'
 import { stringify } from 'yaml'
+import { readInstalledRowConfig } from './hardening'
 import { rewriteToolNames } from './tool-names'
 
 const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 export const EAA_SKILL_PATCH_FILE = 'eaa-skills.cordis.patch.yml'
+
+/**
+ * 名字里的汉字转无声调拼音（逐字短横线），其余字符原样保留。
+ * dsh 只认小写短横线名；中文角色/技能名直接清洗会退化成 skill-2 这类
+ * 无语义序号，模型与教师都认不出是哪份技能。拼音保留语义且结果确定。
+ */
+function transliterate(name: string): string {
+  if (!/[一-鿿]/.test(name)) return name
+  return pinyin(name, { toneType: 'none', type: 'array', nonZh: 'consecutive' }).join('-')
+}
+
+/**
+ * DSH 能长期读到的技能目录：`$DSH_HOME/skills/<scope>`。
+ * 不放系统临时目录。skill-filesystem 用 customSkillDirs 指到这里，
+ * 不改 dshHome / agentsHome，避免把 AGENTS.md 的查找路径指走。
+ */
+export function dshVisibleSkillDir(home: string, scope: string): string {
+  const safe =
+    transliterate(scope)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'agent'
+  return join(home, 'skills', safe)
+}
 
 export interface DshSkillSource {
   name: string
@@ -21,7 +49,7 @@ export interface DshSkillSource {
 }
 
 export function toDshSkillName(name: string, used: Set<string>): string {
-  const base = name
+  const base = transliterate(name)
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -56,18 +84,25 @@ export function materializeDshSkills(opts: {
   return { dir: opts.destDir, names }
 }
 
-export function buildEaaSkillPatch(skillDir: string): string {
-  const dir = skillDir.replace(/\\/g, '/')
+/** 角色目录，以及它的上一级 skills 根（DSH 自己的技能放在这里）。 */
+export function dshSkillScanDirs(skillDir: string): string[] {
+  const role = skillDir.replace(/\\/g, '/')
+  const parent = dirname(skillDir)
+  if (basename(parent).toLowerCase() !== 'skills') return [role]
+  const official = parent.replace(/\\/g, '/')
+  return official === role ? [role] : [role, official]
+}
+
+export function buildEaaSkillPatch(skillDir: string, installed?: Record<string, unknown>): string {
   return stringify(
     [
       {
         id: 'skill-filesystem',
         config: {
+          ...(installed ?? {}),
           includeDefaultRoots: false,
-          customSkillDirs: [dir],
+          customSkillDirs: dshSkillScanDirs(skillDir),
           watch: false,
-          dshHome: dir,
-          agentsHome: dir,
         },
       },
     ],
@@ -75,9 +110,10 @@ export function buildEaaSkillPatch(skillDir: string): string {
   )
 }
 
-export function ensureEaaSkillPatch(patchDir: string, skillDir: string): string {
+export function ensureEaaSkillPatch(patchDir: string, skillDir: string, dshBin?: string): string {
   const patchPath = join(patchDir, EAA_SKILL_PATCH_FILE)
-  writeFileSync(patchPath, buildEaaSkillPatch(skillDir), 'utf8')
+  const installed = readInstalledRowConfig(dshBin, '@deepseek-ai/dsh-base', 'skill-filesystem')
+  writeFileSync(patchPath, buildEaaSkillPatch(skillDir, installed), 'utf8')
   return patchPath
 }
 

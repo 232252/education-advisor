@@ -57,7 +57,9 @@ describe('dshProviderRouting', () => {
     })
     expect(envNames).toEqual({
       EAA_DSH_KIMI_API_KEY: 'kimi',
+      KIMI_API_KEY: 'kimi',
       EAA_DSH_MOONSHOT_API_KEY: 'moonshot',
+      MOONSHOT_API_KEY: 'moonshot',
     })
     configureDshCredentials(null)
   })
@@ -138,8 +140,8 @@ describe('全目录压测（app 真实 vendor 里的 provider 全集）', () => 
   it('每个 provider 的凭据变量名都合法且互不冲突', () => {
     const { profiles, envNames } = dshProviderRouting(providerIds)
     const names = Object.keys(envNames)
-    // 每个 provider 都要有一个变量名（要么自己声明的，要么 dsh 内建行的）
-    expect(names).toHaveLength(providerIds.length)
+    // 每个 provider 至少有一个变量名。非内建路由再加 DSH 模型页的官方名。
+    expect(new Set(Object.values(envNames)).size).toBe(providerIds.length)
     // 两条不同路由不能共用一个变量名，否则一个 key 会被发给另一个 provider
     expect(new Set(names).size).toBe(names.length)
     for (const name of names) expect(name).toMatch(REF_PATTERN)

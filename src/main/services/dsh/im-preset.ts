@@ -2,36 +2,35 @@
 // 连接中心的网页会话用哪一套工具
 //
 // dsh web 的命令行、文件、网页和子代理装在预设里面（preset-standard 等），
-// 不是宿主那几行。宿主加固补丁按行号只能盖到宿主上已经停用的副本，
-// 渠道里的模型仍然能调用预设自己的 bash。
+// 不是宿主那几行。宿主加固补丁盖不到预设内部的副本，渠道里的模型仍然能
+// 调用预设自己的 bash。
 //
 // 这里做两件事：
-//   1. 插入教育预设 eaa，只留说明、时间和技能，并把它设为新会话的默认预设。
-//      技能目录必须写在这个预设自己的 skill-filesystem 上。
-//   2. 把已经装上的官方预设里的命令行等工具关掉，已经选过「标准」的旧会话也会生效。
-//      精简模式原来只有命令行，关掉之后补上说明和同一份技能。
+//   1. 插入教育预设 eaa，留下说明、时间、技能，以及官方网页预设同一组
+//      上下文压缩，并把它设为新会话的默认预设。技能目录必须写在这个预设
+//      自己的 skill-filesystem 上。预设会换成自己的插件树，不写进这棵树的
+//      官方能力（压缩、/compact）在渠道会话里不会再生效。
+//   2. 启动时重读已安装的官方预设，只把命令行等壳层标成停用。人设、说明和
+//      技能目录保持 DSH 原样，升级带来的新字段也会留下来。Cordis 对同一行
+//      的 config 是整段替换，所以仍然要写出完整 config，但不再改写内容。
 // =============================================================
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { parseDocument, type Scalar, type ScalarTag, stringify } from 'yaml'
+import { EAA_AGENTS_INSTRUCTION_BYTES } from './agents-home'
+import { readInstalledRowConfig } from './hardening'
+import { dshSkillScanDirs } from './skill-mount'
 
 export const EAA_IM_PRESET_ID = 'eaa'
 
-/** 渠道会话的人设。官方预设原来写着 coding agent 和工作目录，这里统一换成这一句。 */
+/** 教育预设的人设。官方预设的原文不动。 */
 export const EAA_IM_PERSONA_PREFIX = '你是班级操行助手。只使用当前列出的工具和技能回答教师。'
 
-/** 预设选择器上的说明。官方文案写着会用终端和编辑文件，这里改成实际还能做的事。 */
+/** 预设选择器上的说明。只用于教育预设，不改写官方预设的文案。 */
 export const EAA_IM_PRESET_DESCRIPTION = '按班级操行助手回答，只用当前列出的教育工具和技能。'
 
-/** 官方预设一旦写上 name，选择器就不再用「会调用终端」那套内置文案。 */
-const HONEST_PRESET_DISPLAY: Record<string, { name: string; description: string }> = {
-  standard: { name: '标准', description: EAA_IM_PRESET_DESCRIPTION },
-  minimal: { name: '精简', description: EAA_IM_PRESET_DESCRIPTION },
-  ptc: { name: '批处理', description: EAA_IM_PRESET_DESCRIPTION },
-  cordis: { name: '创作', description: EAA_IM_PRESET_DESCRIPTION },
-}
 export const EAA_IM_PRESET_PATCH_FILE = 'eaa-im-preset.cordis.patch.yml'
 export const EAA_PRESET_LOCK_PATCH_FILE = 'eaa-preset-lock.cordis.patch.yml'
 
@@ -63,6 +62,10 @@ export const EAA_PRESET_SHELL_PACKAGES: readonly string[] = [
   '@deepseek-ai/dsh-tool-subagent-control',
   '@deepseek-ai/dsh-tool-subagent-control/list-agents',
   '@deepseek-ai/dsh-tool-cordis',
+  // 官方「标准 / 批处理 / 创作」预设还带着提问和展示卡片。渠道会话不走这两条，
+  // 避免绕过教育工具直接跟教师要输入或弹出交付物。
+  '@deepseek-ai/dsh-tool-ask-user',
+  '@deepseek-ai/dsh-tool-present',
 ]
 
 const JS_TAG: ScalarTag = {
@@ -88,9 +91,54 @@ interface PresetDeclaration {
   config: Record<string, unknown>
 }
 
+const FALLBACK_COMPACTION = {
+  id: 'compaction',
+  name: 'cordis:group',
+  group: true,
+  isolate: { compaction: true, toolResultPruner: true },
+  config: [
+    { id: 'compaction-basic', name: '@deepseek-ai/dsh-compaction-basic' },
+    { id: 'command-compact', name: '@deepseek-ai/dsh-command-compact' },
+    {
+      id: 'tool-result-pruner',
+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner',
+      config: { thresholdChars: 8192, headChars: 4096, tailChars: 1024 },
+    },
+  ],
+}
+
+export interface InstalledEaaPresetPieces {
+  /** 官方标准预设里 persona 的 config。前缀和运行环境开关仍由教育预设决定。 */
+  persona?: Record<string, unknown>
+  /** 官方标准预设里 agent-instructions 的 config。上限仍改成教育说明用的值。 */
+  agentInstructions?: Record<string, unknown>
+  /** 官方标准预设里的 compaction 组。原样采用，不手写阈值。 */
+  compaction?: Record<string, unknown>
+  /** 已安装 agent-preset-registry 的 config。默认预设仍改成教育预设。 */
+  registry?: Record<string, unknown>
+  /** 官方标准预设里 skill-filesystem 的 config。扫描范围仍钉在这次的目录。 */
+  skillFilesystem?: Record<string, unknown>
+  /** 官方标准预设里的时间插件。没有就用包名本身。 */
+  timeContext?: Record<string, unknown>
+  /** 官方标准预设里的技能工具。没有就用包名本身。 */
+  toolSkill?: Record<string, unknown>
+}
+
 /** 新会话默认用的教育预设。技能目录只扫描这一次准备好的那份。 */
-export function buildEaaImPresetPatch(skillDir: string): string {
+export function buildEaaImPresetPatch(
+  skillDir: string,
+  installed?: InstalledEaaPresetPieces,
+): string {
   const dir = skillDir.replace(/\\/g, '/')
+  const compaction = installed?.compaction ?? FALLBACK_COMPACTION
+  const timeContext = installed?.timeContext ?? {
+    id: 'time-context',
+    name: '@deepseek-ai/dsh-time-context',
+  }
+  const toolSkill = installed?.toolSkill ?? {
+    id: 'tool-skill',
+    name: '@deepseek-ai/dsh-tool-skill',
+  }
   return stringify(
     [
       {
@@ -108,28 +156,36 @@ export function buildEaaImPresetPatch(skillDir: string): string {
                   id: 'persona',
                   name: '@deepseek-ai/dsh-persona',
                   config: {
+                    ...(installed?.persona ?? {}),
                     prefix: EAA_IM_PERSONA_PREFIX,
                     includeRuntimeContext: false,
+                    // complete 会让这一段变成整份提示，教育说明就进不去。
+                    complete: false,
                   },
                 },
                 {
                   id: 'agent-instructions',
                   name: '@deepseek-ai/dsh-agent-instructions',
-                  config: { maxBytes: 65536 },
+                  // 预设挂载会换成自己的插件树，盖不到宿主那行。先留下官方这行
+                  // 已有的字段，再把上限改成教育说明用的值。
+                  config: {
+                    ...(installed?.agentInstructions ?? {}),
+                    maxBytes: EAA_AGENTS_INSTRUCTION_BYTES,
+                  },
                 },
-                { id: 'time-context', name: '@deepseek-ai/dsh-time-context' },
+                timeContext,
                 {
                   id: 'skill-filesystem',
                   name: '@deepseek-ai/dsh-skill-filesystem',
                   config: {
+                    ...(installed?.skillFilesystem ?? {}),
                     includeDefaultRoots: false,
-                    customSkillDirs: [dir],
+                    customSkillDirs: dshSkillScanDirs(dir),
                     watch: false,
-                    dshHome: dir,
-                    agentsHome: dir,
                   },
                 },
-                { id: 'tool-skill', name: '@deepseek-ai/dsh-tool-skill' },
+                toolSkill,
+                compaction,
               ],
             },
           },
@@ -137,15 +193,75 @@ export function buildEaaImPresetPatch(skillDir: string): string {
       },
       {
         id: 'agent-preset-registry',
-        config: { default: EAA_IM_PRESET_ID },
+        config: { ...(installed?.registry ?? {}), default: EAA_IM_PRESET_ID },
       },
     ],
     { lineWidth: 0 },
   )
 }
 
-export function ensureEaaImPresetPatch(patchDir: string, skillDir: string): string {
-  return writeIfChanged(join(patchDir, EAA_IM_PRESET_PATCH_FILE), buildEaaImPresetPatch(skillDir))
+export function ensureEaaImPresetPatch(
+  patchDir: string,
+  skillDir: string,
+  dshBin?: string,
+): string {
+  return writeIfChanged(
+    join(patchDir, EAA_IM_PRESET_PATCH_FILE),
+    buildEaaImPresetPatch(skillDir, installedPresetPieces(dshBin)),
+  )
+}
+
+/** 读已安装标准预设里的一行插件。没有标准预设或没有这一行就返回 undefined。 */
+export function readStandardPresetPlugin(
+  presetDir: string,
+  pluginId: string,
+): Record<string, unknown> | undefined {
+  const file = join(presetDir, 'standard.patch.yml')
+  if (!existsSync(file)) return undefined
+  for (const decl of readPresetDeclarations(file)) {
+    const plugins = decl.config.plugins
+    if (!Array.isArray(plugins)) continue
+    for (const plugin of plugins) {
+      if (!plugin || typeof plugin !== 'object') continue
+      if ((plugin as { id?: unknown }).id === pluginId) return plugin as Record<string, unknown>
+    }
+  }
+  return undefined
+}
+
+function pluginConfig(
+  plugin: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  const config = plugin?.config
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return undefined
+  return config as Record<string, unknown>
+}
+
+function installedPresetPieces(dshBin: string | undefined): InstalledEaaPresetPieces {
+  if (!dshBin) return {}
+  const pieces: InstalledEaaPresetPieces = {}
+  const presetDir = resolveWebPresetDir(dshBin)
+  if (presetDir) {
+    const persona = pluginConfig(readStandardPresetPlugin(presetDir, 'persona'))
+    const instructions = pluginConfig(readStandardPresetPlugin(presetDir, 'agent-instructions'))
+    const compaction = readStandardPresetPlugin(presetDir, 'compaction')
+    const skills = pluginConfig(readStandardPresetPlugin(presetDir, 'skill-filesystem'))
+    const timeContext = readStandardPresetPlugin(presetDir, 'time-context')
+    const toolSkill = readStandardPresetPlugin(presetDir, 'tool-skill')
+    if (persona) pieces.persona = persona
+    if (instructions) pieces.agentInstructions = instructions
+    if (compaction) pieces.compaction = compaction
+    if (skills) pieces.skillFilesystem = skills
+    if (timeContext) pieces.timeContext = timeContext
+    if (toolSkill) pieces.toolSkill = toolSkill
+  }
+  const registry = readInstalledRowConfig(
+    dshBin,
+    '@deepseek-ai/dsh-web-app',
+    'agent-preset-registry',
+  )
+  if (registry) pieces.registry = registry
+  return pieces
 }
 
 /** 从 dsh 可执行文件找到 web 应用自带的预设目录。找不到就返回 null。 */
@@ -161,25 +277,17 @@ export function resolveWebPresetDir(dshBin: string): string | null {
 }
 
 /**
- * 读官方预设文件，把命令行等工具标成停用。
- * 给出技能目录时，预设里的 skill-filesystem 只扫描这一份，不再扫用户主目录。
+ * 读已安装的官方预设，只把壳层工具标成停用。
  * 目录里没有预设时返回 null。解析失败直接抛出，避免悄悄留下命令行。
  */
-export function buildOfficialPresetLock(presetDir: string, skillDir?: string): string | null {
+export function buildOfficialPresetLock(presetDir: string): string | null {
   const files = readdirSync(presetDir)
     .filter((name) => name.endsWith('.patch.yml'))
     .sort()
   const rows: Array<{ id: string; config: Record<string, unknown> }> = []
   for (const name of files) {
     for (const decl of readPresetDeclarations(join(presetDir, name))) {
-      lockPluginTree(decl.config.plugins, skillDir)
-      if (skillDir) ensureEducationCapabilities(decl.config.plugins, skillDir)
-      const display =
-        typeof decl.config.id === 'string' ? HONEST_PRESET_DISPLAY[decl.config.id] : undefined
-      if (display) {
-        decl.config.name = display.name
-        decl.config.description = display.description
-      }
+      lockPluginTree(decl.config.plugins)
       rows.push({ id: decl.rowId, config: decl.config })
     }
   }
@@ -187,14 +295,10 @@ export function buildOfficialPresetLock(presetDir: string, skillDir?: string): s
   return stringify(rows, YAML_OPTS)
 }
 
-export function ensureOfficialPresetLock(
-  patchDir: string,
-  dshBin: string,
-  skillDir?: string,
-): string | null {
+export function ensureOfficialPresetLock(patchDir: string, dshBin: string): string | null {
   const presetDir = resolveWebPresetDir(dshBin)
   if (!presetDir) return null
-  const text = buildOfficialPresetLock(presetDir, skillDir)
+  const text = buildOfficialPresetLock(presetDir)
   if (!text) return null
   return writeIfChanged(join(patchDir, EAA_PRESET_LOCK_PATCH_FILE), text)
 }
@@ -229,7 +333,7 @@ function readPresetDeclarations(file: string): PresetDeclaration[] {
   return found
 }
 
-function lockPluginTree(entries: unknown, skillDir?: string): void {
+function lockPluginTree(entries: unknown): void {
   if (!Array.isArray(entries)) return
   for (const row of entries) {
     if (!row || typeof row !== 'object') continue
@@ -237,66 +341,13 @@ function lockPluginTree(entries: unknown, skillDir?: string): void {
     if (typeof entry.name === 'string' && EAA_PRESET_SHELL_PACKAGES.includes(entry.name)) {
       entry.disabled = true
     }
-    if (entry.name === '@deepseek-ai/dsh-persona') {
-      entry.config = {
-        prefix: EAA_IM_PERSONA_PREFIX,
-        includeRuntimeContext: false,
-      }
-      continue
-    }
-    if (skillDir && entry.name === '@deepseek-ai/dsh-skill-filesystem') {
-      entry.config = pinnedSkillConfig(skillDir)
-      continue
-    }
     if (Array.isArray(entry.config)) {
-      lockPluginTree(entry.config, skillDir)
+      lockPluginTree(entry.config)
       continue
     }
     if (entry.config && typeof entry.config === 'object') {
-      lockPluginTree((entry.config as { plugins?: unknown }).plugins, skillDir)
+      lockPluginTree((entry.config as { plugins?: unknown }).plugins)
     }
-  }
-}
-
-function pluginPresent(entries: unknown[], pkg: string): boolean {
-  return entries.some(
-    (row) => row && typeof row === 'object' && (row as { name?: unknown }).name === pkg,
-  )
-}
-
-/** 精简模式原来没有技能和说明文件。补上之后，选它的旧会话也能读到同一份。 */
-function ensureEducationCapabilities(plugins: unknown, skillDir: string): void {
-  if (!Array.isArray(plugins)) return
-  if (!pluginPresent(plugins, '@deepseek-ai/dsh-agent-instructions')) {
-    plugins.push({
-      id: 'agent-instructions',
-      name: '@deepseek-ai/dsh-agent-instructions',
-      config: { maxBytes: 65536 },
-    })
-  }
-  if (!pluginPresent(plugins, '@deepseek-ai/dsh-skill-filesystem')) {
-    plugins.push({
-      id: 'skill-filesystem',
-      name: '@deepseek-ai/dsh-skill-filesystem',
-      config: pinnedSkillConfig(skillDir),
-    })
-  }
-  if (!pluginPresent(plugins, '@deepseek-ai/dsh-tool-skill')) {
-    plugins.push({
-      id: 'tool-skill',
-      name: '@deepseek-ai/dsh-tool-skill',
-    })
-  }
-}
-
-function pinnedSkillConfig(skillDir: string): Record<string, unknown> {
-  const dir = skillDir.replace(/\\/g, '/')
-  return {
-    includeDefaultRoots: false,
-    customSkillDirs: [dir],
-    watch: false,
-    dshHome: dir,
-    agentsHome: dir,
   }
 }
 

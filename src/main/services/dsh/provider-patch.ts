@@ -86,6 +86,17 @@ export function dshCredentialEnvName(routeId: string): string {
   return `EAA_DSH_${cleaned.toUpperCase() || 'ROUTE'}_API_KEY`
 }
 
+/**
+ * DSH 模型页在路由还没有 apiKeyEnv 时自己推导的凭据名
+ * （`minimax-cn` → `MINIMAX_CN_API_KEY`）。和上面的 EAA 前缀名一起注入，
+ * 这样模型页、网页搜索以外的插件按官方名字查找时也能拿到同一把钥匙。
+ * 不写进 profile：profile 里已有的 apiKeyEnv 以 DSH 已经保存的为准。
+ */
+export function dshOfficialCredentialRef(routeId: string): string {
+  const cleaned = routeId.toUpperCase().replace(/[^A-Z0-9]+/g, '_')
+  return `${cleaned || 'ROUTE'}_API_KEY`
+}
+
 export interface DshProviderRouting {
   /**
    * 交给 llm-pi-ai 行的 providers dict：路由名 → 该路由的配置。
@@ -150,6 +161,11 @@ export function dshProviderRouting(
       profiles[route] = profile
     }
     envNames[envName] = providerId
+    if (!nativeEnv) {
+      const official = dshOfficialCredentialRef(route)
+      // 两个路由推导出同一个官方名时不覆盖，避免一把钥匙被另一个 provider 用走。
+      if (envNames[official] === undefined) envNames[official] = providerId
+    }
   }
   return { profiles, envNames }
 }
@@ -264,7 +280,7 @@ export function buildEaaProviderPatchRows(
 export function probeCredentialPlan(
   routing: DshProviderRouting,
   probe: { providerId: string; apiKey: string },
-): { envName: string; forcedProfiles: DshProviderRouting['profiles'] | null } {
+): { envName: string; route: string; forcedProfiles: DshProviderRouting['profiles'] | null } {
   const route = dshRouteKey(probe.providerId)
   const profile = routing.profiles[route]
   const declared = Object.entries(routing.envNames).find(([, id]) => id === probe.providerId)?.[0]
@@ -272,9 +288,10 @@ export function probeCredentialPlan(
   if (!envName) {
     throw new Error(`no dsh credential env for provider: ${probe.providerId}`)
   }
-  if (!profile || profile.apiKeyEnv === envName) return { envName, forcedProfiles: null }
+  if (!profile || profile.apiKeyEnv === envName) return { envName, route, forcedProfiles: null }
   return {
     envName,
+    route,
     forcedProfiles: { ...routing.profiles, [route]: { ...profile, apiKeyEnv: envName } },
   }
 }
@@ -283,15 +300,17 @@ export function probeCredentialPlan(
 export function writeProviderPatchFile(
   patchDir: string,
   profiles: DshProviderRouting['profiles'],
+  config?: Record<string, unknown>,
 ): string {
   const ids = Object.keys(profiles).sort()
   const picked: DshProviderRouting['profiles'] = {}
   for (const id of ids) picked[id] = profiles[id]
+  const rows = config ? [{ id: 'llm-pi-ai', config }] : buildEaaProviderPatchRows(picked)
   const patchPath = join(
     patchDir,
     `eaa-llm-probe-${randomBytes(4).toString('hex')}.cordis.patch.yml`,
   )
-  writeFileSync(patchPath, stringify(buildEaaProviderPatchRows(picked), { lineWidth: 0 }), 'utf8')
+  writeFileSync(patchPath, stringify(rows, { lineWidth: 0 }), 'utf8')
   return patchPath
 }
 

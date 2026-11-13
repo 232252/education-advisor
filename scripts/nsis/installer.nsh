@@ -9,6 +9,12 @@
 ; looks unchanged after a failed attempt. A ~30k-file tree plus real-time AV
 ; makes each attempt take minutes, before any new file is extracted.
 ;
+; This include does not change the 7z compression level. The payload stays
+; on electron-builder's default LZMA pass. Do not turn that payload into an
+; uncompressed archive from here. Skipping unchanged files on upgrade is
+; future work and is not implemented; the script still renames the old
+; directory and extracts the full new tree. See docs/INSTALLER_PACKING.md.
+;
 ; The new Setup therefore must not execute that old uninstaller. Before
 ; uninstallOldVersion it:
 ;   1. Closes real Education Advisor.exe processes only (any install path,

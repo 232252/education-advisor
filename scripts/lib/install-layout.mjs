@@ -175,8 +175,11 @@ export function runtimeArchivePackages(lock) {
   for (const name of notShipped) archive.delete(name)
   // 教师运行时不带 pnpm / @pnpm/exe。仓库和 CI 打包机仍可用检出里的 pnpm，
   // 只是不能打进教师 zip 或安装包（连接中心改写 profile 链接，不再 plugin add）。
+  // libreoffice-kit 也不进这个 STORE zip。Windows 那份是单独的 deflate zip；
+  // darwin arm64 的 kit 约 161MB，放进来会让 macOS 的 runtime zip 超过预算。
   for (const name of [...archive]) {
     if (name === 'pnpm' || name.startsWith('@pnpm/exe')) archive.delete(name)
+    if (name.startsWith('@deepseek-ai/libreoffice-kit')) archive.delete(name)
   }
   return archive
 }

@@ -50,6 +50,7 @@ describe('dsh harness 自带工具的关闭清单', () => {
       'tool-pwsh',
       'tool-fs',
       'tool-fs-search',
+      'tool-working-directory',
       'tool-jobs',
       'tool-web',
       'tool-subagent',
@@ -78,6 +79,16 @@ describe('dsh harness 自带工具的关闭清单', () => {
     const persona = rows().at(-1)
     expect(persona?.id).toBe('system-prompt')
     expect(persona?.config).toEqual({
+      includeHarnessIdentity: false,
+      personaPrefix: '',
+      personaSuffix: '',
+    })
+  })
+
+  it('已安装的 system-prompt 字段留下来，身份开关仍关掉', () => {
+    const persona = eaaHardeningPatchRows({ personaPrefix: 'old', extraHint: 'keep' }).at(-1)
+    expect(persona?.config).toEqual({
+      extraHint: 'keep',
       includeHarnessIdentity: false,
       personaPrefix: '',
       personaSuffix: '',

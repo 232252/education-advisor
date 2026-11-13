@@ -3,8 +3,9 @@
 // 纯展示组件,无 state / callback
 // =============================================================
 
+import type { RuntimeVersions } from '@shared/api/sys'
 import { useEffect, useState } from 'react'
-import { useT } from '../../../i18n'
+import { tr, useT } from '../../../i18n'
 import { getAPI } from '../../../lib/ipc-client'
 import { Section } from '../components'
 
@@ -13,6 +14,9 @@ export function AboutSection() {
   // R2-16: 版本号从主进程运行时读取(app.getVersion = package.json),
   // 此前硬编码 v0.1.0-rc.1 发版必漂移
   const [version, setVersion] = useState('…')
+  // 底层运行时版本同样走主进程单一来源(dsh-version / im-url pin / 进程版本),
+  // 不再写死在文案里 — Electron 43.2 vs 实际 45 的漂移就是这么来的。
+  const [runtime, setRuntime] = useState<RuntimeVersions | null>(null)
   useEffect(() => {
     let alive = true
     getAPI()
@@ -22,6 +26,14 @@ export function AboutSection() {
       })
       .catch(() => {
         /* 读取失败保持默认,不影响页面 */
+      })
+    getAPI()
+      .sys.getRuntimeVersions()
+      .then((v) => {
+        if (alive && v) setRuntime(v)
+      })
+      .catch(() => {
+        /* 读取失败保持占位,不影响页面 */
       })
     return () => {
       alive = false
@@ -80,7 +92,11 @@ export function AboutSection() {
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  {t('page.settings.about.core.dsh', '— Agent 运行时（dsh 0.2.2-rc.1）')}
+                  {tr(
+                    'page.settings.about.core.dsh',
+                    { version: runtime?.dsh ?? '…' },
+                    '— Agent 运行时（dsh {version}）',
+                  )}
                 </span>
               </div>
               <div>
@@ -94,7 +110,11 @@ export function AboutSection() {
                 </a>
                 <span className="text-gray-500 dark:text-gray-400 text-[11px]">
                   {' '}
-                  {t('page.settings.about.core.dshIm', '— 连接中心插件（dsh-im 5.10.0）')}
+                  {tr(
+                    'page.settings.about.core.dshIm',
+                    { version: runtime?.dshIm ?? '…' },
+                    '— 连接中心插件（dsh-im {version}）',
+                  )}
                 </span>
               </div>
               <div>
@@ -126,7 +146,7 @@ export function AboutSection() {
               {t('page.settings.about.depsTitle', '关键依赖')}
             </div>
             <div className="grid grid-cols-1 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-              <span>Electron 43.2 + React 19.2</span>
+              <span>Electron {runtime?.electron || '…'} + React 19.2</span>
               <span>TypeScript 7.0 + Vite 8.3</span>
               <span>Tailwind 4 + Zustand 5</span>
               <span>better-sqlite3 + TypeBox</span>

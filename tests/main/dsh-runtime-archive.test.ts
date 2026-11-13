@@ -43,6 +43,9 @@ describe('dsh runtime closure', () => {
     expect(excluded).not.toContain('semver')
     expect(archive.has('pnpm')).toBe(false)
     for (const name of archive) {
+      expect(name.startsWith('@deepseek-ai/libreoffice-kit'), name).toBe(false)
+    }
+    for (const name of archive) {
       expect(name.startsWith('@pnpm/exe'), name).toBe(false)
     }
     expect(excluded).toContain('pnpm')

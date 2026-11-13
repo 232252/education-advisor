@@ -8,12 +8,14 @@
 //   config/office-kit.json（随 app 分发的清单：文件名/sha256/字节数/版本）
 //
 // 注意输出目录不能在 dist/ 下：electron-builder files 收 dist/**/*，
-// 65.8MB 的 zip 会混进 app.asar 白白进安装包（实测踩过）。
+// 这份 zip 会再混进 app.asar，安装包里就有两份（实测踩过）。
 //
-// 对应运行时 src/main/services/dsh/office-kit-service.ts：安装包不再随包
-// 分发这 178MB，装机后按清单从 GitHub Release 资产下载补齐。清单与 zip
-// 必须同一次生成（zip 非确定性时间戳 ⇒ sha 每次不同），所以本脚本在
-// prepackage 链里跑；清单与 zip 都已是最新时跳过（缓存）。
+// 现行布局：恰有一个 deflate zip。afterPack 把它复制进
+// resources/office-kit/，NSIS 只多写这一个文件。首次转 PDF 时
+// office-kit-service 从随包 zip 解到 userData。GitHub Release 上的同一
+// 份 zip 是损坏后的修复通道，不是「安装包里不带 kit」的意思。不要把
+// kit 预解压成约 735 个散文件。清单与 zip 同一次生成；两者都没变时
+// 可以跳过重打。runtime 的 STORE zip 没有这个缓存，每次 prepackage 都重写。
 //
 // 非 win32 平台跳过（该平台包只服务 Windows 教师机）。
 // zip 用系统 bsdtar（Windows 10+ 自带 System32/tar.exe）；

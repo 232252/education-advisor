@@ -11,7 +11,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { dshPluginLinkSpec } from '../im-url'
+import { RETIRED_PROFILE_BUNDLES, resolveEaaPluginDirs } from '../plugin-install'
 import {
+  dropProfileBundles,
   materializeProfileLinks,
   packageModuleDir,
   profileLinksCurrent,
@@ -71,7 +73,7 @@ describe('plugin-links', () => {
       'eaa-dsh-im-panel',
     ])
     expect(existsSync(join(profileDir, 'cordis.patch.yml'))).toBe(true)
-    expect(existsSync(join(profileDir, 'pnpm-workspace.yaml'))).toBe(true)
+    expect(existsSync(join(profileDir, 'pnpm-workspace.yaml'))).toBe(false)
     expect(sameDir(resolvedModuleDir(profileDir, '@xmanrui/dsh-im') ?? '', imDir)).toBe(true)
     expect(sameDir(resolvedModuleDir(profileDir, 'eaa-dsh-im-panel') ?? '', panelDir)).toBe(true)
     expect(
@@ -127,5 +129,34 @@ describe('plugin-links', () => {
     const imDir = writePlugin(root, 'dsh-im', '@xmanrui/dsh-im')
     expect(profileLinksCurrent({ home, profile: 'web', plugins: [{ dir: imDir }] })).toBe(false)
     expect(readPluginPackageName(imDir)).toBe('@xmanrui/dsh-im')
+  })
+
+  it('拆掉不再使用的空模型包，官方层和教育工具还在', () => {
+    const root = tempDir('eaa-links-drop-')
+    const home = join(root, 'home')
+    const tools = writePlugin(root, 'eaa-tools', '@education-advisor/eaa-tools')
+    const retired = writePlugin(root, 'eaa-llm-providers', '@education-advisor/eaa-llm-providers')
+    materializeProfileLinks({
+      home,
+      profile: 'sdk',
+      plugins: [{ dir: tools }, { dir: retired }],
+    })
+    const profileDir = resolveDshProfileDir(home, 'sdk')
+    dropProfileBundles(profileDir, RETIRED_PROFILE_BUNDLES)
+    const manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>
+      dsh: { profile: { bundles: string[] } }
+    }
+    expect(manifest.dependencies['@education-advisor/eaa-llm-providers']).toBeUndefined()
+    expect(manifest.dsh.profile.bundles).not.toContain('@education-advisor/eaa-llm-providers')
+    expect(manifest.dsh.profile.bundles).toContain('@deepseek-ai/dsh-base')
+    expect(manifest.dsh.profile.bundles).toContain('@education-advisor/eaa-tools')
+    expect(resolvedModuleDir(profileDir, '@education-advisor/eaa-llm-providers')).toBeNull()
+    expect(
+      sameDir(resolvedModuleDir(profileDir, '@education-advisor/eaa-tools') ?? '', tools),
+    ).toBe(true)
+    const found = resolveEaaPluginDirs(tools)
+    expect(found.some((dir) => dir.includes('eaa-llm-providers'))).toBe(false)
+    expect(found).toContain(tools)
   })
 })

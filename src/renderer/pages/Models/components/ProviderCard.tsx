@@ -274,6 +274,7 @@ export const ProviderCard = memo(function ProviderCard({
                             maxOutputTokens: String(m.maxOutputTokens),
                             ...modelCostEditFields(m),
                             supportsReasoning: m.supportsReasoning ? 'true' : 'false',
+                            supportsImage: m.supportsImage ? 'true' : 'false',
                             baseUrl: m.baseUrl || '',
                           })
                         }}
@@ -290,6 +291,8 @@ export const ProviderCard = memo(function ProviderCard({
                             Object.assign(updates, modelCostUpdatesFromEdit(m, editForm))
                             if ((editForm.supportsReasoning === 'true') !== m.supportsReasoning)
                               updates.supportsReasoning = editForm.supportsReasoning === 'true'
+                            if ((editForm.supportsImage === 'true') !== (m.supportsImage ?? false))
+                              updates.supportsImage = editForm.supportsImage === 'true'
                             if (editForm.baseUrl !== (m.baseUrl || ''))
                               updates.baseUrl = editForm.baseUrl
                             onUpdateCustomModel?.(p.id, m.id, updates)

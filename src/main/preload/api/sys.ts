@@ -14,6 +14,8 @@ export const sysApi: SysAPI = {
   saveDialog: (options: unknown) => ipcInvoke(IPC.IPC_SYS_SAVE_DIALOG, options),
   // [r] 应用版本号(R2-16: About 页唯一来源,防发版漂移)
   getVersion: () => ipcInvoke(IPC.IPC_SYS_GET_VERSION),
+  // [r] 底层运行时版本(dsh/dsh-im/electron,About 页单一来源)
+  getRuntimeVersions: () => ipcInvoke(IPC.IPC_SYS_GET_RUNTIME_VERSIONS),
   // [r] 获取系统路径(入参为 Electron 固定枚举,主进程窄化校验)
   getPath: (name: string) => ipcInvoke(IPC.IPC_SYS_GET_PATH, name),
   // [r] 弹出更新对话框

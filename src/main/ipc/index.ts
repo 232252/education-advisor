@@ -7,6 +7,7 @@ import { agentService } from '../services/agent-service'
 import { eaaBridge } from '../services/eaa-bridge'
 import { registerAcademicHandlers } from './academic-handlers'
 import { registerAgentHandlers } from './agent-handlers'
+import { registerAgentQuestionHandlers } from './agent-question-handlers'
 import { registerAIHandlers } from './ai-handlers'
 import { registerBackupHandlers } from './backup-handlers'
 import { registerChannelHandlers } from './channel-handlers'
@@ -29,6 +30,7 @@ import { registerSkillHandlers } from './skill-handlers'
 import { registerStudentExcelHandlers } from './students/excel-import-handlers'
 import { registerSysHandlers } from './sys-handlers'
 import { registerTeacherConfirmHandlers } from './teacher-confirm-handlers'
+import { registerWorkspaceHandlers } from './workspace-handlers'
 
 export async function registerAllHandlers(win: BrowserWindow) {
   registerAIHandlers(win)
@@ -55,6 +57,8 @@ export async function registerAllHandlers(win: BrowserWindow) {
   registerBackupHandlers(win)
   registerMemoryHandlers(win)
   registerTeacherConfirmHandlers(win)
+  registerAgentQuestionHandlers(win)
+  registerWorkspaceHandlers(win)
 
   // 初始化 EAA Bridge（创建数据目录、复制 reason-codes、doctor 健康检查）
   // 与 Agent 运行时互不依赖(agent-service 全文零引用 eaaBridge,各自只读

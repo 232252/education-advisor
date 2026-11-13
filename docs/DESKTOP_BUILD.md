@@ -10,7 +10,7 @@
 - [The three Vite configs](#the-three-vite-configs)
 - [Local dev build](#local-dev-build)
 - [Production build](#production-build)
-- [Windows packaging (NSIS + portable)](#windows-packaging-nsis--portable)
+- [Windows packaging (NSIS)](#windows-packaging-nsis)
 - [macOS packaging (DMG)](#macos-packaging-dmg)
 - [Linux packaging (deb + AppImage)](#linux-packaging-deb--appimage)
 - [The auto-update flow](#the-auto-update-flow)
@@ -127,8 +127,9 @@ backend, because the regular tests stub the SDK client and would never
 catch it: `@deepseek-ai/dsh-sdk-client` must be in `dependencies`
 (not `devDependencies`), the installed SDK must bring the
 `@deepseek-ai/dsh` runtime, the dsh executable must exist on real
-disk, and electron-builder's `asarUnpack` must cover `node_modules`
-(a pure-Node subprocess cannot read inside `app.asar`).
+disk. The dsh closure ships in a STORE zip (`dsh-runtime.zip`), not as
+loose files under `app.asar.unpacked`. `asarUnpack` stays limited to
+native files (`*.node`, `*.dll`, `*.exe`, `*.dylib`, `*.so`).
 
 It is a CI gate (`.github/workflows/ci.yml`, the
 "dsh assembly check" step) and it runs locally too:
@@ -141,77 +142,71 @@ npm run verify:dsh -- --dist release-v11/win-unpacked
 
 ---
 
-## Windows packaging (NSIS + portable)
+## Windows packaging (NSIS)
+
+The packing rules, size budgets, and the Electron-download retry
+runbook live in [INSTALLER_PACKING.md](./INSTALLER_PACKING.md). This
+section is only the command map. Portable builds are not part of the
+release.
 
 ```bash
-# Build a Windows x64 NSIS installer
-npm run package
-
-# Output:
-#   release-v11/Education-Advisor-Setup.exe       (~85 MB, NSIS installer, version-free name)
-#   release-v11/Education-Advisor-Portable.exe    # see below
-
-# Build a Windows x64 portable .exe
-npm run package:portable
-
-# Build a Windows x64 NSIS installer (explicit)
+# Windows x64 NSIS installer. Runs prepackage, then the Vite build,
+# then electron-builder. Refuses a Setup over the budget.
 npm run package:installer
+
+# Output (version-free name, overwritten in place):
+#   release-v11/Education-Advisor-Setup.exe
 ```
 
-The `electron-builder.yml` config defines both targets. The artifact
-name is fixed per target (`Education-Advisor-Setup.${ext}` /
-`Education-Advisor-Portable.${ext}`) so the download-page URLs stay
-stable across versions.
+`npm run package` is the same Windows pack, except npm itself runs the
+`prepackage` script first because the script is named `package`.
+`package:installer` calls `prepackage` explicitly. Do not invoke
+`electron-builder` directly.
 
-### What `prepackage` stages (auto-runs before `npm run package`)
+A clean teacher Setup is near 287 MB. The pack fails above 310 MB
+(310,000,000 bytes) or when `dsh-runtime.zip` is above 230 MB or
+contains `pnpm` / `@pnpm/exe`.
 
-npm runs the `prepackage` hook automatically before `package`. It runs
-three scripts in order:
+### What `prepackage` stages
 
-1. `scripts/prebuild-check.mjs` — resource readiness gate (same as the
-   `prebuild` hook).
-2. `scripts/stage-dsh-node.mjs` — copies a stock `node.exe` from your
-   machine into the gitignored `vendor/dsh-node/`. dsh 0.2.1 rejects
-   Electron's runtime fingerprint (this app is Electron 45.0.0), so the
-   packaged app launches the dsh subprocess with a real Node binary
-   instead of Electron's own exe. Skipped when a copy is already
-   staged.
-3. `scripts/stage-dsh-im-deps.mjs` — installs `vendor/dsh-im/`
-   production dependencies with the repo's own pnpm (`qrcode` and the
-   channel SDKs are not in the plugin zip), keeping first launch
-   offline and out of a read-only resources directory. Skipped when
-   already installed.
+`npm run prepackage` runs, in order:
 
-Staging requires a completed `npm install` (for `node_modules/pnpm`)
-and a Node on PATH. Both scripts are no-ops once their output exists;
-delete `vendor/dsh-node/` or `vendor/dsh-im/node_modules/` to force a
-re-run (e.g. after upgrading dsh or dsh-im).
+1. `scripts/prebuild-check.mjs` — EAA binary, `agents/`, `config/`.
+2. `scripts/stage-dsh-node.mjs` — copies a stock `node` into
+   `vendor/dsh-node/`. dsh rejects Electron's runtime fingerprint, so
+   the packaged app launches dsh with that binary.
+3. `scripts/build-office-kit-asset.mjs` — one deflate zip of the
+   Windows LibreOffice kit (skipped on non-Windows hosts).
+4. `scripts/compute-unpack-closure.mjs` — rewrites the
+   `electron-builder.yml` sentinels. `asarUnpack` stays native globs
+   only.
+5. `scripts/stage-dsh-im-deps.mjs` — installs `vendor/dsh-im/`
+   production dependencies so the connection center is offline.
+6. `scripts/build-dsh-archives.mjs` — STORE zips
+   `build/dsh-runtime/dsh-runtime.zip` and `build/dsh-im/dsh-im.zip`.
+   Rewritten every time. Fails if the runtime zip is over budget or
+   contains the pnpm toolchain.
 
 ### What the NSIS installer does
 
-1. **Installs per-user** (`%LOCALAPPDATA%\Programs`; `nsis.perMachine: false` in `electron-builder.yml`).
+1. **Installs per-user** (`%LOCALAPPDATA%\Programs`; `nsis.perMachine: false`).
 2. **Creates a desktop shortcut** and a start menu shortcut.
-3. **Copies the app.asar** (containing `dist/main/` and
-   `dist/renderer/`) to the install location, with `**/node_modules/**`
-   unpacked to `app.asar.unpacked/` (`asarUnpack` — the dsh subprocess
-   is a pure-Node process and cannot read inside the asar).
-4. **Copies `resources/eaa-binaries/`** to the install location
-   (as `extraResources`).
-5. **Copies `config/`, `agents/`, `skills/`, `vendor/dsh-im/` (the
-   official connection-center plugin), the education plugins
-   `vendor/eaa-tools|eaa-roster|eaa-grades|eaa-grading/`, and
-   `vendor/dsh-node/` (the staged `node.exe`)** to the install
-   location (all as `extraResources`).
-6. **Registers the app in the Add/Remove Programs** list.
-7. **Optional**: launches the app on completion (configurable).
+3. **Extracts the app** into that directory. `app.asar` is one file.
+   `asarUnpack` extracts only native binaries. The dsh closure and the
+   connection center are two STORE zips (`dsh-runtime.zip`,
+   `dsh-im.zip`); the app extracts them under userData on first launch.
+4. **Copies `resources/eaa-binaries/`**, `config/`, `agents/`,
+   `skills/`, the education plugins, and `vendor/dsh-node/` as
+   `extraResources`.
+5. **Copies one office-kit zip** via `afterPack` (not `extraResources`).
+6. **Registers the app** in Add/Remove Programs.
+7. **On upgrade**, renames the old install directory and extracts the
+   full new tree (`scripts/nsis/installer.nsh`). It does not skip
+   unchanged files. That skip is future work.
 
-### What the portable .exe does
-
-- **Single self-extracting file.** No installation required.
-- **Extracts to `%TEMP%` at launch** and runs from there.
-- **Settings are stored in `%APPDATA%\Education Advisor`** (same as
-  the installed version).
-- **Useful for**: USB sticks, quick demos, IT troubleshooting.
+NSIS then LZMA-compresses `win-unpacked` once at the default 7z level.
+Do not switch that payload to uncompressed, and do not deflate the
+module zips before this pass.
 
 ### Windows ARM64
 
@@ -431,8 +426,7 @@ npm ci
 npm run build:eaa    # compiles core/eaa-cli from source — requires Rust (https://rustup.rs)
 npm run verify:dsh   # dsh assembly gate (also a CI step)
 npm run build        # auto-runs the prebuild resource check
-npm run package      # auto-runs prepackage: stages vendor/dsh-node + vendor/dsh-im deps
-                     # (needs a Node on PATH and a completed npm install)
+npm run package:installer   # prepackage, then the Windows NSIS pack and the size gate
 
 # Compare the SHA-256 of the installers
 sha256sum release-v11/*.exe
@@ -507,6 +501,26 @@ consistent.
 **Fix**: ensure `resources/icon.ico` is a valid 256x256 .ico
 file. The default `resources/icon.ico` shipped with this repo
 is a placeholder; replace it with your own.
+
+### The Setup.exe is hundreds of megabytes larger than the last good pack
+
+The pack process is wrong if a clean tree can emit that file. Do not
+retry by pointing electron-builder at the existing `win-unpacked`
+directory, and do not turn compression off. Follow
+[INSTALLER_PACKING.md](./INSTALLER_PACKING.md): `npm run package:installer`
+deletes the unpacked tree, runs `afterPack` again, and fails when
+Setup is over 310 MB or the runtime zip contains pnpm.
+
+### Electron download times out (`ETIMEDOUT`, `connect ETIMEDOUT`)
+
+`npm run package:installer` already retries once: it deletes
+`release-v11/win-unpacked` (and the other unpacked dirs) and runs
+electron-builder again. It does not reuse the old directory.
+
+If the Electron zip is already in `node_modules/electron/dist`, set
+`EA_ELECTRON_DIST` to that directory and re-run
+`npm run package:installer`. That flag only selects the Electron
+binaries. It still runs the current `afterPack`.
 
 ### Auto-update doesn't work
 

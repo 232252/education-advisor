@@ -110,7 +110,7 @@ export function resolveModel(providerId: string, modelId: string): Model<Api> | 
     provider: providerId as Model<Api>['provider'],
     baseUrl: custom.baseUrl ?? defaultBaseUrl,
     reasoning: custom.supportsReasoning ?? false,
-    input: ['text'],
+    input: custom.supportsImage ? ['text', 'image'] : ['text'],
     cost: {
       input: custom.costPerInputToken ?? 0,
       output: custom.costPerOutputToken ?? 0,
@@ -164,6 +164,7 @@ export function buildCustomModelInfos(
     contextWindow: number
     maxOutputTokens: number
     supportsReasoning: boolean
+    supportsImage?: boolean
     costPerInputToken: number
     costPerOutputToken: number
     api?: string
@@ -189,6 +190,7 @@ export function buildCustomModelInfos(
     costCacheRead: 0,
     costCacheWrite: 0,
     supportsReasoning: cm.supportsReasoning,
+    supportsImage: cm.supportsImage ?? false,
     baseUrl: cm.baseUrl ?? baseUrl ?? customDefaultBaseUrl,
     isCustom: true,
   }))

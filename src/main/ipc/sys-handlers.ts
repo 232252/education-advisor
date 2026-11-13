@@ -6,6 +6,8 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import * as IPC from '@shared/ipc-channels'
 import { app, type BrowserWindow, dialog } from 'electron'
+import { dshRuntimeVersion } from '../services/dsh/dsh-version'
+import { DSH_IM_VERSION } from '../services/dsh/im-url'
 import { factoryResetAll } from '../services/factory-reset'
 import { updateService } from '../services/update-service'
 import { webUiService } from '../services/webui-service'
@@ -60,6 +62,14 @@ export function registerSysHandlers(win: BrowserWindow) {
 
   // R2-16: 版本号单一来源 — electron-builder 注入的 package.json version
   handleIpc(IPC.IPC_SYS_GET_VERSION, () => app.getVersion())
+
+  // 底层运行时版本：dsh 走 dsh-version 单一来源（装配可覆盖），
+  // dsh-im 走 im-url 的 pin，electron 取真实进程版本。About 页不再写死。
+  handleIpc(IPC.IPC_SYS_GET_RUNTIME_VERSIONS, () => ({
+    dsh: dshRuntimeVersion(),
+    dshIm: DSH_IM_VERSION,
+    electron: process.versions.electron ?? '',
+  }))
 
   // 获取系统路径
   // P1-34: app.getPath 合法入参是固定枚举,运行时窄化,

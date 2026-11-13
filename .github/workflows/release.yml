@@ -1,6 +1,9 @@
 name: Release
 
-# 云端打包并发布，不在本地编译安装包。
+# 云端打包并发布。正式 Release 只从这里出去，不在打包步骤里上传。
+# electron-builder 会在每个产物生成时就开始排队上传，所以打包必须
+# --publish never；体积门禁通过之后，publish job 才把安装包放上 Release。
+# 不要缓存 release-v11 或 win-unpacked。npm cache 只覆盖依赖。
 # 触发方式：
 #   1. 推送 main：package.json 的 version 在 GitHub 上还没有 Release 时自动发版
 #   2. 推送 tag：v*.*.*
@@ -156,6 +159,11 @@ jobs:
           RELEASE_CI: "1"
         run: npm run test
 
+      # 装配门禁含打包脚本接线（prepackage、体积预算、禁止预打包目录）。
+      # 不在这里打 Windows 安装包。
+      - name: dsh assembly and pack wiring
+        run: npm run verify:dsh
+
   # ----------------------------------------------------------------
   # 各平台只编 Rust + 打安装包。
   # ----------------------------------------------------------------
@@ -206,9 +214,8 @@ jobs:
         shell: bash
         run: npm run build
 
-      # 本仓库的打包前置（stage-dsh-node 复制本机 node.exe、
-      # build-office-kit-asset 生成按需组件清单与 zip 资产、stage-dsh-im-deps
-      # 装 vendor/dsh-im 依赖）。CI 直接 npx electron-builder，必须显式跑 prepackage。
+      # prepackage 生成 dsh-node、office-kit、dsh-im 依赖和两份 STORE zip。
+      # npm 不会在 electron-builder 之前自动跑它，所以这里显式调用。
       - name: Stage dsh packaging prerequisites
         shell: bash
         run: npm run prepackage
@@ -227,14 +234,23 @@ jobs:
           for var in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
             if [ -z "${!var}" ]; then unset "$var"; fi
           done
-          # 手动触发不在 tag ref 上，必须 --publish always；版本由 prepare 注入。
-          ARGS=(--${{ matrix.target }} --${{ matrix.arch }} --publish always
-                --config.extraMetadata.version="${RELEASE_VERSION}")
-          if ! npx electron-builder "${ARGS[@]}"; then
-            echo "::warning::electron-builder 打包/上传失败，60 秒后重试一次"
-            sleep 60
-            npx electron-builder "${ARGS[@]}"
-          fi
+          # --publish never：上传放到后面的 publish job，体积门禁失败时不会先把
+          # 安装包传上去。Electron 下载超时由包装器删掉 unpacked 目录后重试一次，
+          # 并重新跑 afterPack。不要把已有目录交给打包器。
+          node scripts/run-electron-builder.mjs \
+            --${{ matrix.target }} --${{ matrix.arch }} \
+            --publish never \
+            --config.extraMetadata.version="${RELEASE_VERSION}"
+
+      - name: Pack budget (win)
+        if: matrix.target == 'win'
+        shell: bash
+        run: node scripts/check-pack-budget.mjs --output release-v11 --require-setup
+
+      - name: Pack budget (mac/linux resources)
+        if: matrix.target != 'win'
+        shell: bash
+        run: node scripts/check-pack-budget.mjs --output release-v11
 
       # 产物级门禁：安装包落盘后核对离线三件套、sweep 边界与字体发射确实
       # 生效（此前只在 ci.yml 跑且不带 --dist，发布产物本身没有断言）。
@@ -256,10 +272,10 @@ jobs:
             release-v*/*.blockmap
             site-build/assets/media/eea-intro.mp4
           retention-days: 14
-          if-no-files-found: warn
+          if-no-files-found: error
 
-      # office 转 PDF 组件资产（win 构建产物，prepackage 生成）：装机后按需
-      # 下载（office-kit-service），必须与 Setup 同一个 Release 发布。
+      # office 转 PDF 的那一个 deflate zip。afterPack 会把它放进 Setup；
+      # 同一份 zip 再挂到 Release 上，作为损坏后的修复通道。
       - name: Upload office-kit asset
         if: matrix.target == 'win'
         uses: actions/upload-artifact@v7
@@ -270,7 +286,7 @@ jobs:
           if-no-files-found: error
 
   # ----------------------------------------------------------------
-  # 正式发布 GitHub Release（安装包已由 electron-builder 上传）。
+  # 正式发布 GitHub Release。安装包只有体积门禁通过后才会出现在 artifacts 里。
   # ----------------------------------------------------------------
   publish:
     name: Publish GitHub Release
@@ -321,5 +337,11 @@ jobs:
             artifacts/SHA256SUMS.sig
             artifacts/SHA256SUMS.pem
             artifacts/office-kit/*.zip
+            artifacts/installer-*/**/*.exe
+            artifacts/installer-*/**/*.dmg
+            artifacts/installer-*/**/*.AppImage
+            artifacts/installer-*/**/*.deb
+            artifacts/installer-*/**/*.blockmap
+            artifacts/installer-*/**/latest*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

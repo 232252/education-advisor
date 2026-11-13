@@ -18,6 +18,7 @@ import type { AgentEvent, AgentMessage, Api, Model } from '@main/services/llm-co
 import { DshAgentEventProjector } from './agent-events'
 import { isDshSupportedImage } from './one-shot'
 import type { DshChatStreamParams, DshPromptBlock, DshPromptImageBlock } from './runtime'
+import { isSlashInput } from './slash-commands'
 import { rewriteToolNames } from './tool-names'
 import type { DshSessionEvent } from './wire-types'
 
@@ -42,6 +43,18 @@ export interface DshAgentFacadeInit {
    * 用户消息不动，避免污染学生数据。
    */
   toolNameMap?: Readonly<Record<string, string>>
+  /**
+   * 说明已经写进这个子进程的 DSH_AGENTS_HOME/AGENTS.md。
+   * 不再把同一段文字放进用户消息，避免和 agent-instructions 重复。
+   */
+  instructionsViaAgentsHome?: boolean
+  /**
+   * 原生多轮会话键（通常是 agent id）。给了就走 dsh 持久化会话：只发本轮新
+   * 消息，历史由 dsh 持有/恢复，不再拼文本前缀。省略维持老路径。
+   */
+  sessionKey?: string
+  /** 会话有效工作目录（绝对路径）；随每轮 prompt 绑给 dsh */
+  workingDirectory?: string
 }
 
 /**
@@ -156,11 +169,18 @@ export class DshAgentFacade {
       userPrompt: text,
     })
 
-    const history = this.renderHistory()
+    // 斜杠指令：整行原样交给 DSH 原生 session/query 路由，不拼历史前缀、
+    // 不附历史图片（指令的输入语义由 DSH parseCommand 决定）。
+    const command = isSlashInput(text)
+
+    // 原生多轮：历史由 dsh 持久化持有，只发本轮新消息；图片仍随本轮附上
+    // （dsh 的 resume 恢复的是文本上下文，图片块不持久化）。
+    const native = Boolean(this.init.sessionKey)
+    const history = native || command ? '' : this.renderHistory()
     const blocks: DshPromptBlock[] = [
       { type: 'text', text: history ? `${history}\n${text}` : text },
     ]
-    const images = this.historyImages()
+    const images = command ? [] : this.historyImages()
     if (images.length) {
       blocks.push({
         type: 'text',
@@ -169,18 +189,21 @@ export class DshAgentFacade {
       blocks.push(...images)
     }
 
-    void this.pump(blocks)
+    void this.pump(blocks, command)
   }
 
-  private async pump(blocks: DshPromptBlock[]): Promise<void> {
+  private async pump(blocks: DshPromptBlock[], command = false): Promise<void> {
     const projector = this.projector as DshAgentEventProjector
     try {
       for await (const event of this.init.runtime.turnEvents({
         providerId: this.init.providerId ?? String(this.init.model.provider),
         modelId: this.init.modelId ?? this.init.model.id,
         messages: [],
-        systemPrompt: this.systemPrompt,
+        systemPrompt: this.init.instructionsViaAgentsHome ? '' : this.systemPrompt,
         blocks,
+        ...(this.init.sessionKey ? { sessionKey: this.init.sessionKey } : {}),
+        ...(this.init.workingDirectory ? { workingDirectory: this.init.workingDirectory } : {}),
+        ...(command ? { command: true } : {}),
       })) {
         for (const mapped of projector.project(event)) this.emit(mapped)
       }

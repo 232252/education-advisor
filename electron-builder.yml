@@ -10,6 +10,10 @@ publish:
   repo: education-advisor
 
 directories:
+  # scripts/run-electron-builder.mjs deletes <output>/*-unpacked and mac*
+  # before every attempt, including an Electron-download retry. Do not cache
+  # this directory between packs. The previous Setup.exe is left in place
+  # until electron-builder overwrites Education-Advisor-Setup.exe.
   output: release-v11
   buildResources: resources
 
@@ -17,13 +21,12 @@ files:
   - dist/**/*
   - node_modules/**/*
   # ---- 瘦身负向过滤：体积大头与散文件数（NSIS 逐文件解压写盘是安装慢的主因）----
-  # pnpm 包根目录 8 份 ~50MB 二进制别名（node_modules 里彼此硬链接，复制进安装
-  # 包后变成实体，共 ~391MB，是旧包最大单项）。运行时用 @pnpm/exe 的独立
-  # pnpm.exe（PATH 前置，见 pnpm-env.ts）—— pnpm 12 的 bin/pnpm.mjs 只是
-  # corepack 引导壳，真 CLI 只有 @pnpm/exe 的原生二进制，替代方案实测死路
-  # （2026-11-09：Rust 启动器转发 pnpm.mjs 的方案已废弃）。
-  # 注意 builder 会把 pnpm/dist/node_modules 嵌套依赖跳过，由 afterPack
-  # （scripts/after-pack-trim.mjs）补回，引导壳兜底链路才完整。
+  # 教师机不带 pnpm，也不带 @pnpm/exe。pnpm 包根有 8 份约 50MB 的硬链接别名，
+  # 复制进安装目录后会变成实体，合计约 391MB。连接中心直接改写 profile 链接，
+  # 不再在教师机上跑 pnpm。下面的负向过滤是 files 这一层的后盾；afterPack
+  # 见到 runtime zip 或 app.asar.unpacked 里的工具链会直接失败。不要把
+  # 工具链再复制回去。体积预算见 scripts/lib/pack-budget.mjs 和
+  # docs/INSTALLER_PACKING.md。
   - "!node_modules/pnpm/pn"
   - "!node_modules/pnpm/pn.exe"
   - "!node_modules/pnpm/pnpm"
@@ -652,10 +655,15 @@ electronLanguages:
   - zh-CN
   - en-US
 
-# 打包后修剪（scripts/after-pack-trim.mjs）：删 WebGPU 用的 dxcompiler.dll
-# （app 不用 WebGPU，25MB）与 win 包里多余的 eaa-binaries 其他平台目录，
-# 并断言 locales/排除项确实生效——配置错了在这里拦，别等装到教师机才发现。
+# 打包后修剪（scripts/after-pack-trim.mjs）：复制 STORE zip 与 office-kit，
+# 删 WebGPU 用的 dxcompiler.dll（app 不用 WebGPU，25MB）与 win 包里多余的
+# eaa-binaries 其他平台目录，并断言 locales/排除项/工具链/体积预算确实生效。
+# 没有 compression 字段：NSIS 的 7z 保持默认档（mx 9，LZMA2，字典 64MB）。
+# 不要把 7z 改成不压缩。模块 zip 保持 STORE，只让 NSIS 做这一次 LZMA。
 afterPack: scripts/after-pack-trim.mjs
+# Setup.exe 落盘后立刻核对体积。正式发布仍要等 release.yml 的预算步骤通过
+# 才上传；electron-builder 会在每个产物生成时就开始排队上传。
+afterAllArtifactBuild: scripts/after-all-artifact-build.mjs
 
 extraResources:
   - from: resources/icon.ico

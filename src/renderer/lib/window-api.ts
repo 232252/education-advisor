@@ -5,6 +5,7 @@
 
 import type { AcademicAPI } from '@shared/api/academic'
 import type { AgentAPI } from '@shared/api/agent'
+import type { AgentQuestionAPI } from '@shared/api/agent-question'
 import type { AiAPI } from '@shared/api/ai'
 import type { BackupAPI } from '@shared/api/backup'
 import type { ChannelsAPI } from '@shared/api/channels'
@@ -28,6 +29,7 @@ import type { SkillAPI } from '@shared/api/skill'
 import type { StudentsAPI } from '@shared/api/students'
 import type { SysAPI } from '@shared/api/sys'
 import type { TeacherConfirmAPI } from '@shared/api/teacher-confirm'
+import type { WorkspaceAPI } from '@shared/api/workspace'
 
 // window.api 的类型声明（与 preload 脚本对应）
 export interface WindowAPI {
@@ -67,6 +69,10 @@ export interface WindowAPI {
   memory: MemoryAPI
   /** 对话工具等待教师点击确认 */
   teacherConfirm: TeacherConfirmAPI
+  /** dsh 运行时向教师提问（澄清类） */
+  agentQuestion: AgentQuestionAPI
+  /** 会话工作目录（产出收集/另存） */
+  workspace: WorkspaceAPI
 }
 
 // 全局类型扩展

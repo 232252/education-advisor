@@ -14,6 +14,7 @@ import { ChatToolbar } from './components/ChatToolbar'
 import { Composer } from './components/Composer'
 import { ContextStatusBar } from './components/ContextStatusBar'
 import { MessageList } from './components/MessageList'
+import { SessionFilesPanel } from './components/SessionFilesPanel'
 import { SessionSidebar } from './components/SessionSidebar'
 import { useFileUpload } from './hooks/useFileUpload'
 import {
@@ -97,6 +98,37 @@ export function ChatPage() {
   useEffect(() => {
     useChatStore.getState().initFromSettings()
   }, [])
+
+  // 对话模式（DSH 行开关预设）：读 settings.chat.mode，切换即写回。
+  // 主进程下一次 runAgent 按新模式生成行开关 patch。
+  const [chatMode, setChatMode] = useState('standard')
+  const [showFiles, setShowFiles] = useState(false)
+  useEffect(() => {
+    let alive = true
+    getAPI()
+      .settings.get()
+      .then((s) => {
+        const mode = (s as { chat?: { mode?: string } })?.chat?.mode
+        if (alive && (mode === 'plan' || mode === 'ptc')) setChatMode(mode)
+      })
+      .catch(() => {
+        /* 读不到设置按普通模式 */
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+  const handleModeChange = useCallback(
+    (mode: string) => {
+      setChatMode(mode)
+      void getAPI()
+        .settings.set('chat.mode', mode)
+        .catch(() => {
+          toast.warning(t('toast.settings.saveFailed', '设置保存失败,重启后将恢复上次选择'))
+        })
+    },
+    [t],
+  )
 
   // 自动滚动 — 只在用户仍"贴底"时跟随(上滑阅读历史不被拽回);
   // 直赋值 scrollTop:smooth 动画每 50ms flush 重启会抖动(2026-08-28 流畅度审计)
@@ -202,7 +234,12 @@ export function ChatPage() {
         // 渲染端补角(2026-08-28 智能轮核查): runManual 前置校验失败(agent 不存在/
         // 已停用等)返回 {success:false} 而非 reject — 此前返回值无人检查,
         // 也不会有任何 agent 事件到达 → 空气泡+流式态永久卡死。现在显式回滚。
-        const res = await getAPI().agent.runManual(selectedAgentId, finalText, history)
+        const res = await getAPI().agent.runManual(
+          selectedAgentId,
+          finalText,
+          history,
+          useChatStore.getState().sessionId,
+        )
         if (res && typeof res === 'object' && 'success' in res && !res.success) {
           const reason = res.message ?? ''
           rollbackOptimisticState()
@@ -418,6 +455,8 @@ export function ChatPage() {
           selectedModel={currentModel}
           onModelSelect={handleModelSelect}
           onClearMessages={clearMessages}
+          chatMode={chatMode}
+          onModeChange={handleModeChange}
         />
 
         {/* 上下文状态条 - 显示当前模型 contextWindow / 已用 token / 压缩进度 */}
@@ -439,6 +478,19 @@ export function ChatPage() {
           scrollContainerRef={scrollContainerRef}
           onUserScroll={handleUserScroll}
         />
+
+        {/* 会话产出文件面板（可折叠，默认收起） */}
+        <div className="border-t border-gray-200/60 dark:border-white/[0.06]">
+          <button
+            type="button"
+            onClick={() => setShowFiles((v) => !v)}
+            className="w-full px-4 py-1.5 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-white/[0.04]"
+          >
+            <span>{t('page.chat.files.toggle', '会话产出文件')}</span>
+            <span>{showFiles ? '▾' : '▸'}</span>
+          </button>
+          {showFiles && <SessionFilesPanel sessionId={sessionId} />}
+        </div>
 
         {/* 输入区 */}
         <Composer

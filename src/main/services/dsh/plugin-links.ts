@@ -41,13 +41,6 @@ const PROFILE_PATCH_TEMPLATE = `# Your patch layer for this dsh profile, applied
 []
 `
 
-const PROFILE_PNPM_WORKSPACE = `packages:
-  - .
-
-nodeLinker: hoisted
-autoInstallPeers: false
-`
-
 export interface LinkedPlugin {
   /** 插件根目录（内有 package.json）。 */
   dir: string
@@ -154,6 +147,36 @@ export function materializeProfileLinks(opts: ProfileLinkOptions): void {
   writeManifest(profileDir, manifest)
 }
 
+/** 从 profile 去掉不再装的包。只拆链接，不删插件目录里的文件。 */
+export function dropProfileBundles(profileDir: string, packageNames: readonly string[]): void {
+  for (const name of packageNames) removeLinkOrDir(packageModuleDir(profileDir, name))
+  const manifestPath = join(profileDir, 'package.json')
+  if (!existsSync(manifestPath)) return
+  const manifest = readManifest(profileDir)
+  const deps = { ...(manifest.dependencies ?? {}) }
+  const bundles = Array.isArray(manifest.dsh?.profile?.bundles)
+    ? [...manifest.dsh.profile.bundles]
+    : []
+  let changed = false
+  for (const name of packageNames) {
+    if (name in deps) {
+      delete deps[name]
+      changed = true
+    }
+    const index = bundles.indexOf(name)
+    if (index >= 0) {
+      bundles.splice(index, 1)
+      changed = true
+    }
+  }
+  if (!changed) return
+  manifest.dependencies = deps
+  if (manifest.dsh?.profile || bundles.length > 0) {
+    manifest.dsh = { ...manifest.dsh, profile: { ...manifest.dsh?.profile, bundles } }
+  }
+  writeManifest(profileDir, manifest)
+}
+
 function ensureProfileSkeleton(profileDir: string, profile: string): void {
   const manifestPath = join(profileDir, 'package.json')
   if (!existsSync(manifestPath)) {
@@ -168,8 +191,6 @@ function ensureProfileSkeleton(profileDir: string, profile: string): void {
   }
   const patchPath = join(profileDir, 'cordis.patch.yml')
   if (!existsSync(patchPath)) writeFileSync(patchPath, PROFILE_PATCH_TEMPLATE, 'utf8')
-  const workspacePath = join(profileDir, 'pnpm-workspace.yaml')
-  if (!existsSync(workspacePath)) writeFileSync(workspacePath, PROFILE_PNPM_WORKSPACE, 'utf8')
 }
 
 function readManifest(profileDir: string): ProfileManifest {

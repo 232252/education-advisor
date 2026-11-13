@@ -377,8 +377,13 @@ class AgentService {
   /**
    * 连接中心的即时消息和教师对话共用主协调的工具集（含 delegate_to）。
    * 窗口用来把委托任务的状态送回界面；没有窗口时委托仍然会跑。
+   * visionEnabled 为真时才挂 read_image，和教师对话按模型 input 门控同一条规则。
    */
-  buildMainSurfaceTools(win: BrowserWindow | undefined, privacyGuard?: PrivacyGuard) {
+  buildMainSurfaceTools(
+    win: BrowserWindow | undefined,
+    privacyGuard?: PrivacyGuard,
+    visionEnabled = false,
+  ) {
     const config = this.agents.get('main')
     if (!config) return null
     return buildAgentTools(
@@ -388,7 +393,7 @@ class AgentService {
       this.delegateBridge,
       this.escalationBridge,
       privacyGuard,
-      false,
+      visionEnabled,
     )
   }
 
@@ -437,6 +442,7 @@ class AgentService {
     win: BrowserWindow,
     history?: Array<{ role: string; content: string }>,
     source: AgentRunSource = 'ui',
+    options?: { chatSessionId?: string },
   ): Promise<AgentExecution | undefined> {
     // 同步校验(排队前): 不存在 / 已停用立即抛错,行为与之前一致
     const config = this.agents.get(id)
@@ -464,7 +470,7 @@ class AgentService {
     }
 
     return this.runQueue.enqueue(id, (generation) =>
-      this.executeRun(id, prompt, win, history, generation, source),
+      this.executeRun(id, prompt, win, history, generation, source, options),
     )
   }
 
@@ -477,8 +483,18 @@ class AgentService {
     history?: Array<{ role: string; content: string }>,
     generation?: number,
     source: AgentRunSource = 'ui',
+    options?: { chatSessionId?: string },
   ): Promise<AgentExecution | undefined> {
-    return executeAgentRun(this.executionDeps, id, prompt, win, history, generation, source)
+    return executeAgentRun(
+      this.executionDeps,
+      id,
+      prompt,
+      win,
+      history,
+      generation,
+      source,
+      options,
+    )
   }
 
   /**

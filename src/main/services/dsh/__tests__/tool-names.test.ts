@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { mcpToolNameMap, rewriteToolNames } from '../tool-names'
+import { mcpPublicName, mcpToolNameMap, rewriteToolNames } from '../tool-names'
 
 const map = {
   class_list: 'mcp__eaa__class_list',
@@ -43,6 +43,18 @@ describe('rewriteToolNames', () => {
   it('空 map / 空文本直接返回原文', () => {
     expect(rewriteToolNames('保留 class_list', {})).toBe('保留 class_list')
     expect(rewriteToolNames('', map)).toBe('')
+  })
+
+  it('超长或含空格的名字和 dsh-mcp-client 用同一套哈希', () => {
+    const longName = `eaa_${'x'.repeat(80)}`
+    expect(mcpPublicName(longName, 'grading')).toBe(
+      'mcp__grading__eaa_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_31d95fc25b42',
+    )
+    expect(mcpPublicName(longName, 'grading')).toHaveLength(64)
+    expect(mcpPublicName('read file', 'eaa')).toBe('mcp__eaa__read_file_e3b28e78ce8d')
+    expect(mcpToolNameMap([{ name: longName }], 'grading')[longName]).toBe(
+      mcpPublicName(longName, 'grading'),
+    )
   })
 
   it('mcpToolNameMap 按 profile 生成映射', () => {

@@ -8,11 +8,14 @@
 // 测试注入假客户端即可。
 // =============================================================
 
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, unlinkSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { delimiter, dirname, join, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import type { AgentQuestionItem } from '@shared/api/agent-question'
 import type { StreamEvent, TokenUsage } from '@shared/types/ai'
+import { requestAgentQuestion } from './agent-question'
 import { dshRuntimeBin, dshSdkEntry, waitForDshRuntime } from './bundled-archive'
 import { configureDshCatalogRoot } from './dsh-model-catalog'
 import { configureDshModelSettings, syncDshCredentialRoutes } from './dsh-model-settings'
@@ -27,6 +30,14 @@ import {
   providersToDeclare,
   writeProviderPatchFile,
 } from './provider-patch'
+import {
+  mergeProbeLlmConfig,
+  profileRouteFill,
+  readLlmProviders,
+  readLlmRowConfig,
+  syncUncataloguedRouteModels,
+  withProfileCredentialRefs,
+} from './provider-profile-patch'
 import { mapDshSessionEvent } from './stream-mapper'
 import type { DshSessionEvent, DshSessionEventNotification } from './wire-types'
 
@@ -75,6 +86,18 @@ export interface DshClientLike {
     reasoningEffort?: string
   }): Promise<unknown>
   prompt(sessionId: string, blocks: readonly DshPromptBlock[]): Promise<unknown>
+  /**
+   * 恢复持久化会话（SDK 公开方法）。失败按「没有可恢复的历史」处理，
+   * 调用方回退文本前缀；可选以兼容不带该方法的测试替身。
+   */
+  resumeSession?(sessionId: string): Promise<void>
+  /** 设置会话有效工作目录（SDK 公开方法）；可选以兼容测试替身 */
+  setWorkingDirectory?(sessionId: string, path: string): Promise<string>
+  /**
+   * 通用 JSON-RPC 请求（SDK 公开方法）。斜杠指令经 session/query 路由，
+   * 而 queryInput 不在包导出里，故用 request 直发。可选以兼容测试替身。
+   */
+  request?(method: string, params?: object): Promise<unknown>
   /** filter 是纯谓词，不是数据回调；事件只从 subscription 取 */
   subscribe(filter: (n: DshNotification) => boolean): DshSubscriptionLike
   close(): Promise<void>
@@ -102,6 +125,20 @@ export interface DshChatStreamParams {
    * 定死。上层（pi-ai-service）把它带进子进程构造，换档位即换子进程。
    */
   thinking?: string
+  /**
+   * 原生多轮会话键（如 agent id）。给了就用稳定 sessionId：同进程多轮复用、
+   * 新进程首轮 resumeSession 恢复 dsh 持久化历史，不再拼文本前缀。
+   * 省略则维持老行为（每轮新 session + 文本前缀），直连纯解析链路不受影响。
+   */
+  sessionKey?: string
+  /** 会话有效工作目录（绝对路径）；给了就在首轮 prompt 前绑给 dsh */
+  workingDirectory?: string
+  /**
+   * 斜杠指令输入：走 DSH 原生 session/query（prompt-or-command 路由）而非
+   * session/prompt。纯状态指令靠 session.query.completed 收尾，不依赖 turn/end。
+   * 省略则维持普通对话路径，行为逐字不变。
+   */
+  command?: boolean
 }
 
 /**
@@ -163,6 +200,14 @@ let runtimeSdkHome = ''
  */
 let runtimeExtraModulesDir = ''
 
+/** 教师目录里这个路由和模型的说明。没注入时返回 undefined。 */
+export function describeConfiguredRouteModel(
+  route: string,
+  modelId: string,
+): DshRouteModelSource | undefined {
+  return runtimeRouteModel?.(route, modelId)
+}
+
 export function configureDshRuntime(opts: {
   cwd: string
   dshBin?: string
@@ -200,6 +245,11 @@ export function configureDshRuntime(opts: {
 }
 export function getConfiguredDshBin(): string | undefined {
   return runtimeDshBin
+}
+
+/** sdk profile 的 DSH_HOME。未配置时为空字符串。 */
+export function getDshSdkHome(): string {
+  return runtimeSdkHome
 }
 
 export function getDshRuntimeCwd(): string {
@@ -291,14 +341,20 @@ function sessionIdOf(n: DshNotification): string | undefined {
  *
  * Electron 专属项：
  * - dshBin：归档内路径对纯 node 子进程不可见，必须换成 app.asar.unpacked 的真实路径。
- * - ELECTRON_RUN_AS_NODE：SDK 写死用 process.execPath。dsh 0.2.1 拒绝 Electron 43.2.0
- *   的指纹，所以真正拉起前会改走独立 node，并去掉这个变量。只有找不到 node 时才
- *   仍用 Electron 自己的 exe，这时必须带上它，否则起的是第二个应用窗口。
+ * - ELECTRON_RUN_AS_NODE：SDK 写死用 process.execPath。dsh 0.2.2-rc.1 拒绝
+ *   Electron 45.0.0 的指纹，所以真正拉起前会改走独立 node，并去掉这个变量。
+ *   只有找不到 node 时才仍用 Electron 自己的 exe，这时必须带上它，否则起的是
+ *   第二个应用窗口。
  */
 export function dshLaunchOptions(opts: {
   cwd: string
   patches?: string[]
   env?: Record<string, string>
+  /** 运行时向教师提问的回调（SDK onUserQuestion）；省略则不声明提问能力 */
+  onUserQuestion?: (
+    request: { requestId: string; sessionId: string; questions: unknown[] },
+    context: { signal: AbortSignal },
+  ) => Promise<unknown>
 }): Record<string, unknown> {
   const patches = opts.patches?.filter(Boolean) ?? []
   const base: Record<string, unknown> = patches.length
@@ -318,6 +374,9 @@ export function dshLaunchOptions(opts: {
   }
   const bin = runtimeDshBin ? toUnpackedAsarPath(runtimeDshBin) : undefined
   if (bin) base.dshBin = bin
+  // 提问回调：给了 SDK 才会在 initialize 声明 userQuestions 能力。
+  // 审批（approvalRequests）刻意不开 —— 教师机危险工具已关闭，守住最小权限。
+  if (opts.onUserQuestion) base.onUserQuestion = opts.onUserQuestion
   return base
 }
 
@@ -368,12 +427,14 @@ export function createDshRuntime(
      * 不改共享的 providers patch。
      */
     probeCredential?: { providerId: string; apiKey: string }
+    /** 这一次子进程只读这个目录里的 AGENTS.md。 */
+    agentsHome?: string
   },
 ): DshRuntime {
   const cwd = opts.cwd ?? runtimeCwd
-  const hardening = ensureEaaHardeningPatch(cwd)
-  // 钉住的那条路由要带 models 条目，否则子进程握手成功但一发请求就报
-  // has no configured model（dsh 的 llm-pi-ai 路由不沿用 pi 目录，实测 2026-09-22）
+  const hardening = ensureEaaHardeningPatch(cwd, runtimeDshBin)
+  // 官方目录已经描述的路由不写 models，否则会换成一份冻结目录。
+  // 目录里没有的自建路由必须列出当前模型，否则请求报 has no configured model。
   const pinnedSource = runtimeRouteModel?.(opts.provider ?? '', opts.model ?? '')
   const pinnedEntry = dshRouteModelEntry(pinnedSource)
   const declared = providersToDeclare()
@@ -384,13 +445,22 @@ export function createDshRuntime(
   // 共享 patch 只写已经存过 key 的 provider。探测用的那把还没入库，
   // 单独写一份排在后面的 patch，避免把「未保存的路由」留在共享文件里。
   const routing = dshProviderRouting(declared, pinned)
-  // 只把 apiKeyEnv 合并进官方 profile，不把 EAA 目录/钉住的 models 整表覆盖进去。
+  // 凭据名和网关地址合并进官方 profile。目录里已有的路由不写 models。
   if (runtimeSdkHome) {
-    const credentials: Record<string, { apiKeyEnv?: string }> = {}
+    const credentials: Record<string, ReturnType<typeof profileRouteFill>> = {}
     for (const [id, profile] of Object.entries(routing.profiles)) {
-      if (profile.apiKeyEnv) credentials[id] = { apiKeyEnv: profile.apiKeyEnv }
+      const fill = profileRouteFill(profile)
+      if (Object.keys(fill).length > 0) credentials[id] = fill
     }
-    syncDshCredentialRoutes(join(runtimeSdkHome, 'profiles', 'sdk'), credentials)
+    const sdkProfile = join(runtimeSdkHome, 'profiles', 'sdk')
+    syncDshCredentialRoutes(sdkProfile, credentials)
+    if (opts.provider && opts.model) {
+      syncUncataloguedRouteModels(
+        sdkProfile,
+        [{ provider: opts.provider, model: opts.model }],
+        describeConfiguredRouteModel,
+      )
+    }
   }
   const probeId = opts.probeCredential?.providerId
   const probeRouting =
@@ -399,22 +469,41 @@ export function createDshRuntime(
       : routing
   let probePatch: string | undefined
   let probeEnv: Record<string, string> | undefined
+  const sdkProfile = runtimeSdkHome ? join(runtimeSdkHome, 'profiles', 'sdk') : ''
   if (opts.probeCredential?.apiKey) {
     const plan = probeCredentialPlan(probeRouting, opts.probeCredential)
     probeEnv = { [plan.envName]: opts.probeCredential.apiKey }
-    if (plan.forcedProfiles) probePatch = writeProviderPatchFile(cwd, plan.forcedProfiles)
+    if (plan.forcedProfiles) {
+      const config = mergeProbeLlmConfig(readLlmRowConfig(sdkProfile), plan.forcedProfiles, {
+        route: plan.route,
+        envName: plan.envName,
+      })
+      probePatch = writeProviderPatchFile(cwd, plan.forcedProfiles, config)
+    }
   }
-  const credentialEnv = dshSubprocessEnv(routing.envNames)
+  const credentialEnv = dshSubprocessEnv(
+    sdkProfile
+      ? withProfileCredentialRefs(routing.envNames, routing.profiles, readLlmProviders(sdkProfile))
+      : routing.envNames,
+  )
   const mcpEnv = mcpProcessEnv(opts.mcp)
+  const agentsEnv = opts.agentsHome ? { DSH_AGENTS_HOME: opts.agentsHome } : undefined
   const env =
-    mcpEnv || probeEnv
+    mcpEnv || probeEnv || agentsEnv
       ? {
           ...(credentialEnv ?? (process.env as Record<string, string>)),
           ...(mcpEnv ?? {}),
           ...(probeEnv ?? {}),
+          ...(agentsEnv ?? {}),
         }
       : credentialEnv
-  const { mcp: _mcp, patches: callerPatches, probeCredential: _probe, ...rest } = opts
+  const {
+    mcp: _mcp,
+    patches: callerPatches,
+    probeCredential: _probe,
+    agentsHome: _agentsHome,
+    ...rest
+  } = opts
   const runtime = new DshRuntime({
     ...rest,
     patches: [hardening, ...(probePatch ? [probePatch] : []), ...(callerPatches ?? [])],
@@ -442,6 +531,10 @@ export class DshRuntime {
   private starting: Promise<DshClientLike> | null = null
   private sessionSeq = 0
   private activeTurns = 0
+  /** 会话键 → 稳定 sessionId（跨进程一致，dsh 据此持久化/恢复历史） */
+  private readonly stableSessions = new Map<string, string>()
+  /** 本进程已 resume 过的 sessionId：同进程后续轮 dsh 已持有上下文，无需再 resume */
+  private readonly resumedSessions = new Set<string>()
   private idleGate: { promise: Promise<void>; release: () => void } = DshRuntime.openIdleGate()
 
   private static openIdleGate() {
@@ -484,6 +577,11 @@ export class DshRuntime {
        * 合并出完整映射；省略即沿用 SDK 的默认继承。
        */
       env?: Record<string, string>
+      /**
+       * 启用「运行时向教师提问」（user-question/ask）。仅智能体链路开启；
+       * 直连纯解析链路不开。审批（approval）始终不开，守住最小权限。
+       */
+      enableQuestions?: boolean
     },
   ) {}
 
@@ -517,6 +615,18 @@ export class DshRuntime {
                 cwd: this.cwd,
                 patches: this.opts.patches,
                 env: this.opts.env,
+                ...(this.opts.enableQuestions
+                  ? {
+                      onUserQuestion: (request, context) =>
+                        requestAgentQuestion(
+                          {
+                            sessionId: request.sessionId,
+                            questions: request.questions as AgentQuestionItem[],
+                          },
+                          context.signal,
+                        ),
+                    }
+                  : {}),
               }),
             )
         await client.initialize({
@@ -545,6 +655,19 @@ export class DshRuntime {
   }
 
   /**
+   * 会话键 → 稳定 sessionId。同一键在本进程内复用同一 id；id 由键确定性派生，
+   * 跨进程（换模型/重启）也一致，dsh 的持久化存储据此 resume。
+   */
+  private sessionIdForKey(sessionKey: string): string {
+    const existing = this.stableSessions.get(sessionKey)
+    if (existing) return existing
+    const safe = sessionKey.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 48) || 'session'
+    const id = `eaa-${safe}-${createHash('sha256').update(sessionKey).digest('hex').slice(0, 12)}`
+    this.stableSessions.set(sessionKey, id)
+    return id
+  }
+
+  /**
    * 对话历史 → 一段文本。
    *
    * SDK 的 session/prompt 没有「多条消息 + 角色」的入口，每个 turn 又是新 session
@@ -563,11 +686,21 @@ export class DshRuntime {
       .join('\n')
   }
 
-  private static buildBlocks(params: DshChatStreamParams): DshPromptBlock[] {
+  private static buildBlocks(
+    params: DshChatStreamParams,
+    opts?: { nativeTranscript?: boolean },
+  ): DshPromptBlock[] {
     const blocks: DshPromptBlock[] = []
     if (params.systemPrompt) blocks.push({ type: 'text', text: params.systemPrompt })
-    if (params.blocks?.length) blocks.push(...params.blocks)
-    else blocks.push({ type: 'text', text: DshRuntime.renderTranscript(params.messages) })
+    if (params.blocks?.length) {
+      blocks.push(...params.blocks)
+    } else if (opts?.nativeTranscript) {
+      // 原生会话：历史由 dsh 持久化持有，只发本轮最后一条 user 消息
+      const lastUser = [...params.messages].reverse().find((m) => m.role === 'user')
+      blocks.push({ type: 'text', text: lastUser?.content ?? '' })
+    } else {
+      blocks.push({ type: 'text', text: DshRuntime.renderTranscript(params.messages) })
+    }
     return blocks
   }
 
@@ -597,13 +730,55 @@ export class DshRuntime {
 
   private async *rawTurnEvents(params: DshChatStreamParams): AsyncGenerator<DshSessionEvent> {
     const client = await this.start()
-    const sessionId = this.nextSessionId()
-    const sub = client.subscribe(
-      (n) => n.method === 'session.event' && sessionIdOf(n) === sessionId,
-    )
+    const sessionKey = params.sessionKey
+    const sessionId = sessionKey ? this.sessionIdForKey(sessionKey) : this.nextSessionId()
+
+    // 原生多轮：新进程首轮先恢复 dsh 持久化历史。resume 失败（无持久化/跨版本
+    // 不兼容等）回退文本前缀老路径，对话不中断。同进程后续轮 dsh 已持有上下文。
+    let nativeTranscript = false
+    if (sessionKey && !this.resumedSessions.has(sessionId)) {
+      try {
+        if (client.resumeSession) await client.resumeSession(sessionId)
+        nativeTranscript = true
+      } catch (err) {
+        console.warn(
+          `[dsh] resumeSession(${sessionId}) 失败，回退文本前缀:`,
+          err instanceof Error ? err.message : err,
+        )
+      }
+      this.resumedSessions.add(sessionId)
+    }
+
+    // 会话工作目录：首轮 prompt 前绑给 dsh（产出归拢到该目录）。
+    // 绑定失败不阻断对话 —— 目录只是产出落点，不是对话前提。
+    if (params.workingDirectory && client.setWorkingDirectory) {
+      try {
+        await client.setWorkingDirectory(sessionId, params.workingDirectory)
+      } catch (err) {
+        console.warn(
+          `[dsh] setWorkingDirectory(${sessionId}) 失败（忽略）:`,
+          err instanceof Error ? err.message : err,
+        )
+      }
+    }
+
+    const isCommand = params.command === true && typeof client.request === 'function'
+
+    // 指令路径同时收 session.event（指令生命周期 + 其启动的模型工作）与
+    // session.query.completed（高层活动收尾，纯状态指令唯一的结束信号）。
+    const sub = client.subscribe((n) => {
+      if (sessionIdOf(n) !== sessionId) return false
+      return n.method === 'session.event' || (isCommand && n.method === 'session.query.completed')
+    })
 
     let promptError: Error | null = null
-    void Promise.resolve(client.prompt(sessionId, DshRuntime.buildBlocks(params)))
+    const dispatch = isCommand
+      ? client.request?.('session/query', {
+          sessionId,
+          contentBlocks: DshRuntime.buildBlocks(params, { nativeTranscript }),
+        })
+      : client.prompt(sessionId, DshRuntime.buildBlocks(params, { nativeTranscript }))
+    void Promise.resolve(dispatch)
       .then(() => undefined)
       .catch((err: unknown) => {
         promptError = toError(err)
@@ -619,10 +794,14 @@ export class DshRuntime {
         } catch (err) {
           throw promptError ?? toError(err)
         }
+        // 指令高层活动收尾：纯状态指令到此结束（无 turn/end）。
+        if (isCommand && notification.method === 'session.query.completed') break
         const event = (notification.params as unknown as DshSessionEventNotification)
           .event as DshSessionEvent
         yield event
-        if (event.type === 'turn/end') break
+        // 普通对话以 turn/end 收尾；指令路径以 completed 收尾（上面已 break），
+        // 指令启动的模型工作的 turn/end 只透出、不提前结束（等 completed）。
+        if (!isCommand && event.type === 'turn/end') break
       }
       if (promptError) throw promptError
     } finally {

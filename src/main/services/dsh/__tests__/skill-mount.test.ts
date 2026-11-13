@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { buildEaaSkillPatch, materializeDshSkills, toDshSkillName } from '../skill-mount'
+import {
+  buildEaaSkillPatch,
+  dshSkillScanDirs,
+  dshVisibleSkillDir,
+  materializeDshSkills,
+  toDshSkillName,
+} from '../skill-mount'
 
 describe('dsh 技能目录', () => {
   let dir: string
@@ -45,12 +51,40 @@ describe('dsh 技能目录', () => {
     expect(rows[0].id).toBe('skill-filesystem')
     expect(rows[0].config.includeDefaultRoots).toBe(false)
     expect(rows[0].config.watch).toBe(false)
-    expect(rows[0].config.customSkillDirs).toEqual(['C:/skills/run'])
+    expect(rows[0].config.customSkillDirs).toEqual(['C:/skills/run', 'C:/skills'])
+    expect(rows[0].config).not.toHaveProperty('dshHome')
+    expect(rows[0].config).not.toHaveProperty('agentsHome')
   })
 
-  it('中文技能名也能落到合法名字上', () => {
+  it('已安装的技能配置字段留下，扫描范围仍钉在这次的目录', () => {
+    const rows = parse(
+      buildEaaSkillPatch('C:/skills/run', { providerName: 'filesystem' }),
+    ) as Array<{
+      config: { providerName: string; includeDefaultRoots: boolean; customSkillDirs: string[] }
+    }>
+    expect(rows[0]?.config.providerName).toBe('filesystem')
+    expect(rows[0]?.config.includeDefaultRoots).toBe(false)
+    expect(rows[0]?.config.customSkillDirs).toEqual(['C:/skills/run', 'C:/skills'])
+    expect(dshSkillScanDirs('C:/tmp/run')).toEqual(['C:/tmp/run'])
+  })
+
+  it('技能落在 DSH_HOME/skills 下，不进临时目录', () => {
+    expect(dshVisibleSkillDir('C:/dsh-home', 'main')).toBe(join('C:/dsh-home', 'skills', 'main'))
+    expect(dshVisibleSkillDir('C:/dsh-home', '周报助手')).toBe(
+      join('C:/dsh-home', 'skills', 'zhou-bao-zhu-shou'),
+    )
+  })
+
+  it('中文技能名转成拼音短横线名，重名才加序号', () => {
     const used = new Set<string>()
-    expect(toDshSkillName('周报', used)).toBe('skill')
-    expect(toDshSkillName('周报', used)).toBe('skill-2')
+    expect(toDshSkillName('周报', used)).toBe('zhou-bao')
+    expect(toDshSkillName('周报', used)).toBe('zhou-bao-2')
+    expect(toDshSkillName('学生操行管理', used)).toBe('xue-sheng-cao-xing-guan-li')
+  })
+
+  it('拼音后仍不合法的名字才退回 skill 序号', () => {
+    const used = new Set<string>()
+    expect(toDshSkillName('①②③', used)).toBe('skill')
+    expect(toDshSkillName('①②③', used)).toBe('skill-2')
   })
 })

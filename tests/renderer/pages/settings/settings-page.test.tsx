@@ -49,6 +49,11 @@ api.feishu.onBotStatusUpdate = vi.fn(() => () => {})
 api.feishu.botStatus = vi.fn(async () => null)
 api.sys.onUpdateProgress = vi.fn(() => () => {})
 api.sys.getVersion = vi.fn(async () => '0.0.0-test')
+api.sys.getRuntimeVersions = vi.fn(async () => ({
+  dsh: '0.2.2-rc.1',
+  dshIm: '5.10.0',
+  electron: '45.0.0',
+}))
 api.sys.checkUpdate = vi.fn(async () => ({ hasUpdate: false, currentVersion: '0', latestVersion: '0' }))
 api.eaa.doctor = vi.fn(async () => ({ healthy: true, passed: 0, failed: 0, issues: [] }))
 api.eaa.validate = vi.fn(async () => ({ valid: true, total_events: 0, errors: [], warnings: [] }))
@@ -81,11 +86,19 @@ const stableT = vi.hoisted(() => {
   }
   const t = (key: string, fallback?: unknown) =>
     DICT[key] ?? (typeof fallback === 'string' ? fallback : key)
-  return { t }
+  // 与真实 tr 一致：字典/兜底文案 + {name} 占位符替换
+  const tr = (key: string, vars: Record<string, string | number>, fallback?: string) => {
+    let out = DICT[key] ?? fallback ?? key
+    for (const [name, value] of Object.entries(vars ?? {})) {
+      out = out.replaceAll(`{${name}}`, String(value))
+    }
+    return out
+  }
+  return { t, tr }
 })
 vi.mock('../../../../src/renderer/i18n', () => ({
   useT: () => ({ t: stableT.t, lang: 'zh' }),
-  tr: stableT.t,
+  tr: stableT.tr,
   // ConfirmDialog 等共享组件用模块级 t 提供默认文案
   t: stableT.t,
   setLang: mocks.setLang,
@@ -145,7 +158,8 @@ describe('SettingsPage', () => {
     expect(screen.getByText('日志查看')).toBeTruthy()
     expect(screen.getByText('关于')).toBeTruthy()
     fireEvent.click(screen.getByText('关于'))
-    expect(screen.getByText(/dsh 0\.2\.2-rc\.1/)).toBeTruthy()
+    // 运行时版本来自主进程 IPC（异步），等渲染完成再断言
+    await waitFor(() => expect(screen.getByText(/dsh 0\.2\.2-rc\.1/)).toBeTruthy())
     expect(screen.getByText(/dsh-im 5\.10\.0/)).toBeTruthy()
     expect(screen.getByText(/pi-ai 1\.4\.0/)).toBeTruthy()
     expect(screen.getByText(/Vite 8\.3/)).toBeTruthy()
@@ -224,11 +238,23 @@ describe('SettingsPage', () => {
       string,
       string
     >
-    expect(zh['page.settings.about.core.dsh']).toContain('0.2.2-rc.1')
-    expect(zh['page.settings.about.core.dshIm']).toBe('— 连接中心插件（dsh-im 5.10.0）')
-    expect(en['page.settings.about.core.dshIm']).toBe('— Connection center plugin (dsh-im 5.10.0)')
+    // dsh/dsh-im 版本改为运行时 IPC 注入，文案只留 {version} 占位；
+    // 兜底版本仍须与 package.json 的 dsh pin 一致（防升级漂移）。
+    const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as {
+      dependencies: Record<string, string>
+    }
+    const dshPin = pkg.dependencies['@deepseek-ai/dsh-sdk-client']
+    expect(zh['page.settings.about.core.dsh']).toBe('— Agent 运行时（dsh {version}）')
+    expect(en['page.settings.about.core.dsh']).toBe('— Agent runtime (dsh {version})')
+    expect(zh['page.settings.about.core.dshIm']).toBe('— 连接中心插件（dsh-im {version}）')
+    expect(en['page.settings.about.core.dshIm']).toBe('— Connection center plugin (dsh-im {version})')
+    // 兜底版本在 dsh-version 单一来源模块里，必须与 package.json 的 pin 一致
+    const versionSource = readFileSync(
+      resolve('src/main/services/dsh/dsh-version.ts'),
+      'utf8',
+    )
+    expect(versionSource).toContain(`FALLBACK_VERSION = '${dshPin}'`)
     expect(zh['page.settings.about.core.piAi']).toBe('— 模型目录（pi-ai 1.4.0）')
-    expect(en['page.settings.about.core.dsh']).toContain('0.2.2-rc.1')
     expect(en['page.settings.about.core.piAi']).toBe('— Model catalog (pi-ai 1.4.0)')
     expect(zh['page.settings.about.core.piAgent']).toBeUndefined()
     expect(en['page.settings.about.core.piAgent']).toBeUndefined()

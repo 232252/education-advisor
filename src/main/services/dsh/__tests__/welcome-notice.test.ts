@@ -46,4 +46,16 @@ describe('连接中心跳过预览版说明', () => {
     const again = ensureEaaWelcomeNoticePatch(dir)
     expect(again).toBe(path)
   })
+
+  it('已安装设置行上的其它字段保留，只改欢迎说明和凭据引导', () => {
+    const rows = eaaWelcomeNoticePatchRows({
+      general: { locale: 'zh-CN', welcomeNoticeVersion: 'old' },
+      models: { showPricing: true },
+    })
+    expect(rows[0].config).toEqual({
+      locale: 'zh-CN',
+      welcomeNoticeVersion: DSH_WELCOME_NOTICE_VERSION,
+    })
+    expect(rows[1].config).toEqual({ showPricing: true, credentialOnboarding: false })
+  })
 })
