@@ -103,6 +103,48 @@ describe('DshAgentFacade', () => {
     expect(seen[0].blocks).toEqual([{ type: 'text', text: '统计三班人数' }])
   })
 
+  it('有会话键时走原生多轮：只发新消息，历史交给 dsh，不拼文本前缀', async () => {
+    const { source, seen } = sourceFactory(() => of(turnEnd()))
+    const f = new DshAgentFacade({
+      runtime: source,
+      model,
+      systemPrompt: '你是班主任助手',
+      sessionKey: 'main',
+    })
+    f.state.messages = [
+      { role: 'user', content: '旧问题', timestamp: 1 } as never,
+      { role: 'assistant', content: '旧回答', timestamp: 2 } as never,
+    ]
+    await f.prompt('新问题')
+    await f.waitForIdle()
+    expect(seen[0].sessionKey).toBe('main')
+    expect(seen[0].blocks).toEqual([{ type: 'text', text: '新问题' }])
+  })
+
+  it('无会话键时维持文本前缀老路径（直连/旧调用不受影响）', async () => {
+    const { source, seen } = sourceFactory(() => of(turnEnd()))
+    const f = facade(source)
+    f.state.messages = [{ role: 'user', content: '旧问题', timestamp: 1 } as never]
+    await f.prompt('新问题')
+    await f.waitForIdle()
+    expect(seen[0].sessionKey).toBeUndefined()
+    expect(seen[0].blocks).toEqual([{ type: 'text', text: 'user: 旧问题\n新问题' }])
+  })
+
+  it('说明在 AGENTS.md 时，用户消息不再重复系统提示', async () => {
+    const { source, seen } = sourceFactory(() => of(turnEnd()))
+    const f = new DshAgentFacade({
+      runtime: source,
+      model,
+      systemPrompt: '你是班主任助手',
+      instructionsViaAgentsHome: true,
+    })
+    await f.prompt('统计三班人数')
+    await f.waitForIdle()
+    expect(seen[0].systemPrompt).toBe('')
+    expect(seen[0].blocks).toEqual([{ type: 'text', text: '统计三班人数' }])
+  })
+
   it('waitForIdle 未忙时立即 resolve，可重复 await', async () => {
     const { source } = sourceFactory(() => of(turnEnd()))
     const f = facade(source)
@@ -299,5 +341,47 @@ describe('图文历史（agent 链路的视觉通道）', () => {
     expect(seen[0].blocks).toEqual([
       { type: 'text', text: expect.stringContaining('[image image/bmp]') },
     ])
+  })
+})
+
+describe('斜杠指令路由（门面自动识别）', () => {
+  it('以 / 开头的输入置位 command，走指令路由', async () => {
+    const { source, seen } = sourceFactory(() => of(turnEnd()))
+    const f = new DshAgentFacade({
+      runtime: source,
+      model,
+      systemPrompt: '你是班主任助手',
+      sessionKey: 'agent-main',
+    })
+    await f.prompt('/compact')
+    await f.waitForIdle()
+    expect(seen[0].command).toBe(true)
+    expect(firstText(seen[0])).toBe('/compact')
+  })
+
+  it('中文指令拼写同样识别', async () => {
+    const { source, seen } = sourceFactory(() => of(turnEnd()))
+    const f = new DshAgentFacade({
+      runtime: source,
+      model,
+      systemPrompt: '你是班主任助手',
+      sessionKey: 'agent-main',
+    })
+    await f.prompt('/目标 提高及格率')
+    await f.waitForIdle()
+    expect(seen[0].command).toBe(true)
+  })
+
+  it('普通输入不置位 command', async () => {
+    const { source, seen } = sourceFactory(() => of(turnEnd()))
+    const f = new DshAgentFacade({
+      runtime: source,
+      model,
+      systemPrompt: '你是班主任助手',
+      sessionKey: 'agent-main',
+    })
+    await f.prompt('统计三班人数')
+    await f.waitForIdle()
+    expect(seen[0].command).toBeUndefined()
   })
 })

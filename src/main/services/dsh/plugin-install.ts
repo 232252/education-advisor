@@ -12,10 +12,18 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { EAA_PLUGINS } from './eaa-tools-contract'
-import { materializeProfileLinks, profileLinksCurrent } from './plugin-links'
+import {
+  dropProfileBundles,
+  materializeProfileLinks,
+  profileLinksCurrent,
+  resolveDshProfileDir,
+} from './plugin-links'
 
-/** 不是 MCP 工具组、但仍按官方 bundle 链进 profile 的包（与 eaa-tools 同级目录）。 */
-export const EAA_LINK_ONLY_BUNDLES = ['eaa-llm-providers'] as const
+/**
+ * 曾经当作模型路由 bundle 链进 profile。路由现在写在 llm-pi-ai，
+ * 这个空包不再安装；已有 profile 里的链接会拆掉。
+ */
+export const RETIRED_PROFILE_BUNDLES = ['@education-advisor/eaa-llm-providers'] as const
 
 interface PluginTarget {
   home: string
@@ -30,10 +38,10 @@ export function setEaaToolsPluginTarget(target: PluginTarget | null): void {
   sdkTarget = target
 }
 
-/** toolsDir 指向 eaa-tools 时，同级目录里的教育 bundle 一起装。 */
+/** toolsDir 指向 eaa-tools 时，同级目录里的教育工具插件一起装。 */
 export function resolveEaaPluginDirs(toolsDir: string): string[] {
   const root = dirname(toolsDir)
-  const names = [...EAA_PLUGINS.map((plugin) => plugin.dirName), ...EAA_LINK_ONLY_BUNDLES]
+  const names = EAA_PLUGINS.map((plugin) => plugin.dirName)
   const found: string[] = []
   for (const dirName of names) {
     const dir = join(root, dirName)
@@ -54,6 +62,7 @@ export async function ensureProfileHasEaaTools(opts: {
   const dirs = resolveEaaPluginDirs(opts.toolsDir)
   if (dirs.length === 0) throw new Error(`找不到教育工具插件：${opts.toolsDir}`)
   mkdirSync(opts.home, { recursive: true })
+  dropProfileBundles(resolveDshProfileDir(opts.home, opts.profile), RETIRED_PROFILE_BUNDLES)
   const plugins = dirs.map((dir) => ({ dir }))
   const pending = dirs.map((dir) => stampInfo(opts.home, opts.profile, dir))
   const stampsOk = pending.every(

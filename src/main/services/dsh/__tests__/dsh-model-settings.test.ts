@@ -5,13 +5,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { configureDshCatalogSource } from '../dsh-model-catalog'
 import {
   configureDshModelSettings,
+  dshModelAcceptsImages,
   getDshCurrentRoute,
   listDshModels,
   listDshProviders,
   selectDshRoute,
+  syncDshProviderCredential,
 } from '../dsh-model-settings'
 import { configureDshCredentials } from '../provider-patch'
-import { readLlmProviders } from '../provider-profile-patch'
+import { mergeUncataloguedRouteModel, readLlmProviders } from '../provider-profile-patch'
 
 const glm = {
   id: 'glm-5.3-flash',
@@ -100,5 +102,74 @@ describe('dsh-model-settings', () => {
       apiKeyEnv: 'EAA_DSH_ZAI_CODING_CN_API_KEY',
     })
     expect(providers['zai-coding-cn'].models).toBeUndefined()
+  })
+
+  it('用户改名路由后，保存密钥把 apiKeyEnv 写进改名后的行', () => {
+    configureDshCredentials({
+      listProviders: () => ['zai-coding-cn'],
+      getApiKey: () => 'sk-test',
+      dshRoutes: () => ({ 'zai-coding-cn': 'my-gateway' }),
+    })
+    syncDshProviderCredential('zai-coding-cn')
+    const providers = readLlmProviders(dir)
+    expect(providers['my-gateway']).toMatchObject({
+      apiKeyEnv: 'EAA_DSH_MY_GATEWAY_API_KEY',
+    })
+    expect(providers['zai-coding-cn']).toBeUndefined()
+  })
+
+  it('选择内建别名路由时，凭据写进 deepseek-official 行而不是 pi 旧名', () => {
+    configureDshCredentials({
+      listProviders: () => ['deepseek'],
+      getApiKey: () => 'sk-test',
+    })
+    selectDshRoute({ provider: 'deepseek', model: 'deepseek-chat' })
+    const providers = readLlmProviders(dir)
+    expect(providers['deepseek-official']).toMatchObject({
+      apiKeyEnv: 'EAA_DSH_DEEPSEEK_OFFICIAL_API_KEY',
+    })
+    expect(providers.deepseek).toBeUndefined()
+  })
+
+  it('只在官方目录标明接受图片时才算视觉模型', () => {
+    expect(dshModelAcceptsImages('zai-coding-cn', 'glm-5.3-flash')).toBe(false)
+    expect(dshModelAcceptsImages('minimax-cn', 'missing')).toBe(false)
+    configureDshCatalogSource({
+      listProviders: () => [],
+      listModels: (id) => (id === 'zai-coding-cn' ? [{ ...glm, input: ['text', 'image'] }] : []),
+    })
+    expect(dshModelAcceptsImages('zai-coding-cn', 'glm-5.3-flash')).toBe(true)
+  })
+
+  it('目录没有的路由，profile 模型行声明 image 时也算视觉模型', async () => {
+    mergeUncataloguedRouteModel(dir, 'my-gateway', {
+      id: 'vl-model',
+      input: ['text', 'image'],
+    })
+    expect(dshModelAcceptsImages('my-gateway', 'vl-model')).toBe(true)
+    const models = await listDshModels('my-gateway')
+    expect(models.find((m) => m.id === 'vl-model')?.supportsImage).toBe(true)
+  })
+
+  it('profile 模型行未声明图片时不猜视觉能力', async () => {
+    mergeUncataloguedRouteModel(dir, 'my-gateway', { id: 'plain-model' })
+    expect(dshModelAcceptsImages('my-gateway', 'plain-model')).toBe(false)
+    const models = await listDshModels('my-gateway')
+    expect(models.find((m) => m.id === 'plain-model')?.supportsImage).toBe(false)
+  })
+
+  it('目录外的模型用保守默认窗口，不猜 1M/128K（与自定义模型口径一致）', async () => {
+    mergeUncataloguedRouteModel(dir, 'my-gateway', { id: 'unknown-model' })
+    const models = await listDshModels('my-gateway')
+    const m = models.find((x) => x.id === 'unknown-model')
+    expect(m?.contextWindow).toBe(32768)
+    expect(m?.maxOutputTokens).toBe(4096)
+  })
+
+  it('目录里有的模型仍用目录值，不被保守默认覆盖', async () => {
+    const models = await listDshModels('zai-coding-cn')
+    const m = models.find((x) => x.id === 'glm-5.3-flash')
+    expect(m?.contextWindow).toBe(128000)
+    expect(m?.maxOutputTokens).toBe(16000)
   })
 })

@@ -49,6 +49,7 @@ export const aiApi = {
     contextWindow?: number
     maxOutputTokens?: number
     supportsReasoning?: boolean
+    supportsImage?: boolean
   }) => ipcInvoke(IPC.IPC_AI_ADD_CUSTOM_MODEL, params),
 
   // [c] 删除自定义模型
@@ -63,6 +64,7 @@ export const aiApi = {
     contextWindow?: number
     maxOutputTokens?: number
     supportsReasoning?: boolean
+    supportsImage?: boolean
     costPerInputToken?: number
     costPerOutputToken?: number
     api?: string

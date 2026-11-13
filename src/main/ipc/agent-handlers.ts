@@ -108,7 +108,13 @@ export function registerAgentHandlers(win: BrowserWindow) {
   // P1-39 修复:捕获 IIFE 异常并 await runAgent,错误也返回前端
   handleIpc(
     IPC.IPC_AGENT_RUN_MANUAL,
-    async (_e, id: string, prompt: string, history?: Array<{ role: string; content: string }>) => {
+    async (
+      _e,
+      id: string,
+      prompt: string,
+      history?: Array<{ role: string; content: string }>,
+      chatSessionId?: string,
+    ) => {
       if (typeof id !== 'string' || id.length === 0) {
         return { success: false, message: 'id must be a non-empty string' }
       }
@@ -125,7 +131,9 @@ export function registerAgentHandlers(win: BrowserWindow) {
       }
       // 不 await:手动触发是 fire-and-forget,通过 stream 推送状态
       // 但同步 try/catch 同步参数错误,异步错误由 runAgent 内部 sendStatus 推送
-      agentService.runAgent(id, prompt, win, history).catch((err) => {
+      const runOptions =
+        typeof chatSessionId === 'string' && chatSessionId ? { chatSessionId } : undefined
+      agentService.runAgent(id, prompt, win, history, 'ui', runOptions).catch((err) => {
         const message = errText(err)
         console.error(`[Agent] Execution error for ${id}:`, message)
         // 已通过 sendStatus 推送到渲染进程,这里仅做兜底日志

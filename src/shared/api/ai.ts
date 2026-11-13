@@ -39,6 +39,7 @@ export interface AiAPI {
     contextWindow?: number
     maxOutputTokens?: number
     supportsReasoning?: boolean
+    supportsImage?: boolean
   }) => Promise<ModelInfo>
   deleteCustomModel: (providerId: string, modelId: string) => Promise<{ success: boolean }>
   updateCustomModel: (params: {
@@ -48,6 +49,7 @@ export interface AiAPI {
     contextWindow?: number
     maxOutputTokens?: number
     supportsReasoning?: boolean
+    supportsImage?: boolean
     costPerInputToken?: number
     costPerOutputToken?: number
     api?: string

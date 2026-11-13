@@ -118,6 +118,8 @@ export const IPC_SYS_SAVE_DIALOG = 'sys:save-dialog'
 export const IPC_SYS_GET_PATH = 'sys:get-path'
 /** R2-16: 版本号单一来源(About 页不再硬编码,发版零漂移) */
 export const IPC_SYS_GET_VERSION = 'sys:get-version'
+/** 底层运行时版本(dsh/dsh-im/electron)，About 页从主进程单一来源读取 */
+export const IPC_SYS_GET_RUNTIME_VERSIONS = 'sys:get-runtime-versions'
 export const IPC_SYS_CHECK_UPDATE = 'sys:check-update'
 export const IPC_SYS_READ_FILE = 'sys:read-file'
 // 重启应用(备份恢复后数据文件已替换,需重启进程重新加载)
@@ -288,3 +290,13 @@ export const IPC_SYS_WEBUI_REGEN_TOKEN = 'sys:webui-regen-token'
 export const IPC_TEACHER_CONFIRM_REQUEST = 'teacher-confirm:request'
 /** 教师点了确认或取消（渲染→主） */
 export const IPC_TEACHER_CONFIRM_RESPOND = 'teacher-confirm:respond'
+
+/** dsh 运行时向教师提问（主→渲染，澄清类，非危险工具审批） */
+export const IPC_AGENT_QUESTION_REQUEST = 'agent-question:request'
+/** 教师作答或取消（渲染→主） */
+export const IPC_AGENT_QUESTION_RESPOND = 'agent-question:respond'
+
+/** 列出会话工作目录的产出文件 */
+export const IPC_WORKSPACE_LIST = 'workspace:list-files'
+/** 把会话产出文件另存为（教师选路径） */
+export const IPC_WORKSPACE_SAVE_AS = 'workspace:save-as'

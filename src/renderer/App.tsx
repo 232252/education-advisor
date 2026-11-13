@@ -4,6 +4,7 @@
 
 import { lazy, Suspense, useEffect } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { AgentQuestionHost } from './components/AgentQuestionHost'
 import { ContextMenu } from './components/ContextMenu'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { TeacherConfirmHost } from './components/TeacherConfirmHost'
@@ -115,6 +116,7 @@ export function App() {
         {/* P2-8: 全局 toast 通知容器,挂载在 Router 之外,跨页面保持 */}
         <ToastContainer />
         <TeacherConfirmHost />
+        <AgentQuestionHost />
         {/* 桌面级自定义右键菜单,替代浏览器默认右键 */}
         <ContextMenu />
         <Suspense fallback={<RouteFallback />}>

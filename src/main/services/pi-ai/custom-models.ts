@@ -18,6 +18,7 @@ export interface CustomModelInput {
   contextWindow?: number
   maxOutputTokens?: number
   supportsReasoning?: boolean
+  supportsImage?: boolean
   costPerInputToken?: number
   costPerOutputToken?: number
   api?: string
@@ -30,6 +31,7 @@ export interface CustomModelUpdates {
   contextWindow?: number
   maxOutputTokens?: number
   supportsReasoning?: boolean
+  supportsImage?: boolean
   costPerInputToken?: number
   costPerOutputToken?: number
   api?: string
@@ -57,6 +59,7 @@ export function addCustomModelEntry(providerId: string, model: CustomModelInput)
     contextWindow: model.contextWindow ?? 32768,
     maxOutputTokens: model.maxOutputTokens ?? 4096,
     supportsReasoning: model.supportsReasoning ?? false,
+    supportsImage: model.supportsImage ?? false,
     costPerInputToken: model.costPerInputToken ?? 0,
     costPerOutputToken: model.costPerOutputToken ?? 0,
     api: api as string,
@@ -79,6 +82,7 @@ export function addCustomModelEntry(providerId: string, model: CustomModelInput)
     costCacheRead: 0,
     costCacheWrite: 0,
     supportsReasoning: entry.supportsReasoning,
+    supportsImage: entry.supportsImage,
     baseUrl,
     isCustom: true,
   }
@@ -114,6 +118,7 @@ export function updateCustomModelEntry(
     contextWindow: updates.contextWindow ?? current.contextWindow,
     maxOutputTokens: updates.maxOutputTokens ?? current.maxOutputTokens,
     supportsReasoning: updates.supportsReasoning ?? current.supportsReasoning,
+    supportsImage: updates.supportsImage ?? current.supportsImage ?? false,
     costPerInputToken: updates.costPerInputToken ?? current.costPerInputToken,
     costPerOutputToken: updates.costPerOutputToken ?? current.costPerOutputToken,
     api: updates.api ?? current.api,

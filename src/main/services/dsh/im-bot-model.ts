@@ -8,8 +8,9 @@
 // 已经选过模型的机器人保持原样。已绑定的旧会话要由用户发送 /new，这里不删。
 // =============================================================
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { type Dirent, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { dshModelAcceptsImages, getDshCurrentRoute } from './dsh-model-settings'
 import { dshRouteKey } from './provider-patch'
 import type { DshDefaultModelSelection } from './provider-profile-patch'
 
@@ -63,9 +64,56 @@ function normalizedSelection(
   }
 }
 
+/** 渠道机器人和当前教师路由里，只要有一个官方模型接受图片，就挂上 read_image。 */
+export function imExposesReadImage(home: string): boolean {
+  const picks = listedBotModels(home)
+  const current = getDshCurrentRoute()
+  if (current?.provider && current.model) picks.push(current)
+  return picks.some((pick) => dshModelAcceptsImages(pick.provider, pick.model))
+}
+
+/** 各渠道机器人已经写在 dsh-im workspaces.json 里的模型。 */
+export function listedBotModels(home: string): DshDefaultModelSelection[] {
+  const integrations = join(home, 'integrations')
+  if (!existsSync(integrations)) return []
+  const found: DshDefaultModelSelection[] = []
+  for (const path of workspaceFiles(integrations)) {
+    found.push(...modelsInFile(path))
+  }
+  return found
+}
+
+function modelsInFile(path: string): DshDefaultModelSelection[] {
+  let state: Record<string, unknown>
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
+    state = parsed as Record<string, unknown>
+  } catch {
+    return []
+  }
+  const models = state.models
+  if (!models || typeof models !== 'object' || Array.isArray(models)) return []
+  const found: DshDefaultModelSelection[] = []
+  for (const value of Object.values(models)) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue
+    const row = value as { provider?: unknown; model?: unknown; reasoningEffort?: unknown }
+    if (typeof row.provider !== 'string' || typeof row.model !== 'string') continue
+    if (!row.provider || !row.model) continue
+    found.push({
+      provider: row.provider,
+      model: row.model,
+      ...(typeof row.reasoningEffort === 'string' && row.reasoningEffort
+        ? { reasoningEffort: row.reasoningEffort }
+        : {}),
+    })
+  }
+  return found
+}
+
 function workspaceFiles(dir: string): string[] {
   const found: string[] = []
-  let entries: ReturnType<typeof readdirSync>
+  let entries: Dirent[]
   try {
     entries = readdirSync(dir, { withFileTypes: true })
   } catch {

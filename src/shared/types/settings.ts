@@ -85,6 +85,8 @@ export interface UnifiedSettings {
         contextWindow: number
         maxOutputTokens: number
         supportsReasoning: boolean
+        /** 教师声明该模型接受图片输入（自建网关视觉模型）；缺省按纯文本。 */
+        supportsImage?: boolean
         costPerInputToken: number
         costPerOutputToken: number
         api?: string
@@ -104,6 +106,8 @@ export interface UnifiedSettings {
     maxTokens: number
     conversationLogging: boolean
     thinkingLevel: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+    /** 对话模式（DSH 行开关预设）：standard 普通 / plan 计划评审 / ptc 代码编排。缺省 standard。 */
+    mode?: 'standard' | 'plan' | 'ptc'
   }
   privacy: {
     enabled: boolean

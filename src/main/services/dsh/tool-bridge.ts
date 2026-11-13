@@ -7,15 +7,15 @@
 // app 的 service 单例。
 //
 // 为什么「一次运行挂一个端点」而不是一套全局 profile：
-// mcp-client 没有工具白名单（一个实例把它看到的工具全量注册），而 patch 是
-// 子进程启动时读一次的。app 的最小权限恰恰按角色不同（getToolsByCapability、
-// delegate_to 只给 main、开脱敏时工具是本次运行包装出来的实例）。所以每次
-// agent 运行 register 一个只含该角色工具的端点 + 写一份只含该端点的 patch，
-// 运行结束 unregister 并删文件。
+// mcp-client 没有工具白名单（一个实例把它看到的工具全量注册）。app 的最小
+// 权限按角色不同（getToolsByCapability、delegate_to 只给 main、开脱敏时工具
+// 是本次运行包装出来的实例）。所以每次运行 register 一个只含该角色工具的
+// 端点，把地址交给 profile 里已经装好的四个 dsh-mcp-client 插件，运行结束
+// unregister。不再为每次运行另插一行客户端。
 //
-// patch 行格式取自 dsh 官方示例（apps/cli/config/examples/mcp-memory/*.cordis.yml）：
-//   - insert: [ { id, name: '@deepseek-ai/dsh-mcp-client', config: {...} } ]
-// 配置字段与 packages/mcp/mcp-client/src/index.ts 的 Config 校验一致。
+// 挂载只走 profile 里预装的四个 dsh-mcp-client 插件（官方插件标准 §1.2），
+// 不再为每次运行另插一行客户端。上次崩溃留下的 eaa-mcp-*.cordis.patch.yml
+// 在起桥时清掉。
 //
 // 注意（会影响提示词）：mcp-client 强制把模型可见的工具名改写成
 // `mcp__<serverName>__<rawName>`，没有关闭前缀的开关。所以 agent 的 system
@@ -26,9 +26,8 @@
 // 排在本次挂载之前 —— 这里只生成挂载行。
 // =============================================================
 
-import { readdir, unlink, writeFile } from 'node:fs/promises'
+import { readdir, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import { stringify } from 'yaml'
 
 import {
   type EaaMcpEndpoint,
@@ -39,56 +38,13 @@ import {
 import { EAA_PLUGINS, pluginForToolName } from './eaa-tools-contract'
 import { mcpToolNameMap } from './tool-names'
 
-const MCP_CLIENT_PACKAGE = '@deepseek-ai/dsh-mcp-client'
-const DEFAULT_TOOL_CALL_TIMEOUT_MS = 120_000
-/** 每个挂载一份 patch：文件名含 serverName，release 时删除 */
+/** 旧版逐运行 patch 的文件名特征，仅用于起桥时清扫崩溃残留 */
 const PATCH_FILE_PREFIX = 'eaa-mcp-'
 const PATCH_FILE_SUFFIX = '.cordis.patch.yml'
 /** mcp-client 要求 [A-Za-z0-9_-]{1,32} 且同进程实例间唯一 */
 const SERVER_NAME_MAX = 32
 
-export interface EaaMcpMountInput {
-  serverName: string
-  url: string
-  token: string
-  instanceId?: string
-  toolCallTimeoutMs?: number
-}
-
-/** 模型可见名（dsh 侧注册名），用于重写 agent 提示词里的工具名 */
-export function mcpPublicName(rawName: string, serverName: string): string {
-  return `mcp__${serverName}__${rawName}`
-}
-
-export function eaaMcpPatchFileName(serverName: string): string {
-  return `${PATCH_FILE_PREFIX}${serverName}${PATCH_FILE_SUFFIX}`
-}
-
-/** 生成 cordis patch YAML 文本（用 yaml 序列化，避免手写引号出错） */
-export function buildEaaMcpPatch(mount: EaaMcpMountInput): string {
-  return stringify(
-    [
-      {
-        insert: [
-          {
-            id: mount.instanceId ?? `eaa-mcp-${mount.serverName}`,
-            name: MCP_CLIENT_PACKAGE,
-            config: {
-              serverName: mount.serverName,
-              transport: 'streamable-http',
-              url: mount.url,
-              headers: { authorization: `Bearer ${mount.token}` },
-              toolCallTimeoutMs: mount.toolCallTimeoutMs ?? DEFAULT_TOOL_CALL_TIMEOUT_MS,
-              // 桥在 dsh 之前就已监听，连不上说明配置错了 —— 按 dsh 约定响亮失败
-              failOnStartupError: true,
-            },
-          },
-        ],
-      },
-    ],
-    { lineWidth: 0 },
-  )
-}
+export { mcpPublicName } from './tool-names'
 
 /** 上一次运行崩溃遗留的 patch 文件（内含 token）在起桥时清扫 */
 async function sweepStalePatches(patchDir: string): Promise<void> {
@@ -130,8 +86,6 @@ export function pluginProcessEnv(endpoints: readonly EaaPluginEndpoint[]): Recor
 
 export interface EaaToolMount {
   serverName: string
-  /** 交给 DshRuntime 的 patches —— 该次运行的 dsh 子进程只看得到这份 */
-  patchPath: string
   /** 原名 → 模型可见名，用于重写 system prompt */
   toolNameMap: Record<string, string>
   endpoint: EaaMcpEndpoint
@@ -200,58 +154,18 @@ export async function stopActiveEaaToolBridge(): Promise<void> {
 
 /**
  * 为一次 agent 运行挂载它自己那份工具集。
- *
- * patchPath 内含该端点的 token，release() 删除它；进程崩溃时可能残留，
- * 但这些 token 只对 127.0.0.1 上的这一次监听有效，且下次起桥时被清扫。
+ * 工具按名字分到花名册、成绩、批改、操行四个已安装插件。
+ * 公开名是 mcp__roster__*、mcp__grades__*、mcp__grading__*、mcp__eaa__*。
+ * 某组这次没有工具，就不给它地址。
  */
 export async function mountEaaAgentTools(opts: {
   label: string
   tools: readonly ExposedTool[]
-  toolCallTimeoutMs?: number
-  /**
-   * plugin：不把令牌写进 patch 文件。工具按名字分到花名册、成绩、批改、操行
-   * 四个已安装插件，公开名分别是 mcp__roster__*、mcp__grades__*、
-   * mcp__grading__*、mcp__eaa__*。某组这次没有工具，就不给它地址。
-   */
-  via?: 'patch' | 'plugin'
 }): Promise<EaaToolMount> {
   const bridge = activeBridge
   if (!bridge) throw new Error('eaa 工具桥未启动，无法挂载 dsh agent 工具')
-
-  if (opts.via === 'plugin') return mountViaPlugins(bridge, opts.label, opts.tools)
-
-  const serverName = agentServerName(opts.label, ++bridge.seq)
-  const endpoint = bridge.server.register({ name: serverName, tools: opts.tools })
-
-  const patchPath = join(bridge.patchDir, eaaMcpPatchFileName(serverName))
-  try {
-    await writeFile(
-      patchPath,
-      buildEaaMcpPatch({
-        serverName,
-        url: endpoint.url,
-        token: endpoint.token,
-        toolCallTimeoutMs: opts.toolCallTimeoutMs,
-      }),
-      'utf8',
-    )
-  } catch (err) {
-    // patch 写失败就别留一个挂着的端点
-    bridge.server.unregister(serverName)
-    throw err
-  }
-
-  return {
-    serverName,
-    patchPath,
-    toolNameMap: mcpToolNameMap(opts.tools, serverName),
-    endpoint,
-    pluginEndpoints: [],
-    release: async () => {
-      bridge.server.unregister(serverName)
-      await unlink(patchPath).catch(() => {})
-    },
-  }
+  // 只走已经装进 profile 的四个 dsh-mcp-client 插件。不再为每次运行另插一行客户端。
+  return mountViaPlugins(bridge, opts.label, opts.tools)
 }
 
 function mountViaPlugins(
@@ -301,7 +215,6 @@ function mountViaPlugins(
   if (!primary) throw new Error('没有可挂载的工具')
   return {
     serverName: primary.serverName,
-    patchPath: '',
     toolNameMap,
     endpoint: {
       url: primary.url,

@@ -88,7 +88,7 @@ describe('eaa-tools 插件', () => {
     const skillDir = join(home, 'skills')
     mkdirSync(skillDir, { recursive: true })
     const preset = ensureEaaImPresetPatch(patchDir, skillDir)
-    const lock = ensureOfficialPresetLock(patchDir, DSH_BIN, skillDir)
+    const lock = ensureOfficialPresetLock(patchDir, DSH_BIN)
     ok(lock, 'preset lock should be written')
     const patches = [hardening, preset, lock]
     await ensureProfileHasEaaTools({

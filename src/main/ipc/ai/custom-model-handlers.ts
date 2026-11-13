@@ -22,6 +22,7 @@ export function registerAICustomModelHandlers(): void {
         contextWindow?: number
         maxOutputTokens?: number
         supportsReasoning?: boolean
+        supportsImage?: boolean
       },
     ) => {
       // R78: 参数校验 — providerId/modelId 必须为非空字符串
@@ -37,6 +38,7 @@ export function registerAICustomModelHandlers(): void {
         contextWindow: params.contextWindow,
         maxOutputTokens: params.maxOutputTokens,
         supportsReasoning: params.supportsReasoning,
+        supportsImage: params.supportsImage,
       })
     },
     {
@@ -70,6 +72,7 @@ export function registerAICustomModelHandlers(): void {
         contextWindow?: number
         maxOutputTokens?: number
         supportsReasoning?: boolean
+        supportsImage?: boolean
         costPerInputToken?: number
         costPerOutputToken?: number
         api?: string
@@ -81,6 +84,7 @@ export function registerAICustomModelHandlers(): void {
         contextWindow: params.contextWindow,
         maxOutputTokens: params.maxOutputTokens,
         supportsReasoning: params.supportsReasoning,
+        supportsImage: params.supportsImage,
         costPerInputToken: params.costPerInputToken,
         costPerOutputToken: params.costPerOutputToken,
         api: params.api,

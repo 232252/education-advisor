@@ -58,7 +58,8 @@
     "showImages": true,
     "maxTokens": 4096,
     "thinkingLevel": "medium",
-    "conversationLogging": true
+    "conversationLogging": true,
+    "mode": "standard"
   },
   "mcp": {
     "enabled": false

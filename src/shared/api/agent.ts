@@ -24,6 +24,7 @@ export interface AgentAPI {
     id: string,
     prompt: string,
     history?: Array<{ role: string; content: string }>,
+    chatSessionId?: string,
   ) => Promise<{ success: boolean; message?: string; id?: string }>
   abort: (id: string) => Promise<{ success: boolean }>
   onStatusUpdate: (callback: (data: unknown) => void) => () => void

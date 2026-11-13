@@ -24,6 +24,9 @@ interface ChatToolbarProps {
   selectedModel: string
   onModelSelect: (provider: string, model: string) => void
   onClearMessages: () => void
+  /** 对话模式（DSH 行开关预设）；缺省 standard */
+  chatMode?: string
+  onModeChange?: (mode: string) => void
 }
 
 /** 顶部工具栏（Agent / 模型 / 思考级别 常驻） */
@@ -38,6 +41,8 @@ export const ChatToolbar = memo(function ChatToolbar({
   selectedModel,
   onModelSelect,
   onClearMessages,
+  chatMode,
+  onModeChange,
 }: ChatToolbarProps) {
   const [confirmClear, setConfirmClear] = useState(false)
   const { t } = useT()
@@ -117,6 +122,23 @@ export const ChatToolbar = memo(function ChatToolbar({
               {t('page.chat.thinking', '思考')} {t('page.chat.toolbar.think.max', '极限')}
             </option>
           )}
+        </select>
+
+        {/* 对话模式 — DSH 行开关预设：普通 / 计划评审 / 代码编排 */}
+        <select
+          value={chatMode ?? 'standard'}
+          onChange={(e) => onModeChange?.(e.target.value)}
+          aria-label={t('page.chat.toolbar.modeAria', '对话模式')}
+          className="bg-white border border-gray-300 dark:bg-surface-elevated dark:border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-gray-600 dark:text-gray-300
+                         focus:outline-none focus:border-blue-500 transition-colors"
+          title={t(
+            'page.chat.toolbar.modeTitle',
+            '对话模式：计划模式先出计划供你评审；代码编排让模型写代码批量调工具',
+          )}
+        >
+          <option value="standard">{t('page.chat.toolbar.mode.standard', '普通')}</option>
+          <option value="plan">{t('page.chat.toolbar.mode.plan', '计划')}</option>
+          <option value="ptc">{t('page.chat.toolbar.mode.ptc', '代码编排')}</option>
         </select>
       </div>
       <Button

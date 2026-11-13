@@ -7,7 +7,6 @@
 // 工具仍走本机 MCP，一次挂载长期留给这个进程；关掉连接中心时撤掉。
 // =============================================================
 
-import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { BrowserWindow } from 'electron'
 import { getClassContextSection } from '../agent/class-context'
@@ -20,13 +19,25 @@ import {
 import { selectSkillsForRun } from '../agent/tools'
 import { agentService } from '../agent-service'
 import { settingsService } from '../settings-service'
+import { ensureDshCatalogReady } from './dsh-model-catalog'
 import { getDshCurrentRoute, syncDshCredentialRoutes } from './dsh-model-settings'
-import { credentialedRouteIds, fillUnsetBotModels } from './im-bot-model'
+import {
+  credentialedRouteIds,
+  fillUnsetBotModels,
+  imExposesReadImage,
+  listedBotModels,
+} from './im-bot-model'
 import { composeImInstructions } from './im-instructions'
 import { ensureEaaImPresetPatch } from './im-preset'
 import { dshProviderRouting, dshSubprocessEnv, providersToDeclare } from './provider-patch'
-import { getDshRuntimeCwd } from './runtime'
-import { ensureEaaSkillPatch, materializeDshSkills, removeDshSkillDir } from './skill-mount'
+import {
+  profileRouteFill,
+  readLlmProviders,
+  syncUncataloguedRouteModels,
+  withProfileCredentialRefs,
+} from './provider-profile-patch'
+import { describeConfiguredRouteModel, getConfiguredDshBin, getDshRuntimeCwd } from './runtime'
+import { dshVisibleSkillDir, ensureEaaSkillPatch, materializeDshSkills } from './skill-mount'
 import {
   type EaaToolMount,
   ensureActiveEaaToolBridge,
@@ -42,16 +53,12 @@ export interface DshImLaunchPrep {
 }
 
 let held: EaaToolMount | null = null
-let heldSkillDir: string | null = null
 
-/** 撤掉连接中心占用的工具端点。重复调用无事发生。 */
+/** 撤掉连接中心占用的工具端点。技能留在 DSH_HOME/skills，下次启动会重写。 */
 export async function releaseDshImEducationLaunch(): Promise<void> {
   const mount = held
-  const skillDir = heldSkillDir
   held = null
-  heldSkillDir = null
   if (mount) await mount.release()
-  removeDshSkillDir(skillDir)
 }
 
 function credentialEnv(envNames: Record<string, string>): Record<string, string> {
@@ -74,44 +81,56 @@ export async function prepareDshImEducationLaunch(opts: {
 
   const providerIds = providersToDeclare()
   const routing = dshProviderRouting(providerIds)
-  const credentials: Record<string, { apiKeyEnv?: string }> = {}
+  const credentials: Record<string, ReturnType<typeof profileRouteFill>> = {}
   for (const [id, profile] of Object.entries(routing.profiles)) {
-    if (profile.apiKeyEnv) credentials[id] = { apiKeyEnv: profile.apiKeyEnv }
+    const fill = profileRouteFill(profile)
+    if (Object.keys(fill).length > 0) credentials[id] = fill
   }
   const webProfile = join(dirname(opts.patchDir), 'profiles', 'web')
   syncDshCredentialRoutes(webProfile, credentials)
   // 出厂默认是 deepseek-official，和网页搜索共用 DEEPSEEK_API_KEY。没这把钥匙时，
   // 只给还没选模型的机器人补上 dsh-im 自己的 models，不改 agent-default-model。
-  const modelEnv = credentialEnv(routing.envNames)
+  const modelEnv = credentialEnv(
+    withProfileCredentialRefs(routing.envNames, routing.profiles, readLlmProviders(webProfile)),
+  )
+  const home = dirname(opts.patchDir)
+  const selection = getDshCurrentRoute()
   fillUnsetBotModels({
-    home: dirname(opts.patchDir),
-    selection: getDshCurrentRoute(),
+    home,
+    selection,
     credentialedRoutes: credentialedRouteIds(routing.envNames, modelEnv),
   })
+  await ensureDshCatalogReady()
+  const picks = listedBotModels(home)
+  if (selection?.provider && selection.model) picks.push(selection)
+  syncUncataloguedRouteModels(webProfile, picks, describeConfiguredRouteModel)
 
   let privacyGuard: PrivacyGuard | undefined
   if (isAutoAnonymizeEnabled()) privacyGuard = await PrivacyGuard.create()
 
   const config = await agentService.getAgent('main')
   if (!config) throw new Error('主协调还没有加载，连接中心暂时接不上教育工具')
-  const tools = await agentService.buildMainSurfaceTools(opts.win, privacyGuard)
+  const tools = await agentService.buildMainSurfaceTools(
+    opts.win,
+    privacyGuard,
+    imExposesReadImage(dirname(opts.patchDir)),
+  )
   if (!tools?.length) throw new Error('主协调没有可挂载的工具')
 
   await ensureActiveEaaToolBridge({ patchDir: getDshRuntimeCwd() })
   let mount: EaaToolMount | null = null
   let skillDir: string | null = null
   try {
-    mount = await mountEaaAgentTools({ label: 'im', tools, via: 'plugin' })
+    mount = await mountEaaAgentTools({ label: 'im', tools })
     held = mount
-    skillDir = join(tmpdir(), 'eaa-dsh-skills', 'im')
+    skillDir = dshVisibleSkillDir(dirname(opts.patchDir), 'im')
     materializeDshSkills({
       destDir: skillDir,
       skills: selectSkillsForRun(config.capabilities),
       toolNameMap: mount.toolNameMap,
     })
-    heldSkillDir = skillDir
-    const skillPatch = ensureEaaSkillPatch(skillDir, skillDir)
-    const presetPatch = ensureEaaImPresetPatch(opts.patchDir, skillDir)
+    const skillPatch = ensureEaaSkillPatch(skillDir, skillDir, getConfiguredDshBin())
+    const presetPatch = ensureEaaImPresetPatch(opts.patchDir, skillDir, getConfiguredDshBin())
     const chat = settingsService.getSettings().chat
     const memory = memoryService.getMemorySection('main')
     const instructions = composeImInstructions(
@@ -142,9 +161,7 @@ export async function prepareDshImEducationLaunch(opts: {
     }
   } catch (err) {
     held = null
-    heldSkillDir = null
     await mount?.release()
-    removeDshSkillDir(skillDir)
     throw err
   }
 }

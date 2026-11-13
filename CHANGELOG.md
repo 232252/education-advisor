@@ -10,6 +10,27 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 > [`CHANGELOG.md`](https://github.com/232252/education-advisor/blob/main/CHANGELOG.md)
 > in its own repository. Cross-reference both when troubleshooting.
 
+## [3.3.7-beta.7] — 2026-11-13
+
+### Added
+
+- **原生多轮会话**：教师对话改走 dsh 持久化会话（稳定会话键 → `resumeSession` 跨进程恢复），不再把整段历史拼成文本前缀；长上下文压缩交给 dsh 自带 compaction。恢复失败自动回退文本前缀老路径，对话不中断。直连纯文本链路（成绩录入解析）行为逐字不变。
+- **提问 UI**：dsh 运行时的澄清类提问（`user-question/ask`）全链路接通——主进程提问桥 → IPC → 渲染端选项/自由文本作答面板（中英双语）。无窗口、中断、超时一律按取消处理，绝不等于同意。危险工具审批按最小权限刻意保持关闭。
+- **会话工作目录**：每会话一个隔离目录，agent 产出归拢其中（经 SDK `setWorkingDirectory` 绑给子进程）；对话页新增「会话产出文件」可折叠面板，支持列出与另存为；路径经净化与防穿越校验。
+- **斜杠指令**：输入 `/` 弹出 DSH 六个内置指令菜单（目标/计划/反馈/压缩/权限/导出，中英拼写），点选填入；执行经 dsh 原生 `session/query` 路由。纯状态指令（如压缩）靠 `session.query.completed` 收尾，不依赖模型轮次。指令清单与真实安装包守卫对照，DSH 升级漂移会变红。
+- **对话模式**：标准/计划（plan）/代码编排（PTC）三模式框架，按 cordis 行 id 开关，标准模式与现行加固逐字一致；角色×模式预设组合规范化。
+
+### Changed
+
+- 安全门禁三件套（版本钉死、官方工具行审计、推理档位表）全部对照真实安装包，DSH 升级时未登记的新行/新档位会变红，迫使显式决定关或留。
+- 目录外自定义模型默认上下文窗口改保守口径（32768/4096），不再猜 1M/128K，避免压缩阈值虚高致上下文超限。
+- 预设 `supportsImage` 全链路贯通（模型行、连接中心机器人、自定义模型）。
+
+### Removed
+
+- pnpm 遗留死代码清除：教师机不带 pnpm，连接中心依赖随包、缺失即要求重装。
+- 执行链路移除文本历史注入死代码（原生多轮后由 dsh 持有历史）。
+
 ## [3.3.7-beta.2] — 2026-11-11
 
 ### Fixed
@@ -260,7 +281,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - The `nul` file in the repository root (a Windows reparse-point residue from
   an earlier redirect) is git-ignored but can be safely removed by hand.
 
-[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.7-beta.2...HEAD
+[Unreleased]: https://github.com/232252/education-advisor/compare/v3.3.7-beta.7...HEAD
+[3.3.7-beta.7]: https://github.com/232252/education-advisor/compare/v3.3.7-beta.5...v3.3.7-beta.7
 [3.3.7-beta.2]: https://github.com/232252/education-advisor/compare/v3.3.7-beta.1...v3.3.7-beta.2
 [3.3.7-beta.1]: https://github.com/232252/education-advisor/compare/v3.3.7...v3.3.7-beta.1
 [3.3.7]: https://github.com/232252/education-advisor/compare/v3.3.6...v3.3.7

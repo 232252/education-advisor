@@ -22,6 +22,7 @@
 
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { toDshToolInputSchema } from './dsh-json-schema'
 
 /**
  * 本模块只依赖这个自有接口，不 import pi：任何满足它的对象都能被暴露，
@@ -191,7 +192,7 @@ async function handleRpc(
           tools: tools.map((t) => ({
             name: t.name,
             description: t.description,
-            inputSchema: t.parameters,
+            inputSchema: toDshToolInputSchema(t.parameters),
           })),
         },
       }

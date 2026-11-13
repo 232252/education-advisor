@@ -14,15 +14,10 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { dshRuntimeVersion } from './dsh-version'
 import { ensureEaaHardeningPatch } from './hardening'
 import { ensureOfficialPresetLock } from './im-preset'
-import {
-  DSH_IM_VERSION,
-  dshPnpmLaunch,
-  dshWebLaunchArgs,
-  parseDshWebAnnouncement,
-  pnpmInstallRegistry,
-} from './im-url'
+import { DSH_IM_VERSION, dshWebLaunchArgs, parseDshWebAnnouncement } from './im-url'
 import { ensureProfileHasEaaTools } from './plugin-install'
 import { materializeProfileLinks, profileLinksCurrent } from './plugin-links'
 import { dshChildEnv } from './pnpm-env'
@@ -32,13 +27,10 @@ export const DSH_IM_STAMP = 'eaa-dsh-im.stamp'
 /** 改面板插件时bump，已有 DSH_HOME 会重装。 */
 export const DSH_IM_INSTALL_STAMP = `${DSH_IM_VERSION}+panel1`
 const WEB_URL_TIMEOUT_MS = 120_000
-/** 回退安装的上限：依赖已随包分发，回退只在安装包损坏时触发，快速失败比干等好。 */
-const DEPS_INSTALL_TIMEOUT_MS = 3 * 60_000
 
 /**
- * 连接中心启动各阶段的进度。依赖已随包分发（afterPack 把 vendor/dsh-im 的
- * node_modules 补进 resources/dsh-im），正常首开直接命中标记、不联网；只有
- * 安装包损坏才走在线回退 —— 进度事件保证回退期间面板有状态而不是干等。
+ * 连接中心启动各阶段的进度。依赖已随包分发，正常首开直接命中标记、不联网。
+ * 安装包损坏时不再调用 pnpm，直接要求重装。
  */
 export interface DshImBootProgress {
   phase: 'deps' | 'plugins' | 'web'
@@ -98,8 +90,7 @@ export class DshImWebHost {
   }
 
   /**
-   * 只装依赖、不起 web：应用启动后闲时调一次，教师点开连接中心时
-   * ensurePluginDeps 已命中幂等标记，首开不再卡下载。
+   * 闲时确认随包依赖还在。缺了只记一条警告，打开连接中心时再明确要求重装。
    */
   async prewarmDeps(): Promise<void> {
     try {
@@ -120,7 +111,10 @@ export class DshImWebHost {
 
   private async boot(): Promise<DshImOpenResult> {
     if (!this.opts.dshBin || !existsSync(this.opts.dshBin)) {
-      return { ok: false, error: '还没有可用的 dsh 可执行文件（0.2.2-rc.1 依赖尚未装完）' }
+      return {
+        ok: false,
+        error: `还没有可用的 dsh 可执行文件（${dshRuntimeVersion()} 依赖尚未装完）`,
+      }
     }
     if (!existsSync(join(this.opts.imDir, 'package.json'))) {
       return { ok: false, error: `找不到 dsh-im 插件目录：${this.opts.imDir}` }
@@ -136,14 +130,14 @@ export class DshImWebHost {
       await this.ensureEducationPlugin()
       const patchDir = join(this.opts.home, 'patches')
       mkdirSync(patchDir, { recursive: true })
-      const hardening = ensureEaaHardeningPatch(patchDir)
-      const welcome = ensureEaaWelcomeNoticePatch(patchDir)
+      const hardening = ensureEaaHardeningPatch(patchDir, this.opts.dshBin)
+      const welcome = ensureEaaWelcomeNoticePatch(patchDir, this.opts.dshBin)
       const prepared = await this.opts.prepareLaunch?.(patchDir)
       this.launchEnv = prepared?.env ?? {}
       if (prepared?.instructions.trim()) {
         writeFileSync(join(this.opts.home, 'AGENTS.md'), prepared.instructions, 'utf8')
       }
-      const presetLock = ensureOfficialPresetLock(patchDir, this.opts.dshBin, prepared?.skillDir)
+      const presetLock = ensureOfficialPresetLock(patchDir, this.opts.dshBin)
       const url = await this.startWeb([
         hardening,
         welcome,
@@ -159,71 +153,12 @@ export class DshImWebHost {
   }
 
   /**
-   * link: 不会顺带装插件自己的依赖。依赖已随包分发，qrcode 标记在位时直接
-   * 返回（离线首开的正路）；标记缺失说明安装包损坏，走在线回退
-   * （--prefer-offline：本地 store 有就不用联网），镜像源失败退回默认源。
-   * 两头都失败时指向重装应用 —— 这个分支不该在正常安装里出现。
+   * 依赖随安装包分发。qrcode 标记在位就继续；缺失说明安装包损坏。
+   * 教师机器不再跑 pnpm，避免在没有包管理器时卡住或改写 DSH 的依赖树。
    */
   private async ensurePluginDeps(): Promise<void> {
     if (existsSync(join(this.opts.imDir, 'node_modules', 'qrcode', 'package.json'))) return
-    const base = ['install', '--prod', '--ignore-scripts', '--prefer-offline']
-    const registry = pnpmInstallRegistry(this.opts.env ?? process.env)
-    try {
-      if (registry) {
-        await this.withProgress(
-          { phase: 'deps', message: `正在修复连接中心组件（镜像源 ${new URL(registry).host}）` },
-          (report) => this.runPnpm([...base, '--registry', registry], this.opts.imDir, report),
-        )
-      } else {
-        await this.withProgress({ phase: 'deps', message: '正在修复连接中心组件' }, (report) =>
-          this.runPnpm(base, this.opts.imDir, report),
-        )
-      }
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err)
-      const fail = (): never => {
-        throw new Error(
-          `连接中心组件缺失且在线修复失败（${reason}）。请重新安装应用以恢复随包组件。`,
-        )
-      }
-      if (!registry) fail()
-      // 镜像源失败（学校防火墙/镜像同步缺包）→ 退回默认源再试一次
-      try {
-        await this.withProgress(
-          { phase: 'deps', message: '镜像源失败，改用默认源重试…' },
-          (report) => this.runPnpm(base, this.opts.imDir, report),
-        )
-      } catch {
-        fail()
-      }
-    }
-  }
-
-  /** 包一层：进度事件 + 依赖安装超时（pnpm 挂起时别永远「正在打开」）。 */
-  private withProgress(
-    start: DshImBootProgress,
-    run: (report: (line: string) => void) => Promise<void>,
-  ): Promise<void> {
-    this.opts.onProgress?.(start)
-    return new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error(`组件安装超时（${DEPS_INSTALL_TIMEOUT_MS / 60_000} 分钟）`)),
-        DEPS_INSTALL_TIMEOUT_MS,
-      )
-      const settle = (err?: unknown) => {
-        clearTimeout(timer)
-        if (err) reject(err)
-        else resolve()
-      }
-      const report = (line: string) => {
-        const text = line.trim()
-        if (text) this.opts.onProgress?.({ phase: start.phase, message: text })
-      }
-      run(report).then(
-        () => settle(),
-        (err: unknown) => settle(err),
-      )
-    })
+    throw new Error('连接中心组件不完整（缺少随包依赖）。请重新安装应用，不要在本机用 pnpm 补装。')
   }
 
   private async ensurePlugins(panelDir: string): Promise<void> {
@@ -308,47 +243,6 @@ export class DshImWebHost {
             ),
           ),
         )
-      })
-    })
-  }
-
-  private runPnpm(args: string[], cwd: string, onLine?: (line: string) => void): Promise<void> {
-    const launch = dshPnpmLaunch(this.opts.dshBin, this.opts.execPath)
-    return new Promise((resolve, reject) => {
-      const child = spawn(launch.command, [...launch.prefix, ...args], {
-        cwd,
-        env: this.childEnv(),
-        windowsHide: true,
-        shell: launch.shell,
-      })
-      let stderr = ''
-      let stdoutLine = ''
-      child.stderr?.setEncoding('utf8')
-      child.stdout?.setEncoding('utf8')
-      child.stderr?.on('data', (chunk: string) => {
-        stderr = (stderr + chunk).slice(-4000)
-      })
-      // pnpm 非交互模式下按行打进度（Packages: +qrcode@… / Progress: …）
-      child.stdout?.on('data', (chunk: string) => {
-        stdoutLine += chunk
-        const lines = stdoutLine.split(/\r?\n/)
-        stdoutLine = lines.pop() ?? ''
-        for (const line of lines) onLine?.(line)
-      })
-      child.once('error', (err: NodeJS.ErrnoException) => {
-        reject(
-          err.code === 'ENOENT' ? new Error('找不到 pnpm，连接中心无法安装 dsh-im 的依赖') : err,
-        )
-      })
-      child.once('exit', (code) => {
-        if (stdoutLine.trim()) onLine?.(stdoutLine)
-        if (code === 0) resolve()
-        else
-          reject(
-            new Error(
-              `pnpm ${args.join(' ')} 退出码 ${code ?? 'null'}${stderr ? `: ${stderr}` : ''}`,
-            ),
-          )
       })
     })
   }

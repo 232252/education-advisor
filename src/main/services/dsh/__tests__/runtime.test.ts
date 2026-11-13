@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import type { StreamEvent } from '@shared/types/ai'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { getDshCatalogRoot } from '../dsh-model-catalog'
+import { configureDshCatalogSource, getDshCatalogRoot } from '../dsh-model-catalog'
 import { EAA_HARDENING_PATCH_FILE } from '../hardening'
 import { configureDshCredentials, EAA_PROVIDER_PATCH_FILE } from '../provider-patch'
 import type { DshClientLike, DshNotification, DshSubscriptionLike } from '../runtime'
@@ -370,6 +370,18 @@ describe('createDshRuntime（生产唯一构造入口）', () => {
     expect(existsSync(patches[0])).toBe(true)
   })
 
+  it('角色说明目录只注入这一次子进程的 DSH_AGENTS_HOME', () => {
+    const rt = createDshRuntime({
+      cwd: dir,
+      provider: 'p',
+      model: 'm',
+      agentsHome: join(dir, 'agents', 'main'),
+    })
+    const opts = (rt as unknown as { opts: { env: Record<string, string> } }).opts
+    expect(opts.env.DSH_AGENTS_HOME).toBe(join(dir, 'agents', 'main'))
+    expect(opts.env.PATH).toBe(process.env.PATH)
+  })
+
   it('教育工具端点放进环境变量，不另写一份 mcp patch', () => {
     const rt = createDshRuntime({
       cwd: dir,
@@ -504,6 +516,80 @@ describe('createDshRuntime（生产唯一构造入口）', () => {
     expect(text).toContain('EAA_DSH_KIMI_API_KEY')
     expect(text).not.toContain('k2-turbo')
     expect(text).not.toContain('contextWindow: 200000')
+    configureDshRuntime({ cwd: dir })
+    configureDshCredentials(null)
+  })
+
+  it('自定义网关地址写入 sdk profile，模型目录仍不写进去', () => {
+    configureDshCredentials({
+      listProviders: () => ['kimi'],
+      getApiKey: () => 'sk-test',
+      modelsSettings: () => ({
+        customModels: { kimi: [{ baseUrl: 'https://gateway.school.local/v1' }] },
+        retry: { providerTimeoutMs: 45000 },
+      }),
+    })
+    const sdkHome = join(dir, 'dsh-sdk-home')
+    configureDshRuntime({ cwd: dir, sdkHome })
+    createDshRuntime({ cwd: dir, provider: 'kimi', model: 'k2-turbo' })
+    const text = readFileSync(join(sdkHome, 'profiles', 'sdk', 'cordis.patch.yml'), 'utf8')
+    expect(text).toContain('baseURL: https://gateway.school.local/v1')
+    expect(text).toContain('timeoutMs: 45000')
+    expect(text).toContain('EAA_DSH_KIMI_API_KEY')
+    expect(text).not.toContain('k2-turbo')
+    expect(text).not.toContain('sk-test')
+    configureDshRuntime({ cwd: dir })
+    configureDshCredentials(null)
+  })
+
+  it('官方目录里有的路由不写 models，目录外的自建路由写下当前模型', () => {
+    configureDshCatalogSource({
+      listProviders: () => [{ id: 'kimi', name: 'Kimi' }],
+      listModels: (id) =>
+        id === 'kimi'
+          ? [
+              {
+                id: 'k2',
+                name: 'K2',
+                api: 'openai-completions',
+                contextWindow: 1,
+                maxTokens: 1,
+                input: ['text'],
+                supportsReasoning: false,
+                costPerInputToken: 0,
+                costPerOutputToken: 0,
+                costCacheRead: 0,
+                costCacheWrite: 0,
+                baseUrl: '',
+              },
+            ]
+          : [],
+    })
+    configureDshCredentials({
+      listProviders: () => ['kimi', 'school-gateway'],
+      getApiKey: () => 'sk-test',
+    })
+    const sdkHome = join(dir, 'dsh-sdk-home')
+    configureDshRuntime({
+      cwd: dir,
+      sdkHome,
+      routeModel: (_route, id) => ({
+        id,
+        name: id,
+        api: 'openai-completions',
+        contextWindow: 8000,
+        maxTokens: 2000,
+        input: ['text'],
+      }),
+    })
+    createDshRuntime({ cwd: dir, provider: 'kimi', model: 'k2' })
+    createDshRuntime({ cwd: dir, provider: 'school-gateway', model: 'custom-1' })
+    const text = readFileSync(join(sdkHome, 'profiles', 'sdk', 'cordis.patch.yml'), 'utf8')
+    expect(text).toContain('id: custom-1')
+    expect(text).toContain('api: openai-completions')
+    expect(text).not.toContain('id: k2')
+    expect(text).not.toContain('sk-test')
+    configureDshCatalogSource(null)
     configureDshRuntime({ cwd: dir })
     configureDshCredentials(null)
   })

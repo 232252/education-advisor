@@ -211,11 +211,16 @@ describe('piAIService 流式后端选择', () => {
     expect(console.warn).toHaveBeenCalled()
   })
 
-  it('对话链路不挂 MCP 端点（工具面与 pi 路径一样为空）', async () => {
+  it('直连对话是最小权限纯文本链路：不挂 MCP 端点、不带工具补丁', async () => {
+    // ai:chat 直连的唯一调用方是成绩录入「文本→JSON」纯解析，提示词不引用
+    // 任何工具。给它挂教育工具反而违反教师机最小权限（DSH_CORE_RUNTIME.md）。
+    // 工具面只属于 agent 执行链路（execution.ts）与连接中心（im-education.ts）。
     state.backend = 'dsh'
     const { piAIService } = await import('../../src/main/services/pi-ai-service')
     await drain(piAIService.chatStream(request('kimi', 'kimi-k2')))
     expect(state.dshOpts).not.toHaveProperty('patches')
+    expect(state.dshOpts).not.toHaveProperty('mcp')
+    expect(state.dshOpts).not.toHaveProperty('agentsHome')
   })
 
   it('界面上选的推理档位随 initialize 定死进子进程；模型不支持的档省略', async () => {

@@ -1,6 +1,7 @@
 // 对话工具栏的思考档。目录里写成 null 的档，dsh 不会发送，整轮会按关闭处理。
 
-/** 与 dsh 0.2.1 的 THINKING_LEVELS 一致，含目录里的 max。 */
+/** 与 dsh 0.2.2-rc.1 的 THINKING_LEVELS 一致，含目录里的 max。
+ * 一致性由 dsh/__tests__/thinking-levels-pin.test.ts 对照真实安装包守卫。 */
 export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 
 export type ThinkingLevelName = (typeof THINKING_LEVELS)[number]

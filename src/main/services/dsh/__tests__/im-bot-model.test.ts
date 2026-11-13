@@ -2,7 +2,14 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { credentialedRouteIds, fillUnsetBotModels } from '../im-bot-model'
+import { configureDshCatalogSource } from '../dsh-model-catalog'
+import { configureDshModelSettings } from '../dsh-model-settings'
+import {
+  credentialedRouteIds,
+  fillUnsetBotModels,
+  imExposesReadImage,
+  listedBotModels,
+} from '../im-bot-model'
 
 const SELECTION = { provider: 'zai-coding-cn', model: 'glm-5.3-flash' }
 
@@ -116,5 +123,72 @@ describe('fillUnsetBotModels', () => {
 
     expect(result.filled).toBe(0)
     expect(await readFile(join(weixin, 'workspaces.json'), 'utf8')).toBe(original)
+  })
+
+  it('读出各渠道已经选好的模型', async () => {
+    home = await mkdtemp(join(tmpdir(), 'eaa-im-bot-'))
+    const weixin = join(home, 'integrations', 'dsh-weixin')
+    await mkdir(weixin, { recursive: true })
+    await writeFile(
+      join(weixin, 'workspaces.json'),
+      `${JSON.stringify({
+        models: {
+          wx_bot: { provider: 'zai-coding-cn', model: 'glm-5.3-flash', reasoningEffort: 'high' },
+          broken: { provider: 'zai-coding-cn' },
+        },
+      })}\n`,
+      'utf8',
+    )
+    expect(listedBotModels(home)).toEqual([
+      { provider: 'zai-coding-cn', model: 'glm-5.3-flash', reasoningEffort: 'high' },
+    ])
+  })
+})
+
+describe('imExposesReadImage', () => {
+  let home: string
+
+  afterEach(async () => {
+    configureDshCatalogSource(null)
+    configureDshModelSettings('')
+    if (home) await rm(home, { recursive: true, force: true })
+  })
+
+  it('渠道或当前路由里有视觉模型才挂 read_image', async () => {
+    home = await mkdtemp(join(tmpdir(), 'eaa-im-vision-'))
+    configureDshModelSettings('')
+    configureDshCatalogSource({
+      listProviders: () => [],
+      listModels: (id) =>
+        id === 'zai-coding-cn'
+          ? [
+              {
+                id: 'glm-5.3-flash',
+                name: 'GLM',
+                api: 'openai-completions',
+                contextWindow: 1,
+                maxTokens: 1,
+                input: ['text', 'image'],
+                supportsReasoning: false,
+                costPerInputToken: 0,
+                costPerOutputToken: 0,
+                costCacheRead: 0,
+                costCacheWrite: 0,
+                baseUrl: '',
+              },
+            ]
+          : [],
+    })
+    expect(imExposesReadImage(home)).toBe(false)
+    const weixin = join(home, 'integrations', 'dsh-weixin')
+    await mkdir(weixin, { recursive: true })
+    await writeFile(
+      join(weixin, 'workspaces.json'),
+      `${JSON.stringify({
+        models: { wx_bot: { provider: 'zai-coding-cn', model: 'glm-5.3-flash' } },
+      })}\n`,
+      'utf8',
+    )
+    expect(imExposesReadImage(home)).toBe(true)
   })
 })

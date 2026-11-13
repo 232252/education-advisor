@@ -27,8 +27,12 @@ export const agentApi: AgentAPI = {
   setRules: (id: string, content: string) => ipcInvoke(IPC.IPC_AGENT_SET_RULES, id, content),
 
   // [w] 手动触发 agent 执行
-  runManual: (id: string, prompt: string, history?: Array<{ role: string; content: string }>) =>
-    ipcInvoke(IPC.IPC_AGENT_RUN_MANUAL, id, prompt, history),
+  runManual: (
+    id: string,
+    prompt: string,
+    history?: Array<{ role: string; content: string }>,
+    chatSessionId?: string,
+  ) => ipcInvoke(IPC.IPC_AGENT_RUN_MANUAL, id, prompt, history, chatSessionId),
 
   // [c] 中断 agent 执行
   abort: (id: string) => ipcInvoke(IPC.IPC_AGENT_ABORT, id),

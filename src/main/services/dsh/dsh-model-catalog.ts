@@ -38,10 +38,20 @@ export interface DshCatalogSource {
 }
 
 let injected: DshCatalogSource | null = null
+let catalogGeneration = 0
+let settledGeneration = -1
 
 /** 单测或宿主装配时注入；传 null 恢复为读取运行时目录。 */
 export function configureDshCatalogSource(source: DshCatalogSource | null): void {
   injected = source
+}
+
+/**
+ * 官方目录是否已经读完。没读完时 listModels 会暂时是空的，
+ * 不能据此判断「这条路由没有目录」然后把 models 写进 profile。
+ */
+export function isDshCatalogSettled(): boolean {
+  return injected !== null || settledGeneration === catalogGeneration
 }
 
 export function getDshCatalogSource(): DshCatalogSource {
@@ -85,6 +95,7 @@ function loadRuntimeCatalog(): DshCatalogSource {
     return { listProviders: () => [], listModels: () => [] }
   }
   if (cached && cachedRoot === root) return cached
+  const generation = ++catalogGeneration
   const allJs = join(
     root,
     'node_modules',
@@ -125,6 +136,7 @@ function loadRuntimeCatalog(): DshCatalogSource {
       }
       providers = nextProviders
       modelsById = nextModels
+      if (generation === catalogGeneration) settledGeneration = generation
     })
     .catch((err: unknown) => {
       console.warn('[dsh-model-catalog] failed to import official pi-ai catalog:', err)

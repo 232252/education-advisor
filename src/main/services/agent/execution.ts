@@ -8,32 +8,40 @@
 // 日志前缀与事件负载逐字保留,行为零变化)
 // =============================================================
 
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { AgentMessage, AgentTool } from '@main/services/llm-contracts'
+import type { AgentTool } from '@main/services/llm-contracts'
 import type { AgentConfig, AgentExecution, AgentRunSource, AgentStatus } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { errText } from '../../utils/err-text'
 import { log, logChat } from '../../utils/logger'
 import { resolveApiKey, selectModelForRun } from '../agent-model-selector'
-import { compactPlainChat } from '../compaction-helper'
 import { dbService } from '../db-service'
 import { createDshAgent } from '../dsh/agent-facade'
+import { ensureAgentsInstructionBudget, writeRoleAgentsHome } from '../dsh/agents-home'
+import { ensureChatModePatch } from '../dsh/chat-modes'
 import { ensureEaaToolsOnSdkProfile } from '../dsh/plugin-install'
 import { dshRouteFingerprint } from '../dsh/provider-patch'
 import { dshRouteFor } from '../dsh/route'
 import { dshReasoningEffort } from '../dsh/route-names'
-import { createDshRuntime, type DshRuntime, getDshRuntimeCwd } from '../dsh/runtime'
-import { ensureEaaSkillPatch, materializeDshSkills, removeDshSkillDir } from '../dsh/skill-mount'
+import {
+  createDshRuntime,
+  type DshRuntime,
+  getConfiguredDshBin,
+  getDshRuntimeCwd,
+  getDshSdkHome,
+} from '../dsh/runtime'
+import { ensureSessionWorkspace } from '../dsh/session-workspace'
+import { dshVisibleSkillDir, ensureEaaSkillPatch, materializeDshSkills } from '../dsh/skill-mount'
 import {
   type EaaToolMount,
   ensureActiveEaaToolBridge,
   mountEaaAgentTools,
   pluginProcessEnv,
 } from '../dsh/tool-bridge'
+import { rewriteToolNames } from '../dsh/tool-names'
 import { ollamaService } from '../ollama-service'
+import { resolveAppDataDir } from '../paths'
 import { resolveModel } from '../pi-ai/model-utils'
-import { createAssistantPlaceholder } from '../pi-ai-helpers'
 import { settingsService } from '../settings-service'
 import { getClassContextSection } from './class-context'
 import { runContinuationLoop } from './continuation'
@@ -138,6 +146,12 @@ function notifyStatus(
  * console.error,用户界面永远静止(2026-08-28 审计的致命项)。
  * 内部已自行推送过的错误带 reportedToRenderer 标记,此处去重。
  */
+/** 运行选项：会话工作目录等按次运行的上下文（尾参，旧调用兼容） */
+export interface AgentRunOptions {
+  /** 聊天会话 id：给了就把本次运行的工作目录绑到该会话的产出目录 */
+  chatSessionId?: string
+}
+
 export async function executeAgentRun(
   deps: AgentExecutionDeps,
   id: string,
@@ -146,9 +160,10 @@ export async function executeAgentRun(
   history?: Array<{ role: string; content: string; timestamp?: number }>,
   generation?: number,
   source: AgentRunSource = 'ui',
+  options?: AgentRunOptions,
 ): Promise<AgentExecution | undefined> {
   try {
-    return await executeAgentRunInner(deps, id, prompt, win, history, generation, source)
+    return await executeAgentRunInner(deps, id, prompt, win, history, generation, source, options)
   } catch (err) {
     const reported = (err as { reportedToRenderer?: boolean }).reportedToRenderer === true
     if (!reported) {
@@ -165,9 +180,11 @@ async function executeAgentRunInner(
   id: string,
   prompt: string,
   win: BrowserWindow | undefined,
-  history?: Array<{ role: string; content: string; timestamp?: number }>,
+  // 原生多轮后历史由 dsh 持久化持有，app 侧历史不再注入；保留入参兼容调用方
+  _history?: Array<{ role: string; content: string; timestamp?: number }>,
   generation?: number,
   source: AgentRunSource = 'ui',
+  options?: AgentRunOptions,
 ): Promise<AgentExecution | undefined> {
   // 排队期间可能被删除/停用 → 与 runAgent 入口共用同一守卫
   const config = deps.getConfig(id)
@@ -292,18 +309,21 @@ async function executeAgentRunInner(
   let dshRuntime: DshRuntime | null = null
   await ensureEaaToolsOnSdkProfile()
   await ensureActiveEaaToolBridge({ patchDir: getDshRuntimeCwd() })
-  toolMount = await mountEaaAgentTools({ label: id, tools, via: 'plugin' })
-  skillDir = join(
-    tmpdir(),
-    'eaa-dsh-skills',
-    `${id.replace(/[^A-Za-z0-9_-]/g, '_')}-${Date.now().toString(36)}`,
-  )
+  toolMount = await mountEaaAgentTools({ label: id, tools })
+  skillDir = dshVisibleSkillDir(getDshSdkHome() || join(getDshRuntimeCwd(), 'dsh-sdk-home'), id)
   materializeDshSkills({
     destDir: skillDir,
     skills: selectSkillsForRun(config.capabilities),
     toolNameMap: toolMount.toolNameMap,
   })
-  const skillPatch = ensureEaaSkillPatch(skillDir, skillDir)
+  const skillPatch = ensureEaaSkillPatch(skillDir, skillDir, getConfiguredDshBin())
+  const sdkHome = getDshSdkHome()
+  const agentsHome = sdkHome
+    ? writeRoleAgentsHome(sdkHome, id, rewriteToolNames(systemPrompt, toolMount.toolNameMap))
+    : undefined
+  const instructionPatch = agentsHome
+    ? ensureAgentsInstructionBudget(getDshRuntimeCwd(), getConfiguredDshBin())
+    : undefined
   // 路由名按 settings.models.dshRoutes 映射（dsh 的 provider 路由是用户在自己
   // dsh 配置里声明的 key，不等于 pi 的 provider id）
   const route = dshRouteFor(String(model.provider), model.id)
@@ -314,13 +334,23 @@ async function executeAgentRunInner(
     resolveModel(String(model.provider), model.id)?.thinkingLevelMap,
     settingsService.getSettings().chat?.thinkingLevel ?? 'medium',
   )
+  // 对话模式（standard/plan/ptc）：一份行开关 patch，排在加固层之后覆盖。
+  // standard 返回 null＝不带这层，与既往行为逐字一致。
+  const modePatch = ensureChatModePatch(getDshRuntimeCwd(), chatSettings?.mode ?? 'standard')
   dshRuntime = createDshRuntime({
     provider: route.providerId,
     model: route.modelId,
     reasoningEffort,
     configFingerprint: dshRouteFingerprint(String(model.provider)),
     mcp: { env: pluginProcessEnv(toolMount.pluginEndpoints) },
-    patches: [skillPatch],
+    ...(agentsHome ? { agentsHome } : {}),
+    patches: [
+      ...(modePatch ? [modePatch] : []),
+      skillPatch,
+      ...(instructionPatch ? [instructionPatch] : []),
+    ],
+    // 智能体可向教师提问澄清（审批仍关闭，危险工具不放开）
+    enableQuestions: true,
   })
   log(
     'info',
@@ -328,13 +358,25 @@ async function executeAgentRunInner(
     `runAgent(${id}) dsh 工具挂载 plugins=${toolMount.pluginEndpoints.map((ep) => ep.serverName).join(',')} tools=${tools.length}`,
   )
 
+  // 会话工作目录：给了聊天会话 id 就把本次运行的产出归拢到该会话目录，
+  // 并经 SDK setWorkingDirectory 绑给 dsh（完整工作目录，决策 P4）。
+  let sessionWorkspace: string | null = null
+  if (options?.chatSessionId) {
+    sessionWorkspace = await ensureSessionWorkspace(resolveAppDataDir(), options.chatSessionId)
+  }
+
   // 创建 dsh agent 替身（满足 AgentRuntimeLike 契约）
   const agent: AgentRuntimeLike = createDshAgent({
     runtime: dshRuntime,
     model,
     systemPrompt,
+    // 有 sdk home 时说明在 AGENTS.md。投影仍保留原文，用户消息里不再重复。
+    ...(agentsHome ? { instructionsViaAgentsHome: true } : {}),
     // dsh 侧工具被强制改写成 mcp__<serverName>__<name>，提示词里的裸名必须同步
     toolNameMap: toolMount.toolNameMap,
+    // 原生多轮：按 agent id 派生稳定会话，历史由 dsh 持久化/恢复，不再拼文本前缀
+    sessionKey: id,
+    ...(sessionWorkspace ? { workingDirectory: sessionWorkspace } : {}),
   })
 
   // 设置工具
@@ -399,54 +441,10 @@ async function executeAgentRunInner(
 
   const unsubscribe = agent.subscribe(collectorHandler)
 
-  // 脱敏先于压缩：摘要也是一次出域调用，不能带着真名去写。
-  let historyForRun = history
-  const guard = privacyGuard
-  if (historyForRun && guard) {
-    historyForRun = historyForRun.map((msg) => ({
-      ...msg,
-      content: msg.content ? guard.anonymize(msg.content) : msg.content,
-    }))
-  }
-  if (historyForRun && historyForRun.length > 2) {
-    try {
-      historyForRun = await compactPlainChat(historyForRun, model, {
-        enabled: compactionEnabled,
-        reserveTokens: compactionReserve,
-        keepRecentTokens: compactionKeep,
-      })
-    } catch (err) {
-      console.warn(`[AgentService] runAgent(${id}) compaction skipped:`, errText(err))
-    }
-  }
-  // DSH agent facade 将 state.messages + 新 prompt 合并后发给 DSH 子进程
-  if (historyForRun && historyForRun.length > 0) {
-    const historyMessages: AgentMessage[] = []
-    for (const msg of historyForRun) {
-      if (!msg.content) continue
-      const content = msg.content
-      // 时间戳透传: 全部重置为 now 会让模型无法区分"上周说的"和"刚才说的"
-      // (渲染端旧历史无时间戳时回退 now,保持兼容)
-      const timestamp = typeof msg.timestamp === 'number' ? msg.timestamp : Date.now()
-      if (msg.role === 'user') {
-        historyMessages.push({
-          role: 'user' as const,
-          content,
-          timestamp,
-        })
-      } else if (msg.role === 'assistant') {
-        // 最小合法 AssistantMessage 占位(构造统一收口 pi-ai-helpers)
-        historyMessages.push(createAssistantPlaceholder(content, model, timestamp) as AgentMessage)
-      }
-      // system / toolResult 等角色跳过 — 不影响核心对话语义
-    }
-    if (historyMessages.length > 0) {
-      agent.state.messages = historyMessages
-      console.log(
-        `[AgentService] runAgent(${id}) injected ${historyMessages.length} history messages (${historyForRun.length} raw)`,
-      )
-    }
-  }
+  // 原生多轮：历史由 dsh 持久化持有并经 resumeSession 恢复（sessionKey=id），
+  // 不再把 app 侧历史脱敏/压缩后拼成文本前缀注入 —— 那会与 dsh 上下文重复，
+  // 且压缩本身是一次额外出域调用。长上下文压缩交给 dsh 运行时的 compaction。
+  // 本轮新 prompt 的脱敏在下方 agent.prompt 处进行。
 
   try {
     // M-4 修复: recordExecutionStart 移入 try 块,DB 抛错时走 catch 清理流程
@@ -619,7 +617,6 @@ async function executeAgentRunInner(
     deps.deleteRunning(id)
     // dsh 路径: 撤掉本次运行的 MCP 端点与 patch 文件(子进程已在上面 abort 时关掉)
     if (toolMount) await toolMount.release()
-    removeDshSkillDir(skillDir)
     // M0: 清除来源登记(放在 deleteRunning 旁,与 setRunning 对称)
     clearActiveRunSource(id)
   }
